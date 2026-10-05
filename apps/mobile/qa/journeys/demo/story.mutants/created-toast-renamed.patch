@@ -1,0 +1,19 @@
+journey: demo/story
+expect-fail: S1
+
+Creating a cabal toasts "Cabal saved.". S1.3 waits for "Cabal created.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
+index 26ae8c013..98f161753 100644
+--- a/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
++++ b/apps/mobile/Monaco/Features/Groups/CreateGroupView.swift
+@@ -13,7 +13,7 @@ enum CabalRulesCopy {
+     static let expiryTitle = "Votes stay open"
+     static let create = "Create cabal"
+     static let creating = "Creating…"
+-    static let created = "Cabal created."
++    static let created = "Cabal saved."
+ 
+     static var auditedStrings: [String] {
+         [
