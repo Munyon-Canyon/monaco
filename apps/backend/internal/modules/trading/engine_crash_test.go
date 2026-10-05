@@ -57,8 +57,8 @@ func TestTradeEngine_CrashAfterCreate_RedeliveryLeavesTheCreatedRowToTheSweeper(
 	cmd := e.buy()
 	d := e.crashThenRedeliver(t, faultpoint.AfterCreate, cmd)
 	e.assertOneSwap(t, cmd, "created", 0)
-	if e.recorded(t, d) {
-		t.Fatal("the redelivery recorded the delivery for a swap it never finished")
+	if !e.recorded(t, d) {
+		t.Fatal("the redelivery acked without recording the delivery, so the event never shows as handled")
 	}
 }
 
