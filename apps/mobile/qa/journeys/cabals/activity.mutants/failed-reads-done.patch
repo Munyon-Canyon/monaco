@@ -1,0 +1,19 @@
+journey: cabals/activity
+expect-fail: S1 S2
+
+A failed trade reads as done. S1.2 waits for Failed on the row and S2.2 on the receipt, so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Activity/ActivityRow.swift b/packages/mobile-core/Sources/MonacoCore/Activity/ActivityRow.swift
+index c4bc25b2..0f6d256f 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Activity/ActivityRow.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Activity/ActivityRow.swift
+@@ -78,7 +78,7 @@ extension ActivityRow.Status {
+         switch payload {
+         case .pending: self = .pending
+         case .confirmed: self = .confirmed
+-        case .failed: self = .failed
++        case .failed: self = .confirmed
+         }
+     }
+ }

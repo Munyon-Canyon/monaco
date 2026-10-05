@@ -1,0 +1,19 @@
+journey: cabals/activity
+expect-fail: S1 S2
+
+The cabal screen has no Activity section. S1.2 and S2.2 wait for an activity row, so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActivitySlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActivitySlot.swift
+index 5541cff1..af319461 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActivitySlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActivitySlot.swift
+@@ -3,7 +3,7 @@ import MonacoCore
+ import SwiftUI
+ 
+ enum CabalActivitySlot: CabalSection {
+-    static let isLive = true
++    static let isLive = false
+ 
+     static func body(for context: CabalContext) -> some View {
+         CabalActivityLive(cabalID: context.cabalID)
