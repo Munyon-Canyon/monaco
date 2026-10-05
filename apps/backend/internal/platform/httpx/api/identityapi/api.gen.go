@@ -211,6 +211,44 @@ type Me struct {
 	XUsername *string `json:"x_username,omitempty"`
 }
 
+// PublicProfile A user's public profile with their follow counts.
+type PublicProfile struct {
+	// DisplayName The user's display name.
+	//
+	// Examples: Maya Angelou
+	DisplayName string `json:"display_name"`
+
+	// FollowedByMe Whether the caller follows them. False for the caller's own profile.
+	//
+	// Examples: true
+	FollowedByMe bool `json:"followed_by_me"`
+
+	// FollowerCount How many users follow them.
+	//
+	// Examples: 12
+	FollowerCount int `json:"follower_count"`
+
+	// FollowingCount How many users they follow.
+	//
+	// Examples: 7
+	FollowingCount int `json:"following_count"`
+
+	// Handle The user's handle.
+	//
+	// Examples: maya
+	Handle string `json:"handle"`
+
+	// Id The user's id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// PhotoUrl The profile photo, or null when there is none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+}
+
 // SetHandle A handle to claim for the caller.
 type SetHandle struct {
 	// Handle Examples: kai_one
@@ -378,6 +416,9 @@ type ServerInterface interface {
 	// SearchUsers Search people by handle or display name.
 	// (GET /v1/users)
 	SearchUsers(w http.ResponseWriter, r *http.Request, params SearchUsersParams)
+	// GetUser Read a user's public profile.
+	// (GET /v1/users/{id})
+	GetUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -908,6 +949,32 @@ func (siw *ServerInterfaceWrapper) SearchUsers(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetUser operation middleware
+func (siw *ServerInterfaceWrapper) GetUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1041,6 +1108,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/socials", wrapper.PostOnboardingSocials)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/profile-photo", wrapper.PostProfilePhoto)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users", wrapper.SearchUsers)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}", wrapper.GetUser)
 
 	return m
 }
@@ -1538,6 +1606,45 @@ func (response SearchUsersdefaultApplicationProblemPlusJSONResponse) VisitSearch
 	return err
 }
 
+type GetUserRequestObject struct {
+	Id externalRef0.UserId `json:"id"`
+}
+
+type GetUserResponseObject interface {
+	VisitGetUserResponse(w http.ResponseWriter) error
+}
+
+type GetUser200JSONResponse PublicProfile
+
+func (response GetUser200JSONResponse) VisitGetUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUserdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetUserdefaultApplicationProblemPlusJSONResponse) VisitGetUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// PostAuthSession Open a session from a Privy access token.
@@ -1579,6 +1686,9 @@ type StrictServerInterface interface {
 	// SearchUsers Search people by handle or display name.
 	// (GET /v1/users)
 	SearchUsers(ctx context.Context, request SearchUsersRequestObject) (SearchUsersResponseObject, error)
+	// GetUser Read a user's public profile.
+	// (GET /v1/users/{id})
+	GetUser(ctx context.Context, request GetUserRequestObject) (GetUserResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1987,6 +2097,32 @@ func (sh *strictHandler) SearchUsers(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SearchUsersResponseObject); ok {
 		if err := validResponse.VisitSearchUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUser operation middleware
+func (sh *strictHandler) GetUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId) {
+	var request GetUserRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUser(ctx, request.(GetUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUserResponseObject); ok {
+		if err := validResponse.VisitGetUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
