@@ -9,3 +9,14 @@
 
 /assets/*
   Cache-Control: public, max-age=86400
+
+# The fund page. Its full Content-Security-Policy is a meta tag written at build time (see
+# csp.ts), because the API origin differs per deploy; this header adds frame-ancestors, which a
+# meta tag cannot set. The page carries a one-time token, so nothing caches it.
+/fund
+  Cache-Control: no-store
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+
+/fund/*
+  Cache-Control: no-store
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
