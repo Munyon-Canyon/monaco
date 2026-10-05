@@ -8,35 +8,8 @@ import FoundationNetworking
 #endif
 
 final class MoneyFlowCopyTests: XCTestCase {
-    func testCashOut_internalServerStringsAreTranslated() {
-        let overBalance = MoneyFlowCopy.cashOutFailure(
-            FlowErrorInput(status: 400, serverMessage: "amount exceeds available platform balance")
-        )
-        XCTAssertEqual(overBalance.message, "That's more than your account balance.")
-        XCTAssertFalse(overBalance.isRetryable)
-
-        let badAddress = MoneyFlowCopy.cashOutFailure(
-            FlowErrorInput(status: 400, serverMessage: " Invalid destination address\n")
-        )
-        XCTAssertEqual(badAddress.message, "That destination isn't a Solana wallet address.")
-
-        let ownAddress = MoneyFlowCopy.cashOutFailure(
-            FlowErrorInput(status: 400, serverMessage: "cannot withdraw to your deposit address")
-        )
-        XCTAssertEqual(ownAddress.message, "That's your own Monaco deposit address.")
-    }
-
-    func testCashOut_conflictIsNotRetryable() {
-        let failure = MoneyFlowCopy.cashOutFailure(
-            FlowErrorInput(status: 409, serverMessage: "a platform withdrawal is already in progress")
-        )
-        XCTAssertEqual(failure.message, "A cash out is already on its way.")
-        XCTAssertFalse(failure.isRetryable)
-    }
-
     func testOffline_saysNothingWasSentAndAllowsRetry() {
         for failure in [
-            MoneyFlowCopy.cashOutFailure(.offline()),
             MoneyFlowCopy.fundCabalFailure(.offline()),
             MoneyFlowCopy.sellStakeFailure(.offline()),
         ] {
@@ -46,7 +19,7 @@ final class MoneyFlowCopyTests: XCTestCase {
     }
 
     func testNoStatus_isUnconfirmedAndSendsTheSameSubmissionAgain() {
-        let failure = MoneyFlowCopy.cashOutFailure(FlowErrorInput())
+        let failure = MoneyFlowCopy.sellStakeFailure(FlowErrorInput())
         XCTAssertEqual(failure, MoneyFlowCopy.unconfirmed)
         // The idempotency key makes the same payload a replay, so the screen must keep a
         // way forward instead of stranding the member on a disabled button.
@@ -65,7 +38,7 @@ final class MoneyFlowCopyTests: XCTestCase {
         // Calling this `.resendSame` would promise a replay the server has thrown away.
         XCTAssertEqual(failure.recovery, .retry)
         XCTAssertFalse(failure.mustResendSameSubmission)
-        XCTAssertEqual(MoneyFlowCopy.cashOutFailure(FlowErrorInput(status: 500)).recovery, .retry)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 500)).recovery, .retry)
     }
 
     /// A 409 on a money route means an attempt is still holding the key the app just sent,
@@ -101,7 +74,7 @@ final class MoneyFlowCopyTests: XCTestCase {
     }
 
     func testSignInUnavailable_saysNothingWasSent_andStaysRetryable() {
-        let failure = MoneyFlowCopy.cashOutFailure(FlowErrorInput(isSignInUnavailable: true))
+        let failure = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(isSignInUnavailable: true))
         XCTAssertEqual(failure.message, "We couldn't check your sign-in, so we didn't cash out.")
         XCTAssertEqual(failure.nextStep, "Try again in a moment — nothing was sent.")
         XCTAssertEqual(failure.recovery, .retry)
@@ -116,7 +89,7 @@ final class MoneyFlowCopyTests: XCTestCase {
         XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(.offline()).recovery, .retry)
         XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 429)).recovery, .retry)
         XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 409)).recovery, .resendSame)
-        XCTAssertEqual(MoneyFlowCopy.cashOutFailure(FlowErrorInput(status: 401)).recovery, .none)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 401)).recovery, .none)
         XCTAssertEqual(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 404)).recovery, .none)
     }
 
@@ -183,7 +156,7 @@ final class MoneyFlowCopyTests: XCTestCase {
     }
 
     func testGeneric_sessionExpiredAndRateLimited() {
-        let expired = MoneyFlowCopy.cashOutFailure(FlowErrorInput(status: 401))
+        let expired = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 401))
         XCTAssertEqual(expired.summary, "Your session expired. Sign in again to cash out.")
         XCTAssertFalse(expired.isRetryable)
         XCTAssertTrue(MoneyFlowCopy.fundCabalFailure(FlowErrorInput(status: 429)).isRetryable)
@@ -199,7 +172,7 @@ final class MoneyFlowCopyTests: XCTestCase {
         XCTAssertEqual(counted.recovery, .retry)
 
         XCTAssertEqual(
-            MoneyFlowCopy.cashOutFailure(FlowErrorInput(status: 429, retryAfterSeconds: 1)).nextStep,
+            MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 429, retryAfterSeconds: 1)).nextStep,
             "Try again in 1 second."
         )
         // No header, or a useless one, keeps the old wording rather than inventing a number.
@@ -237,7 +210,6 @@ final class MoneyFlowCopyTests: XCTestCase {
         ]
         for input in freshSubmissionIsSafe {
             for failure in [
-                MoneyFlowCopy.cashOutFailure(input),
                 MoneyFlowCopy.fundCabalFailure(input),
                 MoneyFlowCopy.sellStakeFailure(input),
             ] {
@@ -252,10 +224,7 @@ final class MoneyFlowCopyTests: XCTestCase {
             XCTAssertEqual(flow(FlowErrorInput(status: 409)).recovery, .resendSame)
             XCTAssertEqual(flow(FlowErrorInput()).recovery, .resendSame)
         }
-        // The external cash out fails closed on 409: two backend conditions land there and
-        // the app cannot yet tell them apart, so it offers no resend rather than guessing.
-        XCTAssertEqual(MoneyFlowCopy.cashOutFailure(FlowErrorInput(status: 409)).recovery, .none)
-        XCTAssertEqual(MoneyFlowCopy.cashOutFailure(FlowErrorInput(status: 401)).recovery, .none)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 401)).recovery, .none)
     }
 
     func testNeverSentCodes_excludeTimeoutsAndDroppedConnections() {

@@ -4,6 +4,12 @@ struct MonacoToast: Equatable, Identifiable {
     let id = UUID()
     let message: String
     var isSuccess = false
+    var link: MonacoToastLink?
+}
+
+struct MonacoToastLink: Equatable {
+    let title: String
+    let url: URL
 }
 
 /// Ink panel with paper text and a filled state glyph. One or two short sentences.
@@ -14,6 +20,7 @@ struct MonacoToast: Equatable, Identifiable {
 struct MonacoToastBanner: View {
     let message: String
     var isSuccess = false
+    var link: MonacoToastLink?
 
     @Environment(\.colorScheme) private var colorScheme
     @ScaledMetric(relativeTo: .subheadline) private var glyphSize: CGFloat = 17
@@ -31,6 +38,14 @@ struct MonacoToastBanner: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+            if let link {
+                Link(link.title, destination: link.url)
+                    .font(MonacoTheme.Typo.calloutStrong)
+                    .foregroundStyle(MonacoTheme.toastLabel)
+                    .underline()
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("monaco-toast-link")
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -43,7 +58,7 @@ struct MonacoToastBanner: View {
         }
         .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.08), radius: 16, y: 6)
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: link == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
     }
 }
@@ -217,7 +232,7 @@ private struct MonacoToastModifier: ViewModifier {
     }
 
     private func banner(_ toast: MonacoToast) -> some View {
-        MonacoToastBanner(message: toast.message, isSuccess: toast.isSuccess)
+        MonacoToastBanner(message: toast.message, isSuccess: toast.isSuccess, link: toast.link)
             .id(toast.id)
             .offset(y: max(dragOffset, 0))
             .gesture(

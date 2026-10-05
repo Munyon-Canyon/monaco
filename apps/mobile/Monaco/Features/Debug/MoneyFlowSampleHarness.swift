@@ -80,7 +80,9 @@ struct MoneyFlowSampleHarness: View {
                 onRetry: {}
             )
         case .withdrawConfirm:
-            WithdrawConfirmView(destinationAddress: MoneyFlowSampleData.destination, amountText: "100")
+            WithdrawConfirmView(
+                destinationAddress: MoneyFlowSampleData.destination, amountText: "100", isSubmitting: false,
+                onWithdraw: {})
         }
     }
 }

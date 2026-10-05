@@ -2,10 +2,10 @@ import SwiftUI
 
 struct WithdrawConfirmView: View {
     static let caveat = "Double-check the address. Transfers can't be undone."
-    static let comingSoon = "Withdrawals open soon."
-
     let destinationAddress: String
     let amountText: String
+    let isSubmitting: Bool
+    let onWithdraw: () -> Void
 
     var body: some View {
         ScrollView {
@@ -38,18 +38,23 @@ struct WithdrawConfirmView: View {
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
-                VStack(spacing: MonacoTheme.Space.s) {
-                    Text(Self.comingSoon)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                    Button("Withdraw") {}
-                        .buttonStyle(.monacoPrimary)
-                        .disabled(true)
+                Button(action: onWithdraw) {
+                    HStack(spacing: MonacoTheme.Space.s) {
+                        if isSubmitting {
+                            ProgressView().tint(MonacoTheme.primaryButtonLabel)
+                            Text("Withdrawing…")
+                        } else {
+                            Text("Withdraw")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("withdraw-submit-coming")
+                .buttonStyle(.monacoPrimary)
+                .disabled(isSubmitting)
+                .accessibilityIdentifier("withdraw-confirm-button")
             }
         }
+        .navigationBarBackButtonHidden(isSubmitting)
         .navigationTitle("Confirm")
         .navigationBarTitleDisplayMode(.inline)
     }

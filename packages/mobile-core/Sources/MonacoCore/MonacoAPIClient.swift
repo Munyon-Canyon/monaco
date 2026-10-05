@@ -109,24 +109,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(FundGroupResponseDTO.self, from: response.data)
     }
 
-    public func createPlatformWithdrawal(
-        amount: Int64,
-        toAddress: String,
-        submission: IdempotentSubmission
-    ) async throws -> PlatformWithdrawalResponseDTO {
-        let url = baseURL.appending(path: "v1/me/withdrawals")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            CreatePlatformWithdrawalRequestDTO(amount: amount, toAddress: toAddress)
-        )
-
-        let response = try await send(request, route: "/v1/me/withdrawals", submission: submission)
-        return try JSONDecoder().decode(PlatformWithdrawalResponseDTO.self, from: response.data)
-    }
-
     /// How much of a failed response a route keeps.
     enum ErrorMapping {
         /// Just the status. What most routes still do, because their callers pattern-match
