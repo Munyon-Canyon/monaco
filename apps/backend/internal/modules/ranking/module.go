@@ -1,9 +1,13 @@
 package ranking
 
 import (
+	"context"
+	"time"
+
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
@@ -51,6 +55,12 @@ func (m *Module) Wire(set module.Set) {
 			m.ports.Users = provider.Queries()
 		case interface{ FollowGraph() app.Follows }:
 			m.ports.Follows = provider.FollowGraph()
+		case *market.Module:
+			m.ports.Market = marketPort{
+				catalog:  provider.Catalog(),
+				prices:   provider.Prices(),
+				calendar: provider.Calendar(),
+			}
 		}
 	}
 }
@@ -78,4 +88,30 @@ func (m *Module) consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	return []poller.Poller{app.NewThinSnapshots(m.deps.Pool, m.deps.Clock)}
+}
+
+type marketPort struct {
+	catalog  market.Catalog
+	prices   market.Prices
+	calendar market.Calendar
+}
+
+func (p marketPort) ListAll(ctx context.Context) ([]market.Asset, error) {
+	return p.catalog.ListAll(ctx)
+}
+
+func (p marketPort) LatestPrices(ctx context.Context) (map[market.AssetID]market.Price, error) {
+	return p.prices.LatestPrices(ctx)
+}
+
+func (p marketPort) PricesAsOf(
+	ctx context.Context,
+	ids []market.AssetID,
+	at time.Time,
+) (map[market.AssetID]market.Price, error) {
+	return p.prices.PricesAsOf(ctx, ids, at)
+}
+
+func (p marketPort) Session(ctx context.Context, id market.AssetID, at time.Time) (market.SessionInfo, error) {
+	return p.calendar.Session(ctx, id, at)
 }
