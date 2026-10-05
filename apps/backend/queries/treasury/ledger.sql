@@ -120,6 +120,31 @@ FROM stake CROSS JOIN total
 LEFT JOIN cabal_positions AS positions ON positions.cabal_id = sqlc.arg(cabal_id)::uuid AND positions.units > 0
 ORDER BY positions.asset;
 
+-- name: CabalPotSnapshot :many
+WITH totals AS (
+  SELECT coalesce(sum(share_units), 0)::text AS total_shares,
+    coalesce(sum(contributed_micros - withdrawn_micros), 0)::text AS net_contributed_micros
+  FROM user_positions
+  WHERE cabal_id = sqlc.arg(cabal_id)::uuid
+), reserved AS (
+  SELECT coalesce(sum(payout_micros), 0)::text AS cash_out_reserved_micros
+  FROM cash_out_jobs
+  WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND status IN ('started', 'selling', 'paying')
+)
+SELECT totals.total_shares, totals.net_contributed_micros, reserved.cash_out_reserved_micros,
+  positions.asset, coalesce(positions.units, 0)::text AS units,
+  coalesce(positions.cost_basis_micros, 0)::text AS cost_basis_micros
+FROM totals CROSS JOIN reserved
+LEFT JOIN cabal_positions AS positions ON positions.cabal_id = sqlc.arg(cabal_id)::uuid AND positions.units > 0
+ORDER BY positions.asset;
+
+-- name: CabalMemberShares :many
+SELECT user_id, share_units::text AS share_units, contributed_micros::text AS contributed_micros,
+  withdrawn_micros::text AS withdrawn_micros
+FROM user_positions
+WHERE cabal_id = sqlc.arg(cabal_id)::uuid
+ORDER BY user_id;
+
 -- name: CabalPositionSnapshotsAt :many
 WITH RECURSIVE txn_usdc_paid AS (
   SELECT txn_id, -sum(amount)::numeric AS paid

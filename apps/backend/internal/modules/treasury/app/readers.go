@@ -12,6 +12,8 @@ import (
 
 type Asset struct {
 	ID                  uuid.UUID
+	Symbol              string
+	DisplayName         string
 	Decimals            uint8
 	ChainChecked        bool
 	UIMultiplierNum     int64

@@ -110,6 +110,46 @@ func (q *Queries) ApplyUserPosition(ctx context.Context, arg ApplyUserPositionPa
 	return i, err
 }
 
+const cabalMemberShares = `-- name: CabalMemberShares :many
+SELECT user_id, share_units::text AS share_units, contributed_micros::text AS contributed_micros,
+  withdrawn_micros::text AS withdrawn_micros
+FROM user_positions
+WHERE cabal_id = $1::uuid
+ORDER BY user_id
+`
+
+type CabalMemberSharesRow struct {
+	UserID            uuid.UUID
+	ShareUnits        string
+	ContributedMicros string
+	WithdrawnMicros   string
+}
+
+func (q *Queries) CabalMemberShares(ctx context.Context, cabalID uuid.UUID) ([]CabalMemberSharesRow, error) {
+	rows, err := q.db.Query(ctx, cabalMemberShares, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalMemberSharesRow
+	for rows.Next() {
+		var i CabalMemberSharesRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.ShareUnits,
+			&i.ContributedMicros,
+			&i.WithdrawnMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cabalPositionSnapshotsAt = `-- name: CabalPositionSnapshotsAt :many
 WITH RECURSIVE txn_usdc_paid AS (
   SELECT txn_id, -sum(amount)::numeric AS paid
@@ -244,6 +284,61 @@ func (q *Queries) CabalPositions(ctx context.Context, cabalID uuid.UUID) ([]Caba
 			&i.Units,
 			&i.CostBasisMicros,
 			&i.CashOutReservedMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const cabalPotSnapshot = `-- name: CabalPotSnapshot :many
+WITH totals AS (
+  SELECT coalesce(sum(share_units), 0)::text AS total_shares,
+    coalesce(sum(contributed_micros - withdrawn_micros), 0)::text AS net_contributed_micros
+  FROM user_positions
+  WHERE cabal_id = $1::uuid
+), reserved AS (
+  SELECT coalesce(sum(payout_micros), 0)::text AS cash_out_reserved_micros
+  FROM cash_out_jobs
+  WHERE cabal_id = $1::uuid AND status IN ('started', 'selling', 'paying')
+)
+SELECT totals.total_shares, totals.net_contributed_micros, reserved.cash_out_reserved_micros,
+  positions.asset, coalesce(positions.units, 0)::text AS units,
+  coalesce(positions.cost_basis_micros, 0)::text AS cost_basis_micros
+FROM totals CROSS JOIN reserved
+LEFT JOIN cabal_positions AS positions ON positions.cabal_id = $1::uuid AND positions.units > 0
+ORDER BY positions.asset
+`
+
+type CabalPotSnapshotRow struct {
+	TotalShares           string
+	NetContributedMicros  string
+	CashOutReservedMicros string
+	Asset                 pgtype.Text
+	Units                 string
+	CostBasisMicros       string
+}
+
+func (q *Queries) CabalPotSnapshot(ctx context.Context, cabalID uuid.UUID) ([]CabalPotSnapshotRow, error) {
+	rows, err := q.db.Query(ctx, cabalPotSnapshot, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalPotSnapshotRow
+	for rows.Next() {
+		var i CabalPotSnapshotRow
+		if err := rows.Scan(
+			&i.TotalShares,
+			&i.NetContributedMicros,
+			&i.CashOutReservedMicros,
+			&i.Asset,
+			&i.Units,
+			&i.CostBasisMicros,
 		); err != nil {
 			return nil, err
 		}
