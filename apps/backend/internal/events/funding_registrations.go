@@ -7,5 +7,7 @@ func fundingRegistrations() []Registration {
 		Register[CabalResumed](TypeCabalResumed, 1),
 		Register[OnrampStatusChanged](TypeOnrampStatusChanged, 1),
 		Register[WithdrawalSubmitted](TypeWithdrawalSubmitted, 1),
+		Register[WithdrawalConfirmed](TypeWithdrawalConfirmed, 1),
+		Register[WithdrawalFailed](TypeWithdrawalFailed, 1),
 	}
 }

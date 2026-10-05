@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+15	Withdraw to address	funding	POST /v1/me/withdrawals	Withdraw	withdrawal.submitted;withdrawal.confirmed;withdrawal.failed		ok;crash:after-sign	planned	docs/architecture/deposits-withdrawals.md#withdraw

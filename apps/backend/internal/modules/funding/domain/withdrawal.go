@@ -40,3 +40,9 @@ func ParseWithdrawalRequest(rawAmount, rawTo string) (WithdrawalRequest, error) 
 	}
 	return WithdrawalRequest{Amount: amount, To: to}, nil
 }
+
+const (
+	WithdrawalNotSent           = "withdrawal_not_sent"
+	WithdrawalBlockhashExpired  = "blockhash_expired"
+	WithdrawalTransactionFailed = "transaction_failed"
+)

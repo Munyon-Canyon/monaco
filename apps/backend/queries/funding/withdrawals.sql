@@ -28,3 +28,23 @@ WHERE id = $1 AND user_id = $2;
 SELECT COALESCE(SUM(amount_micros), 0)::text AS micros
 FROM withdrawals
 WHERE user_id = $1 AND status IN ('created', 'submitted');
+
+-- name: ListStaleCreatedWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros
+FROM withdrawals
+WHERE status = 'created' AND created_at < sqlc.arg(older_than)::timestamptz
+ORDER BY created_at, id
+LIMIT sqlc.arg(max_rows);
+
+-- name: ListSubmittedWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros, to_address, signed_tx, tx_signature,
+  last_valid_block_height
+FROM withdrawals
+WHERE status = 'submitted'
+ORDER BY submitted_at, id
+LIMIT sqlc.arg(max_rows);
+
+-- name: ConfirmWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'confirmed', completed_at = sqlc.arg(completed_at)::timestamptz
+WHERE id = $1 AND status = 'submitted';

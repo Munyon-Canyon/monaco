@@ -50,8 +50,12 @@ func (m *Module) Mount(r api.Mount) {
 func (m *Module) withdrawDeps(wallets app.WalletReader) app.WithdrawDeps {
 	return app.WithdrawDeps{
 		UoW: m.deps.UoW, Balances: m.Balances(), Wallets: wallets, Hints: m.deps.Bus, Clock: m.deps.Clock,
-		USDC: m.usdc(), Transfers: func() (app.Transfers, error) { return m.transfers() },
+		USDC: m.usdc(), Transfers: m.lazyTransfers(),
 	}
+}
+
+func (m *Module) lazyTransfers() func() (app.Transfers, error) {
+	return func() (app.Transfers, error) { return m.transfers() }
 }
 
 func (m *Module) transfers() (*relayer.Transfers, error) {
@@ -76,11 +80,16 @@ func (*Module) Consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
+	withdrawals := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
+		Transfers: m.lazyTransfers(), Hints: m.deps.Bus,
+	})
 	return []poller.Poller{
 		app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
 			identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
 			cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus),
 		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
+		withdrawals,
 	}
 }
 

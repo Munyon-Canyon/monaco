@@ -13,6 +13,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const confirmWithdrawal = `-- name: ConfirmWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'confirmed', completed_at = $2::timestamptz
+WHERE id = $1 AND status = 'submitted'
+`
+
+type ConfirmWithdrawalParams struct {
+	ID          uuid.UUID
+	CompletedAt time.Time
+}
+
+func (q *Queries) ConfirmWithdrawal(ctx context.Context, arg ConfirmWithdrawalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, confirmWithdrawal, arg.ID, arg.CompletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failWithdrawal = `-- name: FailWithdrawal :execrows
 UPDATE withdrawals
 SET status = 'failed', fail_code = $2::text, completed_at = $3::timestamptz
@@ -110,6 +129,92 @@ func (q *Queries) InsertWithdrawal(ctx context.Context, arg InsertWithdrawalPara
 		arg.AmountMicros,
 	)
 	return err
+}
+
+const listStaleCreatedWithdrawals = `-- name: ListStaleCreatedWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros
+FROM withdrawals
+WHERE status = 'created' AND created_at < $1::timestamptz
+ORDER BY created_at, id
+LIMIT $2
+`
+
+type ListStaleCreatedWithdrawalsParams struct {
+	OlderThan time.Time
+	MaxRows   int32
+}
+
+type ListStaleCreatedWithdrawalsRow struct {
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	AmountMicros string
+}
+
+func (q *Queries) ListStaleCreatedWithdrawals(ctx context.Context, arg ListStaleCreatedWithdrawalsParams) ([]ListStaleCreatedWithdrawalsRow, error) {
+	rows, err := q.db.Query(ctx, listStaleCreatedWithdrawals, arg.OlderThan, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStaleCreatedWithdrawalsRow
+	for rows.Next() {
+		var i ListStaleCreatedWithdrawalsRow
+		if err := rows.Scan(&i.ID, &i.UserID, &i.AmountMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSubmittedWithdrawals = `-- name: ListSubmittedWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros, to_address, signed_tx, tx_signature,
+  last_valid_block_height
+FROM withdrawals
+WHERE status = 'submitted'
+ORDER BY submitted_at, id
+LIMIT $1
+`
+
+type ListSubmittedWithdrawalsRow struct {
+	ID                   uuid.UUID
+	UserID               uuid.UUID
+	AmountMicros         string
+	ToAddress            string
+	SignedTx             []byte
+	TxSignature          pgtype.Text
+	LastValidBlockHeight pgtype.Int8
+}
+
+func (q *Queries) ListSubmittedWithdrawals(ctx context.Context, maxRows int32) ([]ListSubmittedWithdrawalsRow, error) {
+	rows, err := q.db.Query(ctx, listSubmittedWithdrawals, maxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSubmittedWithdrawalsRow
+	for rows.Next() {
+		var i ListSubmittedWithdrawalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AmountMicros,
+			&i.ToAddress,
+			&i.SignedTx,
+			&i.TxSignature,
+			&i.LastValidBlockHeight,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockWalletOutflow = `-- name: LockWalletOutflow :exec
