@@ -3,6 +3,7 @@ package ranking_test
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
@@ -15,11 +16,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestModule_hasNoRoutesOrPollersYet(t *testing.T) {
+func TestModule_hasNoRoutesYet(t *testing.T) {
 	t.Parallel()
 	m := ranking.New(module.Deps{})
-	if m.Name() != "ranking" || testkit.Serves(m.Mount, "GET", "/v1/assets") || m.Pollers() != nil {
-		t.Fatalf("module = %s, pollers %v", m.Name(), m.Pollers())
+	if m.Name() != "ranking" || testkit.Serves(m.Mount, "GET", "/v1/assets") {
+		t.Fatalf("module = %s serves /v1/assets", m.Name())
 	}
 }
 
@@ -32,6 +33,15 @@ func TestModule_declaresEachConsumerWithItsOwnDurable(t *testing.T) {
 	}
 	if !slices.Contains(got, "ranking_membership") || !slices.Contains(got, "ranking_names") {
 		t.Fatalf("durables = %q, want ranking_membership and ranking_names", got)
+	}
+}
+
+func TestModule_registersTheMonthlyThinningPoller(t *testing.T) {
+	t.Parallel()
+	pollers := ranking.New(module.Deps{}).Pollers()
+	if len(pollers) != 1 || pollers[0].Name() != "ranking.snapshot_thinning" ||
+		pollers[0].Interval() != 30*24*time.Hour {
+		t.Fatalf("pollers = %v, want the monthly ranking.snapshot_thinning", pollers)
 	}
 }
 

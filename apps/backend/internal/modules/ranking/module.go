@@ -56,4 +56,6 @@ func (m *Module) consumers() []bus.Consumer {
 	return []bus.Consumer{membership(), m.names()}
 }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	return []poller.Poller{app.NewThinSnapshots(m.deps.Pool, m.deps.Clock)}
+}
