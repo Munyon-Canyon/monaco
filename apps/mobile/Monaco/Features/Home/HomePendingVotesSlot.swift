@@ -9,12 +9,17 @@ enum HomePendingVotesSlot: HomeSection {
     }
 }
 
-private struct HomePendingVotes: View {
+struct HomePendingVotes: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var model: PendingVotesModel?
+    private let makeModel: @MainActor (AppEnvironment) -> PendingVotesModel
+
+    init(makeModel: @escaping @MainActor (AppEnvironment) -> PendingVotesModel = HomePendingVotes.liveModel) {
+        self.makeModel = makeModel
+    }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if let model, !model.votes.isEmpty {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     HStack {
@@ -40,8 +45,12 @@ private struct HomePendingVotes: View {
 
     private func preparedModel() -> PendingVotesModel {
         if let model { return model }
-        let created = PendingVotesModel(repository: ProposalsRepository(api: environment.api), hints: environment.hints)
+        let created = makeModel(environment)
         model = created
         return created
+    }
+
+    static func liveModel(_ environment: AppEnvironment) -> PendingVotesModel {
+        PendingVotesModel(repository: ProposalsRepository(api: environment.api), hints: environment.hints)
     }
 }

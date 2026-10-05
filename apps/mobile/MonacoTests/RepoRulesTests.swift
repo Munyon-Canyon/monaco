@@ -3,8 +3,7 @@ import Testing
 
 struct RepoRulesTests {
     static let taskOnEmptyViewOwners: [String: Int] = [
-        "Features/Home/HomePendingVotesSlot.swift": 612,
-        "Features/Proposals/ProposeBuyStockView.swift": 612,
+        "Features/Proposals/ProposeBuyStockView.swift": 612
     ]
 
     @Test
