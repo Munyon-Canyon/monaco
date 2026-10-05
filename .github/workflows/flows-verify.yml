@@ -1,0 +1,116 @@
+name: Flows verify
+
+# monacoctl agents land-stack and agents watch dispatch this from staging when the flows gate's only objection
+# is that a flow the stack touches changed on staging since the stack's base. It merges the stack's top head onto
+# that staging SHA, builds monacoctl from the merge and runs `monacoctl verify flow <id>` for each named flow.
+# It reports the flows-verify status on the top head. The status description is the key monacoctl reads back,
+# so a run for another staging SHA or flow set never counts. docs/architecture/ci.md#land-a-pr-on-staging
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: The stack's top PR number.
+        type: string
+        required: true
+      head_sha:
+        description: The top PR's head SHA, which gets the flows-verify status.
+        type: string
+        required: true
+      base_sha:
+        description: The staging SHA to merge the head onto.
+        type: string
+        required: true
+      flows:
+        description: Space-separated flow ids, sorted, such as "07 13a".
+        type: string
+        required: true
+
+run-name: flows-verify #${{ inputs.pr }} (flows ${{ inputs.flows }})
+
+concurrency:
+  group: flows-verify-${{ inputs.pr }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  verify:
+    name: Verify the named flows on the stack top merged onto staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_SHA: ${{ inputs.head_sha }}
+      BASE_SHA: ${{ inputs.base_sha }}
+      FLOWS: ${{ inputs.flows }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Check the inputs
+        run: |
+          [[ $HEAD_SHA =~ ^[0-9a-f]{40}$ && $BASE_SHA =~ ^[0-9a-f]{40}$ && $FLOWS =~ ^[0-9a-z]+( [0-9a-z]+)*$ ]] ||
+            { echo "::error::head_sha and base_sha must be full SHAs and flows space-separated ids"; exit 1; }
+
+      - name: Report pending
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state=pending -f context=flows-verify \
+            -f description="flows $FLOWS on staging $BASE_SHA" -f target_url="$RUN_URL" > /dev/null
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base_sha }}
+          fetch-depth: 0
+
+      - name: Merge the head onto staging
+        env:
+          GIT_AUTHOR_NAME: flows-verify
+          GIT_AUTHOR_EMAIL: flows-verify@users.noreply.github.com
+          GIT_COMMITTER_NAME: flows-verify
+          GIT_COMMITTER_EMAIL: flows-verify@users.noreply.github.com
+        run: |
+          git fetch --quiet --no-tags origin "$HEAD_SHA"
+          git merge --quiet --no-edit "$HEAD_SHA" ||
+            { echo "::error::$HEAD_SHA conflicts with staging $BASE_SHA; restack with gt"; exit 1; }
+
+      - uses: ./.github/actions/backend-test-env
+        with:
+          db: false
+
+      - name: Install the pinned atlas community build
+        run: scripts/install-atlas.sh
+
+      - name: monacoctl verify flow, once per named flow
+        working-directory: apps/backend
+        run: |
+          go build -o "$RUNNER_TEMP/monacoctl" ./cmd/monacoctl
+          status=0
+          for id in $FLOWS; do
+            echo "::group::monacoctl verify flow $id"
+            "$RUNNER_TEMP/monacoctl" verify flow "$id" || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+      - name: Upload the verify evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flows-verify-evidence
+          path: apps/backend/.verify/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Report the result
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          case "$JOB_STATUS" in
+            success) state=success ;;
+            cancelled) state=error ;;
+            *) state=failure ;;
+          esac
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state="$state" -f context=flows-verify \
+            -f description="flows $FLOWS on staging $BASE_SHA" -f target_url="$RUN_URL" > /dev/null
