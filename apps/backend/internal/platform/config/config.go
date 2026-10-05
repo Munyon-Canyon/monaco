@@ -43,6 +43,7 @@ type Config struct {
 	APNs       APNs
 	PostHog    PostHog
 	Supabase   Supabase
+	Web        Web
 	Faultpoint string
 }
 
@@ -284,7 +285,7 @@ func (f field) secret() field {
 }
 
 func fields() []field {
-	return slices.Concat(platformFields(), marketFields(), fundingFields())
+	return slices.Concat(platformFields(), marketFields(), fundingFields(), webFields())
 }
 
 func marketFields() []field {

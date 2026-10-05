@@ -34,6 +34,8 @@ func (*Module) Name() string { return "funding" }
 func (m *Module) Mount(r api.Mount) {
 	fundingapi.Mount(adapters.HTTP{
 		Balances: m.Balances(), Wallets: app.WalletReader{Reader: identity.New(m.deps).Queries()},
+		Create: app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, m.deps.Config.FundPageURL()),
+		IDs:    m.deps.IDs,
 	}, r)
 }
 
