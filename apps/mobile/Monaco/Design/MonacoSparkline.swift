@@ -99,9 +99,12 @@ nonisolated extension Double {
 
 #Preview {
     VStack(alignment: .leading, spacing: 16) {
-        Sparkline(series: SparklineSeries(usdcMicros: MarketSampleData.spark())!, tone: .profit)
         Sparkline(
-            series: SparklineSeries(usdcMicros: MarketSampleData.spark(driftUsdcMicros: -8_000_000))!, tone: .loss)
+            series: SparklineSeries(usdcMicros: Array(stride(from: 226_500_000, through: 232_000_000, by: 500_000)))!,
+            tone: .profit)
+        Sparkline(
+            series: SparklineSeries(usdcMicros: Array(stride(from: 226_500_000, through: 218_500_000, by: -800_000)))!,
+            tone: .loss)
         Sparkline(series: SparklineSeries(usdcMicros: Array(repeating: 100_000, count: 12))!, tone: .flat)
     }
     .padding()

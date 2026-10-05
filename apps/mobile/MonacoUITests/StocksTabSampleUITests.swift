@@ -4,7 +4,7 @@
 //
 //  QA coverage for the Stocks tab against the debug sample harness
 //  (-MonacoStocksTabSample <scenario>). No sign-in and no backend: the harness
-//  answers all three reads from MarketSampleData, so every state the four
+//  answers all three reads from sample data, so every state the four
 //  sections can be in is screenshottable here.
 //
 //  Everything is asked of an element that really publishes itself: the navigation

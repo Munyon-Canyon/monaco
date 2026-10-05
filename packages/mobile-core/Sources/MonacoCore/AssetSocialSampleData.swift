@@ -3,14 +3,14 @@ import Foundation
 /// Canned `GET /v1/assets/{symbol}/social` payloads for the sample harness and for
 /// previews.
 ///
-/// The awkward states are the point, the same way they are in `MarketSampleData`: a
+/// The awkward states are the point, a
 /// cabal that is under water, a position with no cost basis behind it, a vote nobody
 /// has cast a ballot on yet, and a pass where one cabal could not be priced at all.
 /// Every one of those is something the backend really produces.
 public enum AssetSocialSampleData {
-    /// Anchored to `MarketSampleData.tradingTuesday` so a screenshot of the activity
-    /// list shows the same ages on every run.
-    public static var now: Date { MarketSampleData.tradingTuesday }
+    /// 2026-09-22 14:00 UTC, a Tuesday, so a screenshot of the activity list shows the
+    /// same ages on every run.
+    public static var now: Date { Date(timeIntervalSince1970: 1_790_085_600) }
 
     // MARK: - Voters
 

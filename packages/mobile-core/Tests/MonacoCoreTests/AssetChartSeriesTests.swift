@@ -8,7 +8,7 @@ import XCTest
 /// All of it is host-side and deterministic, so the drag behaviour is pinned here
 /// rather than in a simulator test that can only assert that *something* moved.
 final class AssetChartSeriesTests: XCTestCase {
-    /// 2026-09-22 14:00:00 UTC, a Tuesday — the same instant `MarketSampleData` uses.
+    /// 2026-09-22 14:00:00 UTC, a Tuesday — the same instant `AssetSocialSampleData.now` uses.
     private let tuesday = Date(timeIntervalSince1970: 1_790_085_600)
 
     private func series(
