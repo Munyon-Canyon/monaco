@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
@@ -109,6 +110,35 @@ func TestBoards_CabalsRouteIsEmptyBeforeTheFirstRunAndNeedsAToken(t *testing.T) 
 		t.Fatalf("GET = %d %s", rec.Code, rec.Body)
 	}
 	if rec = s.get(t, "/v1/leaderboards/cabals", ids.UserID{}); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("GET without a token = %d, want 401", rec.Code)
+	}
+}
+
+func TestBoards_PeopleIncludesMe(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	rows := boardRows("people", 45)
+	seedBoard(t, s.pool, s.clock.Now().UTC(), rows)
+	viewer := ids.UserIDFrom(rows[44].subject)
+	for _, query := range []string{"", "?cursor=" + domain.EncodeCursor(40) + "&limit=20"} {
+		rec := s.get(t, "/v1/leaderboards/people"+query, viewer)
+		page := pageOf(t, rec)
+		if rec.Code != http.StatusOK || page.Me == nil || page.Me.Rank != 45 || page.Me.Subject.Kind != api.User ||
+			page.Me.Subject.Id != rows[44].subject || page.Rows[0].Subject.Kind != api.User {
+			t.Fatalf("GET people%s = %d %s", query, rec.Code, rec.Body)
+		}
+	}
+}
+
+func TestBoards_PeopleMeIsNullForAViewerOnNoBoard(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	seedBoard(t, s.pool, s.clock.Now().UTC(), boardRows("people", 2))
+	rec := s.get(t, "/v1/leaderboards/people", ids.UserIDFrom(ids.Real{}.NewV7()))
+	if page := pageOf(t, rec); rec.Code != http.StatusOK || page.Me != nil || len(page.Rows) != 2 {
+		t.Fatalf("GET = %d %s", rec.Code, rec.Body)
+	}
+	if rec = s.get(t, "/v1/leaderboards/people", ids.UserID{}); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("GET without a token = %d, want 401", rec.Code)
 	}
 }
