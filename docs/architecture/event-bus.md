@@ -127,6 +127,8 @@ A module with several handlers still has one durable. `bus.Dispatch` routes each
 
 Several worker processes share one durable consumer name, so JetStream hands each message to one of them. That is the load-balancing that queue groups give in core NATS.
 
+Each process reads a durable with `jetstream.PullMaxMessages(1)`. `Consume` runs `Dispatch` for one message at a time and asks the server for the next message only after `Dispatch` returns. So a message's ack deadline never starts while it waits in the client behind a slow handler. With the default batch of 500, buffered messages ran out their ack waits and reached `MaxDeliver` before a handler saw them (#3009). The cost is one round trip per message.
+
 `bus.Dispatch` is the one wrapper every handler goes through:
 
 Every error it sees is an `errs.Error`, and the code table decides the verdict: `Retryable` naks, anything else terms ([Errors](backend-platform.md#surfacing)). Panics are recovered here and become `KindInternal`.

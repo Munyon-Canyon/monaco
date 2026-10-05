@@ -319,6 +319,7 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 		started[durable] = cons
 		cc, err := cons.Consume(
 			func(msg jetstream.Msg) { in.run(func() { r.Dispatch(ctx, durable, msg) }) },
+			jetstream.PullMaxMessages(1),
 			jetstream.ConsumeErrHandler(
 				func(_ jetstream.ConsumeContext, err error) { consumeError(ctx, durable, err) },
 			),
