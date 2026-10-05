@@ -1,13 +1,13 @@
 name: Staging
 
-# The full suite on staging every 30 minutes when it moved, as an indicator only: no ruleset requires it and nothing
+# The full suite on staging every hour when it moved, as an indicator only: no ruleset requires it and nothing
 # waits on it. A PR's own run already gated what lands; this run tests the combined trunk, which the light queue
 # check does not. The README badge shows its result. It ran on every push until #2950: with landings every few
 # minutes it ran back to back and held about half of the free plan's 20 concurrent jobs, so PR stage 1 runs and
 # queue drafts waited for runners. docs/architecture/ci.md#check-stages
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 # One run at a time and none cancelled: a newer push waits behind the active run, replacing any older pending one.
