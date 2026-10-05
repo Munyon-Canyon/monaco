@@ -13,16 +13,42 @@ public final class CabalActivityModel {
         case hidden
     }
 
+    public struct Toast: Equatable, Sendable {
+        public let message: String
+        public let isSuccess: Bool
+        let tick: Int
+    }
+
+    public enum ToastText {
+        public static let retrying = "Retrying the trade"
+        public static let bought = "Bought. Holdings updated"
+        public static let sold = "Sold. Holdings updated"
+        public static let failedAgain = "It didn't go through again. Try later"
+    }
+
+    private struct Retry {
+        let kind: ActivityRow.Kind
+        let symbol: String?
+        let seen: Set<String>
+        var awaitingFetch = true
+    }
+
     public static let previewCount = 5
 
     public let cabalID: String
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
+    public private(set) var toast: Toast?
+    public private(set) var openSwap: SwapReceipt?
 
     private let api: APIClient
     private let hints: any HintSource
     private let clock: @Sendable () -> Date
     private var notMember = false
+    private var retries: [String: Retry] = [:]
+    private var superseded: Set<String> = []
+    private var openSwapID: String?
+    @ObservationIgnored private var submissions: [String: IdempotentSubmission] = [:]
 
     @ObservationIgnored private lazy var pager = CursorPager<ActivityRow> { [weak self, cabalID, api, clock] cursor in
         do {
@@ -45,9 +71,9 @@ public final class CabalActivityModel {
         self.clock = clock
     }
 
-    public var rows: [ActivityRow] { pager.items }
+    public var rows: [ActivityRow] { pager.items.map(present) }
 
-    public var firstFive: [ActivityRow] { Array(pager.items.prefix(Self.previewCount)) }
+    public var firstFive: [ActivityRow] { pager.items.prefix(Self.previewCount).map(present) }
 
     public var hasMore: Bool {
         pager.items.count > Self.previewCount || (!pager.items.isEmpty && pager.phase != .exhausted)
@@ -68,6 +94,7 @@ public final class CabalActivityModel {
     public func load() async {
         if pager.items.isEmpty {
             await pager.loadFirst()
+            settleRetries()
         } else {
             await refresh()
         }
@@ -75,6 +102,34 @@ public final class CabalActivityModel {
 
     public func refresh() async {
         await pager.refreshFirstPage()
+        settleRetries()
+        if let openSwapID { await loadSwap(id: openSwapID) }
+    }
+
+    public func loadSwap(id: String) async {
+        openSwapID = id
+        do {
+            let swap = try await api.read { client in try await client.getSwap(path: .init(id: id)).ok.body.json }
+            openSwap = SwapReceipt(swap)
+        } catch {
+            if !Task.isCancelled, openSwap != nil { noteFailure(APIError(error)) }
+        }
+    }
+
+    public func retrySwap(_ row: ActivityRow) async {
+        guard row.kind.isSwap, retries[row.id] == nil else { return }
+        let submission = submissions[row.id] ?? IdempotentSubmission()
+        submissions[row.id] = submission
+        do {
+            _ = try await api.submit(submission, payload: row.id, operation: "postSwapRetry") { client, key in
+                try await client.postSwapRetry(path: .init(id: row.id), headers: .init(idempotencyKey: key))
+                    .accepted.body.json
+            }
+            retries[row.id] = Retry(kind: row.kind, symbol: row.symbol, seen: Set(pager.items.map(\.id)))
+            show(ToastText.retrying, isSuccess: true)
+        } catch {
+            show(ToastCopy.message(for: APIError(error)), isSuccess: false)
+        }
     }
 
     public func loadMore() async {
@@ -110,6 +165,38 @@ public final class CabalActivityModel {
             try await client.getCabalActivity(path: .init(id: cabalID), query: .init(limit: limit, cursor: cursor))
                 .ok.body.json
         }
+    }
+
+    private func present(_ row: ActivityRow) -> ActivityRow {
+        var row = row
+        if let retry = retries[row.id] {
+            if retry.awaitingFetch { row.status = .pending }
+            row.offersRetry = false
+        } else if superseded.contains(row.id) {
+            row.offersRetry = false
+        }
+        return row
+    }
+
+    private func settleRetries() {
+        for (id, retry) in retries {
+            retries[id]?.awaitingFetch = false
+            let next = pager.items.first {
+                !retry.seen.contains($0.id) && $0.kind == retry.kind && $0.symbol == retry.symbol
+            }
+            guard let next, next.status != .pending else { continue }
+            retries[id] = nil
+            superseded.insert(id)
+            switch (next.status, retry.kind) {
+            case (.failed, _): show(ToastText.failedAgain, isSuccess: false)
+            case (_, .sell): show(ToastText.sold, isSuccess: true)
+            default: show(ToastText.bought, isSuccess: true)
+            }
+        }
+    }
+
+    private func show(_ message: String, isSuccess: Bool) {
+        toast = Toast(message: message, isSuccess: isSuccess, tick: (toast?.tick ?? 0) + 1)
     }
 
     private func noteSuccess() {
