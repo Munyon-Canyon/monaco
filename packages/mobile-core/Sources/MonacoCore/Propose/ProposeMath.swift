@@ -7,8 +7,6 @@ public enum ProposeMath {
         return holdingValue.dividingFullWidth(units.multipliedFullWidth(by: dollars)).quotient
     }
 
-    public static func all(units: Int64) -> Int64 { max(units, 0) }
-
     public static func quantityLabel(kind: AssetKind) -> String {
         kind == .preIpo ? "tokens" : "shares"
     }

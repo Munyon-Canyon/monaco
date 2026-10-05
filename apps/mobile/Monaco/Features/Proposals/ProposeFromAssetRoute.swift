@@ -46,13 +46,22 @@ struct ProposeFromAssetScreen: View {
         List(cabals, id: \.id) { cabal in
             NavigationLink(cabal.name) { amount(cabal) }
         }
-        .navigationTitle("Which cabal should \(kind == .buy ? "buy" : "sell") \(symbol)?")
+        .navigationTitle(
+            "Which cabal should \(kind == .buy ? "buy" : "sell") \(AssetSymbolFormatter.display(symbol))?")
     }
 
+    @ViewBuilder
     private func amount(_ cabal: Components.Schemas.MyCabal) -> some View {
-        ProposeAmountScreen(
-            service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
-            stock: ProposeStock(symbol: symbol), isSell: kind == .sell)
+        switch kind {
+        case .buy:
+            ProposeAmountScreen(
+                service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
+                stock: ProposeStock(symbol: symbol))
+        case .sell:
+            CabalPotModelHost(cabalID: cabal.id) { pot in
+                ProposeSellView(pot: pot, initialSymbol: symbol)
+            }
+        }
     }
 }
 

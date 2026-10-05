@@ -23,33 +23,45 @@ public final class ProposeReviewModel {
     private let cabalID: String
     private let draft: ProposalDraft
     private let preview: ProposePreview
-    private let kind: AssetKind
-    private let tokenDecimals: Int
+    private let trade: ProposeTrade
     private let submission: IdempotentSubmission
 
     public init(
         service: ProposeService, cabalID: String, cabal: ProposeCabalInfo, draft: ProposalDraft,
-        preview: ProposePreview, kind: AssetKind, tokenDecimals: Int,
-        submission: IdempotentSubmission = IdempotentSubmission()
+        preview: ProposePreview, trade: ProposeTrade, submission: IdempotentSubmission = IdempotentSubmission()
     ) {
         self.service = service
         self.cabalID = cabalID
         self.cabal = cabal
         self.draft = draft
         self.preview = preview
-        self.kind = kind
-        self.tokenDecimals = tokenDecimals
+        self.trade = trade
         self.submission = submission
     }
 
     public var title: String {
-        switch draft {
-        case .buy(let symbol, let usdcMicros, _): "Buy \(UsdAmountFormatter.format(micros: usdcMicros)) of \(symbol)"
-        case .sell(let symbol, _, _): "Sell \(symbol)"
+        switch trade {
+        case .sell(let holding): "Sell \(holding.quantity(of: draft.amount)) of \(holding.ticker)"
+        case .buy(let symbol, let kind, _):
+            "Buy \(UsdAmountFormatter.format(micros: draft.amount)) of \(AssetSymbolFormatter.display(symbol, kind: kind))"
         }
     }
 
+    public var reasonTitle: String { trade.isSell ? "Why sell" : "Why buy" }
+
     public var rows: [Row] {
+        guard case .sell(let holding) = trade else { return buyRows }
+        var rows: [Row] = []
+        if let out = preview.quoteOutAmount, out > 0 {
+            rows.append(Row(label: "Raises", value: "about \(UsdAmountFormatter.format(micros: out))"))
+        }
+        rows.append(Row(label: "Cabal keeps", value: holding.quantity(of: holding.tokenAmount - draft.amount)))
+        rows.append(Row(label: "Who votes", value: cabal.voters))
+        return rows
+    }
+
+    private var buyRows: [Row] {
+        guard case .buy(_, let kind, _) = trade else { return [] }
         var rows: [Row] = []
         let quantity = quantity
         if let quantity {
@@ -94,7 +106,7 @@ public final class ProposeReviewModel {
     }
 
     private var quantity: Decimal? {
-        guard let out = preview.quoteOutAmount, out > 0 else { return nil }
+        guard case .buy(_, _, let tokenDecimals) = trade, let out = preview.quoteOutAmount, out > 0 else { return nil }
         return TokenQuantityFormatter.quantity(fromAtomics: String(out), decimals: tokenDecimals)
     }
 

@@ -10,30 +10,29 @@ struct ProposeAmountScreen: View {
     @State private var amountText = ""
     @State private var showsReason = false
 
-    init(
-        service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, potMicros: Int64 = 0,
-        isSell: Bool = false
-    ) {
+    init(service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, trade: ProposeTrade? = nil) {
         self.stock = stock
         self.cabalID = cabalID
+        let trade = trade ?? .buy(symbol: stock.symbol, kind: stock.assetKind, tokenDecimals: stock.tokenDecimals)
         _model = State(
             initialValue: ProposeAmountModel(
-                service: service, cabalID: cabalID, symbol: stock.symbol, potMicros: potMicros, isSell: isSell,
-                clock: ContinuousClock()))
+                service: service, cabalID: cabalID, trade: trade, clock: ContinuousClock()))
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                 MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
-                AmountEntry(amountText: $amountText, max: max, presets: presets, helper: helper)
-                    .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0)
-                    }
+                AmountEntry(
+                    amountText: $amountText, max: max, presets: presets, helper: model.helperText,
+                    overLimitHelper: "More than the cabal holds"
+                )
+                .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
                 if !showsReason {
                     Button("+ Add a reason") { showsReason = true }.buttonStyle(.monacoSecondary)
                 } else {
                     TextField(
-                        model.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?",
+                        model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?",
                         text: Binding(get: { model.thesis }, set: { model.thesis = $0 }), axis: .vertical
                     )
                     .textFieldStyle(.roundedBorder)
@@ -61,21 +60,20 @@ struct ProposeAmountScreen: View {
         .navigationDestination(isPresented: $showsReview) {
             if let preview = model.preview {
                 ProposeReviewScreen(
-                    service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID, stock: stock,
-                    draft: model.draft, preview: preview)
+                    service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID,
+                    draft: model.draft, preview: preview, trade: model.trade)
             }
         }
         .accessibilityIdentifier("propose-amount-screen")
     }
 
     private var presets: [AmountPreset] {
-        [
-            .dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max"),
-        ]
+        model.trade.isSell
+            ? [.fraction(0.25, label: "25%"), .fraction(0.5, label: "50%"), .fraction(1, label: "All")]
+            : [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")]
     }
 
     private var max: Decimal? { model.maxMicros.flatMap(ProposeMath.usd(fromMicros:)) }
-    private var helper: String? { model.potHelperText }
 }
 
 #if DEBUG

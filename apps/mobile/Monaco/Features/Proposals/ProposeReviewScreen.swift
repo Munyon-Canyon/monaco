@@ -2,7 +2,6 @@ import MonacoCore
 import SwiftUI
 
 struct ProposeReviewScreen: View {
-    let stock: ProposeStock
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: MonacoCore.ProposeReviewModel?
@@ -11,16 +10,17 @@ struct ProposeReviewScreen: View {
     private let cabalID: String
     private let draft: MonacoCore.ProposalDraft
     private let preview: MonacoCore.ProposePreview
+    private let trade: MonacoCore.ProposeTrade
 
     init(
-        service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, draft: MonacoCore.ProposalDraft,
-        preview: MonacoCore.ProposePreview
+        service: MonacoCore.ProposeService, cabalID: String, draft: MonacoCore.ProposalDraft,
+        preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade
     ) {
         self.service = service
         self.cabalID = cabalID
-        self.stock = stock
         self.draft = draft
         self.preview = preview
+        self.trade = trade
     }
 
     var body: some View {
@@ -57,7 +57,7 @@ struct ProposeReviewScreen: View {
                     }
                 }
                 if let reason = model.reason {
-                    MonacoSectionHeader("Why buy")
+                    MonacoSectionHeader(model.reasonTitle)
                     Text(reason).padding(.horizontal, MonacoTheme.Space.m)
                 }
             }
@@ -78,8 +78,7 @@ struct ProposeReviewScreen: View {
         do {
             let cabal = try await MonacoCore.ProposeCabalInfo.load(api: environment.api, cabalID: cabalID)
             model = MonacoCore.ProposeReviewModel(
-                service: service, cabalID: cabalID, cabal: cabal, draft: draft, preview: preview, kind: stock.assetKind,
-                tokenDecimals: stock.tokenDecimals)
+                service: service, cabalID: cabalID, cabal: cabal, draft: draft, preview: preview, trade: trade)
         } catch {
             cabalFailed = true
         }

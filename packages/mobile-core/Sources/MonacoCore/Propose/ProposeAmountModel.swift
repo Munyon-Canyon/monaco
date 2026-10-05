@@ -7,30 +7,37 @@ public final class ProposeAmountModel {
     public private(set) var preview: ProposePreview?
     public private(set) var isLoading = false
     public var thesis = "" { didSet { thesis = ProposeReasonRules.limited(thesis) } }
-    public let isSell: Bool
+    public let trade: ProposeTrade
 
     private let service: ProposeService
     private let cabalID: String
-    private let symbol: String
-    private let potMicros: Int64
     private let clock: any Clock<Duration>
     private var previewTask: Task<Void, Never>?
 
-    public init(
-        service: ProposeService, cabalID: String, symbol: String, potMicros: Int64 = 0, isSell: Bool = false,
-        clock: any Clock<Duration>
-    ) {
+    public init(service: ProposeService, cabalID: String, trade: ProposeTrade, clock: any Clock<Duration>) {
         self.service = service
         self.cabalID = cabalID
-        self.symbol = symbol
-        self.potMicros = potMicros
-        self.isSell = isSell
+        self.trade = trade
         self.clock = clock
     }
 
-    public var maxMicros: Int64? { preview?.maxMicros ?? (potMicros > 0 ? potMicros : nil) }
-    public var potHelperText: String? {
-        maxMicros.map { "The pot has \(UsdAmountFormatter.format(micros: $0))" }
+    public var maxMicros: Int64? {
+        switch trade {
+        case .buy: preview?.maxMicros
+        case .sell(let holding): holding.valueMicros
+        }
+    }
+
+    public var helperText: String? {
+        switch trade {
+        case .buy: preview?.potHelperText
+        case .sell(let holding): holding.helperText
+        }
+    }
+
+    public var isOverLimit: Bool {
+        guard case .sell(let holding) = trade else { return false }
+        return amountMicros > holding.valueMicros
     }
 
     public func setAmount(micros: Int64) {
@@ -62,15 +69,20 @@ public final class ProposeAmountModel {
     }
 
     public func reviewEnabled(assetName: String) -> Bool {
-        guard let preview else { return false }
-        return preview.reviewEnabled(amountMicros: amountMicros, isLoading: isLoading, assetName: assetName)
+        guard let preview, !isOverLimit, draft.amount > 0 else { return false }
+        return preview.reviewEnabled(
+            amountMicros: amountMicros, isLoading: isLoading, assetName: assetName, isSell: trade.isSell)
     }
 
-    public func message(assetName: String) -> String? { preview?.message(assetName: assetName) }
+    public func message(assetName: String) -> String? {
+        preview?.message(assetName: assetName, isSell: trade.isSell)
+    }
 
     public var draft: ProposalDraft {
-        isSell
-            ? .sell(symbol: symbol, tokenAmount: amountMicros, thesis: thesis)
-            : .buy(symbol: symbol, usdcMicros: amountMicros, thesis: thesis)
+        switch trade {
+        case .buy(let symbol, _, _): .buy(symbol: symbol, usdcMicros: amountMicros, thesis: thesis)
+        case .sell(let holding):
+            .sell(symbol: holding.symbol, tokenAmount: holding.tokenAmount(forMicros: amountMicros), thesis: thesis)
+        }
     }
 }

@@ -54,6 +54,39 @@ final class ProposeReviewModelTests: XCTestCase {
         XCTAssertEqual(model.proposalID, "proposal-1")
     }
 
+    func testSellSaysSharesRaisesAndWhatTheCabalKeeps() {
+        let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678)
+        let model = makeSellModel(apple, selling: 60_172_839)
+
+        XCTAssertEqual(model.title, "Sell 0.6017 shares of AAPL")
+        XCTAssertEqual(
+            model.rows,
+            [
+                .init(label: "Raises", value: "about $139.00"),
+                .init(label: "Cabal keeps", value: "0.6017 shares"),
+                .init(label: "Who votes", value: "All 3 members"),
+            ])
+        XCTAssertEqual(model.reasonTitle, "Why sell")
+    }
+
+    func testPreIpoSellSaysTokens() {
+        let spacex = ProposeHoldingTests.holding(
+            name: "SpaceX", kind: .preIpo, units: "2.0000", tokenAmount: 2_000_000_000)
+        let model = makeSellModel(spacex, selling: 2_000_000_000)
+
+        XCTAssertEqual(model.title, "Sell 2 tokens of SPACEX")
+        XCTAssertEqual(model.rows[1], .init(label: "Cabal keeps", value: "0 tokens"))
+    }
+
+    private func makeSellModel(_ holding: ProposeHolding, selling amount: Int64) -> ProposeReviewModel {
+        let preview = ProposePreview(
+            .init(quoteOutAmount: 139_000_000, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
+        return ProposeReviewModel(
+            service: ReviewService(), cabalID: "cabal", cabal: .init(name: "Sunday Investors", voters: "All 3 members"),
+            draft: .sell(symbol: holding.symbol, tokenAmount: amount, thesis: ""), preview: preview,
+            trade: .sell(holding))
+    }
+
     private func makeModel(kind: AssetKind, service: ReviewService, thesis: String = "Earnings next week.")
         -> ProposeReviewModel
     {
@@ -61,8 +94,8 @@ final class ProposeReviewModelTests: XCTestCase {
             .init(quoteOutAmount: 73_000_000, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
         return ProposeReviewModel(
             service: service, cabalID: "cabal", cabal: .init(name: "Sunday Investors", voters: "All 3 members"),
-            draft: .buy(symbol: "GOOGL", usdcMicros: 250_000_000, thesis: thesis), preview: preview, kind: kind,
-            tokenDecimals: 8)
+            draft: .buy(symbol: "GOOGL", usdcMicros: 250_000_000, thesis: thesis), preview: preview,
+            trade: .buy(symbol: "GOOGL", kind: kind, tokenDecimals: 8))
     }
 }
 
