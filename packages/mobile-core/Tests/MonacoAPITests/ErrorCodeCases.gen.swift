@@ -25,6 +25,7 @@ extension Components.Schemas.ErrorCode {
         case .calendarExpired: true
         case .cannotFollowSelf: true
         case .cannotRevokeAccess: true
+        case .cashOutInProgress: true
         case .clientClosed: true
         case .conservationBroken: true
         case .dbSchemaBehind: true
@@ -43,6 +44,7 @@ extension Components.Schemas.ErrorCode {
         case .idempotencyInFlight: true
         case .idempotencyMismatch: true
         case .insufficientFunds: true
+        case .insufficientShares: true
         case ._internal: true
         case .invalidAddress: true
         case .invalidConfig: true
@@ -93,6 +95,7 @@ extension Components.Schemas.ErrorCode {
         case .swapNotFound: true
         case .swapNotRetryable: true
         case .swapNotStuck: true
+        case .treasuryShort: true
         case .unauthorized: true
         case .upstreamTimeout: true
         case .upstreamUnavailable: true

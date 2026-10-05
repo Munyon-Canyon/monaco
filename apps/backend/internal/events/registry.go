@@ -23,6 +23,7 @@ func registrations() []Registration {
 		socialRegistrations(),
 		fundingRegistrations(),
 		adminRegistrations(),
+		treasuryRegistrations(),
 	)
 }
 

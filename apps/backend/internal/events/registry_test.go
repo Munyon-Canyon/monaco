@@ -142,6 +142,34 @@ func TestRegisterRejectsAVersionBelowOne(t *testing.T) {
 	})
 }
 
+func TestCashOutStartedIdentity(t *testing.T) {
+	t.Parallel()
+	id := uuid.UUID{1}
+	e := CashOutStarted{JobID: id}
+	if e.Type() != TypeCashOutStarted || e.AggregateType() != "cash_out" || e.AggregateID() != id {
+		t.Fatalf("CashOutStarted identity = %q, %q, %s", e.Type(), e.AggregateType(), e.AggregateID())
+	}
+}
+
+func TestDecodeCashOutStarted(t *testing.T) {
+	t.Parallel()
+	const payload = `{
+"v":1,
+"job_id":"01890a5d-ac96-774b-bcce-b302099a8057",
+"cabal_id":"01890a5d-ac96-774b-bcce-b302099a8058",
+"user_id":"01890a5d-ac96-774b-bcce-b302099a8059",
+"share_units":"25000000",
+"payout_micros":"25000000",
+"sell_usdc_micros":"0"
+}`
+	event, err := Decode(TypeCashOutStarted, 1, []byte(payload))
+	got, ok := event.(CashOutStarted)
+	if err != nil || !ok || got.ShareUnits != 25_000_000 || got.PayoutMicros.Uint64() != 25_000_000 ||
+		!got.SellUSDC.IsZero() {
+		t.Fatalf("Decode(cashout.started) = %#v, %v", event, err)
+	}
+}
+
 func TestDecodeAcceptsCurrentAndPreviousVersionOnly(t *testing.T) {
 	t.Parallel()
 	r := newRegistry([]Registration{Register[widgetBumped]("widget.bumped", 3)})
@@ -270,6 +298,18 @@ func TestSystemPingedAggregate(t *testing.T) {
 	var ev Event = SystemPinged{V: 1, PingID: id}
 	if ev.Type() != TypeSystemPinged || ev.AggregateType() != "system" || ev.AggregateID() != id {
 		t.Fatalf("SystemPinged aggregate = %s %s %s", ev.Type(), ev.AggregateType(), ev.AggregateID())
+	}
+}
+
+func TestCashOutStartedAggregate(t *testing.T) {
+	t.Parallel()
+	id, err := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8057")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ev Event = CashOutStarted{V: 1, JobID: id}
+	if ev.Type() != TypeCashOutStarted || ev.AggregateType() != "cash_out" || ev.AggregateID() != id {
+		t.Fatalf("CashOutStarted aggregate = %s %s %s", ev.Type(), ev.AggregateType(), ev.AggregateID())
 	}
 }
 

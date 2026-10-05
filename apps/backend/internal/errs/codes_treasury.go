@@ -1,10 +1,13 @@
 package errs
 
 const (
-	CodePotValueZero      Code = "pot_value_zero"
-	CodePriceUnavailable  Code = "price_unavailable"
-	CodeLedgerUnbalanced  Code = "ledger_unbalanced"
-	CodeInsufficientFunds Code = "insufficient_funds"
+	CodePotValueZero       Code = "pot_value_zero"
+	CodePriceUnavailable   Code = "price_unavailable"
+	CodeLedgerUnbalanced   Code = "ledger_unbalanced"
+	CodeInsufficientFunds  Code = "insufficient_funds"
+	CodeInsufficientShares Code = "insufficient_shares"
+	CodeCashOutInProgress  Code = "cash_out_in_progress"
+	CodeTreasuryShort      Code = "treasury_short"
 )
 
 func (codeFiles) Treasury() map[Code]Row {
@@ -19,6 +22,15 @@ func (codeFiles) Treasury() map[Code]Row {
 		},
 		CodeInsufficientFunds: {
 			Name: "InsufficientFunds", Kind: KindBlocked, Message: "There isn't enough USDC for that.",
+		},
+		CodeInsufficientShares: {
+			Name: "InsufficientShares", Kind: KindBlocked, Message: "You don't have enough shares for that.",
+		},
+		CodeCashOutInProgress: {
+			Name: "CashOutInProgress", Kind: KindConflict, Message: "A cash out is already in progress.",
+		},
+		CodeTreasuryShort: {
+			Name: "TreasuryShort", Kind: KindBlocked, Message: "The cabal needs to sell holdings before this cash out.",
 		},
 	}
 }
