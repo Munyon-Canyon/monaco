@@ -3,6 +3,7 @@ package funding_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"slices"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -425,11 +427,17 @@ func TestPause_FailuresRollBack(t *testing.T) {
 			id := mustPause(t, env, cabal, ops)
 			mark()
 			holdScopeLock(t, env.pool, cabal.String())
-			ctx, cancel := context.WithTimeout(opsContext(t), 300*time.Millisecond)
-			defer cancel()
-			return env.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			err := env.uow.Do(opsContext(t), func(ctx context.Context, tx db.Tx) error {
+				if _, err := tx.Queries().Exec(ctx, `SET LOCAL lock_timeout = '10ms'`); err != nil {
+					t.Fatal(err)
+				}
 				return app.ResolvePause(ctx, tx, env.clock.Now(), env.hints, id)
 			})
+			var pg *pgconn.PgError
+			if !errors.As(err, &pg) || pg.Code != "55P03" {
+				t.Fatalf("ResolvePause error = %v, want lock_not_available from the scope lock", err)
+			}
+			return err
 		},
 	}
 	for name, run := range cases {
