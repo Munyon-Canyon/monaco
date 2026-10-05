@@ -97,6 +97,7 @@ public final class ProposalDetailModel {
 public final class PendingVotesModel {
     public private(set) var votes: [PendingVote] = []
     public private(set) var details: [String: ProposalDetail] = [:]
+    public private(set) var pausedCabals: Set<String> = []
     private let repository: ProposalsRepository
     private let hints: any HintSource
     private let refresher: HintRefresher
@@ -127,8 +128,20 @@ public final class PendingVotesModel {
                     }
                     return pairs
                 })
+            pausedCabals = await pausedAmong(Set(votes.map(\.cabalID)))
         } catch {}
     }
+    private func pausedAmong(_ cabalIDs: Set<String>) async -> Set<String> {
+        await withTaskGroup(of: String?.self) { group in
+            for id in cabalIDs {
+                group.addTask { (try? await self.repository.isPaused(cabalID: id)) == true ? id : nil }
+            }
+            var paused: Set<String> = []
+            for await id in group { if let id { paused.insert(id) } }
+            return paused
+        }
+    }
+
     public func observe() async {
         await refresher.observe(hints.hints(matching: .global(what: nil)))
     }

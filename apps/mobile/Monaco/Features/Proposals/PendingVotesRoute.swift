@@ -16,7 +16,9 @@ private struct PendingVotesScreen: View {
                     ForEach(model.votes) { vote in
                         if let detail = model.details[vote.id] {
                             NavigationLink(value: AnyAppRoute(ProposalRoute(proposalID: vote.id))) {
-                                ProposalCard(proposal: detail.summary, asset: nil, members: [])
+                                ProposalCard(
+                                    proposal: detail.summary, asset: nil, members: [],
+                                    paused: model.pausedCabals.contains(detail.summary.cabalID))
                             }
                             .buttonStyle(.plain)
                         }

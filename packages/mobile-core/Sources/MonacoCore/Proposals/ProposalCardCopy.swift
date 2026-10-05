@@ -1,6 +1,8 @@
 import Foundation
 
 public enum ProposalCardCopy {
+    public static let pausedCaption = "Trading is paused. If this passes, it won't buy until trading resumes."
+
     public static func closes(at expiry: Date, now: Date) -> String {
         let seconds = max(0, Int(expiry.timeIntervalSince(now)))
         if seconds >= 3600 { return "Closes in \(seconds / 3600)h" }

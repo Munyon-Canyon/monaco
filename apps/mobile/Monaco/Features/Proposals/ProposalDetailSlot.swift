@@ -14,6 +14,7 @@ private struct ProposalDetailSlotView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: ProposalDetailModel?
+    @State private var pause: ProposalPauseModel?
     @State private var priorStatus: ProposalStatus?
     @State private var showBurst = false
     @State private var confirmingWithdrawal = false
@@ -23,7 +24,10 @@ private struct ProposalDetailSlotView: View {
             if let detail = model?.value {
                 ScrollView {
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                        ProposalCard(proposal: detail.summary, asset: model?.asset, members: model?.members ?? []) {
+                        ProposalCard(
+                            proposal: detail.summary, asset: model?.asset, members: model?.members ?? [],
+                            paused: pause?.isPaused == true
+                        ) {
                             choice in
                             Task {
                                 await model?.vote(choice)
@@ -62,8 +66,17 @@ private struct ProposalDetailSlotView: View {
         .task {
             let model = preparedModel()
             await model.load()
+            guard let cabalID = model.value?.summary.cabalID else { return }
+            let pause = ProposalPauseModel(
+                cabalID: cabalID, repository: ProposalsRepository(api: environment.api), hints: environment.hints)
+            self.pause = pause
+            await pause.load()
+            await pause.observe()
         }
-        .onScreenVisibilityChange { model?.setVisible($0) }
+        .onScreenVisibilityChange {
+            model?.setVisible($0)
+            pause?.setVisible($0)
+        }
         .onChange(of: model?.value?.summary.status) { old, new in
             priorStatus = old
             showBurst = old == .open && new == .executed && model?.value?.summary.kind == "buy"

@@ -13,6 +13,7 @@ private struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @State private var model: ProposalListModel?
+    @State private var pause: ProposalPauseModel?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -28,7 +29,15 @@ private struct CabalProposals: View {
             }
         }
         .task { await preparedModel().load() }
-        .onScreenVisibilityChange { model?.setVisible($0) }
+        .task {
+            let pause = preparedPause()
+            await pause.load()
+            await pause.observe()
+        }
+        .onScreenVisibilityChange {
+            model?.setVisible($0)
+            pause?.setVisible($0)
+        }
     }
 
     @ViewBuilder private func content(_ model: ProposalListModel) -> some View {
@@ -41,8 +50,19 @@ private struct CabalProposals: View {
                 Spacer()
                 NavigationLink("See all", value: CabalProposalListRoute(cabalID: cabalID))
             }
-            ForEach(needsVote) { proposal in ProposalCard(proposal: proposal, asset: nil, members: []) }
+            ForEach(needsVote) { proposal in
+                ProposalCard(
+                    proposal: proposal, asset: nil, members: [], paused: pause?.isPaused == true)
+            }
         }
+    }
+
+    private func preparedPause() -> ProposalPauseModel {
+        if let pause { return pause }
+        let created = ProposalPauseModel(
+            cabalID: cabalID, repository: ProposalsRepository(api: environment.api), hints: environment.hints)
+        pause = created
+        return created
     }
 
     private func preparedModel() -> ProposalListModel {
