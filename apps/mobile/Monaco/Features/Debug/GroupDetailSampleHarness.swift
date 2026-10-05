@@ -7,7 +7,6 @@ import UIKit
 /// Debug-only: the group screen and its pushed screens on canned data, no sign-in or backend.
 /// Launch with `-MonacoGroupDetailSample <scenario>`:
 /// `populated` · `empty` · `loading` · `details` (Cabal details sheet open) · `propose` (chooser sheet open)
-/// · `receipt` (bought) · `receiptFailed` (failed sell) · `activity` (full list)
 /// · `picture` (cabal with a picture, viewer is its creator) · `noPicture` (creator, tinted
 /// initials, nothing to remove) · `pictureNotCreator` (has a picture, viewer is a plain member,
 /// so no controls) · `pictureUploadFailure` (every write is refused).
@@ -17,9 +16,6 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case loading
     case details
     case propose
-    case receipt
-    case receiptFailed
-    case activity
     case picture
     case noPicture
     case pictureNotCreator
@@ -81,20 +77,6 @@ struct GroupDetailSampleHarness: View {
     @ViewBuilder
     private var root: some View {
         switch scenario {
-        case .receipt:
-            TransactionReceiptView(receipt: TransactionReceipt(transaction: GroupDetailSampleData.boughtApple))
-                .monacoCanvas()
-                .navigationBarTitleDisplayMode(.inline)
-        case .receiptFailed:
-            TransactionReceiptView(
-                receipt: TransactionReceipt(transaction: GroupDetailSampleData.failedSell),
-                onRetry: {}
-            )
-            .monacoCanvas()
-            .navigationBarTitleDisplayMode(.inline)
-        case .activity:
-            GroupActivityListView(
-                auth: auth, items: GroupDetailSampleData.activity, retryingTransactionIDs: [], onRetry: { _ in })
         case .loading:
             GroupDetailSkeleton()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -116,13 +98,8 @@ struct GroupDetailSampleHarness: View {
             currentUserId: GroupDetailSampleData.viewerId,
             proposalService: proposalService,
             proposalRefreshToken: "0",
-            activityItems: scenario == .empty ? [] : GroupDetailSampleData.activity,
-            activityLoading: false,
-            activityError: nil,
-            retryingTransactionIDs: [],
             onRoute: { route = $0 },
             onPropose: { showPropose = true },
-            onRetry: { _ in },
             onToast: { toast = $0 },
             onHeroScrolledAway: { heroScrolledAway = $0 },
             pictureEditor: pictureEditor,
@@ -149,9 +126,6 @@ struct GroupDetailSampleHarness: View {
         }
         .navigationDestination(item: $route) { route in
             switch route {
-            case .activity:
-                GroupActivityListView(
-                    auth: auth, items: GroupDetailSampleData.activity, retryingTransactionIDs: [], onRetry: { _ in })
             case .proposals:
                 ProposalFeedView(service: proposalService, groupId: view.id)
             case .stock(let symbol):
@@ -246,53 +220,6 @@ enum GroupDetailSampleData {
         ],
         proposals: nil,
         agent: nil
-    )
-
-    static var activity: [GroupActivityItemDTO] {
-        let iso = ISO8601DateFormatter()
-        func ago(_ minutes: Double) -> String { iso.string(from: Date().addingTimeInterval(-minutes * 60)) }
-        return [
-            GroupActivityItemDTO(
-                id: "t1", kind: "buy", status: "pending", symbol: "AAPLx", amountMicros: 50_000_000, createdAt: ago(3),
-                txSignature: "5h1Xk", tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: "member",
-                agentDisplayName: nil),
-            GroupActivityItemDTO(
-                id: "t2", kind: "deposit", status: "confirmed", symbol: nil, amountMicros: 100_000_000,
-                createdAt: ago(55), txSignature: nil, tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: nil,
-                agentDisplayName: nil),
-            GroupActivityItemDTO(
-                id: "t3", kind: "sell", status: "failed", symbol: "TSLAx", amountMicros: 0, createdAt: ago(180),
-                txSignature: nil, tokenAmount: "25000000", proceedsUsdcMicros: nil, initiatedBy: "member",
-                agentDisplayName: nil),
-            GroupActivityItemDTO(
-                id: "t4", kind: "buy", status: "confirmed", symbol: "NVDAx", amountMicros: 194_710_000,
-                createdAt: ago(60 * 26), txSignature: "3kQp", tokenAmount: nil, proceedsUsdcMicros: nil,
-                initiatedBy: "agent", agentDisplayName: "Scout"),
-            GroupActivityItemDTO(
-                id: "t5", kind: "buy", status: "confirmed", symbol: "AAPLx", amountMicros: 250_000_000,
-                createdAt: ago(60 * 50), txSignature: "4mZa", tokenAmount: nil, proceedsUsdcMicros: nil,
-                initiatedBy: "member", agentDisplayName: nil),
-            GroupActivityItemDTO(
-                id: "t6", kind: "deposit", status: "confirmed", symbol: nil, amountMicros: 300_000_000,
-                createdAt: ago(60 * 74), txSignature: nil, tokenAmount: nil, proceedsUsdcMicros: nil, initiatedBy: nil,
-                agentDisplayName: nil),
-        ]
-    }
-
-    static let boughtApple = TransactionDetailDTO(
-        transactionId: "t5", groupId: "g1", action: "buy", status: "confirmed", amountMicros: 250_000_000,
-        inputMint: nil, outputMint: nil, inputSymbol: "USDC", outputSymbol: "AAPLx",
-        txSignature: "4mZaQ8nJv2kPp7sWfLr3bXy9TcHd6eUoGi1AqRsNmVtK", executeRequestId: nil, proposalId: "p1",
-        costBasisPrice: 250_000_000, costBasisAmount: 108_034_000, createdAt: "2026-09-16T14:02:00Z",
-        confirmedAt: "2026-09-16T14:02:09Z", failureReason: nil, proceedsUsdcMicros: nil
-    )
-
-    static let failedSell = TransactionDetailDTO(
-        transactionId: "t3", groupId: "g1", action: "sell", status: "failed", amountMicros: 25_000_000,
-        inputMint: nil, outputMint: nil, inputSymbol: "TSLAx", outputSymbol: "USDC",
-        txSignature: nil, executeRequestId: nil, proposalId: "p2",
-        costBasisPrice: nil, costBasisAmount: nil, createdAt: "2026-09-18T11:40:00Z",
-        confirmedAt: nil, failureReason: "slippage", proceedsUsdcMicros: nil
     )
 
     // MARK: - Cabal picture scenarios

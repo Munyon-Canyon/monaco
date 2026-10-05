@@ -6,7 +6,6 @@ import SwiftUI
 enum GroupDetailRoute: Hashable {
     case chat
     case proposals
-    case activity
     /// A holding on the cabal screen, opened as the stock it is. The row already
     /// shows the day's shape and its change; tapping it should go where those
     /// numbers come from rather than being the end of the road.
@@ -24,8 +23,8 @@ private nonisolated enum GroupDetailRefreshMode {
     case quiet
 }
 
-/// Group screen: hero, action row, open votes, holdings, leaderboard, and activity.
-/// Owns loading, polling, retry, and join-request state; `GroupDetailContent` is the layout.
+/// Group screen: hero, action row, open votes, holdings and leaderboard.
+/// Owns loading, polling and join-request state; `GroupDetailContent` is the layout.
 struct GroupDetailView: View {
     @ObservedObject var auth: PrivyAuthService
     let groupId: String
@@ -37,11 +36,6 @@ struct GroupDetailView: View {
 
     @State private var groupView: GroupViewDTO?
     /// One idempotency key holder per transaction being retried; retries of different rows overlap.
-    @State private var retrySubmissions: [String: IdempotentSubmission] = [:]
-    @State private var activityItems: [GroupActivityItemDTO] = []
-    @State private var activityLoading = true
-    @State private var activityError: String?
-    @State private var retryingTransactionIDs: Set<String> = []
     @State private var errorMessage: String?
     @State private var toast: MonacoToast?
     @State private var isLoading: Bool
@@ -74,8 +68,8 @@ struct GroupDetailView: View {
         GroupDetailCadence.interval(
             for: GroupDetailCadence.Inputs(
                 hasOpenVotes: hasOpenVotes,
-                hasPendingSwap: activityItems.contains { $0.status.lowercased() == "pending" },
-                hasPendingDeposit: activityHasPendingDeposits,
+                hasPendingSwap: false,
+                hasPendingDeposit: false,
                 isWatchingVoteOutcome: isWatchingVoteOutcome
             ))
     }
@@ -185,13 +179,8 @@ struct GroupDetailView: View {
                 proposalService: proposalService,
                 proposalRefreshToken: "\(proposalRefreshCount)",
                 onOpenVotesChange: openVotesChanged,
-                activityItems: activityItems,
-                activityLoading: activityLoading,
-                activityError: activityError,
-                retryingTransactionIDs: retryingTransactionIDs,
                 onRoute: { route = $0 },
                 onPropose: { showProposeSheet = true },
-                onRetry: { item in Task { await retryTransaction(item) } },
                 onToast: { toast = $0 },
                 onHeroScrolledAway: { heroScrolledAway = $0 },
                 heroChart: pnl.chart,
@@ -246,13 +235,6 @@ struct GroupDetailView: View {
             GroupChatView(auth: auth, groupId: groupId, groupName: displayName)
         case .proposals:
             ProposalFeedView(service: proposalService, groupId: groupId)
-        case .activity:
-            GroupActivityListView(
-                auth: auth,
-                items: activityItems,
-                retryingTransactionIDs: retryingTransactionIDs,
-                onRetry: { item in Task { await retryTransaction(item) } }
-            )
         case .stock(let symbol):
             AssetDetailClientView(symbol: symbol)
         }
@@ -285,7 +267,7 @@ struct GroupDetailView: View {
 
     /// The one way this screen reads itself.
     ///
-    /// The cabal, its activity and — for an admin — the people waiting to join are read together
+    /// The cabal and — for an admin — the people waiting to join are read together
     /// rather than one after another, and written through `QuietUpdate`, so a refresh that finds
     /// nothing new changes nothing the member can see. Every caller goes through `refreshGate`,
     /// which is what stops a resuming poll tick from racing the appear load back into the view
@@ -300,33 +282,27 @@ struct GroupDetailView: View {
         guard let token = auth.accessToken else {
             if mode != .quiet {
                 isLoading = false
-                activityLoading = false
                 errorMessage = "Sign in again to see this cabal."
             }
             return
         }
         if mode == .initial {
             isLoading = true
-            activityLoading = true
         }
         if mode != .quiet {
             errorMessage = nil
-            activityError = nil
         }
         defer {
             if mode == .initial {
                 isLoading = false
-                activityLoading = false
             }
         }
 
         async let viewLoad = apiClient.getGroupView(accessToken: token, groupId: groupId)
-        async let activityLoad = apiClient.getGroupActivity(accessToken: token, groupId: groupId)
         // The curve rides along with the rest of the read; its failures are its own, and a
         // quiet one leaves the drawn curve alone.
         async let curveLoad: Void = pnl.load(range: pnl.range, quietly: mode == .quiet)
 
-        let activity = try? await activityLoad
         await curveLoad
 
         var loadedView: GroupViewDTO?
@@ -342,12 +318,6 @@ struct GroupDetailView: View {
         if let loadedView {
             QuietUpdate.apply(loadedView, over: groupView) { groupView = $0 }
             if errorMessage != nil { errorMessage = nil }
-        }
-        if let activity {
-            QuietUpdate.apply(activity.items, over: activityItems) { activityItems = $0 }
-            if activityError != nil { activityError = nil }
-        } else if mode != .quiet, activityItems.isEmpty {
-            activityError = "Couldn't load activity. Pull down to try again"
         }
 
         guard let viewFailure, !viewFailure.isRequestCancellation else { return }
@@ -365,46 +335,6 @@ struct GroupDetailView: View {
     /// way: the action it follows has already said what happened.
     private func refreshQuietly() async {
         try? await refreshGate.runNow { try await refresh(.quiet) }
-    }
-
-    private var activityHasPendingDeposits: Bool {
-        activityItems.contains { item in
-            item.kind.lowercased() == "deposit" && DepositStatusNormalizer.isPending(item.status)
-        }
-    }
-
-    private func retryTransaction(_ item: GroupActivityItemDTO) async {
-        guard let token = auth.accessToken else {
-            toast = MonacoToast(message: "Sign in again to retry.")
-            return
-        }
-        guard !retryingTransactionIDs.contains(item.id) else { return }
-
-        retryingTransactionIDs.insert(item.id)
-        defer { retryingTransactionIDs.remove(item.id) }
-
-        let submission = retrySubmissions[item.id] ?? IdempotentSubmission()
-        retrySubmissions[item.id] = submission
-
-        do {
-            let result = try await apiClient.retryTransaction(
-                accessToken: token, transactionId: item.id, submission: submission)
-            await refreshQuietly()
-            if result.status.lowercased() == "confirmed" {
-                let done = item.kind.lowercased() == "sell" ? "Sold" : "Bought"
-                toast = MonacoToast(message: "\(done). Holdings updated", isSuccess: true)
-            } else if result.status.lowercased() == "failed" {
-                toast = MonacoToast(message: "It didn't go through again. Try later")
-            }
-        } catch is CancellationError {
-            return
-        } catch MonacoAPIError.httpStatus(let code) where code == 409 {
-            toast = MonacoToast(message: "This one can't be retried")
-        } catch MonacoAPIError.httpStatus {
-            toast = MonacoToast(message: "Retry didn't go through. Try again")
-        } catch {
-            toast = MonacoToast(message: "Retry didn't go through. Try again")
-        }
     }
 }
 
@@ -428,13 +358,8 @@ struct GroupDetailContent: View {
     let proposalService: ProposalFeedService
     let proposalRefreshToken: String
     var onOpenVotesChange: (Bool) -> Void = { _ in }
-    let activityItems: [GroupActivityItemDTO]
-    let activityLoading: Bool
-    let activityError: String?
-    let retryingTransactionIDs: Set<String>
     let onRoute: (GroupDetailRoute) -> Void
     let onPropose: () -> Void
-    let onRetry: (GroupActivityItemDTO) -> Void
     let onToast: (MonacoToast) -> Void
     var onHeroScrolledAway: (Bool) -> Void = { _ in }
     /// Nil on read-only surfaces; the hero then draws a plain mark.
@@ -485,16 +410,6 @@ struct GroupDetailContent: View {
                 }
 
                 MemberBoardSection(members: view.members, currentUserId: currentUserId)
-
-                GroupActivitySection(
-                    auth: auth,
-                    items: activityItems,
-                    isLoading: activityLoading,
-                    errorMessage: activityError,
-                    retryingTransactionIDs: retryingTransactionIDs,
-                    onRetry: onRetry,
-                    onSeeAll: { onRoute(.activity) }
-                )
             }
             .padding(.bottom, MonacoTheme.Space.xl)
         }
