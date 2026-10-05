@@ -9,7 +9,7 @@ struct CabalComingSlotsTests {
     @Test func theComingSlotsAreLive() {
         let slots: [any CabalSection.Type] = [
             CabalPotSlot.self, CabalValueChartSlot.self, CabalSliceSlot.self, CabalHoldingsSlot.self,
-            CabalMemberBoardSlot.self,
+            CabalMemberBoardSlot.self, CabalPauseSlot.self,
         ]
         #expect(slots.allSatisfy { $0.isLive })
     }

@@ -21,12 +21,6 @@ public enum MonacoRequestTimeout {
     /// room. A retry after this deadline goes out under the same key, and a backend still
     /// holding that key replays the first answer instead of moving the money again.
     ///
-    /// The rule keys off the header, but the dedupe it assumes is per route: only the
-    /// suffixes in `idempotentPathSuffixes` (httpapi/idempotency.go) run the middleware.
-    /// `postRedeem` sends a key to `/redeems`, which is not on that list, so its key is
-    /// inert and the 60s it earns here buys no replay protection. Harmless while the
-    /// endpoint has no callers; adding one means adding the route server-side first.
-    ///
     /// 60s is the same number `URLSession.shared` already gave these routes, so by itself
     /// this constant is not a behaviour change for money: a confirm that takes 61-180s still
     /// surfaces as a failure exactly as it did before. It is deliberately not raised to the
@@ -34,7 +28,7 @@ public enum MonacoRequestTimeout {
     /// answer than a failure the member can act on. What changed for money is the recovery
     /// classification: that failure is now `.resendSame`, so the retry rides the pending key
     /// instead of minting a new one. The rest is server-side: the routes that swap inside the
-    /// request should answer 202 with a job to poll, as withdraw-to-balance already does, and
+    /// request should answer 202 with a job to poll, as cash out already does, and
     /// then this budget and `serverWriteTimeout` can meet in the middle.
     public static let moneyWrite: TimeInterval = 60
 

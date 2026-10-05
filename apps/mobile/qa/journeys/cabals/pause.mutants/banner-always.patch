@@ -5,18 +5,15 @@ Every cabal shows the pause warning. S2.2 expects no cabal-pause-banner on a run
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift
-index 517ab132..b405e7e2 100644
+index 003bddf41..8acf0e988 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift
-@@ -1,9 +1,9 @@
- import SwiftUI
+@@ -18,7 +18,7 @@ private struct CabalPauseStatus: View {
  
- enum CabalPauseSlot: CabalSection {
--    static let isLive = false
-+    static let isLive = true
- 
-     static func body(for context: CabalContext) -> some View {
--        EmptyView()
-+        Text("Paused. Funding and cash outs resume after review.").accessibilityIdentifier("cabal-pause-banner")
-     }
- }
+     var body: some View {
+         Group {
+-            if let pause = model?.preview?.pause {
++            if let pause = Optional(model?.preview?.pause ?? CabalPause(cause: .ops)) {
+                 CabalPauseRow(pause: pause)
+                     .padding(.horizontal, MonacoTheme.Space.gutter)
+                     .padding(.top, MonacoTheme.Space.m)

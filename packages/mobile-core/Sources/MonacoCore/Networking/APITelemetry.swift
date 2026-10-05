@@ -121,7 +121,7 @@ public final class APITelemetryRegistry: @unchecked Sendable {
 /// Turns a request path into a route template when the caller did not supply one.
 ///
 /// Works as an allowlist: a segment is kept only when it looks like a route literal
-/// (`v1`, `groups`, `withdraw-to-balance`). Everything else, including UUIDs, numeric ids,
+/// (`v1`, `cabals`, `cashouts`). Everything else, including UUIDs, numeric ids,
 /// wallet addresses and asset symbols, becomes `{id}`. Query strings are never included.
 public enum APIRouteTemplate {
     public static let placeholder = "{id}"
