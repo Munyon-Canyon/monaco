@@ -20,8 +20,8 @@ func TestQueries_ownsCashOutPayoutSignatures(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(f.ctx(), `INSERT INTO cash_out_payouts
-		(job_id, attempt, signature, signed_tx, status, created_at)
-		VALUES ($1, 1, 'payout-signature', '\x01', 'signed', $2)`, job, now); err != nil {
+		(job_id, attempt, signature, signed_tx, last_valid_block_height, status, created_at)
+		VALUES ($1, 1, 'payout-signature', '\x01', 100, 'signed', $2)`, job, now); err != nil {
 		t.Fatal(err)
 	}
 	assertSignatureOwned(f.ctx(), t, q, "payout-signature", true)

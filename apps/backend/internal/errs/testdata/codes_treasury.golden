@@ -2,6 +2,7 @@ cash_out_in_progress
 insufficient_funds
 insufficient_shares
 ledger_unbalanced
+payout_failed
 pot_value_zero
 price_unavailable
 sale_short

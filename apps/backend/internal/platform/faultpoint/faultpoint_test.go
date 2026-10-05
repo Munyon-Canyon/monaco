@@ -30,10 +30,10 @@ func reason(t *testing.T, err error) string {
 	return ""
 }
 
-func TestNames_listsTheFiveRegisteredPointsSorted(t *testing.T) {
+func TestNames_listsTheRegisteredPointsSorted(t *testing.T) {
 	t.Parallel()
 	want := []faultpoint.Name{
-		faultpoint.AfterCreate, faultpoint.AfterExecute, faultpoint.AfterPublish,
+		faultpoint.AfterBroadcast, faultpoint.AfterCreate, faultpoint.AfterExecute, faultpoint.AfterPublish,
 		faultpoint.AfterSign, faultpoint.BeforeCommit,
 	}
 	got := faultpoint.Names()
@@ -41,7 +41,7 @@ func TestNames_listsTheFiveRegisteredPointsSorted(t *testing.T) {
 		t.Fatalf("Names = %v, want %v", got, want)
 	}
 	got[0] = "mutated"
-	if faultpoint.Names()[0] != faultpoint.AfterCreate {
+	if faultpoint.Names()[0] != faultpoint.AfterBroadcast {
 		t.Fatal("Names shares its backing array with callers")
 	}
 }

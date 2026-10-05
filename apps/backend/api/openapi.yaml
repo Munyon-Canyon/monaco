@@ -2507,6 +2507,7 @@ components:
         - onramp_link_expired
         - onramp_link_invalid
         - panic
+        - payout_failed
         - phone_not_linked
         - photo_invalid
         - post_hog_rejected
