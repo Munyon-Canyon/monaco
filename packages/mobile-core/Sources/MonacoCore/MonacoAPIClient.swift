@@ -244,20 +244,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(ProposalCommentDTO.self, from: response.data)
     }
 
-    public func withdrawToBalance(groupId: String, shareAmountMicros: Int64? = nil, submission: IdempotentSubmission)
-        async throws -> WithdrawToBalanceJobDTO
-    {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/withdraw-to-balance")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            WithdrawToBalanceRequestDTO(shareAmountMicros: shareAmountMicros))
-        let response = try await send(request, route: "/v1/groups/{id}/withdraw-to-balance", submission: submission)
-        return try JSONDecoder().decode(WithdrawToBalanceJobDTO.self, from: response.data)
-    }
-
     public func getGroupView(groupId: String) async throws -> GroupViewDTO {
         let url = baseURL.appending(path: "v1/groups/\(groupId)/view")
         var request = URLRequest(url: url)
@@ -317,30 +303,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
 
         let response = try await send(request, route: route)
         return try monacoISO8601JSONDecoder().decode(T.self, from: response.data)
-    }
-
-    public func postRedeem(
-        groupId: String,
-        shareUnits: String,
-        payoutAddress: String,
-        payoutProof: String,
-        submission: IdempotentSubmission
-    ) async throws -> RedeemJobDTO {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/redeems")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            RedeemRequestDTO(
-                shareUnits: shareUnits,
-                payoutAddress: payoutAddress,
-                payoutProof: payoutProof
-            )
-        )
-
-        let response = try await send(request, route: "/v1/groups/{id}/redeems", submission: submission)
-        return try JSONDecoder().decode(RedeemJobDTO.self, from: response.data)
     }
 
     public func devBuy(groupId: String, symbol: String, usdc: Int64) async throws -> DevBuyResponseDTO {

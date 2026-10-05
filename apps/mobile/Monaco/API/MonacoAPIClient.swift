@@ -23,10 +23,6 @@ extension Error {
     }
 }
 
-private struct APIErrorBody: Decodable {
-    let error: String
-}
-
 final class MonacoAPIClient: AppSessionDataSource {
     private let baseURL: URL
     /// Every request goes through the transport so an expired access token is
@@ -136,34 +132,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return payload.groups
     }
 
-    func withdrawToBalance(
-        accessToken: String, groupId: String, shareAmountMicros: Int64? = nil, submission: IdempotentSubmission
-    ) async throws -> WithdrawToBalanceJobDTO {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/withdraw-to-balance")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            WithdrawToBalanceRequestDTO(shareAmountMicros: shareAmountMicros))
-        let (data, response) = try await session.data(for: request, submission: submission)
-        guard let http = response as? HTTPURLResponse else { throw MonacoAPIError.invalidResponse }
-        // 4xx cash out refusals carry a message the member can act on (amount too small to
-        // route, pot short on USDC); surface it instead of a generic failure.
-        guard http.statusCode == 200 else { throw apiFailure(status: http.statusCode, data: data) }
-        return try JSONDecoder().decode(WithdrawToBalanceJobDTO.self, from: data)
-    }
-
-    /// Money endpoints explain a refusal in the body; keep it so the screen can say why.
-    private func apiFailure(status: Int, data: Data) -> MonacoAPIError {
-        if let body = try? JSONDecoder().decode(APIErrorBody.self, from: data),
-            !body.error.isEmpty
-        {
-            return .apiError(status: status, message: body.error)
-        }
-        return .httpStatus(status)
-    }
-
     func getGroup(accessToken: String, groupId: String) async throws -> GetGroupResponse {
         let url = baseURL.appending(path: "v1/groups/\(groupId)")
         var request = URLRequest(url: url)
@@ -256,37 +224,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(AssetSocialDTO.self, from: data)
     }
 
-    func postRedeem(
-        accessToken: String,
-        groupId: String,
-        shareUnits: String,
-        payoutAddress: String,
-        payoutProof: String,
-        submission: IdempotentSubmission
-    ) async throws -> RedeemJobDTO {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/redeems")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            RedeemSubmitRequest(
-                shareUnits: shareUnits,
-                payoutAddress: payoutAddress,
-                payoutProof: payoutProof
-            )
-        )
-
-        let (data, response) = try await session.data(for: request, submission: submission)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try JSONDecoder().decode(RedeemJobDTO.self, from: data)
-    }
-
     func devBuy(accessToken: String, groupId: String, symbol: String, usdc: Int64) async throws -> DevBuyResponse {
         let url = baseURL.appending(path: "v1/dev/groups/\(groupId)/buy")
         var request = URLRequest(url: url)
@@ -316,10 +253,4 @@ extension MonacoAPIClient {
         }
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
-}
-
-private struct RedeemSubmitRequest: Encodable {
-    let shareUnits: String
-    let payoutAddress: String
-    let payoutProof: String
 }

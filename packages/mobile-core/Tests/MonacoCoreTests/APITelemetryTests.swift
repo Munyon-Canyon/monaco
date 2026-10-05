@@ -67,18 +67,17 @@ final class APITelemetryTests: XCTestCase {
 
     func testSuccessReportsTemplateStatusDurationAndEchoedID() async throws {
         MockURLProtocol.requestHandler = { [self] request in
-            respond(request, status: 200, body: #"{"groupBalance":1,"platformBalance":2}"#, echoRequestID: true)
+            respond(request, status: 201, body: #"{}"#, echoRequestID: true)
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.withdrawToBalance(
-            groupId: groupID, shareAmountMicros: 5_000_000, submission: IdempotentSubmission())
+        _ = try? await client.postGroupMessage(groupId: groupID, body: "hello")
 
         let event = try XCTUnwrap(events.values.first)
         XCTAssertEqual(events.values.count, 1)
         XCTAssertEqual(event.method, "POST")
-        XCTAssertEqual(event.route, "/v1/groups/{id}/withdraw-to-balance")
-        XCTAssertEqual(event.outcome, .status(200))
+        XCTAssertEqual(event.route, "/v1/groups/{id}/messages")
+        XCTAssertEqual(event.outcome, .status(201))
         XCTAssertGreaterThan(event.durationMs, 0)
         XCTAssertEqual(event.serverRequestID, event.requestID)
         XCTAssertFalse(event.isFailure)
@@ -214,8 +213,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         _ = try? await client.getHomePnLSeries()
-        _ = try? await client.withdrawToBalance(
-            groupId: groupID, shareAmountMicros: 123_456_789, submission: IdempotentSubmission())
+        _ = try? await client.postGroupMessage(groupId: groupID, body: "hello")
 
         XCTAssertEqual(events.values.count, 2)
         for event in events.values {
@@ -259,8 +257,8 @@ final class APITelemetryTests: XCTestCase {
         XCTAssertEqual(APIRouteTemplate.redacting(path: "/health"), "/health")
         XCTAssertEqual(APIRouteTemplate.redacting(path: ""), "/")
         XCTAssertEqual(
-            APIRouteTemplate.redacting(path: "/v1/groups/\(groupID)/withdraw-to-balance"),
-            "/v1/groups/{id}/withdraw-to-balance"
+            APIRouteTemplate.redacting(path: "/v1/cabals/\(groupID)/cashouts"),
+            "/v1/cabals/{id}/cashouts"
         )
         XCTAssertEqual(APIRouteTemplate.redacting(path: "/v1/proposals/981234"), "/v1/proposals/{id}")
         XCTAssertEqual(APIRouteTemplate.redacting(path: "/v1/assets/SOL/chart"), "/v1/assets/{id}/chart")
