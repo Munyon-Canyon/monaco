@@ -1,8 +1,9 @@
+import UIKit
 import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 1
+    static let version = 2
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -135,6 +136,118 @@ enum CreateCabalJourney {
             field.tap()
             field.typeText("   ")
             XCTAssertFalse(submit.isEnabled, "S3.2: Create cabal is enabled for a blank name")
+        }
+    }
+
+    static let duoCodeKey = "duo-invite-code"
+
+    static func duoCabal(run: String) -> String { "QA duo \(run)" }
+
+    static func creatorStartsAnOpenCabal(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
+        let name = duoCabal(run: run)
+        let submit = app.buttons["create-group-submit"]
+
+        recorder.step("S4.1", "open the create form") {
+            app.tab("Cabals").tap()
+            let plus = app.buttons["cabals-new-button"]
+            XCTAssertTrue(plus.waitForExistence(timeout: listTimeout), "S4.1: no + on the Cabals tab")
+            plus.tap()
+            let start = app.buttons["new-cabal-create-row"]
+            XCTAssertTrue(start.waitForExistence(timeout: formTimeout), "S4.1: the sheet has no Start a cabal row")
+            start.tap()
+            XCTAssertTrue(
+                app.textFields["create-group-name"].waitForExistence(timeout: formTimeout),
+                "S4.1: the name field did not show within \(Int(formTimeout)) s"
+            )
+        }
+
+        recorder.step("S4.2", "name it, let anyone join, and create it") {
+            let field = app.textFields["create-group-name"]
+            field.tap()
+            field.typeText(name + "\n")
+            let anyone = app.element("create-rule-join").buttons["Anyone"]
+            app.scrollIntoReach(anyone)
+            XCTAssertTrue(anyone.exists, "S4.2: no Anyone in create-rule-join")
+            anyone.tap()
+            XCTAssertTrue(anyone.isSelected, "S4.2: Anyone is not selected in create-rule-join")
+            app.scrollIntoReach(submit)
+            submit.tap()
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: createdTimeout),
+                "S4.2: the cabal screen for \(name) did not show within \(Int(createdTimeout)) s"
+            )
+            JoinJourney.waitForToast(app, "Cabal created.", step: "S4.2")
+        }
+
+        var code = ""
+        recorder.step("S4.3", "read the invite code") {
+            app.buttons["cabal-details-button"].tap()
+            let card = app.element("cabal-invite-card")
+            XCTAssertTrue(card.waitForExistence(timeout: formTimeout), "S4.3: no invite card within 10 s")
+            code = app.staticTexts["cabal-invite-code"].label
+            XCTAssertEqual(code.count, 10, "S4.3: the invite code '\(code)' is not 10 characters")
+        }
+        try JourneyHandoff.write(duoCodeKey, code)
+    }
+
+    static func friendJoinsWithTheCode(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
+        let name = duoCabal(run: run)
+        let code = try JourneyHandoff.read(duoCodeKey)
+
+        recorder.step("S4.4", "open Join with an invite code") {
+            app.tab("Cabals").tap()
+            let plus = app.buttons["cabals-new-button"]
+            XCTAssertTrue(plus.waitForExistence(timeout: listTimeout), "S4.4: no + on the Cabals tab")
+            plus.tap()
+            let join = app.buttons["new-cabal-join-row"]
+            XCTAssertTrue(join.waitForExistence(timeout: formTimeout), "S4.4: no Join with an invite code row")
+            join.tap()
+            XCTAssertTrue(
+                app.textFields["join-group-id"].waitForExistence(timeout: formTimeout),
+                "S4.4: the code field did not show within 10 s"
+            )
+        }
+
+        recorder.step("S4.5", "paste the code") {
+            UIPasteboard.general.string = code
+            app.buttons["join-group-paste"].tap()
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(app.element("join-group-name"), containing: name, timeout: formTimeout),
+                "S4.5: the preview does not name \(name) within 10 s"
+            )
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(
+                    app.buttons["join-group-submit"], containing: "Join cabal", timeout: formTimeout),
+                "S4.5: the button does not read Join cabal: \(app.buttons["join-group-submit"].label)"
+            )
+        }
+
+        recorder.step("S4.6", "join") {
+            app.buttons["join-group-submit"].tap()
+            JoinJourney.waitForToast(app, "You're in.", step: "S4.6")
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(
+                    app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),
+                "S4.6: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+            )
+        }
+    }
+
+    static func creatorSeesTheFriend(_ app: XCUIApplication, run: String, friend: String, recorder: JourneyRecorder) {
+        let name = duoCabal(run: run)
+
+        recorder.step("S4.7", "open the cabal and find the friend on the member board") {
+            JoinJourney.openBySearch(app, name, step: "S4.7")
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(
+                    app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),
+                "S4.7: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+            )
+            let row = app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH 'cabal-member-' AND label CONTAINS %@", friend)
+            ).firstMatch
+            app.scrollIntoReach(row, maxSwipes: 12)
+            XCTAssertTrue(row.waitForExistence(timeout: listTimeout), "S4.7: no member board row names \(friend)")
         }
     }
 
