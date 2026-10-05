@@ -84,13 +84,15 @@ type settleHarness struct {
 	settler *app.FundSettler
 }
 
+const fundSendWindow = 2 * time.Minute
+
 func newSettleHarness(t *testing.T) *settleHarness {
 	t.Helper()
 	h := newFundHarness(t)
 	s := &settleStubs{statuses: map[chain.Signature]solana.Status{}, reads: h.stubs.owner}
 	settler := app.NewFundSettler(app.FundSettlerDeps{
 		Reads: h.pool, UoW: h.uow, IDs: h.ids, Clock: h.clock, Chain: s, Transfers: s, Pot: s,
-		Ledger: h.ledger, USDC: h.usdc(), Hints: s,
+		Ledger: h.ledger, USDC: h.usdc(), Hints: s, SendWindow: fundSendWindow,
 	})
 	return &settleHarness{fundHarness: h, chain: s, settler: settler}
 }
@@ -232,7 +234,7 @@ func TestFundSettler_failsUnsentRejectedAndExpiredTransfers(t *testing.T) {
 	if status, _, _ := h.status(t, unsent); status != "created" {
 		t.Fatalf("fresh created row = %s, want created", status)
 	}
-	h.clock.Advance(app.FundSendWindow + time.Second)
+	h.clock.Advance(fundSendWindow + time.Second)
 	h.tick(t)
 	for id, want := range map[uuid.UUID]string{
 		rejected: "fund_rejected", expired: "fund_expired", unsent: "fund_not_sent",

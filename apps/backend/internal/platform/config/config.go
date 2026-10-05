@@ -88,7 +88,9 @@ type HTTP struct {
 }
 
 type Worker struct {
-	HealthAddr string
+	HealthAddr          string
+	FundSendWindow      time.Duration
+	WithdrawalUnsentAge time.Duration
 }
 
 type DB struct {
@@ -360,6 +362,9 @@ func platformFields() []field {
 		count("MONACO_HTTP_MAX_BODY_BYTES", 1<<20, func(c *Config) *int32 { return &c.HTTP.MaxBodyBytes }),
 		boolean("TRUST_PROXY_HEADERS", func(c *Config) *bool { return &c.HTTP.TrustProxyHeaders }),
 		text("MONACO_WORKER_HEALTH_ADDR", ":8081", func(c *Config) *string { return &c.Worker.HealthAddr }),
+		duration("FUND_SEND_WINDOW", 2*time.Minute, func(c *Config) *time.Duration { return &c.Worker.FundSendWindow }),
+		duration("WITHDRAWAL_UNSENT_AGE", 2*time.Minute,
+			func(c *Config) *time.Duration { return &c.Worker.WithdrawalUnsentAge }),
 		text("DATABASE_URL", "", func(c *Config) *string { return &c.DB.URL }).required().secret(),
 		count("MONACO_DB_MAX_CONNS", 11, func(c *Config) *int32 { return &c.DB.MaxConns }),
 		text("NATS_URL", "", func(c *Config) *string { return &c.NATS.URL }).required().secret(),

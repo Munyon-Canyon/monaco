@@ -194,7 +194,10 @@ func (s *Stack) startWorker(ctx context.Context, extra ...string) error {
 		addr = strings.TrimPrefix(s.Worker, "http://")
 	}
 	worker, err := s.start(ctx, procWorker, s.opts.Bins.Worker,
-		slices.Concat([]string{"MONACO_WORKER_HEALTH_ADDR=" + addr}, s.opts.WorkerEnv, extra)...)
+		slices.Concat([]string{
+			"MONACO_WORKER_HEALTH_ADDR=" + addr,
+			"FUND_SEND_WINDOW=5s", "WITHDRAWAL_UNSENT_AGE=5s",
+		}, s.opts.WorkerEnv, extra)...)
 	if err != nil {
 		return err
 	}

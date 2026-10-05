@@ -206,6 +206,7 @@ func (m *Module) Pollers() []poller.Poller {
 			Reads: m.deps.Pool, UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock,
 			Chain: adapters.NewStatuses(cfg, m.deps.Clock), Transfers: adapters.NewTransfers(cfg, m.deps.Clock),
 			Pot: m.reads(), Ledger: m.ledger(), USDC: usdc(cfg), Hints: m.deps.Bus,
+			SendWindow: cfg.Worker.FundSendWindow,
 		})},
 		adapters.CashOutSweeper{Payouts: m.payouts()},
 	}

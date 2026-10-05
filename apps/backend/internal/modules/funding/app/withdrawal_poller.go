@@ -25,7 +25,6 @@ import (
 
 const (
 	WithdrawalPollInterval = 5 * time.Second
-	WithdrawalUnsentAge    = 2 * time.Minute
 	withdrawalBatch        = 100
 )
 
@@ -40,6 +39,7 @@ type WithdrawalPollerDeps struct {
 	Chain     SignatureStatuses
 	Transfers func() (Transfers, error)
 	Hints     HintPublisher
+	UnsentAge time.Duration
 }
 
 type WithdrawalPoller struct{ d WithdrawalPollerDeps }
@@ -64,7 +64,7 @@ func (p *WithdrawalPoller) Tick(ctx context.Context) (poller.Report, error) {
 	now := p.d.Clock.Now()
 	q := sqlc.New(p.d.Reads)
 	created, createdErr := q.ListStaleCreatedWithdrawals(ctx, sqlc.ListStaleCreatedWithdrawalsParams{
-		OlderThan: now.Add(-WithdrawalUnsentAge), MaxRows: withdrawalBatch,
+		OlderThan: now.Add(-p.d.UnsentAge), MaxRows: withdrawalBatch,
 	})
 	submitted, submittedErr := q.ListSubmittedWithdrawals(ctx, withdrawalBatch)
 	if err := errors.Join(createdErr, submittedErr); err != nil {

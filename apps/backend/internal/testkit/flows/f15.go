@@ -81,6 +81,24 @@ func F15WithdrawCrashBeforeCommit(s *scenario.Scenario) {
 		Then(scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1))
 }
 
+func F15WithdrawCrashAfterSign(s *scenario.Scenario) {
+	member := SeedWithdrawer(s)
+	s.Given(scenario.AsSeededUser("member", member.ID), scenario.FakeUpstream(finalizedStatus())).
+		When(
+			scenario.Post(withdrawPath, withdrawBody),
+			scenario.Retry(),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.AwaitTick(withdrawPoller),
+			scenario.AwaitTick(withdrawPoller),
+			SettledWithdrawal(member),
+			UnsentRow("withdrawals", "user_id", member.ID.String(), "withdrawal_not_sent"),
+		).
+		Then(
+			scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1),
+			scenario.ExpectEvents(events.TypeWithdrawalFailed, 0),
+		)
+}
+
 func F15WithdrawInvalidInput(s *scenario.Scenario) {
 	refuseWithdrawal(s, `{"amount_micros":"999999","to_address":"`+withdrawElsewhere+`"}`, errs.CodeInvalidInput)
 }

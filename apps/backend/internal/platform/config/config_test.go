@@ -30,13 +30,15 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := config.Config{
-		Env:    config.EnvLocal,
-		HTTP:   config.HTTP{Addr: ":8080", MaxBodyBytes: 1 << 20},
-		Worker: config.Worker{HealthAddr: ":8081"},
-		DB:     config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11},
-		NATS:   config.NATS{URL: "nats://localhost:4222"},
-		Bus:    config.Bus{APIRelay: true},
-		OTel:   config.OTel{ServiceName: "monaco"},
+		Env:  config.EnvLocal,
+		HTTP: config.HTTP{Addr: ":8080", MaxBodyBytes: 1 << 20},
+		Worker: config.Worker{
+			HealthAddr: ":8081", FundSendWindow: 2 * time.Minute, WithdrawalUnsentAge: 2 * time.Minute,
+		},
+		DB:   config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11},
+		NATS: config.NATS{URL: "nats://localhost:4222"},
+		Bus:  config.Bus{APIRelay: true},
+		OTel: config.OTel{ServiceName: "monaco"},
 		Timeouts: config.Timeouts{
 			RPC:             5 * time.Second,
 			Privy:           10 * time.Second,
@@ -98,6 +100,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_HTTP_MAX_BODY_BYTES=4096",
 		"TRUST_PROXY_HEADERS=true",
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:9001",
+		"FUND_SEND_WINDOW=5s",
+		"WITHDRAWAL_UNSENT_AGE=6s",
 		"DATABASE_URL=postgres://prod",
 		"MONACO_DB_MAX_CONNS=40",
 		"NATS_URL=nats://prod:4222",
@@ -160,12 +164,14 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := config.Config{
-		Env:    config.EnvProduction,
-		HTTP:   config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096, TrustProxyHeaders: true},
-		Worker: config.Worker{HealthAddr: "127.0.0.1:9001"},
-		DB:     config.DB{URL: "postgres://prod", MaxConns: 40},
-		NATS:   config.NATS{URL: "nats://prod:4222"},
-		Bus:    config.Bus{AckWait: 100 * time.Millisecond},
+		Env:  config.EnvProduction,
+		HTTP: config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096, TrustProxyHeaders: true},
+		Worker: config.Worker{
+			HealthAddr: "127.0.0.1:9001", FundSendWindow: 5 * time.Second, WithdrawalUnsentAge: 6 * time.Second,
+		},
+		DB:   config.DB{URL: "postgres://prod", MaxConns: 40},
+		NATS: config.NATS{URL: "nats://prod:4222"},
+		Bus:  config.Bus{AckWait: 100 * time.Millisecond},
 		OTel: config.OTel{
 			Endpoint:    "https://otlp.example",
 			Headers:     "Authorization=Basic abc",
@@ -479,6 +485,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_HTTP_ADDR", ":8080"},
 		{"MONACO_HTTP_MAX_BODY_BYTES", "1048576"},
 		{"MONACO_WORKER_HEALTH_ADDR", ":8081"},
+		{"FUND_SEND_WINDOW", "2m0s"},
+		{"WITHDRAWAL_UNSENT_AGE", "2m0s"},
 		{"MONACO_DB_MAX_CONNS", "11"},
 		{"OTEL_EXPORTER_OTLP_ENDPOINT", ""},
 		{"OTEL_SERVICE_NAME", "monaco"},

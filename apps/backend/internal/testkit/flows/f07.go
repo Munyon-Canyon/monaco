@@ -80,6 +80,40 @@ func F07FundCabalCrashBeforeCommit(s *scenario.Scenario) {
 		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1))
 }
 
+func F07FundCabalCrashAfterSign(s *scenario.Scenario) {
+	f := seedFund(s)
+	s.Given(scenario.AsSeededUser("member", f.member.ID), scenario.FakeUpstream(finalizedStatus())).
+		When(
+			scenario.Post(f.path(), fundBody),
+			scenario.Retry(),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.Remember("transfer_id", "transfer"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.Get("/v1/fund-transfers/{transfer}"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("status", "settled"),
+			UnsentRow("fund_transfers", "cabal_id", f.cabal.ID.String(), "fund_not_sent"),
+		).
+		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1))
+}
+
+func UnsentRow(table, key, id, code string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		var status, failCode string
+		scenario.Eventually(table+" row failed as "+code, func(*scenario.Scenario) bool {
+			if err := s.DB().QueryRow(s.Context(), `SELECT status, COALESCE(fail_code, '') FROM `+table+
+				` WHERE `+key+` = $1 ORDER BY created_at, id LIMIT 1`, id).Scan(&status, &failCode); err != nil {
+				s.Fatalf("flows: read the %s row: %v", table, err)
+			}
+			return status == "failed"
+		})(s)
+		if failCode != code {
+			s.Fatalf("flows: %s row failed as %q, want %q", table, failCode, code)
+		}
+	}
+}
+
 func F07FundCabalInvalidInput(s *scenario.Scenario) {
 	f := seedFund(s)
 	s.Given(scenario.AsSeededUser("member", f.member.ID)).
