@@ -212,7 +212,7 @@ final class APITelemetryTests: XCTestCase {
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.searchAssets(groupId: groupID, query: queryValue)
+        _ = try? await client.getHomePnLSeries()
         _ = try? await client.fundGroup(groupId: groupID, amount: 123_456_789, submission: IdempotentSubmission())
 
         XCTAssertEqual(events.values.count, 2)

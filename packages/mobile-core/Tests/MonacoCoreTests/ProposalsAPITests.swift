@@ -13,47 +13,6 @@ final class ProposalsAPITests: XCTestCase {
         super.tearDown()
     }
 
-    func testAPIClient_searchAssets_usesGroupsAssetsQueryParam() async throws {
-        // Arrange
-        let token = TestFixtures.fixtureSessionToken
-        var capturedPath: String?
-        var capturedQuery: String?
-
-        MockURLProtocol.requestHandler = { request in
-            capturedPath = request.url?.path
-            if let url = request.url {
-                capturedQuery = URLComponents(url: url, resolvingAgainstBaseURL: false)?.query
-            }
-            let body = """
-                {"assets":[{"symbol":"AAPLx","name":"Apple xStock"}],"hasMore":false}
-                """
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(body.utf8))
-        }
-
-        let client = MonacoAPIClient(
-            baseURL: URL(string: "https://api.test")!,
-            session: makeMockURLSession(),
-            accessTokenProvider: { token }
-        )
-
-        // Act
-        let result = try await client.searchAssets(groupId: "grp-1", query: "AAPL")
-
-        // Assert
-        XCTAssertEqual(capturedPath, "/v1/groups/grp-1/assets")
-        XCTAssertTrue(capturedQuery?.contains("query=AAPL") == true)
-        XCTAssertEqual(result.assets.count, 1)
-        XCTAssertEqual(result.assets[0].symbol, "AAPLx")
-        XCTAssertEqual(result.assets[0].name, "Apple xStock")
-        XCTAssertFalse(result.hasMore)
-    }
-
     func testAPIClient_castVote_postsTheChoiceToTheProposal() async throws {
         let token = TestFixtures.fixtureSessionToken
         var captured: URLRequest?
