@@ -16,6 +16,7 @@ fi
 : "${MONACO_QA_HANDOFF:?journey.py sets MONACO_QA_HANDOFF}"
 run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
 api="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
+unset MONACO_API_BASE_URL
 
 sql() {
   apps/mobile/qa/journeys/psql.sh -v ON_ERROR_STOP=1 -tA "$@"
@@ -62,6 +63,14 @@ updated="$(sql -v id="$user_id" <<<"UPDATE users SET auth_state = 'ONBOARDING_CO
 handle="$(head -1 <<<"$updated")"
 [[ -n "$handle" ]] || fail "dev user $user_id has no handle to keep after the delete"
 call PATCH /v1/me "{\"display_name\":\"QA delete $run\"}" >/dev/null || fail "could not name dev user $user_id"
+# On bin/fakes a wallet never set reads the fixture's 25.50 USDC; this user must hold none.
+if [[ "${QA_FAKE_RPC:-}" == 1 ]]; then
+  address="$(sql -v id="$user_id" <<<"SELECT address FROM user_wallets WHERE user_id = :'id'")"
+  [[ -n "$address" ]] || fail "dev user $user_id has no member wallet"
+  curl -fsS -X POST "${QA_FAKES_URL:-http://127.0.0.1:8099}/_balance" -H 'Content-Type: application/json' \
+    -d "{\"owner\":\"$address\",\"mint\":\"${SOLANA_USDC_MINT:-EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v}\",\"amount\":\"0\",\"decimals\":6}" \
+    >/dev/null || fail "could not zero dev user $user_id's USDC on bin/fakes"
+fi
 hand_off devToken "$token"
 hand_off devUserID "$user_id"
 hand_off "devUser$scenario" "$user_id"
