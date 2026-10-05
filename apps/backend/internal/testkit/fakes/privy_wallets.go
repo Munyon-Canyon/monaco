@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 )
@@ -56,6 +58,15 @@ func (s *Server) privyWallet(id string) (privyWallet, bool) {
 	}
 	f, ok := s.fixtures["/privy/v1/wallets/"+id]
 	return w, ok && json.Unmarshal(f.Body, &w) == nil
+}
+
+func (s *Server) signable(id string) bool {
+	if _, ok := s.privyWallet(id); ok {
+		return true
+	}
+	seeded, ok := strings.CutPrefix(id, "wallet-")
+	_, err := uuid.Parse(seeded)
+	return ok && err == nil
 }
 
 func (s *Server) privyWallets(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +134,7 @@ func (s *Server) privySign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	if _, ok := s.privyWallet(id); !ok {
+	if !s.signable(id) {
 		privyError(w, http.StatusNotFound, "wallet not found")
 		return
 	}
