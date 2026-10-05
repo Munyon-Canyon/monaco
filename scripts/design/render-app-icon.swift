@@ -4,14 +4,14 @@
 //   LaunchMark{,-Dark}@{1,2,3}x.png                             (96pt mark, LaunchMark.imageset)
 //
 // The artwork is not drawn here. It is rasterised from the brand's own vector — the four-person
-// cluster in apps/web/assets/mark.svg, the same file the website ships — so the icon and the site
+// cluster in apps/web/public/assets/mark.svg, the same file the website ships — so the icon and the site
 // cannot drift apart. The parser below handles exactly the subset that file uses: one <path> with
 // absolute M / L / C / Z commands in a "0 0 100 100" viewBox, filled non-zero.
 //
 // Colours are the brand's: cream mark #F2EBE1 on the deep forest field #0F291C.
 //
 // Usage: swift scripts/design/render-app-icon.swift [assets-dir] [mark.svg]
-//        (defaults: apps/mobile/Monaco/Assets.xcassets, apps/web/assets/mark.svg)
+//        (defaults: apps/mobile/Monaco/Assets.xcassets, apps/web/public/assets/mark.svg)
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -187,7 +187,7 @@ let wantsPreview = args.contains("--preview")
 args.removeAll { $0 == "--preview" }
 
 let assets = URL(fileURLWithPath: args.count > 0 ? args[0] : "apps/mobile/Monaco/Assets.xcassets")
-let svg = URL(fileURLWithPath: args.count > 1 ? args[1] : "apps/web/assets/mark.svg")
+let svg = URL(fileURLWithPath: args.count > 1 ? args[1] : "apps/web/public/assets/mark.svg")
 let mark = loadMark(svg)
 
 let iconDir = assets.appendingPathComponent("AppIcon.appiconset")

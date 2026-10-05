@@ -619,7 +619,7 @@ jobs:
       - name: Web landing page tests
         if: inputs.stage != 'queue' && steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.web == 'true'
         working-directory: apps/web
-        run: npm test
+        run: npm ci && npm test && npm run build
 
   flake:
     name: Flake (changed tests, count 20)
