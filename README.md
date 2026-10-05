@@ -158,9 +158,9 @@ A pre-commit hook checks **staged** `.env*` files only (not `.worktrees` or the 
 
 ## Relayer (fee payer)
 
-The app **fee payer** is a dedicated Solana keypair from `RELAYER_PRIVATE_KEY` (base58 secret in `.env.local`). Not a Privy wallet. Clones that decrypt the same shared env share the same fee payer. Never commit or log the private key.
+The app **fee payer** is a dedicated Solana keypair from `RELAYER_PRIVATE_KEY` (base58 secret or Solana CLI JSON array in `.env.local`). Not a Privy wallet. Clones that decrypt the same shared env share the same fee payer. Never commit or log the private key.
 
-The legacy backend that read it was deleted in M7, and `just relayer balance` with it. The balance check returns with the funding module ([backend platform RFC](docs/architecture/backend-platform.md#rollout)).
+Run `just relayer balance` to print the fee payer's pubkey and its SOL balance. Api and worker refuse to boot in staging and production when it holds 0.001 SOL or less.
 
 ## iOS API environments
 
