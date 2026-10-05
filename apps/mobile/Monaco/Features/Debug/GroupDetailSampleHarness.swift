@@ -45,7 +45,6 @@ struct GroupDetailSampleHarness: View {
         )
         return session
     }()
-    @State private var proposalService = SampleProposalFeedService()
     @State private var showDetails = false
     @State private var showPropose = false
     @State private var route: GroupDetailRoute?
@@ -96,8 +95,6 @@ struct GroupDetailSampleHarness: View {
             auth: auth,
             view: view,
             currentUserId: GroupDetailSampleData.viewerId,
-            proposalService: proposalService,
-            proposalRefreshToken: "0",
             onRoute: { route = $0 },
             onPropose: { showPropose = true },
             onToast: { toast = $0 },
@@ -126,8 +123,6 @@ struct GroupDetailSampleHarness: View {
         }
         .navigationDestination(item: $route) { route in
             switch route {
-            case .proposals:
-                ProposalFeedView(service: proposalService, groupId: view.id)
             case .stock(let symbol):
                 AssetDetailClientView(symbol: symbol)
             case .chat:

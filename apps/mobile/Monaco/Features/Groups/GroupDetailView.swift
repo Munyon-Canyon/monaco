@@ -5,7 +5,6 @@ import SwiftUI
 /// Screens pushed from the group screen's action row and section headers.
 enum GroupDetailRoute: Hashable {
     case chat
-    case proposals
     /// A holding on the cabal screen, opened as the stock it is. The row already
     /// shows the day's shape and its change; tapping it should go where those
     /// numbers come from rather than being the end of the road.
@@ -41,23 +40,15 @@ struct GroupDetailView: View {
     @State private var isLoading: Bool
     /// The blocking first load has run at least once; re-appearing is the poll loop's job.
     @State private var didInitialLoad = false
-    @State private var proposalService: LiveProposalFeedService
     /// The pot's curve on the hero: one slot per range, re-read with the rest of the screen.
     @State private var pnl: GroupPnLHistoryModel
 
-    @State private var proposalRefreshCount = 0
     @State private var route: GroupDetailRoute?
     @State private var showProposeSheet = false
     /// The propose sheet's height; the chooser raises it to `.large` while a flow is pushed.
     @State private var showDetailsSheet = false
     @State private var heroScrolledAway = false
 
-    /// Whether the open-votes preview has a proposal collecting votes right now.
-    @State private var hasOpenVotes = false
-    /// A vote closed within the settling window, so its outcome is still on its way to the pot.
-    @State private var isWatchingVoteOutcome = false
-    /// Bumped each time the last open vote closes; drives the settling-window timer.
-    @State private var voteOutcomeWatch = 0
     /// Pull-to-refresh and the background poll share it, so a tick stands down while the member
     /// is refreshing by hand.
     @State private var refreshGate = RefreshGate()
@@ -67,10 +58,8 @@ struct GroupDetailView: View {
     private var pollInterval: Duration {
         GroupDetailCadence.interval(
             for: GroupDetailCadence.Inputs(
-                hasOpenVotes: hasOpenVotes,
                 hasPendingSwap: false,
-                hasPendingDeposit: false,
-                isWatchingVoteOutcome: isWatchingVoteOutcome
+                hasPendingDeposit: false
             ))
     }
 
@@ -85,7 +74,6 @@ struct GroupDetailView: View {
         self.groupName = groupName
         self.initialView = initialView
         _isLoading = State(initialValue: initialView == nil)
-        _proposalService = State(initialValue: LiveProposalFeedService(auth: auth))
         _pnl = State(
             initialValue: GroupPnLHistoryModel(groupId: groupId, source: LiveGroupPnLHistorySource(auth: auth)))
     }
@@ -138,24 +126,14 @@ struct GroupDetailView: View {
                 Task { await pnl.load(range: range) }
             }
 
-            // A vote that just closed is still landing: keep watching closely for a little while.
-            .task(id: voteOutcomeWatch) {
-                guard voteOutcomeWatch > 0 else { return }
-                isWatchingVoteOutcome = true
-                defer { isWatchingVoteOutcome = false }
-                try? await Task.sleep(for: GroupDetailCadence.voteSettlingWindow)
-            }
             .refreshable {
                 await refreshGate.runNow {
-                    proposalRefreshCount += 1
                     try? await refresh(.userInitiated)
                 }
             }
             .sheet(
                 isPresented: $showProposeSheet,
-                onDismiss: {
-                    proposalRefreshCount += 1
-                }
+                onDismiss: {}
             ) {
                 if let groupView {
                     ProposeSheet(auth: auth, groupId: groupId, groupView: groupView, onProposed: proposalSent)
@@ -176,9 +154,6 @@ struct GroupDetailView: View {
                 auth: auth,
                 view: groupView,
                 currentUserId: session?.profile?.userID,
-                proposalService: proposalService,
-                proposalRefreshToken: "\(proposalRefreshCount)",
-                onOpenVotesChange: openVotesChanged,
                 onRoute: { route = $0 },
                 onPropose: { showProposeSheet = true },
                 onToast: { toast = $0 },
@@ -233,8 +208,6 @@ struct GroupDetailView: View {
         switch route {
         case .chat:
             GroupChatView(auth: auth, groupId: groupId, groupName: displayName)
-        case .proposals:
-            ProposalFeedView(service: proposalService, groupId: groupId)
         case .stock(let symbol):
             AssetDetailClientView(symbol: symbol)
         }
@@ -242,19 +215,6 @@ struct GroupDetailView: View {
 
     private var loadTaskID: String {
         "\(groupId)-\(auth.accessToken ?? "")"
-    }
-
-    /// The open-votes preview reporting what it is showing.
-    ///
-    /// A proposal leaves the open list the moment it passes, which is exactly when the swap it
-    /// decided starts. Read the cabal straight away and keep watching closely for a while, so the
-    /// pot, holdings and activity move while the member is still looking at the vote they cast.
-    private func openVotesChanged(_ nowOpen: Bool) {
-        let votesJustClosed = hasOpenVotes && !nowOpen
-        hasOpenVotes = nowOpen
-        guard votesJustClosed else { return }
-        voteOutcomeWatch += 1
-        Task { await refreshQuietly() }
     }
 
     /// Called by the propose sheet once the cabal has the proposal: close the sheet and confirm.
@@ -355,9 +315,6 @@ struct GroupDetailContent: View {
     @ObservedObject var auth: PrivyAuthService
     let view: GroupViewDTO
     let currentUserId: String?
-    let proposalService: ProposalFeedService
-    let proposalRefreshToken: String
-    var onOpenVotesChange: (Bool) -> Void = { _ in }
     let onRoute: (GroupDetailRoute) -> Void
     let onPropose: () -> Void
     let onToast: (MonacoToast) -> Void
@@ -388,14 +345,6 @@ struct GroupDetailContent: View {
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
-                    ProposalHistorySection(
-                        service: proposalService,
-                        groupId: view.id,
-                        refreshToken: proposalRefreshToken,
-                        onOpenVotesChange: onOpenVotesChange,
-                        onSeeAll: { onRoute(.proposals) },
-                        onToast: onToast
-                    )
                     PotSectionView(
                         pot: view.pot,
                         groupId: view.id,

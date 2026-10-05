@@ -30,12 +30,6 @@ struct HomeView: View {
     @State private var leaderboard = HomeLeaderboardModel()
     @State private var isRetrying = false
     @State private var toast: MonacoToast?
-    /// Advanced only when a vote actually closes, so "Needs your vote" can drop an expired row
-    /// between dashboard polls without putting the whole screen on a 60-second timer.
-    @State private var votesClock = Date()
-    /// The proposal pushed from "Needs your vote". Held here, at the tab root, so the pushed
-    /// screen outlives both the countdown's tick and the row's own expiry.
-    @State private var openProposalId: String?
 
     private var joinedCabals: [HomeGroupBoardRowDTO] {
         session.joinedCabals
@@ -52,15 +46,6 @@ struct HomeView: View {
     /// The range the board on screen was built with, straight from the payload.
     private var loadedLeaderboardRange: String? {
         session.dashboard?.leaderboard.range
-    }
-
-    private var missedProposals: [HomeMissedProposalRowDTO] {
-        session.dashboard?.missedProposals ?? []
-    }
-
-    /// Restarts the expiry wait whenever the dashboard brings a different set of closing times.
-    private var missedVoteExpiries: [Date] {
-        missedProposals.map(\.expiresAt)
     }
 
     var body: some View {
@@ -83,17 +68,11 @@ struct HomeView: View {
                 profileButton
             }
         }
-        .navigationDestination(item: $openProposalId) { proposalId in
-            ProposalDetailView(auth: auth, proposalId: proposalId)
-        }
         .refreshable {
             await pullToRefresh()
         }
         .onChange(of: loadedLeaderboardRange) { _, _ in
             leaderboard.reconcile(from: leaderboardSource)
-        }
-        .task(id: missedVoteExpiries) {
-            await advanceVotesClock()
         }
         .pollWhileVisible(every: LiveRefreshCadence.resting) {
             try await session.pollLive(auth: auth)
@@ -140,14 +119,6 @@ struct HomeView: View {
                         hasCabals: !dashboard.myGroups.isEmpty
                     )
                 )
-
-                // Gated on the rows still open rather than on the payload: a section that
-                // renders nothing still takes a `VStack` spacing on each side, which would
-                // leave a doubled gap here until the next dashboard write.
-                let openVotes = HomeMissedVotes.open(dashboard.missedProposals, now: votesClock)
-                if !openVotes.isEmpty {
-                    HomeMissedVotesSection(rows: openVotes, onOpen: { openProposalId = $0 })
-                }
 
                 HomePositionsSection(
                     auth: auth,
@@ -224,23 +195,6 @@ struct HomeView: View {
         await session.refresh(auth: auth, leaderboardRange: leaderboard.selectedRange)
     }
 
-    /// Sleeps until the next vote closes, then advances the clock the section is gated on.
-    /// Waking on the expiry itself keeps an expired row from lingering until the next poll
-    /// without re-evaluating Home every minute to check.
-    private func advanceVotesClock() async {
-        while !Task.isCancelled {
-            guard let next = HomeMissedVotes.nextExpiry(missedProposals, after: votesClock) else { return }
-            let wait = next.timeIntervalSinceNow
-            if wait > 0 {
-                do {
-                    try await Task.sleep(for: .seconds(wait))
-                } catch {
-                    return
-                }
-            }
-            votesClock = Date()
-        }
-    }
 }
 
 /// The loading shape Home shares with the session gate, under Home's own navigation bar.

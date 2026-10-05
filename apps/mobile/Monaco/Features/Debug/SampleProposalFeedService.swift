@@ -285,44 +285,6 @@ final class SampleProposalFeedService: ProposalFeedService {
 /// the ballots and the discussion) and `-MonacoProposalSampleClosed` (the feed on its Closed tab).
 /// `-MonacoProposalSampleEmpty`, `-MonacoProposalSampleFailing` and `-MonacoProposalSampleLoading`
 /// put either screen in its empty, failed or loading state (see `ReadMode`).
-struct SampleProposalFeedRoot: View {
-    @State private var service = SampleProposalFeedService()
-
-    private var arguments: [String] { ProcessInfo.processInfo.arguments }
-
-    private var detailId: String? {
-        guard let index = arguments.firstIndex(of: "-MonacoProposalSampleDetail"), arguments.indices.contains(index + 1)
-        else { return nil }
-        return arguments[index + 1]
-    }
-
-    /// The lower half of the proposal screen — the ballots and the discussion — is below the fold,
-    /// so the gallery needs a way to open on it.
-    private var opensAtBottom: Bool { arguments.contains("-MonacoProposalSampleBottom") }
-
-    private var opensOnClosed: Bool { arguments.contains("-MonacoProposalSampleClosed") }
-
-    var body: some View {
-        Group {
-            if arguments.contains("-MonacoProposeSample") {
-                SampleProposeRoot()
-            } else if arguments.contains("-MonacoProposeSampleStock") {
-                SampleProposeFromStockRoot()
-            } else if let detailId {
-                NavigationStack {
-                    ProposalDetailView(service: service, proposalId: detailId)
-                }
-                .defaultScrollAnchor(opensAtBottom ? .bottom : nil)
-            } else {
-                NavigationStack {
-                    ProposalFeedView(service: service, groupId: "sample", initialTab: opensOnClosed ? .closed : .open)
-                }
-            }
-        }
-        .tint(MonacoTheme.accent)
-    }
-}
-
 /// A stand-in cabal screen with the Propose sheet, wired the way Group detail wires it.
 ///
 /// For the screenshot gallery, one more flag opens it already on a step, on canned state. Each
@@ -833,7 +795,7 @@ final class SampleProposalFeedEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
         guard SampleProposalFeedService.matches(arguments) else { return nil }
-        return AnyView(SampleProposalFeedRoot())
+        return nil
     }
 }
 #endif
