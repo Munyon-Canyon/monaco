@@ -38,7 +38,7 @@ For a version bump, change only the steps the doc changed, then run steps 5 to 7
 3. `scripts/qa/journey.py run <journey>` for each, required journeys first.
 4. Report each scenario as PASS, or as the failing step id with its assertion message and the log under `.logs/qa/journeys/<run>/`. Done when every scenario of every journey has one of the two.
 
-A journey with `funds` in its doc moves real USDC: the person or agent running it sets up the Phantom MCP and funds each actor first, then refunds the agent wallet after (`docs/journeys/README.md`, Journeys that move money). The test itself moves no money.
+A journey with `funds` in its doc moves real USDC: the person or agent running it funds each actor first, from the QA pot with `monacoctl qa fund` (the default, and the only option in cloud sessions) or from the Phantom MCP agent wallet, then withdraws what is left back to that wallet after (`docs/journeys/README.md`, Journeys that move money). The test itself moves no money.
 
 Each actor uses a dedicated `Monaco Journeys <actor>` simulator that the runner creates when needed. Use `--sim B=<udid>` only to override an actor's dedicated simulator.
 

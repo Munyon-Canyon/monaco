@@ -24,6 +24,7 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 - [iOS API environments](#ios-api-environments)
 - [Simulator](#simulator)
   - [SimSlim (optional)](#simslim-optional)
+- [Agent QA: the QA pot](#agent-qa-the-qa-pot)
 - [Agent QA: Phantom MCP](#agent-qa-phantom-mcp)
   - [Create a Phantom wallet](#create-a-phantom-wallet)
   - [Install the Phantom MCP (agent wallet)](#install-the-phantom-mcp-agent-wallet)
@@ -230,7 +231,25 @@ Repo `./scripts/ios-sim` and `./scripts/ios-build` call `xcodebuild` and `simctl
 
 Keep gold **booted** between agent sessions when you can. Clone gold after slim-once if you need a second sim.
 
+## Agent QA: the QA pot
+
+The QA pot is one shared Solana mainnet wallet that funds test accounts with real USDC. Its key is `QA_POT_PRIVATE_KEY` in the encrypted `.env.local`, so every developer with `.env.keys` and every cloud agent can use it with no setup. Only `monacoctl qa` reads the key, and nothing prints it. Address: `67detL1H8561xpCWPUqQoy2WKeGKqauqkXRkfRoFviW8`.
+
+```sh
+scripts/with-dotenv-local.sh bin/monacoctl qa pot                             # address, SOL and USDC balances
+scripts/with-dotenv-local.sh bin/monacoctl qa fund --user <user id> --usdc 2  # send USDC to that user's member wallet
+```
+
+`qa fund` sends only to the user's member wallet from `user_wallets`, at most 5 USDC per transfer. It refuses in production, and when the pot holds less than 0.01 SOL or less USDC than the amount. Keep each agent run under $5 in total.
+
+Send the money back with an in-app withdrawal to the pot's address (`scripts/with-dotenv-local.sh bin/monacoctl qa pot --address`), after cashing out of any cabal. Don't move it any other way: a withdrawal keeps the ledger and the chain in agreement.
+
+**Operator setup (done once).** `monacoctl qa pot new` made the keypair and wrote the encrypted key into `.env.local`. It refuses when a key is already set. The operator funds the pot with about 0.05 SOL and 20 to 30 USDC on Solana mainnet (mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`), and tops it up when `qa fund` reports it low.
+
 ## Agent QA: Phantom MCP
+
+A per-machine alternative to the QA pot. Cloud agents can't use it.
+
 
 Use this when a coding agent (or you, in Cursor chat) must move **real Solana mainnet** USDC into a sim user’s member wallet, then pull leftover cash out of the group vault when the run is done.
 

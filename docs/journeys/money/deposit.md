@@ -25,7 +25,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | The runner sent A at least 1 USDC on Solana from the Phantom MCP agent wallet to the address Add money shows, per `funds` |
+| P3 | The runner sent A at least 1 USDC on Solana from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet to the address Add money shows, per `funds` |
 | P4 | `apps/mobile/qa/journeys/money/deposit.setup.sh` ran right before the scenario. It marks A as done with onboarding and sets A's display name through `scripts/qa/seed.sh` |
 
 ## Scenarios

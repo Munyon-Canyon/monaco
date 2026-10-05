@@ -60,12 +60,12 @@ A scenario is a `###` heading that starts with its id (`### S1 Sign in`) and a t
 | Actor | Which actor acts, for a journey with more than one |
 | Action | `launch`, `tap`, `type`, `wait`, `scroll to`, `relaunch` |
 | Target | The accessibility identifier in backticks. A label in quotes only where the element has no identifier |
-| Input | What is typed. Account values are written `{A.phone}`, `{A.code}`. Run values are `{QA.run}`, a short id unique to each run, and `{QA.refund_address}`, the Phantom MCP agent wallet |
+| Input | What is typed. Account values are written `{A.phone}`, `{A.code}`. Run values are `{QA.run}`, a short id unique to each run, and `{QA.refund_address}`, the wallet that funded the run: the QA pot by default, or the Phantom MCP agent wallet |
 | Expect | What must be on screen after the step, and within how many seconds |
 
 A step that has no accessibility identifier to target is a gap in the app. Add the identifier in the same ticket.
 
-`scripts/qa/journey.py` passes the run values to the test, the setup script and the truth check as `MONACO_QA_RUN` and `MONACO_QA_REFUND_ADDRESS`. It makes `MONACO_QA_RUN` for each run, so a value one run writes never matches one an earlier run left on the same database. It reads `MONACO_QA_REFUND_ADDRESS` from the environment and refuses to start a journey with `funds` without it.
+`scripts/qa/journey.py` passes the run values to the test, the setup script and the truth check as `MONACO_QA_RUN` and `MONACO_QA_REFUND_ADDRESS`. It makes `MONACO_QA_RUN` for each run, so a value one run writes never matches one an earlier run left on the same database. It reads `MONACO_QA_REFUND_ADDRESS` from the environment. When it is unset, it uses the QA pot's address from `monacoctl qa pot --address`, and refuses to start a journey with `funds` only when neither is available.
 
 The setup script and the truth check also get `MONACO_QA_HANDOFF`, the run's hand-off file: a JSON object of strings that the test reads with `JourneyHandoff.read`. A setup script writes a value there that only it can make, such as a dev token, and the truth check reads back what the run left there, such as the dev user's id.
 
@@ -96,7 +96,10 @@ The test calls the required journey's entry point (`SignInJourney.ensureSignedIn
 
 ## Journeys that move money
 
-A journey that deposits, funds a cabal, trades or cashes out needs real USDC on Solana mainnet in the actor's member wallet. The test does not move that money. Whoever runs the journey does, with the Phantom MCP agent wallet, before and after the run.
+A journey that deposits, funds a cabal, trades or cashes out needs real USDC on Solana mainnet in the actor's member wallet. The test does not move that money. Whoever runs the journey does, before and after the run, from one of two wallets:
+
+- **The QA pot** (default). One shared wallet whose key is in the encrypted `.env.local`, so every developer with `.env.keys` and every cloud agent can use it with no setup. `monacoctl qa fund` sends from it.
+- **The Phantom MCP agent wallet.** One per machine, set up by hand. Cloud agents can't use it.
 
 The journey doc says how much each actor needs, in whole USDC:
 
@@ -106,10 +109,10 @@ funds:
   B: 1
 ```
 
-1. Set up the Phantom MCP once per machine and fund its agent wallet with a little SOL and USDC: [Agent QA: Phantom MCP](https://github.com/Munyon-Canyon/monaco/blob/main/README.md#agent-qa-phantom-mcp). It is an agent wallet of its own, separate from every Privy product wallet.
-2. Before the run, sign in as the actor, copy the deposit address from Add money, and transfer the actor's amount from the agent wallet to it. Check that the simulated transfer's destination is the copied address before approving.
+1. Before the run, sign in as the actor. With the QA pot, run `monacoctl qa fund --user <actor's user id> --usdc <amount>`. It sends only to that user's member wallet, at most 5 USDC per transfer, and refuses when the pot runs low ([Agent QA: the QA pot](https://github.com/Munyon-Canyon/monaco/blob/main/README.md#agent-qa-the-qa-pot)). With Phantom, set up the MCP once per machine ([Agent QA: Phantom MCP](https://github.com/Munyon-Canyon/monaco/blob/main/README.md#agent-qa-phantom-mcp)), copy the deposit address from Add money and transfer the amount to it, checking the simulated transfer's destination before approving.
+2. Keep each run under 5 USDC in total. The pot is shared.
 3. Run the journey. Its first step waits for the account balance to show the amount, so an unfunded run fails there and says so.
-4. After the run, cash out what is left and withdraw it to the agent wallet's address. Leftover test USDC belongs on the agent wallet, not in a cabal or a member wallet.
+4. After the run, cash out what is left and withdraw it in the app to `{QA.refund_address}`, the wallet that funded the run. Never move it any other way: a withdrawal keeps the ledger and the chain in agreement. Leftover test USDC belongs on the funding wallet, not in a cabal or a member wallet. For money a crashed run stranded, use `scripts/sweep-wallets.sh`.
 
 `scripts/qa/journey.py run` prints the amounts before it starts and the refund reminder when it ends. Keep amounts small: a few dollars covers every journey.
 
