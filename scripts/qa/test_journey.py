@@ -727,6 +727,19 @@ class Output(Tree):
         super().tearDown()
 
 
+def _gone(probe, wait=5.0, every=0.05):
+    """Polls probe until it raises ProcessLookupError; SIGKILL delivery and reaping lag the kill under load."""
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            probe()
+        except ProcessLookupError:
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(every)
+
+
 class Budget(Output):
     def test_a_hung_test_call_is_killed_with_its_group_and_its_scenarios_time_out(self):
         pids = journey.ROOT / "pids"
@@ -751,10 +764,8 @@ class Budget(Output):
         results = {row[journey.COLUMNS.index("scenario")]: row[journey.COLUMNS.index("result")] for row in rows}
         self.assertEqual(results, {"S1": "TIMEOUT", "S2": "TIMEOUT", "*": "TIMEOUT"})
         leader, child = (int(pid) for pid in pids.read_text().split())
-        with self.assertRaises(ProcessLookupError):
-            os.killpg(leader, 0)
-        with self.assertRaises(ProcessLookupError):
-            os.kill(child, 0)
+        self.assertTrue(_gone(lambda: os.killpg(leader, 0)), "the hung test's process group outlived its kill")
+        self.assertTrue(_gone(lambda: os.kill(child, 0)), "the hung test's child outlived its group kill")
 
     def test_a_timeout_counts_as_a_failed_run_in_the_report(self):
         row = {"journey": "auth/sign-in", "driver": "xcuitest", "build": "abc", "scenario": "*", "result": "TIMEOUT",
