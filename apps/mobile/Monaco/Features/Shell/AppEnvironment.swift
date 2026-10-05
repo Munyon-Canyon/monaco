@@ -24,6 +24,7 @@ final class AppEnvironment {
     private let privyAuthenticated: @MainActor () -> Bool
     private let endAuthSession: @MainActor () async -> Void
     private var isSigningOut = false
+    private var sceneIsActive = false
 
     var isSignedIn: Bool {
         #if DEBUG
@@ -101,9 +102,10 @@ final class AppEnvironment {
     }
 
     func sceneDidChange(_ phase: ScenePhase) async {
+        sceneIsActive = phase == .active
         switch phase {
         case .active:
-            guard isSignedIn else { return }
+            guard hasOpenSession else { return }
             registerForPush()
             await hints.start()
             await sessionStore.noteForeground(auth: auth)
@@ -117,7 +119,8 @@ final class AppEnvironment {
     }
 
     func sessionDidChange(scenePhase: ScenePhase) async {
-        guard scenePhase == .active, isSignedIn else { return }
+        sceneIsActive = scenePhase == .active
+        guard sceneIsActive, hasOpenSession else { return }
         await hints.start()
     }
 
@@ -159,7 +162,13 @@ final class AppEnvironment {
     private func sessionDidChange(_ profile: SessionProfile?) {
         let wasOpen = viewer != nil
         viewer = profile.map(Viewer.init)
-        if viewer != nil, !wasOpen { registerForPush() }
+        guard viewer != nil, !wasOpen else { return }
+        registerForPush()
+        guard sceneIsActive else { return }
+        Task {
+            await hints.start()
+            AppLogger.session.info("hint stream started")
+        }
     }
 
     func registerForPush() {

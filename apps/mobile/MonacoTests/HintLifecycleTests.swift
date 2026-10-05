@@ -1,8 +1,11 @@
+import Foundation
 import MonacoAPI
 import Observation
 import SwiftUI
 import Synchronization
 import Testing
+
+import struct MonacoCore.SessionProfile
 
 @testable import Monaco
 
@@ -45,6 +48,28 @@ struct HintLifecycleTests {
         await signedIn.sessionDidChange(scenePhase: .background)
 
         #expect(hints.starts == 0)
+    }
+
+    @Test func activeBeforeTheSessionOpensLeavesTheStreamStopped() async {
+        let hints = FakeHintSource()
+        let environment = environment(hints: hints, signedIn: true, sessionOpen: false)
+
+        await environment.sceneDidChange(.active)
+        await environment.sessionDidChange(scenePhase: .active)
+
+        #expect(hints.starts == 0)
+    }
+
+    @Test func openingTheSessionWhileActiveStartsTheStream() async throws {
+        let hints = FakeHintSource()
+        let environment = environment(hints: hints, signedIn: true, sessionOpen: false)
+        await environment.sessionDidChange(scenePhase: .active)
+        #expect(hints.starts == 0)
+
+        environment.sessionStore.profile = try SessionProfile(json: Data(Self.profileJSON.utf8))
+        while hints.starts == 0 { await Task.yield() }
+
+        #expect(hints.starts == 1)
     }
 
     @Test func backgroundStopsTheStream() async {
@@ -113,6 +138,12 @@ struct HintLifecycleTests {
         #expect(environment.viewer == nil)
     }
 
+    private static let profileJSON = """
+        {"id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"kai","display_name":"Kai Cenat",\
+        "auth_state":"ONBOARDING_COMPLETED","account_status":"active",\
+        "member_wallet_address":"wallet-1","phone_linked":true,"created_at":"2026-09-30T12:00:00Z"}
+        """
+
     private func untilViewerClears(_ environment: AppEnvironment) async {
         while environment.viewer != nil {
             await withCheckedContinuation { continuation in
@@ -125,14 +156,16 @@ struct HintLifecycleTests {
         }
     }
 
-    private func environment(hints: FakeHintSource, signedIn: Bool) -> AppEnvironment {
+    private func environment(hints: FakeHintSource, signedIn: Bool, sessionOpen: Bool = true) -> AppEnvironment {
         let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
-        return AppEnvironment(
+        let environment = AppEnvironment(
             auth: auth,
             hints: hints,
             isAuthenticated: { signedIn },
             endAuthSession: {}
         )
+        if sessionOpen { environment.viewer = Viewer(userID: "u-1", handle: nil) }
+        return environment
     }
 }
 

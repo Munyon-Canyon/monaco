@@ -1,6 +1,8 @@
 package privy_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"reflect"
 	"testing"
@@ -172,4 +174,27 @@ func TestGetUser_waitsBetweenRetriesWithinTheBackoffCeilings(t *testing.T) {
 				len(u.requests()), waited)
 		}
 	})
+}
+
+func TestGetUser_aCallerThatWentAwayIsClientClosedNotPrivyUnavailable(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	u := replying(http.StatusOK, `{}`)
+
+	_, err := client(u).GetUser(ctx, "did:privy:member")
+
+	wantCode(t, err, errs.CodeClientClosed)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want it to wrap context.Canceled", err)
+	}
+}
+
+func TestGetUser_aPrivyTransportFailureStaysPrivyUnavailable(t *testing.T) {
+	t.Parallel()
+	down := &upstream{transport: errs.New(errs.CodeUpstreamUnavailable, "test.transport")}
+
+	_, err := client(down).GetUser(t.Context(), "did:privy:member")
+
+	wantCode(t, err, errs.CodePrivyUnavailable)
 }

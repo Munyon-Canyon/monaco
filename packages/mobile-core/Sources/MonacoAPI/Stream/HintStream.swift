@@ -95,7 +95,7 @@ public actor HintStream: HintSource {
                 }
                 connectedFor = try await connect(bearer)
                 rejected = false
-            } catch let error where ProblemError(error)?.status == 401 {
+            } catch let error where Self.rejectsToken(error) {
                 guard !Task.isCancelled else { return }
                 guard let bearer else { return signOut() }
                 guard !rejected else {
@@ -118,6 +118,11 @@ public actor HintStream: HintSource {
             startFallback()
             try? await timer.sleep(delay)
         }
+    }
+
+    private static func rejectsToken(_ error: any Error) -> Bool {
+        guard let problem = ProblemError(error), problem.status == 401 else { return false }
+        return problem.code != .known(.sessionRequired)
     }
 
     static func backoff(_ attempt: Int) -> Duration {
