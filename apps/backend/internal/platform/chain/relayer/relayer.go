@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"log/slog"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -31,12 +33,12 @@ type Relayer struct {
 }
 
 func New(cfg config.Config, rpc RPC) (*Relayer, error) {
-	raw, ok := chain.DecodeBase58(cfg.Relayer.PrivateKey)
-	if !ok || len(raw) != ed25519.PrivateKeySize {
+	raw, ok := decodeKey(cfg.Relayer.PrivateKey)
+	if !ok {
 		return nil, errs.New(
 			errs.CodeInvalidInput,
 			"relayer.New",
-			slog.String("reason", "RELAYER_PRIVATE_KEY is not a base58 64-byte key"),
+			slog.String("reason", "RELAYER_PRIVATE_KEY is neither a base58 64-byte key nor a JSON array of 64 bytes"),
 		)
 	}
 	key := ed25519.NewKeyFromSeed(raw[:ed25519.SeedSize])
@@ -48,6 +50,24 @@ func New(cfg config.Config, rpc RPC) (*Relayer, error) {
 		)
 	}
 	return &Relayer{key: key, address: chain.AddressOf(key.Public().(ed25519.PublicKey)), rpc: rpc}, nil
+}
+
+func decodeKey(value string) ([]byte, bool) {
+	value = strings.TrimSpace(value)
+	var raw []byte
+	if strings.HasPrefix(value, "[") {
+		var nums []uint8
+		if err := json.Unmarshal([]byte(value), &nums); err != nil {
+			return nil, false
+		}
+		raw = nums
+	} else {
+		var ok bool
+		if raw, ok = chain.DecodeBase58(value); !ok {
+			return nil, false
+		}
+	}
+	return raw, len(raw) == ed25519.PrivateKeySize
 }
 
 func (r *Relayer) Address() chain.SolanaAddress { return r.address }
