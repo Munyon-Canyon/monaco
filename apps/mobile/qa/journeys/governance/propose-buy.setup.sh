@@ -32,6 +32,9 @@ for actor in A B; do
   qa_sql -v did="$did" >/dev/null \
     <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
   qa_api "$actor" PATCH /v1/me "{\"display_name\":\"$name\"}" >/dev/null
+  if [[ -z "$(qa_api "$actor" GET /v1/me | python3 -c 'import json,sys; print(json.load(sys.stdin).get("handle") or "")')" ]]; then
+    qa_api "$actor" PUT /v1/me/handle "{\"handle\":\"qa_$(tr '[:upper:]' '[:lower:]' <<<"$actor")\"}" >/dev/null
+  fi
 done
 
 expired="$(qa_sql -v a="$(qa_user_id A)" -v b="$(qa_user_id B)" <<'SQL'
