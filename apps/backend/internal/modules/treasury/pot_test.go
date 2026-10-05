@@ -172,6 +172,9 @@ func assertMemberHoldings(t *testing.T, got api.CabalPot) {
 	if tsla.DisplayName != marketfake.TSLAx().DisplayName || tsla.PriceMicros != 100_000_000 {
 		t.Fatalf("TSLAx names and price = %#v", tsla)
 	}
+	if tsla.TokenAmount != 73_000_000 || tsla.Kind != api.Equity {
+		t.Fatalf("TSLAx token amount and kind = %#v", tsla)
+	}
 }
 
 func TestGetCabalPot_NonMember(t *testing.T) {

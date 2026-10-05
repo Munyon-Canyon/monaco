@@ -91,7 +91,9 @@ type WalletLedger interface {
 type Holding struct {
 	Symbol          string
 	DisplayName     string
+	Kind            string
 	Units           string
+	TokenAmount     money.BaseUnits
 	PriceMicros     money.Micros
 	ValueMicros     money.Micros
 	WeightBps       int32

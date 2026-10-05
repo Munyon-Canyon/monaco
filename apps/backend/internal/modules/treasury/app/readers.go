@@ -14,6 +14,7 @@ type Asset struct {
 	ID                  uuid.UUID
 	Symbol              string
 	DisplayName         string
+	Kind                string
 	Decimals            uint8
 	ChainChecked        bool
 	UIMultiplierNum     int64

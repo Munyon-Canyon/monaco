@@ -149,7 +149,7 @@ func (q *Queries) holding(
 	}
 	num, den := asset.UIMultiplierAt(q.clock.Now())
 	return port.Holding{
-		Symbol: asset.Symbol, DisplayName: asset.DisplayName,
+		Symbol: asset.Symbol, DisplayName: asset.DisplayName, Kind: asset.Kind, TokenAmount: position.Units,
 		Units:       displayUnits(position.Units, num, den),
 		PriceMicros: price.Micros, ValueMicros: value, CostBasisMicros: position.CostBasis, PnLMicros: pnl,
 	}, price.ObservedAt, nil

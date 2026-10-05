@@ -205,7 +205,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CabalPot"
-              example: {cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, pot_value_micros: 120000000, cash_micros: 60000000, cash_weight_bps: 5000, pnl_micros: 20000000, return_bps: 2000, prices_as_of: "2026-10-03T15:00:00Z", holdings: [{symbol: AAPLx, display_name: Apple, units: "2.0000", price_micros: 30000000, value_micros: 60000000, weight_bps: 5000, cost_basis_micros: 40000000, pnl_micros: 20000000}], me: {share_units: 100000000, value_micros: 120000000, slice_bps: 10000, net_contributed_micros: 100000000, pnl_micros: 20000000}}
+              example: {cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, pot_value_micros: 120000000, cash_micros: 60000000, cash_weight_bps: 5000, pnl_micros: 20000000, return_bps: 2000, prices_as_of: "2026-10-03T15:00:00Z", holdings: [{symbol: AAPLx, display_name: Apple, kind: equity, units: "2.0000", token_amount: 200000000, price_micros: 30000000, value_micros: 60000000, weight_bps: 5000, cost_basis_micros: 40000000, pnl_micros: 20000000}], me: {share_units: 100000000, value_micros: 120000000, slice_bps: 10000, net_contributed_micros: 100000000, pnl_micros: 20000000}}
         default:
           $ref: "#/components/responses/Problem"
 components:
@@ -311,11 +311,13 @@ components:
       type: object
       description: One stock the cabal holds, valued at the latest market price.
       additionalProperties: false
-      required: [symbol, display_name, units, price_micros, value_micros, weight_bps, cost_basis_micros, pnl_micros]
+      required: [symbol, display_name, kind, units, token_amount, price_micros, value_micros, weight_bps, cost_basis_micros, pnl_micros]
       properties:
         symbol: {type: string, description: "The token symbol.", examples: [AAPLx]}
         display_name: {type: string, description: "The display name.", examples: [Apple]}
+        kind: {type: string, enum: [equity, pre_ipo], description: "Whether the token tracks a listed equity or a pre-IPO company.", examples: [equity]}
         units: {type: string, pattern: "^(0|[1-9][0-9]*)\\.[0-9]{4}$", description: "Shares as the user sees them, rounded down to 4 decimal places.", examples: ["0.7300"]}
+        token_amount: {type: integer, format: int64, minimum: 1, description: "The token base units the cabal holds, what a sell of all of it spends.", examples: [73000000]}
         price_micros: {type: integer, format: int64, description: "The latest price of one share, in USDC micros.", examples: [30000000]}
         value_micros: {type: integer, format: int64, description: "The holding's value, in USDC micros.", examples: [60000000]}
         weight_bps: {type: integer, format: int32, description: "The holding's share of the pot in basis points.", examples: [5000]}
