@@ -144,9 +144,10 @@ func (m *Module) Pollers() []poller.Poller {
 			Treasuries: cabal.New(m.deps).Queries(),
 			Ledger: treasury.New(m.deps).
 				Queries(),
-			Chain:  solana.New(cfg, m.deps.Clock),
-			Detect: m.DetectExternalDeposit(),
-			USDC:   chain.SolanaAddress(cfg.Solana.USDCMint),
+			Chain:    solana.New(cfg, m.deps.Clock),
+			Detect:   m.DetectExternalDeposit(),
+			USDC:     chain.SolanaAddress(cfg.Solana.USDCMint),
+			Interval: cfg.Funding.TreasuryReconcileInterval,
 		}),
 	}
 }

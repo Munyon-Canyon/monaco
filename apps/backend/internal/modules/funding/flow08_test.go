@@ -105,6 +105,29 @@ func TestFlow08_DetectExternalDeposit_OK(t *testing.T) {
 	}
 }
 
+func TestFlow08_DetectExternalDeposit_BounceFailed(t *testing.T) {
+	t.Parallel()
+	f := newBounceFixture(t)
+	f.chain.closed = true
+	id := f.detected(t, flow08USDCSig)
+
+	if err := f.bouncer.Start(bounceCtx(t), id); err != nil {
+		t.Fatal(err)
+	}
+	if f.status(t, id) != "bounce_failed" || len(f.transfers.builds) != 0 {
+		t.Fatalf("status = %s, builds = %d, want bounce_failed with no transfer", f.status(t, id),
+			len(f.transfers.builds))
+	}
+	if externalPauses(t, f.pool) != 1 || countEvents(t, f.pool, events.TypeCabalExternalDepositBounced) != 0 ||
+		f.ledgerRows(t) != 0 {
+		t.Fatal("a failed bounce ended the pause, emitted a bounced event or wrote ledger rows")
+	}
+	open, err := f.funding.ExternalDeposits().UnresolvedExternalDeposits(t.Context())
+	if err != nil || len(open) != 1 {
+		t.Fatalf("unresolved = %+v, %v, want the failed bounce listed for admins", open, err)
+	}
+}
+
 func TestFlow08_DetectExternalDeposit_Dust(t *testing.T) {
 	t.Parallel()
 	f := newFlow08(t)
@@ -197,5 +220,36 @@ func TestDetectExternalDeposit_PausesWhatFundCashOutAndTradingRead(t *testing.T)
 	set, err := f.funding.Pauses().PausedCabals(t.Context())
 	if err != nil || len(set.Cabals[f.cabal.ID]) != 1 || set.Global {
 		t.Fatalf("PausedCabals = %+v, %v, want this cabal paused", set, err)
+	}
+}
+
+func TestBounce_ReturnAddressOverridesTheSender(t *testing.T) {
+	t.Parallel()
+	f := newBounceFixture(t)
+	id := f.detected(t, flow08USDCSig)
+	exec(t, f.pool, `UPDATE external_deposits SET return_address = '`+string(withdrawTo)+`'`)
+
+	if err := f.bouncer.Start(bounceCtx(t), id); err != nil {
+		t.Fatal(err)
+	}
+	if f.transfers.builds[0].To != withdrawTo {
+		t.Fatalf("to = %s, want the return address", f.transfers.builds[0].To)
+	}
+}
+
+func TestBounce_OpsPauseOutlivesTheBounce(t *testing.T) {
+	t.Parallel()
+	f := newBounceFixture(t)
+	id := f.detected(t, flow08USDCSig)
+	if _, err := f.funding.PauseFromOps(t.Context(), &f.cabal.ID, "investigating"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.bouncer.Start(bounceCtx(t), id); err != nil {
+		t.Fatal(err)
+	}
+	pause, err := f.funding.Pauses().IsPaused(t.Context(), f.cabal.ID)
+	if err != nil || !pause.Paused || countEvents(t, f.pool, events.TypeCabalResumed) != 0 {
+		t.Fatalf("IsPaused = %+v, %v, want the ops pause to hold", pause, err)
 	}
 }

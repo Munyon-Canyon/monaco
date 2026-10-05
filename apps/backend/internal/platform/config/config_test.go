@@ -66,10 +66,12 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		PreStocks: config.PreStocks{BaseURL: "https://prestocks.com"},
 		Market:    config.Market{PricePollInterval: 2 * time.Minute},
 		Identity:  config.Identity{NudgesInterval: 24 * time.Hour, PhotoPurgesInterval: time.Minute},
-		Funding:   config.Funding{DepositPollInterval: 30 * time.Second, DepositRPCRate: 20},
-		Privy:     config.Privy{BaseURL: "https://api.privy.io"},
-		APNs:      config.APNs{Topic: "com.monaco.app"},
-		PostHog:   config.PostHog{Host: "https://us.i.posthog.com"},
+		Funding: config.Funding{
+			DepositPollInterval: 30 * time.Second, DepositRPCRate: 20, TreasuryReconcileInterval: 60 * time.Second,
+		},
+		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
+		APNs:    config.APNs{Topic: "com.monaco.app"},
+		PostHog: config.PostHog{Host: "https://us.i.posthog.com"},
 		Trade: config.Trade{
 			Engine: config.TradeEngineLive, SwapSweepInterval: 30 * time.Second, SwapSweepAge: 2 * time.Minute,
 		},
@@ -141,6 +143,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"FUNDING_DEPOSIT_RPC_RATE=12",
 		"TRADE_SWAP_SWEEP_INTERVAL=4s",
 		"TRADE_SWAP_SWEEP_AGE=5s",
+		"FUNDING_TREASURY_RECONCILE_INTERVAL=3s",
 		"PRIVY_APP_ID=app-id",
 		"PRIVY_APP_SECRET=app-secret",
 		"PRIVY_VERIFICATION_KEY=verification-pem",
@@ -212,7 +215,9 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		PreStocks: config.PreStocks{BaseURL: "http://fakes/prestocks"},
 		Market:    config.Market{PricePollInterval: time.Second},
 		Identity:  config.Identity{NudgesInterval: 2 * time.Second, PhotoPurgesInterval: 3 * time.Second},
-		Funding:   config.Funding{DepositPollInterval: 2 * time.Second, DepositRPCRate: 12},
+		Funding: config.Funding{
+			DepositPollInterval: 2 * time.Second, DepositRPCRate: 12, TreasuryReconcileInterval: 3 * time.Second,
+		},
 		Privy: config.Privy{
 			AppID: "app-id", AppSecret: "app-secret", VerificationKey: "verification-pem",
 			AuthorizationPrivateKey: "wallet-auth:key", AuthorizationKeyID: "quorum-id",
@@ -515,6 +520,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"IDENTITY_PHOTO_PURGES_INTERVAL", "1m0s"},
 		{"FUNDING_DEPOSIT_POLL_INTERVAL", "30s"},
 		{"FUNDING_DEPOSIT_RPC_RATE", "20"},
+		{"FUNDING_TREASURY_RECONCILE_INTERVAL", "1m0s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_READ", "10s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_WRITE", "30s"},
 		{"MONACO_TIMEOUT_SHUTDOWN", "10s"},

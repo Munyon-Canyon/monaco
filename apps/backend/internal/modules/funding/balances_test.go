@@ -30,7 +30,7 @@ func TestModule(t *testing.T) {
 	t.Parallel()
 	m := funding.New(module.Deps{Config: config.Config{
 		Solana:   config.Solana{RPCURL: "http://fakes/rpc/"},
-		Funding:  config.Funding{DepositPollInterval: time.Minute},
+		Funding:  config.Funding{DepositPollInterval: time.Minute, TreasuryReconcileInterval: 2 * time.Minute},
 		Timeouts: config.Timeouts{RPC: time.Second},
 	}})
 	if got := m.Name(); got != "funding" {
@@ -49,7 +49,7 @@ func TestModule(t *testing.T) {
 	}
 	want := []string{
 		"funding.deposits@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s", "funding.bounce-sweeper@30s",
-		"funding.treasury-reconcile@1m0s",
+		"funding.treasury-reconcile@2m0s",
 	}
 	if !slices.Equal(names, want) {
 		t.Fatalf("Pollers = %v, want %v", names, want)

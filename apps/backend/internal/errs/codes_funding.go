@@ -1,6 +1,7 @@
 package errs
 
 const (
+	CodeBounceFailed            Code = "bounce_failed"
 	CodeCabalPaused             Code = "cabal_paused"
 	CodeCabalStillPaused        Code = "cabal_still_paused"
 	CodeOnrampLinkInvalid       Code = "onramp_link_invalid"
@@ -10,6 +11,11 @@ const (
 
 func (codeFiles) Funding() map[Code]Row {
 	return map[Code]Row{
+		CodeBounceFailed: {
+			Name:    "BounceFailed",
+			Kind:    KindBlocked,
+			Message: "A transfer into this cabal's treasury couldn't be sent back, so the cabal stays paused until ops resolves it.",
+		},
 		CodeCabalPaused: {Name: "CabalPaused", Kind: KindBlocked, Message: "Trading in this cabal is paused."},
 		CodeCabalStillPaused: {
 			Name: "CabalStillPaused", Kind: KindConflict,

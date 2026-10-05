@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	ReconcileInterval      = 60 * time.Second
 	reconcileFanOut        = 8
 	reconcilePageSize      = 50
 	reconcileBootstrapPage = 20
@@ -60,6 +59,7 @@ type TreasuryReconcileDeps struct {
 	Chain      ReconcileChain
 	Detect     Detector
 	USDC       chain.SolanaAddress
+	Interval   time.Duration
 }
 
 type TreasuryReconcilePoller struct{ d TreasuryReconcileDeps }
@@ -70,7 +70,7 @@ func NewTreasuryReconcilePoller(d TreasuryReconcileDeps) *TreasuryReconcilePolle
 
 func (*TreasuryReconcilePoller) Name() string { return "funding.treasury-reconcile" }
 
-func (*TreasuryReconcilePoller) Interval() time.Duration { return ReconcileInterval }
+func (p *TreasuryReconcilePoller) Interval() time.Duration { return p.d.Interval }
 
 type reconciled struct {
 	surplus  bool

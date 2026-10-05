@@ -144,8 +144,9 @@ type Market struct {
 }
 
 type Funding struct {
-	DepositPollInterval time.Duration
-	DepositRPCRate      int32
+	DepositPollInterval       time.Duration
+	DepositRPCRate            int32
+	TreasuryReconcileInterval time.Duration
 }
 
 type Privy struct {
@@ -433,6 +434,8 @@ func fundingFields() []field {
 		duration("FUNDING_DEPOSIT_POLL_INTERVAL", 30*time.Second,
 			func(c *Config) *time.Duration { return &c.Funding.DepositPollInterval }),
 		count("FUNDING_DEPOSIT_RPC_RATE", 20, func(c *Config) *int32 { return &c.Funding.DepositRPCRate }),
+		duration("FUNDING_TREASURY_RECONCILE_INTERVAL", 60*time.Second,
+			func(c *Config) *time.Duration { return &c.Funding.TreasuryReconcileInterval }),
 	}
 }
 
