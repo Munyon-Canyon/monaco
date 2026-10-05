@@ -155,6 +155,10 @@ func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }
 
 func (m *Module) SignatureOwner() app.Queries { return m.Queries() }
 
+func (m *Module) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error) {
+	return m.Queries().OwnsSignature(ctx, sig)
+}
+
 func (m *Module) build() {
 	cfg, clk := m.deps.Config, m.deps.Clock
 	venue := m.venue

@@ -3,6 +3,7 @@ package funding_test
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -33,10 +34,17 @@ func TestModule(t *testing.T) {
 	if got := m.Consumers(); len(got) != 0 {
 		t.Fatalf("Consumers = %v, want none", got)
 	}
-	got := m.Pollers()
-	if len(got) != 3 || got[0].Name() != "funding.deposits" || got[1].Name() != "funding.onramp-expiry" ||
-		got[2].Name() != "funding.withdrawals" {
-		t.Fatalf("Pollers = %v, want funding.deposits, funding.onramp-expiry then funding.withdrawals", got)
+	pollers := m.Pollers()
+	names := make([]string, 0, len(pollers))
+	for _, p := range pollers {
+		names = append(names, p.Name()+"@"+p.Interval().String())
+	}
+	want := []string{
+		"funding.deposits@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s",
+		"funding.treasury-reconcile@1m0s",
+	}
+	if !slices.Equal(names, want) {
+		t.Fatalf("Pollers = %v, want %v", names, want)
 	}
 	if m.Balances() == nil {
 		t.Fatal("Balances = nil")
