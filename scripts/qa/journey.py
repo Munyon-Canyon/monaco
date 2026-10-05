@@ -448,7 +448,7 @@ def refuse_busy_ports(busy, ports=BACKEND_PORTS):
                 ", ".join("pid %s (%s)" % (pid, cwd) for pid, cwd in busy)))
 
 
-def start_backend(base_url, timeout=300):
+def start_backend(base_url, timeout=300, trade_engine="stub"):
     log = OUT / "backend.log"
     OUT.mkdir(parents=True, exist_ok=True)
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
@@ -456,6 +456,7 @@ def start_backend(base_url, timeout=300):
     env = {key: value for key, value in os.environ.items() if not key.startswith("MONACO_QA_")}
     if env.get("QA_FAKE_RPC") == "1":
         env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
+    env.setdefault("TRADE_ENGINE", trade_engine)
     with open(str(log), "w") as out:
         process = subprocess.Popen(["just", "run", "backend"], cwd=str(ROOT), env=env, stdout=out,
                                    stderr=subprocess.STDOUT, start_new_session=True)
@@ -481,7 +482,9 @@ def stop_backend(process):
 @contextlib.contextmanager
 def journey_backend():
     """The api a run talks to. MONACO_API_BASE_URL names one that is already up; otherwise the run
-    takes the QA lock, refuses ports another process holds, and starts and stops its own backend."""
+    takes the QA lock, refuses ports another process holds, and starts and stops its own backend. That backend
+    runs the trade engine as a stub (TRADE_ENGINE=stub, local dev only) unless TRADE_ENGINE is set, which a run
+    that moves real USDC does through cmd_run."""
     if "MONACO_API_BASE_URL" in os.environ:
         yield require_backend()
         return
@@ -1052,10 +1055,20 @@ def cmd_run(args):
     if args.all and args.scenario:
         raise JourneyError("--scenario names one journey's scenarios: drop it with --all")
     builder = once_builder(args)
+    os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
     with simulator_shutdown(args.keep_sims), journey_backend() as api_base_url:
         if not args.all:
             return run_journey(args, api_base_url, args.journey, builder)
         return run_all(args, api_base_url, builder)
+
+
+def backend_trade_engine(args):
+    """live when the run includes a journey with `funds` that will really move USDC, otherwise stub."""
+    journeys = load_journeys()
+    picked = list(journeys.values()) if args.all else [pick(journeys, args.journey)]
+    moves_money = any(journey.funds for journey in picked) and (
+        not args.all or bool(os.environ.get("MONACO_QA_REFUND_ADDRESS")))
+    return "live" if moves_money else "stub"
 
 
 def once_builder(args):
