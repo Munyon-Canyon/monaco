@@ -159,6 +159,9 @@ func TestRun_failsWithTheReasonAndExitOne(t *testing.T) {
 			}
 		}, "read " + tools.Dir + ": no flow files"},
 		{"script", func(_ *testing.T, cfg *Config) { cfg.Scripts = nil }, "flow 90 outcome ok has no script F90HealthOK"},
+		{"config", func(_ *testing.T, cfg *Config) {
+			cfg.Environ = append(cfg.Environ, "FUNDING_DEPOSIT_RPC_RATE=fast")
+		}, "the worker's config: "},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

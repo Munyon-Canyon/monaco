@@ -123,6 +123,22 @@ func TestFlowGate_namesTheChangedBackendFlowFile(t *testing.T) {
 	}
 }
 
+func TestFlowGate_aPlannedFlowThatChangedOnStagingQueuesWithoutFlowsVerify(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := gateStack(t, f, map[int][]File{2: {{Filename: "packages/flows/app/00.tsv"}}})
+	s.gitOut["show b2-oid:"+flows.Dir+"/00.tsv"] = flows.Header + "\n" +
+		"00\tPing\tsystem\tGET /p\tRecordPing\t\t\tok\tplanned\tdocs/f.md\n"
+	s.gitOut["diff --name-only base..origin/fb"] = "apps/backend/internal/modules/system/http.go\n"
+	s.gitOut["log -1 --format=%s base..origin/fb -- apps/backend/internal/modules/system/http.go"] = "Record a ping note (#77)\n"
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("a planned flow has no verify script to wait for: %d %q %q", code, stdout, stderr)
+	}
+	if got := f.hub.body(dispatchRoute); got != "" {
+		t.Fatalf("dispatched flows-verify for a planned flow: %q", got)
+	}
+}
+
 func TestFlowGate_refusesAFlowInAnotherQueuedStack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
