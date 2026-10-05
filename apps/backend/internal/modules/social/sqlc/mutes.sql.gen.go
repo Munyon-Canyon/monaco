@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteFeedMute = `-- name: DeleteFeedMute :exec
@@ -79,4 +80,43 @@ func (q *Queries) InsertFeedMute(ctx context.Context, arg InsertFeedMuteParams) 
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const listFeedMutes = `-- name: ListFeedMutes :many
+SELECT target_type, target_id, label, created_at
+FROM feed_mutes
+WHERE user_id = $1
+ORDER BY created_at DESC, target_type, target_id
+`
+
+type ListFeedMutesRow struct {
+	TargetType string
+	TargetID   string
+	Label      pgtype.Text
+	CreatedAt  time.Time
+}
+
+func (q *Queries) ListFeedMutes(ctx context.Context, userID uuid.UUID) ([]ListFeedMutesRow, error) {
+	rows, err := q.db.Query(ctx, listFeedMutes, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFeedMutesRow
+	for rows.Next() {
+		var i ListFeedMutesRow
+		if err := rows.Scan(
+			&i.TargetType,
+			&i.TargetID,
+			&i.Label,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

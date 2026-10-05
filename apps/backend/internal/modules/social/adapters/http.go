@@ -58,6 +58,27 @@ func (h HTTP) DeleteMeFeedMutesTargetTypeTargetID(
 
 var _ api.StrictServerInterface = HTTP{}
 
+func (h HTTP) GetMeFeedMutes(
+	ctx context.Context, _ api.GetMeFeedMutesRequestObject,
+) (api.GetMeFeedMutesResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlc.New(h.Reads).ListFeedMutes(ctx, me.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "social.GetMeFeedMutes")
+	}
+	out := make(api.GetMeFeedMutes200JSONResponse, len(rows))
+	for i, row := range rows {
+		out[i] = api.FeedMute{
+			TargetType: row.TargetType, TargetId: row.TargetID, CreatedAt: row.CreatedAt,
+			Label: optionalWireText(row.Label.String),
+		}
+	}
+	return out, nil
+}
+
 func (h HTTP) PostUserFollow(
 	ctx context.Context, req api.PostUserFollowRequestObject,
 ) (api.PostUserFollowResponseObject, error) {
