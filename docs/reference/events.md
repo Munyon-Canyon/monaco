@@ -226,6 +226,21 @@ Subject `events.cashout.failed`, version 1.
 | `share_units` | `uint64` |
 | `code` | `string` |
 
+## `cashout.partial`
+
+Subject `events.cashout.partial`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `job_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `share_units_burned` | `uint64` |
+| `share_units_returned` | `uint64` |
+| `payout_micros` | `money.Micros` |
+| `signature` | `chain.Signature` |
+
 ## `cashout.started`
 
 Subject `events.cashout.started`, version 1.

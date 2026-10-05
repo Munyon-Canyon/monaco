@@ -59,6 +59,7 @@ type payoutJob struct {
 	cabal   ids.CabalID
 	user    ids.UserID
 	units   money.SharesUnits
+	kept    money.SharesUnits
 	payout  money.Micros
 	slice   money.Micros
 	status  domain.CashOutStatus
@@ -171,11 +172,22 @@ func (p *CashOutPayouts) complete(ctx context.Context, job payoutJob) error {
 			p.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(now.user), nil)
 			p.d.Hints.PublishHint(ctx, events.CabalActivityChangedHint(now.cabal), nil)
 		})
-		return tx.Events.Append(ctx, events.CashOutCompleted{
-			V: 1, JobID: now.id, CabalID: now.cabal.UUID(), UserID: now.user.UUID(), ShareUnits: now.units.Uint64(),
-			PayoutMicros: now.payout, Signature: now.signed.Signature,
-		})
+		return tx.Events.Append(ctx, ended(now, end))
 	})
+}
+
+func ended(job payoutJob, end domain.CashOutEvent) events.Event {
+	if end == domain.CashOutCompletePartial {
+		return events.CashOutPartial{
+			V: 1, JobID: job.id, CabalID: job.cabal.UUID(), UserID: job.user.UUID(),
+			ShareUnitsBurned: job.units.Uint64(), ShareUnitsReturned: job.kept.Uint64(),
+			PayoutMicros: job.payout, Signature: job.signed.Signature,
+		}
+	}
+	return events.CashOutCompleted{
+		V: 1, JobID: job.id, CabalID: job.cabal.UUID(), UserID: job.user.UUID(), ShareUnits: job.units.Uint64(),
+		PayoutMicros: job.payout, Signature: job.signed.Signature,
+	}
 }
 
 func (p *CashOutPayouts) postPaid(ctx context.Context, tx db.Tx, job payoutJob) error {
@@ -328,7 +340,7 @@ func parsePayoutJob(row sqlc.CashOutPayoutJobRow) (payoutJob, error) {
 	}
 	return payoutJob{
 		id: row.ID, cabal: ids.CabalIDFrom(row.CabalID), user: ids.UserIDFrom(row.UserID), units: burned,
-		payout: payout, slice: slice, status: status, selling: row.Selling,
+		kept: returned, payout: payout, slice: slice, status: status, selling: row.Selling,
 		latest: domain.PayoutAttempt{Number: row.Attempt, Status: attempt},
 		signed: relayer.SignedTx{
 			Bytes: row.SignedTx, Signature: chain.Signature(row.Signature),
