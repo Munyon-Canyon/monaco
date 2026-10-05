@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsActivityJourney {
     static let id = "cabals/activity"
-    static let version = 1
+    static let version = 2
 
     static let screenTimeout: TimeInterval = 15
 
@@ -90,7 +90,8 @@ enum CabalsActivityJourney {
             let target = row(app, failed)
             app.scrollIntoReach(target)
             XCTAssertTrue(target.waitForExistence(timeout: screenTimeout), "S2.2: no row for the failed trade")
-            target.tap()
+            let glyphClearOfInlineRetry = target.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
+            glyphClearOfInlineRetry.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-txn-status"), containing: "Failed", timeout: 10),
                 "S2.2: the status is not Failed"

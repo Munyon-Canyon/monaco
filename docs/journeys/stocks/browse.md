@@ -65,6 +65,7 @@ Browsing writes nothing. After a run, `apps/mobile/qa/journeys/stocks/browse.tru
 | Step | Why | Blocking ticket |
 | --- | --- | --- |
 | S1.1, S2.1, S3.1 | The Stocks tab is blank on staging. `StocksTabView` hangs its `.task` on a `Group` that is empty until the task has run, so the task never runs, the model is never made, and `assets-root` has no content. Every later step of the scenario fails behind it | #577 |
+| S1.2 | `assets-root` and the "Stocks" title show, but no `assets-row-JRNYAx` appears within 15 s: the seeded `JRNY…x` stocks are not in the list. #2739 ("Load the Stocks tab when it first appears") did not bring them in | #577 |
 
 ## Not covered
 
