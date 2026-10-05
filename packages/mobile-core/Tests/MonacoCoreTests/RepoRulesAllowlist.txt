@@ -22,7 +22,6 @@ float-money	apps/mobile/Monaco/Features/Debug/ChatSampleQA.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/SampleProposalFeedService.swift	4
 float-money	apps/mobile/Monaco/Features/Deposit/FundCabalView.swift	2
-float-money	apps/mobile/Monaco/Features/Proposals/ProposeScreenCopy.swift	2
 float-money	apps/mobile/Monaco/Features/Proposals/ProposeService.swift	9
 float-money	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	2
 float-money	apps/mobile/Monaco/Features/Settings/WithdrawView.swift	2
