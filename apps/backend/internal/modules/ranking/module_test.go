@@ -30,8 +30,8 @@ func TestModule_declaresEachConsumerWithItsOwnDurable(t *testing.T) {
 	for _, c := range consumers {
 		got = append(got, c.Durable)
 	}
-	if !slices.Contains(got, "ranking_membership") {
-		t.Fatalf("durables = %q, want ranking_membership", got)
+	if !slices.Contains(got, "ranking_membership") || !slices.Contains(got, "ranking_names") {
+		t.Fatalf("durables = %q, want ranking_membership and ranking_names", got)
 	}
 }
 
