@@ -33,8 +33,9 @@ func TestModule(t *testing.T) {
 	if got := m.Consumers(); len(got) != 0 {
 		t.Fatalf("Consumers = %v, want none", got)
 	}
-	if got := m.Pollers(); len(got) != 1 || got[0].Name() != "funding.deposits" {
-		t.Fatalf("Pollers = %v, want funding.deposits", got)
+	got := m.Pollers()
+	if len(got) != 2 || got[0].Name() != "funding.deposits" || got[1].Name() != "funding.onramp-expiry" {
+		t.Fatalf("Pollers = %v, want funding.deposits then funding.onramp-expiry", got)
 	}
 	if m.Balances() == nil {
 		t.Fatal("Balances = nil")

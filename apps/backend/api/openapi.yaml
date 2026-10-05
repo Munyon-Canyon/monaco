@@ -626,6 +626,54 @@ paths:
                 $ref: "#/components/schemas/OnrampExchange"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/onramp/sessions/{id}:
+    get:
+      operationId: getOnrampSession
+      tags: [funding]
+      summary: Read one of the caller's card deposits.
+      description: >-
+        Returns the session's status for the app's "Purchase processing" state. Another user's
+        session is not_found.
+      parameters:
+        - $ref: "#/components/parameters/OnrampSessionId"
+      responses:
+        "200":
+          description: The session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnrampSession"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: reportOnrampStatus
+      tags: [funding]
+      x-idempotent: true
+      summary: Report how the provider flow ended.
+      description: >-
+        Called by the fund page with the Privy access token from its own login as the bearer.
+        Moves an opened session to the reported status, appends `onramp.status_changed` and sends
+        the owner an `onramp_changed` hint on `/v1/stream`. Another user is forbidden, and any move
+        the status machine does not allow, such as confirmed to cancelled, is onramp_invalid_transition.
+      parameters:
+        - $ref: "#/components/parameters/OnrampSessionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The status the provider flow ended in.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportOnrampStatusRequest"
+      responses:
+        "200":
+          description: The session after the move.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnrampSession"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/governance.yaml
   /v1/cabals/{id}/proposals:
     get:
@@ -1747,6 +1795,16 @@ components:
       schema:
         type: string
         format: uuid
+  # api/spec/funding.yaml
+    OnrampSessionId:
+      name: id
+      in: path
+      required: true
+      description: The session id from the create response.
+      schema:
+        type: string
+        format: uuid
+        examples: [01890a5d-ac96-774b-bcce-b302099a8057]
   securitySchemes:
   # api/spec/base.yaml
     bearerAuth:
@@ -2228,6 +2286,37 @@ components:
       description: A USDC amount in micros, as a decimal string.
       pattern: "^[1-9][0-9]{0,19}$"
       examples: ["25000000"]
+    OnrampSession:
+      type: object
+      description: A card deposit session.
+      additionalProperties: false
+      required: [session_id, status, suggested_amount_micros, created_at, completed_at]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: The session id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        status:
+          type: string
+          enum: [created, opened, confirmed, submitted, cancelled, failed, expired]
+          description: Where the session is in its status machine.
+          examples: [confirmed]
+        suggested_amount_micros:
+          type: [string, "null"]
+          pattern: "^[1-9][0-9]{0,19}$"
+          description: The amount the app suggested in USDC micros, or null.
+          examples: ["25000000"]
+        created_at:
+          type: string
+          format: date-time
+          description: When the session was created.
+          examples: ["2026-10-03T15:00:00Z"]
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the session reached a final status, or null while it is live.
+          examples: ["2026-10-03T15:04:00Z"]
     OnrampSessionCreated:
       type: object
       description: A new onramp session and the page that runs it.
@@ -2248,6 +2337,25 @@ components:
           format: date-time
           description: When the token stops working.
           examples: ["2026-10-03T15:10:00Z"]
+    ReportOnrampStatusRequest:
+      type: object
+      description: How the provider flow ended.
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [confirmed, submitted, cancelled, failed]
+          description: >-
+            confirmed when the user finished the provider flow, submitted when they left before
+            confirmation, cancelled or failed when it threw.
+          examples: [confirmed]
+        provider:
+          type: string
+          description: The on-ramp provider Privy chose, when the page knows it.
+          minLength: 1
+          maxLength: 64
+          examples: [moonpay]
   # api/spec/governance.yaml
     BallotChoice:
       type: string

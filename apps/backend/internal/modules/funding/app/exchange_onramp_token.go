@@ -62,13 +62,9 @@ func (h *ExchangeOnrampTokenHandler) Handle(ctx context.Context, token domain.On
 		if err != nil {
 			return err
 		}
-		var suggested *money.Micros
-		if row.SuggestedAmountMicros != "" {
-			m, err := money.ParseMicros(row.SuggestedAmountMicros)
-			if err != nil {
-				return errs.Wrap(err, errs.CodeInternal, op)
-			}
-			suggested = &m
+		suggested, err := suggestedAmount(row.SuggestedAmountMicros)
+		if err != nil {
+			return err
 		}
 		out = OnrampExchange{
 			SessionID: row.ID, WalletAddress: address, SuggestedAmount: suggested, USDCMint: h.usdcMint,

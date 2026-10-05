@@ -38,6 +38,8 @@ func (m *Module) Mount(r api.Mount) {
 		Balances: m.Balances(), Wallets: wallets,
 		Create:   app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
 		Exchange: app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, wallets, cfg.Solana.USDCMint),
+		Report:   app.NewReportOnrampStatusHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
+		Reads:    m.deps.Pool,
 		IDs:      m.deps.IDs,
 	}, r)
 }
@@ -48,9 +50,12 @@ func (*Module) Consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
-	return []poller.Poller{app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
-		identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
-		cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus)}
+	return []poller.Poller{
+		app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
+			identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
+			cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate), m.deps.Bus),
+		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
+	}
 }
 
 func (m *Module) Balances() port.Balances {

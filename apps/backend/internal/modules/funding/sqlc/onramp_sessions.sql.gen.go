@@ -12,6 +12,95 @@ import (
 	"github.com/google/uuid"
 )
 
+const expireOnrampSessions = `-- name: ExpireOnrampSessions :many
+WITH due AS (
+  SELECT id, status FROM onramp_sessions
+  WHERE (status = 'created' AND expires_at <= $1::timestamptz)
+    OR (status = 'opened' AND opened_at <= $2::timestamptz)
+  ORDER BY created_at
+  LIMIT $3
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE onramp_sessions s SET status = 'expired', completed_at = $1::timestamptz
+FROM due
+WHERE s.id = due.id
+RETURNING s.id, s.user_id, due.status AS from_status,
+  COALESCE(s.suggested_amount_micros::text, '')::text AS suggested_amount_micros
+`
+
+type ExpireOnrampSessionsParams struct {
+	Now          time.Time
+	OpenedBefore time.Time
+	Batch        int32
+}
+
+type ExpireOnrampSessionsRow struct {
+	ID                    uuid.UUID
+	UserID                uuid.UUID
+	FromStatus            string
+	SuggestedAmountMicros string
+}
+
+func (q *Queries) ExpireOnrampSessions(ctx context.Context, arg ExpireOnrampSessionsParams) ([]ExpireOnrampSessionsRow, error) {
+	rows, err := q.db.Query(ctx, expireOnrampSessions, arg.Now, arg.OpenedBefore, arg.Batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExpireOnrampSessionsRow
+	for rows.Next() {
+		var i ExpireOnrampSessionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.FromStatus,
+			&i.SuggestedAmountMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOnrampSession = `-- name: GetOnrampSession :one
+SELECT id, status, COALESCE(suggested_amount_micros::text, '')::text AS suggested_amount_micros, created_at,
+  (completed_at IS NOT NULL)::boolean AS completed, COALESCE(completed_at, created_at)::timestamptz AS completed_at
+FROM onramp_sessions
+WHERE id = $1 AND user_id = $2
+`
+
+type GetOnrampSessionParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+type GetOnrampSessionRow struct {
+	ID                    uuid.UUID
+	Status                string
+	SuggestedAmountMicros string
+	CreatedAt             time.Time
+	Completed             bool
+	CompletedAt           time.Time
+}
+
+func (q *Queries) GetOnrampSession(ctx context.Context, arg GetOnrampSessionParams) (GetOnrampSessionRow, error) {
+	row := q.db.QueryRow(ctx, getOnrampSession, arg.ID, arg.UserID)
+	var i GetOnrampSessionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.SuggestedAmountMicros,
+		&i.CreatedAt,
+		&i.Completed,
+		&i.CompletedAt,
+	)
+	return i, err
+}
+
 const insertOnrampSession = `-- name: InsertOnrampSession :exec
 INSERT INTO onramp_sessions (
   id, user_id, token_hash, suggested_amount_micros, cabal_id, status, created_at, expires_at
@@ -82,6 +171,59 @@ func (q *Queries) OpenOnrampSession(ctx context.Context, arg OpenOnrampSessionPa
 		&i.WasOpened,
 		&i.SuggestedAmountMicros,
 		&i.OpenedNow,
+	)
+	return i, err
+}
+
+const reportOnrampStatus = `-- name: ReportOnrampStatus :one
+WITH moved AS (
+  UPDATE onramp_sessions SET status = $2::text,
+    provider = COALESCE(NULLIF($3::text, ''), provider),
+    completed_at = $4::timestamptz
+  WHERE onramp_sessions.id = $1 AND onramp_sessions.user_id = $5
+    AND onramp_sessions.status = ANY($6::text[])
+  RETURNING id
+)
+SELECT s.user_id, s.status, s.created_at,
+  COALESCE(s.suggested_amount_micros::text, '')::text AS suggested_amount_micros,
+  (m.id IS NOT NULL)::boolean AS moved
+FROM onramp_sessions s LEFT JOIN moved m ON m.id = s.id
+WHERE s.id = $1
+`
+
+type ReportOnrampStatusParams struct {
+	ID       uuid.UUID
+	ToStatus string
+	Provider string
+	Now      time.Time
+	UserID   uuid.UUID
+	Sources  []string
+}
+
+type ReportOnrampStatusRow struct {
+	UserID                uuid.UUID
+	Status                string
+	CreatedAt             time.Time
+	SuggestedAmountMicros string
+	Moved                 bool
+}
+
+func (q *Queries) ReportOnrampStatus(ctx context.Context, arg ReportOnrampStatusParams) (ReportOnrampStatusRow, error) {
+	row := q.db.QueryRow(ctx, reportOnrampStatus,
+		arg.ID,
+		arg.ToStatus,
+		arg.Provider,
+		arg.Now,
+		arg.UserID,
+		arg.Sources,
+	)
+	var i ReportOnrampStatusRow
+	err := row.Scan(
+		&i.UserID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.SuggestedAmountMicros,
+		&i.Moved,
 	)
 	return i, err
 }
