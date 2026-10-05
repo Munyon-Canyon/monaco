@@ -55,3 +55,18 @@ UPDATE external_deposits
 SET bounce_signature = sqlc.arg(bounce_signature)::text, bounce_signed_tx = sqlc.arg(bounce_signed_tx)::bytea,
   bounce_attempts = bounce_attempts + 1
 WHERE id = sqlc.arg(id)::uuid AND status = 'bouncing' AND bounce_signature = sqlc.arg(old_signature)::text;
+
+-- name: SetBounceReturnAddress :execrows
+UPDATE external_deposits SET return_address = sqlc.arg(return_address)::text
+WHERE id = sqlc.arg(id)::uuid AND status = ANY(sqlc.arg(from_statuses)::text[]);
+
+-- name: HoldExternalDeposit :execrows
+UPDATE external_deposits SET status = 'held', resolved_at = sqlc.arg(resolved_at)::timestamptz
+WHERE id = sqlc.arg(id)::uuid AND status = ANY(sqlc.arg(from_statuses)::text[]);
+
+-- name: UnresolvedExternalDeposits :many
+SELECT id, cabal_id, sender, coalesce(return_address, '')::text AS return_address, mint, amount::text AS amount,
+  status, coalesce(bounce_signature, '')::text AS bounce_signature, bounce_attempts, detected_at
+FROM external_deposits
+WHERE status IN ('detected', 'bouncing', 'bounce_failed')
+ORDER BY detected_at, id;

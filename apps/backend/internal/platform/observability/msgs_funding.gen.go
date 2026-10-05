@@ -13,5 +13,6 @@ func init() {
 		FundingWatchDetected,
 		FundingBounceMoved,
 		FundingBounceFailed,
+		FundingBounceOps,
 	)
 }

@@ -47,6 +47,16 @@ func transitions() map[ExternalDepositStatus]map[BounceEvent]ExternalDepositStat
 	}
 }
 
+func Sources(e BounceEvent) []ExternalDepositStatus {
+	var from []ExternalDepositStatus
+	for _, s := range []ExternalDepositStatus{ExternalDetected, ExternalBouncing, ExternalBounceFailed} {
+		if _, ok := transitions()[s][e]; ok {
+			from = append(from, s)
+		}
+	}
+	return from
+}
+
 func Next(from ExternalDepositStatus, e BounceEvent) (ExternalDepositStatus, error) {
 	to, ok := transitions()[from][e]
 	if !ok {

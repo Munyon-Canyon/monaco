@@ -169,6 +169,8 @@ func (m *Module) Balances() port.Balances {
 	return m.balances
 }
 
+func (m *Module) ExternalDeposits() *app.Bouncer { return m.Bouncer() }
+
 func (m *Module) Withdrawals() port.Withdrawals { return app.WithdrawalReads{Reads: m.deps.Pool} }
 
 func (m *Module) Pauses() port.Pauses { return adapters.NewPauses(m.deps.Pool) }
@@ -194,13 +196,14 @@ func (m *Module) SignatureOwner() adapters.BounceSignatures {
 }
 
 type (
-	Balances       = port.Balances
-	Balance        = port.Balance
-	Pauses         = port.Pauses
-	Pause          = port.Pause
-	PausedSet      = port.PausedSet
-	PauseReason    = domain.PauseReason
-	SignatureOwner = port.SignatureOwner
+	Balances        = port.Balances
+	Balance         = port.Balance
+	Pauses          = port.Pauses
+	Pause           = port.Pause
+	PausedSet       = port.PausedSet
+	PauseReason     = domain.PauseReason
+	SignatureOwner  = port.SignatureOwner
+	ExternalDeposit = port.ExternalDeposit
 )
 
 const (

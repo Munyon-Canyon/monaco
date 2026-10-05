@@ -95,6 +95,25 @@ func (q *Queries) FailBounce(ctx context.Context, arg FailBounceParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const holdExternalDeposit = `-- name: HoldExternalDeposit :execrows
+UPDATE external_deposits SET status = 'held', resolved_at = $1::timestamptz
+WHERE id = $2::uuid AND status = ANY($3::text[])
+`
+
+type HoldExternalDepositParams struct {
+	ResolvedAt   time.Time
+	ID           uuid.UUID
+	FromStatuses []string
+}
+
+func (q *Queries) HoldExternalDeposit(ctx context.Context, arg HoldExternalDepositParams) (int64, error) {
+	result, err := q.db.Exec(ctx, holdExternalDeposit, arg.ResolvedAt, arg.ID, arg.FromStatuses)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertExternalDeposit = `-- name: InsertExternalDeposit :execrows
 INSERT INTO external_deposits (
   id, signature, cabal_id, sender, mint, asset_id, amount, source, status, detected_at, resolved_at
@@ -253,6 +272,25 @@ func (q *Queries) ReturnBounce(ctx context.Context, arg ReturnBounceParams) (int
 	return result.RowsAffected(), nil
 }
 
+const setBounceReturnAddress = `-- name: SetBounceReturnAddress :execrows
+UPDATE external_deposits SET return_address = $1::text
+WHERE id = $2::uuid AND status = ANY($3::text[])
+`
+
+type SetBounceReturnAddressParams struct {
+	ReturnAddress string
+	ID            uuid.UUID
+	FromStatuses  []string
+}
+
+func (q *Queries) SetBounceReturnAddress(ctx context.Context, arg SetBounceReturnAddressParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setBounceReturnAddress, arg.ReturnAddress, arg.ID, arg.FromStatuses)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const startBounce = `-- name: StartBounce :execrows
 UPDATE external_deposits
 SET status = 'bouncing', bounce_signature = $1::text,
@@ -278,6 +316,58 @@ func (q *Queries) StartBounce(ctx context.Context, arg StartBounceParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const unresolvedExternalDeposits = `-- name: UnresolvedExternalDeposits :many
+SELECT id, cabal_id, sender, coalesce(return_address, '')::text AS return_address, mint, amount::text AS amount,
+  status, coalesce(bounce_signature, '')::text AS bounce_signature, bounce_attempts, detected_at
+FROM external_deposits
+WHERE status IN ('detected', 'bouncing', 'bounce_failed')
+ORDER BY detected_at, id
+`
+
+type UnresolvedExternalDepositsRow struct {
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	Sender          string
+	ReturnAddress   string
+	Mint            string
+	Amount          string
+	Status          string
+	BounceSignature string
+	BounceAttempts  int32
+	DetectedAt      time.Time
+}
+
+func (q *Queries) UnresolvedExternalDeposits(ctx context.Context) ([]UnresolvedExternalDepositsRow, error) {
+	rows, err := q.db.Query(ctx, unresolvedExternalDeposits)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UnresolvedExternalDepositsRow
+	for rows.Next() {
+		var i UnresolvedExternalDepositsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.Sender,
+			&i.ReturnAddress,
+			&i.Mint,
+			&i.Amount,
+			&i.Status,
+			&i.BounceSignature,
+			&i.BounceAttempts,
+			&i.DetectedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const watchCursor = `-- name: WatchCursor :one
