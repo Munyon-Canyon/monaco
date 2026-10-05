@@ -169,6 +169,21 @@ struct ProposalDetailSlotView: View {
             if case .failed(let title) = state {
                 Text(summary.swap?.failureMessage ?? summary.statusMessage ?? title).foregroundStyle(MonacoTheme.loss)
             }
+            if model?.retryableSwapID != nil {
+                Button("Retry") {
+                    Task {
+                        await model?.retry()
+                        if model?.didRetry == true {
+                            toasts.show(success: "Trying the trade again.")
+                        } else if let message = model?.errorMessage {
+                            toasts.current = MonacoToast(message: message)
+                        }
+                    }
+                }
+                .buttonStyle(.monacoSecondary)
+                .disabled(model?.isRetrying == true)
+                .accessibilityIdentifier("proposal-retry")
+            }
             if let swapID = summary.swap?.id {
                 NavigationLink(value: AnyAppRoute(TransactionRoute(cabalID: summary.cabalID, transactionID: swapID))) {
                     Label("View transaction", systemImage: "arrow.up.right.square")
