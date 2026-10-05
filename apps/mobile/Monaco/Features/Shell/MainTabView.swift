@@ -5,6 +5,7 @@ import SwiftUI
 /// Post-auth frame. Tab chrome only — screens live in their feature folders.
 struct MainTabView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
 
     var body: some View {
         @Bindable var navigator = environment.navigator
@@ -31,6 +32,10 @@ struct MainTabView: View {
         .environment(\.selectedMainTab, navigator.selectedTab)
         .onChange(of: navigator.selectedTab) { _, _ in
             Haptics.selection()
+        }
+        .onChange(of: environment.cashOuts.notice) { _, notice in
+            guard let notice else { return }
+            toasts.current = MonacoToast(message: notice.message, isSuccess: notice.isSuccess)
         }
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)

@@ -379,9 +379,13 @@ enum AmountEntryText {
     static func micros(_ text: String) -> Int64? {
         guard let value = decimal(text), value >= 0 else { return nil }
         var scaled = value * 1_000_000
-        var rounded = Decimal()
+        var rounded: Decimal = 0
         NSDecimalRound(&rounded, &scaled, 0, .plain)
         return (rounded as NSDecimalNumber).int64Value
+    }
+
+    static func dollars(micros: Int64) -> Decimal {
+        Decimal(micros) / 1_000_000
     }
 
     /// "$1,250.5" while typing: grouping on the integer part, the typed decimals kept as typed.

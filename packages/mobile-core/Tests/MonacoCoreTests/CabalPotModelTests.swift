@@ -33,6 +33,10 @@ final class CabalPotModelTests: XCTestCase {
         try await assertRefetch(after: .resync)
     }
 
+    func testACashOutChangeRefetchesThePotAndSlice() async throws {
+        try await assertRefetch(after: .changed(.user("me"), what: "cashout_changed", id: "1"))
+    }
+
     func testHintsForAnotherCabalOrAnotherTopicSendNothing() async throws {
         let transport = StubTransport(.json(.ok, Self.pot(valueMicros: 1_000_000_000)))
         let hints = FakeHintStream()
@@ -40,7 +44,7 @@ final class CabalPotModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 3 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.cabal("01890a5d-ac96-774b-bcce-b302099a8061"), what: "activity_changed", id: "1"))
@@ -107,7 +111,7 @@ final class CabalPotModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 3 }
         XCTAssertTrue(subscribed, file: file, line: line)
 
         await hints.send(hint)
