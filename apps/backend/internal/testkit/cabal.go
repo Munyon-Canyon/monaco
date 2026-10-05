@@ -18,6 +18,7 @@ type cabalSpec struct {
 	voterMode string
 	creator   *ids.UserID
 	joiners   []ids.UserID
+	name      string
 }
 
 type CabalOption func(*cabalSpec)
@@ -27,6 +28,8 @@ func WithMembers(n int) CabalOption { return func(s *cabalSpec) { s.members = n 
 func WithJoinMode(mode string) CabalOption { return func(s *cabalSpec) { s.joinMode = mode } }
 
 func WithVoterMode(mode string) CabalOption { return func(s *cabalSpec) { s.voterMode = mode } }
+
+func WithName(name string) CabalOption { return func(s *cabalSpec) { s.name = name } }
 
 func WithCreator(user ids.UserID) CabalOption { return func(s *cabalSpec) { s.creator = &user } }
 
@@ -56,6 +59,9 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 	if err != nil {
 		t.Fatalf("testkit.NewCabal: %v", err)
 	}
+	if spec.name == "" {
+		spec.name = "cabal " + id.String()[24:]
+	}
 	c := SeededCabal{ID: id, InviteCode: randomInviteCode(t), PrivyWalletID: "treasury-" + id.String()}
 	c.Members = seatMembers(t, pool, spec)
 	c.Creator = c.Members[0]
@@ -67,7 +73,7 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 		(id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds, invite_code,
 		 created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, 'majority', 86400, $6, $7, $7)`,
-		id.UUID(), "cabal "+id.String()[24:], c.Creator.ID.UUID(), spec.joinMode, spec.voterMode, c.InviteCode, now,
+		id.UUID(), spec.name, c.Creator.ID.UUID(), spec.joinMode, spec.voterMode, c.InviteCode, now,
 	); err != nil {
 		t.Fatalf("testkit.NewCabal: insert cabal: %v", err)
 	}
