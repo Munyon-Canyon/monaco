@@ -9,7 +9,6 @@ import (
 
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
-	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
@@ -82,11 +81,11 @@ func TestDeleteMe_theSamePrivyTokenIsAccountDeletedOnLaterRequests(t *testing.T)
 		identity.WithHints(&recordedHints{}),
 		identity.WithHoldings(fakes.NewTreasury(), fakes.NewBalances()),
 	).Mount
-	h, err := httpx.Handler(httpx.Deps{
+	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, &testkit.Logs{}),
 		Tracer: tracenoop.NewTracerProvider(), Clock: f.clock, IDs: testkit.NewIDs(11), MaxBodyBytes: 1 << 20,
 		Idempotency: db.NewIdempotencyStore(f.pool, f.clock), Verifier: f.verifier(t, config.EnvTest),
-	}, mount, openapi.Spec)
+	}, mount, specContract(t))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
-	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/authn"
@@ -297,7 +296,7 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 	logs := &testkit.Logs{}
 	logger := observability.NewLogger(config.Config{Env: config.EnvTest}, logs)
 	probe := &actorProbe{}
-	h, err := httpx.Handler(httpx.Deps{
+	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger:       logger,
 		Tracer:       tracenoop.NewTracerProvider(),
 		Clock:        f.clock,
@@ -308,7 +307,7 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 	}, func(m apibase.Mount) {
 		api.Mount(identityProbe{actorProbe: probe}, m)
 		systemapi.Mount(systemProbe{actorProbe: probe}, m)
-	}, openapi.Spec)
+	}, specContract(t))
 	if err != nil {
 		t.Fatal(err)
 	}

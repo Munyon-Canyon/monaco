@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
-	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
@@ -87,10 +86,7 @@ func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env) httpFixture
 	}
 	fakeUsers, fakeWallets, hints := &privyfake.Users{}, &privyfake.Wallets{}, &recordedHints{}
 	photos, logs := &photoStore{url: "https://img.example/photo.png"}, &testkit.Logs{}
-	limit, err := ratelimit.Load(openapi.Spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	limit := specPolicies(t)
 	limiter, err := ratelimit.New(f.pool, clk, noop.NewMeterProvider())
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +100,7 @@ func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env) httpFixture
 		identity.WithHints(hints),
 		identity.WithPhotoStore(photos),
 	).Mount
-	h, err := httpx.Handler(httpx.Deps{
+	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
 		Env:          routerEnv,
 		Tracer:       tracenoop.NewTracerProvider(),
@@ -114,7 +110,7 @@ func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env) httpFixture
 		Idempotency:  db.NewIdempotencyStore(f.pool, clk),
 		Verifier:     verifier,
 		RateLimit:    ratelimit.Middleware(limiter, limit, httpx.ActorKey, false),
-	}, mount, openapi.Spec)
+	}, mount, specContract(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -775,11 +771,11 @@ func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
 		m.Mount(r)
 		systemapi.Mount(openPing{}, r)
 	}
-	handler, err := httpx.Handler(httpx.Deps{
+	handler, err := httpx.HandlerFor(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer: tracenoop.NewTracerProvider(), Clock: clk, IDs: f.ids, MaxBodyBytes: 1 << 20,
 		Idempotency: db.NewIdempotencyStore(f.pool, clk), Verifier: verifier,
-	}, mount, openapi.Spec)
+	}, mount, specContract(t))
 	if err != nil {
 		t.Fatal(err)
 	}
