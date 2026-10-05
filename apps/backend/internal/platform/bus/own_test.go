@@ -3,6 +3,7 @@ package bus_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -85,6 +87,28 @@ func TestHandleOwn_logsTheCodeTheHandlerRecordedOnItsAck(t *testing.T) {
 		map[string]any{"outcome": "ack", "code": string(errs.CodeInsufficientFunds), "delivery": 1.0},
 		map[string]any{"outcome": "ack", "code": "ok", "delivery": 2.0},
 	)
+}
+
+func TestHandleOwn_scopesFaultpointsToTheHandlersFlow(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	seen := map[string]string{}
+	spec := func(name string) bus.HandlerSpec {
+		return bus.HandleOwn(name, func(ctx context.Context, _ bus.Delivery, _ events.SystemPinged) error {
+			seen[name] = faultpoint.Flow(ctx)
+			return nil
+		})
+	}
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{
+		spec("trading.engine"), spec("trading.engine.retry"), spec("notify.push"),
+	}})
+	_, msg := h.pingMsg(t)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	want := map[string]string{"trading.engine": "11", "trading.engine.retry": "12", "notify.push": ""}
+	if !maps.Equal(seen, want) {
+		t.Fatalf("faultpoint flows = %v, want %v so a crash armed for flow 11 or 12 hits only its handler", seen, want)
+	}
 }
 
 func TestHandleOwn_retryableErrorNaksAndAPanicTerms(t *testing.T) {
