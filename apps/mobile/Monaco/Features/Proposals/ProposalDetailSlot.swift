@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -9,7 +10,7 @@ enum ProposalDetailSlot: ProposalSection {
     }
 }
 
-private struct ProposalDetailSlotView: View {
+struct ProposalDetailSlotView: View {
     let proposalID: String
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
@@ -18,6 +19,11 @@ private struct ProposalDetailSlotView: View {
     @State private var priorStatus: ProposalStatus?
     @State private var showBurst = false
     @State private var confirmingWithdrawal = false
+
+    init(proposalID: String, model: ProposalDetailModel? = nil) {
+        self.proposalID = proposalID
+        _model = State(initialValue: model)
+    }
 
     var body: some View {
         Group {
@@ -34,6 +40,7 @@ private struct ProposalDetailSlotView: View {
                                 if model?.errorMessage == nil { toasts.show(success: "Vote in") }
                             }
                         }
+                        proposedBy(detail)
                         if model?.canWithdraw == true {
                             Button("Withdraw proposal", role: .destructive) {
                                 confirmingWithdrawal = true
@@ -64,6 +71,7 @@ private struct ProposalDetailSlotView: View {
             }
         }
         .task {
+            if model?.value != nil { return }
             let model = preparedModel()
             await model.load()
             guard let cabalID = model.value?.summary.cabalID else { return }
@@ -101,6 +109,16 @@ private struct ProposalDetailSlotView: View {
         }
     }
 
+    private func proposedBy(_ detail: ProposalDetail) -> some View {
+        let proposer = model?.members.first { $0.id == detail.summary.proposerID }
+        return Text(
+            ProposalCardCopy.proposedBy(proposer?.name ?? "a member", since: detail.summary.createdAt, now: .now)
+        )
+        .font(MonacoTheme.Typo.callout)
+        .foregroundStyle(MonacoTheme.muted)
+        .accessibilityIdentifier("proposal-proposed-by")
+    }
+
     private func votes(_ detail: ProposalDetail) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Votes")
@@ -121,14 +139,15 @@ private struct ProposalDetailSlotView: View {
         }
     }
 
-    private func expected(_ detail: ProposalDetail) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader("Expected")
-            if detail.summary.kind == "sell" {
-                let micros = detail.summary.quoteOutAmount
-                MoneyText(micros: micros, style: .row)
-            } else {
-                Text("Quote pending").font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.muted)
+    @ViewBuilder private func expected(_ detail: ProposalDetail) -> some View {
+        let summary = detail.summary
+        if let line = ProposalCardCopy.expected(
+            isSell: summary.kind == "sell", quoteOut: summary.quoteOutAmount, usdcMicros: summary.usdcMicros,
+            decimals: model?.asset?.decimals ?? AssetCatalogDefaults.decimals, kind: model?.asset?.kind ?? .stock)
+        {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                MonacoSectionHeader("Expected")
+                Text(line).font(MonacoTheme.Typo.callout)
             }
         }
     }
@@ -175,3 +194,55 @@ private struct ProposalDetailSlotView: View {
         return created
     }
 }
+
+#if DEBUG
+enum ProposalDetailSampleScenario: String {
+    case failedRetryable, failedFinal
+
+    static func matching(_ arguments: [String]) -> Self? {
+        guard let index = arguments.firstIndex(of: "-MonacoProposalDetailSample"), arguments.indices.contains(index + 1)
+        else { return nil }
+        return Self(rawValue: arguments[index + 1])
+    }
+}
+
+final class ProposalDetailSampleHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = ProposalDetailSampleScenario.matching(arguments) else { return nil }
+        return AnyView(ProposalDetailSampleHarness(scenario: scenario, auth: auth))
+    }
+}
+
+private struct ProposalDetailSampleHarness: View {
+    @State private var environment: AppEnvironment
+    @State private var toasts = ToastCenter()
+    @State private var model: ProposalDetailModel
+
+    init(scenario: ProposalDetailSampleScenario, auth: PrivyAuthService) {
+        let environment = AppEnvironment(
+            auth: auth, hints: SilentSampleHints(), isAuthenticated: { true }, endAuthSession: {})
+        _environment = State(initialValue: environment)
+        _model = State(
+            initialValue: ProposalDetailModel(
+                sample: .failedSwap(retryable: scenario == .failedRetryable),
+                members: Components.Schemas.Cabal.sampleWithMembers(role: "member").members, asset: .googl,
+                repository: ProposalsRepository(api: environment.api), hints: environment.hints))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ProposalDetailSlotView(proposalID: "proposal-1", model: model)
+                .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+        }
+        .environment(environment)
+        .environment(toasts)
+    }
+}
+
+private nonisolated struct SilentSampleHints: HintConnecting {
+    func hints(matching _: HintFilter) -> AsyncStream<Hint> { AsyncStream { $0.finish() } }
+    func start() async {}
+    func stop() async {}
+}
+#endif

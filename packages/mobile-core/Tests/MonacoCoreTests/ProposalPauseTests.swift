@@ -35,18 +35,17 @@ final class ProposalPauseTests: XCTestCase {
     }
 }
 
+@MainActor
 final class ProposalPauseModelTests: XCTestCase {
     private let pausedBody =
         #"{"slice_micros":"1","share_units":"1","min_micros":"1","pause":{"reasons":["ops"],"since":"2026-01-01T00:00:00Z"}}"#
     private let openBody = #"{"slice_micros":"1","share_units":"1","min_micros":"1","pause":null}"#
 
-    @MainActor
     private func model(_ transport: StubTransport, hints: FakeHintStream) -> ProposalPauseModel {
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport)
         return ProposalPauseModel(cabalID: "c", repository: ProposalsRepository(api: api), hints: hints)
     }
 
-    @MainActor
     func testLoadSetsPausedAndAFailureKeepsTheLastValue() async {
         let transport = StubTransport(scripted: [.json(.ok, pausedBody), .failure(URLError(.notConnectedToInternet))])
         let model = model(transport, hints: FakeHintStream())
@@ -56,7 +55,6 @@ final class ProposalPauseModelTests: XCTestCase {
         XCTAssertTrue(model.isPaused)
     }
 
-    @MainActor
     func testAPauseChangedHintRereadsThePause() async {
         let transport = StubTransport(scripted: [.json(.ok, pausedBody), .json(.ok, openBody)])
         let hints = FakeHintStream()
@@ -72,8 +70,8 @@ final class ProposalPauseModelTests: XCTestCase {
     }
 }
 
+@MainActor
 final class PendingVotesPauseTests: XCTestCase {
-    @MainActor
     func testPendingVotesMarkPausedCabals() async {
         let vote =
             #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
