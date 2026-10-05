@@ -20,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -32,6 +33,7 @@ const (
 
 type BounceChain interface {
 	SignatureStatuses
+	BlockhashValid(ctx context.Context, hash string) (bool, error)
 	MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error)
 	Accounts(ctx context.Context, addrs []chain.SolanaAddress, minContextSlot uint64) (
 		uint64, []solana.TokenAccountState, error)
@@ -64,6 +66,7 @@ type bounceRow struct {
 	amount    uint64
 	status    domain.ExternalDepositStatus
 	signed    relayer.SignedTx
+	attempts  int32
 }
 
 func (b *Bouncer) Start(ctx context.Context, id uuid.UUID) error {
@@ -75,6 +78,7 @@ func (b *Bouncer) Start(ctx context.Context, id uuid.UUID) error {
 	if err != nil || signed == nil {
 		return err
 	}
+	faultpoint.Hit(ctx, faultpoint.AfterSign)
 	started, err := b.store(ctx, row, *signed)
 	if err != nil || !started {
 		return err
@@ -83,6 +87,7 @@ func (b *Bouncer) Start(ctx context.Context, id uuid.UUID) error {
 	if err := b.broadcast(ctx, row); err != nil {
 		return err
 	}
+	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
 	return b.await(ctx, row)
 }
 
@@ -257,6 +262,7 @@ func (b *Bouncer) load(ctx context.Context, id uuid.UUID) (bounceRow, error) {
 	return bounceRow{
 		id: r.ID, cabal: ids.CabalIDFrom(r.CabalID), recipient: recipient, mint: chain.SolanaAddress(r.Mint),
 		amount: amount, status: domain.ExternalDepositStatus(r.Status),
-		signed: relayer.SignedTx{Bytes: r.BounceSignedTx, Signature: chain.Signature(r.BounceSignature)},
+		signed:   relayer.SignedTx{Bytes: r.BounceSignedTx, Signature: chain.Signature(r.BounceSignature)},
+		attempts: r.BounceAttempts,
 	}, nil
 }

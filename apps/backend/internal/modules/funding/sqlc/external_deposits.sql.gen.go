@@ -140,6 +140,38 @@ func (q *Queries) InsertExternalDeposit(ctx context.Context, arg InsertExternalD
 	return result.RowsAffected(), nil
 }
 
+const listStaleBounces = `-- name: ListStaleBounces :many
+SELECT id FROM external_deposits
+WHERE status = 'bouncing' AND detected_at < $1::timestamptz
+ORDER BY detected_at, id
+LIMIT $2::int
+`
+
+type ListStaleBouncesParams struct {
+	OlderThan time.Time
+	MaxRows   int32
+}
+
+func (q *Queries) ListStaleBounces(ctx context.Context, arg ListStaleBouncesParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listStaleBounces, arg.OlderThan, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const openExternalDepositPauses = `-- name: OpenExternalDepositPauses :many
 SELECT id FROM cabal_pauses WHERE external_deposit_id = $1::uuid AND resolved_at IS NULL ORDER BY id
 `
@@ -173,6 +205,33 @@ func (q *Queries) OwnsBounceSignature(ctx context.Context, signature string) (bo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const resignBounce = `-- name: ResignBounce :execrows
+UPDATE external_deposits
+SET bounce_signature = $1::text, bounce_signed_tx = $2::bytea,
+  bounce_attempts = bounce_attempts + 1
+WHERE id = $3::uuid AND status = 'bouncing' AND bounce_signature = $4::text
+`
+
+type ResignBounceParams struct {
+	BounceSignature string
+	BounceSignedTx  []byte
+	ID              uuid.UUID
+	OldSignature    string
+}
+
+func (q *Queries) ResignBounce(ctx context.Context, arg ResignBounceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resignBounce,
+		arg.BounceSignature,
+		arg.BounceSignedTx,
+		arg.ID,
+		arg.OldSignature,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const returnBounce = `-- name: ReturnBounce :execrows

@@ -43,3 +43,15 @@ WHERE id = sqlc.arg(id)::uuid AND status = sqlc.arg(from_status)::text;
 
 -- name: OpenExternalDepositPauses :many
 SELECT id FROM cabal_pauses WHERE external_deposit_id = sqlc.arg(external_deposit_id)::uuid AND resolved_at IS NULL ORDER BY id;
+
+-- name: ListStaleBounces :many
+SELECT id FROM external_deposits
+WHERE status = 'bouncing' AND detected_at < sqlc.arg(older_than)::timestamptz
+ORDER BY detected_at, id
+LIMIT sqlc.arg(max_rows)::int;
+
+-- name: ResignBounce :execrows
+UPDATE external_deposits
+SET bounce_signature = sqlc.arg(bounce_signature)::text, bounce_signed_tx = sqlc.arg(bounce_signed_tx)::bytea,
+  bounce_attempts = bounce_attempts + 1
+WHERE id = sqlc.arg(id)::uuid AND status = 'bouncing' AND bounce_signature = sqlc.arg(old_signature)::text;

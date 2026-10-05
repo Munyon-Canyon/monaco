@@ -48,7 +48,7 @@ func TestModule(t *testing.T) {
 		names = append(names, p.Name()+"@"+p.Interval().String())
 	}
 	want := []string{
-		"funding.deposits@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s",
+		"funding.deposits@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s", "funding.bounce-sweeper@30s",
 		"funding.treasury-reconcile@1m0s",
 	}
 	if !slices.Equal(names, want) {

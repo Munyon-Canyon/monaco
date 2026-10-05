@@ -136,6 +136,7 @@ func (m *Module) Pollers() []poller.Poller {
 		).SkipOwned(treasury.New(m.deps).SignatureOwner()),
 		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
 		withdrawals,
+		app.NewBounceSweeper(m.Bouncer()),
 		app.NewTreasuryReconcilePoller(app.TreasuryReconcileDeps{
 			UoW:        m.deps.UoW,
 			Reads:      m.deps.Pool,
@@ -215,6 +216,10 @@ func newLazyChain(cfg config.Config, clk clock.Clock) lazyChain {
 
 func (c lazyChain) SignatureStatuses(ctx context.Context, sigs []chain.Signature) ([]solana.Status, error) {
 	return c.client().SignatureStatuses(ctx, sigs)
+}
+
+func (c lazyChain) BlockhashValid(ctx context.Context, hash string) (bool, error) {
+	return c.client().BlockhashValid(ctx, hash)
 }
 
 func (c lazyChain) MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error) {
