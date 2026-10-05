@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scenario="${1:?journey.py passes the scenario id}"
+# shellcheck source=/dev/null
+source "$(git rev-parse --show-toplevel)/scripts/qa/seed.sh"
+qa_api_ready
+
+did="$(_qa_account A privy_user_id)"
+qa_sql -v did="$did" >/dev/null \
+  <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
+qa_api A PATCH /v1/me "{\"display_name\":\"$(_qa_account A name)\"}" >/dev/null
+
+case "$scenario" in
+  S1 | S2) echo "seeded: A is onboarded" ;;
+  *)
+    echo "no setup for scenario $scenario" >&2
+    exit 1
+    ;;
+esac

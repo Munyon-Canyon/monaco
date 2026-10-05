@@ -1,0 +1,19 @@
+journey: profile/invite
+expect-fail: S1
+
+The copy toast reads "Copied." instead of "Link copied.". S1.4 waits for "Link copied.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/InviteView.swift b/apps/mobile/Monaco/Features/Profile/InviteView.swift
+index b428f44d1..2b99c41f8 100644
+--- a/apps/mobile/Monaco/Features/Profile/InviteView.swift
++++ b/apps/mobile/Monaco/Features/Profile/InviteView.swift
+@@ -15,7 +15,7 @@ enum InviteCopy {
+     static let copy = "Copy"
+     static let share = "Share"
+     static let shareMessage = "Join me on Monaco"
+-    static let copied = "Link copied."
++    static let copied = "Copied."
+     static let codeLinkLabel = "This link works too"
+     static let deposit = "Deposit"
+     static let loadFailed = "Couldn't load your invite link."

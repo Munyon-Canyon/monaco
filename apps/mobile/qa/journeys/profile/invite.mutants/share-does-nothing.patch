@@ -1,0 +1,19 @@
+journey: profile/invite
+expect-fail: S2
+
+Share is a button that does nothing. S2.2 waits for the share sheet, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/InviteView.swift b/apps/mobile/Monaco/Features/Profile/InviteView.swift
+index b428f44d1..50f61268f 100644
+--- a/apps/mobile/Monaco/Features/Profile/InviteView.swift
++++ b/apps/mobile/Monaco/Features/Profile/InviteView.swift
+@@ -121,7 +121,7 @@ private struct InviteLinkCard: View {
+                 ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
+                 : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+             actions {
+-                ShareLink(item: url, message: Text(InviteCopy.shareMessage)) {
++                Button {} label: {
+                     Label(InviteCopy.share, systemImage: "square.and.arrow.up")
+                 }
+                 .buttonStyle(.monacoPrimary)
