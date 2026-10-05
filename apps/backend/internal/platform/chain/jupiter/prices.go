@@ -16,6 +16,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
 
 type Price struct {
@@ -25,7 +27,17 @@ type Price struct {
 }
 
 type priceWire struct {
-	USDPrice json.Number `json:"usdPrice"`
+	USDPrice  json.Number `json:"usdPrice"`
+	StockData *struct {
+		Price json.Number `json:"price"`
+	} `json:"stockData"`
+}
+
+func (w priceWire) price() json.Number {
+	if w.USDPrice == "" && w.StockData != nil {
+		return w.StockData.Price
+	}
+	return w.USDPrice
 }
 
 const (
@@ -94,10 +106,15 @@ func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, 
 		if w == nil {
 			continue
 		}
-		usd, ok := parsePrice(w.USDPrice)
+		usd, ok := parsePrice(w.price())
 		if !ok {
-			return nil, errs.New(errs.CodeDecodeFailed, op,
-				slog.String("mint", m.Address), slog.String("usd_price", string(w.USDPrice)))
+			var stock json.Number
+			if w.StockData != nil {
+				stock = w.StockData.Price
+			}
+			boundary.Warn(ctx, observability.JupiterPriceSkipped, slog.String("mint", m.Address),
+				slog.String("usd_price", string(w.USDPrice)), slog.String("stock_price", string(stock)))
+			continue
 		}
 		out[m] = Price{Mint: m, USDMicros: usd, ObservedAt: observed}
 	}

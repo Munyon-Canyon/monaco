@@ -105,6 +105,37 @@ func TestPrices_missingOrNullMintIsAbsentNotZero(t *testing.T) {
 	}
 }
 
+func TestPrices_stockDataPriceWhenUSDPriceIsAbsent(t *testing.T) {
+	t.Parallel()
+	stock, plain := fixtureMint(1), fixtureMint(2)
+	u := replying(http.StatusOK, `{"`+stock.Address+`":{"createdAt":"2026-09-03T18:11:57Z","decimals":8,`+
+		`"stockData":{"id":"xstocks","price":8.125,"mcap":516152903.35,"updatedAt":"2026-10-05T17:09:33.658Z"}},`+
+		`"`+plain.Address+`":{"usdPrice":108.83,"stockData":{"price":1}}}`)
+	got, err := client(u).Prices(t.Context(), []jupiter.Mint{stock, plain})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[stock].USDMicros.Uint64() != 8_125_000 || got[plain].USDMicros.Uint64() != 108_830_000 {
+		t.Fatalf("Prices = %+v, want 8125000 from stockData and 108830000 from usdPrice", got)
+	}
+}
+
+func TestPrices_unpriceableEntryIsSkippedAndTheBatchKept(t *testing.T) {
+	t.Parallel()
+	good, negative, empty, nothing := fixtureMint(1), fixtureMint(2), fixtureMint(3), fixtureMint(4)
+	u := replying(http.StatusOK, `{"`+good.Address+`":{"stockData":{"price":0.000123}},`+
+		`"`+negative.Address+`":{"usdPrice":-1},`+
+		`"`+empty.Address+`":{"stockData":{"price":"abc"}},`+
+		`"`+nothing.Address+`":{"decimals":8}}`)
+	got, err := client(u).Prices(t.Context(), []jupiter.Mint{good, negative, empty, nothing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[good].USDMicros.Uint64() != 123 {
+		t.Fatalf("Prices = %+v, want only %s at 123 micros", got, good.Address)
+	}
+}
+
 func TestPrices_noMintsMakesNoCall(t *testing.T) {
 	t.Parallel()
 	u := replying(http.StatusOK, `{}`)
@@ -124,8 +155,6 @@ func TestPrices_failures(t *testing.T) {
 		"unauthorized": {replying(http.StatusUnauthorized, `Unauthorized`), errs.CodeJupiterRejected},
 		"server error": {replying(http.StatusInternalServerError, ``), errs.CodeJupiterUnavailable},
 		"not json":     {replying(http.StatusOK, `{"`), errs.CodeDecodeFailed},
-		"negative":     {replying(http.StatusOK, `{"`+m.Address+`":{"usdPrice":-1}}`), errs.CodeDecodeFailed},
-		"no price":     {replying(http.StatusOK, `{"`+m.Address+`":{}}`), errs.CodeDecodeFailed},
 	} {
 		_, err := client(tc.u).Prices(t.Context(), []jupiter.Mint{m})
 		if errs.CodeOf(err) != tc.want {
@@ -193,6 +222,8 @@ func TestParsePrice_roundsDownToMicros(t *testing.T) {
 		"0":                0,
 		"1":                1_000_000,
 		"212.3456789":      212_345_678,
+		"108.83":           108_830_000,
+		"0.000123":         123,
 		"0.0000009":        0,
 		"1.2e-5":           12,
 		"18446744073709.5": 18_446_744_073_709_500_000,
