@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type hookRun struct {
@@ -435,7 +436,8 @@ esac
 	return []string{"PATH=" + filepath.Join(dir, "bin") + ":" + os.Getenv("PATH")}
 }
 
-func TestAgentGuard_noPushToAStackInTheGraphiteQueue(t *testing.T) {
+func queuedRepo(t *testing.T) string {
+	t.Helper()
 	work, _ := pushRepo(t)
 	git(t, work, "update-ref", "refs/remotes/origin/staging", "HEAD")
 	git(t, work, "switch", "-q", "-c", "other")
@@ -444,6 +446,11 @@ func TestAgentGuard_noPushToAStackInTheGraphiteQueue(t *testing.T) {
 	git(t, work, "commit", "-q", "--allow-empty", "-m", "feat: lower")
 	git(t, work, "switch", "-q", "-c", "upper")
 	git(t, work, "commit", "-q", "--allow-empty", "-m", "feat: upper")
+	return work
+}
+
+func TestAgentGuard_noPushToAStackInTheGraphiteQueue(t *testing.T) {
+	work := queuedRepo(t)
 	env := queuedGH(t, `[{"number":7,"headRefName":"lower"}]`)
 	for _, cmd := range []string{"git push origin upper", "git push origin lower", "gt submit --stack", "gt modify -a"} {
 		assertBlocked(t, guard(t, work, cmd, env...), cmd, "#7 (lower) is in the Graphite merge queue")
@@ -455,6 +462,130 @@ func TestAgentGuard_noPushToAStackInTheGraphiteQueue(t *testing.T) {
 	git(t, work, "switch", "-q", "upper")
 	for name, heads := range map[string]string{"nothing queued": `[]`, "gh fails": `not json`} {
 		assertAllowed(t, guard(t, work, "gt submit --stack", queuedGH(t, heads)...), name)
+	}
+}
+
+func graphiteGH(t *testing.T, graphql string) (env []string, calls string) {
+	t.Helper()
+	dir := t.TempDir()
+	calls = filepath.Join(dir, "calls")
+	writeExecutable(t, filepath.Join(dir, "bin", "gh"), fmt.Sprintf(`#!/bin/sh
+echo "$*" >> %q
+case "$1 $2" in
+  "pr list") echo '[]' ;;
+  "api graphql") cat <<'JSON'
+%s
+JSON
+  ;;
+  *) exit 1 ;;
+esac
+`, calls, graphql))
+	return []string{"PATH=" + filepath.Join(dir, "bin") + ":" + os.Getenv("PATH")}, calls
+}
+
+func openPR(number int, head, title string, events ...string) string {
+	return fmt.Sprintf(`{"number":%d,"headRefName":%q,"title":%q,"timelineItems":{"nodes":[%s]}}`,
+		number, head, title, strings.Join(events, ","))
+}
+
+func labelEvent(kind string, at time.Time, label, actor string) string {
+	login := "null"
+	if actor != "" {
+		login = fmt.Sprintf(`{"login":%q}`, actor)
+	}
+	return fmt.Sprintf(`{"__typename":%q,"createdAt":%q,"label":{"name":%q},"actor":%s}`,
+		kind, at.UTC().Format(time.RFC3339), label, login)
+}
+
+func closedMQDraft(prs string, updated time.Time) string {
+	return fmt.Sprintf(`{"title":"[Graphite MQ] Draft PR GROUP:spec_1 (PRs %s)","headRefName":"gtmq_1","updatedAt":%q}`,
+		prs, updated.UTC().Format(time.RFC3339))
+}
+
+func TestAgentGuard_noPushToAStackGraphiteHoldsBeforeItsDraftOpens(t *testing.T) {
+	work := queuedRepo(t)
+	now := time.Now()
+	ago := func(m int) time.Time { return now.Add(-time.Duration(m) * time.Minute) }
+	took := func(by string, m int) string {
+		return openPR(7, "lower", "Add lower",
+			labelEvent("LabeledEvent", ago(m+1), "merge-queue", "logan"), labelEvent("UnlabeledEvent", ago(m), "merge-queue", by))
+	}
+	const draft = "[Graphite MQ] Draft PR GROUP:spec_9 (PRs %s)"
+	for _, tc := range []struct {
+		name    string
+		open    []string
+		closed  []string
+		blocked bool
+	}{
+		{"Graphite took the PR two minutes ago", []string{took("graphite-app", 2)}, nil, true},
+		{"Graphite's REST login", []string{took("graphite-app[bot]", 2)}, nil, true},
+		{"Graphite took it just inside the hold", []string{took("graphite-app", 29)}, nil, true},
+		{"an open gtmq_ draft names the PR", []string{
+			openPR(7, "lower", "Add lower"), openPR(90, "gtmq_9", fmt.Sprintf(draft, "6, 7")),
+		}, nil, true},
+		{"a closed draft ran it before Graphite took it", []string{took("graphite-app", 2)},
+			[]string{closedMQDraft("7", ago(10))}, true},
+		{"a person removed it two minutes ago", []string{took("logan", 2)}, nil, false},
+		{"Graphite took it longer ago than the hold", []string{took("graphite-app", 31)}, nil, false},
+		{"a closed draft ran it since", []string{took("graphite-app", 5)}, []string{closedMQDraft("6, 7", ago(1))}, false},
+		{"a closed draft ran other PRs", []string{took("graphite-app", 2)}, []string{closedMQDraft("8, 9", ago(1))}, true},
+		{"a removal with no actor is no take", []string{took("", 2)}, nil, false},
+		{"a removal with no actor does not hide a take", []string{
+			openPR(8, "elsewhere", "Add elsewhere", labelEvent("UnlabeledEvent", ago(2), "merge-queue", "")), took("graphite-app", 2),
+		}, nil, true},
+		{"Graphite removed another label", []string{openPR(7, "lower", "Add lower",
+			labelEvent("UnlabeledEvent", ago(2), "large-pr", "graphite-app"))}, nil, false},
+		{"Graphite put the label back after it took the PR", []string{openPR(7, "lower", "Add lower",
+			labelEvent("UnlabeledEvent", ago(3), "merge-queue", "graphite-app"),
+			labelEvent("LabeledEvent", ago(1), "merge-queue", "graphite-app"))}, nil, false},
+		{"an open draft names other PRs", []string{
+			openPR(7, "lower", "Add lower"), openPR(90, "gtmq_9", fmt.Sprintf(draft, "8, 9")),
+		}, nil, false},
+		{"an open PR that is no draft lists PRs in its title", []string{
+			openPR(7, "lower", "Add lower"), openPR(90, "feature", fmt.Sprintf(draft, "6, 7")),
+		}, nil, false},
+		{"a closed draft names the PR and nobody took it", []string{openPR(7, "lower", "Add lower")},
+			[]string{closedMQDraft("6, 7", ago(1))}, false},
+		{"Graphite took a PR outside this stack", []string{
+			openPR(8, "elsewhere", "Add elsewhere", labelEvent("UnlabeledEvent", ago(2), "merge-queue", "graphite-app")),
+		}, nil, false},
+	} {
+		env, _ := graphiteGH(t, fmt.Sprintf(`{"data":{"repository":{"open":{"nodes":[%s]},"closed":{"nodes":[%s]}}}}`,
+			strings.Join(tc.open, ","), strings.Join(tc.closed, ",")))
+		for _, cmd := range []string{"gt submit --stack", "git push origin upper"} {
+			r := guard(t, work, cmd, env...)
+			if tc.blocked {
+				assertBlocked(t, r, tc.name+": "+cmd, "#7 (lower) is in the Graphite merge queue")
+			} else {
+				assertAllowed(t, r, tc.name+": "+cmd)
+			}
+		}
+	}
+}
+
+func TestAgentGuard_readsTheGraphiteQueueInOneGraphQLQuery(t *testing.T) {
+	work := queuedRepo(t)
+	env, calls := graphiteGH(t, `{"data":{"repository":{"open":{"nodes":[]},"closed":{"nodes":[]}}}}`)
+	assertAllowed(t, guard(t, work, "gt submit --stack", env...), "nothing held")
+	got, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var graphql, lists int
+	for _, line := range strings.Split(strings.TrimSpace(string(got)), "\n") {
+		switch {
+		case strings.HasPrefix(line, "api graphql"):
+			graphql++
+		case strings.HasPrefix(line, "pr list"):
+			lists++
+		}
+	}
+	if graphql != 1 || lists != 1 {
+		t.Fatalf("one guard run made %d GraphQL queries and %d pr lists:\n%s", graphql, lists, got)
+	}
+	for _, bad := range []string{`not json`, `{"data":null,"errors":[{"message":"rate limited"}]}`, `{"data":{"repository":{}}}`} {
+		env, _ := graphiteGH(t, bad)
+		assertAllowed(t, guard(t, work, "gt submit --stack", env...), "unreadable GraphQL: "+bad)
 	}
 }
 
