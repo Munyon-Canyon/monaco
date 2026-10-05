@@ -598,6 +598,44 @@ func TestWatchStream_namesAPRWhoseLabelWasJustRemovedWithoutEjectingIt(t *testin
 	}
 }
 
+func TestWatchStream_keepsAStackGraphiteTookQueuedUntilItsDraftOpensOrFails(t *testing.T) {
+	t.Parallel()
+	took := func(f *fixture) string { return unlabel(f.now.Add(-2*time.Minute), "merge-queue", "graphite-app") }
+	for _, tc := range []struct {
+		name    string
+		drafts  func(f *fixture) []string
+		want    string
+		ejected bool
+	}{
+		{"no draft yet", func(*fixture) []string { return nil }, "#2 taken by Graphite, waiting for a draft\n", false},
+		{"the draft opens", func(*fixture) []string {
+			return []string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK))}
+		}, "#2 queued\n", false},
+		{"the draft ran the PRs and closed", func(f *fixture) []string {
+			return []string{closedDraftAt(90, f.now.Add(-time.Minute))}
+		}, "stack #2 ejected: #1 left the Graphite merge queue\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := queuedStack(t, f, "/w/40")
+			got := streamRounds(t, f, 6, func(round int) {
+				switch round {
+				case 1:
+					setUnlabels(t, s.prs[1], took(f))
+					setUnlabels(t, s.prs[2], took(f))
+				case 3:
+					f.hub.on(graphqlRoute, draftData(tc.drafts(f)))
+				}
+			})
+			if !strings.Contains(got, tc.want) || strings.Contains(got, "ejected") != tc.ejected ||
+				(f.owned(t).Queued == nil) != tc.ejected {
+				t.Fatalf("queued = %v, want ejected = %v:\n%s", f.owned(t).Queued != nil, tc.ejected, got)
+			}
+		})
+	}
+}
+
 func TestWatchStream_disarmsAnArmedStackThatCannotLand(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

@@ -1170,6 +1170,88 @@ func TestWatchOnce_waitsAMinuteBeforeEjectingAStackGraphiteJustUnlabeled(t *test
 	}
 }
 
+func setUnlabels(t *testing.T, p *stackPR, events ...string) *stackPR {
+	t.Helper()
+	p.Labels.Nodes = nil
+	if err := json.Unmarshal([]byte(`{"nodes":[`+strings.Join(events, ",")+`]}`), &p.TimelineItems); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func closedDraftAt(n int, updated time.Time) string {
+	return strings.Replace(closedDraft(n, noRollup), "2026-09-27T11:59:00Z", updated.Format(time.RFC3339), 1)
+}
+
+func closedDraftData(closed ...string) string {
+	return `{"data":{"repository":{"pullRequests":{"nodes":[]},"drafts":{"nodes":[]},` +
+		`"closed":{"nodes":[` + strings.Join(closed, ",") + `]}}}}`
+}
+
+func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
+	t.Parallel()
+	const graphiteGraphQL, graphiteREST = "graphite-app", graphiteBot
+	for _, tc := range []struct {
+		name    string
+		actor   string
+		ago     time.Duration
+		noise   bool
+		ranAt   time.Duration
+		ejected bool
+	}{
+		{"Graphite took the label two minutes ago", graphiteGraphQL, 2 * time.Minute, false, 0, false},
+		{"Graphite's REST login", graphiteREST, 2 * time.Minute, false, 0, false},
+		{"a later event of another label does not change who took it", graphiteGraphQL, 2 * time.Minute, true, 0, false},
+		{"Graphite took it just inside the hold", graphiteGraphQL, runsFor - time.Second, false, 0, false},
+		{"Graphite took it a whole hold ago", graphiteGraphQL, runsFor, false, 0, true},
+		{"a person removed it two minutes ago", "logan", 2 * time.Minute, false, 0, true},
+		{"a draft that ran the PR since closed", graphiteGraphQL, 2 * time.Minute, false, time.Minute, true},
+		{"the closed draft ran before Graphite took it", graphiteGraphQL, 2 * time.Minute, false, 3 * time.Minute, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := ejectedStack(t, f)
+			for _, n := range []int{1, 2, 3} {
+				events := []string{unlabel(f.now.Add(-tc.ago), "merge-queue", tc.actor)}
+				if tc.noise {
+					events = append(events, unlabel(f.now.Add(-time.Minute), "large-pr", "logan"))
+				}
+				setUnlabels(t, s.prs[n], events...)
+			}
+			if tc.ranAt != 0 {
+				f.hub.on(graphqlRoute, closedDraftData(closedDraftAt(90, f.now.Add(-tc.ranAt))))
+			} else {
+				f.noFailures()
+			}
+			code, stdout, stderr := f.agents(t, "watch", "--once")
+			if code != 0 || strings.Contains(stdout, "unqueued: #40") != tc.ejected ||
+				(f.owned(t).Queued == nil) != tc.ejected {
+				t.Fatalf("%d %q %q", code, stdout, stderr)
+			}
+			if released := len(f.hub.callsContaining("/labels")) != 0; released != tc.ejected {
+				t.Fatalf("labels released = %v, want %v", released, tc.ejected)
+			}
+		})
+	}
+}
+
+func TestLandStack_doesNotRelabelAStackGraphiteTookWhileItWaitsForADraft(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	for _, n := range []int{1, 2, 3} {
+		setUnlabels(t, s.prs[n], unlabel(f.now.Add(-2*time.Minute), "merge-queue", "graphite-app"))
+	}
+	code, stdout, stderr := f.agents(t, "land-stack", "3")
+	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" || f.owned(t).Queued == nil {
+		t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
+	}
+	if got := f.hub.callsContaining("/labels"); len(got) != 0 {
+		t.Fatalf("land-stack relabelled a stack Graphite holds: %v", got)
+	}
+}
+
 func TestLandStack_queuesAStackWhosePRFormatIsRedOrPending(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
