@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -68,6 +69,7 @@ func (h *SellForCashOutHandler) Handle(ctx context.Context, cmd SellForCashOut, 
 	if err != nil {
 		return err
 	}
+	faultpoint.Hit(ctx, faultpoint.AfterSellRequest)
 	wallet, err := h.d.Wallets.TreasuryWallet(ctx, cmd.CabalID)
 	if err != nil {
 		return err

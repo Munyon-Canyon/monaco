@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
@@ -55,7 +56,25 @@ func flow14(t *testing.T) *scenario.Scenario {
 
 func TestFlow14_CashOut_OK(t *testing.T) {
 	t.Parallel()
-	flows.F14CashOutOK(flow14(t))
+	t.Run("covered by cash on hand", func(t *testing.T) {
+		t.Parallel()
+		flows.F14CashOutOK(flow14(t))
+	})
+	t.Run("short treasury sells and pays the whole slice", func(t *testing.T) {
+		t.Parallel()
+		s, r := saleAndPayout(t, 80_000_000)
+		s.deliver(t, s.started)
+		s.deliver(t, s.sold(s.f.ids.NewV7(), 400, 21_000_000, 2))
+		s.deliver(t, s.sold(s.f.ids.NewV7(), 200, 10_000_000, 2))
+		r.payLanded(t)
+		r.wantJob(t, "completed", "")
+		r.wantEnded(t, events.TypeCashOutCompleted)
+		if r.shares(t, s.alice) != 0 || r.treasuryUSDC(t) != "1000000" {
+			t.Fatalf("alice holds %d shares and the treasury %s USDC, want 0 and the 1 USDC surplus",
+				r.shares(t, s.alice), r.treasuryUSDC(t))
+		}
+		r.noDrift(t)
+	})
 }
 
 func TestFlow14_CashOut_InvalidInput(t *testing.T) {
