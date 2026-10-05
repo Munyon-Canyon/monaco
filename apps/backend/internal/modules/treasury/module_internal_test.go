@@ -39,3 +39,12 @@ func TestMarketReadersMapCatalogAndPrices(t *testing.T) {
 		t.Fatal("marketPrices error = nil")
 	}
 }
+
+func TestMarketResolverCarriesCatalogNames(t *testing.T) {
+	t.Parallel()
+	asset := marketfake.AAPLx()
+	got, err := marketResolver(marketfake.NewCatalog(asset))(t.Context(), asset.Mint.Address())
+	if err != nil || got.Symbol != asset.Symbol || got.DisplayName != asset.DisplayName || got.Symbol == "" {
+		t.Fatalf("marketResolver() names = %q %q, %v", got.Symbol, got.DisplayName, err)
+	}
+}
