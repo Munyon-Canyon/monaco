@@ -7,7 +7,7 @@ enum StocksAssetDetailJourney {
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
     static let otherListingID = "asset-other-listing-JRNYQx"
-    static let otherListingTicker = "JRNYQ"
+    static let otherListingTicker = "JRNYQx"
     static let buyCaption = "Your cabal votes before anything is bought"
     static let ranges = ["1D", "1W", "1M", "3M", "1Y", "ALL"]
 
@@ -159,13 +159,14 @@ enum StocksAssetDetailJourney {
             let bar = app.buttons["asset-detail-propose-buy"]
             var swipes = 0
             while listing.frame.midY > bar.frame.minY - 20 && swipes < 4 {
-                app.element("asset-detail-root").swipeUp()
+                let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78))
+                from.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
                 swipes += 1
             }
             listing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
             XCTAssertTrue(
                 app.navigationBars[otherListingTicker].waitForExistence(timeout: 10),
-                "S3.3: the listing did not open an asset screen titled '\(otherListingTicker)'")
+                "S3.3: the listing did not open an asset screen titled '\(otherListingTicker)')")
             XCTAssertTrue(app.element("asset-detail-root").exists, "S3.3: no asset screen for the other listing")
         }
     }

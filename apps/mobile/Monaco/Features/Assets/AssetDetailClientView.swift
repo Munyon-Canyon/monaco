@@ -75,7 +75,7 @@ struct AssetDetailClientView: View {
                 otherListings(detail.otherListings)
             }
             .padding(.vertical, MonacoTheme.Space.m)
-            .padding(.bottom, MonacoTheme.Space.xl)
+            .padding(.bottom, MonacoTheme.Space.xl + 96)
         }
         .monacoCanvas()
         .foregroundStyle(MonacoTheme.ink)

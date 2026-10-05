@@ -62,7 +62,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- |
 | S3.1 | tap, scroll to, then tap | the Stocks tab `tab-assets`, then `assets-row-JRNYPx` | | Within 15 s, `asset-detail-root` shows and `asset-detail-name` reads "Journey Private". Old app: a Pre-IPO row pushed `AssetDetailView`. screens.md: Stocks: Asset screen |
 | S3.2 | scroll to | `asset-other-listings` | | Within 10 s, "Also available from" shows with `asset-other-listing-JRNYQx`. Old app: "Also available from" issuers. screens.md: "Also available from" issuers |
-| S3.3 | tap | `asset-other-listing-JRNYQx` | | Within 10 s, `asset-detail-root` shows for that listing, titled "JRNYQ". Old app: an issuer row opened that listing's asset screen. screens.md: "Also available from" issuers |
+| S3.3 | tap | `asset-other-listing-JRNYQx` | | Within 10 s, `asset-detail-root` shows for that listing, titled "JRNYQx". Old app: an issuer row opened that listing's asset screen. screens.md: "Also available from" issuers |
 
 ### S4 Your cabals' position and Propose sell
 
