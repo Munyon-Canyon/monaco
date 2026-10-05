@@ -11,5 +11,6 @@ func init() {
 		TreasuryFundFailed,
 		TreasuryFundMintWaiting,
 		TreasuryFundSettled,
+		TreasuryCashOutSaleSettled,
 	)
 }

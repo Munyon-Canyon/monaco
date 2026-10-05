@@ -50,8 +50,8 @@ func TestPotValue_SubtractsLiveCashOutReservations(t *testing.T) {
 		t.Fatal(err)
 	}
 	insert := `INSERT INTO cash_out_jobs
-  (id, cabal_id, user_id, share_units, payout_micros, status, created_at, updated_at)
-VALUES ($1, $2, $3, 10, 30000000, $4, $5, $5)`
+  (id, cabal_id, user_id, share_units, payout_micros, slice_micros, status, created_at, updated_at)
+VALUES ($1, $2, $3, 10, 30000000, 30000000, $4, $5, $5)`
 	for _, status := range []string{"started", "selling", "paying", "completed", "partial", "failed"} {
 		if _, err := f.pool.Exec(
 			t.Context(), insert, f.ids.NewV7(), cabal.UUID(), f.user(t).UUID(), status, f.clock.Now(),
