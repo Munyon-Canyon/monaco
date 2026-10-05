@@ -60,7 +60,7 @@ func treasuryUnits(op string, entries []CabalEntry, usdc Asset) (map[Asset]int64
 		units[asset] = sum.Int64()
 	}
 	var paid money.Micros
-	if sum := sums[usdc]; sum != nil && sum.Sign() < 0 {
+	if sum := sums[usdc]; sum != nil && sum.Sign() == -1 {
 		paid = money.MicrosFromUint64(new(big.Int).Neg(sum).Uint64())
 	}
 	return units, paid, nil
