@@ -43,28 +43,6 @@ struct ProposeStock: Hashable, Identifiable {
         AssetCatalogDisplayName.format(catalogName: catalogName ?? "", symbol: symbol, kind: kind)
     }
 
-    init(market: MarketAssetDTO) {
-        self.init(
-            symbol: market.symbol,
-            name: Self.displayName(symbol: market.symbol, catalogName: market.name, kind: market.resolvedKind),
-            priceMicros: market.priceUsdcMicros,
-            change24h: market.change24h,
-            isTradable: market.routable,
-            assetKind: market.resolvedKind,
-            tokenDecimals: market.resolvedDecimals
-        )
-    }
-
-    init(catalog: CatalogAssetDTO) {
-        self.init(
-            symbol: catalog.symbol,
-            name: Self.displayName(symbol: catalog.symbol, catalogName: catalog.name, kind: catalog.resolvedKind),
-            isTradable: catalog.isTradable,
-            assetKind: catalog.resolvedKind,
-            tokenDecimals: catalog.resolvedDecimals
-        )
-    }
-
     init(symbol: String, kind: AssetKind = .stock, tokenDecimals: Int = AssetCatalogDefaults.decimals) {
         self.init(
             symbol: symbol,
@@ -73,14 +51,6 @@ struct ProposeStock: Hashable, Identifiable {
             tokenDecimals: tokenDecimals
         )
     }
-}
-
-/// What the viewer asks the cabal to vote on.
-enum ProposalDraft: Equatable {
-    case buy(symbol: String, usdcMicros: Int64, thesis: String)
-    case sell(symbol: String, tokenAmount: Int64, thesis: String)
-    case addAgent(name: String, allocationMicros: Int64)
-    case agentLifecycle(kind: String)
 }
 
 /// The pot numbers the propose screens need, read once from the cabal view.
@@ -101,171 +71,9 @@ struct ProposePot: Equatable {
     }
 }
 
-/// Backend calls behind the propose chooser and flows. Views depend on this protocol so the flows
-/// run against the API or, in Debug, against in-memory sample data.
-@MainActor
-protocol ProposeService: AnyObject {
-    func pot(groupId: String) async throws -> ProposePot
-    func popularStocks() async throws -> [ProposeStock]
-    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (
-        stocks: [ProposeStock], hasMore: Bool
-    )
-    /// Latest price per share in USDC micros, nil when the market has none.
-    func priceMicros(symbol: String) async throws -> Int64?
-    func assetDetail(symbol: String) async throws -> AssetDetailDTO
-    func buyQuote(groupId: String, symbol: String, usdcMicros: Int64) async throws -> BuyQuoteDTO
-    func sellQuote(groupId: String, symbol: String, tokenAmount: Int64) async throws -> BuyQuoteDTO
-    /// Creates the proposal and returns its id. `submission` belongs to the screen so a retry
-    /// of the same draft is sent under the same idempotency key.
-    func propose(groupId: String, draft: ProposalDraft, submission: IdempotentSubmission) async throws -> String
-}
-
-@MainActor
-final class LiveProposeService: ProposeService {
-    private weak var auth: PrivyAuthService?
-    private let client = MonacoAPIClient()
-
-    init(auth: PrivyAuthService) {
-        self.auth = auth
-    }
-
-    private func token() throws -> String {
-        guard let token = auth?.accessToken else { throw MonacoAPIError.missingAccessToken }
-        return token
-    }
-
-    func pot(groupId: String) async throws -> ProposePot {
-        ProposePot(view: try await client.getGroupView(accessToken: try token(), groupId: groupId))
-    }
-
-    func popularStocks() async throws -> [ProposeStock] {
-        try await client.getPopularAssets(accessToken: try token(), limit: 10).assets.map(ProposeStock.init(market:))
-    }
-
-    func searchStocks(groupId: String, query: String, offset: Int, limit: Int) async throws -> (
-        stocks: [ProposeStock], hasMore: Bool
-    ) {
-        let response = try await client.searchAssets(
-            accessToken: try token(), groupId: groupId, query: query, limit: limit, offset: offset
-        )
-        return (response.assets.map(ProposeStock.init(catalog:)), response.hasMore)
-    }
-
-    func priceMicros(symbol: String) async throws -> Int64? {
-        try await client.getMarketAsset(accessToken: try token(), symbol: symbol).priceUsdcMicros
-    }
-
-    func assetDetail(symbol: String) async throws -> AssetDetailDTO {
-        try await client.getMarketAsset(accessToken: try token(), symbol: symbol)
-    }
-
-    func buyQuote(groupId: String, symbol: String, usdcMicros: Int64) async throws -> BuyQuoteDTO {
-        try await client.postQuote(
-            accessToken: try token(), groupId: groupId, symbol: symbol, kind: "buy", usdc: usdcMicros,
-            selectBestVariant: true)
-    }
-
-    func sellQuote(groupId: String, symbol: String, tokenAmount: Int64) async throws -> BuyQuoteDTO {
-        try await client.postQuote(
-            accessToken: try token(), groupId: groupId, symbol: symbol, kind: "sell", usdc: nil,
-            tokenAmount: tokenAmount
-        )
-    }
-
-    func propose(groupId: String, draft: ProposalDraft, submission: IdempotentSubmission) async throws -> String {
-        let token = try token()
-        let response: CreateProposalResponse
-        switch draft {
-        case .buy(let symbol, let usdcMicros, let thesis):
-            response = try await client.createProposal(
-                accessToken: token, groupId: groupId, kind: "buy", symbol: symbol, usdcMicros: usdcMicros,
-                thesis: thesis.isEmpty ? nil : thesis,
-                submission: submission
-            )
-        case .sell(let symbol, let tokenAmount, let thesis):
-            response = try await client.createProposal(
-                accessToken: token, groupId: groupId, kind: "sell", symbol: symbol, tokenAmount: tokenAmount,
-                thesis: thesis.isEmpty ? nil : thesis,
-                submission: submission
-            )
-        case .addAgent(let name, let allocationMicros):
-            response = try await client.createProposal(
-                accessToken: token, groupId: groupId, kind: "add_agent",
-                agentDisplayName: name, allocationUsdcMicros: allocationMicros,
-                submission: submission
-            )
-        case .agentLifecycle(let kind):
-            response = try await client.createProposal(
-                accessToken: token, groupId: groupId, kind: kind, submission: submission)
-        }
-        return response.proposalId
-    }
-}
-
-/// Maps propose errors to one sentence a member can act on. Never shows status codes or
-/// `localizedDescription`.
-enum ProposeErrorCopy {
-    /// The price check, which runs before anything is sent. It shares the refusal mapping with
-    /// `propose`, because the quote endpoint refuses the same things in the same words: a sell
-    /// over the holding is answered with "amount exceeds treasury holding" there too, and Review
-    /// is reachable while the member is over it, so that refusal has to say what happened instead
-    /// of "couldn't check the price" — advice that would fail identically on every retry.
-    static func quote(_ error: Error, isSell: Bool = false) -> String {
-        if isOffline(error) { return ProposeFlowCopy.noConnection }
-        return refusal(error, isSell: isSell) ?? ProposeFlowCopy.priceCheckFailed
-    }
-
-    /// One mapping for every propose refusal — buy, sell and bot. The server answers each refusal
-    /// with a fixed sentence, so each one gets copy that says what actually happened; anything it
-    /// does not recognise falls back to "try again".
-    ///
-    /// A sell is not read as "the cabal doesn't hold that much" unless the server said so. Before,
-    /// every 400 on the sell path said that, including a route that vanished between the price
-    /// check and the send.
-    static func propose(_ error: Error, stockName: String? = nil, isSell: Bool = false) -> String {
-        if isOffline(error) { return ProposeFlowCopy.noConnection }
-        return refusal(error, stockName: stockName, isSell: isSell) ?? ProposeFlowCopy.sendFailed
-    }
-
-    /// What the server's refusal means, or nil when the app cannot tell the member anything more
-    /// useful than the caller's own fallback.
-    private static func refusal(_ error: Error, stockName: String? = nil, isSell: Bool = false) -> String? {
-        guard case MonacoAPIError.apiError(_, let message) = error else { return nil }
-        switch message {
-        // Only a sell is refused against the holding. A buy answered with this is the server
-        // telling us something we cannot read, and "the cabal doesn't hold that much anymore" is
-        // not advice a member buying a stock can act on.
-        case "amount exceeds treasury holding": return isSell ? ProposeFlowCopy.sellNoLongerAvailable : nil
-        case "amount exceeds treasury total available":
-            return isSell ? ProposeFlowCopy.overHoldings : ProposeFlowCopy.overPot
-        case "thesis exceeds maximum length": return ProposeFlowCopy.reasonTooLong
-        case "quote not routable":
-            // The backend collapses "no route", "below the minimum size" and "not routable" into
-            // this one sentence, with nothing on the response to tell them apart. On a buy the
-            // member picked the stock and never saw a quote, so naming the stock holds either way.
-            // On a sell the amount was quoted routable seconds earlier, so the route went away —
-            // "try a bigger amount" would send the member back to a trade that still cannot route.
-            // A `code` on the error body would let us say which (see the PR's "Needs from other
-            // areas"); until then a sell gets the caller's neutral fallback.
-            return isSell ? nil : stockName.map(ProposeFlowCopy.cantBuyStock)
-        default: return nil
-        }
-    }
-
-    private static func isOffline(_ error: Error) -> Bool {
-        guard let urlError = error as? URLError else { return false }
-        return [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost].contains(
-            urlError.code)
-    }
-}
-
 /// Fixed-point conversions for the propose flows. USDC has 6 decimals; xStock tokens have 8.
 enum ProposeMath {
     static let usdcScale = Decimal(1_000_000)
-
-    static func shareScale(decimals: Int) -> Decimal {
-        Decimal(sign: .plus, exponent: decimals, significand: 1)
-    }
 
     static func micros(fromUsd raw: String) -> Int64? {
         guard
@@ -286,16 +94,6 @@ enum ProposeMath {
         Decimal(micros) / usdcScale
     }
 
-    /// Amount text from the decimal pad, in USDC micros. Nil for empty, zero, or unreadable input.
-    static func micros(fromAmountText text: String) -> Int64? {
-        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
-        guard !trimmed.isEmpty, let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")),
-            value > 0,
-            let micros = micros(fromUsd: value), micros > 0
-        else { return nil }
-        return micros
-    }
-
     static func shares(
         fromAtomics raw: String, decimals: Int = ProposalShareFormatter.defaultDecimals, multiplier: Decimal = 1
     ) -> Decimal? {
@@ -303,30 +101,6 @@ enum ProposeMath {
             return nil
         }
         return qty * multiplier
-    }
-
-    /// Token atomics for a dollar amount of a holding at its mark, rounded down so a sell never
-    /// asks for more than the cabal holds.
-    static func atomics(
-        forUsd usd: Decimal, markUsd: Decimal, ceiling: Int64, decimals: Int = ProposalShareFormatter.defaultDecimals,
-        multiplier: Decimal = 1
-    ) -> Int64? {
-        guard markUsd > 0, usd > 0, multiplier > 0 else { return nil }
-        let scale = shareScale(decimals: decimals)
-        let raw = rounded(usd / markUsd * scale / multiplier, mode: .down) ?? 0
-        let clamped = min(raw, ceiling)
-        return clamped > 0 ? clamped : nil
-    }
-
-    static func atomics(
-        fromShares text: String, decimals: Int = ProposalShareFormatter.defaultDecimals, multiplier: Decimal = 1
-    ) -> Int64? {
-        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
-        guard let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")), value > 0, multiplier > 0
-        else { return nil }
-        let scale = shareScale(decimals: decimals)
-        let atomics = rounded(value / multiplier * scale, mode: .down) ?? 0
-        return atomics > 0 ? atomics : nil
     }
 
     private static func rounded(_ value: Decimal, mode: NSDecimalNumber.RoundingMode) -> Int64? {
