@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
@@ -47,9 +48,17 @@ func TestMain_exitsTwoWithTheUsageWithoutADestination(t *testing.T) {
 
 func TestRun_dryRunOnAnEmptyDatabaseListsNoSourcesAndAsksNothing(t *testing.T) {
 	t.Parallel()
-	got := runWith(t, runEnv(t)(), "", "--destination", string(dest), "--dry-run")
-	if got.code != 0 || !strings.Contains(got.stdout, "DRY-RUN") || !strings.Contains(got.stdout, "sources=0") {
+	env := runEnv(t)
+	relayerKey := "RELAYER_PRIVATE_KEY=" + chain.EncodeBase58(fakes.FixtureKey("relayer"))
+	got := runWith(t, env(relayerKey), "", "--destination", string(dest), "--dry-run")
+	if got.code != 0 || got.stderr != "" || !strings.Contains(got.stdout, "sources=0") ||
+		!strings.Contains(got.stdout, "done mode=dry-run swept=0 skipped=0 failed=0") {
 		t.Fatalf("dry run = %+v", got)
+	}
+	noKey := runWith(t, env(), "", "--destination", string(dest), "--dry-run")
+	if noKey.code != 0 || !strings.Contains(noKey.stderr, "relayer: ") ||
+		!strings.Contains(noKey.stdout, "done mode=dry-run") {
+		t.Fatalf("dry run without a relayer key = %+v", noKey)
 	}
 }
 
@@ -67,12 +76,16 @@ func TestRun_stopsAtEachBrokenStep(t *testing.T) {
 		code    int
 		stderr  string
 	}{
-		"bad flags":     {nil, nil, 2, "--destination is required"},
-		"no config":     {[]string{"PATH=/usr/bin"}, destination, 1, "config: "},
-		"no privy key":  {env("PRIVY_VERIFICATION_KEY="), destination, 1, "privy: "},
-		"no database":   {env("DATABASE_URL=postgres://monaco@127.0.0.1:1/monaco"), destination, 1, "database: "},
-		"privy refuses": {env("PRIVY_BASE_URL=" + privyDown.URL), append(destination, "--all"), 1, "list wallets: "},
-		"no confirm":    {env(), destination, 1, "abort: confirmation aborted"},
+		"bad flags":      {nil, nil, 2, "--destination is required"},
+		"no config":      {[]string{"PATH=/usr/bin"}, destination, 1, "config: "},
+		"no privy key":   {env("PRIVY_VERIFICATION_KEY="), destination, 1, "privy: "},
+		"no relayer key": {env(), destination, 1, "relayer: "},
+		"no database":    {env("DATABASE_URL=postgres://monaco@127.0.0.1:1/monaco"), append(destination, "--dry-run"), 1, "database: "},
+		"privy refuses":  {env("PRIVY_BASE_URL=" + privyDown.URL), append(destination, "--all", "--dry-run"), 1, "list wallets: "},
+		"no confirm": {
+			env("RELAYER_PRIVATE_KEY=" + chain.EncodeBase58(fakes.FixtureKey("relayer"))), destination, 1,
+			"abort: confirmation aborted",
+		},
 	} {
 		got := runWith(t, tc.environ, "", tc.args...)
 		if got.code != tc.code || !strings.Contains(got.stderr, tc.stderr) {

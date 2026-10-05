@@ -40,6 +40,7 @@ Read these in order to understand the repo:
 | [App journeys](journeys/README.md) | The journey docs QA is built from, their XCUITests, and how to run and measure them |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
 | [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
+| [Sweep wallets](how-to/sweep-wallets.md) | Recovering test USDC that a QA run left in member wallets or cabal treasuries |
 | [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
 
 ## Operations
