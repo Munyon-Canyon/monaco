@@ -32,7 +32,8 @@ func landed() recoveryReader {
 func (e *engineEnv) sweep(t *testing.T, r recoveryReader) {
 	t.Helper()
 	e.clk.Advance(app.SwapSweepAge + time.Second)
-	if _, err := app.NewSwapSweeper(e.uow, e.pool, e.clk, r, e.hints).Tick(actorContext(t.Context())); err != nil {
+	if _, err := app.NewSwapSweeper(e.uow, e.pool, e.clk, r, e.hints, app.DefaultSweepTiming()).
+		Tick(actorContext(t.Context())); err != nil {
 		t.Fatalf("the sweep after the restart: %v", err)
 	}
 }

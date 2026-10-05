@@ -47,7 +47,7 @@ func (r recoveryReader) InboundAmount(
 func (e *layerEnv) recoverSwap(t *testing.T, r recoveryReader) uuid.UUID {
 	t.Helper()
 	e.clk.Advance(app.SwapSweepAge + time.Second)
-	p := app.NewSwapSweeper(e.uow, e.pool, e.clk, r, e.hints)
+	p := app.NewSwapSweeper(e.uow, e.pool, e.clk, r, e.hints, app.DefaultSweepTiming())
 	if _, err := p.Tick(actorContext(t.Context())); err != nil {
 		t.Fatal(err)
 	}
