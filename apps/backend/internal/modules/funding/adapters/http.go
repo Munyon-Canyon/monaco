@@ -6,6 +6,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
@@ -19,6 +20,7 @@ type HTTP struct {
 	Balances port.Balances
 	Wallets  app.MemberWallets
 	Create   *app.CreateOnrampSessionHandler
+	Exchange *app.ExchangeOnrampTokenHandler
 	IDs      ids.Generator
 }
 
@@ -73,6 +75,31 @@ func (h HTTP) CreateOnrampSession(
 	return api.CreateOnrampSession201JSONResponse{
 		SessionId: created.ID, Url: created.URL, ExpiresAt: created.ExpiresAt,
 	}, nil
+}
+
+func (h HTTP) ExchangeOnrampToken(
+	ctx context.Context, req api.ExchangeOnrampTokenRequestObject,
+) (api.ExchangeOnrampTokenResponseObject, error) {
+	token, err := domain.ParseOnrampToken(req.Body.Token)
+	if err != nil {
+		return nil, err
+	}
+	out, err := h.Exchange.Handle(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	return api.ExchangeOnrampToken200JSONResponse{
+		SessionId: out.SessionID, WalletAddress: string(out.WalletAddress),
+		SuggestedAmountMicros: microsWire(out.SuggestedAmount), UsdcMint: out.USDCMint,
+	}, nil
+}
+
+func microsWire(m *money.Micros) *string {
+	if m == nil {
+		return nil
+	}
+	s := m.String()
+	return &s
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {
