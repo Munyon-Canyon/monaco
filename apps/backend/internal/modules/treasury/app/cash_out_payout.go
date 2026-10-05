@@ -104,10 +104,17 @@ func (p *CashOutPayouts) Advance(ctx context.Context, jobID uuid.UUID, wait time
 	}
 }
 
+func (p *CashOutPayouts) EndedShort(ctx context.Context, jobID uuid.UUID) bool {
+	job, err := p.load(ctx, p.d.Reads, jobID)
+	return err == nil && job.status == domain.CashOutPartial
+}
+
 func (p *CashOutPayouts) step(ctx context.Context, job payoutJob) (pace, error) {
 	switch domain.NextPayoutStep(job.status, job.selling, job.latest) {
 	case domain.PayoutIdle:
 		return paceStop, nil
+	case domain.PayoutAwaitSale:
+		return paceWait, nil
 	case domain.PayoutGiveUp:
 		return paceStop, p.fail(ctx, job, 0)
 	case domain.PayoutSign:

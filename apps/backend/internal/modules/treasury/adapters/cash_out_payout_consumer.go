@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
@@ -21,7 +22,12 @@ func (c CashOutPayout) Handle(ctx context.Context, d bus.Delivery, ev events.Cas
 	if err := c.Payouts.Advance(ctx, ev.JobID, app.CashOutPayoutWait, nil); err != nil {
 		return err
 	}
+	short := c.Payouts.EndedShort(ctx, ev.JobID)
 	return c.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		if short {
+			_, err := d.RecordAs(ctx, tx, string(errs.CodeSaleShort))
+			return err
+		}
 		_, err := d.Record(ctx, tx)
 		return err
 	})

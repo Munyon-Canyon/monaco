@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
@@ -33,9 +34,12 @@ func flow14(t *testing.T) *scenario.Scenario {
 			AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
 			AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
 		},
-		Solana:   config.Solana{RPCURL: srv.URL + "/rpc/", USDCMint: string(testkit.USDCMint)},
-		Relayer:  config.Relayer{PrivateKey: flows.CashOutRelayerKey()},
-		Timeouts: config.Timeouts{RPC: time.Second, Privy: 10 * time.Second},
+		Solana:  config.Solana{RPCURL: srv.URL + "/rpc/", USDCMint: string(testkit.USDCMint)},
+		Jupiter: config.Jupiter{SwapBaseURL: srv.URL + "/jupiter/swap/v2", PriceBaseURL: srv.URL + "/jupiter/price/v3"},
+		Relayer: config.Relayer{PrivateKey: flows.CashOutRelayerKey()},
+		Timeouts: config.Timeouts{
+			RPC: time.Second, Privy: 10 * time.Second, JupiterQuote: time.Second, JupiterExecute: 10 * time.Second,
+		},
 	}
 	with := func(build func(module.Deps) module.Module) func(module.Deps) module.Module {
 		return func(d module.Deps) module.Module {
@@ -49,6 +53,7 @@ func flow14(t *testing.T) *scenario.Scenario {
 			with(func(d module.Deps) module.Module { return cabal.New(d) }),
 			with(func(d module.Deps) module.Module { return funding.New(d) }),
 			with(func(d module.Deps) module.Module { return treasury.New(d) }),
+			with(func(d module.Deps) module.Module { return trading.New(d) }),
 		),
 		scenario.WithPrivy(upstreams, flow14PrivyApp),
 	)

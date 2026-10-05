@@ -159,11 +159,22 @@ func failed(handler string, err error) result {
 	return res
 }
 
+func flow(handler string) string {
+	switch handler {
+	case "trading.cashout_sell", "treasury.cashout", "treasury.cashout.confirmed", "treasury.cashout.failed",
+		"treasury.cashout.blocked", "treasury.cashout_payout":
+		return "14"
+	default:
+		return ""
+	}
+}
+
 func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) result {
 	began := r.clock.Now()
 	ctx = observability.WithActor(ctx, "system:"+h.Name)
-	duplicate, err := r.run(ctx, h, id, ev)
-	res := result{handler: h.Name, outcome: OutcomeAck, code: deliveryOK}
+	ctx = faultpoint.WithFlow(ctx, flow(h.Name))
+	duplicate, code, err := r.run(ctx, h, id, ev)
+	res := result{handler: h.Name, outcome: OutcomeAck, code: code}
 	switch {
 	case err != nil:
 		res = failed(h.Name, err)
@@ -178,18 +189,23 @@ func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev
 	return res
 }
 
-func (r *Registry) run(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) (_ bool, err error) {
+func (r *Registry) run(
+	ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event,
+) (_ bool, code string, err error) {
+	code = deliveryOK
 	if h.own == nil {
-		return Deliver(ctx, r.uow, r.clock, h, id, ev)
+		duplicate, err := Deliver(ctx, r.uow, r.clock, h, id, ev)
+		return duplicate, code, err
 	}
 	defer recoverPanic(&err)
-	return false, h.own(ctx, Delivery{Handler: h.Name, EventID: id, At: r.clock.Now()}, ev)
+	return false, code, h.own(ctx, Delivery{Handler: h.Name, EventID: id, At: r.clock.Now(), recorded: &code}, ev)
 }
 
 type Delivery struct {
-	Handler string
-	EventID ids.EventID
-	At      time.Time
+	Handler  string
+	EventID  ids.EventID
+	At       time.Time
+	recorded *string
 }
 
 func (d Delivery) Record(ctx context.Context, tx db.Tx) (bool, error) {
@@ -200,6 +216,9 @@ func (d Delivery) RecordAs(ctx context.Context, tx db.Tx, code string) (bool, er
 	n, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
 		Handler: d.Handler, EventID: d.EventID.UUID(), Code: code, HandledAt: d.At,
 	})
+	if n == 1 && d.recorded != nil {
+		*d.recorded = code
+	}
 	return n == 1, err
 }
 

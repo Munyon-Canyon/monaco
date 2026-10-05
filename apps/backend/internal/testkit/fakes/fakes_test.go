@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -349,6 +350,28 @@ func TestScript_succeedWithFixtureReplaysThatFixtureThenTheRouteDefault(t *testi
 	}
 	if want := []string{`{"slot":9}`, `{"slot":9}`, `{"slot":7}`}; strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("bodies = %v, want %v", got, want)
+	}
+}
+
+func TestScript_succeedWithABodyAnswersItThenTheRouteDefault(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(fakes.NewFrom(fstest.MapFS{
+		"fx/rpc/getSlot.json": {Data: []byte(`{"status":200,"body":{"slot":7}}`)},
+	}, "fx"))
+	t.Cleanup(srv.Close)
+	c := httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(10*time.Second))
+	script(t.Context(), t, c, fakes.Step{
+		Route: "/rpc/getSlot", Action: fakes.ActionSucceed, Body: json.RawMessage(`{"slot":11}`), Times: 2,
+	})
+
+	got := make([]string, 0, 3)
+	for range 3 {
+		r := mustCall(t.Context(), t, c, http.MethodGet, "/rpc/getSlot", "")
+		got = append(got, strconv.Itoa(r.status)+" "+r.body)
+	}
+	want := []string{`200 {"slot":11}`, `200 {"slot":11}`, `200 {"slot":7}`}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("answers = %v, want %v", got, want)
 	}
 }
 

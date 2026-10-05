@@ -46,6 +46,7 @@ const (
 	PayoutGiveUp
 	PayoutSend
 	PayoutCheck
+	PayoutAwaitSale
 )
 
 func NextPayoutStep(job CashOutStatus, selling bool, latest PayoutAttempt) PayoutStep {
@@ -55,6 +56,8 @@ func NextPayoutStep(job CashOutStatus, selling bool, latest PayoutAttempt) Payou
 			return PayoutGiveUp
 		}
 		return PayoutSign
+	case job == CashOutStarted, job == CashOutSelling:
+		return PayoutAwaitSale
 	case job != CashOutPaying:
 		return PayoutIdle
 	case latest.Status == PayoutSigned:
