@@ -2329,6 +2329,7 @@ components:
         - cannot_revoke_access
         - cash_out_in_progress
         - client_closed
+        - coin_gecko_rate_limited
         - conservation_broken
         - db_schema_behind
         - db_unavailable

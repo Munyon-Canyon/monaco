@@ -44,6 +44,7 @@ type Config struct {
 	Identity   Identity
 	Timeouts   Timeouts
 	Jupiter    Jupiter
+	CoinGecko  CoinGecko
 	XStocks    XStocks
 	Tessera    Tessera
 	PreStocks  PreStocks
@@ -115,6 +116,11 @@ type Jupiter struct {
 	APIKey       string
 }
 
+type CoinGecko struct {
+	BaseURL string
+	APIKey  string
+}
+
 type XStocks struct {
 	BaseURL string
 }
@@ -179,6 +185,7 @@ type Timeouts struct {
 	APNs            time.Duration
 	JupiterQuote    time.Duration
 	JupiterExecute  time.Duration
+	CoinGecko       time.Duration
 	XStocks         time.Duration
 	Tessera         time.Duration
 	PreStocks       time.Duration
@@ -319,6 +326,8 @@ func marketFields() []field {
 			func(c *Config) *time.Duration { return &c.Timeouts.JupiterQuote }),
 		duration("MONACO_TIMEOUT_JUPITER_EXECUTE", 2*time.Minute,
 			func(c *Config) *time.Duration { return &c.Timeouts.JupiterExecute }),
+		duration("MONACO_TIMEOUT_COINGECKO", 15*time.Second,
+			func(c *Config) *time.Duration { return &c.Timeouts.CoinGecko }),
 		duration("MONACO_TIMEOUT_XSTOCKS", 15*time.Second,
 			func(c *Config) *time.Duration { return &c.Timeouts.XStocks }),
 		duration("MONACO_TIMEOUT_TESSERA", 15*time.Second,
@@ -330,6 +339,9 @@ func marketFields() []field {
 		text("MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3",
 			func(c *Config) *string { return &c.Jupiter.PriceBaseURL }),
 		text("JUPITER_API_KEY", "", func(c *Config) *string { return &c.Jupiter.APIKey }).secret(),
+		text("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3",
+			func(c *Config) *string { return &c.CoinGecko.BaseURL }),
+		text("COINGECKO_API_KEY", "", func(c *Config) *string { return &c.CoinGecko.APIKey }).secret(),
 		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
 		text("TESSERA_API_BASE_URL", "https://rest-api.tessera.pe",
 			func(c *Config) *string { return &c.Tessera.BaseURL }),

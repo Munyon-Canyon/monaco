@@ -27,6 +27,7 @@ func upstreams() []string {
 		"helius",
 		"xstocks",
 		"tessera",
+		"coingecko",
 		"prestocks",
 		"apns",
 		"ably",
@@ -117,6 +118,23 @@ func TestReplay_servesEachUpstreamHealthFixture(t *testing.T) {
 		want := `{"status": "ok", "upstream": "` + u + `"}`
 		if got.status != http.StatusOK || got.body != want || got.header.Get("Content-Type") != "application/json" {
 			t.Fatalf("GET /%s/_health = %d %q %v, want 200 %q as JSON", u, got.status, got.body, got.header, want)
+		}
+	}
+}
+
+func TestReplay_coingeckoPicksTheFixtureForTheDaysAsked(t *testing.T) {
+	t.Parallel()
+	c := overHTTP(t)
+	const chart = "/coingecko/coins/solana/contract/XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp/market_chart"
+	for days, first := range map[string]string{"365": "[1790553641000, 270.123456789]", "90": "[1790553623000, 272.824691357]"} {
+		got := mustCall(t.Context(), t, c, http.MethodGet, chart+"?vs_currency=usd&days="+days, "")
+		if got.status != http.StatusOK || !strings.Contains(got.body, first) {
+			t.Fatalf("days=%s = %d %q, want 200 with %s", days, got.status, got.body, first)
+		}
+	}
+	for _, path := range []string{chart + "?days=7", chart} {
+		if got := mustCall(t.Context(), t, c, http.MethodGet, path, ""); got.status != http.StatusNotImplemented {
+			t.Fatalf("GET %s = %d, want 501: no fixture for it", path, got.status)
 		}
 	}
 }

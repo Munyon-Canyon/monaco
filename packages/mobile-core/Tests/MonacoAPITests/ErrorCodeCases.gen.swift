@@ -27,6 +27,7 @@ extension Components.Schemas.ErrorCode {
         case .cannotRevokeAccess: true
         case .cashOutInProgress: true
         case .clientClosed: true
+        case .coinGeckoRateLimited: true
         case .conservationBroken: true
         case .dbSchemaBehind: true
         case .dbUnavailable: true
