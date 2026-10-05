@@ -7,7 +7,7 @@ For the steps of shipping a ticket or running a milestone through these checks, 
 ## Decision
 
 1. **CI confirms; it does not discover.** Every check a PR needs runs on the laptop first: `just test backend` (under 90 s) and the lint pre-commit hook. CI reruns the same commands on a clean machine to prove the result does not depend on the author's machine. A red CI run on a ready PR is a bug in the local gate, not a normal step. `monacoctl verify`, every flow against the real binaries, runs only in the Graphite merge queue's `e2e` job and nightly, never as a laptop or owner step.
-2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main` or the trunk, `staging`. Drafts run nothing, except the Graphite merge queue's own draft PRs, which run stage 2. In a stack, only the top PR runs the suite: `plan` skips every job on a PR that another open, non-draft PR builds on, so its `ci / ci-ok` passes and `monacoctl agents check` is its proof.
+2. **Full CI runs only on PRs that can merge.** A PR runs CI when it is not a draft and its base is `main` or the trunk, `staging`. Drafts run nothing, except the Graphite merge queue's own draft PRs, which run stage 2, as does the push to their branch. In a stack, only the top PR runs the suite: `plan` skips every job on a PR that another open, non-draft PR builds on, so its `ci / ci-ok` passes and `monacoctl agents check` is its proof.
 3. **No CI on push to `main`.** Branch protection requires the branch to be up to date before merging, so the PR run already tested the tree that lands. The nightly run covers `main`.
 4. **One required check.** A final `ci-ok` job aggregates every other job with `re-actors/alls-green`. It is the only check branch protection names, so jobs can be added, split or path-filtered without touching the protection rule.
 5. **Filter jobs, never workflows.** Path and draft filters go in job-level `if:`. A workflow skipped by a `paths:` filter leaves its required check pending forever; a job skipped by `if:` reports success.
@@ -46,7 +46,7 @@ Each check runs in exactly one tier as its gate, and in the tier below it only w
 | Local, every save or commit | pre-commit hook, `just test backend` | `golangci-lint` on changed packages, unit + integration + acceptance, fixed-seed property and jitter tests, fuzz seeds | 90 s |
 | Swift format and SwiftLint | pre-commit `scripts/githooks/lint-staged-swift.sh` and the `PostToolUse` hook `scripts/agent-guard-swift-lint.sh` on staged or edited files; `just test mobile`, the swift row of `monacoctl agents check`, and `ci / mobile-core` (the `Swift format lint` step and the `SwiftLint ratchet` job) on every changed file | `swift format lint --strict` on `.swift` under `apps/mobile` and `packages/mobile-core`, and `scripts/swiftlint-ratchet.sh`, which lints each changed `.swift` file there twice, as it is and as it was at a base revision, and fails when any rule's count in any file grows. The base is `HEAD` for named files, the stack parent in `monacoctl agents check`, the merge base with trunk in CI, and `git merge-base HEAD origin/staging` in `just test mobile`. It stores no counts | under 15 s |
 | Stage 1, PR check | the top non-draft PR of a stack (`pull_request`) | every job below, behind its path filter, which on a stacked PR sees the whole stack's files; nothing on a PR that another PR builds on | 6 min |
-| Stage 2, queue check | the Graphite merge queue's draft PR (head `gtmq_*`) | `ci-ok` alone, which runs `ready`'s steps itself: build, vet, tidy and generated files | 2 min |
+| Stage 2, queue check | the Graphite merge queue's draft PR (head `gtmq_*`) and the push to its branch | `ci-ok` alone, which runs `ready`'s steps itself: build, vet, tidy and generated files | 2 min |
 | Staging indicator | every push to `staging` (`staging.yml`) | every stage 1 job except `flake` and `flake-swift`, with no path filter; advisory, gates nothing | 6 min |
 | Nightly | 07:00 UTC, only if `main` moved | everything unbounded | 180 min |
 
@@ -88,7 +88,7 @@ A change passes three check stages. Each stage runs only what the stage before i
 | 2. Queue check | CI on the Graphite merge queue's draft PR, `stage: queue` | One job, `ci-ok`, so the draft waits for one runner instead of three. `plan` and `ready` skip, and `ci-ok` runs `ready`'s steps (`scripts/ci/ready.sh`: `go vet`, which compiles every package and test, `go mod tidy -diff`, generated files, `sqlc diff`, `flows check`) on every draft, with no path filter, so the combined stack builds on the current `staging`. No tests, and no workflow lint: stage 1's `plan` ran it on each PR. |
 | Indicator | `staging.yml` on every push to `staging`, `stage: staging` | Every stage 1 job except `flake` and `flake-swift`, with every path filter on. Not required and gates nothing; the README badge shows the result. A red run means `staging` broke and the next PR fixes it. |
 
-`ci.yml` sets the `stage` input of `ci-jobs.yml` from the PR's head branch: a head that starts with `gtmq_` is `queue`, and every other PR is `pr`. `ci-retarget.yml` always passes `pr`. `staging.yml` passes `staging`. Mutation testing runs only in the nightly.
+`ci.yml` sets the `stage` input of `ci-jobs.yml` from the head branch (the pushed branch on a push): a branch that starts with `gtmq_` is `queue`, and every other PR is `pr`. `ci-retarget.yml` always passes `pr`. `staging.yml` passes `staging`. Mutation testing runs only in the nightly.
 
 `monacoctl ci affected --base <ref>` prints the packages that `<ref>...HEAD` changes, plus every package that imports one of them, one per line. A package whose tests import a changed package also counts. The command reads reverse dependencies from `go list -deps -json ./...`. It prints `./...` when `go.mod`, `go.sum`, a file under `internal/testkit/`, or any file outside a Go package changed.
 
@@ -99,7 +99,7 @@ Stage 1 reuses a green result only when the diff and the CI definition are both 
 3. If the summary equals `patch-id: <patch_id> ci-id: <ci_id>`, every stage 1 job skips and `ci-ok` passes. A summary in the old form, `patch-id: <patch_id>` alone, does not match, so that push runs stage 1 again.
 4. `ci-ok` stores the current key, `patch-id: <patch_id> ci-id: <ci_id>`, in its own output summary.
 
-Stage 2 never reuses a result. Graphite tests each queued stack once, on a temporary draft PR into `staging` whose head starts with `gtmq_` and holds the whole stack. `ci.yml` runs stage 2 on that draft even though it is a draft. Graphite tests up to 4 stacks at a time. The PRs of one stack land or fail together. A stage 2 failure drops that stack from the queue and removes its `merge-queue` labels.
+Stage 2 never reuses a result. Graphite tests each queued stack once, on a temporary branch whose name starts with `gtmq_` and holds the whole stack, with a draft PR on it. `ci.yml` runs stage 2 on that draft even though it is a draft, and again on the push to its branch. Graphite bases each draft on the draft below it, and when that one lands and its branch is deleted GitHub closes the draft above. A draft closed before GitHub started its `pull_request` run never got one, and Graphite waited for a `ci / ci-ok` that never came (#2844). The push run reports on the same commit, open draft or not. The draft's own run is kept, because a draft whose only `ci / ci-ok` came from the push run, and whose `pull_request` run skipped, never landed (#2868). Graphite tests up to 4 stacks at a time. The PRs of one stack land or fail together. A stage 2 failure drops that stack from the queue and removes its `merge-queue` labels.
 
 ## Triggers
 
@@ -108,6 +108,8 @@ Stage 2 never reuses a result. Graphite tests each queued stack once, on a tempo
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: ['gtmq_**']
   workflow_dispatch:
 
 concurrency:
@@ -117,11 +119,12 @@ concurrency:
 jobs:
   ci:
     if: >-
-      ${{ (!github.event.pull_request.draft || startsWith(github.head_ref, 'gtmq_')) &&
-      !startsWith(github.base_ref, 'graphite-base/') }}
+      ${{ github.event_name != 'pull_request' ||
+      ((!github.event.pull_request.draft || startsWith(github.head_ref, 'gtmq_')) &&
+      !startsWith(github.base_ref, 'graphite-base/')) }}
     uses: ./.github/workflows/ci-jobs.yml
     with:
-      stage: ${{ startsWith(github.head_ref, 'gtmq_') && 'queue' || 'pr' }}
+      stage: ${{ startsWith(github.head_ref || github.ref_name, 'gtmq_') && 'queue' || 'pr' }}
 
 # ci-retarget.yml
 on:
@@ -158,7 +161,7 @@ jobs:
 
 - The jobs live in `ci-jobs.yml`, a reusable workflow. Both PR callers name their job `ci`, so every check reads `ci / <job>` and the required check is `ci / ci-ok`. `staging.yml` names its job `staging`, so its checks never stand in for a PR's `ci / ci-ok`. `mobile-core` is itself a call to `ci-mobile-core.yml`, so its check reads `ci / mobile-core / Swift (mobile-core, Linux)`. That split lets the `plan` job's path filter key on `ci-mobile-core.yml` instead of every `ci*.yml`, so a backend PR that only edits `ci-jobs.yml` no longer runs the Linux `mobile-core` job. `ci-ok` still names only job IDs in `needs`, so the required check and `allowed-skips` are unaffected by the extra nesting level. `ios` calls `ci-ios.yml` the same way, so editing `ci-jobs.yml` alone does not run the macOS job. The queue stage runs no macOS job.
 - `ci.yml` runs on every PR, so a stacked PR whose base is another ticket branch gets CI on its own diff. `ci-retarget.yml` triggers on every base except a `graphite-base/` branch. Its job runs when the new base is `main` or the trunk, `vars.FEATURE_BRANCH` (`staging`). The job also runs when the old base was a `graphite-base/` branch. No workflow trigger names a milestone.
-- No workflow triggers on `merge_group`, because the GitHub merge queue is off. Stage 2 runs on the Graphite queue's `gtmq_` draft PR through the `pull_request` trigger. `pr-format.yml` runs on that draft too, and its `PR format (title, body and commits)` job passes without checking, since each PR passed it on its own head. When `scripts/check-pr-format.py` cannot list the open PRs stacked above and below, it prints a warning and skips only the `Closes`/`Part of` checks against them; every other format check still runs. `scripts/ci/workflow_triggers_test.go` fails if a workflow with a required job filters on `paths` or `paths-ignore` at the workflow level. The Plan job runs it whenever a workflow changes.
+- No workflow triggers on `merge_group`, because the GitHub merge queue is off. Stage 2 runs on the Graphite queue's `gtmq_` draft PR through the `pull_request` trigger, and on the push to its branch. A `workflow_dispatch` of `ci.yml` on a `gtmq_` branch runs stage 2 too, to rescue a queue draft that never got its check. `pr-format.yml` runs on that draft too, and its `PR format (title, body and commits)` job passes without checking, since each PR passed it on its own head. When `scripts/check-pr-format.py` cannot list the open PRs stacked above and below, it prints a warning and skips only the `Closes`/`Part of` checks against them; every other format check still runs. `scripts/ci/workflow_triggers_test.go` fails if a workflow with a required job filters on `paths` or `paths-ignore` at the workflow level. The Plan job runs it whenever a workflow changes.
 - `pr-format.yml` runs the `pr-format` and `pr-size` checkers from the PR's base commit, not from its merge ref. Each job checks out `github.event.pull_request.base.sha`, fetches the head commit, and runs the script from that checkout, with `BASE_SHA` and `HEAD_SHA` in the environment. A PR's own edits to those scripts do not change that PR's verdict, and a stale merge ref, which GitHub serves for a while after a base change, cannot supply an old copy of them (#1090). An edit to `pr-format.yml` itself still takes effect, because GitHub reads the workflow file from the merge ref.
 - The script's unit tests run after that verdict, even a failed one, from a worktree of the head commit, so a PR that edits a checker still runs its own tests. The tests come second because the head's tests import the head's checker, and that import could rewrite the base copy before the verdict runs.
 - A draft skips the `ci` job. That leaves one skipped check named `ci` and no `ci / ci-ok`, so the PR cannot merge until it is ready and CI passes. GitHub counts a skipped job as a passing required check, so the gate never depends on a skip.
