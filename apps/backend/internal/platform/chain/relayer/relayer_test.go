@@ -78,6 +78,7 @@ func TestNew_acceptsBase58AndSolanaCLIJSONForTheSameKey(t *testing.T) {
 		"63 numbers": "[" + strings.Join(nums[:63], ",") + "]",
 		"256":        "[256," + strings.Join(nums[1:], ",") + "]",
 		"garbage":    "[not json",
+		"not base58": "0OIl-not-base58",
 		"negative":   "[-1," + strings.Join(nums[1:], ",") + "]",
 	}
 	for name, raw := range bad {
