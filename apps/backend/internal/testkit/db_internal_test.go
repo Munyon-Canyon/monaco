@@ -173,12 +173,15 @@ func TestDropStaleSkipsADatabaseWithOpenConnections(t *testing.T) {
 	}
 }
 
-func runFixture(t *testing.T, run string) (string, error) {
+func runFixture(t *testing.T, run string, env ...string) (string, error) {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("builds and runs another test binary; CI runs it without -short, outside the 10 s package budget")
 	}
 	cmd := exec.CommandContext(t.Context(), "go", "test", "-count=1", "-v", "-run", run, "./testdata/failing")
+	cmd.Env = append(slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		return strings.HasPrefix(kv, "MONACO_TEST_KEEP_FAILED=")
+	}), env...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -217,7 +220,7 @@ func TestMainFailsAPackageThatLeaksAGoroutine(t *testing.T) {
 func TestDBKeepsOnlyTheFirstFiveFailedDatabases(t *testing.T) {
 	t.Parallel()
 	s := current.Load()
-	out, err := runFixture(t, "^TestFail[1-6]$")
+	out, err := runFixture(t, "^TestFail[1-6]$", "MONACO_TEST_KEEP_FAILED=1")
 	if err == nil {
 		t.Fatalf("failing fixture passed:\n%s", out)
 	}
@@ -236,6 +239,24 @@ func TestDBKeepsOnlyTheFirstFiveFailedDatabases(t *testing.T) {
 	for i, m := range used {
 		if want := i < 5; exists(t, s, m[1]) != want {
 			t.Fatalf("failed database %d %s exists = %v, want %v", i+1, m[1], !want, want)
+		}
+	}
+}
+
+func TestDBDropsEveryFailedDatabaseWithoutKeepFailed(t *testing.T) {
+	t.Parallel()
+	s := current.Load()
+	out, err := runFixture(t, "^TestFail[1-6]$")
+	if err == nil {
+		t.Fatalf("failing fixture passed:\n%s", out)
+	}
+	used := regexp.MustCompile(`database=(t_\w+)`).FindAllStringSubmatch(out, -1)
+	if len(used) != 6 || strings.Contains(out, "testkit: kept ") {
+		t.Fatalf("fixture used %d databases, want 6 and none kept:\n%s", len(used), out)
+	}
+	for i, m := range used {
+		if exists(t, s, m[1]) {
+			t.Fatalf("failed database %d %s still exists, want it dropped", i+1, m[1])
 		}
 	}
 }
@@ -412,7 +433,7 @@ func TestReleaseDBKeepsAFailureUntilDiskPassesHalf(t *testing.T) {
 	t.Parallel()
 	admin := current.Load().admin
 	prefix := "t_rel_" + strings.ToLower(rand.Text()[:8]) + "_"
-	s := &server{admin: admin, runPrefix: prefix, disk: func(context.Context) (int64, int64, error) {
+	s := &server{admin: admin, runPrefix: prefix, keepOnFail: true, disk: func(context.Context) (int64, int64, error) {
 		return 1, 100, nil
 	}}
 	ctx := context.Background()
@@ -435,6 +456,21 @@ func TestReleaseDBKeepsAFailureUntilDiskPassesHalf(t *testing.T) {
 	kept, err = s.releaseDB(ctx, name, true)
 	if err != nil || kept || exists(t, s, name) {
 		t.Fatalf("after %d keeps, releaseDB kept %v, %v; exists %v", keepFailed, kept, err, exists(t, s, name))
+	}
+}
+
+func TestReleaseDBDropsAFailureUnlessKeepFailedIsSet(t *testing.T) {
+	t.Parallel()
+	prefix := "t_nokeep_" + strings.ToLower(rand.Text()[:8]) + "_"
+	s := &server{admin: current.Load().admin, runPrefix: prefix, disk: func(context.Context) (int64, int64, error) {
+		return 1, 100, nil
+	}}
+	name := prefix + "db"
+	createOwned(t, s, name)
+	kept, err := s.releaseDB(context.Background(), name, true)
+	if err != nil || kept || exists(t, s, name) {
+		t.Fatalf("failed releaseDB without MONACO_TEST_KEEP_FAILED kept %v, %v; exists %v, want a drop",
+			kept, err, exists(t, s, name))
 	}
 }
 

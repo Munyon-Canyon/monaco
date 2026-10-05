@@ -30,7 +30,7 @@ import (
 const (
 	testPort       = "54323"
 	keepFailed     = 5
-	staleAfter     = time.Hour
+	staleAfter     = 15 * time.Minute
 	maxNameLen     = 63
 	poolMaxConns   = 4
 	atlasSchema    = "atlas_schema_revisions"
@@ -45,12 +45,13 @@ type server struct {
 	base     pgtestdb.Config
 	migrator atlasMigrator
 
-	mu        sync.Mutex
-	names     map[string]*queryCounter
-	held      map[string]bool
-	kept      atomic.Int32
-	runPrefix string
-	disk      diskUsage
+	mu         sync.Mutex
+	names      map[string]*queryCounter
+	held       map[string]bool
+	kept       atomic.Int32
+	keepOnFail bool
+	runPrefix  string
+	disk       diskUsage
 
 	templateOnce sync.Once
 	template     pgtestdb.Config
@@ -83,6 +84,7 @@ func open(ctx context.Context, rawURL string) (*server, error) {
 	s := &server{
 		admin: admin, base: base, migrator: migrator,
 		names: map[string]*queryCounter{}, runPrefix: runPrefix(),
+		keepOnFail: os.Getenv("MONACO_TEST_KEEP_FAILED") == "1",
 	}
 	s.disk = s.containerDisk
 	if _, err := s.dropStale(ctx, clock.Real{}.Now().Add(-staleAfter), "t_", "testdb_"); err != nil {
@@ -395,7 +397,7 @@ func (s *server) releaseDB(ctx context.Context, name string, failed bool) (bool,
 		}
 		return false, s.dropOwned(ctx, s.admin, name)
 	}
-	if failed && s.kept.Add(1) <= keepFailed {
+	if failed && s.keepOnFail && s.kept.Add(1) <= keepFailed {
 		return true, nil
 	}
 	return false, s.dropOwned(ctx, s.admin, name)
