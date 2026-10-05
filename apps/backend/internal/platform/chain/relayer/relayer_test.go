@@ -3,6 +3,7 @@ package relayer_test
 import (
 	"bytes"
 	"crypto/ed25519"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -48,6 +49,47 @@ func TestCheckBoot_onlyStagingAndProductionCheckTheFloor(t *testing.T) {
 	cfg := keyConfig("relayer")
 	cfg.Relayer.PrivateKey = ""
 	wantCode(t, relayer.CheckBoot(t.Context(), cfg), errs.CodeInvalidInput)
+}
+
+func TestNew_acceptsBase58AndSolanaCLIJSONForTheSameKey(t *testing.T) {
+	t.Parallel()
+	key := fakes.FixtureKey("relayer")
+	nums := make([]string, len(key))
+	for i, b := range key {
+		nums[i] = strconv.Itoa(int(b))
+	}
+	asJSON := "[" + strings.Join(nums, ",") + "]"
+	want, err := relayer.New(keyConfig("relayer"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, raw := range map[string]string{
+		"json":            asJSON,
+		"json whitespace": " \n[ " + strings.Join(nums, " , ") + " ]\n",
+	} {
+		cfg := keyConfig("relayer")
+		cfg.Relayer.PrivateKey = raw
+		got, err := relayer.New(cfg, nil)
+		if err != nil || got.Address() != want.Address() {
+			t.Fatalf("%s: Address = %v, %v, want %s", name, got, err, want.Address())
+		}
+	}
+	bad := map[string]string{
+		"63 numbers": "[" + strings.Join(nums[:63], ",") + "]",
+		"256":        "[256," + strings.Join(nums[1:], ",") + "]",
+		"garbage":    "[not json",
+		"not base58": "0OIl-not-base58",
+		"negative":   "[-1," + strings.Join(nums[1:], ",") + "]",
+	}
+	for name, raw := range bad {
+		cfg := keyConfig("relayer")
+		cfg.Relayer.PrivateKey = raw
+		_, err := relayer.New(cfg, nil)
+		wantCode(t, err, errs.CodeInvalidInput)
+		if strings.Contains(err.Error(), nums[1]+","+nums[2]) {
+			t.Fatalf("%s: error = %v", name, err)
+		}
+	}
 }
 
 func TestNew_refusesAKeyThatIsNotABase58Keypair(t *testing.T) {
