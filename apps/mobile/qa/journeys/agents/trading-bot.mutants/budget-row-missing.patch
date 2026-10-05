@@ -1,0 +1,18 @@
+journey: agents/trading-bot
+expect-fail: S1
+
+The trading bot screen loses its budget row. S1.3 reads "$200.00" from agent-detail-budget, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/AgentDetailView.swift b/apps/mobile/Monaco/Features/Groups/AgentDetailView.swift
+index c024cf706..5eaee9701 100644
+--- a/apps/mobile/Monaco/Features/Groups/AgentDetailView.swift
++++ b/apps/mobile/Monaco/Features/Groups/AgentDetailView.swift
+@@ -105,7 +105,6 @@ struct AgentDetailView: View {
+             .padding(.vertical, MonacoTheme.Space.s)
+             .frame(minHeight: 60)
+             .accessibilityElement(children: .combine)
+-            .accessibilityIdentifier("agent-detail-budget")
+         }
+     }
+ 
