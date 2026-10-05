@@ -14,30 +14,41 @@ import SwiftUI
 struct PlatformBalanceCard: View {
     let display: HomeBalanceDisplay
     var pendingAllocationMicros: Int64 = 0
+    var cardProcessing = false
     /// The figure's identifier. Each screen names its own, so a test can tell them apart.
     var valueIdentifier = "platform-balance-value"
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
-        display: HomeBalanceDisplay, pendingAllocationMicros: Int64 = 0,
+        display: HomeBalanceDisplay, pendingAllocationMicros: Int64 = 0, cardProcessing: Bool = false,
         valueIdentifier: String = "platform-balance-value"
     ) {
         self.display = display
         self.pendingAllocationMicros = pendingAllocationMicros
+        self.cardProcessing = cardProcessing
         self.valueIdentifier = valueIdentifier
     }
 
-    init(state: LoadState<AccountBalance>, valueIdentifier: String = "platform-balance-value") {
+    init(
+        state: LoadState<AccountBalance>, cardProcessing: Bool = false,
+        valueIdentifier: String = "platform-balance-value"
+    ) {
         var inFlightMicros: Int64 = 0
         if case .loaded(let balance) = state { inFlightMicros = balance.inFlightMicros }
-        self.init(display: .resolve(state), pendingAllocationMicros: inFlightMicros, valueIdentifier: valueIdentifier)
+        self.init(
+            display: .resolve(state), pendingAllocationMicros: inFlightMicros, cardProcessing: cardProcessing,
+            valueIdentifier: valueIdentifier)
     }
 
     /// "$50.00 funding a cabal", or nil when nothing is on its way.
     static func pendingLine(micros: Int64) -> String? {
         guard micros > 0 else { return nil }
         return "\(UsdAmountFormatter.format(micros: micros)) funding a cabal"
+    }
+
+    static func statusLine(cardProcessing: Bool, pendingMicros: Int64) -> String? {
+        cardProcessing ? CardDeposit.processingLine : pendingLine(micros: pendingMicros)
     }
 
     /// At the accessibility sizes the figure drops under the label, the way `MonacoRow` stacks,
@@ -90,10 +101,11 @@ struct PlatformBalanceCard: View {
             Text("Account balance")
                 .font(MonacoTheme.Typo.rowTitle)
                 .foregroundStyle(MonacoTheme.ink)
-            if let pending = Self.pendingLine(micros: pendingAllocationMicros) {
-                Text(pending)
+            if let status = Self.statusLine(cardProcessing: cardProcessing, pendingMicros: pendingAllocationMicros) {
+                Text(status)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
+                    .accessibilityIdentifier("platform-balance-status")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

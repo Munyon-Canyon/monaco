@@ -12,6 +12,7 @@ final class AppEnvironment {
     let auth: PrivyAuthService
     let linking: any AccountLinking
     let navigator = AppNavigator()
+    let cardDeposit: CardDeposit
     let sessionStore: AppSessionStore
     let push: PushRegistrar
     let pushPrePrompt: PushPrePrompt
@@ -47,6 +48,7 @@ final class AppEnvironment {
         self.hints = hints
         let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
+        self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints)
         let push = PushRegistrar(
             service: DeviceAPI(api: api),
             environment: PushEnvironment(
@@ -166,6 +168,7 @@ final class AppEnvironment {
 
     private func clearSignedInState() {
         navigator.reset()
+        cardDeposit.reset()
         sessionStore.reset()
         #if DEBUG
         tokens.use(nil)
