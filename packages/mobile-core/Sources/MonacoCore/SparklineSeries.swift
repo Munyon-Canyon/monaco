@@ -104,66 +104,6 @@ public enum SparkTint: Equatable, Sendable {
     }
 }
 
-/// One market list row, prepared once when its data lands.
-///
-/// The normalised series is the reason this type exists. Building it inside the row
-/// view would redo the same reduction on every layout pass of every visible row,
-/// which is precisely the per-row work that costs a list its frame budget. A model
-/// builds these when a response arrives; the view only draws them.
-public struct MarketRowData: Identifiable, Equatable, Sendable {
-    public let asset: MarketAssetDTO
-    /// Nil when the backend had no day series for this symbol, in which case the
-    /// row draws no sparkline at all.
-    public let spark: SparklineSeries?
-    /// The line under the ticker, for the rows that have something to say there
-    /// ("2 cabals · your slice $294.70"). Nil draws a single-line row.
-    public let subtitle: String?
-    /// Read by VoiceOver after the row's figures, for what the subtitle cannot say
-    /// in the space it has ("closes in 4 hours").
-    public let accessoryLabel: String?
-
-    public var id: String { asset.symbol }
-
-    public init(asset: MarketAssetDTO, subtitle: String? = nil, accessoryLabel: String? = nil) {
-        self.asset = asset
-        spark = SparklineSeries(usdcMicros: asset.sparkUsdcMicros)
-        self.subtitle = subtitle
-        self.accessoryLabel = accessoryLabel
-    }
-
-    /// Where the row's sparkline should take its colour from.
-    ///
-    /// Normally the reported day change, which is measured against the previous
-    /// close and so can legitimately disagree with the slope of the drawn window —
-    /// a stock can be down on the day while the last few hours rose. That is a
-    /// known, correct disagreement about one instrument.
-    ///
-    /// But when the series and the change are about *different instruments*, the
-    /// change's sign says nothing at all about this line. The series is Pyth's
-    /// underlying equity; the change is Jupiter's price for the xStock token. They
-    /// diverge, which is the premise of the stock-vs-token comparison elsewhere in
-    /// the app. In that case the line is tinted from its own first and last close,
-    /// so the colour describes the picture the member is actually looking at.
-    public typealias SparkTint = MonacoCore.SparkTint
-
-    public var sparkTint: SparkTint {
-        SparkTint(
-            series: spark,
-            basesDisagree: asset.sparkAndChangeDisagreeOnInstrument
-        )
-    }
-
-    /// The instrument the drawn line is about, when it is not the one the rest of
-    /// the row is about. Nil when they agree, so nothing is said that need not be.
-    public var sparkBasisNote: String? {
-        guard asset.sparkAndChangeDisagreeOnInstrument,
-            let basisSymbol = asset.sparkBasisSymbol,
-            !basisSymbol.isEmpty
-        else { return nil }
-        return basisSymbol
-    }
-}
-
 /// The two faces of a day-change pill: the percent the backend reports, and the
 /// dollars that percent is worth at the current price.
 ///

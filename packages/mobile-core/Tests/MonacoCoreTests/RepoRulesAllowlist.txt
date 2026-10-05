@@ -1,4 +1,3 @@
-feature-observable	apps/mobile/Monaco/Features/Assets/AssetSocialModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Assets/CabalHoldingsModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Groups/CabalsTabModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Groups/GroupPnLHistoryModel.swift	1
