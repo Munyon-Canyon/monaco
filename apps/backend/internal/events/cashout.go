@@ -28,6 +28,7 @@ func (e CashOutStarted) AggregateID() uuid.UUID { return e.JobID }
 const (
 	TypeCashOutCompleted Type = "cashout.completed"
 	TypeCashOutFailed    Type = "cashout.failed"
+	TypeCashOutPartial   Type = "cashout.partial"
 )
 
 type CashOutCompleted struct {
@@ -60,3 +61,20 @@ func (CashOutFailed) Type() Type { return TypeCashOutFailed }
 func (CashOutFailed) AggregateType() string { return "cash_out" }
 
 func (e CashOutFailed) AggregateID() uuid.UUID { return e.JobID }
+
+type CashOutPartial struct {
+	V                  int             `json:"v"`
+	JobID              uuid.UUID       `json:"job_id"`
+	CabalID            uuid.UUID       `json:"cabal_id"`
+	UserID             uuid.UUID       `json:"user_id"                     pii:"true"`
+	ShareUnitsBurned   uint64          `json:"share_units_burned,string"`
+	ShareUnitsReturned uint64          `json:"share_units_returned,string"`
+	PayoutMicros       money.Micros    `json:"payout_micros"`
+	Signature          chain.Signature `json:"signature"`
+}
+
+func (CashOutPartial) Type() Type { return TypeCashOutPartial }
+
+func (CashOutPartial) AggregateType() string { return "cash_out" }
+
+func (e CashOutPartial) AggregateID() uuid.UUID { return e.JobID }

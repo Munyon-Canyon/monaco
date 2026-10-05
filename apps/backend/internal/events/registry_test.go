@@ -161,6 +161,15 @@ func TestCashOutCompletedIdentity(t *testing.T) {
 	}
 }
 
+func TestCashOutPartialIdentity(t *testing.T) {
+	t.Parallel()
+	id := uuid.UUID{3}
+	e := CashOutPartial{JobID: id}
+	if e.Type() != TypeCashOutPartial || e.AggregateType() != "cash_out" || e.AggregateID() != id {
+		t.Fatalf("CashOutPartial identity = %q, %q, %s", e.Type(), e.AggregateType(), e.AggregateID())
+	}
+}
+
 func TestUserCashOutChangedHintNamesTheUser(t *testing.T) {
 	t.Parallel()
 	const raw = "01890a5d-ac96-774b-bcce-b302099a8059"

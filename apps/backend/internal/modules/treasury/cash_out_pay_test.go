@@ -337,6 +337,15 @@ func TestCashOutPayout_aShortSaleIsPaidAsPartial(t *testing.T) {
 	if r.shares(t, s.alice) != 30 {
 		t.Fatalf("alice holds %d shares, want the 30 the sale did not cover", r.shares(t, s.alice))
 	}
+	if r.events(t, events.TypeCashOutPartial) != "1" || r.events(t, events.TypeCashOutCompleted) != "0" {
+		t.Fatalf("partial events %s, completed events %s, want 1 and 0",
+			r.events(t, events.TypeCashOutPartial), r.events(t, events.TypeCashOutCompleted))
+	}
+	got := r.scalar(t, `SELECT payload->>'share_units_burned' || '/' || (payload->>'share_units_returned') || '/' ||
+		(payload->>'payout_micros') FROM events WHERE type = 'cashout.partial' AND aggregate_id = $1`, r.job)
+	if got != "70/30/"+r.scalar(t, `SELECT payout_micros::text FROM cash_out_jobs WHERE id = $1`, r.job) {
+		t.Fatalf("cashout.partial burned/returned/payout = %s", got)
+	}
 	r.noDrift(t)
 }
 
