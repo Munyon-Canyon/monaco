@@ -68,6 +68,30 @@ func (b *Backfill) Tick(ctx context.Context) (poller.Report, error) {
 	}, err
 }
 
+func (b *Backfill) Run(ctx context.Context, mints []string) (BackfillResult, error) {
+	err := b.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		_, err := sqlc.New(tx.Queries()).RequestBackfills(ctx,
+			sqlc.RequestBackfillsParams{Mints: mints, Now: b.clock.Now()})
+		return err
+	})
+	if err != nil {
+		return BackfillResult{}, errs.Wrap(err, errs.CodeOf(err), "market.Backfill.Run", slog.Int("mints", len(mints)))
+	}
+	return b.Drain(ctx, mints)
+}
+
+func (b *Backfill) RunAll(ctx context.Context) (BackfillResult, error) {
+	assets, err := NewCatalog(b.reads).ListAll(ctx)
+	if err != nil {
+		return BackfillResult{}, err
+	}
+	mints := make([]string, len(assets))
+	for i, a := range assets {
+		mints[i] = a.Mint.String()
+	}
+	return b.Run(ctx, mints)
+}
+
 func (b *Backfill) Drain(ctx context.Context, mints []string) (BackfillResult, error) {
 	var res BackfillResult
 	var failed []error

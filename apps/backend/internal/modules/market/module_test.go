@@ -58,7 +58,7 @@ func moduleConfig() config.Config {
 func TestModule_pollsTheCatalogHourly(t *testing.T) {
 	t.Parallel()
 	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
-	if len(pollers) != 4 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
+	if len(pollers) != 5 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
 		t.Fatalf("Pollers = %v, want market.catalog every hour first", pollers)
 	}
 }
@@ -117,4 +117,27 @@ func TestModule_retriesXStocksThreeTimesWithinTheBackoffCeilings(t *testing.T) {
 				rt.calls.Load(), waited)
 		}
 	})
+}
+
+func TestModule_backfillsEveryFiveMinutesAndReconcilesDailyOnOneCoinGeckoClient(t *testing.T) {
+	t.Parallel()
+	built := 0
+	deps := module.Deps{
+		Config: moduleConfig(),
+		HTTPClient: func(name string, opts ...httpclient.Option) *httpclient.Client {
+			if name == "coingecko" {
+				built++
+			}
+			return httpclient.New(name, opts...)
+		},
+	}
+	pollers := market.New(deps).Pollers()
+	backfill, reconcile := pollers[3], pollers[4]
+	if backfill.Name() != "market.backfill" || backfill.Interval() != 5*time.Minute ||
+		reconcile.Name() != "market.reconcile" || reconcile.Interval() != 24*time.Hour {
+		t.Fatalf("Pollers = %v, want market.backfill every 5m then market.reconcile every 24h", pollers)
+	}
+	if built != 1 {
+		t.Fatalf("built %d CoinGecko clients, want one so a single limiter paces both pollers", built)
+	}
 }
