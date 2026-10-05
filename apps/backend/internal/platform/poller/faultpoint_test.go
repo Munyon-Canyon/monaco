@@ -77,7 +77,7 @@ func TestRecoverAttempt_repanicsAnUnexpectedPanic(t *testing.T) {
 func TestFlow_associatesOnlyFlowPollers(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]string{
-		"funding.deposits": "05", "market.prices": "18", "identity.nudges": "28", "market.catalog": "",
+		"funding.deposits": "05", "funding.withdrawals": "15", "market.prices": "18", "identity.nudges": "28", "market.catalog": "",
 	} {
 		if got := flow(name); got != want {
 			t.Errorf("flow(%q) = %q, want %q", name, got, want)

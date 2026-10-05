@@ -3,12 +3,17 @@
 package funding_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
 func TestFlow15_Withdraw_CrashAfterSign(t *testing.T) {
@@ -35,4 +40,27 @@ func TestFlow15_Withdraw_CrashAfterSign(t *testing.T) {
 	if len(f.transfers.sent) != 0 {
 		t.Fatalf("sent = %d after the crash", len(f.transfers.sent))
 	}
+}
+
+func TestFlow15_Withdraw_CrashBeforeCommit(t *testing.T) {
+	t.Parallel()
+	s := flow15Scenario(t)
+	member := flows.SeedWithdrawer(s)
+	s.Given(
+		scenario.AsSeededUser("member", member.ID),
+		scenario.FakeUpstream(fakes.Step{
+			Route: "/rpc/getSignatureStatuses", Action: fakes.ActionSucceed, Times: 100, Reset: true,
+			Fixture: "/rpc/getSignatureStatuses/one-finalized",
+		}),
+	).
+		When(
+			scenario.Post("/v1/me/withdrawals",
+				`{"amount_micros":"2000000","to_address":"9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"}`),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.TickCrashingAt("funding.withdrawals", faultpoint.BeforeCommit),
+			scenario.ExpectEvents(events.TypeWithdrawalConfirmed, 0),
+			scenario.AwaitTick("funding.withdrawals"),
+			flows.SettledWithdrawal(member),
+		).
+		Then(scenario.ExpectEvents(events.TypeWithdrawalConfirmed, 1))
 }
