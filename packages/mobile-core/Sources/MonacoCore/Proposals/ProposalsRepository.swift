@@ -35,6 +35,44 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let canWithdraw: Bool
     public let swap: ProposalSwap?
 
+    init(_ other: ProposalSummary, ballot: String, tally: ProposalTally) {
+        self = other.replacing(ballot: ballot, tally: tally)
+    }
+
+    private func replacing(ballot: String, tally: ProposalTally) -> ProposalSummary {
+        ProposalSummary(
+            id: id, cabalID: cabalID, kind: kind, symbol: symbol, proposerID: proposerID, thesis: thesis,
+            usdcMicros: usdcMicros, tokenAmount: tokenAmount, quoteOutAmount: quoteOutAmount, createdAt: createdAt,
+            tally: tally, myBallot: ballot, status: status, statusMessage: statusMessage, expiresAt: expiresAt,
+            canVote: canVote, canWithdraw: canWithdraw, swap: swap)
+    }
+
+    private init(
+        id: String, cabalID: String, kind: String, symbol: String, proposerID: String, thesis: String?,
+        usdcMicros: Int64?, tokenAmount: Int64?, quoteOutAmount: Int64, createdAt: Date, tally: ProposalTally,
+        myBallot: String?, status: ProposalStatus, statusMessage: String?, expiresAt: Date, canVote: Bool,
+        canWithdraw: Bool, swap: ProposalSwap?
+    ) {
+        self.id = id
+        self.cabalID = cabalID
+        self.kind = kind
+        self.symbol = symbol
+        self.proposerID = proposerID
+        self.thesis = thesis
+        self.usdcMicros = usdcMicros
+        self.tokenAmount = tokenAmount
+        self.quoteOutAmount = quoteOutAmount
+        self.createdAt = createdAt
+        self.tally = tally
+        self.myBallot = myBallot
+        self.status = status
+        self.statusMessage = statusMessage
+        self.expiresAt = expiresAt
+        self.canVote = canVote
+        self.canWithdraw = canWithdraw
+        self.swap = swap
+    }
+
     init(
         _ proposal: Components.Schemas.Proposal,
         canVote: Bool = false,
@@ -91,6 +129,13 @@ public struct ProposalTally: Equatable, Sendable {
     public let no: Int
     public let voters: Int
     public let needed: Int
+
+    init(yes: Int, no: Int, voters: Int, needed: Int) {
+        self.yes = yes
+        self.no = no
+        self.voters = voters
+        self.needed = needed
+    }
 
     init(_ value: Components.Schemas.Tally) {
         yes = value.yes

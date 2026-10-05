@@ -14,6 +14,7 @@ private struct CabalProposals: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var model: ProposalListModel?
     @State private var pause: ProposalPauseModel?
+    @State private var voting: ProposalVoteModel?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -41,7 +42,9 @@ private struct CabalProposals: View {
     }
 
     @ViewBuilder private func content(_ model: ProposalListModel) -> some View {
-        let needsVote = model.pager.items.filter { $0.canVote && $0.myBallot == nil }
+        let needsVote = model.pager.items.filter {
+            $0.canVote && ($0.myBallot == nil || voting?.ballots[$0.id] != nil)
+        }
         if model.pager.items.isEmpty {
             EmptyState(title: "No open votes", message: "Propose the first buy.")
         } else {
@@ -51,8 +54,11 @@ private struct CabalProposals: View {
                 NavigationLink("See all", value: CabalProposalListRoute(cabalID: cabalID))
             }
             ForEach(needsVote) { proposal in
-                ProposalCard(
-                    proposal: proposal, asset: nil, members: [], paused: pause?.isPaused == true)
+                if let voting {
+                    ProposalVoteCard(
+                        proposal: proposal, voting: voting, paused: pause?.isPaused == true,
+                        onVoted: { await model.pager.refreshFirstPage() })
+                }
             }
         }
     }
@@ -67,6 +73,7 @@ private struct CabalProposals: View {
 
     private func preparedModel() -> ProposalListModel {
         if let model { return model }
+        voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
         let created = ProposalListModel(
             cabalID: cabalID, filter: .open, repository: ProposalsRepository(api: environment.api),
             hints: environment.hints)
