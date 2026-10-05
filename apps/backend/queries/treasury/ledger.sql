@@ -43,7 +43,8 @@ VALUES (sqlc.arg(txn_id)::uuid, sqlc.arg(seq)::smallint, sqlc.arg(account)::text
 -- name: OwnsSignature :one
 SELECT EXISTS (SELECT 1 FROM cabal_txns WHERE tx_signature = sqlc.arg(tx_signature)::text)
   OR EXISTS (SELECT 1 FROM user_txns WHERE tx_signature = sqlc.arg(tx_signature)::text)
-  OR EXISTS (SELECT 1 FROM fund_transfers WHERE tx_signature = sqlc.arg(tx_signature)::text);
+  OR EXISTS (SELECT 1 FROM fund_transfers WHERE tx_signature = sqlc.arg(tx_signature)::text)
+  OR EXISTS (SELECT 1 FROM cash_out_payouts WHERE signature = sqlc.arg(tx_signature)::text);
 
 -- name: WalletLedgerMicros :one
 SELECT coalesce((SELECT sum(e.amount) FROM user_txns t JOIN user_txn_entries e ON e.txn_id = t.id
