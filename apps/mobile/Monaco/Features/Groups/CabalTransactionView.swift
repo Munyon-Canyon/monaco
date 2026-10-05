@@ -12,7 +12,9 @@ struct CabalTransactionView: View {
     }
 
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
     @State private var resolution = Resolution.loading
+    @State private var model: CabalActivityModel?
 
     var body: some View {
         ScrollView {
@@ -22,7 +24,12 @@ struct CabalTransactionView: View {
         .monacoCanvas()
         .navigationTitle("Transaction")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await resolve() }
+        .task {
+            await resolve()
+            await model?.observe()
+        }
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .cabalActivityToasts(model, in: toasts)
     }
 
     @ViewBuilder private var content: some View {
@@ -50,7 +57,9 @@ struct CabalTransactionView: View {
     }
 
     private func receipt(_ row: ActivityRow) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+        let swap = row.kind.isSwap ? model?.openSwap : nil
+        let solscanURL = swap?.solscanURL ?? row.solscanURL
+        return VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     SunkenGlyphMark(systemImage: row.glyph)
@@ -58,7 +67,7 @@ struct CabalTransactionView: View {
                         .font(MonacoTheme.Typo.rowTitle)
                         .foregroundStyle(MonacoTheme.ink)
                 }
-                if let amount = row.amount {
+                if let amount = swap?.amount ?? row.amount {
                     Text(amount)
                         .moneyFont(.large)
                         .foregroundStyle(MonacoTheme.ink)
@@ -69,9 +78,13 @@ struct CabalTransactionView: View {
             }
             .padding(.horizontal, MonacoTheme.Space.m)
             MonacoGroupedList {
-                ReceiptLine(label: "Status", value: .words(row.status.receiptLabel))
+                ReceiptLine(label: "Status", value: .words(swap?.statusLabel ?? row.status.receiptLabel))
                     .accessibilityIdentifier("cabal-txn-status")
-                if let assetLine = row.assetLine {
+                if let reason = swap?.failureMessage {
+                    ReceiptLine(label: "Why", value: .words(reason))
+                        .accessibilityIdentifier("cabal-txn-failure")
+                }
+                if let assetLine = swap?.assetLine ?? row.assetLine {
                     ReceiptLine(label: "Asset", value: .words(assetLine))
                         .accessibilityIdentifier("cabal-txn-asset")
                 }
@@ -89,11 +102,22 @@ struct CabalTransactionView: View {
                     .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("cabal-txn-actor")
                 }
-                ReceiptLine(label: "When", value: .data(row.fullDate), isLast: row.solscanURL == nil)
+                ReceiptLine(label: "When", value: .data(row.fullDate), isLast: solscanURL == nil)
                     .accessibilityIdentifier("cabal-txn-when")
-                if let url = row.solscanURL {
+                if let url = solscanURL {
                     solscanRow(url)
                 }
+            }
+            if swap?.retryable == true {
+                Button(CabalActivityCopy.retrySwap) {
+                    Task {
+                        await model?.retrySwap(row)
+                        await model?.loadSwap(id: row.id)
+                    }
+                }
+                .buttonStyle(.monacoPrimary)
+                .padding(.horizontal, MonacoTheme.Space.m)
+                .accessibilityIdentifier("cabal-txn-retry")
             }
         }
     }
@@ -120,9 +144,13 @@ struct CabalTransactionView: View {
 
     private func resolve() async {
         resolution = .loading
-        let model = CabalActivityModel(
-            cabalID: cabalID, api: environment.api, hints: environment.hints, clock: Date.init)
+        let model =
+            model
+            ?? CabalActivityModel(
+                cabalID: cabalID, api: environment.api, hints: environment.hints, clock: Date.init)
+        self.model = model
         let row = await model.find(id: transactionID)
+        if let row, row.kind.isSwap { await model.loadSwap(id: row.id) }
         guard !Task.isCancelled else { return }
         resolution = row.map(Resolution.found) ?? .missing
     }

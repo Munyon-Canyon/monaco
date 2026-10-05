@@ -18,6 +18,20 @@ enum CabalActivityCopy {
     static let failed = "Couldn't load activity."
     static let retry = "Try again"
     static let loading = "Loading activity"
+    static let retrySwap = "Retry"
+}
+
+extension View {
+    func cabalActivityToasts(_ model: CabalActivityModel?, in toasts: ToastCenter) -> some View {
+        onChange(of: model?.failureTick) { _, _ in
+            guard let error = model?.lastError else { return }
+            toasts.show(error)
+        }
+        .onChange(of: model?.toast) { _, toast in
+            guard let toast else { return }
+            toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
+        }
+    }
 }
 
 private struct CabalActivityLive: View {
@@ -37,10 +51,7 @@ private struct CabalActivityLive: View {
                 await model.observe()
             }
             .onScreenVisibilityChange { model?.setVisible($0) }
-            .onChange(of: model?.failureTick) { _, _ in
-                guard let error = model?.lastError else { return }
-                toasts.show(error)
-            }
+            .cabalActivityToasts(model, in: toasts)
     }
 
     private func preparedModel() -> CabalActivityModel {
@@ -117,7 +128,9 @@ struct CabalActivityContent: View {
                         value: AnyAppRoute(
                             TransactionRoute(cabalID: model?.cabalID ?? "", transactionID: row.id))
                     ) {
-                        CabalActivityRowView(row: row, isLast: row.id == rows.last?.id)
+                        CabalActivityRowView(row: row, isLast: row.id == rows.last?.id) {
+                            Task { await model?.retrySwap(row) }
+                        }
                     }
                     .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("cabal-activity-row-\(row.id)")
@@ -137,6 +150,7 @@ struct CabalActivityContent: View {
 private struct CabalActivityRowView: View {
     let row: ActivityRow
     let isLast: Bool
+    let retry: () -> Void
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
@@ -146,8 +160,20 @@ private struct CabalActivityRowView: View {
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.ink)
                     .lineLimit(2)
-                subtitle
-                    .font(MonacoTheme.Typo.caption)
+                HStack(spacing: 0) {
+                    subtitle
+                    if row.offersRetry {
+                        Text(" · ").foregroundStyle(MonacoTheme.loss)
+                        Button(CabalActivityCopy.retrySwap, action: retry)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(MonacoTheme.loss)
+                            .underline()
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                            .accessibilityIdentifier("cabal-activity-retry-\(row.id)")
+                    }
+                }
+                .font(MonacoTheme.Typo.caption)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let amount = row.amount {
@@ -172,7 +198,7 @@ private struct CabalActivityRowView: View {
                 MonacoRule().padding(.leading, MonacoTheme.Space.m)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: row.offersRetry ? .contain : .combine)
     }
 
     private var subtitle: Text {
