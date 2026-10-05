@@ -5,7 +5,7 @@ set -euo pipefail
 
 query="SELECT p.price_micros, p.ts > now() - interval '30 minutes'
 FROM price_points p JOIN assets a ON a.mint = p.mint
-WHERE a.symbol = 'JRNYAx' ORDER BY p.ts DESC LIMIT 1"
+WHERE a.symbol = 'JRNYAx' AND p.source = 'qa-journey' ORDER BY p.ts DESC LIMIT 1"
 
 error_file="$(mktemp)"
 trap 'rm -f "$error_file"' EXIT

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# S1 also needs A in two cabals, so Propose buy opens the cabal picker whatever earlier runs left (P5).
+# S1 needs A to vote in at least two cabals so Propose buy opens the cabal picker (P5). Earlier runs leave cabals, and cabal creation is rate limited, so it creates only the shortfall.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -14,8 +14,9 @@ qa_api_ready
 did="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 qa_sql -v did="$did" >/dev/null \
   <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
-for n in 1 2; do
+have="$(qa_sql -v did="$did" <<<"SELECT count(*) FROM cabal_members m JOIN users u ON u.id = m.user_id WHERE u.privy_user_id = :'did' AND m.can_vote")"
+for ((n = have + 1; n <= 2; n++)); do
   qa_api A POST /v1/cabals \
     "{\"name\":\"QA stocks $run $n\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
 done
-echo "seeded: A created the open cabals 'QA stocks $run 1' and 'QA stocks $run 2'"
+echo "seeded: A votes in $(( have > 2 ? have : 2 )) cabals"

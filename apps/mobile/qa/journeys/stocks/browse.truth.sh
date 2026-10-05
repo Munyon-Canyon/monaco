@@ -8,7 +8,7 @@ query="SELECT
   (SELECT string_agg(symbol || '=' || display_name || '=' || kind, ',' ORDER BY symbol) FROM assets
      WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx')),
   (SELECT count(*) FROM proposals WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx'))"
-cleanup="DELETE FROM price_points WHERE mint LIKE 'QAJourney%';
+cleanup="DELETE FROM price_points WHERE source = 'qa-journey';
 DELETE FROM assets WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx')"
 
 psql_local() {
