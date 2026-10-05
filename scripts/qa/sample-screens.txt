@@ -27,9 +27,6 @@ group-detail-loading          -MonacoGroupDetailSample loading
 group-detail-details          -MonacoGroupDetailSample details
 group-detail-propose          -MonacoGroupDetailSample propose
 group-detail-cash-out         -MonacoGroupDetailSample cashOut
-group-detail-receipt          -MonacoGroupDetailSample receipt
-group-detail-receipt-failed   -MonacoGroupDetailSample receiptFailed
-group-detail-activity         -MonacoGroupDetailSample activity
 
 proposal-feed                 -MonacoProposalFeedSample
 proposal-detail-commented     -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-0
