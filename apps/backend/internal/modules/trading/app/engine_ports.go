@@ -44,4 +44,5 @@ type EnginePorts struct {
 	Pauses    Pauses
 	Proposals Proposals
 	Balances  Balances
+	Positions Positions
 }
