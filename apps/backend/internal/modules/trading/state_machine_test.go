@@ -29,15 +29,15 @@ func eventName(ev domain.Event) string {
 func wantNext() map[domain.Status]map[string]domain.Status {
 	return map[domain.Status]map[string]domain.Status{
 		domain.StatusCreated: {
-			"submit":                domain.StatusSubmitted,
-			"fail(never_submitted)": domain.StatusFailed,
+			"submit":                 domain.StatusSubmitted,
+			"fail(never_submitted)":  domain.StatusFailed,
+			"fail(source_cancelled)": domain.StatusFailed,
 		},
 		domain.StatusSubmitted: {
 			"confirm":                 domain.StatusConfirmed,
 			"fail(blockhash_expired)": domain.StatusFailed,
 			"fail(jupiter_failed)":    domain.StatusFailed,
 			"fail(force_resolved)":    domain.StatusFailed,
-			"fail(source_cancelled)":  domain.StatusFailed,
 		},
 		domain.StatusConfirmed: {},
 		domain.StatusFailed:    {},
