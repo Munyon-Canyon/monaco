@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -118,8 +119,15 @@ func (h *SellForCashOutHandler) plan(ctx context.Context, cmd SellForCashOut) ([
 	}
 	raw, _ := json.Marshal(stored)
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		return sqlc.New(tx.Queries()).InsertCashoutSellPlan(ctx, sqlc.InsertCashoutSellPlanParams{
+		n, err := sqlc.New(tx.Queries()).InsertCashoutSellPlan(ctx, sqlc.InsertCashoutSellPlanParams{
 			JobID: cmd.Source.ID, CabalID: cmd.CabalID.UUID(), Legs: raw, CreatedAt: h.d.Clock.Now(),
+		})
+		if err != nil || n == 0 || len(legs) > 0 {
+			return err
+		}
+		return tx.Events.Append(ctx, events.TradeBlocked{
+			V: 1, CabalID: cmd.CabalID.UUID(), Action: string(domain.ActionSell), Code: errs.CodeAssetUntradable,
+			Source: events.TradeSource{Kind: string(cmd.Source.Kind), ID: cmd.Source.ID},
 		})
 	})
 	if err != nil {

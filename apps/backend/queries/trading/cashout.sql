@@ -1,4 +1,4 @@
--- name: InsertCashoutSellPlan :exec
+-- name: InsertCashoutSellPlan :execrows
 INSERT INTO cashout_sell_plans (job_id, cabal_id, legs, created_at)
 VALUES (@job_id, @cabal_id, @legs::jsonb, @created_at)
 ON CONFLICT (job_id) DO NOTHING;

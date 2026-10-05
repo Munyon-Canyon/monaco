@@ -42,7 +42,7 @@ func (q *Queries) HasSwapForMint(ctx context.Context, arg HasSwapForMintParams) 
 	return exists, err
 }
 
-const insertCashoutSellPlan = `-- name: InsertCashoutSellPlan :exec
+const insertCashoutSellPlan = `-- name: InsertCashoutSellPlan :execrows
 INSERT INTO cashout_sell_plans (job_id, cabal_id, legs, created_at)
 VALUES ($1, $2, $3::jsonb, $4)
 ON CONFLICT (job_id) DO NOTHING
@@ -55,12 +55,15 @@ type InsertCashoutSellPlanParams struct {
 	CreatedAt time.Time
 }
 
-func (q *Queries) InsertCashoutSellPlan(ctx context.Context, arg InsertCashoutSellPlanParams) error {
-	_, err := q.db.Exec(ctx, insertCashoutSellPlan,
+func (q *Queries) InsertCashoutSellPlan(ctx context.Context, arg InsertCashoutSellPlanParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertCashoutSellPlan,
 		arg.JobID,
 		arg.CabalID,
 		arg.Legs,
 		arg.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

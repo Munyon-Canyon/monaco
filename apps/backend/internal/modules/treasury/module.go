@@ -182,6 +182,7 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("treasury.cashout", cashOut.Started),
 				bus.Handle("treasury.cashout.confirmed", cashOut.Confirmed),
 				bus.Handle("treasury.cashout.failed", cashOut.Failed),
+				bus.Handle("treasury.cashout.blocked", cashOut.Blocked),
 			},
 		},
 		{
