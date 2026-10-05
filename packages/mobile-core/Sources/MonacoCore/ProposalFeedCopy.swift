@@ -51,96 +51,7 @@ public enum ProposalFeedCopy {
         "Sell \(shares) \(symbol)"
     }
 
-    public static let agentTitle = "Cabal agent"
-
-    /// Card title: the company name for trades ("Apple", falling back to the ticker), the bot's name
-    /// for agent governance proposals.
-    public static func title(for proposal: ProposalDTO) -> String {
-        if proposal.isTrade {
-            // The ticker, as on every other row: the card is a feed entry, and the
-            // proposal screen it opens is where the company's name belongs.
-            if proposal.resolvedAssetKind == .preIpo {
-                return AssetCatalogDisplayName.format(catalogName: "", symbol: proposal.symbol, kind: .preIpo)
-            }
-            return AssetSymbolFormatter.display(proposal.symbol, kind: proposal.resolvedAssetKind)
-        }
-        let name = proposal.agentDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return name.isEmpty ? agentTitle : name
-    }
-
-    /// Card headline per kind, e.g. "Buy $25.00 of AAPLx", "Sell 0.5 AAPLx",
-    /// "Add agent Scout with $500.00 budget", "Pause the cabal trading agent".
-    public static func headline(for proposal: ProposalDTO) -> String {
-        let symbol = AssetSymbolFormatter.format(proposal.symbol)
-        switch proposal.resolvedKind {
-        case "sell":
-            return sellHeadline(
-                symbol: symbol,
-                shares: ProposalShareFormatter.shares(
-                    fromAtomics: proposal.tokenAmount ?? "0",
-                    decimals: proposal.resolvedTokenDecimals
-                )
-            )
-        case "add_agent":
-            let name = proposal.agentDisplayName ?? proposal.symbol
-            let budget = ProposalAmountFormatter.dollars(fromMicros: proposal.allocationUsdcMicros ?? "0")
-            return "Add agent \(name) with \(budget) budget"
-        case "pause_agent":
-            return "Pause the cabal trading agent"
-        case "resume_agent":
-            return "Resume the cabal trading agent"
-        case "revoke_agent":
-            return "Revoke the cabal trading agent"
-        default:
-            return buyHeadline(
-                symbol: symbol, amount: ProposalAmountFormatter.dollars(fromMicros: proposal.usdcMicros ?? "0"))
-        }
-    }
-
-    /// Card subtitle under the title, e.g. "AAPL · Buy". The amount line carries the dollars.
-    public static func subtitle(for proposal: ProposalDTO) -> String {
-        switch proposal.resolvedKind {
-        // The ticker is the card's title now, so the line under it says only what the
-        // title cannot: which way the trade goes.
-        case "buy": return "Buy"
-        case "sell": return "Sell"
-        case "add_agent": return "New trading bot · Budget from the pot"
-        case "pause_agent": return "Pause the trading bot"
-        case "resume_agent": return "Turn the trading bot back on"
-        case "revoke_agent": return "Remove the trading bot"
-        default: return headline(for: proposal)
-        }
-    }
-
-    public static func viewerVoted(_ choice: String) -> String {
-        choice.lowercased() == "no" ? "You voted no" : "You voted yes"
-    }
-
-    /// The one chip a closed proposal shows. Open proposals show none.
-    public static func closedLabel(for proposal: ProposalDTO) -> String? {
-        switch ProposalStatusDisplay.from(status: proposal.status) {
-        case .open: return nil
-        case .failed: return "Didn't pass"
-        case .expired: return "Expired"
-        case .passed, .none:
-            guard proposal.isTrade else { return "Passed" }
-            switch ProposalExecutionStage.of(proposal) {
-            case .failed: return "Failed"
-            case .executing: return proposal.isSell ? "Selling" : "Buying"
-            case .done: return proposal.isSell ? "Sold" : "Bought"
-            // The vote passed but this payload says nothing about the swap — feed rows
-            // carry no execution. Report the vote, not a trade that may still be running
-            // or may have failed.
-            case .voting, .none: return "Passed"
-            }
-        }
-    }
-
     // MARK: Detail
-
-    public static func reasonTitle(for proposal: ProposalDTO) -> String {
-        proposal.isSell ? "Why sell" : "Why buy"
-    }
 
     public static let votesTitle = "Votes"
     public static let ballotYes = "Yes"
@@ -179,19 +90,6 @@ public enum ProposalFeedCopy {
             commentRejected, commentRateLimited, commentUnavailable, commentFailed,
             replyingTo("Ada"), commentCount(2), proposedBy("Ada"),
             buyHeadline(symbol: "AAPLx", amount: "$25.00"), sellHeadline(symbol: "AAPLx", shares: "0.5"), openCount(3),
-            agentTitle,
-            headline(
-                for: ProposalDTO(
-                    id: "a", symbol: "", status: "open", kind: "add_agent", agentDisplayName: "Scout",
-                    allocationUsdcMicros: "500000000")),
-            headline(for: ProposalDTO(id: "p", symbol: "", status: "open", kind: "pause_agent")),
-            subtitle(for: ProposalDTO(id: "b", symbol: "AAPLx", status: "open")),
-            subtitle(
-                for: ProposalDTO(
-                    id: "a", symbol: "", status: "open", kind: "add_agent", allocationUsdcMicros: "500000000")),
-            viewerVoted("yes"), viewerVoted("no"),
-            "Didn't pass", "Expired", "Failed", "Bought", "Sold", "Buying", "Selling", "Passed",
-            reasonTitle(for: ProposalDTO(id: "b", symbol: "AAPLx", status: "open")),
             votesTitle, ballotYes, ballotNo, ballotWaiting, statusTitle, detailLoadFailed, tryAgain,
             replyAccessibility, postAccessibility,
             executionFailed(isSell: false), executionFailed(isSell: true),

@@ -18,11 +18,6 @@ public enum LiveRefreshCadence {
     public static let inPlay: Duration = .seconds(5)
     /// Nothing is moving: balances, pot values, and noticing that a new proposal arrived.
     public static let resting: Duration = .seconds(15)
-
-    /// `inPlay` while any of `proposals` is open for voting or waiting on its swap.
-    public static func watching(_ proposals: [ProposalDTO]) -> Duration {
-        proposals.contains { $0.isOpen || $0.isAwaitingExecution } ? inPlay : resting
-    }
 }
 
 // MARK: - Poll schedule
