@@ -140,6 +140,19 @@ Subject `events.cabal.updated`, version 1.
 | `actor_id` | `uuid.UUID` |
 | `changes` | `events.CabalChanges` |
 
+## `cashout.failed`
+
+Subject `events.cashout.failed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `job_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `share_units` | `uint64` |
+| `code` | `string` |
+
 ## `cashout.started`
 
 Subject `events.cashout.started`, version 1.

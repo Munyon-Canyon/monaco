@@ -42,6 +42,9 @@ func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
 		"treasury_activity treasury.activity.submitted " + string(events.TypeTradeSubmitted),
 		"treasury_activity treasury.activity.confirmed " + string(events.TypeTradeConfirmed),
 		"treasury_activity treasury.activity.failed " + string(events.TypeTradeFailed),
+		"treasury_cashout treasury.cashout " + string(events.TypeCashOutStarted),
+		"treasury_cashout treasury.cashout.confirmed " + string(events.TypeTradeConfirmed),
+		"treasury_cashout treasury.cashout.failed " + string(events.TypeTradeFailed),
 		"treasury_user_ledger treasury.user_ledger " + string(events.TypeDepositCredited),
 		"treasury_user_ledger treasury.withdrawal_ledger " + string(events.TypeWithdrawalConfirmed),
 	}

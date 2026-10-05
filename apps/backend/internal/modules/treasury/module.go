@@ -105,6 +105,7 @@ func (m *Module) Consumers() []bus.Consumer {
 		USDC:   usdc(m.deps.Config),
 		Hints:  m.deps.Bus,
 	}
+	cashOut := adapters.CashOut{Sales: app.NewCashOutSales(m.ledger(), m.deps.IDs)}
 	return []bus.Consumer{
 		{
 			Durable: "treasury_trades",
@@ -118,6 +119,14 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("treasury.activity.submitted", activity.Submitted),
 				bus.Handle("treasury.activity.confirmed", activity.Confirmed),
 				bus.Handle("treasury.activity.failed", activity.Failed),
+			},
+		},
+		{
+			Durable: "treasury_cashout",
+			Handlers: []bus.HandlerSpec{
+				bus.Handle("treasury.cashout", cashOut.Started),
+				bus.Handle("treasury.cashout.confirmed", cashOut.Confirmed),
+				bus.Handle("treasury.cashout.failed", cashOut.Failed),
 			},
 		},
 		{
