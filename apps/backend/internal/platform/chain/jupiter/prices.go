@@ -95,18 +95,22 @@ func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, 
 	if r.status != http.StatusOK {
 		return nil, rejected(op, r.status, 0, "")
 	}
-	var wire map[string]*priceWire
+	var wire map[string]json.RawMessage
 	if err := decode(r, op, &wire); err != nil {
 		return nil, err
 	}
 	observed := c.clock.Now()
 	out := make(map[Mint]Price, len(batch))
 	for _, m := range batch {
-		w := wire[m.Address]
-		if w == nil {
+		raw, found := wire[m.Address]
+		if !found || string(raw) == "null" {
 			continue
 		}
-		usd, ok := parsePrice(w.price())
+		var w priceWire
+		usd, ok := money.Micros{}, json.Unmarshal(raw, &w) == nil
+		if ok {
+			usd, ok = parsePrice(w.price())
+		}
 		if !ok {
 			var stock json.Number
 			if w.StockData != nil {
