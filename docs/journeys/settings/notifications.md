@@ -1,7 +1,7 @@
 ---
 id: settings/notifications
 title: Turn on notifications
-version: 1
+version: 2
 milestone: M9
 requires: [auth/sign-in]
 actors: [B]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | P2 | `scripts/qa/journey.py` reinstalls the app before every run, so notification permission starts undecided and the pre-prompt has not been shown |
 | P3 | Before S2, `apps/mobile/qa/journeys/settings/notifications.setup.sh` declines every pending invite to B, makes a dev host create an open cabal named `QA push {QA.run}`, and invites B by handle. It hands the test the cabal's name as `cabalName` |
 | P4 | The scenarios run in order in one run: S2 answers the permission alert, and S3 starts from that answer |
-| P5 | The test answers the iOS permission alert with `addUIInterruptionMonitor`, tapping "Allow". It taps no coordinates |
+| P5 | The test answers the iOS permission alert through springboard (`com.apple.springboard`), tapping "Allow". It taps no coordinates |
 
 ## Scenarios
 
@@ -44,7 +44,7 @@ Starts signed in (auth/sign-in), with an invite to `cabalName` waiting (P3).
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | tap | the Cabals tab | | `cabal-invite-row` for `cabalName` shows within 15 s | None, new in spec |
 | S2.2 | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s. Once it goes, `push-pre-prompt` shows within 15 s with `push-pre-prompt-title` reading "Know when your cabal votes and trades", "We'll tell you when a vote opens, passes, or a trade fills.", `push-pre-prompt-turn-on` ("Turn on notifications") and `push-pre-prompt-not-now` ("Not now") | None, new in spec |
-| S2.3 | tap | `push-pre-prompt-turn-on` | | The iOS alert asking to send notifications shows, the interruption monitor taps "Allow" (P5), and `push-pre-prompt` closes within 15 s | None, new in spec |
+| S2.3 | tap | `push-pre-prompt-turn-on` | | The iOS alert asking to send notifications shows, the test taps "Allow" on it through springboard (P5), and `push-pre-prompt` closes within 15 s | None, new in spec |
 
 ### S3 Settings reads On and opens iOS settings
 

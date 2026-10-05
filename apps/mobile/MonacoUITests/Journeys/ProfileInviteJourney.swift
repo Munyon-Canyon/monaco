@@ -56,19 +56,11 @@ enum ProfileInviteJourney {
             XCTAssertTrue(share.waitForExistence(timeout: 5), "S2.2: no Share button")
             XCTAssertTrue(share.label.contains("Share"), "S2.2: the share button reads '\(share.label)'")
             share.tap()
-            XCTAssertTrue(
-                app.otherElements["ActivityListView"].waitForExistence(timeout: 5),
-                "S2.2: the share sheet did not open within 5 s")
+            XCTAssertTrue(app.shareSheetShows(), "S2.2: the share sheet did not open within 5 s")
         }
 
         recorder.step("S2.3", "close the share sheet") {
-            let sheet = app.otherElements["ActivityListView"]
-            let close = sheet.buttons["Close"]
-            if close.exists {
-                close.tap()
-            } else {
-                sheet.swipeDown(velocity: .fast)
-            }
+            XCTAssertTrue(app.dismissShareSheet(), "S2.3: the share sheet was not open to close")
             XCTAssertTrue(
                 app.element("invite-link").waitForExistence(timeout: 5),
                 "S2.3: the invite link did not come back after the share sheet closed")

@@ -2,7 +2,7 @@ import XCTest
 
 enum SettingsNotificationsJourney {
     static let id = "settings/notifications"
-    static let version = 1
+    static let version = 2
 
     static let title = "Know when your cabal votes and trades"
     static let body = "We'll tell you when a vote opens, passes, or a trade fills."
@@ -42,7 +42,7 @@ enum SettingsNotificationsJourney {
         }
     }
 
-    static func prePrompt(_ app: XCUIApplication, cabalName: String, test: XCTestCase, recorder: JourneyRecorder) {
+    static func prePrompt(_ app: XCUIApplication, cabalName: String, recorder: JourneyRecorder) {
         let sheet = app.element("push-pre-prompt")
 
         recorder.step("S2.1", "find the invite on the Cabals tab") {
@@ -69,23 +69,11 @@ enum SettingsNotificationsJourney {
         }
 
         recorder.step("S2.3", "turn on and allow") {
-            var answered = false
-            let monitor = test.addUIInterruptionMonitor(withDescription: "notification permission") { alert in
-                let allow = alert.buttons["Allow"]
-                guard allow.exists else { return false }
-                allow.tap()
-                answered = true
-                return true
-            }
-            defer { test.removeUIInterruptionMonitor(monitor) }
             app.buttons["push-pre-prompt-turn-on"].tap()
-            let title = app.element("push-pre-prompt-title")
+            XCTAssertTrue(app.answerSystemAlert(allow: true), "S2.3: the iOS permission alert never showed")
             XCTAssertTrue(
-                waitUntil(15) {
-                    if !answered, title.exists { title.tap() }
-                    return !sheet.exists
-                }, "S2.3: the pre-prompt did not close after Turn on notifications")
-            XCTAssertTrue(answered, "S2.3: the iOS permission alert never showed")
+                sheet.waitForNonExistence(timeout: 15),
+                "S2.3: the pre-prompt did not close after Turn on notifications")
         }
     }
 

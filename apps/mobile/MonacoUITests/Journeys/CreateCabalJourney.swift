@@ -104,7 +104,8 @@ enum CreateCabalJourney {
         }
 
         recorder.step("S2.6", "go back to the Cabals list and find the cabal once") {
-            app.navigationBars.buttons.element(boundBy: 0).tap()
+            app.waitForToastGone()
+            app.tapBack()
             let list = app.element("cabals-list")
             XCTAssertTrue(list.waitForExistence(timeout: formTimeout), "S2.6: Back did not land on the Cabals list")
             let named = app.buttons.matching(

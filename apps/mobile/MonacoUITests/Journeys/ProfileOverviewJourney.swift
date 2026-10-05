@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 1
+    static let version = 2
 
     static let notYet = "Not available yet"
     static let signOutTitle = "Sign out of Monaco?"
@@ -149,7 +149,7 @@ enum ProfileOverviewJourney {
 
     static func signOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let button = app.buttons["profileSignOutButton"]
-        let confirm = app.buttons["profile-sign-out-confirm"]
+        let confirm = app.confirmDialogButton("profile-sign-out-confirm")
 
         recorder.step("S5.1", "ask to sign out") {
             openProfile(app, step: "S5.1")
@@ -160,10 +160,11 @@ enum ProfileOverviewJourney {
             XCTAssertTrue(app.staticTexts[signOutMessage].exists, "S5.1: the confirm does not read '\(signOutMessage)'")
         }
 
-        recorder.step("S5.2", "cancel") {
-            app.buttons["Cancel"].firstMatch.tap()
-            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S5.2: Cancel did not close the confirm")
-            XCTAssertTrue(app.element("profile-header").exists, "S5.2: the Profile header is gone after Cancel")
+        recorder.step("S5.2", "tap outside the confirm") {
+            app.dismissConfirmDialog(title: signOutTitle)
+            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S5.2: a tap outside did not close the confirm")
+            XCTAssertTrue(
+                app.element("profile-header").exists, "S5.2: the Profile header is gone after the confirm closed")
         }
 
         recorder.step("S5.3", "sign out") {

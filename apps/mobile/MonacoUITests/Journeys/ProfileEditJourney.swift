@@ -2,10 +2,8 @@ import XCTest
 
 enum ProfileEditJourney {
     static let id = "profile/edit"
-    static let version = 2
+    static let version = 3
 
-    static let nudgeCopy = "Connect X to find people you follow"
-    static let rateLimitCopy = "Too many requests. Try again in a moment."
     static let emptyNameCopy = "Display name is required."
     static let withPhotoLabel = "Change your face"
 
@@ -190,89 +188,6 @@ enum ProfileEditJourney {
                 app.staticTexts[name].waitForExistence(timeout: 30),
                 "S4.1: the header reads '\(displayName(app))', not '\(name)', after the relaunch")
             XCTAssertEqual(avatar.label, withPhotoLabel, "S4.1: the avatar shows no stored photo after the relaunch")
-        }
-    }
-
-    static func photoRateLimit(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        let picker = app.buttons["profile-photo-picker"]
-
-        recorder.step("S5.1", "pick faces until the rate limit answers") {
-            openProfile(app, step: "S5.1")
-            var labels: [String] = []
-            for _ in 0..<8 where !labels.contains(where: { $0.contains(rateLimitCopy) }) {
-                XCTAssertTrue(
-                    picker.waitForExistence(timeout: 10) && picker.isEnabled, "S5.1: the avatar is not tappable")
-                picker.tap()
-                let fox = app.buttons["face-option-fox"]
-                XCTAssertTrue(fox.waitForExistence(timeout: 5), "S5.1: no fox on the face sheet")
-                fox.tap()
-                labels.append(toastLabel(app, step: "S5.1", timeout: 30))
-            }
-            XCTAssertTrue(
-                labels.contains(where: { $0.contains(rateLimitCopy) }),
-                "S5.1: no rate-limit toast in 8 picks, toasts were \(labels)")
-        }
-    }
-
-    static func nudgeBanner(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        let banner = app.element("onboarding-nudge")
-
-        recorder.step("S6.1", "see the nudge on Profile") {
-            openProfile(app, step: "S6.1")
-            XCTAssertTrue(banner.waitForExistence(timeout: 15), "S6.1: no nudge banner on Profile")
-            XCTAssertTrue(app.staticTexts[nudgeCopy].exists, "S6.1: the banner does not read '\(nudgeCopy)'")
-        }
-
-        recorder.step("S6.2", "see the nudge on Home") {
-            app.tab("Home").tap()
-            XCTAssertTrue(banner.waitForExistence(timeout: 10), "S6.2: no nudge banner on Home")
-        }
-
-        recorder.step("S6.3", "open the placeholder link screen") {
-            app.buttons["onboarding-nudge-open"].tap()
-            XCTAssertTrue(
-                app.navigationBars["Connect X"].waitForExistence(timeout: 5),
-                "S6.3: the 'Connect X' sheet did not show")
-            app.buttons["Done"].tap()
-            XCTAssertTrue(
-                app.navigationBars["Connect X"].waitForNonExistence(timeout: 5),
-                "S6.3: Done did not close the sheet")
-        }
-
-        recorder.step("S6.4", "close the banner") {
-            app.buttons["onboarding-nudge-close"].tap()
-            XCTAssertTrue(banner.waitForNonExistence(timeout: 5), "S6.4: the banner stayed after close")
-        }
-
-        recorder.step("S6.5", "the banner stays closed on Profile") {
-            openProfile(app, step: "S6.5")
-            XCTAssertFalse(banner.exists, "S6.5: the closed banner came back on Profile")
-        }
-    }
-
-    static func noBannerWhenComplete(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        let banner = app.element("onboarding-nudge")
-
-        recorder.step("S7.1", "no banner on Profile") {
-            openProfile(app, step: "S7.1")
-            XCTAssertFalse(banner.exists, "S7.1: a nudge banner showed for a completed account")
-        }
-
-        recorder.step("S7.2", "no banner on Home") {
-            app.tab("Home").tap()
-            XCTAssertFalse(banner.waitForExistence(timeout: 5), "S7.2: a nudge banner showed on Home")
-        }
-    }
-
-    static func openHandleEditor(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S8.1", "tap the handle") {
-            openProfile(app, step: "S8.1")
-            let row = app.element("profile-handle")
-            let handle = String(row.label.dropFirst())
-            row.tap()
-            let field = app.textFields["handle-step-field"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5), "S8.1: the handle editor did not open")
-            XCTAssertEqual(field.value as? String, handle, "S8.1: the handle field does not hold '\(handle)'")
         }
     }
 }
