@@ -124,6 +124,7 @@ func (m *Module) Consumers() []bus.Consumer {
 			Durable: "treasury_user_ledger",
 			Handlers: []bus.HandlerSpec{
 				bus.Handle("treasury.user_ledger", userLedger.Handle),
+				bus.Handle("treasury.withdrawal_ledger", userLedger.Withdrawal),
 			},
 		},
 	}
@@ -199,7 +200,8 @@ func LedgerCheck(cfg config.Config) replay.LedgerCheck {
 			"cabal_txns", "cabal_txn_entries", "user_txns", "user_txn_entries", "cabal_positions", "user_positions",
 		},
 		Check: adapters.CheckLedger(usdc(cfg), map[events.Type]adapters.BalanceRule{
-			events.TypeDepositCredited: adapters.DepositCreditedBalances(usdc(cfg)),
+			events.TypeDepositCredited:     adapters.DepositCreditedBalances(usdc(cfg)),
+			events.TypeWithdrawalConfirmed: adapters.WithdrawalConfirmedBalances(usdc(cfg)),
 		}),
 	}
 }

@@ -43,6 +43,7 @@ func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
 		"treasury_activity treasury.activity.confirmed " + string(events.TypeTradeConfirmed),
 		"treasury_activity treasury.activity.failed " + string(events.TypeTradeFailed),
 		"treasury_user_ledger treasury.user_ledger " + string(events.TypeDepositCredited),
+		"treasury_user_ledger treasury.withdrawal_ledger " + string(events.TypeWithdrawalConfirmed),
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("consumers = %q, want %q", got, want)

@@ -139,7 +139,7 @@ type ledgerBalance struct {
 }
 
 func ledgerBalances(ctx context.Context, q *sqlc.Queries, rules map[events.Type]BalanceRule) ([]ledgerBalance, error) {
-	if !depositRuleOnly(rules) {
+	if !walletRulesOnly(rules) {
 		rows, err := q.LedgerBalances(ctx)
 		return mapLedgerBalances(rows), err
 	}
@@ -164,12 +164,17 @@ func mapDepositLedgerBalances(rows []sqlc.DepositLedgerBalancesRow) []ledgerBala
 }
 
 func includeLedgerBalance(rules map[events.Type]BalanceRule, key string) bool {
-	if !depositRuleOnly(rules) {
+	if !walletRulesOnly(rules) {
 		return true
 	}
 	return strings.HasPrefix(key, "wallet:")
 }
 
-func depositRuleOnly(rules map[events.Type]BalanceRule) bool {
-	return len(rules) == 1 && rules[events.TypeDepositCredited] != nil
+func walletRulesOnly(rules map[events.Type]BalanceRule) bool {
+	for t := range rules {
+		if t != events.TypeDepositCredited && t != events.TypeWithdrawalConfirmed {
+			return false
+		}
+	}
+	return len(rules) > 0
 }

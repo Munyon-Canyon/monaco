@@ -117,7 +117,7 @@ func (q *Queries) CabalPositionDrift(ctx context.Context) ([]CabalPositionDriftR
 const depositLedgerBalances = `-- name: DepositLedgerBalances :many
 SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
 FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
-WHERE e.account = 'wallet' AND t.kind = 'deposit' AND t.tx_signature IS NOT NULL
+WHERE e.account = 'wallet' AND t.kind IN ('deposit', 'withdrawal') AND t.tx_signature IS NOT NULL
 GROUP BY t.user_id, e.asset
 ORDER BY 1, 2
 `
