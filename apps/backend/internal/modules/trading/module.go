@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/tradingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -92,7 +93,12 @@ func (m *Module) Wire(set module.Set) {
 	}
 }
 
-func (*Module) Mount(api.Mount) {}
+func (m *Module) Mount(r api.Mount) {
+	ports := m.modulePorts()
+	tradingapi.Mount(adapters.HTTP{
+		Retry: app.NewRetryTradeHandler(m.deps.UoW, m.deps.Pool, ports.Cabals, ports.Proposals),
+	}, r)
+}
 
 func (m *Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{{
@@ -140,13 +146,18 @@ func (m *Module) engine() *app.ExecuteTradeHandler {
 }
 
 func (m *Module) enginePorts() EnginePorts {
-	p := m.ports
+	p := m.modulePorts()
 	if p.Catalog == nil {
 		p.Catalog = market.New(m.deps).Catalog()
 	}
 	if p.Balances == nil {
 		p.Balances = solana.New(m.deps.Config, m.deps.Clock)
 	}
+	return p
+}
+
+func (m *Module) modulePorts() EnginePorts {
+	p := m.ports
 	if p.Cabals == nil {
 		p.Cabals = app.UnwiredCabals{}
 	}

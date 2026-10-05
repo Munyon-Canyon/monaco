@@ -372,6 +372,25 @@ Subject `events.trade.failed`, version 1.
 | `failure_code` | `string` |
 | `jupiter_code` | `string` |
 
+## `trade.retry_requested`
+
+Subject `events.trade.retry_requested`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `swap_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `source` | `events.TradeSource` |
+| `action` | `string` |
+| `symbol` | `string` |
+| `in_mint` | `chain.SolanaAddress` |
+| `out_mint` | `chain.SolanaAddress` |
+| `in_amount` | `uint64` |
+| `quote_out_amount` | `uint64` |
+| `slippage_bps` | `int32` |
+| `requested_by` | `uuid.UUID` |
+
 ## `trade.submitted`
 
 Subject `events.trade.submitted`, version 1.
