@@ -643,6 +643,74 @@ class Simulators(Tree):
         ])
 
 
+class Shutdown(unittest.TestCase):
+    def setUp(self):
+        self.saved_sh = journey.sh
+        self.calls = []
+        self.booted_before = []
+
+        def stub(args, **kwargs):
+            self.calls.append(args)
+            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
+                items = [{"udid": udid, "state": "Booted"} for udid in self.booted_before]
+                return type("Result", (), {"stdout": json.dumps({"devices": {"runtime": items}}), "returncode": 0})()
+            return type("Result", (), {"stdout": "", "returncode": 0})()
+
+        journey.sh = stub
+
+    def tearDown(self):
+        journey.sh = self.saved_sh
+
+    def shutdowns(self):
+        return [call[3] for call in self.calls if call[:3] == ["xcrun", "simctl", "shutdown"]]
+
+    def test_the_sims_a_run_booted_are_shut_down_after_a_pass(self):
+        with journey.simulator_shutdown():
+            journey.boot_simulator("lane")
+            journey.boot_simulator("actor-b")
+        self.assertEqual(self.shutdowns(), ["lane", "actor-b"])
+
+    def test_the_sims_are_shut_down_after_a_fail_and_after_an_exception(self):
+        for error in (journey.JourneyError("fail"), KeyboardInterrupt()):
+            del self.calls[:]
+            with self.assertRaises(type(error)):
+                with journey.simulator_shutdown():
+                    journey.boot_simulator("lane")
+                    raise error
+            self.assertEqual(self.shutdowns(), ["lane"])
+
+    def test_a_sim_that_was_already_booted_is_left_booted(self):
+        self.booted_before = ["mine"]
+        with journey.simulator_shutdown():
+            journey.boot_simulator("mine")
+            journey.boot_simulator("new")
+        self.assertEqual(self.shutdowns(), ["new"])
+
+    def test_keep_sims_skips_the_shutdown(self):
+        with journey.simulator_shutdown(keep=True):
+            journey.boot_simulator("lane")
+        self.assertEqual(self.shutdowns(), [])
+
+    def test_sigterm_shuts_the_sims_down(self):
+        with self.assertRaises(KeyboardInterrupt):
+            with journey.simulator_shutdown():
+                journey.boot_simulator("lane")
+                os.kill(os.getpid(), journey.signal.SIGTERM)
+                time.sleep(1)
+        self.assertEqual(self.shutdowns(), ["lane"])
+
+    def test_the_keep_sims_flag_is_parsed(self):
+        seen = []
+        saved = journey.cmd_run
+        journey.cmd_run = lambda args: seen.append(args.keep_sims) or 0
+        try:
+            journey.main(["run", "auth/sign-in", "--keep-sims"])
+            journey.main(["run", "auth/sign-in"])
+        finally:
+            journey.cmd_run = saved
+        self.assertEqual(seen, [True, False])
+
+
 LOG = """Test Case '-[MonacoUITests.SignInJourneyUITests testS1SignIn]' started.
 JOURNEYSTEP\tbegin\tauth/sign-in@2\tP1\tlaunch
 JOURNEYSTEP\tend\tauth/sign-in@2\tP1\t1500
@@ -718,12 +786,15 @@ class Output(Tree):
     def setUp(self):
         super().setUp()
         self.saved_out = (journey.OUT, journey.DERIVED, journey.RESULTS)
+        self.saved_devices = journey.simulator_devices
+        journey.simulator_devices = lambda: {}
         journey.OUT = journey.ROOT / "out"
         journey.DERIVED = journey.OUT / "derived"
         journey.RESULTS = journey.OUT / "results.tsv"
 
     def tearDown(self):
         journey.OUT, journey.DERIVED, journey.RESULTS = self.saved_out
+        journey.simulator_devices = self.saved_devices
         super().tearDown()
 
 

@@ -62,6 +62,10 @@ Never use `gt sync` while other lanes have unpushed work, because it resets thei
 
 Tickets whose Done when names mobile QA get a journey run with the **ios-journey-qa** skill. `scripts/qa/journey.py` takes the QA lock and starts and stops the backend itself, so QA always runs with the backend up. Use `--runs 1` while the pipeline is busy. A failing step goes to the dispatcher as a bug ticket, with the step id and its log. Never mark a QA proof as done until the run passed.
 
+## Memory
+
+`journey.py` shuts down the simulators it boots when a run ends, whether it passes, fails or is interrupted. Pass `--keep-sims` only when a person is debugging. Never leave a simulator booted when your turn ends. Run at most 2 simulator lanes at once on a 16 GB Mac. Check with `xcrun simctl list devices booted`.
+
 ## Hygiene
 
 After a stack lands, its owner removes its worktree and closes its workspace in the session sidebar (herdr). Check for unpushed commits first, and keep any worktree that has them. Send this as a standing order to every session, so the user can follow the sidebar.

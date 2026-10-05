@@ -41,3 +41,7 @@ For a version bump, change only the steps the doc changed, then run steps 5 to 7
 A journey with `funds` in its doc moves real USDC: the person or agent running it sets up the Phantom MCP and funds each actor first, then refunds the agent wallet after (`docs/journeys/README.md`, Journeys that move money). The test itself moves no money.
 
 Each actor uses a dedicated `Monaco Journeys <actor>` simulator that the runner creates when needed. Use `--sim B=<udid>` only to override an actor's dedicated simulator.
+
+## Memory
+
+`journey.py` shuts down the simulators it boots when a run ends, whether it passes, fails or is interrupted. Pass `--keep-sims` only when a person is debugging. Never leave a simulator booted when your turn ends. Run at most 2 simulator lanes at once on a 16 GB Mac. Check with `xcrun simctl list devices booted`.
