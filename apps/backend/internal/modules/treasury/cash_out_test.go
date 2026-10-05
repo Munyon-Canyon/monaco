@@ -149,16 +149,46 @@ func TestCashOut_jobIsNotFoundForUnknownOrAnotherUsersID(t *testing.T) {
 	wantCode(t, err, errs.CodeNotFound)
 }
 
-func TestCashOut_rejectsUnavailableSharesAndTreasury(t *testing.T) {
+func TestCashOut_rejectsAMemberWithoutShares(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	user, cabal := f.user(t), f.cabal(t)
 	_, err := cashOutHandler(f, false).Handle(f.ctx(), app.CashOut{CabalID: cabal, UserID: user, All: true})
 	wantCode(t, err, errs.CodeInsufficientShares)
-	cashOutFund(t, f, user, cabal, 1_000_000)
-	h := cashOutHandlerWith(f, cashOutPauses{}, cashOutValues{pot: money.MicrosFromUint64(2_000_000)})
-	_, err = h.Handle(f.ctx(), app.CashOut{CabalID: cabal, UserID: user, All: true})
-	wantCode(t, err, errs.CodeTreasuryShort)
+}
+
+func TestCashOut_shortOfUSDCSellsTheShortfallAndReservesOnlyCashOnHand(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	alice, bob, cabal := f.user(t), f.user(t), f.cabal(t)
+	cashOutFund(t, f, alice, cabal, 1_000_000)
+	cashOutFund(t, f, bob, cabal, 1_000_000)
+	h := cashOutHandlerWith(f, cashOutPauses{}, cashOutValues{pot: money.MicrosFromUint64(6_000_000)})
+
+	ctx := observability.WithActor(f.ctx(), "user:"+alice.String())
+	first, err := h.Handle(ctx, app.CashOut{CabalID: cabal, UserID: alice, All: true})
+	if err != nil || first.PayoutMicros != money.MicrosFromUint64(3_000_000) {
+		t.Fatalf("first CashOut = (%#v, %v), want a 3 USDC slice", first, err)
+	}
+	second, err := h.Handle(ctx, app.CashOut{CabalID: cabal, UserID: bob, All: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		job  uuid.UUID
+		user ids.UserID
+		sell string
+	}{{first.ID, alice, "1000000"}, {second.ID, bob, "6000000"}} {
+		job, err := h.Job(f.ctx(), cabal, c.user, c.job)
+		if err != nil || job.SellUSDCMicros.String() != c.sell || job.Status != domain.CashOutStarted {
+			t.Fatalf("Job = (%#v, %v), want started selling %s", job, err, c.sell)
+		}
+		var sell string
+		if err := f.pool.QueryRow(t.Context(), `SELECT payload->>'sell_usdc_micros' FROM events
+			WHERE type = 'cashout.started' AND aggregate_id = $1`, c.job).Scan(&sell); err != nil || sell != c.sell {
+			t.Fatalf("cashout.started sell_usdc_micros = (%q, %v), want %s", sell, err, c.sell)
+		}
+	}
 }
 
 func TestCashOut_refusesAnotherLiveJob(t *testing.T) {

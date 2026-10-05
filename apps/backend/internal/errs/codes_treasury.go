@@ -7,7 +7,7 @@ const (
 	CodeInsufficientFunds  Code = "insufficient_funds"
 	CodeInsufficientShares Code = "insufficient_shares"
 	CodeCashOutInProgress  Code = "cash_out_in_progress"
-	CodeTreasuryShort      Code = "treasury_short"
+	CodeSaleShort          Code = "sale_short"
 )
 
 func (codeFiles) Treasury() map[Code]Row {
@@ -29,8 +29,8 @@ func (codeFiles) Treasury() map[Code]Row {
 		CodeCashOutInProgress: {
 			Name: "CashOutInProgress", Kind: KindConflict, Message: "A cash out is already in progress.",
 		},
-		CodeTreasuryShort: {
-			Name: "TreasuryShort", Kind: KindBlocked, Message: "The cabal needs to sell holdings before this cash out.",
+		CodeSaleShort: {
+			Name: "SaleShort", Kind: KindBlocked, Message: "The sale raised less than this cash out's slice.",
 		},
 	}
 }
