@@ -1,4 +1,10 @@
 import Foundation
+import MonacoAPI
+
+public enum WithdrawFailure: Equatable, Sendable {
+    case address(String)
+    case toast(String)
+}
 
 /// What the screen should offer after a money request failed.
 public enum FlowRecovery: Equatable, Sendable {
@@ -101,6 +107,19 @@ public struct FlowErrorInput: Equatable, Sendable {
 /// so they are translated here instead of being shown raw or swallowed by a generic
 /// "Try again" that tells the member nothing.
 public enum MoneyFlowCopy {
+    public static func withdrawFailure(_ error: APIError) -> WithdrawFailure {
+        guard case .problem(let problem) = error, case .known(let code) = problem.code else {
+            return .toast(ToastCopy.message(for: error))
+        }
+        switch code {
+        case .invalidAddress: return .address("That isn't a Solana address.")
+        case .withdrawToOwnWallet:
+            return .address("That's your own deposit address. Paste the address you want to send to.")
+        case .insufficientFunds: return .toast("Not enough in your account balance.")
+        default: return .toast(ToastCopy.message(for: error))
+        }
+    }
+
     // MARK: - Cash out to an external wallet (POST /v1/me/withdrawals)
 
     public static func cashOutFailure(_ input: FlowErrorInput) -> FlowFailure {

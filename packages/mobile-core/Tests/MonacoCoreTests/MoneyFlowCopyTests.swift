@@ -264,3 +264,37 @@ final class MoneyFlowCopyTests: XCTestCase {
         XCTAssertFalse(FlowErrorInput.neverSentURLErrorCodes.contains(.networkConnectionLost))
     }
 }
+
+final class MoneyFlowFailureCopyTests: XCTestCase {
+    private func problem(_ status: Int, _ code: Components.Schemas.ErrorCode, _ message: String) -> APIError {
+        APIError(
+            ProblemError(
+                status: status, code: .known(code), message: message, traceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+                retryable: false))
+    }
+
+    func testAddressCodesShowUnderTheField() {
+        XCTAssertEqual(
+            MoneyFlowCopy.withdrawFailure(problem(422, .invalidAddress, "bad")),
+            .address("That isn't a Solana address."))
+        XCTAssertEqual(
+            MoneyFlowCopy.withdrawFailure(problem(422, .withdrawToOwnWallet, "own")),
+            .address("That's your own deposit address. Paste the address you want to send to."))
+    }
+
+    func testInsufficientFundsToastsTheBalanceLine() {
+        XCTAssertEqual(
+            MoneyFlowCopy.withdrawFailure(problem(422, .insufficientFunds, "short")),
+            .toast("Not enough in your account balance."))
+    }
+
+    func testPrivyUnavailableAndEverythingElseToastTheServerMessage() {
+        XCTAssertEqual(
+            MoneyFlowCopy.withdrawFailure(problem(503, .privyUnavailable, "Wallet signing is down. Try again.")),
+            .toast("Wallet signing is down. Try again."))
+        XCTAssertEqual(
+            MoneyFlowCopy.withdrawFailure(.transport(URLError(.notConnectedToInternet))),
+            .toast("You're offline. Try again."))
+        XCTAssertEqual(MoneyFlowCopy.withdrawFailure(.inFlight), .toast("Still working on it."))
+    }
+}
