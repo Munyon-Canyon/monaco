@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -18,10 +19,11 @@ import (
 var _ api.StrictServerInterface = HTTP{}
 
 type HTTP struct {
-	Reads    *app.ActivityReads
-	UserTxns *app.UserTxnReads
-	CashOut  *app.CashOutHandler
-	Fund     *app.FundCabalHandler
+	Reads     *app.ActivityReads
+	UserTxns  *app.UserTxnReads
+	CashOut   *app.CashOutHandler
+	Fund      *app.FundCabalHandler
+	FundReads sqlc.DBTX
 }
 
 func (h HTTP) GetCashOutPreview(

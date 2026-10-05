@@ -2012,6 +2012,28 @@ paths:
               schema: {$ref: "#/components/schemas/FundAccepted"}
               example: {transfer_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/fund-transfers/{id}:
+    get:
+      operationId: getFundTransfer
+      tags: [treasury]
+      summary: Read one of the caller's fund transfers.
+      description: >-
+        Returns the transfer's status, amount, the share units minted once it settles, and the failure code
+        once it fails. A transfer that belongs to another user answers `not_found`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The transfer id from POST /v1/cabals/{id}/fund.
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: The transfer.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FundTransfer"}
+              example: {status: settled, amount_micros: "5000000", share_units: "5000000", fail_code: null}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/txns:
     get:
       operationId: getMyTxns
@@ -4032,6 +4054,15 @@ components:
       required: [amount_micros]
       properties:
         amount_micros: {type: string, pattern: "^[0-9]+$", examples: ["5000000"]}
+    FundTransfer:
+      type: object
+      description: One fund transfer as its owner sees it.
+      required: [status, amount_micros, share_units, fail_code]
+      properties:
+        status: {$ref: "#/components/schemas/FundTransferStatus"}
+        amount_micros: {type: string, pattern: "^[0-9]+$", examples: ["5000000"]}
+        share_units: {type: [string, "null"], pattern: "^[0-9]+$", examples: ["5000000"]}
+        fail_code: {type: [string, "null"], examples: [fund_not_sent]}
     FundTransferStatus:
       type: string
       description: Where the transfer is. `landed` means final on chain with shares not yet minted.

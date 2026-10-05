@@ -34,7 +34,8 @@ func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 	t.Parallel()
 	m := treasury.New(module.Deps{})
 	if m.Name() != "treasury" || !testkit.Serves(m.Mount, "GET", "/v1/me/txns") ||
-		!testkit.Serves(m.Mount, "GET", "/v1/cabals/c/activity") || testkit.Serves(m.Mount, "GET", "/v1/cabals") {
+		!testkit.Serves(m.Mount, "GET", "/v1/cabals/c/activity") || testkit.Serves(m.Mount, "GET", "/v1/cabals") ||
+		!testkit.Serves(m.Mount, "GET", "/v1/fund-transfers/f") {
 		t.Fatalf("module = %s", m.Name())
 	}
 	var got []string
@@ -48,6 +49,9 @@ func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 		"treasury_activity treasury.activity.submitted " + string(events.TypeTradeSubmitted),
 		"treasury_activity treasury.activity.confirmed " + string(events.TypeTradeConfirmed),
 		"treasury_activity treasury.activity.failed " + string(events.TypeTradeFailed),
+		"treasury_activity treasury.activity.fund_submitted " + string(events.TypeFundSubmitted),
+		"treasury_activity treasury.activity.funded " + string(events.TypeFunded),
+		"treasury_activity treasury.activity.fund_failed " + string(events.TypeFundFailed),
 		"treasury_user_ledger treasury.user_ledger " + string(events.TypeDepositCredited),
 		"treasury_user_ledger treasury.withdrawal_ledger " + string(events.TypeWithdrawalConfirmed),
 	}

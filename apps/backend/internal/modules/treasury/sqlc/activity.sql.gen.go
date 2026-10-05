@@ -15,14 +15,16 @@ import (
 
 const upsertActivity = `-- name: UpsertActivity :execrows
 INSERT INTO cabal_activity AS a (
-  id, cabal_id, kind, status, asset, usdc_micros, units, tx_signature, occurred_at, updated_at
+  id, cabal_id, kind, status, actor_user_id, asset, usdc_micros, units, tx_signature, occurred_at, updated_at
 ) VALUES (
   $1::uuid, $2::uuid, $3::text, $4::text,
-  $5::text, $6::text::numeric,
-  $7::text::numeric, $8::text, $9::timestamptz, $9::timestamptz
+  $5::uuid,
+  $6::text, $7::text::numeric,
+  $8::text::numeric, $9::text, $10::timestamptz, $10::timestamptz
 )
 ON CONFLICT (id) DO UPDATE SET
   status = CASE WHEN a.status = 'pending' THEN excluded.status ELSE a.status END,
+  actor_user_id = coalesce(a.actor_user_id, excluded.actor_user_id),
   asset = coalesce(a.asset, excluded.asset),
   usdc_micros = coalesce(a.usdc_micros, excluded.usdc_micros),
   units = coalesce(a.units, excluded.units),
@@ -30,9 +32,10 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = excluded.updated_at
 WHERE (
   CASE WHEN a.status = 'pending' THEN excluded.status ELSE a.status END,
+  coalesce(a.actor_user_id, excluded.actor_user_id),
   coalesce(a.asset, excluded.asset), coalesce(a.usdc_micros, excluded.usdc_micros),
   coalesce(a.units, excluded.units), coalesce(a.tx_signature, excluded.tx_signature)
-) IS DISTINCT FROM (a.status, a.asset, a.usdc_micros, a.units, a.tx_signature)
+) IS DISTINCT FROM (a.status, a.actor_user_id, a.asset, a.usdc_micros, a.units, a.tx_signature)
 `
 
 type UpsertActivityParams struct {
@@ -40,6 +43,7 @@ type UpsertActivityParams struct {
 	CabalID     uuid.UUID
 	Kind        string
 	Status      string
+	ActorUserID pgtype.UUID
 	Asset       pgtype.Text
 	UsdcMicros  pgtype.Text
 	Units       pgtype.Text
@@ -53,6 +57,7 @@ func (q *Queries) UpsertActivity(ctx context.Context, arg UpsertActivityParams) 
 		arg.CabalID,
 		arg.Kind,
 		arg.Status,
+		arg.ActorUserID,
 		arg.Asset,
 		arg.UsdcMicros,
 		arg.Units,

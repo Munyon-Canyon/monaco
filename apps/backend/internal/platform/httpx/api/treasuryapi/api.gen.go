@@ -352,6 +352,23 @@ type FundRequest struct {
 	AmountMicros string `json:"amount_micros"`
 }
 
+// FundTransfer One fund transfer as its owner sees it.
+type FundTransfer struct {
+	// AmountMicros Examples: 5000000
+	AmountMicros string `json:"amount_micros"`
+
+	// FailCode Examples: fund_not_sent
+	FailCode *string `json:"fail_code"`
+
+	// ShareUnits Examples: 5000000
+	ShareUnits *string `json:"share_units"`
+
+	// Status Where the transfer is. `landed` means final on chain with shares not yet minted.
+	//
+	// Examples: submitted
+	Status FundTransferStatus `json:"status"`
+}
+
 // FundTransferStatus Where the transfer is. `landed` means final on chain with shares not yet minted.
 //
 // Examples: submitted
@@ -486,6 +503,9 @@ type ServerInterface interface {
 	// FundCabal Fund a cabal from the caller's platform balance.
 	// (POST /v1/cabals/{id}/fund)
 	FundCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FundCabalParams)
+	// GetFundTransfer Read one of the caller's fund transfers.
+	// (GET /v1/fund-transfers/{id})
+	GetFundTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(w http.ResponseWriter, r *http.Request, params GetMyTxnsParams)
@@ -724,6 +744,32 @@ func (siw *ServerInterfaceWrapper) FundCabal(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetFundTransfer operation middleware
+func (siw *ServerInterfaceWrapper) GetFundTransfer(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFundTransfer(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyTxns operation middleware
 func (siw *ServerInterfaceWrapper) GetMyTxns(w http.ResponseWriter, r *http.Request) {
 
@@ -895,6 +941,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/preview", wrapper.GetCashOutPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/{job_id}", wrapper.GetCashOutJob)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/fund", wrapper.FundCabal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/fund-transfers/{id}", wrapper.GetFundTransfer)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/txns", wrapper.GetMyTxns)
 
 	return m
@@ -1101,6 +1148,45 @@ func (response FundCabaldefaultApplicationProblemPlusJSONResponse) VisitFundCaba
 	return err
 }
 
+type GetFundTransferRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetFundTransferResponseObject interface {
+	VisitGetFundTransferResponse(w http.ResponseWriter) error
+}
+
+type GetFundTransfer200JSONResponse FundTransfer
+
+func (response GetFundTransfer200JSONResponse) VisitGetFundTransferResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFundTransferdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetFundTransferdefaultApplicationProblemPlusJSONResponse) VisitGetFundTransferResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyTxnsRequestObject struct {
 	Params GetMyTxnsParams
 }
@@ -1157,6 +1243,9 @@ type StrictServerInterface interface {
 	// FundCabal Fund a cabal from the caller's platform balance.
 	// (POST /v1/cabals/{id}/fund)
 	FundCabal(ctx context.Context, request FundCabalRequestObject) (FundCabalResponseObject, error)
+	// GetFundTransfer Read one of the caller's fund transfers.
+	// (GET /v1/fund-transfers/{id})
+	GetFundTransfer(ctx context.Context, request GetFundTransferRequestObject) (GetFundTransferResponseObject, error)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(ctx context.Context, request GetMyTxnsRequestObject) (GetMyTxnsResponseObject, error)
@@ -1342,6 +1431,32 @@ func (sh *strictHandler) FundCabal(w http.ResponseWriter, r *http.Request, id op
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(FundCabalResponseObject); ok {
 		if err := validResponse.VisitFundCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFundTransfer operation middleware
+func (sh *strictHandler) GetFundTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetFundTransferRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFundTransfer(ctx, request.(GetFundTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFundTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFundTransferResponseObject); ok {
+		if err := validResponse.VisitGetFundTransferResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
