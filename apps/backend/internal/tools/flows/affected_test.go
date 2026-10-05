@@ -103,3 +103,29 @@ func TestChecks_reportOnlyTheFlowsInIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestTestOnly(t *testing.T) {
+	t.Parallel()
+	for file, want := range map[string]bool{
+		"apps/backend/internal/modules/identity/http_test.go":                                true,
+		"apps/backend/internal/modules/identity/main_test.go":                                true,
+		"apps/backend/internal/tools/flows/affected_test.go":                                 true,
+		"apps/backend/internal/platform/coingecko/testdata/prices.json":                      true,
+		"apps/backend/internal/testkit/fakes/testdata/fakes/privy/v1/users/qa-onb-x-ok.json": true,
+		"apps/backend/internal/testkit/scenarios/scenarios.go":                               true,
+		"apps/backend/internal/testkit/fakes/privy.go":                                       true,
+		"apps/backend/internal/testkit/flows/seed.go":                                        true,
+		"apps/backend/internal/testkit/flows/f01a.go":                                        false,
+		"apps/backend/internal/testkit/fakes/f01a_handles.go":                                false,
+		"apps/backend/internal/testkit/scenarios/02-cabal-with-creator.jsonl":                false,
+		"apps/backend/internal/modules/identity/http.go":                                     false,
+		"apps/backend/internal/tools/flows/affected.go":                                      false,
+		"apps/backend/api/openapi.yaml":                                                      false,
+		"packages/flows/app/01.tsv":                                                          false,
+		"packages/mobile-core/Tests/MonacoCoreTests/F00IntegrationTests.swift":               false,
+	} {
+		if got := flows.TestOnly(file); got != want {
+			t.Errorf("TestOnly(%q) = %v, want %v", file, got, want)
+		}
+	}
+}

@@ -25,7 +25,8 @@ type specDiff struct {
 }
 
 func (r registry) affected(changed []string, spec specDiff) []string {
-	ids := flows.Affected(changed, spec.ops, r.flows)
+	runtime := slices.DeleteFunc(slices.Clone(changed), flows.TestOnly)
+	ids := flows.Affected(runtime, spec.ops, r.flows)
 	if slices.ContainsFunc(changed, flows.SpecFile) {
 		for _, f := range r.flows {
 			if spec.addsCodeListedBy(f) {
