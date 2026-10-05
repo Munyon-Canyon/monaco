@@ -39,6 +39,7 @@ const (
 	DbUnavailable              ErrorCode = "db_unavailable"
 	DecodeFailed               ErrorCode = "decode_failed"
 	DisplayNameInvalid         ErrorCode = "display_name_invalid"
+	Dust                       ErrorCode = "dust"
 	Faultpoint                 ErrorCode = "faultpoint"
 	FeedItemNotFound           ErrorCode = "feed_item_not_found"
 	FeedItemPending            ErrorCode = "feed_item_pending"
@@ -108,6 +109,7 @@ const (
 	SwapNotRetryable           ErrorCode = "swap_not_retryable"
 	SwapNotStuck               ErrorCode = "swap_not_stuck"
 	Unauthorized               ErrorCode = "unauthorized"
+	UnknownAsset               ErrorCode = "unknown_asset"
 	UpstreamTimeout            ErrorCode = "upstream_timeout"
 	UpstreamUnavailable        ErrorCode = "upstream_unavailable"
 	UserBanned                 ErrorCode = "user_banned"
@@ -181,6 +183,8 @@ func (e ErrorCode) Valid() bool {
 	case DecodeFailed:
 		return true
 	case DisplayNameInvalid:
+		return true
+	case Dust:
 		return true
 	case Faultpoint:
 		return true
@@ -319,6 +323,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotStuck:
 		return true
 	case Unauthorized:
+		return true
+	case UnknownAsset:
 		return true
 	case UpstreamTimeout:
 		return true

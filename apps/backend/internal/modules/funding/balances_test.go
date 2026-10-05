@@ -44,8 +44,8 @@ func TestModule(t *testing.T) {
 	if m.Pauses() == nil {
 		t.Fatal("Pauses = nil")
 	}
-	if reflect.TypeOf(m.SignatureOwner()).Name() != "UnwiredSignatureOwner" {
-		t.Fatalf("SignatureOwner() = %T, want adapters.UnwiredSignatureOwner", m.SignatureOwner())
+	if reflect.TypeOf(m.SignatureOwner()).Name() != "BounceSignatures" {
+		t.Fatalf("SignatureOwner() = %T, want adapters.BounceSignatures", m.SignatureOwner())
 	}
 }
 

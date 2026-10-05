@@ -4,10 +4,11 @@ SELECT pg_advisory_xact_lock(hashtextextended(
   0));
 
 -- name: InsertPause :exec
-INSERT INTO cabal_pauses (id, cabal_id, reason, note, created_by, created_at)
+INSERT INTO cabal_pauses (id, cabal_id, reason, note, created_by, created_at, external_deposit_id)
 VALUES (sqlc.arg(id)::uuid, NULLIF(sqlc.arg(cabal_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   sqlc.arg(reason)::text, sqlc.arg(note)::text,
-  NULLIF(sqlc.arg(created_by)::uuid, '00000000-0000-0000-0000-000000000000'), sqlc.arg(created_at)::timestamptz);
+  NULLIF(sqlc.arg(created_by)::uuid, '00000000-0000-0000-0000-000000000000'), sqlc.arg(created_at)::timestamptz,
+  NULLIF(sqlc.arg(external_deposit_id)::uuid, '00000000-0000-0000-0000-000000000000'));
 
 -- name: OpenScopePauses :many
 SELECT reason FROM cabal_pauses
