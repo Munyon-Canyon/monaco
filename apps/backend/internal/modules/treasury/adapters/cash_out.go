@@ -39,3 +39,10 @@ func (c CashOut) Failed(ctx context.Context, tx db.Tx, e events.TradeFailed, at 
 		JobID: e.Source.ID, SwapID: e.SwapID, CabalID: ids.CabalIDFrom(e.CabalID), BatchSize: e.SourceBatchSize,
 	}, at)
 }
+
+func (c CashOut) Blocked(ctx context.Context, tx db.Tx, e events.TradeBlocked, at time.Time) error {
+	if e.Source.Kind != cashOutSource || e.SourceBatchSize != 0 {
+		return nil
+	}
+	return c.Sales.NoLegs(ctx, tx, ids.CabalIDFrom(e.CabalID), e.Source.ID, at)
+}

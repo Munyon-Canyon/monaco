@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	busevents "github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -344,5 +345,43 @@ func (c *cashOutEnv) exec(t *testing.T, statement string) {
 	args := []any{c.job, c.cabal.UUID()}[:strings.Count(statement, "$")]
 	if _, err := c.pool.Exec(t.Context(), statement, args...); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSellForCashOut_NothingSellable_BlocksOnce(t *testing.T) {
+	t.Parallel()
+	c := newCashOutEnv(t)
+	c.holdings = []app.Holding{
+		{Mint: usdcToken(), Symbol: "USDC", Units: 900_000_000},
+		{Mint: nvdaxToken(), Symbol: "NVDAx", Units: 7},
+	}
+	for range 2 {
+		if err := c.sell(t, 20_000_000); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var payloads []string
+	rows, err := c.pool.Query(t.Context(), `SELECT payload::text FROM events WHERE type = 'trade.blocked'
+		AND aggregate_id = $1`, c.job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payloads, err = pgx.CollectRows(rows, pgx.RowTo[string]); err != nil {
+		t.Fatal(err)
+	}
+	if len(payloads) != 1 || len(c.legs(t)) != 0 || c.plan(t) != "[]" {
+		t.Fatalf("blocked events %v, legs %+v, plan %q; want one block, no swap and an empty plan", payloads,
+			c.legs(t), c.plan(t))
+	}
+	var got busevents.TradeBlocked
+	if err := json.Unmarshal([]byte(payloads[0]), &got); err != nil {
+		t.Fatal(err)
+	}
+	want := busevents.TradeBlocked{
+		V: 1, CabalID: c.cabal.UUID(), Source: busevents.TradeSource{Kind: "cashout", ID: c.job}, Action: "sell",
+		Code: errs.CodeAssetUntradable,
+	}
+	if got != want {
+		t.Fatalf("blocked = %+v, want %+v", got, want)
 	}
 }

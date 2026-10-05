@@ -41,16 +41,25 @@ func (s CashOutSales) Started(ctx context.Context, tx db.Tx, e events.CashOutSta
 	if e.SellUSDC.IsZero() {
 		return nil
 	}
-	cabal := ids.CabalIDFrom(e.CabalID)
-	job, err := s.lock(ctx, tx, cabal, e.JobID)
+	return s.sell(ctx, tx, ids.CabalIDFrom(e.CabalID), e.JobID, false, at)
+}
+
+func (s CashOutSales) NoLegs(ctx context.Context, tx db.Tx, cabal ids.CabalID, jobID uuid.UUID, at time.Time) error {
+	return s.sell(ctx, tx, cabal, jobID, true, at)
+}
+
+func (s CashOutSales) sell(
+	ctx context.Context, tx db.Tx, cabal ids.CabalID, jobID uuid.UUID, noLegs bool, at time.Time,
+) error {
+	job, err := s.lock(ctx, tx, cabal, jobID)
 	if err == nil && job.Status == string(domain.CashOutStarted) {
 		_, err = sqlc.New(tx.Queries()).MoveCashOutJob(ctx, sqlc.MoveCashOutJobParams{
-			ID: e.JobID, FromStatus: string(domain.CashOutStarted), ToStatus: string(domain.CashOutSelling), At: at,
+			ID: jobID, FromStatus: string(domain.CashOutStarted), ToStatus: string(domain.CashOutSelling), At: at,
 		})
 		job.Status = string(domain.CashOutSelling)
 	}
 	if err == nil {
-		err = s.settle(ctx, tx, cabal, e.JobID, job, at)
+		err = s.settle(ctx, tx, cabal, jobID, job, noLegs, at)
 	}
 	return err
 }
@@ -69,7 +78,7 @@ func (s CashOutSales) Result(ctx context.Context, tx db.Tx, r SaleResult, at tim
 		UsdcOutMicros: r.USDCOut.String(), At: at,
 	})
 	if err == nil {
-		err = s.settle(ctx, tx, r.CabalID, r.JobID, job, at)
+		err = s.settle(ctx, tx, r.CabalID, r.JobID, job, false, at)
 	}
 	return err
 }
@@ -89,14 +98,15 @@ func (s CashOutSales) lock(
 }
 
 func (s CashOutSales) settle(
-	ctx context.Context, tx db.Tx, cabal ids.CabalID, jobID uuid.UUID, job sqlc.LockCashOutJobRow, at time.Time,
+	ctx context.Context, tx db.Tx, cabal ids.CabalID, jobID uuid.UUID, job sqlc.LockCashOutJobRow, noLegs bool,
+	at time.Time,
 ) error {
 	if job.Status != string(domain.CashOutSelling) {
 		return nil
 	}
 	q := sqlc.New(tx.Queries())
 	tally, err := q.CashOutSaleTally(ctx, jobID)
-	if err != nil || tally.BatchSize == 0 || tally.Results < tally.BatchSize {
+	if err != nil || (!noLegs && (tally.BatchSize == 0 || tally.Results < tally.BatchSize)) {
 		return err
 	}
 	settled, units, slice, err := sale(job, tally)

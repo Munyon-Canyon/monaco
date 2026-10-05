@@ -279,3 +279,50 @@ func TestCashOutSale_anUnknownJobIsNotFound(t *testing.T) {
 		}
 	}
 }
+
+func (r *saleRig) noLegs() events.TradeBlocked {
+	return events.TradeBlocked{
+		V: 1, CabalID: r.cabal.UUID(), Source: events.TradeSource{Kind: "cashout", ID: r.job}, Action: "sell",
+		Code: errs.CodeAssetUntradable,
+	}
+}
+
+func TestCashOutSale_noLegsPaysTheCashOnHandAndReturnsTheRest(t *testing.T) {
+	t.Parallel()
+	r := newSaleRig(t, 80_000_000)
+	r.deliver(t, r.started)
+	r.deliver(t, r.noLegs())
+	r.want(t, "paying", "20000000", "60", "sale_short", 60)
+	r.deliver(t, r.noLegs())
+	r.deliver(t, r.started)
+	r.want(t, "paying", "20000000", "60", "sale_short", 60)
+	if r.originalTxn(t) != "pending" || r.failures(t) != 0 {
+		t.Fatalf("original txn %s with %d failures, want it pending for the payout", r.originalTxn(t),
+			r.failures(t))
+	}
+}
+
+func TestCashOutSale_noLegsAndNothingOnHandFailsAndReturnsEveryUnitOnce(t *testing.T) {
+	t.Parallel()
+	r := newSaleRig(t, 100_000_000)
+	r.deliver(t, r.noLegs())
+	r.deliver(t, r.started)
+	r.deliver(t, r.noLegs())
+	r.want(t, "failed", "50000000", "100", "sale_short", 100)
+	if r.originalTxn(t) != "failed" || r.failures(t) != 1 {
+		t.Fatalf("original txn %s with %d failures, want it failed once", r.originalTxn(t), r.failures(t))
+	}
+}
+
+func TestCashOutSale_noLegsIgnoresProposalsAndBatchedBlocks(t *testing.T) {
+	t.Parallel()
+	r := newSaleRig(t, 80_000_000)
+	r.deliver(t, r.started)
+	proposal := r.noLegs()
+	proposal.Source.Kind = "proposal"
+	r.deliver(t, proposal)
+	batched := r.noLegs()
+	batched.SourceBatchSize = 1
+	r.deliver(t, batched)
+	r.want(t, "selling", "50000000", "0", "", 0)
+}
