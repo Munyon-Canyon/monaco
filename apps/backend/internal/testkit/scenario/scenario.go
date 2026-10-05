@@ -59,7 +59,7 @@ type backend struct {
 	pool          *pgxpool.Pool
 	mint          func(id ids.UserID) string
 	privyToken    func(sub string) string
-	script        func(ctx context.Context, t T, step fakes.Step)
+	control       func(ctx context.Context, t T, path string, body any)
 	newUserID     func() (ids.UserID, error)
 	enter         func(stage Stage)
 	exchanged     func(e Exchange)

@@ -52,7 +52,7 @@ func Against(ctx context.Context, t T, r Remote) *Scenario {
 		pool:          r.Pool,
 		bus:           r.Bus,
 		privyToken:    func(sub string) string { return fakes.PrivyAccessToken(r.PrivyAppID, sub, time.Now(), time.Hour) },
-		script:        rm.scriptFakes(client),
+		control:       rm.controlFakes(client),
 		mint:          func(id ids.UserID) string { return r.Mint(id.String()) },
 		newUserID:     func() (ids.UserID, error) { return ids.ParseUserID(ids.Real{}.NewV7().String()) },
 		enter:         r.Enter,
@@ -83,24 +83,24 @@ type remote struct {
 	Remote
 }
 
-func (r *remote) scriptFakes(client *http.Client) func(ctx context.Context, t T, step fakes.Step) {
-	return func(ctx context.Context, t T, step fakes.Step) {
+func (r *remote) controlFakes(client *http.Client) func(ctx context.Context, t T, path string, body any) {
+	return func(ctx context.Context, t T, path string, body any) {
 		t.Helper()
-		raw, err := json.Marshal(step)
+		raw, err := json.Marshal(body)
 		if err != nil {
-			t.Fatalf("scenario: script %+v: %v", step, err)
+			t.Fatalf("scenario: fakes %s %+v: %v", path, body, err)
 		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.FakesURL+"/_script", bytes.NewReader(raw))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.FakesURL+path, bytes.NewReader(raw))
 		if err != nil {
-			t.Fatalf("scenario: script %s: %v", raw, err)
+			t.Fatalf("scenario: fakes %s %s: %v", path, raw, err)
 		}
 		resp, err := client.Do(req)
 		if err != nil {
-			t.Fatalf("scenario: script %s: %v", raw, err)
+			t.Fatalf("scenario: fakes %s %s: %v", path, raw, err)
 		}
 		defer func() { _ = resp.Body.Close() }()
-		if body, _ := io.ReadAll(resp.Body); resp.StatusCode != http.StatusNoContent {
-			t.Fatalf("scenario: script %s answered %d %s", raw, resp.StatusCode, body)
+		if answer, _ := io.ReadAll(resp.Body); resp.StatusCode != http.StatusNoContent {
+			t.Fatalf("scenario: fakes %s %s answered %d %s", path, raw, resp.StatusCode, answer)
 		}
 	}
 }

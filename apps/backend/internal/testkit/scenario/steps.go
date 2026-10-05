@@ -74,10 +74,18 @@ func SignIn(sub string) Step {
 	}
 }
 
-func FakeUpstream(step fakes.Step) Step {
+func FakeUpstream(step fakes.Step) Step { return fakeControl("/_script", step) }
+
+func FakeBalance(b fakes.SetBalance) Step { return fakeControl("/_balance", b) }
+
+func FakeWallet(id string) Step { return fakeControl("/_wallet", fakes.SetWallet{ID: id}) }
+
+func FakeSwap(sw fakes.SetSwap) Step { return fakeControl("/_swap", sw) }
+
+func fakeControl(path string, body any) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		s.app.script(s.t.Context(), s.t, step)
+		s.app.control(s.t.Context(), s.t, path, body)
 	}
 }
 
