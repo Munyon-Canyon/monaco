@@ -234,8 +234,7 @@ private struct HomeSkeletonView: View {
                     dollarPnl: "+48.20"
                 )
             ]
-        ),
-        missedProposals: []
+        )
     )
     return NavigationStack {
         HomeView(auth: PrivyAuthService(), selectedTab: .constant(.home))

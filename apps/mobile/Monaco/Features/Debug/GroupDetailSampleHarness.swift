@@ -192,7 +192,6 @@ enum GroupDetailSampleData {
                 rank: 4, userId: "u4", displayName: "Mia Chen", percentReturn: "-0.021", dollarPnl: "-2.10"),
             LeaderboardRowDTO(rank: 5, userId: "u5", displayName: "Sam Okafor", percentReturn: nil, dollarPnl: "+0.00"),
         ],
-        proposals: nil,
         agent: GroupAgentDTO(
             id: "a1", status: "active", agentDisplayName: "Scout", allocationUsdcMicros: "100000000", apiKey: "scout")
     )
@@ -213,7 +212,6 @@ enum GroupDetailSampleData {
             LeaderboardRowDTO(
                 rank: 1, userId: "u2", displayName: "Logan Norman", percentReturn: nil, dollarPnl: "+0.00")
         ],
-        proposals: nil,
         agent: nil
     )
 
@@ -245,7 +243,6 @@ enum GroupDetailSampleData {
             pot: view.pot,
             you: view.you,
             members: view.members,
-            proposals: view.proposals,
             agent: view.agent,
             pictureUrl: initialPictureURL(for: scenario),
             isCreator: scenario != .pictureNotCreator

@@ -176,22 +176,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try monacoISO8601JSONDecoder().decode(HomePnLSeriesDTO.self, from: data)
     }
 
-    func getHomeMissedProposals(accessToken: String) async throws -> HomeMissedProposalsDTO {
-        let url = baseURL.appending(path: "v1/home/missed-proposals")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try monacoISO8601JSONDecoder().decode(HomeMissedProposalsDTO.self, from: data)
-    }
-
     func getUserSharedGroups(accessToken: String, userId: String) async throws -> [HomeGroupBoardRowDTO] {
         let url = baseURL.appending(path: "v1/users/\(userId)/groups")
         var request = URLRequest(url: url)

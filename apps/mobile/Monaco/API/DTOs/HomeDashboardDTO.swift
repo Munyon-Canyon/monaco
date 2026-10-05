@@ -8,7 +8,6 @@ struct HomeDashboardDTO: Codable, Equatable {
     let myGroups: [HomeMyGroupRowDTO]
     let pnlSeries1H: [HomePnLSeriesPointDTO]
     let leaderboard: HomeLeaderboardSectionDTO
-    let missedProposals: [HomeMissedProposalRowDTO]
 }
 
 struct HomeMyGroupRowDTO: Codable, Equatable, Identifiable {
@@ -42,18 +41,6 @@ struct HomeLeaderboardSectionDTO: Codable, Equatable {
     let people: [HomePeopleBoardRowDTO]
 }
 
-struct HomeMissedProposalRowDTO: Codable, Equatable, Identifiable {
-    let groupId: String
-    let groupName: String
-    let proposalId: String
-    let symbol: String
-    let status: String
-    let createdAt: Date
-    let expiresAt: Date
-
-    var id: String { proposalId }
-}
-
 enum HomeLeaderboardRange: String, CaseIterable {
     case oneHour = "1H"
     case oneDay = "1D"
@@ -74,10 +61,6 @@ enum HomeLeaderboardRange: String, CaseIterable {
 
 struct HomePnLSeriesDTO: Codable, Equatable {
     let points: [HomePnLSeriesPointDTO]
-}
-
-struct HomeMissedProposalsDTO: Codable, Equatable {
-    let proposals: [HomeMissedProposalRowDTO]
 }
 
 func monacoISO8601JSONDecoder() -> JSONDecoder {

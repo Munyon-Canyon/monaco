@@ -219,7 +219,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
     public let pot: [PotRowDTO]
     public let you: MemberSliceDTO
     public let members: [LeaderboardRowDTO]
-    public let proposals: [ProposalDTO]?
     public let agent: GroupAgentDTO?
     /// The cabal's picture. Nil when it has none, and the mark falls back to
     /// its tinted initials.
@@ -237,7 +236,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
         pot: [PotRowDTO],
         you: MemberSliceDTO,
         members: [LeaderboardRowDTO],
-        proposals: [ProposalDTO]?,
         agent: GroupAgentDTO? = nil,
         pictureUrl: String? = nil,
         isCreator: Bool? = nil
@@ -249,7 +247,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
         self.pot = pot
         self.you = you
         self.members = members
-        self.proposals = proposals
         self.agent = agent
         self.pictureUrl = pictureUrl
         self.isCreator = isCreator

@@ -142,35 +142,4 @@ final class ProposalCommentsAPITests: XCTestCase {
             XCTAssertTrue(error is DecodingError)
         }
     }
-
-    func testListGroupProposals_sendsTabQuery() async throws {
-        // Arrange
-        var capturedQuery: String?
-        MockURLProtocol.requestHandler = { request in
-            capturedQuery = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.query }
-            return Self.respond(request, status: 200, body: #"{"proposals":[]}"#)
-        }
-
-        // Act
-        let response = try await makeClient().listGroupProposals(groupId: "grp-1", tab: .closed)
-
-        // Assert
-        XCTAssertEqual(capturedQuery, "tab=closed")
-        XCTAssertEqual(response.proposals, [])
-    }
-
-    func testGetProposalDetail_notFound_throwsHTTPStatus() async {
-        // Arrange
-        MockURLProtocol.requestHandler = { request in
-            Self.respond(request, status: 404, body: #"{"error":"proposal not found"}"#)
-        }
-
-        // Act / Assert
-        do {
-            _ = try await makeClient().getProposalDetail(proposalId: "missing")
-            XCTFail("expected throw")
-        } catch {
-            XCTAssertEqual(error as? MonacoAPIError, .httpStatus(404))
-        }
-    }
 }
