@@ -36,6 +36,9 @@ const (
 	defaultLoad     = 12
 	dispatchSection = "[dispatch]"
 	dispatchPrefix  = "dispatch."
+	watchSection    = "[watch]"
+	watchPrefix     = "watch."
+	defaultStuck    = 12 * time.Minute
 )
 
 func defaultBudget() map[string]time.Duration {
@@ -61,13 +64,14 @@ type Config struct {
 	QueueConcurrency     int
 	Slots                int
 	MaxLoad              int
+	StuckAfter           time.Duration
 	Budget               map[string]time.Duration
 	Shared               []string
 	Unknown              []string
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	c := Config{Budget: defaultBudget(), Slots: defaultSlots, MaxLoad: defaultLoad}
+	c := Config{Budget: defaultBudget(), Slots: defaultSlots, MaxLoad: defaultLoad, StuckAfter: defaultStuck}
 	section := ""
 	seen := map[string]bool{}
 	strs := map[string]*string{
@@ -80,12 +84,13 @@ func parseConfig(r io.Reader) (Config, error) {
 		"queue_concurrency": &c.QueueConcurrency,
 	}
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
+	durs := map[string]*time.Duration{"watch.stuck_after": &c.StuckAfter}
 	lines, err := logicalLines(r, configPath)
 	if err != nil {
 		return Config{}, err
 	}
 	for _, l := range lines {
-		err := applyConfigLine(c.Budget, &section, seen, strs, ints, lists, l.text)
+		err := applyConfigLine(c.Budget, &section, seen, strs, ints, lists, durs, l.text)
 		if unknown := (unknownKeyError{}); errors.As(err, &unknown) {
 			if !slices.Contains(c.Unknown, unknown.key) {
 				c.Unknown = append(c.Unknown, unknown.key)
@@ -128,7 +133,7 @@ func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 		return Config{}, err
 	}
 	for _, l := range lines {
-		if err := applyConfigLine(nil, &section, map[string]bool{}, strs, ints, nil, l.text); err != nil {
+		if err := applyConfigLine(nil, &section, map[string]bool{}, strs, ints, nil, nil, l.text); err != nil {
 			return Config{}, configLineErr(localConfigPath, l.n, err)
 		}
 	}
@@ -202,9 +207,17 @@ func opensList(line string) bool {
 	return ok && strings.HasPrefix(raw, "[") && !strings.HasSuffix(raw, "]")
 }
 
+func sectionPrefix(line string) (string, bool) {
+	prefix, ok := map[string]string{
+		budgetSection: budgetPrefix, checkSection: checkPrefix, dispatchSection: dispatchPrefix,
+		batchSection: batchPrefix, watchSection: watchPrefix,
+	}[line]
+	return prefix, ok
+}
+
 func applyConfigLine(
 	budget map[string]time.Duration, section *string, seen map[string]bool, strs map[string]*string,
-	ints map[string]*int, lists map[string]*[]string, text string,
+	ints map[string]*int, lists map[string]*[]string, durs map[string]*time.Duration, text string,
 ) error {
 	line := strings.TrimSpace(text)
 	if line == "" || strings.HasPrefix(line, "#") {
@@ -213,25 +226,19 @@ func applyConfigLine(
 	key, raw, ok := strings.Cut(line, "=")
 	key, raw = *section+strings.TrimSpace(key), strings.TrimSpace(raw)
 	var err error
+	if prefix, ok := sectionPrefix(line); ok {
+		*section = prefix
+		return nil
+	}
 	switch {
-	case line == budgetSection:
-		*section = budgetPrefix
-		return nil
-	case line == checkSection:
-		*section = checkPrefix
-		return nil
-	case line == dispatchSection:
-		*section = dispatchPrefix
-		return nil
-	case line == batchSection:
-		*section = batchPrefix
-		return nil
 	case strings.HasPrefix(line, "["):
 		err = fmt.Errorf("%w %s", errUnknownSection, line)
 	case strings.HasPrefix(key, budgetPrefix):
 		err = assignBudget(budget, strings.TrimPrefix(key, budgetPrefix), raw, ok)
 	case lists[key] != nil:
 		*lists[key], err = parseList(raw)
+	case durs[key] != nil:
+		*durs[key], err = parseDuration(key, raw)
 	default:
 		err = assignConfig(strs, ints, key, raw, ok)
 	}
@@ -292,17 +299,25 @@ func assignConfig(strs map[string]*string, ints map[string]*int, key, raw string
 	}
 }
 
+func parseDuration(key, raw string) (time.Duration, error) {
+	v, err := strconv.Unquote(raw)
+	if err != nil {
+		return 0, fmt.Errorf("quote: %w", err)
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("%s: %w, got %q", key, errBadBudget, v)
+	}
+	return d, nil
+}
+
 func assignBudget(budget map[string]time.Duration, kind, raw string, ok bool) error {
 	if _, known := budget[kind]; !known || !ok {
 		return assignConfig(nil, nil, budgetPrefix+kind, raw, ok)
 	}
-	v, err := strconv.Unquote(raw)
+	d, err := parseDuration("budget "+kind, raw)
 	if err != nil {
-		return fmt.Errorf("quote: %w", err)
-	}
-	d, err := time.ParseDuration(v)
-	if err != nil || d <= 0 {
-		return fmt.Errorf("budget %s: %w, got %q", kind, errBadBudget, v)
+		return err
 	}
 	budget[kind] = d
 	return nil

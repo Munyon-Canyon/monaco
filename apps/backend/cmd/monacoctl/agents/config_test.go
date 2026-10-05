@@ -379,3 +379,19 @@ func TestParseConfig_warnsOnceOnAKeyANewerConfigAdds(t *testing.T) {
 		t.Fatalf("known values: %+v %v", c, err)
 	}
 }
+
+func TestParseConfig_readsWatchStuckAfterAndDefaultsTo12m(t *testing.T) {
+	t.Parallel()
+	c, err := parseConfig(strings.NewReader(testConfig))
+	if err != nil || c.StuckAfter != 12*time.Minute {
+		t.Fatalf("default stuck_after = %s, %v", c.StuckAfter, err)
+	}
+	c, err = parseConfig(strings.NewReader(testConfig + "\n[watch]\nstuck_after = \"20m\"\n"))
+	if err != nil || c.StuckAfter != 20*time.Minute {
+		t.Fatalf("stuck_after = %s, %v", c.StuckAfter, err)
+	}
+	if _, err := parseConfig(strings.NewReader(testConfig + "\n[watch]\nstuck_after = \"0s\"\n")); err == nil ||
+		!strings.Contains(cliText(err), "watch.stuck_after: want a positive duration") {
+		t.Fatalf("zero stuck_after: %v", cliText(err))
+	}
+}
