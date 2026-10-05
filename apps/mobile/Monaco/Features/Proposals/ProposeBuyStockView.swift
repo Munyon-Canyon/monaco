@@ -3,10 +3,7 @@ import SwiftUI
 
 @MainActor
 struct ProposeBuyStockView: View {
-    let groupId: String
-    let pot: ProposePot
-    let service: ProposeService
-    var onProposed: ((_ proposalId: String) -> Void)?
+    let cabalID: String
 
     @Environment(AppEnvironment.self) private var environment
     @State private var model: MonacoCore.StocksTabModel?
@@ -25,8 +22,7 @@ struct ProposeBuyStockView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $picked) { stock in
             ProposeAmountScreen(
-                service: MonacoCore.LiveProposeService(api: environment.api), cabalID: groupId, stock: stock,
-                potMicros: pot.totalMicros
+                service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID, stock: stock
             )
         }
         .task {
@@ -84,10 +80,6 @@ struct ProposeBuyStockView: View {
         .padding(.vertical, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .monacoCanvas()
-    }
-
-    private func finish(_ proposalId: String) {
-        onProposed?(proposalId)
     }
 }
 
