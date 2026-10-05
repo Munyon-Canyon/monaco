@@ -17,7 +17,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -99,7 +98,7 @@ func (m *Module) Prices() *app.PriceBook { return app.NewPriceBook(m.deps.Pool, 
 var _ Routes = (*app.RouteChecker)(nil)
 
 func (m *Module) RouteChecker() *app.RouteChecker {
-	quoter := jupiterquote.New(jupiter.New(m.deps.Config, m.deps.Clock))
+	quoter := jupiterquote.New(m.deps.JupiterClient())
 	return app.NewRouteChecker(m.Catalog(), quoter, m.deps.Clock)
 }
 
@@ -166,7 +165,7 @@ func (m *Module) PriceHints(ctx context.Context, meter metric.Meter) (func(), er
 
 func (m *Module) samplePrices() *app.SamplePrices {
 	cfg := m.deps.Config
-	source := jupiterprices.New(jupiter.New(cfg, m.deps.Clock))
+	source := jupiterprices.New(m.deps.JupiterClient())
 	return app.NewSamplePrices(
 		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, source, m.deps.Bus, cfg.Market.PricePollInterval,
 	)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -91,6 +92,7 @@ func startRelay(
 func workDeps(d module.Deps) (module.Deps, error) {
 	d.Clock, d.IDs, d.HTTPClient = clock.Real{}, ids.Real{}, httpclient.New
 	d.UoW = db.New(d.Pool, d.IDs, d.Clock)
+	d.Jupiter = jupiter.New(d.Config, d.Clock)
 	store, err := storage.New(d.Config)
 	if err != nil {
 		return module.Deps{}, err

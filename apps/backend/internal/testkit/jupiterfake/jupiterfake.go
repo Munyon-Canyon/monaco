@@ -2,11 +2,17 @@ package jupiterfake
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -162,4 +168,55 @@ func (p *PriceSource) Prices(_ context.Context, mints []jupiter.Mint) (map[jupit
 		}
 	}
 	return out, nil
+}
+
+type PriceAPI struct {
+	Clock  clock.Clock
+	Limit  int
+	Window time.Duration
+
+	mu      sync.Mutex
+	resets  time.Time
+	used    int
+	limited int
+}
+
+func (a *PriceAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !a.admit() {
+		w.Header().Set("x-ratelimit-reset", strconv.FormatInt(a.resetUnix(), 10))
+		w.WriteHeader(http.StatusTooManyRequests)
+		return
+	}
+	body := map[string]map[string]string{}
+	for i, mint := range strings.Split(r.URL.Query().Get("ids"), ",") {
+		body[mint] = map[string]string{"usdPrice": strconv.Itoa(100+i) + ".25"}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+func (a *PriceAPI) admit() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if now := a.Clock.Now(); !now.Before(a.resets) {
+		a.resets, a.used = now.Add(a.Window), 0
+	}
+	a.used++
+	if a.used > a.Limit {
+		a.limited++
+		return false
+	}
+	return true
+}
+
+func (a *PriceAPI) resetUnix() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.resets.Add(time.Second - 1).Unix()
+}
+
+func (a *PriceAPI) Limited() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.limited
 }

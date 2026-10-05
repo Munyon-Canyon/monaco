@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -77,7 +78,7 @@ func run(
 	defer func() { err = errors.Join(err, stopBackground()) }()
 	handler, err := newHandler(module.Deps{
 		Config: cfg, Logger: logger, Clock: clock.Real{}, IDs: ids.Real{}, Pool: pool, UoW: uow, Bus: conn,
-		HTTPClient: httpclient.New, Hub: hub,
+		HTTPClient: httpclient.New, Hub: hub, Jupiter: jupiter.New(cfg, clock.Real{}),
 	}, spec, meters)
 	if err != nil {
 		return err

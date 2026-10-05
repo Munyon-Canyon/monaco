@@ -115,7 +115,7 @@ func (c *Client) order(
 	q.Set("amount", amount.String())
 	q.Set("swapMode", "ExactIn")
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/order?"+q.Encode(), nil)
-	r, err := c.call(ctx, c.swap, req, op)
+	r, err := c.call(ctx, c.swap, swapLane, req, op)
 	if err != nil {
 		return orderWire{}, 0, err
 	}
@@ -158,7 +158,7 @@ func (c *Client) Execute(ctx context.Context, requestID string, signed []byte) (
 	})
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/execute", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	r, err := c.call(ctx, c.execute, req, op)
+	r, err := c.call(ctx, c.execute, swapLane, req, op)
 	if err != nil {
 		return ExecuteResult{}, err
 	}

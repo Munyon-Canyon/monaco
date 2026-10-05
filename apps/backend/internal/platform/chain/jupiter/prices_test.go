@@ -10,13 +10,19 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/jupiterfake"
 )
 
 const priceFixtures = "../../../testkit/fakes/testdata/fakes/jupiter/price/"
@@ -257,6 +263,161 @@ func FuzzParsePrice(f *testing.F) {
 		scaled := new(big.Rat).Mul(r, big.NewRat(1_000_000, 1))
 		if micros.Cmp(scaled) > 0 || new(big.Rat).Add(micros, big.NewRat(1, 1)).Cmp(scaled) <= 0 {
 			t.Fatalf("ParsePrice(%q) = %d micros, want %s rounded down", raw, got.Uint64(), scaled.FloatString(3))
+		}
+	})
+}
+
+func catalog(n int) []jupiter.Mint {
+	mints := make([]jupiter.Mint, n)
+	for i := range mints {
+		mints[i] = jupiter.Mint{Address: fmt.Sprintf("Xs%04dCatalogMint11111111111111111111111", i), Decimals: 8}
+	}
+	return mints
+}
+
+func mainnetLimit() *jupiterfake.PriceAPI {
+	return &jupiterfake.PriceAPI{Clock: clock.Real{}, Limit: 10, Window: 10 * time.Second}
+}
+
+func TestPrices_wholeCatalogStaysUnderTheKeysRateLimit(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		api := mainnetLimit()
+		u := &upstream{handler: api}
+		start := now()
+
+		got, err := client(u).Prices(t.Context(), catalog(1282))
+		if err != nil || len(got) != 1282 {
+			t.Fatalf("Prices = %d prices, %v, want all 1282 and no error", len(got), err)
+		}
+		if api.Limited() != 0 || len(u.requests()) != 26 {
+			t.Fatalf("%d of %d requests were rate limited, want 0 of 26", api.Limited(), len(u.requests()))
+		}
+		if took := now().Sub(start); took >= 2*time.Minute {
+			t.Fatalf("pricing the catalog took %v, want under the 2m poll interval", took)
+		}
+	})
+}
+
+func TestOrder_takesTheNextTokenAheadOfQueuedPriceBatches(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		prices, swaps := mainnetLimit(), fakes.New()
+		u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == orderRoute {
+				swaps.ServeHTTP(w, r)
+				return
+			}
+			prices.ServeHTTP(w, r)
+		})}
+		c := client(u)
+		done := make(chan error, 1)
+		go func() {
+			_, err := c.Prices(t.Context(), catalog(1000))
+			done <- err
+		}()
+		synctest.Wait()
+		asked := now()
+
+		_, err := c.Order(t.Context(), jupiter.OrderSpec{
+			In: usdc(), Out: aaplx(), Amount: units(25_000_000, usdc()), Taker: treasury, SlippageBps: 50,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		reqs := u.requests()
+		i := slices.IndexFunc(reqs, func(s sent) bool { return s.path == orderRoute })
+		if i < 1 || i+1 >= len(reqs) || !reqs[i].at.Equal(asked) || !reqs[i+1].at.After(asked) {
+			t.Fatalf("order went out as request %d of %d, %v after it was asked, want at once",
+				i, len(reqs), reqs[max(i, 0)].at.Sub(asked))
+		}
+		if prices.Limited() != 0 {
+			t.Fatalf("%d price requests were rate limited, want 0", prices.Limited())
+		}
+	})
+}
+
+func TestPrices_rateLimitedBatchRetriesWhenTheWindowResets(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		for resetIn, want := range map[time.Duration]time.Duration{
+			7 * time.Second:  7 * time.Second,
+			60 * time.Second: 15 * time.Second,
+		} {
+			reset := now().Add(resetIn).Unix()
+			var calls atomic.Int32
+			u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if calls.Add(1) == 1 {
+					w.Header().Set("x-ratelimit-reset", strconv.FormatInt(reset, 10))
+					w.WriteHeader(http.StatusTooManyRequests)
+					return
+				}
+				_, _ = w.Write([]byte(`{"` + fixtureMint(1).Address + `":{"usdPrice":2}}`))
+			})}
+
+			got, err := client(u).Prices(t.Context(), []jupiter.Mint{fixtureMint(1)})
+			if err != nil || got[fixtureMint(1)].USDMicros.Uint64() != 2_000_000 {
+				t.Fatalf("reset in %v: Prices = %+v, %v, want the retried batch's price", resetIn, got, err)
+			}
+			sent := u.requests()
+			if len(sent) != 2 || sent[1].at.Sub(sent[0].at) != want {
+				t.Fatalf("reset in %v: %d requests, retry after %v, want 2 with the retry after %v",
+					resetIn, len(sent), sent[len(sent)-1].at.Sub(sent[0].at), want)
+			}
+		}
+	})
+}
+
+func TestPrices_cancelledWhileWaitingForATokenGivesItsPlaceBack(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		u := &upstream{handler: mainnetLimit()}
+		c := client(u)
+		ctx, cancel := context.WithCancel(t.Context())
+		done := make(chan error, 1)
+		go func() {
+			_, err := c.Prices(ctx, catalog(1000))
+			done <- err
+		}()
+		synctest.Wait()
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled Prices = %v, want context.Canceled", err)
+		}
+		first := len(u.requests())
+		<-time.After(10 * time.Second)
+		asked := now()
+
+		if _, err := c.Prices(t.Context(), catalog(300)); err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range u.requests()[first:] {
+			if !s.at.Equal(asked) {
+				t.Fatalf("a batch went out %v after the call, want all 6 at once", s.at.Sub(asked))
+			}
+		}
+	})
+}
+
+func TestPrices_cancelledDuringTheRateLimitWaitStops(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		reset := now().Add(7 * time.Second).Unix()
+		u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("x-ratelimit-reset", strconv.FormatInt(reset, 10))
+			w.WriteHeader(http.StatusTooManyRequests)
+		})}
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		start := now()
+
+		_, err := client(u).Prices(ctx, []jupiter.Mint{fixtureMint(1)})
+		if !errors.Is(err, context.DeadlineExceeded) || len(u.requests()) != 1 || now().Sub(start) != 3*time.Second {
+			t.Fatalf("Prices = %v after %d requests and %v, want the 3s deadline after 1 request",
+				err, len(u.requests()), now().Sub(start))
 		}
 	})
 }

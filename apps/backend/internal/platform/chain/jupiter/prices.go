@@ -27,22 +27,34 @@ type Price struct {
 }
 
 type priceWire struct {
-	USDPrice  json.Number `json:"usdPrice"`
+	USDPrice  wireNumber `json:"usdPrice"`
 	StockData *struct {
-		Price json.Number `json:"price"`
+		Price wireNumber `json:"price"`
 	} `json:"stockData"`
+}
+
+type wireNumber string
+
+func (n *wireNumber) UnmarshalJSON(raw []byte) error {
+	var quoted string
+	if json.Unmarshal(raw, &quoted) == nil {
+		*n = wireNumber(quoted)
+		return nil
+	}
+	*n = wireNumber(raw)
+	return nil
 }
 
 func (w priceWire) price() json.Number {
 	if w.USDPrice == "" && w.StockData != nil {
-		return w.StockData.Price
+		return json.Number(w.StockData.Price)
 	}
-	return w.USDPrice
+	return json.Number(w.USDPrice)
 }
 
 const (
 	pricesPerCall = 50
-	priceCalls    = 2
+	priceCalls    = 1
 )
 
 type batchAnswer struct {
@@ -88,7 +100,7 @@ func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, 
 		"?"+url.Values{"ids": {strings.Join(ids, ",")}}.Encode(),
 		nil,
 	)
-	r, err := c.call(ctx, c.price, req, op)
+	r, err := c.call(ctx, c.price, priceLane, req, op)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +124,7 @@ func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, 
 			usd, ok = parsePrice(w.price())
 		}
 		if !ok {
-			var stock json.Number
+			var stock wireNumber
 			if w.StockData != nil {
 				stock = w.StockData.Price
 			}
