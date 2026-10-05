@@ -273,9 +273,34 @@ jobs:
         with:
           db: false
 
+      # Restore and save are split so a cold install is cached before the
+      # scan runs: a plain actions/cache saves only on job success, and a
+      # cold scan can hit the timeout.
+      - name: Restore the pinned govulncheck and its Go toolchain
+        id: govulncheck-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .bin/govulncheck
+            .bin/govulncheck.version
+            ~/go/pkg/mod/golang.org/toolchain@*
+            ~/go/pkg/mod/cache/download/golang.org/toolchain
+          key: govulncheck-${{ runner.os }}-${{ hashFiles('scripts/install-govulncheck.sh') }}
+
       - name: Install the pinned govulncheck
         working-directory: .
         run: scripts/install-govulncheck.sh
+
+      - name: Save the pinned govulncheck and its Go toolchain
+        if: steps.govulncheck-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .bin/govulncheck
+            .bin/govulncheck.version
+            ~/go/pkg/mod/golang.org/toolchain@*
+            ~/go/pkg/mod/cache/download/golang.org/toolchain
+          key: govulncheck-${{ runner.os }}-${{ hashFiles('scripts/install-govulncheck.sh') }}
 
       - name: Reachable vulnerabilities in the backend and its dependencies
         run: ../../.bin/govulncheck ./...
