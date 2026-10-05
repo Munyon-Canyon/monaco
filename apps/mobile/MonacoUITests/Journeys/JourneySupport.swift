@@ -160,6 +160,13 @@ extension XCUIApplication {
         _ = element("monaco-toast-banner").waitForNonExistence(timeout: timeout)
     }
 
+    func dismissPushPrePromptIfShown(timeout: TimeInterval = 3) {
+        let notNow = buttons["push-pre-prompt-not-now"].firstMatch
+        guard notNow.waitForExistence(timeout: timeout) else { return }
+        notNow.tap()
+        _ = element("push-pre-prompt").waitForNonExistence(timeout: 5)
+    }
+
     func tapBack(timeout: TimeInterval = 5) {
         let back = navigationBars.buttons["BackButton"].firstMatch
         let hittable = NSPredicate(format: "exists == true AND hittable == true")

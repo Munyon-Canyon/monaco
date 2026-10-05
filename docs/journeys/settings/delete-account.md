@@ -1,7 +1,7 @@
 ---
 id: settings/delete-account
 title: Delete your account
-version: 2
+version: 3
 milestone: M9
 requires: []
 actors: [C]
@@ -19,7 +19,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 
 | Id | What must be true |
 | --- | --- |
-| P1 | Each scenario deletes or inspects a throwaway account, never a Privy test login. Before each scenario, `apps/mobile/qa/journeys/settings/delete-account.setup.sh` makes a new dev user with `bin/monacoctl dev token --user new`, moves it to `ONBOARDING_COMPLETED` with the `dev_` handle it was made with, and names it `QA delete {QA.run}` through the API. It hands the test the dev token as `devToken` and the user id as `devUserID` |
+| P1 | Each scenario deletes or inspects a throwaway account, never a Privy test login. Before each scenario, `apps/mobile/qa/journeys/settings/delete-account.setup.sh` makes a new dev user with `bin/monacoctl dev token --user new`, walks it through onboarding with the calls `onboarding/first-run` makes (`PUT /v1/me/handle` when it has no handle, then `POST /v1/me/onboarding/skip` for `phone` and `socials`), moves it to `ONBOARDING_COMPLETED`, and names it `QA delete {QA.run}` through the API. It hands the test the dev token as `devToken` and the user id as `devUserID` |
 | P2 | The dev user has no platform balance and no cabal, except in S3 |
 | P3 | Before S3, the setup script also creates a cabal named `QA delete pot {QA.run}` with the dev user's token, so the dev user is its only member. It hands the test the cabal's id as `cabalID` and its name as `cabalName` |
 | P4 | The test launches the app with `MONACO_DEV_TOKEN` set to `devToken`. The simulator is actor C's, so C may still be signed in from another journey; the first step signs C out |

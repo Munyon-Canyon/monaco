@@ -2,7 +2,7 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 2
+    static let version = 3
 
     static let cabalName = "QA pot"
     static let inviteeHandle = "qa_b"
@@ -56,6 +56,16 @@ enum InviteJourney {
         button.tap()
     }
 
+    static func openDetailsAfterToast(_ app: XCUIApplication) {
+        app.waitForToastGone()
+        app.dismissPushPrePromptIfShown()
+        app.buttons["cabal-details-button"].tap()
+        XCTAssertTrue(
+            app.element("cabal-details-done").waitForExistence(timeout: 10),
+            "S1.3: the Cabal details sheet did not show within 10 s"
+        )
+    }
+
     static func acceptAndInvite(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the Cabals tab and find the invite") {
             app.tab("Cabals").tap()
@@ -78,7 +88,7 @@ enum InviteJourney {
         }
 
         recorder.step("S1.3", "open the cabal's details") {
-            app.buttons["cabal-details-button"].tap()
+            openDetailsAfterToast(app)
             XCTAssertTrue(
                 app.element("cabal-invite-member-row").waitForExistence(timeout: 10),
                 "S1.3: no Invite someone row in the details within 10 s"

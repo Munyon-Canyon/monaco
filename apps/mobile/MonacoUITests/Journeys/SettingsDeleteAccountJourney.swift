@@ -2,7 +2,7 @@ import XCTest
 
 enum SettingsDeleteAccountJourney {
     static let id = "settings/delete-account"
-    static let version = 2
+    static let version = 3
 
     static let explainer =
         "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. "

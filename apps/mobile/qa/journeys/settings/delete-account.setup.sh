@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# journey.py runs this before each scenario. It makes a throwaway dev user at ONBOARDING_COMPLETED (P1),
+# journey.py runs this before each scenario. It makes a throwaway dev user past onboarding (P1),
 # and before S3 a cabal that user alone belongs to (P3). No Privy test login is ever deleted.
 set -euo pipefail
 
@@ -46,6 +46,16 @@ token="$(env "${unset_qa[@]}" bin/monacoctl dev token --user new 2>"$log")" ||
   fail "monacoctl dev token --user new failed: $(cat "$log")"
 user_id="$(awk '$1 == "dev" && $2 == "user" { print $3 }' "$log")"
 [[ -n "$user_id" ]] || fail "monacoctl dev token did not name the new dev user: $(cat "$log")"
+
+# A new dev user lands in the onboarding gate (handle, phone, X). Walk it through with the same calls
+# onboarding/first-run makes, so the app opens on the tab bar.
+existing="$(sql -v id="$user_id" <<<"SELECT coalesce(handle, '') FROM users WHERE id = :'id'")"
+if [[ -z "$existing" ]]; then
+  call PUT /v1/me/handle "{\"handle\":\"qa_del_${run//[^a-zA-Z0-9]/}\"}" >/dev/null ||
+    fail "could not claim a handle for dev user $user_id"
+fi
+call POST /v1/me/onboarding/skip '{"step":"phone"}' >/dev/null || fail "could not skip phone for dev user $user_id"
+call POST /v1/me/onboarding/skip '{"step":"socials"}' >/dev/null || fail "could not skip X for dev user $user_id"
 
 updated="$(sql -v id="$user_id" <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED',
   auth_state_changed_at = now() WHERE id = :'id' RETURNING handle")"
