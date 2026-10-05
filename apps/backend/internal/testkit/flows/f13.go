@@ -9,6 +9,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	tradingsqlc "github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -158,11 +160,23 @@ func liveSwap(p openProposal) scenario.Step {
 	}
 }
 
+func seedPassedUnexecutable(s *scenario.Scenario) openProposal {
+	p := seedOpenProposal(s, 1)
+	n, err := sqlc.New(s.DB()).Transition(s.Context(), sqlc.TransitionParams{
+		ID: p.id.UUID(), FromStatus: string(domain.StatusOpen), ToStatus: string(domain.StatusPassed),
+		At: time.Now().UTC(),
+	})
+	if err != nil || n != 1 {
+		s.Fatalf("flows: pass proposal: %d rows, %v", n, err)
+	}
+	return p
+}
+
 func F13aVoidProposalOK(s *scenario.Scenario) {
-	open, passed := seedOpenProposal(s, 3), seedOpenProposal(s, 1)
+	open, passed := seedOpenProposal(s, 3), seedPassedUnexecutable(s)
 	s.Given(scenario.AsSeededUser("bob", open.voters[0]), scenario.AsSeededUser("alice", passed.voters[0])).
 		When(
-			scenario.Post(passed.votes, yes),
+			scenario.Get(passed.path),
 			scenario.ExpectJSON("status", "passed"),
 			voidFromOps(open, ""),
 			voidFromOps(passed, ""),
