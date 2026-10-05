@@ -94,6 +94,33 @@ func (e CashOutJobStatus) Valid() bool {
 	}
 }
 
+// Defines values for FundTransferStatus.
+const (
+	FundTransferStatusCreated   FundTransferStatus = "created"
+	FundTransferStatusFailed    FundTransferStatus = "failed"
+	FundTransferStatusLanded    FundTransferStatus = "landed"
+	FundTransferStatusSettled   FundTransferStatus = "settled"
+	FundTransferStatusSubmitted FundTransferStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the FundTransferStatus enum.
+func (e FundTransferStatus) Valid() bool {
+	switch e {
+	case FundTransferStatusCreated:
+		return true
+	case FundTransferStatusFailed:
+		return true
+	case FundTransferStatusLanded:
+		return true
+	case FundTransferStatusSettled:
+		return true
+	case FundTransferStatusSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UserTxnKind.
 const (
 	UserTxnKindCashOut    UserTxnKind = "cash_out"
@@ -308,6 +335,28 @@ type CashOutRequest struct {
 	UsdcMicros *string `json:"usdc_micros,omitempty"`
 }
 
+// FundAccepted A fund transfer that is signed and submitted.
+type FundAccepted struct {
+	// Status Where the transfer is. `landed` means final on chain with shares not yet minted.
+	//
+	// Examples: submitted
+	Status FundTransferStatus `json:"status"`
+
+	// TransferId Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	TransferId openapi_types.UUID `json:"transfer_id"`
+}
+
+// FundRequest How much platform balance to move into the cabal.
+type FundRequest struct {
+	// AmountMicros Examples: 5000000
+	AmountMicros string `json:"amount_micros"`
+}
+
+// FundTransferStatus Where the transfer is. `landed` means final on chain with shares not yet minted.
+//
+// Examples: submitted
+type FundTransferStatus string
+
 // UserTxn One inbound, outbound or cabal transfer affecting the caller.
 type UserTxn struct {
 	// Cabal The cabal involved, when it remains available. Null for deposits, withdrawals, and deleted cabals.
@@ -399,6 +448,12 @@ type PostCashOutParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// FundCabalParams defines parameters for FundCabal.
+type FundCabalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetMyTxnsParams defines parameters for GetMyTxns.
 type GetMyTxnsParams struct {
 	// Limit Page size. Defaults to 30 and cannot exceed 100.
@@ -410,6 +465,9 @@ type GetMyTxnsParams struct {
 
 // PostCashOutJSONRequestBody defines body for PostCashOut for application/json ContentType.
 type PostCashOutJSONRequestBody = CashOutRequest
+
+// FundCabalJSONRequestBody defines body for FundCabal for application/json ContentType.
+type FundCabalJSONRequestBody = FundRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -425,6 +483,9 @@ type ServerInterface interface {
 	// GetCashOutJob Read one cash out job.
 	// (GET /v1/cabals/{id}/cashouts/{job_id})
 	GetCashOutJob(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, jobId openapi_types.UUID)
+	// FundCabal Fund a cabal from the caller's platform balance.
+	// (POST /v1/cabals/{id}/fund)
+	FundCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FundCabalParams)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(w http.ResponseWriter, r *http.Request, params GetMyTxnsParams)
@@ -609,6 +670,60 @@ func (siw *ServerInterfaceWrapper) GetCashOutJob(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// FundCabal operation middleware
+func (siw *ServerInterfaceWrapper) FundCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params FundCabalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FundCabal(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyTxns operation middleware
 func (siw *ServerInterfaceWrapper) GetMyTxns(w http.ResponseWriter, r *http.Request) {
 
@@ -779,6 +894,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/cashouts", wrapper.PostCashOut)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/preview", wrapper.GetCashOutPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/{job_id}", wrapper.GetCashOutJob)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/fund", wrapper.FundCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/txns", wrapper.GetMyTxns)
 
 	return m
@@ -944,6 +1060,47 @@ func (response GetCashOutJobdefaultApplicationProblemPlusJSONResponse) VisitGetC
 	return err
 }
 
+type FundCabalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params FundCabalParams
+	Body   *FundCabalJSONRequestBody
+}
+
+type FundCabalResponseObject interface {
+	VisitFundCabalResponse(w http.ResponseWriter) error
+}
+
+type FundCabal202JSONResponse FundAccepted
+
+func (response FundCabal202JSONResponse) VisitFundCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FundCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response FundCabaldefaultApplicationProblemPlusJSONResponse) VisitFundCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyTxnsRequestObject struct {
 	Params GetMyTxnsParams
 }
@@ -997,6 +1154,9 @@ type StrictServerInterface interface {
 	// GetCashOutJob Read one cash out job.
 	// (GET /v1/cabals/{id}/cashouts/{job_id})
 	GetCashOutJob(ctx context.Context, request GetCashOutJobRequestObject) (GetCashOutJobResponseObject, error)
+	// FundCabal Fund a cabal from the caller's platform balance.
+	// (POST /v1/cabals/{id}/fund)
+	FundCabal(ctx context.Context, request FundCabalRequestObject) (FundCabalResponseObject, error)
 	// GetMyTxns List the caller's transaction history.
 	// (GET /v1/me/txns)
 	GetMyTxns(ctx context.Context, request GetMyTxnsRequestObject) (GetMyTxnsResponseObject, error)
@@ -1148,6 +1308,40 @@ func (sh *strictHandler) GetCashOutJob(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCashOutJobResponseObject); ok {
 		if err := validResponse.VisitGetCashOutJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FundCabal operation middleware
+func (sh *strictHandler) FundCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FundCabalParams) {
+	var request FundCabalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body FundCabalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FundCabal(ctx, request.(FundCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FundCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FundCabalResponseObject); ok {
+		if err := validResponse.VisitFundCabalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

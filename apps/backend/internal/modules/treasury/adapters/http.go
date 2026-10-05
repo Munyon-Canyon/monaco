@@ -21,6 +21,7 @@ type HTTP struct {
 	Reads    *app.ActivityReads
 	UserTxns *app.UserTxnReads
 	CashOut  *app.CashOutHandler
+	Fund     *app.FundCabalHandler
 }
 
 func (h HTTP) GetCashOutPreview(

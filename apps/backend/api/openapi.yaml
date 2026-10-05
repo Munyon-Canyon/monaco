@@ -1978,6 +1978,40 @@ paths:
       responses:
         "200": {description: The job., content: {application/json: {schema: {$ref: "#/components/schemas/CashOutJob"}, example: {id: 01890a5d-ac96-774b-bcce-b302099a8060, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, user_id: 01890a5d-ac96-774b-bcce-b302099a8058, share_units: "100", payout_micros: "25000000", sell_usdc_micros: "0", status: started, result_code: null, created_at: "2026-10-03T15:00:00Z", updated_at: "2026-10-03T15:00:00Z"}}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/cabals/{id}/fund:
+    post:
+      operationId: fundCabal
+      tags: [treasury]
+      x-idempotent: true
+      summary: Fund a cabal from the caller's platform balance.
+      description: >-
+        Moves an exact amount of USDC from the caller's wallet to the cabal treasury. The transfer is
+        signed and its signature stored before broadcast, so the answer is 202 with the transfer id; share
+        units are minted at the live price once the transfer is final. Poll GET /v1/fund-transfers/{id}
+        for the outcome. Only members can fund. A paused or banned cabal answers `cabal_paused`, an amount
+        over the available balance answers `insufficient_funds`, and a pot with shares but no value answers
+        `pot_value_zero`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema: {type: string, format: uuid}
+      requestBody:
+        description: The amount to fund, at least 1 USDC.
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/FundRequest"}
+      responses:
+        "202":
+          description: The transfer is signed and submitted.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FundAccepted"}
+              example: {transfer_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/txns:
     get:
       operationId: getMyTxns
@@ -3982,6 +4016,25 @@ components:
       properties:
         usdc_micros: {type: string, pattern: "^(0|[1-9][0-9]*)$", examples: ["25000000"]}
         all: {type: boolean, examples: [true]}
+    FundAccepted:
+      type: object
+      description: A fund transfer that is signed and submitted.
+      required: [transfer_id, status]
+      properties:
+        transfer_id: {type: string, format: uuid, examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        status: {$ref: "#/components/schemas/FundTransferStatus"}
+    FundRequest:
+      type: object
+      description: How much platform balance to move into the cabal.
+      additionalProperties: false
+      required: [amount_micros]
+      properties:
+        amount_micros: {type: string, pattern: "^[0-9]+$", examples: ["5000000"]}
+    FundTransferStatus:
+      type: string
+      description: Where the transfer is. `landed` means final on chain with shares not yet minted.
+      enum: [created, submitted, landed, settled, failed]
+      examples: [submitted]
     UserTxn:
       type: object
       description: One inbound, outbound or cabal transfer affecting the caller.

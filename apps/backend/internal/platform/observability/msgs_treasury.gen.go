@@ -5,5 +5,8 @@ package observability
 func init() {
 	register(
 		TreasuryLedgerPosted,
+		TreasuryFundSubmitted,
+		TreasuryFundSignFailed,
+		TreasuryFundBroadcastFailed,
 	)
 }
