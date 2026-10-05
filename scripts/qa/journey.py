@@ -600,9 +600,7 @@ def simulator_names(sims):
 def check_simulator_api_environment(sims, api_base_url):
     names = simulator_names(sims)
     for udid in sims.values():
-        sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
-           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        boot_simulator(udid)
         value = sh(["xcrun", "simctl", "getenv", udid, "MONACO_API_BASE_URL"], stdout=subprocess.PIPE,
                    stderr=subprocess.DEVNULL).stdout.strip()
         if value and value != api_base_url:
@@ -613,6 +611,39 @@ def check_simulator_api_environment(sims, api_base_url):
                 "MONACO_API_BASE_URL" % (name, value, udid))
 
 
+BOOTED = []
+
+
+def boot_simulator(udid):
+    sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
+       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if udid not in BOOTED:
+        BOOTED.append(udid)
+
+
+@contextlib.contextmanager
+def simulator_shutdown(keep=False):
+    """Shuts down every simulator the run booted when it ends, passes, fails or is interrupted. A simulator
+    that was already booted before the run is left alone. keep=True (--keep-sims) skips the shutdown."""
+    del BOOTED[:]
+    before = set()
+    for items in simulator_devices().values():
+        before.update(item["udid"] for item in items if item.get("state") == "Booted")
+    handlers = {signum: signal.signal(signum, lambda signum, frame: (_ for _ in ()).throw(KeyboardInterrupt()))
+                for signum in (signal.SIGTERM, signal.SIGHUP)}
+    try:
+        yield
+    finally:
+        for signum, handler in handlers.items():
+            signal.signal(signum, handler)
+        if not keep:
+            for udid in BOOTED:
+                if udid not in before:
+                    sh(["xcrun", "simctl", "shutdown", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        del BOOTED[:]
+
+
 def reset_journey_simulators(journey, sims, explicit_actors, fresh):
     """Uninstall the app from dedicated simulators before one journey run."""
     targets = [
@@ -621,9 +652,7 @@ def reset_journey_simulators(journey, sims, explicit_actors, fresh):
     ]
     names = simulator_names(dict(targets))
     for actor, udid in targets:
-        sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
-           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        boot_simulator(udid)
         sh(["xcrun", "simctl", "uninstall", udid, BUNDLE_ID],
            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print("reset app on simulator %s" % names.get(udid, udid))
@@ -981,7 +1010,7 @@ def cmd_run(args):
     if args.all and args.scenario:
         raise JourneyError("--scenario names one journey's scenarios: drop it with --all")
     builder = once_builder(args)
-    with journey_backend() as api_base_url:
+    with simulator_shutdown(args.keep_sims), journey_backend() as api_base_url:
         if not args.all:
             return run_journey(args, api_base_url, args.journey, builder)
         return run_all(args, api_base_url, builder)
@@ -1064,7 +1093,7 @@ def run_journey(args, api_base_url, journey_id, builder):
 
 
 def cmd_mutants(args):
-    with journey_backend() as api_base_url:
+    with simulator_shutdown(args.keep_sims), journey_backend() as api_base_url:
         return run_mutants(args, api_base_url)
 
 
@@ -1228,6 +1257,8 @@ def main(argv=None):
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
         sub.add_argument("--timeout", type=int, default=300, metavar="SECONDS",
                          help="budget for one journey run: setup, tests and truth check (default 300)")
+        sub.add_argument("--keep-sims", action="store_true",
+                         help="leave the simulators this run booted running, for debugging")
         if name == "run":
             sub.add_argument("--scenario", action="append", metavar="S1", help="default: every scenario")
             sub.add_argument("--runs", type=int, default=1)
