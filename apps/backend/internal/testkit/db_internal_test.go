@@ -20,18 +20,26 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
-func TestParseTestURLRefusesAnyPortButTheTestContainer(t *testing.T) {
+func TestParseTestURLRefusesAnyPortButTheTestContainers(t *testing.T) {
 	t.Parallel()
-	if _, err := parseTestURL(config.DefaultTestDBURL); err != nil {
-		t.Fatalf("default test URL rejected: %v", err)
+	for _, raw := range []string{
+		config.DefaultTestDBURL,
+		"postgres://monaco:monaco@localhost:54324/monaco?sslmode=disable",
+		"postgres://monaco:monaco@localhost:54338/monaco?sslmode=disable",
+	} {
+		if _, err := parseTestURL(raw); err != nil {
+			t.Fatalf("test URL %s rejected: %v", raw, err)
+		}
 	}
 	for _, raw := range []string{
 		"postgres://monaco:secret@localhost:54322/monaco?sslmode=disable",
+		"postgres://monaco:secret@localhost:54339/monaco?sslmode=disable",
 		"postgres://monaco:secret@localhost/monaco",
 		"postgres://monaco:secret@db.example.supabase.co:5432/postgres",
 	} {
 		_, err := parseTestURL(raw)
-		if err == nil || !strings.Contains(err.Error(), "not monaco-postgres-test on port 54323") {
+		if err == nil ||
+			!strings.Contains(err.Error(), "not a monaco-postgres-test container on ports 54323 to 54338") {
 			t.Fatalf("parseTestURL(%q) = %v, want a refusal", raw, err)
 		}
 		if strings.Contains(err.Error(), "secret") {

@@ -42,7 +42,8 @@ services:
 
   postgres-test:
     image: postgres:16-alpine
-    container_name: monaco-postgres-test
+    # monacoctl agents check runs stage 0 slot N > 0 as project monaco-test-N with the MONACO_TEST_DB_* vars set.
+    container_name: ${MONACO_TEST_DB_NAME:-monaco-postgres-test}
     profiles: [test]
     # A panic on a full tmpfs exits the container, and every stage 0 run on the machine fails until it is back.
     restart: unless-stopped
@@ -61,10 +62,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monaco}
       POSTGRES_DB: ${POSTGRES_DB:-monaco}
     ports:
-      - "54323:5432"
+      - "${MONACO_TEST_DB_PORT:-54323}:5432"
     tmpfs:
       # 4 parallel stage 0 checks hold up to ~130 clone databases (~1.25 GB) plus WAL; 2g filled in a minute (#2922).
-      - /var/lib/postgresql/data:size=4g
+      - /var/lib/postgresql/data:size=${MONACO_TEST_DB_TMPFS:-4g}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monaco} -d ${POSTGRES_DB:-monaco}"]
       interval: 1s
