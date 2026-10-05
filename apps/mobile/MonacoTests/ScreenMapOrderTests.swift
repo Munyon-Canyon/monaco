@@ -51,13 +51,15 @@ struct ScreenMapOrderTests {
     }
 
     @Test func routeStubsRenderTheirPlaceholder() {
-        let stubs: [(Any, String)] = [
-            (AgentRoute(cabalID: "c").destination(), "Trading bot"),
-            (ProposeFromAssetRoute(symbol: "GOOGLx", kind: .buy).destination(), "Propose"),
-        ]
+        let stubs: [(Any, String)] = [(AgentRoute(cabalID: "c").destination(), "Trading bot")]
         for (view, screen) in stubs {
             #expect((view as? NotMigratedView)?.screen == screen)
         }
+    }
+
+    @Test func proposeFromAssetRouteRendersItsScreen() {
+        let view: Any = ProposeFromAssetRoute(symbol: "GOOGLx", kind: .buy).destination()
+        #expect(view is ProposeFromAssetScreen)
     }
 
     @Test func theFundRouteRendersItsScreen() {
