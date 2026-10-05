@@ -324,10 +324,10 @@ func TestLedger_concurrentPostsOnOneCabalSerializeThroughLockCabal(t *testing.T)
 	var spenders sync.WaitGroup
 	t.Cleanup(spenders.Wait)
 	t.Cleanup(unblock)
-	done := make(chan error, 2)
-	spenders.Go(func() { done <- f.spend(cabal, held, release) })
+	holderDone, waiterDone := make(chan error, 1), make(chan error, 1)
+	spenders.Go(func() { holderDone <- f.spend(cabal, held, release) })
 	<-held
-	spenders.Go(func() { done <- f.spend(cabal, nil, nil) })
+	spenders.Go(func() { waiterDone <- f.spend(cabal, nil, nil) })
 	testkit.Eventually(t, func() bool {
 		var waiting int
 		err := f.pool.QueryRow(t.Context(),
@@ -336,11 +336,10 @@ func TestLedger_concurrentPostsOnOneCabalSerializeThroughLockCabal(t *testing.T)
 		return err == nil && waiting == 1
 	}, 10*time.Second)
 	unblock()
-	first, second := <-done, <-done
-	if first != nil {
-		t.Fatalf("holder = %v, want its spend of 60 to succeed", first)
+	if err := <-holderDone; err != nil {
+		t.Fatalf("holder = %v, want its spend of 60 to succeed", err)
 	}
-	wantCode(t, second, errs.CodeInternal)
+	wantCode(t, <-waiterDone, errs.CodeInternal)
 	if f.count(t, "cabal_txns") != 2 || len(f.drift(t)) != 0 {
 		t.Fatalf("want the fund and one swap, and no drift: %q", f.drift(t))
 	}
