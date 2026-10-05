@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+08	Direct transfer to treasury	funding	poller:funding.treasury-reconcile	DetectExternalDeposit	cabal.external_deposit_detected		ok;Dust;UnknownAsset;crash:before-commit	planned	docs/architecture/deposits-withdrawals.md#direct-transfers-to-a-cabal-treasury-are-not-allowed
