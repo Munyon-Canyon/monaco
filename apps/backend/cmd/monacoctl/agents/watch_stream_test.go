@@ -216,6 +216,7 @@ func TestWatchStream_printsAFailureBlockOnce(t *testing.T) {
 	got := streamRounds(t, f, 4, func(round int) {
 		if round == 1 {
 			f.hub.on(graphqlRoute, nodes(f.now.Add(time.Minute)))
+			f.now = f.now.Add(takenFor + 2*time.Minute)
 		}
 	})
 	if strings.Count(got, "#6 stage 1 is red\n  failing job: https://gh/job/12\n") != 1 ||
@@ -768,7 +769,10 @@ func TestWatchStream_aDroppedLabelIsNotReportedWhileAnOpenDraftListsThePR(t *tes
 	if got := strings.Join(s.next(t.Context()), "\n"); strings.Contains(got, "#7 dropped") {
 		t.Fatalf("stream:\n%s", got)
 	}
-	f.hub.on(graphqlRoute, draftData([]string{strings.Replace(draft, `"OPEN"`, `"CLOSED"`, 1)}, node))
+	closed := strings.NewReplacer(
+		`"OPEN"`, `"CLOSED"`, "2026-09-27T11:59:00Z", f.now.Format(time.RFC3339),
+	).Replace(draft)
+	f.hub.on(graphqlRoute, draftData([]string{closed}, node))
 	if got := strings.Join(
 		s.next(t.Context()),
 		"\n",
@@ -777,6 +781,21 @@ func TestWatchStream_aDroppedLabelIsNotReportedWhileAnOpenDraftListsThePR(t *tes
 		"#7 dropped from the Graphite merge queue",
 	) {
 		t.Fatalf("no drop once the draft closed:\n%s", got)
+	}
+}
+
+func TestWatchStream_reportsAPRGraphiteTookOnlyOnceTheHoldRunsOut(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	f.hub.on(graphqlRoute, failureData(watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(time.Minute)))))
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(2 * time.Minute)
+	held := strings.Join(s.next(t.Context()), "\n")
+	f.now = f.now.Add(takenFor)
+	lapsed := strings.Join(s.next(t.Context()), "\n")
+	if strings.Contains(held, "#7 dropped") || !strings.Contains(lapsed, "#7 dropped from the Graphite merge queue") {
+		t.Fatalf("while Graphite holds it:\n%s\nonce the hold ran out:\n%s", held, lapsed)
 	}
 }
 

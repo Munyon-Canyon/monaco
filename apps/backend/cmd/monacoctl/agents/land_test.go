@@ -1241,7 +1241,7 @@ func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
 		},
 		{
 			name:     "a draft that ran the PRs since closed",
-			removals: []removal{queueLabel(graphiteGraphQL, 2*time.Minute)}, draftClosed: time.Minute, draftPRs: "1, 2",
+			removals: []removal{queueLabel(graphiteGraphQL, 2*time.Minute)}, draftClosed: time.Minute, draftPRs: "1, 2, 3",
 			ejected: true,
 		},
 		{

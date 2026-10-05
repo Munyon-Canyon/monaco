@@ -247,7 +247,7 @@ func (s *stream) failures(ctx context.Context, data watchData, queued []int) []s
 	for _, p := range data.prs {
 		labeled[p.Number] = slices.Contains(p.Labels.Nodes, gqlName{env.Config.QueueLabel})
 	}
-	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts}
+	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: env.Now()}
 	var items []string
 	for _, f := range failures(data.prs, queue, env.Config.FeatureBranch, s.since) {
 		if f.Why == droppedWhy && (labeled[f.PR] || s.reported[f.PR] || slices.Contains(queued, f.PR)) {

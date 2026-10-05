@@ -450,7 +450,7 @@ func (env *Env) queueState(p stackPR, landed bool, drafts []queueDraft) string {
 		return prQueued
 	case p.labeled(env.Config.QueueLabel):
 		return prWaiting
-	case env.waitsForDraft(p, drafts):
+	case env.waitsForDraft(p.gqlPR, drafts):
 		return prTaken
 	case env.justUnlabeled(p):
 		return prSettling
@@ -527,25 +527,23 @@ func (env *Env) unmark(ctx context.Context, rec Record) error {
 	return env.storeRecord(ctx, rec)
 }
 
-func (env *Env) unlabeled(p stackPR) (at time.Time, byGraphite, ok bool) {
-	events := p.TimelineItems.Nodes
-	for j := len(events) - 1; j >= 0; j-- {
-		if events[j].Label.Name == env.Config.QueueLabel {
-			return events[j].CreatedAt, graphiteLogin(events[j].Actor.Login), true
-		}
-	}
-	return time.Time{}, false, false
-}
-
 func (env *Env) justUnlabeled(p stackPR) bool {
-	at, _, ok := env.unlabeled(p)
+	at, _, ok := p.TimelineItems.removal(env.Config.QueueLabel)
 	return ok && env.Now().Sub(at) < settleAfter
 }
 
-func (env *Env) waitsForDraft(p stackPR, drafts []queueDraft) bool {
-	at, byGraphite, ok := env.unlabeled(p)
-	return ok && byGraphite && env.Now().Sub(at) < takenFor &&
-		!slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.runs(p.Number, at) })
+func (env *Env) waitsForDraft(p gqlPR, drafts []queueDraft) bool {
+	at, byGraphite, ok := p.TimelineItems.removal(env.Config.QueueLabel)
+	return ok && byGraphite && awaitsDraft(drafts, p.Number, at, env.Now())
+}
+
+func awaitsDraft(drafts []queueDraft, pr int, takenAt, now time.Time) bool {
+	return now.Sub(takenAt) < takenFor &&
+		!slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.runs(pr, takenAt) })
+}
+
+func (env *Env) heldByGraphite(p gqlPR, drafts []queueDraft) bool {
+	return draftHolds(drafts, p.Number) || env.waitsForDraft(p, drafts)
 }
 
 func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Writer) error {
