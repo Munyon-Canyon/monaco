@@ -1,0 +1,22 @@
+journey: cabals/pause
+expect-fail: S1 S2
+
+Every cabal shows a pause warning without when it resumes. S1.2 waits for "Funding and cash outs resume after" and S2.2 for no warning, so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift
+index 517ab132..5aa0e062 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPauseSlot.swift
+@@ -1,9 +1,9 @@
+ import SwiftUI
+ 
+ enum CabalPauseSlot: CabalSection {
+-    static let isLive = false
++    static let isLive = true
+ 
+     static func body(for context: CabalContext) -> some View {
+-        EmptyView()
++        Text("Paused.").accessibilityIdentifier("cabal-pause-banner")
+     }
+ }

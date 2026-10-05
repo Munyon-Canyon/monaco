@@ -1,0 +1,19 @@
+journey: money/withdraw
+expect-fail: S1
+
+A bad address shows no inline error. S1.2 waits for withdraw-address-problem, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawView.swift b/apps/mobile/Monaco/Features/Settings/WithdrawView.swift
+index dd2a7d12..94404ac2 100644
+--- a/apps/mobile/Monaco/Features/Settings/WithdrawView.swift
++++ b/apps/mobile/Monaco/Features/Settings/WithdrawView.swift
+@@ -87,7 +87,7 @@ struct WithdrawForm: Equatable {
+ 
+     /// Nothing while the field is empty; otherwise why the pasted address can't be used.
+     var addressProblem: String? {
+-        guard case .failure(let problem) = addressValidation, problem != .empty else { return nil }
++        guard case .failure(let problem) = addressValidation, problem == .empty else { return nil }
+         return SolanaAddress.message(for: problem)
+     }
+ 
