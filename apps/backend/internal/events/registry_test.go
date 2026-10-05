@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 type widgetBumped struct {
@@ -148,6 +149,27 @@ func TestCashOutStartedIdentity(t *testing.T) {
 	e := CashOutStarted{JobID: id}
 	if e.Type() != TypeCashOutStarted || e.AggregateType() != "cash_out" || e.AggregateID() != id {
 		t.Fatalf("CashOutStarted identity = %q, %q, %s", e.Type(), e.AggregateType(), e.AggregateID())
+	}
+}
+
+func TestCashOutCompletedIdentity(t *testing.T) {
+	t.Parallel()
+	id := uuid.UUID{2}
+	e := CashOutCompleted{JobID: id}
+	if e.Type() != TypeCashOutCompleted || e.AggregateType() != "cash_out" || e.AggregateID() != id {
+		t.Fatalf("CashOutCompleted identity = %q, %q, %s", e.Type(), e.AggregateType(), e.AggregateID())
+	}
+}
+
+func TestUserCashOutChangedHintNamesTheUser(t *testing.T) {
+	t.Parallel()
+	const raw = "01890a5d-ac96-774b-bcce-b302099a8059"
+	user, err := ids.ParseUserID(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := UserCashOutChangedHint(user), "user."+raw+".cashout_changed"; got != want {
+		t.Fatalf("UserCashOutChangedHint = %q, want %q", got, want)
 	}
 }
 

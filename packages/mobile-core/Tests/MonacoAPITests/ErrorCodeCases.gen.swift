@@ -73,6 +73,7 @@ extension Components.Schemas.ErrorCode {
         case .onrampLinkExpired: true
         case .onrampLinkInvalid: true
         case .panic: true
+        case .payoutFailed: true
         case .phoneNotLinked: true
         case .photoInvalid: true
         case .postHogRejected: true

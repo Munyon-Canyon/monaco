@@ -39,3 +39,13 @@ var TreasuryCashOutSaleSettled = Msg{
 	Name:     "treasury.cashout.sale_settled",
 	Required: []string{"job_id", "cabal_id", "before", "after", "paid_micros", "returned_units"},
 }
+
+var TreasuryCashOutMoved = Msg{
+	Name:     "treasury.cashout.moved",
+	Required: []string{"job_id", "before", "after", "payout_micros"},
+}
+
+var TreasuryCashOutBroadcastFailed = Msg{
+	Name:     "treasury.cashout.broadcast_failed",
+	Required: []string{"job_id", "code"},
+}

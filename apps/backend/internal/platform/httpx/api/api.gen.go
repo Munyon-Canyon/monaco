@@ -79,6 +79,7 @@ const (
 	OnrampLinkExpired          ErrorCode = "onramp_link_expired"
 	OnrampLinkInvalid          ErrorCode = "onramp_link_invalid"
 	Panic                      ErrorCode = "panic"
+	PayoutFailed               ErrorCode = "payout_failed"
 	PhoneNotLinked             ErrorCode = "phone_not_linked"
 	PhotoInvalid               ErrorCode = "photo_invalid"
 	PostHogRejected            ErrorCode = "post_hog_rejected"
@@ -260,6 +261,8 @@ func (e ErrorCode) Valid() bool {
 	case OnrampLinkInvalid:
 		return true
 	case Panic:
+		return true
+	case PayoutFailed:
 		return true
 	case PhoneNotLinked:
 		return true
