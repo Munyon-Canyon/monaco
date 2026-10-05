@@ -1,6 +1,11 @@
 import MonacoCore
 import SwiftUI
 
+enum ProposalVoteChoice: String {
+    case yes
+    case no
+}
+
 /// The ballots this member has cast, shared by every screen that draws a proposal card.
 ///
 /// Feed rows and the cabal screen's preview rows carry no ballots, and the server stops offering
