@@ -31,6 +31,7 @@ const (
 	CalendarExpired            ErrorCode = "calendar_expired"
 	CannotFollowSelf           ErrorCode = "cannot_follow_self"
 	CannotRevokeAccess         ErrorCode = "cannot_revoke_access"
+	CashOutInProgress          ErrorCode = "cash_out_in_progress"
 	ClientClosed               ErrorCode = "client_closed"
 	ConservationBroken         ErrorCode = "conservation_broken"
 	DbSchemaBehind             ErrorCode = "db_schema_behind"
@@ -49,6 +50,7 @@ const (
 	IdempotencyInFlight        ErrorCode = "idempotency_in_flight"
 	IdempotencyMismatch        ErrorCode = "idempotency_mismatch"
 	InsufficientFunds          ErrorCode = "insufficient_funds"
+	InsufficientShares         ErrorCode = "insufficient_shares"
 	Internal                   ErrorCode = "internal"
 	InvalidAddress             ErrorCode = "invalid_address"
 	InvalidConfig              ErrorCode = "invalid_config"
@@ -99,6 +101,7 @@ const (
 	SwapNotFound               ErrorCode = "swap_not_found"
 	SwapNotRetryable           ErrorCode = "swap_not_retryable"
 	SwapNotStuck               ErrorCode = "swap_not_stuck"
+	TreasuryShort              ErrorCode = "treasury_short"
 	Unauthorized               ErrorCode = "unauthorized"
 	UpstreamTimeout            ErrorCode = "upstream_timeout"
 	UpstreamUnavailable        ErrorCode = "upstream_unavailable"
@@ -157,6 +160,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case CannotRevokeAccess:
 		return true
+	case CashOutInProgress:
+		return true
 	case ClientClosed:
 		return true
 	case ConservationBroken:
@@ -192,6 +197,8 @@ func (e ErrorCode) Valid() bool {
 	case IdempotencyMismatch:
 		return true
 	case InsufficientFunds:
+		return true
+	case InsufficientShares:
 		return true
 	case Internal:
 		return true
@@ -292,6 +299,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotRetryable:
 		return true
 	case SwapNotStuck:
+		return true
+	case TreasuryShort:
 		return true
 	case Unauthorized:
 		return true

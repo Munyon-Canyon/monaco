@@ -2272,6 +2272,7 @@ components:
         - calendar_expired
         - cannot_follow_self
         - cannot_revoke_access
+        - cash_out_in_progress
         - client_closed
         - conservation_broken
         - db_schema_behind
@@ -2290,6 +2291,7 @@ components:
         - idempotency_in_flight
         - idempotency_mismatch
         - insufficient_funds
+        - insufficient_shares
         - internal
         - invalid_address
         - invalid_config
@@ -2340,6 +2342,7 @@ components:
         - swap_not_found
         - swap_not_retryable
         - swap_not_stuck
+        - treasury_short
         - unauthorized
         - upstream_timeout
         - upstream_unavailable
