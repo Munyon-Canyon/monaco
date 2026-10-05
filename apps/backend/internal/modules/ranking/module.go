@@ -47,8 +47,10 @@ func (*Module) Name() string { return "ranking" }
 
 func (*Module) Mount(api.Mount) {}
 
-func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+func (*Module) Consumers() []bus.Consumer { return consumers() }
+
+func consumers() []bus.Consumer {
+	return []bus.Consumer{membership()}
 }
 
 func (*Module) Pollers() []poller.Poller { return nil }
