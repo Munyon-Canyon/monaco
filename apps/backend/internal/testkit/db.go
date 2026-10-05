@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,7 +29,8 @@ import (
 )
 
 const (
-	testPort       = "54323"
+	testPort       = 54323
+	testPorts      = 16
 	keepFailed     = 5
 	staleAfter     = 15 * time.Minute
 	maxNameLen     = 63
@@ -99,10 +101,11 @@ func parseTestURL(rawURL string) (pgtestdb.Config, error) {
 	if err != nil {
 		return pgtestdb.Config{}, fmt.Errorf("parse TEST_DATABASE_URL: %w", err)
 	}
-	if u.Port() != testPort {
+	if port, err := strconv.Atoi(u.Port()); err != nil || port < testPort || port >= testPort+testPorts {
 		return pgtestdb.Config{}, setupError(fmt.Sprintf(
-			"TEST_DATABASE_URL %s is not monaco-postgres-test on port %s; tests never touch the dev database",
-			redact(rawURL), testPort))
+			"TEST_DATABASE_URL %s is not a monaco-postgres-test container on ports %d to %d; "+
+				"tests never touch the dev database",
+			redact(rawURL), testPort, testPort+testPorts-1))
 	}
 	password, _ := u.User.Password()
 	return pgtestdb.Config{
@@ -142,7 +145,7 @@ func (s *server) dbFor(t *testing.T) *pgxpool.Pool {
 	s.hold(inst.Database, true)
 	t.Cleanup(func() { s.hold(inst.Database, false) })
 	ctx := context.Background()
-	create := fmt.Sprintf(`CREATE DATABASE %s TEMPLATE %s OWNER %s`,
+	create := fmt.Sprintf(`CREATE DATABASE %s TEMPLATE %s OWNER %s STRATEGY FILE_COPY`,
 		pgx.Identifier{inst.Database}.Sanitize(), pgx.Identifier{tmpl.Database}.Sanitize(),
 		pgx.Identifier{tmpl.User}.Sanitize())
 	if _, err := s.admin.Exec(ctx, create); err != nil {

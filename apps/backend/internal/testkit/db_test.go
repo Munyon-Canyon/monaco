@@ -87,8 +87,8 @@ func TestDBConnectsOnlyToTheTestContainer(t *testing.T) {
 	t.Parallel()
 	db := testkit.DB(t)
 	conn := db.Config().ConnConfig
-	if conn.Port != 54323 {
-		t.Fatalf("testkit.DB connected to port %d, want monaco-postgres-test on 54323", conn.Port)
+	if conn.Port < 54323 || conn.Port > 54338 {
+		t.Fatalf("testkit.DB connected to port %d, want a test container port, 54323 to 54338", conn.Port)
 	}
 	var port int
 	var name string
