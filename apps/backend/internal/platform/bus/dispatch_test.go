@@ -660,3 +660,27 @@ func TestDispatch_eventIDMissingFromTheEventsTableTerms(t *testing.T) {
 		t.Fatalf("event_deliveries = %v, handled = %v, want neither", d, hd)
 	}
 }
+
+func TestDispatch_aHandlerAppendsItsEventsAsTheSystemActorNamedForIt(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	followUp := events.SystemPinged{V: 1, PingID: h.ids.NewV7(), Note: "echo"}
+	appender := bus.Handle("notify.echo",
+		func(ctx context.Context, tx db.Tx, _ events.SystemPinged, _ time.Time) error {
+			return tx.Events.Append(ctx, followUp)
+		})
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{appender}})
+	h.publishPing(t)
+	cons := h.consumer(t)
+	msg := h.fetch(t, cons)
+
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, h.logs))
+	reg.Dispatch(ctx, durable, msg)
+	testkit.AssertNoRedelivery(t, cons)
+	var actorType, actorID string
+	err := h.pool.QueryRow(t.Context(), `SELECT actor_type, actor_id FROM events WHERE aggregate_id = $1`,
+		followUp.PingID).Scan(&actorType, &actorID)
+	if err != nil || actorType != "system" || actorID != "notify.echo" {
+		t.Fatalf("follow-up event actor = %s:%s (err %v), want system:notify.echo", actorType, actorID, err)
+	}
+}
