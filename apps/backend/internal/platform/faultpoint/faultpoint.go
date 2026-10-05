@@ -18,10 +18,16 @@ const (
 	AfterExecute   Name = "after-execute"
 	BeforeCommit   Name = "before-commit"
 	AfterPublish   Name = "after-publish"
+
+	AfterSellRequest Name = "after-sell-request"
+	AfterSellConfirm Name = "after-sell-confirm"
 )
 
 func Names() []Name {
-	return []Name{AfterBroadcast, AfterCreate, AfterExecute, AfterPublish, AfterSign, BeforeCommit}
+	return []Name{
+		AfterBroadcast, AfterCreate, AfterExecute, AfterPublish, AfterSellConfirm, AfterSellRequest, AfterSign,
+		BeforeCommit,
+	}
 }
 
 func Known(name string) bool {

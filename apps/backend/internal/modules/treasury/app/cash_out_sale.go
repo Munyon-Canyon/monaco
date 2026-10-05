@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -113,6 +114,7 @@ func (s CashOutSales) settle(
 	if err != nil {
 		return err
 	}
+	faultpoint.Hit(ctx, faultpoint.AfterSellConfirm)
 	to := settled.Status
 	payout, code := settled.Paid, ""
 	if !settled.Unpaid.IsZero() {

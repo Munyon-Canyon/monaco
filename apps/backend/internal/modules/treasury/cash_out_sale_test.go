@@ -58,9 +58,11 @@ func (r *saleRig) deliver(t *testing.T, e events.Event) {
 	}
 }
 
-func (r *saleRig) apply(e events.Event) error {
+func (r *saleRig) apply(e events.Event) error { return r.applyIn(r.f.ctx(), e) }
+
+func (r *saleRig) applyIn(ctx context.Context, e events.Event) error {
 	m := treasury.New(module.Deps{Config: r.f.cfg, Pool: r.f.pool, IDs: r.f.ids, Clock: r.f.clock})
-	ctx := observability.WithActor(r.f.ctx(), "system:treasury.cashout")
+	ctx = observability.WithActor(ctx, "system:treasury.cashout")
 	return r.f.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		for _, c := range m.Consumers() {
 			for _, h := range c.Handlers {

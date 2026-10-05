@@ -346,8 +346,13 @@ func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool, d
 	}
 	var pkgs []string
 	for _, f := range parsed {
-		if pkg := "./internal/modules/" + f.Module + "/..."; slices.Contains(ids, f.ID) && !slices.Contains(pkgs, pkg) {
-			pkgs = append(pkgs, pkg)
+		if !slices.Contains(ids, f.ID) {
+			continue
+		}
+		for _, module := range flowModules(f) {
+			if pkg := "./internal/modules/" + module + "/..."; !slices.Contains(pkgs, pkg) {
+				pkgs = append(pkgs, pkg)
+			}
 		}
 	}
 	results, err := env.writeState("flows", head[:12]+".json", nil)
@@ -374,6 +379,16 @@ func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool, d
 		})
 	}
 	return row, nil
+}
+
+func flowModules(f flows.Flow) []string {
+	modules := []string{f.Module}
+	for _, c := range f.Consumers {
+		if module, _, ok := strings.Cut(c, "."); ok && !slices.Contains(modules, module) {
+			modules = append(modules, module)
+		}
+	}
+	return modules
 }
 
 func (env *Env) xcodeRow(changed []string) (checkRow, bool) {

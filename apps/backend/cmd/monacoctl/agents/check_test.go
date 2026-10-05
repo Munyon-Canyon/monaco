@@ -1506,7 +1506,7 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.base(t, map[string]string{
-		flows.Dir + "/00.tsv":                         flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\t\tok\tbuilt\tdocs/f.md\n",
+		flows.Dir + "/00.tsv":                         flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\tsystem.echo;identity.echo\tok\tbuilt\tdocs/f.md\n",
 		flows.Dir + "/01.tsv":                         flows.Header + "\n01\tSign in\tidentity\tGET /s\tSignIn\t\t\tok\tbuilt\tdocs/f.md\n",
 		"apps/backend/internal/modules/system/app.go": "package system\n",
 	})
@@ -1517,7 +1517,7 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	want := []string{
 		"apps/backend: flows --affected --base origin/fb",
 		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
-			"^TestFlow(00)_ " + results + " ./internal/modules/system/...",
+			"^TestFlow(00)_ " + results + " ./internal/modules/system/... ./internal/modules/identity/...",
 		"apps/backend: flows check --affected --base origin/fb --from " + results,
 		"apps/backend: mobile-core-test.sh --filter (F|Flow)(00)[^a-z0-9]",
 	}
