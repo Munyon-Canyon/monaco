@@ -33,6 +33,7 @@ const (
 	CannotRevokeAccess         ErrorCode = "cannot_revoke_access"
 	CashOutInProgress          ErrorCode = "cash_out_in_progress"
 	ClientClosed               ErrorCode = "client_closed"
+	CoinGeckoRateLimited       ErrorCode = "coin_gecko_rate_limited"
 	ConservationBroken         ErrorCode = "conservation_broken"
 	DbSchemaBehind             ErrorCode = "db_schema_behind"
 	DbUnavailable              ErrorCode = "db_unavailable"
@@ -163,6 +164,8 @@ func (e ErrorCode) Valid() bool {
 	case CashOutInProgress:
 		return true
 	case ClientClosed:
+		return true
+	case CoinGeckoRateLimited:
 		return true
 	case ConservationBroken:
 		return true

@@ -43,6 +43,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			APNs:            10 * time.Second,
 			JupiterQuote:    5 * time.Second,
 			JupiterExecute:  2 * time.Minute,
+			CoinGecko:       15 * time.Second,
 			XStocks:         15 * time.Second,
 			Tessera:         15 * time.Second,
 			PreStocks:       15 * time.Second,
@@ -56,6 +57,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			SwapBaseURL:  "https://api.jup.ag/swap/v2",
 			PriceBaseURL: "https://api.jup.ag/price/v3",
 		},
+		CoinGecko: config.CoinGecko{BaseURL: "https://api.coingecko.com/api/v3"},
 		XStocks:   config.XStocks{BaseURL: "https://api.xstocks.fi"},
 		Tessera:   config.Tessera{BaseURL: "https://rest-api.tessera.pe"},
 		PreStocks: config.PreStocks{BaseURL: "https://prestocks.com"},
@@ -108,6 +110,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_TIMEOUT_APNS=8s",
 		"MONACO_TIMEOUT_JUPITER_QUOTE=3s",
 		"MONACO_TIMEOUT_JUPITER_EXECUTE=4m",
+		"MONACO_TIMEOUT_COINGECKO=7s",
 		"MONACO_TIMEOUT_XSTOCKS=8s",
 		"MONACO_TIMEOUT_TESSERA=9s",
 		"MONACO_TIMEOUT_PRESTOCKS=11s",
@@ -118,6 +121,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_JUPITER_SWAP_BASE_URL=http://fakes/jupiter/swap/v2",
 		"MONACO_JUPITER_PRICE_BASE_URL=http://fakes/jupiter/price/v3",
 		"JUPITER_API_KEY=jup-secret",
+		"COINGECKO_BASE_URL=http://fakes/coingecko",
+		"COINGECKO_API_KEY=cg-secret",
 		"XSTOCKS_BASE_URL=http://fakes/xstocks",
 		"TESSERA_API_BASE_URL=http://fakes/tessera",
 		"PRESTOCKS_API_BASE_URL=http://fakes/prestocks",
@@ -172,6 +177,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			APNs:            8 * time.Second,
 			JupiterQuote:    3 * time.Second,
 			JupiterExecute:  4 * time.Minute,
+			CoinGecko:       7 * time.Second,
 			XStocks:         8 * time.Second,
 			Tessera:         9 * time.Second,
 			PreStocks:       11 * time.Second,
@@ -186,6 +192,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			PriceBaseURL: "http://fakes/jupiter/price/v3",
 			APIKey:       "jup-secret",
 		},
+		CoinGecko: config.CoinGecko{BaseURL: "http://fakes/coingecko", APIKey: "cg-secret"},
 		XStocks:   config.XStocks{BaseURL: "http://fakes/xstocks"},
 		Tessera:   config.Tessera{BaseURL: "http://fakes/tessera"},
 		PreStocks: config.PreStocks{BaseURL: "http://fakes/prestocks"},
@@ -226,6 +233,17 @@ func TestLoadAcceptsEveryEnv(t *testing.T) {
 		}
 		if cfg.Env != env {
 			t.Fatalf("Env = %q, want %q", cfg.Env, env)
+		}
+	}
+}
+
+func TestLoadBootsWithoutACoinGeckoKeyInEveryEnv(t *testing.T) {
+	t.Parallel()
+	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
+		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "POSTHOG_API_KEY=ph-key")
+		cfg, err := config.Load(environ)
+		if err != nil || cfg.CoinGecko.APIKey != "" {
+			t.Fatalf("MONACO_ENV=%s: key %q, err %v; want no key and no error", env, cfg.CoinGecko.APIKey, err)
 		}
 	}
 }
@@ -421,6 +439,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"OTEL_EXPORTER_OTLP_HEADERS":      "Authorization=Basic header-secret",
 		"MONACO_DEV_TOKEN_KEY":            "dev-token-secret",
 		"JUPITER_API_KEY":                 "jup-secret",
+		"COINGECKO_API_KEY":               "cg-secret",
 		"PRIVY_APP_SECRET":                "privy-app-secret",
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY": "wallet-auth:privy-auth-secret",
 		"PRIVY_WEBHOOK_SECRET":            "webhook-signing-secret",
@@ -450,6 +469,9 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"OTEL_EXPORTER_OTLP_HEADERS", "***"},
 		{"MONACO_DEV_TOKEN_KEY", "***"},
 		{"JUPITER_API_KEY", "***"},
+		{"COINGECKO_API_KEY", "***"},
+		{"COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3"},
+		{"MONACO_TIMEOUT_COINGECKO", "15s"},
 		{"MONACO_JUPITER_SWAP_BASE_URL", "https://api.jup.ag/swap/v2"},
 		{"MONACO_JUPITER_PRICE_BASE_URL", "https://api.jup.ag/price/v3"},
 		{"MONACO_ENV", "staging"},
