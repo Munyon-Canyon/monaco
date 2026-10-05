@@ -2467,6 +2467,7 @@ components:
         - db_unavailable
         - decode_failed
         - display_name_invalid
+        - dust
         - faultpoint
         - feed_item_not_found
         - feed_item_pending
@@ -2536,6 +2537,7 @@ components:
         - swap_not_retryable
         - swap_not_stuck
         - unauthorized
+        - unknown_asset
         - upstream_timeout
         - upstream_unavailable
         - user_banned

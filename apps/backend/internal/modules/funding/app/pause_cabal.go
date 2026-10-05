@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -33,29 +34,47 @@ func NewPauseCabalHandler(uow *db.UnitOfWork, g ids.Generator, c clock.Clock, hi
 }
 
 func (h *PauseCabalHandler) Handle(ctx context.Context, cmd PauseCabal) (uuid.UUID, error) {
-	id, s := h.ids.NewV7(), pauseScope{cabal: cmd.CabalID}
+	p := newPause{
+		id: h.ids.NewV7(), scope: pauseScope{cabal: cmd.CabalID}, reason: cmd.Reason, note: cmd.Note,
+		actor: cmd.Actor, at: h.clock.Now(),
+	}
 	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		before, err := lockScope(ctx, q, s)
-		if err != nil {
-			return err
-		}
-		if err := q.InsertPause(ctx, sqlc.InsertPauseParams{
-			ID: id, CabalID: s.row(), Reason: string(cmd.Reason), Note: cmd.Note,
-			CreatedBy: optionalUser(cmd.Actor), CreatedAt: h.clock.Now(),
-		}); err != nil {
-			return err
-		}
-		if len(before) == 0 {
-			paused := events.CabalPaused{
-				V: 1, PauseID: id, CabalID: s.eventCabalID(), Reason: string(cmd.Reason), Scope: s.name(),
-			}
-			if err := tx.Events.Append(ctx, paused); err != nil {
-				return err
-			}
-		}
-		afterCommitPauseChanged(tx, s, before, append(slices.Clone(before), string(cmd.Reason)), h.hints)
-		return nil
+		return writePause(ctx, tx, p, h.hints)
 	})
-	return id, err
+	return p.id, err
+}
+
+type newPause struct {
+	id              uuid.UUID
+	scope           pauseScope
+	reason          domain.PauseReason
+	note            string
+	actor           *ids.UserID
+	externalDeposit uuid.UUID
+	at              time.Time
+}
+
+func writePause(ctx context.Context, tx db.Tx, p newPause, hints HintPublisher) error {
+	q := sqlc.New(tx.Queries())
+	before, err := lockScope(ctx, q, p.scope)
+	if err != nil {
+		return err
+	}
+	if err := q.InsertPause(ctx, sqlc.InsertPauseParams{
+		ID: p.id, CabalID: p.scope.row(), Reason: string(p.reason), Note: p.note,
+		CreatedBy: optionalUser(p.actor), CreatedAt: p.at,
+		ExternalDepositID: p.externalDeposit,
+	}); err != nil {
+		return err
+	}
+	if len(before) == 0 {
+		paused := events.CabalPaused{
+			V: 1, PauseID: p.id, CabalID: p.scope.eventCabalID(), Reason: string(p.reason), Scope: p.scope.name(),
+		}
+		if err := tx.Events.Append(ctx, paused); err != nil {
+			return err
+		}
+	}
+	afterCommitPauseChanged(tx, p.scope, before, append(slices.Clone(before), string(p.reason)), hints)
+	return nil
 }

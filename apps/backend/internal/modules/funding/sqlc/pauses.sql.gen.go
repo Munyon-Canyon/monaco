@@ -13,19 +13,21 @@ import (
 )
 
 const insertPause = `-- name: InsertPause :exec
-INSERT INTO cabal_pauses (id, cabal_id, reason, note, created_by, created_at)
+INSERT INTO cabal_pauses (id, cabal_id, reason, note, created_by, created_at, external_deposit_id)
 VALUES ($1::uuid, NULLIF($2::uuid, '00000000-0000-0000-0000-000000000000'),
   $3::text, $4::text,
-  NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'), $6::timestamptz)
+  NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'), $6::timestamptz,
+  NULLIF($7::uuid, '00000000-0000-0000-0000-000000000000'))
 `
 
 type InsertPauseParams struct {
-	ID        uuid.UUID
-	CabalID   uuid.UUID
-	Reason    string
-	Note      string
-	CreatedBy uuid.UUID
-	CreatedAt time.Time
+	ID                uuid.UUID
+	CabalID           uuid.UUID
+	Reason            string
+	Note              string
+	CreatedBy         uuid.UUID
+	CreatedAt         time.Time
+	ExternalDepositID uuid.UUID
 }
 
 func (q *Queries) InsertPause(ctx context.Context, arg InsertPauseParams) error {
@@ -36,6 +38,7 @@ func (q *Queries) InsertPause(ctx context.Context, arg InsertPauseParams) error 
 		arg.Note,
 		arg.CreatedBy,
 		arg.CreatedAt,
+		arg.ExternalDepositID,
 	)
 	return err
 }
