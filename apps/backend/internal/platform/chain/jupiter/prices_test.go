@@ -421,3 +421,13 @@ func TestPrices_cancelledDuringTheRateLimitWaitStops(t *testing.T) {
 		}
 	})
 }
+
+func TestPrices_aContextThatRunsOutIsAnUpstreamTimeout(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := client(replying(http.StatusOK, `{}`)).Prices(ctx, []jupiter.Mint{fixtureMint(1)})
+	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
+		t.Fatalf("Prices on a spent context = %v, want upstream_timeout", err)
+	}
+}
