@@ -27,17 +27,21 @@ type Price struct {
 }
 
 type priceWire struct {
-	USDPrice  json.Number `json:"usdPrice"`
+	USDPrice  json.RawMessage `json:"usdPrice"`
 	StockData *struct {
-		Price json.Number `json:"price"`
+		Price json.RawMessage `json:"price"`
 	} `json:"stockData"`
 }
 
 func (w priceWire) price() json.Number {
-	if w.USDPrice == "" && w.StockData != nil {
-		return w.StockData.Price
+	if len(w.USDPrice) == 0 && w.StockData != nil {
+		return unquotedNumber(w.StockData.Price)
 	}
-	return w.USDPrice
+	return unquotedNumber(w.USDPrice)
+}
+
+func unquotedNumber(raw json.RawMessage) json.Number {
+	return json.Number(strings.Trim(string(raw), `"`))
 }
 
 const (
@@ -108,7 +112,7 @@ func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, 
 		}
 		usd, ok := parsePrice(w.price())
 		if !ok {
-			var stock json.Number
+			var stock json.RawMessage
 			if w.StockData != nil {
 				stock = w.StockData.Price
 			}
