@@ -117,7 +117,7 @@ struct ProposeChooserView: View {
             // No side padding: the rows run edge to edge, the way every list in the app does.
             MonacoGroupedList {
                 NavigationLink {
-                    ProposeBuyStockView(groupId: groupId, pot: pot, service: service, onProposed: onProposed)
+                    ProposeBuyStockView(cabalID: groupId)
                 } label: {
                     ChooserRow(
                         title: ProposeFlowCopy.buyRow,
