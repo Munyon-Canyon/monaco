@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -264,5 +266,47 @@ func TestSettle_pollsTheLogOnceWhenTheDeadlineHasAlreadyPassed(t *testing.T) {
 				t.Fatalf("settle past its deadline = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func blockedSettle(pool *pgxpool.Pool, lines ...string) (*driver, *Result) {
+	ignore := func(context.Context, bus.Delivery, events.TradeBlocked) error { return nil }
+	d, res := priceSettle(pool, []string{"trade.blocked"}, lines...)
+	d.env.Consumers = []bus.Consumer{{
+		Durable: "governance", Handlers: []bus.HandlerSpec{bus.HandleOwn("governance.trade_outcome.blocked", ignore)},
+	}}
+	res.Unit.Flow.Consumers = []string{"governance.trade_outcome.blocked"}
+	return d, res
+}
+
+func TestSettle_skipsAWatchingHandlerWhoseEventTheOutcomeNeverWrote(t *testing.T) {
+	t.Parallel()
+	const tick = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
+	d, res := blockedSettle(testkit.DB(t), tick)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	if err := d.settle(ctx, res); err != nil {
+		t.Fatalf("settle = %v, want a pass: no trade.blocked was written, so no handler of it dispatched", err)
+	}
+}
+
+func TestSettle_requiresAWatchingHandlerWhoseEventTheOutcomeWrote(t *testing.T) {
+	t.Parallel()
+	const (
+		tick  = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
+		relay = `{"msg":"bus.relay.tick","count":1,"first_id":"a","last_id":"a"}`
+		want  = "flow 18 ok invariant: no bus.dispatched log line with map[handler:governance.trade_outcome.blocked]"
+	)
+	d, res := blockedSettle(testkit.DB(t), tick, relay)
+	if _, err := d.env.Pool.Exec(t.Context(), `INSERT INTO events (
+		id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at)
+		VALUES ($1, 'swap', $2, 'trade.blocked', '{"v":1}', 'system', 'test', $3)`,
+		uuid.New(), uuid.New(), res.startedAt.Add(time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
+	defer cancel()
+	if err := d.settle(ctx, res); err == nil || err.Error() != want {
+		t.Fatalf("settle = %v, want %q", err, want)
 	}
 }
