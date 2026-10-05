@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22	Chat	social					ok;NotCabalMember;Unauthorized;crash:before-commit	planned	docs/architecture/chat.md#send-flow

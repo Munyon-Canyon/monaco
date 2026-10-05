@@ -1,4 +1,4 @@
-h1:Kqte/ySktd5uvGMyTOLCw/5qxtrm4b6nf7ZxjpVpqC0=
+h1:gzEeBKOOGzDU3BisO2EzVXp+naXKwTWUsGFanSpeXtY=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -45,3 +45,4 @@ h1:Kqte/ySktd5uvGMyTOLCw/5qxtrm4b6nf7ZxjpVpqC0=
 20261005040034_market_price_backfills.sql h1:aG0aR4tMacU4DAEYqFh6FZz4luRywE35tla1i9lBTIM=
 20261005052232_market_price_backfill_backoff.sql h1:V67QC1PTsyEmg0ibZde4wwY99eFpUBklInKF3Ok2hw0=
 20261005131714_funding_withdrawals.sql h1:2Ja+TkR6s7BfwHdHulkxeNBfm6WP6BT5kXfQNTM7vuU=
+20261005140000_social_chat_messages.sql h1:tqMryAc28QPkbORK3MljlwJDdCcufHGd7xFz571pKOM=

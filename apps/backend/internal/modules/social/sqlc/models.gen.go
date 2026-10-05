@@ -3,3 +3,24 @@
 //   sqlc v1.31.1
 
 package sqlc
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type CabalMessage struct {
+	ID            uuid.UUID
+	CabalID       uuid.UUID
+	AuthorID      uuid.UUID
+	Body          string
+	CreatedAt     time.Time
+	ParentID      pgtype.UUID
+	AlsoInChannel bool
+	ReplyCount    int32
+	LastReplyAt   pgtype.Timestamptz
+	ProposalID    pgtype.UUID
+	DeletedAt     pgtype.Timestamptz
+}
