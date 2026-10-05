@@ -36,7 +36,7 @@ private struct CabalHeader: View {
         )
         .task(id: retry.tick) {
             let model = preparedModel()
-            if model.cabal == nil { await model.load() }
+            await model.load()
             await model.observe()
         }
         .onScreenVisibilityChange { visible in

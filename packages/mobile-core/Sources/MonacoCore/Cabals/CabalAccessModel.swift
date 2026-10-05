@@ -42,6 +42,7 @@ public final class CabalAccessModel {
     public private(set) var isBusy = false
     public private(set) var deciding: Set<String> = []
     public private(set) var toast: CabalInviteToast?
+    public private(set) var membershipChanges = 0
 
     public let cabalID: String
     private let api: APIClient
@@ -111,9 +112,12 @@ public final class CabalAccessModel {
         isBusy = true
         defer { isBusy = false }
         switch await api.enterCabal(cabalID, mode: mode, submission: entry) {
-        case .joined: show(CabalEntry.joinedToast, success: true)
+        case .joined:
+            show(CabalEntry.joinedToast, success: true)
+            membershipChanges += 1
         case .requested: show(CabalEntry.requestedToast, success: true)
-        case .alreadyMember, .requestPending: break
+        case .alreadyMember: membershipChanges += 1
+        case .requestPending: break
         case .refused(let error):
             show(ToastCopy.message(for: error), success: false)
             return
@@ -148,6 +152,7 @@ public final class CabalAccessModel {
                 cabalID: cabalID, requestID: request.id, approve: approve, submission: submission)
             drop(request)
             show(approve ? Self.approvedToast : Self.deniedToast, success: true)
+            if approve { membershipChanges += 1 }
         } catch {
             let failure = APIError(error)
             if APIClient.flow03Outcome(failure) == .accessRequestNotPending {

@@ -13,6 +13,7 @@ enum CabalJoinSlot: CabalSection {
 struct CabalJoinSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.cabalRetry) private var retry
     let cabalID: String
     @State private var model: CabalAccessModel?
 
@@ -39,6 +40,9 @@ struct CabalJoinSection: View {
             if toast.message == CabalEntry.joinedToast {
                 Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
             }
+        }
+        .onChange(of: model?.membershipChanges) { _, _ in
+            retry.retry?()
         }
     }
 
