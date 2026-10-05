@@ -63,6 +63,23 @@ func F07FundCabalOK(s *scenario.Scenario) {
 		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1))
 }
 
+func F07FundCabalCrashBeforeCommit(s *scenario.Scenario) {
+	f := seedFund(s)
+	s.Given(scenario.AsSeededUser("member", f.member.ID), scenario.FakeUpstream(finalizedStatus())).
+		When(
+			scenario.Post(f.path(), fundBody),
+			scenario.Retry(),
+			scenario.ExpectStatus(http.StatusAccepted),
+			scenario.Remember("transfer_id", "transfer"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.AwaitTick("treasury.fund-transfers"),
+			scenario.Get("/v1/fund-transfers/{transfer}"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("status", "settled"),
+		).
+		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1))
+}
+
 func F07FundCabalInvalidInput(s *scenario.Scenario) {
 	f := seedFund(s)
 	s.Given(scenario.AsSeededUser("member", f.member.ID)).

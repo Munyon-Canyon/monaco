@@ -5,6 +5,7 @@ package flows
 func (defined) ScriptsF07() map[string]Script {
 	return map[string]Script{
 		"F07FundCabalOK":                F07FundCabalOK,
+		"F07FundCabalCrashBeforeCommit": F07FundCabalCrashBeforeCommit,
 		"F07FundCabalInvalidInput":      F07FundCabalInvalidInput,
 		"F07FundCabalNotCabalMember":    F07FundCabalNotCabalMember,
 		"F07FundCabalInsufficientFunds": F07FundCabalInsufficientFunds,

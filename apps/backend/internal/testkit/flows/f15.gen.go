@@ -5,6 +5,7 @@ package flows
 func (defined) ScriptsF15() map[string]Script {
 	return map[string]Script{
 		"F15WithdrawOK":                  F15WithdrawOK,
+		"F15WithdrawCrashBeforeCommit":   F15WithdrawCrashBeforeCommit,
 		"F15WithdrawInvalidInput":        F15WithdrawInvalidInput,
 		"F15WithdrawInvalidAddress":      F15WithdrawInvalidAddress,
 		"F15WithdrawWithdrawToOwnWallet": F15WithdrawWithdrawToOwnWallet,
