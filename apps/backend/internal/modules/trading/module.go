@@ -102,14 +102,25 @@ func (m *Module) Mount(r api.Mount) {
 
 func (m *Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{{
-		Durable:  "trading",
-		Handlers: []bus.HandlerSpec{bus.HandleOwn("trading.engine", m.execute)},
+		Durable: "trading",
+		Handlers: []bus.HandlerSpec{
+			bus.HandleOwn("trading.engine", m.execute),
+			bus.HandleOwn("trading.engine.retry", m.retry),
+		},
 	}}
 }
 
 func (m *Module) execute(ctx context.Context, d bus.Delivery, ev events.ProposalPassed) error {
+	return m.engineAdapter().Handle(ctx, d, ev)
+}
+
+func (m *Module) retry(ctx context.Context, d bus.Delivery, ev events.TradeRetryRequested) error {
+	return m.engineAdapter().HandleRetry(ctx, d, ev)
+}
+
+func (m *Module) engineAdapter() adapters.Engine {
 	m.once.Do(func() { m.trades = m.engine() })
-	return adapters.Engine{Trades: m.trades}.Handle(ctx, d, ev)
+	return adapters.Engine{Trades: m.trades}
 }
 
 func (m *Module) Pollers() []poller.Poller {

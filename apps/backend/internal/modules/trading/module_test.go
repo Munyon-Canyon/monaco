@@ -35,9 +35,20 @@ func TestModule_registersTheEngineAsItsOwnIdempotentConsumer(t *testing.T) {
 		t.Fatal("SignatureOwner() = zero value")
 	}
 	c := consumers[0]
-	if c.Durable != "trading" || len(c.Handlers) != 1 || c.Handlers[0].Name != engineHandler ||
-		!c.Handlers[0].OwnIdempotency() || c.Handlers[0].Type() != busevents.TypeProposalPassed {
-		t.Fatalf("consumer = %+v, want durable trading with trading.engine on proposal.passed, own idempotency", c)
+	type handler struct {
+		name string
+		typ  busevents.Type
+		own  bool
+	}
+	got := make([]handler, 0, len(c.Handlers))
+	for _, h := range c.Handlers {
+		got = append(got, handler{h.Name, h.Type(), h.OwnIdempotency()})
+	}
+	want := []handler{
+		{engineHandler, busevents.TypeProposalPassed, true}, {retryHandler, busevents.TypeTradeRetryRequested, true},
+	}
+	if c.Durable != "trading" || !reflect.DeepEqual(got, want) {
+		t.Fatalf("consumer %s handlers %+v, want durable trading with %+v", c.Durable, got, want)
 	}
 }
 

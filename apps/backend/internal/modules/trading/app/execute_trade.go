@@ -28,6 +28,12 @@ type ExecuteTrade struct {
 	USDCMicros     money.Micros
 	TokenAmount    uint64
 	QuoteOutAmount uint64
+	Retry          *Retry
+}
+
+type Retry struct {
+	Of          ids.SwapID
+	SlippageBps int32
 }
 
 func (c ExecuteTrade) source() domain.Source {
@@ -66,7 +72,7 @@ type refusal struct {
 func (r refusal) refused() bool { return r.code != "" }
 
 func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd ExecuteTrade, heartbeat func()) error {
-	if done, err := h.claimed(ctx, d, cmd.source()); done || err != nil {
+	if done, err := h.claimed(ctx, d, cmd); done || err != nil {
 		return err
 	}
 	req, refused, err := h.check(ctx, cmd)
@@ -86,7 +92,7 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 	})
 }
 
-func (h *ExecuteTradeHandler) claimed(ctx context.Context, d bus.Delivery, src domain.Source) (bool, error) {
+func (h *ExecuteTradeHandler) claimed(ctx context.Context, d bus.Delivery, cmd ExecuteTrade) (bool, error) {
 	recorded, err := sqlc.New(h.d.Reads).DeliveryRecorded(ctx, sqlc.DeliveryRecordedParams{
 		Handler: d.Handler, EventID: d.EventID.UUID(),
 	})
@@ -96,8 +102,9 @@ func (h *ExecuteTradeHandler) claimed(ctx context.Context, d bus.Delivery, src d
 	if recorded {
 		return true, nil
 	}
-	latest, found, err := NewQueries(h.d.Reads).LatestBySource(ctx, src)
-	return found && latest.Status != domain.StatusFailed, err
+	latest, found, err := NewQueries(h.d.Reads).LatestBySource(ctx, cmd.source())
+	superseded := cmd.Retry != nil && latest.ID != cmd.Retry.Of
+	return found && (latest.Status != domain.StatusFailed || superseded), err
 }
 
 func (h *ExecuteTradeHandler) check(ctx context.Context, cmd ExecuteTrade) (SwapRequest, refusal, error) {
@@ -169,7 +176,7 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 }
 
 func (h *ExecuteTradeHandler) price(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
-	bps, err := h.d.Ports.Cabals.SlippageBps(ctx, cmd.CabalID)
+	bps, err := h.slippageBps(ctx, cmd)
 	if err != nil {
 		return refusal{}, err
 	}
@@ -186,6 +193,13 @@ func (h *ExecuteTradeHandler) price(ctx context.Context, cmd ExecuteTrade, req *
 		return refusal{code: errs.CodeSlippageExceeded, have: quote.OutAmount, need: floor}, nil
 	}
 	return refusal{}, nil
+}
+
+func (h *ExecuteTradeHandler) slippageBps(ctx context.Context, cmd ExecuteTrade) (int32, error) {
+	if cmd.Retry != nil {
+		return cmd.Retry.SlippageBps, nil
+	}
+	return h.d.Ports.Cabals.SlippageBps(ctx, cmd.CabalID)
 }
 
 func (h *ExecuteTradeHandler) paused(ctx context.Context, cmd ExecuteTrade, _ *SwapRequest) (refusal, error) {
