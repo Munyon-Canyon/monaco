@@ -33,6 +33,7 @@ extension Components.Schemas.ErrorCode {
         case .dbUnavailable: true
         case .decodeFailed: true
         case .displayNameInvalid: true
+        case .dust: true
         case .faultpoint: true
         case .feedItemNotFound: true
         case .feedItemPending: true
@@ -102,6 +103,7 @@ extension Components.Schemas.ErrorCode {
         case .swapNotRetryable: true
         case .swapNotStuck: true
         case .unauthorized: true
+        case .unknownAsset: true
         case .upstreamTimeout: true
         case .upstreamUnavailable: true
         case .userBanned: true

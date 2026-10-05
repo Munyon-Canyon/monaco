@@ -133,8 +133,8 @@ func opsActor(ctx context.Context) context.Context {
 	return auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
 }
 
-func (*Module) SignatureOwner() adapters.UnwiredSignatureOwner {
-	return adapters.UnwiredSignatureOwner{}
+func (m *Module) SignatureOwner() adapters.BounceSignatures {
+	return adapters.NewBounceSignatures(m.deps.Pool)
 }
 
 type (

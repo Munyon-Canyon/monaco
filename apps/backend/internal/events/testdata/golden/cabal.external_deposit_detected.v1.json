@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "external_deposit_id": "019b76da-a802-7a11-9c3e-2b4f1d8e6a10",
+  "cabal_id": "019b76da-a801-7863-8a77-496679994ce3",
+  "signature": "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
+  "sender": "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P",
+  "sender_user_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "asset_id": null,
+  "amount": "25000000"
+}
