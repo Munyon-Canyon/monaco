@@ -42,6 +42,7 @@ func moduleConfig() config.Config {
 		XStocks:   config.XStocks{BaseURL: "http://fakes/xstocks"},
 		Tessera:   config.Tessera{BaseURL: "http://fakes/tessera"},
 		PreStocks: config.PreStocks{BaseURL: "http://fakes/prestocks"},
+		CoinGecko: config.CoinGecko{BaseURL: "http://fakes/coingecko"},
 		Solana:    config.Solana{RPCURL: "http://fakes/rpc/"},
 		Jupiter: config.Jupiter{
 			SwapBaseURL: "http://fakes/jupiter/swap/v2", PriceBaseURL: "http://fakes/jupiter/price/v3",
@@ -49,7 +50,7 @@ func moduleConfig() config.Config {
 		Market: config.Market{PricePollInterval: 90 * time.Second},
 		Timeouts: config.Timeouts{
 			XStocks: time.Second, Tessera: time.Second, PreStocks: time.Second, RPC: time.Second,
-			JupiterQuote: time.Second, JupiterExecute: time.Minute,
+			JupiterQuote: time.Second, JupiterExecute: time.Minute, CoinGecko: time.Second,
 		},
 	}
 }
@@ -57,7 +58,7 @@ func moduleConfig() config.Config {
 func TestModule_pollsTheCatalogHourly(t *testing.T) {
 	t.Parallel()
 	pollers := market.New(module.Deps{Config: moduleConfig(), HTTPClient: httpclient.New}).Pollers()
-	if len(pollers) != 3 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
+	if len(pollers) != 4 || pollers[0].Name() != "market.catalog" || pollers[0].Interval() != time.Hour {
 		t.Fatalf("Pollers = %v, want market.catalog every hour first", pollers)
 	}
 }

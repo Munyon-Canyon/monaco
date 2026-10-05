@@ -38,3 +38,11 @@ WHERE ctid IN (
   LIMIT sqlc.arg(batch_limit)::integer
 )
 RETURNING ts;
+
+-- name: InsertBackfilledPricePoints :execrows
+INSERT INTO price_points (mint, ts, price_micros, source)
+SELECT sqlc.arg(mint)::text, u.ts, u.price_micros, sqlc.arg(source)::text
+FROM ROWS FROM (
+  unnest(sqlc.arg(timestamps)::timestamptz[]), unnest(sqlc.arg(price_micros)::bigint[])
+) AS u (ts, price_micros)
+ON CONFLICT (mint, ts) DO NOTHING;

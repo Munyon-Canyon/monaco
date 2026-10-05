@@ -99,6 +99,10 @@ func storable(answered map[domain.Mint]money.Micros, m domain.Mint) (int64, bool
 	if !ok {
 		return 0, false
 	}
+	return storableMicros(micros)
+}
+
+func storableMicros(micros money.Micros) (int64, bool) {
 	signed, err := micros.Delta(money.Micros{})
 	return signed.Int64(), err == nil
 }

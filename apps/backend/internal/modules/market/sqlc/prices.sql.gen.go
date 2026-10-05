@@ -12,6 +12,35 @@ import (
 	"github.com/google/uuid"
 )
 
+const insertBackfilledPricePoints = `-- name: InsertBackfilledPricePoints :execrows
+INSERT INTO price_points (mint, ts, price_micros, source)
+SELECT $1::text, u.ts, u.price_micros, $2::text
+FROM ROWS FROM (
+  unnest($3::timestamptz[]), unnest($4::bigint[])
+) AS u (ts, price_micros)
+ON CONFLICT (mint, ts) DO NOTHING
+`
+
+type InsertBackfilledPricePointsParams struct {
+	Mint        string
+	Source      string
+	Timestamps  []time.Time
+	PriceMicros []int64
+}
+
+func (q *Queries) InsertBackfilledPricePoints(ctx context.Context, arg InsertBackfilledPricePointsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertBackfilledPricePoints,
+		arg.Mint,
+		arg.Source,
+		arg.Timestamps,
+		arg.PriceMicros,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertPricePoints = `-- name: InsertPricePoints :execrows
 INSERT INTO price_points (mint, ts, price_micros, source)
 SELECT u.mint, $1::timestamptz, u.price_micros, $2::text

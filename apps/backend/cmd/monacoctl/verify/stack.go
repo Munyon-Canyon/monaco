@@ -147,6 +147,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"XSTOCKS_BASE_URL=http://"+fakes.addr+"/xstocks",
 		"TESSERA_API_BASE_URL=http://"+fakes.addr+"/tessera",
 		"PRESTOCKS_API_BASE_URL=http://"+fakes.addr+"/prestocks",
+		"COINGECKO_BASE_URL=http://"+fakes.addr+"/coingecko",
 		"SOLANA_RPC_URL=http://"+fakes.addr+"/rpc/",
 		"SOLANA_USDC_MINT="+string(testkit.USDCMint),
 		"SUPABASE_URL=http://"+fakes.addr,

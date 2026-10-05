@@ -206,6 +206,7 @@ export MONACO_JUPITER_PRICE_BASE_URL="${fakes_url}/jupiter/price/v3"
 export XSTOCKS_BASE_URL="${fakes_url}/xstocks"
 export TESSERA_API_BASE_URL="${fakes_url}/tessera"
 export PRESTOCKS_API_BASE_URL="${fakes_url}/prestocks"
+export COINGECKO_BASE_URL="${fakes_url}/coingecko"
 export SOLANA_RPC_URL="${fakes_url}/rpc/"
 export PRIVY_BASE_URL="${fakes_url}/privy"
 
