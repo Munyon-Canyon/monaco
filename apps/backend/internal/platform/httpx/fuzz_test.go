@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/apiall"
@@ -33,6 +36,12 @@ func specOperations(tb testing.TB) []operation {
 			ops = append(ops, operation{method, param.ReplaceAllString(path, "p")})
 		}
 	}
+	sort.Slice(ops, func(i, j int) bool {
+		if ops[i].path != ops[j].path {
+			return ops[i].path < ops[j].path
+		}
+		return ops[i].method < ops[j].method
+	})
 	return ops
 }
 
@@ -53,6 +62,11 @@ func FuzzRequestBodies(f *testing.F) {
 	for _, seed := range []string{"", "{}", "{", "null", "[]", `{"a":` + "\x00" + `}`, "\xff\xfe", `{"amount":-1e309}`} {
 		f.Add(uint8(0), []byte(seed))
 	}
+	for i, op := range ops {
+		if strings.HasPrefix(op.path, "/v1/admin/") {
+			f.Add(uint8(i), []byte("{}"))
+		}
+	}
 	c, err := LoadContract(openapi.Spec)
 	if err != nil {
 		f.Fatal(err)
@@ -63,6 +77,9 @@ func FuzzRequestBodies(f *testing.F) {
 		h.deps.MaxBodyBytes = 1 << 10
 		h.deps.Verifier = stubVerifier(func(context.Context, string) (auth.Actor, error) {
 			return auth.Actor{Kind: auth.ActorUser, ID: "fuzz"}, nil
+		})
+		h.deps.AdminVerifier = stubVerifier(func(context.Context, string) (auth.Actor, error) {
+			return auth.Actor{Kind: auth.ActorUser, ID: "fuzz", Role: string(domain.RoleOperator)}, nil
 		})
 		req := httptest.NewRequestWithContext(t.Context(), op.method, op.path, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
