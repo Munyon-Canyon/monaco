@@ -1,11 +1,13 @@
 name: Staging
 
-# The full suite on every push to staging, as an indicator only: no ruleset requires it and nothing waits on it.
-# A PR's own run already gated what lands; this run tests the combined trunk, which the light queue check does
-# not. The README badge shows its result. docs/architecture/ci.md#check-stages
+# The full suite on staging every 30 minutes when it moved, as an indicator only: no ruleset requires it and nothing
+# waits on it. A PR's own run already gated what lands; this run tests the combined trunk, which the light queue
+# check does not. The README badge shows its result. It ran on every push until #2950: with landings every few
+# minutes it ran back to back and held about half of the free plan's 20 concurrent jobs, so PR stage 1 runs and
+# queue drafts waited for runners. docs/architecture/ci.md#check-stages
 on:
-  push:
-    branches: [staging]
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 # One run at a time and none cancelled: a newer push waits behind the active run, replacing any older pending one.
@@ -20,15 +22,36 @@ permissions:
   checks: write
 
 jobs:
+  # A scheduled run skips when staging has not moved since the last completed run. A dispatch always runs.
+  moved:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          HEAD: ${{ github.sha }}
+        run: |
+          last="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/staging.yml/runs?branch=staging&status=completed&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // ""')"
+          if [[ "$EVENT" != schedule || "$last" != "$HEAD" ]]; then run=true; else run=false; fi
+          echo "last completed run tested ${last:-nothing}; head is $HEAD; run=$run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   staging:
+    needs: [moved]
+    if: needs.moved.outputs.run == 'true'
     uses: ./.github/workflows/ci-jobs.yml
     with:
       stage: staging
 
   # Each backend leg above saves a per-SHA Go cache (ci-jobs.yml). Keep the newest per leg on this ref.
   prune:
-    needs: [staging]
-    if: always()
+    needs: [moved, staging]
+    if: always() && needs.moved.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true
