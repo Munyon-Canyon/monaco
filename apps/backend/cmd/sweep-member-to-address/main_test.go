@@ -21,5 +21,6 @@ var (
 	member = wallet("wallet-member")
 	cabal  = wallet("wallet-treasury")
 	stray  = wallet("wallet-privy-only")
+	usdc   = chain.Mint{Address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", Decimals: 6}
 	tables = fakeTables{members: []chain.Wallet{member}, treasuries: []chain.Wallet{cabal}}
 )
