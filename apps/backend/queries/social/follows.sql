@@ -33,3 +33,19 @@ LIMIT sqlc.arg(row_limit)::int;
 SELECT followee_id FROM follows
 WHERE follower_id = sqlc.arg(follower_id)::uuid AND followee_id = ANY(sqlc.arg(followee_ids)::uuid[])
   AND deleted_at IS NULL;
+
+-- name: CountFollows :one
+SELECT
+  (SELECT count(*) FROM follows WHERE followee_id = sqlc.arg(user_id)::uuid AND deleted_at IS NULL)::int AS followers,
+  (SELECT count(*) FROM follows WHERE follower_id = sqlc.arg(user_id)::uuid AND deleted_at IS NULL)::int AS following;
+
+-- name: IsFollowing :one
+SELECT EXISTS (
+  SELECT 1 FROM follows
+  WHERE follower_id = sqlc.arg(follower_id)::uuid AND followee_id = sqlc.arg(followee_id)::uuid AND deleted_at IS NULL
+);
+
+-- name: FollowingIDs :many
+SELECT followee_id FROM follows
+WHERE follower_id = sqlc.arg(user_id)::uuid AND deleted_at IS NULL
+ORDER BY created_at DESC, followee_id DESC;

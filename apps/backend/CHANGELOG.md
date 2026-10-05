@@ -13,6 +13,8 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
   `monaco` database for QA journeys: `cabal-with-confirmed-trade`, `cabal-with-failed-trade`, `cabal-with-members`,
   `cabal-with-open-proposal` and `user-with-balance`.
 - The `funding` module.
+- The `social` module lists a user's followers and following with `GET /v1/users/{id}/followers` and
+  `GET /v1/users/{id}/following`, and exports a follows port with index-only follower and following counts.
 - Card deposit sessions: `POST /v1/onramp/sessions` returns a one-time fund page URL (`FUND_PAGE_URL`) whose token
   expires in 10 minutes, and `POST /v1/onramp/sessions/exchange` trades the token once for the member wallet
   address. Each move appends `onramp.status_changed`. New codes `onramp_link_invalid`, `onramp_link_expired` and

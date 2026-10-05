@@ -127,50 +127,50 @@ func redact(rawURL string) string {
 	return u.Redacted()
 }
 
-func DB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
+func DB(tb testing.TB) *pgxpool.Pool {
+	tb.Helper()
 	s := current.Load()
 	if s == nil {
-		t.Fatal("testkit.DB: call testkit.Main(m) from this package's TestMain")
+		tb.Fatal("testkit.DB: call testkit.Main(m) from this package's TestMain")
 	}
-	return s.dbFor(t)
+	return s.dbFor(tb)
 }
 
-func (s *server) dbFor(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	queries := s.claim(t.Name())
-	tmpl := s.templateFor(t)
+func (s *server) dbFor(tb testing.TB) *pgxpool.Pool {
+	tb.Helper()
+	queries := s.claim(tb.Name())
+	tmpl := s.templateFor(tb)
 	inst := tmpl
-	inst.Database = databaseName(s.runPrefix, t.Name())
+	inst.Database = databaseName(s.runPrefix, tb.Name())
 	s.hold(inst.Database, true)
-	t.Cleanup(func() { s.hold(inst.Database, false) })
+	tb.Cleanup(func() { s.hold(inst.Database, false) })
 	ctx := context.Background()
 	create := fmt.Sprintf(`CREATE DATABASE %s TEMPLATE %s OWNER %s STRATEGY FILE_COPY`,
 		pgx.Identifier{inst.Database}.Sanitize(), pgx.Identifier{tmpl.Database}.Sanitize(),
 		pgx.Identifier{tmpl.User}.Sanitize())
 	if _, err := s.admin.Exec(ctx, create); err != nil {
-		t.Fatalf("testkit.DB: clone %s: %v", tmpl.Database, err)
+		tb.Fatalf("testkit.DB: clone %s: %v", tmpl.Database, err)
 	}
 	cfg, err := pgxpool.ParseConfig(inst.URL())
 	if err != nil {
-		t.Fatalf("testkit.DB: %v", err)
+		tb.Fatalf("testkit.DB: %v", err)
 	}
 	cfg.MaxConns = poolMaxConns
 	cfg.ConnConfig.Tracer = queries
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		t.Fatalf("testkit.DB: connect %s: %v", inst.Database, err)
+		tb.Fatalf("testkit.DB: connect %s: %v", inst.Database, err)
 	}
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		pool.Close()
-		s.release(t.Name())
-		kept, err := s.releaseDB(ctx, inst.Database, t.Failed())
+		s.release(tb.Name())
+		kept, err := s.releaseDB(ctx, inst.Database, tb.Failed())
 		if err != nil {
-			t.Errorf("testkit.DB: %v", err)
+			tb.Errorf("testkit.DB: %v", err)
 			return
 		}
 		if kept {
-			t.Logf("testkit: kept %s for debugging at %s", inst.Database, redact(inst.URL()))
+			tb.Logf("testkit: kept %s for debugging at %s", inst.Database, redact(inst.URL()))
 		}
 	})
 	return pool
@@ -219,29 +219,29 @@ func (s *server) holds(db string) bool {
 	return s.held[db]
 }
 
-func (s *server) templateFor(t *testing.T) pgtestdb.Config {
-	t.Helper()
+func (s *server) templateFor(tb testing.TB) pgtestdb.Config {
+	tb.Helper()
 	s.templateOnce.Do(func() {
 		ctx := context.Background()
 		name, err := s.currentTemplate()
 		if err != nil {
-			t.Fatalf("testkit.DB: %v", err)
+			tb.Fatalf("testkit.DB: %v", err)
 		}
 		if err := s.holdTemplate(ctx, name); err != nil {
-			t.Fatalf("testkit.DB: %v", err)
+			tb.Fatalf("testkit.DB: %v", err)
 		}
-		inst := pgtestdb.Custom(t, s.base, s.migrator)
+		inst := pgtestdb.Custom(tb, s.base, s.migrator)
 		if built, _, _ := strings.Cut(inst.Database, instanceMarker); built != name {
-			t.Fatalf("testkit.DB: pgtestdb built template %s, testkit holds %s", built, name)
+			tb.Fatalf("testkit.DB: pgtestdb built template %s, testkit holds %s", built, name)
 		}
 		if err := drop(ctx, s.admin, inst.Database); err != nil {
-			t.Fatalf("testkit.DB: %v", err)
+			tb.Fatalf("testkit.DB: %v", err)
 		}
 		s.template = *inst
 		s.template.Database = name
 	})
 	if s.template.Database == "" {
-		t.Fatal("testkit.DB: the template database failed to build earlier in this run")
+		tb.Fatal("testkit.DB: the template database failed to build earlier in this run")
 	}
 	return s.template
 }

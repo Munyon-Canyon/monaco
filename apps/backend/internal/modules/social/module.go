@@ -1,12 +1,15 @@
 package social
 
 import (
+	"context"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -31,6 +34,17 @@ func New(d module.Deps, opts ...Option) *Module {
 		m.users = identity.New(d).Queries()
 	}
 	return m
+}
+
+type FollowsPort = app.FollowsPort
+
+func (m *Module) Follows() app.Follows { return app.NewFollows(m.deps.Pool) }
+
+func (m *Module) FollowCounts() interface {
+	Counts(context.Context, ids.UserID) (int, int, error)
+	FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
+} {
+	return m.Follows()
 }
 
 func (*Module) Name() string { return "social" }
