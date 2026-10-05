@@ -73,6 +73,7 @@ type Server struct {
 	createdUsers map[string]privyCreatedUser
 	objects      map[string]storedObject
 	posthog      []PostHogCapture
+	balances     map[string]map[string]tokenBalance
 	nextUser     int
 }
 
@@ -87,9 +88,11 @@ func newFrom(fsys fs.FS, root string) *Server {
 		wallets:      map[string]privyWallet{},
 		createdUsers: map[string]privyCreatedUser{},
 		objects:      map[string]storedObject{},
+		balances:     map[string]map[string]tokenBalance{},
 		upstreams:    upstreamsIn(fsys, root),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
+	s.mux.HandleFunc("POST /_balance", s.setBalance)
 	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
 	s.live.HandleFunc("GET /privy/v1/users/{id}", s.privyUser)
 	s.live.HandleFunc("POST /privy/v1/users", s.privyCreateUser)
@@ -245,7 +248,7 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 			s.live.ServeHTTP(w, live)
 			return
 		}
-		if route == "/rpc/getMultipleAccounts" && s.multipleAccounts(w, r) {
+		if s.answerRPC(w, r, route, step.fixture != "") {
 			return
 		}
 		s.serveFixture(w, keys)
