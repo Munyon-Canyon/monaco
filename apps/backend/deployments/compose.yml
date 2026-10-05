@@ -44,6 +44,8 @@ services:
     image: postgres:16-alpine
     container_name: monaco-postgres-test
     profiles: [test]
+    # A panic on a full tmpfs exits the container, and every stage 0 run on the machine fails until it is back.
+    restart: unless-stopped
     command:
       - postgres
       - -c
@@ -61,7 +63,8 @@ services:
     ports:
       - "54323:5432"
     tmpfs:
-      - /var/lib/postgresql/data:size=2g
+      # 4 parallel stage 0 checks hold up to ~130 clone databases (~1.25 GB) plus WAL; 2g filled in a minute (#2922).
+      - /var/lib/postgresql/data:size=4g
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monaco} -d ${POSTGRES_DB:-monaco}"]
       interval: 1s
