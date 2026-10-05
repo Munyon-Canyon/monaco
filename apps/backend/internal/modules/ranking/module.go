@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -66,6 +67,10 @@ func (m *Module) Wire(set module.Set) {
 }
 
 func (m *Module) Ports() app.Ports { return m.ports }
+
+func (m *Module) RunValuation() app.RunValuation {
+	return app.NewRunValuation(m.ports, chain.SolanaAddress(m.deps.Config.Solana.USDCMint))
+}
 
 func (*Module) Name() string { return "ranking" }
 

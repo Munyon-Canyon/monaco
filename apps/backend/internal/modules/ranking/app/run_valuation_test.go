@@ -1,0 +1,541 @@
+package app
+
+import (
+	"context"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+)
+
+func valuationTime() time.Time { return time.Date(2026, time.October, 4, 12, 0, 0, 0, time.UTC) }
+
+func TestRunValuation_readsEachBatchPortOnce(t *testing.T) {
+	t.Parallel()
+	f := &countingPorts{}
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		"",
+	).Run(t.Context(), valuationTime())
+	if err != nil || len(got.Cabals) != 0 || got.Excluded != 0 {
+		t.Fatalf("Run() = %#v, %v", got, err)
+	}
+	if f.all != 1 || f.memberCalls != 1 || f.positions != 1 || f.stakes != 1 || f.paused != 1 || f.assets != 1 ||
+		f.latest != 1 ||
+		f.asOf != 1 {
+		t.Fatalf("calls = %#v", f)
+	}
+}
+
+func TestRunValuation_readsEachBatchPortOnceForFiveHundredCabals(t *testing.T) {
+	t.Parallel()
+	f := &countingPorts{cabals: make([]cabal.View, 500)}
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		"",
+	).Run(t.Context(), valuationTime())
+	if err != nil || got.Excluded != 500 {
+		t.Fatalf("Run() = %#v, %v", got, err)
+	}
+	if f.all != 1 || f.memberCalls != 1 || f.positions != 1 || f.stakes != 1 || f.paused != 1 || f.assets != 1 ||
+		f.latest != 1 ||
+		f.asOf != 1 {
+		t.Fatalf("calls = %#v", f)
+	}
+}
+
+func TestRunValuation_excludesBannedPausedAndUnconservedCabals(t *testing.T) {
+	t.Parallel()
+	usdc, err := chain.ParseAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, setup := range map[string]func(ids.CabalID, *countingPorts){
+		"banned": func(_ ids.CabalID, f *countingPorts) { f.cabals[0].Status = cabal.StatusBanned },
+		"paused": func(id ids.CabalID, f *countingPorts) {
+			f.pausedSet.Cabals = map[ids.CabalID][]funding.PauseReason{id: {"ops"}}
+		},
+		"conservation broken": func(id ids.CabalID, f *countingPorts) {
+			f.positionRows = []treasury.CabalPositions{{CabalID: id, Holdings: []treasury.Position{{Mint: usdc, Units: money.NewBaseUnits(1, 6)}}, TotalShares: money.SharesUnitsFromUint64(1)}}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			id := ids.CabalIDFrom(ids.Real{}.NewV7())
+			f := &countingPorts{cabals: []cabal.View{{ID: id}}}
+			setup(id, f)
+			got, err := NewRunValuation(
+				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+				usdc,
+			).Run(t.Context(), valuationTime())
+			if err != nil || len(got.Cabals) != 0 || got.Excluded != 1 {
+				t.Fatalf("Run() = %#v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestRunValuation_returnsReadErrors(t *testing.T) {
+	t.Parallel()
+	for name, setup := range map[string]func(*countingPorts){
+		"cabals":    func(f *countingPorts) { f.allErr = errs.New(errs.CodeInternal, "test") },
+		"members":   func(f *countingPorts) { f.membersErr = errs.New(errs.CodeInternal, "test") },
+		"positions": func(f *countingPorts) { f.positionsErr = errs.New(errs.CodeInternal, "test") },
+		"stakes":    func(f *countingPorts) { f.stakesErr = errs.New(errs.CodeInternal, "test") },
+		"users": func(f *countingPorts) {
+			f.userErr = errs.New(errs.CodeInternal, "test")
+			f.stakeRows = []treasury.MemberStake{{UserID: ids.UserIDFrom(ids.Real{}.NewV7())}}
+		},
+		"pauses":        func(f *countingPorts) { f.pausesErr = errs.New(errs.CodeInternal, "test") },
+		"catalog":       func(f *countingPorts) { f.assetsErr = errs.New(errs.CodeInternal, "test") },
+		"latest prices": func(f *countingPorts) { f.latestErr = errs.New(errs.CodeInternal, "test") },
+		"prices as of":  func(f *countingPorts) { f.asOfErr = errs.New(errs.CodeInternal, "test") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := &countingPorts{}
+			setup(f)
+			if _, err := NewRunValuation(
+				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+				"",
+			).Run(t.Context(), valuationTime()); err == nil {
+				t.Fatal("Run() error = nil")
+			}
+		})
+	}
+}
+
+func TestRunValuation_returnsSessionError(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 1)
+	f.sessionErr = errs.New(errs.CodeInternal, "test")
+	if _, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc,
+	).Run(t.Context(), valuationTime()); err == nil {
+		t.Fatal("Run() error = nil")
+	}
+}
+
+func TestRunValuation_helpers(t *testing.T) {
+	t.Parallel()
+	usdc, err := chain.ParseAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := splitCash(
+		[]treasury.Position{{Mint: usdc, Units: money.NewBaseUnits(1, 5)}},
+		usdc,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeDecodeFailed {
+		t.Fatalf("splitCash wrong decimals = %v", err)
+	}
+	if _, _, err := splitCash(
+		[]treasury.Position{
+			{Mint: usdc, Units: money.NewBaseUnits(^uint64(0), 6)},
+			{Mint: usdc, Units: money.NewBaseUnits(1, 6)},
+		},
+		usdc,
+	); err == nil {
+		t.Fatal("splitCash overflow error = nil")
+	}
+	price := money.MicrosFromUint64(1)
+	id := ids.CabalIDFrom(ids.Real{}.NewV7())
+	if err := conservation(
+		id,
+		money.SharesUnitsFromUint64(1),
+		[]treasury.MemberStake{{CabalID: id, ShareUnits: money.SharesUnitsFromUint64(2)}},
+		price,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeInvalidInput {
+		t.Fatalf("conservation invalid stake = %v", err)
+	}
+	f := &countingPorts{}
+	stakes := make([]treasury.MemberStake, 501)
+	for i := range stakes {
+		stakes[i].UserID = ids.UserIDFrom(ids.Real{}.NewV7())
+	}
+	if err := NewRunValuation(Ports{Users: f}, "").readUsers(t.Context(), stakes); err != nil {
+		t.Fatalf("readUsers() = %v", err)
+	}
+}
+
+func TestRunValuation_cabalNAVErrors(t *testing.T) {
+	t.Parallel()
+	usdc, err := chain.ParseAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stock, err := market.ParseMint("So11111111111111111111111111111111111111112")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listed market.AssetID
+	now := valuationTime()
+	sessions := map[market.AssetID]market.SessionInfo{listed: {State: "open"}}
+	runner := NewRunValuation(Ports{Market: &countingPorts{}}, usdc)
+	if _, _, err := runner.cabalNAV(
+		money.Micros{},
+		[]treasury.Position{{Mint: stock.Address()}},
+		money.SharesUnits{},
+		nil,
+		nil,
+		nil,
+		nil,
+		now,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("cabalNAV unknown mint = %v", err)
+	}
+	assets := map[string]market.Asset{stock.String(): {ID: listed, Mint: stock}}
+	if _, flags, err := runner.cabalNAV(
+		money.Micros{},
+		[]treasury.Position{{Mint: stock.Address()}},
+		money.SharesUnits{},
+		assets,
+		sessions,
+		nil,
+		nil,
+		now,
+	); err != nil ||
+		len(flags) != 1 {
+		t.Fatalf("cabalNAV unpriced = %v, %v", flags, err)
+	}
+	fresh := map[market.AssetID]market.Price{listed: {Micros: money.MicrosFromUint64(1), ObservedAt: now}}
+	if _, _, err := runner.cabalNAV(
+		money.Micros{},
+		[]treasury.Position{{Mint: stock.Address(), Units: money.NewBaseUnits(1, 20)}},
+		money.SharesUnits{},
+		assets,
+		sessions,
+		fresh,
+		fresh,
+		now,
+	); err == nil {
+		t.Fatal("cabalNAV invalid units error = nil")
+	}
+}
+
+func TestRunValuation_rejectsInvalidCashUnits(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 1)
+	f.positionRows[0].Holdings[0].Units = money.NewBaseUnits(1, 5)
+	_, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc).
+		Run(t.Context(), valuationTime())
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Run() = %v", err)
+	}
+}
+
+func TestRunValuation_excludesUnpricedAndReturnsUnexpectedConservationErrors(t *testing.T) {
+	t.Parallel()
+	now := valuationTime()
+	stock, err := market.ParseMint("So11111111111111111111111111111111111111112")
+	if err != nil {
+		t.Fatal(err)
+	}
+	usdc, err := chain.ParseAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var assetID market.AssetID
+	for name, setup := range map[string]func(ids.CabalID, *countingPorts){
+		"unpriced": func(id ids.CabalID, f *countingPorts) {
+			f.positionRows = []treasury.CabalPositions{{CabalID: id, Holdings: []treasury.Position{{Mint: stock.Address()}}}}
+			f.assetRows = []market.Asset{{ID: assetID, Mint: stock}}
+			f.sessions = map[market.AssetID]market.SessionInfo{assetID: {State: "open"}}
+		},
+		"invalid conservation": func(id ids.CabalID, f *countingPorts) {
+			f.positionRows = []treasury.CabalPositions{{CabalID: id, Holdings: []treasury.Position{{Mint: usdc, Units: money.NewBaseUnits(1, 6)}}, TotalShares: money.SharesUnitsFromUint64(1)}}
+			f.stakeRows = []treasury.MemberStake{{CabalID: id, ShareUnits: money.SharesUnitsFromUint64(2)}}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			id := ids.CabalIDFrom(ids.Real{}.NewV7())
+			f := &countingPorts{cabals: []cabal.View{{ID: id}}}
+			setup(id, f)
+			got, runErr := NewRunValuation(
+				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+				usdc,
+			).Run(t.Context(), now)
+			if name == "unpriced" && (runErr != nil || got.Excluded != 1) {
+				t.Fatalf("Run() = %#v, %v", got, runErr)
+			}
+			if name == "invalid conservation" && errs.CodeOf(runErr) != errs.CodeInvalidInput {
+				t.Fatalf("Run() = %v", runErr)
+			}
+		})
+	}
+}
+
+func TestRunValuation_refusesAnUncataloguedHeldMint(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 1)
+	f.assetRows = nil
+	_, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc).
+		Run(t.Context(), valuationTime())
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("Run() = %v, want upstream_unavailable", err)
+	}
+}
+
+func TestRunValuation_valuesUSDCWithoutCatalogLookup(t *testing.T) {
+	t.Parallel()
+	now := valuationTime()
+	cabalID := ids.CabalIDFrom(ids.Real{}.NewV7())
+	userID := ids.UserIDFrom(ids.Real{}.NewV7())
+	usdc, err := chain.ParseAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &countingPorts{
+		cabals:  []cabal.View{{ID: cabalID}},
+		members: map[ids.CabalID][]cabal.MemberView{cabalID: {{UserID: userID}}},
+		positionRows: []treasury.CabalPositions{
+			{
+				CabalID:     cabalID,
+				Holdings:    []treasury.Position{{Mint: usdc, Units: money.NewBaseUnits(2_000_000, 6)}},
+				TotalShares: money.SharesUnitsFromUint64(1_000_000),
+			},
+		},
+		stakeRows: []treasury.MemberStake{
+			{CabalID: cabalID, UserID: userID, ShareUnits: money.SharesUnitsFromUint64(1_000_000)},
+		},
+	}
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		usdc,
+	).Run(t.Context(), now)
+	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].Value != money.MicrosFromUint64(2_000_000) {
+		t.Fatalf("Run() = %#v, %v", got, err)
+	}
+	if f.assets != 1 || f.latest != 1 || f.asOf != 1 {
+		t.Fatalf("market calls = %#v", f)
+	}
+}
+
+func newAssetID(t *testing.T) market.AssetID {
+	t.Helper()
+	var id market.AssetID
+	if err := id.UnmarshalText([]byte(ids.Real{}.NewV7().String())); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func heldAssetPorts(t *testing.T, cabalCount int) (*countingPorts, chain.SolanaAddress) {
+	t.Helper()
+	now := valuationTime()
+	usdc, err := chain.ParseAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mints := make([]market.Mint, 2)
+	for i, raw := range []string{
+		"So11111111111111111111111111111111111111112", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+	} {
+		if mints[i], err = market.ParseMint(raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := &countingPorts{
+		assetRows:  []market.Asset{{ID: newAssetID(t), Mint: mints[0]}},
+		latestRows: map[market.AssetID]market.Price{},
+		asOfRows:   map[market.AssetID]market.Price{},
+		sessions:   map[market.AssetID]market.SessionInfo{},
+	}
+	f.assetRows = append(f.assetRows, market.Asset{ID: newAssetID(t), Mint: mints[1]})
+	for _, asset := range f.assetRows {
+		price := market.Price{Micros: money.MicrosFromUint64(1_000_000), ObservedAt: now}
+		f.latestRows[asset.ID], f.asOfRows[asset.ID] = price, price
+		f.sessions[asset.ID] = market.SessionInfo{State: "open"}
+	}
+	for range cabalCount {
+		id := ids.CabalIDFrom(ids.Real{}.NewV7())
+		f.cabals = append(f.cabals, cabal.View{ID: id})
+		f.positionRows = append(f.positionRows, treasury.CabalPositions{
+			CabalID: id,
+			Holdings: []treasury.Position{
+				{Mint: usdc, Units: money.NewBaseUnits(1_000_000, 6)},
+				{Mint: mints[0].Address(), Units: money.NewBaseUnits(1, 0)},
+				{Mint: mints[1].Address(), Units: money.NewBaseUnits(1, 0)},
+			},
+			TotalShares: money.SharesUnitsFromUint64(1),
+		})
+		f.stakeRows = append(f.stakeRows, treasury.MemberStake{
+			CabalID: id, UserID: ids.UserIDFrom(ids.Real{}.NewV7()), ShareUnits: money.SharesUnitsFromUint64(1),
+		})
+	}
+	return f, usdc
+}
+
+func TestRunValuation_readsSessionsOncePerHeldAssetWhateverTheCabalCount(t *testing.T) {
+	t.Parallel()
+	for _, cabals := range []int{1, 500} {
+		f, usdc := heldAssetPorts(t, cabals)
+		got, err := NewRunValuation(
+			Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+			usdc,
+		).Run(t.Context(), valuationTime())
+		if err != nil || len(got.Cabals) != cabals || len(got.Flagged) != 0 {
+			t.Fatalf("Run() with %d cabals = %d valued, %d flagged, %v", cabals, len(got.Cabals), len(got.Flagged), err)
+		}
+		if f.sessionCalls != 2 || f.latest != 1 || f.asOf != 1 || f.assets != 1 || f.positions != 1 {
+			t.Fatalf("%d cabals: calls = %#v", cabals, f)
+		}
+	}
+}
+
+func TestRunValuation_returnsAValuationErrorFromTheStage(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 100)
+	f.positionRows[0].Holdings[1].Units = money.NewBaseUnits(1, 20)
+	if _, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		usdc,
+	).Run(t.Context(), valuationTime()); err == nil {
+		t.Fatal("Run() error = nil, want the stage error")
+	}
+}
+
+func TestRunValuation_flagsACabalWithAnUnpricedAssetInsteadOfDroppingIt(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 2)
+	delete(f.latestRows, f.assetRows[0].ID)
+	delete(f.asOfRows, f.assetRows[0].ID)
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		usdc,
+	).Run(t.Context(), valuationTime())
+	if err != nil || len(got.Cabals) != 0 || len(got.Flagged) != 2 || got.Excluded != 2 {
+		t.Fatalf("Run() = %#v, %v", got, err)
+	}
+	if len(got.Flagged[0].Flags) == 0 {
+		t.Fatalf("flagged cabal carries no flags: %#v", got.Flagged[0])
+	}
+}
+
+type countingPorts struct {
+	all, memberCalls, positions, stakes, paused, assets, latest, asOf, sessionCalls int
+	cabals                                                                          []cabal.View
+	members                                                                         map[ids.CabalID][]cabal.MemberView
+	positionRows                                                                    []treasury.CabalPositions
+	stakeRows                                                                       []treasury.MemberStake
+	assetRows                                                                       []market.Asset
+	asOfInstants                                                                    []time.Time
+	asOfAt                                                                          func(time.Time) map[market.AssetID]market.Price
+	latestRows, asOfRows                                                            map[market.AssetID]market.Price
+	sessions                                                                        map[market.AssetID]market.SessionInfo
+	pausedSet                                                                       funding.PausedSet
+	allErr, membersErr, positionsErr, stakesErr                                     error
+	userErr, pausesErr, assetsErr, latestErr, asOfErr, sessionErr                   error
+}
+
+func (f *countingPorts) AllCabals(context.Context) ([]cabal.View, error) {
+	f.all++
+	return f.cabals, f.allErr
+}
+
+func (f *countingPorts) MembersOf(context.Context, []ids.CabalID) (map[ids.CabalID][]cabal.MemberView, error) {
+	f.memberCalls++
+	return f.members, f.membersErr
+}
+
+func (f *countingPorts) CabalPositionsAt(context.Context, time.Time) ([]treasury.CabalPositions, error) {
+	f.positions++
+	return f.positionRows, f.positionsErr
+}
+
+func (f *countingPorts) MemberStakesAt(context.Context, time.Time) ([]treasury.MemberStake, error) {
+	f.stakes++
+	return f.stakeRows, f.stakesErr
+}
+
+func (f *countingPorts) MemberFlowsBetween(context.Context, time.Time, time.Time) ([]treasury.MemberFlow, error) {
+	return nil, nil
+}
+
+func (f *countingPorts) PausedCabals(context.Context) (funding.PausedSet, error) {
+	f.paused++
+	return f.pausedSet, f.pausesErr
+}
+
+func (f *countingPorts) ListAll(context.Context) ([]market.Asset, error) {
+	f.assets++
+	return f.assetRows, f.assetsErr
+}
+
+func (f *countingPorts) LatestPrices(context.Context) (map[market.AssetID]market.Price, error) {
+	f.latest++
+	return f.latestRows, f.latestErr
+}
+
+func (f *countingPorts) PricesAsOf(
+	_ context.Context,
+	assetIDs []market.AssetID,
+	at time.Time,
+) (map[market.AssetID]market.Price, error) {
+	f.asOf++
+	f.asOfInstants = append(f.asOfInstants, at)
+	if f.asOfAt != nil {
+		asked := map[market.AssetID]market.Price{}
+		for id, price := range f.asOfAt(at) {
+			if slices.Contains(assetIDs, id) {
+				asked[id] = price
+			}
+		}
+		return asked, f.asOfErr
+	}
+	return f.asOfRows, f.asOfErr
+}
+
+func (f *countingPorts) Session(_ context.Context, id market.AssetID, _ time.Time) (market.SessionInfo, error) {
+	f.sessionCalls++
+	return f.sessions[id], f.sessionErr
+}
+
+func (f *countingPorts) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]identity.UserCard, error) {
+	return nil, f.userErr
+}
+
+func TestRunValuation_pricesAClosedAssetAtItsCloseNotAtTheRunTime(t *testing.T) {
+	t.Parallel()
+	now := valuationTime()
+	closeAt := now.Add(-18 * time.Hour)
+	f, usdc := heldAssetPorts(t, 1)
+	closed, open := f.assetRows[0].ID, f.assetRows[1].ID
+	f.sessions[closed] = market.SessionInfo{State: "closed", LastClose: closeAt}
+	f.latestRows[closed] = market.Price{Micros: money.MicrosFromUint64(5_000_000), ObservedAt: now}
+	f.asOfAt = func(at time.Time) map[market.AssetID]market.Price {
+		if at.Equal(closeAt) {
+			return map[market.AssetID]market.Price{
+				closed: {Micros: money.MicrosFromUint64(3_000_000), ObservedAt: closeAt},
+			}
+		}
+		return map[market.AssetID]market.Price{
+			open:   {Micros: money.MicrosFromUint64(1_000_000), ObservedAt: now},
+			closed: {Micros: money.MicrosFromUint64(5_000_000), ObservedAt: now},
+		}
+	}
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc,
+	).Run(t.Context(), now)
+	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].Value != money.MicrosFromUint64(5_000_000) {
+		t.Fatalf("Run() = %#v, %v, want 1 USDC + 3 at the close + 1 open, not 7 with the off-hours sample", got, err)
+	}
+	if f.asOf != 2 || !f.asOfInstants[0].Equal(closeAt) || !f.asOfInstants[1].Equal(now) {
+		t.Fatalf("PricesAsOf instants = %v, want one call at the close and one at the run time", f.asOfInstants)
+	}
+}
