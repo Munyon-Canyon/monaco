@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"go.opentelemetry.io/otel/metric/noop"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
@@ -168,9 +168,7 @@ func TestRun_aShutdownFailureAfterACancelIsReported(t *testing.T) {
 	conn.Close(t.Context())
 
 	ctx, cancel := context.WithCancel(t.Context())
-	stop := time.AfterFunc(2*time.Second, cancel)
-	defer stop.Stop()
-	err = run(ctx, io.Discard, []string{
+	err = run(ctx, cancelOnLog{msg: observability.BootListening.Name, cancel: cancel}, []string{
 		"MONACO_ENV=test",
 		"DATABASE_URL=" + testkit.DB(t).Config().ConnString(),
 		"NATS_URL=" + url,
@@ -183,6 +181,18 @@ func TestRun_aShutdownFailureAfterACancelIsReported(t *testing.T) {
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errors.Is(err, context.Canceled) {
 		t.Fatalf("run = %v, want the telemetry flush failure reported after the cancel", err)
 	}
+}
+
+type cancelOnLog struct {
+	msg    string
+	cancel context.CancelFunc
+}
+
+func (c cancelOnLog) Write(p []byte) (int, error) {
+	if bytes.Contains(p, []byte(`"msg":"`+c.msg+`"`)) {
+		c.cancel()
+	}
+	return len(p), nil
 }
 
 func TestBootErr_onlyOurOwnCancelIsACleanStop(t *testing.T) {
