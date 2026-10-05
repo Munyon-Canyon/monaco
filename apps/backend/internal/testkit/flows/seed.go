@@ -3,8 +3,6 @@ package flows
 import (
 	"context"
 	"crypto/rand"
-	"errors"
-	"fmt"
 	"maps"
 	"time"
 
@@ -105,23 +103,9 @@ func NewDevUser(ctx context.Context, cfg config.Config) (app.DevUser, error) {
 	})
 }
 
-var errSeed = errors.New("flows: seed")
-
-type seedFailure struct{ err error }
-
-type seederT struct{ ctx func() context.Context }
-
-func (seederT) Helper() {}
-
-func (t seederT) Context() context.Context { return t.ctx() }
-
-func (seederT) Fatalf(format string, args ...any) {
-	panic(seedFailure{fmt.Errorf("%w: %s", errSeed, fmt.Sprintf(format, args...))})
-}
-
 func seedSignedInWith(arrange func(t testkit.SeedT, pool *pgxpool.Pool, user ids.UserID) map[string]string) Seeder {
-	return func(ctx context.Context, env SeedEnv) (result SeedResult, err error) {
-		result, err = seedSignedIn(ctx, env)
+	return func(ctx context.Context, env SeedEnv) (SeedResult, error) {
+		result, err := seedSignedIn(ctx, env)
 		if err != nil {
 			return SeedResult{}, err
 		}
@@ -138,16 +122,11 @@ func seedSignedInWith(arrange func(t testkit.SeedT, pool *pgxpool.Pool, user ids
 			return SeedResult{}, err
 		}
 		defer pool.Close()
-		defer func() {
-			if r := recover(); r != nil {
-				failure, ok := r.(seedFailure)
-				if !ok {
-					panic(r)
-				}
-				result, err = SeedResult{}, failure.err
-			}
-		}()
-		maps.Copy(result.IDs, arrange(seederT{func() context.Context { return ctx }}, pool, user))
+		var arranged map[string]string
+		if err := testkit.SeedErr(ctx, func(t testkit.SeedT) { arranged = arrange(t, pool, user) }); err != nil {
+			return SeedResult{}, err
+		}
+		maps.Copy(result.IDs, arranged)
 		return result, nil
 	}
 }

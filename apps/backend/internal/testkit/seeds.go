@@ -6,6 +6,8 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -43,9 +45,45 @@ type SeedT interface {
 	Context() context.Context
 }
 
+func Scenario(name string) ([]byte, error) {
+	raw, err := scenarios.ReadFile("scenarios/" + name + ".jsonl")
+	if err != nil {
+		return nil, fmt.Errorf("testkit: scenario %s: %w", name, err)
+	}
+	return raw, nil
+}
+
+var ErrSeed = errors.New("testkit: seed")
+
+type seedFailure struct{ err error }
+
+type errT struct{ ctx func() context.Context }
+
+func (errT) Helper() {}
+
+func (t errT) Context() context.Context { return t.ctx() }
+
+func (errT) Fatalf(format string, args ...any) {
+	panic(seedFailure{fmt.Errorf("%w: %s", ErrSeed, fmt.Sprintf(format, args...))})
+}
+
+func SeedErr(ctx context.Context, arrange func(t SeedT)) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			failure, ok := r.(seedFailure)
+			if !ok {
+				panic(r)
+			}
+			err = failure.err
+		}
+	}()
+	arrange(errT{func() context.Context { return ctx }})
+	return nil
+}
+
 func Seed(t SeedT, pool *pgxpool.Pool, name string, consumers ...bus.Consumer) []Seeded {
 	t.Helper()
-	raw, err := scenarios.ReadFile("scenarios/" + name + ".jsonl")
+	raw, err := Scenario(name)
 	if err != nil {
 		t.Fatalf("testkit.Seed: %v", err)
 	}

@@ -14,6 +14,8 @@
 #   qa_api <actor> <METHOD> <path> [json] calls the API as the actor; prints the body, fails on non-2xx
 #   qa_sql [psql args]                    psql on the .env.local database, query on stdin
 #   qa_flow_seed <flow> <outcome>         bin/monacoctl flows seed
+#   qa_seed_scenario <name> [actor ...]   bin/monacoctl dev seed-scenario, each actor owning its scenario letter;
+#                                         exports each seeded id uppercased (CABAL_ID, ASSET_MINT, ...)
 
 QA_ROOT="$(git rev-parse --show-toplevel)"
 QA_API="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
@@ -106,4 +108,22 @@ qa_api() {
 
 qa_flow_seed() {
   _qa_monacoctl flows seed "$1" "$2"
+}
+
+qa_seed_scenario() {
+  local name="$1" actor id key value out args=()
+  shift
+  for actor in "$@"; do
+    id="$(qa_user_id "$actor")" || return 1
+    args+=(--actor "$actor=$id")
+  done
+  out="$(mktemp)"
+  if ! _qa_monacoctl dev seed-scenario "$name" ${args[@]+"${args[@]}"} > "$out"; then
+    rm -f "$out"
+    return 1
+  fi
+  while read -r key value; do
+    export "$(tr '[:lower:]' '[:upper:]' <<< "$key")=$value"
+  done < "$out"
+  rm -f "$out"
 }
