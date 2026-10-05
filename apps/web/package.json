@@ -6,8 +6,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "vite build",
-    "test": "node --test test/*.test.js",
+    "build": "tsc && vite build",
+    "test": "node --test test/*.test.js && vitest run",
     "dev": "vercel dev"
   },
   "dependencies": {
