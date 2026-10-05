@@ -1,0 +1,19 @@
+journey: cabals/pot
+expect-fail: S1
+
+The hero says "In the pool". S1.1 waits for "In the pot", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
+index 52374778..3ef032a5 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
+@@ -5,7 +5,7 @@ enum CabalPotSlot: CabalSection {
+ 
+     static func body(for context: CabalContext) -> some View {
+         CabalInkBand {
+-            Text("In the pot")
++            Text("In the pool")
+                 .font(MonacoTheme.Typo.captionStrong)
+                 .foregroundStyle(MonacoTheme.onHero)
+                 .accessibilityAddTraits(.isHeader)
