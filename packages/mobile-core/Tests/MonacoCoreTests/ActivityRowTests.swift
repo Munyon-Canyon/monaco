@@ -72,6 +72,16 @@ final class ActivityRowTests: XCTestCase {
         XCTAssertNil(try makeRow(signature: nil).solscanURL)
     }
 
+    func testOnlyAFailedBuyOrSellOffersRetry() throws {
+        for kind in Activity.KindPayload.allCases {
+            for status in Activity.StatusPayload.allCases {
+                let row = try makeRow(kind: kind, status: status)
+                XCTAssertEqual(
+                    row.offersRetry, status == .failed && (kind == .buy || kind == .sell), "\(kind) \(status)")
+            }
+        }
+    }
+
     func testTheSampleRowsCoverEveryKindAndStatus() {
         let samples = Activity.samples
         XCTAssertEqual(Set(samples.map(\.kind)), Set(Activity.KindPayload.allCases))

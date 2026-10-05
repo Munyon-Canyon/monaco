@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import MonacoAPI
 import MonacoCore
 import MonacoTestSupport
@@ -157,9 +158,97 @@ final class ActivityModelTests: XCTestCase {
         XCTAssertTrue(reloaded)
     }
 
+    func testRetryMarksTheRowPendingAndSaysSo() async throws {
+        let failed = Self.buy(1, .failed)
+        let (model, transport, _) = try make([.page(Page(items: [failed], nextCursor: nil)), .accepted(failed.id)])
+        await model.load()
+
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+
+        XCTAssertEqual(model.rows.first?.status, .pending)
+        XCTAssertEqual(model.rows.first?.offersRetry, false)
+        XCTAssertEqual(model.toast?.message, "Retrying the trade")
+        let sent = await transport.sent
+        XCTAssertEqual(sent.last?.path, "/v1/swaps/\(failed.id)/retry")
+        XCTAssertEqual(sent.last?.method, .post)
+        let keyName = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        XCTAssertNotNil(sent.last?.headerFields[keyName])
+    }
+
+    func testARefusedRetryShowsTheServersMessageAndKeepsTheRowFailed() async throws {
+        let failed = Self.buy(1, .failed)
+        let (model, _, _) = try make([.page(Page(items: [failed], nextCursor: nil)), .notRetryable])
+        await model.load()
+
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+
+        XCTAssertEqual(model.rows.first?.status, .failed)
+        XCTAssertEqual(model.rows.first?.offersRetry, true)
+        XCTAssertEqual(model.toast?.message, "This trade can't be retried.")
+        XCTAssertEqual(model.toast?.isSuccess, false)
+    }
+
+    func testTheRetriedTradeConfirmingSaysBoughtAndDropsRetryFromTheOldRow() async throws {
+        let failed = Self.buy(2, .failed)
+        let (model, _, _) = try make([
+            .page(Page(items: [failed], nextCursor: nil)), .accepted(failed.id),
+            .page(Page(items: [Self.buy(1, .pending), failed], nextCursor: nil)),
+            .page(Page(items: [Self.buy(1, .confirmed), failed], nextCursor: nil)),
+        ])
+        await model.load()
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+
+        await model.refresh()
+        XCTAssertEqual(model.toast?.message, "Retrying the trade")
+        XCTAssertEqual(model.rows.map(\.status), [.pending, .failed])
+
+        await model.refresh()
+        XCTAssertEqual(model.toast?.message, "Bought. Holdings updated")
+        XCTAssertEqual(model.rows.map(\.status), [.confirmed, .failed])
+        XCTAssertEqual(model.rows.last?.offersRetry, false)
+    }
+
+    func testTheRetriedTradeFailingAgainSaysTryLater() async throws {
+        let failed = Self.buy(2, .failed)
+        let (model, _, _) = try make([
+            .page(Page(items: [failed], nextCursor: nil)), .accepted(failed.id),
+            .page(Page(items: [Self.buy(1, .failed), failed], nextCursor: nil)),
+        ])
+        await model.load()
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+
+        await model.refresh()
+
+        XCTAssertEqual(model.toast?.message, "It didn't go through again. Try later")
+        XCTAssertEqual(model.rows.map(\.offersRetry), [true, false])
+    }
+
+    func testTheSwapReceiptOffersRetryOnlyWhenTheServerSaysRetryable() async throws {
+        let (model, transport, _) = try make([.swap(retryable: true), .swap(retryable: false)])
+
+        await model.loadSwap(id: "swap-1")
+        XCTAssertEqual(model.openSwap?.retryable, true)
+        XCTAssertEqual(model.openSwap?.failureMessage, "The trade did not go through.")
+        XCTAssertEqual(model.openSwap?.assetLine, "Apple · AAPL")
+
+        await model.loadSwap(id: "swap-1")
+        XCTAssertEqual(model.openSwap?.retryable, false)
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths, ["/v1/swaps/swap-1", "/v1/swaps/swap-1"])
+    }
+
+    private static func buy(_ number: Int, _ status: Activity.StatusPayload) -> Activity {
+        Activity.sample(
+            number, kind: .buy, status: status, asset: .init(symbol: "AAPLx", name: "Apple"), micros: 25_000_000,
+            actor: nil)
+    }
+
     private enum Script {
         case page(Page)
         case notMember
+        case notRetryable
+        case accepted(String)
+        case swap(retryable: Bool)
         case failure(URLError.Code)
 
         func reply() throws -> StubTransport.Reply {
@@ -174,6 +263,22 @@ final class ActivityModelTests: XCTestCase {
                     + #""message":"You are not a member of this cabal.","#
                     + #""trace_id":"00000000000000000000000000000000","retryable":false}"#
                 return .response(status: .forbidden, contentType: "application/problem+json", body: Data(body.utf8))
+            case .notRetryable:
+                let body =
+                    #"{"type":"about:blank","title":"Error","status":409,"code":"swap_not_retryable","#
+                    + #""message":"This trade can't be retried.","#
+                    + #""trace_id":"00000000000000000000000000000000","retryable":false}"#
+                return .response(status: .conflict, contentType: "application/problem+json", body: Data(body.utf8))
+            case .accepted(let id):
+                return .json(.accepted, #"{"swap_id":"\#(id)","status":"retry_requested"}"#)
+            case .swap(let retryable):
+                return .json(
+                    .ok,
+                    #"{"id":"swap-1","cabal_id":"cabal-1","source":{"kind":"proposal","id":"p-1"},"action":"buy","#
+                        + #""symbol":"AAPLx","asset_name":"Apple","token_decimals":8,"usdc_micros":25000000,"#
+                        + #""token_amount":null,"status":"failed","failure_code":"jupiter_failed","#
+                        + #""failure_message":"The trade did not go through.","tx_signature":null,"#
+                        + #""created_at":"2026-10-03T15:00:00Z","confirmed_at":null,"retryable":\#(retryable)}"#)
             case .failure(let code):
                 return .failure(URLError(code))
             }

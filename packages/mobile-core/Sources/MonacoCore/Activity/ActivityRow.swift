@@ -2,6 +2,13 @@ import Foundation
 import MonacoAPI
 
 public struct ActivityRow: Identifiable, Equatable, Sendable {
+    public enum Kind: Equatable, Sendable {
+        case buy
+        case sell
+        case fund
+        case cashOut
+    }
+
     public enum Status: Equatable, Sendable {
         case pending
         case confirmed
@@ -25,9 +32,12 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
     }
 
     public let id: String
+    public let kind: Kind
+    public let symbol: String?
     public let glyph: String
     public let title: String
-    public let status: Status
+    public internal(set) var status: Status
+    public internal(set) var offersRetry: Bool
     public let age: String
     public let fullDate: String
     public let amount: String?
@@ -43,9 +53,12 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         let sameYear = calendar.component(.year, from: activity.occurredAt) == calendar.component(.year, from: now)
         let headline = Self.headline(activity.kind, assetName: activity.asset?.name)
         self.id = activity.id
+        self.kind = Kind(activity.kind)
+        self.symbol = activity.asset?.symbol
         self.glyph = headline.glyph
         self.title = headline.title
         self.status = Status(activity.status)
+        self.offersRetry = status == .failed && kind.isSwap
         self.age = Self.string(activity.occurredAt, sameYear ? "MMM d, h:mm a" : "MMM d, yyyy", calendar)
         self.fullDate = Self.string(activity.occurredAt, "MMM d, yyyy 'at' h:mm a", calendar)
         self.amount = activity.usdcMicros.map { UsdAmountFormatter.format(micros: $0) }
@@ -79,6 +92,19 @@ extension ActivityRow.Status {
         case .pending: self = .pending
         case .confirmed: self = .confirmed
         case .failed: self = .failed
+        }
+    }
+}
+
+extension ActivityRow.Kind {
+    public var isSwap: Bool { self == .buy || self == .sell }
+
+    fileprivate init(_ payload: Components.Schemas.CabalActivity.KindPayload) {
+        switch payload {
+        case .buy: self = .buy
+        case .sell: self = .sell
+        case .fund: self = .fund
+        case .cashOut: self = .cashOut
         }
     }
 }
