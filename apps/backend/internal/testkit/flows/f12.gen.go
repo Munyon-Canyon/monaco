@@ -10,5 +10,7 @@ func (defined) ScriptsF12() map[string]Script {
 		"F12RetryTradeNotCabalMember":    F12RetryTradeNotCabalMember,
 		"F12RetryTradeSwapNotRetryable":  F12RetryTradeSwapNotRetryable,
 		"F12RetryTradeInsufficientFunds": F12RetryTradeInsufficientFunds,
+		"F12RetryTradeCrashAfterCreate":  F12RetryTradeCrashAfterCreate,
+		"F12RetryTradeCrashAfterExecute": F12RetryTradeCrashAfterExecute,
 	}
 }

@@ -139,23 +139,15 @@ func voidedEvents(p openProposal, n int) scenario.Step {
 
 func liveSwap(p openProposal) scenario.Step {
 	return func(s *scenario.Scenario) {
-		q, id, now := tradingsqlc.New(s.DB()), ids.Real{}.NewV7(), time.Now().UTC()
-		err := q.InsertCreated(s.Context(), tradingsqlc.InsertCreatedParams{
-			ID: id, SourceKind: "proposal", SourceID: p.id.UUID(), CabalID: ids.Real{}.NewV7(),
+		err := tradingsqlc.New(s.DB()).InsertCreated(s.Context(), tradingsqlc.InsertCreatedParams{
+			ID: ids.Real{}.NewV7(), SourceKind: "proposal", SourceID: p.id.UUID(), CabalID: p.cabalID.UUID(),
 			TreasuryAddress: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", Action: "buy", Symbol: "AAPLx",
 			InMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", OutMint: aaplxMint, OutDecimals: 8,
 			InAmount: 5_000_000, QuoteOutAmount: pgtype.Int8{Int64: 21_000_000, Valid: true}, SlippageBps: 100,
-			SourceBatchSize: 1, CreatedAt: now,
+			SourceBatchSize: 1, CreatedAt: time.Now().UTC(),
 		})
 		if err != nil {
 			s.Fatalf("flows: insert swap: %v", err)
-		}
-		n, err := q.MarkSubmitted(s.Context(), tradingsqlc.MarkSubmittedParams{
-			ID: id, ExecuteRequestID: "req-" + id.String(), SignedTx: []byte{1}, TxSignature: "sig-" + id.String(),
-			SubmittedAt: now,
-		})
-		if err != nil || n != 1 {
-			s.Fatalf("flows: submit swap: %d rows, %v", n, err)
 		}
 	}
 }

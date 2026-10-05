@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -203,4 +204,48 @@ func F11ExecuteTradeSwapFailed(s *scenario.Scenario) {
 	scenario.ExpectEventPayload(events.TypeTradeFailed, map[string]any{
 		"cabal_id": t.cabalID.String(), "failure_code": "jupiter_failed", "jupiter_code": "6001",
 	})(s)
+}
+
+func (defined) WorkerEnvF11() []string {
+	return []string{"TRADE_SWAP_SWEEP_INTERVAL=1s", "TRADE_SWAP_SWEEP_AGE=2s"}
+}
+
+func (t trade) crashes(s *scenario.Scenario, point faultpoint.Name, end events.Type, want map[events.Type]int) {
+	s.Given(t.given...).
+		When(append(t.pass(), scenario.PublishCrashingAt(point))...).
+		Then(t.ends(end), t.expect(want))
+}
+
+func (t trade) failedAs(code string) scenario.Step {
+	return scenario.ExpectEventPayload(events.TypeTradeFailed, map[string]any{
+		"cabal_id": t.cabalID.String(), "failure_code": code,
+	})
+}
+
+func F11ExecuteTradeCrashAfterCreate(s *scenario.Scenario) {
+	t := seedTrade(s, tradeOpts{})
+	t.crashes(s, faultpoint.AfterCreate, events.TypeTradeFailed, map[events.Type]int{events.TypeTradeFailed: 1})
+	t.failedAs("never_submitted")(s)
+}
+
+func F11ExecuteTradeCrashAfterSign(s *scenario.Scenario) {
+	t := seedTrade(s, tradeOpts{})
+	t.crashes(s, faultpoint.AfterSign, events.TypeTradeFailed,
+		map[events.Type]int{events.TypeTradeSubmitted: 1, events.TypeTradeFailed: 1})
+	t.failedAs("blockhash_expired")(s)
+}
+
+func F11ExecuteTradeCrashAfterExecute(s *scenario.Scenario) {
+	seedTrade(s, tradeOpts{}).crashes(s, faultpoint.AfterExecute, events.TypeTradeConfirmed,
+		map[events.Type]int{events.TypeTradeSubmitted: 1, events.TypeTradeConfirmed: 1})
+}
+
+func F11ExecuteTradeCrashBeforeCommit(s *scenario.Scenario) {
+	seedTrade(s, tradeOpts{}).crashes(s, faultpoint.BeforeCommit, events.TypeTradeConfirmed,
+		map[events.Type]int{events.TypeTradeSubmitted: 1, events.TypeTradeConfirmed: 1})
+}
+
+func F11ExecuteTradeCrashAfterPublish(s *scenario.Scenario) {
+	seedTrade(s, tradeOpts{}).crashes(s, faultpoint.AfterPublish, events.TypeTradeConfirmed,
+		map[events.Type]int{events.TypeTradeSubmitted: 1, events.TypeTradeConfirmed: 1})
 }

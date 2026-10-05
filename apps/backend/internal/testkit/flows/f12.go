@@ -6,6 +6,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -101,4 +102,29 @@ func F12RetryTradeInsufficientFunds(s *scenario.Scenario) {
 				events.TypeTradeSubmitted: 1, events.TypeTradeFailed: 1, events.TypeTradeBlocked: 1,
 			}),
 		)
+}
+
+func (defined) WorkerEnvF12() []string {
+	return []string{"TRADE_SWAP_SWEEP_INTERVAL=1s", "TRADE_SWAP_SWEEP_AGE=2s"}
+}
+
+func (t trade) retryCrashes(s *scenario.Scenario, point faultpoint.Name, end events.Type, want map[events.Type]int) {
+	s.Given(t.swapFails()...).
+		When(t.afterFailedSwap(t.retry(), scenario.ExpectStatus(http.StatusAccepted),
+			scenario.PublishCrashingAt(point))...).
+		Then(scenario.Eventually(string(end)+" after the retry", func(s *scenario.Scenario) bool {
+			return t.count(s, end) >= want[end]
+		}), t.expect(want))
+}
+
+func F12RetryTradeCrashAfterCreate(s *scenario.Scenario) {
+	t := seedTrade(s, tradeOpts{})
+	t.retryCrashes(s, faultpoint.AfterCreate, events.TypeTradeFailed,
+		map[events.Type]int{events.TypeTradeSubmitted: 1, events.TypeTradeFailed: 2})
+	t.failedAs("never_submitted")(s)
+}
+
+func F12RetryTradeCrashAfterExecute(s *scenario.Scenario) {
+	seedTrade(s, tradeOpts{}).retryCrashes(s, faultpoint.AfterExecute, events.TypeTradeConfirmed,
+		map[events.Type]int{events.TypeTradeSubmitted: 2, events.TypeTradeFailed: 1, events.TypeTradeConfirmed: 1})
 }
