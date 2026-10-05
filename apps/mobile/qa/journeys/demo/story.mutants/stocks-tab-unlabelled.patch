@@ -1,0 +1,19 @@
+journey: demo/story
+expect-fail: S3
+
+The Stocks tab loses tab-assets. S3.1 opens Stocks through it, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Assets/StocksTab.swift b/apps/mobile/Monaco/Features/Assets/StocksTab.swift
+index e20caa833..4f159c7c4 100644
+--- a/apps/mobile/Monaco/Features/Assets/StocksTab.swift
++++ b/apps/mobile/Monaco/Features/Assets/StocksTab.swift
+@@ -3,7 +3,7 @@ import SwiftUI
+ enum StocksTab: TabContent {
+     static let title = "Stocks"
+     static let systemImage = "chart.line.uptrend.xyaxis"
+-    static let accessibilityIdentifier = "tab-assets"
++    static let accessibilityIdentifier = "tab-stocks"
+ 
+     static func root() -> some View {
+         StocksTabView()

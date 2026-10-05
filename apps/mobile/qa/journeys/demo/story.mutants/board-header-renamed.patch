@@ -1,0 +1,32 @@
+journey: demo/story
+expect-fail: S8
+
+The Home board is headed "Leaders". S8.1 scrolls to "Top investors", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSection.swift b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSection.swift
+index 85b2528ff..c77f3089e 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeLeaderboardSection.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeLeaderboardSection.swift
+@@ -16,7 +16,7 @@ struct HomeLeaderboardSection: View {
+ 
+     var body: some View {
+         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+-            MonacoSectionHeader("Top investors")
++            MonacoSectionHeader("Leaders")
+                 .padding(.horizontal, MonacoTheme.Space.m)
+ 
+             rangeChips
+diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
+index 5a0eea421..de5e2c160 100644
+--- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
+@@ -5,7 +5,7 @@ enum HomePeopleBoardSlot: HomeSection {
+ 
+     static func body(for context: Void) -> some View {
+         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+-            MonacoSectionHeader("Top investors")
++            MonacoSectionHeader("Leaders")
+             Text("Rankings show up here soon.")
+                 .font(MonacoTheme.Typo.caption)
+                 .foregroundStyle(MonacoTheme.muted)
