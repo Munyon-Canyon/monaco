@@ -41,3 +41,5 @@ type Run struct {
 	PricesAsOf time.Time
 	FinishedAt time.Time
 }
+
+func MembersBoard(cabal uuid.UUID) string { return string(BoardCabalMembers) + ":" + cabal.String() }

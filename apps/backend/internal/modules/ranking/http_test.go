@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -42,7 +43,10 @@ func newServer(t *testing.T) server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mount := ranking.New(module.Deps{Pool: pool, IDs: g, Clock: clk}).Mount
+	deps := module.Deps{Pool: pool, IDs: g, Clock: clk}
+	rankingModule := ranking.New(deps)
+	module.NewSet(rankingModule, cabal.New(deps))
+	mount := rankingModule.Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       noop.NewTracerProvider(),

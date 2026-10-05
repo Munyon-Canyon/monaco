@@ -15,6 +15,7 @@ import (
 
 type HTTP struct {
 	Boards app.Boards
+	Cabals app.CabalCheck
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -22,8 +23,8 @@ var _ api.StrictServerInterface = HTTP{}
 func (h HTTP) GetCabalsLeaderboard(
 	ctx context.Context, req api.GetCabalsLeaderboardRequestObject,
 ) (api.GetCabalsLeaderboardResponseObject, error) {
-	page, err := h.serve(ctx, string(domain.BoardCabals), api.Cabal, nil,
-		textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
+	board := boardRef{key: string(domain.BoardCabals), kind: api.Cabal}
+	page, err := h.serve(ctx, board, textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -37,31 +38,58 @@ func (h HTTP) GetPeopleLeaderboard(
 	if err != nil {
 		return nil, err
 	}
-	page, err := h.serve(ctx, string(domain.BoardPeople), api.User, &viewer,
-		textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
+	board := boardRef{key: string(domain.BoardPeople), kind: api.User, viewer: &viewer}
+	page, err := h.serve(ctx, board, textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
 	if err != nil {
 		return nil, err
 	}
 	return api.GetPeopleLeaderboard200JSONResponse(page), nil
 }
 
+func (h HTTP) GetCabalLeaderboard(
+	ctx context.Context, req api.GetCabalLeaderboardRequestObject,
+) (api.GetCabalLeaderboardResponseObject, error) {
+	viewer, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Cabals(ctx, ids.CabalIDFrom(req.Id)); err != nil {
+		return nil, err
+	}
+	board := boardRef{key: domain.MembersBoard(req.Id), kind: api.User, viewer: &viewer, unrankedMe: true}
+	page, err := h.serve(ctx, board, textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetCabalLeaderboard200JSONResponse(page), nil
+}
+
+type boardRef struct {
+	key        string
+	kind       api.LeaderboardSubjectKind
+	viewer     *ids.UserID
+	unrankedMe bool
+}
+
 func (h HTTP) serve(
-	ctx context.Context, board string, kind api.LeaderboardSubjectKind, viewer *ids.UserID,
-	rng, cursor *string, limit *int,
+	ctx context.Context, board boardRef, rng, cursor *string, limit *int,
 ) (api.LeaderboardPage, error) {
-	in, err := readOf(board, rng, cursor, limit)
+	in, err := readOf(board.key, rng, cursor, limit)
 	if err != nil {
 		return api.LeaderboardPage{}, err
 	}
-	if viewer != nil {
-		id := viewer.UUID()
+	if board.viewer != nil {
+		id := board.viewer.UUID()
 		in.Viewer = &id
 	}
 	page, err := in.Run(ctx, h.Boards)
 	if err != nil {
 		return api.LeaderboardPage{}, err
 	}
-	return wirePage(page, in, kind)
+	if page.Me != nil && page.Me.Return == nil && !board.unrankedMe {
+		page.Me = nil
+	}
+	return wirePage(page, in, board.kind)
 }
 
 func textOf[T ~string](v *T) *string {
@@ -109,7 +137,7 @@ func wirePage(page domain.BoardPage, in app.ReadBoard, kind api.LeaderboardSubje
 		Rows:       rows,
 		NextCursor: page.NextCursor,
 	}
-	if page.Me != nil && page.Me.Return != nil {
+	if page.Me != nil {
 		me, err := wireRow(*page.Me, kind)
 		if err != nil {
 			return api.LeaderboardPage{}, err
