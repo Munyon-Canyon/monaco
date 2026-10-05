@@ -382,8 +382,9 @@ def kill_group(process, grace=10):
         with contextlib.suppress(ProcessLookupError):
             os.killpg(process.pid, signal.SIGKILL)
         stdout, _ = process.communicate()
-    # The leader can exit on SIGTERM while a child it started ignores it.
-    with contextlib.suppress(ProcessLookupError):
+    # The leader can exit on SIGTERM while a child it started ignores it. macOS answers EPERM, not ESRCH,
+    # when the group's only members are zombies not yet reaped.
+    with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(process.pid, signal.SIGKILL)
     return stdout
 
