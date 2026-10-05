@@ -278,6 +278,22 @@ migrate target:
         ;;
     esac
 
+# Print the relayer's pubkey and its SOL balance from the .env.local key and RPC (`just relayer balance`).
+relayer target:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{target}}" in
+      balance)
+        mkdir -p bin
+        (cd apps/backend && go build -o ../../bin/ ./cmd/monacoctl)
+        {{_dotenvx}} "$PWD/bin/monacoctl" relayer balance
+        ;;
+      *)
+        echo "error: unknown target '{{target}}' (use balance)"
+        exit 1
+        ;;
+    esac
+
 # Regenerate every checked-in generated file (`just gen docs`, which runs `go generate ./...`) or scaffold backend code (`just gen module <name>`, which also writes the module's first migration, `just gen migration <module> <name>`; `just gen help` lists every generator).
 gen target *args:
     #!/usr/bin/env bash
