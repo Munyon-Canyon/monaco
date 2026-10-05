@@ -1,7 +1,7 @@
 ---
 id: cabals/activity
 title: Cabal activity
-version: 1
+version: 2
 milestone: M14
 requires: [auth/sign-in]
 actors: [A]
@@ -43,7 +43,7 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
-| S2.2 | A | scroll to, then tap | `cabal-activity-row-{failed_trade}` | | The "Transaction" receipt shows `cabal-txn-status` "Failed" within 10 s |
+| S2.2 | A | scroll to, then tap the leading glyph of | `cabal-activity-row-{failed_trade}`, clear of its inline "Retry" | | The "Transaction" receipt shows `cabal-txn-status` "Failed" within 10 s |
 | S2.3 | A | tap | "Retry" | | The receipt offers "Retry" on the failed trade within 5 s (old app: `TransactionDetailView.swift` `transaction-detail-retry`; screens.md: "Failed · Retry") |
 
 ## Ground truth
