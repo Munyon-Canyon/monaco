@@ -72,9 +72,7 @@ type watchPR struct {
 		Nodes []struct {
 			CreatedAt time.Time `json:"createdAt"`
 			Label     gqlName   `json:"label"`
-			Actor     struct {
-				Login string `json:"login"`
-			} `json:"actor"`
+			Actor     gqlActor  `json:"actor"`
 		} `json:"nodes"`
 	} `json:"timelineItems"`
 }
@@ -222,11 +220,14 @@ func (p watchPR) droppedByGraphite(label string, since time.Time) bool {
 	events := p.TimelineItems.Nodes
 	for i := len(events) - 1; i >= 0; i-- {
 		if events[i].Label.Name == label {
-			return events[i].CreatedAt.After(since) &&
-				strings.Contains(strings.ToLower(events[i].Actor.Login), "graphite")
+			return events[i].CreatedAt.After(since) && graphiteLogin(events[i].Actor.Login)
 		}
 	}
 	return false
+}
+
+func graphiteLogin(login string) bool {
+	return strings.Contains(strings.ToLower(login), "graphite")
 }
 
 func (p watchPR) queueJob(drafts []queueDraft, since time.Time) gqlContext {

@@ -219,7 +219,8 @@ func (env *Env) stackFromREST(ctx context.Context, n int) (stackPR, error) {
 			Typename  string    `json:"__typename"`
 			CreatedAt time.Time `json:"createdAt"`
 			Label     gqlName   `json:"label"`
-		}{Typename: "UnlabeledEvent", CreatedAt: e.Created, Label: e.Label})
+			Actor     gqlActor  `json:"actor"`
+		}{Typename: "UnlabeledEvent", CreatedAt: e.Created, Label: e.Label, Actor: e.Actor})
 	}
 	return sp, nil
 }
@@ -237,20 +238,26 @@ func (env *Env) restOpenPayload(ctx context.Context) (any, error) {
 }
 
 func (env *Env) restDraftPayload(ctx context.Context) (any, error) {
-	pulls, err := env.GitHub.openPullsREST(ctx)
+	open, err := env.GitHub.openPullsREST(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"repository": map[string]any{"drafts": map[string]any{"nodes": draftsFrom(pulls)}}}, nil
+	var closed []restPull
+	path := env.GitHub.repo("/pulls?state=closed&sort=updated&direction=desc&per_page=30")
+	if err := env.GitHub.call(ctx, http.MethodGet, path, "", nil, &closed); err != nil {
+		return nil, err
+	}
+	return map[string]any{"repository": map[string]any{
+		"drafts": map[string]any{"nodes": draftsFrom(open)},
+		"closed": map[string]any{"nodes": draftsFrom(closed)},
+	}}, nil
 }
 
 type restEvent struct {
 	Event   string    `json:"event"`
 	Created time.Time `json:"created_at"`
 	Label   gqlName   `json:"label"`
-	Actor   struct {
-		Login string `json:"login"`
-	} `json:"actor"`
+	Actor   gqlActor  `json:"actor"`
 }
 
 type restTimeline struct {
@@ -409,7 +416,8 @@ func (p restPull) asGQL(events []restEvent, committed time.Time) gqlPR {
 				Typename  string    `json:"__typename"`
 				CreatedAt time.Time `json:"createdAt"`
 				Label     gqlName   `json:"label"`
-			}{Typename: kind, CreatedAt: e.Created, Label: e.Label})
+				Actor     gqlActor  `json:"actor"`
+			}{Typename: kind, CreatedAt: e.Created, Label: e.Label, Actor: e.Actor})
 		}
 	}
 	return g

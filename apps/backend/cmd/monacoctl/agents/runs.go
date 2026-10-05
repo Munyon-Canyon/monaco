@@ -120,7 +120,11 @@ func (env *Env) reportDraft(ctx context.Context, stack []stackPR, stdout io.Writ
 			return env.describeDraft(ctx, stack, in, stdout)
 		}
 		if !env.Now().Before(deadline) {
-			_, _ = io.WriteString(stdout, env.noDraftLine(stack, drafts))
+			line, err := env.noDraftLine(ctx, stack, drafts)
+			if err != nil {
+				return err
+			}
+			_, _ = io.WriteString(stdout, line)
 			return nil
 		}
 		select {
@@ -131,18 +135,32 @@ func (env *Env) reportDraft(ctx context.Context, stack []stackPR, stdout io.Writ
 	}
 }
 
-func (env *Env) noDraftLine(stack []stackPR, open []PR) string {
+func (env *Env) noDraftLine(ctx context.Context, stack []stackPR, open []PR) (string, error) {
 	n := 0
 	for _, d := range open {
 		if strings.HasPrefix(d.Head.Ref, draftHead) {
 			n++
 		}
 	}
-	if n == 0 || n < env.Config.QueueConcurrency {
-		return fmt.Sprintf("no Graphite draft holds %s after %s; run land-stack again if it stays that way\n",
-			prRefs(numbers(stack)), draftFor)
+	if n > 0 && n >= env.Config.QueueConcurrency {
+		return fmt.Sprintf("waiting for a Graphite queue slot (%d drafts open)\n", n), nil
 	}
-	return fmt.Sprintf("waiting for a Graphite queue slot (%d drafts open)\n", n)
+	fresh, err := env.stackPulls(ctx, numbers(stack))
+	if err != nil {
+		return "", err
+	}
+	var taken []stackPR
+	for _, p := range fresh {
+		if env.queueState(p, false, nil) == prTaken {
+			taken = append(taken, p)
+		}
+	}
+	if len(taken) > 0 {
+		return fmt.Sprintf("%s taken by Graphite, waiting for a draft slot after %s\n",
+			prRefs(numbers(taken)), draftFor), nil
+	}
+	return fmt.Sprintf("no Graphite draft holds %s after %s; run land-stack again if it stays that way\n",
+		prRefs(numbers(stack)), draftFor), nil
 }
 
 func draftOf(open []PR, stack []stackPR) ([]int, bool) {

@@ -17,9 +17,11 @@ const (
 	dequeueTries  = 3
 	dequeueChecks = 2
 	dequeueEvery  = 30 * time.Second
-	openDrafts    = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
+	draftsQuery   = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
 		`drafts: pullRequests(states:OPEN,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
-		`number state title body headRefName}}}}`
+		`number state title body headRefName}} ` +
+		`closed: pullRequests(states:CLOSED,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
+		`number state title body headRefName updatedAt}}}}`
 )
 
 func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
@@ -154,14 +156,12 @@ func (env *Env) graphiteHolds(ctx context.Context, nums []int) (bool, error) {
 		if slices.ContainsFunc(prs, func(p stackPR) bool { return p.labeled(env.Config.QueueLabel) }) {
 			return true, nil
 		}
-		drafts, err := env.openQueueDrafts(ctx)
+		drafts, err := env.queueDrafts(ctx)
 		if err != nil {
 			return false, err
 		}
-		for _, d := range drafts {
-			if slices.ContainsFunc(nums, d.tests) {
-				return true, nil
-			}
+		if slices.ContainsFunc(nums, func(n int) bool { return draftHolds(drafts, n) }) {
+			return true, nil
 		}
 	}
 	return false, nil
@@ -171,22 +171,19 @@ func dequeueErr(code errs.Code, detail string) error {
 	return detailErr(code, "monacoctl.agents.dequeue", detail)
 }
 
-func (env *Env) openQueueDrafts(ctx context.Context) ([]queueDraft, error) {
+func (env *Env) queueDrafts(ctx context.Context) ([]queueDraft, error) {
 	var data struct {
 		Repository struct {
 			Drafts struct {
 				Nodes []queueDraft `json:"nodes"`
 			} `json:"drafts"`
+			Closed struct {
+				Nodes []queueDraft `json:"nodes"`
+			} `json:"closed"`
 		} `json:"repository"`
 	}
-	if err := env.graphQL(ctx, openDrafts, &data); err != nil {
+	if err := env.graphQL(ctx, draftsQuery, &data); err != nil {
 		return nil, err
 	}
-	var open []queueDraft
-	for _, d := range data.Repository.Drafts.Nodes {
-		if d.State == "OPEN" {
-			open = append(open, d)
-		}
-	}
-	return open, nil
+	return slices.Concat(data.Repository.Drafts.Nodes, data.Repository.Closed.Nodes), nil
 }

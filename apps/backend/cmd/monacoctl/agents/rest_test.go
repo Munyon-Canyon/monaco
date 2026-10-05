@@ -79,6 +79,10 @@ func draftList(page int) string {
 	return get(fmt.Sprintf("/pulls?state=open&per_page=100&page=%d", page))
 }
 
+func closedDraftList() string {
+	return get("/pulls?state=closed&sort=updated&direction=desc&per_page=30")
+}
+
 func openPullPage(n int) string {
 	rows := make([]string, n)
 	for i := range rows {
@@ -93,6 +97,7 @@ func forbidDequeue(t *testing.T) (*fixture, *Env) {
 	_, env := dequeueStack(t, f)
 	f.hub.status[graphqlRoute] = http.StatusForbidden
 	f.hub.on(graphqlRoute, "forbidden")
+	f.hub.on(closedDraftList(), `[]`)
 	serveQuietPull(f, 1)
 	serveQuietPull(f, 2)
 	return f, env
@@ -268,6 +273,7 @@ func TestRESTStackAndDrafts(t *testing.T) {
 	wantErr(t, err, "nope")
 	merged := "2026-01-02T00:00:00Z"
 	route := draftList(1)
+	f.hub.on(closedDraftList(), `[]`)
 	f.hub.status[route] = 0
 	f.hub.on(route, `[{"number":4,"title":"keep","state":"closed","merged_at":"`+merged+
 		`","head":{"ref":"gtmq_a"},"updated_at":"`+merged+
@@ -280,7 +286,7 @@ func TestRESTStackAndDrafts(t *testing.T) {
 			} `json:"drafts"`
 		} `json:"repository"`
 	}
-	if err := env.restQuery(t.Context(), openDrafts, &drafts); err != nil {
+	if err := env.restQuery(t.Context(), draftsQuery, &drafts); err != nil {
 		t.Fatal(err)
 	}
 	nodes := drafts.Repository.Drafts.Nodes
@@ -291,13 +297,54 @@ func TestRESTStackAndDrafts(t *testing.T) {
 	f.hub.on(route, "boom")
 	_, err = env.restDraftPayload(t.Context())
 	wantErr(t, err, "boom")
+	f.hub.status[route] = 0
+	f.hub.on(route, `[]`)
+	f.hub.status[closedDraftList()] = http.StatusInternalServerError
+	f.hub.on(closedDraftList(), "closed boom")
+	_, err = env.restDraftPayload(t.Context())
+	wantErr(t, err, "closed boom")
+}
+
+func TestRESTMode_holdsAGraphiteTakenPRUntilAClosedDraftRanItThenEjectsIt(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, closed, want string }{
+		{"no draft yet", `[]`, prTaken},
+		{"a closed draft ran the PR since", `[{"number":90,"title":"(PRs 1)","state":"closed",` +
+			`"head":{"ref":"gtmq_a"},"updated_at":"2026-09-27T11:59:00Z"}]`, prEjected},
+		{"a closed draft ran it before Graphite took it", `[{"number":90,"title":"(PRs 1)","state":"closed",` +
+			`"head":{"ref":"gtmq_a"},"updated_at":"2026-09-27T11:57:00Z"}]`, prTaken},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			env := f.Env(t)
+			env.markREST()
+			serveQuietPull(f, 1)
+			f.hub.on(list("/issues/1/events?"), fmt.Sprintf(
+				`[{"event":"unlabeled","created_at":%q,"label":{"name":"merge-queue"},"actor":{"login":%q}}]`,
+				f.now.Add(-2*time.Minute).Format(time.RFC3339), graphiteBot))
+			f.hub.on(draftList(1), `[]`)
+			f.hub.on(closedDraftList(), tc.closed)
+			prs, err := env.stackPulls(t.Context(), []int{1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			drafts, err := env.queueDrafts(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := env.queueState(prs[0], false, drafts); got != tc.want {
+				t.Fatalf("%q, want %q (drafts %+v)", got, tc.want, drafts)
+			}
+		})
+	}
 }
 
 func TestRESTQueryErrors(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	env := f.Env(t)
-	if queryKind("zzz") != "query" || queryKind(openDrafts) != "drafts" ||
+	if queryKind("zzz") != "query" || queryKind(draftsQuery) != "drafts" ||
 		queryKind("open: pullRequests") != "open" ||
 		queryKind("fragment pr on PullRequest") != "stack" ||
 		queryKind(failureQuery("")) != "watch" || queryKind(ticketQuery([]int{1})) != "timeline" ||
