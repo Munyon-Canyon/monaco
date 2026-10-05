@@ -63,7 +63,7 @@ func FromDocument(doc *openapi3.T) (Policies, error) {
 			attr := slog.String("operation", operation.OperationID)
 			raw, ok := operation.Extensions[Extension]
 			if !ok {
-				if public(doc, operation) && method != http.MethodGet {
+				if public(doc, operation) && method != http.MethodGet && !rawHandler(operation) {
 					return Policies{}, errs.New(errs.CodeInvalidConfig, op, attr,
 						slog.String("reason", "public "+method+" has no "+Extension))
 				}
@@ -77,6 +77,11 @@ func FromDocument(doc *openapi3.T) (Policies, error) {
 		}
 	}
 	return Policies{routes: routes}, nil
+}
+
+func rawHandler(operation *openapi3.Operation) bool {
+	raw, _ := operation.Extensions["x-raw-handler"].(bool)
+	return raw
 }
 
 func public(doc *openapi3.T, operation *openapi3.Operation) bool {

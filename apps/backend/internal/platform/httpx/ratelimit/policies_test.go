@@ -3,6 +3,7 @@ package ratelimit_test
 import (
 	"log/slog"
 	"slices"
+	"strings"
 	"testing"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
@@ -69,6 +70,8 @@ func TestLoad_RoutesThatNeedNoRateLimitLoad(t *testing.T) {
 		"public GET":       spec(authed, thing("get", "[]", "")),
 		"authed POST":      spec(authed, thing("post", "", "")),
 		"public POST with": spec(authed, thing("post", "[]", "{ip: {rate: 60, per: 1m, burst: 60}}")),
+		"public raw POST": spec(authed, strings.Replace(thing("post", "[]", ""), "      responses:",
+			"      x-raw-handler: true\n      responses:", 1)),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

@@ -192,7 +192,7 @@ func oapiGenerate(base, spec, pkg string, gen codegen.GenerateOptions, mapping m
 	code, err := codegen.Generate(doc, codegen.Configuration{
 		PackageName:   pkg,
 		Generate:      gen,
-		OutputOptions: codegen.OutputOptions{SkipPrune: true},
+		OutputOptions: codegen.OutputOptions{SkipPrune: true, ExcludeOperationIDs: rawHandlers(doc)},
 		ImportMapping: mapping,
 	}.UpdateDefaults())
 	if err != nil {
@@ -283,4 +283,18 @@ func removeStalePackages(out *os.Root, keep []string) error {
 		failed = append(failed, out.RemoveAll(dir))
 	}
 	return errors.Join(failed...)
+}
+
+const rawHandlerExtension = "x-raw-handler"
+
+func rawHandlers(doc *openapi3.T) []string {
+	var out []string
+	for _, item := range doc.Paths.Map() {
+		for _, op := range item.Operations() {
+			if raw, _ := op.Extensions[rawHandlerExtension].(bool); raw {
+				out = append(out, op.OperationID)
+			}
+		}
+	}
+	return out
 }

@@ -2,14 +2,17 @@ package funding
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -26,8 +29,10 @@ import (
 )
 
 type Module struct {
-	deps     module.Deps
-	balances port.Balances
+	deps       module.Deps
+	balances   port.Balances
+	owners     []port.SignatureOwner
+	treasuries *app.TreasuryMap
 }
 
 func New(d module.Deps) *Module { return &Module{deps: d} }
@@ -46,6 +51,51 @@ func (m *Module) Mount(r api.Mount) {
 		IDs:         m.deps.IDs,
 		Withdrawals: app.NewWithdrawHandler(m.withdrawDeps(wallets)),
 	}, r)
+	r.Mux.Handle(adapters.PrivyWebhookRoute, adapters.PrivyWebhook{
+		Verifier:   lazyVerifier(func() (adapters.WebhookVerifier, error) { return privy.New(cfg, m.deps.Clock) }),
+		Treasuries: m.treasuryMap(), Detect: lazyDetector(m.DetectExternalDeposit), Problem: r.Problem,
+	})
+}
+
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		if owner, ok := mod.(port.SignatureOwner); ok {
+			m.owners = append(m.owners, owner)
+		}
+	}
+}
+
+func (m *Module) treasuryMap() *app.TreasuryMap {
+	if m.treasuries == nil {
+		m.treasuries = app.NewTreasuryMap(cabal.New(m.deps).Queries(), m.deps.Clock)
+	}
+	return m.treasuries
+}
+
+func (m *Module) DetectExternalDeposit() *app.DetectExternalDepositHandler {
+	cfg, prices := m.deps.Config, market.New(m.deps)
+	owners := append([]port.SignatureOwner{treasury.New(m.deps).SignatureOwner(), m.SignatureOwner()}, m.owners...)
+	return app.NewDetectExternalDepositHandler(app.DetectDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, IDs: m.deps.IDs, Clock: m.deps.Clock, Hints: m.deps.Bus,
+		Chain: solana.New(cfg, m.deps.Clock), Owners: owners, Assets: prices.Catalog(), Prices: prices.Prices(),
+		Wallets: identity.New(m.deps).Queries(), USDC: chain.SolanaAddress(cfg.Solana.USDCMint),
+	})
+}
+
+type lazyDetector func() *app.DetectExternalDepositHandler
+
+func (build lazyDetector) Handle(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
+	return build().Handle(ctx, cmd)
+}
+
+type lazyVerifier func() (adapters.WebhookVerifier, error)
+
+func (build lazyVerifier) VerifyWebhook(header http.Header, body []byte) (privy.WebhookEvent, error) {
+	v, err := build()
+	if err != nil {
+		return privy.WebhookEvent{}, err
+	}
+	return v.VerifyWebhook(header, body)
 }
 
 func (m *Module) withdrawDeps(wallets app.WalletReader) app.WithdrawDeps {

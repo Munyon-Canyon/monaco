@@ -378,3 +378,23 @@ func TestGenAPIs_reportsWhatItCannotReadOrWrite(t *testing.T) {
 		})
 	}
 }
+
+func TestGenAPIs_leavesARawHandlerOutOfTheStrictServer(t *testing.T) {
+	t.Parallel()
+	out := t.TempDir()
+	raw := strings.Replace(apisFunding, "components:", `  /v1/webhooks/privy:
+    post:
+      operationId: postPrivyWebhook
+      tags: [funding]
+      security: []
+      x-raw-handler: true
+      responses:
+        "200":
+          description: Handled.
+components:`, 1)
+	if err := genAPIsLocked(apiSpecDir(t, map[string]string{"funding.yaml": raw}), out, apisBaseImport); err != nil {
+		t.Fatal(err)
+	}
+	requireText(t, filepath.Join(out, "fundingapi", "api.gen.go"), []string{"GetMyBalance("},
+		[]string{"PostPrivyWebhook"})
+}

@@ -726,6 +726,58 @@ paths:
                 $ref: "#/components/schemas/OnrampSession"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/webhooks/privy:
+    post:
+      operationId: postPrivyWebhook
+      tags: [funding]
+      security: []
+      x-idempotent: false
+      x-raw-handler: true
+      summary: Receive a Privy wallet webhook.
+      description: >-
+        Privy posts Svix-signed wallet events here. This operation is a raw `http.Handler` in funding's HTTP
+        adapter and is left out of strict-server generation, because Svix verifies the exact request bytes and
+        the strict server decodes the body first. A bad signature, missing Svix headers or an `svix-timestamp`
+        more than 5 minutes from the server clock returns 401. Only `wallet.funds_deposited` is handled. A deposit
+        to an address that is not a cabal treasury, any other event type, and a redelivered event all return 200.
+        The transfer is read back from chain by its signature, never from the body.
+      parameters:
+        - name: svix-id
+          in: header
+          required: true
+          description: The Svix message id. A redelivery of one event carries the same id.
+          schema: {type: string}
+        - name: svix-timestamp
+          in: header
+          required: true
+          description: Unix seconds when Svix signed the message. More than 5 minutes from the server clock returns 401.
+          schema: {type: string}
+        - name: svix-signature
+          in: header
+          required: true
+          description: Space-separated `v1,<base64>` HMAC-SHA256 signatures over the id, the timestamp and the raw body.
+          schema: {type: string}
+      requestBody:
+        description: The Privy wallet event exactly as Svix signed it. Only `type`, `recipient` and `transaction_hash` decide what runs.
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+            example:
+              type: wallet.funds_deposited
+              wallet_id: wallet-id
+              recipient: TreasuryAddress1111111111111111111111111111
+              sender: SenderAddress11111111111111111111111111111111
+              amount: "25000000"
+              transaction_hash: SignatureBase58
+              asset: {address: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v}
+      responses:
+        "200":
+          description: The event was verified and handled or ignored.
+        "401":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/governance.yaml
   /v1/cabals/{id}/proposals:
     get:
