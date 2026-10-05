@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -38,19 +39,6 @@ func (m consumerModule) Consumers() []bus.Consumer { return m }
 
 func (consumerModule) Pollers() []poller.Poller { return nil }
 
-func freeAddr(t *testing.T) string {
-	t.Helper()
-	ln, err := new(net.ListenConfig).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := ln.Addr().String()
-	if err := ln.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return addr
-}
-
 func applyStreams(t *testing.T, url string) {
 	t.Helper()
 	conn, err := bus.Connect(t.Context(), config.NATS{URL: url}, bus.ProcessMonacoctl)
@@ -77,11 +65,42 @@ func healthz(ctx context.Context, addr string) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
+func listeningAddr(logs *testkit.Logs) string {
+	for line := range bytes.Lines(logs.Bytes()) {
+		var entry struct {
+			Msg  string `json:"msg"`
+			Addr string `json:"addr"`
+		}
+		if json.Unmarshal(line, &entry) == nil && entry.Msg == observability.BootListening.Name {
+			return entry.Addr
+		}
+	}
+	return ""
+}
+
+func waitHealthy(t *testing.T, logs *testkit.Logs, done <-chan error) string {
+	t.Helper()
+	var addr string
+	waitUntil(t, "the worker to report healthy", func() bool {
+		select {
+		case err := <-done:
+			t.Fatalf("run returned %v before the worker reported healthy:\n%s", err, logs.Bytes())
+		default:
+		}
+		if addr = listeningAddr(logs); addr == "" {
+			return false
+		}
+		code, _ := healthz(t.Context(), addr)
+		return code == http.StatusOK
+	})
+	return addr
+}
+
 func TestRun_finishesAnInFlightHandlerAfterSIGTERMAndAcksItBeforeExiting(t *testing.T) {
 	t.Parallel()
 	url := testkit.StandaloneNATS(t)
 	applyStreams(t, url)
-	pool, addr, logs := testkit.DB(t), freeAddr(t), &testkit.Logs{}
+	pool, logs := testkit.DB(t), &testkit.Logs{}
 	started, release := make(chan struct{}), make(chan struct{})
 	slow := bus.Handle("worker.slow", func(ctx context.Context, _ db.Tx, _ events.SystemPinged, _ time.Time) error {
 		close(started)
@@ -98,14 +117,10 @@ func TestRun_finishesAnInFlightHandlerAfterSIGTERMAndAcksItBeforeExiting(t *test
 	go func() {
 		done <- run(ctx, logs, []string{
 			"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + url,
-			"MONACO_WORKER_HEALTH_ADDR=" + addr, "MONACO_TIMEOUT_SHUTDOWN=20s",
+			"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0", "MONACO_TIMEOUT_SHUTDOWN=20s",
 		}, noop.NewMeterProvider(), &mods)
 	}()
-	waitUntil(
-		t,
-		"the worker to report healthy",
-		func() bool { code, _ := healthz(t.Context(), addr); return code == http.StatusOK },
-	)
+	waitHealthy(t, logs, done)
 	err := db.New(pool, ids.Real{}, clock.Real{}).Do(observability.WithActor(t.Context(), "system:test"),
 		func(ctx context.Context, tx db.Tx) error {
 			return tx.Events.Append(ctx, events.SystemPinged{V: 1, PingID: ids.Real{}.NewV7(), Note: "slow"})
@@ -191,21 +206,17 @@ func TestRun_healthTurnsUnavailableWithinFiveSecondsOfNATSStopping(t *testing.T)
 	t.Parallel()
 	url, stopNATS := testkit.StoppableNATS(t)
 	applyStreams(t, url)
-	addr, dsn := freeAddr(t), testkit.DB(t).Config().ConnString()
+	dsn, logs := testkit.DB(t).Config().ConnString(), &testkit.Logs{}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- run(ctx, io.Discard, []string{
+		done <- run(ctx, logs, []string{
 			"MONACO_ENV=test", "DATABASE_URL=" + dsn, "NATS_URL=" + url,
-			"MONACO_WORKER_HEALTH_ADDR=" + addr, "MONACO_TIMEOUT_SHUTDOWN=2s",
+			"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0", "MONACO_TIMEOUT_SHUTDOWN=2s",
 		}, noop.NewMeterProvider(), &module.Registry{})
 	}()
-	waitUntil(
-		t,
-		"the worker to report healthy",
-		func() bool { code, _ := healthz(t.Context(), addr); return code == http.StatusOK },
-	)
+	addr := waitHealthy(t, logs, done)
 	stopNATS()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
