@@ -21,3 +21,9 @@ ON CONFLICT DO NOTHING;
 -- name: DeleteFeedMute :exec
 DELETE FROM feed_mutes
 WHERE user_id = sqlc.arg(user_id) AND target_type = sqlc.arg(target_type) AND target_id = sqlc.arg(target_id);
+
+-- name: ListFeedMutes :many
+SELECT target_type, target_id, label, created_at
+FROM feed_mutes
+WHERE user_id = sqlc.arg(user_id)
+ORDER BY created_at DESC, target_type, target_id;

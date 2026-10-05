@@ -214,6 +214,16 @@ type FeedItemDetail struct {
 	Visible bool `json:"visible"`
 }
 
+// FeedMute One muted feed target.
+type FeedMute struct {
+	CreatedAt time.Time `json:"created_at"`
+	Label     *string   `json:"label,omitempty"`
+
+	// TargetId Examples: AAPLx
+	TargetId   string `json:"target_id"`
+	TargetType string `json:"target_type"`
+}
+
 // FeedMuteRequest The feed target to mute.
 type FeedMuteRequest struct {
 	// TargetId Examples: AAPLx
@@ -350,6 +360,9 @@ type ServerInterface interface {
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams)
+	// GetMeFeedMutes List feed mutes.
+	// (GET /v1/me/feed-mutes)
+	GetMeFeedMutes(w http.ResponseWriter, r *http.Request)
 	// PutMeFeedMutes Mute a feed target.
 	// (PUT /v1/me/feed-mutes)
 	PutMeFeedMutes(w http.ResponseWriter, r *http.Request, params PutMeFeedMutesParams)
@@ -582,6 +595,20 @@ func (siw *ServerInterfaceWrapper) GetFeedItem(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetFeedItem(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMeFeedMutes operation middleware
+func (siw *ServerInterfaceWrapper) GetMeFeedMutes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMeFeedMutes(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -929,6 +956,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.PutMeFeedMutes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me/feed-mutes/{target_type}/{target_id}", wrapper.DeleteMeFeedMutesTargetTypeTargetID)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
@@ -1005,6 +1033,44 @@ type GetFeedItemdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetFeedItemdefaultApplicationProblemPlusJSONResponse) VisitGetFeedItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeFeedMutesRequestObject struct {
+}
+
+type GetMeFeedMutesResponseObject interface {
+	VisitGetMeFeedMutesResponse(w http.ResponseWriter) error
+}
+
+type GetMeFeedMutes200JSONResponse []FeedMute
+
+func (response GetMeFeedMutes200JSONResponse) VisitGetMeFeedMutesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeFeedMutesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMeFeedMutesdefaultApplicationProblemPlusJSONResponse) VisitGetMeFeedMutesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1174,6 +1240,9 @@ type StrictServerInterface interface {
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(ctx context.Context, request GetFeedItemRequestObject) (GetFeedItemResponseObject, error)
+	// GetMeFeedMutes List feed mutes.
+	// (GET /v1/me/feed-mutes)
+	GetMeFeedMutes(ctx context.Context, request GetMeFeedMutesRequestObject) (GetMeFeedMutesResponseObject, error)
 	// PutMeFeedMutes Mute a feed target.
 	// (PUT /v1/me/feed-mutes)
 	PutMeFeedMutes(ctx context.Context, request PutMeFeedMutesRequestObject) (PutMeFeedMutesResponseObject, error)
@@ -1273,6 +1342,30 @@ func (sh *strictHandler) GetFeedItem(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetFeedItemResponseObject); ok {
 		if err := validResponse.VisitGetFeedItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMeFeedMutes operation middleware
+func (sh *strictHandler) GetMeFeedMutes(w http.ResponseWriter, r *http.Request) {
+	var request GetMeFeedMutesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMeFeedMutes(ctx, request.(GetMeFeedMutesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMeFeedMutes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMeFeedMutesResponseObject); ok {
+		if err := validResponse.VisitGetMeFeedMutesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

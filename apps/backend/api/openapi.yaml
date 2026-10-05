@@ -1601,6 +1601,23 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/feed-mutes:
+    get:
+      operationId: getMeFeedMutes
+      tags: [social]
+      summary: List feed mutes.
+      responses:
+        "200":
+          description: Feed mutes newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeedMute"
+              example:
+                - {target_type: asset, target_id: AAPLx, label: AAPLx, created_at: "2026-10-04T12:00:00Z"}
+        default:
+          $ref: "#/components/responses/Problem"
     put:
       operationId: putMeFeedMutes
       tags: [social]
@@ -3528,6 +3545,16 @@ components:
           type: boolean
           description: True when the item passes the filters sent with the request.
           examples: [true]
+    FeedMute:
+      type: object
+      description: One muted feed target.
+      additionalProperties: false
+      required: [target_type, target_id, created_at]
+      properties:
+        target_type: {type: string}
+        target_id: {type: string, examples: [AAPLx]}
+        label: {type: [string, "null"]}
+        created_at: {type: string, format: date-time}
     FeedMuteRequest:
       type: object
       description: The feed target to mute.
