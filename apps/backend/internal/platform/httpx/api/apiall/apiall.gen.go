@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/referralsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/systemapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/tradingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 )
 
@@ -56,6 +57,9 @@ func DecodeOnly(m api.Mount) {
 	systemapi.Mount(struct {
 		systemapi.StrictServerInterface
 	}{}, m, func(systemapi.StrictHandlerFunc, string) systemapi.StrictHandlerFunc { return decoded })
+	tradingapi.Mount(struct {
+		tradingapi.StrictServerInterface
+	}{}, m, func(tradingapi.StrictHandlerFunc, string) tradingapi.StrictHandlerFunc { return decoded })
 	treasuryapi.Mount(struct {
 		treasuryapi.StrictServerInterface
 	}{}, m, func(treasuryapi.StrictHandlerFunc, string) treasuryapi.StrictHandlerFunc { return decoded })

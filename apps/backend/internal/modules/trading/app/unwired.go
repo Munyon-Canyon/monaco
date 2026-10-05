@@ -33,6 +33,10 @@ func (UnwiredCabals) TreasuryWallet(context.Context, ids.CabalID) (cabalport.Tre
 	return cabalport.TreasuryWallet{}, unwired("Cabals.TreasuryWallet")
 }
 
+func (UnwiredCabals) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, error) {
+	return false, unwired("Cabals.IsMember")
+}
+
 func (UnwiredPauses) IsPaused(context.Context, ids.CabalID) (fundingport.Pause, error) {
 	return fundingport.Pause{}, unwired("Pauses.IsPaused")
 }

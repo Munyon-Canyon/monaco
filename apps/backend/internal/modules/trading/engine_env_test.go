@@ -144,6 +144,10 @@ func (c liveCabals) TreasuryWallet(ctx context.Context, id ids.CabalID) (cabal.T
 	return c.e.cabals.TreasuryWallet(ctx, id)
 }
 
+func (c liveCabals) IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error) {
+	return c.e.cabals.IsMember(ctx, id, user)
+}
+
 func (e *engineEnv) ports() app.EnginePorts {
 	return app.EnginePorts{
 		Catalog: e.catalog, Cabals: liveCabals{e: e}, Pauses: e.pauses, Proposals: e.proposals, Balances: e.balances,

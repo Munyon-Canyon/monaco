@@ -14,9 +14,10 @@ func TestUnwired_everyPortFailsClosedWithARetryableCode(t *testing.T) {
 	_, statusErr := app.UnwiredCabals{}.Status(ctx, cabal)
 	_, slippageErr := app.UnwiredCabals{}.SlippageBps(ctx, cabal)
 	_, walletErr := app.UnwiredCabals{}.TreasuryWallet(ctx, cabal)
+	_, memberErr := app.UnwiredCabals{}.IsMember(ctx, cabal, ids.UserID{})
 	_, pauseErr := app.UnwiredPauses{}.IsPaused(ctx, cabal)
 	_, proposalErr := app.UnwiredProposals{}.Status(ctx, proposal)
-	for i, err := range []error{statusErr, slippageErr, walletErr, pauseErr, proposalErr} {
+	for i, err := range []error{statusErr, slippageErr, walletErr, memberErr, pauseErr, proposalErr} {
 		if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errs.VerdictFor(errs.CodeOf(err)) != errs.VerdictNak {
 			t.Errorf("port %d err = %v, want upstream_unavailable, which naks", i, err)
 		}

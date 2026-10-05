@@ -21,6 +21,7 @@ type Cabals interface {
 	Status(ctx context.Context, id ids.CabalID) (cabalport.Status, error)
 	SlippageBps(ctx context.Context, id ids.CabalID) (int32, error)
 	TreasuryWallet(ctx context.Context, id ids.CabalID) (cabalport.TreasuryWallet, error)
+	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
 }
 
 type Pauses interface {

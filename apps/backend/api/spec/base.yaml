@@ -39,6 +39,8 @@ tags:
     description: Live re-fetch hints over server-sent events.
   - name: system
     description: The reference flow that exercises every backend layer end to end.
+  - name: trading
+    description: The swaps that carry out passed proposals, and retrying a failed one.
   - name: treasury
     description: The member and cabal transaction ledgers.
 paths: {}

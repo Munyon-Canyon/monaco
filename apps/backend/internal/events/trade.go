@@ -15,6 +15,8 @@ const (
 	TypeTradeSubmitted Type = "trade.submitted"
 	TypeTradeConfirmed Type = "trade.confirmed"
 	TypeTradeFailed    Type = "trade.failed"
+
+	TypeTradeRetryRequested Type = "trade.retry_requested"
 )
 
 const swapAggregate = "swap"
@@ -105,3 +107,24 @@ func (TradeFailed) Type() Type { return TypeTradeFailed }
 func (TradeFailed) AggregateType() string { return swapAggregate }
 
 func (e TradeFailed) AggregateID() uuid.UUID { return e.SwapID }
+
+type TradeRetryRequested struct {
+	V              int                 `json:"v"`
+	SwapID         uuid.UUID           `json:"swap_id"`
+	CabalID        uuid.UUID           `json:"cabal_id"`
+	Source         TradeSource         `json:"source"`
+	Action         string              `json:"action"`
+	Symbol         string              `json:"symbol"`
+	InMint         chain.SolanaAddress `json:"in_mint"`
+	OutMint        chain.SolanaAddress `json:"out_mint"`
+	InAmount       uint64              `json:"in_amount,string"`
+	QuoteOutAmount uint64              `json:"quote_out_amount,string"`
+	SlippageBps    int32               `json:"slippage_bps"`
+	RequestedBy    uuid.UUID           `json:"requested_by"`
+}
+
+func (TradeRetryRequested) Type() Type { return TypeTradeRetryRequested }
+
+func (TradeRetryRequested) AggregateType() string { return swapAggregate }
+
+func (e TradeRetryRequested) AggregateID() uuid.UUID { return e.SwapID }
