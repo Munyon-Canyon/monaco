@@ -59,7 +59,7 @@ func (t *Transfers) Build(ctx context.Context, spec TransferSpec) (SignedTx, err
 	if err != nil {
 		return SignedTx{}, err
 	}
-	msg := transferMessage(t.relayer.address, spec, mint.TokenProgram, hash.Hash)
+	msg := TransferMessage(t.relayer.address, spec, mint.TokenProgram, hash.Hash)
 	unsigned := chain.Transaction{Signatures: [][]byte{make([]byte, 64), make([]byte, 64)}, Message: msg}
 	raw, err := t.signer.SignTransaction(ctx, spec.FromWallet.ID, unsigned.Encode())
 	if err != nil {
@@ -113,7 +113,7 @@ func validate(op string, payer chain.SolanaAddress, spec TransferSpec) error {
 	return nil
 }
 
-func transferMessage(
+func TransferMessage(
 	payer chain.SolanaAddress,
 	spec TransferSpec,
 	program chain.SolanaAddress,
@@ -122,9 +122,14 @@ func transferMessage(
 	from, to, mint := spec.FromWallet.Address, spec.To, spec.Mint.Address
 	source, _ := chain.AssociatedTokenAccount(from, mint, program)
 	dest, _ := chain.AssociatedTokenAccount(to, mint, program)
-	keys := []chain.SolanaAddress{payer, from, source, dest, to, mint, chain.SystemProgram, program, chain.ATAProgram}
-	msg := []byte{2, 1, 5}
-	msg = append(msg, chain.CompactU16(len(keys))...)
+	header := []byte{1, 0, 5}
+	keys := []chain.SolanaAddress{payer}
+	var f byte
+	if from != payer {
+		header, keys, f = []byte{2, 1, 5}, append(keys, from), 1
+	}
+	keys = append(keys, source, dest, to, mint, chain.SystemProgram, program, chain.ATAProgram)
+	msg := slices.Concat(header, chain.CompactU16(len(keys)))
 	for _, k := range keys {
 		b, _ := k.Bytes()
 		msg = append(msg, b...)
@@ -132,8 +137,8 @@ func transferMessage(
 	msg = append(msg, blockhash[:]...)
 	amount := binary.LittleEndian.AppendUint64([]byte{transferChecked}, spec.Amount.Uint64())
 	msg = append(msg, 2)
-	msg = append(msg, instruction(8, []byte{0, 3, 4, 5, 6, 7}, []byte{createIdempotent})...)
-	return append(msg, instruction(7, []byte{2, 5, 3, 1}, append(amount, spec.Mint.Decimals))...)
+	msg = append(msg, instruction(7+f, []byte{0, 2 + f, 3 + f, 4 + f, 5 + f, 6 + f}, []byte{createIdempotent})...)
+	return append(msg, instruction(6+f, []byte{1 + f, 4 + f, 2 + f, f}, append(amount, spec.Mint.Decimals))...)
 }
 
 func instruction(program byte, accounts, data []byte) []byte {
