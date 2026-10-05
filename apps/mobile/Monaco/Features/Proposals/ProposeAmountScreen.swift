@@ -3,6 +3,9 @@ import SwiftUI
 
 struct ProposeAmountScreen: View {
     let stock: ProposeStock
+    private let cabalID: String
+    @Environment(AppEnvironment.self) private var environment
+    @State private var showsReview = false
     @State private var model: ProposeAmountModel
     @State private var amountText = ""
     @State private var showsReason = false
@@ -12,6 +15,7 @@ struct ProposeAmountScreen: View {
         isSell: Bool = false
     ) {
         self.stock = stock
+        self.cabalID = cabalID
         _model = State(
             initialValue: ProposeAmountModel(
                 service: service, cabalID: cabalID, symbol: stock.symbol, potMicros: potMicros, isSell: isSell,
@@ -49,7 +53,16 @@ struct ProposeAmountScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
-                Button("Review") {}.buttonStyle(.monacoPrimary).disabled(!model.reviewEnabled(assetName: stock.name))
+                Button("Review") { showsReview = true }.buttonStyle(.monacoPrimary)
+                    .disabled(!model.reviewEnabled(assetName: stock.name))
+                    .accessibilityIdentifier("propose-amount-review")
+            }
+        }
+        .navigationDestination(isPresented: $showsReview) {
+            if let preview = model.preview {
+                ProposeReviewScreen(
+                    service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID, stock: stock,
+                    draft: model.draft, preview: preview)
             }
         }
         .accessibilityIdentifier("propose-amount-screen")

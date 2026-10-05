@@ -41,6 +41,16 @@ final class AppNavigator {
         }
     }
 
+    func closeProposeFlow() {
+        let path = binding(for: selectedTab)
+        guard
+            let start = path.wrappedValue.lastIndex(where: {
+                $0.is(ProposeRoute.self) || $0.is(ProposeFromAssetRoute.self)
+            })
+        else { return }
+        path.wrappedValue.removeSubrange(start...)
+    }
+
     func binding(for tab: MainTab) -> Binding<[AnyAppRoute]> {
         switch tab {
         case .home:

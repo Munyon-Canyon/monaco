@@ -16,6 +16,16 @@ struct AppNavigatorTests {
             #expect(navigator.path(for: tab).isEmpty)
         }
     }
+
+    @Test func closingTheProposeFlowPopsToTheScreenBeforeIt() {
+        let navigator = AppNavigator()
+        navigator.open(ProbeRoute(marker: "cabal"), in: .cabals)
+        navigator.open(ProposeRoute(cabalID: "cabal"), in: .cabals)
+
+        navigator.closeProposeFlow()
+
+        #expect(navigator.path(for: .cabals).count == 1)
+    }
 }
 
 nonisolated private struct ProbeRoute: AppRoute {
