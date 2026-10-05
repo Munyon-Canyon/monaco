@@ -1076,7 +1076,7 @@ func TestCheck_aFlowsPackageChangeRunsTheSwiftAndReadyRows(t *testing.T) {
 
 func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T) {
 	t.Parallel()
-	for _, c := range []struct{ cpus, busy, want int }{{18, 4, 4}, {18, 2, 8}, {18, 1, 8}, {8, 0, 8}, {2, 1, 2}, {1, 0, 2}} {
+	for _, c := range []struct{ cpus, busy, want int }{{18, 4, 4}, {18, 2, 4}, {18, 1, 4}, {8, 0, 4}, {6, 2, 3}, {2, 1, 2}, {1, 0, 2}} {
 		if got := testParallelism(c.cpus, c.busy); got != c.want {
 			t.Errorf("testParallelism(%d, %d) = %d, want %d", c.cpus, c.busy, got, c.want)
 		}
