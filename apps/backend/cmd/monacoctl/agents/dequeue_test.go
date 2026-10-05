@@ -129,6 +129,81 @@ func TestDequeue_givesUpWhileGraphiteStillHoldsTheStack(t *testing.T) {
 	}
 }
 
+func graphiteTook(t *testing.T, f *fixture, s *stackGH, by string, ago time.Duration) {
+	t.Helper()
+	for _, n := range []int{1, 2} {
+		setUnlabels(t, s.prs[n], unlabel(f.now.Add(-ago), "merge-queue", by))
+	}
+}
+
+func TestDequeue_aStackGraphiteTookIsNotSafeToPushBeforeItsDraftOpens(t *testing.T) {
+	t.Parallel()
+	const held = "Graphite still holds #2; remove it from the queue in the Graphite app, then rerun"
+	for _, tc := range []struct {
+		name   string
+		queued bool
+		drafts string
+	}{
+		{"an owner record with the stack queued", true, ""},
+		{"an owner record with no queue entry", false, ""},
+		{"an open draft tests a stack with no labels", false, queueDraftNode(90, "(PRs 1, 2)", noRollup)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s, env := dequeueStack(t, f, tc.drafts)
+			if tc.drafts == "" {
+				graphiteTook(t, f, s, graphiteApp, 2*time.Minute)
+			} else {
+				s.prs[1].Labels.Nodes, s.prs[2].Labels.Nodes = nil, nil
+			}
+			if !tc.queued {
+				f.owner(t, Record{Ticket: 40, State: Running, Worktree: "/w/40"})
+			}
+			var out strings.Builder
+			err := dequeueCmd(t.Context(), env, []string{"2"}, &out)
+			if err == nil || cliText(err) != held || strings.Contains(out.String(), "safe to push") {
+				t.Fatalf("%q %v", out.String(), err)
+			}
+			if tc.queued && f.owned(t).Queued == nil {
+				t.Fatal("dequeue unmarked a stack Graphite still holds")
+			}
+		})
+	}
+}
+
+func TestDequeue_aStackIsSafeToPushOnceGraphiteHasLetGo(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		by     string
+		ago    time.Duration
+		closed func(*fixture) string
+	}{
+		{"a person removed the labels", "logan", 2 * time.Minute, nil},
+		{"Graphite took them a whole hold ago", graphiteApp, takenFor, nil},
+		{"a closed draft ran them since", graphiteApp, 2 * time.Minute, func(f *fixture) string {
+			return closedDraftOf(t, 92, "1, 2", f.now.Add(-time.Minute))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s, env := dequeueStack(t, f)
+			graphiteTook(t, f, s, tc.by, tc.ago)
+			f.owner(t, Record{Ticket: 40, State: Running, Worktree: "/w/40"})
+			if tc.closed != nil {
+				f.hub.on(graphqlRoute, closedDraftData(tc.closed(f)))
+			}
+			var out strings.Builder
+			err := dequeueCmd(t.Context(), env, []string{"2"}, &out)
+			if err != nil || out.String() != "no PR of the stack under #2 carries merge-queue; safe to push\n" {
+				t.Fatalf("%q %v", out.String(), err)
+			}
+		})
+	}
+}
+
 func TestDequeue_failures(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

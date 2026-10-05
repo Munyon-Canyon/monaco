@@ -177,6 +177,7 @@ func (c gqlCommit) failedJob() gqlContext {
 type queueRuns struct {
 	label  string
 	drafts []queueDraft
+	now    time.Time
 }
 
 func failures(prs []watchPR, queue queueRuns, trunk string, since time.Time) []failure {
@@ -256,11 +257,12 @@ func (env *Env) failures(ctx context.Context) ([]failure, watchData, error) {
 	if err != nil {
 		return nil, watchData{}, err
 	}
-	stamp := env.Now().UTC().Format(time.RFC3339Nano)
+	now := env.Now()
+	stamp := now.UTC().Format(time.RFC3339Nano)
 	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
 		return nil, watchData{}, err
 	}
-	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts}
+	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: now}
 	return failures(data.prs, queue, env.Config.FeatureBranch, since), data, nil
 }
 
