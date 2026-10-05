@@ -74,6 +74,10 @@ func (b *Bouncer) Start(ctx context.Context, id uuid.UUID) error {
 	if err != nil || row.status != domain.ExternalDetected {
 		return err
 	}
+	return b.send(ctx, row)
+}
+
+func (b *Bouncer) send(ctx context.Context, row bounceRow) error {
 	signed, err := b.sign(ctx, row)
 	if err != nil || signed == nil {
 		return err
