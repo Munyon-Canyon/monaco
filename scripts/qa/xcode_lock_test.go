@@ -136,6 +136,25 @@ func eventually(t *testing.T, what string, ok func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
+// await polls until ok holds. It fails as soon as one of the watched calls exits first, so
+// it ends on an event, never on a deadline; a hang is left to go test's -timeout.
+func await(t *testing.T, what string, ok func() bool, watched ...*call) {
+	t.Helper()
+	for !ok() {
+		for _, c := range watched {
+			select {
+			case <-c.done:
+				if ok() {
+					return
+				}
+				t.Fatalf("%s: a caller exited first; stderr:\n%s", what, c.stderr.String())
+			default:
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
@@ -584,18 +603,35 @@ func TestXcodeLockRecordsTheWaitOnceItTakesTheLock(t *testing.T) {
 	}
 }
 
-// With two slots, two holders run at once in different slots and a third caller waits until
-// one of them leaves, naming both holders while it waits.
+// With two slots, a second holder runs while the first still holds its slot, and a third
+// caller waits until one of them leaves, naming both holders while it waits.
+//
+// Each caller starts only once the one before it holds a slot, so it is alone in the queue at
+// position 1 and its first pass decides the outcome: a free slot runs it at once, and none
+// logs "queue position 1" at once. Every wait below ends on one of those two events, whatever
+// the runner's speed.
 func TestXcodeLockSlotsRunHoldersTogether(t *testing.T) {
 	t.Parallel()
 	e := newLockEnv(t)
 	two := []string{"MONACO_XCODE_SLOTS=2"}
 	aIn, bIn, cIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in"), filepath.Join(e.dir, "c.in")
 	aRelease, bRelease := filepath.Join(e.dir, "a.release"), filepath.Join(e.dir, "b.release")
+	queued := func(c *call) bool { return strings.Contains(c.stderr.String(), "queue position 1 behind ") }
 
 	a := e.start(e.dir, two, append([]string{"xcode"}, holdUntil(aIn, aRelease)...)...)
+	await(t, "the first holder to run", func() bool { return exists(aIn) }, a)
+
 	b := e.start(e.dir, two, append([]string{"xcode"}, holdUntil(bIn, bRelease)...)...)
-	eventually(t, "both holders to run at once", func() bool { return exists(aIn) && exists(bIn) })
+	// Cleanups run last-registered first, so on a failure this releases the holders before
+	// start's cleanup kills the wrappers; a held sh keeps stderr open and Wait would block.
+	t.Cleanup(func() {
+		_ = os.WriteFile(aRelease, nil, 0o644)
+		_ = os.WriteFile(bRelease, nil, 0o644)
+	})
+	await(t, "the second holder to run or queue", func() bool { return exists(bIn) || queued(b) }, a, b)
+	if !exists(bIn) {
+		t.Fatalf("second holder queued while a slot was free:\n%s", b.stderr.String())
+	}
 	if !exists(e.xcodeLock()) || !exists(e.xcodeLock()+".2") {
 		t.Fatalf("holders are not in slots 1 and 2")
 	}
@@ -603,9 +639,7 @@ func TestXcodeLockSlotsRunHoldersTogether(t *testing.T) {
 	bPid := readPid(t, filepath.Join(e.xcodeLock()+".2", "pid"))
 
 	c := e.start(e.dir, two, "xcode", "touch", cIn)
-	eventually(t, "the third caller to queue", func() bool {
-		return strings.Contains(c.stderr.String(), "queue position 1 behind ")
-	})
+	await(t, "the third caller to queue", func() bool { return queued(c) }, a, b, c)
 	log := c.stderr.String()
 	if !strings.Contains(log, "pid "+strconv.Itoa(aPid)+" (") || !strings.Contains(log, "pid "+strconv.Itoa(bPid)+" (") {
 		t.Fatalf("waiter log does not name both holders %d and %d:\n%s", aPid, bPid, log)
