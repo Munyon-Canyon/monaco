@@ -7,16 +7,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
-	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
@@ -62,6 +63,13 @@ func ParseArgs(args []string) (Target, error) {
 		}
 	}
 	return t.settle()
+}
+
+func (t Target) parallel() int {
+	if t.CrashAt != "" {
+		return 1
+	}
+	return parallelFlows
 }
 
 func (t Target) settle() (Target, error) {
@@ -146,13 +154,9 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		return err
 	}
 	_, _ = fmt.Fprintf(cfg.Stdout, "stack %s healthy: api %s, worker %s\n", stack.RunID, stack.API, stack.Worker)
-	consumers := cfg.Modules(module.Deps{
-		Config: testkit.Config(), Clock: clock.Real{}, IDs: ids.Real{}, Pool: stack.Pool, Bus: stack.Bus,
-		UoW: db.New(stack.Pool, ids.Real{}, clock.Real{}),
-	}).Consumers()
-	parallel := parallelFlows
-	if target.CrashAt != "" {
-		parallel = 1
+	consumers, err := workerConsumers(cfg.Modules, stack, env)
+	if err != nil {
+		return err
 	}
 	return verifyUnits(runCtx, cfg, Env{
 		API:        stack.API,
@@ -167,7 +171,18 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		NATS:       stack.NATS,
 		Subject:    stack.Bus.Subject,
 		Consumers:  consumers, Logs: stack.Logs, Crash: stack.crashUnit, Arm: stack.armUnit,
-	}, rep, parallel)
+	}, rep, target.parallel())
+}
+
+func workerConsumers(modules func(module.Deps) module.Set, stack *Stack, env []string) ([]bus.Consumer, error) {
+	appCfg, err := config.Load(slices.Concat(stack.env, env))
+	if err != nil {
+		return nil, fmt.Errorf("the worker's config: %w", err)
+	}
+	return modules(module.Deps{
+		Config: appCfg, Clock: clock.Real{}, IDs: ids.Real{}, Pool: stack.Pool, Bus: stack.Bus,
+		UoW: db.New(stack.Pool, ids.Real{}, clock.Real{}),
+	}).Consumers(), nil
 }
 
 func prepare(ctx context.Context, cfg Config, target Target) (Binaries, string, func() error, error) {

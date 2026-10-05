@@ -24,6 +24,10 @@ type specDiff struct {
 	addedCodes []string
 }
 
+func (r registry) built(id string) bool {
+	return slices.ContainsFunc(r.flows, func(f flows.Flow) bool { return f.ID == id && f.Status.AtLeastBuilt() })
+}
+
 func (r registry) affected(changed []string, spec specDiff) []string {
 	runtime := slices.DeleteFunc(slices.Clone(changed), flows.TestOnly)
 	ids := flows.Affected(runtime, spec.ops, r.flows)
@@ -189,7 +193,7 @@ func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, min
 	}
 	var moved []movedFlow
 	for _, id := range reg.affected(paths, spec) {
-		if !slices.Contains(mine, id) {
+		if !slices.Contains(mine, id) || !reg.built(id) {
 			continue
 		}
 		by, err := env.lastChange(ctx, span, flowPaths(reg, paths, spec, id))
