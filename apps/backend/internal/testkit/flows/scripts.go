@@ -24,6 +24,16 @@ func Env() map[string][]string {
 	return env
 }
 
+func Alone(s Script) bool {
+	alone := false
+	each("AloneF", func(_ string, out any) {
+		for _, a := range out.([]Script) {
+			alone = alone || reflect.ValueOf(a).Pointer() == reflect.ValueOf(s).Pointer()
+		}
+	})
+	return alone
+}
+
 func each(prefix string, yield func(suffix string, out any)) {
 	v := reflect.ValueOf(defined{})
 	for i := range v.NumMethod() {

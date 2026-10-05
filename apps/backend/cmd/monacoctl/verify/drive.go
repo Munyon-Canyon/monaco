@@ -91,10 +91,10 @@ func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Resu
 	results := make([]*Result, len(units))
 	var g errgroup.Group
 	g.SetLimit(parallel)
-	var pollers []int
+	var serial []int
 	for i, u := range units {
-		if kind, _ := u.Flow.TriggerKind(u.Command); kind == tools.TriggerPoller {
-			pollers = append(pollers, i)
+		if kind, _ := u.Flow.TriggerKind(u.Command); kind == tools.TriggerPoller || u.Alone {
+			serial = append(serial, i)
 			continue
 		}
 		g.Go(func() error {
@@ -103,7 +103,7 @@ func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Resu
 		})
 	}
 	_ = g.Wait()
-	for _, i := range pollers {
+	for _, i := range serial {
 		results[i] = d.run(ctx, units[i])
 	}
 	return results

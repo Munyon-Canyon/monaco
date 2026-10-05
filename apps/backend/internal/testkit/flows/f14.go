@@ -22,6 +22,8 @@ const (
 
 func (defined) WorkerEnvF14() []string { return []string{"RELAYER_PRIVATE_KEY=" + CashOutRelayerKey()} }
 
+func (defined) AloneF14() []Script { return []Script{F14CashOutPayoutsRPCUnavailable} }
+
 func CashOutRelayerKey() string { return chain.EncodeBase58(fakes.FixtureKey("f14-relayer")) }
 
 func cashOutOf(micros string) string { return `{"usdc_micros":"` + micros + `"}` }
@@ -150,9 +152,18 @@ func chainSays(fixture string) scenario.Step {
 }
 
 func outageRetried(code errs.Code) scenario.Step {
-	return scenario.EventuallyLog(observability.BusDispatched, map[string]string{
-		"handler": cashOutPayout, "code": string(code),
-	})
+	return func(s *scenario.Scenario) {
+		var started string
+		if err := s.DB().QueryRow(s.Context(),
+			`SELECT id::text FROM events WHERE type = $1 AND payload->>'job_id' = $2`,
+			string(events.TypeCashOutStarted), s.Recall("job"),
+		).Scan(&started); err != nil {
+			s.Fatalf("flows: read the cash out started event: %v", err)
+		}
+		scenario.EventuallyLog(observability.BusDispatched, map[string]string{
+			"handler": cashOutPayout, "event_id": started, "code": string(code),
+		})(s)
+	}
 }
 
 func paid() []scenario.Step {

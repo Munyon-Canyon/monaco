@@ -22,7 +22,7 @@ The code is in `apps/backend/cmd/monacoctl/verify/`.
 1. Builds `./cmd/api`, `./cmd/worker` and `./cmd/fakes` with `-cover`, adding `-tags faultpoints` for a crash run.
 2. Starts a Postgres container named `monaco-verify-<run id>` on a random port with data on tmpfs. It never touches `monaco-postgres`.
 3. Starts NATS, applies the atlas migrations, and starts the binaries. The worker also gets the variables that the `WorkerEnvF<id>` method in each selected flow's `apps/backend/internal/testkit/flows/f<id>.go` sets, such as a poll interval short enough for the flow budget.
-4. Runs each selected outcome's flow script from the flow's `apps/backend/internal/testkit/flows/f<id>.go`, up to 4 at a time. A crash run goes one at a time.
+4. Runs each selected outcome's flow script from the flow's `apps/backend/internal/testkit/flows/f<id>.go`, up to 4 at a time. A crash run goes one at a time. Poller outcomes, and scripts that the flow file lists in its `AloneF<id>` method, run one at a time after the others. A script belongs there when it scripts a fake reply on a route that every unit shares, such as a failing `getLatestBlockhash`, because a concurrent unit would take that reply.
 5. Waits for every emitted event to be handled by every consumer that watches it.
 6. Checks the invariants below, writes evidence, and tears down.
 

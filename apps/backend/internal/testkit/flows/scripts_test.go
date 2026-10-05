@@ -86,3 +86,13 @@ func TestScripts_aSubRowScriptIsRegisteredUnderItsLowercaseLetter(t *testing.T) 
 		})
 	}
 }
+
+func TestAlone_marksOnlyTheDeclaredScripts(t *testing.T) {
+	t.Parallel()
+	if !flows.Alone(flows.F14CashOutPayoutsRPCUnavailable) {
+		t.Error("flow 14 RPCUnavailable shares the fake getLatestBlockhash route, want it to run alone")
+	}
+	if flows.Alone(flows.F14CashOutPayoutsPrivyUnavailable) {
+		t.Error("flow 14 PrivyUnavailable scripts its own treasury wallet route, want it to run with others")
+	}
+}
