@@ -39,8 +39,9 @@ _qa_monacoctl() {
     echo "bin/monacoctl is missing: run just build backend first" >&2
     return 1
   fi
-  # The backend refuses unknown MONACO_ variables, and a run's account overrides are MONACO_QA_.
-  local name unset=()
+  # monacoctl refuses unknown MONACO_ variables: a run's account overrides are MONACO_QA_, and
+  # MONACO_API_BASE_URL is the journey runner's, which this file reads as QA_API.
+  local name unset=(-u MONACO_API_BASE_URL)
   while read -r name; do
     unset+=(-u "$name")
   done < <(compgen -e | grep '^MONACO_QA_' || true)
@@ -87,10 +88,11 @@ qa_token() {
 }
 
 qa_api() {
-  local actor="$1" method="$2" path="$3" body="${4:-}" token status out
+  # zsh ties path to PATH and makes status read-only, so neither names a local here.
+  local actor="$1" method="$2" route="$3" body="${4:-}" token code out
   token="$(qa_token "$actor")" || return 1
   out="$(mktemp)"
-  local args=(-sS -o "$out" -w '%{http_code}' -X "$method" "$QA_API$path"
+  local args=(-sS -o "$out" -w '%{http_code}' -X "$method" "$QA_API$route"
     -H "Authorization: Bearer $token" -H "Content-Type: application/json")
   if [[ "$method" != GET ]]; then
     args+=(-H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')")
@@ -98,13 +100,13 @@ qa_api() {
   if [[ -n "$body" ]]; then
     args+=(-d "$body")
   fi
-  if ! status="$(curl "${args[@]}")"; then
+  if ! code="$(curl "${args[@]}")"; then
     rm -f "$out"
-    echo "qa_api $method $path: no answer from $QA_API" >&2
+    echo "qa_api $method $route: no answer from $QA_API" >&2
     return 1
   fi
-  if [[ "$status" != 2?? ]]; then
-    echo "qa_api $actor $method $path: HTTP $status" >&2
+  if [[ "$code" != 2?? ]]; then
+    echo "qa_api $actor $method $route: HTTP $code" >&2
     cat "$out" >&2
     echo >&2
     rm -f "$out"
