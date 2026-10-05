@@ -21,9 +21,10 @@ import (
 
 type flow11 struct {
 	*engineEnv
-	s     *scenario.Scenario
-	voter ids.UserID
-	votes string
+	s        *scenario.Scenario
+	voter    ids.UserID
+	proposal ids.ProposalID
+	votes    string
 }
 
 type flowSeedT struct{ *scenario.Scenario }
@@ -56,7 +57,7 @@ func newFlow11(t *testing.T, arrange func(e *engineEnv)) *flow11 {
 func (f *flow11) openBuy(t *testing.T) {
 	t.Helper()
 	id, now := f.ids.NewV7(), clock.Real{}.Now().UTC()
-	f.votes = "/v1/proposals/" + id.String() + "/votes"
+	f.proposal, f.votes = ids.ProposalIDFrom(id), "/v1/proposals/"+id.String()+"/votes"
 	if _, err := f.s.DB().Exec(t.Context(), `WITH p AS (
 		INSERT INTO proposals (id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, quote_out_amount,
 			status, expires_at, created_at, updated_at)
