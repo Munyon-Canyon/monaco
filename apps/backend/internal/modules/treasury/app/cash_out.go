@@ -65,7 +65,7 @@ type cashOutReservationQueries interface {
 	CashOutShares(context.Context, sqlc.CashOutSharesParams) (sqlc.CashOutSharesRow, error)
 }
 type cashOutRecordQueries interface {
-	CashOutTreasuryUSDC(context.Context, sqlc.CashOutTreasuryUSDCParams) (string, error)
+	CashOutShortfall(context.Context, sqlc.CashOutShortfallParams) (string, error)
 	InsertCashOutJob(context.Context, sqlc.InsertCashOutJobParams) error
 }
 type CashOutPause struct {
@@ -294,18 +294,15 @@ func (h *CashOutHandler) record(
 	units money.SharesUnits,
 	payout money.Micros,
 ) (CashOutResult, error) {
-	cash, err := q.CashOutTreasuryUSDC(ctx, sqlc.CashOutTreasuryUSDCParams{
-		CabalID: cmd.CabalID.UUID(), Asset: string(h.usdc),
+	short, err := q.CashOutShortfall(ctx, sqlc.CashOutShortfallParams{
+		CabalID: cmd.CabalID.UUID(), Asset: string(h.usdc), PayoutMicros: payout.String(),
 	})
 	if err != nil {
 		return CashOutResult{}, err
 	}
-	onHand, err := money.ParseMicros(cash)
+	sell, err := money.ParseMicros(short)
 	if err != nil {
 		return CashOutResult{}, err
-	}
-	if onHand.Cmp(payout) < 0 {
-		return CashOutResult{}, errs.New(errs.CodeTreasuryShort, "treasury.CashOut")
 	}
 	result := CashOutResult{
 		ID:           h.ids.NewV7(),
@@ -315,7 +312,7 @@ func (h *CashOutHandler) record(
 	}
 	if err := q.InsertCashOutJob(ctx, sqlc.InsertCashOutJobParams{
 		ID: result.ID, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(), ShareUnits: units.String(),
-		PayoutMicros: payout.String(), At: result.CreatedAt,
+		PayoutMicros: payout.String(), SellUsdcMicros: sell.String(), At: result.CreatedAt,
 	}); err != nil {
 		return CashOutResult{}, err
 	}
@@ -350,7 +347,7 @@ func (h *CashOutHandler) record(
 		ctx,
 		events.CashOutStarted{
 			V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(),
-			UserID: cmd.UserID.UUID(), ShareUnits: units.Uint64(), PayoutMicros: payout,
+			UserID: cmd.UserID.UUID(), ShareUnits: units.Uint64(), PayoutMicros: payout, SellUSDC: sell,
 		},
 	)
 	return result, err

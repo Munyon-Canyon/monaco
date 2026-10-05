@@ -98,6 +98,7 @@ const (
 	RequestNotNeeded           ErrorCode = "request_not_needed"
 	RequestPending             ErrorCode = "request_pending"
 	RpcUnavailable             ErrorCode = "rpc_unavailable"
+	SaleShort                  ErrorCode = "sale_short"
 	SessionRequired            ErrorCode = "session_required"
 	SlippageExceeded           ErrorCode = "slippage_exceeded"
 	StorageUnavailable         ErrorCode = "storage_unavailable"
@@ -105,7 +106,6 @@ const (
 	SwapNotFound               ErrorCode = "swap_not_found"
 	SwapNotRetryable           ErrorCode = "swap_not_retryable"
 	SwapNotStuck               ErrorCode = "swap_not_stuck"
-	TreasuryShort              ErrorCode = "treasury_short"
 	Unauthorized               ErrorCode = "unauthorized"
 	UpstreamTimeout            ErrorCode = "upstream_timeout"
 	UpstreamUnavailable        ErrorCode = "upstream_unavailable"
@@ -299,6 +299,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case RpcUnavailable:
 		return true
+	case SaleShort:
+		return true
 	case SessionRequired:
 		return true
 	case SlippageExceeded:
@@ -312,8 +314,6 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotRetryable:
 		return true
 	case SwapNotStuck:
-		return true
-	case TreasuryShort:
 		return true
 	case Unauthorized:
 		return true
