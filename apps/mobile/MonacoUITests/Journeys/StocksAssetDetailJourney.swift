@@ -53,7 +53,7 @@ enum StocksAssetDetailJourney {
         return match.waitForExistence(timeout: timeout)
     }
 
-        static func heroChartAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
+    static func heroChartAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open Journey Alpha") {
             openAsset(app, alpha, scrolls: false, step: "S1.1")
             let title = app.navigationBars[alpha.ticker]
@@ -160,7 +160,8 @@ enum StocksAssetDetailJourney {
             var swipes = 0
             while listing.frame.midY > bar.frame.minY - 20 && swipes < 4 {
                 let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.78))
-                from.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+                from.press(
+                    forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
                 swipes += 1
             }
             listing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
