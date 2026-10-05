@@ -2,7 +2,7 @@ import XCTest
 
 enum SettingsDeleteAccountJourney {
     static let id = "settings/delete-account"
-    static let version = 1
+    static let version = 2
 
     static let explainer =
         "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. "
@@ -91,20 +91,19 @@ enum SettingsDeleteAccountJourney {
                 "S1.4: '\(withdrawStep)' reads '\(withdraw)', not Done with $0.00")
         }
 
-        let confirm = app.buttons["delete-account-confirm"]
+        let confirm = app.confirmDialogButton("delete-account-confirm")
 
         recorder.step("S1.5", "ask to delete") {
             app.buttons["delete-account-button"].tap()
             XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S1.5: Delete account did not ask to confirm")
-            XCTAssertTrue(app.staticTexts[confirmTitle].exists, "S1.5: the confirm does not read '\(confirmTitle)'")
+            XCTAssertTrue(
+                app.staticTexts[confirmTitle].firstMatch.exists, "S1.5: the confirm does not read '\(confirmTitle)'")
             XCTAssertEqual(confirm.label, "Delete", "S1.5: the confirm button does not read 'Delete'")
-            XCTAssertEqual(
-                app.buttons["delete-account-cancel"].label, "Cancel", "S1.5: the cancel button does not read 'Cancel'")
         }
 
-        recorder.step("S1.6", "cancel") {
-            app.buttons["delete-account-cancel"].tap()
-            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S1.6: Cancel did not close the confirm")
+        recorder.step("S1.6", "tap outside the confirm") {
+            app.dismissConfirmDialog(title: confirmTitle)
+            XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S1.6: a tap outside did not close the confirm")
             XCTAssertTrue(app.element("delete-account-explainer").exists, "S1.6: the Delete account screen is gone")
         }
     }
@@ -120,7 +119,7 @@ enum SettingsDeleteAccountJourney {
 
         recorder.step("S2.2", "delete the account") {
             app.buttons["delete-account-button"].tap()
-            let confirm = app.buttons["delete-account-confirm"]
+            let confirm = app.confirmDialogButton("delete-account-confirm")
             XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S2.2: Delete account did not ask to confirm")
             confirm.tap()
             let toast = app.element("monaco-toast-banner")

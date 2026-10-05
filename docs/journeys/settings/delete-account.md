@@ -1,7 +1,7 @@
 ---
 id: settings/delete-account
 title: Delete your account
-version: 1
+version: 2
 milestone: M9
 requires: []
 actors: [C]
@@ -36,8 +36,8 @@ Starts with a new dev user (P1, P2).
 | S1.2 | tap, then tap | the Profile tab, then `profile-settings-row` | | The "Settings" screen shows within 10 s, and `settings-delete-account` reads "Delete account" | None, new in spec |
 | S1.3 | tap | `settings-delete-account` | | Within 10 s, the "Delete account" screen shows, and `delete-account-explainer` reads "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. Your transaction history stays, because cabal records need it. This can't be undone." | None, new in spec |
 | S1.4 | wait | `delete-account-step-cash-out`, `delete-account-step-withdraw` | | Within 15 s, "Cash out of every cabal" reads "Done" and "No cabal holds money of yours.", and "Withdraw your balance" reads "Done" and "$0.00" | None, new in spec |
-| S1.5 | tap | `delete-account-button` | | Within 5 s the confirm shows "Delete your Monaco account?", with `delete-account-confirm` ("Delete") and `delete-account-cancel` ("Cancel") | None, new in spec |
-| S1.6 | tap | `delete-account-cancel` | | The confirm closes within 5 s, and `delete-account-explainer` still shows | None, new in spec |
+| S1.5 | tap | `delete-account-button` | | Within 5 s the confirm shows "Delete your Monaco account?", with `delete-account-confirm` ("Delete"). On iOS 27 the confirm is a popover that shows no Cancel button | None, new in spec |
+| S1.6 | tap | outside the dialog | | The confirm closes within 5 s, and `delete-account-explainer` still shows | None, new in spec |
 
 ### S2 Delete the account
 

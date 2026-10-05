@@ -134,6 +134,66 @@ extension XCUIApplication {
         return nil
     }
 
+    func dismissConfirmDialog(title: String, timeout: TimeInterval = 5) {
+        tapOutsidePopover()
+        _ = staticTexts[title].firstMatch.waitForNonExistence(timeout: timeout)
+    }
+
+    func confirmDialogButton(_ identifier: String) -> XCUIElement {
+        buttons[identifier].firstMatch
+    }
+
+    @discardableResult
+    func answerSystemAlert(allow: Bool, timeout: TimeInterval = 15) -> Bool {
+        let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+        guard alert.waitForExistence(timeout: timeout) else { return false }
+        let button = alert.buttons[allow ? "Allow" : "Don’t Allow"].firstMatch
+        if button.exists {
+            button.tap()
+        } else {
+            alert.buttons[allow ? "Allow" : "Don't Allow"].firstMatch.tap()
+        }
+        return alert.waitForNonExistence(timeout: 5)
+    }
+
+    func waitForToastGone(timeout: TimeInterval = 6) {
+        _ = element("monaco-toast-banner").waitForNonExistence(timeout: timeout)
+    }
+
+    func tapBack(timeout: TimeInterval = 5) {
+        let back = navigationBars.buttons["BackButton"].firstMatch
+        let hittable = NSPredicate(format: "exists == true AND hittable == true")
+        let ready = XCTNSPredicateExpectation(predicate: hittable, object: back)
+        XCTAssertEqual(XCTWaiter().wait(for: [ready], timeout: timeout), .completed, "Back was not tappable")
+        back.tap()
+    }
+
+    func shareSheetShows(timeout: TimeInterval = 5) -> Bool {
+        waitForFirst(of: [buttons["Close"].firstMatch, otherElements["ActivityListView"].firstMatch], timeout: timeout)
+            != nil
+    }
+
+    @discardableResult
+    func dismissShareSheet(timeout: TimeInterval = 5) -> Bool {
+        guard shareSheetShows(timeout: timeout) else { return false }
+        let close = buttons["Close"].firstMatch
+        if close.waitForExistence(timeout: 1) {
+            close.tap()
+        } else {
+            tapOutsidePopover()
+        }
+        return true
+    }
+
+    private func tapOutsidePopover() {
+        let region = otherElements["PopoverDismissRegion"].firstMatch
+        if region.exists {
+            region.tap()
+        } else {
+            coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)).tap()
+        }
+    }
+
     func scrollIntoReach(_ element: XCUIElement, maxSwipes: Int = 8) {
         var swipes = 0
         while !element.isHittable && swipes < maxSwipes {

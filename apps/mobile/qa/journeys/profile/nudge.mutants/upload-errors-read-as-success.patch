@@ -1,7 +1,7 @@
-journey: profile/edit
-expect-fail: S5
+journey: profile/nudge
+expect-fail: S1
 
-Every upload toasts success, even a rate-limited one. S5.1 expects the rate-limit message, so S5 must fail.
+Every upload toasts success, even a rate-limited one. S1.1 expects the rate-limit message, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift b/apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift
