@@ -126,7 +126,7 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("stack #%d: ", top), err)}
 	}
-	each, err := env.landedEach(ctx, prs)
+	each, err := env.landedEach(ctx, prs, drafts)
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("stack #%d: ", top), err)}
 	}

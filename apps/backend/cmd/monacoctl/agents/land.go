@@ -170,11 +170,11 @@ func (env *Env) settleQueued(ctx context.Context, rec Record, stdout io.Writer) 
 	if err != nil {
 		return true, err
 	}
-	landed, err := env.landedEach(ctx, queued)
+	drafts, err := env.queueDrafts(ctx)
 	if err != nil {
 		return true, err
 	}
-	drafts, err := env.queueDrafts(ctx)
+	landed, err := env.landedEach(ctx, queued, drafts)
 	if err != nil {
 		return true, err
 	}
@@ -391,16 +391,44 @@ func landedLine(q *Queue) string {
 	return fmt.Sprintf("stack #%d landed (%s)", q.Top, prRefs(q.PRs))
 }
 
-func (env *Env) landedEach(ctx context.Context, prs []stackPR) ([]bool, error) {
+func (env *Env) landedEach(ctx context.Context, prs []stackPR, drafts []queueDraft) ([]bool, error) {
 	out := make([]bool, len(prs))
 	for i, p := range prs {
 		landed, err := env.landed(ctx, p.closed())
+		if err == nil && !landed && p.State == "OPEN" && env.queueState(p, false, drafts) == prEjected {
+			landed, err = env.landedBeforeGraphiteClosed(ctx, p, drafts)
+		}
 		if err != nil {
 			return nil, err
 		}
 		out[i] = landed
 	}
 	return out, nil
+}
+
+func (env *Env) landedBeforeGraphiteClosed(ctx context.Context, p stackPR, drafts []queueDraft) (bool, error) {
+	at, _, ok := env.unlabeled(p)
+	if !ok {
+		return false, nil
+	}
+	if squashed, err := env.squashed(ctx, closedPR{Number: p.Number, ClosedAt: at}); err != nil || squashed {
+		return squashed, err
+	}
+	for _, d := range drafts {
+		if !d.runs(p.Number, at) {
+			continue
+		}
+		if d.State == "MERGED" {
+			return true, nil
+		}
+		if d.HeadRefOID == "" {
+			continue
+		}
+		if in, err := env.GitHub.inBranch(ctx, env.Config.FeatureBranch, d.HeadRefOID); err != nil || in {
+			return in, err
+		}
+	}
+	return false, nil
 }
 
 const (
@@ -534,7 +562,7 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		if err != nil {
 			return err
 		}
-		landed, err := env.landedEach(ctx, prs)
+		landed, err := env.landedEach(ctx, prs, open)
 		if err != nil {
 			return err
 		}

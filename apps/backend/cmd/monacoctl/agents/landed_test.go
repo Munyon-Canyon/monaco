@@ -64,6 +64,9 @@ func TestLanded_readsTheTrunkOncePerStackAndAgainForANewerClose(t *testing.T) {
 		}
 		f.hub.on(list("/commits?sha=fb&since=2026-09-27T10:00:00Z"), `{"message":"read again"}`)
 	}
+	for _, since := range []string{"2026-09-27T09:59:00Z", "2026-09-27T11:01:00Z"} {
+		f.hub.on(list("/commits?sha=fb&since="+since), `{"message":"read again"}`)
+	}
 	for name, pr := range map[string]closedPR{
 		"closed before the cached window": {3, "CLOSED", "h", closedAt.Add(-time.Minute)},
 		"closed after the trunk was read": {4, "CLOSED", "h", f.now.Add(time.Minute)},

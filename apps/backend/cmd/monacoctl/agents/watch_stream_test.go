@@ -1018,3 +1018,56 @@ func TestWatchStream_leavesAnEjectedStackQueuedWithoutWaitingWhileADraftHoldsAno
 		t.Fatalf("stream:\n%s", got)
 	}
 }
+
+func TestWatchStream_reportsAStackGraphiteMergedBeforeClosingItsPRsAsLandedNotEjected(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, squashes, closed, compare string
+		landed                          bool
+	}{
+		{
+			"its squash commits reached the trunk",
+			`[{"commit":{"message":"B (#2)"}},{"commit":{"message":"A (#1)"}}]`, "CLOSED", "", true,
+		},
+		{"its draft merged", `[]`, "MERGED", "", true},
+		{"its closed draft's head reached the trunk", `[]`, "CLOSED", `{"status":"behind"}`, true},
+		{"neither reached the trunk", `[]`, "CLOSED", `{"status":"diverged"}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s := queuedStack(t, f, "/w/40")
+			draft := queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK))
+			f.hub.on(graphqlRoute, draftData([]string{draft}))
+			f.hub.on(list("/commits?sha=fb&since=2026-09-27T10:58:00Z"), tc.squashes)
+			f.hub.on(get("/compare/fb...d90"), tc.compare)
+			got := streamRounds(t, f, 4, func(round int) {
+				if round != 1 {
+					return
+				}
+				for _, n := range []int{1, 2} {
+					setUnlabels(t, s.prs[n], dropped(f.now.Add(-2*time.Minute)))
+				}
+				closed := strings.Replace(draft, `"state":"OPEN"`, `"state":"`+tc.closed+`","headRefOid":"d90"`, 1)
+				f.hub.on(
+					graphqlRoute,
+					draftData([]string{closedDraftOf(t, 91, "8, 9", f.now.Add(-time.Minute)), closed}),
+				)
+			})
+			if tc.landed {
+				want := "#1 queued\n#2 queued\ndraft #90 open\ndraft #90 ci / ci-ok: pass\n" +
+					"#1 landed\n#2 landed\nstack #2 landed (#1 #2)\ndraft #90 closed\n"
+				if got != want {
+					t.Fatalf("stream\n got %q\nwant %q", got, want)
+				}
+				if r := f.owned(t).Settled; r == nil || r.Outcome != outcomeLanded {
+					t.Fatalf("settled %+v", r)
+				}
+				return
+			}
+			if !strings.Contains(got, "stack #2 ejected: #1 left the Graphite merge queue\n") {
+				t.Fatalf("a stack with nothing on the trunk was not ejected:\n%s", got)
+			}
+		})
+	}
+}
