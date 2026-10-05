@@ -1,12 +1,19 @@
 package agents
 
 import (
+	"context"
+	"crypto/rand"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
 func TestTakeTestDB_failsWhenNoSlotCanBeTaken(t *testing.T) {
@@ -69,4 +76,71 @@ func TestCheck_failsBeforeAnyRowWhenNoTestDatabaseSlotCanBeTaken(t *testing.T) {
 		slices.ContainsFunc(h.calls, func(c string) bool { return !strings.Contains(c, "gt parent") }) {
 		t.Fatalf("an unusable slot dir: %d %q %v", code, stderr, h.calls)
 	}
+}
+
+func TestDropDeadRunClones_dropsOnlyTheClonesOfRunsWithNoConnection(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	admin := connect(t, config.TestDBURL(os.Environ()))
+	run := func() string { return "t_" + strings.ToLower(rand.Text()[:8]) + "_" }
+	live, dead := run(), run()
+	template := "testdb_tpl_" + strings.ToLower(rand.Text()[:8])
+	names := []string{live + "held_a", live + "idle_b", dead + "one_c", dead + "two_d", template}
+	for _, name := range names {
+		if _, err := admin.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			drop := "DROP DATABASE IF EXISTS " + pgx.Identifier{name}.Sanitize() + " WITH (FORCE)"
+			_, _ = admin.Exec(context.Background(), drop)
+		})
+	}
+	held, err := url.Parse(config.TestDBURL(os.Environ()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	held.Path = "/" + live + "held_a"
+	connect(t, held.String())
+
+	rows, err := admin.Query(ctx, dropDeadRunClones)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drops, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, drop := range drops {
+		if strings.Contains(drop, live) || strings.Contains(drop, template) {
+			t.Fatalf("%q drops a live run's clone or a template", drop)
+		}
+		if strings.Contains(drop, dead) {
+			if _, err := admin.Exec(ctx, drop); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	rows, err = admin.Query(ctx, `SELECT datname FROM pg_database WHERE datname = ANY($1) ORDER BY datname`, names)
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{live + "held_a", live + "idle_b", template}
+	slices.Sort(want)
+	if !slices.Equal(left, want) {
+		t.Fatalf("after the drop %v remain, want %v (statements %v)", left, want, drops)
+	}
+}
+
+func connect(t *testing.T, url string) *pgx.Conn {
+	t.Helper()
+	conn, err := pgx.Connect(t.Context(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Close(context.Background()) })
+	return conn
 }

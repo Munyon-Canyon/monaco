@@ -23,6 +23,10 @@ const (
 const dropLeftoverClones = `psql -U "$POSTGRES_USER" -Atc "SELECT format('DROP DATABASE %I WITH (FORCE);', datname) ` +
 	`FROM pg_database WHERE datname LIKE 't\_%' OR datname LIKE '%\_inst\_%'" | psql -U "$POSTGRES_USER" -q`
 
+const dropDeadRunClones = `SELECT format('DROP DATABASE IF EXISTS %I WITH (FORCE);', datname) FROM pg_database ` +
+	`WHERE datname LIKE 't\_%' AND split_part(datname, '_', 2) NOT IN ` +
+	`(SELECT split_part(datname, '_', 2) FROM pg_stat_activity WHERE datname LIKE 't\_%')`
+
 var errSlotsHeld = errors.New("every test database slot is held")
 
 type testDB struct {
@@ -49,11 +53,11 @@ func (db testDB) row(work string) checkRow {
 	row := checkRow{label: "test db", kind: "go", dir: work, cmds: [][]string{slices.Concat(vars, []string{
 		"docker", "compose", "-p", project, "--profile", "test", "up", "-d", "--wait", "postgres-test",
 	})}}
+	container, drop := "monaco-postgres-test", `psql -U "$POSTGRES_USER" -Atc "`+dropDeadRunClones+`" | psql -U "$POSTGRES_USER" -q`
 	if db.slot > 0 {
-		row.cmds = append(row.cmds, []string{
-			"docker", "exec", fmt.Sprintf("monaco-postgres-test-%d", db.slot), "sh", "-c", dropLeftoverClones,
-		})
+		container, drop = fmt.Sprintf("monaco-postgres-test-%d", db.slot), dropLeftoverClones
 	}
+	row.cmds = append(row.cmds, []string{"docker", "exec", container, "sh", "-c", drop})
 	return row
 }
 
