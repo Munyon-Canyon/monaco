@@ -50,6 +50,16 @@ public final class ProposalDetailModel {
         hook.run = { [weak self] in await self?.load() }
     }
 
+    public convenience init(
+        sample detail: Components.Schemas.ProposalDetail, members: [Components.Schemas.CabalMember],
+        asset: Components.Schemas.AssetDetail, repository: ProposalsRepository, hints: any HintSource
+    ) {
+        self.init(id: detail.id, cabalID: detail.cabalId, repository: repository, hints: hints)
+        value = ProposalDetail(detail)
+        self.members = members.map(ProposalMember.init)
+        self.asset = ProposalAsset(asset)
+    }
+
     public func load() async {
         do {
             let detail = try await repository.detail(id: id)

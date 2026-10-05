@@ -66,6 +66,24 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
     public let summary: ProposalSummary
     public let voters: [ProposalVoter]
     public var id: String { summary.id }
+
+    init(summary: ProposalSummary, voters: [ProposalVoter]) {
+        self.summary = summary
+        self.voters = voters
+    }
+
+    init(_ value: Components.Schemas.ProposalDetail) {
+        let proposal = Components.Schemas.Proposal(
+            id: value.id, cabalId: value.cabalId, proposerId: value.proposerId, kind: value.kind,
+            symbol: value.symbol, usdcMicros: value.usdcMicros, tokenAmount: value.tokenAmount,
+            quoteOutAmount: value.quoteOutAmount, thesis: value.thesis, status: value.status,
+            statusReason: value.statusReason, statusMessage: value.statusMessage, expiresAt: value.expiresAt,
+            createdAt: value.createdAt, tally: value.tally)
+        self.init(
+            summary: ProposalSummary(
+                proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap)),
+            voters: value.voters.map(ProposalVoter.init))
+    }
 }
 
 public struct ProposalTally: Equatable, Sendable {
@@ -158,29 +176,7 @@ public struct ProposalsRepository: Sendable {
     public func detail(id: String) async throws -> ProposalDetail {
         try await api.read { client in
             let value = try await client.getProposal(path: .init(id: id)).ok.body.json
-            let summary = ProposalSummary(
-                .init(
-                    id: value.id,
-                    cabalId: value.cabalId,
-                    proposerId: value.proposerId,
-                    kind: value.kind,
-                    symbol: value.symbol,
-                    usdcMicros: value.usdcMicros,
-                    tokenAmount: value.tokenAmount,
-                    quoteOutAmount: value.quoteOutAmount,
-                    thesis: value.thesis,
-                    status: value.status,
-                    statusReason: value.statusReason,
-                    statusMessage: value.statusMessage,
-                    expiresAt: value.expiresAt,
-                    createdAt: value.createdAt,
-                    tally: value.tally
-                ),
-                canVote: value.canVote,
-                canWithdraw: value.canWithdraw,
-                swap: ProposalSwap(value.swap)
-            )
-            return ProposalDetail(summary: summary, voters: value.voters.map(ProposalVoter.init))
+            return ProposalDetail(value)
         }
     }
 
