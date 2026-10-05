@@ -32,6 +32,8 @@ tags:
     description: The asset catalog, prices and charts.
   - name: notify
     description: The devices that receive the signed-in user's push notifications.
+  - name: ranking
+    description: The cabal, people and members leaderboards.
   - name: referrals
     description: Invite codes and the links that carry them.
   - name: social
@@ -1539,6 +1541,31 @@ paths:
                   - "id: 1\nevent: hint\ndata: {\"key\":\"global\",\"what\":\"feed\"}\n\n"
         default:
           $ref: "#/components/responses/Problem"
+  # api/spec/ranking.yaml
+  /v1/leaderboards/cabals:
+    get:
+      operationId: getCabalsLeaderboard
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read the cabals leaderboard.
+      description: >-
+        Returns one page of cabals ranked by return, best first, from the latest finished run. Before
+        the first run `run_id` is null and `rows` is empty. A range with no rows yet also returns an
+        empty page. An unknown range, a limit outside 1 to 50 or a cursor the server did not write is
+        invalid_input. `me` is always null on this board.
+      parameters:
+        - $ref: "#/components/parameters/LeaderboardRange"
+        - $ref: "#/components/parameters/LeaderboardCursor"
+        - $ref: "#/components/parameters/LeaderboardLimit"
+      responses:
+        "200":
+          description: One page of the board.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardPage"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/referrals.yaml
   /v1/me/referral-code:
     get:
@@ -2322,6 +2349,25 @@ components:
         type: string
         format: uuid
         examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+  # api/spec/ranking.yaml
+    LeaderboardCursor:
+      name: cursor
+      in: query
+      required: false
+      description: The `next_cursor` from the previous page. Absent reads the first page.
+      schema: {type: string, maxLength: 64, examples: [MjA]}
+    LeaderboardLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size. Defaults to 20 and cannot exceed 50.
+      schema: {type: integer, minimum: 1, maximum: 50, default: 20, examples: [20]}
+    LeaderboardRange:
+      name: range
+      in: query
+      required: false
+      description: The window the return is measured over. Defaults to `ALL`.
+      schema: {type: string, enum: ["1H", "1D", "1W", "1M", ALL], default: ALL, examples: [ALL]}
   # api/spec/social.yaml
     ChatCabalId:
       name: id
@@ -3952,6 +3998,86 @@ components:
           examples: ["0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"]
         environment:
           $ref: "#/components/schemas/DeviceEnvironment"
+  # api/spec/ranking.yaml
+    LeaderboardPage:
+      type: object
+      description: One page of a leaderboard from one run.
+      additionalProperties: false
+      required: [run_id, board, range, computed_at, prices_as_of, rows, me, next_cursor]
+      properties:
+        run_id:
+          type: [string, "null"]
+          format: uuid
+          description: The run the page was read from. Null before the first run.
+          examples: ["01890a5d-ac96-774b-bcce-b302099a8060"]
+        board:
+          type: string
+          description: "`cabals`, `people` or `cabal_members:<cabal id>`."
+          examples: [cabals]
+        range:
+          type: string
+          enum: ["1H", "1D", "1W", "1M", ALL]
+          description: The window the return is measured over.
+          examples: [ALL]
+        computed_at: {type: string, format: date-time, description: When the rows were computed., examples: ["2026-10-04T12:00:00Z"]}
+        prices_as_of: {type: string, format: date-time, description: The price time the rows were valued at., examples: ["2026-10-04T11:59:00Z"]}
+        rows:
+          type: array
+          description: The page, best rank first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/LeaderboardRow"
+        me:
+          type: [object, "null"]
+          description: The caller's own row on this board. Null when the caller has none.
+          examples: [null]
+          x-go-type: LeaderboardRow
+          additionalProperties: false
+          required: [rank, subject, value_micros, pnl_micros, return_bps, flags]
+          properties:
+            rank: {type: integer, format: int32, description: The dense rank on the board., examples: [1]}
+            subject:
+              $ref: "#/components/schemas/LeaderboardSubject"
+            value_micros: {type: integer, format: int64, description: Current value in USDC micros., examples: [1000000]}
+            pnl_micros: {type: integer, format: int64, description: "Profit and loss in USDC micros, negative for a loss.", examples: [-5]}
+            return_bps: {type: [integer, "null"], format: int64, description: The return in basis points. Null when unranked., examples: [250]}
+            flags:
+              type: array
+              description: Why the row may be less exact.
+              examples: [[]]
+              items: {type: string, enum: [stale_prices, unpriced_assets]}
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
+    LeaderboardRow:
+      type: object
+      description: One ranked subject.
+      additionalProperties: false
+      required: [rank, subject, value_micros, pnl_micros, return_bps, flags]
+      properties:
+        rank: {type: integer, format: int32, description: The dense rank on the board., examples: [1]}
+        subject:
+          $ref: "#/components/schemas/LeaderboardSubject"
+        value_micros: {type: integer, format: int64, description: Current value in USDC micros., examples: [1000000]}
+        pnl_micros: {type: integer, format: int64, description: "Profit and loss in USDC micros, negative for a loss.", examples: [-5]}
+        return_bps: {type: [integer, "null"], format: int64, description: The return in basis points. Null when unranked., examples: [250]}
+        flags:
+          type: array
+          description: Why the row may be less exact.
+          examples: [[]]
+          items: {type: string, enum: [stale_prices, unpriced_assets]}
+    LeaderboardSubject:
+      type: object
+      description: The cabal or person a row ranks.
+      additionalProperties: false
+      required: [id, kind, name, handle, picture_url]
+      properties:
+        id: {type: string, format: uuid, description: The cabal or user id., examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        kind: {type: string, enum: [cabal, user], description: What the subject is., examples: [cabal]}
+        name: {type: string, description: The cabal or display name., examples: [Alpha]}
+        handle: {type: [string, "null"], description: The user's handle. Null for a cabal., examples: [null]}
+        picture_url: {type: [string, "null"], description: The picture. Null when there is none., examples: [null]}
   # api/spec/referrals.yaml
     MyReferralCode:
       type: object
