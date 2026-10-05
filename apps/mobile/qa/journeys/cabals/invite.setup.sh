@@ -2,6 +2,8 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
+scenario="${1:-S1}"
+run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
 while read -r name; do
   unset "$name"
 done < <(compgen -e | grep '^MONACO_QA_')
@@ -109,6 +111,14 @@ if [[ "$handle_b" != qa_b ]]; then
 fi
 decline_all "$token_a"
 decline_all "$token_b"
+
+if [[ "$scenario" == S2 ]]; then
+  name="QA share $run"
+  call POST /v1/cabals "$token_a" \
+    "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+  echo "seeded: A created $name"
+  exit 0
+fi
 
 host_token="$(token new)"
 call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
