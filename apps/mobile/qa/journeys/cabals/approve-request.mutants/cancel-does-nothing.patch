@@ -1,0 +1,19 @@
+journey: cabals/approve-request
+expect-fail: S1
+
+Cancel request no longer revokes the request. S1.3 waits for Request to join to come back, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
+index c7e19607..b124ef57 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
+@@ -63,7 +63,7 @@ struct CabalJoinSection: View {
+                     .disabled(true)
+                     .accessibilityIdentifier("cabal-join-requested")
+                 Button("Cancel request") {
+-                    Task { await model.cancelRequest() }
++                    _ = model
+                 }
+                 .buttonStyle(.monacoSecondary)
+                 .disabled(model.isBusy)

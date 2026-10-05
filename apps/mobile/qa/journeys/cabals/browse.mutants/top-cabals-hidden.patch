@@ -1,0 +1,19 @@
+journey: cabals/browse
+expect-fail: S3
+
+The Cabals tab has no Top cabals section. S3.1 waits for cabals-board, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
+index f482166e..d5a53100 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
+@@ -1,7 +1,7 @@
+ import SwiftUI
+ 
+ enum CabalsBoardSlot: CabalsTabSection {
+-    static let isLive = true
++    static let isLive = false
+ 
+     static func body(for context: Void) -> some View {
+         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {

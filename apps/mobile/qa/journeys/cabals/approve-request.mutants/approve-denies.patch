@@ -1,0 +1,19 @@
+journey: cabals/approve-request
+expect-fail: S2
+
+Approve sends a deny. S2.2 waits for the toast "Approved." and 2 members, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
+index c7e19607..7b93daf2 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
+@@ -133,7 +133,7 @@ private struct CabalPendingRequestRow: View {
+ 
+     @ViewBuilder
+     private var buttons: some View {
+-        Button("Approve") { decide(true) }
++        Button("Approve") { decide(false) }
+             .buttonStyle(.monacoPrimary)
+             .accessibilityLabel("Approve \(request.name)")
+             .accessibilityIdentifier("cabal-join-approve")
