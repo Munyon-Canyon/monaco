@@ -603,16 +603,17 @@ func TestWatchStream_keepsAStackGraphiteTookQueuedUntilItsDraftOpensOrFails(t *t
 	took := func(f *fixture) string { return unlabel(f.now.Add(-2*time.Minute), "merge-queue", "graphite-app") }
 	for _, tc := range []struct {
 		name    string
-		drafts  func(f *fixture) []string
+		drafts  func(t *testing.T, f *fixture) []string
 		want    string
 		ejected bool
 	}{
-		{"no draft yet", func(*fixture) []string { return nil }, "#2 taken by Graphite, waiting for a draft\n", false},
-		{"the draft opens", func(*fixture) []string {
+		{"no draft yet", func(*testing.T, *fixture) []string { return nil }, "#2 taken by Graphite, waiting for a draft\n", false},
+		{"the draft opens", func(*testing.T, *fixture) []string {
 			return []string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK))}
 		}, "#2 queued\n", false},
-		{"the draft ran the PRs and closed", func(f *fixture) []string {
-			return []string{closedDraftAt(90, f.now.Add(-time.Minute))}
+		{"the draft ran the PRs and closed", func(t *testing.T, f *fixture) []string {
+			t.Helper()
+			return []string{closedDraftOf(t, 90, "1, 2", f.now.Add(-time.Minute))}
 		}, "stack #2 ejected: #1 left the Graphite merge queue\n", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -625,7 +626,7 @@ func TestWatchStream_keepsAStackGraphiteTookQueuedUntilItsDraftOpensOrFails(t *t
 					setUnlabels(t, s.prs[1], took(f))
 					setUnlabels(t, s.prs[2], took(f))
 				case 3:
-					f.hub.on(graphqlRoute, draftData(tc.drafts(f)))
+					f.hub.on(graphqlRoute, draftData(tc.drafts(t, f)))
 				}
 			})
 			if !strings.Contains(got, tc.want) || strings.Contains(got, "ejected") != tc.ejected ||

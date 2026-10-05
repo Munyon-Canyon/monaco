@@ -21,8 +21,9 @@ import (
 const (
 	stackFields = `number state mergeable closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
 commits(last:1){nodes{commit{` + commitChecks + `}}}
-timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name}}}}`
+timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name} actor{login}}}}`
 	settleAfter = time.Minute
+	takenFor    = runsFor
 	repoQuery   = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
 )
 
@@ -173,7 +174,7 @@ func (env *Env) settleQueued(ctx context.Context, rec Record, stdout io.Writer) 
 	if err != nil {
 		return true, err
 	}
-	drafts, err := env.openQueueDrafts(ctx)
+	drafts, err := env.queueDrafts(ctx)
 	if err != nil {
 		return true, err
 	}
@@ -406,6 +407,7 @@ const (
 	prQueued   = "queued"
 	prWaiting  = "labeled, waiting for Graphite"
 	prSettling = "label just removed, waiting for Graphite"
+	prTaken    = "taken by Graphite, waiting for a draft"
 	prLanded   = "landed"
 	prEjected  = "ejected"
 )
@@ -420,6 +422,8 @@ func (env *Env) queueState(p stackPR, landed bool, drafts []queueDraft) string {
 		return prQueued
 	case p.labeled(env.Config.QueueLabel):
 		return prWaiting
+	case env.waitsForDraft(p, drafts):
+		return prTaken
 	case env.justUnlabeled(p):
 		return prSettling
 	default:
@@ -495,18 +499,29 @@ func (env *Env) unmark(ctx context.Context, rec Record) error {
 	return env.storeRecord(ctx, rec)
 }
 
-func (env *Env) justUnlabeled(p stackPR) bool {
+func (env *Env) unlabeled(p stackPR) (at time.Time, byGraphite, ok bool) {
 	events := p.TimelineItems.Nodes
 	for j := len(events) - 1; j >= 0; j-- {
 		if events[j].Label.Name == env.Config.QueueLabel {
-			return env.Now().Sub(events[j].CreatedAt) < settleAfter
+			return events[j].CreatedAt, graphiteLogin(events[j].Actor.Login), true
 		}
 	}
-	return false
+	return time.Time{}, false, false
+}
+
+func (env *Env) justUnlabeled(p stackPR) bool {
+	at, _, ok := env.unlabeled(p)
+	return ok && env.Now().Sub(at) < settleAfter
+}
+
+func (env *Env) waitsForDraft(p stackPR, drafts []queueDraft) bool {
+	at, byGraphite, ok := env.unlabeled(p)
+	return ok && byGraphite && env.Now().Sub(at) < takenFor &&
+		!slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.runs(p.Number, at) })
 }
 
 func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Writer) error {
-	drafts := sync.OnceValues(func() ([]queueDraft, error) { return env.openQueueDrafts(ctx) })
+	drafts := sync.OnceValues(func() ([]queueDraft, error) { return env.queueDrafts(ctx) })
 	for _, r := range rs {
 		if r.Queued == nil {
 			continue

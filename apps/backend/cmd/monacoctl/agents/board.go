@@ -23,6 +23,10 @@ type gqlName struct {
 	Name string `json:"name"`
 }
 
+type gqlActor struct {
+	Login string `json:"login"`
+}
+
 type gqlPR struct {
 	Number    int       `json:"number"`
 	Body      string    `json:"body"`
@@ -44,6 +48,7 @@ type gqlPR struct {
 			Typename  string    `json:"__typename"`
 			CreatedAt time.Time `json:"createdAt"`
 			Label     gqlName   `json:"label"`
+			Actor     gqlActor  `json:"actor"`
 		} `json:"nodes"`
 	} `json:"timelineItems"`
 }

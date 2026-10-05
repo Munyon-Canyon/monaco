@@ -1135,7 +1135,7 @@ func TestLandStack_aPRClosedByHandIsEjectedEvenWithTheLabel(t *testing.T) {
 	}
 }
 
-func TestWatchOnce_waitsAMinuteBeforeEjectingAStackGraphiteJustUnlabeled(t *testing.T) {
+func TestWatchOnce_waitsAMinuteBeforeEjectingAStackWhoseLabelAPersonRemoved(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name    string
@@ -1152,8 +1152,8 @@ func TestWatchOnce_waitsAMinuteBeforeEjectingAStackGraphiteJustUnlabeled(t *test
 			labeled(s.prs[1], "merge-queue")
 			labeled(s.prs[3], "merge-queue")
 			raw := fmt.Sprintf(
-				`{"nodes":[{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"merge-queue"}},`+
-					`{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"large-pr"}}]}`,
+				`{"nodes":[{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"merge-queue"},`+
+					`"actor":{"login":"logan"}},{"__typename":"UnlabeledEvent","createdAt":%q,"label":{"name":"large-pr"}}]}`,
 				f.now.Add(-tc.ago).Format(time.RFC3339),
 				f.now.Format(time.RFC3339),
 			)
@@ -1170,17 +1170,27 @@ func TestWatchOnce_waitsAMinuteBeforeEjectingAStackGraphiteJustUnlabeled(t *test
 	}
 }
 
-func setUnlabels(t *testing.T, p *stackPR, events ...string) *stackPR {
+func setUnlabels(t *testing.T, p *stackPR, events ...string) {
 	t.Helper()
 	p.Labels.Nodes = nil
 	if err := json.Unmarshal([]byte(`{"nodes":[`+strings.Join(events, ",")+`]}`), &p.TimelineItems); err != nil {
 		t.Fatal(err)
 	}
-	return p
 }
 
-func closedDraftAt(n int, updated time.Time) string {
-	return strings.Replace(closedDraft(n, noRollup), "2026-09-27T11:59:00Z", updated.Format(time.RFC3339), 1)
+func closedDraftOf(t *testing.T, n int, prs string, updated time.Time) string {
+	t.Helper()
+	node := closedDraft(n, noRollup)
+	for _, swap := range [][2]string{
+		{"(PRs 1, 2)", "(PRs " + prs + ")"},
+		{"2026-09-27T11:59:00Z", updated.Format(time.RFC3339)},
+	} {
+		if !strings.Contains(node, swap[0]) {
+			t.Fatalf("closedDraft no longer carries %q", swap[0])
+		}
+		node = strings.Replace(node, swap[0], swap[1], 1)
+	}
+	return node
 }
 
 func closedDraftData(closed ...string) string {
@@ -1190,37 +1200,72 @@ func closedDraftData(closed ...string) string {
 
 func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
 	t.Parallel()
-	const graphiteGraphQL, graphiteREST = "graphite-app", graphiteBot
+	const graphiteGraphQL = "graphite-app"
+	type removal struct {
+		label, by string
+		ago       time.Duration
+	}
+	queueLabel := func(by string, ago time.Duration) removal { return removal{"merge-queue", by, ago} }
 	for _, tc := range []struct {
-		name    string
-		actor   string
-		ago     time.Duration
-		noise   bool
-		ranAt   time.Duration
-		ejected bool
+		name        string
+		removals    []removal
+		draftClosed time.Duration
+		draftPRs    string
+		ejected     bool
 	}{
-		{"Graphite took the label two minutes ago", graphiteGraphQL, 2 * time.Minute, false, 0, false},
-		{"Graphite's REST login", graphiteREST, 2 * time.Minute, false, 0, false},
-		{"a later event of another label does not change who took it", graphiteGraphQL, 2 * time.Minute, true, 0, false},
-		{"Graphite took it just inside the hold", graphiteGraphQL, runsFor - time.Second, false, 0, false},
-		{"Graphite took it a whole hold ago", graphiteGraphQL, runsFor, false, 0, true},
-		{"a person removed it two minutes ago", "logan", 2 * time.Minute, false, 0, true},
-		{"a draft that ran the PR since closed", graphiteGraphQL, 2 * time.Minute, false, time.Minute, true},
-		{"the closed draft ran before Graphite took it", graphiteGraphQL, 2 * time.Minute, false, 3 * time.Minute, false},
+		{name: "Graphite took the label two minutes ago", removals: []removal{queueLabel(graphiteGraphQL, 2*time.Minute)}},
+		{name: "Graphite's REST login", removals: []removal{queueLabel(graphiteBot, 2*time.Minute)}},
+		{
+			name: "a later removal of another label does not change who took it",
+			removals: []removal{
+				queueLabel(graphiteGraphQL, 2*time.Minute), {"large-pr", "logan", time.Minute},
+			},
+		},
+		{name: "Graphite took it just inside the hold", removals: []removal{queueLabel(graphiteGraphQL, takenFor-time.Second)}},
+		{
+			name: "Graphite took it a whole hold ago", ejected: true,
+			removals: []removal{queueLabel(graphiteGraphQL, takenFor)},
+		},
+		{
+			name: "a person removed it two minutes ago", ejected: true,
+			removals: []removal{queueLabel("logan", 2*time.Minute)},
+		},
+		{
+			name:     "a person removed it after Graphite took it earlier, so the person's removal counts",
+			removals: []removal{queueLabel(graphiteGraphQL, 5*time.Minute), queueLabel("logan", 2*time.Minute)},
+			ejected:  true,
+		},
+		{
+			name:     "Graphite took it after a person removed it earlier, so the take counts",
+			removals: []removal{queueLabel("logan", 3*time.Hour), queueLabel(graphiteGraphQL, 2*time.Minute)},
+		},
+		{
+			name:     "a draft that ran the PRs since closed",
+			removals: []removal{queueLabel(graphiteGraphQL, 2*time.Minute)}, draftClosed: time.Minute, draftPRs: "1, 2",
+			ejected: true,
+		},
+		{
+			name:     "the closed draft ran before Graphite took it",
+			removals: []removal{queueLabel(graphiteGraphQL, 2*time.Minute)}, draftClosed: 3 * time.Minute, draftPRs: "1, 2",
+		},
+		{
+			name:     "a closed draft that ran other PRs does not end the hold",
+			removals: []removal{queueLabel(graphiteGraphQL, 2*time.Minute)}, draftClosed: time.Minute, draftPRs: "8, 9",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
 			s := ejectedStack(t, f)
+			events := make([]string, len(tc.removals))
+			for i, r := range tc.removals {
+				events[i] = unlabel(f.now.Add(-r.ago), r.label, r.by)
+			}
 			for _, n := range []int{1, 2, 3} {
-				events := []string{unlabel(f.now.Add(-tc.ago), "merge-queue", tc.actor)}
-				if tc.noise {
-					events = append(events, unlabel(f.now.Add(-time.Minute), "large-pr", "logan"))
-				}
 				setUnlabels(t, s.prs[n], events...)
 			}
-			if tc.ranAt != 0 {
-				f.hub.on(graphqlRoute, closedDraftData(closedDraftAt(90, f.now.Add(-tc.ranAt))))
+			if tc.draftClosed != 0 {
+				f.hub.on(graphqlRoute, closedDraftData(closedDraftOf(t, 90, tc.draftPRs, f.now.Add(-tc.draftClosed))))
 			} else {
 				f.noFailures()
 			}

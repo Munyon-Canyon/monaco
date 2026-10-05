@@ -69,6 +69,38 @@ func TestDequeue_removesTheLabelAndWaitsForGraphiteToLetGo(t *testing.T) {
 	}
 }
 
+func TestDequeue_aClosedDraftThatTestedTheStackDoesNotHoldIt(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	_, env := dequeueStack(t, f)
+	f.hub.on(graphqlRoute, `{"data":{"repository":{"drafts":{"nodes":[]},"closed":{"nodes":[`+
+		closedDraft(90, noRollup)+`]}}}}`)
+	var out strings.Builder
+	err := dequeueCmd(t.Context(), env, []string{"2"}, &out)
+	if err != nil || out.String() != "dequeued #1 #2; safe to push\n" {
+		t.Fatalf("%q %v", out.String(), err)
+	}
+}
+
+func TestQueueDrafts_asksForOpenAndClosedDraftsAndWhenAClosedOneWasUpdated(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(graphqlRoute, draftData(nil))
+	if _, err := f.Env(t).queueDrafts(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	sent := f.hub.body(graphqlRoute)
+	for _, want := range []string{
+		"drafts: pullRequests(states:OPEN,",
+		"closed: pullRequests(states:CLOSED,",
+		"headRefName updatedAt}}",
+	} {
+		if !strings.Contains(sent, want) {
+			t.Fatalf("the drafts query lacks %q:\n%s", want, sent)
+		}
+	}
+}
+
 func TestDequeue_givesUpWhileGraphiteStillHoldsTheStack(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
