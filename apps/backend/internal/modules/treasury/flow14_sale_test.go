@@ -45,7 +45,7 @@ func (r *payoutRig) wantEnded(t *testing.T, want events.Type) {
 	}
 }
 
-func TestCashOutSale_shortProceedsPayPartialAndNoProceedsFail(t *testing.T) {
+func TestFlow14_CashOut_SaleShort(t *testing.T) {
 	t.Parallel()
 	t.Run("a short Jupiter fill pays what it raised", func(t *testing.T) {
 		t.Parallel()

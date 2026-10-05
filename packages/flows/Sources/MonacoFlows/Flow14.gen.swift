@@ -2,7 +2,7 @@
 
 public enum Flow14Outcome: Sendable, Hashable, CaseIterable {
     case ok, invalidInput, insufficientShares, cashOutInProgress, cabalPaused, priceUnavailable, privyUnavailable,
-        rPCUnavailable, interrupted
+        rPCUnavailable, saleShort, interrupted
 
     public static let flowID = "14"
     public static let commands: [String] = ["CashOut", "CashOutPayouts"]
@@ -17,6 +17,7 @@ public enum Flow14Outcome: Sendable, Hashable, CaseIterable {
         case .priceUnavailable: "price_unavailable"
         case .privyUnavailable: "privy_unavailable"
         case .rPCUnavailable: "rpc_unavailable"
+        case .saleShort: "sale_short"
         }
     }
 
@@ -29,6 +30,7 @@ public enum Flow14Outcome: Sendable, Hashable, CaseIterable {
         case "price_unavailable": self = .priceUnavailable
         case "privy_unavailable": self = .privyUnavailable
         case "rpc_unavailable": self = .rPCUnavailable
+        case "sale_short": self = .saleShort
         default: return nil
         }
     }

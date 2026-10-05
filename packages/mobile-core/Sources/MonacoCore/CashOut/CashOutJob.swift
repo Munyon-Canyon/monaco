@@ -114,7 +114,7 @@ public struct CashOutJob: Equatable, Sendable {
         case .partial:
             CashOutNotice(
                 jobID: id,
-                message: "Cashed out \(amount). The sale came in short, so you kept part of your stake.",
+                message: "Cashed out \(amount), what the sale raised. You keep the shares it didn't cover.",
                 isSuccess: true
             )
         case .failed:
