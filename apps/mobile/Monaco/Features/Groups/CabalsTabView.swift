@@ -125,6 +125,7 @@ struct CabalsTabView: View {
             // Joined, created, or left a cabal somewhere in the app.
             Task { await model.reload(hasCabals: !ids.isEmpty) }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-root")
         .monacoFrameStats("Cabals")
     }
