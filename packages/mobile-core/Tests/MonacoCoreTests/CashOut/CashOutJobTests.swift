@@ -24,7 +24,7 @@ final class CashOutJobTests: XCTestCase {
         XCTAssertEqual(
             job(.partial).outcome,
             CashOutNotice(
-                jobID: "j", message: "Cashed out $1.00. The sale came in short, so you kept part of your stake.",
+                jobID: "j", message: "Cashed out $1.00, what the sale raised. You keep the shares it didn't cover.",
                 isSuccess: true))
         XCTAssertEqual(
             job(.failed, resultCode: "sale_short").outcome,

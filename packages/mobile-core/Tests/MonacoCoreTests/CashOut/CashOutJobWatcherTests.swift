@@ -73,7 +73,7 @@ final class CashOutJobWatcherTests: XCTestCase {
         let done = await waitUntil { watcher.notice != nil }
         XCTAssertTrue(done)
         XCTAssertEqual(
-            watcher.notice?.message, "Cashed out $0.60. The sale came in short, so you kept part of your stake.")
+            watcher.notice?.message, "Cashed out $0.60, what the sale raised. You keep the shares it didn't cover.")
     }
 
     func testAJobThatAlreadyEndedNeverSubscribes() async throws {

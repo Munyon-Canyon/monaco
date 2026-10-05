@@ -89,8 +89,8 @@ public final class CashOutModel {
             return (preview?.pause ?? CabalPause(cause: .ops)).message
         case .cashOutInProgress:
             return Self.inProgress
-        case .priceUnavailable, .invalidInput, .insufficientShares, .privyUnavailable, .rPCUnavailable, .ok,
-            .interrupted, nil:
+        case .priceUnavailable, .invalidInput, .insufficientShares, .privyUnavailable, .rPCUnavailable, .saleShort,
+            .ok, .interrupted, nil:
             return ToastCopy.message(for: error)
         }
     }
