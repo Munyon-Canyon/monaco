@@ -187,14 +187,7 @@ enum InviteJourney {
 
         recorder.step("S2.4", "open the share sheet and close it") {
             share.tap()
-            let sheet = app.otherElements["ActivityListView"]
-            XCTAssertTrue(sheet.waitForExistence(timeout: 5), "S2.4: the share sheet did not open within 5 s")
-            let close = sheet.buttons["Close"]
-            if close.exists {
-                close.tap()
-            } else {
-                sheet.swipeDown(velocity: .fast)
-            }
+            XCTAssertTrue(app.dismissShareSheet(), "S2.4: the share sheet did not open within 5 s")
             XCTAssertTrue(
                 app.element("cabal-invite-card").waitForExistence(timeout: 5),
                 "S2.4: the invite card did not come back after the share sheet closed"

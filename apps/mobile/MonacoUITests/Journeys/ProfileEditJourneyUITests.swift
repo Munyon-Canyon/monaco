@@ -41,32 +41,4 @@ nonisolated final class ProfileEditJourneyUITests: XCTestCase {
         try ProfileEditJourney.survivesRelaunch(app, recorder: ProfileEditJourney.recorder())
         attachScreenshot(of: app, named: "S4-relaunched")
     }
-
-    @MainActor
-    func testS5PhotoRateLimit() throws {
-        let app = try start()
-        ProfileEditJourney.photoRateLimit(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S5-rate-limited")
-    }
-
-    @MainActor
-    func testS6NudgeBanner() throws {
-        let app = try start()
-        ProfileEditJourney.nudgeBanner(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S6-banner-closed")
-    }
-
-    @MainActor
-    func testS7NoBannerWhenComplete() throws {
-        let app = try start()
-        ProfileEditJourney.noBannerWhenComplete(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S7-no-banner")
-    }
-
-    @MainActor
-    func testS8OpenHandleEditor() throws {
-        let app = try start()
-        ProfileEditJourney.openHandleEditor(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S8-handle-editor")
-    }
 }

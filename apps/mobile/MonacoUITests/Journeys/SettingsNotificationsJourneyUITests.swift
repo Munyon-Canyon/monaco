@@ -25,7 +25,7 @@ nonisolated final class SettingsNotificationsJourneyUITests: XCTestCase {
         let cabalName = try JourneyHandoff.read("cabalName")
         let app = try start()
         SettingsNotificationsJourney.prePrompt(
-            app, cabalName: cabalName, test: self, recorder: SettingsNotificationsJourney.recorder())
+            app, cabalName: cabalName, recorder: SettingsNotificationsJourney.recorder())
         attachScreenshot(of: app, named: "S2 after Allow")
     }
 

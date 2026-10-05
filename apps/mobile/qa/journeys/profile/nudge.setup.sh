@@ -3,8 +3,10 @@
 # one the scenario starts from (Preconditions P3), so no one edits the database by hand.
 set -euo pipefail
 
-: "${1:?usage: edit.setup.sh <scenario>}"
-state=AWAITING_SOCIALS
+case "${1:?usage: nudge.setup.sh <scenario>}" in
+  S3) state=ONBOARDING_COMPLETED ;;
+  *) state=AWAITING_SOCIALS ;;
+esac
 
 privy_user_id="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 query="UPDATE users SET auth_state = :'state', auth_state_changed_at = now() WHERE privy_user_id = :'privy_user_id'"
