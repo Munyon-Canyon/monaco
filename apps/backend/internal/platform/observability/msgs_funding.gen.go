@@ -11,5 +11,7 @@ func init() {
 		FundingWatchOwnTransfer,
 		FundingWatchIgnored,
 		FundingWatchDetected,
+		FundingBounceMoved,
+		FundingBounceFailed,
 	)
 }

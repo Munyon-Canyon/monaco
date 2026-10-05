@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -15,6 +16,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
+
+func requireBounceConsumer(t *testing.T, m *funding.Module) {
+	t.Helper()
+	got := m.Consumers()
+	if len(got) != 1 || got[0].Durable != "funding_bounce" || len(got[0].Handlers) != 1 ||
+		got[0].Handlers[0].Type() != events.TypeCabalExternalDepositDetected {
+		t.Fatalf("Consumers = %v, want funding_bounce on cabal.external_deposit_detected", got)
+	}
+}
 
 func TestModule(t *testing.T) {
 	t.Parallel()
@@ -31,9 +41,7 @@ func TestModule(t *testing.T) {
 			t.Fatalf("Mount does not serve %s %s", route[0], route[1])
 		}
 	}
-	if got := m.Consumers(); len(got) != 0 {
-		t.Fatalf("Consumers = %v, want none", got)
-	}
+	requireBounceConsumer(t, m)
 	pollers := m.Pollers()
 	names := make([]string, 0, len(pollers))
 	for _, p := range pollers {

@@ -21,3 +21,25 @@ SELECT coalesce((SELECT last_signature FROM treasury_watch_cursors WHERE cabal_i
 INSERT INTO treasury_watch_cursors (cabal_id, last_signature, updated_at)
 VALUES (sqlc.arg(cabal_id)::uuid, sqlc.arg(last_signature)::text, sqlc.arg(updated_at)::timestamptz)
 ON CONFLICT (cabal_id) DO UPDATE SET last_signature = excluded.last_signature, updated_at = excluded.updated_at;
+
+-- name: ExternalDepositForBounce :one
+SELECT id, cabal_id, sender, coalesce(return_address, '')::text AS return_address, mint, amount::text AS amount,
+  status, coalesce(bounce_signature, '')::text AS bounce_signature, bounce_signed_tx, bounce_attempts
+FROM external_deposits WHERE id = $1;
+
+-- name: StartBounce :execrows
+UPDATE external_deposits
+SET status = 'bouncing', bounce_signature = sqlc.arg(bounce_signature)::text,
+  bounce_signed_tx = sqlc.arg(bounce_signed_tx)::bytea, bounce_attempts = bounce_attempts + 1
+WHERE id = sqlc.arg(id)::uuid AND status = sqlc.arg(from_status)::text;
+
+-- name: ReturnBounce :execrows
+UPDATE external_deposits SET status = 'returned', resolved_at = sqlc.arg(resolved_at)::timestamptz
+WHERE id = sqlc.arg(id)::uuid AND status = 'bouncing' AND bounce_signature = sqlc.arg(bounce_signature)::text;
+
+-- name: FailBounce :execrows
+UPDATE external_deposits SET status = 'bounce_failed'
+WHERE id = sqlc.arg(id)::uuid AND status = sqlc.arg(from_status)::text;
+
+-- name: OpenExternalDepositPauses :many
+SELECT id FROM cabal_pauses WHERE external_deposit_id = sqlc.arg(external_deposit_id)::uuid AND resolved_at IS NULL ORDER BY id;

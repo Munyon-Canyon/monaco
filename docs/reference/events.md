@@ -83,6 +83,20 @@ Subject `events.cabal.created`, version 1.
 | `slippage_bps` | `int32` |
 | `treasury_address` | `chain.SolanaAddress` |
 
+## `cabal.external_deposit_bounced`
+
+Subject `events.cabal.external_deposit_bounced`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `external_deposit_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `bounce_signature` | `chain.Signature` |
+| `recipient` | `chain.SolanaAddress` |
+| `mint` | `chain.SolanaAddress` |
+| `amount` | `uint64` |
+
 ## `cabal.external_deposit_detected`
 
 Subject `events.cabal.external_deposit_detected`, version 1.

@@ -19,9 +19,42 @@ type ExternalDepositStatus string
 
 const (
 	ExternalDetected       ExternalDepositStatus = "detected"
+	ExternalBouncing       ExternalDepositStatus = "bouncing"
+	ExternalReturned       ExternalDepositStatus = "returned"
+	ExternalBounceFailed   ExternalDepositStatus = "bounce_failed"
+	ExternalHeld           ExternalDepositStatus = "held"
 	ExternalIgnoredDust    ExternalDepositStatus = "ignored_dust"
 	ExternalIgnoredUnknown ExternalDepositStatus = "ignored_unknown"
 )
+
+type BounceEvent string
+
+const (
+	BounceSign    BounceEvent = "sign"
+	BounceConfirm BounceEvent = "confirm"
+	BounceFail    BounceEvent = "fail"
+	BounceRetry   BounceEvent = "retry"
+	BounceHold    BounceEvent = "hold"
+)
+
+func transitions() map[ExternalDepositStatus]map[BounceEvent]ExternalDepositStatus {
+	return map[ExternalDepositStatus]map[BounceEvent]ExternalDepositStatus{
+		ExternalDetected: {
+			BounceSign: ExternalBouncing, BounceFail: ExternalBounceFailed, BounceHold: ExternalHeld,
+		},
+		ExternalBouncing:     {BounceConfirm: ExternalReturned, BounceFail: ExternalBounceFailed},
+		ExternalBounceFailed: {BounceRetry: ExternalBouncing, BounceHold: ExternalHeld},
+	}
+}
+
+func Next(from ExternalDepositStatus, e BounceEvent) (ExternalDepositStatus, error) {
+	to, ok := transitions()[from][e]
+	if !ok {
+		return from, errs.New(errs.CodeVersionConflict, "funding.Next",
+			slog.String("from", string(from)), slog.String("event", string(e)))
+	}
+	return to, nil
+}
 
 const DustBelowMicros = 1_000_000
 

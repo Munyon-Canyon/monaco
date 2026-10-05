@@ -34,3 +34,13 @@ var FundingWatchDetected = Msg{
 	Name:     "funding.watch.detected",
 	Required: []string{"external_deposit_id", "cabal_id", "mint", "amount", "status_before", "status_after"},
 }
+
+var FundingBounceMoved = Msg{
+	Name:     "funding.bounce.moved",
+	Required: []string{"external_deposit_id", "cabal_id", "status_before", "status_after"},
+}
+
+var FundingBounceFailed = Msg{
+	Name:     "funding.bounce.failed",
+	Required: []string{"external_deposit_id", "cabal_id", "reason"},
+}
