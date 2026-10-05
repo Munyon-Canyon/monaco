@@ -192,9 +192,9 @@ func F13aVoidProposalLiveSwapExists(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 1)
 	s.Given(scenario.AsSeededUser("alice", p.voters[0])).
 		When(
+			liveSwap(p),
 			scenario.Post(p.votes, yes),
 			scenario.ExpectJSON("status", "passed"),
-			liveSwap(p),
 			voidFromOps(p, errs.CodeLiveSwapExists),
 			scenario.Get(p.path),
 			scenario.ExpectJSON("status", "passed"),
