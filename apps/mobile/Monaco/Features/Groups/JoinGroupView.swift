@@ -17,7 +17,8 @@ struct JoinCabalView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            Color.clear
             if let model {
                 JoinCabalForm(model: model, join: { await join(model) })
             }

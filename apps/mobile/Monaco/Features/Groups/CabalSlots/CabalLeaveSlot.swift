@@ -19,17 +19,25 @@ struct CabalLeaveSection: View {
     @State private var model: LeaveCabalModel?
     @State private var confirming = false
     @State private var offersCashOut = false
+    private let makeModel: @MainActor (AppEnvironment, String) -> LeaveCabalModel
 
-    init(cabalID: String, model: LeaveCabalModel? = nil) {
+    init(
+        cabalID: String,
+        makeModel: @escaping @MainActor (AppEnvironment, String) -> LeaveCabalModel = CabalLeaveSection.liveModel
+    ) {
         self.cabalID = cabalID
-        _model = State(initialValue: model)
+        self.makeModel = makeModel
+    }
+
+    static func liveModel(_ environment: AppEnvironment, cabalID: String) -> LeaveCabalModel {
+        LeaveCabalModel(api: environment.api, hints: environment.hints, cabalID: cabalID)
     }
 
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.m)
             .task {
-                let model = model ?? LeaveCabalModel(api: environment.api, hints: environment.hints, cabalID: cabalID)
+                let model = model ?? makeModel(environment, cabalID)
                 self.model = model
                 await model.load()
                 await model.observe()
@@ -62,7 +70,7 @@ struct CabalLeaveSection: View {
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.secondaryText)
         case .loaded(nil), .idle, .loading, nil:
-            EmptyView()
+            Color.clear.frame(height: 0)
         }
     }
 
@@ -137,7 +145,7 @@ private enum CabalLeaveSampleScreen {
         AnyView(
             NavigationStack {
                 ScrollView {
-                    CabalLeaveSection(cabalID: LeaveCabalModel.previewCabalID, model: model)
+                    CabalLeaveSection(cabalID: LeaveCabalModel.previewCabalID) { _, _ in model }
                         .padding(.top, MonacoTheme.Space.m)
                 }
                 .monacoCanvas()
