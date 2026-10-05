@@ -51,6 +51,8 @@ type historyStore interface {
 		context.Context, sqlc.CabalPositionSnapshotsAtParams,
 	) ([]sqlc.CabalPositionSnapshotsAtRow, error)
 	MemberStakesAt(context.Context, time.Time) ([]sqlc.MemberStakesAtRow, error)
+	CabalContributionHistory(context.Context, uuid.UUID) ([]sqlc.CabalContributionHistoryRow, error)
+	UserStakeHistory(context.Context, uuid.UUID) ([]sqlc.UserStakeHistoryRow, error)
 }
 
 type signatureStore interface {
@@ -379,6 +381,47 @@ func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]port.Memb
 			UserID: ids.UserIDFrom(row.UserID), CabalID: ids.CabalIDFrom(uuid.UUID(row.CabalID.Bytes)),
 			ShareUnits:           shareUnits,
 			NetContributedMicros: net,
+		})
+	}
+	return out, nil
+}
+
+func (q *Queries) CabalContributionHistory(
+	ctx context.Context, cabalID ids.CabalID,
+) ([]port.ContributionPoint, error) {
+	rows, err := q.history.CabalContributionHistory(ctx, cabalID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalContributionHistory")
+	}
+	out := make([]port.ContributionPoint, 0, len(rows))
+	for _, row := range rows {
+		net, err := money.ParseSignedMicros(row.NetContributedMicros)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.Queries.CabalContributionHistory")
+		}
+		out = append(out, port.ContributionPoint{At: row.CreatedAt, NetContributed: net})
+	}
+	return out, nil
+}
+
+func (q *Queries) UserStakeHistory(ctx context.Context, userID ids.UserID) ([]port.StakePoint, error) {
+	rows, err := q.history.UserStakeHistory(ctx, userID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.UserStakeHistory")
+	}
+	out := make([]port.StakePoint, 0, len(rows))
+	for _, row := range rows {
+		shareUnits, err := shares(row.ShareUnits)
+		if err != nil {
+			return nil, err
+		}
+		net, err := money.ParseSignedMicros(row.NetContributedMicros)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.Queries.UserStakeHistory")
+		}
+		out = append(out, port.StakePoint{
+			CabalID: ids.CabalIDFrom(uuid.UUID(row.CabalID.Bytes)), At: row.CreatedAt,
+			ShareUnits: shareUnits, NetContributed: net,
 		})
 	}
 	return out, nil
