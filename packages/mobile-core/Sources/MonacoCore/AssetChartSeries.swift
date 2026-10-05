@@ -44,25 +44,6 @@ public struct AssetChartSeries: Equatable, Sendable {
         self.basisSymbol = basisSymbol
     }
 
-    /// Builds the series for `requested`, or nil when the response is not about it.
-    ///
-    /// The backend echoes the range it built a series for. A response naming
-    /// another one is a series for a chip the member has already tapped away from
-    /// (or a cache serving the wrong key), and drawing it would put a year of
-    /// history under a 1D chip. Nil means "this answer is not an answer to the
-    /// question I asked" — the caller decides what to do about it.
-    public init?(_ dto: AssetChartDTO, requested: AssetChartRange) {
-        if let echoed = dto.range, echoed != requested { return nil }
-        self.init(
-            range: requested,
-            points: dto.points,
-            previousCloseUsdcMicros: dto.previousCloseUsdcMicros,
-            source: dto.source,
-            basis: dto.basis,
-            basisSymbol: dto.basisSymbol
-        )
-    }
-
     /// Sorted ascending, with at most one point per timestamp.
     ///
     /// Nothing upstream promises distinct instants: a source that stitches two

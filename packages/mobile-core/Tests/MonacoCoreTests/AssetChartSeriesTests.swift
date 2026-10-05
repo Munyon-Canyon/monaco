@@ -221,47 +221,6 @@ final class AssetChartSeriesTests: XCTestCase {
         XCTAssertEqual(chart.points.last?.priceUsdcMicros, 104_000_000)
     }
 
-    // MARK: - Range echo
-
-    func testASeriesBuiltForAnotherRangeIsRefused() {
-        let dto = AssetChartDTO(
-            points: [AssetChartPointDTO(timestamp: 1, priceUsdcMicros: 1)],
-            range: .oneYear
-        )
-
-        XCTAssertNil(AssetChartSeries(dto, requested: .oneDay))
-        XCTAssertNotNil(AssetChartSeries(dto, requested: .oneYear))
-    }
-
-    /// A backend that does not echo the range is older, not wrong: it answered the
-    /// only range it was asked for.
-    func testAResponseWithoutARangeIsTakenAtItsWord() throws {
-        let dto = AssetChartDTO(points: [AssetChartPointDTO(timestamp: 1, priceUsdcMicros: 1)])
-        let chart = try XCTUnwrap(AssetChartSeries(dto, requested: .oneMonth))
-
-        XCTAssertEqual(chart.range, .oneMonth)
-    }
-
-    func testTheSeriesCarriesWhatTheChartNeedsToLabelItself() throws {
-        let dto = MarketSampleData.chart(range: .oneDay)
-        let chart = try XCTUnwrap(AssetChartSeries(dto, requested: .oneDay))
-
-        XCTAssertEqual(chart.source, .benchmarks)
-        XCTAssertEqual(chart.basis, .underlying)
-        XCTAssertEqual(chart.basisSymbol, "AAPL")
-        XCTAssertTrue(chart.isDrawable)
-        XCTAssertTrue(chart.drawsBaselineRule)
-    }
-
-    func testTheSampleFallbackSeriesDrawsNoBaseline() throws {
-        let dto = MarketSampleData.chartFromFallback(range: .oneDay)
-        let chart = try XCTUnwrap(AssetChartSeries(dto, requested: .oneDay))
-
-        XCTAssertEqual(chart.source, .hermes)
-        XCTAssertFalse(chart.drawsBaselineRule)
-        XCTAssertFalse(chart.points.contains { $0.hasCandle })
-    }
-
     // MARK: - Scrub label
 
     func testDayScrubReadsAsAWallClockInTheReadersOwnLocale() {

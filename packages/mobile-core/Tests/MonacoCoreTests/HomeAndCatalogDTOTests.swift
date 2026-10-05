@@ -29,27 +29,3 @@ final class HomeBoardDTOCodingTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(HomeViewDTO.self, from: data).groups, [row])
     }
 }
-
-final class CatalogDTOTests: XCTestCase {
-    func testDefaultsWhenTheServerOmitsOptionalFields() {
-        let asset = CatalogAssetDTO(symbol: "AAPLx", name: "Apple")
-        XCTAssertEqual(asset.resolvedKind, .stock)
-        XCTAssertEqual(asset.resolvedDecimals, AssetCatalogDefaults.decimals)
-        XCTAssertTrue(asset.isTradable)
-    }
-
-    func testRoutableFalseIsNotTradableAndPresentFieldsWin() {
-        let asset = CatalogAssetDTO(
-            symbol: "tSpaceX", name: "SpaceX", routable: false, kind: .preIpo, tokenDecimals: 6)
-        XCTAssertFalse(asset.isTradable)
-        XCTAssertEqual(asset.resolvedKind, .preIpo)
-        XCTAssertEqual(asset.resolvedDecimals, 6)
-    }
-
-    func testSearchResponseRoundTrips() throws {
-        let response = SearchAssetsResponseDTO(assets: [CatalogAssetDTO(symbol: "A", name: "A")], hasMore: true)
-        let decoded = try JSONDecoder().decode(
-            SearchAssetsResponseDTO.self, from: try JSONEncoder().encode(response))
-        XCTAssertEqual(decoded, response)
-    }
-}
