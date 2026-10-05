@@ -1,0 +1,18 @@
+journey: profile/overview
+expect-fail: S1
+
+The stats band calls its count column "Groups". S1.2 reads "Cabals", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
+--- a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
+@@ -55,7 +55,7 @@
+                     .accessibilityIdentifier("profile-stat-in-cabals")
+                 ProfileStatColumn(value: nil, label: "All time")
+                     .accessibilityIdentifier("profile-stat-all-time")
+-                ProfileStatColumn(value: cabals, label: "Cabals")
++                ProfileStatColumn(value: cabals, label: "Groups")
+                     .accessibilityIdentifier("profile-stat-cabals")
+             }
+             Text("Your totals show up here soon.")

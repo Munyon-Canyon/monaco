@@ -1,0 +1,18 @@
+journey: settings/notifications
+expect-fail: S1
+
+The Notifications row reads "On" before anyone asked. S1.2 reads "Off", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
+--- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
++++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
+@@ -126,7 +126,7 @@
+                     title: row.title,
+                     leading: { StockMark(systemImage: row.systemImage, size: 40) },
+                     trailing: {
+-                        Text(status.map { $0 == .authorized ? "On" : "Off" } ?? "")
++                        Text(status.map { $0 == .denied ? "Off" : "On" } ?? "")
+                             .font(MonacoTheme.Typo.body)
+                             .foregroundStyle(MonacoTheme.muted)
+                     }

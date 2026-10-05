@@ -19,7 +19,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 
 | Id | What must be true |
 | --- | --- |
-| P1 | Each scenario deletes or inspects a throwaway account, never a Privy test login. Before each scenario, `apps/mobile/qa/journeys/settings/delete-account.setup.sh` makes a new dev user with `bin/monacoctl dev token --user new`, gives it the display name `QA delete {QA.run}` and a handle through the API, and moves it to `ONBOARDING_COMPLETED`. It hands the test the dev token as `devToken` and the user id as `devUserID` |
+| P1 | Each scenario deletes or inspects a throwaway account, never a Privy test login. Before each scenario, `apps/mobile/qa/journeys/settings/delete-account.setup.sh` makes a new dev user with `bin/monacoctl dev token --user new`, moves it to `ONBOARDING_COMPLETED` with the `dev_` handle it was made with, and names it `QA delete {QA.run}` through the API. It hands the test the dev token as `devToken` and the user id as `devUserID` |
 | P2 | The dev user has no platform balance and no cabal, except in S3 |
 | P3 | Before S3, the setup script also creates a cabal named `QA delete pot {QA.run}` with the dev user's token, so the dev user is its only member. It hands the test the cabal's id as `cabalID` and its name as `cabalName` |
 | P4 | The test launches the app with `MONACO_DEV_TOKEN` set to `devToken`. The simulator is actor C's, so C may still be signed in from another journey; the first step signs C out |
@@ -60,7 +60,7 @@ Starts with a new dev user who is the only member of a cabal (P3).
 
 ## Ground truth
 
-After a run, S2's dev user is deleted: its `users` row has `deleted_at` set and `display_name` cleared, and its handle is kept. S1's and S3's dev users are not deleted. `apps/mobile/qa/journeys/settings/delete-account.truth.sh` reads the user ids the setup script wrote to the hand-off file and checks those rows through `apps/mobile/qa/journeys/psql.sh`.
+After a run, S2's dev user is deleted: its `users` row has `account_status = 'deleted'`, `deleted_at` set and an empty `display_name`, and it keeps its handle. S1's and S3's dev users are not deleted. `apps/mobile/qa/journeys/settings/delete-account.truth.sh` reads the user ids the setup script wrote to the hand-off file and checks those rows through `apps/mobile/qa/journeys/psql.sh`.
 
 ## Known failures on staging
 

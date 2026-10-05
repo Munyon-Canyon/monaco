@@ -1,0 +1,17 @@
+journey: profile/overview
+expect-fail: S3
+
+A Your cabals row does not open its cabal. S3.1 waits for the cabal screen, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift b/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift
+--- a/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift
++++ b/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift
+@@ -12,6 +12,7 @@
+             }
+         }
+         .buttonStyle(.monacoRow)
++        .disabled(true)
+         .accessibilityIdentifier("cabal-row-\(cabal.id)")
+     }
+ 
