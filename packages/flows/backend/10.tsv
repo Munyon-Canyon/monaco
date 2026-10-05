@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-10	Vote / tally	governance	POST /v1/proposals/{id}/votes	CastVote	proposal.passed;proposal.failed;proposal.expired		ok;Unauthorized;ProposalNotFound;NotAVoter;ProposalClosed;crash:after-publish	verified	docs/architecture/proposals.md#vote-path
+10	Vote / tally	governance	POST /v1/proposals/{id}/votes	CastVote	proposal.passed;proposal.failed;proposal.expired	trading.engine	ok;Unauthorized;ProposalNotFound;NotAVoter;ProposalClosed;crash:after-publish	verified	docs/architecture/proposals.md#vote-path
