@@ -174,3 +174,11 @@ func TestModule_withoutPrivyConfigTheTradeTermsAtSigning(t *testing.T) {
 		t.Fatalf("verdict %q, swaps %v; want a term with the swap left created and never signed", msg.verdict, swaps)
 	}
 }
+
+func TestModule_OwnsOnlyItsSwapSignatures(t *testing.T) {
+	t.Parallel()
+	owned, err := trading.New(module.Deps{Pool: testkit.DB(t)}).OwnsSignature(t.Context(), "not-a-swap")
+	if err != nil || owned {
+		t.Fatalf("OwnsSignature = %t, %v, want false, nil", owned, err)
+	}
+}

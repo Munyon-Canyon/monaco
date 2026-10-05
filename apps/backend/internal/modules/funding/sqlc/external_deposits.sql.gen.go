@@ -12,6 +12,23 @@ import (
 	"github.com/google/uuid"
 )
 
+const advanceWatchCursor = `-- name: AdvanceWatchCursor :exec
+INSERT INTO treasury_watch_cursors (cabal_id, last_signature, updated_at)
+VALUES ($1::uuid, $2::text, $3::timestamptz)
+ON CONFLICT (cabal_id) DO UPDATE SET last_signature = excluded.last_signature, updated_at = excluded.updated_at
+`
+
+type AdvanceWatchCursorParams struct {
+	CabalID       uuid.UUID
+	LastSignature string
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) AdvanceWatchCursor(ctx context.Context, arg AdvanceWatchCursorParams) error {
+	_, err := q.db.Exec(ctx, advanceWatchCursor, arg.CabalID, arg.LastSignature, arg.UpdatedAt)
+	return err
+}
+
 const externalDepositSeen = `-- name: ExternalDepositSeen :one
 SELECT EXISTS (SELECT 1 FROM external_deposits WHERE signature = $1::text)
 `
@@ -77,4 +94,15 @@ func (q *Queries) OwnsBounceSignature(ctx context.Context, signature string) (bo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const watchCursor = `-- name: WatchCursor :one
+SELECT coalesce((SELECT last_signature FROM treasury_watch_cursors WHERE cabal_id = $1::uuid), '')::text
+`
+
+func (q *Queries) WatchCursor(ctx context.Context, cabalID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, watchCursor, cabalID)
+	var column_1 string
+	err := row.Scan(&column_1)
+	return column_1, err
 }
