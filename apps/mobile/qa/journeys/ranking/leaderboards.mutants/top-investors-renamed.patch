@@ -1,0 +1,19 @@
+journey: ranking/leaderboards
+expect-fail: S1
+
+Home names the people board "Top people". S1.1 reads "Top investors", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
+index 5a0eea421..f931ab0f7 100644
+--- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
+@@ -5,7 +5,7 @@ enum HomePeopleBoardSlot: HomeSection {
+ 
+     static func body(for context: Void) -> some View {
+         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+-            MonacoSectionHeader("Top investors")
++            MonacoSectionHeader("Top people")
+             Text("Rankings show up here soon.")
+                 .font(MonacoTheme.Typo.caption)
+                 .foregroundStyle(MonacoTheme.muted)
