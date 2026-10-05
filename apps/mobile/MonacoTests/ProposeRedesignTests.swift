@@ -58,13 +58,6 @@ struct ProposeScreenCopyTests {
         #expect(ProposeScreenCopy.reasonTitle(isSell: true) == "Why sell")
     }
 
-    @Test func thePickerAsksWhichCabalForTheStock() {
-        let buy = ProposeScreenCopy.pickerQuestion(kind: .buy)
-        let sell = ProposeScreenCopy.pickerQuestion(kind: .sell)
-        #expect(buy.lead + "AAPL" + buy.tail == "Which cabal should buy AAPL?")
-        #expect(sell.lead + "AAPL" + sell.tail == "Which cabal should sell AAPL?")
-    }
-
     @Test func everyStringPassesTheMainFlowCopyAudit() {
         #expect(MainFlowCopyAudit.stringsAreClean(ProposeScreenCopy.auditedStrings))
     }

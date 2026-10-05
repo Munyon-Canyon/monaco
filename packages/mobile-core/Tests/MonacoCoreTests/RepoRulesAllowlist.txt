@@ -11,7 +11,7 @@ fixed-font	apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift	1
 fixed-font	apps/mobile/Monaco/Features/Proposals/CommentThreadView.swift	2
 fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalCardView.swift	1
 fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
-fixed-font	apps/mobile/Monaco/Features/Proposals/ProposeChooserView.swift	1
+fixed-font	apps/mobile/Monaco/Features/Proposals/ProposeRoute.swift	1
 float-money	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	4
 float-money	apps/mobile/Monaco/Design/MonacoMoney.swift	5
 float-money	apps/mobile/Monaco/Design/MonacoPreviewGallery.swift	5
@@ -23,7 +23,7 @@ float-money	apps/mobile/Monaco/Features/Debug/GroupDetailSampleHarness.swift	1
 float-money	apps/mobile/Monaco/Features/Debug/SampleProposalFeedService.swift	4
 float-money	apps/mobile/Monaco/Features/Deposit/FundCabalView.swift	2
 float-money	apps/mobile/Monaco/Features/Proposals/ProposeAmountView.swift	1
-float-money	apps/mobile/Monaco/Features/Proposals/ProposeChooserView.swift	2
+float-money	apps/mobile/Monaco/Features/Proposals/ProposeScreenCopy.swift	2
 float-money	apps/mobile/Monaco/Features/Proposals/ProposeSellView.swift	2
 float-money	apps/mobile/Monaco/Features/Proposals/ProposeService.swift	9
 float-money	apps/mobile/Monaco/Features/Redeem/SellCabalView.swift	2
