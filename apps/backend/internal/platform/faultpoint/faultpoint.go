@@ -12,15 +12,16 @@ import (
 type Name string
 
 const (
-	AfterCreate  Name = "after-create"
-	AfterSign    Name = "after-sign"
-	AfterExecute Name = "after-execute"
-	BeforeCommit Name = "before-commit"
-	AfterPublish Name = "after-publish"
+	AfterCreate    Name = "after-create"
+	AfterSign      Name = "after-sign"
+	AfterBroadcast Name = "after-broadcast"
+	AfterExecute   Name = "after-execute"
+	BeforeCommit   Name = "before-commit"
+	AfterPublish   Name = "after-publish"
 )
 
 func Names() []Name {
-	return []Name{AfterCreate, AfterExecute, AfterPublish, AfterSign, BeforeCommit}
+	return []Name{AfterBroadcast, AfterCreate, AfterExecute, AfterPublish, AfterSign, BeforeCommit}
 }
 
 func Known(name string) bool {

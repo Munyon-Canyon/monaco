@@ -3,6 +3,7 @@ package events
 import (
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -24,7 +25,26 @@ func (CashOutStarted) AggregateType() string { return "cash_out" }
 
 func (e CashOutStarted) AggregateID() uuid.UUID { return e.JobID }
 
-const TypeCashOutFailed Type = "cashout.failed"
+const (
+	TypeCashOutCompleted Type = "cashout.completed"
+	TypeCashOutFailed    Type = "cashout.failed"
+)
+
+type CashOutCompleted struct {
+	V            int             `json:"v"`
+	JobID        uuid.UUID       `json:"job_id"`
+	CabalID      uuid.UUID       `json:"cabal_id"`
+	UserID       uuid.UUID       `json:"user_id"            pii:"true"`
+	ShareUnits   uint64          `json:"share_units,string"`
+	PayoutMicros money.Micros    `json:"payout_micros"`
+	Signature    chain.Signature `json:"signature"`
+}
+
+func (CashOutCompleted) Type() Type { return TypeCashOutCompleted }
+
+func (CashOutCompleted) AggregateType() string { return "cash_out" }
+
+func (e CashOutCompleted) AggregateID() uuid.UUID { return e.JobID }
 
 type CashOutFailed struct {
 	V          int       `json:"v"`

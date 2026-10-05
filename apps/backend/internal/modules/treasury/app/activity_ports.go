@@ -28,3 +28,11 @@ func (UnwiredReads) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]ide
 func (UnwiredReads) Cabals(context.Context, []ids.CabalID) (map[ids.CabalID]cabalport.CabalView, error) {
 	return nil, errs.New(errs.CodeUpstreamUnavailable, "treasury.UnwiredReads.Cabals")
 }
+
+func (UnwiredReads) TreasuryWallet(context.Context, ids.CabalID) (cabalport.TreasuryWallet, error) {
+	return cabalport.TreasuryWallet{}, errs.New(errs.CodeUpstreamUnavailable, "treasury.UnwiredReads.TreasuryWallet")
+}
+
+func (UnwiredReads) MemberWallet(context.Context, ids.UserID) (identityport.MemberWallet, error) {
+	return identityport.MemberWallet{}, errs.New(errs.CodeUpstreamUnavailable, "treasury.UnwiredReads.MemberWallet")
+}
