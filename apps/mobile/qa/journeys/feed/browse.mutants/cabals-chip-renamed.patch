@@ -1,0 +1,19 @@
+journey: feed/browse
+expect-fail: S1 S3
+
+The Cabals chip reads "Groups". S1.1 checks every spec chip and S3.1 taps feed-chip-Cabals, so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift b/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
+index fbff3de08..6674ce03b 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Feed/FeedQuery.swift
+@@ -21,7 +21,7 @@ public enum FeedChip: CaseIterable, Hashable, Sendable {
+         case .proposals: "Proposals"
+         case .trades: "Trades"
+         case .priceMoves: "Price moves"
+-        case .cabals: "Cabals"
++        case .cabals: "Groups"
+         }
+     }
+ 
