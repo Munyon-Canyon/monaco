@@ -11,6 +11,8 @@ Waitlist landing page, plus two serverless functions. Vite builds the site into 
 | `api/waitlist.js`, `api/health.js` | Vercel adapters |
 | `public/_headers`, `wrangler.toml` | Cloudflare config |
 | `vercel.json` | Vercel config |
+| `fund/index.html`, `src/fund/` | The card deposit page at `/fund`. Logic in `src/fund/lib.ts`, tested with Vitest |
+| `csp.ts` | The fund page's Content-Security-Policy, written into its HTML at build time |
 | `public/assets/video-poster.png` | Poster for the demo video slot |
 
 `api/` and `functions/` are two thin adapters over the same two functions in
@@ -61,7 +63,16 @@ does not depend on dashboard state.
 | `IP_HASH_SALT` | Any long random string. IPs are stored only as salted hashes |
 | `ALLOWED_ORIGINS` | Optional. Defaults to monacolabs.xyz and trymonaco.xyz (with and without `www`). Set it to the preview URL on Preview |
 
-Set all four on both Production and Preview, then:
+The fund page also needs three build-time variables (see `.env.example`). Vite inlines them, so
+none is secret:
+
+| Env var | Value |
+|---|---|
+| `VITE_MONACO_API_URL` | The API base URL. The fund page's CSP allows only this API origin |
+| `VITE_PRIVY_APP_ID` | The Privy app id the iOS app uses |
+| `VITE_PRIVY_ENV` | `production` on Production, `sandbox` on Preview |
+
+Set all of them on both Production and Preview, then:
 
 1. Workers & Pages → the project → Custom domains → add `monacolabs.xyz` and
    `www.monacolabs.xyz`. Cloudflare writes the DNS records itself if the zone is
