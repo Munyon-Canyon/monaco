@@ -10,8 +10,8 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 - The `admin` module.
 - `monacoctl dev seed-scenario <name> [--actor A=<user-uuid> ...] [--json]` loads a testkit scenario into the local
-  `monaco` database for QA journeys: `cabal-with-confirmed-trade`, `cabal-with-members`, `cabal-with-open-proposal`
-  and `user-with-balance`.
+  `monaco` database for QA journeys: `cabal-with-confirmed-trade`, `cabal-with-failed-trade`, `cabal-with-members`,
+  `cabal-with-open-proposal` and `user-with-balance`.
 - The `funding` module.
 - Card deposit sessions: `POST /v1/onramp/sessions` returns a one-time fund page URL (`FUND_PAGE_URL`) whose token
   expires in 10 minutes, and `POST /v1/onramp/sessions/exchange` trades the token once for the member wallet

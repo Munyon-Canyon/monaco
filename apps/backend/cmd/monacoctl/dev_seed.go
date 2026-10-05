@@ -16,12 +16,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalmod "github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	trading "github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -45,6 +47,7 @@ var errBadActor = errors.New("bad --actor")
 func devScenarios() map[string]devScenario {
 	return map[string]devScenario{
 		"cabal-with-confirmed-trade": seedConfirmedTrade,
+		"cabal-with-failed-trade":    seedFailedTrade,
 		"cabal-with-members":         seedCabalWithMembers,
 		"cabal-with-open-proposal":   seedOpenProposal,
 		"user-with-balance":          seedUserWithBalance,
@@ -179,17 +182,7 @@ func seedCabalWithMembers(t testkit.SeedT, deps module.Deps, actor func(string) 
 
 func seedOpenProposal(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
 	cabal := newDevCabal(t, deps, actor)
-	id, now := ids.Real{}.NewV7(), clock.Real{}.Now().UTC()
-	params := governance.InsertProposalParams{
-		ID: id, CabalID: cabal.ID.UUID(), ProposerID: actor("A").UUID(), Kind: "buy", Symbol: "AAPLx",
-		Mint: devProposalMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
-		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now,
-	}
-	for _, m := range cabal.Members {
-		params.VoterIds = append(params.VoterIds, m.ID.UUID())
-	}
-	_, err := governance.New(deps.Pool).InsertProposal(t.Context(), params)
-	failSeed(t, err, "insert proposal")
+	id := insertDevProposal(t, deps, cabal, actor("A"))
 	raw := devScenarioJSONL(t, "cabal-with-open-proposal", map[string]string{
 		"01890a5d-ac96-774b-bcce-b302099a8091": cabal.ID.String(),
 		"01890a5d-ac96-774b-bcce-b302099a8092": actor("A").String(),
@@ -203,6 +196,82 @@ func seedOpenProposal(t testkit.SeedT, deps module.Deps, actor func(string) ids.
 		"asset_mint": devProposalMint, "symbol": "AAPLx",
 	}
 }
+
+func insertDevProposal(t testkit.SeedT, deps module.Deps, cabal testkit.SeededCabal, proposer ids.UserID) uuid.UUID {
+	id, now := ids.Real{}.NewV7(), clock.Real{}.Now().UTC()
+	params := governance.InsertProposalParams{
+		ID: id, CabalID: cabal.ID.UUID(), ProposerID: proposer.UUID(), Kind: "buy", Symbol: "AAPLx",
+		Mint: devProposalMint, UsdcMicros: pgtype.Int8{Int64: devProposalMicros, Valid: true},
+		QuoteOutAmount: devProposalQuote, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now,
+	}
+	for _, m := range cabal.Members {
+		params.VoterIds = append(params.VoterIds, m.ID.UUID())
+	}
+	_, err := governance.New(deps.Pool).InsertProposal(t.Context(), params)
+	failSeed(t, err, "insert proposal")
+	return id
+}
+
+func seedFailedTrade(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
+	cabal := newDevCabal(t, deps, actor)
+	proposal := insertDevProposal(t, deps, cabal, actor("A"))
+	gov, now := governance.New(deps.Pool), clock.Real{}.Now().UTC()
+	for _, m := range cabal.Members {
+		failSeed(t, gov.UpsertBallot(t.Context(), governance.UpsertBallotParams{
+			ProposalID: proposal, VoterID: m.ID.UUID(), Choice: "yes", CastAt: now,
+		}), "cast ballot")
+	}
+	_, err := gov.Transition(t.Context(), governance.TransitionParams{
+		ID: proposal, FromStatus: "open", ToStatus: "passed", At: now,
+	})
+	failSeed(t, err, "pass proposal")
+	raw := devScenarioJSONL(t, "cabal-with-failed-trade", map[string]string{
+		"01890a5d-ac96-774b-bcce-b302099a80c1": cabal.ID.String(),
+		"01890a5d-ac96-774b-bcce-b302099a80c2": actor("A").String(),
+		"01890a5d-ac96-774b-bcce-b302099a80c6": actor("B").String(),
+		"01890a5d-ac96-774b-bcce-b302099a80c7": actor("C").String(),
+		"01890a5d-ac96-774b-bcce-b302099a80c9": proposal.String(),
+	})
+	out := map[string]string{
+		"cabal_id": cabal.ID.String(), "invite_code": cabal.InviteCode, "proposal_id": proposal.String(),
+		"asset_mint": devProposalMint, "symbol": "AAPLx",
+	}
+	consumers := append(cabalmod.New(deps).Consumers(), treasury.New(deps).Consumers()...)
+	for _, s := range testkit.SeedJSONL(t, deps.Pool, "cabal-with-failed-trade", raw, consumers...) {
+		if trade, ok := s.Event.(events.TradeSubmitted); ok {
+			insertFailedSwap(t, deps, cabal, trade, now)
+			out["swap_id"] = trade.SwapID.String()
+		}
+	}
+	return out
+}
+
+func insertFailedSwap(t testkit.SeedT, deps module.Deps, cabal testkit.SeededCabal, e events.TradeSubmitted,
+	at time.Time,
+) {
+	q := trading.New(deps.Pool)
+	failSeed(t, q.InsertCreated(t.Context(), trading.InsertCreatedParams{
+		ID: e.SwapID, SourceKind: e.Source.Kind, SourceID: e.Source.ID, CabalID: e.CabalID,
+		TreasuryAddress: string(cabal.TreasuryAddress), Action: e.Action, Symbol: e.Symbol,
+		InMint: string(e.InMint), OutMint: string(e.OutMint), OutDecimals: 8, InAmount: devProposalMicros,
+		QuoteOutAmount: pgtype.Int8{Int64: devProposalQuote, Valid: true}, SlippageBps: 100, SourceBatchSize: 1,
+		CreatedAt: at,
+	}), "insert swap")
+	_, err := q.MarkSubmitted(t.Context(), trading.MarkSubmittedParams{
+		ID: e.SwapID, ExecuteRequestID: "dev-" + e.SwapID.String(), SignedTx: []byte{0},
+		TxSignature: string(e.TxSignature), SubmittedAt: at,
+	})
+	failSeed(t, err, "submit swap")
+	_, err = q.FinishFailed(t.Context(), trading.FinishFailedParams{
+		ID: e.SwapID, FailureCode: "jupiter_failed", FailedAt: at,
+	})
+	failSeed(t, err, "fail swap")
+}
+
+const (
+	devProposalMicros = 5_000_000
+	devProposalQuote  = 21_000_000
+)
 
 const devProposalMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
 
