@@ -9,11 +9,20 @@ struct ProposeBuyStockView: View {
     @State private var model: MonacoCore.StocksTabModel?
     @State private var query = ""
     @State private var picked: ProposeStock?
+    private let makeModel: @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel
+
+    init(
+        cabalID: String,
+        makeModel: @escaping @MainActor (AppEnvironment) -> MonacoCore.StocksTabModel = ProposeBuyStockView.liveModel
+    ) {
+        self.cabalID = cabalID
+        self.makeModel = makeModel
+    }
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if let model {
                 content(model)
             }
@@ -35,10 +44,13 @@ struct ProposeBuyStockView: View {
 
     private func preparedModel() -> MonacoCore.StocksTabModel {
         if let model { return model }
-        let created = MonacoCore.StocksTabModel(
-            api: environment.api, hints: environment.hints, clock: ContinuousClock())
+        let created = makeModel(environment)
         model = created
         return created
+    }
+
+    static func liveModel(_ environment: AppEnvironment) -> MonacoCore.StocksTabModel {
+        MonacoCore.StocksTabModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
     }
 
     @ViewBuilder

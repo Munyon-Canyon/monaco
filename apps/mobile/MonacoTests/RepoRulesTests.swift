@@ -2,9 +2,7 @@ import Foundation
 import Testing
 
 struct RepoRulesTests {
-    static let taskOnEmptyViewOwners: [String: Int] = [
-        "Features/Proposals/ProposeBuyStockView.swift": 612
-    ]
+    static let taskOnEmptyViewOwners: [String: Int] = [:]
 
     @Test
     func noLoadingModifierSitsOnAViewThatCanRenderNothing() throws {
