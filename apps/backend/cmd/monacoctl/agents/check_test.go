@@ -21,6 +21,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
+var testDBEnvRE = regexp.MustCompile(`^env TEST_DATABASE_URL=\S+ `)
+
+func upTestDB(slot int) string {
+	if slot == 0 {
+		return ".: docker compose -p monaco --profile test up -d --wait postgres-test"
+	}
+	n := strconv.Itoa(slot)
+	return ".: env MONACO_TEST_DB_NAME=monaco-postgres-test-" + n + " MONACO_TEST_DB_PORT=" + strconv.Itoa(54323+slot) +
+		" MONACO_TEST_DB_TMPFS=1536m docker compose -p monaco-test-" + n + " --profile test up -d --wait postgres-test"
+}
+
 type reply struct {
 	prefix string
 	out    string
@@ -76,8 +87,9 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 	if strings.HasPrefix(line, "ci affected") {
 		return []byte(h.affected), h.affectedErr
 	}
+	bare := testDBEnvRE.ReplaceAllString(line, "")
 	for _, r := range h.replies {
-		if strings.HasPrefix(line, r.prefix) {
+		if strings.HasPrefix(bare, r.prefix) {
 			h.clock = h.clock.Add(r.took)
 			return []byte(r.out), r.err
 		}
@@ -157,12 +169,15 @@ func (h *checkHarness) goTest(t *testing.T, p string, pkgs ...string) []string {
 	t.Helper()
 	profile := h.profile(t)
 	return []string{
-		"apps/backend: go test -tags faultpoints -short -count=1 -timeout 20s -p " + p + " -json -coverpkg=" +
+		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " go test -tags faultpoints -short -count=1 -timeout 20s -p " + p + " -json -coverpkg=" +
 			strings.Join(
 				slices.DeleteFunc(slices.Clone(pkgs), func(p string) bool { return p == "./internal/t" }),
 				",",
 			) +
-			" -coverprofile=" + profile + " " + strings.Join(pkgs, " "),
+			" -coverprofile=" + profile + " " + strings.Join(
+			pkgs,
+			" ",
+		),
 		"apps/backend: coverage --profile " + profile,
 	}
 }
@@ -309,7 +324,13 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	pr := ".: env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
-	goTest := h.goTest(t, strconv.Itoa(max(2, runtime.NumCPU())), "./internal/x", "./internal/t", "./cmd/api")
+	goTest := h.goTest(
+		t,
+		strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
+		"./internal/x",
+		"./internal/t",
+		"./cmd/api",
+	)
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
@@ -318,6 +339,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		pr + "check-pr-size.py",
 		pr + "check-gate-changes.py",
 		pr + "check-legacy-growth.py",
+		upTestDB(0),
 		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: golangci-lint run --allow-parallel-runners ./internal/x ./internal/t ./cmd/api",
@@ -399,7 +421,7 @@ func TestCheck_overBudgetExitsOneNamingTheSlowestPackageAndRecordsNothing(t *tes
 	}}
 
 	code, stdout, stderr := h.check(t, "--base", "fb")
-	want := "go test -short: package ./internal/slow took 80.0s, over the 20s per-package budget"
+	want := "go test -short: package ./internal/slow took 81.0s, over the 20s per-package budget"
 	if code != 1 || !strings.Contains(stderr, want) {
 		t.Fatalf("over budget: %d %q %q", code, stdout, stderr)
 	}
@@ -1052,36 +1074,63 @@ func TestCheck_aFlowsPackageChangeRunsTheSwiftAndReadyRows(t *testing.T) {
 	}
 }
 
-func TestCheck_goTestParallelismSplitsTheCPUsBetweenRunningOwners(t *testing.T) {
+func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T) {
 	t.Parallel()
-	for _, c := range []struct{ cpus, running, want int }{{8, 6, 2}, {8, 0, 8}, {16, 2, 8}, {2, 1, 2}, {1, 0, 2}} {
-		if got := testParallelism(c.cpus, c.running); got != c.want {
-			t.Errorf("testParallelism(%d, %d) = %d, want %d", c.cpus, c.running, got, c.want)
+	for _, c := range []struct{ cpus, busy, want int }{{18, 4, 4}, {18, 2, 8}, {18, 1, 8}, {8, 0, 8}, {2, 1, 2}, {1, 0, 2}} {
+		if got := testParallelism(c.cpus, c.busy); got != c.want {
+			t.Errorf("testParallelism(%d, %d) = %d, want %d", c.cpus, c.busy, got, c.want)
 		}
 	}
 
 	h := newCheckHarness(t)
-	env := h.Env(t)
-	for ticket := range 7 {
-		state := Running
-		if ticket == 6 {
-			state = Exited
-		}
-		if err := env.saveRecord(Record{Ticket: ticket + 1, State: state, Started: h.now}); err != nil {
-			t.Fatal(err)
-		}
+	slots := filepath.Join(h.Env(t).Common, ".monaco", "test-db")
+	if err := os.MkdirAll(slots, 0o750); err != nil {
+		t.Fatal(err)
 	}
-	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	for slot := range 3 {
+		held, ok, err := tryLock(filepath.Join(slots, strconv.Itoa(slot)))
+		if err != nil || !ok {
+			t.Fatalf("hold slot %d: %v %v", slot, ok, err)
+		}
+		t.Cleanup(func() { _ = held.Close() })
+	}
+	compose := "apps/backend/deployments/compose.yml"
+	h.commit(t, map[string]string{
+		"apps/backend/internal/a/a.go": "package a\n",
+		compose:                        "ports: [\"${MONACO_TEST_DB_PORT:-54323}:5432\"]\n",
+	})
 	h.affected = "./internal/a\n"
-	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 6)), "./internal/a")[0]
-	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, want) {
-		t.Fatalf("six running owners: %d %q\n%s\nwant %s", code, stderr, strings.Join(h.calls, "\n"), want)
+	p := strconv.Itoa(testParallelism(runtime.NumCPU(), 4))
+	goTest := strings.Replace(h.goTest(t, p, "./internal/a")[0], ":54323/", ":54326/", 1)
+	drop := ".: docker exec monaco-postgres-test-3 sh -c " + dropLeftoverClones
+	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, upTestDB(3)) ||
+		!slices.Contains(h.calls, drop) || !slices.Contains(h.calls, goTest) {
+		t.Fatalf("slot 3: %d %q\n%s\nwant %s\nand %s", code, stderr, strings.Join(h.calls, "\n"), upTestDB(3), goTest)
+	}
+	busy, err := busySlots(slots)
+	for range 1000 {
+		if busy == 3 || err != nil {
+			break
+		}
+		runtime.Gosched()
+		busy, err = busySlots(slots)
+	}
+	if busy != 3 || err != nil {
+		t.Fatalf("after the check %d slots are busy (%v), want the 3 held", busy, err)
 	}
 
-	writeFile(t, env.recordPath(9), "{")
-	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // again\n"})
-	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "decode ") {
-		t.Fatalf("a broken record fails the check: %d %q", code, stderr)
+	h.calls = nil
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // again\n", compose: "ports: []\n"})
+	goTest = h.goTest(t, p, "./internal/a")[0]
+	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, upTestDB(0)) ||
+		!slices.Contains(h.calls, goTest) {
+		t.Fatalf(
+			"a tree without per-slot containers: %d %q\n%s\nwant %s",
+			code,
+			stderr,
+			strings.Join(h.calls, "\n"),
+			goTest,
+		)
 	}
 }
 
@@ -1337,7 +1386,7 @@ func TestCheck_aPackageOverBudgetPassesWhenRerunAlone(t *testing.T) {
 	}
 	rerun := slices.IndexFunc(
 		h.calls,
-		func(c string) bool { return strings.HasPrefix(c, "apps/backend: "+rerunPrefix) },
+		func(c string) bool { return strings.Contains(c, " "+rerunPrefix) },
 	)
 	if rerun < 0 || strings.Contains(h.calls[rerun], "-cover") {
 		t.Fatalf("rerun without coverage flags: %v", h.calls)
@@ -1443,7 +1492,7 @@ func TestCheck_aPackageThatFailsWhenRerunAloneFailsTheRow(t *testing.T) {
 		{prefix: "go test", took: 26 * time.Second, out: slowPackageEvents(25 * time.Second)},
 	}
 	code, stdout, stderr := h.check(t)
-	if code != 1 || !strings.Contains(stdout, "go test -short  FAIL  go test") ||
+	if code != 1 || !strings.Contains(stdout, "go test -short  FAIL  env TEST_DATABASE_URL=") ||
 		!strings.Contains(stderr, "go test -short failed; see the log") {
 		t.Fatalf("rerun failure: %d %q %q", code, stdout, stderr)
 	}
@@ -1463,7 +1512,7 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	results := filepath.Join(h.stateDir(t, "flows"), h.head(t)[:12]+".json")
 	want := []string{
 		"apps/backend: flows --affected --base origin/fb",
-		"apps/backend: bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
+		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
 			"^TestFlow(00)_ " + results + " ./internal/modules/system/...",
 		"apps/backend: flows check --affected --base origin/fb --from " + results,
 		"apps/backend: mobile-core-test.sh --filter (F|Flow)(00)[^a-z0-9]",
