@@ -1,12 +1,5 @@
 import SwiftUI
 
-enum ProposeStockLogo {
-    @MainActor
-    static func url(for symbol: String, in session: AppSessionStore?) -> URL? {
-        nil
-    }
-}
-
 struct ProposeStockRow: View {
     let stock: ProposeStock
     var logoURL: URL?

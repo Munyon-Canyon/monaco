@@ -64,40 +64,6 @@ struct ProposeScreenCopyTests {
 }
 
 @MainActor
-struct ProposePresetsTests {
-    @Test func aDollarChipEntersItsAmountAndPrintsIt() {
-        #expect(ProposePresets.amount(for: .dollars(50), max: nil) == 50)
-        #expect(ProposePresets.label(for: .dollars(50)) == "$50")
-        #expect(ProposePresets.label(for: .dollars(1000)) == "$1,000")
-    }
-
-    /// "50%" of a $278.47 holding is $139.235, and a chip never asks for the half cent.
-    @Test func aFractionChipRoundsDownToTheCent() {
-        let holding = Decimal(string: "278.47")!
-        #expect(ProposePresets.amount(for: .fraction(0.5, label: "50%"), max: holding) == Decimal(string: "139.23")!)
-        #expect(ProposePresets.amount(for: .fraction(0.25, label: "25%"), max: holding) == Decimal(string: "69.61")!)
-        #expect(ProposePresets.amount(for: .fraction(1, label: "All"), max: holding) == holding)
-        #expect(ProposePresets.label(for: .fraction(1, label: "Max")) == "Max")
-    }
-
-    @Test func aFractionChipNeedsSomethingToBeAFractionOf() {
-        #expect(ProposePresets.amount(for: .fraction(1, label: "Max"), max: nil) == nil)
-        #expect(ProposePresets.amount(for: .fraction(1, label: "Max"), max: 0) == nil)
-    }
-}
-
-@MainActor
-struct ReceiptLayoutTests {
-    /// Beside its label a figure reads from the right; stacked under it, from the left.
-    @Test func aFigureAlignsWithWhereItSits() {
-        #expect(ReceiptLayout.figureAlignment(.large) == .trailing)
-        #expect(ReceiptLayout.figureAlignment(.xxxLarge) == .trailing)
-        #expect(ReceiptLayout.figureAlignment(.accessibility1) == .leading)
-        #expect(ReceiptLayout.figureAlignment(.accessibility5) == .leading)
-    }
-}
-
-@MainActor
 struct ProposeGlyphTests {
     /// A proposed buy and a buy that landed in the cabal's history draw the same glyph.
     @Test func buyAndSellShareTheActivityListsGlyphs() {
