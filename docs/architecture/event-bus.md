@@ -99,6 +99,8 @@ Two streams, `EVENTS` and `DEADLETTER`. Their config is declared in code and app
 
 `DEADLETTER` takes `deadletter.>`, 512 MiB, 30 days. It holds messages `bus.Dispatch` terminated.
 
+At boot, `api` and `worker` compare each stream's live config with the declared one, field by field, over the settings in the table above. A missing stream or any difference stops boot with `not_found`, naming the stream and the fields, for example `stream EVENTS: config differs from the declared one in Subjects; run monacoctl bus apply`. Boot never applies the config itself. The usual local cause is a stream created before a new event was added, so its `Subjects` lack the new subject and every publish on it fails with `nats: no response from stream`. To fix it locally, run `just build backend`, then `scripts/with-dotenv-local.sh bin/monacoctl bus apply` from the repo root, then `just run backend` again. In a deploy, the pre-deploy `monacoctl bus apply` runs before the new instances boot, so they see the updated config.
+
 Subjects are `events.<aggregate>.<verb>`: `events.proposal.created`, `events.proposal.passed`, `events.trade.confirmed`, `events.deposit.credited`, `events.follow.created`. Wildcards let a consumer take a whole area (`events.proposal.*`). Aggregate names follow the `cabal` naming ([Decided](backend-platform.md#decided)): `events.cabal.funded`, never `events.group.*`.
 
 ### Consumers and handlers
