@@ -499,3 +499,31 @@ func TestPinnedTools_areTheTwoBinariesGoGenerateAndMigrateNeed(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestDispatch_dryRunPrintsTheWholeSpawnBlockPastSixtyRemoteOwners(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.lookPath = absentCaffeinate
+	f.batch(t, 12)
+	f.hub.on(get("/issues/12"), Issue{Number: 12, Body: "**Milestone:** M7 · **Blocked by:** none · **Touches:** `a`"})
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.ps()
+	for n := 1001; n <= 1060; n++ {
+		f.owner(t, Record{Ticket: n, State: Running, Worktree: filepath.Join(t.TempDir(), "gone")})
+	}
+	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
+	env := f.Env(t)
+	tip, err := env.featureTip(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawn := fmt.Sprintf("spawn: Agent subagent_type=%s model=opus run_in_background=true, prompt:\n"+
+		"ticket: 12\nworktree: %s\nparent: %s\nbrief: %s\norders: %s\n",
+		agentType, env.worktreePath(12), tip, ownerBrief, standingOrders)
+	summary := "not counted: 60 records with worktrees on another machine " +
+		"(#1001 #1002 #1003 #1004 #1005 #1006 #1007 #1008 #1009 #1010 ...)\n"
+	if code != 0 || stderr != "" || !strings.Contains(stdout, spawn) ||
+		strings.Count(stdout, "not counted") != 1 || !strings.Contains(stdout, summary) {
+		t.Fatalf("code=%d stderr=%q stdout=\n%s", code, stderr, stdout)
+	}
+}

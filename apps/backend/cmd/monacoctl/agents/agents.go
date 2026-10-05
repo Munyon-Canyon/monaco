@@ -151,7 +151,7 @@ func runCLI(
 		}
 		err = commands()[args[0]](ctx, env, args[1:], out)
 	}
-	writeLimited(stdout, buf.String(), verbose)
+	writeLimited(stdout, buf.String(), verbose || args[0] == "dispatch")
 	return exitCode(logged(env, args[0], buf.String(), err), stderr)
 }
 
