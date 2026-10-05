@@ -7,33 +7,3 @@ enum AssetDisplayName {
         CatalogAssetNameFormatter.format(catalogName, kind: kind)
     }
 }
-
-extension CatalogAssetDTO {
-    var displayName: String {
-        AssetCatalogDisplayName.format(catalogName: name, symbol: symbol, kind: resolvedKind)
-    }
-
-    var displayTicker: String {
-        AssetSymbolFormatter.display(symbol, kind: resolvedKind)
-    }
-}
-
-extension MarketAssetDTO {
-    var displayName: String {
-        AssetCatalogDisplayName.format(catalogName: name, symbol: symbol, kind: resolvedKind)
-    }
-
-    var displayTicker: String {
-        AssetSymbolFormatter.display(symbol, kind: resolvedKind)
-    }
-}
-
-extension AssetDetailDTO {
-    var displayName: String {
-        AssetCatalogDisplayName.format(catalogName: name, symbol: symbol, kind: resolvedKind)
-    }
-
-    var displayTicker: String {
-        AssetSymbolFormatter.display(symbol, kind: resolvedKind)
-    }
-}
