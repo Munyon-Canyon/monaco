@@ -3,6 +3,7 @@ package httpx
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/domain"
@@ -61,7 +62,7 @@ func adminActor(r *http.Request, v auth.TokenVerifier, res resolved) (auth.Actor
 }
 
 func isAdminRoute(res resolved) bool {
-	return len(res.route.Path) >= len("/v1/admin/") && res.route.Path[:len("/v1/admin/")] == "/v1/admin/"
+	return strings.HasPrefix(res.route.Path, "/v1/admin/")
 }
 
 func adminRole(extensions map[string]any) (domain.Role, bool) {
