@@ -6,8 +6,10 @@ struct RepoRulesTests {
 
     @Test
     func noLoadingModifierSitsOnAViewThatCanRenderNothing() throws {
-        let flagged = try Self.appSources().flatMap { path, source in
-            TaskOnEmptyViewRule.violations(in: source).map { (path: path, line: $0) }
+        let sources = try Self.appSources()
+        let emptyTypes = sources.reduce(into: Set<String>()) { $0.formUnion(TaskOnEmptyViewRule.emptyTypes(in: $1.1)) }
+        let flagged = sources.flatMap { path, source in
+            TaskOnEmptyViewRule.violations(in: source, emptyTypes: emptyTypes).map { (path: path, line: $0) }
         }
         let unowned = flagged.filter { Self.taskOnEmptyViewOwners[$0.path] == nil }.map { "\($0.path):\($0.line)" }
         #expect(unowned.isEmpty, "a .task or .onAppear never runs on a view with no content: \(unowned)")
@@ -30,9 +32,11 @@ struct RepoRulesTests {
 enum TaskOnEmptyViewRule {
     static let loadingModifiers: Set<String> = ["task", "onAppear"]
 
-    static func violations(in source: String) -> [Int] {
+    static func violations(in source: String, emptyTypes: Set<String> = []) -> [Int] {
         let text = Array(source)
-        let receivers = groups(in: text) + emptyViews(in: text) + computedViews(in: text, source: source)
+        let receivers =
+            groups(in: text) + emptyViews(in: text) + computedViews(in: text, source: source)
+            + childViews(of: emptyTypes, in: text, source: source)
         return Set(receivers.filter { loads(after: $0.end, in: text) }.map { line(of: $0.start, in: text) }).sorted()
     }
 
@@ -56,15 +60,54 @@ enum TaskOnEmptyViewRule {
     }
 
     private static func computedViews(in text: [Character], source: String) -> [Receiver] {
-        let declarations = matches(of: #"\bvar (\w+): some View \{"#, in: source)
-        return declarations.flatMap { range -> [Receiver] in
+        emptyComputedViews(in: text, source: source).flatMap { name in
+            matches(of: #"(?m)^[ \t]*\#(name)(?=\s*\.)"#, in: source).map { use in
+                Receiver(start: use.upperBound - name.count, end: use.upperBound)
+            }
+        }
+    }
+
+    private static func emptyComputedViews(in text: [Character], source: String) -> [String] {
+        matches(of: #"\bvar (\w+): some View \{"#, in: source).compactMap { range in
             let name = String(String(text[range]).dropFirst(4).prefix { $0 != ":" })
             let open = range.upperBound - 1
             guard name != "body", let close = closing(open, in: text),
                 canRenderNothing(String(text[(open + 1)..<close]))
-            else { return [] }
-            return matches(of: #"(?m)^[ \t]*\#(name)(?=\s*\.)"#, in: source).map { use in
-                Receiver(start: use.upperBound - name.count, end: use.upperBound)
+            else { return nil }
+            return name
+        }
+    }
+
+    static func emptyTypes(in source: String) -> Set<String> {
+        let text = Array(source)
+        return Set(
+            matches(of: #"\bstruct (\w+)\b[^{]*\bView\b[^{]*\{"#, in: source).compactMap { range in
+                let name = String(String(text[range]).dropFirst(7).prefix { $0.isLetter || $0.isNumber || $0 == "_" })
+                guard let close = closing(range.upperBound - 1, in: text) else { return nil }
+                let declaration = String(text[range.upperBound..<close])
+                let members = Array(declaration)
+                guard let body = matches(of: #"\bvar body: some View \{"#, in: declaration).first,
+                    let bodyClose = closing(body.upperBound - 1, in: members)
+                else { return nil }
+                let bodyText = String(members[body.upperBound..<bodyClose])
+                let root = bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .prefix { $0.isLetter || $0.isNumber || $0 == "_" }
+                let emptyRoot = emptyComputedViews(in: members, source: declaration).contains(String(root))
+                return canRenderNothing(bodyText) || emptyRoot ? name : nil
+            }
+        )
+    }
+
+    private static func childViews(of types: Set<String>, in text: [Character], source: String) -> [Receiver] {
+        types.flatMap { name in
+            matches(of: #"(?m)^[ \t]*\#(name)\("#, in: source).compactMap { use -> Receiver? in
+                guard var end = closing(use.upperBound - 1, in: text, open: "(", close: ")") else { return nil }
+                let trailing = skipWhitespace(from: end + 1, in: text)
+                if trailing < text.count, text[trailing] == "{" {
+                    guard let close = closing(trailing, in: text) else { return nil }
+                    end = close
+                }
+                return Receiver(start: use.upperBound - name.count - 1, end: end + 1)
             }
         }
     }
