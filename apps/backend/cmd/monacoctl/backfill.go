@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -17,11 +18,23 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
-const backfillUsage = "usage: monacoctl backfill --consumer <handler> --types <t1,t2> [--since <event_id>]"
+const backfillUsage = "usage: monacoctl backfill --consumer <handler> --types <t1,t2> [--since <event_id>]\n" +
+	"       monacoctl backfill prices (--mint <mint> | --all)"
 
 func toolBackfill(env toolEnv) tool { return backfillTool(env.environ) }
 
 func backfillTool(environ []string) tool {
+	consumers := consumerBackfillTool(environ)
+	return func(args []string, stdout, stderr io.Writer) int {
+		if len(args) > 0 && args[0] == "prices" {
+			history := func(cfg config.Config) app.PriceHistory { return coinGecko(cfg) }
+			return backfillPrices(environ, history, args[1:], stdout, stderr)
+		}
+		return consumers(args, stdout, stderr)
+	}
+}
+
+func consumerBackfillTool(environ []string) tool {
 	return func(args []string, stdout, stderr io.Writer) int {
 		fs := flag.NewFlagSet("backfill", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)

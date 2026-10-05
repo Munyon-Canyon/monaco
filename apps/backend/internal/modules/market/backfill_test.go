@@ -435,15 +435,45 @@ func TestBackfill_AMintAddedByTheCatalogPollerIsBackfilledOnTheNextTick(t *testi
 	}
 }
 
-func TestBackfill_drainReturnsWhatItDid(t *testing.T) {
+func TestBackfill_runRequeuesDoneMintsAndDrainsThem(t *testing.T) {
 	t.Parallel()
 	r := newBackfillRig(t)
-	aapl := marketfake.AAPLx().Mint
+	aapl, tsla := marketfake.AAPLx().Mint, marketfake.TSLAx().Mint
 	r.putChart(aapl)
 	r.pend(t, aapl)
-	res, err := r.poller.Drain(r.ctx(t), []string{aapl.String()})
-	if err != nil || res != (app.BackfillResult{Mints: 1, Calls: 3, Rows: 4}) {
-		t.Fatalf("Drain = %+v, %v, want 1 mint, 3 calls and 4 rows", res, err)
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	res, err := r.poller.Run(r.ctx(t), []string{aapl.String(), tsla.String()})
+	if err != nil || res != (app.BackfillResult{Mints: 2, Calls: 6, Rows: 0}) {
+		t.Fatalf("Run = %+v, %v, want 2 mints, 6 calls and no new rows", res, err)
+	}
+	for _, m := range []market.Mint{aapl, tsla} {
+		if done, code := r.status(t, m); !done || code != "" {
+			t.Fatalf("%v done = %v, last_code = %q, want done and clean", m, done, code)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := r.poller.Run(ctx, []string{aapl.String()}); err == nil {
+		t.Fatal("Run on a cancelled context succeeded")
+	}
+}
+
+func TestBackfill_runAllTakesEveryCatalogMint(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	r := newBackfillRig(t)
+	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla)
+	r.putChart(aapl.Mint)
+	res, err := r.poller.RunAll(r.ctx(t))
+	if err != nil || res != (app.BackfillResult{Mints: 2, Calls: 6, Rows: 4}) {
+		t.Fatalf("RunAll = %+v, %v, want 2 mints, 6 calls and 4 rows", res, err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := r.poller.RunAll(ctx); err == nil {
+		t.Fatal("RunAll on a cancelled context read the catalog")
 	}
 }
 

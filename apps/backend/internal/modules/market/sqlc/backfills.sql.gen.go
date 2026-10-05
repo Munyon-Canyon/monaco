@@ -87,3 +87,23 @@ func (q *Queries) PendingBackfills(ctx context.Context, batchLimit int32) ([]str
 	}
 	return items, nil
 }
+
+const requestBackfills = `-- name: RequestBackfills :execrows
+INSERT INTO price_backfills (mint, requested_at)
+SELECT u.mint, $1::timestamptz
+FROM unnest($2::text[]) AS u (mint)
+ON CONFLICT (mint) DO UPDATE SET requested_at = excluded.requested_at, done_at = NULL, last_code = NULL
+`
+
+type RequestBackfillsParams struct {
+	Now   time.Time
+	Mints []string
+}
+
+func (q *Queries) RequestBackfills(ctx context.Context, arg RequestBackfillsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, requestBackfills, arg.Now, arg.Mints)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

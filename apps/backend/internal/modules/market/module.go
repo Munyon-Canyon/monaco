@@ -140,11 +140,13 @@ func (m *Module) Pollers() []poller.Poller {
 		)),
 	)
 	facts := mintfacts.New(solana.New(cfg, m.deps.Clock))
+	history := m.priceHistory()
 	return []poller.Poller{
 		app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts),
 		m.samplePrices(),
 		app.NewRetention(m.deps.UoW, m.deps.Clock),
-		app.NewBackfill(m.deps.UoW, m.deps.Pool, m.deps.Clock, m.priceHistory()),
+		app.NewBackfill(m.deps.UoW, m.deps.Pool, m.deps.Clock, history),
+		app.NewReconcile(m.deps.UoW, m.deps.Pool, history),
 	}
 }
 
