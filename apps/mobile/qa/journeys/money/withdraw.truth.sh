@@ -14,7 +14,7 @@ if [[ "$table" != t ]]; then
 fi
 
 sent="$(qa_sql -v a="$a" -v address="$address" <<<"SELECT count(*) FROM withdrawals w JOIN users u ON u.id = w.user_id
-  WHERE u.privy_user_id = :'a' AND w.destination_address = :'address' AND w.created_at > now() - interval '15 minutes'")"
+  WHERE u.privy_user_id = :'a' AND w.to_address = :'address' AND w.created_at > now() - interval '15 minutes'")"
 if [[ "$sent" -ge 1 ]]; then
   echo "ok: A withdrew to $address"
 else

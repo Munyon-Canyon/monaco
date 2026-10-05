@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyWithdrawJourney {
     static let id = "money/withdraw"
-    static let version = 1
+    static let version = 2
 
     static let screenTimeout: TimeInterval = 15
     static let badAddress = "not a solana address"
@@ -84,8 +84,8 @@ enum MoneyWithdrawJourney {
         }
 
         recorder.step("S1.5", "Withdraw sends and toasts") {
-            let withdraw = app.buttons["Withdraw"].firstMatch
-            XCTAssertTrue(withdraw.isEnabled, "S1.5: Withdraw is disabled (known failure, #652)")
+            let withdraw = app.buttons["withdraw-confirm-button"]
+            XCTAssertTrue(withdraw.isEnabled, "S1.5: Withdraw is disabled")
             withdraw.tap()
             let toast = app.staticTexts.matching(
                 NSPredicate(format: "label BEGINSWITH 'Withdrawing $' AND label ENDSWITH 'It lands in about a minute.'")
