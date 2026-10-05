@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -32,6 +33,18 @@ type Module struct {
 	users   app.Users
 	cabals  app.CabalViews
 	pauses  app.CashOutPauses
+	fund    fundDeps
+}
+
+type fundDeps struct {
+	cabals  app.FundCabals
+	wallets app.FundWallets
+	funding fundingProvider
+}
+
+type fundingProvider interface {
+	Balances() fundingport.Balances
+	PausesIn(tx db.Tx) fundingport.Pauses
 }
 
 type (
@@ -64,9 +77,12 @@ func (m *Module) Wire(set module.Set) {
 		case interface{ Queries() cabalport.Queries }:
 			m.members = provider.Queries()
 			m.cabals = provider.Queries()
+			m.fund.cabals = provider.Queries()
 		case interface{ Queries() identityport.Queries }:
 			m.users = provider.Queries()
-		case interface{ Pauses() fundingport.Pauses }:
+			m.fund.wallets = provider.Queries()
+		}
+		if provider, ok := mod.(interface{ Pauses() fundingport.Pauses }); ok {
 			pauses := provider.Pauses()
 			m.pauses = app.CashOutPauseFunc(func(ctx context.Context, cabal ids.CabalID) (app.CashOutPause, error) {
 				pause, err := pauses.IsPaused(ctx, cabal)
@@ -77,6 +93,9 @@ func (m *Module) Wire(set module.Set) {
 				return app.CashOutPause{Paused: pause.Paused, Reasons: reasons, Since: pause.Since}, err
 			})
 		}
+		if provider, ok := mod.(fundingProvider); ok {
+			m.fund.funding = provider
+		}
 	}
 }
 
@@ -85,6 +104,7 @@ func (m *Module) Mount(r api.Mount) {
 	treasuryapi.Mount(adapters.HTTP{
 		Reads:    app.NewActivityReads(m.deps.Pool, m.members, m.users, names),
 		UserTxns: app.NewUserTxnReads(m.deps.Pool, m.cabals, usdc(m.deps.Config)),
+		Fund:     m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),
 		CashOut: app.NewCashOutHandler(
 			m.deps.UoW,
 			m.ledger(),
@@ -95,6 +115,17 @@ func (m *Module) Mount(r api.Mount) {
 			m.deps.Pool,
 		),
 	}, r)
+}
+
+func (m *Module) fundCabalHandler(transfers app.FundTransfers) *app.FundCabalHandler {
+	if m.fund.funding == nil {
+		return nil
+	}
+	return app.NewFundCabalHandler(app.FundCabalDeps{
+		UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock, Cabals: m.fund.cabals, Wallets: m.fund.wallets,
+		Balances: m.fund.funding.Balances(), Pauses: m.fund.funding.PausesIn, Pot: m.reads(), Transfers: transfers,
+		USDC: chain.Mint{Address: chain.SolanaAddress(m.deps.Config.Solana.USDCMint), Decimals: usdcDecimals},
+	})
 }
 
 func (m *Module) Consumers() []bus.Consumer {
@@ -190,6 +221,8 @@ func marketPrices(reader market.Prices) app.PriceReader {
 func (m *Module) ledger() app.Ledger {
 	return app.NewLedger(chain.SolanaAddress(m.deps.Config.Solana.USDCMint), m.deps.Clock)
 }
+
+const usdcDecimals = 6
 
 func usdc(cfg config.Config) domain.Asset {
 	return domain.MintAsset(chain.SolanaAddress(cfg.Solana.USDCMint))
