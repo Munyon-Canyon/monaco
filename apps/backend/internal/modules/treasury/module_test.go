@@ -23,13 +23,19 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
+func TestModule_settlesFundsOnAPoller(t *testing.T) {
+	t.Parallel()
+	if p := treasury.New(module.Deps{}).Pollers(); len(p) != 1 || p[0].Name() != "treasury.fund-transfers" {
+		t.Fatalf("pollers = %v, want treasury.fund-transfers", p)
+	}
+}
+
+func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 	t.Parallel()
 	m := treasury.New(module.Deps{})
 	if m.Name() != "treasury" || !testkit.Serves(m.Mount, "GET", "/v1/me/txns") ||
-		!testkit.Serves(m.Mount, "GET", "/v1/cabals/c/activity") || testkit.Serves(m.Mount, "GET", "/v1/cabals") ||
-		m.Pollers() != nil {
-		t.Fatalf("module = %s, pollers %v", m.Name(), m.Pollers())
+		!testkit.Serves(m.Mount, "GET", "/v1/cabals/c/activity") || testkit.Serves(m.Mount, "GET", "/v1/cabals") {
+		t.Fatalf("module = %s", m.Name())
 	}
 	var got []string
 	for _, c := range m.Consumers() {

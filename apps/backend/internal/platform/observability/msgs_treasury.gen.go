@@ -8,5 +8,8 @@ func init() {
 		TreasuryFundSubmitted,
 		TreasuryFundSignFailed,
 		TreasuryFundBroadcastFailed,
+		TreasuryFundFailed,
+		TreasuryFundMintWaiting,
+		TreasuryFundSettled,
 	)
 }
