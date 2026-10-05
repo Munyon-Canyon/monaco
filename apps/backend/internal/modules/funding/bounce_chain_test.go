@@ -16,6 +16,9 @@ func TestBounceChain_BuildsNoClientUntilFirstUse(t *testing.T) {
 	if mint, err := c.MintConfig(t.Context(), testkit.USDCMint); err != nil || mint.Mint.Decimals != 6 {
 		t.Fatalf("MintConfig = %+v, %v, want the 6 decimal mint", mint, err)
 	}
+	if valid, err := c.BlockhashValid(t.Context(), "11111111111111111111111111111111"); err != nil || !valid {
+		t.Fatalf("BlockhashValid = %v, %v, want true", valid, err)
+	}
 	sigs := []chain.Signature{flow08USDCSig, flow08DustSig, flow08StockSig, flow08OtherSig}
 	if statuses, err := c.SignatureStatuses(t.Context(), sigs); err != nil || len(statuses) != len(sigs) {
 		t.Fatalf("SignatureStatuses = %+v, %v, want one per signature", statuses, err)

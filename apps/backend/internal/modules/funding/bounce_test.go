@@ -30,6 +30,8 @@ type bounceChain struct {
 	onStatus    func()
 	mintErr     error
 	accountsErr error
+	expired     bool
+	hashErr     error
 	closed      bool
 	state       solana.State
 	failed      bool
@@ -39,6 +41,10 @@ type bounceChain struct {
 
 func (c *bounceChain) MintConfig(_ context.Context, mint chain.SolanaAddress) (solana.MintConfig, error) {
 	return solana.MintConfig{Mint: chain.Mint{Address: mint, Decimals: 6}, TokenProgram: chain.SPLProgram}, c.mintErr
+}
+
+func (c *bounceChain) BlockhashValid(context.Context, string) (bool, error) {
+	return !c.expired, c.hashErr
 }
 
 func (c *bounceChain) Accounts(
@@ -85,7 +91,9 @@ func (b *bounceTransfers) Build(_ context.Context, spec relayer.TransferSpec) (r
 		b.onBuild()
 	}
 	sig := chain.Signature("bounce-" + strconv.Itoa(len(b.builds)))
-	return relayer.SignedTx{Bytes: []byte(sig), Signature: sig, LastValidBlockHeight: 900}, b.buildErr
+	msg := relayer.TransferMessage(withdrawTo, spec, chain.SPLProgram, [32]byte{1})
+	raw := chain.Transaction{Signatures: [][]byte{make([]byte, 64), make([]byte, 64)}, Message: msg}.Encode()
+	return relayer.SignedTx{Bytes: raw, Signature: sig, LastValidBlockHeight: 900}, b.buildErr
 }
 
 func (b *bounceTransfers) Broadcast(_ context.Context, tx relayer.SignedTx) error {
