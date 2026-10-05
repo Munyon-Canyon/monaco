@@ -100,7 +100,8 @@ jobs:
     needs: plan
     if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The staging stage also builds the cmd binaries and saves the ~6.6 GB Go cache, which alone takes up to 5 minutes.
+    timeout-minutes: ${{ inputs.stage == 'staging' && 16 || 10 }}
     strategy:
       fail-fast: false
       matrix:
