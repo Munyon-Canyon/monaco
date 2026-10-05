@@ -2,7 +2,7 @@ name: Backend test environment
 description: >-
   Everything apps/backend tests need on a fresh runner: Go from go.mod, the Go cache staging.yml saved,
   the pinned atlas that builds the testkit template database, the pinned sqlc, and the tmpfs test Postgres.
-  With db false, only Go and the Go cache.
+  With db false, only Go and the Go cache. With go-cache false, no Go cache: modules download from the proxy.
 inputs:
   db:
     description: Install atlas and sqlc and start the test Postgres.
@@ -13,6 +13,12 @@ inputs:
       The backend matrix leg (its artifact name). Restores that leg's cache first, then any leg's.
     required: false
     default: ''
+  go-cache:
+    description: >-
+      Restore the Go module and build cache staging.yml saved (about 6.6 GB). A job that only needs module
+      sources, such as govulncheck, sets false: a cold go mod download is faster than the restore.
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -25,6 +31,7 @@ runs:
     # warm-cache job saves one on main. PRs and the merge queue restore it from staging, the default branch,
     # and never save. A backend leg restores its own leg's cache first; every other job takes the newest.
     - uses: actions/cache/restore@v4
+      if: inputs.go-cache == 'true'
       with:
         path: |
           ~/go/pkg/mod
