@@ -35,7 +35,7 @@ func (q cashOutTestQueries) CashOutShares(context.Context, sqlc.CashOutSharesPar
 	return q.shares, q.shareErr
 }
 
-func (q cashOutTestQueries) CashOutTreasuryUSDC(context.Context, sqlc.CashOutTreasuryUSDCParams) (string, error) {
+func (q cashOutTestQueries) CashOutShortfall(context.Context, sqlc.CashOutShortfallParams) (string, error) {
 	return q.cash, q.cashErr
 }
 
@@ -55,7 +55,7 @@ func (v cashOutTestValues) PotValue(context.Context, ids.CabalID) (money.Micros,
 func TestCashOut_queriesFail(t *testing.T) {
 	t.Parallel()
 	testErr := errs.New(errs.CodeInternal, "test")
-	q := cashOutTestQueries{shares: sqlc.CashOutSharesRow{Shares: "100", Total: "100"}, cash: "1000000"}
+	q := cashOutTestQueries{shares: sqlc.CashOutSharesRow{Shares: "100", Total: "100"}, cash: "0"}
 	h := CashOutHandler{
 		values: cashOutTestValues{}, usdc: "USDC", clock: clock.Real{}, ids: ids.Real{},
 		post: func(context.Context, db.Tx, domain.UserTxn) error { return testErr },
@@ -95,12 +95,12 @@ func TestCashOut_queriesFail(t *testing.T) {
 	q.cashErr = nil
 	q.cash = "bad"
 	record()
-	q.cash = "1000000"
+	q.cash = "0"
 	q.insertErr = testErr
 	record()
 	q.insertErr = nil
 	record()
-	q.cash = "18446744073709551615"
+	q.cash = "0"
 	payout = money.MicrosFromUint64(math.MaxUint64)
 	record()
 	payout, units = cmd.PayoutMicros, money.SharesUnitsFromUint64(math.MaxUint64)

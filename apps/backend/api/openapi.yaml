@@ -2526,6 +2526,7 @@ components:
         - request_not_needed
         - request_pending
         - rpc_unavailable
+        - sale_short
         - session_required
         - slippage_exceeded
         - storage_unavailable
@@ -2533,7 +2534,6 @@ components:
         - swap_not_found
         - swap_not_retryable
         - swap_not_stuck
-        - treasury_short
         - unauthorized
         - upstream_timeout
         - upstream_unavailable
