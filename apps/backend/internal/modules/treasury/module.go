@@ -140,6 +140,8 @@ func (m *Module) SignatureOwner() *adapters.Queries { return m.reads() }
 
 func (m *Module) WalletLedger() *adapters.Queries { return m.reads() }
 
+func (m *Module) FundOutflows() adapters.FundOutflows { return adapters.NewFundOutflows(m.deps.Pool) }
+
 func (m *Module) reads() *adapters.Queries {
 	marketModule := market.New(m.deps)
 	return adapters.NewQueries(

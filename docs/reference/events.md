@@ -83,6 +83,49 @@ Subject `events.cabal.created`, version 1.
 | `slippage_bps` | `int32` |
 | `treasury_address` | `chain.SolanaAddress` |
 
+## `cabal.fund_failed`
+
+Subject `events.cabal.fund_failed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `transfer_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `amount_micros` | `money.Micros` |
+| `code` | `string` |
+
+## `cabal.fund_submitted`
+
+Subject `events.cabal.fund_submitted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `transfer_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `amount_micros` | `money.Micros` |
+| `tx_signature` | `chain.Signature` |
+
+## `cabal.funded`
+
+Subject `events.cabal.funded`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `transfer_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `amount_micros` | `money.Micros` |
+| `share_units` | `money.SharesUnits` |
+| `share_price_micros` | `money.Micros` |
+| `pot_value_before_micros` | `money.Micros` |
+| `total_shares_after` | `money.SharesUnits` |
+| `tx_signature` | `chain.Signature` |
+
 ## `cabal.member_joined`
 
 Subject `events.cabal.member_joined`, version 1.

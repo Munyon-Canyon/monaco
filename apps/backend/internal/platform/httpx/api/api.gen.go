@@ -43,6 +43,7 @@ const (
 	FeedItemNotFound           ErrorCode = "feed_item_not_found"
 	FeedItemPending            ErrorCode = "feed_item_pending"
 	Forbidden                  ErrorCode = "forbidden"
+	FundNotSent                ErrorCode = "fund_not_sent"
 	HandleInvalid              ErrorCode = "handle_invalid"
 	HandleRequired             ErrorCode = "handle_required"
 	HandleReserved             ErrorCode = "handle_reserved"
@@ -185,6 +186,8 @@ func (e ErrorCode) Valid() bool {
 	case FeedItemPending:
 		return true
 	case Forbidden:
+		return true
+	case FundNotSent:
 		return true
 	case HandleInvalid:
 		return true
