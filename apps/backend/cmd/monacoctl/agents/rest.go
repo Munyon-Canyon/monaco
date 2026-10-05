@@ -442,7 +442,7 @@ func draftsFrom(pulls []restPull) []queueDraft {
 		}
 		d := queueDraft{
 			Number: p.Number, State: p.graphState(), Title: p.Title, Body: p.Body,
-			HeadRefName: p.Head.Ref, UpdatedAt: p.UpdatedAt,
+			HeadRefName: p.Head.Ref, HeadRefOID: p.Head.SHA, UpdatedAt: p.UpdatedAt,
 		}
 		d.Commits.Nodes = append(d.Commits.Nodes, struct {
 			Commit gqlCommit `json:"commit"`

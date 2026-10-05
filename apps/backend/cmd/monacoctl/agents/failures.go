@@ -47,6 +47,7 @@ type queueDraft struct {
 	Title       string      `json:"title"`
 	Body        string      `json:"body"`
 	HeadRefName string      `json:"headRefName"`
+	HeadRefOID  string      `json:"headRefOid"`
 	UpdatedAt   time.Time   `json:"updatedAt"`
 	Commits     lastCommits `json:"commits"`
 }
