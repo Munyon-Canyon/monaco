@@ -62,3 +62,45 @@ func DepositCreditedBalances(usdc domain.Asset) BalanceRule {
 		return []Balance{{Owner: "wallet:" + e.UserID.String(), Asset: string(usdc), Amount: amount}}, nil
 	}
 }
+
+func (h UserLedger) Withdrawal(ctx context.Context, tx db.Tx, e events.WithdrawalConfirmed, _ time.Time) error {
+	amount, err := e.AmountMicros.Delta(money.Micros{})
+	if err != nil {
+		return err
+	}
+	user := ids.UserIDFrom(e.UserID)
+	txn, err := domain.NewUserTxn(domain.UserTxnHeader{
+		ID: e.WithdrawalID, UserID: user, Kind: domain.UserWithdrawal,
+		Status: domain.TxnSettled, TxSignature: e.TxSignature,
+	}, []domain.UserEntry{
+		{Account: domain.UserWallet, Asset: h.USDC, Amount: money.SignedMicrosFromInt64(-amount.Int64())},
+		{Account: domain.UserExternal, Asset: h.USDC, Amount: amount},
+	})
+	if err != nil {
+		return err
+	}
+	if err := h.Ledger.PostUserTxn(ctx, tx, txn); err != nil {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		h.Hints.PublishHint(ctx, events.UserBalanceChangedHint(user), nil)
+	})
+	return nil
+}
+
+func WithdrawalConfirmedBalances(usdc domain.Asset) BalanceRule {
+	return func(payload []byte) ([]Balance, error) {
+		var e events.WithdrawalConfirmed
+		if err := json.Unmarshal(payload, &e); err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.WithdrawalConfirmedBalances")
+		}
+		amount, err := e.AmountMicros.Delta(money.Micros{})
+		if err != nil {
+			return nil, err
+		}
+		return []Balance{{
+			Owner: "wallet:" + e.UserID.String(), Asset: string(usdc),
+			Amount: money.SignedMicrosFromInt64(-amount.Int64()),
+		}}, nil
+	}
+}
