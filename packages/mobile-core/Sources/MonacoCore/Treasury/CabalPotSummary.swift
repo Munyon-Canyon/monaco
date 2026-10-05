@@ -37,6 +37,7 @@ public struct CabalPotSummary: Equatable, Sendable {
     public let cash: String
     public let slice: Slice?
     public let holdings: [Row]
+    public let sellable: [ProposeHolding]
     public let legend: [Segment]
     public let state: PotState
 
@@ -60,6 +61,7 @@ public struct CabalPotSummary: Equatable, Sendable {
                 value: UsdAmountFormatter.format(micros: holding.valueMicros),
                 gain: UsdAmountFormatter.format(signedMicros: holding.pnlMicros))
         }
+        sellable = pot.holdings.map(ProposeHolding.init)
         legend =
             pot.holdings.map { holding in
                 Segment(
