@@ -129,7 +129,7 @@ func TestGetFeedItem_refusesBadFiltersAndUnknownItems(t *testing.T) {
 	f := newFeedFixture(t)
 	ctx := asUser(t.Context(), ids.NewUserID(f.gen))
 	_, err := f.routes().GetFeedItem(ctx, api.GetFeedItemRequestObject{
-		Id: f.gen.NewV7(), Params: api.GetFeedItemParams{Scope: ptr(api.GetFeedItemParamsScope("mine"))},
+		Id: f.gen.NewV7(), Params: api.GetFeedItemParams{Scope: ptr(api.GetFeedItemParamsScope("bogus"))},
 	})
 	wantCode(t, err, errs.CodeInvalidInput)
 	_, err = f.routes().GetFeedItem(ctx, api.GetFeedItemRequestObject{Id: f.gen.NewV7()})

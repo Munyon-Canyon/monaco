@@ -40,6 +40,36 @@ WHERE (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds):
     )
   )
   AND (
+    NOT sqlc.arg(mine)::bool
+    OR (
+      f.kind <> 'price_move'
+      AND EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+    )
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+  )
+  AND (
     NOT sqlc.arg(has_cursor)::bool
     OR (f.created_at, f.id) < (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_id)::uuid)
   )
@@ -63,6 +93,36 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
       OR coalesce(f.actor_id IN (
         SELECT followee_id FROM follows WHERE follower_id = sqlc.arg(viewer)::uuid AND deleted_at IS NULL
       ), false)
+    )
+    AND (
+      NOT sqlc.arg(mine)::bool
+      OR (
+        f.kind <> 'price_move'
+        AND EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+      )
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
     )
   )::bool AS visible
 FROM feed_objects f

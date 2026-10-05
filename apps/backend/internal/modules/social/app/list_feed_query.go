@@ -104,7 +104,7 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 func filterParams(viewer ids.UserID, f FeedFilter) sqlc.ListFeedParams {
 	return sqlc.ListFeedParams{
 		Kinds: kindStrings(f.Kinds), CabalID: f.CabalID.UUID(), Symbol: f.Symbol, Q: f.Q,
-		Following: f.Scope == feed.ScopeFollowing, Viewer: viewer.UUID(),
+		Following: f.Scope == feed.ScopeFollowing, Mine: f.Scope == feed.ScopeMine, Viewer: viewer.UUID(),
 	}
 }
 

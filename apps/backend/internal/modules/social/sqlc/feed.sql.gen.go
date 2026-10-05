@@ -31,9 +31,39 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
         SELECT followee_id FROM follows WHERE follower_id = $6::uuid AND deleted_at IS NULL
       ), false)
     )
+    AND (
+      NOT $7::bool
+      OR (
+        f.kind <> 'price_move'
+        AND EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = $6::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+      )
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = $6::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = $6::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = $6::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = $6::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM feed_mutes m
+      WHERE m.user_id = $6::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+    )
   )::bool AS visible
 FROM feed_objects f
-WHERE f.id = $7
+WHERE f.id = $8
 `
 
 type GetFeedItemParams struct {
@@ -43,6 +73,7 @@ type GetFeedItemParams struct {
 	Q         string
 	Following bool
 	Viewer    uuid.UUID
+	Mine      bool
 	ID        uuid.UUID
 }
 
@@ -72,6 +103,7 @@ func (q *Queries) GetFeedItem(ctx context.Context, arg GetFeedItemParams) (GetFe
 		arg.Q,
 		arg.Following,
 		arg.Viewer,
+		arg.Mine,
 		arg.ID,
 	)
 	var i GetFeedItemRow
@@ -115,10 +147,40 @@ WHERE (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
   )
   AND (
     NOT $7::bool
-    OR (f.created_at, f.id) < ($8::timestamptz, $9::uuid)
+    OR (
+      f.kind <> 'price_move'
+      AND EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = $6::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+    )
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+  )
+  AND (
+    NOT $8::bool
+    OR (f.created_at, f.id) < ($9::timestamptz, $10::uuid)
   )
 ORDER BY f.created_at DESC, f.id DESC
-LIMIT $10::int
+LIMIT $11::int
 `
 
 type ListFeedParams struct {
@@ -128,6 +190,7 @@ type ListFeedParams struct {
 	Q         string
 	Following bool
 	Viewer    uuid.UUID
+	Mine      bool
 	HasCursor bool
 	AfterAt   time.Time
 	AfterID   uuid.UUID
@@ -159,6 +222,7 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 		arg.Q,
 		arg.Following,
 		arg.Viewer,
+		arg.Mine,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
