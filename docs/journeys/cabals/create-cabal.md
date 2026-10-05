@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 2
+version: 3
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -46,7 +46,7 @@ Starts on the form (S1).
 | S2.3 | tap twice | `create-group-submit` | | The cabal screen shows within 20 s: `cabal-header-name` is the typed name, and the form is gone. The second tap proves "Creating…" holds off a duplicate. Old app: Create pushed `GroupDetailView` |
 | S2.4 | wait | the toast | | "Cabal created." shows within 5 s of S2.3. Old app: the same toast over `GroupDetailView` |
 | S2.5 | wait | `cabal-member-count` | | Reads "1 member", the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
-| S2.6 | tap | Back | | The Cabals tab shows `cabals-list` ("Your cabals") within 10 s, exactly one card in it is named the typed name, and the dashed `cabals-list-new` ("+ New cabal") card is there. Old app: Back to `CabalsTabView`'s cabals strip |
+| S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-list` ("Your cabals") within 10 s, exactly one card in it is named the typed name, and the dashed `cabals-list-new` ("+ New cabal") card is there. Old app: Back to `CabalsTabView`'s cabals strip |
 
 ### S3 A blank name cannot be submitted
 

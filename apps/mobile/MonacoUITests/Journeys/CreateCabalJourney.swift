@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 2
+    static let version = 3
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -105,6 +105,7 @@ enum CreateCabalJourney {
 
         recorder.step("S2.6", "go back to the Cabals list and find the cabal once") {
             app.waitForToastGone()
+            app.dismissPushPrePromptIfShown()
             app.tapBack()
             let list = app.element("cabals-list")
             XCTAssertTrue(list.waitForExistence(timeout: formTimeout), "S2.6: Back did not land on the Cabals list")

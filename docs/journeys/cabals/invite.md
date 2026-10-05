@@ -1,7 +1,7 @@
 ---
 id: cabals/invite
 title: Invite a member
-version: 2
+version: 3
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -37,7 +37,7 @@ The setup runs before every scenario, because S1 uses up the invite it makes. It
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Cabals tab | | `cabals-invites` shows one `cabal-invite-row` within 10 s, naming `QA pot` and reading "invited you". screens.md: `CabalsInvitesSlot`, "Cabal invites". Old app: none, invites are new in #696 |
 | S1.2 | A | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s, and `cabal-details-button` shows within 15 s. Old app: none, invites are new in #696 |
-| S1.3 | A | tap | `cabal-details-button` | | `cabal-invite-member-row` shows within 10 s. screens.md: `CabalInviteMemberSlot`, "Invite someone". Old app: "i" opened `GroupDetailsSheet`, which had the invite code and no invite by handle |
+| S1.3 | A | tap | `cabal-details-button` | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the Cabal details sheet (`cabal-details-done`) shows within 10 s and `cabal-invite-member-row` shows within 10 s. screens.md: `CabalInviteMemberSlot`, "Invite someone". Old app: "i" opened `GroupDetailsSheet`, which had the invite code and no invite by handle |
 | S1.4 | A | tap | `cabal-invite-member-row` | | `invite-member-handle-field` and `invite-member-pending-empty` show within 10 s. Old app: none, invites are new in #696 |
 | S1.5 | A | type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@nobody_zz` | The toast "No one on Monaco has that handle." shows within 10 s. Old app: none, invites are new in #696 |
 | S1.6 | A | clear, type, then tap | `invite-member-handle-field`, then `invite-member-send-button` | `@QA_B` | The toast "Invite sent." shows within 10 s. One `invite-member-pending-row` reads "@qa_b" and "Expires in 7 days". Old app: none, invites are new in #696 |
