@@ -37,6 +37,7 @@ type Module struct {
 	users           app.Users
 	cabals          app.CabalViews
 	pauses          app.CashOutPauses
+	withdrawals     fundingport.Withdrawals
 	fund            fundDeps
 	treasuryWallets app.TreasuryWallets
 	memberWallets   app.MemberWallets
@@ -67,6 +68,7 @@ func New(d module.Deps) *Module {
 	return &Module{
 		deps: d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{},
 		treasuryWallets: app.UnwiredReads{}, memberWallets: app.UnwiredReads{},
+		withdrawals: app.UnwiredReads{},
 		pauses: app.CashOutPauseFunc(func(context.Context, ids.CabalID) (app.CashOutPause, error) {
 			return app.CashOutPause{}, errs.New(
 				errs.CodeUpstreamUnavailable,
@@ -102,6 +104,11 @@ func (m *Module) Wire(set module.Set) {
 				return app.CashOutPause{Paused: pause.Paused, Reasons: reasons, Since: pause.Since}, err
 			})
 		}
+		if provider, ok := mod.(interface {
+			Withdrawals() fundingport.Withdrawals
+		}); ok {
+			m.withdrawals = provider.Withdrawals()
+		}
 		if provider, ok := mod.(fundingProvider); ok {
 			m.fund.funding = provider
 		}
@@ -112,7 +119,7 @@ func (m *Module) Mount(r api.Mount) {
 	names := catalogNames{Catalog: market.New(m.deps).Catalog()}
 	treasuryapi.Mount(adapters.HTTP{
 		Reads:     app.NewActivityReads(m.deps.Pool, m.members, m.users, names),
-		UserTxns:  app.NewUserTxnReads(m.deps.Pool, m.cabals, usdc(m.deps.Config)),
+		UserTxns:  app.NewUserTxnReads(m.deps.Pool, m.cabals, m.withdrawals, usdc(m.deps.Config)),
 		FundReads: m.deps.Pool,
 		Fund:      m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),
 		CashOut: app.NewCashOutHandler(

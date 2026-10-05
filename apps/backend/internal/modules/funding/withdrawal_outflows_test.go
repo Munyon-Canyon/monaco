@@ -1,9 +1,11 @@
 package funding_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -50,5 +52,20 @@ func TestWithdrawalOutflows_sumsCreatedAndSubmitted(t *testing.T) {
 	}
 	if _, err := (app.WithdrawalOutflows{Reads: pool}).InFlightMicros(t.Context(), user.ID); err == nil {
 		t.Fatal("InFlightMicros error = nil")
+	}
+}
+
+func TestWithdrawalReads_returnsTheReadError(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := (app.WithdrawalReads{Reads: pool}).OpenWithdrawals(
+		ctx,
+		user.ID,
+		port.WithdrawalPage{Limit: 1},
+	); err == nil {
+		t.Fatal("OpenWithdrawals on a canceled context error = nil")
 	}
 }

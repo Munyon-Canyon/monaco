@@ -75,7 +75,7 @@ func TestUserTxns_listOpenFundsAsPendingOrFailed(t *testing.T) {
 	h.clock.Advance(time.Second)
 	h.stubs.buildErr = errs.New(errs.CodePrivyUnavailable, "stub")
 	_, _ = h.fund(3_000_000)
-	reads := app.NewUserTxnReads(h.pool, namedCabals{}, h.usdc())
+	reads := app.NewUserTxnReads(h.pool, namedCabals{}, noWithdrawals{}, h.usdc())
 	page, err := reads.List(h.ctx(), app.ListUserTxns{UserID: h.user})
 	if err != nil {
 		t.Fatal(err)

@@ -48,3 +48,11 @@ LIMIT sqlc.arg(max_rows);
 UPDATE withdrawals
 SET status = 'confirmed', completed_at = sqlc.arg(completed_at)::timestamptz
 WHERE id = $1 AND status = 'submitted';
+
+-- name: ListOpenWithdrawals :many
+SELECT id, status, (-amount_micros)::bigint AS amount, tx_signature, created_at
+FROM withdrawals
+WHERE user_id = @user_id AND status <> 'confirmed'
+  AND (NOT @has_cursor::bool OR (created_at, id) < (@cursor_at::timestamptz, @cursor_id::uuid))
+ORDER BY created_at DESC, id DESC
+LIMIT @row_limit;

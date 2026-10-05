@@ -13,6 +13,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
@@ -58,7 +60,53 @@ func withActivity() scenario.Option {
 		func(d module.Deps) module.Module { return treasury.New(d) },
 		func(d module.Deps) module.Module { return cabalReads{readsOnly{"cabal"}, d} },
 		func(d module.Deps) module.Module { return identityReads{readsOnly{"identity"}, d} },
+		func(d module.Deps) module.Module { return withdrawalReads{readsOnly{"funding"}, funding.New(d)} },
 	)
+}
+
+type withdrawalReads struct {
+	readsOnly
+	m *funding.Module
+}
+
+func (w withdrawalReads) Withdrawals() fundingport.Withdrawals { return w.m.Withdrawals() }
+
+type noWithdrawals struct{}
+
+func (noWithdrawals) OpenWithdrawals(
+	context.Context, ids.UserID, fundingport.WithdrawalPage,
+) ([]fundingport.OpenWithdrawal, error) {
+	return nil, nil
+}
+
+type seededWithdrawal struct {
+	txn  seededUserTxn
+	db   string
+	user ids.UserID
+}
+
+func seedWithdrawals(t *testing.T, pool *pgxpool.Pool, rows ...seededWithdrawal) {
+	t.Helper()
+	for _, w := range rows {
+		var failCode, completed any
+		if w.db == "failed" || w.db == "confirmed" {
+			completed = w.txn.at
+		}
+		if w.db == "failed" {
+			failCode = "withdrawal_not_sent"
+		}
+		var signed, height, submitted any
+		if w.txn.signature != nil {
+			signed, height, submitted = []byte{1}, 100, w.txn.at
+		}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO withdrawals (id, user_id, amount_micros, to_address, status,
+			signed_tx, tx_signature, last_valid_block_height, fail_code, created_at, submitted_at, completed_at)
+			VALUES ($1, $2, $3, 'dest', $4, $5, $6, $7, $8, $9, $10, $11)`,
+			w.txn.id, w.user.UUID(), -w.txn.amount, w.db, signed, w.txn.signature, height, failCode, w.txn.at,
+			submitted, completed); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func seedAAPLx(t *testing.T, pool *pgxpool.Pool) {
@@ -258,6 +306,44 @@ func TestUserTxnRoute_listsOnlyTheCallerHistoryWithStablePages(t *testing.T) {
 		)
 }
 
+func TestUserTxnRoute_pagesOpenWithdrawalsWithTheLedgerAndHidesConfirmedOnes(t *testing.T) {
+	t.Parallel()
+	s := scenario.New(t, withActivity())
+	c := testkit.NewCabal(t, s.DB(), testkit.WithMembers(2))
+	me, g, base := c.Creator.ID, testkit.NewIDs(65), clock.Real{}.Now().UTC().Truncate(time.Second)
+	sentSig, doneSig := string(swapSig)+"w", string(swapSig)+"c"
+	deposit := seededUserTxn{
+		id: g.NewV7(), at: base.Add(-2 * time.Minute), user: me, kind: "deposit", status: "settled", amount: 9000000,
+	}
+	seedUserTxns(t, s.DB(), deposit)
+	open := func(at time.Duration, status string, amount int64, sig *string) seededUserTxn {
+		return seededUserTxn{
+			id: g.NewV7(), at: base.Add(at), user: me, kind: "withdrawal", status: status, amount: amount,
+			signature: sig,
+		}
+	}
+	created, submitted, failed := open(-time.Minute, "pending", -1000000, nil),
+		open(0, "pending", -2000000, &sentSig), open(time.Minute, "failed", -3000000, nil)
+	confirmed := open(2*time.Minute, "settled", -4000000, &doneSig)
+	theirs := open(3*time.Minute, "pending", -5000000, nil)
+	seedWithdrawals(t, s.DB(),
+		seededWithdrawal{created, "created", me}, seededWithdrawal{submitted, "submitted", me},
+		seededWithdrawal{failed, "failed", me}, seededWithdrawal{confirmed, "confirmed", me},
+		seededWithdrawal{theirs, "created", c.Members[1].ID},
+	)
+	s.Given(scenario.AsSeededUser("creator", me)).
+		When(
+			scenario.Get("/v1/me/txns?limit=2"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("items", []any{wireUserTxn(failed, nil), wireUserTxn(submitted, nil)}),
+			scenario.Remember("next_cursor", "cursor"),
+			scenario.Get("/v1/me/txns?limit=2&cursor={cursor}"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("items", []any{wireUserTxn(created, nil), wireUserTxn(deposit, nil)}),
+			scenario.ExpectJSON("next_cursor", nil),
+		)
+}
+
 func TestUserTxnRoute_returnsNullForAFundWhoseCabalIsGone(t *testing.T) {
 	t.Parallel()
 	s := scenario.New(t, withActivity())
@@ -293,7 +379,8 @@ func TestUserTxnRoute_refusesInvalidPagesAndUnwiredCabalReads(t *testing.T) {
 		s.When(scenario.Get("/v1/me/txns?cursor="+cursor)).
 			Then(scenario.ExpectStatus(http.StatusBadRequest), scenario.ExpectProblem(errs.CodeInvalidInput))
 	}
-	reads := app.NewUserTxnReads(s.DB(), app.UnwiredReads{}, domain.MintAsset(testkit.USDCMint))
+	usdcAsset := domain.MintAsset(testkit.USDCMint)
+	reads := app.NewUserTxnReads(s.DB(), app.UnwiredReads{}, noWithdrawals{}, usdcAsset)
 	_, err := reads.List(t.Context(), app.ListUserTxns{UserID: c.Creator.ID, Limit: 101})
 	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("invalid limit error = %v, want %s", err, errs.CodeInvalidInput)
@@ -301,6 +388,11 @@ func TestUserTxnRoute_refusesInvalidPagesAndUnwiredCabalReads(t *testing.T) {
 	_, err = reads.List(t.Context(), app.ListUserTxns{UserID: c.Creator.ID})
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("unwired cabals error = %v, want %s", err, errs.CodeUpstreamUnavailable)
+	}
+	unwired := app.NewUserTxnReads(s.DB(), app.UnwiredReads{}, app.UnwiredReads{}, usdcAsset)
+	_, err = unwired.List(t.Context(), app.ListUserTxns{UserID: c.Creator.ID})
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired withdrawals error = %v, want %s", err, errs.CodeUpstreamUnavailable)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
