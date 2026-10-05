@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
 func saleAndPayout(t *testing.T, invested uint64) (*saleRig, *payoutRig) {
@@ -46,6 +47,10 @@ func (r *payoutRig) wantEnded(t *testing.T, want events.Type) {
 
 func TestCashOutSale_shortProceedsPayPartialAndNoProceedsFail(t *testing.T) {
 	t.Parallel()
+	t.Run("a short Jupiter fill pays what it raised", func(t *testing.T) {
+		t.Parallel()
+		flows.F14CashOutPayoutsSaleShort(flow14(t))
+	})
 	t.Run("partial proceeds pay what the sale raised and return the uncovered units", func(t *testing.T) {
 		t.Parallel()
 		s, r := saleAndPayout(t, 80_000_000)

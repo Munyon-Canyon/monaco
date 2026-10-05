@@ -1,13 +1,22 @@
 package flows
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -151,7 +160,7 @@ func chainSays(fixture string) scenario.Step {
 	})
 }
 
-func outageRetried(code errs.Code) scenario.Step {
+func payoutDispatched(code errs.Code) scenario.Step {
 	return func(s *scenario.Scenario) {
 		var started string
 		if err := s.DB().QueryRow(s.Context(),
@@ -231,7 +240,7 @@ func F14CashOutPayoutsPrivyUnavailable(s *scenario.Scenario) {
 	s.Given(append(f14Staked("privy"),
 		treasurySigning(fakes.ActionFail, privyAttempts), chainSays("finalized"))...).
 		When(cashedOut("1000000")...).
-		Then(append([]scenario.Step{outageRetried(errs.CodePrivyUnavailable)}, paid()...)...)
+		Then(append([]scenario.Step{payoutDispatched(errs.CodePrivyUnavailable)}, paid()...)...)
 }
 
 func F14CashOutPayoutsRPCUnavailable(s *scenario.Scenario) {
@@ -240,7 +249,7 @@ func F14CashOutPayoutsRPCUnavailable(s *scenario.Scenario) {
 		Times: rpcAttempts,
 	}), chainSays("finalized"))...).
 		When(cashedOut("1000000")...).
-		Then(append([]scenario.Step{outageRetried(errs.CodeRPCUnavailable)}, paid()...)...)
+		Then(append([]scenario.Step{payoutDispatched(errs.CodeRPCUnavailable)}, paid()...)...)
 }
 
 func CashOutRejectedOnChain(s *scenario.Scenario) {
@@ -254,4 +263,140 @@ func CashOutRejectedOnChain(s *scenario.Scenario) {
 			sharesHeld("2000000"),
 			cabalHolds(),
 		)
+}
+
+const (
+	f14StockUnits = 1_000_000
+	f14StockQuote = 1_000_000
+	f14SaleRaised = 990_000
+)
+
+func f14Stock(script string) chain.SolanaAddress {
+	return chain.AddressOf(fakes.FixtureKey("f14-stock-" + script).Public().(ed25519.PublicKey))
+}
+
+func stockHeld(script string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		mint, now := f14Stock(script), time.Now().UTC()
+		if _, err := s.DB().Exec(s.Context(), `INSERT INTO assets (
+			id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at)
+			VALUES ($4, $1, $2, 8, 'xstocks', 'equity', $1, true, $1, $3, $3, $3)`,
+			"F14"+script+"x", string(mint), now, uuid.Must(uuid.NewV7())); err != nil {
+			s.Fatalf("flows: seed the held stock: %v", err)
+		}
+		if _, err := s.DB().Exec(s.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
+			VALUES ($1, $2, 100000000, 'jupiter')`, string(mint), now); err != nil {
+			s.Fatalf("flows: price the held stock: %v", err)
+		}
+		holding(mint, f14StockUnits)(s)
+	}
+}
+
+func jupiterSells(script string, raised string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		mint := string(f14Stock(script))
+		payer := chain.AddressOf(fakes.FixtureKey("f14-relayer").Public().(ed25519.PublicKey))
+		unsigned := chainfake.Unsigned(payer, chainfake.WalletAddress(treasuryWalletID(s)))
+		order, _ := json.Marshal(map[string]any{
+			"requestId": "req-f14-" + script, "inputMint": mint, "outputMint": testkit.USDCMint,
+			"inAmount": strconv.Itoa(f14StockUnits), "outAmount": strconv.Itoa(f14StockQuote), "router": "iris",
+			"priceImpactPct": "0.01", "routePlan": []any{map[string]any{"percent": 100}},
+			"transaction": base64.StdEncoding.EncodeToString(unsigned),
+		})
+		scenario.FakeUpstream(fakes.Step{
+			Route: "/jupiter/swap/v2/order", Method: http.MethodGet, Action: fakes.ActionSucceed,
+			Query: map[string]string{"inputMint": mint}, Status: http.StatusOK, Body: order, Times: 2,
+		})(s)
+		executed, _ := json.Marshal(map[string]any{
+			"status": "Success", "signature": "", "code": 0,
+			"inputAmountResult": strconv.Itoa(f14StockUnits), "outputAmountResult": raised,
+		})
+		scenario.FakeUpstream(fakes.Step{
+			Route: "/jupiter/swap/v2/execute", Method: http.MethodPost, Action: fakes.ActionSucceed,
+			Status: http.StatusOK, Body: executed,
+		})(s)
+	}
+}
+
+func treasuryWalletID(s *scenario.Scenario) string {
+	route := signRoute(s)
+	return route[len("/privy/v1/wallets/") : len(route)-len("/rpc")]
+}
+
+func f14Selling(script string, raised int) []scenario.Step {
+	return append(f14Staked(script), stockHeld(script), jupiterSells(script, strconv.Itoa(raised)),
+		chainSays("finalized"))
+}
+
+func cashedOutAll() []scenario.Step {
+	return []scenario.Step{
+		scenario.Post(cashOutsPath, `{"all":true}`),
+		scenario.ExpectStatus(http.StatusAccepted),
+		scenario.ExpectJSON("status", "started"),
+		scenario.Remember("id", "job"),
+	}
+}
+
+func paidWhatTheSaleRaised(s *scenario.Scenario) {
+	var payout, returned string
+	if err := s.DB().QueryRow(s.Context(),
+		`SELECT payout_micros::text, returned_units::text FROM cash_out_jobs WHERE id = $1`, s.Recall("job"),
+	).Scan(&payout, &returned); err != nil {
+		s.Fatalf("flows: read the cash out job: %v", err)
+	}
+	if want := strconv.Itoa(f14Stake + f14SaleRaised); payout != want || returned == "0" {
+		s.Fatalf("flows: paid %s and returned %s share units, want %s paid and some units returned",
+			payout, returned, want)
+	}
+	sharesHeld(returned)(s)
+}
+
+func F14CashOutPayoutsSaleShort(s *scenario.Scenario) {
+	s.Given(f14Selling("short", f14SaleRaised)...).
+		When(cashedOutAll()...).
+		Then(
+			jobEnds("partial", string(errs.CodeSaleShort)),
+			payoutAttempts("confirmed"),
+			jobEvents(events.TypeCashOutPartial, 1),
+			jobEvents(events.TypeCashOutCompleted, 0),
+			paidWhatTheSaleRaised,
+			payoutDispatched(errs.CodeSaleShort),
+			cabalHolds(),
+		)
+}
+
+func soldOnce(s *scenario.Scenario) {
+	var swaps int
+	if err := s.DB().QueryRow(s.Context(),
+		`SELECT count(*) FROM swaps WHERE source_kind = 'cashout' AND source_id = $1`, s.Recall("job"),
+	).Scan(&swaps); err != nil {
+		s.Fatalf("flows: count the cash out swaps: %v", err)
+	}
+	if swaps != 1 {
+		s.Fatalf("flows: the cash out sold in %d swaps, want 1", swaps)
+	}
+}
+
+func sellCrashed(script string, point faultpoint.Name) func(*scenario.Scenario) {
+	return func(s *scenario.Scenario) {
+		s.Given(f14Selling(script, f14StockQuote)...).
+			When(append(cashedOutAll(), scenario.PublishCrashingAt(point))...).
+			Then(
+				jobEnds("completed", ""),
+				payoutAttempts("confirmed"),
+				jobEvents(events.TypeCashOutCompleted, 1),
+				jobEvents(events.TypeCashOutPartial, 0),
+				soldOnce,
+				sharesHeld("0"),
+				cabalHolds(),
+			)
+	}
+}
+
+func F14CashOutPayoutsCrashAfterSellRequest(s *scenario.Scenario) {
+	sellCrashed("sellcrash", faultpoint.AfterSellRequest)(s)
+}
+
+func F14CashOutPayoutsCrashAfterSellConfirm(s *scenario.Scenario) {
+	sellCrashed("confirmcrash", faultpoint.AfterSellConfirm)(s)
 }

@@ -19,8 +19,8 @@ func TestNextPayoutStep_signsOnlyWhenNoAttemptCanStillLand(t *testing.T) {
 		want    domain.PayoutStep
 	}{
 		{domain.CashOutStarted, false, domain.PayoutAttempt{}, domain.PayoutSign},
-		{domain.CashOutStarted, true, domain.PayoutAttempt{}, domain.PayoutIdle},
-		{domain.CashOutSelling, true, domain.PayoutAttempt{}, domain.PayoutIdle},
+		{domain.CashOutStarted, true, domain.PayoutAttempt{}, domain.PayoutAwaitSale},
+		{domain.CashOutSelling, true, domain.PayoutAttempt{}, domain.PayoutAwaitSale},
 		{domain.CashOutPaying, true, domain.PayoutAttempt{}, domain.PayoutSign},
 		{domain.CashOutPaying, false, attempt(1, domain.PayoutSigned), domain.PayoutSend},
 		{domain.CashOutPaying, false, attempt(1, domain.PayoutBroadcast), domain.PayoutCheck},

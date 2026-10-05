@@ -44,7 +44,7 @@ func (s *Stack) crashProcess(ctx context.Context, name string, point faultpoint.
 		s.armedName = ""
 		return s.startProcess(ctx, name)
 	}
-	if !strings.Contains(s.Logs.tail(name, 50), want) {
+	if !strings.Contains(s.Logs.tail(name, 50), want) && !strings.Contains(s.Logs.lastPanicOrLine(name), want) {
 		return fmt.Errorf(
 			"%w: %s exited (%w) without %q\n%s", errFailed, name, p.err, want, s.Logs.tail(name, 20),
 		)

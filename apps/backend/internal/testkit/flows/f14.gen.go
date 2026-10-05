@@ -4,13 +4,16 @@ package flows
 
 func (defined) ScriptsF14() map[string]Script {
 	return map[string]Script{
-		"F14CashOutOK":                      F14CashOutOK,
-		"F14CashOutInvalidInput":            F14CashOutInvalidInput,
-		"F14CashOutInsufficientShares":      F14CashOutInsufficientShares,
-		"F14CashOutCashOutInProgress":       F14CashOutCashOutInProgress,
-		"F14CashOutCabalPaused":             F14CashOutCabalPaused,
-		"F14CashOutPriceUnavailable":        F14CashOutPriceUnavailable,
-		"F14CashOutPayoutsPrivyUnavailable": F14CashOutPayoutsPrivyUnavailable,
-		"F14CashOutPayoutsRPCUnavailable":   F14CashOutPayoutsRPCUnavailable,
+		"F14CashOutOK":                           F14CashOutOK,
+		"F14CashOutInvalidInput":                 F14CashOutInvalidInput,
+		"F14CashOutInsufficientShares":           F14CashOutInsufficientShares,
+		"F14CashOutCashOutInProgress":            F14CashOutCashOutInProgress,
+		"F14CashOutCabalPaused":                  F14CashOutCabalPaused,
+		"F14CashOutPriceUnavailable":             F14CashOutPriceUnavailable,
+		"F14CashOutPayoutsPrivyUnavailable":      F14CashOutPayoutsPrivyUnavailable,
+		"F14CashOutPayoutsRPCUnavailable":        F14CashOutPayoutsRPCUnavailable,
+		"F14CashOutPayoutsSaleShort":             F14CashOutPayoutsSaleShort,
+		"F14CashOutPayoutsCrashAfterSellRequest": F14CashOutPayoutsCrashAfterSellRequest,
+		"F14CashOutPayoutsCrashAfterSellConfirm": F14CashOutPayoutsCrashAfterSellConfirm,
 	}
 }

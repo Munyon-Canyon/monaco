@@ -1,6 +1,7 @@
 package fakes
 
 import (
+	"cmp"
 	"embed"
 	"encoding/json"
 	"io/fs"
@@ -217,6 +218,14 @@ func (s scripted) matches(r *http.Request) bool {
 	return true
 }
 
+func (s scripted) write(w http.ResponseWriter, status int) {
+	if len(s.body) > 0 {
+		w.Header().Set("Content-Type", "application/json")
+	}
+	w.WriteHeader(status)
+	_, _ = w.Write(s.body)
+}
+
 func (s *Server) replay(upstream string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		route, keys := routeOf(upstream, r)
@@ -226,11 +235,7 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 			<-r.Context().Done()
 			return
 		case ActionFail:
-			if len(step.body) > 0 {
-				w.Header().Set("Content-Type", "application/json")
-			}
-			w.WriteHeader(step.status)
-			_, _ = w.Write(step.body)
+			step.write(w, step.status)
 			return
 		case ActionDelay:
 			t := time.NewTimer(step.delay)
@@ -241,6 +246,10 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 			case <-t.C:
 			}
 		case ActionSucceed:
+		}
+		if len(step.body) > 0 {
+			step.write(w, cmp.Or(step.status, http.StatusOK))
+			return
 		}
 		if step.fixture != "" {
 			keys = []string{step.fixture}
