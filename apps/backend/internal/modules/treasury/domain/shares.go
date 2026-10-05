@@ -29,3 +29,11 @@ func PayoutFor(units, total money.SharesUnits, pot money.Micros) (money.Micros, 
 	}
 	return money.MicrosFromUint64(payout), nil
 }
+
+func CashOutUnitsFor(payout money.Micros, total money.SharesUnits, pot money.Micros) (money.SharesUnits, error) {
+	units, err := money.MulDivCeil(payout.Uint64(), total.Uint64(), pot.Uint64())
+	if err != nil {
+		return money.SharesUnits{}, errs.Wrap(err, errs.CodeOf(err), "treasury.CashOutUnitsFor")
+	}
+	return money.SharesUnitsFromUint64(units), nil
+}

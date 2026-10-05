@@ -37,6 +37,9 @@ func TestSharesUnitsArithmetic(t *testing.T) {
 	if !money.SharesUnitsFromUint64(0).IsZero() || a.IsZero() {
 		t.Fatal("IsZero")
 	}
+	if a.Cmp(b) <= 0 || b.Cmp(a) >= 0 || a.Cmp(money.SharesUnitsFromUint64(3_000_000)) != 0 {
+		t.Fatal("Cmp")
+	}
 }
 
 func TestSharesUnitsEncodeLikeMicros(t *testing.T) {

@@ -162,6 +162,21 @@ func MulDiv(a, b, c uint64) (uint64, error) {
 	return q.Uint64(), nil
 }
 
+func MulDivCeil(a, b, c uint64) (uint64, error) {
+	if c == 0 {
+		return 0, errs.New(errs.CodeInvalidInput, "money.MulDivCeil", slog.Uint64("a", a), slog.Uint64("b", b))
+	}
+	q := new(big.Int).Mul(new(big.Int).SetUint64(a), new(big.Int).SetUint64(b))
+	divisor := new(big.Int).SetUint64(c)
+	q.Add(q, new(big.Int).Sub(divisor, big.NewInt(1)))
+	q.Quo(q, divisor)
+	if !q.IsUint64() {
+		return 0, errs.New(errs.CodeInvalidInput, "money.MulDivCeil",
+			slog.Uint64("a", a), slog.Uint64("b", b), slog.Uint64("c", c))
+	}
+	return q.Uint64(), nil
+}
+
 func decimalsMismatch(op string, a, b BaseUnits) error {
 	return errs.New(errs.CodeInvalidInput, op,
 		slog.Int("a_decimals", int(a.decimals)), slog.Int("b_decimals", int(b.decimals)))
