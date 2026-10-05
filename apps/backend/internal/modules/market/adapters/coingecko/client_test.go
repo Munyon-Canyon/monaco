@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -21,6 +22,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
@@ -232,6 +235,28 @@ func TestCoinGecko_pricesRoundDownAndNeverUseFloats(t *testing.T) {
 	wantSamples(t, got[:3], 1790553600000, 300000, micros(999999, 150000000, 1234567123456))
 	if len(got) != 4 || got[3].Price != money.MicrosFromUint64(9007199254740993) {
 		t.Fatalf("samples = %+v, want the sub-micro price dropped and the 2^53+1 price exact", got)
+	}
+}
+
+func TestCoinGecko_countsTheSubMicroPricesItDropsInTheLog(t *testing.T) {
+	t.Parallel()
+	var logs testkit.Logs
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, &logs))
+	body := `{"prices":[[1790553600000,0.0000004],[1790553900000,2],[1790554200000,0.0000009]]}`
+	c, _ := clientOver(replying(http.StatusOK, body), "k")
+	if got, err := c.MarketChart(ctx, mint(t, aaplx), 90); err != nil || len(got) != 1 {
+		t.Fatalf("MarketChart = %v, %v, want the one whole-micro price", got, err)
+	}
+	want := `"msg":"market.coingecko.sub_micro_dropped"`
+	if line := string(logs.Bytes()); !strings.Contains(line, want) || !strings.Contains(line, `"dropped":2`) ||
+		!strings.Contains(line, `"days":90`) || !strings.Contains(line, `"mint":"`+aaplx+`"`) {
+		t.Fatalf("log = %s, want %s for 2 prices of the 90 day AAPLx chart", line, want)
+	}
+	logs = testkit.Logs{}
+	clean, _ := clientOver(replying(http.StatusOK, `{"prices":[[1790553600000,2]]}`), "k")
+	_, err := clean.MarketChart(ctx, mint(t, aaplx), 90)
+	if err != nil || strings.Contains(string(logs.Bytes()), "dropped") {
+		t.Fatalf("a clean answer logged %s with err %v, want nothing", logs.Bytes(), err)
 	}
 }
 

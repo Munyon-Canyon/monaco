@@ -11,22 +11,33 @@ import (
 )
 
 const failBackfill = `-- name: FailBackfill :exec
-UPDATE price_backfills SET last_code = $1::text
-WHERE mint = $2::text
+UPDATE price_backfills
+SET last_code = $1::text,
+    attempts = attempts + $2::boolean::integer,
+    last_attempt_at = CASE WHEN $2::boolean THEN $3::timestamptz ELSE last_attempt_at END
+WHERE mint = $4::text
 `
 
 type FailBackfillParams struct {
-	Code string
-	Mint string
+	Code    string
+	BackOff bool
+	Now     time.Time
+	Mint    string
 }
 
 func (q *Queries) FailBackfill(ctx context.Context, arg FailBackfillParams) error {
-	_, err := q.db.Exec(ctx, failBackfill, arg.Code, arg.Mint)
+	_, err := q.db.Exec(ctx, failBackfill,
+		arg.Code,
+		arg.BackOff,
+		arg.Now,
+		arg.Mint,
+	)
 	return err
 }
 
 const finishBackfill = `-- name: FinishBackfill :exec
-UPDATE price_backfills SET done_at = $1::timestamptz, last_code = NULL
+UPDATE price_backfills
+SET done_at = $1::timestamptz, last_code = NULL, attempts = 0, last_attempt_at = NULL
 WHERE mint = $2::text
 `
 
@@ -64,12 +75,22 @@ const pendingBackfills = `-- name: PendingBackfills :many
 SELECT mint
 FROM price_backfills
 WHERE done_at IS NULL
+  AND (
+    last_attempt_at IS NULL
+    OR last_attempt_at + LEAST(interval '5 minutes' * power(2, LEAST(attempts, 12)), interval '24 hours')
+      <= $1::timestamptz
+  )
 ORDER BY last_code IS NOT NULL, requested_at, mint
-LIMIT $1::integer
+LIMIT $2::integer
 `
 
-func (q *Queries) PendingBackfills(ctx context.Context, batchLimit int32) ([]string, error) {
-	rows, err := q.db.Query(ctx, pendingBackfills, batchLimit)
+type PendingBackfillsParams struct {
+	Now        time.Time
+	BatchLimit int32
+}
+
+func (q *Queries) PendingBackfills(ctx context.Context, arg PendingBackfillsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, pendingBackfills, arg.Now, arg.BatchLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +113,7 @@ const requestBackfills = `-- name: RequestBackfills :execrows
 INSERT INTO price_backfills (mint, requested_at)
 SELECT u.mint, $1::timestamptz
 FROM unnest($2::text[]) AS u (mint)
-ON CONFLICT (mint) DO UPDATE SET requested_at = excluded.requested_at, done_at = NULL, last_code = NULL
+ON CONFLICT (mint) DO UPDATE SET requested_at = excluded.requested_at, done_at = NULL, last_code = NULL, attempts = 0, last_attempt_at = NULL
 `
 
 type RequestBackfillsParams struct {

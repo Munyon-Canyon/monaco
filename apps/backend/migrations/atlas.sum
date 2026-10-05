@@ -1,4 +1,4 @@
-h1:73OhzopLetIbXa4vMB7sJ0my7RMNjS6/PhLQORw92+k=
+h1:MJBuP4xcfRqXRKHqGQm4Y27rVlOsHhVU1jlERUAydE4=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -43,3 +43,4 @@ h1:73OhzopLetIbXa4vMB7sJ0my7RMNjS6/PhLQORw92+k=
 20261004230818_funding_cabal_pauses.sql h1:vApLrUFgvnphychtnVyG/rL3v1CscZFy27ODs59CH5c=
 20261004232840_funding_onramp_sessions.sql h1:K4dOTKphHCNqhY7LASSAnYfZq/GTVUx9SD4megY+Wqc=
 20261005040034_market_price_backfills.sql h1:aG0aR4tMacU4DAEYqFh6FZz4luRywE35tla1i9lBTIM=
+20261005052232_market_price_backfill_backoff.sql h1:V67QC1PTsyEmg0ibZde4wwY99eFpUBklInKF3Ok2hw0=
