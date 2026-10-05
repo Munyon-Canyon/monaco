@@ -370,6 +370,49 @@ class BusyPorts(unittest.TestCase):
                     self.fail("the run went ahead")
 
 
+class JourneyTradeEngine(unittest.TestCase):
+    """The backend a run starts stubs the trade engine, except for a run that moves real USDC."""
+
+    def args(self, **values):
+        return unittest.mock.Mock(**{"all": False, "journey": "money/fund-cabal", **values})
+
+    def pick(self, journey_id, environ):
+        funded = unittest.mock.Mock(funds={"A": 2})
+        free = unittest.mock.Mock(funds={})
+        journeys = {"money/fund-cabal": funded, "auth/sign-in": free}
+        with unittest.mock.patch.object(journey, "load_journeys", lambda: journeys), \
+                unittest.mock.patch.dict(os.environ, environ, clear=True):
+            return journey.backend_trade_engine(self.args(journey=journey_id))
+
+    def test_a_journey_without_funds_runs_against_the_stub(self):
+        self.assertEqual(self.pick("auth/sign-in", {}), "stub")
+
+    def test_a_journey_with_funds_runs_against_the_live_engine(self):
+        self.assertEqual(self.pick("money/fund-cabal", {}), "live")
+
+    def test_all_stubs_unless_the_funded_journeys_will_run(self):
+        journeys = {"money/fund-cabal": unittest.mock.Mock(funds={"A": 2})}
+        for environ, want in (({}, "stub"), ({"MONACO_QA_REFUND_ADDRESS": "wallet"}, "live")):
+            with unittest.mock.patch.object(journey, "load_journeys", lambda: journeys), \
+                    unittest.mock.patch.dict(os.environ, environ, clear=True):
+                self.assertEqual(journey.backend_trade_engine(self.args(all=True)), want)
+
+    def test_start_backend_keeps_a_trade_engine_the_caller_set(self):
+        for environ, want in (({}, "stub"), ({"TRADE_ENGINE": "live"}, "live")):
+            seen = {}
+
+            def popen(_args, **kwargs):
+                seen.update(kwargs["env"])
+                raise RuntimeError("stop")
+
+            with unittest.mock.patch.dict(os.environ, environ, clear=True), \
+                    unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
+                    unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
+                with self.assertRaises(RuntimeError):
+                    journey.start_backend("http://127.0.0.1:1")
+            self.assertEqual(seen["TRADE_ENGINE"], want)
+
+
 class JourneyPsql(unittest.TestCase):
     """apps/mobile/qa/journeys/psql.sh, run with fake psql and docker on PATH."""
 
