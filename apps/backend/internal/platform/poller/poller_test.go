@@ -118,6 +118,18 @@ func TestRunner_tickErrorIsLoggedWithItsAttrsAndCountedByCode(t *testing.T) {
 	}
 }
 
+func TestRunner_internalTickErrorWithoutADeadlineStaysInternal(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	p := &fakePoller{name: "test.bug", tick: func(int32) (poller.Report, error) {
+		return poller.Report{}, errs.New(errs.CodeInternal, "test.read")
+	}}
+	out, _ := h.start(t, p)
+	if failed := out.expect(t, "poller.tick.failed"); failed["code"] != "internal" || failed["alert"] != true {
+		t.Fatalf("failed line = %v, want an internal error left internal", failed)
+	}
+}
+
 func TestRunner_lockErrorIsCountedAndTheLoopKeepsGoing(t *testing.T) {
 	t.Parallel()
 	closed, err := pgxpool.NewWithConfig(t.Context(), testkit.DB(t).Config())
@@ -237,7 +249,7 @@ func (p *blockingPoller) Tick(ctx context.Context) (poller.Report, error) {
 		close(p.started)
 	}
 	<-ctx.Done()
-	return poller.Report{}, errs.Wrap(context.Cause(ctx), errs.CodeUpstreamTimeout, "test.slow")
+	return poller.Report{}, errs.Wrap(context.Cause(ctx), errs.CodeInternal, "test.slow")
 }
 
 type brokenMeter struct{ noop.Meter }
