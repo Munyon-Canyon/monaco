@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	trading "github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -297,5 +299,59 @@ func TestDevSeed_cabalWithFailedTradeLeavesARetryableSwapOnAPassedProposal(t *te
 		swap.CabalID.String() != out["cabal_id"] || status != "passed" || members != 3 || activity != "buy/failed" {
 		t.Fatalf("swap %+v, proposal %s, %d members, activity %q; want a retryable failed buy of the passed "+
 			"proposal in a three-member cabal, shown as a failed buy", swap, status, members, activity)
+	}
+}
+
+func TestDevSeed_cabalWithFundedPotSeatsTwoMembersAndAPotOfThreeDollars(t *testing.T) {
+	t.Setenv("MONACO_QA_RUN", "r4nd0m")
+	pool := testkit.DB(t)
+	deps := module.Deps{Config: testkit.Config(), Pool: pool, Clock: clock.Real{}, IDs: ids.Real{}}
+	actors := map[string]ids.UserID{
+		"A": testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}).ID,
+		"B": testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}).ID,
+	}
+	out, err := seedDevScenario(deps, "cabal-with-funded-pot", actors)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cabalID, err := ids.ParseCabalID(out["cabal_id"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	pot, err := treasury.New(deps).Queries().PotValue(t.Context(), cabalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var name, members, shares string
+	if err := pool.QueryRow(t.Context(), `SELECT c.name,
+		(SELECT string_agg(user_id::text || '=' || role, ',' ORDER BY joined_at) FROM cabal_members WHERE cabal_id = c.id),
+		(SELECT string_agg(user_id::text || '=' || share_units::text, ',' ORDER BY share_units DESC)
+			FROM user_positions WHERE cabal_id = c.id)
+		FROM cabals c WHERE c.id = $1`, out["cabal_id"]).Scan(&name, &members, &shares); err != nil {
+		t.Fatal(err)
+	}
+	a, b := actors["A"].String(), actors["B"].String()
+	if out["cabal_name"] != "QA r4nd0m" || name != out["cabal_name"] || out["invite_code"] == "" ||
+		members != a+"=creator,"+b+"=member" || pot.Uint64() != 3_000_000 ||
+		!strings.HasPrefix(shares, a+"=") || !strings.Contains(shares, ","+b+"=") {
+		t.Fatalf("cabal %q (out %v) with members %q, shares %q and a pot of %s; want %q with A creator, B member, "+
+			"A holding more shares than B and $3.00", name, out, members, shares, pot, "QA r4nd0m")
+	}
+}
+
+func TestDevSeed_cabalWithFundedPotNamesItAfterAFreshRunWithoutOne(t *testing.T) {
+	pool := testkit.DB(t)
+	deps := module.Deps{Config: testkit.Config(), Pool: pool, Clock: clock.Real{}, IDs: ids.Real{}}
+	t.Setenv("MONACO_QA_RUN", "")
+	names := map[string]bool{}
+	for range 2 {
+		out, err := seedDevScenario(deps, "cabal-with-funded-pot", map[string]ids.UserID{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !regexp.MustCompile(`^QA [0-9a-f]{6}$`).MatchString(out["cabal_name"]) || names[out["cabal_name"]] {
+			t.Fatalf("cabal_name %q after %v, want a new QA name with a six-character run", out["cabal_name"], names)
+		}
+		names[out["cabal_name"]] = true
 	}
 }

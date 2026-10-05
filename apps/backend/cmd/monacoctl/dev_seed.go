@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -47,6 +48,7 @@ func devScenarios() map[string]devScenario {
 	return map[string]devScenario{
 		"cabal-with-confirmed-trade": seedConfirmedTrade,
 		"cabal-with-failed-trade":    seedFailedTrade,
+		"cabal-with-funded-pot":      seedFundedPot,
 		"cabal-with-members":         seedCabalWithMembers,
 		"cabal-with-open-proposal":   seedOpenProposal,
 		"user-with-balance":          seedUserWithBalance,
@@ -156,6 +158,20 @@ func seedConfirmedTrade(t testkit.SeedT, deps module.Deps, actor func(string) id
 		}
 	}
 	return out
+}
+
+func seedFundedPot(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
+	run := os.Getenv("MONACO_QA_RUN")
+	if run == "" {
+		run = ids.Real{}.NewV7().String()[24:30]
+	}
+	a, b := actor("A"), actor("B")
+	cabal := testkit.NewCabal(t, deps.Pool, testkit.WithName("QA "+run), testkit.WithCreator(a),
+		testkit.WithJoiner(b))
+	testkit.NewLedger(t, deps.Pool).
+		WithFundedMember(a, cabal.ID, money.MicrosFromUint64(2_000_000)).
+		WithFundedMember(b, cabal.ID, money.MicrosFromUint64(1_000_000))
+	return map[string]string{"cabal_id": cabal.ID.String(), "cabal_name": "QA " + run, "invite_code": cabal.InviteCode}
 }
 
 func seedCabalWithMembers(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
