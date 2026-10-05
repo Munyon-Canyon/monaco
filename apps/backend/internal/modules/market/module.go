@@ -28,10 +28,11 @@ import (
 )
 
 type (
-	Asset   = domain.Asset
-	AssetID = domain.AssetID
-	Mint    = domain.Mint
-	Price   = domain.Sample
+	Asset      = domain.Asset
+	AssetID    = domain.AssetID
+	Mint       = domain.Mint
+	Price      = domain.Sample
+	Multiplier = domain.Multiplier
 )
 
 func ParseMint(raw string) (Mint, error) { return domain.ParseMint(raw) }

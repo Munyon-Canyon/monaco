@@ -19,3 +19,18 @@ var FundingPauseChanged = Msg{
 	Name:     "funding.pause.changed",
 	Required: []string{"scope", "cabal_id", "reasons_before", "reasons_after"},
 }
+
+var FundingWatchOwnTransfer = Msg{
+	Name:     "funding.watch.own_transfer",
+	Required: []string{"cabal_id", "tx"},
+}
+
+var FundingWatchIgnored = Msg{
+	Name:     "funding.watch.ignored",
+	Required: []string{"cabal_id", "tx", "mint", "amount", "outcome"},
+}
+
+var FundingWatchDetected = Msg{
+	Name:     "funding.watch.detected",
+	Required: []string{"external_deposit_id", "cabal_id", "mint", "amount", "status_before", "status_after"},
+}
