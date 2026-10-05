@@ -12,6 +12,7 @@ enum HomePendingVotesSlot: HomeSection {
 struct HomePendingVotes: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var model: PendingVotesModel?
+    @State private var voting: ProposalVoteModel?
     private let makeModel: @MainActor (AppEnvironment) -> PendingVotesModel
 
     init(makeModel: @escaping @MainActor (AppEnvironment) -> PendingVotesModel = HomePendingVotes.liveModel) {
@@ -28,13 +29,11 @@ struct HomePendingVotes: View {
                         NavigationLink("See all", value: PendingVotesRoute())
                     }
                     ForEach(model.votes.prefix(3)) { vote in
-                        if let detail = model.details[vote.id] {
-                            NavigationLink(value: AnyAppRoute(ProposalRoute(proposalID: vote.id))) {
-                                ProposalCard(
-                                    proposal: detail.summary, asset: nil, members: [],
-                                    paused: model.pausedCabals.contains(detail.summary.cabalID))
-                            }
-                            .buttonStyle(.plain)
+                        if let detail = model.details[vote.id], let voting {
+                            ProposalVoteCard(
+                                proposal: detail.summary, voting: voting,
+                                paused: model.pausedCabals.contains(detail.summary.cabalID),
+                                onVoted: { await model.load() })
                         }
                     }
                 }
@@ -46,6 +45,7 @@ struct HomePendingVotes: View {
     private func preparedModel() -> PendingVotesModel {
         if let model { return model }
         let created = makeModel(environment)
+        voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
         model = created
         return created
     }

@@ -6,29 +6,34 @@ struct ProposalCard: View {
     let asset: ProposalAsset?
     let members: [ProposalMember]
     private let paused: Bool
+    private let openRoute: AnyAppRoute?
     private let vote: (String) -> Void
 
     @State private var changing = false
 
     init(
         proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
+        openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
         summary = proposal
         self.asset = asset
         self.members = members
         self.paused = paused
+        self.openRoute = openRoute
         self.vote = vote
     }
 
     init(
         proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
+        openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
         summary = proposal.summary
         self.asset = asset
         self.members = members
         self.paused = paused
+        self.openRoute = openRoute
         self.vote = vote
     }
 
@@ -63,7 +68,15 @@ struct ProposalCard: View {
         .accessibilityIdentifier("proposal-card-\(summary.id)")
     }
 
-    private var header: some View {
+    @ViewBuilder private var header: some View {
+        if let openRoute {
+            NavigationLink(value: openRoute) { headerRow }.buttonStyle(.plain)
+        } else {
+            headerRow
+        }
+    }
+
+    private var headerRow: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             StockMark(
                 symbol: summary.symbol,
@@ -84,9 +97,10 @@ struct ProposalCard: View {
             }
             Spacer()
             if summary.status == .open {
-                Text(closesLabel)
+                Text(ProposalCardCopy.closes(at: summary.expiresAt, now: .now))
                     .font(MonacoTheme.Typo.stamp)
                     .foregroundStyle(MonacoTheme.tertiaryText)
+                    .accessibilityIdentifier("proposal-closes-in")
             } else if let label = ProposalChip.label(
                 status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed"
             ) {
@@ -161,11 +175,6 @@ struct ProposalCard: View {
                 }
             }
         }
-    }
-
-    private var closesLabel: String {
-        let minutes = max(0, Int(summary.expiresAt.timeIntervalSinceNow / 60))
-        return minutes < 60 ? "Closes in \(minutes)m" : "Closes in \(minutes / 60)h"
     }
 
     private var ageLabel: String {
