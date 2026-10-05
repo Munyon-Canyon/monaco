@@ -20,6 +20,8 @@ struct AnyAppRoute: Hashable, Sendable {
         AnyHashable(route).hash(into: &hasher)
     }
 
+    func `is`<Route: AppRoute>(_ type: Route.Type) -> Bool { route is Route }
+
     @MainActor func destination() -> AnyView {
         AnyView(route.destination())
     }
