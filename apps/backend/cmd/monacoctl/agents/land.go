@@ -79,10 +79,11 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if err != nil {
 		return err
 	}
-	if err := env.flowGate(ctx, rec, stack); err != nil {
+	flows, err := env.flowGate(ctx, rec, stack)
+	if err != nil {
 		return err
 	}
-	if waiting := waitingOn(stack); len(waiting) > 0 {
+	if waiting := append(waitingOn(stack), flows.entries()...); len(waiting) > 0 {
 		return env.arm(ctx, rec, stack, waiting, stdout)
 	}
 	return env.land(ctx, rec, dir, stack, stdout)
@@ -131,8 +132,14 @@ func (env *Env) landArmed(ctx context.Context, r Record, reran map[int64]int) []
 	if len(waitingOn(stack)) > 0 {
 		return nil
 	}
-	if err := env.flowGate(ctx, r, stack); err != nil {
+	flows, err := env.flowGate(ctx, r, stack)
+	switch {
+	case err != nil:
 		return env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
+	case flows.started:
+		return []string{fmt.Sprintf("armed stack #%d started %s", top, flows.waiting)}
+	case flows.waiting != "":
+		return nil
 	}
 	state, err := env.checkRuns(ctx, stack, reran, &out)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -46,8 +47,11 @@ type CheckRun struct {
 }
 
 type GHStatus struct {
-	State   string `json:"state"`
-	Context string `json:"context"`
+	State       string    `json:"state"`
+	Context     string    `json:"context"`
+	Description string    `json:"description"`
+	TargetURL   string    `json:"target_url"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 func statusCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {

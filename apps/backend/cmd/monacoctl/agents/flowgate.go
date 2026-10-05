@@ -46,16 +46,20 @@ func (s specDiff) addsCodeListedBy(f flows.Flow) bool {
 	})
 }
 
-func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) error {
+func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) (flowsWait, error) {
 	top := stack[len(stack)-1]
 	reg, mine, err := env.stackFlows(ctx, stack, top)
 	if err != nil || len(mine) == 0 {
-		return err
+		return flowsWait{}, err
 	}
-	if err := env.stagingMoved(ctx, reg, top, mine); err != nil {
-		return err
+	moved, err := env.stagingMoved(ctx, reg, top, mine)
+	if err != nil {
+		return flowsWait{}, err
 	}
-	return env.sharedInQueue(ctx, stack, mine)
+	if err := env.sharedInQueue(ctx, stack, mine); err != nil {
+		return flowsWait{}, err
+	}
+	return env.verifyMoved(ctx, top, moved)
 }
 
 func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR) (registry, []string, error) {
@@ -157,40 +161,44 @@ func (env *Env) git(ctx context.Context, args ...string) (string, error) {
 	return string(out), err
 }
 
-func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, mine []string) error {
+type movedFlow struct {
+	id, by string
+}
+
+func (m movedFlow) String() string {
+	return fmt.Sprintf("flow %s changed on staging since this stack's base (%s)", m.id, m.by)
+}
+
+func (env *Env) stagingMoved(ctx context.Context, reg registry, top stackPR, mine []string) ([]movedFlow, error) {
 	trunk := "origin/" + env.Config.FeatureBranch
 	if _, err := env.git(ctx, "fetch", "--no-tags", "origin", env.Config.FeatureBranch); err != nil {
-		return err
+		return nil, err
 	}
 	base, err := env.git(ctx, "merge-base", trunk, top.HeadOID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	span := strings.TrimSpace(base) + ".." + trunk
 	paths, err := env.changedOn(ctx, span)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	spec, err := env.diffSpec(ctx, paths, strings.TrimSpace(base), trunk)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var moved []string
+	var moved []movedFlow
 	for _, id := range reg.affected(paths, spec) {
 		if !slices.Contains(mine, id) {
 			continue
 		}
 		by, err := env.lastChange(ctx, span, flowPaths(reg, paths, spec, id))
 		if err != nil {
-			return err
+			return nil, err
 		}
-		moved = append(moved, fmt.Sprintf("flow %s changed on staging since this stack's base (%s)", id, by))
+		moved = append(moved, movedFlow{id: id, by: by})
 	}
-	if len(moved) == 0 {
-		return nil
-	}
-	return landErr(fmt.Sprintf("not landing #%d: %s. Restack with gt and rerun stage 1, then run land-stack again",
-		top.Number, strings.Join(moved, "; ")))
+	return moved, nil
 }
 
 func (env *Env) changedOn(ctx context.Context, span string) ([]string, error) {
