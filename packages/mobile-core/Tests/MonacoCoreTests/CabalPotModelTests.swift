@@ -83,6 +83,20 @@ final class CabalPotModelTests: XCTestCase {
         XCTAssertNil(model.toast)
     }
 
+    func testThePreviewServesItsFixtureThroughTheClient() async {
+        for (pot, state) in [
+            (Components.Schemas.CabalPot.sampleInvested, CabalPotSummary.PotState.invested),
+            (.sampleCashOnly, .cashOnly), (.sampleZero, .zero), (.sampleOutsider, .invested),
+        ] {
+            let model = CabalPotModel.preview(pot)
+
+            await model.load()
+
+            XCTAssertEqual(model.summary, CabalPotSummary(pot))
+            XCTAssertEqual(model.summary?.state, state)
+        }
+    }
+
     private func assertRefetch(after hint: Hint, file: StaticString = #filePath, line: UInt = #line) async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.pot(valueMicros: 1_000_000_000)),
