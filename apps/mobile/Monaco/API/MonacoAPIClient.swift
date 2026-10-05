@@ -50,43 +50,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
 
-    func createPlatformWithdrawal(
-        accessToken: String, amount: Int64, toAddress: String, submission: IdempotentSubmission
-    ) async throws -> PlatformWithdrawalDTO {
-        let url = baseURL.appending(path: "v1/me/withdrawals")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            CreatePlatformWithdrawalRequest(amount: amount, toAddress: toAddress))
-
-        let (data, response) = try await session.data(for: request, submission: submission)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw apiFailure(status: http.statusCode, data: data)
-        }
-        return try JSONDecoder().decode(PlatformWithdrawalDTO.self, from: data)
-    }
-
-    func getPlatformWithdrawal(accessToken: String, withdrawalId: String) async throws -> PlatformWithdrawalDTO {
-        let url = baseURL.appending(path: "v1/me/withdrawals/\(withdrawalId)")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try JSONDecoder().decode(PlatformWithdrawalDTO.self, from: data)
-    }
-
     func fundGroup(accessToken: String, groupId: String, amount: Int64, submission: IdempotentSubmission) async throws
         -> FundGroupResponse
     {

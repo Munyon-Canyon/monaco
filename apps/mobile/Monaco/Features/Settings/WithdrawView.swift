@@ -2,38 +2,47 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-/// Withdraw: send available account USDC to an external Solana address.
-///
-/// Owns the balance, the typed amount and address, and the reload toast. `WithdrawContent` is the
-/// entry layout and `WithdrawConfirmView` the step before sending. Nothing is sent from here.
 struct WithdrawView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dismiss) private var dismiss
     @State private var balanceSource: BalanceSource?
+    @State private var withdrawing: Withdrawing?
     @State private var destinationAddress = ""
     @State private var amountText = ""
+    @State private var refusedAddress: String?
     @State private var showConfirm = false
-    @State private var toast: MonacoToast?
+
+    private var trimmedAddress: String {
+        destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         WithdrawContent(
             state: balanceSource?.state ?? .loading,
             amountText: $amountText,
             destinationAddress: $destinationAddress,
+            refusedAddress: refusedAddress,
             onContinue: { showConfirm = true },
             onRetry: { Task { await balanceSource?.load() } }
         )
-        .monacoToast($toast, bottomInset: 72)
+        .onChange(of: destinationAddress) { _, _ in refusedAddress = nil }
         .onChange(of: balanceSource?.failureTick) { _, _ in
             guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
-            toast = MonacoToast(message: BalanceSource.message(for: error))
+            toasts.current = MonacoToast(message: BalanceSource.message(for: error))
         }
         .navigationDestination(isPresented: $showConfirm) {
             WithdrawConfirmView(
-                destinationAddress: destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines),
-                amountText: amountText
+                destinationAddress: trimmedAddress,
+                amountText: amountText,
+                isSubmitting: withdrawing?.isSubmitting ?? false,
+                onWithdraw: { Task { await withdraw() } }
             )
         }
         .task {
+            if withdrawing == nil {
+                withdrawing = Withdrawing(source: WithdrawSource(api: environment.api), hints: environment.hints)
+            }
             let source = balanceSource ?? BalanceSource(api: environment.api, hints: environment.hints)
             balanceSource = source
             await source.load()
@@ -42,6 +51,36 @@ struct WithdrawView: View {
         .onScreenVisibilityChange { visible in
             balanceSource?.setVisible(visible)
         }
+    }
+
+    private func withdraw() async {
+        guard let withdrawing, let micros = AmountEntryText.micros(amountText), micros > 0 else { return }
+        switch await withdrawing.submit(micros: micros, toAddress: trimmedAddress) {
+        case .accepted:
+            if let line = withdrawing.progress.toast { toasts.show(success: line) }
+            showConfirm = false
+            dismiss()
+            Task { [toasts] in
+                let settled = await withdrawing.settle()
+                guard settled.isSettled else { return }
+                toasts.current = Self.toast(for: settled)
+            }
+        case .refused(.address(let message)):
+            refusedAddress = message
+            showConfirm = false
+        case .refused(.toast(let message)):
+            toasts.current = MonacoToast(message: message)
+            showConfirm = false
+        case .unconfirmed(let message):
+            toasts.current = MonacoToast(message: message)
+        }
+    }
+
+    static func toast(for progress: WithdrawProgress) -> MonacoToast? {
+        guard let line = progress.toast else { return nil }
+        guard case .confirmed(let withdrawal) = progress else { return MonacoToast(message: line) }
+        let link = withdrawal.solscanURL.map { MonacoToastLink(title: "View on Solscan", url: $0) }
+        return MonacoToast(message: line, isSuccess: true, link: link)
     }
 }
 
@@ -108,6 +147,7 @@ struct WithdrawContent: View {
     let state: LoadState<AccountBalance>
     @Binding var amountText: String
     @Binding var destinationAddress: String
+    var refusedAddress: String?
     let onContinue: () -> Void
     let onRetry: () -> Void
 
@@ -162,7 +202,7 @@ struct WithdrawContent: View {
                 BottomCTA {
                     Button("Continue", action: onContinue)
                         .buttonStyle(.monacoPrimary)
-                        .disabled(!form.canContinue)
+                        .disabled(!form.canContinue || refusedAddress != nil)
                         .accessibilityIdentifier("withdraw-continue-button")
                 }
             }
@@ -178,7 +218,7 @@ struct WithdrawContent: View {
             WithdrawAddressField(text: $destinationAddress)
 
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                if let problem = form.addressProblem {
+                if let problem = refusedAddress ?? form.addressProblem {
                     Text(problem)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.loss)

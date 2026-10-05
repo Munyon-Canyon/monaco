@@ -229,7 +229,6 @@ struct MoneyFlowCopyTests {
                 WithdrawForm.caveat,
                 WithdrawForm.overBalance,
                 WithdrawConfirmView.caveat,
-                WithdrawConfirmView.comingSoon,
                 PlatformBalanceCard.pendingLine(micros: 50_000_000) ?? "",
             ]
         #expect(MainFlowCopyAudit.stringsAreClean(strings))

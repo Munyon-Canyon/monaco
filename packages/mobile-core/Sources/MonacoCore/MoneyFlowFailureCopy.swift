@@ -120,48 +120,6 @@ public enum MoneyFlowCopy {
         }
     }
 
-    // MARK: - Cash out to an external wallet (POST /v1/me/withdrawals)
-
-    public static func cashOutFailure(_ input: FlowErrorInput) -> FlowFailure {
-        if input.isSignInUnavailable { return signInUnavailableFailure(action: "cash out") }
-        if input.isOffline { return offlineFailure(action: "cash out") }
-        switch input.status {
-        case 400 where matches(input, "amount exceeds available platform balance"):
-            return FlowFailure(
-                message: "That's more than your account balance.",
-                recovery: .none,
-                nextStep: "Cash out of a cabal to your balance first, or send a smaller amount."
-            )
-        case 400 where matches(input, "invalid destination address"):
-            return FlowFailure(
-                message: "That destination isn't a Solana wallet address.",
-                recovery: .none,
-                nextStep: "Paste the address again — it should be 32 to 44 characters."
-            )
-        case 400 where matches(input, "cannot withdraw to your deposit address"):
-            return FlowFailure(
-                message: "That's your own Monaco deposit address.",
-                recovery: .none,
-                nextStep: "Paste the outside wallet you want the USDC sent to."
-            )
-        // Two different conditions answer 409 here: the handler's own "a platform withdrawal
-        // is already in progress" (`platform_withdrawals.go`), and the idempotency middleware
-        // when the key the app just sent is still claimed. Telling them apart needs the
-        // `Idempotency-Status: in_progress` header, which the transport does not surface yet.
-        // Until it does this stays `.none`, which fails closed: the screen offers no resend at
-        // all, so neither condition can turn into a second withdrawal. The copy is true of
-        // both, and both clear on their own.
-        case 409:
-            return FlowFailure(
-                message: "A cash out is already on its way.",
-                recovery: .none,
-                nextStep: "Wait for it to land — about a minute — then start another."
-            )
-        default:
-            return generic(input, action: "cash out")
-        }
-    }
-
     // MARK: - Fund a cabal (POST /v1/groups/{id}/fund)
 
     public static func fundCabalFailure(_ input: FlowErrorInput) -> FlowFailure {

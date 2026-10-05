@@ -33,7 +33,7 @@ nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
             FlowErrorInput(status: 429, retryAfterSeconds: 30)
         )
         XCTAssertEqual(
-            MoneyFlowCopy.cashOutFailure(
+            MoneyFlowCopy.sellStakeFailure(
                 FlowErrorInput(MonacoCore.MonacoAPIError.rateLimited(retryAfterSeconds: 30))
             ).nextStep,
             "Try again in 30 seconds."
@@ -55,7 +55,7 @@ nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
             userInfo: [monacoTokenRefreshFailedErrorKey: true]
         )
         XCTAssertTrue(FlowErrorInput(refreshFailed).isSignInUnavailable)
-        let failure = MoneyFlowCopy.cashOutFailure(FlowErrorInput(refreshFailed))
+        let failure = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(refreshFailed))
         XCTAssertNotEqual(failure, MoneyFlowCopy.unconfirmed)
         XCTAssertTrue(failure.isRetryable)
     }
@@ -73,7 +73,7 @@ nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
         XCTAssertTrue(input.isSignInUnavailable)
         XCTAssertFalse(input.isOffline)
         XCTAssertEqual(
-            MoneyFlowCopy.cashOutFailure(input).message,
+            MoneyFlowCopy.sellStakeFailure(input).message,
             "We couldn't check your sign-in, so we didn't cash out."
         )
         // A plain offline error still takes the offline branch.
@@ -91,9 +91,9 @@ nonisolated final class MoneyFlowErrorInputTests: XCTestCase {
     }
 
     func testAmbiguousFailures_areUnconfirmed() {
-        XCTAssertEqual(MoneyFlowCopy.cashOutFailure(FlowErrorInput(URLError(.timedOut))), MoneyFlowCopy.unconfirmed)
+        XCTAssertEqual(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(URLError(.timedOut))), MoneyFlowCopy.unconfirmed)
         XCTAssertEqual(
-            MoneyFlowCopy.cashOutFailure(FlowErrorInput(URLError(.networkConnectionLost))), MoneyFlowCopy.unconfirmed)
+            MoneyFlowCopy.sellStakeFailure(FlowErrorInput(URLError(.networkConnectionLost))), MoneyFlowCopy.unconfirmed)
         XCTAssertEqual(
             MoneyFlowCopy.fundCabalFailure(FlowErrorInput(Monaco.MonacoAPIError.invalidResponse)),
             MoneyFlowCopy.unconfirmed)
