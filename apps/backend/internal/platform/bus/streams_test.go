@@ -206,6 +206,37 @@ func TestVerifyStreams_failsBootWithAPointerToBusApply(t *testing.T) {
 	}
 }
 
+func TestVerifyStreams_failsBootWhenAStreamMissesADeclaredSubject(t *testing.T) {
+	t.Parallel()
+	b := testkit.NATS(t)
+	conn := freshConn(t)
+	if _, err := conn.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	s, err := b.JS.Stream(t.Context(), conn.Stream("EVENTS"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := s.CachedInfo().Config
+	stale.Subjects = stale.Subjects[:len(stale.Subjects)-1]
+	if _, err := b.JS.UpdateStream(t.Context(), stale); err != nil {
+		t.Fatal(err)
+	}
+
+	err = conn.VerifyStreams(t.Context())
+	if errs.CodeOf(err) != errs.CodeNotFound || !strings.Contains(err.Error(), "Subjects") ||
+		!strings.Contains(err.Error(), conn.Stream("EVENTS")) ||
+		!strings.HasSuffix(err.Error(), "; run monacoctl bus apply") {
+		t.Fatalf("VerifyStreams over a stale EVENTS = %v, want not_found naming the stream and Subjects", err)
+	}
+	if _, err := conn.Apply(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.VerifyStreams(t.Context()); err != nil {
+		t.Fatalf("VerifyStreams after apply = %v, want nil", err)
+	}
+}
+
 func TestConnect_failsWhenNATSIsUnreachable(t *testing.T) {
 	t.Parallel()
 	_, err := bus.Connect(t.Context(), config.NATS{URL: "nats://127.0.0.1:1"}, bus.ProcessAPI)

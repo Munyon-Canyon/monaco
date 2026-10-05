@@ -105,15 +105,28 @@ func (c *Conn) Apply(ctx context.Context) ([]StreamChange, error) {
 	return changes, nil
 }
 
+var errStreamDrift = errors.New("config differs from the declared one")
+
 func (c *Conn) VerifyStreams(ctx context.Context) error {
+	const op = "bus.VerifyStreams"
 	for _, want := range c.streams() {
-		if _, err := c.js.Stream(ctx, want.Name); err != nil {
+		attr := slog.String("stream", want.Name)
+		s, err := c.js.Stream(ctx, want.Name)
+		if err != nil {
 			code := errs.CodeUpstreamUnavailable
 			if errors.Is(err, jetstream.ErrStreamNotFound) {
 				code = errs.CodeNotFound
 			}
-			return errs.Wrap(fmt.Errorf("stream %s: %w; run monacoctl bus apply", want.Name, err), code,
-				"bus.VerifyStreams", slog.String("stream", want.Name))
+			return errs.Wrap(fmt.Errorf("stream %s: %w; run monacoctl bus apply", want.Name, err), code, op, attr)
+		}
+		if diff := diffStream(s.CachedInfo().Config, want); len(diff) > 0 {
+			fields := make([]string, len(diff))
+			for i, f := range diff {
+				fields[i] = f.Field
+			}
+			err := fmt.Errorf("stream %s: %w in %s; run monacoctl bus apply",
+				want.Name, errStreamDrift, strings.Join(fields, ", "))
+			return errs.Wrap(err, errs.CodeNotFound, op, attr)
 		}
 	}
 	return nil
