@@ -607,7 +607,7 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string,
 	return []checkRow{
 		{
 			label: "go build", kind: "go", dir: backend,
-			cmds: [][]string{slices.Concat([]string{"go", "build"}, tags, buildable(backend, pkgs))},
+			cmds: [][]string{slices.Concat([]string{"go", "build", "-o", os.DevNull}, tags, buildable(backend, pkgs))},
 		},
 		{label: "go vet", kind: "go", dir: backend, cmds: [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)}},
 		lint,
