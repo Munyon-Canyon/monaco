@@ -31,12 +31,15 @@ public final class ProposalDetailModel {
     public private(set) var asset: ProposalAsset?
     public private(set) var errorMessage: String?
     public private(set) var didWithdraw = false
+    public private(set) var isRetrying = false
+    public private(set) var didRetry = false
     private let id: String
     private let cabalID: String
     private let repository: ProposalsRepository
     private let hints: any HintSource
     private let refresher: HintRefresher
     private let submission = IdempotentSubmission()
+    private let retrySubmission = IdempotentSubmission()
     private let proposeService: any ProposeService
 
     public init(id: String, cabalID: String, repository: ProposalsRepository, hints: any HintSource) {
@@ -83,6 +86,26 @@ public final class ProposalDetailModel {
     }
 
     public var canWithdraw: Bool { value?.summary.canWithdraw == true }
+
+    public var retryableSwapID: String? {
+        guard let swap = value?.summary.swap, swap.retryable else { return nil }
+        return swap.id
+    }
+
+    public func retry() async {
+        guard let swapID = retryableSwapID, !isRetrying else { return }
+        isRetrying = true
+        didRetry = false
+        defer { isRetrying = false }
+        do {
+            try await repository.retrySwap(id: swapID, submission: retrySubmission)
+            didRetry = true
+            errorMessage = nil
+            await load()
+        } catch {
+            errorMessage = ToastCopy.message(for: APIError(error))
+        }
+    }
 
     public func withdraw() async {
         didWithdraw = false

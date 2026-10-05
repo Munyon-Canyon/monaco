@@ -186,6 +186,13 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
+    public func retrySwap(id: String, submission: IdempotentSubmission) async throws {
+        try await api.submit(submission, payload: id, operation: "postSwapRetry") { client, key in
+            _ = try await client.postSwapRetry(path: .init(id: id), headers: .init(idempotencyKey: key))
+                .accepted.body.json
+        }
+    }
+
     public func members(cabalID: String) async throws -> [ProposalMember] {
         try await api.read { client in
             try await client.getCabal(path: .init(id: cabalID)).ok.body.json.members.map(ProposalMember.init)
