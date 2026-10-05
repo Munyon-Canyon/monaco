@@ -133,6 +133,15 @@ jobs:
         with:
           cache-leg: ${{ matrix.artifact }}
 
+      # Go refreshes a build cache entry's mtime on use only once it is an hour old, and trims only after five
+      # days, so every staging commit stacked new entries onto the saved cache (7.4 GB, restored by every job).
+      # Backdating what was restored lets the save step below keep only what this leg used or built.
+      - name: Backdate the restored Go build cache
+        if: inputs.stage == 'staging'
+        run: |
+          find ~/.cache/go-build -mindepth 2 -type f -exec touch -d '2 hours ago' {} +
+          touch "$RUNNER_TEMP/go-cache-start"
+
       - name: Read the pinned golangci-lint version
         id: golangci
         run: echo "version=$(cat .golangci-lint-version)" >> "$GITHUB_OUTPUT"
@@ -171,6 +180,10 @@ jobs:
 
       # Only the staging run saves the Go cache, one key per leg, even after a test failure. The PR leg of the same
       # name restores it through backend-test-env, and staging.yml's prune job keeps the newest per leg.
+      - name: Drop the build cache entries this leg did not use
+        if: always() && inputs.stage == 'staging'
+        run: find ~/.cache/go-build -mindepth 2 -type f ! -newer "$RUNNER_TEMP/go-cache-start" -delete
+
       - name: Save this leg's Go cache
         if: always() && inputs.stage == 'staging'
         uses: actions/cache/save@v4
