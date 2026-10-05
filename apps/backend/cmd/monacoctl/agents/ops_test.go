@@ -478,11 +478,9 @@ func TestLanesOpen_admitsWhenEveryOwnerIsRemote(t *testing.T) {
 	if err := f.Env(t).lanesOpen(context.Background(), &out); err != nil {
 		t.Fatal(err)
 	}
-	for n := 101; n <= 106; n++ {
-		want := fmt.Sprintf("not counted: #%d (worktree on another machine)\n", n)
-		if strings.Count(out.String(), want) != 1 {
-			t.Fatalf("want %q once in %q", want, out.String())
-		}
+	want := "not counted: 6 records with worktrees on another machine (#101 #102 #103 #104 #105 #106)\n"
+	if out.String() != want {
+		t.Fatalf("out=%q, want %q", out.String(), want)
 	}
 }
 
@@ -512,7 +510,7 @@ func TestLanesOpen_refusesWhenLocalOpenOwnersFillTheCap(t *testing.T) {
 	if err == nil || !strings.Contains(cliText(err), "2 owners are not exited; lane cap is 2") {
 		t.Fatalf("err=%v", err)
 	}
-	if out.String() != "not counted: #3 (worktree on another machine)\n" {
+	if out.String() != "not counted: 1 records with worktrees on another machine (#3)\n" {
 		t.Fatalf("out=%q", out.String())
 	}
 }
