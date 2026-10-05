@@ -86,3 +86,34 @@ func (c *Client) wallet(op string, w walletWire) (chain.Wallet, error) {
 	signer := slices.ContainsFunc(w.AdditionalSigners, func(s signerWire) bool { return s.SignerID == app })
 	return chain.Wallet{ID: w.ID, Address: addr, HasAppSigner: app != "" && (w.OwnerID == app || signer)}, nil
 }
+
+func (c *Client) ListAppWallets(ctx context.Context) ([]chain.Wallet, error) {
+	const op = "privy.ListAppWallets"
+	var out []chain.Wallet
+	cursor := ""
+	for {
+		var page struct {
+			Data       []walletWire `json:"data"`
+			NextCursor string       `json:"next_cursor"`
+		}
+		q := url.Values{"chain_type": {"solana"}, "limit": {"100"}}
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		in := call{op: op, method: http.MethodGet, path: "/v1/wallets?" + q.Encode()}
+		if err := c.do(ctx, in, &page); err != nil {
+			return nil, err
+		}
+		for _, w := range page.Data {
+			wallet, err := c.wallet(op, w)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, wallet)
+		}
+		if page.NextCursor == "" {
+			return out, nil
+		}
+		cursor = page.NextCursor
+	}
+}

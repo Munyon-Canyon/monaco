@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -139,4 +140,37 @@ func TestWallets_refusals(t *testing.T) {
 	wantCode(t, err, errs.CodePrivyUnavailable)
 	_, err = client(replying(http.StatusBadRequest, `{}`)).CreateAppWallet(t.Context(), "k")
 	wantCode(t, err, errs.CodeInvalidInput)
+}
+
+func TestListAppWallets_followsTheCursorAcrossPagesWithoutAUserFilter(t *testing.T) {
+	t.Parallel()
+	pages := map[string]string{
+		"": `{"data":[{"id":"w1","address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","owner_id":"` +
+			fakes.PrivyAuthorizationKeyID + `"}],"next_cursor":"page-2"}`,
+		"page-2": `{"data":[{"id":"w2","address":"9ixcyg5nNxGCJLtSyJYibP7EgQBw4BfpNLbDe7GQ14eh"}],"next_cursor":null}`,
+	}
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(pages[r.URL.Query().Get("cursor")]))
+	})}
+	got, err := client(u).ListAppWallets(t.Context())
+	want := []chain.Wallet{
+		{ID: "w1", Address: "Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf", HasAppSigner: true},
+		{ID: "w2", Address: "9ixcyg5nNxGCJLtSyJYibP7EgQBw4BfpNLbDe7GQ14eh"},
+	}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("ListAppWallets = %+v, %v, want %+v", got, err, want)
+	}
+	sent := u.requests()
+	if len(sent) != 2 || sent[0].query != "chain_type=solana&limit=100" ||
+		sent[1].query != "chain_type=solana&cursor=page-2&limit=100" {
+		t.Fatalf("requests = %+v", sent)
+	}
+}
+
+func TestListAppWallets_failsOnAWalletWithoutASolanaAddress(t *testing.T) {
+	t.Parallel()
+	_, err := client(replying(http.StatusOK, `{"data":[{"id":"w1","address":"0xnot"}]}`)).ListAppWallets(t.Context())
+	wantCode(t, err, errs.CodeDecodeFailed)
+	_, err = client(replying(http.StatusInternalServerError, `{}`)).ListAppWallets(t.Context())
+	wantCode(t, err, errs.CodePrivyUnavailable)
 }
