@@ -1,0 +1,19 @@
+journey: profile/follow-lists
+expect-fail: S2
+
+The following list is titled "Follows". S2.2 waits for the "Following" screen, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/FollowListView.swift b/apps/mobile/Monaco/Features/Profile/FollowListView.swift
+index d13b3e8d2..13c74ff01 100644
+--- a/apps/mobile/Monaco/Features/Profile/FollowListView.swift
++++ b/apps/mobile/Monaco/Features/Profile/FollowListView.swift
+@@ -21,7 +21,7 @@ struct FollowListView: View {
+     private var title: String {
+         switch kind {
+         case .followers: "Followers"
+-        case .following: "Following"
++        case .following: "Follows"
+         }
+     }
+ 

@@ -1,0 +1,19 @@
+journey: profile/follow-lists
+expect-fail: S1
+
+"Followers" opens the following list. S1.2 waits for the "Followers" screen, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
+index 7986717d4..de0fef278 100644
+--- a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
+@@ -14,7 +14,7 @@ private struct ProfileFollowLinks: View {
+     var body: some View {
+         if let viewer = environment.viewer {
+             HStack(spacing: 0) {
+-                link("Followers", FollowListRoute(userID: viewer.userID, kind: .followers), id: "profile-followers")
++                link("Followers", FollowListRoute(userID: viewer.userID, kind: .following), id: "profile-followers")
+                 Text(" · ")
+                     .font(MonacoTheme.Typo.calloutStrong)
+                     .foregroundStyle(MonacoTheme.muted)
