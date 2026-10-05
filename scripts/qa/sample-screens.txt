@@ -162,7 +162,6 @@ money-fund-loading            -MonacoMoneyFlowSample fundCabalLoading
 money-withdraw                -MonacoMoneyFlowSample withdraw
 money-withdraw-failed         -MonacoMoneyFlowSample withdrawFailed
 money-withdraw-confirm        -MonacoMoneyFlowSample withdrawConfirm
-money-receipt-loading         -MonacoMoneyFlowSample receiptLoading
 
 proposal-feed-closed              -MonacoProposalFeedSample -MonacoProposalSampleClosed
 proposal-detail-swap-failed       -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-24

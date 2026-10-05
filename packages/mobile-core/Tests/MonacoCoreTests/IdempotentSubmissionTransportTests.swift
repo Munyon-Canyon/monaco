@@ -164,7 +164,7 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         configuration.protocolClasses = [MockURLProtocol.self]
         let transport = MonacoHTTPTransport(session: URLSession(configuration: configuration))
         let submission = IdempotentSubmission()
-        let request = Self.request(path: "/v1/transactions/t1/retry", body: "")
+        let request = Self.request(path: "/v1/swaps/s1/retry", body: "")
 
         _ = try await transport.data(for: request, submission: submission)
         _ = try await transport.data(for: request, submission: submission)
