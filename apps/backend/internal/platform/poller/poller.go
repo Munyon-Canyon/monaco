@@ -116,12 +116,19 @@ func (r *Runner) attempt(ctx context.Context, p Poller, lock *db.Lock) {
 	report, err := tick(tickCtx, p)
 	cancelTick()
 	if err != nil {
-		r.fail(ctx, name, err)
+		r.fail(ctx, name, deadlineAsTimeout(err))
 		return
 	}
 	observability.Info(ctx, observability.PollerTick, slog.String("poller", name),
 		slog.Int("scanned", report.Scanned), slog.Int("changed", report.Changed),
 		slog.Int64("duration_ms", r.clock.Now().Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
+}
+
+func deadlineAsTimeout(err error) error {
+	if errs.KindOf(errs.CodeOf(err)) == errs.KindInternal && errors.Is(err, context.DeadlineExceeded) {
+		return errs.Wrap(err, errs.CodeUpstreamTimeout, "poller.tick")
+	}
+	return err
 }
 
 func flow(poller string) string {
