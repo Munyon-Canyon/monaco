@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 )
@@ -70,4 +71,92 @@ func rpcReply(w http.ResponseWriter, id json.RawMessage, result any, fault *rpcF
 		Result  any             `json:"result,omitempty"`
 		Error   *rpcFault       `json:"error,omitempty"`
 	}{"2.0", id, result, fault})
+}
+
+func (s *Server) answerRPC(w http.ResponseWriter, r *http.Request, route string, scriptedFixture bool) bool {
+	switch route {
+	case "/rpc/getMultipleAccounts":
+		return s.multipleAccounts(w, r)
+	case "/rpc/getTokenAccountsByOwner":
+		return !scriptedFixture && s.tokenAccounts(w, r)
+	}
+	return false
+}
+
+type tokenBalance struct {
+	amount   uint64
+	decimals uint8
+}
+
+type SetBalance struct {
+	Owner    string `json:"owner"`
+	Mint     string `json:"mint"`
+	Amount   uint64 `json:"amount,string"`
+	Decimals uint8  `json:"decimals"`
+}
+
+func (s *Server) setBalance(w http.ResponseWriter, r *http.Request) {
+	var b SetBalance
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&b); err != nil {
+		http.Error(w, "decode: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if _, err := chain.ParseAddress(b.Owner); err != nil {
+		http.Error(w, fieldError("owner").Error(), http.StatusBadRequest)
+		return
+	}
+	if _, err := chain.ParseAddress(b.Mint); err != nil {
+		http.Error(w, fieldError("mint").Error(), http.StatusBadRequest)
+		return
+	}
+	s.mu.Lock()
+	if s.balances[b.Owner] == nil {
+		s.balances[b.Owner] = map[string]tokenBalance{}
+	}
+	s.balances[b.Owner][b.Mint] = tokenBalance{amount: b.Amount, decimals: b.Decimals}
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request) bool {
+	var call rpcCall
+	var owner string
+	var filter struct {
+		Mint string `json:"mint"`
+	}
+	if json.NewDecoder(r.Body).Decode(&call) != nil || len(call.Params) < 2 ||
+		json.Unmarshal(call.Params[0], &owner) != nil || json.Unmarshal(call.Params[1], &filter) != nil {
+		return false
+	}
+	s.mu.Lock()
+	held, set := s.balances[owner]
+	balance, ok := held[filter.Mint]
+	s.mu.Unlock()
+	if !set {
+		return false
+	}
+	accounts := []any{}
+	if ok {
+		ata, err := chain.AssociatedTokenAccount(
+			chain.SolanaAddress(owner), chain.SolanaAddress(filter.Mint), chain.SPLProgram,
+		)
+		if err != nil {
+			rpcReply(w, call.ID, nil, &rpcFault{Code: -32602, Message: "invalid owner or mint"})
+			return true
+		}
+		accounts = append(accounts, map[string]any{"pubkey": ata, "account": map[string]any{
+			"lamports": 2039280, "owner": chain.SPLProgram, "data": map[string]any{
+				"program": "spl-token", "parsed": map[string]any{"type": "account", "info": map[string]any{
+					"mint": filter.Mint, "owner": owner, "state": "initialized",
+					"tokenAmount": map[string]any{
+						"amount": strconv.FormatUint(balance.amount, 10), "decimals": balance.decimals,
+					},
+				}},
+			},
+		}})
+	}
+	rpcReply(w, call.ID, map[string]any{"context": map[string]any{"slot": 451000000}, "value": accounts}, nil)
+	return true
 }

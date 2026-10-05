@@ -63,6 +63,11 @@ stock fallback.
 - **Taps.** Drive a lane's app with the XCUITest journeys (`scripts/qa/journey.py`)
   or with an MCP that takes a simulator id on each call. Each agent passes its own
   lane UDID from `scripts/gold-sim-udid.sh` and never another lane's.
+- **Fake USDC.** Start `bin/fakes`, then export `QA_FAKE_RPC=1` and source
+  `scripts/qa/seed.sh` before `journey.py` or `just run backend`, so the backend
+  reads Solana RPC from the fakes server instead of mainnet. `qa_fake_usdc A 25`
+  then gives actor A a platform balance of 25.00 USDC, and an actor never set
+  reads the recorded fixture's 25.50.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
