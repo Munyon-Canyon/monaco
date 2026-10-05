@@ -53,6 +53,10 @@ public struct CashOutPreview: Equatable, Sendable {
 
     public var hasStake: Bool { sliceMicros > 0 }
 
+    public var sliceIsBelowMinimum: Bool {
+        CashOutAmountRule.sliceIsBelowMinimum(sliceMicros: sliceMicros, minimumMicros: minMicros)
+    }
+
     public func verdict(enteredMicros: Int64) -> CashOutAmountRule.Verdict {
         CashOutAmountRule.verdict(enteredMicros: enteredMicros, sliceMicros: sliceMicros, minimumMicros: minMicros)
     }

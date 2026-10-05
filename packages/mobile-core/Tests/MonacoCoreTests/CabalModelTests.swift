@@ -37,6 +37,10 @@ final class CabalModelTests: XCTestCase {
         try await assertRefetch(after: .resync)
     }
 
+    func testACashOutChangeRefetchesTheBoard() async throws {
+        try await assertRefetch(after: .changed(.user("me"), what: "cashout_changed", id: "1"))
+    }
+
     func testHintsForAnotherCabalOrAnotherTopicSendNothing() async throws {
         let transport = StubTransport(.json(.ok, Self.cabal(name: "Weekend pot", members: 1)))
         let hints = FakeHintStream()
@@ -44,7 +48,7 @@ final class CabalModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 3 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.cabal("01890a5d-ac96-774b-bcce-b302099a8061"), what: "updated", id: "1"))
@@ -66,7 +70,7 @@ final class CabalModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 2 }
+        _ = await waitUntil { await hints.subscriberCount == 3 }
 
         model.setVisible(false)
         await hints.send(.changed(.cabal(cabalID), what: "updated", id: "1"))
@@ -127,7 +131,7 @@ final class CabalModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 3 }
         XCTAssertTrue(subscribed, file: file, line: line)
 
         await hints.send(hint)

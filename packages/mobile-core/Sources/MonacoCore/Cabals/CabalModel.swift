@@ -53,7 +53,9 @@ public final class CabalModel {
     }
 
     public func observe() async {
-        await refresher.observe(Self.refreshingHints.map { hints.hints(matching: .cabal(id: cabalID, what: $0)) })
+        await refresher.observe(
+            Self.refreshingHints.map { hints.hints(matching: .cabal(id: cabalID, what: $0)) }
+                + [hints.hints(matching: .user(what: CashOutJobWatcher.changedHint))])
     }
 
     public func setVisible(_ visible: Bool) {

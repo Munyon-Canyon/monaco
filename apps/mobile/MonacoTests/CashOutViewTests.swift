@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 import Testing
 
@@ -11,12 +12,14 @@ struct CashOutViewTests {
     }
 
     @Test func theCopyMatchesTheScreenMap() {
-        #expect(CashOutView.Copy.title == "Cash out")
-        #expect(CashOutView.Copy.sliceComing == "Your slice shows up here soon.")
+        let slice: Int64 = 200_150_000
+        let verdict = CashOutAmountRule.verdict(enteredMicros: 50_030_000, sliceMicros: slice, minimumMicros: 100_000)
+        #expect(CashOutAmountRule.helper(for: verdict, sliceMicros: slice) == "Your slice is worth $200.15")
         #expect(
-            CashOutView.Copy.explainer
+            CashOutAmountRule.explainer(for: verdict)
                 == "We sell this much of your slice and move the cash to your account balance. You stay in the cabal.")
-        #expect(CashOutView.Copy.submit == "Cash out")
-        #expect(CashOutView.Copy.submitComing == "Cash outs open soon.")
+        #expect(
+            CashOutAmountRule.submitTitle(for: verdict, enteredMicros: 50_030_000, sliceMicros: slice)
+                == "Cash out $50.03")
     }
 }

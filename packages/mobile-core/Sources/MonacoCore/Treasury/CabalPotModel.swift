@@ -50,6 +50,7 @@ public final class CabalPotModel {
         await refresher.observe([
             hints.hints(matching: .cabal(id: cabalID, what: "activity_changed")),
             hints.hints(matching: .global(what: "prices_updated")),
+            hints.hints(matching: .user(what: CashOutJobWatcher.changedHint)),
         ])
     }
 
