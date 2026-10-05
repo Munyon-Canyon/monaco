@@ -272,6 +272,127 @@ type CabalActivityPage struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
+// CabalHolding One stock the cabal holds, valued at the latest market price.
+type CabalHolding struct {
+	// CostBasisMicros What the cabal paid for the holding, in USDC micros.
+	//
+	// Examples: 40000000
+	CostBasisMicros int64 `json:"cost_basis_micros"`
+
+	// DisplayName The display name.
+	//
+	// Examples: Apple
+	DisplayName string `json:"display_name"`
+
+	// PnlMicros Signed gain, value minus cost basis, in micros.
+	//
+	// Examples: 20000000
+	PnlMicros int64 `json:"pnl_micros"`
+
+	// PriceMicros The latest price of one share, in USDC micros.
+	//
+	// Examples: 30000000
+	PriceMicros int64 `json:"price_micros"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// Units Shares as the user sees them, rounded down to 4 decimal places.
+	//
+	// Examples: 0.7300
+	Units string `json:"units"`
+
+	// ValueMicros The holding's value, in USDC micros.
+	//
+	// Examples: 60000000
+	ValueMicros int64 `json:"value_micros"`
+
+	// WeightBps The holding's share of the pot in basis points.
+	//
+	// Examples: 5000
+	WeightBps int32 `json:"weight_bps"`
+}
+
+// CabalPot A cabal's pot valued from one price read, with the caller's slice.
+type CabalPot struct {
+	// CabalId The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CashMicros The cabal's USDC not reserved for a cash out, in micros.
+	//
+	// Examples: 60000000
+	CashMicros int64 `json:"cash_micros"`
+
+	// CashWeightBps Cash's share of the pot in basis points. With every holding's weight it sums to 10000, or all are 0 when the pot is empty.
+	//
+	// Examples: 5000
+	CashWeightBps int32 `json:"cash_weight_bps"`
+
+	// Holdings Every stock the cabal holds, largest value first, ties by symbol.
+	//
+	// Examples: []
+	Holdings []CabalHolding `json:"holdings"`
+
+	// Me The caller's slice. Null when the caller is not a member; every field is 0 for a member with no shares.
+	//
+	// Examples: null
+	Me *CabalPotSlice `json:"me"`
+
+	// PnlMicros Signed all-time gain, the pot value minus what members put in net of what they took out.
+	//
+	// Examples: 20000000
+	PnlMicros int64 `json:"pnl_micros"`
+
+	// PotValueMicros Cash plus every holding's value, in USDC micros.
+	//
+	// Examples: 120000000
+	PotValueMicros int64 `json:"pot_value_micros"`
+
+	// PricesAsOf The oldest price used. The read time when the pot holds only USDC.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	PricesAsOf time.Time `json:"prices_as_of"`
+
+	// ReturnBps The all-time gain over net contributed, in basis points, truncated toward zero. Null when net contributed is zero or less.
+	//
+	// Examples: 2000
+	ReturnBps *int32 `json:"return_bps"`
+}
+
+// CabalPotSlice The caller's slice. Null when the caller is not a member; every field is 0 for a member with no shares.
+//
+// Examples: null
+type CabalPotSlice struct {
+	// NetContributedMicros Signed USDC the caller put in minus what they took out, in micros.
+	//
+	// Examples: 100000000
+	NetContributedMicros int64 `json:"net_contributed_micros"`
+
+	// PnlMicros Signed gain, value minus net contributed, in micros.
+	//
+	// Examples: 20000000
+	PnlMicros int64 `json:"pnl_micros"`
+
+	// ShareUnits The caller's share units.
+	//
+	// Examples: 100000000
+	ShareUnits int64 `json:"share_units"`
+
+	// SliceBps The caller's share of the pot in basis points. Every member's slice sums to 10000.
+	//
+	// Examples: 10000
+	SliceBps int32 `json:"slice_bps"`
+
+	// ValueMicros What the caller's shares are worth now, in USDC micros.
+	//
+	// Examples: 120000000
+	ValueMicros int64 `json:"value_micros"`
+}
+
 // CashOutJob An asynchronous cash-out job.
 type CashOutJob struct {
 	// CabalId Examples: 01890a5d-ac96-774b-bcce-b302099a8059
@@ -503,6 +624,9 @@ type ServerInterface interface {
 	// FundCabal Fund a cabal from the caller's platform balance.
 	// (POST /v1/cabals/{id}/fund)
 	FundCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FundCabalParams)
+	// GetCabalPot Read a cabal's pot, its holdings and the caller's slice.
+	// (GET /v1/cabals/{id}/pot)
+	GetCabalPot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// GetFundTransfer Read one of the caller's fund transfers.
 	// (GET /v1/fund-transfers/{id})
 	GetFundTransfer(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -744,6 +868,32 @@ func (siw *ServerInterfaceWrapper) FundCabal(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetCabalPot operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalPot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalPot(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetFundTransfer operation middleware
 func (siw *ServerInterfaceWrapper) GetFundTransfer(w http.ResponseWriter, r *http.Request) {
 
@@ -941,6 +1091,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/preview", wrapper.GetCashOutPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/{job_id}", wrapper.GetCashOutJob)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/fund", wrapper.FundCabal)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/pot", wrapper.GetCabalPot)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/fund-transfers/{id}", wrapper.GetFundTransfer)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/txns", wrapper.GetMyTxns)
 
@@ -1148,6 +1299,45 @@ func (response FundCabaldefaultApplicationProblemPlusJSONResponse) VisitFundCaba
 	return err
 }
 
+type GetCabalPotRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetCabalPotResponseObject interface {
+	VisitGetCabalPotResponse(w http.ResponseWriter) error
+}
+
+type GetCabalPot200JSONResponse CabalPot
+
+func (response GetCabalPot200JSONResponse) VisitGetCabalPotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalPotdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCabalPotdefaultApplicationProblemPlusJSONResponse) VisitGetCabalPotResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetFundTransferRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -1243,6 +1433,9 @@ type StrictServerInterface interface {
 	// FundCabal Fund a cabal from the caller's platform balance.
 	// (POST /v1/cabals/{id}/fund)
 	FundCabal(ctx context.Context, request FundCabalRequestObject) (FundCabalResponseObject, error)
+	// GetCabalPot Read a cabal's pot, its holdings and the caller's slice.
+	// (GET /v1/cabals/{id}/pot)
+	GetCabalPot(ctx context.Context, request GetCabalPotRequestObject) (GetCabalPotResponseObject, error)
 	// GetFundTransfer Read one of the caller's fund transfers.
 	// (GET /v1/fund-transfers/{id})
 	GetFundTransfer(ctx context.Context, request GetFundTransferRequestObject) (GetFundTransferResponseObject, error)
@@ -1431,6 +1624,32 @@ func (sh *strictHandler) FundCabal(w http.ResponseWriter, r *http.Request, id op
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(FundCabalResponseObject); ok {
 		if err := validResponse.VisitFundCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalPot operation middleware
+func (sh *strictHandler) GetCabalPot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetCabalPotRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalPot(ctx, request.(GetCabalPotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalPot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalPotResponseObject); ok {
+		if err := validResponse.VisitGetCabalPotResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

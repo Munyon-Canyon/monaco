@@ -87,3 +87,34 @@ type SignatureOwner interface {
 type WalletLedger interface {
 	WalletLedgerMicros(ctx context.Context, user ids.UserID, mint chain.SolanaAddress) (money.SignedMicros, int, error)
 }
+
+type Holding struct {
+	Symbol          string
+	DisplayName     string
+	Units           string
+	PriceMicros     money.Micros
+	ValueMicros     money.Micros
+	WeightBps       int32
+	CostBasisMicros money.Micros
+	PnLMicros       money.SignedMicros
+}
+
+type Slice struct {
+	ShareUnits           money.SharesUnits
+	ValueMicros          money.Micros
+	SliceBps             int32
+	NetContributedMicros money.SignedMicros
+	PnLMicros            money.SignedMicros
+}
+
+type CabalPot struct {
+	CabalID        ids.CabalID
+	PotValueMicros money.Micros
+	CashMicros     money.Micros
+	CashWeightBps  int32
+	PnLMicros      money.SignedMicros
+	ReturnBps      *int32
+	PricesAsOf     time.Time
+	Holdings       []Holding
+	Me             *Slice
+}

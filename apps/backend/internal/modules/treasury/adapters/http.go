@@ -24,6 +24,9 @@ type HTTP struct {
 	CashOut   *app.CashOutHandler
 	Fund      *app.FundCabalHandler
 	FundReads sqlc.DBTX
+	Pot       *Queries
+	Cabals    app.CabalViews
+	Members   app.Members
 }
 
 func (h HTTP) GetCashOutPreview(

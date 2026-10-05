@@ -601,7 +601,10 @@ func adapterQueriesWithReader(f fixture, reader app.PriceReader) *adapters.Queri
 	resolver := app.MintResolver(func(_ context.Context, mint chain.SolanaAddress) (app.Asset, error) {
 		for _, asset := range marketfake.Fixtures() {
 			if string(mint) == string(asset.Mint.Address()) {
-				return app.Asset{ID: asset.ID.UUID(), Decimals: asset.Decimals, ChainChecked: asset.ChainChecked}, nil
+				return app.Asset{
+					ID: asset.ID.UUID(), Symbol: asset.Symbol, DisplayName: asset.DisplayName,
+					Decimals: asset.Decimals, ChainChecked: asset.ChainChecked,
+				}, nil
 			}
 		}
 		return app.Asset{}, errs.New(errs.CodeAssetNotFound, "test.AssetByMint")

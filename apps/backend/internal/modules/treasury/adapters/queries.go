@@ -28,6 +28,7 @@ const usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 type Queries struct {
 	q         queryStore
+	pot       potStore
 	history   historyStore
 	signature signatureStore
 	wallet    walletLedgerStore
@@ -71,6 +72,7 @@ func NewQueries(
 	queries := sqlc.New(db)
 	return &Queries{
 		q:         queries,
+		pot:       queries,
 		history:   queries,
 		signature: queries,
 		wallet:    queries,
