@@ -185,8 +185,12 @@ type Delivery struct {
 }
 
 func (d Delivery) Record(ctx context.Context, tx db.Tx) (bool, error) {
+	return d.RecordAs(ctx, tx, deliveryOK)
+}
+
+func (d Delivery) RecordAs(ctx context.Context, tx db.Tx, code string) (bool, error) {
 	n, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
-		Handler: d.Handler, EventID: d.EventID.UUID(), Code: deliveryOK, HandledAt: d.At,
+		Handler: d.Handler, EventID: d.EventID.UUID(), Code: code, HandledAt: d.At,
 	})
 	return n == 1, err
 }

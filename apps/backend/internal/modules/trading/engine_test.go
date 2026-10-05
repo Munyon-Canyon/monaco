@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -59,13 +60,18 @@ type engineBus struct {
 
 func newEngineBus(t *testing.T, opts ...func(*engineEnv)) *engineBus {
 	t.Helper()
+	return newEngineBusWith(t, testkit.Config(), opts...)
+}
+
+func newEngineBusWith(t *testing.T, cfg config.Config, opts ...func(*engineEnv)) *engineBus {
+	t.Helper()
 	e := newEngineEnv(t)
 	for _, opt := range opts {
 		opt(e)
 	}
 	conn := testkit.NATS(t).Conn
 	m := trading.New(module.Deps{
-		Config: testkit.Config(), Clock: e.clk, IDs: e.ids, Pool: e.pool, UoW: e.uow, Bus: conn,
+		Config: cfg, Clock: e.clk, IDs: e.ids, Pool: e.pool, UoW: e.uow, Bus: conn,
 	}, trading.WithEnginePorts(e.ports()), trading.WithChain(e.venue, e.signer))
 	reg, err := bus.NewRegistry(conn, e.uow, e.clk, m.Consumers())
 	if err != nil {

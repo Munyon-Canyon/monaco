@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +20,17 @@ const (
 )
 
 func (e Env) Deployed() bool { return e == EnvStaging || e == EnvProduction }
+
+func (c Config) LocalDev() bool {
+	if c.Env != EnvLocal {
+		return false
+	}
+	u, err := url.Parse(c.DB.URL)
+	if err != nil || strings.TrimPrefix(u.Path, "/") != "monaco" {
+		return false
+	}
+	return slices.Contains([]string{"localhost", "127.0.0.1", "::1"}, u.Hostname())
+}
 
 type Config struct {
 	Env        Env
@@ -44,7 +56,19 @@ type Config struct {
 	PostHog    PostHog
 	Supabase   Supabase
 	Web        Web
+	Trade      Trade
 	Faultpoint string
+}
+
+type TradeEngine string
+
+const (
+	TradeEngineLive TradeEngine = "live"
+	TradeEngineStub TradeEngine = "stub"
+)
+
+type Trade struct {
+	Engine TradeEngine
 }
 
 type Identity struct {
@@ -191,6 +215,7 @@ func Load(environ []string) (Config, error) {
 		}
 	}
 	bad.checkAPNs(cfg)
+	bad.checkTrade(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {
 		if strings.HasPrefix(k, "MONACO_") && !known[k] {
@@ -285,7 +310,7 @@ func (f field) secret() field {
 }
 
 func fields() []field {
-	return slices.Concat(platformFields(), marketFields(), fundingFields(), webFields())
+	return slices.Concat(platformFields(), marketFields(), fundingFields(), webFields(), tradeFields())
 }
 
 func marketFields() []field {
@@ -381,6 +406,25 @@ func fundingFields() []field {
 		duration("FUNDING_DEPOSIT_POLL_INTERVAL", 30*time.Second,
 			func(c *Config) *time.Duration { return &c.Funding.DepositPollInterval }),
 		count("FUNDING_DEPOSIT_RPC_RATE", 20, func(c *Config) *int32 { return &c.Funding.DepositRPCRate }),
+	}
+}
+
+func tradeFields() []field {
+	return []field{{
+		key:      "TRADE_ENGINE",
+		fallback: string(TradeEngineLive),
+		want:     "live or stub",
+		set: func(c *Config, v string) bool {
+			c.Trade.Engine = TradeEngine(v)
+			return slices.Contains([]TradeEngine{TradeEngineLive, TradeEngineStub}, TradeEngine(v))
+		},
+		get: func(c *Config) string { return string(c.Trade.Engine) },
+	}}
+}
+
+func (e *keysError) checkTrade(c Config) {
+	if c.Trade.Engine == TradeEngineStub && !c.LocalDev() {
+		e.invalid = append(e.invalid, "TRADE_ENGINE (stub runs only in local dev)")
 	}
 }
 

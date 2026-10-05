@@ -15,9 +15,13 @@ import (
 
 type Engine struct {
 	Trades *app.ExecuteTradeHandler
+	Stub   *StubEngine
 }
 
 func (e Engine) Handle(ctx context.Context, d bus.Delivery, ev events.ProposalPassed) error {
+	if e.Stub != nil {
+		return e.Stub.Handle(ctx, d, ev)
+	}
 	action := domain.Action(ev.Kind)
 	if !slices.Contains(domain.Actions(), action) {
 		return nil

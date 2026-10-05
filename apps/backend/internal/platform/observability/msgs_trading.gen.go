@@ -8,5 +8,6 @@ func init() {
 		TradingSwapForceResolved,
 		TradingEngineBlocked,
 		TradingRetryRequested,
+		TradingEngineStubbed,
 	)
 }
