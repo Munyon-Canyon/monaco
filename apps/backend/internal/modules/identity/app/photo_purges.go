@@ -12,24 +12,22 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-const (
-	PhotoPurgeInterval = 60 * time.Second
-	PhotoPurgeBatch    = 100
-)
+const PhotoPurgeBatch = 100
 
 type PhotoPurges struct {
-	db    sqlc.DBTX
-	store PhotoStore
-	clock clock.Clock
+	db       sqlc.DBTX
+	store    PhotoStore
+	clock    clock.Clock
+	interval time.Duration
 }
 
-func NewPhotoPurges(db sqlc.DBTX, store PhotoStore, c clock.Clock) *PhotoPurges {
-	return &PhotoPurges{db: db, store: store, clock: c}
+func NewPhotoPurges(db sqlc.DBTX, store PhotoStore, c clock.Clock, interval time.Duration) *PhotoPurges {
+	return &PhotoPurges{db: db, store: store, clock: c, interval: interval}
 }
 
 func (*PhotoPurges) Name() string { return "identity.photo_purges" }
 
-func (*PhotoPurges) Interval() time.Duration { return PhotoPurgeInterval }
+func (p *PhotoPurges) Interval() time.Duration { return p.interval }
 
 func (p *PhotoPurges) Tick(ctx context.Context) (poller.Report, error) {
 	q := sqlc.New(p.db)

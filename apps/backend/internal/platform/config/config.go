@@ -73,7 +73,8 @@ type Trade struct {
 }
 
 type Identity struct {
-	NudgesInterval time.Duration
+	NudgesInterval      time.Duration
+	PhotoPurgesInterval time.Duration
 }
 
 type Auth struct {
@@ -370,6 +371,11 @@ func platformFields() []field {
 			"IDENTITY_NUDGES_INTERVAL",
 			24*time.Hour,
 			func(c *Config) *time.Duration { return &c.Identity.NudgesInterval },
+		),
+		duration(
+			"IDENTITY_PHOTO_PURGES_INTERVAL",
+			time.Minute,
+			func(c *Config) *time.Duration { return &c.Identity.PhotoPurgesInterval },
 		),
 		duration("MONACO_TIMEOUT_RPC", 5*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.RPC }),
 		duration("MONACO_TIMEOUT_PRIVY", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.Privy }),

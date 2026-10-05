@@ -175,7 +175,10 @@ func (m *Module) Pollers() []poller.Poller {
 	if store == nil {
 		return []poller.Poller{nudges}
 	}
-	return []poller.Poller{nudges, app.NewPhotoPurges(m.deps.Pool, store, m.deps.Clock)}
+	return []poller.Poller{
+		nudges,
+		app.NewPhotoPurges(m.deps.Pool, store, m.deps.Clock, m.deps.Config.Identity.PhotoPurgesInterval),
+	}
 }
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
