@@ -594,6 +594,26 @@ paths:
               schema: {$ref: "#/components/schemas/WithdrawAccepted"}
               example: {withdrawal_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted, tx_signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/me/withdrawals/{id}:
+    get:
+      operationId: getMyWithdrawal
+      tags: [funding]
+      x-allow-restricted: true
+      summary: Read one of the caller's withdrawals.
+      description: Returns the withdrawal's status. Another user's withdrawal is not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The withdrawal id from the create response.
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: The withdrawal.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Withdrawal"}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/onramp/sessions:
     post:
       operationId: createOnrampSession
@@ -2596,6 +2616,30 @@ components:
           type: string
           description: The destination Solana wallet. It cannot be the caller's own member wallet.
           examples: [9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P]
+    Withdrawal:
+      type: object
+      description: One withdrawal and where it stands.
+      additionalProperties: false
+      required: [withdrawal_id, status, amount_micros, to_address, tx_signature, fail_code, created_at, completed_at]
+      properties:
+        withdrawal_id: {type: string, format: uuid, examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        status: {$ref: "#/components/schemas/WithdrawalStatus", examples: [submitted]}
+        amount_micros: {type: string, pattern: "^[0-9]+$", examples: ["2000000"]}
+        to_address: {type: string, examples: [9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P]}
+        tx_signature:
+          type: [string, "null"]
+          description: Null until the transfer is signed.
+          examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]
+        fail_code:
+          type: [string, "null"]
+          description: The error code a failed withdrawal ended with. Null otherwise.
+          examples: [privy_unavailable]
+        created_at: {type: string, format: date-time, examples: ["2026-10-04T15:00:00Z"]}
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the withdrawal confirmed or failed. Null while it is in flight.
+          examples: ["2026-10-04T15:00:10Z"]
     WithdrawalStatus:
       type: string
       description: created, then submitted, then confirmed. created or submitted can end in failed.
