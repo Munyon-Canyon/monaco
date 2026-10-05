@@ -191,9 +191,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The report compiles only monacoctl: a cold build is faster than
+      # restoring the 6.6 GB Go cache, which could outlast the timeout.
       - uses: ./.github/actions/backend-test-env
         with:
           db: false
+          go-cache: false
 
       - uses: actions/download-artifact@v4
         with:
@@ -247,9 +250,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Skips restoring the 6.6 GB Go cache, which alone could outlast the
+      # timeout on a slow runner.
       - uses: ./.github/actions/backend-test-env
         with:
           db: 'false'
+          go-cache: false
 
       - run: scripts/install-sqlc.sh
 
