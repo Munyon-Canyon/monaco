@@ -649,7 +649,8 @@ func (env *Env) lintRow(ctx context.Context, backend string, pkgs []string) (che
 		return checkRow{}, fmt.Errorf("read the golangci-lint pin: %w", err)
 	}
 	want := strings.TrimSpace(string(pin))
-	out, err := env.Run(ctx, backend, "", "golangci-lint", "version", "--short")
+	bin := env.golangciLint(ctx, backend)
+	out, err := env.Run(ctx, backend, "", bin, "version", "--short")
 	have := "v" + strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
 	if err != nil {
 		have = "none"
@@ -660,10 +661,25 @@ func (env *Env) lintRow(ctx context.Context, backend string, pkgs []string) (che
 			fmt.Sprintf("golangci-lint on PATH is %s and CI pins %s; run: %s", have, want, install))
 	}
 	return checkRow{label: "go lint", kind: "lint", dir: backend, cmds: [][]string{
-		slices.Concat([]string{"golangci-lint", "run"}, pkgs),
+		slices.Concat([]string{bin, "run", "--allow-parallel-runners"}, pkgs),
 		slices.Concat([]string{"go", "run", "./internal/platform/lint/nogo/cmd/nogo"}, pkgs),
 		{"go", "run", "./cmd/monacoctl", "lint", "comments"},
 	}}, nil
+}
+
+func (env *Env) golangciLint(ctx context.Context, backend string) string {
+	if _, err := env.lookPath("golangci-lint"); err == nil {
+		return "golangci-lint"
+	}
+	gopath, err := env.Run(ctx, backend, "", "go", "env", "GOPATH")
+	if err != nil || strings.TrimSpace(string(gopath)) == "" {
+		return "golangci-lint"
+	}
+	bin := filepath.Join(strings.TrimSpace(string(gopath)), "bin", "golangci-lint")
+	if _, err := os.Stat(bin); err != nil {
+		return "golangci-lint"
+	}
+	return bin
 }
 
 func testParallelism(cpus, running int) int {

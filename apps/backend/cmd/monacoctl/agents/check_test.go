@@ -34,6 +34,7 @@ type checkHarness struct {
 	work        string
 	lint        string
 	calls       []string
+	names       []string
 	affected    string
 	affectedErr error
 	replies     []reply
@@ -71,6 +72,7 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 	}
 	rel, _ := filepath.Rel(h.work, dir)
 	h.calls = append(h.calls, rel+": "+line)
+	h.names = append(h.names, name)
 	if strings.HasPrefix(line, "ci affected") {
 		return []byte(h.affected), h.affectedErr
 	}
@@ -92,7 +94,7 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 	switch line {
 	case "golangci-lint version --short":
 		return []byte(h.lint), nil
-	case "gt parent --no-interactive":
+	case "gt parent --no-interactive", "go env GOPATH":
 		return nil, nil
 	}
 	h.clock = h.clock.Add(time.Second)
@@ -311,13 +313,14 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	want := []string{
 		".: gt parent --no-interactive",
 		"apps/backend: ci affected --base origin/fb",
+		"apps/backend: go env GOPATH",
 		"apps/backend: golangci-lint version --short",
 		pr + "check-pr-size.py",
 		pr + "check-gate-changes.py",
 		pr + "check-legacy-growth.py",
 		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
-		"apps/backend: golangci-lint run ./internal/x ./internal/t ./cmd/api",
+		"apps/backend: golangci-lint run --allow-parallel-runners ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./internal/platform/lint/nogo/cmd/nogo ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./cmd/monacoctl lint comments",
 		goTest[0],
@@ -580,6 +583,47 @@ func TestCheck_refusesAGolangciLintThatDiffersFromThePin(t *testing.T) {
 	git(t, h.dir, "commit", "-q", "-m", "unpin")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "read the golangci-lint pin") {
 		t.Fatalf("no pin: %d %q", code, stderr)
+	}
+}
+
+func TestCheck_findsGolangciLintInGOPATHWhenItIsNotOnPATH(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	gopath := t.TempDir()
+	bin := filepath.Join(gopath, "bin", "golangci-lint")
+	writeFile(t, bin, "#!/bin/sh\n")
+	h.replies = []reply{{prefix: "go env GOPATH", out: gopath + "\n"}}
+	if code, stdout, stderr := h.check(t); code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	if n := slices.Index(h.names, bin); n < 0 || h.calls[n] != "apps/backend: golangci-lint version --short" {
+		t.Fatalf("version probe skipped %s: %v", bin, h.calls)
+	}
+	if n := slices.Index(h.names[slices.Index(h.names, bin)+1:], bin); n < 0 {
+		t.Fatalf("lint run skipped %s: %v", bin, h.calls)
+	}
+
+	for i, r := range []reply{
+		{prefix: "go env GOPATH", err: errors.New("no go")},
+		{prefix: "go env GOPATH", out: t.TempDir() + "\n"},
+	} {
+		h.replies = []reply{r}
+		h.calls, h.names = nil, nil
+		src := "package a\n\nconst N = " + strconv.Itoa(i) + "\n"
+		h.commit(t, map[string]string{"apps/backend/internal/a/a.go": src})
+		if code, stdout, stderr := h.check(t); code != 0 || !slices.Contains(h.names, "golangci-lint") {
+			t.Fatalf("no GOPATH binary %v: %d %q %q %v", r, code, stdout, stderr, h.names)
+		}
+	}
+
+	h.lookPath = func(string) (string, error) { return "/usr/local/bin/golangci-lint", nil }
+	h.calls, h.names = nil, nil
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n\nconst N = 9\n"})
+	if code, stdout, stderr := h.check(t); code != 0 ||
+		slices.Contains(h.names, bin) || slices.Contains(h.calls, "apps/backend: go env GOPATH") {
+		t.Fatalf("on PATH: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 }
 
