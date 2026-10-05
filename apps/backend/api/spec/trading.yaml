@@ -1,0 +1,51 @@
+paths:
+  /v1/swaps/{id}/retry:
+    post:
+      operationId: postSwapRetry
+      tags: [trading]
+      x-idempotent: true
+      summary: Retry a failed trade.
+      description: >-
+        Asks the trade engine to run a proposal's trade again after its swap failed. Only a member of
+        the swap's cabal can ask, and only for the latest swap of a passed proposal when that swap is
+        `failed`; a cash out leg is final. The server appends `trade.retry_requested` with the trade
+        parameters from the failed swap and answers at once. The engine re-runs the pre-trade checks
+        and creates a new swap, or blocks the proposal, later. A replay with the same Idempotency-Key
+        returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of the failed swap.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: The retry was requested.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapRetryAccepted"
+              example: {swap_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: retry_requested}
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  schemas:
+    SwapRetryAccepted:
+      type: object
+      description: A retry the trade engine will run.
+      additionalProperties: false
+      required: [swap_id, status]
+      properties:
+        swap_id:
+          type: string
+          format: uuid
+          description: The failed swap the retry starts from.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        status:
+          type: string
+          description: Always `retry_requested`.
+          enum: [retry_requested]
+          examples: [retry_requested]
