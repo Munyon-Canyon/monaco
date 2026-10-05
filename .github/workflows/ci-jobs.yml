@@ -269,9 +269,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # govulncheck needs module sources, not the 6.6 GB build cache, and a
+      # cold go mod download takes seconds.
       - uses: ./.github/actions/backend-test-env
         with:
           db: false
+          go-cache: false
 
       # Restore and save are split so a cold install is cached before the
       # scan runs: a plain actions/cache saves only on job success, and a
