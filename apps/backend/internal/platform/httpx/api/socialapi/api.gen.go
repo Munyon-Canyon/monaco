@@ -20,6 +20,33 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for FeedMuteRequestTargetType.
+const (
+	FeedMuteRequestTargetTypeAsset FeedMuteRequestTargetType = "asset"
+	FeedMuteRequestTargetTypeCabal FeedMuteRequestTargetType = "cabal"
+	FeedMuteRequestTargetTypeItem  FeedMuteRequestTargetType = "item"
+	FeedMuteRequestTargetTypeKind  FeedMuteRequestTargetType = "kind"
+	FeedMuteRequestTargetTypeUser  FeedMuteRequestTargetType = "user"
+)
+
+// Valid indicates whether the value is a known member of the FeedMuteRequestTargetType enum.
+func (e FeedMuteRequestTargetType) Valid() bool {
+	switch e {
+	case FeedMuteRequestTargetTypeAsset:
+		return true
+	case FeedMuteRequestTargetTypeCabal:
+		return true
+	case FeedMuteRequestTargetTypeItem:
+		return true
+	case FeedMuteRequestTargetTypeKind:
+		return true
+	case FeedMuteRequestTargetTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetFeedParamsScope.
 const (
 	GetFeedParamsScopeAll       GetFeedParamsScope = "all"
@@ -65,6 +92,33 @@ func (e GetFeedItemParamsScope) Valid() bool {
 	case GetFeedItemParamsScopeAll:
 		return true
 	case GetFeedItemParamsScopeFollowing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType.
+const (
+	DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeAsset DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType = "asset"
+	DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeCabal DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType = "cabal"
+	DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeItem  DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType = "item"
+	DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeKind  DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType = "kind"
+	DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeUser  DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType = "user"
+)
+
+// Valid indicates whether the value is a known member of the DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType enum.
+func (e DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType) Valid() bool {
+	switch e {
+	case DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeAsset:
+		return true
+	case DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeCabal:
+		return true
+	case DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeItem:
+		return true
+	case DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeKind:
+		return true
+	case DeleteMeFeedMutesTargetTypeTargetIDParamsTargetTypeUser:
 		return true
 	default:
 		return false
@@ -160,6 +214,18 @@ type FeedItemDetail struct {
 	Visible bool `json:"visible"`
 }
 
+// FeedMuteRequest The feed target to mute.
+type FeedMuteRequest struct {
+	// TargetId Examples: AAPLx
+	TargetId string `json:"target_id"`
+
+	// TargetType Examples: asset
+	TargetType FeedMuteRequestTargetType `json:"target_type"`
+}
+
+// FeedMuteRequestTargetType Examples: asset
+type FeedMuteRequestTargetType string
+
 // FeedPage One page of feed items, newest first.
 type FeedPage struct {
 	// Items The page.
@@ -243,6 +309,21 @@ type GetFeedItemParams struct {
 // GetFeedItemParamsScope defines parameters for GetFeedItem.
 type GetFeedItemParamsScope string
 
+// PutMeFeedMutesParams defines parameters for PutMeFeedMutes.
+type PutMeFeedMutesParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// DeleteMeFeedMutesTargetTypeTargetIDParams defines parameters for DeleteMeFeedMutesTargetTypeTargetID.
+type DeleteMeFeedMutesTargetTypeTargetIDParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType defines parameters for DeleteMeFeedMutesTargetTypeTargetID.
+type DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType string
+
 // DeleteUserFollowParams defines parameters for DeleteUserFollow.
 type DeleteUserFollowParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -255,6 +336,9 @@ type PostUserFollowParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PutMeFeedMutesJSONRequestBody defines body for PutMeFeedMutes for application/json ContentType.
+type PutMeFeedMutesJSONRequestBody = FeedMuteRequest
+
 // PostUserFollowJSONRequestBody defines body for PostUserFollow for application/json ContentType.
 type PostUserFollowJSONRequestBody = FollowRequest
 
@@ -266,6 +350,12 @@ type ServerInterface interface {
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams)
+	// PutMeFeedMutes Mute a feed target.
+	// (PUT /v1/me/feed-mutes)
+	PutMeFeedMutes(w http.ResponseWriter, r *http.Request, params PutMeFeedMutesParams)
+	// DeleteMeFeedMutesTargetTypeTargetID Unmute a feed target.
+	// (DELETE /v1/me/feed-mutes/{target_type}/{target_id})
+	DeleteMeFeedMutesTargetTypeTargetID(w http.ResponseWriter, r *http.Request, targetType DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType, targetId string, params DeleteMeFeedMutesTargetTypeTargetIDParams)
 	// DeleteUserFollow Unfollow a user.
 	// (DELETE /v1/users/{id}/follow)
 	DeleteUserFollow(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params DeleteUserFollowParams)
@@ -492,6 +582,114 @@ func (siw *ServerInterfaceWrapper) GetFeedItem(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetFeedItem(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutMeFeedMutes operation middleware
+func (siw *ServerInterfaceWrapper) PutMeFeedMutes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutMeFeedMutesParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutMeFeedMutes(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteMeFeedMutesTargetTypeTargetID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMeFeedMutesTargetTypeTargetID(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "target_type" -------------
+	var targetType DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType
+
+	err = runtime.BindStyledParameterWithOptions("simple", "target_type", r.PathValue("target_type"), &targetType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "target_type", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "target_id" -------------
+	var targetId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "target_id", r.PathValue("target_id"), &targetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "target_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteMeFeedMutesTargetTypeTargetIDParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteMeFeedMutesTargetTypeTargetID(w, r, targetType, targetId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -731,6 +929,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.PutMeFeedMutes)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me/feed-mutes/{target_type}/{target_id}", wrapper.DeleteMeFeedMutesTargetTypeTargetID)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.PostUserFollow)
 
@@ -805,6 +1005,75 @@ type GetFeedItemdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetFeedItemdefaultApplicationProblemPlusJSONResponse) VisitGetFeedItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutMeFeedMutesRequestObject struct {
+	Params PutMeFeedMutesParams
+	Body   *PutMeFeedMutesJSONRequestBody
+}
+
+type PutMeFeedMutesResponseObject interface {
+	VisitPutMeFeedMutesResponse(w http.ResponseWriter) error
+}
+
+type PutMeFeedMutes204Response struct {
+}
+
+func (response PutMeFeedMutes204Response) VisitPutMeFeedMutesResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PutMeFeedMutesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PutMeFeedMutesdefaultApplicationProblemPlusJSONResponse) VisitPutMeFeedMutesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMeFeedMutesTargetTypeTargetIDRequestObject struct {
+	TargetType DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType `json:"target_type"`
+	TargetId   string                                              `json:"target_id"`
+	Params     DeleteMeFeedMutesTargetTypeTargetIDParams
+}
+
+type DeleteMeFeedMutesTargetTypeTargetIDResponseObject interface {
+	VisitDeleteMeFeedMutesTargetTypeTargetIDResponse(w http.ResponseWriter) error
+}
+
+type DeleteMeFeedMutesTargetTypeTargetID204Response struct {
+}
+
+func (response DeleteMeFeedMutesTargetTypeTargetID204Response) VisitDeleteMeFeedMutesTargetTypeTargetIDResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteMeFeedMutesTargetTypeTargetIDdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteMeFeedMutesTargetTypeTargetIDdefaultApplicationProblemPlusJSONResponse) VisitDeleteMeFeedMutesTargetTypeTargetIDResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -905,6 +1174,12 @@ type StrictServerInterface interface {
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(ctx context.Context, request GetFeedItemRequestObject) (GetFeedItemResponseObject, error)
+	// PutMeFeedMutes Mute a feed target.
+	// (PUT /v1/me/feed-mutes)
+	PutMeFeedMutes(ctx context.Context, request PutMeFeedMutesRequestObject) (PutMeFeedMutesResponseObject, error)
+	// DeleteMeFeedMutesTargetTypeTargetID Unmute a feed target.
+	// (DELETE /v1/me/feed-mutes/{target_type}/{target_id})
+	DeleteMeFeedMutesTargetTypeTargetID(ctx context.Context, request DeleteMeFeedMutesTargetTypeTargetIDRequestObject) (DeleteMeFeedMutesTargetTypeTargetIDResponseObject, error)
 	// DeleteUserFollow Unfollow a user.
 	// (DELETE /v1/users/{id}/follow)
 	DeleteUserFollow(ctx context.Context, request DeleteUserFollowRequestObject) (DeleteUserFollowResponseObject, error)
@@ -998,6 +1273,67 @@ func (sh *strictHandler) GetFeedItem(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetFeedItemResponseObject); ok {
 		if err := validResponse.VisitGetFeedItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutMeFeedMutes operation middleware
+func (sh *strictHandler) PutMeFeedMutes(w http.ResponseWriter, r *http.Request, params PutMeFeedMutesParams) {
+	var request PutMeFeedMutesRequestObject
+
+	request.Params = params
+
+	var body PutMeFeedMutesJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutMeFeedMutes(ctx, request.(PutMeFeedMutesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutMeFeedMutes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutMeFeedMutesResponseObject); ok {
+		if err := validResponse.VisitPutMeFeedMutesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteMeFeedMutesTargetTypeTargetID operation middleware
+func (sh *strictHandler) DeleteMeFeedMutesTargetTypeTargetID(w http.ResponseWriter, r *http.Request, targetType DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType, targetId string, params DeleteMeFeedMutesTargetTypeTargetIDParams) {
+	var request DeleteMeFeedMutesTargetTypeTargetIDRequestObject
+
+	request.TargetType = targetType
+	request.TargetId = targetId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteMeFeedMutesTargetTypeTargetID(ctx, request.(DeleteMeFeedMutesTargetTypeTargetIDRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteMeFeedMutesTargetTypeTargetID")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteMeFeedMutesTargetTypeTargetIDResponseObject); ok {
+		if err := validResponse.VisitDeleteMeFeedMutesTargetTypeTargetIDResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
