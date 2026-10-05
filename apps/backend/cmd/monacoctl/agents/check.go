@@ -113,12 +113,21 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 
 func (env *Env) runStage0(ctx context.Context, base, parent, head, tree, patchID string, stdout io.Writer) error {
 	defer func() { _ = os.Remove(env.coverProfile(head)) }()
-	rows, err := env.stage0(ctx, base, parent, head)
+	db, release, err := env.takeTestDB()
+	if err != nil {
+		return err
+	}
+	defer release()
+	rows, err := env.stage0(ctx, base, parent, head, db)
 	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s, parent %s)\n", tree[:12], base, parent)
 	run := &checkRun{env: env, start: env.Now()}
+	if slices.ContainsFunc(rows, func(r checkRow) bool { return r.label == "test db" }) {
+		_, _ = fmt.Fprintf(&run.log, "test database: port %d; go test -p %d (%d CPUs over %d busy stage 0 slots)\n",
+			db.port(), testParallelism(runtime.NumCPU(), db.busy), runtime.NumCPU(), db.busy)
+	}
 	runErr := run.rows(ctx, rows, stdout)
 	logPath, err := env.writeState("logs", "check-"+tree[:12]+".log", run.log.Bytes())
 	if err != nil {
@@ -225,7 +234,7 @@ func (env *Env) diffNames(ctx context.Context, base, filter string) ([]string, e
 	return strings.Fields(string(out)), nil
 }
 
-func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkRow, error) {
+func (env *Env) stage0(ctx context.Context, base, parent, head string, db testDB) ([]checkRow, error) {
 	changed, err := env.diffNames(ctx, base, "d")
 	if err != nil {
 		return nil, err
@@ -235,8 +244,12 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 		return nil, err
 	}
 	rows := env.prRows(parent, head)
-	if slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") }) {
-		goRows, err := env.goRows(ctx, base, head, changed)
+	backend := slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") })
+	if backend || slices.ContainsFunc(changed, env.flowFile) {
+		rows = append(rows, db.row(env.Work))
+	}
+	if backend {
+		goRows, err := env.goRows(ctx, base, head, changed, db)
 		if err != nil {
 			return nil, err
 		}
@@ -249,7 +262,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 		rows = append(rows, env.swiftRow(parent))
 	}
 	if slices.ContainsFunc(changed, env.flowFile) {
-		row, err := env.flowsRow(ctx, parent, head, swift)
+		row, err := env.flowsRow(ctx, parent, head, swift, db)
 		if err != nil {
 			return nil, err
 		}
@@ -313,7 +326,7 @@ func (env *Env) flowFile(file string) bool {
 	)
 }
 
-func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool) (checkRow, error) {
+func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool, db testDB) (checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
 	self, _ := os.Executable()
 	out, err := env.Run(ctx, backend, "", self, "flows", "--affected", "--base", parent)
@@ -343,7 +356,7 @@ func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool) (
 	}
 	alternatives := strings.Join(ids, "|")
 	row.cmds = [][]string{
-		slices.Concat([]string{
+		slices.Concat(db.testEnv(), []string{
 			"bash", "-c", `go test -tags faultpoints -json -run "$1" "${@:3}" > "$2" || true`, "flows",
 			"^TestFlow(" + alternatives + ")_", results,
 		}, pkgs),
@@ -570,7 +583,7 @@ func (env *Env) coverProfile(head string) string {
 	return env.statePath("coverage", head[:12]+".out")
 }
 
-func (env *Env) goRows(ctx context.Context, base, head string, changed []string) ([]checkRow, error) {
+func (env *Env) goRows(ctx context.Context, base, head string, changed []string, db testDB) ([]checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
 	self, _ := os.Executable()
 	out, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base)
@@ -581,12 +594,7 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string)
 	if len(pkgs) == 0 {
 		return nil, nil
 	}
-	records, err := env.records()
-	if err != nil {
-		return nil, err
-	}
-	running := len(slices.DeleteFunc(records, func(r Record) bool { return r.State == Exited }))
-	p := strconv.Itoa(testParallelism(runtime.NumCPU(), running))
+	p := strconv.Itoa(testParallelism(runtime.NumCPU(), db.busy))
 	tags := []string{"-tags", "faultpoints"}
 	lint, err := env.lintRow(ctx, backend, pkgs)
 	if err != nil {
@@ -605,7 +613,7 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string)
 		lint,
 		{
 			label: "go test -short", kind: packageKind, dir: backend,
-			cmds: [][]string{slices.Concat([]string{"go", "test"}, tags, []string{
+			cmds: [][]string{slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
 				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
 				"-coverpkg=" + strings.Join(buildable(backend, pkgs), ","), "-coverprofile=" + profile,
 			}, pkgs)},
@@ -682,8 +690,8 @@ func (env *Env) golangciLint(ctx context.Context, backend string) string {
 	return bin
 }
 
-func testParallelism(cpus, running int) int {
-	return max(2, cpus/max(1, running))
+func testParallelism(cpus, busy int) int {
+	return min(maxTestP, max(2, cpus/max(1, busy)))
 }
 
 func buildable(backend string, pkgs []string) []string {

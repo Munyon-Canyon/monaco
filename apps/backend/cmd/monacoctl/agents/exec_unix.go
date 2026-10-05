@@ -32,3 +32,15 @@ func classifyKillErr(err error) error {
 	}
 	return nil
 }
+
+func tryLock(name string) (*os.File, bool, error) {
+	f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, false, fmt.Errorf("open %s: %w", name, err)
+	}
+	if locked := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil; !locked {
+		_ = f.Close()
+		return nil, false, nil
+	}
+	return f, true, nil
+}
