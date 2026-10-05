@@ -69,13 +69,7 @@ type watchPR struct {
 		Nodes []gqlName `json:"nodes"`
 	} `json:"labels"`
 	Commits       lastCommits `json:"commits"`
-	TimelineItems struct {
-		Nodes []struct {
-			CreatedAt time.Time `json:"createdAt"`
-			Label     gqlName   `json:"label"`
-			Actor     gqlActor  `json:"actor"`
-		} `json:"nodes"`
-	} `json:"timelineItems"`
+	TimelineItems gqlTimeline `json:"timelineItems"`
 }
 
 type failure struct {
@@ -205,7 +199,7 @@ func failures(prs []watchPR, queue queueRuns, trunk string, since time.Time) []f
 
 func (p watchPR) failure(queue queueRuns, since time.Time) (failure, bool) {
 	f := failure{PR: p.Number, Head: p.HeadRefOid, Body: p.Body}
-	if p.droppedByGraphite(queue.label, since) && !draftHolds(queue.drafts, p.Number) {
+	if p.droppedByGraphite(queue, since) {
 		f.Why, f.Job = droppedWhy, p.queueJob(queue.drafts, since)
 		return f, true
 	}
@@ -218,14 +212,10 @@ func (p watchPR) failure(queue queueRuns, since time.Time) (failure, bool) {
 	return failure{}, false
 }
 
-func (p watchPR) droppedByGraphite(label string, since time.Time) bool {
-	events := p.TimelineItems.Nodes
-	for i := len(events) - 1; i >= 0; i-- {
-		if events[i].Label.Name == label {
-			return events[i].CreatedAt.After(since) && graphiteLogin(events[i].Actor.Login)
-		}
-	}
-	return false
+func (p watchPR) droppedByGraphite(queue queueRuns, since time.Time) bool {
+	at, byGraphite, ok := p.TimelineItems.removal(queue.label)
+	return ok && byGraphite && at.After(since) && !draftHolds(queue.drafts, p.Number) &&
+		!awaitsDraft(queue.drafts, p.Number, at, queue.now)
 }
 
 func graphiteLogin(login string) bool {

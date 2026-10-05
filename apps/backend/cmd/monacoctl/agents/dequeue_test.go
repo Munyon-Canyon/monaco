@@ -204,6 +204,23 @@ func TestDequeue_aStackIsSafeToPushOnceGraphiteHasLetGo(t *testing.T) {
 	}
 }
 
+func TestDequeue_aStackWithNoLabelsReportsUnreadableDrafts(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s, env := dequeueStack(t, f)
+	s.prs[1].Labels.Nodes, s.prs[2].Labels.Nodes = nil, nil
+	f.owner(t, Record{Ticket: 40, State: Running, Worktree: "/w/40"})
+	f.hub.on(graphqlRoute, `{"data":null,"errors":[{"message":"rate limited"}]}`)
+	var out strings.Builder
+	err := dequeueCmd(t.Context(), env, []string{"2"}, &out)
+	if err == nil || cliText(err) != "graphql: rate limited" || out.String() != "" {
+		t.Fatalf("%q %v", out.String(), err)
+	}
+	if len(f.hub.callsContaining("/labels")) != 0 || len(f.waited) != 0 {
+		t.Fatalf("labels %v, waited %v", f.hub.callsContaining("/labels"), f.waited)
+	}
+}
+
 func TestDequeue_failures(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

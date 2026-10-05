@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -139,6 +140,30 @@ func TestBoard_aPRGraphiteHoldsIsQueuedNotEjected(t *testing.T) {
 				t.Fatalf("state = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestBoard_readsAGraphiteTakeThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.status[graphqlRoute] = http.StatusForbidden
+	f.hub.on(graphqlRoute, "forbidden")
+	f.hub.on(list("/issues/5/timeline?"), `[{"event":"cross-referenced","source":{"issue":{"number":11,`+
+		`"repository_url":"https://api.github.com/repos/o/r","pull_request":{}}}}]`)
+	f.hub.on(get("/pulls/11"), fmt.Sprintf(`{"number":11,"state":"open","created_at":%q,"body":"Part of #5",`+
+		`"head":{"ref":"b11","sha":"h11"},"base":{"ref":"fb"},"labels":[]}`, f.at(-3*time.Hour)))
+	f.hub.on(list("/issues/11/events?"), fmt.Sprintf(
+		`[{"event":"labeled","created_at":%q,"label":{"name":"merge-queue"},"actor":{"login":"logan"}},`+
+			`{"event":"unlabeled","created_at":%q,"label":{"name":"merge-queue"},"actor":{"login":%q}}]`,
+		f.at(-3*time.Minute), f.at(-2*time.Minute), graphiteBot))
+	f.hub.on(get("/commits/h11"), fmt.Sprintf(`{"commit":{"committer":{"date":%q}}}`, f.at(-2*time.Hour)))
+	f.hub.on(get("/commits/h11/check-runs?per_page=100&filter=all&page=1"), `{"check_runs":[]}`)
+	f.hub.on(get("/commits/h11/status"), `{"statuses":[]}`)
+	f.hub.on(list("/pulls?state=open"), `[]`)
+	f.hub.on(closedDraftList(), `[]`)
+	views, err := f.Env(t).views(t.Context(), Batch{Tickets: []BatchTicket{{Ticket: 5}}})
+	if err != nil || len(views[0].PRs) != 1 || views[0].state() != "queued" {
+		t.Fatalf("%+v %v", views, err)
 	}
 }
 
