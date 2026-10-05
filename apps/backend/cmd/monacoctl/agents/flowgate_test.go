@@ -373,3 +373,27 @@ func TestFlowGate_aSpecThatDoesNotParseCountsEveryRouteAsChanged(t *testing.T) {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 }
+
+func TestFlowGate_aTestOnlyChangeOnStagingLike2743MovesNoFlow(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := gateStack(t, f, map[int][]File{2: {{Filename: "apps/backend/internal/modules/identity/http.go"}}})
+	s.gitOut["diff --name-only base..origin/fb"] = "apps/backend/internal/modules/identity/http_test.go\n" +
+		"apps/backend/internal/modules/identity/verifier.go\n"
+	s.gitOut["log -1 --format=%s base..origin/fb -- apps/backend/internal/modules/identity/verifier.go"] = "Verify (#79)\n"
+	if code, _, stderr := f.agents(t, "land-stack", "2"); code == 0 ||
+		!strings.Contains(stderr, "flow 01 changed on staging since this stack's base (#79)") {
+		t.Fatalf("a code change beside the tests: %d %q", code, stderr)
+	}
+
+	s.gitOut["diff --name-only base..origin/fb"] = strings.Join([]string{
+		"apps/backend/internal/modules/identity/availability_test.go",
+		"apps/backend/internal/modules/identity/delete_me_http_test.go",
+		"apps/backend/internal/modules/identity/http_test.go",
+		"apps/backend/internal/modules/identity/main_test.go",
+		"apps/backend/internal/modules/identity/verifier_test.go",
+	}, "\n") + "\n"
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}

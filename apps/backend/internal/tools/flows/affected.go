@@ -25,6 +25,16 @@ func harness(file string) bool {
 		strings.HasPrefix(file, "apps/backend/internal/testkit/fakes/")
 }
 
+func TestOnly(file string) bool {
+	switch {
+	case strings.HasSuffix(file, "_test.go"), strings.Contains("/"+file, "/testdata/"):
+		return true
+	case strings.HasPrefix(file, "apps/backend/internal/testkit/"):
+		return ownerID(file) == "" && (!harness(file) || match(namedFile, path.Base(file)) == "")
+	}
+	return false
+}
+
 func Affected(changed, ops []string, flows []Flow) []string {
 	hit := map[string]bool{}
 	for _, file := range changed {
