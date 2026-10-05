@@ -22,6 +22,7 @@ type Quote struct {
 
 type OrderSpec struct {
 	Taker           chain.SolanaAddress
+	Payer           chain.SolanaAddress
 	InMint, OutMint chain.Mint
 	InAmount        uint64
 	SlippageBps     int64
@@ -53,6 +54,7 @@ type Venue interface {
 }
 
 type Signer interface {
+	FeePayer() (chain.SolanaAddress, error)
 	Sign(
 		ctx context.Context, privyWalletID string, unsigned []byte,
 	) (signed []byte, signature chain.Signature, err error)

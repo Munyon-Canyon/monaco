@@ -10,7 +10,6 @@ import (
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -42,7 +41,7 @@ func newFlow12(t *testing.T, fail bool) *flow12 {
 		Scan(&f.swap); err != nil {
 		t.Fatal(err)
 	}
-	next := chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet))
+	next := swapTx()
 	next[len(next)-2] = 1
 	f.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()),
 		jupiter.Order{RequestID: "req-2", Transaction: next})

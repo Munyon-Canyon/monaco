@@ -20,7 +20,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
 )
 
@@ -176,7 +175,7 @@ func TestTradeEngine_FailedRowAllowsNewClaim(t *testing.T) {
 	b.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusFailed, ErrorCode: 6001})
 	first := b.message(t, cmd, "")
 	b.dispatch(t, first)
-	retry := chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet))
+	retry := swapTx()
 	retry[len(retry)-2] = 1
 	b.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
 		RequestID: "req-2", Transaction: retry,

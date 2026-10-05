@@ -10,8 +10,10 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -191,6 +193,17 @@ func (l *Ledger) SignatureStatuses(_ context.Context, sigs []chain.Signature) ([
 	}
 	return out, nil
 }
+
+func Relayer() *relayer.Relayer {
+	key := chain.EncodeBase58(fakes.FixtureKey("chainfake-relayer"))
+	r, err := relayer.New(config.Config{Relayer: config.Relayer{PrivateKey: key}}, nil)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
+func RelayerAddress() chain.SolanaAddress { return Relayer().Address() }
 
 func WalletAddress(walletID string) chain.SolanaAddress {
 	return chain.AddressOf(fakes.PrivyWalletKey(walletID).Public().(ed25519.PublicKey))

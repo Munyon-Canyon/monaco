@@ -57,6 +57,9 @@ type executeWire struct {
 func (c *Client) Order(ctx context.Context, spec OrderSpec) (Order, error) {
 	const op = "jupiter.Order"
 	q := url.Values{"taker": {string(spec.Taker)}, "slippageBps": {strconv.FormatInt(spec.SlippageBps, 10)}}
+	if spec.Payer != "" {
+		q.Set("payer", string(spec.Payer))
+	}
 	w, status, err := c.order(ctx, op, spec.In, spec.Out, spec.Amount, q)
 	if err != nil {
 		return Order{}, err

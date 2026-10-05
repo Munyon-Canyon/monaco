@@ -62,6 +62,7 @@ type OrderSpec struct {
 	In, Out     Mint
 	Amount      money.BaseUnits
 	Taker       SolanaAddress
+	Payer       SolanaAddress
 	SlippageBps int64
 }
 

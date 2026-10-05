@@ -14,6 +14,7 @@ import (
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 )
 
 func TestSwapLayer_RunSubmitsTheSignedTransaction(t *testing.T) {
@@ -35,6 +36,61 @@ func TestSwapLayer_RunSubmitsTheSignedTransaction(t *testing.T) {
 	assertSignatureOf(t, got, signed, *signature)
 	e.assertSubmittedEvent(t, got, *signature)
 	e.assertHints(t, req, got, 2)
+}
+
+type orderLog struct {
+	app.Venue
+	mu    sync.Mutex
+	specs []app.OrderSpec
+}
+
+func (o *orderLog) Order(ctx context.Context, spec app.OrderSpec) (app.Order, error) {
+	o.mu.Lock()
+	o.specs = append(o.specs, spec)
+	o.mu.Unlock()
+	return o.Venue.Order(ctx, spec)
+}
+
+func TestSwapLayer_TheRelayerPaysTheFeeAndCoSigns(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	orders := &orderLog{Venue: e.venue}
+	e.venue = orders
+	req := e.request(e.source())
+	got, err := e.run(t, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relayer := chainfake.RelayerAddress()
+	want := []app.OrderSpec{{
+		Taker: req.TreasuryWallet.Address, Payer: relayer, InMint: req.InMint, OutMint: req.OutMint,
+		InAmount: req.InAmount, SlippageBps: req.SlippageBps,
+	}}
+	if !slices.Equal(orders.specs, want) {
+		t.Fatalf("orders = %+v, want %+v", orders.specs, want)
+	}
+	tx := e.onlySent(t, "req-1")
+	if tx.Signers[0] != relayer || tx.Signers[1] != req.TreasuryWallet.Address || !tx.Signed(0) || !tx.Signed(1) {
+		t.Fatalf("sent signers %v signed (%v, %v), want the relayer and the treasury both signed",
+			tx.Signers, tx.Signed(0), tx.Signed(1))
+	}
+	_, _, _, signature := e.row(t, got.ID.UUID())
+	if signature == nil || platform.Signature(*signature) != platform.SignatureOf(tx.Signatures[0]) {
+		t.Fatalf("stored tx_signature %v, want the relayer's signature 0", signature)
+	}
+}
+
+func (e *layerEnv) onlySent(t *testing.T, requestID string) platform.Transaction {
+	t.Helper()
+	sent := e.jup.Sent(requestID)
+	if len(sent) != 1 {
+		t.Fatalf("%d transactions sent to execute, want 1", len(sent))
+	}
+	tx, err := platform.DecodeTransaction(sent[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tx
 }
 
 func assertSignatureOf(t *testing.T, got app.SwapView, signed []byte, signature string) {

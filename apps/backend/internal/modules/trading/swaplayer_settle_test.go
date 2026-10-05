@@ -11,7 +11,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 )
 
 type venueStub struct {
@@ -71,7 +70,7 @@ func TestSwapLayer_SellCountsTheOutAmountAsUSDC(t *testing.T) {
 	t.Parallel()
 	e := newLayerEnv(t)
 	e.jup.SetOrder(jupiterMint(aaplxToken()), jupiterMint(usdcToken()), jupiter.Order{
-		RequestID: "req-sell", Transaction: e.treasuryTx(),
+		RequestID: "req-sell", Transaction: swapTx(),
 	})
 	e.jup.SetExecute("req-sell", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 31_000_000})
 	req := e.request(e.source())
@@ -235,8 +234,4 @@ func (e *layerEnv) terminalEvents(t *testing.T, swap uuid.UUID) int {
 		t.Fatal(err)
 	}
 	return n
-}
-
-func (e *layerEnv) treasuryTx() []byte {
-	return chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet))
 }

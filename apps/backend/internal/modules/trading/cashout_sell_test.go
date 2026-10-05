@@ -57,7 +57,7 @@ func newCashOutEnv(t *testing.T) *cashOutEnv {
 	c.price(aaplxToken(), 50_000_000)
 	c.price(tslaxToken(), 30_000_000)
 	for i, m := range []platform.Mint{aaplxToken(), tslaxToken()} {
-		tx := chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet))
+		tx := swapTx()
 		tx[len(tx)-2] = byte(i + 1)
 		c.jup.SetOrder(
 			jupiterMint(m),
