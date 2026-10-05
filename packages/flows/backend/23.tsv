@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-23	Profile edit	identity	PATCH /v1/me	UpdateProfile	user.profile_updated	social.feed.profile_updated	ok;DisplayNameInvalid	verified	docs/architecture/backend-platform.md#flows
+23	Profile edit	identity	PATCH /v1/me	UpdateProfile	user.profile_updated	social.feed.profile_updated;ranking.names	ok;DisplayNameInvalid	verified	docs/architecture/backend-platform.md#flows
