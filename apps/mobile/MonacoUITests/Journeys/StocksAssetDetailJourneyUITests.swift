@@ -17,7 +17,7 @@ nonisolated final class StocksAssetDetailJourneyUITests: XCTestCase {
     @MainActor
     func testS1HeroChartAndBuy() throws {
         let app = try start()
-        StocksAssetDetailJourney.heroChartAndBuy(app, recorder: StocksAssetDetailJourney.recorder())
+        StocksAssetDetailJourney.heroChartAndBuy(app, run: try JourneyRun.id(), recorder: StocksAssetDetailJourney.recorder())
         attachScreenshot(of: app, named: "S1-propose-buy")
     }
 

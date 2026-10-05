@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 1
+    static let version = 2
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -45,7 +45,9 @@ enum StocksAssetDetailJourney {
         app.element("asset-detail-range-change").label
     }
 
-    static func heroChartAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
+    static func cabalName(run: String) -> String { "QA stocks \(run) 1" }
+
+    static func heroChartAndBuy(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open Journey Alpha") {
             openAsset(app, alpha, scrolls: false, step: "S1.1")
             let title = app.navigationBars[alpha.ticker]
@@ -89,19 +91,45 @@ enum StocksAssetDetailJourney {
             XCTAssertTrue(week.isSelected, "S1.5: '1W' is not selected")
         }
 
-        recorder.step("S1.6", "read Propose buy") {
-            let buy = app.buttons["asset-detail-propose-buy"]
-            XCTAssertTrue(buy.waitForExistence(timeout: 5), "S1.6: no Propose buy")
-            XCTAssertEqual(buy.label, "Propose buy", "S1.6: the CTA reads '\(buy.label)', not 'Propose buy'")
-            XCTAssertTrue(buy.isEnabled, "S1.6: Propose buy is disabled for a tradable asset")
-            XCTAssertTrue(app.staticTexts[buyCaption].exists, "S1.6: no '\(buyCaption)' under Propose buy")
+        recorder.step("S1.6", "pick one year") {
+            let year = app.element("asset-chart-ranges").buttons["1Y"]
+            year.tap()
+            let label = NSPredicate(format: "label CONTAINS %@", "Past year · \(alpha.ticker)")
+            let change = app.element("asset-detail-range-change")
+            let moved = XCTNSPredicateExpectation(predicate: label, object: change)
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [moved], timeout: 10), .completed,
+                "S1.6: the change chip reads '\(rangeChange(app))', not 'Past year · \(alpha.ticker)'")
+            XCTAssertTrue(year.isSelected, "S1.6: '1Y' is not selected")
         }
 
-        recorder.step("S1.7", "tap Propose buy") {
+        recorder.step("S1.7", "read Propose buy") {
+            let buy = app.buttons["asset-detail-propose-buy"]
+            XCTAssertTrue(buy.waitForExistence(timeout: 5), "S1.7: no Propose buy")
+            XCTAssertEqual(buy.label, "Propose buy", "S1.7: the CTA reads '\(buy.label)', not 'Propose buy'")
+            XCTAssertTrue(buy.isEnabled, "S1.7: Propose buy is disabled for a tradable asset")
+            XCTAssertTrue(app.staticTexts[buyCaption].exists, "S1.7: no '\(buyCaption)' under Propose buy")
+        }
+
+        recorder.step("S1.8", "tap Propose buy") {
             app.buttons["asset-detail-propose-buy"].tap()
+            let title = "Which cabal should buy \(alpha.symbol)?"
             XCTAssertTrue(
-                app.navigationBars["Propose buy"].waitForExistence(timeout: 10),
-                "S1.7: Propose buy did not open the propose screen (#613)")
+                app.navigationBars[title].waitForExistence(timeout: 10),
+                "S1.8: Propose buy did not open the cabal picker titled '\(title)' (#613)")
+            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", cabalName(run: run))).firstMatch
+            app.scrollIntoReach(row)
+            XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.8: no \(cabalName(run: run)) in the picker")
+        }
+
+        recorder.step("S1.9", "pick a cabal and reach Amount") {
+            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", cabalName(run: run))).firstMatch
+            row.tap()
+            XCTAssertTrue(
+                app.element("propose-amount-screen").waitForExistence(timeout: 10),
+                "S1.9: the cabal row did not open the Amount screen (#613)")
+            XCTAssertTrue(app.navigationBars["Amount"].exists, "S1.9: the screen is not titled 'Amount'")
+            XCTAssertTrue(app.staticTexts[alpha.ticker].exists, "S1.9: no \(alpha.ticker) row on Amount")
         }
     }
 
