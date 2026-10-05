@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "transfer_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "cabal_id": "01890a5d-ac96-774b-bcce-b302099a8059",
+  "user_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "amount_micros": "110000000",
+  "share_units": "100000000",
+  "share_price_micros": "1100000",
+  "pot_value_before_micros": "110000000",
+  "total_shares_after": "200000000",
+  "tx_signature": "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"
+}

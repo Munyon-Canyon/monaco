@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -101,7 +102,10 @@ func (m *Module) Balances() port.Balances {
 	m.balances = adapters.NewBalances(
 		app.WalletReader{Reader: identity.New(m.deps).Queries()},
 		func() adapters.TokenBalances { return solana.New(cfg, m.deps.Clock) },
-		adapters.Outflows{Funds: app.NoFundTransfers{}, Withdrawals: app.WithdrawalOutflows{Reads: m.deps.Pool}},
+		adapters.Outflows{
+			Funds:       treasury.New(m.deps).FundOutflows(),
+			Withdrawals: app.WithdrawalOutflows{Reads: m.deps.Pool},
+		},
 		m.deps.Clock,
 		m.usdc(),
 	)

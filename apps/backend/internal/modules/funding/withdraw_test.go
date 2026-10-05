@@ -16,11 +16,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -103,7 +105,10 @@ func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.Withdraw
 		Balances: adapters.NewBalances(
 			signingWalletAddress{f.user.Address},
 			func() adapters.TokenBalances { return chainBalance{micros: onChain} },
-			adapters.Outflows{Funds: app.NoFundTransfers{}, Withdrawals: app.WithdrawalOutflows{Reads: pool}},
+			adapters.Outflows{
+				Funds:       treasury.New(module.Deps{Pool: pool}).FundOutflows(),
+				Withdrawals: app.WithdrawalOutflows{Reads: pool},
+			},
 			clk, usdc),
 		Wallets:   signingWallet{wallet: chain.Wallet{ID: f.user.PrivyWalletID, Address: f.user.Address}},
 		Transfers: func() (app.Transfers, error) { return f.transfers, nil },

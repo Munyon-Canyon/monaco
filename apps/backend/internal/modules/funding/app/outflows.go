@@ -30,12 +30,6 @@ type Outflows interface {
 	InFlightMicros(context.Context, ids.UserID) (money.Micros, error)
 }
 
-type NoFundTransfers struct{}
-
-func (NoFundTransfers) InFlightMicros(context.Context, ids.UserID) (money.Micros, error) {
-	return money.Micros{}, nil
-}
-
 type WithdrawalOutflows struct{ Reads sqlc.DBTX }
 
 func (o WithdrawalOutflows) InFlightMicros(ctx context.Context, user ids.UserID) (money.Micros, error) {
