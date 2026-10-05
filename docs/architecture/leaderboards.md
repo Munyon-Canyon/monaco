@@ -65,7 +65,7 @@ The cabal screen reads the pot through `GET /v1/cabals/{id}/pot` (`treasury`'s `
 
 The app refreshes the pot on two hints:
 
-- `cabal.<id>.activity_changed` (`events.CabalActivityChangedHint`), which `treasury` publishes after commit when a trade is submitted, confirmed or fails. A fund and a cash out completion publish it too once their modules add it.
+- `cabal.<id>.activity_changed` (`events.CabalActivityChangedHint`), which `treasury` publishes after commit when a trade is submitted, confirmed or fails, when a fund settles, and when a cash out completes or fails.
 - `global.prices_updated`, which the `market` poller publishes when prices move.
 
 Treasury USDC comes from the ledger, **not an RPC**. A reconcile job (per cabal, every few minutes, staggered) compares on-chain balances to the ledger. A mismatch it cannot explain is either an external deposit (bounced, see [deposits-withdrawals.md](deposits-withdrawals.md#direct-transfers-to-a-cabal-treasury-are-not-allowed)) or a bug; either way the cabal is flagged and excluded from boards until resolved. The flag reaches `ranking` through the same port.

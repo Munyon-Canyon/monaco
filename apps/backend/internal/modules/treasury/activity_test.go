@@ -242,7 +242,7 @@ func TestActivityConsumer_hintsTheCabalOncePerChangeAndSkipsCashOutSells(t *test
 			t.Fatal(err)
 		}
 	}
-	key := "cabal." + cabal.String() + ".activity_changed"
+	key := events.CabalActivityChangedHint(cabal)
 	if got := sent.sent(); !slices.Equal(got, []string{key, key}) {
 		t.Fatalf("hints = %q, want %q twice: the insert and the move to failed", got, key)
 	}
