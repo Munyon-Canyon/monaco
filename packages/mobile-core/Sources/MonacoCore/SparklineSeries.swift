@@ -227,31 +227,3 @@ public enum DayChangeFigures {
         return isPercent ? value / 100 : value
     }
 }
-
-/// The day's biggest moves, from a list the app already has.
-///
-/// Client-side on purpose: "top movers" is a re-sort of the popular rows, not a
-/// different set of stocks, so asking the backend for it would be a second request
-/// for data already on screen.
-public enum TopMovers {
-    /// Biggest absolute day move first. Rows with no readable day change are left
-    /// out — a mover strip is about movement, and "unknown" is not a move.
-    public static func rank(_ assets: [MarketAssetDTO], limit: Int = 6) -> [MarketAssetDTO] {
-        guard limit > 0 else { return [] }
-        let scored = assets.compactMap { asset -> (MarketAssetDTO, Decimal)? in
-            guard let ratio = DayChangeFigures.ratio(from: asset.change24h) else { return nil }
-            return (asset, ratio < 0 ? -ratio : ratio)
-        }
-        // Ties keep catalogue order rather than flipping between refreshes: a strip
-        // that reshuffles when nothing moved reads as live data when it is not.
-        return
-            scored
-            .enumerated()
-            .sorted { left, right in
-                if left.element.1 != right.element.1 { return left.element.1 > right.element.1 }
-                return left.offset < right.offset
-            }
-            .prefix(limit)
-            .map(\.element.0)
-    }
-}
