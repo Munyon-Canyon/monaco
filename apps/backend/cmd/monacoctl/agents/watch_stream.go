@@ -50,12 +50,18 @@ type stream struct {
 	seenOpen map[int]bool
 	reported map[int]bool
 	reran    map[int64]int
+	waits    map[int]*graphiteWait
+}
+
+type graphiteWait struct {
+	since time.Time
+	said  bool
 }
 
 func newStream(env *Env) *stream {
 	return &stream{
 		env: env, since: env.Now(), prev: map[string]bool{}, ejected: map[int]bool{}, blocks: map[string]string{},
-		seenOpen: map[int]bool{}, reported: map[int]bool{}, reran: map[int64]int{},
+		seenOpen: map[int]bool{}, reported: map[int]bool{}, reran: map[int64]int{}, waits: map[int]*graphiteWait{},
 	}
 }
 
@@ -131,9 +137,10 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 		return []string{watchErr(fmt.Sprintf("stack #%d: ", top), err)}
 	}
 	var items []string
-	landed, out := 0, stackPR{}
+	landed, out, states := 0, stackPR{}, make([]string, 0, len(prs))
 	for i, p := range prs {
 		state := env.queueState(p, each[i], drafts)
+		states = append(states, state)
 		line := fmt.Sprintf("#%d %s", p.Number, state)
 		if state == prWaiting {
 			line += fmt.Sprintf(" (stage 1 %s)", orMissing(p.flat("").Stage1))
@@ -148,6 +155,7 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 			}
 		}
 	}
+	items = append(items, s.stuck(top, slices.Contains(states, prWaiting), drafts)...)
 	wasOut := s.ejected[r.Ticket]
 	delete(s.ejected, r.Ticket)
 	switch {
@@ -163,6 +171,35 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 		return items
 	}
 	return append(items, s.eject(ctx, r, prs, out, drafts)...)
+}
+
+func (s *stream) stuck(top int, waiting bool, drafts []queueDraft) []string {
+	if !waiting {
+		delete(s.waits, top)
+		return nil
+	}
+	w := s.waits[top]
+	if w == nil {
+		w = &graphiteWait{since: s.env.Now()}
+		s.waits[top] = w
+	}
+	age := s.env.Now().Sub(w.since)
+	if w.said || age <= s.env.Config.StuckAfter || draftHolds(drafts, top) || s.queueFull(drafts) {
+		return nil
+	}
+	w.said = true
+	return []string{fmt.Sprintf("stack #%d stuck in the queue %s: no live queue draft; "+
+		"run monacoctl agents dequeue %d then land-stack %d", top, span(age), top, top)}
+}
+
+func (s *stream) queueFull(drafts []queueDraft) bool {
+	n := 0
+	for _, d := range drafts {
+		if d.State == "OPEN" && strings.HasPrefix(d.HeadRefName, draftPrefix) {
+			n++
+		}
+	}
+	return s.env.Config.QueueConcurrency > 0 && n >= s.env.Config.QueueConcurrency
 }
 
 func (s *stream) eject(ctx context.Context, r Record, prs []stackPR, out stackPR, drafts []queueDraft) []string {

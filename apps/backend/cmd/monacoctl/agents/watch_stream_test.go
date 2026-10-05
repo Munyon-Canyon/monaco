@@ -1071,3 +1071,37 @@ func TestWatchStream_reportsAStackGraphiteMergedBeforeClosingItsPRsAsLandedNotEj
 		})
 	}
 }
+
+func TestWatchStream_flagsAStackWaitingOnGraphitePastStuckAfterWithNoLiveDraftOnce(t *testing.T) {
+	t.Parallel()
+	const stuck = "stack #2 stuck in the queue 15m: no live queue draft; " +
+		"run monacoctl agents dequeue 2 then land-stack 2\n"
+	live := queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 2)", rollup(greenOK))
+	other := queueDraftNode(91, "[Graphite MQ] Draft PR GROUP:spec_2 (PRs 12)", rollup(greenOK))
+	for _, tc := range []struct {
+		name, config string
+		step         time.Duration
+		draft        string
+		want         int
+	}{
+		{"a fresh wait", "", time.Minute, "", 0},
+		{"a long wait with a live draft", "", 5 * time.Minute, live, 0},
+		{"a long wait behind a full queue", "queue_concurrency = 1\n", 5 * time.Minute, other, 0},
+		{"a long wait with a free slot", "queue_concurrency = 2\n", 5 * time.Minute, other, 1},
+		{"a long wait with only a closed draft", "", 5 * time.Minute, closedDraft(92, rollup(greenOK)), 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			writeFile(t, filepath.Join(f.dir, configPath), tc.config+testConfig)
+			queuedStack(t, f, "/w/40")
+			if tc.draft != "" {
+				f.hub.on(graphqlRoute, draftData([]string{tc.draft}))
+			}
+			got := streamRounds(t, f, 7, func(int) { f.now = f.now.Add(tc.step) })
+			if n := strings.Count(got, "stuck in the queue"); n != tc.want || n == 1 && !strings.Contains(got, stuck) {
+				t.Fatalf("want %d stuck line(s) %q:\n%s", tc.want, stuck, got)
+			}
+		})
+	}
+}
