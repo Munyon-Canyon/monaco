@@ -12,7 +12,7 @@ var FundingDepositCredited = Msg{
 
 var FundingBalanceClamped = Msg{
 	Name:     "funding.balance.clamped",
-	Required: []string{"user_id", "on_chain_micros", "in_flight_fund_micros"},
+	Required: []string{"user_id", "on_chain_micros", "in_flight_fund_micros", "in_flight_withdrawal_micros"},
 }
 
 var FundingPauseChanged = Msg{

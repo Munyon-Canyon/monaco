@@ -2407,6 +2407,7 @@ components:
         - version_conflict
         - wallet_mismatch
         - withdraw_not_allowed
+        - withdraw_to_own_wallet
         - x_not_linked
   # api/spec/funding.yaml
     Balance:

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -28,4 +29,14 @@ type NoFundTransfers struct{}
 
 func (NoFundTransfers) InFlightMicros(context.Context, ids.UserID) (money.Micros, error) {
 	return money.Micros{}, nil
+}
+
+type WithdrawalOutflows struct{ Reads sqlc.DBTX }
+
+func (o WithdrawalOutflows) InFlightMicros(ctx context.Context, user ids.UserID) (money.Micros, error) {
+	raw, err := sqlc.New(o.Reads).InFlightWithdrawalMicros(ctx, user.UUID())
+	if err != nil {
+		return money.Micros{}, err
+	}
+	return money.ParseMicros(raw)
 }
