@@ -8,5 +8,8 @@ func init() {
 		FundingDepositCredited,
 		FundingBalanceClamped,
 		FundingPauseChanged,
+		FundingWatchOwnTransfer,
+		FundingWatchIgnored,
+		FundingWatchDetected,
 	)
 }
