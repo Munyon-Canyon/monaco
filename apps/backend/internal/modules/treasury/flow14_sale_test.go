@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 )
 
 func saleAndPayout(t *testing.T, invested uint64) (*saleRig, *payoutRig) {
@@ -15,8 +16,18 @@ func saleAndPayout(t *testing.T, invested uint64) (*saleRig, *payoutRig) {
 
 func (r *payoutRig) payLanded(t *testing.T) {
 	t.Helper()
-	r.seed(t, 1, domain.PayoutBroadcast)
-	r.chain.set(seededSig(1), landed())
+	r.payLandedAs(t, seededSig(1))
+}
+
+func (r *payoutRig) payLandedAs(t *testing.T, sig chain.Signature) {
+	t.Helper()
+	if _, err := r.f.pool.Exec(t.Context(), `INSERT INTO cash_out_payouts
+		(job_id, attempt, signature, signed_tx, last_valid_block_height, status, created_at)
+		VALUES ($1, 1, $2, '\x01', 100, $3, $4)`,
+		r.job, sig, string(domain.PayoutBroadcast), r.f.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	r.chain.set(sig, landed())
 	r.mustAdvance(t)
 }
 
