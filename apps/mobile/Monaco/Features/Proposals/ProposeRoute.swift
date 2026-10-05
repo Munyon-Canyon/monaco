@@ -82,28 +82,17 @@ struct ProposeChooserRow: View {
 
 struct ProposeGlyph: View {
     let systemImage: String
-    var size: CGFloat = ProposeGlyph.rowSize
     var isEnabled = true
 
     static let rowSize: CGFloat = 40
-    static let noteSize: CGFloat = 32
     static let buy = "arrow.down"
     static let sell = "arrow.up"
-    static let bot = "cpu"
-
-    static func lifecycle(_ kind: String) -> String {
-        switch kind {
-        case "pause_agent": "pause"
-        case "resume_agent": "play"
-        default: "xmark"
-        }
-    }
 
     var body: some View {
         Image(systemName: systemImage)
-            .font(.system(size: (size * 0.4).rounded(), weight: .semibold))
+            .font(.system(size: (Self.rowSize * 0.4).rounded(), weight: .semibold))
             .foregroundStyle(isEnabled ? MonacoTheme.ink : MonacoTheme.disabledLabel)
-            .frame(width: size, height: size)
+            .frame(width: Self.rowSize, height: Self.rowSize)
             .background(Circle().fill(MonacoTheme.surfaceSunken))
             .accessibilityHidden(true)
     }
