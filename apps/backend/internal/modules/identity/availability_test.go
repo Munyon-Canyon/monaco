@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
-	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
@@ -394,10 +393,7 @@ func TestGetHandleAvailability_the31stCallInAMinuteIsRateLimited(t *testing.T) {
 
 func (f httpFixture) limitedHandler(t *testing.T) http.Handler {
 	t.Helper()
-	policies, err := ratelimit.Load(openapi.Spec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	policies := specPolicies(t)
 	clk := testkit.NewClock(f.now)
 	limiter, err := ratelimit.New(f.pool, clk, noop.NewMeterProvider())
 	if err != nil {
@@ -406,7 +402,7 @@ func (f httpFixture) limitedHandler(t *testing.T) http.Handler {
 	mount := identity.New(module.Deps{
 		Pool: f.pool, UoW: db.New(f.pool, f.ids, clk), IDs: f.ids, Clock: clk,
 	}, identity.WithPrivy(f.privy, f.wallets)).Mount
-	h, err := httpx.Handler(httpx.Deps{
+	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
 		Tracer:       tracenoop.NewTracerProvider(),
 		Clock:        clk,
@@ -415,7 +411,7 @@ func (f httpFixture) limitedHandler(t *testing.T) http.Handler {
 		Idempotency:  db.NewIdempotencyStore(f.pool, clk),
 		Verifier:     f.verifier,
 		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
-	}, mount, openapi.Spec)
+	}, mount, specContract(t))
 	if err != nil {
 		t.Fatal(err)
 	}
