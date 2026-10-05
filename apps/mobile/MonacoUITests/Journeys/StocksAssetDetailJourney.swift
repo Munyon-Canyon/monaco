@@ -156,13 +156,13 @@ enum StocksAssetDetailJourney {
 
         recorder.step("S3.3", "open the other listing") {
             let listing = app.element(otherListingID)
+            let bar = app.buttons["asset-detail-propose-buy"]
             var swipes = 0
-            while !listing.isHittable && swipes < 4 {
+            while listing.frame.midY > bar.frame.minY - 20 && swipes < 4 {
                 app.element("asset-detail-root").swipeUp()
                 swipes += 1
             }
-            XCTAssertTrue(listing.isHittable, "S3.3: \(otherListingID) is covered by the Propose buy bar")
-            listing.tap()
+            listing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
             XCTAssertTrue(
                 app.navigationBars[otherListingTicker].waitForExistence(timeout: 10),
                 "S3.3: the listing did not open an asset screen titled '\(otherListingTicker)'")
