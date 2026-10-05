@@ -1,17 +1,25 @@
 package treasury_test
 
 import (
+	"context"
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -44,6 +52,46 @@ func TestModule_servesActivityConsumesTradeEventsAndHasNoPollers(t *testing.T) {
 	}
 	if m.SignatureOwner() == nil || m.WalletLedger() == nil {
 		t.Fatal("signature owner or wallet ledger = nil")
+	}
+}
+
+type cashOutPauseModule struct{ pauses fundingport.Pauses }
+
+func (cashOutPauseModule) Name() string { return "cash_out_pauses" }
+
+func (cashOutPauseModule) Mount(apibase.Mount) {}
+
+func (cashOutPauseModule) Consumers() []bus.Consumer { return nil }
+
+func (cashOutPauseModule) Pollers() []poller.Poller { return nil }
+
+func (m cashOutPauseModule) Pauses() fundingport.Pauses { return m.pauses }
+
+type fixedCashOutPauses struct{ pause fundingport.Pause }
+
+func (p fixedCashOutPauses) IsPaused(context.Context, ids.CabalID) (fundingport.Pause, error) {
+	return p.pause, nil
+}
+
+func (fixedCashOutPauses) PausedCabals(context.Context) (fundingport.PausedSet, error) {
+	return fundingport.PausedSet{}, nil
+}
+
+func TestModule_cashOutPausesFailClosedAndWireReasons(t *testing.T) {
+	t.Parallel()
+	alone := treasury.New(module.Deps{})
+	if _, err := alone.CashOutPause(t.Context(), ids.CabalID{}); errs.CodeOf(err) !=
+		errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired pause error = %v", err)
+	}
+	since := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	wired := treasury.New(module.Deps{})
+	module.NewSet(wired, cashOutPauseModule{fixedCashOutPauses{pause: fundingport.Pause{
+		Paused: true, Reasons: append(fundingport.Pause{}.Reasons, "ops"), Since: since,
+	}}})
+	pause, err := wired.CashOutPause(t.Context(), ids.CabalID{})
+	if err != nil || !pause.Paused || !slices.Equal(pause.Reasons, []string{"ops"}) || !pause.Since.Equal(since) {
+		t.Fatalf("pause = %#v, %v", pause, err)
 	}
 }
 
