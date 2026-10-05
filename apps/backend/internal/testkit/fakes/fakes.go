@@ -75,6 +75,9 @@ type Server struct {
 	objects      map[string]storedObject
 	posthog      []PostHogCapture
 	balances     map[string]map[string]tokenBalance
+	swaps        map[string]SetSwap
+	orders       map[string]swapOrder
+	orderCount   uint64
 	nextUser     int
 }
 
@@ -90,11 +93,17 @@ func newFrom(fsys fs.FS, root string) *Server {
 		createdUsers: map[string]privyCreatedUser{},
 		objects:      map[string]storedObject{},
 		balances:     map[string]map[string]tokenBalance{},
+		swaps:        map[string]SetSwap{},
+		orders:       map[string]swapOrder{},
 		upstreams:    upstreamsIn(fsys, root),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
 	s.mux.HandleFunc("POST /_balance", s.setBalance)
+	s.mux.HandleFunc("POST /_swap", s.setSwap)
+	s.mux.HandleFunc("POST /_wallet", s.setWallet)
 	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
+	s.live.HandleFunc("GET "+orderRoute, s.jupiterOrder)
+	s.live.HandleFunc("POST "+executeRoute, s.jupiterExecute)
 	s.live.HandleFunc("GET /privy/v1/users/{id}", s.privyUser)
 	s.live.HandleFunc("POST /privy/v1/users", s.privyCreateUser)
 	s.live.HandleFunc("GET /privy/v1/wallets", s.privyWallets)
