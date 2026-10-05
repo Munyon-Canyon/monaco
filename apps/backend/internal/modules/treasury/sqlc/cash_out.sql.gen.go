@@ -75,6 +75,28 @@ func (q *Queries) CashOutLiveJob(ctx context.Context, arg CashOutLiveJobParams) 
 	return exists, err
 }
 
+const cashOutSaleTally = `-- name: CashOutSaleTally :one
+SELECT count(s.swap_id)::integer AS results, coalesce(max(s.batch_size), 0)::integer AS batch_size,
+  least(j.slice_micros, j.payout_micros - j.sell_usdc_micros + coalesce(sum(s.usdc_out_micros), 0))::text AS paid
+FROM cash_out_jobs AS j
+LEFT JOIN cash_out_sells AS s ON s.job_id = j.id
+WHERE j.id = $1::uuid
+GROUP BY j.id
+`
+
+type CashOutSaleTallyRow struct {
+	Results   int32
+	BatchSize int32
+	Paid      string
+}
+
+func (q *Queries) CashOutSaleTally(ctx context.Context, id uuid.UUID) (CashOutSaleTallyRow, error) {
+	row := q.db.QueryRow(ctx, cashOutSaleTally, id)
+	var i CashOutSaleTallyRow
+	err := row.Scan(&i.Results, &i.BatchSize, &i.Paid)
+	return i, err
+}
+
 const cashOutShares = `-- name: CashOutShares :one
 SELECT coalesce((SELECT share_units FROM user_positions
   WHERE cabal_id = $1::uuid AND user_id = $2::uuid), 0)::text AS shares,
@@ -101,8 +123,11 @@ func (q *Queries) CashOutShares(ctx context.Context, arg CashOutSharesParams) (C
 const cashOutShortfall = `-- name: CashOutShortfall :one
 SELECT greatest($1::text::numeric - greatest(coalesce((SELECT units FROM cabal_positions
   WHERE cabal_id = $2::uuid AND asset = $3::text), 0) - coalesce((SELECT
-    sum(CASE WHEN status = 'paying' THEN payout_micros ELSE payout_micros - sell_usdc_micros END)
-  FROM cash_out_jobs WHERE cabal_id = $2::uuid AND status IN ('started', 'selling', 'paying')), 0), 0),
+    sum(CASE WHEN j.status = 'paying' THEN j.payout_micros ELSE least(j.payout_micros,
+      j.payout_micros - j.sell_usdc_micros + coalesce((SELECT sum(s.usdc_out_micros) FROM cash_out_sells AS s
+        WHERE s.job_id = j.id), 0)) END)
+  FROM cash_out_jobs AS j
+  WHERE j.cabal_id = $2::uuid AND j.status IN ('started', 'selling', 'paying')), 0), 0),
   0)::text
 `
 
@@ -121,9 +146,9 @@ func (q *Queries) CashOutShortfall(ctx context.Context, arg CashOutShortfallPara
 
 const insertCashOutJob = `-- name: InsertCashOutJob :exec
 INSERT INTO cash_out_jobs
-  (id, cabal_id, user_id, share_units, payout_micros, sell_usdc_micros, status, created_at, updated_at)
+  (id, cabal_id, user_id, share_units, payout_micros, slice_micros, sell_usdc_micros, status, created_at, updated_at)
 VALUES ($1::uuid, $2::uuid, $3::uuid,
-  $4::text::numeric, $5::text::numeric,
+  $4::text::numeric, $5::text::numeric, $5::text::numeric,
   $6::text::numeric, 'started', $7::timestamptz, $7::timestamptz)
 `
 
@@ -148,4 +173,132 @@ func (q *Queries) InsertCashOutJob(ctx context.Context, arg InsertCashOutJobPara
 		arg.At,
 	)
 	return err
+}
+
+const insertCashOutSell = `-- name: InsertCashOutSell :exec
+INSERT INTO cash_out_sells (swap_id, job_id, batch_size, status, usdc_out_micros, created_at)
+VALUES ($1::uuid, $2::uuid, $3::bigint, $4::text,
+  $5::text::numeric, $6::timestamptz)
+ON CONFLICT (swap_id) DO NOTHING
+`
+
+type InsertCashOutSellParams struct {
+	SwapID        uuid.UUID
+	JobID         uuid.UUID
+	BatchSize     int64
+	Status        string
+	UsdcOutMicros string
+	At            time.Time
+}
+
+func (q *Queries) InsertCashOutSell(ctx context.Context, arg InsertCashOutSellParams) error {
+	_, err := q.db.Exec(ctx, insertCashOutSell,
+		arg.SwapID,
+		arg.JobID,
+		arg.BatchSize,
+		arg.Status,
+		arg.UsdcOutMicros,
+		arg.At,
+	)
+	return err
+}
+
+const lockCashOutJob = `-- name: LockCashOutJob :one
+SELECT status, user_id, share_units::text AS share_units, slice_micros::text AS slice_micros
+FROM cash_out_jobs
+WHERE id = $1::uuid AND cabal_id = $2::uuid
+FOR UPDATE
+`
+
+type LockCashOutJobParams struct {
+	ID      uuid.UUID
+	CabalID uuid.UUID
+}
+
+type LockCashOutJobRow struct {
+	Status      string
+	UserID      uuid.UUID
+	ShareUnits  string
+	SliceMicros string
+}
+
+func (q *Queries) LockCashOutJob(ctx context.Context, arg LockCashOutJobParams) (LockCashOutJobRow, error) {
+	row := q.db.QueryRow(ctx, lockCashOutJob, arg.ID, arg.CabalID)
+	var i LockCashOutJobRow
+	err := row.Scan(
+		&i.Status,
+		&i.UserID,
+		&i.ShareUnits,
+		&i.SliceMicros,
+	)
+	return i, err
+}
+
+const moveCashOutJob = `-- name: MoveCashOutJob :execrows
+UPDATE cash_out_jobs SET status = $1::text, updated_at = $2::timestamptz
+WHERE id = $3::uuid AND status = $4::text
+`
+
+type MoveCashOutJobParams struct {
+	ToStatus   string
+	At         time.Time
+	ID         uuid.UUID
+	FromStatus string
+}
+
+func (q *Queries) MoveCashOutJob(ctx context.Context, arg MoveCashOutJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveCashOutJob,
+		arg.ToStatus,
+		arg.At,
+		arg.ID,
+		arg.FromStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const settleCashOutSale = `-- name: SettleCashOutSale :one
+WITH settled AS (
+  UPDATE cash_out_jobs SET status = $1::text,
+    payout_micros = $2::text::numeric,
+    returned_units = $3::text::numeric, result_code = NULLIF($4::text, ''),
+    updated_at = $5::timestamptz
+  WHERE id = $6::uuid AND status = 'selling'
+  RETURNING id, status
+), failed AS (
+  UPDATE user_txns SET status = 'failed'
+  WHERE transfer_id IN (SELECT id FROM settled WHERE status = 'failed') AND kind = 'cash_out' AND status = 'pending'
+  RETURNING 1
+)
+SELECT (SELECT count(*) FROM settled)::bigint AS settled, (SELECT count(*) FROM failed)::bigint AS failed
+`
+
+type SettleCashOutSaleParams struct {
+	ToStatus      string
+	PayoutMicros  string
+	ReturnedUnits string
+	ResultCode    string
+	At            time.Time
+	ID            uuid.UUID
+}
+
+type SettleCashOutSaleRow struct {
+	Settled int64
+	Failed  int64
+}
+
+func (q *Queries) SettleCashOutSale(ctx context.Context, arg SettleCashOutSaleParams) (SettleCashOutSaleRow, error) {
+	row := q.db.QueryRow(ctx, settleCashOutSale,
+		arg.ToStatus,
+		arg.PayoutMicros,
+		arg.ReturnedUnits,
+		arg.ResultCode,
+		arg.At,
+		arg.ID,
+	)
+	var i SettleCashOutSaleRow
+	err := row.Scan(&i.Settled, &i.Failed)
+	return i, err
 }

@@ -15,11 +15,15 @@ func TestNextCashOut(t *testing.T) {
 		want  CashOutStatus
 		code  errs.Code
 	}{
+		{CashOutStarted, CashOutSell, CashOutSelling, ""},
 		{CashOutStarted, CashOutStartPaying, CashOutPaying, ""},
+		{CashOutSelling, CashOutStartPaying, CashOutPaying, ""},
+		{CashOutSelling, CashOutFail, CashOutFailed, ""},
+		{CashOutSelling, CashOutSell, CashOutSelling, errs.CodeVersionConflict},
+		{CashOutPaying, CashOutCompletePartial, CashOutPartial, ""},
 		{CashOutStarted, CashOutFail, CashOutFailed, ""},
 		{CashOutPaying, CashOutComplete, CashOutCompleted, ""},
 		{CashOutPaying, CashOutFail, CashOutFailed, ""},
-		{CashOutSelling, CashOutStartPaying, CashOutSelling, errs.CodeVersionConflict},
 		{CashOutCompleted, CashOutStartPaying, CashOutCompleted, errs.CodeVersionConflict},
 		{CashOutPartial, CashOutComplete, CashOutPartial, errs.CodeVersionConflict},
 		{CashOutFailed, CashOutStartPaying, CashOutFailed, errs.CodeVersionConflict},
@@ -51,7 +55,7 @@ func TestParseCashOutStatus(t *testing.T) {
 func TestCashOutEvents(t *testing.T) {
 	t.Parallel()
 	got := CashOutEvents()
-	want := []CashOutEvent{CashOutStartPaying, CashOutComplete, CashOutFail}
+	want := []CashOutEvent{CashOutSell, CashOutStartPaying, CashOutComplete, CashOutCompletePartial, CashOutFail}
 	if !slices.Equal(got, want) {
 		t.Fatalf("CashOutEvents() = %v, want %v", got, want)
 	}
