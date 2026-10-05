@@ -454,6 +454,8 @@ def start_backend(base_url, timeout=300):
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     # The backend refuses unknown MONACO_ variables at boot, and a run's account overrides are MONACO_QA_.
     env = {key: value for key, value in os.environ.items() if not key.startswith("MONACO_QA_")}
+    if env.get("QA_FAKE_RPC") == "1":
+        env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
     with open(str(log), "w") as out:
         process = subprocess.Popen(["just", "run", "backend"], cwd=str(ROOT), env=env, stdout=out,
                                    stderr=subprocess.STDOUT, start_new_session=True)

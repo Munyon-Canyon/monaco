@@ -8,6 +8,7 @@ import contextlib
 import fcntl
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -961,10 +962,23 @@ class Seed(unittest.TestCase):
     def setUp(self):
         import http.server
 
+        limited = b'{"code":"rate_limited","retryable":%s}'
+        replies = {
+            "/ok": [(200, {}, b'{"id":"c1"}')],
+            "/limited": [(429, {}, limited % b"false")],
+            "/flaky": [(429, {"Retry-After": "0"}, limited % b"true"), (429, {}, limited % b"true"),
+                       (200, {}, b'{"id":"c1"}')],
+        }
+        self.calls = calls = {}
+
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
-                code, body = (200, b'{"id":"c1"}') if self.path == "/ok" else (404, b'{"error":"no cabal"}')
+                n = calls[self.path] = calls.get(self.path, 0) + 1
+                script = replies.get(self.path, [(404, {}, b'{"error":"no cabal"}')])
+                code, headers, body = script[min(n, len(script)) - 1]
                 self.send_response(code)
+                for name, value in headers.items():
+                    self.send_header(name, value)
                 self.end_headers()
                 self.wfile.write(body)
 
@@ -978,10 +992,10 @@ class Seed(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
 
-    def qa_api(self, path):
+    def qa_api(self, path, shell="bash"):
         script = 'source scripts/qa/seed.sh; qa_token() { echo tok; }; qa_api A GET %s' % path
         env = dict(os.environ, MONACO_API_BASE_URL="http://127.0.0.1:%d" % self.server.server_port)
-        return subprocess.run(["bash", "-c", script], cwd=str(Path(__file__).resolve().parents[2]), env=env,
+        return subprocess.run([shell, "-c", script], cwd=str(Path(__file__).resolve().parents[2]), env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
     def test_a_2xx_prints_the_body(self):
@@ -993,6 +1007,70 @@ class Seed(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("HTTP 404", done.stderr)
         self.assertIn('{"error":"no cabal"}', done.stderr)
+
+    def test_a_retryable_429_is_retried_until_it_succeeds(self):
+        shells = ["bash"] + (["zsh"] if shutil.which("zsh") else [])
+        for shell in shells:
+            with self.subTest(shell=shell):
+                self.calls.clear()
+                done = self.qa_api("/flaky", shell=shell)
+                self.assertEqual((done.returncode, done.stdout, self.calls["/flaky"]), (0, '{"id":"c1"}', 3))
+                self.assertEqual(done.stderr.splitlines(), [
+                    "qa_api: 429 rate_limited on GET /flaky, retry 1 in 0s",
+                    "qa_api: 429 rate_limited on GET /flaky, retry 2 in 2s",
+                ])
+
+    def test_a_429_that_is_not_retryable_fails_at_once(self):
+        done = self.qa_api("/limited")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertEqual(self.calls["/limited"], 1)
+        self.assertNotIn("rate_limited on GET", done.stderr)
+        self.assertIn("HTTP 429", done.stderr)
+
+    @unittest.skipUnless(shutil.which("zsh"), "zsh is not installed")
+    def test_qa_api_works_when_sourced_from_zsh(self):
+        done = self.qa_api("/ok", shell="zsh")
+        self.assertEqual((done.returncode, done.stdout, done.stderr), (0, '{"id":"c1"}', ""))
+
+    def test_monacoctl_runs_without_the_runners_api_base_url(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, str(root))
+        for name, body in (("bin/monacoctl", 'env | grep "^MONACO_" || true; echo ran'),
+                           ("scripts/with-dotenv-local.sh", 'exec "$@"')):
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_text("#!/bin/bash\n%s\n" % body)
+            (root / name).chmod(0o755)
+        script = 'source scripts/qa/seed.sh; QA_ROOT=%s; qa_flow_seed f ok' % root
+        env = dict(os.environ, MONACO_API_BASE_URL="http://127.0.0.1:1")
+        done = subprocess.run(["bash", "-c", script], cwd=str(journey.ROOT), env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        self.assertEqual((done.returncode, done.stdout), (0, "ran\n"), done.stderr)
+
+
+class StartBackend(unittest.TestCase):
+    def env_of_started_backend(self, environ):
+        started = []
+
+        def popen(args, env, **kwargs):
+            started.append(env)
+            raise StopIteration
+
+        with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
+                unittest.mock.patch.dict(os.environ, environ, clear=True), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", popen), redirect_stdout(StringIO()):
+            with self.assertRaises(StopIteration):
+                journey.start_backend("http://127.0.0.1:8080")
+        return started[0]
+
+    def test_fake_rpc_points_the_backend_at_the_fakes_server(self):
+        env = self.env_of_started_backend({"QA_FAKE_RPC": "1", "SOLANA_RPC_URL": "https://mainnet"})
+        self.assertEqual(env["SOLANA_RPC_URL"], "http://127.0.0.1:8099/rpc/")
+        env = self.env_of_started_backend({"QA_FAKE_RPC": "1", "QA_FAKES_URL": "http://127.0.0.1:9000"})
+        self.assertEqual(env["SOLANA_RPC_URL"], "http://127.0.0.1:9000/rpc/")
+
+    def test_without_fake_rpc_the_backend_keeps_its_rpc(self):
+        env = self.env_of_started_backend({"SOLANA_RPC_URL": "https://mainnet"})
+        self.assertEqual(env["SOLANA_RPC_URL"], "https://mainnet")
 
 
 if __name__ == "__main__":

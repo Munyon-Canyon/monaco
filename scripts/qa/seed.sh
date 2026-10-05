@@ -12,6 +12,7 @@
 #   qa_user_id <actor>                    the users.id of an actor in accounts.tsv
 #   qa_token <actor>                      a 1 h bearer token for the actor
 #   qa_api <actor> <METHOD> <path> [json] calls the API as the actor; prints the body, fails on non-2xx
+#                                         a retryable 429 is retried for up to 30 s, honoring Retry-After
 #   qa_sql [psql args]                    psql on the .env.local database, query on stdin
 #   qa_flow_seed <flow> <outcome>         bin/monacoctl flows seed
 #   qa_seed_scenario <name> [actor ...]   bin/monacoctl dev seed-scenario, each actor owning its scenario letter;
@@ -39,8 +40,9 @@ _qa_monacoctl() {
     echo "bin/monacoctl is missing: run just build backend first" >&2
     return 1
   fi
-  # The backend refuses unknown MONACO_ variables, and a run's account overrides are MONACO_QA_.
-  local name unset=()
+  # monacoctl refuses unknown MONACO_ variables: a run's account overrides are MONACO_QA_, and
+  # MONACO_API_BASE_URL is the journey runner's, which this file reads as QA_API.
+  local name unset=(-u MONACO_API_BASE_URL)
   while read -r name; do
     unset+=(-u "$name")
   done < <(compgen -e | grep '^MONACO_QA_' || true)
@@ -86,11 +88,19 @@ qa_token() {
   _qa_monacoctl dev token --user "$id" --ttl 1h
 }
 
+_qa_retryable() {
+  python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("retryable") is True else 1)' "$1" \
+    2> /dev/null
+}
+
 qa_api() {
-  local actor="$1" method="$2" path="$3" body="${4:-}" token status out
+  # zsh ties path to PATH and makes status read-only, so neither names a local here.
+  local actor="$1" method="$2" route="$3" body="${4:-}" token code out headers delay after
+  local tries=0 waited=0 backoff=2
   token="$(qa_token "$actor")" || return 1
   out="$(mktemp)"
-  local args=(-sS -o "$out" -w '%{http_code}' -X "$method" "$QA_API$path"
+  headers="$(mktemp)"
+  local args=(-sS -o "$out" -D "$headers" -w '%{http_code}' -X "$method" "$QA_API$route"
     -H "Authorization: Bearer $token" -H "Content-Type: application/json")
   if [[ "$method" != GET ]]; then
     args+=(-H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')")
@@ -98,13 +108,33 @@ qa_api() {
   if [[ -n "$body" ]]; then
     args+=(-d "$body")
   fi
-  if ! status="$(curl "${args[@]}")"; then
-    rm -f "$out"
-    echo "qa_api $method $path: no answer from $QA_API" >&2
-    return 1
-  fi
-  if [[ "$status" != 2?? ]]; then
-    echo "qa_api $actor $method $path: HTTP $status" >&2
+  while :; do
+    if ! code="$(curl "${args[@]}")"; then
+      rm -f "$out" "$headers"
+      echo "qa_api $method $route: no answer from $QA_API" >&2
+      return 1
+    fi
+    if [[ "$code" != 429 ]] || ! _qa_retryable "$out"; then
+      break
+    fi
+    after="$(awk 'tolower($1) == "retry-after:" { sub(/\r$/, "", $2); print $2 }' "$headers")"
+    if [[ "$after" =~ ^[0-9]+$ ]]; then
+      delay="$after"
+    else
+      delay="$backoff"
+      backoff=$((backoff < 16 ? backoff * 2 : 16))
+    fi
+    if ((waited + delay > 30)); then
+      break
+    fi
+    tries=$((tries + 1))
+    echo "qa_api: 429 rate_limited on $method $route, retry $tries in ${delay}s" >&2
+    sleep "$delay"
+    waited=$((waited + delay))
+  done
+  rm -f "$headers"
+  if [[ "$code" != 2?? ]]; then
+    echo "qa_api $actor $method $route: HTTP $code" >&2
     cat "$out" >&2
     echo >&2
     rm -f "$out"
