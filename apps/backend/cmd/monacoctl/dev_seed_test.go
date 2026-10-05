@@ -196,3 +196,82 @@ func TestDevSeed_aMissingScenarioFileIsASeedError(t *testing.T) {
 		t.Fatalf("err %v, want testkit.ErrSeed", err)
 	}
 }
+
+func seedDevOnTestDB(t *testing.T, name string, letters ...string) (*pgxpool.Pool, map[string]string) {
+	t.Helper()
+	pool := testkit.DB(t)
+	actors := map[string]ids.UserID{}
+	for _, letter := range letters {
+		actors[letter] = testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}).ID
+	}
+	deps := module.Deps{Config: testkit.Config(), Pool: pool, Clock: clock.Real{}, IDs: ids.Real{}}
+	out, err := seedDevScenario(deps, name, actors)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for letter, user := range actors {
+		if out["actor_"+letter] != user.String() {
+			t.Fatalf("actor %s = %q, want the mapped user %s", letter, out["actor_"+letter], user)
+		}
+	}
+	return pool, out
+}
+
+func TestDevSeed_cabalWithMembersSeatsACreatorAndTwoMembers(t *testing.T) {
+	t.Parallel()
+	pool, out := seedDevOnTestDB(t, "cabal-with-members", "A", "B", "C")
+	var roles string
+	var joins int
+	if err := pool.QueryRow(t.Context(), `SELECT
+		(SELECT string_agg(user_id::text || '=' || role, ',' ORDER BY joined_at) FROM cabal_members WHERE cabal_id = $1),
+		(SELECT count(*) FROM events WHERE type = 'cabal.member_joined' AND payload->>'cabal_id' = $1::text)`,
+		out["cabal_id"]).Scan(&roles, &joins); err != nil {
+		t.Fatal(err)
+	}
+	want := out["actor_A"] + "=creator," + out["actor_B"] + "=member," + out["actor_C"] + "=member"
+	if roles != want || joins != 3 {
+		t.Fatalf("members %q and %d join events, want %q and 3", roles, joins, want)
+	}
+}
+
+func TestDevSeed_cabalWithOpenProposalOpensABuyEveryMemberCanVoteOn(t *testing.T) {
+	t.Parallel()
+	pool, out := seedDevOnTestDB(t, "cabal-with-open-proposal", "A")
+	var cabal, proposer, status, voters string
+	var live bool
+	if err := pool.QueryRow(t.Context(), `SELECT p.cabal_id::text, p.proposer_id::text, p.status,
+		p.expires_at > now(),
+		(SELECT string_agg(v.voter_id::text, ',' ORDER BY v.voter_id) FROM proposal_voters v WHERE v.proposal_id = p.id)
+		FROM proposals p WHERE p.id = $1`, out["proposal_id"]).Scan(&cabal, &proposer, &status, &live, &voters); err != nil {
+		t.Fatal(err)
+	}
+	var members string
+	if err := pool.QueryRow(t.Context(), `SELECT string_agg(user_id::text, ',' ORDER BY user_id)
+		FROM cabal_members WHERE cabal_id = $1`, cabal).Scan(&members); err != nil {
+		t.Fatal(err)
+	}
+	if cabal != out["cabal_id"] || proposer != out["actor_A"] || status != "open" || !live ||
+		voters != members || strings.Count(members, ",") != 2 {
+		t.Fatalf("proposal in %s by %s is %s (live %t), voters %s of members %s; want an open, live buy by %s "+
+			"in %s that its three members vote on", cabal, proposer, status, live, voters, members, out["actor_A"],
+			out["cabal_id"])
+	}
+}
+
+func TestDevSeed_userWithBalancePostsABalancedSettledDeposit(t *testing.T) {
+	t.Parallel()
+	pool, out := seedDevOnTestDB(t, "user-with-balance", "A")
+	var kind, status, wallet string
+	var sum int64
+	if err := pool.QueryRow(t.Context(), `SELECT t.kind, t.status,
+		(SELECT amount::text FROM user_txn_entries WHERE txn_id = t.id AND account = 'wallet' AND asset = $3),
+		(SELECT sum(amount) FROM user_txn_entries WHERE txn_id = t.id)
+		FROM user_txns t WHERE t.id = $1 AND t.user_id = $2`,
+		out["deposit_id"], out["actor_A"], string(testkit.USDCMint)).Scan(&kind, &status, &wallet, &sum); err != nil {
+		t.Fatal(err)
+	}
+	if kind != "deposit" || status != "settled" || wallet != "25000000" || out["amount_micros"] != wallet || sum != 0 {
+		t.Fatalf("%s %s, wallet +%s, entries sum %d, out %v; want a settled 25 USDC deposit that balances",
+			status, kind, wallet, sum, out)
+	}
+}
