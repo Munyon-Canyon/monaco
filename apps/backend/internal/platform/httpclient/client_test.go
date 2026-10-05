@@ -898,3 +898,21 @@ func TestCloseIdleConnections_leavesTheOtherClientsInFlightRequest(t *testing.T)
 	hold.release()
 	waitFinished(t, done)
 }
+
+func TestDo_returnsAChosenRetryableStatusWithoutRetrying(t *testing.T) {
+	t.Parallel()
+	u := &upstream{replies: []reply{status(http.StatusTooManyRequests, "x-ratelimit-reset", "1800000010")}}
+	c := client(u, httpclient.WithRetry(3, time.Millisecond, time.Millisecond),
+		httpclient.WithReturned(http.StatusTooManyRequests))
+
+	resp, err := c.Do(t.Context(), get(t, "/v1/users"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusTooManyRequests || resp.Header.Get("x-ratelimit-reset") != "1800000010" ||
+		u.count() != 1 {
+		t.Fatalf("got %d reset %q after %d calls, want the 429 and its header after 1",
+			resp.StatusCode, resp.Header.Get("x-ratelimit-reset"), u.count())
+	}
+}

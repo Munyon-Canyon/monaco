@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +43,7 @@ type Client struct {
 	http       *http.Client
 	jitter     func(time.Duration) time.Duration
 	callerGone error
+	returned   []int
 }
 
 func WithBaseURL(raw string) Option {
@@ -62,6 +64,8 @@ func WithTimeout(d time.Duration) Option { return func(c *Client) { c.timeout = 
 func WithRetry(maxAttempts int, base, maxDelay time.Duration) Option {
 	return func(c *Client) { c.attempts, c.backoff, c.maxDelay = maxAttempts, base, maxDelay }
 }
+
+func WithReturned(statuses ...int) Option { return func(c *Client) { c.returned = statuses } }
 
 func WithBreaker(st gobreaker.Settings) Option { return func(c *Client) { c.settings = st } }
 
@@ -106,7 +110,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	ctx, cancel := context.WithTimeoutCause(ctx, c.timeout, deadline)
 	for attempt := 1; ; attempt++ {
 		resp, err := c.send(ctx, req, attempt, deadline)
-		if err == nil && !retryable(resp.StatusCode) {
+		if err == nil && (!retryable(resp.StatusCode) || slices.Contains(c.returned, resp.StatusCode)) {
 			resp.Body = cancelBody{ReadCloser: resp.Body, cancel: cancel, upstream: c.name}
 			return resp, nil
 		}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -37,6 +38,14 @@ type Deps struct {
 	Hub        *sse.Hub
 	APNs       apns.Sender
 	Photos     PhotoStore
+	Jupiter    *jupiter.Client
+}
+
+func (d Deps) JupiterClient() *jupiter.Client {
+	if d.Jupiter != nil {
+		return d.Jupiter
+	}
+	return jupiter.New(d.Config, d.Clock)
 }
 
 type Module interface {

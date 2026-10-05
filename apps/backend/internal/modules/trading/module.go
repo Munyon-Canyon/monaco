@@ -16,7 +16,6 @@ import (
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
@@ -163,7 +162,7 @@ func (m *Module) build() {
 	cfg, clk := m.deps.Config, m.deps.Clock
 	venue := m.venue
 	if venue == nil {
-		venue = chainadapters.NewVenue(jupiter.New(cfg, clk))
+		venue = chainadapters.NewVenue(m.deps.JupiterClient())
 	}
 	signer := m.signer
 	if signer == nil {

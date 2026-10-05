@@ -2,13 +2,17 @@ package jupiterfake_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/jupiterfake"
 )
 
@@ -146,5 +150,33 @@ func TestPriceSource_returnsOnlyScriptedMints(t *testing.T) {
 	got, err := p.Prices(t.Context(), []jupiter.Mint{aaplx(), usdc()})
 	if err != nil || len(got) != 1 || got[aaplx()] != price {
 		t.Fatalf("Prices = %+v, %v, want only %+v", got, err, price)
+	}
+}
+
+func TestPriceAPI_limitsEachWindowAndNamesItsReset(t *testing.T) {
+	t.Parallel()
+	start := time.Unix(1_800_000_000, 500_000_000)
+	clk := testkit.NewClock(start)
+	api := &jupiterfake.PriceAPI{Clock: clk, Limit: 10, Window: 10 * time.Second}
+	ask := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		api.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?ids=MintA,MintB", nil))
+		return rec
+	}
+	for i := range 10 {
+		rec := ask()
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"MintB":{"usdPrice":"101.25"}`) {
+			t.Fatalf("request %d = %d %s, want 200 pricing both mints", i+1, rec.Code, rec.Body.String())
+		}
+		clk.Advance(time.Second / 2)
+	}
+	limited := ask()
+	if limited.Code != http.StatusTooManyRequests || limited.Header().Get("x-ratelimit-reset") != "1800000011" {
+		t.Fatalf("request 11 = %d reset %q, want 429 resetting at 1800000011", limited.Code,
+			limited.Header().Get("x-ratelimit-reset"))
+	}
+	clk.Set(start.Add(10 * time.Second))
+	if rec := ask(); rec.Code != http.StatusOK || api.Limited() != 1 {
+		t.Fatalf("first request of the next window = %d with %d limited, want 200 and 1", rec.Code, api.Limited())
 	}
 }

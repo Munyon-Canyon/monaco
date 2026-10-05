@@ -54,7 +54,7 @@ func (w priceWire) price() json.Number {
 
 const (
 	pricesPerCall = 50
-	priceCalls    = 2
+	priceCalls    = 1
 )
 
 type batchAnswer struct {
@@ -100,7 +100,7 @@ func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, 
 		"?"+url.Values{"ids": {strings.Join(ids, ",")}}.Encode(),
 		nil,
 	)
-	r, err := c.call(ctx, c.price, req, op)
+	r, err := c.call(ctx, c.price, priceLane, req, op)
 	if err != nil {
 		return nil, err
 	}

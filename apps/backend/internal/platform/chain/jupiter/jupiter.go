@@ -74,6 +74,9 @@ type QuoteSpec struct {
 const (
 	pendingEvery = 2 * time.Second
 	maxBody      = 1 << 20
+	attempts     = 3
+	retryBase    = 250 * time.Millisecond
+	maxResetWait = 15 * time.Second
 )
 
 type Client struct {
@@ -83,6 +86,7 @@ type Client struct {
 	apiKey  string
 	clock   clock.Clock
 	window  time.Duration
+	pace    *pace
 }
 
 func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client {
@@ -90,7 +94,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 		return httpclient.New(name, append([]httpclient.Option{
 			httpclient.WithBaseURL(base),
 			httpclient.WithTimeout(timeout),
-			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
+			httpclient.WithReturned(http.StatusTooManyRequests),
 		}, opts...)...)
 	}
 	return &Client{
@@ -100,32 +104,69 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 		apiKey:  cfg.Jupiter.APIKey,
 		clock:   clk,
 		window:  cfg.Timeouts.JupiterExecute,
+		pace:    newPace(clk),
 	}
 }
 
 type reply struct {
-	status int
-	body   []byte
+	status  int
+	body    []byte
+	resetIn time.Duration
 }
 
-func (c *Client) call(ctx context.Context, hc *httpclient.Client, req *http.Request, op string) (reply, error) {
+func (c *Client) call(ctx context.Context, hc *httpclient.Client, l lane, req *http.Request, op string) (reply, error) {
 	req.Header.Set("x-api-key", c.apiKey)
+	for attempt := 1; ; attempt++ {
+		if err := c.pace.take(ctx, l); err != nil {
+			return reply{}, err
+		}
+		r, retryable, err := c.send(ctx, hc, req, op)
+		if !retryable || attempt == attempts {
+			if err == nil && r.status == http.StatusTooManyRequests {
+				return reply{}, errs.New(errs.CodeJupiterUnavailable, op, slog.Int("status", r.status))
+			}
+			return r, err
+		}
+		delay := retryBase << (attempt - 1)
+		if r.resetIn > 0 {
+			delay = r.resetIn
+		}
+		select {
+		case <-ctx.Done():
+			return reply{}, errs.Wrap(context.Cause(ctx), errs.CodeUpstreamTimeout, op)
+		case <-c.clock.After(delay):
+		}
+	}
+}
+
+func (c *Client) send(ctx context.Context, hc *httpclient.Client, req *http.Request, op string) (reply, bool, error) {
 	resp, err := hc.Do(ctx, req)
 	if err != nil {
 		if errs.CodeOf(err) == errs.CodeUpstreamTimeout {
-			return reply{}, err
+			return reply{}, false, err
 		}
-		return reply{}, errs.Wrap(err, errs.CodeJupiterUnavailable, op)
+		return reply{}, true, errs.Wrap(err, errs.CodeJupiterUnavailable, op)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
 	if err != nil {
-		return reply{}, errs.Wrap(err, errs.CodeJupiterUnavailable, op)
+		return reply{}, false, errs.Wrap(err, errs.CodeJupiterUnavailable, op)
 	}
 	if resp.StatusCode >= http.StatusInternalServerError {
-		return reply{}, errs.New(errs.CodeJupiterUnavailable, op, slog.Int("status", resp.StatusCode))
+		return reply{}, false, errs.New(errs.CodeJupiterUnavailable, op, slog.Int("status", resp.StatusCode))
 	}
-	return reply{status: resp.StatusCode, body: body}, nil
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return reply{status: resp.StatusCode, resetIn: c.resetIn(resp.Header)}, true, nil
+	}
+	return reply{status: resp.StatusCode, body: body}, false, nil
+}
+
+func (c *Client) resetIn(h http.Header) time.Duration {
+	secs, err := strconv.ParseInt(h.Get("x-ratelimit-reset"), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return min(max(time.Unix(secs, 0).Sub(c.clock.Now()), 0), maxResetWait)
 }
 
 func decode(r reply, op string, into any) error {
