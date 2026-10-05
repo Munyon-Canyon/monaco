@@ -1,6 +1,7 @@
 package ranking_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
@@ -14,12 +15,23 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestModule_hasNoRoutesConsumersOrPollersYet(t *testing.T) {
+func TestModule_hasNoRoutesOrPollersYet(t *testing.T) {
 	t.Parallel()
 	m := ranking.New(module.Deps{})
-	if m.Name() != "ranking" || testkit.Serves(m.Mount, "GET", "/v1/assets") || len(m.Consumers()) != 0 ||
-		m.Pollers() != nil {
-		t.Fatalf("module = %s, consumers %v, pollers %v", m.Name(), m.Consumers(), m.Pollers())
+	if m.Name() != "ranking" || testkit.Serves(m.Mount, "GET", "/v1/assets") || m.Pollers() != nil {
+		t.Fatalf("module = %s, pollers %v", m.Name(), m.Pollers())
+	}
+}
+
+func TestModule_declaresEachConsumerWithItsOwnDurable(t *testing.T) {
+	t.Parallel()
+	consumers := ranking.New(module.Deps{}).Consumers()
+	got := make([]string, 0, len(consumers))
+	for _, c := range consumers {
+		got = append(got, c.Durable)
+	}
+	if !slices.Contains(got, "ranking_membership") {
+		t.Fatalf("durables = %q, want ranking_membership", got)
 	}
 }
 

@@ -142,17 +142,24 @@ func (s *consumerSuite) appendEvents(t *testing.T) []*chaos.Msg {
 func (s *consumerSuite) snapshot(t *testing.T, res chaos.Result) map[string][]string {
 	t.Helper()
 	ctx := t.Context()
-	var tables []string
+	tables := map[string][]string{}
 	rows, err := s.h.Pool.Query(ctx, `
-		SELECT format('%I.%I', schemaname, tablename) FROM pg_tables
-		WHERE schemaname NOT IN ('pg_catalog', 'information_schema', $1)`, atlasSchema)
+		SELECT format('%I.%I', t.schemaname, t.tablename), coalesce((
+			SELECT array_agg(c.column_name::text) FROM information_schema.columns c
+			WHERE c.table_schema = t.schemaname AND c.table_name = t.tablename
+				AND (c.column_default LIKE 'nextval(%' OR c.is_identity = 'YES')), '{}')
+		FROM pg_tables t
+		WHERE t.schemaname NOT IN ('pg_catalog', 'information_schema', $1)`, atlasSchema)
 	if err == nil {
 		for rows.Next() {
-			var name string
-			if err = rows.Scan(&name); err != nil {
+			var (
+				name   string
+				serial []string
+			)
+			if err = rows.Scan(&name, &serial); err != nil {
 				break
 			}
-			tables = append(tables, name)
+			tables[name] = serial
 		}
 		rows.Close()
 		err = rows.Err()
@@ -161,12 +168,13 @@ func (s *consumerSuite) snapshot(t *testing.T, res chaos.Result) map[string][]st
 		t.Fatalf("testkit.ConsumerSuite: list tables: %v", err)
 	}
 	out := map[string][]string{"terms": res.Terms()}
-	for _, table := range tables {
+	for table, arrivalOrder := range tables {
 		var got []string
 		err := s.h.Pool.QueryRow(ctx, `
 			SELECT coalesce(array_agg(j ORDER BY j), '{}')
-			FROM (SELECT (to_jsonb(t) - '{created_at,updated_at,handled_at,published_at,trace_parent}'::text[])::text AS j
-				FROM `+table+` t) rows`).Scan(&got)
+			FROM (SELECT (to_jsonb(t) - '{created_at,updated_at,handled_at,published_at,trace_parent}'::text[]
+				- $1::text[])::text AS j
+				FROM `+table+` t) rows`, arrivalOrder).Scan(&got)
 		if err != nil {
 			t.Fatalf("testkit.ConsumerSuite: snapshot %s: %v", table, err)
 		}
