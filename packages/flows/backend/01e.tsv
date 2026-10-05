@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-01e	Delete account	identity	DELETE /v1/me	DeleteAccount	user.deleted		ok;AccountHasPositions;AccountHasBalance;crash:before-commit	planned	docs/architecture/auth.md#deletion
+01e	Delete account	identity	DELETE /v1/me	DeleteAccount	user.deleted		ok;AccountHasPositions;AccountHasBalance;crash:before-commit	verified	docs/architecture/auth.md#deletion
