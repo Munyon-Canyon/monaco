@@ -2012,6 +2012,34 @@ paths:
               schema: {$ref: "#/components/schemas/FundAccepted"}
               example: {transfer_id: 01890a5d-ac96-774b-bcce-b302099a8057, status: submitted}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/cabals/{id}/pot:
+    get:
+      operationId: getCabalPot
+      tags: [treasury]
+      summary: Read a cabal's pot, its holdings and the caller's slice.
+      description: >-
+        Returns the pot value, its all-time gain, every holding at the latest market price and the caller's
+        slice, all from one price read. Any signed-in user may read it. `me` is null when the caller is not a
+        member. A holding without a fresh price returns `price_unavailable`; the pot is never valued at cost
+        basis. Refresh on `cabal.<id>.activity_changed` and `global.prices_updated`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The cabal's pot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalPot"
+              example: {cabal_id: 01890a5d-ac96-774b-bcce-b302099a8059, pot_value_micros: 120000000, cash_micros: 60000000, cash_weight_bps: 5000, pnl_micros: 20000000, return_bps: 2000, prices_as_of: "2026-10-03T15:00:00Z", holdings: [{symbol: AAPLx, display_name: Apple, units: "2.0000", price_micros: 30000000, value_micros: 60000000, weight_bps: 5000, cost_basis_micros: 40000000, pnl_micros: 20000000}], me: {share_units: 100000000, value_micros: 120000000, slice_bps: 10000, net_contributed_micros: 100000000, pnl_micros: 20000000}}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/fund-transfers/{id}:
     get:
       operationId: getFundTransfer
@@ -4007,6 +4035,56 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    CabalHolding:
+      type: object
+      description: One stock the cabal holds, valued at the latest market price.
+      additionalProperties: false
+      required: [symbol, display_name, units, price_micros, value_micros, weight_bps, cost_basis_micros, pnl_micros]
+      properties:
+        symbol: {type: string, description: "The token symbol.", examples: [AAPLx]}
+        display_name: {type: string, description: "The display name.", examples: [Apple]}
+        units: {type: string, pattern: "^(0|[1-9][0-9]*)\\.[0-9]{4}$", description: "Shares as the user sees them, rounded down to 4 decimal places.", examples: ["0.7300"]}
+        price_micros: {type: integer, format: int64, description: "The latest price of one share, in USDC micros.", examples: [30000000]}
+        value_micros: {type: integer, format: int64, description: "The holding's value, in USDC micros.", examples: [60000000]}
+        weight_bps: {type: integer, format: int32, description: "The holding's share of the pot in basis points.", examples: [5000]}
+        cost_basis_micros: {type: integer, format: int64, description: "What the cabal paid for the holding, in USDC micros.", examples: [40000000]}
+        pnl_micros: {type: integer, format: int64, description: "Signed gain, value minus cost basis, in micros.", examples: [20000000]}
+    CabalPot:
+      type: object
+      description: A cabal's pot valued from one price read, with the caller's slice.
+      additionalProperties: false
+      required: [cabal_id, pot_value_micros, cash_micros, cash_weight_bps, pnl_micros, return_bps, prices_as_of, holdings, me]
+      properties:
+        cabal_id: {type: string, format: uuid, description: "The cabal id.", examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        pot_value_micros: {type: integer, format: int64, description: "Cash plus every holding's value, in USDC micros.", examples: [120000000]}
+        cash_micros: {type: integer, format: int64, description: "The cabal's USDC not reserved for a cash out, in micros.", examples: [60000000]}
+        cash_weight_bps: {type: integer, format: int32, description: "Cash's share of the pot in basis points. With every holding's weight it sums to 10000, or all are 0 when the pot is empty.", examples: [5000]}
+        pnl_micros: {type: integer, format: int64, description: "Signed all-time gain, the pot value minus what members put in net of what they took out.", examples: [20000000]}
+        return_bps:
+          type: [integer, "null"]
+          format: int32
+          description: The all-time gain over net contributed, in basis points, truncated toward zero. Null when net contributed is zero or less.
+          examples: [2000]
+        prices_as_of: {type: string, format: date-time, description: "The oldest price used. The read time when the pot holds only USDC.", examples: ["2026-10-03T15:00:00Z"]}
+        holdings:
+          type: array
+          description: Every stock the cabal holds, largest value first, ties by symbol.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/CabalHolding"
+        me:
+          type: [object, "null"]
+          description: The caller's slice. Null when the caller is not a member; every field is 0 for a member with no shares.
+          examples: [null]
+          x-go-type-name: CabalPotSlice
+          additionalProperties: false
+          required: [share_units, value_micros, slice_bps, net_contributed_micros, pnl_micros]
+          properties:
+            share_units: {type: integer, format: int64, description: "The caller's share units.", examples: [100000000]}
+            value_micros: {type: integer, format: int64, description: "What the caller's shares are worth now, in USDC micros.", examples: [120000000]}
+            slice_bps: {type: integer, format: int32, description: "The caller's share of the pot in basis points. Every member's slice sums to 10000.", examples: [10000]}
+            net_contributed_micros: {type: integer, format: int64, description: "Signed USDC the caller put in minus what they took out, in micros.", examples: [100000000]}
+            pnl_micros: {type: integer, format: int64, description: "Signed gain, value minus net contributed, in micros.", examples: [20000000]}
     CashOutJob:
       type: object
       description: An asynchronous cash-out job.

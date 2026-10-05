@@ -115,6 +115,9 @@ func (m *Module) Mount(r api.Mount) {
 			m.deps.IDs,
 			m.deps.Pool,
 		),
+		Pot:     m.reads(),
+		Cabals:  m.cabals,
+		Members: m.members,
 	}, r)
 }
 
