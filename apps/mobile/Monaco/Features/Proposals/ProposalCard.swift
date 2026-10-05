@@ -78,8 +78,15 @@ struct ProposalCard: View {
                 Text(closesLabel)
                     .font(MonacoTheme.Typo.stamp)
                     .foregroundStyle(MonacoTheme.tertiaryText)
-            } else {
-                ProposalStatusChip(status: summary.status, isSell: isSell, swapFailed: summary.swap?.retryable == true)
+            } else if let label = ProposalChip.label(
+                status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed"
+            ) {
+                Text(label)
+                    .font(MonacoTheme.Typo.micro)
+                    .foregroundStyle(summary.status == .passed ? MonacoTheme.ink : MonacoTheme.muted)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(MonacoTheme.surfaceSunken))
             }
         }
     }
