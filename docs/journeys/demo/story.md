@@ -29,7 +29,7 @@ The format of this doc is in [App journeys](../README.md).
 | P1 | Actors A and B have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
 | P3 | `apps/mobile/qa/journeys/demo/story.setup.sh` ran right before the scenario. It marks A and B done with onboarding and sets their display names. For S2 to S8, A creates the open cabal `QA story {QA.run}` through the API and B joins it. S3 also seeds the journey stock catalogue (`stocks/browse.setup.sh`) |
-| P4 | Before the run, the runner sends A 3 USDC and B 1 USDC from the Phantom agent wallet (`funds`). No step moves money on staging, because every money beat is a known failure |
+| P4 | Before the run, the runner sends A 3 USDC and B 1 USDC from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet (`funds`). No step moves money on staging, because every money beat is a known failure |
 
 ## Scenarios
 

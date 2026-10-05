@@ -58,6 +58,7 @@ Four kinds of wallet appear in this repo. Only the first three are part of the p
 | **Member wallet** | One per user | Privy (the API can sign) | USDC | The user's deposit address. USDC sitting here is their **account balance**. |
 | **Treasury** | One per cabal | Privy (app-owned) | USDC and stock tokens | The cabal's shared pot. Every trade and every cash out signs from here. |
 | **Relayer** | One per environment | The API (`RELAYER_PRIVATE_KEY`) | SOL | Pays fees for every transaction, so the other wallets never need SOL. |
+| QA pot | One, shared | `QA_POT_PRIVATE_KEY` in the encrypted `.env.local` | USDC, SOL | **Not product.** Funds test accounts with real USDC during QA through `monacoctl qa fund`; test money comes back to it through in-app withdrawals. See the [README](https://github.com/Munyon-Canyon/monaco/blob/main/README.md#agent-qa-the-qa-pot). |
 | Phantom agent wallet | One per developer | A coding agent's Phantom MCP | USDC, SOL | **Not product.** Used to fund test accounts with real USDC during QA. See the [README](https://github.com/Munyon-Canyon/monaco/blob/main/README.md#agent-qa-phantom-mcp). |
 
 ## Flows
