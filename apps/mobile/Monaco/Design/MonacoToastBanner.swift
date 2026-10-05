@@ -5,11 +5,21 @@ struct MonacoToast: Equatable, Identifiable {
     let message: String
     var isSuccess = false
     var link: MonacoToastLink?
+    var action: MonacoToastAction?
 }
 
 struct MonacoToastLink: Equatable {
     let title: String
     let url: URL
+}
+
+struct MonacoToastAction: Equatable {
+    let title: String
+    let perform: @MainActor () -> Void
+
+    static func == (lhs: MonacoToastAction, rhs: MonacoToastAction) -> Bool {
+        lhs.title == rhs.title
+    }
 }
 
 /// Ink panel with paper text and a filled state glyph. One or two short sentences.
@@ -21,6 +31,7 @@ struct MonacoToastBanner: View {
     let message: String
     var isSuccess = false
     var link: MonacoToastLink?
+    var action: MonacoToastAction?
 
     @Environment(\.colorScheme) private var colorScheme
     @ScaledMetric(relativeTo: .subheadline) private var glyphSize: CGFloat = 17
@@ -46,6 +57,14 @@ struct MonacoToastBanner: View {
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("monaco-toast-link")
             }
+            if let action {
+                Button(action.title, action: action.perform)
+                    .font(MonacoTheme.Typo.calloutStrong)
+                    .foregroundStyle(MonacoTheme.toastLabel)
+                    .underline()
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("monaco-toast-action")
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -58,7 +77,7 @@ struct MonacoToastBanner: View {
         }
         .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.08), radius: 16, y: 6)
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .accessibilityElement(children: link == nil ? .combine : .contain)
+        .accessibilityElement(children: link == nil && action == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
     }
 }
@@ -232,7 +251,7 @@ private struct MonacoToastModifier: ViewModifier {
     }
 
     private func banner(_ toast: MonacoToast) -> some View {
-        MonacoToastBanner(message: toast.message, isSuccess: toast.isSuccess, link: toast.link)
+        MonacoToastBanner(message: toast.message, isSuccess: toast.isSuccess, link: toast.link, action: toast.action)
             .id(toast.id)
             .offset(y: max(dragOffset, 0))
             .gesture(

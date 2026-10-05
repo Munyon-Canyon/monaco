@@ -35,6 +35,16 @@ struct FundCabalFormTests {
         #expect(FundCabalForm(amountText: "500", balance: balance).ctaTitle == "Add $500 to the pot")
     }
 
+    @Test func theButtonIsLiveOnlyForAnAmountWithinTheBalance() {
+        let balance = Fixture.balance(248_500_000)
+        #expect(FundCabalForm(amountText: "50", balance: balance).canSubmit)
+        #expect(FundCabalForm(amountText: "248.50", balance: balance).canSubmit)
+        #expect(!FundCabalForm(amountText: "", balance: balance).canSubmit)
+        #expect(!FundCabalForm(amountText: "0", balance: balance).canSubmit)
+        #expect(!FundCabalForm(amountText: "248.51", balance: balance).canSubmit)
+        #expect(!FundCabalForm(amountText: "50", balance: nil).canSubmit)
+    }
+
     @Test func anAmountOverTheBalanceCannotBeSent() {
         #expect(FundCabalForm(amountText: "248.50", balance: Fixture.balance(248_500_000)).problem == nil)
         #expect(
@@ -225,7 +235,6 @@ struct MoneyFlowCopyTests {
                 FundCabalForm.note(into: nil),
                 FundCabalForm.note(into: "Weekend investors"),
                 FundCabalForm.overBalance,
-                FundCabalForm.comingSoon,
                 WithdrawForm.caveat,
                 WithdrawForm.overBalance,
                 WithdrawConfirmView.caveat,

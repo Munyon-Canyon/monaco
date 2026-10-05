@@ -71,12 +71,13 @@ final class APITelemetryTests: XCTestCase {
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.fundGroup(groupId: groupID, amount: 5_000_000, submission: IdempotentSubmission())
+        _ = try? await client.withdrawToBalance(
+            groupId: groupID, shareAmountMicros: 5_000_000, submission: IdempotentSubmission())
 
         let event = try XCTUnwrap(events.values.first)
         XCTAssertEqual(events.values.count, 1)
         XCTAssertEqual(event.method, "POST")
-        XCTAssertEqual(event.route, "/v1/groups/{id}/fund")
+        XCTAssertEqual(event.route, "/v1/groups/{id}/withdraw-to-balance")
         XCTAssertEqual(event.outcome, .status(200))
         XCTAssertGreaterThan(event.durationMs, 0)
         XCTAssertEqual(event.serverRequestID, event.requestID)
@@ -213,7 +214,8 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         _ = try? await client.getHomePnLSeries()
-        _ = try? await client.fundGroup(groupId: groupID, amount: 123_456_789, submission: IdempotentSubmission())
+        _ = try? await client.withdrawToBalance(
+            groupId: groupID, shareAmountMicros: 123_456_789, submission: IdempotentSubmission())
 
         XCTAssertEqual(events.values.count, 2)
         for event in events.values {

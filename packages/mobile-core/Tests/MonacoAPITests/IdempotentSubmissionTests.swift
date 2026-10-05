@@ -8,8 +8,8 @@ import FoundationNetworking
 #endif
 
 final class IdempotentSubmissionTests: XCTestCase {
-    private let fund = Data(#"fundGroup {"amount":1}"#.utf8)
-    private let biggerFund = Data(#"fundGroup {"amount":2}"#.utf8)
+    private let fund = Data(#"fundCabal {"amount":1}"#.utf8)
+    private let biggerFund = Data(#"fundCabal {"amount":2}"#.utf8)
 
     func testTheSameFingerprintKeepsItsKeyUntilAFinalAnswer() {
         let submission = countingSubmission()
