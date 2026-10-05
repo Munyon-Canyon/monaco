@@ -28,7 +28,6 @@ float-money	packages/mobile-core/Sources/MonacoCore/AssetChartSeries.swift	1
 float-money	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	22
 float-money	packages/mobile-core/Sources/MonacoCore/GroupViewDTO.swift	4
 float-money	packages/mobile-core/Sources/MonacoCore/MarketAssetDTO.swift	1
-float-money	packages/mobile-core/Sources/MonacoCore/MarketSampleData.swift	10
 float-money	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift	2
 float-money	packages/mobile-core/Sources/MonacoCore/SparklineSeries.swift	12
 nonisolated-unsafe	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1

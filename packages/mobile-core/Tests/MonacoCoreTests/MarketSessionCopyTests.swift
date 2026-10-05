@@ -15,7 +15,7 @@ final class MarketSessionCopyTests: XCTestCase {
     }
 
     func testOpenSaysNothingAboutSolanaBecauseThereIsNothingToExplain() throws {
-        let copy = try XCTUnwrap(chip(MarketSampleData.sessionOpen))
+        let copy = try XCTUnwrap(chip(Sessions.sessionOpen))
 
         XCTAssertEqual(copy.title, "Market open")
         XCTAssertTrue(copy.isLive)
@@ -23,7 +23,7 @@ final class MarketSessionCopyTests: XCTestCase {
     }
 
     func testOpenNamesTheBell() throws {
-        let copy = try XCTUnwrap(chip(MarketSampleData.sessionOpen))
+        let copy = try XCTUnwrap(chip(Sessions.sessionOpen))
         let detail = try XCTUnwrap(copy.detail)
 
         // The sample's next transition is six hours after 10:00 ET. The space before
@@ -35,14 +35,14 @@ final class MarketSessionCopyTests: XCTestCase {
     }
 
     func testAHalfDaySaysSoInsteadOfNamingAnHour() throws {
-        let copy = try XCTUnwrap(chip(MarketSampleData.sessionEarlyClose))
+        let copy = try XCTUnwrap(chip(Sessions.sessionEarlyClose))
 
         XCTAssertEqual(copy.title, "Market open")
         XCTAssertEqual(copy.detail, "Closes early today")
     }
 
     func testAfterHoursIsTheStateTheWholeChipExistsFor() throws {
-        let copy = try XCTUnwrap(chip(MarketSampleData.sessionAfterHours))
+        let copy = try XCTUnwrap(chip(Sessions.sessionAfterHours))
 
         XCTAssertEqual(copy.title, "After hours")
         XCTAssertEqual(copy.detail, "Trading 24/7 on Solana")
@@ -50,7 +50,7 @@ final class MarketSessionCopyTests: XCTestCase {
     }
 
     func testPreMarketCountsDownToTheOpenWhenTheServerSaidWhen() throws {
-        let copy = try XCTUnwrap(chip(MarketSampleData.sessionPreMarket))
+        let copy = try XCTUnwrap(chip(Sessions.sessionPreMarket))
         let detail = try XCTUnwrap(copy.detail)
 
         XCTAssertEqual(copy.title, "Pre-market")
@@ -76,14 +76,14 @@ final class MarketSessionCopyTests: XCTestCase {
     }
 
     func testAHolidayIsNamed() throws {
-        let copy = try XCTUnwrap(chip(MarketSampleData.sessionHoliday))
+        let copy = try XCTUnwrap(chip(Sessions.sessionHoliday))
 
         XCTAssertEqual(copy.title, "Closed for Thanksgiving Day")
         XCTAssertEqual(copy.detail, "Trading 24/7 on Solana")
     }
 
     func testAnOrdinaryOvernightCloseIsJustClosed() throws {
-        let copy = try XCTUnwrap(chip(MarketSampleData.sessionClosedOvernight))
+        let copy = try XCTUnwrap(chip(Sessions.sessionClosedOvernight))
 
         XCTAssertEqual(copy.title, "Market closed")
         XCTAssertFalse(copy.isLive)
@@ -106,7 +106,7 @@ final class MarketSessionCopyTests: XCTestCase {
     func testA24HourLocaleGetsA24HourBell() throws {
         let copy = try XCTUnwrap(
             MarketSessionCopy.chip(
-                for: MarketSampleData.sessionOpen,
+                for: Sessions.sessionOpen,
                 locale: Locale(identifier: "en_GB"),
                 timeZone: TimeZone(identifier: "Europe/London")!
             )
@@ -116,4 +116,64 @@ final class MarketSessionCopyTests: XCTestCase {
         XCTAssertTrue(detail.contains("21:00"), detail)
         XCTAssertFalse(detail.uppercased().contains("PM"), detail)
     }
+}
+
+private enum Sessions {
+    static let tradingTuesday = Date(timeIntervalSince1970: 1_790_085_600)
+
+    static let sessionOpen = MarketStatus(
+        session: .open,
+        isOpen: true,
+        afterHours: false,
+        nextSession: .afterHours,
+        nextTransition: tradingTuesday.addingTimeInterval(6 * 3600),
+        asOf: tradingTuesday
+    )
+
+    static let sessionPreMarket = MarketStatus(
+        session: .preMarket,
+        isOpen: false,
+        afterHours: true,
+        nextSession: .open,
+        nextTransition: tradingTuesday.addingTimeInterval(-30 * 60),
+        asOf: tradingTuesday.addingTimeInterval(-2 * 3600)
+    )
+
+    static let sessionAfterHours = MarketStatus(
+        session: .afterHours,
+        isOpen: false,
+        afterHours: true,
+        nextSession: .closed,
+        nextTransition: tradingTuesday.addingTimeInterval(10 * 3600),
+        asOf: tradingTuesday.addingTimeInterval(7 * 3600)
+    )
+
+    static let sessionClosedOvernight = MarketStatus(
+        session: .closed,
+        isOpen: false,
+        afterHours: true,
+        nextSession: .preMarket,
+        nextTransition: tradingTuesday.addingTimeInterval(22 * 3600),
+        asOf: tradingTuesday.addingTimeInterval(12 * 3600)
+    )
+
+    static let sessionHoliday = MarketStatus(
+        session: .closed,
+        isOpen: false,
+        afterHours: true,
+        nextSession: .preMarket,
+        nextTransition: Date(timeIntervalSince1970: 1_795_770_000),
+        asOf: Date(timeIntervalSince1970: 1_795_708_800),
+        holiday: "Thanksgiving Day"
+    )
+
+    static let sessionEarlyClose = MarketStatus(
+        session: .open,
+        isOpen: true,
+        afterHours: false,
+        nextSession: .afterHours,
+        nextTransition: Date(timeIntervalSince1970: 1_795_802_400),
+        asOf: Date(timeIntervalSince1970: 1_795_780_800),
+        earlyClose: true
+    )
 }
