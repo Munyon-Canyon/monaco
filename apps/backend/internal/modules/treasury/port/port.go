@@ -120,3 +120,7 @@ type CabalPot struct {
 	Holdings       []Holding
 	Me             *Slice
 }
+
+type HeldMints interface {
+	HeldMints(ctx context.Context) ([]chain.SolanaAddress, error)
+}

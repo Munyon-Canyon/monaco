@@ -6,6 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/coingecko"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/jupiterprices"
@@ -16,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/xstocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
@@ -74,11 +76,23 @@ type Routes interface {
 
 type Module struct {
 	deps module.Deps
+	hot  []app.HotMints
 }
 
 func New(d module.Deps) *Module { return &Module{deps: d} }
 
 func (*Module) Name() string { return "market" }
+
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		switch provider := mod.(type) {
+		case treasuryport.HeldMints:
+			m.hot = append(m.hot, provider.HeldMints)
+		case governanceport.ProposedMints:
+			m.hot = append(m.hot, provider.ProposedMints)
+		}
+	}
+}
 
 var (
 	_ Catalog         = (*app.Catalog)(nil)
@@ -168,5 +182,6 @@ func (m *Module) samplePrices() *app.SamplePrices {
 	source := jupiterprices.New(m.deps.JupiterClient())
 	return app.NewSamplePrices(
 		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, source, m.deps.Bus, cfg.Market.PricePollInterval,
+		m.hot...,
 	)
 }

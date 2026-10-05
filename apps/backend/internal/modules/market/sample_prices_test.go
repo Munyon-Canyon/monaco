@@ -113,6 +113,13 @@ type sampleRig struct {
 
 func newSampleRig(t *testing.T, source func(clock.Clock) app.PriceSource, assets ...market.Asset) *sampleRig {
 	t.Helper()
+	return newHotSampleRig(t, source, nil, assets...)
+}
+
+func newHotSampleRig(
+	t *testing.T, source func(clock.Clock) app.PriceSource, hot []app.HotMints, assets ...market.Asset,
+) *sampleRig {
+	t.Helper()
 	pool := testkit.DB(t)
 	bucket := clock.Real{}.Now().UTC().Truncate(domain.SampleBucket)
 	seedAssets(t, pool, bucket, assets...)
@@ -121,7 +128,7 @@ func newSampleRig(t *testing.T, source func(clock.Clock) app.PriceSource, assets
 	ticks := &tickRecorder{}
 	return &sampleRig{
 		pool: pool, clock: clk, bucket: bucket, ticks: ticks,
-		poller: app.NewSamplePrices(db.New(pool, ids, clk), pool, ids, clk, source(clk), ticks, 2*time.Minute),
+		poller: app.NewSamplePrices(db.New(pool, ids, clk), pool, ids, clk, source(clk), ticks, 2*time.Minute, hot...),
 	}
 }
 
@@ -366,22 +373,99 @@ func generatedAsset(t *testing.T, g *testkit.IDs, i int) market.Asset {
 	}
 }
 
-func TestSamplePrices_120MintsTakeThreeJupiterCallsAndOneTick(t *testing.T) {
-	t.Parallel()
-	g := testkit.NewIDs(120)
-	assets := make([]market.Asset, 120)
+type askedSource struct {
+	mu    sync.Mutex
+	asked [][]domain.Mint
+	next  app.PriceSource
+}
+
+func (a *askedSource) Prices(ctx context.Context, mints []domain.Mint) (map[domain.Mint]money.Micros, error) {
+	a.mu.Lock()
+	a.asked = append(a.asked, slices.Clone(mints))
+	a.mu.Unlock()
+	if a.next != nil {
+		return a.next.Prices(ctx, mints)
+	}
+	out := make(map[domain.Mint]money.Micros, len(mints))
+	for _, m := range mints {
+		out[m] = usd(1_000_000)
+	}
+	return out, nil
+}
+
+func (a *askedSource) tick(i int) []domain.Mint {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.asked[i]
+}
+
+func generatedCatalog(t *testing.T, n int) []market.Asset {
+	t.Helper()
+	g := testkit.NewIDs(1282)
+	assets := make([]market.Asset, n)
 	for i := range assets {
 		assets[i] = generatedAsset(t, g, i)
 	}
-	j := fakeJupiter(t)
-	r := newSampleRig(t, j.source(5*time.Second), assets...)
-	report, err := r.poller.Tick(t.Context())
-	if err != nil || report.Scanned != 120 || attr(report.Attrs, "missing") != "120" {
-		t.Fatalf("Tick over 120 unpriced mints = %+v, %v", report, err)
+	return assets
+}
+
+func TestSamplePrices_aTickAsksForTheHotMintsAndOneColdSlotOnly(t *testing.T) {
+	t.Parallel()
+	assets := generatedCatalog(t, 1282)
+	held := []chain.SolanaAddress{assets[5].Mint.Address(), assets[700].Mint.Address(), "NotInTheCatalog"}
+	proposed := []chain.SolanaAddress{assets[1281].Mint.Address(), assets[5].Mint.Address()}
+	hot := []app.HotMints{
+		func(context.Context) ([]chain.SolanaAddress, error) { return held, nil },
+		func(context.Context) ([]chain.SolanaAddress, error) { return proposed, nil },
 	}
-	if calls, sent := j.calls.Load(), r.ticks.published(); calls != 3 || len(sent) != 1 || len(sent[0].Prices) != 0 {
-		t.Fatalf("one tick over 120 mints made %d Jupiter calls and %d price.tick messages, want 3 and 1",
-			calls, len(sent))
+	j := fakeJupiter(t)
+	asked := &askedSource{}
+	r := newHotSampleRig(t, func(c clock.Clock) app.PriceSource {
+		asked.next = j.source(5 * time.Second)(c)
+		return asked
+	}, hot, assets...)
+
+	report, err := r.poller.Tick(t.Context())
+	if err != nil || attr(report.Attrs, "hot") != "3" {
+		t.Fatalf("Tick = %+v, %v, want 3 hot mints", report, err)
+	}
+	got := asked.tick(0)
+	for _, m := range []domain.Mint{assets[5].Mint, assets[700].Mint, assets[1281].Mint} {
+		if !slices.Contains(got, m) {
+			t.Fatalf("tick asked %d mints without hot mint %s", len(got), m)
+		}
+	}
+	cold := len(got) - 3
+	if cold > 100 || attr(report.Attrs, "cold") != strconv.Itoa(cold) || report.Scanned != len(got) {
+		t.Fatalf("tick asked %d mints with %d cold (report %+v), want the 3 hot plus at most 100 cold",
+			len(got), cold, report)
+	}
+	if calls := j.calls.Load(); calls > 4 {
+		t.Fatalf("one tick made %d Jupiter price calls, want at most 4", calls)
+	}
+}
+
+func TestSamplePrices_thirteenTicksAskForTheWholeCatalog(t *testing.T) {
+	t.Parallel()
+	assets := generatedCatalog(t, 1282)
+	asked := &askedSource{next: &quotes{}}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return asked }, assets...)
+	seen := map[domain.Mint]bool{}
+	for i := range 13 {
+		if _, err := r.poller.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		mints := asked.tick(i)
+		if len(mints) > 100 {
+			t.Fatalf("tick %d asked for %d mints, want at most 100 with nothing hot", i, len(mints))
+		}
+		for _, m := range mints {
+			seen[m] = true
+		}
+		r.clock.Advance(2 * time.Minute)
+	}
+	if len(seen) != 1282 {
+		t.Fatalf("13 ticks asked for %d distinct mints, want all 1282", len(seen))
 	}
 }
 
@@ -452,4 +536,25 @@ func TestSamplePrices_aFailedPublishFailsTheTickAfterTheInsert(t *testing.T) {
 		t.Fatalf("Tick whose publish fails = %v, want upstream_unavailable", err)
 	}
 	wantPoints(t, r.pool, pricePoint{aapl.Mint.String(), r.bucket, 254_371_234, "jupiter"})
+}
+
+func TestSamplePrices_aFailedHotReadFailsTheTickBeforeAsking(t *testing.T) {
+	t.Parallel()
+	asked := &askedSource{}
+	down := errs.New(errs.CodeDBUnavailable, "test.held")
+	hot := []app.HotMints{func(context.Context) ([]chain.SolanaAddress, error) { return nil, down }}
+	r := newHotSampleRig(t, func(clock.Clock) app.PriceSource { return asked }, hot, marketfake.AAPLx())
+	if _, err := r.poller.Tick(t.Context()); errs.CodeOf(err) != errs.CodeDBUnavailable || len(asked.asked) != 0 {
+		t.Fatalf("Tick = %v after %d asks, want db_unavailable before asking", err, len(asked.asked))
+	}
+}
+
+func TestSamplePrices_anEmptyCatalogAsksForNothing(t *testing.T) {
+	t.Parallel()
+	asked := &askedSource{}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return asked })
+	report, err := r.poller.Tick(t.Context())
+	if err != nil || report.Scanned != 0 || len(asked.tick(0)) != 0 {
+		t.Fatalf("Tick over an empty catalog = %+v, %v, asked %v", report, err, asked.tick(0))
+	}
 }

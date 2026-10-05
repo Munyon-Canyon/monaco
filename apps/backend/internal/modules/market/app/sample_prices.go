@@ -35,15 +35,16 @@ type SamplePrices struct {
 	source   PriceSource
 	ticks    CorePublisher
 	interval time.Duration
+	hot      []HotMints
 }
 
 func NewSamplePrices(
 	uow *db.UnitOfWork, reads sqlc.DBTX, g ids.Generator, c clock.Clock, source PriceSource,
-	ticks CorePublisher, interval time.Duration,
+	ticks CorePublisher, interval time.Duration, hot ...HotMints,
 ) *SamplePrices {
 	return &SamplePrices{
 		uow: uow, ids: g, clock: c, catalog: NewCatalog(reads), book: NewPriceBook(reads, c), source: source,
-		ticks: ticks, interval: interval,
+		ticks: ticks, interval: interval, hot: hot,
 	}
 }
 
@@ -57,13 +58,13 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 		return poller.Report{}, err
 	}
 	at := domain.Bucket(p.clock.Now())
-	mints := make([]domain.Mint, len(assets))
-	for i, a := range assets {
-		mints[i] = a.Mint
+	need, err := p.needs(ctx, assets)
+	if err != nil {
+		return poller.Report{}, err
 	}
-	answered, sampleErr := p.source.Prices(ctx, mints)
+	answered, sampleErr := p.source.Prices(ctx, need.mints)
 	rows := sqlc.InsertPricePointsParams{Ts: at, Source: string(domain.SourceJupiter)}
-	for _, m := range mints {
+	for _, m := range need.mints {
 		if stored, ok := storable(answered, m); ok {
 			rows.Mints = append(rows.Mints, m.String())
 			rows.PriceMicros = append(rows.PriceMicros, stored)
@@ -83,13 +84,15 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 	if err != nil {
 		return poller.Report{}, err
 	}
-	missing := len(mints) - len(rows.Mints)
-	report := poller.Report{Scanned: len(assets), Changed: written, Attrs: []slog.Attr{
+	missing := len(need.mints) - len(rows.Mints)
+	report := poller.Report{Scanned: len(need.mints), Changed: written, Attrs: []slog.Attr{
 		slog.Int("priced", len(rows.Mints)), slog.Int("missing", missing),
+		slog.Int("hot", need.hot), slog.Int("cold", need.cold), slog.Int("failed_batches", 0),
 	}}
 	if sampleErr != nil {
 		return report, errs.Wrap(sampleErr, errs.CodeOf(sampleErr), "market.SamplePrices.Tick",
-			slog.Int("written", written), slog.Int("missing", missing))
+			slog.Int("written", written), slog.Int("missing", missing),
+			slog.Int("hot", need.hot), slog.Int("cold", need.cold))
 	}
 	return report, nil
 }
