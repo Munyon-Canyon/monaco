@@ -14,7 +14,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
 )
 
@@ -23,11 +22,11 @@ const retryHandler = "trading.engine.retry"
 func (b *engineBus) failFirstSwap(t *testing.T, cmd app.ExecuteTrade, in, out platform.Mint) uuid.UUID {
 	t.Helper()
 	b.jup.SetOrder(jupiterMint(in), jupiterMint(out), jupiter.Order{
-		RequestID: "req-1", Transaction: chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet)),
+		RequestID: "req-1", Transaction: swapTx(),
 	})
 	b.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusFailed, ErrorCode: 6001})
 	b.dispatch(t, b.message(t, cmd, ""))
-	next := chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet))
+	next := swapTx()
 	next[len(next)-2] = 1
 	b.jup.SetOrder(jupiterMint(in), jupiterMint(out), jupiter.Order{RequestID: "req-2", Transaction: next})
 	swaps := b.swapsOf(t, cmd.ProposalID)

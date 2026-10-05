@@ -122,8 +122,12 @@ func (l *SwapLayer) start(ctx context.Context, req SwapRequest, id uuid.UUID) er
 }
 
 func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) error {
+	payer, err := l.d.Signer.FeePayer()
+	if err != nil {
+		return err
+	}
 	order, err := l.d.Venue.Order(ctx, OrderSpec{
-		Taker: req.TreasuryWallet.Address, InMint: req.InMint, OutMint: req.OutMint,
+		Taker: req.TreasuryWallet.Address, Payer: payer, InMint: req.InMint, OutMint: req.OutMint,
 		InAmount: req.InAmount, SlippageBps: req.SlippageBps,
 	})
 	if err != nil {

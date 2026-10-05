@@ -56,6 +56,8 @@ func (h *hintLog) published() []string {
 
 type signerFunc func(ctx context.Context, walletID string, unsigned []byte) ([]byte, platform.Signature, error)
 
+func (signerFunc) FeePayer() (platform.SolanaAddress, error) { return chainfake.RelayerAddress(), nil }
+
 func (f signerFunc) Sign(ctx context.Context, walletID string, unsigned []byte) ([]byte, platform.Signature, error) {
 	return f(ctx, walletID, unsigned)
 }
@@ -84,15 +86,19 @@ func newLayerEnvOn(pool *pgxpool.Pool) *layerEnv {
 		jup: &jupiterfake.Venue{}, privy: &chainfake.Signer{}, hints: &hintLog{}, reads: pool,
 	}
 	e.uow = db.New(pool, e.ids, e.clk)
-	e.signer = chain.NewSigner(e.privy)
+	e.signer = chain.NewSigner(e.privy, chainfake.Relayer())
 	e.venue = chain.NewVenue(e.jup)
 	e.script("req-1")
 	return e
 }
 
+func swapTx() []byte {
+	return chainfake.Unsigned(chainfake.RelayerAddress(), chainfake.WalletAddress(treasuryWallet))
+}
+
 func (e *layerEnv) script(requestID string) {
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
-		RequestID: requestID, Transaction: chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet)),
+		RequestID: requestID, Transaction: swapTx(),
 	})
 }
 
@@ -202,7 +208,7 @@ func (e *layerEnv) row(t *testing.T, id uuid.UUID) (status string, signed []byte
 	return status, signed, requestID, signature
 }
 
-func (e *layerEnv) chainSigner() chain.Signer { return chain.NewSigner(e.privy) }
+func (e *layerEnv) chainSigner() chain.Signer { return chain.NewSigner(e.privy, chainfake.Relayer()) }
 
 func (e *layerEnv) source() uuid.UUID { return e.ids.NewV7() }
 

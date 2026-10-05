@@ -55,10 +55,17 @@ func TestVenue_orderCarriesTheRequestIDAndTransaction(t *testing.T) {
 		RequestID: "req-1", Transaction: []byte{1, 2, 3},
 	})
 	v := chain.NewVenue(&fake)
-	spec := app.OrderSpec{Taker: "taker", InMint: usdc(), OutMint: aaplx(), InAmount: 25_000_000, SlippageBps: 100}
+	spec := app.OrderSpec{
+		Taker: "taker", Payer: "relayer", InMint: usdc(), OutMint: aaplx(), InAmount: 25_000_000, SlippageBps: 100,
+	}
 	got, err := v.Order(t.Context(), spec)
 	if err != nil || got.RequestID != "req-1" || string(got.Transaction) != "\x01\x02\x03" {
 		t.Fatalf("Order = %+v, %v", got, err)
+	}
+	payerless := spec
+	payerless.Payer = ""
+	if _, err := v.Order(t.Context(), payerless); errs.CodeOf(err) != errs.CodeJupiterRejected {
+		t.Fatalf("Order without a payer from a taker with no SOL = %v, want jupiter_rejected", err)
 	}
 	spec.InMint, spec.OutMint = aaplx(), usdc()
 	_, err = v.Order(t.Context(), spec)

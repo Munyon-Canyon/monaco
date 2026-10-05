@@ -51,9 +51,23 @@ func TestOrder_buySendsTakerAndReturnsTheUnsignedTransaction(t *testing.T) {
 	}
 }
 
+func TestOrder_namesThePayerBesideTheTaker(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	_, err := c.Order(t.Context(), jupiter.OrderSpec{
+		In: usdc(), Out: aaplx(), Amount: units(25_000_000, usdc()), Taker: treasury, Payer: "relayer-address",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q := u.requests()[0].query; q.Get("taker") != string(treasury) || q.Get("payer") != "relayer-address" {
+		t.Fatalf("order query = %v, want taker %s and payer relayer-address", q, treasury)
+	}
+}
+
 func TestOrder_sellParsesAmountsInEachMintsDecimals(t *testing.T) {
 	t.Parallel()
-	c, _, srv := overFakes(t)
+	c, u, srv := overFakes(t)
 	script(t, srv, fakes.Step{Route: orderRoute, Action: fakes.ActionSucceed, Fixture: orderRoute + "/sell"})
 	got, err := c.Order(
 		t.Context(),
@@ -61,6 +75,9 @@ func TestOrder_sellParsesAmountsInEachMintsDecimals(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if q := u.requests()[0].query; q.Has("payer") {
+		t.Fatalf("order query = %v, want no payer when the spec names none", q)
 	}
 	if got.RequestID != "req-sell-aaplx-1" || string(got.Transaction) != "unsigned-sell-tx" ||
 		got.InAmount != units(11_000_000, aaplx()) || got.OutAmount != units(24_870_000, usdc()) {

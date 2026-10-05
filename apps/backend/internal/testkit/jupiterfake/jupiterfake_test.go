@@ -45,13 +45,13 @@ func TestVenue_ordersAndQuotesArePerPair(t *testing.T) {
 	v.SetOrder(usdc(), aaplx(), buy)
 	v.SetQuote(usdc(), aaplx(), jupiter.Quote{Routable: true, PriceImpactBps: 7})
 
-	got, err := v.Order(t.Context(), jupiter.OrderSpec{In: usdc(), Out: aaplx()})
+	got, err := v.Order(t.Context(), jupiter.OrderSpec{In: usdc(), Out: aaplx(), Payer: "relayer"})
 	if err != nil || !reflect.DeepEqual(got, buy) {
 		t.Fatalf("Order = %+v, %v, want %+v", got, err, buy)
 	}
 	if _, err := v.Order(
 		t.Context(),
-		jupiter.OrderSpec{In: aaplx(), Out: usdc()},
+		jupiter.OrderSpec{In: aaplx(), Out: usdc(), Payer: "relayer"},
 	); errs.CodeOf(
 		err,
 	) != errs.CodeJupiterRejected {
@@ -66,6 +66,20 @@ func TestVenue_ordersAndQuotesArePerPair(t *testing.T) {
 	}
 	if q, err := v.Quote(t.Context(), jupiter.QuoteSpec{In: aaplx(), Out: usdc()}); err != nil || q.Routable {
 		t.Fatalf("unscripted Quote = %+v, %v, want unroutable", q, err)
+	}
+}
+
+func TestVenue_ordersWithoutAPayerNeedATakerWithSOL(t *testing.T) {
+	t.Parallel()
+	var v jupiterfake.Venue
+	v.SetOrder(usdc(), aaplx(), jupiter.Order{RequestID: "req-buy"})
+	spec := jupiter.OrderSpec{In: usdc(), Out: aaplx(), Taker: "treasury"}
+	if _, err := v.Order(t.Context(), spec); errs.CodeOf(err) != errs.CodeJupiterRejected {
+		t.Fatalf("payer-less Order from a taker with no SOL = %v, want jupiter_rejected", err)
+	}
+	v.SetSOL("treasury", 100_000_000)
+	if got, err := v.Order(t.Context(), spec); err != nil || got.RequestID != "req-buy" {
+		t.Fatalf("payer-less Order from a taker with SOL = %+v, %v, want the scripted order", got, err)
 	}
 }
 

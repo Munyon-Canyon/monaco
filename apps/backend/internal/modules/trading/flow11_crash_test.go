@@ -20,7 +20,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 )
 
 func landed() recoveryReader {
@@ -74,7 +73,7 @@ func (e *engineEnv) retry(t *testing.T, of uuid.UUID, cmd app.ExecuteTrade) (bus
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := chainfake.Unsigned(chainfake.WalletAddress(treasuryWallet))
+	next := swapTx()
 	next[len(next)-2] = 1
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()),
 		jupiter.Order{RequestID: "req-2", Transaction: next})

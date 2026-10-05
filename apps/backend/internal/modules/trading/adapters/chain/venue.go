@@ -44,6 +44,7 @@ func (v Venue) Quote(ctx context.Context, spec app.QuoteSpec) (app.Quote, error)
 func (v Venue) Order(ctx context.Context, spec app.OrderSpec) (app.Order, error) {
 	o, err := v.jupiter.Order(ctx, jupiter.OrderSpec{
 		In: mint(spec.InMint), Out: mint(spec.OutMint), Taker: jupiter.SolanaAddress(spec.Taker),
+		Payer:  jupiter.SolanaAddress(spec.Payer),
 		Amount: money.NewBaseUnits(spec.InAmount, spec.InMint.Decimals), SlippageBps: spec.SlippageBps,
 	})
 	if err != nil {

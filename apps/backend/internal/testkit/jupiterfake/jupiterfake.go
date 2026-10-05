@@ -20,6 +20,16 @@ type Venue struct {
 	quotes   map[pair]jupiter.Quote
 	executes map[string][]jupiter.ExecuteResult
 	sent     map[string][][]byte
+	sol      map[jupiter.SolanaAddress]uint64
+}
+
+func (v *Venue) SetSOL(taker jupiter.SolanaAddress, lamports uint64) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.sol == nil {
+		v.sol = map[jupiter.SolanaAddress]uint64{}
+	}
+	v.sol[taker] = lamports
 }
 
 func (v *Venue) SetOrder(in, out jupiter.Mint, o jupiter.Order) {
@@ -61,6 +71,10 @@ func (v *Venue) Order(_ context.Context, spec jupiter.OrderSpec) (jupiter.Order,
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if spec.Payer == "" && v.sol[spec.Taker] == 0 {
+		return jupiter.Order{}, errs.New(errs.CodeJupiterRejected, "jupiterfake.Order",
+			slog.String("taker", string(spec.Taker)), slog.String("reason", "Failed to get quotes"))
+	}
 	o, ok := v.orders[pair{spec.In.Address, spec.Out.Address}]
 	if !ok {
 		return jupiter.Order{}, errs.New(errs.CodeJupiterRejected, "jupiterfake.Order",

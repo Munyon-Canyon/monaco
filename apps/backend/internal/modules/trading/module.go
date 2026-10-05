@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -146,9 +147,13 @@ func (m *Module) engine() *app.ExecuteTradeHandler {
 	signer := m.signer
 	if signer == nil {
 		client, err := privy.New(cfg, clk)
+		var payer *relayer.Relayer
+		if err == nil {
+			payer, err = relayer.New(cfg, solana.New(cfg, clk))
+		}
 		signer = unsignable{err: err}
 		if err == nil {
-			signer = chainadapters.NewSigner(client)
+			signer = chainadapters.NewSigner(client, payer)
 		}
 	}
 	layer := app.NewSwapLayer(app.SwapLayerDeps{
@@ -187,6 +192,8 @@ func (m *Module) modulePorts() EnginePorts {
 }
 
 type unsignable struct{ err error }
+
+func (u unsignable) FeePayer() (chain.SolanaAddress, error) { return "", u.err }
 
 func (u unsignable) Sign(context.Context, string, []byte) ([]byte, chain.Signature, error) {
 	return nil, "", u.err
