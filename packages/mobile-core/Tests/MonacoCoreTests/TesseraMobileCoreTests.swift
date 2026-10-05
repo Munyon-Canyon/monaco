@@ -65,22 +65,4 @@ final class TesseraMobileCoreTests: XCTestCase {
     func testMainFlowCopyAudit_preIpoStrings_pass() {
         XCTAssertTrue(MainFlowCopyAudit.stringsAreClean(PreIpoCopy.auditedStrings))
     }
-
-    func testBuyQuoteDTO_kindStaysBuySell_assetKindPreIpo() throws {
-        let json = """
-            {
-              "symbol": "tSpaceX",
-              "kind": "buy",
-              "routable": true,
-              "assetKind": "pre_ipo",
-              "tokenDecimals": 9,
-              "premiumBps": -2700
-            }
-            """
-        let dto = try JSONDecoder().decode(BuyQuoteDTO.self, from: Data(json.utf8))
-        XCTAssertEqual(dto.kind, "buy")
-        XCTAssertEqual(dto.resolvedAssetKind, .preIpo)
-        XCTAssertEqual(dto.resolvedDecimals, 9)
-        XCTAssertEqual(dto.premiumBps, -2700)
-    }
 }
