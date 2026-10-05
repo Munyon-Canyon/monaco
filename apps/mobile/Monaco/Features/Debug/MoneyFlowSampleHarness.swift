@@ -66,6 +66,8 @@ struct MoneyFlowSampleHarness: View {
                 state: MoneyFlowSampleData.fundState(for: scenario),
                 cabalName: "Weekend investors",
                 amountText: $amountText,
+                isSubmitting: false,
+                onSubmit: {},
                 onRetry: {},
                 onAddMoney: {}
             )

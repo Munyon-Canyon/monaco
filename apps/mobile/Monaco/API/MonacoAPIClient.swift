@@ -50,26 +50,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
 
-    func fundGroup(accessToken: String, groupId: String, amount: Int64, submission: IdempotentSubmission) async throws
-        -> FundGroupResponse
-    {
-        let url = baseURL.appending(path: "v1/groups/\(groupId)/fund")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-        request.httpBody = try MonacoHTTPTransport.idempotentBodyEncoder().encode(FundGroupRequest(amount: amount))
-
-        let (data, response) = try await session.data(for: request, submission: submission)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw apiFailure(status: http.statusCode, data: data)
-        }
-        return try JSONDecoder().decode(FundGroupResponse.self, from: data)
-    }
-
     func getHome(accessToken: String) async throws -> HomeViewDTO {
         let url = baseURL.appending(path: "v1/home")
         var request = URLRequest(url: url)

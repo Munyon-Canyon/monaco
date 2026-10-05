@@ -8,8 +8,8 @@ import FoundationNetworking
 #endif
 
 final class IdempotentSubmissionTransportTests: XCTestCase {
-    private let fundResponse =
-        #"{"depositId":"dep-1","groupId":"g1","amount":5000000,"status":"pending","fromAddress":"Wallet111"}"#
+    private let withdrawResponse =
+        #"{"id":"job-1","status":"settled","shareUnits":1,"sliceUsdc":1,"payoutAddress":"Dest111"}"#
 
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
@@ -24,9 +24,7 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
             recorder.record(request)
             let path = request.url?.path ?? ""
             let body: String
-            if path.hasSuffix("/fund") {
-                body = self.fundResponse
-            } else if path.hasSuffix("/proposals") {
+            if path.hasSuffix("/proposals") {
                 body = #"{"proposalId":"prop-1"}"#
             } else {
                 body = #"{"id":"job-1","status":"settled","shareUnits":1,"sliceUsdc":1,"payoutAddress":"Dest111"}"#
@@ -35,7 +33,6 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         }
         let client = makeClient()
 
-        _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: IdempotentSubmission())
         _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 10, submission: IdempotentSubmission())
         _ = try await client.postRedeem(
             groupId: "g1", shareUnits: "1", payoutAddress: "Dest111", payoutProof: "proof",
@@ -43,12 +40,12 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         )
 
         let keys = recorder.requests.map { $0.value(forHTTPHeaderField: IdempotentSubmission.keyHeader) }
-        XCTAssertEqual(keys.count, 3)
+        XCTAssertEqual(keys.count, 2)
         for (request, key) in zip(recorder.requests, keys) {
             let key = try XCTUnwrap(key, "no Idempotency-Key on \(request.url?.path ?? "")")
             XCTAssertNotNil(UUID(uuidString: key), "\(key) is not a UUID")
         }
-        XCTAssertEqual(Set(keys.compactMap { $0 }).count, 3, "separate submissions must not share a key")
+        XCTAssertEqual(Set(keys.compactMap { $0 }).count, 2, "separate submissions must not share a key")
     }
 
     // MARK: - Retry of the same submission
@@ -60,18 +57,18 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
             if recorder.requests.count == 1 {
                 throw URLError(.timedOut)
             }
-            return (Self.response(for: request, status: 200), Data(self.fundResponse.utf8))
+            return (Self.response(for: request, status: 200), Data(self.withdrawResponse.utf8))
         }
         let client = makeClient()
         let submission = IdempotentSubmission()
 
         do {
-            _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
+            _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
             XCTFail("first attempt must time out")
         } catch let error as URLError {
             XCTAssertEqual(error.code, .timedOut)
         }
-        _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
+        _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
 
         XCTAssertEqual(recorder.idempotencyKeys.count, 2)
         XCTAssertEqual(recorder.idempotencyKeys[0], recorder.idempotencyKeys[1])
@@ -87,18 +84,18 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             recorder.record(request)
             let status = recorder.requests.count == 1 ? 502 : 200
-            return (Self.response(for: request, status: status), Data(self.fundResponse.utf8))
+            return (Self.response(for: request, status: status), Data(self.withdrawResponse.utf8))
         }
         let client = makeClient()
         let submission = IdempotentSubmission()
 
         do {
-            _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
+            _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
             XCTFail("first attempt must fail")
         } catch {
             XCTAssertEqual(error as? MonacoAPIError, .httpStatus(502))
         }
-        _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
+        _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
 
         XCTAssertEqual(recorder.idempotencyKeys[0], recorder.idempotencyKeys[1])
     }
@@ -111,13 +108,13 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
                 let headers = [IdempotentSubmission.statusHeader: IdempotentSubmission.inProgressStatus]
                 return (Self.response(for: request, status: 409, headers: headers), Data())
             }
-            return (Self.response(for: request, status: 200), Data(self.fundResponse.utf8))
+            return (Self.response(for: request, status: 200), Data(self.withdrawResponse.utf8))
         }
         let client = makeClient()
         let submission = IdempotentSubmission()
 
-        _ = try? await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
-        _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
+        _ = try? await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
+        _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
 
         XCTAssertEqual(recorder.idempotencyKeys[0], recorder.idempotencyKeys[1])
     }
@@ -127,7 +124,7 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         MockURLProtocol.requestHandler = { request in
             recorder.record(request)
             let status = recorder.requests.count == 1 ? 401 : 200
-            return (Self.response(for: request, status: status), Data(self.fundResponse.utf8))
+            return (Self.response(for: request, status: status), Data(self.withdrawResponse.utf8))
         }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -136,7 +133,8 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         let client = MonacoAPIClient(
             baseURL: URL(string: "https://api.test")!, transport: transport, accessTokenProvider: { "stale-token" })
 
-        _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: IdempotentSubmission())
+        _ = try await client.withdrawToBalance(
+            groupId: "g1", shareAmountMicros: 5_000_000, submission: IdempotentSubmission())
 
         XCTAssertEqual(recorder.requests.count, 2)
         XCTAssertEqual(recorder.requests[1].value(forHTTPHeaderField: "Authorization"), "Bearer fresh-token")
@@ -173,13 +171,13 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         let recorder = RequestRecorder()
         MockURLProtocol.requestHandler = { request in
             recorder.record(request)
-            return (Self.response(for: request, status: 200), Data(self.fundResponse.utf8))
+            return (Self.response(for: request, status: 200), Data(self.withdrawResponse.utf8))
         }
         let client = makeClient()
         let submission = IdempotentSubmission()
 
-        _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
-        _ = try await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
+        _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
+        _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
 
         XCTAssertNotEqual(recorder.idempotencyKeys[0], recorder.idempotencyKeys[1])
     }
@@ -197,8 +195,8 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
         let client = makeClient()
         let submission = IdempotentSubmission()
 
-        _ = try? await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
-        _ = try? await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
+        _ = try? await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
+        _ = try? await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
 
         XCTAssertNotEqual(recorder.idempotencyKeys[0], recorder.idempotencyKeys[1])
     }
@@ -210,13 +208,13 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
             if recorder.requests.count == 1 {
                 throw URLError(.networkConnectionLost)
             }
-            return (Self.response(for: request, status: 200), Data(self.fundResponse.utf8))
+            return (Self.response(for: request, status: 200), Data(self.withdrawResponse.utf8))
         }
         let client = makeClient()
         let submission = IdempotentSubmission()
 
-        _ = try? await client.fundGroup(groupId: "g1", amount: 5_000_000, submission: submission)
-        _ = try await client.fundGroup(groupId: "g1", amount: 9_000_000, submission: submission)
+        _ = try? await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 5_000_000, submission: submission)
+        _ = try await client.withdrawToBalance(groupId: "g1", shareAmountMicros: 9_000_000, submission: submission)
 
         XCTAssertNotEqual(recorder.idempotencyKeys[0], recorder.idempotencyKeys[1])
     }
@@ -286,13 +284,13 @@ final class IdempotentSubmissionTransportTests: XCTestCase {
 
     func testMoneyBodyEncodingIsByteStableAcrossRetries() throws {
         let first = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            FundGroupRequestDTO(amount: 5_000_000)
+            WithdrawToBalanceRequestDTO(shareAmountMicros: 5_000_000)
         )
         let second = try MonacoHTTPTransport.idempotentBodyEncoder().encode(
-            FundGroupRequestDTO(amount: 5_000_000)
+            WithdrawToBalanceRequestDTO(shareAmountMicros: 5_000_000)
         )
         XCTAssertEqual(first, second)
-        XCTAssertEqual(String(decoding: first, as: UTF8.self), #"{"amount":5000000}"#)
+        XCTAssertEqual(String(decoding: first, as: UTF8.self), #"{"shareAmountMicros":5000000}"#)
     }
 
     // MARK: - Helpers

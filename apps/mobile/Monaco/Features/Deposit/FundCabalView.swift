@@ -5,32 +5,36 @@ import SwiftUI
 
 /// Fund this cabal: move account balance into one cabal's pot.
 ///
-/// Owns the balance, the cabal's name and the reload toast. `FundCabalContent` is the layout.
+/// Owns the balance, the cabal's name, the fund in flight and its toasts. `FundCabalContent` is the layout.
 struct FundCabalView: View {
     let cabalID: String
 
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dismiss) private var dismiss
     @State private var balanceSource: BalanceSource?
     @State private var cabal: CabalActionsModel?
+    @State private var funding: Funding?
     @State private var amountText = ""
-    @State private var toast: MonacoToast?
 
     var body: some View {
         FundCabalContent(
             state: balanceSource?.state ?? .loading,
             cabalName: cabal?.cabalName,
             amountText: $amountText,
+            isSubmitting: funding?.isSubmitting ?? false,
+            onSubmit: { Task { await fund() } },
             onRetry: { Task { await balanceSource?.load() } },
-            onAddMoney: {
-                environment.navigator.open(DepositRoute(cabalID: cabalID), in: environment.navigator.selectedTab)
-            }
+            onAddMoney: { openDeposit(prefillMicros: nil) }
         )
-        .monacoToast($toast, bottomInset: 72)
         .onChange(of: balanceSource?.failureTick) { _, _ in
             guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
-            toast = MonacoToast(message: BalanceSource.message(for: error))
+            toasts.current = MonacoToast(message: BalanceSource.message(for: error))
         }
         .task {
+            if funding == nil {
+                funding = Funding(cabalID: cabalID, source: FundSource(api: environment.api), hints: environment.hints)
+            }
             let cabal =
                 self.cabal ?? CabalActionsModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
             self.cabal = cabal
@@ -44,6 +48,37 @@ struct FundCabalView: View {
         }
         .onScreenVisibilityChange { visible in
             balanceSource?.setVisible(visible)
+        }
+    }
+
+    private func openDeposit(prefillMicros: Int64?) {
+        environment.navigator.open(
+            DepositRoute(prefillMicros: prefillMicros, cabalID: cabalID), in: environment.navigator.selectedTab)
+    }
+
+    private func fund() async {
+        guard let funding, let micros = AmountEntryText.micros(amountText), micros > 0 else { return }
+        let cabalName = cabal?.cabalName
+        switch await funding.submit(micros: micros) {
+        case .accepted:
+            if let line = funding.progress.toast(cabalName: cabalName) { toasts.show(success: line) }
+            dismiss()
+            Task { [toasts] in
+                let settled = await funding.settle()
+                guard settled.isSettled, let line = settled.toast(cabalName: cabalName) else { return }
+                if case .settled = settled {
+                    toasts.show(success: line)
+                } else {
+                    toasts.current = MonacoToast(message: line)
+                }
+            }
+        case .refused(.needsMoney(let message)):
+            let shortfall = max(micros - (balanceSource?.balance?.availableMicros ?? 0), 0)
+            toasts.current = MonacoToast(
+                message: message,
+                action: MonacoToastAction(title: "Add money") { openDeposit(prefillMicros: shortfall) })
+        case .refused(.toast(let message)), .unconfirmed(let message):
+            toasts.current = MonacoToast(message: message)
         }
     }
 }
@@ -97,6 +132,11 @@ struct FundCabalForm: Equatable {
         return Decimal(availableMicros) / Decimal(1_000_000)
     }
 
+    var canSubmit: Bool {
+        guard let micros = AmountEntryText.micros(amountText), micros > 0, availableMicros != nil else { return false }
+        return problem == nil
+    }
+
     /// The button reads the amount, so the member sees what they are about to send.
     var ctaTitle: String {
         guard let value = AmountEntryText.decimal(amountText), value > 0 else { return "Add money" }
@@ -132,8 +172,6 @@ struct FundCabalForm: Equatable {
 
     static let treasuryNote =
         "To add money to this cabal, use Fund. Sending USDC straight to the treasury will be returned and pauses the cabal's trading."
-
-    static let comingSoon = "Funding opens soon."
 }
 
 /// Fund this cabal's layout: the amount as the hero, the balance it comes out of, and a button
@@ -144,6 +182,8 @@ struct FundCabalContent: View {
     let state: LoadState<AccountBalance>
     let cabalName: String?
     @Binding var amountText: String
+    let isSubmitting: Bool
+    let onSubmit: () -> Void
     let onRetry: () -> Void
     let onAddMoney: () -> Void
 
@@ -169,19 +209,24 @@ struct FundCabalContent: View {
         .safeAreaInset(edge: .bottom) {
             if stage.showsAmountEntry {
                 BottomCTA {
-                    VStack(spacing: MonacoTheme.Space.s) {
-                        Text(FundCabalForm.comingSoon)
-                            .font(MonacoTheme.Typo.caption)
-                            .foregroundStyle(MonacoTheme.muted)
-                        Button(form.ctaTitle) {}
-                            .buttonStyle(.monacoPrimary)
-                            .disabled(true)
+                    Button(action: onSubmit) {
+                        HStack(spacing: MonacoTheme.Space.s) {
+                            if isSubmitting {
+                                ProgressView().tint(MonacoTheme.primaryButtonLabel)
+                                Text("Adding…")
+                            } else {
+                                Text(form.ctaTitle)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("fund-submit-coming")
+                    .buttonStyle(.monacoPrimary)
+                    .disabled(!form.canSubmit || isSubmitting)
+                    .accessibilityIdentifier("fund-cabal-submit-button")
                 }
             }
         }
+        .navigationBarBackButtonHidden(isSubmitting)
         .navigationTitle("Fund this cabal")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("fund-cabal-view")
