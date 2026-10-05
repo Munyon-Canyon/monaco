@@ -29,14 +29,14 @@ nonisolated final class SettingsDeleteAccountJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS3CabalOnChecklist() throws {
+    func testS3EmptyCabalOffChecklist() throws {
         let token = try devToken()
         let cabalID = try JourneyHandoff.read("cabalID")
         let cabalName = try JourneyHandoff.read("cabalName")
         let app = XCUIApplication.monacoForJourneys()
-        SettingsDeleteAccountJourney.cabalOnChecklist(
+        SettingsDeleteAccountJourney.emptyCabalOffChecklist(
             app, devToken: token, cabalID: cabalID, cabalName: cabalName,
             recorder: SettingsDeleteAccountJourney.recorder())
-        attachScreenshot(of: app, named: "S3 cabal on the checklist")
+        attachScreenshot(of: app, named: "S3 empty cabal off the checklist")
     }
 }

@@ -7,35 +7,63 @@ import XCTest
 
 @MainActor
 final class DeleteAccountModelTests: XCTestCase {
-    func testLoadReadsTheBalanceAndTheCabalsTogether() async throws {
+    func testCabalsListedAreTheOnesTheServerWouldRefuseDeletionFor() async throws {
         let transport = RoutedTransport([
             "getMyBalance": [.json(.ok, Self.balance(available: "200150000"))],
-            "getMyCabals": [.json(.ok, Self.cabals(["Weekend pot", "Work pot"]))],
+            "getMyCabals": [.json(.ok, Self.cabals(["Weekend pot", "Work pot", "Empty pot"]))],
+            Self.potPath(60): [.json(.ok, Self.pot(cabal: 60, units: 100_000_000, value: 200_150_000))],
+            Self.potPath(61): [.json(.ok, Self.pot(cabal: 61, units: 0, value: 0))],
+            Self.potPath(62): [.json(.ok, Self.pot(cabal: 62, units: 1, value: 0))],
         ])
         let model = makeModel(transport)
 
         await model.load()
 
         let paths = await transport.sent.map { $0.path ?? "" }
-        XCTAssertEqual(Set(paths), ["/v1/me/balance", "/v1/me/cabals"])
+        XCTAssertEqual(
+            Set(paths),
+            [
+                "/v1/me/balance", "/v1/me/cabals", Self.potPath(60), Self.potPath(61), Self.potPath(62),
+            ])
         let checklist = try XCTUnwrap(model.checklist)
         XCTAssertEqual(checklist.balance.availableMicros, 200_150_000)
-        XCTAssertEqual(checklist.cabals.map(\.name), ["Weekend pot", "Work pot"])
+        XCTAssertEqual(checklist.slices.map(\.cabal.name), ["Weekend pot", "Empty pot"])
+        XCTAssertEqual(checklist.slices.map(\.valueMicros), [200_150_000, 0])
+        XCTAssertEqual(AccountCopy.yourSlice(UsdAmountFormatter.format(micros: 200_150_000)), "Your slice $200.15")
         XCTAssertFalse(checklist.isCashedOut)
         XCTAssertFalse(checklist.isWithdrawn)
     }
 
     func testAnEmptyAccountHasBothStepsDone() async throws {
         let transport = RoutedTransport([
-            "getMyBalance": [.json(.ok, Self.balance(available: "0"))], "getMyCabals": [.json(.ok, "[]")],
+            "getMyBalance": [.json(.ok, Self.balance(available: "0"))],
+            "getMyCabals": [.json(.ok, Self.cabals(["Work pot"]))],
+            Self.potPath(60): [.json(.ok, Self.pot(cabal: 60, units: 0, value: 0))],
         ])
         let model = makeModel(transport)
 
         await model.load()
 
         let checklist = try XCTUnwrap(model.checklist)
+        XCTAssertEqual(checklist.slices, [])
         XCTAssertTrue(checklist.isCashedOut)
         XCTAssertTrue(checklist.isWithdrawn)
+    }
+
+    func testAFailedPotReadFailsTheLoad() async {
+        let transport = RoutedTransport([
+            "getMyBalance": [.json(.ok, Self.balance(available: "0"))],
+            "getMyCabals": [.json(.ok, Self.cabals(["Work pot"]))],
+            Self.potPath(60): [.failure(URLError(.notConnectedToInternet))],
+        ])
+        let model = makeModel(transport)
+
+        await model.load()
+
+        guard case .failed = model.state else {
+            XCTFail("expected a failure, got \(model.state)")
+            return
+        }
     }
 
     func testMoneyStillMovingKeepsTheWithdrawStepOpen() async throws {
@@ -158,9 +186,20 @@ final class DeleteAccountModelTests: XCTestCase {
             + #""in_flight_micros":"\#(inFlight)","deposit_address":"wallet-1","as_of":"2026-10-04T12:00:00Z"}"#
     }
 
+    private static func cabalID(_ suffix: Int) -> String { "01890a5d-ac96-774b-bcce-b302099a80\(suffix)" }
+
+    private static func potPath(_ cabal: Int) -> String { "/v1/cabals/\(cabalID(cabal))/pot" }
+
+    private static func pot(cabal: Int, units: Int64, value: Int64) -> String {
+        #"{"cabal_id":"\#(cabalID(cabal))","pot_value_micros":\#(value),"cash_micros":\#(value),"#
+            + #""cash_weight_bps":10000,"pnl_micros":0,"return_bps":null,"prices_as_of":"2026-10-04T12:00:00Z","#
+            + #""holdings":[],"me":{"share_units":\#(units),"value_micros":\#(value),"slice_bps":10000,"#
+            + #""net_contributed_micros":\#(value),"pnl_micros":0}}"#
+    }
+
     private static func cabals(_ names: [String]) -> String {
         let rows = names.enumerated().map { index, name in
-            #"{"id":"01890a5d-ac96-774b-bcce-b302099a80\#(60 + index)","name":"\#(name)","picture_url":null,"#
+            #"{"id":"\#(cabalID(60 + index))","name":"\#(name)","picture_url":null,"#
                 + #""role":"member","can_vote":true,"member_count":2,"joined_at":"2026-10-02T15:00:00Z","#
                 + #""pending_request_count":0}"#
         }
@@ -187,10 +226,11 @@ private actor RoutedTransport: ClientTransport {
         -> (HTTPResponse, HTTPBody?)
     {
         sent.append(request)
-        guard let reply = replies[operationID]?.first else {
+        let route = replies[request.path ?? ""] == nil ? operationID : request.path ?? ""
+        guard let reply = replies[route]?.first else {
             throw URLError(.cannotConnectToHost)
         }
-        replies[operationID]?.removeFirst()
+        replies[route]?.removeFirst()
         switch reply {
         case .response(let response, let data): return (response, HTTPBody(data))
         case .failure(let error): throw error

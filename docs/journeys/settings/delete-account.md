@@ -1,7 +1,7 @@
 ---
 id: settings/delete-account
 title: Delete your account
-version: 3
+version: 4
 milestone: M9
 requires: []
 actors: [C]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/SettingsDeleteAccountJourney.swift
 
 # Delete your account
 
-A member opens Settings, reads what deleting their account removes, checks the cash-out and withdraw checklist, backs out once, and then deletes the account. A second member who still sits in a cabal sees that cabal on the checklist. The design is Settings and "Delete account" in the [Profile tab](../../screens.md#profile-tab) section, flow `01e`, and [`AccountCopy`](https://github.com/Munyon-Canyon/monaco/blob/staging/packages/mobile-core/Sources/MonacoCore/AccountCopy.swift). The old app at `c838bd24` had no way to delete an account, so every step is new in the spec.
+A member opens Settings, reads what deleting their account removes, checks the cash-out and withdraw checklist, backs out once, and then deletes the account. A second member who sits in a cabal with no money of theirs sees the cash-out step done, without that cabal. The design is Settings and "Delete account" in the [Profile tab](../../screens.md#profile-tab) section, flow `01e`, and [`AccountCopy`](https://github.com/Munyon-Canyon/monaco/blob/staging/packages/mobile-core/Sources/MonacoCore/AccountCopy.swift). The old app at `c838bd24` had no way to delete an account, so every step is new in the spec.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 
@@ -48,15 +48,14 @@ Starts with a new dev user (P1, P2).
 | S2.1 | launch, sign out when signed in, tap, then open | the app, `devSignInButton`, then the Profile tab, `profile-settings-row` and `settings-delete-account` | | `delete-account-explainer` shows within 30 s, and "Withdraw your balance" reads "Done" | None, new in spec |
 | S2.2 | tap, then tap | `delete-account-button`, then `delete-account-confirm` | | Within 20 s, `monaco-toast-banner` reads "Your account was deleted.", and the login form shows with `devSignInButton` | None, new in spec |
 
-### S3 A cabal on the checklist
+### S3 An empty cabal is not on the checklist
 
-Starts with a new dev user who is the only member of a cabal (P3).
+Starts with a new dev user who is the only member of a cabal that holds no money (P3).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | launch, sign out when signed in, tap, then open | the app, `devSignInButton`, then the Profile tab, `profile-settings-row` and `settings-delete-account` | | `delete-account-explainer` shows within 30 s | None, new in spec |
-| S3.2 | wait | `delete-account-cabal-{cabalID}` | | Within 15 s, "Cash out of every cabal" does not read "Done", and the row reads `cabalName` | None, new in spec |
-| S3.3 | wait | `delete-account-step-cash-out` | | The step shows the member's slice in `cabalName`, not "Your slice in each cabal shows up here soon." | None, new in spec |
+| S3.2 | wait | `delete-account-step-cash-out` | | Within 15 s, "Cash out of every cabal" reads "Done" and "No cabal holds money of yours.", and no `delete-account-cabal-{cabalID}` row shows | None, new in spec |
 
 ## Ground truth
 
@@ -64,12 +63,11 @@ After a run, S2's dev user is deleted: its `users` row has `account_status = 'de
 
 ## Known failures on staging
 
-| Step | What fails | Blocked by |
-| --- | --- | --- |
-| S3.3 | The cash-out step reads "Your slice in each cabal shows up here soon.", because no route serves the member's slice | #2136 |
+None known.
 
 ## Not covered
 
+- A cabal row with "Your slice $X" under "Cash out of every cabal". It needs a stake, which only real USDC makes. `DeleteAccountModelTests` covers which cabals are listed and the slice copy.
 - A delete the backend refuses with "Cash out of every cabal first." or "Withdraw your balance first.". It needs a stake or a balance, which only real USDC makes. Flow `01e` covers both refusals with fixture data, and `DeleteAccountModelTests` covers the highlighted step.
 - Tapping a cabal row or the "Account balance" row on the checklist. They open `CashOutRoute` and `WithdrawRoute`, which `money/cash-out` and `money/withdraw` cover.
 - "Deleting…" on the button. The local backend answers before a poll sees it.

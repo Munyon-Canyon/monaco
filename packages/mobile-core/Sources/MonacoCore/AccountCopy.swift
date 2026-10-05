@@ -6,7 +6,7 @@ public enum AccountCopy {
         "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. "
         + "Your transaction history stays, because cabal records need it. This can't be undone."
     public static let cashOutStep = "Cash out of every cabal"
-    public static let sliceComingSoon = "Your slice in each cabal shows up here soon."
+    public static func yourSlice(_ amount: String) -> String { "Your slice \(amount)" }
     public static let noCabalMoney = "No cabal holds money of yours."
     public static let withdrawStep = "Withdraw your balance"
     public static let accountBalance = "Account balance"
@@ -22,7 +22,7 @@ public enum AccountCopy {
     public static let withdrawFirst = "Withdraw your balance first."
 
     public static let auditedStrings = [
-        deleteTitle, explainer, cashOutStep, sliceComingSoon, noCabalMoney, withdrawStep, accountBalance, done,
+        deleteTitle, explainer, cashOutStep, yourSlice("$0.00"), noCabalMoney, withdrawStep, accountBalance, done,
         confirmTitle, confirmDelete, cancel, deleting, deleted, loadFailed, tryAgain, cashOutFirst, withdrawFirst,
     ]
 }

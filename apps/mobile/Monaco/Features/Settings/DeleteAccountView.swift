@@ -110,23 +110,22 @@ struct DeleteAccountContent: View {
                 DoneLine(detail: AccountCopy.noCabalMoney)
             } else {
                 MonacoGroupedList {
-                    ForEach(Array(checklist.cabals.enumerated()), id: \.element.id) { index, cabal in
-                        NavigationLink(value: AnyAppRoute(CashOutRoute(cabalID: cabal.id))) {
+                    ForEach(Array(checklist.slices.enumerated()), id: \.element.id) { index, slice in
+                        NavigationLink(value: AnyAppRoute(CashOutRoute(cabalID: slice.cabal.id))) {
                             MonacoRow(
-                                title: cabal.name, chevron: true, isLast: index == checklist.cabals.count - 1
+                                title: slice.cabal.name,
+                                subtitle: AccountCopy.yourSlice(UsdAmountFormatter.format(micros: slice.valueMicros)),
+                                chevron: true, isLast: index == checklist.slices.count - 1
                             ) {
-                                CabalMark(groupId: cabal.id, name: cabal.name, size: 40, pictureUrl: cabal.pictureUrl)
+                                CabalMark(
+                                    groupId: slice.cabal.id, name: slice.cabal.name, size: 40,
+                                    pictureUrl: slice.cabal.pictureUrl)
                             }
                         }
                         .buttonStyle(.monacoRow)
-                        .accessibilityIdentifier("delete-account-cabal-\(cabal.id)")
+                        .accessibilityIdentifier("delete-account-cabal-\(slice.cabal.id)")
                     }
                 }
-                Text(AccountCopy.sliceComingSoon)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, MonacoTheme.Space.m)
             }
         }
         .accessibilityIdentifier("delete-account-step-cash-out")

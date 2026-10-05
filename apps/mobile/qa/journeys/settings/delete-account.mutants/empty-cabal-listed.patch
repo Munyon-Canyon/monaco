@@ -1,0 +1,18 @@
+journey: settings/delete-account
+expect-fail: S3
+
+A cabal with no slice of the member's stays on the checklist. S3.2 needs the step to read Done without the cabal, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Account/DeleteAccountModel.swift b/packages/mobile-core/Sources/MonacoCore/Account/DeleteAccountModel.swift
+--- a/packages/mobile-core/Sources/MonacoCore/Account/DeleteAccountModel.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Account/DeleteAccountModel.swift
+@@ -91,7 +91,7 @@ public final class DeleteAccountModel {
+             for cabal in cabals {
+                 group.addTask {
+                     let pot = try await api.read { try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json }
+-                    guard let me = pot.me, me.shareUnits > 0 else { return nil }
++                    guard let me = pot.me else { return nil }
+                     return (cabal.id, me.valueMicros)
+                 }
+             }
