@@ -4,12 +4,15 @@ import (
 	"context"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 var _ api.StrictServerInterface = HTTP{}
@@ -17,6 +20,108 @@ var _ api.StrictServerInterface = HTTP{}
 type HTTP struct {
 	Reads    *app.ActivityReads
 	UserTxns *app.UserTxnReads
+	CashOut  *app.CashOutHandler
+}
+
+func (h HTTP) GetCashOutPreview(
+	ctx context.Context,
+	req api.GetCashOutPreviewRequestObject,
+) (api.GetCashOutPreviewResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	preview, err := h.CashOut.Preview(ctx, ids.CabalIDFrom(req.Id), user)
+	if err != nil {
+		return nil, err
+	}
+	out := api.CashOutPreview{
+		SliceMicros: preview.SliceMicros.String(),
+		ShareUnits:  preview.ShareUnits.String(),
+		MinMicros:   "100000",
+	}
+	if preview.Pause.Paused {
+		out.Pause = &struct {
+			Reasons []string  `json:"reasons"`
+			Since   time.Time `json:"since"`
+		}{Reasons: preview.Pause.Reasons, Since: preview.Pause.Since}
+	}
+	return api.GetCashOutPreview200JSONResponse(out), nil
+}
+
+func (h HTTP) GetCashOutJob(
+	ctx context.Context,
+	req api.GetCashOutJobRequestObject,
+) (api.GetCashOutJobResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	job, err := h.CashOut.Job(ctx, ids.CabalIDFrom(req.Id), user, req.JobId)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetCashOutJob200JSONResponse(wireCashOutJob(job)), nil
+}
+
+func (h HTTP) PostCashOut(
+	ctx context.Context,
+	req api.PostCashOutRequestObject,
+) (api.PostCashOutResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil || (req.Body.All == nil && req.Body.UsdcMicros == nil) ||
+		(req.Body.All != nil && req.Body.UsdcMicros != nil) {
+		return nil, errs.New(errs.CodeInvalidInput, "treasury.PostCashOut")
+	}
+	cmd := app.CashOut{
+		CabalID:        ids.CabalIDFrom(req.Id),
+		UserID:         user,
+		IdempotencyKey: req.Params.IdempotencyKey,
+	}
+	if req.Body.All != nil {
+		cmd.All = *req.Body.All
+		if !cmd.All {
+			return nil, errs.New(errs.CodeInvalidInput, "treasury.PostCashOut")
+		}
+	} else {
+		cmd.PayoutMicros, err = money.ParseMicros(*req.Body.UsdcMicros)
+		if err != nil {
+			return nil, err
+		}
+	}
+	job, err := h.CashOut.Handle(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+	stored := app.CashOutJob{
+		ID:           job.ID,
+		CabalID:      cmd.CabalID,
+		UserID:       user,
+		ShareUnits:   job.ShareUnits,
+		PayoutMicros: job.PayoutMicros,
+		CreatedAt:    job.CreatedAt,
+		UpdatedAt:    job.CreatedAt,
+		Status:       domain.CashOutStarted,
+	}
+	return api.PostCashOut202JSONResponse(wireCashOutJob(stored)), nil
+}
+
+func wireCashOutJob(job app.CashOutJob) api.CashOutJob {
+	return api.CashOutJob{
+		Id:             job.ID,
+		CabalId:        job.CabalID.UUID(),
+		UserId:         job.UserID.UUID(),
+		ShareUnits:     job.ShareUnits.String(),
+		PayoutMicros:   job.PayoutMicros.String(),
+		SellUsdcMicros: job.SellUSDCMicros.String(),
+		Status:         api.CashOutJobStatus(job.Status),
+		ResultCode:     job.ResultCode,
+		CreatedAt:      job.CreatedAt,
+		UpdatedAt:      job.UpdatedAt,
+	}
 }
 
 func (h HTTP) GetCabalActivity(
@@ -47,7 +152,10 @@ func (h HTTP) GetCabalActivity(
 	return out, nil
 }
 
-func (h HTTP) GetMyTxns(ctx context.Context, req api.GetMyTxnsRequestObject) (api.GetMyTxnsResponseObject, error) {
+func (h HTTP) GetMyTxns(
+	ctx context.Context,
+	req api.GetMyTxnsRequestObject,
+) (api.GetMyTxnsResponseObject, error) {
 	user, err := caller(ctx)
 	if err != nil {
 		return nil, err
@@ -76,7 +184,10 @@ func (h HTTP) GetMyTxns(ctx context.Context, req api.GetMyTxnsRequestObject) (ap
 func wireUserTxn(v app.UserTxnView) api.UserTxn {
 	out := api.UserTxn{
 		Id: v.ID, Kind: api.UserTxnKind(v.Kind), Status: api.UserTxnStatus(v.Status),
-		UsdcMicros: strconv.FormatInt(v.USDCMicros, 10), TxSignature: v.TxSignature, CreatedAt: v.CreatedAt,
+		UsdcMicros: strconv.FormatInt(
+			v.USDCMicros,
+			10,
+		), TxSignature: v.TxSignature, CreatedAt: v.CreatedAt,
 	}
 	if v.Cabal != nil {
 		out.Cabal = &api.UserTxnCabal{Id: v.Cabal.ID.UUID(), Name: v.Cabal.Name}
@@ -107,7 +218,11 @@ func caller(ctx context.Context) (ids.UserID, error) {
 		return ids.UserID{}, errs.New(errs.CodeUnauthorized, op)
 	}
 	if actor.Kind != auth.ActorUser {
-		return ids.UserID{}, errs.New(errs.CodeForbidden, op, slog.String("actor_kind", string(actor.Kind)))
+		return ids.UserID{}, errs.New(
+			errs.CodeForbidden,
+			op,
+			slog.String("actor_kind", string(actor.Kind)),
+		)
 	}
 	user, err := ids.ParseUserID(actor.ID)
 	if err != nil {
