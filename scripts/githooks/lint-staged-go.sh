@@ -17,13 +17,17 @@ if [[ ${#pkgs[@]} -eq 0 ]]; then
   exit 0
 fi
 
+lint=golangci-lint
 if ! command -v golangci-lint >/dev/null 2>&1; then
+  lint="$(go env GOPATH)/bin/golangci-lint"
+fi
+if ! command -v "$lint" >/dev/null 2>&1; then
   echo "error: golangci-lint is not on PATH. Run: just install" >&2
   exit 1
 fi
 
 cd apps/backend
-if ! golangci-lint run --new-from-rev=HEAD "${pkgs[@]}"; then
+if ! "$lint" run --allow-parallel-runners --new-from-rev=HEAD "${pkgs[@]}"; then
   echo "pre-commit: golangci-lint found issues in staged apps/backend packages." >&2
   exit 1
 fi
