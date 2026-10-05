@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -127,9 +128,9 @@ func TestExecuteTrade_eachRefusalBlocksOnceRecordsTheDeliveryAndNeverSwaps(t *te
 				t.Fatal(err)
 			}
 			blocked := e.blocked(t, cmd.ProposalID)
-			if len(blocked) != 1 || !e.recorded(t, d) || len(e.swapsOf(t, cmd.ProposalID)) != 0 {
-				t.Fatalf("%d blocked, recorded %v, %d swaps; want one block, the delivery and no swap",
-					len(blocked), e.recorded(t, d), len(e.swapsOf(t, cmd.ProposalID)))
+			if len(blocked) != 1 || e.deliveryCode(t, d) != string(tc.code) || len(e.swapsOf(t, cmd.ProposalID)) != 0 {
+				t.Fatalf("%d blocked, delivery recorded as %q, %d swaps; want one block, the delivery recorded as %s "+
+					"and no swap", len(blocked), e.deliveryCode(t, d), len(e.swapsOf(t, cmd.ProposalID)), tc.code)
 			}
 			b := blocked[0]
 			if b["code"] != string(tc.code) || b["have"] != tc.have || b["need"] != tc.need ||
@@ -224,6 +225,20 @@ func TestExecuteTrade_aConfirmedSwapStopsARedeliveryUnderANewDeliveryID(t *testi
 	}
 	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil || len(e.swapsOf(t, cmd.ProposalID)) != 1 {
 		t.Fatalf("err %v, %d swaps; want no second swap", err, len(e.swapsOf(t, cmd.ProposalID)))
+	}
+}
+
+func TestExecuteTrade_aSwapThatJupiterFailsRecordsTheDeliveryAsSwapFailed(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusFailed, ErrorCode: 6001})
+	cmd := e.buy()
+	d := e.delivery(t, cmd)
+	if err := e.handle(t, d, cmd); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.deliveryCode(t, d); got != string(errs.CodeSwapFailed) {
+		t.Fatalf("delivery recorded as %q, want swap_failed", got)
 	}
 }
 

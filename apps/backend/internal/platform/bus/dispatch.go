@@ -216,7 +216,7 @@ func (d Delivery) RecordAs(ctx context.Context, tx db.Tx, code string) (bool, er
 	n, err := sqlc.New(tx.Queries()).InsertDelivery(ctx, sqlc.InsertDeliveryParams{
 		Handler: d.Handler, EventID: d.EventID.UUID(), Code: code, HandledAt: d.At,
 	})
-	if n == 1 && d.recorded != nil {
+	if n == 1 && err == nil && d.recorded != nil {
 		*d.recorded = code
 	}
 	return n == 1, err

@@ -208,6 +208,16 @@ func (e *engineEnv) count(t *testing.T, query string, args ...any) int {
 	return n
 }
 
+func (e *engineEnv) deliveryCode(t *testing.T, d bus.Delivery) string {
+	t.Helper()
+	var code string
+	if err := e.pool.QueryRow(t.Context(), `SELECT code FROM event_deliveries WHERE handler = $1 AND event_id = $2`,
+		d.Handler, d.EventID.UUID()).Scan(&code); err != nil {
+		t.Fatal(err)
+	}
+	return code
+}
+
 func (e *engineEnv) recorded(t *testing.T, d bus.Delivery) bool {
 	t.Helper()
 	return e.count(t, `SELECT count(*) FROM event_deliveries WHERE handler = $1 AND event_id = $2`,
