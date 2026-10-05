@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -100,6 +101,9 @@ func (c *Client) do(ctx context.Context, in call, into any) error {
 	}
 	resp, err := c.api.Do(ctx, req)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return errs.Wrap(err, errs.CodeClientClosed, in.op)
+		}
 		code := errs.CodePrivyUnavailable
 		if errs.CodeOf(err) == errs.CodeUpstreamTimeout {
 			code = errs.CodeUpstreamTimeout
