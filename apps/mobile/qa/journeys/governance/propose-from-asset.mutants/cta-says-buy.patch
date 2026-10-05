@@ -1,0 +1,19 @@
+journey: governance/propose-from-asset
+expect-fail: S1
+
+The asset screen's CTA reads "Buy", the old direct-buy wording. S1.1 checks it reads "Propose buy", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
+index 5d6959e0..46e24a74 100644
+--- a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
++++ b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
+@@ -265,7 +265,7 @@ struct AssetDetailClientView: View {
+ 
+ enum AssetDetailBuyCTA {
+     static func title(tradable: Bool) -> String {
+-        tradable ? "Propose buy" : "Can't buy right now"
++        tradable ? "Buy" : "Can't buy right now"
+     }
+ 
+     static func open(symbol: String, navigator: (ProposeFromAssetRoute, MainTab) -> Void) {
