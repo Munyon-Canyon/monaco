@@ -2421,7 +2421,9 @@ components:
         - feed_item_not_found
         - feed_item_pending
         - forbidden
+        - fund_expired
         - fund_not_sent
+        - fund_rejected
         - handle_invalid
         - handle_required
         - handle_reserved

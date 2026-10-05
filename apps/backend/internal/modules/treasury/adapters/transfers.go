@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
@@ -45,4 +46,16 @@ func (t Transfers) Broadcast(ctx context.Context, tx relayer.SignedTx) error {
 		return err
 	}
 	return transfers.Broadcast(ctx, tx)
+}
+
+type Statuses struct {
+	client func() *solana.Client
+}
+
+func NewStatuses(cfg config.Config, clk clock.Clock) Statuses {
+	return Statuses{client: sync.OnceValue(func() *solana.Client { return solana.New(cfg, clk) })}
+}
+
+func (s Statuses) SignatureStatuses(ctx context.Context, sigs []chain.Signature) ([]solana.Status, error) {
+	return s.client().SignatureStatuses(ctx, sigs)
 }

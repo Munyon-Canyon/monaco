@@ -37,7 +37,9 @@ extension Components.Schemas.ErrorCode {
         case .feedItemNotFound: true
         case .feedItemPending: true
         case .forbidden: true
+        case .fundExpired: true
         case .fundNotSent: true
+        case .fundRejected: true
         case .handleInvalid: true
         case .handleRequired: true
         case .handleReserved: true

@@ -161,7 +161,14 @@ func (m *Module) Consumers() []bus.Consumer {
 	}
 }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	cfg := m.deps.Config
+	return []poller.Poller{adapters.FundPoller{Settler: app.NewFundSettler(app.FundSettlerDeps{
+		Reads: m.deps.Pool, UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock,
+		Chain: adapters.NewStatuses(cfg, m.deps.Clock), Transfers: adapters.NewTransfers(cfg, m.deps.Clock),
+		Pot: m.reads(), Ledger: m.ledger(), USDC: usdc(cfg), Hints: m.deps.Bus,
+	})}}
+}
 
 func (m *Module) Queries() port.Queries {
 	return m.reads()

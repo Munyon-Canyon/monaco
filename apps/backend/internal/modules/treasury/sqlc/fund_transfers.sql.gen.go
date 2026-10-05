@@ -12,6 +12,32 @@ import (
 	"github.com/google/uuid"
 )
 
+const expireCreatedFundTransfers = `-- name: ExpireCreatedFundTransfers :many
+UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_not_sent'
+WHERE status = 'created' AND created_at < $1::timestamptz
+RETURNING id
+`
+
+func (q *Queries) ExpireCreatedFundTransfers(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, expireCreatedFundTransfers, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const failFundTransfer = `-- name: FailFundTransfer :execrows
 UPDATE fund_transfers SET status = 'failed', fail_code = $2::text
 WHERE id = $1 AND status IN ('created', 'submitted')
@@ -119,6 +145,56 @@ func (q *Queries) LandFundTransfer(ctx context.Context, arg LandFundTransferPara
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listOpenFundTransfers = `-- name: ListOpenFundTransfers :many
+SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
+  COALESCE(signed_tx, ''::bytea)::bytea AS signed_tx, COALESCE(tx_signature, '')::text AS tx_signature,
+  COALESCE(last_valid_block_height, 0)::bigint AS last_valid_block_height
+FROM fund_transfers
+WHERE status IN ('submitted', 'landed')
+ORDER BY created_at, id
+LIMIT $1
+`
+
+type ListOpenFundTransfersRow struct {
+	ID                   uuid.UUID
+	UserID               uuid.UUID
+	CabalID              uuid.UUID
+	AmountMicros         string
+	Status               string
+	SignedTx             []byte
+	TxSignature          string
+	LastValidBlockHeight int64
+}
+
+func (q *Queries) ListOpenFundTransfers(ctx context.Context, rowLimit int32) ([]ListOpenFundTransfersRow, error) {
+	rows, err := q.db.Query(ctx, listOpenFundTransfers, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOpenFundTransfersRow
+	for rows.Next() {
+		var i ListOpenFundTransfersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CabalID,
+			&i.AmountMicros,
+			&i.Status,
+			&i.SignedTx,
+			&i.TxSignature,
+			&i.LastValidBlockHeight,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockWalletOutflow = `-- name: LockWalletOutflow :exec

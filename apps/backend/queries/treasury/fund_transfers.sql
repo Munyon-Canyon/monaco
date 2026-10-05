@@ -36,3 +36,17 @@ WHERE id = $1;
 SELECT COALESCE(SUM(amount_micros), 0)::text AS micros
 FROM fund_transfers
 WHERE user_id = $1 AND status IN ('created', 'submitted');
+
+-- name: ExpireCreatedFundTransfers :many
+UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_not_sent'
+WHERE status = 'created' AND created_at < sqlc.arg(cutoff)::timestamptz
+RETURNING id;
+
+-- name: ListOpenFundTransfers :many
+SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
+  COALESCE(signed_tx, ''::bytea)::bytea AS signed_tx, COALESCE(tx_signature, '')::text AS tx_signature,
+  COALESCE(last_valid_block_height, 0)::bigint AS last_valid_block_height
+FROM fund_transfers
+WHERE status IN ('submitted', 'landed')
+ORDER BY created_at, id
+LIMIT sqlc.arg(row_limit);
