@@ -1033,10 +1033,23 @@ class Seed(unittest.TestCase):
     def setUp(self):
         import http.server
 
+        limited = b'{"code":"rate_limited","retryable":%s}'
+        replies = {
+            "/ok": [(200, {}, b'{"id":"c1"}')],
+            "/limited": [(429, {}, limited % b"false")],
+            "/flaky": [(429, {"Retry-After": "0"}, limited % b"true"), (429, {}, limited % b"true"),
+                       (200, {}, b'{"id":"c1"}')],
+        }
+        self.calls = calls = {}
+
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
-                code, body = (200, b'{"id":"c1"}') if self.path == "/ok" else (404, b'{"error":"no cabal"}')
+                n = calls[self.path] = calls.get(self.path, 0) + 1
+                script = replies.get(self.path, [(404, {}, b'{"error":"no cabal"}')])
+                code, headers, body = script[min(n, len(script)) - 1]
                 self.send_response(code)
+                for name, value in headers.items():
+                    self.send_header(name, value)
                 self.end_headers()
                 self.wfile.write(body)
 
@@ -1065,6 +1078,25 @@ class Seed(unittest.TestCase):
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("HTTP 404", done.stderr)
         self.assertIn('{"error":"no cabal"}', done.stderr)
+
+    def test_a_retryable_429_is_retried_until_it_succeeds(self):
+        shells = ["bash"] + (["zsh"] if shutil.which("zsh") else [])
+        for shell in shells:
+            with self.subTest(shell=shell):
+                self.calls.clear()
+                done = self.qa_api("/flaky", shell=shell)
+                self.assertEqual((done.returncode, done.stdout, self.calls["/flaky"]), (0, '{"id":"c1"}', 3))
+                self.assertEqual(done.stderr.splitlines(), [
+                    "qa_api: 429 rate_limited on GET /flaky, retry 1 in 0s",
+                    "qa_api: 429 rate_limited on GET /flaky, retry 2 in 2s",
+                ])
+
+    def test_a_429_that_is_not_retryable_fails_at_once(self):
+        done = self.qa_api("/limited")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertEqual(self.calls["/limited"], 1)
+        self.assertNotIn("rate_limited on GET", done.stderr)
+        self.assertIn("HTTP 429", done.stderr)
 
     @unittest.skipUnless(shutil.which("zsh"), "zsh is not installed")
     def test_qa_api_works_when_sourced_from_zsh(self):
