@@ -158,6 +158,18 @@ A setup script seeds through `scripts/qa/seed.sh`. A test never taps to create i
 
 Parallel lanes each use their own checkout's `derived/` and `Monaco Journeys <lane> <actor>` simulators under `xcode-lock.sh` slots. `/tmp/monaco-qa.lock` stays one per machine while the backend ports are shared.
 
+Known failures on staging lists each step that cannot pass yet and the ticket that blocks it, as a bullet (`- S1.2 to S1.5: <why>. Blocked by #691.`) or as a table row whose first cell names the steps and whose last cell names the tickets. `S1.2 to S1.5` covers every step of the doc from S1.2 through S1.5. `check` names a listed step that the doc does not have. A run reads the section and gives each scenario one of these results:
+
+| Result | Meaning | Run |
+| --- | --- | --- |
+| `PASS` | Every step passed, and no step of the scenario is listed | Passes |
+| `KNOWN` | The scenario failed at a listed step. The `expected` column reads `FAIL` | Passes |
+| `FIXED` | Every step passed, including a listed one. Drop the step from Known failures | Passes |
+| `FAIL` | The scenario failed at a step that is not listed: a new failure | Exits 1 |
+| `TIMEOUT`, `ERROR` | The budget ran out, or the test did not run | Exits 1, 2 |
+
+`report` ends with a second table: each journey's last clean run, with its passing scenarios, its known failures and their tickets, its fixed scenarios and its new failures.
+
 A seeded bug is a patch under `<journey>.mutants/` that breaks one thing the doc promises. Its first lines say which scenarios must fail. `mutants` applies each patch, rebuilds, runs the test, and reverts the patch.
 
 ## Coverage and CI guard

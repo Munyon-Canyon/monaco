@@ -762,6 +762,107 @@ class Budget(Output):
         self.assertEqual(journey.summarize([row])[0]["flake"], 1.0)
 
 
+KNOWN_BODY = """
+### S1 Sign in
+
+| Step | Action |
+| --- | --- |
+| S1.1 | tap |
+| S1.2 | tap |
+| S1.3 | tap |
+| S1.4 | tap |
+
+## Known failures on staging
+
+- S1.2 to S1.3: the form is a stub. Blocked by #613 and #651.
+- S1.4: no chart, see #9 for history. Blocked by #660.
+
+| Step | What fails | Blocked by |
+| --- | --- | --- |
+| S1.4, S2.1 | No rows | #617 |
+| none | Not a step | #1 |
+
+## Not covered
+
+- S1.1: not a known failure. Blocked by #5.
+"""
+
+
+class KnownFailures(Tree):
+    def test_bullets_and_table_rows_map_each_step_to_its_tickets(self):
+        known = journey.parse_known(KNOWN_BODY, ["S1.1", "S1.2", "S1.3", "S1.4", "S2.1"])
+        self.assertEqual(known, {"S1.2": ("#613", "#651"), "S1.3": ("#613", "#651"),
+                                 "S1.4": ("#660", "#617"), "S2.1": ("#617",)})
+
+    def test_check_names_a_known_step_the_doc_does_not_have(self):
+        self.write("docs/journeys/auth/sign-in.md", DOC + "\n## Known failures on staging\n\n- S1.9: gone. Blocked by #1.\n")
+        self.assertTrue(any("S1.9, which is not a step" in problem for problem in self.problems()))
+
+
+class KnownRuns(Output):
+    """A full run whose xcodebuild prints a canned log: S1 fails at `s1_fails_at`, S2 passes."""
+
+    def run_journey(self, s1_fails_at, known):
+        self.write("docs/journeys/auth/sign-in.md", DOC + "\n## Known failures on staging\n\n" + known)
+        test = "Test Case '-[MonacoUITests.SignInJourneyUITests %s]' %s"
+        lines = [test % ("testS1SignIn", "started.")]
+        for step in ("S1.1", "S1.2"):
+            lines.append("JOURNEYSTEP\tbegin\t0\t%s" % step)
+            if step == s1_fails_at:
+                break
+            lines.append("JOURNEYSTEP\tend\t0\t%s\t10" % step)
+        lines.append(test % ("testS1SignIn", "failed (1.000 seconds)." if s1_fails_at else "passed (1.000 seconds)."))
+        lines += [test % ("testS2Relaunch", "started."), "JOURNEYSTEP\tbegin\t0\tS2.1",
+                  "JOURNEYSTEP\tend\t0\tS2.1\t10", test % ("testS2Relaunch", "passed (1.000 seconds).")]
+        log = self.write("canned.log", "\n".join(lines) + "\n")
+        fake = self.write("xcodebuild.sh", "#!/bin/sh\ncat %s\n" % log)
+        fake.chmod(0o755)
+        with unittest.mock.patch.object(journey, "journey_backend", lambda: _yielding("http://127.0.0.1:8080")), \
+                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
+                unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
+                unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *extra: [str(fake)]), \
+                redirect_stdout(StringIO()) as printed:
+            code = journey.main(["run", "auth/sign-in", "--no-build"])
+        lines = journey.RESULTS.read_text().splitlines()
+        rows = [dict(zip(lines[0].split("\t"), line.split("\t"))) for line in lines[1:]]
+        return code, {row["scenario"]: (row["result"], row["expected"]) for row in rows}, printed.getvalue()
+
+    def report(self):
+        with redirect_stdout(StringIO()) as printed:
+            journey.main(["report"])
+        return printed.getvalue()
+
+    def test_a_failure_at_a_known_step_is_known_and_the_run_passes(self):
+        code, results, printed = self.run_journey("S1.2", "- S1.2: no form. Blocked by #2140.\n")
+        self.assertEqual(code, 0)
+        self.assertEqual(results, {"S1": ("KNOWN", "FAIL"), "S2": ("PASS", "PASS"), "*": ("PASS", "PASS")})
+        self.assertIn("S1 KNOWN 1.0s at S1.2 (#2140)", printed)
+        self.assertIn("| auth/sign-in | %s | S2 | S1 at S1.2 (#2140) | - | - |" % self.last_run(), self.report())
+
+    def test_a_failure_at_an_unlisted_step_is_a_new_failure_and_the_run_fails(self):
+        code, results, _ = self.run_journey("S1.1", "- S1.2: no form. Blocked by #2140.\n")
+        self.assertEqual(code, 1)
+        self.assertEqual(results, {"S1": ("FAIL", "PASS"), "S2": ("PASS", "PASS"), "*": ("FAIL", "PASS")})
+        self.assertIn("| S2 | - | - | S1 FAIL at S1.1 |", self.report())
+
+    def test_a_known_step_that_passes_is_fixed(self):
+        code, results, _ = self.run_journey(None, "- S1.2: no form. Blocked by #2140.\n")
+        self.assertEqual(code, 0)
+        self.assertEqual(results, {"S1": ("FIXED", "FAIL"), "S2": ("PASS", "PASS"), "*": ("PASS", "PASS")})
+        self.assertIn("| S2 | - | S1 | - |", self.report())
+
+    def test_known_rows_are_not_counted_as_seeded_bugs(self):
+        self.run_journey("S1.2", "- S1.2: no form. Blocked by #2140.\n")
+        lines = journey.RESULTS.read_text().splitlines()
+        item = journey.summarize([dict(zip(lines[0].split("\t"), line.split("\t"))) for line in lines[1:]])[0]
+        self.assertEqual((item["seeded"], item["flake"]), (0, 0.0))
+
+    def last_run(self):
+        return journey.RESULTS.read_text().splitlines()[-1].split("\t")[journey.COLUMNS.index("run")]
+
+
 @contextlib.contextmanager
 def _yielding(value):
     yield value

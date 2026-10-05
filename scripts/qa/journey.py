@@ -105,6 +105,7 @@ class Journey:
         self.funds = funds if isinstance(funds, dict) else {}
         self.scenarios = re.findall(r"^### (S\d+) ", body, re.M)
         self.steps = re.findall(r"^\| (S\d+\.\d+) \|", body, re.M)
+        self.known = parse_known(body, self.steps)
 
     def driver_files(self):
         return [ROOT / p for p in self.xcuitest]
@@ -120,6 +121,52 @@ class Journey:
     def setup_script(self):
         script = QA / (self.id + ".setup.sh")
         return script if script.exists() else None
+
+
+KNOWN_SECTION = re.compile(r"^## Known failures on staging\n(.*?)(?=^## |\Z)", re.M | re.S)
+
+
+def parse_known(body, steps):
+    """{step id: (ticket, ...)} from the doc's "Known failures on staging" bullets or table.
+
+    A bullet names its steps before the first colon and its tickets after "Blocked by". A table row
+    names its steps in the first cell and its tickets in the last. "S1.2 to S1.5" is every step
+    of the doc from S1.2 through S1.5.
+    """
+    section = KNOWN_SECTION.search(body)
+    known = {}
+    for line in (section.group(1) if section else "").splitlines():
+        if line.startswith("|"):
+            cells = line.strip().strip("|").split("|")
+            where, tickets = cells[0], re.findall(r"#\d+", cells[-1])
+        elif line.startswith("- "):
+            where = line[2:].partition(":")[0]
+            blocked = re.search(r"[Bb]locked by (.*)", line)
+            tickets = re.findall(r"#\d+", blocked.group(1) if blocked else line)
+        else:
+            continue
+        for first, last in re.findall(r"(S\d+\.\d+)(?: to (S\d+\.\d+))?", where):
+            ids = steps[steps.index(first):steps.index(last) + 1] if last in steps and first in steps else [first]
+            for step in ids:
+                known[step] = tuple(dict.fromkeys(known.get(step, ()) + tuple(tickets)))
+    return known
+
+
+def classify_known(rows, known):
+    """A scenario that failed at a known step becomes KNOWN; one that passed with a known step, FIXED.
+
+    Returns {scenario: "FAIL"} for both, the doc's expectation. Any other failure stays FAIL.
+    """
+    expected = {}
+    for row in rows:
+        if row["result"] == "FAIL" and row["failed_step"] in known:
+            row["result"] = "KNOWN"
+        elif row["result"] == "PASS" and any(step.split(".")[0] == row["scenario"] for step in known):
+            row["result"] = "FIXED"
+        else:
+            continue
+        expected[row["scenario"]] = "FAIL"
+    return expected
 
 
 def _as_list(value):
@@ -190,6 +237,9 @@ def check_journeys(journeys, accounts, git_apply_check=None):
             bad(journey.path, "id is %r, the path says %r" % (journey.id, expected_id))
         if not isinstance(journey.version, int) or journey.version < 1:
             bad(journey.path, "version must be a whole number from 1, got %r" % (journey.version,))
+        for step in journey.known:
+            if step not in journey.steps:
+                bad(journey.path, "Known failures names %s, which is not a step of the doc" % step)
         if not journey.scenarios:
             bad(journey.path, "no scenario: add a '### S1 <name>' heading and its step table")
         for scenario in journey.scenarios:
@@ -805,7 +855,7 @@ def record(journey, build_name, run_name, rows, summary, expected=None):
         for row in rows + [summary]:
             full = {"time": now, "journey": journey.id, "version": journey.version, "driver": DRIVER,
                     "build": build_name, "run": run_name,
-                    "expected": (expected or {}).get(row["scenario"], "FAIL" if expected and row["scenario"] == "*" else "PASS")}
+                    "expected": (expected or {}).get(row["scenario"], "PASS")}
             full.update(row)
             out.write("\t".join(str(full.get(column, "")).replace("\t", " ") for column in COLUMNS) + "\n")
 
@@ -825,6 +875,8 @@ def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scen
         print("%s timed out after %d s in %s" % (journey.id, budget.seconds, timed_out))
     for row in rows:
         row["truth"] = truth
+    if expected is None:
+        expected = classify_known(rows, journey.known)
     verdicts = [row["result"] for row in rows] + (["TIMEOUT"] if timed_out else [])
     overall = next((v for v in ("ERROR", "TIMEOUT", "FAIL") if v in verdicts), "PASS")
     summary = {"scenario": "*", "result": overall, "truth": truth, "wall_s": wall,
@@ -832,6 +884,8 @@ def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scen
     record(journey, build_name, run_name, rows, summary, expected)
     for row in rows:
         detail = " at %s" % row["failed_step"] if row.get("failed_step") else ""
+        if row["result"] == "KNOWN":
+            detail += " (%s)" % ", ".join(journey.known[row["failed_step"]])
         timing = " %ss" % row["wall_s"] if row.get("wall_s") else ""
         print("  %s@%s %s %s%s%s" % (journey.id, journey.version, row["scenario"], row["result"], timing, detail))
     return rows, overall
@@ -1048,7 +1102,7 @@ def run_mutants(args, api_base_url):
                 build(sims[journey.actors[0]], OUT / ("build-%s.log" % patch.stem))
                 run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
                 rows, _ = run_once(journey, journeys, args, sims, accounts, build_label(patch.stem), run_name,
-                                   expected_fail, api_base_url, expected={s: "FAIL" for s in expected_fail})
+                                   expected_fail, api_base_url, expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
             finally:
                 if applied:
                     sh(["git", "apply", "-R", str(patch)], check=True)
@@ -1084,7 +1138,7 @@ def summarize(rows):
         passed = [r for r in clean if r["result"] == "PASS"]
         seeded = {}
         for row in group:
-            if row["scenario"] != "*" and row["expected"] == "FAIL":
+            if row["scenario"] != "*" and "+mutant:" in row["build"]:
                 seeded.setdefault(row["build"], []).append(row)
         caught = [rows for rows in seeded.values() if all(row["result"] == "FAIL" for row in rows)]
         truth_misses = [r for r in clean if r["result"] == "PASS" and r["truth"] == "fail"]
@@ -1100,6 +1154,32 @@ def summarize(rows):
             "seeded": len(seeded), "caught": len(caught),
             "false_passes": len(seeded) - len(caught) + len(truth_misses),
         })
+    return table
+
+
+def latest_outcomes(rows, known):
+    """Per journey, its last clean run: passing scenarios, known failures with tickets, fixed ones and new failures."""
+    last = {}
+    for row in rows:
+        if row["scenario"] == "*" and "+mutant:" not in row["build"]:
+            last[row["journey"]] = row["run"]
+    table = []
+    for journey_id, run in sorted(last.items()):
+        item = {"journey": journey_id, "run": run, "passing": [], "known": [], "fixed": [], "new": []}
+        tickets = known.get(journey_id, {})
+        for row in rows:
+            if row["journey"] != journey_id or row["run"] != run or row["scenario"] == "*":
+                continue
+            if row["result"] == "PASS":
+                item["passing"].append(row["scenario"])
+            elif row["result"] == "KNOWN":
+                item["known"].append("%s at %s (%s)" % (
+                    row["scenario"], row["failed_step"], ", ".join(tickets.get(row["failed_step"], ())) or "no ticket"))
+            elif row["result"] == "FIXED":
+                item["fixed"].append(row["scenario"])
+            else:
+                item["new"].append("%s %s at %s" % (row["scenario"], row["result"], row["failed_step"] or "-"))
+        table.append(item)
     return table
 
 
@@ -1120,6 +1200,13 @@ def cmd_report(args):
         print("| %s | %d | %d | %s | %s | %s | %s | %d |" % (
             item["journey"], item["runs"], item["errors"], flake, show(item["wall_s"]), show(item["steps_s"]), caught,
             item["false_passes"]))
+    known = {journey_id: loaded.known for journey_id, loaded in load_journeys().items()}
+    print()
+    print("| Journey | Last run | Passing | Known failing | Fixed | New failures |")
+    print("| --- | --- | --- | --- | --- | --- |")
+    for item in latest_outcomes(rows, known):
+        print("| %s | %s | %s |" % (item["journey"], item["run"], " | ".join(
+            ", ".join(item[key]) or "-" for key in ("passing", "known", "fixed", "new"))))
     return 0
 
 
