@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-07	Fund cabal	treasury	POST /v1/cabals/{id}/fund	FundCabal	cabal.fund_submitted;cabal.funded;cabal.fund_failed	treasury.activity.fund_submitted;treasury.activity.funded	ok;InvalidInput;NotCabalMember;InsufficientFunds;CabalPaused;PotValueZero;PrivyUnavailable;crash:after-sign;crash:before-commit	built	docs/architecture/deposits-withdrawals.md#fund
+07	Fund cabal	treasury	POST /v1/cabals/{id}/fund	FundCabal	cabal.fund_submitted;cabal.funded;cabal.fund_failed	treasury.activity.fund_submitted;treasury.activity.funded	ok;InvalidInput;NotCabalMember;InsufficientFunds;CabalPaused;PotValueZero;PrivyUnavailable;crash:after-sign;crash:before-commit	verified	docs/architecture/deposits-withdrawals.md#fund

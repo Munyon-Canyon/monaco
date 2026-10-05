@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -32,7 +31,7 @@ func TestFlow15_Withdraw_CrashAfterSign(t *testing.T) {
 	}
 	f.assertInFlight(t, "2000000")
 	p := f.poller(status(solana.StateNotFound, false, 0))
-	f.clock.Advance(app.WithdrawalUnsentAge + time.Second)
+	f.clock.Advance(withdrawalUnsentAge + time.Second)
 	if changed, err := f.tick(t, p); err != nil || changed != 1 {
 		t.Fatalf("Tick after 2 min = %d, %v", changed, err)
 	}

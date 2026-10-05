@@ -35,10 +35,13 @@ func (s *stubStatuses) SignatureStatuses(_ context.Context, sigs []chain.Signatu
 	return s.statuses, s.err
 }
 
+const withdrawalUnsentAge = 2 * time.Minute
+
 func (f *withdrawFixture) poller(statuses *stubStatuses) *app.WithdrawalPoller {
 	return app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: f.uow, Reads: f.pool, Clock: f.clock, Chain: statuses,
 		Transfers: func() (app.Transfers, error) { return f.transfers, nil }, Hints: f.hints,
+		UnsentAge: withdrawalUnsentAge,
 	})
 }
 
@@ -191,7 +194,7 @@ func TestWithdrawalPoller_RebroadcastNeedsTransfers(t *testing.T) {
 	boom := errs.New(errs.CodePrivyUnavailable, "test")
 	p := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: f.uow, Reads: f.pool, Clock: f.clock, Chain: status(solana.StateNotFound, false, 900),
-		Transfers: func() (app.Transfers, error) { return nil, boom }, Hints: f.hints,
+		Transfers: func() (app.Transfers, error) { return nil, boom }, Hints: f.hints, UnsentAge: withdrawalUnsentAge,
 	})
 	if _, err := f.tick(t, p); !errors.Is(err, boom) {
 		t.Fatalf("Tick = %v, want %v", err, boom)
@@ -227,7 +230,7 @@ func TestWithdrawalPoller_StaleCreatedFails(t *testing.T) {
 	}
 	statuses := &stubStatuses{}
 	p := f.poller(statuses)
-	f.clock.Advance(app.WithdrawalUnsentAge - time.Second)
+	f.clock.Advance(withdrawalUnsentAge - time.Second)
 	if changed, err := f.tick(t, p); err != nil || changed != 0 {
 		t.Fatalf("Tick before 2 min = %d, %v", changed, err)
 	}
@@ -314,7 +317,7 @@ func TestWithdrawalPoller_ListErrors(t *testing.T) {
 	f, _ := submitted(t)
 	p := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: f.uow, Reads: closedPool(t, f.pool), Clock: f.clock,
-		Chain: status(solana.StateFinalized, false, 800), Hints: f.hints,
+		Chain: status(solana.StateFinalized, false, 800), Hints: f.hints, UnsentAge: withdrawalUnsentAge,
 	})
 	if _, err := f.tick(t, p); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Tick = %v, want internal", err)
@@ -326,7 +329,7 @@ func TestWithdrawalPoller_CommitErrorMovesNothing(t *testing.T) {
 	f, _ := submitted(t)
 	p := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: db.New(closedPool(t, f.pool), testkit.NewIDs(6), f.clock), Reads: f.pool, Clock: f.clock,
-		Chain: status(solana.StateFinalized, false, 800), Hints: f.hints,
+		Chain: status(solana.StateFinalized, false, 800), Hints: f.hints, UnsentAge: withdrawalUnsentAge,
 	})
 	if changed, err := f.tick(t, p); err == nil || changed != 0 {
 		t.Fatalf("Tick = %d, %v, want an error", changed, err)

@@ -104,7 +104,7 @@ func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	withdrawals := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
-		Transfers: m.lazyTransfers(), Hints: m.deps.Bus,
+		Transfers: m.lazyTransfers(), Hints: m.deps.Bus, UnsentAge: cfg.Worker.WithdrawalUnsentAge,
 	})
 	return []poller.Poller{
 		app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,

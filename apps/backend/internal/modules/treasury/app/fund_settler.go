@@ -23,7 +23,6 @@ import (
 
 const (
 	FundSettleInterval = 5 * time.Second
-	FundSendWindow     = 2 * time.Minute
 	fundBatch          = 100
 )
 
@@ -40,16 +39,17 @@ type HintPublisher interface {
 }
 
 type FundSettlerDeps struct {
-	Reads     sqlc.DBTX
-	UoW       *db.UnitOfWork
-	IDs       ids.Generator
-	Clock     clock.Clock
-	Chain     FundChain
-	Transfers FundBroadcaster
-	Pot       FundPot
-	Ledger    Ledger
-	USDC      domain.Asset
-	Hints     HintPublisher
+	Reads      sqlc.DBTX
+	UoW        *db.UnitOfWork
+	IDs        ids.Generator
+	Clock      clock.Clock
+	Chain      FundChain
+	Transfers  FundBroadcaster
+	Pot        FundPot
+	Ledger     Ledger
+	USDC       domain.Asset
+	Hints      HintPublisher
+	SendWindow time.Duration
 }
 
 type FundSettler struct{ d FundSettlerDeps }
@@ -64,7 +64,7 @@ type FundTick struct {
 
 func (s *FundSettler) Tick(ctx context.Context) (FundTick, error) {
 	q := sqlc.New(s.d.Reads)
-	expired, expireErr := q.ExpireCreatedFundTransfers(ctx, s.d.Clock.Now().Add(-FundSendWindow))
+	expired, expireErr := q.ExpireCreatedFundTransfers(ctx, s.d.Clock.Now().Add(-s.d.SendWindow))
 	rows, listErr := q.ListOpenFundTransfers(ctx, fundBatch)
 	if err := errors.Join(expireErr, listErr); err != nil {
 		return FundTick{}, err

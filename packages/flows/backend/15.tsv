@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-15	Withdraw to address	funding	POST /v1/me/withdrawals	Withdraw	withdrawal.submitted;withdrawal.confirmed;withdrawal.failed	treasury.withdrawal_ledger	ok;InvalidInput;InvalidAddress;WithdrawToOwnWallet;InsufficientFunds;PrivyUnavailable;crash:after-sign;crash:before-commit	built	docs/architecture/deposits-withdrawals.md#withdraw
+15	Withdraw to address	funding	POST /v1/me/withdrawals	Withdraw	withdrawal.submitted;withdrawal.confirmed;withdrawal.failed	treasury.withdrawal_ledger	ok;InvalidInput;InvalidAddress;WithdrawToOwnWallet;InsufficientFunds;PrivyUnavailable;crash:after-sign;crash:before-commit	verified	docs/architecture/deposits-withdrawals.md#withdraw

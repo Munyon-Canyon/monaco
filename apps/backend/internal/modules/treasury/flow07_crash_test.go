@@ -29,7 +29,7 @@ func TestFlow07_FundCabal_CrashAfterSign(t *testing.T) {
 			)
 			return err
 		}
-		h.clock.Advance(app.FundSendWindow + time.Second)
+		h.clock.Advance(fundSendWindow + time.Second)
 		_, err := h.settler.Tick(withSystemActor(ctx))
 		return err
 	})
