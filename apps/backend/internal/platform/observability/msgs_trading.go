@@ -24,3 +24,8 @@ var TradingEngineStubbed = Msg{
 	Name:     "trading.engine.stubbed",
 	Required: []string{"proposal_id", "kind", "symbol", "usdc_micros"},
 }
+
+var TradingCashOutSellStubbed = Msg{
+	Name:     "trading.cashout_sell.stubbed",
+	Required: []string{"job_id", "cabal_id", "usdc_micros"},
+}

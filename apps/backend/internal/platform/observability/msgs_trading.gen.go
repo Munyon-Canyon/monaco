@@ -9,5 +9,6 @@ func init() {
 		TradingEngineBlocked,
 		TradingRetryRequested,
 		TradingEngineStubbed,
+		TradingCashOutSellStubbed,
 	)
 }
