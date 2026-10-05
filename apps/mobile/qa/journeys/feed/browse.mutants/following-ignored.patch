@@ -1,0 +1,19 @@
+journey: feed/browse
+expect-fail: S2
+
+The Everyone / Following toggle never leaves Everyone. S2.1 expects no cell from someone A does not follow under Following, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Feed/FeedView.swift b/apps/mobile/Monaco/Features/Feed/FeedView.swift
+index 6e31e4efb..8854a1662 100644
+--- a/apps/mobile/Monaco/Features/Feed/FeedView.swift
++++ b/apps/mobile/Monaco/Features/Feed/FeedView.swift
+@@ -77,7 +77,7 @@ private struct FeedScreen: View {
+     private var scope: Binding<FeedScope> {
+         Binding(
+             get: { model.query.scope },
+-            set: { next in Task { await model.select(next) } }
++            set: { _ in Task { await model.select(FeedScope.everyone) } }
+         )
+     }
+ 

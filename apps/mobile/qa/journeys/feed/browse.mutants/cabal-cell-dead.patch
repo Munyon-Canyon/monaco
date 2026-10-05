@@ -1,0 +1,19 @@
+journey: feed/browse
+expect-fail: S3
+
+A cabal cell opens nothing. S3.1 expects the cell to open the cabal screen, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
+index 4bc299750..fd8c98eec 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Feed/FeedDestination.swift
+@@ -18,7 +18,7 @@ public enum FeedDestination: Equatable, Sendable {
+             self = .asset(symbol: symbol)
+         case .cabalCreated, .memberJoined:
+             guard let cabalID = item.cabalId else { return nil }
+-            self = .cabal(id: cabalID)
++            return nil
+         case nil:
+             return nil
+         }
