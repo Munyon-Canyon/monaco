@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
@@ -175,7 +176,7 @@ func (h *settleHarness) assertMinted(t *testing.T, id uuid.UUID) {
 	}
 	wantHints := []string{
 		"user." + h.user.String() + ".balance_changed",
-		"cabal." + h.cabal.String() + ".activity_changed",
+		events.CabalActivityChangedHint(h.cabal),
 	}
 	if len(h.chain.hints) != 2 || h.chain.hints[0] != wantHints[0] || h.chain.hints[1] != wantHints[1] {
 		t.Fatalf("hints = %v, want %v", h.chain.hints, wantHints)

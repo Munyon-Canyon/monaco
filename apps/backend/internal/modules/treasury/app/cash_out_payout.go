@@ -169,6 +169,7 @@ func (p *CashOutPayouts) complete(ctx context.Context, job payoutJob) error {
 		p.moved(tx, now, to)
 		tx.AfterCommit(func(ctx context.Context) {
 			p.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(now.user), nil)
+			p.d.Hints.PublishHint(ctx, events.CabalActivityChangedHint(now.cabal), nil)
 		})
 		return tx.Events.Append(ctx, events.CashOutCompleted{
 			V: 1, JobID: now.id, CabalID: now.cabal.UUID(), UserID: now.user.UUID(), ShareUnits: now.units.Uint64(),
@@ -223,6 +224,9 @@ func (p *CashOutPayouts) fail(ctx context.Context, job payoutJob, rejected int16
 			return err
 		}
 		p.moved(tx, now, domain.CashOutFailed)
+		tx.AfterCommit(func(ctx context.Context) {
+			p.d.Hints.PublishHint(ctx, events.CabalActivityChangedHint(now.cabal), nil)
+		})
 		return tx.Events.Append(ctx, events.CashOutFailed{
 			V: 1, JobID: now.id, CabalID: now.cabal.UUID(), UserID: now.user.UUID(), ShareUnits: now.units.Uint64(),
 			Code: string(errs.CodePayoutFailed),

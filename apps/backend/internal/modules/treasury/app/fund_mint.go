@@ -92,7 +92,7 @@ func (s *FundSettler) settle(ctx context.Context, tx db.Tx, m fundMint) (events.
 	}
 	tx.AfterCommit(func(ctx context.Context) {
 		s.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(m.user), nil)
-		s.d.Hints.PublishHint(ctx, "cabal."+m.cabal.String()+".activity_changed", nil)
+		s.d.Hints.PublishHint(ctx, events.CabalActivityChangedHint(m.cabal), nil)
 	})
 	return funded, true, tx.Events.Append(ctx, funded)
 }
