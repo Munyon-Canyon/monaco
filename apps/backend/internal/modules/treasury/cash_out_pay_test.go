@@ -96,6 +96,8 @@ type payoutRig struct {
 	job        uuid.UUID
 	chain      *payoutChain
 	hints      *payoutHints
+	transfers  *payoutTransfers
+	wallets    payoutWallets
 }
 
 func newPayoutRig(t *testing.T) *payoutRig {
@@ -117,6 +119,7 @@ func newPayoutRig(t *testing.T) *payoutRig {
 func (r *payoutRig) stubs() *payoutRig {
 	r.chain = &payoutChain{readings: map[chain.Signature][]domain.PayoutReading{}}
 	r.hints = &payoutHints{}
+	r.transfers = &payoutTransfers{}
 	return r
 }
 
@@ -124,6 +127,7 @@ func (r *payoutRig) payouts() *app.CashOutPayouts {
 	return app.NewCashOutPayouts(app.CashOutPayoutDeps{
 		UoW: r.f.uow, Reads: r.f.pool, Ledger: r.f.ledger, IDs: r.f.ids, Clock: autoClock{r.f.clock},
 		Chain: r.chain, USDC: chain.Mint{Address: usdcMint, Decimals: 6}, Hints: r.hints,
+		Transfers: func() (app.PayoutTransfers, error) { return r.transfers, nil }, Wallets: r.wallets,
 	})
 }
 
