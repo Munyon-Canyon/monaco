@@ -340,7 +340,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		pr + "check-gate-changes.py",
 		pr + "check-legacy-growth.py",
 		upTestDB(0),
-		"apps/backend: go build -tags faultpoints ./internal/x ./cmd/api",
+		"apps/backend: go build -o /dev/null -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: golangci-lint run --allow-parallel-runners ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./internal/platform/lint/nogo/cmd/nogo ./internal/x ./internal/t ./cmd/api",
