@@ -17,11 +17,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-func TestModule_servesTheFollowRoutesAndRegistersTheFeedConsumer(t *testing.T) {
+func TestModule_servesTheFollowRoutesAndRegistersItsConsumers(t *testing.T) {
 	t.Parallel()
 	m := social.New(module.Deps{})
 	if m.Name() != "social" || !testkit.Serves(m.Mount, "GET", "/v1/feed") || m.Pollers() != nil ||
-		len(m.Consumers()) != 1 {
+		len(m.Consumers()) != 2 {
 		t.Fatalf("module = %s, %v pollers, %d consumers",
 			m.Name(), m.Pollers(), len(m.Consumers()))
 	}

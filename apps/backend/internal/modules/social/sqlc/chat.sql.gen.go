@@ -84,6 +84,21 @@ func (q *Queries) ClaimSeenPublish(ctx context.Context, arg ClaimSeenPublishPara
 	return i, err
 }
 
+const deleteChatSeen = `-- name: DeleteChatSeen :exec
+DELETE FROM chat_seen
+WHERE cabal_id = $1 AND user_id = $2
+`
+
+type DeleteChatSeenParams struct {
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+}
+
+func (q *Queries) DeleteChatSeen(ctx context.Context, arg DeleteChatSeenParams) error {
+	_, err := q.db.Exec(ctx, deleteChatSeen, arg.CabalID, arg.UserID)
+	return err
+}
+
 const getChatCursor = `-- name: GetChatCursor :one
 SELECT created_at, id
 FROM cabal_messages
