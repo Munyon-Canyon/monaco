@@ -108,7 +108,13 @@ func (h *ExecuteTradeHandler) claimed(ctx context.Context, d bus.Delivery, cmd E
 	}
 	latest, found, err := NewQueries(h.d.Reads).LatestBySource(ctx, cmd.source())
 	superseded := cmd.Retry != nil && latest.ID != cmd.Retry.Of
-	return found && (latest.Status != domain.StatusFailed || superseded), err
+	if err != nil || !found || latest.Status == domain.StatusFailed && !superseded {
+		return false, err
+	}
+	return true, h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		_, err := d.Record(ctx, tx)
+		return err
+	})
 }
 
 func (h *ExecuteTradeHandler) check(ctx context.Context, cmd ExecuteTrade) (SwapRequest, refusal, error) {
