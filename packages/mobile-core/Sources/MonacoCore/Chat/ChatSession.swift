@@ -26,15 +26,18 @@ public actor ChatSession {
     static let maxCatchUpPages = 10
 
     public let cabalID: String
-    private let api: APIClient
+    let api: APIClient
     private let realtime: any ChatRealtime
-    private let now: @Sendable () -> Date
-    private let makeKey: @Sendable () -> String
-    private var state: State
+    let now: @Sendable () -> Date
+    let makeKey: @Sendable () -> String
+    var state: State
     private var subscribers: [UUID: AsyncStream<State>.Continuation] = [:]
     private var submissions: [String: IdempotentSubmission] = [:]
     private var listener: Task<Void, Never>?
-    private var isOpen = false
+    var threads: [String: WeakThread] = [:]
+    var attached: [String: ThreadSession] = [:]
+    var deletions: [String: IdempotentSubmission] = [:]
+    var isOpen = false
     private var noticeSerial = 0
 
     public init(
@@ -78,10 +81,10 @@ public actor ChatSession {
 
     public func close() {
         isOpen = false
-        listener?.cancel()
-        listener = nil
-        realtime.detach(cabalId: cabalID)
+        if attached.isEmpty { stopListening() }
     }
+
+    func newKey() -> String { makeKey() }
 
     public func reload() async {
         await loadNewest()
@@ -103,7 +106,12 @@ public actor ChatSession {
     }
 
     @discardableResult
-    public func send(body: String) async -> GroupChatDraft.Problem? {
+    public func send(
+        body: String, parentId: String? = nil, alsoInChannel: Bool = false
+    ) async -> GroupChatDraft.Problem? {
+        if let parentId {
+            return await thread(parentId: parentId).send(body: body, alsoInChannel: alsoInChannel)
+        }
         let trimmed: String
         switch GroupChatDraft.validate(body) {
         case .success(let text): trimmed = text
@@ -125,6 +133,7 @@ public actor ChatSession {
     }
 
     func apply(_ event: ChatRealtimeEvent) async {
+        for thread in attached.values { await thread.apply(event) }
         switch event {
         case .messageCreated(let message):
             guard state.timeline.hasLoadedNewest else { return }
@@ -141,7 +150,13 @@ public actor ChatSession {
         publish()
     }
 
-    private func subscribe() {
+    func stopListening() {
+        listener?.cancel()
+        listener = nil
+        realtime.detach(cabalId: cabalID)
+    }
+
+    func subscribe() {
         guard listener == nil else { return }
         let stream = realtime.events(cabalId: cabalID)
         listener = Task { [weak self] in
@@ -244,7 +259,7 @@ public actor ChatSession {
         state.notice = Notice(serial: noticeSerial, error: error)
     }
 
-    private func publish() {
+    func publish() {
         for continuation in subscribers.values { continuation.yield(state) }
     }
 

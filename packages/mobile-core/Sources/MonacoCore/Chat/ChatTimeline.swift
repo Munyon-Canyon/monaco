@@ -11,6 +11,7 @@ public struct ChatRow: Identifiable, Equatable, Sendable {
     }
 
     public let message: ChatMessage
+    public let parentBody: String?
     public let delivery: Delivery
     public let isMine: Bool
     public let startsDay: Bool
@@ -52,25 +53,45 @@ public struct ChatTimeline: Equatable, Sendable {
         let key: String
         let body: String
         let createdAt: Date
+        let parentID: String?
+        let alsoInChannel: Bool
         var failed: Bool
     }
 
+    public enum Scope: Equatable, Sendable {
+        case channel
+        case thread(parentID: String)
+    }
+
     public let viewerID: String
+    public let scope: Scope
     public private(set) var messages: [ChatMessage] = []
     public private(set) var rows: [ChatRow] = []
     public private(set) var hasLoadedNewest = false
     public private(set) var hasOlder = false
     private(set) var unsent: [Unsent] = []
 
-    public init(viewerID: String) {
+    public init(viewerID: String, scope: Scope = .channel) {
         self.viewerID = viewerID
+        self.scope = scope
     }
 
     public var newestID: String? { messages.last?.id }
     public var oldestID: String? { messages.first?.id }
 
-    public static func isInChannel(_ message: ChatMessage) -> Bool {
-        message.parentId == nil || message.alsoInChannel
+    public func accepts(_ message: ChatMessage) -> Bool {
+        switch scope {
+        case .channel: message.parentId == nil || message.alsoInChannel
+        case .thread(let parentID): message.parentId == parentID
+        }
+    }
+
+    public func message(id: String) -> ChatMessage? {
+        messages.first { $0.id == id }
+    }
+
+    public mutating func restore(_ message: ChatMessage) {
+        _ = upsert([message])
     }
 
     @discardableResult
@@ -94,7 +115,7 @@ public struct ChatTimeline: Equatable, Sendable {
 
     @discardableResult
     public mutating func insertLive(_ message: ChatMessage) -> Bool {
-        guard Self.isInChannel(message), !messages.contains(where: { $0.id == message.id }) else { return false }
+        guard accepts(message), !messages.contains(where: { $0.id == message.id }) else { return false }
         dropEchoed(by: message)
         messages.append(message)
         messages.sort(by: Self.chronological)
@@ -124,15 +145,20 @@ public struct ChatTimeline: Equatable, Sendable {
         rebuildRows()
     }
 
-    public mutating func applyThread(id: String, replyCount: Int, lastReplyAt: Date) {
+    public mutating func applyThread(id: String, replyCount: Int, lastReplyAt: Date?) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
         messages[index].replyCount = replyCount
         messages[index].lastReplyAt = lastReplyAt
         rebuildRows()
     }
 
-    mutating func addUnsent(key: String, body: String, at createdAt: Date) {
-        unsent.append(Unsent(key: key, body: body, createdAt: createdAt, failed: false))
+    mutating func addUnsent(
+        key: String, body: String, at createdAt: Date, parentID: String? = nil, alsoInChannel: Bool = false
+    ) {
+        unsent.append(
+            Unsent(
+                key: key, body: body, createdAt: createdAt, parentID: parentID, alsoInChannel: alsoInChannel,
+                failed: false))
         rebuildRows()
     }
 
@@ -161,7 +187,7 @@ public struct ChatTimeline: Equatable, Sendable {
     private mutating func upsert(_ incoming: [ChatMessage]) -> [ChatMessage] {
         var added: [ChatMessage] = []
         var changed = false
-        for message in incoming where Self.isInChannel(message) {
+        for message in incoming where accepts(message) {
             if let index = messages.firstIndex(where: { $0.id == message.id }) {
                 if messages[index] != message {
                     messages[index] = message
@@ -192,6 +218,7 @@ public struct ChatTimeline: Equatable, Sendable {
             let nextStartsDay = next.map { !calendar.isDate(message.createdAt, inSameDayAs: $0.createdAt) } ?? false
             return ChatRow(
                 message: message,
+                parentBody: message.parentId.flatMap { id in messages.first { $0.id == id }?.body },
                 delivery: delivery(of: message),
                 isMine: message.author.id == viewerID,
                 startsDay: startsDay,
@@ -212,7 +239,8 @@ public struct ChatTimeline: Equatable, Sendable {
             author: .init(id: viewerID, handle: nil, displayName: "", photoUrl: nil),
             body: send.body,
             createdAt: send.createdAt,
-            alsoInChannel: false,
+            parentId: send.parentID,
+            alsoInChannel: send.alsoInChannel,
             replyCount: 0,
             deleted: false
         )

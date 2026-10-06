@@ -417,6 +417,10 @@ public enum RelativeTimeFormatter {
 
     public static func label(iso: String, now: Date, calendar: Calendar) -> String {
         guard let date = parse(iso) else { return "" }
+        return label(date: date, now: now, calendar: calendar)
+    }
+
+    public static func label(date: Date, now: Date, calendar: Calendar = .current) -> String {
         let elapsed = now.timeIntervalSince(date)
         if elapsed < 60 { return "now" }
         if elapsed < 3600 { return "\(Int(elapsed / 60))m" }
