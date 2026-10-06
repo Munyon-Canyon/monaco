@@ -273,7 +273,7 @@ func TestMentions_readsGraphiteDraftTitles(t *testing.T) {
 		t.Error("#N references")
 	}
 	since := time.Date(2026, 9, 29, 6, 0, 0, 0, time.UTC)
-	d := queueDraft{State: "CLOSED", HeadRefName: "gtmq_spec_de1996", Title: mqTitle, UpdatedAt: since.Add(time.Minute)}
+	d := queueDraft{State: "CLOSED", HeadRefName: "gtmq_spec_de1996", Title: mqTitle, ClosedAt: since.Add(time.Minute)}
 	if !d.runs(1308, since) || d.runs(1310, since) {
 		t.Error("a closed draft runs the PRs its title lists")
 	}

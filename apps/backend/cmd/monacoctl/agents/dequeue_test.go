@@ -93,7 +93,7 @@ func TestQueueDrafts_asksForOpenAndClosedDraftsAndWhenAClosedOneWasUpdated(t *te
 	for _, want := range []string{
 		"drafts: pullRequests(states:OPEN,",
 		"closed: pullRequests(states:CLOSED,",
-		"headRefName headRefOid updatedAt}}",
+		"headRefName headRefOid updatedAt closedAt}}",
 	} {
 		if !strings.Contains(sent, want) {
 			t.Fatalf("the drafts query lacks %q:\n%s", want, sent)

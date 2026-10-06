@@ -288,12 +288,12 @@ func TestWatch_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":{"repository":{`+
 		`"c0":`+rollup(ciOK("SUCCESS", 3), `{"name":"ci / Flake","conclusion":"SUCCESS","completedAt":"2026-09-29T11:03:00Z"}`)+
 		`,"c1":`+rollup(ciOK("FAILURE", 3), lintJob)+`}}}`)
-	failed, _, err := f.Env(t).failures(context.Background())
+	failed, _, err := f.Env(t).failures(context.Background(), nil)
 	if err != nil || len(failed) != 1 || failed[0].PR != 6 || failed[0].Job.DatabaseID != 12 {
 		t.Fatalf("%+v %v", failed, err)
 	}
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":null,"errors":[{"message":"rate limited"}]}`)
-	if _, _, err := f.Env(t).failures(context.Background()); cliText(err) != "graphql: rate limited" {
+	if _, _, err := f.Env(t).failures(context.Background(), nil); cliText(err) != "graphql: rate limited" {
 		t.Fatal(err)
 	}
 }
@@ -546,6 +546,64 @@ func TestFailureQuery_asksForTheHeadOfEveryDraft(t *testing.T) {
 	}
 }
 
+func TestFailureQuery_asksForWhenEveryDraftClosed(t *testing.T) {
+	t.Parallel()
+	_, drafts, found := strings.Cut(failureQuery(""), "drafts:")
+	if !found || !strings.Contains(drafts, " closedAt ") {
+		t.Fatalf("the drafts selection lacks closedAt:\n%s", drafts)
+	}
+}
+
+func TestOnePerOwnedStack_keepsTheLowestDropOfEachStackAndEachDraft(t *testing.T) {
+	t.Parallel()
+	rs := []Record{
+		{Ticket: 40, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}},
+		{Ticket: 41, Armed: &Arm{Top: 6, PRs: []int{5, 6}}},
+	}
+	drop := func(pr int, job int64) failure {
+		return failure{PR: pr, Why: droppedWhy, Job: gqlContext{DatabaseID: job}}
+	}
+	red := failure{PR: 3, Why: "stage 1 is red", Job: gqlContext{DatabaseID: 11}}
+	for _, tc := range []struct {
+		name     string
+		in, want []failure
+	}{
+		{
+			"the lowest dropped PR speaks for its stack",
+			[]failure{drop(3, 11), drop(1, 11), drop(2, 11)},
+			[]failure{drop(1, 11)},
+		},
+		{
+			"the lowest PR that dropped speaks when a lower one of the stack did not",
+			[]failure{drop(3, 11), drop(2, 11)},
+			[]failure{drop(2, 11)},
+		},
+		{
+			"a PR that another draft dropped is its own report",
+			[]failure{drop(1, 11), drop(2, 12), drop(3, 12)},
+			[]failure{drop(1, 11), drop(2, 12)},
+		},
+		{
+			"each owned stack keeps its own, armed or queued",
+			[]failure{drop(2, 11), drop(5, 11), drop(1, 11), drop(6, 11)},
+			[]failure{drop(5, 11), drop(1, 11)},
+		},
+		{
+			"a red stage 1 and the drops of PRs no record covers stay",
+			[]failure{drop(1, 11), red, drop(2, 11), drop(9, 11), drop(8, 11)},
+			[]failure{drop(1, 11), red, drop(9, 11), drop(8, 11)},
+		},
+		{"no failure stays none", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := onePerOwnedStack(tc.in, rs); !slices.Equal(got, tc.want) {
+				t.Fatalf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestWatch_reportsARedPROfAnotherRootsTicketWithoutRebuildingItsRecord(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -572,7 +630,11 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 	env := f.Env(t)
 	state := env.statePath("watch", lastRunState)
 	writeFile(t, state, "yesterday\n")
-	if _, _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "parse watch") {
+	read := func() error {
+		_, _, err := env.failures(context.Background(), nil)
+		return err
+	}
+	if err := read(); err == nil || !strings.Contains(err.Error(), "parse watch") {
 		t.Fatalf("corrupt state: %v", err)
 	}
 	if err := os.Remove(state); err != nil {
@@ -591,7 +653,7 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.noFailures()
-	if _, _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "write") {
+	if err := read(); err == nil || !strings.Contains(err.Error(), "write") {
 		t.Fatalf("state write: %v", err)
 	}
 	if err := os.Remove(state); err != nil {
@@ -681,7 +743,7 @@ func TestStage1_aRunWhoseCIOKHasNotStartedIsPending(t *testing.T) {
 
 func TestQueueJob_namesTheQueueCIJobNotAPushOnlyWorkflow(t *testing.T) {
 	t.Parallel()
-	raw := strings.Replace(numberedDraft(4, time.Unix(1, 0), goCacheJob, flakeJob), `"body":""`, `"body":"#4"`, 1)
+	raw := closedDraftWith("gtmq_4", "Merge queue: #4", time.Unix(1, 0), "CLOSED", "d4", rollup(goCacheJob, flakeJob))
 	var d queueDraft
 	if err := json.Unmarshal([]byte(raw), &d); err != nil {
 		t.Fatal(err)

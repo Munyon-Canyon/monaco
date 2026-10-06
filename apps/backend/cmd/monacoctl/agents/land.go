@@ -599,8 +599,8 @@ func draftRan(drafts []queueDraft, pr int, takenAt time.Time) bool {
 func newestRun(drafts []queueDraft, pr int, takenAt time.Time) time.Time {
 	var newest time.Time
 	for _, d := range drafts {
-		if d.runs(pr, takenAt) && d.UpdatedAt.After(newest) {
-			newest = d.UpdatedAt
+		if d.runs(pr, takenAt) && d.ClosedAt.After(newest) {
+			newest = d.ClosedAt
 		}
 	}
 	return newest

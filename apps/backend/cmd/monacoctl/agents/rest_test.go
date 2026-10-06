@@ -293,6 +293,9 @@ func TestRESTStackAndDrafts(t *testing.T) {
 	if len(nodes) != 2 || nodes[0].State != "MERGED" || nodes[1].State != "CLOSED" || nodes[0].HeadRefName != "gtmq_a" {
 		t.Fatalf("%+v", nodes)
 	}
+	if nodes[0].ClosedAt.Format(time.RFC3339) != merged || !nodes[1].ClosedAt.IsZero() {
+		t.Fatalf("closedAt %v and %v, want %s and none", nodes[0].ClosedAt, nodes[1].ClosedAt, merged)
+	}
 	f.hub.status[route] = http.StatusInternalServerError
 	f.hub.on(route, "boom")
 	_, err = env.restDraftPayload(t.Context())
