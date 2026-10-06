@@ -215,7 +215,7 @@ func (r RunValuation) entries(
 	for i, cabal := range flagged {
 		flaggedIDs[i] = cabal.CabalID
 	}
-	previous, err := PreviousEntries(ctx, r.ports.Previous, flaggedIDs)
+	previous, fallback, err := r.previousRows(ctx, flaggedIDs, valued)
 	if err != nil {
 		return nil, err
 	}
@@ -225,8 +225,56 @@ func (r RunValuation) entries(
 	}
 	return buildEntries(boardInput{
 		at: at, views: views, members: data.members, stakes: data.stakes, users: data.users,
-		valued: valued, flagged: flagged, previous: previous,
+		valued: valued, flagged: flagged, previous: previous, ranged: data.ranged, skipped: r.logSkipped(ctx),
+		fallback: fallback,
 	})
+}
+
+func (r RunValuation) previousRows(
+	ctx context.Context,
+	flagged []ids.CabalID,
+	valued []CabalValue,
+) ([]Entry, map[fallbackKey]Entry, error) {
+	flaggedSet := make(map[uuid.UUID]bool, len(flagged))
+	for _, id := range flagged {
+		flaggedSet[id.UUID()] = true
+	}
+	all := slices.Clone(flagged)
+	for _, cabal := range valued {
+		all = append(all, cabal.CabalID)
+	}
+	rows, err := PreviousEntries(ctx, r.ports.Previous, all)
+	if err != nil {
+		return nil, nil, err
+	}
+	previous := []Entry{}
+	fallback := map[fallbackKey]Entry{}
+	for _, row := range rows {
+		switch {
+		case row.Board == cabalsBoard && !flaggedSet[row.SubjectID]:
+			fallback[fallbackKey{cabal: row.SubjectID, rng: row.Range}] = row
+		case row.Board == cabalsBoard || flaggedBoard(row.Board, flaggedSet):
+			previous = append(previous, row)
+		}
+	}
+	return previous, fallback, nil
+}
+
+func flaggedBoard(board string, flagged map[uuid.UUID]bool) bool {
+	for id := range flagged {
+		if board == MembersBoard(id) {
+			return true
+		}
+	}
+	return false
+}
+
+func (RunValuation) logSkipped(ctx context.Context) func(ids.CabalID, Window, string) {
+	return func(cabalID ids.CabalID, w Window, reason string) {
+		observability.Degraded(ctx, observability.RankingRangeStartSkipped,
+			slog.String("cabal", cabalID.String()), slog.String("range", string(w.Range)),
+			slog.String("reason", reason))
+	}
 }
 
 func (r RunValuation) sessions(

@@ -144,15 +144,23 @@ func TestRunValuation_aFullRunWritesTheBoardsAndASecondRunReplacesThem(t *testin
 	rig.write(t, second)
 	rig.wantRows(t, map[string]int{"cabals": 1, "people": 2, members: 2})
 	if n := count(t, rig.pool, `SELECT count(*) FROM leaderboard_entries
-		WHERE range = 'ALL' AND board = 'cabals' AND value_micros = 159000000`); n != 1 || len(second.Entries) != 5 {
+		WHERE range = 'ALL' AND board = 'cabals' AND value_micros = 159000000`); n != 1 || len(second.Entries) != 5*5 {
 		t.Fatalf(
-			"second run: %d rows, %d cabal rows at 159 USDC, want 5 rows replacing the old ones",
+			"second run: %d rows, %d cabal rows at 159 USDC, want 5 rows in each of the 5 ranges replacing the old ones",
 			len(second.Entries),
 			n,
 		)
 	}
 	if n := count(t, rig.pool, `SELECT count(*) FROM leaderboard_runs`); n != 2 {
 		t.Fatalf("runs = %d, want 2", n)
+	}
+	for _, rng := range []string{"ALL", "1H", "1D", "1W", "1M"} {
+		if n := count(t, rig.pool, `SELECT count(*) FROM leaderboard_entries WHERE range = $1`, rng); n != 5 {
+			t.Fatalf("range %s has %d rows, want 5", rng, n)
+		}
+	}
+	if n := count(t, rig.pool, `SELECT rows_written FROM leaderboard_runs ORDER BY finished_at DESC LIMIT 1`); n != 25 {
+		t.Fatalf("rows_written = %d, want every range counted", n)
 	}
 }
 
@@ -176,8 +184,8 @@ func TestRunValuation_aStaleCabalKeepsItsPreviousRowsWithTheFlag(t *testing.T) {
 		t,
 		rig.pool,
 		`SELECT count(*) FROM leaderboard_entries WHERE board = 'cabals' AND value_micros = 106000000`,
-	) != 1 {
-		t.Fatal("the stale cabal's row no longer carries its previous value")
+	) != 5 {
+		t.Fatal("the stale cabal's row no longer carries its previous value in every range")
 	}
 }
 

@@ -34,6 +34,26 @@ type boardInput struct {
 	valued   []CabalValue
 	flagged  []CabalValue
 	previous []Entry
+	ranged   []rangedBook
+	skipped  func(cabal ids.CabalID, w Window, reason string)
+	fallback map[fallbackKey]Entry
+	member   memberRangedFunc
+}
+
+type fallbackKey struct {
+	cabal uuid.UUID
+	rng   string
+}
+
+type memberRangedFunc func(
+	w Window, cabalShares, shares money.SharesUnits, snap *Snapshot, end money.Micros, flows []domain.Flow,
+) (Ranged, error)
+
+func (in boardInput) memberRangedOrDefault() memberRangedFunc {
+	if in.member == nil {
+		return MemberRanged
+	}
+	return in.member
 }
 
 type subject struct {
@@ -49,18 +69,25 @@ type person struct {
 	value money.Micros
 	net   *big.Int
 	flags []string
+	sums  map[string]*rangedSum
 }
 
 type boardBuilder struct {
 	in      boardInput
 	subject map[string]subject
-	cabals  []domain.Candidate
+	cabals  map[string][]domain.Candidate
 	people  map[ids.UserID]*person
 	entries []Entry
 }
 
 func buildEntries(in boardInput) ([]Entry, error) {
-	b := &boardBuilder{in: in, subject: map[string]subject{}, people: map[ids.UserID]*person{}, entries: []Entry{}}
+	if in.skipped == nil {
+		in.skipped = func(ids.CabalID, Window, string) {}
+	}
+	b := &boardBuilder{
+		in: in, subject: map[string]subject{}, people: map[ids.UserID]*person{}, entries: []Entry{},
+		cabals: map[string][]domain.Candidate{},
+	}
 	byCabal := map[ids.CabalID][]treasury.MemberStake{}
 	for _, stake := range in.stakes {
 		byCabal[stake.CabalID] = append(byCabal[stake.CabalID], stake)
@@ -84,15 +111,17 @@ func buildEntries(in boardInput) ([]Entry, error) {
 	if err := b.peopleBoard(); err != nil {
 		return nil, err
 	}
-	if err := b.emit(cabalsBoard, domain.Rank(b.cabals, false)); err != nil {
-		return nil, err
+	for _, rng := range b.ranges() {
+		if err := b.emit(cabalsBoard, rng, domain.Rank(b.cabals[rng], false)); err != nil {
+			return nil, err
+		}
 	}
 	return b.entries, nil
 }
 
 func (b *boardBuilder) person(id ids.UserID) *person {
 	if b.people[id] == nil {
-		b.people[id] = &person{user: b.in.users[id], net: new(big.Int)}
+		b.people[id] = &person{user: b.in.users[id], net: new(big.Int), sums: map[string]*rangedSum{}}
 	}
 	return b.people[id]
 }
@@ -128,9 +157,12 @@ func (b *boardBuilder) valued(cabal CabalValue, stakes []treasury.MemberStake) e
 		return err
 	}
 	if domain.Eligible(netMicros, money.Micros{}) {
-		b.cabals = append(b.cabals, candidate)
+		b.cabals[allRange] = append(b.cabals[allRange], candidate)
 	}
-	return b.membersBoard(cabal.CabalID, holders)
+	if err := b.membersBoard(cabal.CabalID, holders); err != nil {
+		return err
+	}
+	return b.rangedCabal(cabal, view, holders, netMicros)
 }
 
 func (b *boardBuilder) addToPerson(stake treasury.MemberStake, equity money.Micros) error {
@@ -162,11 +194,12 @@ func (b *boardBuilder) membersBoard(cabalID ids.CabalID, holders map[ids.UserID]
 		}
 		candidates = append(candidates, candidate)
 	}
-	return b.emit(MembersBoard(cabalID.UUID()), domain.Rank(candidates, true))
+	return b.emit(MembersBoard(cabalID.UUID()), allRange, domain.Rank(candidates, true))
 }
 
 func (b *boardBuilder) peopleBoard() error {
 	candidates := []domain.Candidate{}
+	ranged := map[string][]domain.Candidate{}
 	for _, p := range b.people {
 		net, err := signedOf(p.net)
 		if err != nil {
@@ -182,8 +215,20 @@ func (b *boardBuilder) peopleBoard() error {
 		}
 		candidate.Flags = toFlags(p.flags)
 		candidates = append(candidates, candidate)
+		if err := b.rangedPerson(p, candidate, ranged); err != nil {
+			return err
+		}
 	}
-	return b.emit(peopleBoard, domain.Rank(candidates, false))
+	for _, rng := range b.ranges() {
+		cands := candidates
+		if rng != allRange {
+			cands = ranged[rng]
+		}
+		if err := b.emit(peopleBoard, rng, domain.Rank(cands, rng != allRange)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (b *boardBuilder) carryPrevious(flagged map[string][]domain.Flag) error {
@@ -193,17 +238,24 @@ func (b *boardBuilder) carryPrevious(flagged map[string][]domain.Flag) error {
 			b.entries = append(b.entries, previous)
 			continue
 		}
-		value := previous.ValueMicros
-		if value < 0 {
-			return errs.New(errs.CodeDecodeFailed, boardsOpName)
-		}
-		b.subject[previous.SubjectID.String()] = subject{
-			id: previous.SubjectID, name: previous.SubjectName, handle: previous.SubjectHandle,
-			picture: previous.SubjectPictureURL, createdAt: previous.SubjectCreatedAt,
-		}
 		flags := mergeFlags(previous.Flags, flagged[previous.SubjectID.String()]...)
-		b.cabals = append(b.cabals, previousCandidate(previous, uint64(value), flags))
+		if err := b.carryCabalRow(previous, flags); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func (b *boardBuilder) carryCabalRow(previous Entry, flags []string) error {
+	value := previous.ValueMicros
+	if value < 0 {
+		return errs.New(errs.CodeDecodeFailed, boardsOpName)
+	}
+	b.subject[previous.SubjectID.String()] = subject{
+		id: previous.SubjectID, name: previous.SubjectName, handle: previous.SubjectHandle,
+		picture: previous.SubjectPictureURL, createdAt: previous.SubjectCreatedAt,
+	}
+	b.cabals[previous.Range] = append(b.cabals[previous.Range], previousCandidate(previous, uint64(value), flags))
 	return nil
 }
 
@@ -214,7 +266,16 @@ func (b *boardBuilder) userSubject(user identity.UserCard) {
 	}
 }
 
-func (b *boardBuilder) emit(board string, rows []domain.Row) error {
+func (b *boardBuilder) ranges() []string {
+	out := make([]string, 1, 1+len(b.in.ranged))
+	out[0] = allRange
+	for _, book := range b.in.ranged {
+		out = append(out, string(book.Range))
+	}
+	return out
+}
+
+func (b *boardBuilder) emit(board, rng string, rows []domain.Row) error {
 	for _, row := range rows {
 		value := row.Value.Uint64()
 		if value > math.MaxInt64 {
@@ -227,7 +288,7 @@ func (b *boardBuilder) emit(board string, rows []domain.Row) error {
 			returnBps = &bps
 		}
 		b.entries = append(b.entries, Entry{
-			Board: board, Range: allRange, Rank: row.Rank, SubjectID: subject.id, SubjectName: subject.name,
+			Board: board, Range: rng, Rank: row.Rank, SubjectID: subject.id, SubjectName: subject.name,
 			SubjectHandle: subject.handle, SubjectPictureURL: subject.picture, SubjectCreatedAt: subject.createdAt,
 			ValueMicros: int64(value), PnLMicros: row.PnL.Int64(), ReturnBps: returnBps,
 			PricesAsOf: b.in.at, ComputedAt: b.in.at, Flags: fromFlags(row.Flags),

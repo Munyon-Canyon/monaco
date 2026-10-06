@@ -209,12 +209,12 @@ func keepsFlagged(ctx context.Context, q PreviousReader, valuation Valuation) er
 	if err != nil {
 		return err
 	}
-	kept := make(map[[2]string]bool, len(valuation.Entries))
+	kept := make(map[[3]string]bool, len(valuation.Entries))
 	for _, entry := range valuation.Entries {
-		kept[[2]string{entry.Board, entry.SubjectID.String()}] = true
+		kept[[3]string{entry.Board, entry.SubjectID.String(), entry.Range}] = true
 	}
 	for _, entry := range previous {
-		if !kept[[2]string{entry.Board, entry.SubjectID.String()}] {
+		if !kept[[3]string{entry.Board, entry.SubjectID.String(), entry.Range}] {
 			return errs.New(errs.CodeInvalidInput, "ranking.SnapshotWriter.Write", slog.String("board", entry.Board))
 		}
 	}

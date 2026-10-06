@@ -60,6 +60,17 @@ func TestPersistQueries_refusesToDropAFlaggedCabalsPreviousRowsBeforeTheDelete(t
 			[]Entry{{Board: "people"}},
 			errs.CodeInvalidInput,
 		},
+		"one range dropped": {
+			&snapshotQueriesFake{
+				previous: []sqlc.LeaderboardEntry{
+					{Board: "cabals", Range: "ALL", SubjectID: cabalID.UUID()},
+					{Board: "cabals", Range: "1D", SubjectID: cabalID.UUID()},
+				},
+				deleteErr: errs.New(errs.CodeInternal, "delete"),
+			},
+			[]Entry{{Board: "cabals", Range: "ALL", SubjectID: cabalID.UUID()}},
+			errs.CodeInvalidInput,
+		},
 		"read fails": {&snapshotQueriesFake{previousErr: errs.New(errs.CodeInternal, "read")}, []Entry{{}}, errs.CodeInternal},
 	} {
 		t.Run(name, func(t *testing.T) {
