@@ -14,6 +14,7 @@ import (
 )
 
 type Prices interface {
+	LatestPrices(context.Context) (map[market.AssetID]market.Price, error)
 	PricesAsOf(context.Context, []market.AssetID, time.Time) (map[market.AssetID]market.Price, error)
 }
 
@@ -24,6 +25,7 @@ type Calendar interface {
 type Market interface {
 	Prices
 	Calendar
+	ListAll(context.Context) ([]market.Asset, error)
 }
 
 type Treasury interface {

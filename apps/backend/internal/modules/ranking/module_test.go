@@ -58,7 +58,8 @@ func TestModule_wiresEveryValuationReadPort(t *testing.T) {
 		identity.New(d),
 	)
 	ports := rankingModule.Ports()
-	if ports.Treasury == nil || ports.Funding == nil || ports.Cabals == nil || ports.Users == nil {
+	if ports.Market == nil || ports.Treasury == nil || ports.Funding == nil || ports.Cabals == nil ||
+		ports.Users == nil {
 		t.Fatalf("ports = %+v, want every query port wired", ports)
 	}
 }
@@ -66,7 +67,8 @@ func TestModule_wiresEveryValuationReadPort(t *testing.T) {
 func TestModule_usesPortsOption(t *testing.T) {
 	t.Parallel()
 	ports := app.Ports{}
-	if got := ranking.New(module.Deps{}, ranking.WithPorts(ports)).Ports(); got != ports {
+	m := ranking.New(module.Deps{}, ranking.WithPorts(ports))
+	if got := m.Ports(); got != ports {
 		t.Fatalf("Ports = %+v, want %+v", got, ports)
 	}
 }
