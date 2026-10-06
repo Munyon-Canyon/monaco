@@ -75,7 +75,7 @@ func newHTTPFixture(t *testing.T) httpFixture {
 	return newHTTPFixtureIn(t, config.EnvTest, config.EnvTest)
 }
 
-func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env) httpFixture {
+func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env, extra ...identity.Option) httpFixture {
 	t.Helper()
 	f := newPortFixture(t)
 	clk := testkit.NewClock(f.now)
@@ -96,9 +96,11 @@ func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env) httpFixture
 			Config: config.Config{Env: moduleEnv}, Pool: f.pool, UoW: db.New(f.pool, f.ids, clk),
 			IDs: f.ids, Clock: clk,
 		},
-		identity.WithPrivy(fakeUsers, fakeWallets),
-		identity.WithHints(hints),
-		identity.WithPhotoStore(photos),
+		append([]identity.Option{
+			identity.WithPrivy(fakeUsers, fakeWallets),
+			identity.WithHints(hints),
+			identity.WithPhotoStore(photos),
+		}, extra...)...,
 	).Mount
 	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
