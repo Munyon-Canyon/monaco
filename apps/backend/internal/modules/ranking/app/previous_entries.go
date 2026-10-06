@@ -9,12 +9,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-type previousEntriesQuery interface {
+type PreviousReader interface {
 	PreviousEntriesForCabals(context.Context, sqlc.PreviousEntriesForCabalsParams) ([]sqlc.LeaderboardEntry, error)
 }
 
 func MembersBoard(cabalID uuid.UUID) string { return "cabal_members:" + cabalID.String() }
-func PreviousEntries(ctx context.Context, q previousEntriesQuery, cabals []ids.CabalID) ([]Entry, error) {
+func PreviousEntries(ctx context.Context, q PreviousReader, cabals []ids.CabalID) ([]Entry, error) {
 	if len(cabals) == 0 {
 		return []Entry{}, nil
 	}

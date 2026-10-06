@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
@@ -75,8 +76,10 @@ func (r RunValuation) Run(ctx context.Context, at time.Time) (Valuation, error) 
 
 type readData struct {
 	cabals    []cabalport.CabalView
+	members   map[ids.CabalID][]cabalport.MemberView
 	positions []treasury.CabalPositions
 	stakes    []treasury.MemberStake
+	users     map[ids.UserID]identity.UserCard
 	paused    funding.PausedSet
 	assets    []market.Asset
 }
@@ -86,7 +89,8 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
-	if _, err := r.ports.Cabals.MembersOf(ctx, cabalIDs(cabals)); err != nil {
+	members, err := r.ports.Cabals.MembersOf(ctx, cabalIDs(cabals))
+	if err != nil {
 		return readData{}, err
 	}
 	positions, err := r.ports.Treasury.CabalPositionsAt(ctx, at)
@@ -97,7 +101,8 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
-	if err := r.readUsers(ctx, stakes); err != nil {
+	users, err := r.readUsers(ctx, stakes, members)
+	if err != nil {
 		return readData{}, err
 	}
 	paused, err := r.ports.Funding.PausedCabals(ctx)
@@ -108,7 +113,10 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
-	return readData{cabals: cabals, positions: positions, stakes: stakes, paused: paused, assets: assets}, nil
+	return readData{
+		cabals: cabals, members: members, positions: positions, stakes: stakes, users: users,
+		paused: paused, assets: assets,
+	}, nil
 }
 
 func cabalIDs(cabals []cabalport.CabalView) []ids.CabalID {
@@ -121,7 +129,7 @@ func cabalIDs(cabals []cabalport.CabalView) []ids.CabalID {
 
 func (r RunValuation) value(ctx context.Context, data readData, at time.Time) (Valuation, error) {
 	byMint, _ := assetsByMint(data.assets)
-	inputs, idsForPrices, err := r.inputs(ctx, data.cabals, data.positions, data.paused, byMint)
+	inputs, idsForPrices, err := r.inputs(ctx, data, byMint)
 	if err != nil {
 		return Valuation{}, err
 	}
@@ -141,8 +149,13 @@ func (r RunValuation) value(ctx context.Context, data readData, at time.Time) (V
 	if err != nil {
 		return Valuation{}, err
 	}
+	entries, err := r.entries(ctx, data, values, flagged, at)
+	if err != nil {
+		return Valuation{}, err
+	}
 	return Valuation{
-		AsOf: at, PricesAsOf: at, Cabals: values, Flagged: flagged, Excluded: len(data.cabals) - len(values),
+		AsOf: at, PricesAsOf: at, Cabals: values, Flagged: flagged, Entries: entries,
+		Excluded: len(data.cabals) - len(values),
 	}, nil
 }
 
@@ -182,6 +195,30 @@ func logExcluded(ctx context.Context, cabalID ids.CabalID, code errs.Code) {
 		slog.String("cabal", cabalID.String()), slog.String("reason", string(code)))
 }
 
+func (r RunValuation) entries(
+	ctx context.Context,
+	data readData,
+	valued, flagged []CabalValue,
+	at time.Time,
+) ([]Entry, error) {
+	flaggedIDs := make([]ids.CabalID, len(flagged))
+	for i, cabal := range flagged {
+		flaggedIDs[i] = cabal.CabalID
+	}
+	previous, err := PreviousEntries(ctx, r.ports.Previous, flaggedIDs)
+	if err != nil {
+		return nil, err
+	}
+	views := make(map[ids.CabalID]cabalport.CabalView, len(data.cabals))
+	for _, cabal := range data.cabals {
+		views[cabal.ID] = cabal
+	}
+	return buildEntries(boardInput{
+		at: at, views: views, members: data.members, stakes: data.stakes, users: data.users,
+		valued: valued, flagged: flagged, previous: previous,
+	})
+}
+
 func (r RunValuation) sessions(
 	ctx context.Context,
 	assetIDs []market.AssetID,
@@ -200,21 +237,19 @@ func (r RunValuation) sessions(
 
 func (r RunValuation) inputs(
 	ctx context.Context,
-	cabals []cabalport.CabalView,
-	positions []treasury.CabalPositions,
-	paused funding.PausedSet,
+	data readData,
 	byMint map[string]market.Asset,
 ) ([]valuationInput, []market.AssetID, error) {
-	byCabal := positionsByCabal(positions)
-	inputs := make([]valuationInput, 0, len(cabals))
+	byCabal := positionsByCabal(data.positions)
+	inputs := make([]valuationInput, 0, len(data.cabals))
 	idsForPrices := []market.AssetID{}
 	seenAsset := map[market.AssetID]bool{}
-	for _, cabal := range cabals {
+	for _, cabal := range data.cabals {
 		position, found := byCabal[cabal.ID]
-		if paused.Global || paused.Cabals[cabal.ID] != nil {
+		if data.paused.Global || data.paused.Cabals[cabal.ID] != nil {
 			logExcluded(ctx, cabal.ID, errs.CodeCabalPaused)
 		}
-		input, assetIDs, ok, err := r.input(cabal, position, found, paused, byMint)
+		input, assetIDs, ok, err := r.input(cabal, position, found, data.paused, byMint)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -325,23 +360,38 @@ func (r RunValuation) values(
 	return values, flagged, nil
 }
 
-func (r RunValuation) readUsers(ctx context.Context, stakes []treasury.MemberStake) error {
+func (r RunValuation) readUsers(
+	ctx context.Context,
+	stakes []treasury.MemberStake,
+	members map[ids.CabalID][]cabalport.MemberView,
+) (map[ids.UserID]identity.UserCard, error) {
 	userIDs := make([]ids.UserID, 0, len(stakes))
 	seen := map[ids.UserID]bool{}
-	for _, stake := range stakes {
-		if !seen[stake.UserID] {
-			seen[stake.UserID] = true
-			userIDs = append(userIDs, stake.UserID)
+	add := func(id ids.UserID) {
+		if !seen[id] {
+			seen[id] = true
+			userIDs = append(userIDs, id)
 		}
 	}
+	for _, stake := range stakes {
+		add(stake.UserID)
+	}
+	for _, list := range members {
+		for _, member := range list {
+			add(member.UserID)
+		}
+	}
+	users := make(map[ids.UserID]identity.UserCard, len(userIDs))
 	for len(userIDs) > 0 {
 		limit := min(len(userIDs), 500)
-		if _, err := r.ports.Users.UsersByID(ctx, userIDs[:limit]); err != nil {
-			return err
+		page, err := r.ports.Users.UsersByID(ctx, userIDs[:limit])
+		if err != nil {
+			return nil, err
 		}
+		maps.Copy(users, page)
 		userIDs = userIDs[limit:]
 	}
-	return nil
+	return users, nil
 }
 
 func assetsByMint(assets []market.Asset) (map[string]market.Asset, []market.AssetID) {

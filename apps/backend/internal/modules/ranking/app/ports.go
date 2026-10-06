@@ -66,4 +66,5 @@ type Ports struct {
 	Cabals   Cabals
 	Users    Users
 	Follows  Follows
+	Previous PreviousReader
 }
