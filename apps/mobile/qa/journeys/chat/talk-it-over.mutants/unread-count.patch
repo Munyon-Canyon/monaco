@@ -1,7 +1,7 @@
 journey: chat/talk-it-over
 expect-fail: S5
 
-The card announces one more unread message than there are. S5.3 expects "2 unread messages" after two sends, so it must fail.
+The card announces one more unread message than there are. S5.2 expects "2 unread messages" after two sends, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalCopy.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalCopy.swift
