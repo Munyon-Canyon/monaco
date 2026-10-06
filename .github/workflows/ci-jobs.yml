@@ -577,6 +577,7 @@ jobs:
               - 'packages/flows/**'
               - '.xcode-version'
               - 'scripts/ci/select-xcode.sh'
+              - 'scripts/ci/start-ios-sim.sh'
               - 'scripts/resolve-ios-sim.sh'
               - 'scripts/ensure-ios-privy-config.sh'
               - '.github/workflows/ci-ios.yml'

@@ -44,8 +44,7 @@ jobs:
             echo "DERIVED_DATA=$work/DerivedData"
             echo "DERIVED_DATA_IMAGE=$work/derived-data-image/DerivedData.sparseimage"
           } >> "$GITHUB_ENV"
-          nohup bash -c 'sim="$(scripts/resolve-ios-sim.sh)" && echo "$sim" > "$RUNNER_TEMP/sim.tmp" && mv "$RUNNER_TEMP/sim.tmp" "$RUNNER_TEMP/sim" && xcrun simctl boot "$sim"' \
-            > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
+          nohup scripts/ci/start-ios-sim.sh "$RUNNER_TEMP" > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
 
       # The whole DerivedData of the last staging run lives in one APFS disk image: the Swift package
       # checkouts and git mirrors, the module caches, and Build with the compiled packages, the
