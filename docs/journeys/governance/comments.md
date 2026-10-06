@@ -51,7 +51,7 @@ The format of this doc is in [App journeys](../README.md).
 ## Known failures on staging
 
 - S1.1 and S2.1: no proposal cell to open, because the setup cannot seed a proposal. Blocked by #612.
-- S1.2, S1.3, S2.2, S2.3 and S2.4: `ProposalCommentsSlot` is not live and draws nothing, and the app has no route to read or post a feed item's comments. The thread's header reads "Discussion" in `CommentThreadView`, not the spec's "Comments". Blocked by #711.
+- S1.2, S1.3, S2.2, S2.3 and S2.4 read the live `ProposalCommentsSlot` (#711) and pass once S1.1 and S2.1 can open a proposal.
 
 ## Not covered
 
