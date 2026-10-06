@@ -19,3 +19,9 @@ WHERE s.cabal_id = ANY(sqlc.arg(cabal_ids)::uuid[])
      WHERE prior.cabal_id = s.cabal_id AND prior.at <= sqlc.arg(since)::timestamptz),
     sqlc.arg(since)::timestamptz)
 ORDER BY s.cabal_id, s.at;
+
+-- name: LatestValuesOfCabals :many
+SELECT DISTINCT ON (cabal_id) cabal_id, at, value_micros, nav_per_share_micros, total_shares
+FROM cabal_value_snapshots
+WHERE cabal_id = ANY(sqlc.arg(cabal_ids)::uuid[])
+ORDER BY cabal_id, at DESC;

@@ -1,8 +1,15 @@
 package adapters
 
 import (
+	"math"
 	"testing"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func TestSnapshotFrom(t *testing.T) {
@@ -20,5 +27,20 @@ func TestSnapshotFrom(t *testing.T) {
 		if _, err := snapshotFrom(at, row[0], row[1], row[2]); err == nil {
 			t.Errorf("%s: snapshotFrom accepted a negative amount", name)
 		}
+	}
+}
+
+func TestWirePortfolio_failsOnATotalOrRowThatDoesNotFit(t *testing.T) {
+	t.Parallel()
+	cabalID := ids.CabalIDFrom(ids.Real{}.NewV7())
+	view := app.PortfolioView{Cabals: map[ids.CabalID]app.CabalView{}}
+	view.Total = money.MicrosFromUint64(math.MaxUint64)
+	if _, err := wirePortfolio(view); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("huge total: err = %v, want internal", err)
+	}
+	view.Total = money.MicrosFromUint64(1)
+	view.Rows = []domain.PortfolioRow{{CabalID: cabalID, Shares: money.SharesUnitsFromUint64(math.MaxUint64)}}
+	if _, err := wirePortfolio(view); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("huge shares: err = %v, want internal", err)
 	}
 }

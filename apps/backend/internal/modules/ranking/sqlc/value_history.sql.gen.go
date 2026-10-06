@@ -12,6 +12,39 @@ import (
 	"github.com/google/uuid"
 )
 
+const latestValuesOfCabals = `-- name: LatestValuesOfCabals :many
+SELECT DISTINCT ON (cabal_id) cabal_id, at, value_micros, nav_per_share_micros, total_shares
+FROM cabal_value_snapshots
+WHERE cabal_id = ANY($1::uuid[])
+ORDER BY cabal_id, at DESC
+`
+
+func (q *Queries) LatestValuesOfCabals(ctx context.Context, cabalIds []uuid.UUID) ([]CabalValueSnapshot, error) {
+	rows, err := q.db.Query(ctx, latestValuesOfCabals, cabalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalValueSnapshot
+	for rows.Next() {
+		var i CabalValueSnapshot
+		if err := rows.Scan(
+			&i.CabalID,
+			&i.At,
+			&i.ValueMicros,
+			&i.NavPerShareMicros,
+			&i.TotalShares,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const snapshotsOfCabals = `-- name: SnapshotsOfCabals :many
 SELECT s.cabal_id, s.at, s.value_micros, s.nav_per_share_micros, s.total_shares
 FROM cabal_value_snapshots AS s

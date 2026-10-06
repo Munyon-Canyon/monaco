@@ -24,6 +24,10 @@ func (s stubSnapshots) SnapshotsOfCabals(
 	return map[ids.CabalID][]domain.Snapshot{}, nil
 }
 
+func (s stubSnapshots) LatestValuesOf(context.Context, []ids.CabalID) (map[ids.CabalID]domain.Snapshot, error) {
+	return map[ids.CabalID]domain.Snapshot{}, nil
+}
+
 func (s stubSnapshots) SnapshotsSince(context.Context, ids.CabalID, time.Time, time.Time) ([]domain.Snapshot, error) {
 	return s.rows, nil
 }
@@ -164,5 +168,87 @@ func TestGetMyPnlHistory_mapsPointsAndFailsOnUnrepresentableOnes(t *testing.T) {
 	}
 	if _, err = run(math.MaxInt64+10, 20_000); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("huge equity: err = %v, want internal", err)
+	}
+}
+
+type fixedLatest struct {
+	stubSnapshots
+	values map[ids.CabalID]domain.Snapshot
+}
+
+func (f fixedLatest) LatestValuesOf(context.Context, []ids.CabalID) (map[ids.CabalID]domain.Snapshot, error) {
+	return f.values, nil
+}
+
+type stubCards map[ids.CabalID]app.CabalView
+
+func (s stubCards) Cabals(context.Context, []ids.CabalID) (map[ids.CabalID]app.CabalView, error) {
+	return s, nil
+}
+
+func TestGetMyPortfolio_needsASignedInUser(t *testing.T) {
+	t.Parallel()
+	h := historyHTTP(0)
+	if _, err := h.GetMyPortfolio(
+		t.Context(),
+		api.GetMyPortfolioRequestObject{},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUnauthorized {
+		t.Fatalf("anonymous: err = %v, want unauthorized", err)
+	}
+	ctx := asActor(t.Context(), auth.ActorUser, ids.Real{}.NewV7().String())
+	h.Boards = stubBoards{err: errs.New(errs.CodeInternal, "test")}
+	if _, err := h.GetMyPortfolio(ctx, api.GetMyPortfolioRequestObject{}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("store: err = %v, want internal", err)
+	}
+}
+
+func portfolioReq(
+	t *testing.T, value uint64, net int64, picture string,
+) (api.GetMyPortfolioResponseObject, error) {
+	t.Helper()
+	ctx := asActor(t.Context(), auth.ActorUser, ids.Real{}.NewV7().String())
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	cabalID := ids.CabalIDFrom(ids.Real{}.NewV7())
+	stake := app.StakePoint{
+		CabalID: cabalID, At: at, ShareUnits: money.SharesUnitsFromUint64(1),
+		NetContributed: money.SignedMicrosFromInt64(net),
+	}
+	snap := domain.Snapshot{At: at, Value: money.MicrosFromUint64(value), TotalShares: money.SharesUnitsFromUint64(1)}
+	h := historyHTTP(0)
+	h.Stakes = stubStakes{points: []app.StakePoint{stake}}
+	h.Snapshots = fixedLatest{values: map[ids.CabalID]domain.Snapshot{cabalID: snap}}
+	h.Cards = stubCards{cabalID: {ID: cabalID, Name: "Alpha", PictureURL: picture}}
+	return h.GetMyPortfolio(ctx, api.GetMyPortfolioRequestObject{})
+}
+
+func TestGetMyPortfolio_mapsRows(t *testing.T) {
+	t.Parallel()
+	got, err := portfolioReq(t, 300, 100, "https://example.test/a.png")
+	out, ok := got.(api.GetMyPortfolio200JSONResponse)
+	if err != nil || !ok || out.TotalValueMicros != 300 || out.PnlMicros != 200 || *out.ReturnBps != 20_000 ||
+		len(out.Cabals) != 1 {
+		t.Fatalf("response = %+v, %v", got, err)
+	}
+	if row := out.Cabals[0]; row.Cabal.Name != "Alpha" || row.Cabal.PictureUrl == nil || row.SliceBps != 10_000 ||
+		row.ShareUnits != 1 || row.NetContributedMicros != 100 {
+		t.Fatalf("row = %+v", row)
+	}
+}
+
+func TestGetMyPortfolio_mapsNullsForNothingContributedAndNoPicture(t *testing.T) {
+	t.Parallel()
+	got, err := portfolioReq(t, 300, 0, "")
+	out, _ := got.(api.GetMyPortfolio200JSONResponse)
+	if err != nil || out.ReturnBps != nil || out.Cabals[0].ReturnBps != nil || out.Cabals[0].Cabal.PictureUrl != nil {
+		t.Fatalf("with nothing contributed and no picture = %+v, %v", got, err)
+	}
+}
+
+func TestGetMyPortfolio_failsOnAValueThatDoesNotFit(t *testing.T) {
+	t.Parallel()
+	if _, err := portfolioReq(t, math.MaxInt64+10, 20_000, ""); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("huge value: err = %v, want internal", err)
 	}
 }

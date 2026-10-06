@@ -361,6 +361,24 @@ func (e GetMyPnlHistoryParamsRange) Valid() bool {
 	}
 }
 
+// CabalRef A cabal's name and picture.
+type CabalRef struct {
+	// Id The cabal.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The cabal's name.
+	//
+	// Examples: Alpha
+	Name string `json:"name"`
+
+	// PictureUrl The picture. Null when there is none.
+	//
+	// Examples: null
+	PictureUrl *string `json:"picture_url"`
+}
+
 // CabalValueHistory A cabal's value curve.
 type CabalValueHistory struct {
 	// CabalId The cabal.
@@ -545,6 +563,39 @@ type MyPnlHistory struct {
 // Examples: ALL
 type MyPnlHistoryRange string
 
+// MyPortfolio The caller's stakes, valued by the latest run.
+type MyPortfolio struct {
+	// Cabals The cabals the caller holds, largest first.
+	//
+	// Examples: []
+	Cabals []PortfolioCabal `json:"cabals"`
+
+	// ComputedAt When the run finished. Null before the first run.
+	//
+	// Examples: 2026-10-04T12:00:00Z
+	ComputedAt *time.Time `json:"computed_at"`
+
+	// PnlMicros Total value minus the net contributed, negative for a loss.
+	//
+	// Examples: -5
+	PnlMicros int64 `json:"pnl_micros"`
+
+	// PricesAsOf The price time of the run. Null before the first run.
+	//
+	// Examples: 2026-10-04T11:59:00Z
+	PricesAsOf *time.Time `json:"prices_as_of"`
+
+	// ReturnBps The return in basis points. Null when nothing is contributed.
+	//
+	// Examples: 250
+	ReturnBps *int64 `json:"return_bps"`
+
+	// TotalValueMicros The sum of the cabals' values in USDC micros.
+	//
+	// Examples: 1000000
+	TotalValueMicros int64 `json:"total_value_micros"`
+}
+
 // PnlPoint The caller's equity and P&L at the end of one bucket.
 type PnlPoint struct {
 	// At The end of the bucket.
@@ -561,6 +612,42 @@ type PnlPoint struct {
 	//
 	// Examples: -5
 	PnlMicros int64 `json:"pnl_micros"`
+}
+
+// PortfolioCabal The caller's stake in one cabal.
+type PortfolioCabal struct {
+	// Cabal A cabal's name and picture.
+	Cabal CabalRef `json:"cabal"`
+
+	// NetContributedMicros Contributed minus withdrawn in USDC micros.
+	//
+	// Examples: 900000
+	NetContributedMicros int64 `json:"net_contributed_micros"`
+
+	// PnlMicros Value minus the net contributed, negative for a loss.
+	//
+	// Examples: -5
+	PnlMicros int64 `json:"pnl_micros"`
+
+	// ReturnBps The return in basis points. Null when nothing is contributed.
+	//
+	// Examples: 250
+	ReturnBps *int64 `json:"return_bps"`
+
+	// ShareUnits The caller's share units.
+	//
+	// Examples: 100
+	ShareUnits int64 `json:"share_units"`
+
+	// SliceBps The cabal's share of the total value in basis points.
+	//
+	// Examples: 5000
+	SliceBps int64 `json:"slice_bps"`
+
+	// ValueMicros The stake's value in USDC micros.
+	//
+	// Examples: 1000000
+	ValueMicros int64 `json:"value_micros"`
 }
 
 // LeaderboardCursor Examples: MjA
@@ -664,6 +751,9 @@ type ServerInterface interface {
 	// GetMyPnlHistory Read the caller's P&L history.
 	// (GET /v1/me/pnl-history)
 	GetMyPnlHistory(w http.ResponseWriter, r *http.Request, params GetMyPnlHistoryParams)
+	// GetMyPortfolio Read the caller's portfolio.
+	// (GET /v1/me/portfolio)
+	GetMyPortfolio(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -949,6 +1039,20 @@ func (siw *ServerInterfaceWrapper) GetMyPnlHistory(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyPortfolio operation middleware
+func (siw *ServerInterfaceWrapper) GetMyPortfolio(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyPortfolio(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1074,6 +1178,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/cabals", wrapper.GetCabalsLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pnl-history", wrapper.GetMyPnlHistory)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/portfolio", wrapper.GetMyPortfolio)
 
 	return m
 }
@@ -1275,6 +1380,44 @@ func (response GetMyPnlHistorydefaultApplicationProblemPlusJSONResponse) VisitGe
 	return err
 }
 
+type GetMyPortfolioRequestObject struct {
+}
+
+type GetMyPortfolioResponseObject interface {
+	VisitGetMyPortfolioResponse(w http.ResponseWriter) error
+}
+
+type GetMyPortfolio200JSONResponse MyPortfolio
+
+func (response GetMyPortfolio200JSONResponse) VisitGetMyPortfolioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyPortfoliodefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyPortfoliodefaultApplicationProblemPlusJSONResponse) VisitGetMyPortfolioResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetCabalLeaderboard Read a cabal's members leaderboard.
@@ -1292,6 +1435,9 @@ type StrictServerInterface interface {
 	// GetMyPnlHistory Read the caller's P&L history.
 	// (GET /v1/me/pnl-history)
 	GetMyPnlHistory(ctx context.Context, request GetMyPnlHistoryRequestObject) (GetMyPnlHistoryResponseObject, error)
+	// GetMyPortfolio Read the caller's portfolio.
+	// (GET /v1/me/portfolio)
+	GetMyPortfolio(ctx context.Context, request GetMyPortfolioRequestObject) (GetMyPortfolioResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1458,6 +1604,30 @@ func (sh *strictHandler) GetMyPnlHistory(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyPnlHistoryResponseObject); ok {
 		if err := validResponse.VisitGetMyPnlHistoryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyPortfolio operation middleware
+func (sh *strictHandler) GetMyPortfolio(w http.ResponseWriter, r *http.Request) {
+	var request GetMyPortfolioRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyPortfolio(ctx, request.(GetMyPortfolioRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyPortfolio")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyPortfolioResponseObject); ok {
+		if err := validResponse.VisitGetMyPortfolioResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

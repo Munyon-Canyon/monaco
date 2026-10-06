@@ -81,3 +81,26 @@ func (b Boards) SnapshotsOfCabals(
 	}
 	return out, nil
 }
+
+var _ app.LatestSnapshots = Boards{}
+
+func (b Boards) LatestValuesOf(ctx context.Context, cabals []ids.CabalID) (map[ids.CabalID]domain.Snapshot, error) {
+	const op = "ranking.Boards.LatestValuesOf"
+	keys := make([]uuid.UUID, 0, len(cabals))
+	for _, c := range cabals {
+		keys = append(keys, c.UUID())
+	}
+	rows, err := sqlc.New(b.DB).LatestValuesOfCabals(ctx, keys)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	out := make(map[ids.CabalID]domain.Snapshot, len(rows))
+	for _, row := range rows {
+		snap, err := snapshotFrom(row.At, row.ValueMicros, row.NavPerShareMicros, row.TotalShares)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInternal, op)
+		}
+		out[ids.CabalIDFrom(row.CabalID)] = snap
+	}
+	return out, nil
+}

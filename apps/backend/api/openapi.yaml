@@ -1679,6 +1679,27 @@ paths:
                 $ref: "#/components/schemas/MyPnlHistory"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/portfolio:
+    get:
+      operationId: getMyPortfolio
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read the caller's portfolio.
+      description: >-
+        Returns the caller's stake in each cabal they hold, as the latest run valued it, with the
+        total, the P&L, the return and each cabal's share of the total in basis points. The slices
+        sum to 10000, with the remainder on the largest cabal, and are all 0 when the total is 0.
+        Cash on the platform is not included. A cabal with no snapshot yet is left out of the rows
+        and the total. Before the first run `cabals` is empty, the total is 0 and the times are null.
+      responses:
+        "200":
+          description: The caller's portfolio.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyPortfolio"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/referrals.yaml
   /v1/me/referral-code:
     get:
@@ -4375,6 +4396,15 @@ components:
         environment:
           $ref: "#/components/schemas/DeviceEnvironment"
   # api/spec/ranking.yaml
+    CabalRef:
+      type: object
+      description: A cabal's name and picture.
+      additionalProperties: false
+      required: [id, name, picture_url]
+      properties:
+        id: {type: string, format: uuid, description: The cabal., examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        name: {type: string, description: The cabal's name., examples: [Alpha]}
+        picture_url: {type: [string, "null"], description: The picture. Null when there is none., examples: [null]}
     CabalValueHistory:
       type: object
       description: A cabal's value curve.
@@ -4504,6 +4534,23 @@ components:
           examples: [[]]
           items:
             $ref: "#/components/schemas/PnlPoint"
+    MyPortfolio:
+      type: object
+      description: The caller's stakes, valued by the latest run.
+      additionalProperties: false
+      required: [total_value_micros, pnl_micros, return_bps, computed_at, prices_as_of, cabals]
+      properties:
+        total_value_micros: {type: integer, format: int64, description: The sum of the cabals' values in USDC micros., examples: [1000000]}
+        pnl_micros: {type: integer, format: int64, description: "Total value minus the net contributed, negative for a loss.", examples: [-5]}
+        return_bps: {type: [integer, "null"], format: int64, description: The return in basis points. Null when nothing is contributed., examples: [250]}
+        computed_at: {type: [string, "null"], format: date-time, description: When the run finished. Null before the first run., examples: ["2026-10-04T12:00:00Z"]}
+        prices_as_of: {type: [string, "null"], format: date-time, description: The price time of the run. Null before the first run., examples: ["2026-10-04T11:59:00Z"]}
+        cabals:
+          type: array
+          description: The cabals the caller holds, largest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/PortfolioCabal"
     PnlPoint:
       type: object
       description: The caller's equity and P&L at the end of one bucket.
@@ -4513,6 +4560,20 @@ components:
         at: {type: string, format: date-time, description: The end of the bucket., examples: ["2026-10-04T12:00:00Z"]}
         equity_micros: {type: integer, format: int64, description: The caller's share of every pot in USDC micros., examples: [1000000]}
         pnl_micros: {type: integer, format: int64, description: "Equity minus the net contributed, negative for a loss.", examples: [-5]}
+    PortfolioCabal:
+      type: object
+      description: The caller's stake in one cabal.
+      additionalProperties: false
+      required: [cabal, value_micros, share_units, net_contributed_micros, pnl_micros, return_bps, slice_bps]
+      properties:
+        cabal:
+          $ref: "#/components/schemas/CabalRef"
+        value_micros: {type: integer, format: int64, description: The stake's value in USDC micros., examples: [1000000]}
+        share_units: {type: integer, format: int64, description: The caller's share units., examples: [100]}
+        net_contributed_micros: {type: integer, format: int64, description: Contributed minus withdrawn in USDC micros., examples: [900000]}
+        pnl_micros: {type: integer, format: int64, description: "Value minus the net contributed, negative for a loss.", examples: [-5]}
+        return_bps: {type: [integer, "null"], format: int64, description: The return in basis points. Null when nothing is contributed., examples: [250]}
+        slice_bps: {type: integer, format: int64, description: The cabal's share of the total value in basis points., examples: [5000]}
   # api/spec/referrals.yaml
     MyReferralCode:
       type: object

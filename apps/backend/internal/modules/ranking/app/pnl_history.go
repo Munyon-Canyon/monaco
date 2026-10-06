@@ -25,6 +25,24 @@ type CabalSnapshots interface {
 type SnapshotReads interface {
 	Snapshots
 	CabalSnapshots
+	LatestSnapshots
+}
+
+func stakePoints(history []StakePoint) ([]domain.StakePoint, []ids.CabalID) {
+	points := make([]domain.StakePoint, 0, len(history))
+	seen := map[ids.CabalID]bool{}
+	cabals := []ids.CabalID{}
+	for _, p := range history {
+		points = append(
+			points,
+			domain.StakePoint{CabalID: p.CabalID, At: p.At, Shares: p.ShareUnits, Net: p.NetContributed},
+		)
+		if !seen[p.CabalID] {
+			seen[p.CabalID] = true
+			cabals = append(cabals, p.CabalID)
+		}
+	}
+	return points, cabals
 }
 
 type ReadPnLHistory struct {
@@ -43,19 +61,7 @@ func (r ReadPnLHistory) Run(
 	if err != nil || len(history) == 0 {
 		return []domain.PnLPoint{}, err
 	}
-	points := make([]domain.StakePoint, 0, len(history))
-	seen := map[ids.CabalID]bool{}
-	cabals := []ids.CabalID{}
-	for _, p := range history {
-		points = append(
-			points,
-			domain.StakePoint{CabalID: p.CabalID, At: p.At, Shares: p.ShareUnits, Net: p.NetContributed},
-		)
-		if !seen[p.CabalID] {
-			seen[p.CabalID] = true
-			cabals = append(cabals, p.CabalID)
-		}
-	}
+	points, cabals := stakePoints(history)
 	since, ok := r.Range.Start(run.AsOf)
 	if !ok {
 		since = time.Unix(0, 0).UTC()
