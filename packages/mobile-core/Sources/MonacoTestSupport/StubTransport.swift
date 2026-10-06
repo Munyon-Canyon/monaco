@@ -50,7 +50,7 @@ public actor StubTransport: ClientTransport {
 
     private var mode: Mode
     private var gates: [CheckedContinuation<(HTTPResponse, HTTPBody?), Error>] = []
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     public private(set) var sent: [HTTPRequest] = []
     public private(set) var sentBodies: [Data?] = []
 
@@ -79,8 +79,9 @@ public actor StubTransport: ClientTransport {
         } else {
             sentBodies.append(nil)
         }
-        for waiter in waiters { waiter.resume() }
-        waiters.removeAll()
+        let ready = waiters.filter { $0.count <= sent.count }
+        waiters.removeAll { $0.count <= sent.count }
+        for waiter in ready { waiter.continuation.resume() }
         switch try nextReply() {
         case .response(let response, let body):
             return (response, HTTPBody(body))
@@ -98,8 +99,12 @@ public actor StubTransport: ClientTransport {
     }
 
     public func waitForRequest() async {
-        if !sent.isEmpty { return }
-        await withCheckedContinuation { waiters.append($0) }
+        await waitForRequests(1)
+    }
+
+    public func waitForRequests(_ count: Int) async {
+        if sent.count >= count { return }
+        await withCheckedContinuation { waiters.append((count, $0)) }
     }
 
     public func releaseGate(_ reply: Reply) {
