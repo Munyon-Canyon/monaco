@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 5
+    static let version = 6
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -11,6 +11,7 @@ enum SignInJourney {
     enum Screen {
         case login
         case firstRunStep
+        case findFriends
         case tabs
     }
 
@@ -32,6 +33,7 @@ enum SignInJourney {
             (app.buttons[firstRunSignOuts[0]], .firstRunStep),
             (app.buttons[firstRunSignOuts[1]], .firstRunStep),
             (app.buttons[firstRunSignOuts[2]], .firstRunStep),
+            (app.buttons["friends-not-now"], .findFriends),
             (app.textFields["smsPhoneField"], .login),
             (app.textFields["emailAddressField"], .login),
         ]
@@ -50,6 +52,9 @@ enum SignInJourney {
         switch currentScreen(app) {
         case .login:
             return
+        case .findFriends:
+            app.buttons["friends-not-now"].tap()
+            reachLogin(app, recorder: recorder)
         case .tabs:
             signOut(app, recorder: recorder)
         case .firstRunStep:
@@ -119,15 +124,26 @@ enum SignInJourney {
         enterCode(app, as: account, recorder: recorder)
         let prefix = account.channel.rawValue
 
-        recorder.step("S1.4", "open the backend session and land on the tab bar") {
-            let landed = currentScreen(app, timeout: signedInTimeout)
+        var landed: Screen?
+        recorder.step("S1.4", "open the backend session and land past the first-run gate") {
+            landed = currentScreen(app, timeout: signedInTimeout)
             XCTAssertNotEqual(
                 landed, .firstRunStep,
                 "S1.4: the first-run gate opened the handle or phone step. Actor A needs a handle and an auth_state past CREATED (P4)"
             )
-            XCTAssertEqual(
-                landed, .tabs, "S1.4: the tab bar did not show within \(Int(signedInTimeout)) s of the code")
-            XCTAssertFalse(app.textFields["\(prefix)CodeField"].exists, "S1.4: the code field is still on screen")
+            XCTAssertTrue(
+                landed == .tabs || landed == .findFriends,
+                "S1.4: the tab bar did not show within \(Int(signedInTimeout)) s of the code")
+        }
+
+        recorder.step("S1.5", "skip Find friends") {
+            if landed == .findFriends {
+                app.buttons["friends-not-now"].tap()
+            }
+            XCTAssertTrue(
+                app.tab("Home").waitForExistence(timeout: signedInTimeout),
+                "S1.5: the tab bar did not show within \(Int(signedInTimeout)) s of skipping Find friends")
+            XCTAssertFalse(app.textFields["\(prefix)CodeField"].exists, "S1.5: the code field is still on screen")
         }
 
         recorder.step("S1.6", "the tab bar has every tab") {
