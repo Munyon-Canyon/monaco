@@ -315,6 +315,11 @@ func TestChatReads_refuseBadRequests(t *testing.T) {
 			t.Errorf("%s: err = %v, want %s", tt.name, err, tt.want)
 		}
 	}
+	other, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{Body: "other thread"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherReply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "elsewhere", ParentId: &other.Id})
 	threads := []struct {
 		name   string
 		viewer ids.UserID
@@ -330,6 +335,11 @@ func TestChatReads_refuseBadRequests(t *testing.T) {
 			"unknown before", f.member(0), m.Id,
 			api.GetChatThreadParams{Before: &unknown},
 			errs.CodeChatMessageNotFound,
+		},
+		{
+			"before from another thread", f.member(0), m.Id,
+			api.GetChatThreadParams{Before: &otherReply.Id},
+			errs.CodeInvalidInput,
 		},
 	}
 	for _, tt := range threads {
@@ -396,9 +406,16 @@ func TestChatRoutes_failWhenADependencyFails(t *testing.T) {
 		t.Fatalf("delete by another member: err = %v, want chat_message_not_owned", err)
 	}
 	f.users.Fail("UsersByID", errs.New(errs.CodeUpstreamUnavailable, "test"))
-	if _, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{Body: "gm"}); errs.CodeOf(err) !=
-		errs.CodeUpstreamUnavailable {
-		t.Fatalf("post: err = %v, want the author lookup failure", err)
+	posted, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{Body: "gm again"})
+	if err != nil {
+		t.Fatalf("post: err = %v, want the stored message despite the author lookup failure", err)
+	}
+	if posted.Author.Id != f.member(0).UUID() || posted.Author.Handle != nil ||
+		posted.Body == nil || *posted.Body != "gm again" {
+		t.Fatalf("post = %+v, want the stored message with a bare author", posted)
+	}
+	if n := f.count(t, `SELECT count(*) FROM cabal_messages WHERE id = $1`, posted.Id); n != 1 {
+		t.Fatalf("%d rows stored, want 1", n)
 	}
 	if _, err := f.channel(t, f.member(0), api.GetChatMessagesParams{}); errs.CodeOf(err) !=
 		errs.CodeUpstreamUnavailable {

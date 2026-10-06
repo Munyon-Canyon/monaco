@@ -48,12 +48,11 @@ func CabalChannel(cabal ids.CabalID) string { return "cabal:" + cabal.String() }
 
 func (p ChatPublisher) created(ctx context.Context, m ChatMessage, thread *ThreadUpdated) {
 	ctx = context.WithoutCancel(ctx)
-	payload, err := p.wire(ctx, m)
-	if err != nil {
+	if payload, err := p.wire(ctx, m); err != nil {
 		failedPublish(ctx, m.ID, EventMessageCreated, err)
-		return
+	} else {
+		p.send(ctx, m.CabalID, m.ID, EventMessageCreated, payload)
 	}
-	p.send(ctx, m.CabalID, m.ID, EventMessageCreated, payload)
 	if thread != nil {
 		p.send(ctx, m.CabalID, m.ID, EventThreadUpdated, thread)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 func (h HTTP) PostChatMessage(
@@ -29,7 +30,9 @@ func (h HTTP) PostChatMessage(
 	}
 	wire, err := h.wireChat(ctx, []app.ChatMessage{posted})
 	if err != nil {
-		return nil, err
+		observability.Degraded(ctx, observability.SocialChatAuthorUnreadable,
+			slog.String("message_id", posted.ID.String()), slog.String("cause", err.Error()))
+		wire = wireChatWith(nil, []app.ChatMessage{posted})
 	}
 	return api.PostChatMessage201JSONResponse(wire[0]), nil
 }
@@ -185,6 +188,10 @@ func wireChat(ctx context.Context, users app.Users, messages []app.ChatMessage) 
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireChat")
 	}
+	return wireChatWith(cards, messages), nil
+}
+
+func wireChatWith(cards map[ids.UserID]app.UserCard, messages []app.ChatMessage) []api.ChatMessage {
 	out := make([]api.ChatMessage, len(messages))
 	for i, m := range messages {
 		author := api.ChatAuthor{Id: m.AuthorID.UUID()}
@@ -201,7 +208,7 @@ func wireChat(ctx context.Context, users app.Users, messages []app.ChatMessage) 
 			out[i].Body = &m.Body
 		}
 	}
-	return out, nil
+	return out
 }
 
 func (h HTTP) CreateRealtimeToken(

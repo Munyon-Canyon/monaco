@@ -99,10 +99,12 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.Bool("deleted", true))
 	}
 	params := sqlc.ListChatRepliesParams{ParentID: q.ParentID, RowLimit: limit}
-	if params.HasBefore, params.BeforeAt, params.BeforeID, err = optionalCursor(
-		ctx, reads, q.CabalID, q.Before,
-	); err != nil {
-		return ChatThread{}, err
+	if q.Before != nil {
+		at, err := threadCursor(ctx, reads, q)
+		if err != nil {
+			return ChatThread{}, err
+		}
+		params.HasBefore, params.BeforeAt, params.BeforeID = true, at.At, at.ID
 	}
 	replies, err := reads.ListChatReplies(ctx, params)
 	if err != nil {
@@ -131,16 +133,33 @@ func optionalCursor(
 	return err == nil, at.At, at.ID, err
 }
 
-func chatCursor(ctx context.Context, reads *sqlc.Queries, cabal ids.CabalID, id uuid.UUID) (domain.Keyset, error) {
-	const op = "social.chatCursor"
-	row, err := reads.GetChatCursor(ctx, sqlc.GetChatCursorParams{ID: id, CabalID: cabal.UUID()})
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Keyset{}, errs.New(errs.CodeChatMessageNotFound, op, slog.String("cursor", id.String()))
-	}
+func threadCursor(ctx context.Context, reads *sqlc.Queries, q ChatThreadQuery) (domain.Keyset, error) {
+	row, err := reads.GetChatMessage(ctx, sqlc.GetChatMessageParams{ID: *q.Before, CabalID: q.CabalID.UUID()})
 	if err != nil {
-		return domain.Keyset{}, errs.Wrap(err, errs.CodeInternal, op)
+		return domain.Keyset{}, cursorError(err, *q.Before)
+	}
+	if !row.ParentID.Valid || row.ParentID.Bytes != q.ParentID {
+		return domain.Keyset{}, errs.New(
+			errs.CodeInvalidInput, "social.threadCursor", slog.String("cursor", q.Before.String()),
+		)
 	}
 	return domain.Keyset{At: row.CreatedAt, ID: row.ID}, nil
+}
+
+func chatCursor(ctx context.Context, reads *sqlc.Queries, cabal ids.CabalID, id uuid.UUID) (domain.Keyset, error) {
+	row, err := reads.GetChatCursor(ctx, sqlc.GetChatCursorParams{ID: id, CabalID: cabal.UUID()})
+	if err != nil {
+		return domain.Keyset{}, cursorError(err, id)
+	}
+	return domain.Keyset{At: row.CreatedAt, ID: row.ID}, nil
+}
+
+func cursorError(err error, id uuid.UUID) error {
+	const op = "social.chatCursor"
+	if errors.Is(err, sql.ErrNoRows) {
+		return errs.New(errs.CodeChatMessageNotFound, op, slog.String("cursor", id.String()))
+	}
+	return errs.Wrap(err, errs.CodeInternal, op)
 }
 
 func storedMessages(rows []sqlc.CabalMessage) []ChatMessage {

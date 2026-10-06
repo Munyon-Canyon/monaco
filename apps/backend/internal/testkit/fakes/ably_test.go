@@ -104,7 +104,7 @@ func TestAblyPublish_aScriptOnTheMessagesRouteFailsEveryChannelThenRecovers(t *t
 	t.Parallel()
 	srv, base := ablyServer(t)
 	step, err := json.Marshal(fakes.Step{
-		Route: "/ably/channels/messages", Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
+		Route: fakes.AblyMessagesRun, Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
