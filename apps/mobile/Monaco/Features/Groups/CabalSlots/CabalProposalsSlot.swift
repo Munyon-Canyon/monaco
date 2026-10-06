@@ -13,7 +13,6 @@ struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @State private var model: ProposalListModel?
-    @State private var closed: ProposalListModel?
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
@@ -39,10 +38,7 @@ struct CabalProposals: View {
                 }
             }
         }
-        .task {
-            await preparedModel().load()
-            await closed?.load()
-        }
+        .task { await preparedModel().load() }
         .task { await preparedModel().observe(cabalID: cabalID) }
         .task {
             let pause = preparedPause()
@@ -56,12 +52,10 @@ struct CabalProposals: View {
     }
 
     @ViewBuilder private func content(_ model: ProposalListModel) -> some View {
-        let needsVote = model.pager.items.filter {
-            $0.canVote && ($0.myBallot == nil || voting?.ballots[$0.id] != nil)
-        }
-        if model.pager.items.isEmpty {
+        let needsVote = model.needsVote(votedThisSession: voting?.votedIDs ?? [])
+        if !model.pager.items.contains(where: { $0.status == .open || $0.status == .passed }) {
             EmptyState(title: "No open votes", message: "Propose the first buy.")
-            if closed?.pager.items.isEmpty == false {
+            if !model.pager.items.isEmpty {
                 NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
             }
         } else {
@@ -70,7 +64,7 @@ struct CabalProposals: View {
                 Spacer()
                 NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
             }
-            ForEach(needsVote) { proposal in
+            ForEach(needsVote + model.trading) { proposal in
                 if let voting {
                     ProposalVoteCard(
                         proposal: proposal, voting: voting, paused: pause?.isPaused == true,
@@ -92,16 +86,13 @@ struct CabalProposals: View {
         if let model { return model }
         voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
         let created = makeModel(environment, cabalID)
-        closed = ProposalListModel(
-            cabalID: cabalID, filter: .closed, repository: ProposalsRepository(api: environment.api),
-            hints: environment.hints)
         model = created
         return created
     }
 
     static func liveModel(_ environment: AppEnvironment, _ cabalID: String) -> ProposalListModel {
         ProposalListModel(
-            cabalID: cabalID, filter: .open, repository: ProposalsRepository(api: environment.api),
+            cabalID: cabalID, filter: .all, repository: ProposalsRepository(api: environment.api),
             hints: environment.hints)
     }
 }
@@ -115,6 +106,7 @@ private struct CabalAllProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @State private var open: ProposalListModel?
+    @State private var closed: ProposalListModel?
     @State private var voting: ProposalVoteModel?
 
     var body: some View {

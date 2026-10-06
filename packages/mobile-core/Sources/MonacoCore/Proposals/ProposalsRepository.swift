@@ -75,7 +75,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 
     init(
         _ proposal: Components.Schemas.Proposal,
-        canVote: Bool = false,
+        canVote: Bool? = nil,
         canWithdraw: Bool = false,
         swap: ProposalSwap? = nil
     ) {
@@ -94,7 +94,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         status = ProposalStatus(proposal.status)
         statusMessage = proposal.statusMessage
         expiresAt = proposal.expiresAt
-        self.canVote = canVote
+        self.canVote = canVote ?? proposal.canVote
         self.canWithdraw = canWithdraw
         self.swap = swap
     }
@@ -117,7 +117,8 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             quoteOutAmount: value.quoteOutAmount, thesis: value.thesis, status: value.status,
             statusReason: value.statusReason, statusMessage: value.statusMessage, expiresAt: value.expiresAt,
             createdAt: value.createdAt, tally: value.tally,
-            myBallot: value.myBallot.flatMap { Components.Schemas.Proposal.MyBallotPayload(rawValue: $0.rawValue) })
+            myBallot: value.myBallot.flatMap { Components.Schemas.Proposal.MyBallotPayload(rawValue: $0.rawValue) },
+            canVote: value.canVote)
         self.init(
             summary: ProposalSummary(
                 proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap)),
@@ -198,7 +199,7 @@ public struct PendingVote: Identifiable, Equatable, Sendable {
     }
 }
 
-public enum ProposalFilter: String, Sendable { case open, closed }
+public enum ProposalFilter: String, Sendable { case open, closed, all }
 
 public struct ProposalsRepository: Sendable {
     let api: APIClient

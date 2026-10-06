@@ -168,6 +168,9 @@ struct ProposalDetailSlotView: View {
                 step(summary.kind == "sell" ? "Selling" : "Buying", active: state == .trading)
                 step("Done", active: state == .done)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(state.trackerLabel(isSell: summary.kind == "sell"))
+            .accessibilityIdentifier("proposal-tracker")
             if case .failed(let title) = state {
                 Text(summary.swap?.failureMessage ?? summary.statusMessage ?? title).foregroundStyle(MonacoTheme.loss)
             }

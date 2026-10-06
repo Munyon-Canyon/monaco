@@ -33,7 +33,7 @@ struct HomePendingVotes: View {
                             ProposalVoteCard(
                                 proposal: detail.summary, voting: voting,
                                 paused: model.pausedCabals.contains(detail.summary.cabalID),
-                                onVoted: { await model.load() })
+                                onVoted: { await model.load(keeping: voting.votedIDs) })
                         }
                     }
                 }

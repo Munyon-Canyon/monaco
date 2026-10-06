@@ -53,6 +53,7 @@ type ProposalView struct {
 	CreatedAt    time.Time
 	Tally        Tally
 	MyBallot     domain.Choice
+	CanVote      bool
 }
 
 type ProposalPage struct {
@@ -102,35 +103,44 @@ func (r *ProposalReads) List(ctx context.Context, req ListProposals) (ProposalPa
 	if len(rows) == 0 {
 		return page, nil
 	}
-	tallies, err := r.tallies(ctx, rule, rows)
+	tallies, err := r.tallies(ctx, rule, req.Caller, rows)
 	if err != nil {
 		return ProposalPage{}, err
 	}
 	for _, row := range rows {
-		view, err := proposalView(row, tallies[row.ID])
+		view, err := proposalView(row, tallies[row.ID].tally)
 		if err != nil {
 			return ProposalPage{}, err
 		}
+		view.CanVote = view.Status == domain.StatusOpen && tallies[row.ID].callerVotes
 		page.Items = append(page.Items, view)
 	}
 	return page, nil
 }
 
+type listedTally struct {
+	tally       Tally
+	callerVotes bool
+}
+
 func (r *ProposalReads) tallies(
-	ctx context.Context, rule domain.ThresholdRule, rows []sqlc.ListProposalsRow,
-) (map[uuid.UUID]Tally, error) {
+	ctx context.Context, rule domain.ThresholdRule, caller ids.UserID, rows []sqlc.ListProposalsRow,
+) (map[uuid.UUID]listedTally, error) {
 	proposals := make([]uuid.UUID, len(rows))
 	for i, row := range rows {
 		proposals[i] = row.ID
 	}
-	counts, err := r.q.TallyProposals(ctx, proposals)
+	counts, err := r.q.TallyProposals(ctx, sqlc.TallyProposalsParams{ProposalIds: proposals, CallerID: caller.UUID()})
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "governance.TallyProposals")
 	}
-	out := make(map[uuid.UUID]Tally, len(counts))
+	out := make(map[uuid.UUID]listedTally, len(counts))
 	for _, c := range counts {
 		voters := int(c.Voters)
-		out[c.ProposalID] = Tally{Yes: int(c.Yes), No: int(c.No), Voters: voters, Needed: rule.Needed(voters)}
+		out[c.ProposalID] = listedTally{
+			tally:       Tally{Yes: int(c.Yes), No: int(c.No), Voters: voters, Needed: rule.Needed(voters)},
+			callerVotes: c.CallerVotes,
+		}
 	}
 	return out, nil
 }

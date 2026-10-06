@@ -24,6 +24,14 @@ public final class ProposalListModel {
         ])
     }
     public func setVisible(_ visible: Bool) { refresher.setVisible(visible) }
+
+    public func needsVote(votedThisSession: Set<String>) -> [ProposalSummary] {
+        pager.items.filter {
+            $0.status == .open && $0.canVote && ($0.myBallot == nil || votedThisSession.contains($0.id))
+        }
+    }
+
+    public var trading: [ProposalSummary] { pager.items.filter { $0.status == .passed } }
 }
 
 @Observable
@@ -147,27 +155,38 @@ public final class PendingVotesModel {
         hook.run = { [weak self] in await self?.load() }
     }
 
-    public func load() async {
+    public func load(keeping voted: Set<String> = []) async {
         do {
-            votes = try await repository.pendingVotes()
-            details = Dictionary(
-                uniqueKeysWithValues: await withTaskGroup(
-                    of: (String, ProposalDetail?).self
-                ) { group in
-                    for vote in votes {
-                        group.addTask {
-                            (vote.id, try? await self.repository.detail(id: vote.id))
-                        }
-                    }
-                    var pairs: [(String, ProposalDetail)] = []
-                    for await (id, detail) in group {
-                        if let detail { pairs.append((id, detail)) }
-                    }
-                    return pairs
-                })
+            let pending = try await repository.pendingVotes()
+            let pendingIDs = Set(pending.map(\.id))
+            let departed = votes.filter { !pendingIDs.contains($0.id) }
+            let fetched = await details(for: departed + pending)
+            let kept = departed.filter {
+                switch fetched[$0.id]?.summary.status {
+                case .passed: true
+                case .open: voted.contains($0.id)
+                default: false
+                }
+            }
+            votes = kept + pending
+            details = fetched.filter { entry in votes.contains { $0.id == entry.key } }
             pausedCabals = await pausedAmong(Set(votes.map(\.cabalID)))
         } catch {}
     }
+
+    private func details(for votes: [PendingVote]) async -> [String: ProposalDetail] {
+        await withTaskGroup(of: (String, ProposalDetail?).self) { group in
+            for vote in votes {
+                group.addTask { (vote.id, try? await self.repository.detail(id: vote.id)) }
+            }
+            var pairs: [String: ProposalDetail] = [:]
+            for await (id, detail) in group {
+                if let detail { pairs[id] = detail }
+            }
+            return pairs
+        }
+    }
+
     private func pausedAmong(_ cabalIDs: Set<String>) async -> Set<String> {
         await withTaskGroup(of: String?.self) { group in
             for id in cabalIDs {

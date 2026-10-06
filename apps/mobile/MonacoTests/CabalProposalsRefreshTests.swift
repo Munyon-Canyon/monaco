@@ -26,7 +26,8 @@ struct CabalProposalsRefreshTests {
         let window = try ProposalTestWindow.hosting(CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in model }))
         defer { window.isHidden = true }
 
-        await ProposalTestWindow.until { await listRequests(transport) == 1 && hints.subscribers > 0 }
+        await ProposalTestWindow.until { model.pager.phase == .exhausted && hints.subscribers > 0 }
+        model.setVisible(true)
         hints.send(.changed(.cabal("cabal-1"), what: "proposal_created", id: "1"))
         await ProposalTestWindow.until { await listRequests(transport) == 2 }
 

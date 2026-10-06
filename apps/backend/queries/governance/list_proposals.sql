@@ -16,7 +16,8 @@ SELECT
   proposal_voters.proposal_id,
   count(*)::int AS voters,
   (count(*) FILTER (WHERE votes.choice = 'yes'))::int AS yes,
-  (count(*) FILTER (WHERE votes.choice = 'no'))::int AS no
+  (count(*) FILTER (WHERE votes.choice = 'no'))::int AS no,
+  bool_or(proposal_voters.voter_id = @caller_id)::bool AS caller_votes
 FROM proposal_voters
 LEFT JOIN votes USING (proposal_id, voter_id)
 WHERE proposal_voters.proposal_id = ANY(@proposal_ids::uuid[])

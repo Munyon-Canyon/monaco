@@ -33,4 +33,16 @@ public enum ProposalStepper: Equatable, Sendable {
         case .executionBlocked: .failed("Couldn't \(action)")
         }
     }
+
+    public func trackerLabel(isSell: Bool) -> String {
+        let steps = ProposalFeedCopy.trackerSteps(isSell: isSell)
+        let index: Int
+        switch self {
+        case .voting: index = 0
+        case .trading: index = 1
+        case .done: index = 2
+        case .failed(let title): return title
+        }
+        return "\(steps[index]), step \(index + 1) of \(steps.count)"
+    }
 }
