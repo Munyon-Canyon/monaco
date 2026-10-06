@@ -43,11 +43,15 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-openapi-runtime", from: "1.12.1"),
         .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.1"),
         .package(url: "https://github.com/swift-server/swift-openapi-async-http-client", exact: "1.5.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.12.3"),
     ],
     targets: [
         .target(
             name: "MonacoCore",
-            dependencies: ["MonacoAPI", .product(name: "MonacoFlows", package: "flows")] + moduleNames
+            dependencies: [
+                "MonacoAPI", .product(name: "MonacoFlows", package: "flows"),
+                .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux])),
+            ] + moduleNames
         ),
         // Sources/MonacoAPI/openapi.yaml is a symlink to apps/backend/api/openapi.yaml, not a
         // copy: the generator plugin reads it through the sandbox in swift build, Xcode and the
