@@ -20,6 +20,7 @@ public actor ChatSession {
         public var isClosed = false
         public var isLoadingOlder = false
         public var notice: Notice?
+        public var seen: Seen?
     }
 
     public static let pageSize = 50
@@ -30,6 +31,7 @@ public actor ChatSession {
     private let realtime: any ChatRealtime
     let now: @Sendable () -> Date
     let makeKey: @Sendable () -> String
+    private let onArrival: @Sendable () async -> Void
     var state: State
     private var subscribers: [UUID: AsyncStream<State>.Continuation] = [:]
     private var submissions: [String: IdempotentSubmission] = [:]
@@ -46,13 +48,15 @@ public actor ChatSession {
         api: APIClient,
         realtime: any ChatRealtime,
         now: @escaping @Sendable () -> Date,
-        makeKey: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() }
+        makeKey: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() },
+        onArrival: @escaping @Sendable () async -> Void = {}
     ) {
         self.cabalID = cabalID
         self.api = api
         self.realtime = realtime
         self.now = now
         self.makeKey = makeKey
+        self.onArrival = onArrival
         self.state = State(timeline: ChatTimeline(viewerID: viewerID))
     }
 
@@ -136,15 +140,20 @@ public actor ChatSession {
         for thread in attached.values { await thread.apply(event) }
         switch event {
         case .messageCreated(let message):
-            guard state.timeline.hasLoadedNewest else { return }
-            state.timeline.insertLive(message)
+            guard state.timeline.hasLoadedNewest, state.timeline.insertLive(message) else { return }
+            publish()
+            await onArrival()
+            return
         case .threadUpdated(let id, let replyCount, let lastReplyAt):
             state.timeline.applyThread(id: id, replyCount: replyCount, lastReplyAt: lastReplyAt)
         case .messageDeleted(let id):
             state.timeline.markDeleted(id: id)
         case .attached(let resumed):
             if !resumed { await catchUp() }
-        case .seenUpdated, .detached:
+        case .seenUpdated(let messageId, let count):
+            guard messageId == state.timeline.newestID else { return }
+            state.seen = Seen(messageID: messageId, count: count)
+        case .detached:
             return
         }
         publish()
@@ -173,6 +182,7 @@ public actor ChatSession {
         do {
             let page = try await fetch()
             state.timeline.mergeNewest(page, pageSize: Self.pageSize)
+            adoptSeen(from: page)
             state.load = .loaded
             state.isClosed = false
         } catch {
@@ -190,6 +200,7 @@ public actor ChatSession {
             do {
                 let page = try await fetch(after: cursor)
                 state.timeline.mergeNewer(page)
+                adoptSeen(from: page)
                 state.isClosed = false
                 publish()
                 guard page.count >= Self.pageSize, let newest = state.timeline.newestID, newest != cursor else {
@@ -260,6 +271,7 @@ public actor ChatSession {
     }
 
     func publish() {
+        if state.seen?.messageID != state.timeline.newestID { state.seen = nil }
         for continuation in subscribers.values { continuation.yield(state) }
     }
 
