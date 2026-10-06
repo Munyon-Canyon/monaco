@@ -1,0 +1,19 @@
+journey: chat/talk-it-over
+expect-fail: S3
+
+The seen footer reads "Seen 1" instead of "Seen by 1". S3.3 expects "Seen by 1", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Chat/ChatSeenCopy.swift b/packages/mobile-core/Sources/MonacoCore/Chat/ChatSeenCopy.swift
+index 3a8131b0b..d8da29aa1 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Chat/ChatSeenCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Chat/ChatSeenCopy.swift
+@@ -6,7 +6,7 @@ public enum ChatSeenCopy {
+     public static let retry = "Try again"
+ 
+     public static func label(count: Int) -> String? {
+-        count > 0 ? "Seen by \(count)" : nil
++        count > 0 ? "Seen \(count)" : nil
+     }
+ 
+     public static func name(_ member: Components.Schemas.ChatSeenMember) -> String {

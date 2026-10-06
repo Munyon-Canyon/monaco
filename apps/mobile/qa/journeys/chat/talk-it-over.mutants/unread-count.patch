@@ -1,0 +1,19 @@
+journey: chat/talk-it-over
+expect-fail: S5
+
+The card announces one more unread message than there are. S5.3 expects "2 unread messages" after two sends, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalCopy.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalCopy.swift
+index 19bd78b6c..b2fd8b4db 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalCopy.swift
+@@ -31,7 +31,7 @@ public enum CabalCopy {
+     public static func unreadLabel(_ count: Int) -> String {
+         switch count {
+         case 1: "1 unread message"
+-        case 2...99: "\(count) unread messages"
++        case 2...99: "\(count + 1) unread messages"
+         default: "More than 99 unread messages"
+         }
+     }
