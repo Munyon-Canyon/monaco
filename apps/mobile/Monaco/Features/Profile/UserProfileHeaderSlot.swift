@@ -5,25 +5,30 @@ enum UserProfileHeaderSlot: UserProfileSection {
     static let isLive = true
 
     static func body(for context: UserProfileContext) -> some View {
-        UserProfileHeader(userID: context.userID, preview: context.preview)
+        UserProfileHeader(userID: context.userID)
     }
 }
 
 private struct UserProfileHeader: View {
     let userID: String
-    let preview: UserPreview?
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @State private var model: FollowButtonModel?
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @State private var model: UserProfileModel?
 
     private var isViewer: Bool { userID == environment.viewer?.userID }
 
     var body: some View {
         Group {
-            if model?.unavailable == true {
+            switch model?.phase ?? .loading {
+            case .idle, .loading:
+                skeleton
+            case .unavailable:
                 EmptyState(title: "This account isn't available.")
                     .accessibilityIdentifier("user-profile-unavailable")
-            } else {
+            case .failed:
+                loadFailure
+            case .loaded:
                 identity
             }
         }
@@ -31,36 +36,56 @@ private struct UserProfileHeader: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity)
         .toolbar {
-            if !isViewer {
+            if model?.phase == .loaded, !isViewer {
                 ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu() }
             }
         }
-        .task {
-            if model == nil { model = FollowButtonModel(userID: userID, api: environment.api) }
+        .task(id: userID) {
+            let model = prepared()
+            refresh?.register("user-profile-header") { await model.refresh() }
+            if model.profile == nil {
+                await model.load()
+            } else {
+                await model.refresh()
+            }
         }
-        .onChange(of: model?.failureTick) {
+        .onChange(of: model?.toastTick) {
             if let error = model?.lastError { toasts.show(error) }
         }
     }
 
-    private var identity: some View {
+    private var skeleton: some View {
         VStack(spacing: MonacoTheme.Space.s) {
-            MonacoAvatar(photoURL: preview?.photoURL, displayName: preview?.displayName ?? "", size: 96, seed: userID)
-            name
-            counts
-            if !isViewer, let model {
-                followButton(model)
-            }
+            SkeletonBlock(width: 96, height: 96, radius: 48)
+            SkeletonBlock(width: 168, height: 28)
+            SkeletonBlock(width: 200, height: 14)
+            SkeletonBlock(
+                width: 160, height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("user-profile-header")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading profile")
+        .accessibilityIdentifier("user-profile-loading")
     }
 
-    @ViewBuilder
-    private var name: some View {
-        if let preview {
-            let handle = preview.handle.map { "@\($0)" }
-            let title = preview.displayName.isEmpty ? handle ?? "Member" : preview.displayName
+    private var loadFailure: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Text("Couldn't load this profile.")
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button("Try again") { Task { await model?.load() } }
+                .buttonStyle(.monacoSecondary)
+                .accessibilityIdentifier("user-profile-retry")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("user-profile-error")
+    }
+
+    private var identity: some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            MonacoAvatar(
+                photoURL: model?.photoURL, displayName: title, size: 96, seed: userID)
             Text(title)
                 .font(MonacoTheme.Typo.title)
                 .foregroundStyle(MonacoTheme.ink)
@@ -72,22 +97,34 @@ private struct UserProfileHeader: View {
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityIdentifier("user-profile-handle")
             }
-        } else {
-            Text("Their name shows up here soon.")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .accessibilityIdentifier("user-profile-name-coming")
+            counts
+            if !isViewer, let model {
+                followButton(model)
+            }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("user-profile-header")
+    }
+
+    private var title: String {
+        let name = model?.displayName ?? ""
+        if !name.isEmpty { return name }
+        return handle ?? "Member"
+    }
+
+    private var handle: String? {
+        guard let value = model?.handle, !value.isEmpty else { return nil }
+        return "@\(value)"
     }
 
     private var counts: some View {
         HStack(spacing: 0) {
-            link("Followers", .followers, id: "user-profile-followers")
+            link("\(model?.followerCount ?? 0) Followers", .followers, id: "user-profile-followers")
             Text(" · ")
                 .font(MonacoTheme.Typo.calloutStrong)
                 .foregroundStyle(MonacoTheme.muted)
                 .accessibilityHidden(true)
-            link("Following", .following, id: "user-profile-following")
+            link("\(model?.followingCount ?? 0) Following", .following, id: "user-profile-following")
         }
     }
 
@@ -103,17 +140,26 @@ private struct UserProfileHeader: View {
     }
 
     @ViewBuilder
-    private func followButton(_ model: FollowButtonModel) -> some View {
+    private func followButton(_ model: UserProfileModel) -> some View {
+        let following = model.followedByMe
         Group {
-            if model.following {
-                Button("Following") { Task { await model.toggle() } }
+            if following {
+                Button("Following") { Task { await model.unfollow(userID: model.userID) } }
                     .buttonStyle(.monacoSecondary)
+                    .accessibilityIdentifier("user-profile-follow")
             } else {
-                Button("Follow") { Task { await model.toggle() } }
+                Button("Follow") { Task { await model.follow(userID: model.userID) } }
                     .buttonStyle(.monacoPrimary)
+                    .accessibilityIdentifier("user-profile-follow")
             }
         }
-        .disabled(model.isToggling)
-        .accessibilityIdentifier("user-profile-follow")
+        .disabled(model.isToggling(model.userID))
+    }
+
+    private func prepared() -> UserProfileModel {
+        if let model, model.userID == userID { return model }
+        let created = UserProfileModel(userID: userID, api: environment.api)
+        model = created
+        return created
     }
 }
