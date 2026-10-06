@@ -42,7 +42,7 @@ A journey with `funds` in its doc moves real USDC: the person or agent running i
 
 Each actor uses a dedicated `Monaco Journeys <actor>` simulator that the runner creates when needed. Use `--sim B=<udid>` only to override an actor's dedicated simulator.
 
-**SimSlim for lanes and journeys.** When `simslim` is on PATH, the runner slims each actor simulator right after creating it (`scripts/simslim-ensure.sh`: `simslim on <udid> --profile "${SIMSLIM_PROFILE:-$HOME/.config/simslim/base-slim.json}" --preserve-boot-state`), and before a run it runs `simslim verify` and re-runs `simslim on` once if the simulator is no longer slim. A missing `simslim` warns and continues stock. `MONACO_NO_SIMSLIM=1` opts out. No `simslim watch` is needed.
+**SimSlim for lanes and journeys.** When `simslim` is on PATH, the runner slims each actor simulator right after creating it (`scripts/simslim-ensure.sh`: `simslim on <udid> --profile "${SIMSLIM_PROFILE:-ci/profiles/base-slim.json}" --preserve-boot-state`), and before a run it runs `simslim verify` and re-runs `simslim on` once if the simulator is no longer slim. A missing `simslim` warns and continues stock. `MONACO_NO_SIMSLIM=1` opts out. No `simslim watch` is needed.
 
 ## Memory
 

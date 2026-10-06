@@ -21,7 +21,10 @@ if ! command -v simslim >/dev/null 2>&1; then
   exit 0
 fi
 
-profile="${SIMSLIM_PROFILE:-$HOME/.config/simslim/base-slim.json}"
+# The repo's profile, not a per-user copy of it: a copy that slims away `siri` leaves a simulator
+# whose dictation availability handler spins the app's main thread once a text field takes focus.
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+profile="${SIMSLIM_PROFILE:-$root/ci/profiles/base-slim.json}"
 
 if [[ "$mode" == check ]] && simslim verify "$udid" --profile "$profile" >/dev/null 2>&1; then
   exit 0

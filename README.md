@@ -225,7 +225,7 @@ Never `simctl erase` a sim you later want as gold. Never commit a UDID. Never ta
    simslim on "$SIMSLIM_UDID" --profile ~/.config/simslim/base-slim.json --json
    ```
 
-   `except` in a profile means **keep** that daemon category on. Monaco product smoke is tabs + HTTP; base-slim is enough.
+   `except` in a profile means **keep** that daemon category on. base-slim keeps `siri`: without it the keyboard's dictation handler spins the app's main thread once a text field takes focus. Lane and journey simulators use the repo copy, so `scripts/simslim-ensure.sh` ignores the one in `~/.config`.
 
 Repo `./scripts/ios-sim` and `./scripts/ios-build` call `xcodebuild` and `simctl` after Privy injection. Optional PATH wrappers in `~/.local/bin` are **not** in git and **not** required.
 
