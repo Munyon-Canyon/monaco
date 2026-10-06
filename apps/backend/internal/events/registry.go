@@ -24,6 +24,7 @@ func registrations() []Registration {
 		fundingRegistrations(),
 		adminRegistrations(),
 		treasuryRegistrations(),
+		notifyRegistrations(),
 	)
 }
 

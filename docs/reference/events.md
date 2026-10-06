@@ -356,6 +356,27 @@ Subject `events.follow.removed`, version 1.
 | `followee_id` | `uuid.UUID` |
 | `removed_at` | `time.Time` |
 
+## `notification.sent`
+
+Subject `events.notification.sent`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `notification_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `kind` | `string` |
+| `source_event_id` | `uuid.UUID` |
+
+## `notify.test_requested`
+
+Subject `events.notify.test_requested`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+
 ## `onramp.status_changed`
 
 Subject `events.onramp.status_changed`, version 1.
