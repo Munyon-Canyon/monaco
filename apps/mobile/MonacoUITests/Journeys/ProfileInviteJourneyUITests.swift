@@ -6,20 +6,21 @@ nonisolated final class ProfileInviteJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1ACopyLink() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        ProfileInviteJourney.copyLink(app, recorder: ProfileInviteJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-copied")
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = ProfileInviteJourney.recorder()
 
-    @MainActor
-    func testS2Phase1AShareLink() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        ProfileInviteJourney.shareLink(app, recorder: ProfileInviteJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-shared")
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            ProfileInviteJourney.copyLink(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-copied")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            ProfileInviteJourney.shareLink(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-shared")
+        }
     }
 }

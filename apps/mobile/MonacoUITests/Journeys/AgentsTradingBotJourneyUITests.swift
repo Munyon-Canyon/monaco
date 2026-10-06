@@ -6,22 +6,22 @@ nonisolated final class AgentsTradingBotJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1AOpenBot() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        AgentsTradingBotJourney.openBot(app, run: run, recorder: AgentsTradingBotJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-bot")
-    }
+        let recorder = AgentsTradingBotJourney.recorder()
 
-    @MainActor
-    func testS2Phase1AProposeBot() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        AgentsTradingBotJourney.proposeBot(app, run: run, recorder: AgentsTradingBotJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-proposed")
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            AgentsTradingBotJourney.openBot(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-bot")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            AgentsTradingBotJourney.proposeBot(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-proposed")
+        }
     }
 }

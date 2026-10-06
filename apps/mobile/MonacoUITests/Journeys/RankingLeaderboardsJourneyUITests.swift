@@ -6,32 +6,29 @@ nonisolated final class RankingLeaderboardsJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func signedIn() throws -> (XCUIApplication, RankingLeaderboardsJourney.Seed) {
-        let account = try JourneyAccount.load()
-        let seed = try RankingLeaderboardsJourney.Seed.handedOff()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        return (app, seed)
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = RankingLeaderboardsJourney.recorder()
 
-    @MainActor
-    func testS1Phase1ATopInvestors() throws {
-        let (app, seed) = try signedIn()
-        RankingLeaderboardsJourney.topInvestors(app, seed: seed, recorder: RankingLeaderboardsJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-top-investors")
-    }
+        try session.scenario("S1") {
+            let seed = try RankingLeaderboardsJourney.Seed.handedOff()
+            try session.act(as: "A")
+            RankingLeaderboardsJourney.topInvestors(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-top-investors")
+        }
 
-    @MainActor
-    func testS2Phase1AMemberBoard() throws {
-        let (app, seed) = try signedIn()
-        RankingLeaderboardsJourney.memberBoard(app, seed: seed, recorder: RankingLeaderboardsJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-member-board")
-    }
+        try session.scenario("S2") {
+            let seed = try RankingLeaderboardsJourney.Seed.handedOff()
+            try session.act(as: "A")
+            RankingLeaderboardsJourney.memberBoard(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-member-board")
+        }
 
-    @MainActor
-    func testS3Phase1ATopCabals() throws {
-        let (app, _) = try signedIn()
-        RankingLeaderboardsJourney.topCabals(app, recorder: RankingLeaderboardsJourney.recorder())
-        attachScreenshot(of: app, named: "S3-A-top-cabals")
+        try session.scenario("S3") {
+            try session.act(as: "A")
+            RankingLeaderboardsJourney.topCabals(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-A-top-cabals")
+        }
     }
 }

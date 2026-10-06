@@ -6,30 +6,26 @@ nonisolated final class InviteJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1AAcceptsAndInvites() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        InviteJourney.acceptAndInvite(app, recorder: InviteJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-invited")
-    }
-
-    @MainActor
-    func testS1Phase2BDeclines() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        InviteJourney.decline(app, recorder: InviteJourney.recorder())
-        attachScreenshot(of: app, named: "S1-B-declined")
-    }
-
-    @MainActor
-    func testS2CopyAndShareTheCode() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = InviteJourney.recorder()
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        InviteJourney.copyAndShareTheCode(app, run: run, recorder: InviteJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-shared")
+
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            InviteJourney.acceptAndInvite(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-invited")
+
+            try session.act(as: "B")
+            InviteJourney.decline(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-declined")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            InviteJourney.copyAndShareTheCode(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-shared")
+        }
     }
 }

@@ -6,33 +6,28 @@ nonisolated final class SettingsNotificationsJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func start() throws -> XCUIApplication {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        return app
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = SettingsNotificationsJourney.recorder()
 
-    @MainActor
-    func testS1OffBeforeAsking() throws {
-        let app = try start()
-        SettingsNotificationsJourney.offBeforeAsking(app, recorder: SettingsNotificationsJourney.recorder())
-        attachScreenshot(of: app, named: "S1 Notifications Off")
-    }
+        try session.scenario("S1") {
+            try session.act(as: "B")
+            SettingsNotificationsJourney.offBeforeAsking(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1 Notifications Off")
+        }
 
-    @MainActor
-    func testS2PrePrompt() throws {
-        let cabalName = try JourneyHandoff.read("cabalName")
-        let app = try start()
-        SettingsNotificationsJourney.prePrompt(
-            app, cabalName: cabalName, recorder: SettingsNotificationsJourney.recorder())
-        attachScreenshot(of: app, named: "S2 after Allow")
-    }
+        try session.scenario("S2") {
+            let cabalName = try JourneyHandoff.read("cabalName")
+            try session.act(as: "B")
+            SettingsNotificationsJourney.prePrompt(app, cabalName: cabalName, recorder: recorder)
+            attachScreenshot(of: app, named: "S2 after Allow")
+        }
 
-    @MainActor
-    func testS3OnAndOpensSettings() throws {
-        let app = try start()
-        SettingsNotificationsJourney.onAndOpensSettings(app, recorder: SettingsNotificationsJourney.recorder())
-        attachScreenshot(of: app, named: "S3 back from iOS Settings")
+        try session.scenario("S3") {
+            try session.act(as: "B")
+            SettingsNotificationsJourney.onAndOpensSettings(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3 back from iOS Settings")
+        }
     }
 }

@@ -6,31 +6,29 @@ nonisolated final class MoneyActivityJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1DepositReceipt() throws {
-        let account = try JourneyAccount.load()
-        let txn = try JourneyHandoff.read(MoneyActivityJourney.depositKey)
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        MoneyActivityJourney.depositReceipt(app, txn: txn, recorder: MoneyActivityJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-activity")
-    }
-
-    @MainActor
-    func testS2CabalMove() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = MoneyActivityJourney.recorder()
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        MoneyActivityJourney.cabalMove(app, run: run, recorder: MoneyActivityJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-cabal")
-    }
 
-    @MainActor
-    func testS3Withdrawal() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        MoneyActivityJourney.withdrawal(app, recorder: MoneyActivityJourney.recorder())
-        attachScreenshot(of: app, named: "S3-A-withdrawal")
+        try session.scenario("S1") {
+            let txn = try JourneyHandoff.read(MoneyActivityJourney.depositKey)
+            try session.act(as: "A")
+            MoneyActivityJourney.depositReceipt(app, txn: txn, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-activity")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            MoneyActivityJourney.cabalMove(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-cabal")
+        }
+
+        try session.scenario("S3") {
+            try session.act(as: "A")
+            MoneyActivityJourney.withdrawal(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-A-withdrawal")
+        }
     }
 }

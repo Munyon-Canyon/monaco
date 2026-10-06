@@ -6,32 +6,28 @@ nonisolated final class StocksBrowseJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func start() throws -> XCUIApplication {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = StocksBrowseJourney.recorder()
         _ = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        return app
-    }
 
-    @MainActor
-    func testS1BrowseSections() throws {
-        let app = try start()
-        StocksBrowseJourney.browseSections(app, recorder: StocksBrowseJourney.recorder())
-        attachScreenshot(of: app, named: "S1-all-stocks")
-    }
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            StocksBrowseJourney.browseSections(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-all-stocks")
+        }
 
-    @MainActor
-    func testS2Search() throws {
-        let app = try start()
-        try StocksBrowseJourney.search(app, recorder: StocksBrowseJourney.recorder())
-        attachScreenshot(of: app, named: "S2-search-cleared")
-    }
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            try StocksBrowseJourney.search(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-search-cleared")
+        }
 
-    @MainActor
-    func testS3PullToRefresh() throws {
-        let app = try start()
-        StocksBrowseJourney.pullToRefresh(app, recorder: StocksBrowseJourney.recorder())
-        attachScreenshot(of: app, named: "S3-refreshed")
+        try session.scenario("S3") {
+            try session.act(as: "A")
+            StocksBrowseJourney.pullToRefresh(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-refreshed")
+        }
     }
 }

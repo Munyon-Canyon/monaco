@@ -6,22 +6,22 @@ nonisolated final class CabalsActivityJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1AReadsActivity() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        try CabalsActivityJourney.readAndOpenReceipt(app, run: run, recorder: CabalsActivityJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-receipt")
-    }
+        let recorder = CabalsActivityJourney.recorder()
 
-    @MainActor
-    func testS2Phase1ARetries() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        try CabalsActivityJourney.retryFailedTrade(app, run: run, recorder: CabalsActivityJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-failed-receipt")
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            try CabalsActivityJourney.readAndOpenReceipt(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-receipt")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            try CabalsActivityJourney.retryFailedTrade(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-failed-receipt")
+        }
     }
 }

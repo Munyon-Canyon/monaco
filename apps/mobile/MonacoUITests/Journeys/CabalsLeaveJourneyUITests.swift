@@ -6,32 +6,28 @@ nonisolated final class CabalsLeaveJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1BLeaves() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsLeaveJourney.memberLeaves(app, run: run, recorder: CabalsLeaveJourney.recorder())
-        attachScreenshot(of: app, named: "S1-B-left")
-    }
+        let recorder = CabalsLeaveJourney.recorder()
 
-    @MainActor
-    func testS2Phase1ACreatorStays() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsLeaveJourney.creatorStays(app, run: run, recorder: CabalsLeaveJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-creator-note")
-    }
+        try session.scenario("S1") {
+            try session.act(as: "B")
+            CabalsLeaveJourney.memberLeaves(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-left")
+        }
 
-    @MainActor
-    func testS3Phase1BSellsAndLeaves() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsLeaveJourney.memberSellsAndLeaves(app, run: run, recorder: CabalsLeaveJourney.recorder())
-        attachScreenshot(of: app, named: "S3-B-leave-dialog")
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            CabalsLeaveJourney.creatorStays(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-creator-note")
+        }
+
+        try session.scenario("S3") {
+            try session.act(as: "B")
+            CabalsLeaveJourney.memberSellsAndLeaves(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-B-leave-dialog")
+        }
     }
 }

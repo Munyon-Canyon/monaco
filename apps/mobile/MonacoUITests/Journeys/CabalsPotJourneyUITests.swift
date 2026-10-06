@@ -6,22 +6,22 @@ nonisolated final class CabalsPotJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1APotAndSlice() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsPotJourney.potAndSlice(app, run: run, recorder: CabalsPotJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-pot")
-    }
+        let recorder = CabalsPotJourney.recorder()
 
-    @MainActor
-    func testS2Phase1AHoldings() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsPotJourney.holdings(app, run: run, recorder: CabalsPotJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-holdings")
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            CabalsPotJourney.potAndSlice(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-pot")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            CabalsPotJourney.holdings(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-holdings")
+        }
     }
 }

@@ -6,20 +6,21 @@ nonisolated final class MoneyDepositJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1CopyAddress() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        MoneyDepositJourney.copyAddress(app, recorder: MoneyDepositJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-how-it-works")
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = MoneyDepositJourney.recorder()
 
-    @MainActor
-    func testS2ChooseMethod() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        MoneyDepositJourney.chooseMethod(app, recorder: MoneyDepositJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-chooser")
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            MoneyDepositJourney.copyAddress(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-how-it-works")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            MoneyDepositJourney.chooseMethod(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-chooser")
+        }
     }
 }
