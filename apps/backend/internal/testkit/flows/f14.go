@@ -207,6 +207,7 @@ func F14CashOutOK(s *scenario.Scenario) {
 		When(slices.Concat(potHolds(f14Stake, 0), cashedOut("1000000"),
 			[]scenario.Step{scenario.Replay(), scenario.ExpectEvents(events.TypeCashOutStarted, 1)})...).
 		Then(append(paid(), potHolds(f14Stake-1_000_000, 0)...)...)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeCashOutCompleted, "cash_out_completed", "job_id", s.Recall("job")))
 }
 
 func F14CashOutInvalidInput(s *scenario.Scenario) {
@@ -280,6 +281,7 @@ func CashOutRejectedOnChain(s *scenario.Scenario) {
 			sharesHeld("2000000"),
 			cabalHolds(),
 		)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeCashOutFailed, "cash_out_failed", "job_id", s.Recall("job")))
 }
 
 const (
@@ -380,6 +382,7 @@ func F14CashOutPayoutsSaleShort(s *scenario.Scenario) {
 			payoutDispatched(errs.CodeSaleShort),
 			cabalHolds(),
 		)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeCashOutPartial, "cash_out_partial", "job_id", s.Recall("job")))
 }
 
 func soldOnce(s *scenario.Scenario) {

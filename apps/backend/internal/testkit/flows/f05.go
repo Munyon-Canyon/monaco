@@ -33,7 +33,7 @@ func F05CreditDepositOK(s *scenario.Scenario) {
 		scenario.Get("/v1/me/txns"),
 		scenario.ExpectStatus(http.StatusOK),
 		scenario.ExpectField("items", oneDeposit),
-	).Then()
+	).Then(scenario.EventuallyCapturedBy(events.TypeDepositCredited, "deposit_credited", "user_id", user.ID.String()))
 }
 
 func oneInboundTransfer(user testkit.SeededUser) []scenario.Step {

@@ -22,7 +22,7 @@ import (
 
 const flow14PrivyApp = "app-fixture"
 
-func flow14(t *testing.T) *scenario.Scenario {
+func flow14(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
 	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
@@ -47,7 +47,7 @@ func flow14(t *testing.T) *scenario.Scenario {
 			return build(d)
 		}
 	}
-	return scenario.New(t,
+	return scenario.New(t, append([]scenario.Option{
 		scenario.WithModules(
 			with(func(d module.Deps) module.Module { return identity.New(d) }),
 			with(func(d module.Deps) module.Module { return cabal.New(d) }),
@@ -56,14 +56,14 @@ func flow14(t *testing.T) *scenario.Scenario {
 			with(func(d module.Deps) module.Module { return trading.New(d) }),
 		),
 		scenario.WithPrivy(upstreams, flow14PrivyApp),
-	)
+	}, extra...)...)
 }
 
 func TestFlow14_CashOut_OK(t *testing.T) {
 	t.Parallel()
 	t.Run("covered by cash on hand", func(t *testing.T) {
 		t.Parallel()
-		flows.F14CashOutOK(flow14(t))
+		flows.F14CashOutOK(flow14(t, scenario.WithPostHog(t)))
 	})
 	t.Run("short treasury sells and pays the whole slice", func(t *testing.T) {
 		t.Parallel()
@@ -119,5 +119,5 @@ func TestFlow14_CashOutPayouts_RPCUnavailable(t *testing.T) {
 
 func TestCashOutFlow_aPayoutRejectedOnChainFailsTheJobAndReturnsTheUnits(t *testing.T) {
 	t.Parallel()
-	flows.CashOutRejectedOnChain(flow14(t))
+	flows.CashOutRejectedOnChain(flow14(t, scenario.WithPostHog(t)))
 }

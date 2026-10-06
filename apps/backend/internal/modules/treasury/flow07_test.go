@@ -21,7 +21,7 @@ import (
 
 func TestFlow07_FundCabal_OK(t *testing.T) {
 	t.Parallel()
-	flows.F07FundCabalOK(flow07Scenario(t))
+	flows.F07FundCabalOK(flow07Scenario(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow07_FundCabal_InvalidInput(t *testing.T) {
@@ -54,7 +54,7 @@ func TestFlow07_FundCabal_PrivyUnavailable(t *testing.T) {
 	flows.F07FundCabalPrivyUnavailable(flow07Scenario(t))
 }
 
-func flow07Scenario(t *testing.T) *scenario.Scenario {
+func flow07Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
 	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
@@ -77,7 +77,7 @@ func flow07Scenario(t *testing.T) *scenario.Scenario {
 			return build(d)
 		}
 	}
-	return scenario.New(t,
+	return scenario.New(t, append([]scenario.Option{
 		scenario.WithPrivy(upstreams, "app"),
 		scenario.WithModules(
 			withConfig(func(d module.Deps) module.Module { return treasury.New(d) }),
@@ -85,5 +85,5 @@ func flow07Scenario(t *testing.T) *scenario.Scenario {
 			withConfig(func(d module.Deps) module.Module { return cabal.New(d) }),
 			withConfig(func(d module.Deps) module.Module { return identity.New(d) }),
 		),
-	)
+	}, extra...)...)
 }

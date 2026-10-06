@@ -54,6 +54,7 @@ func F07FundCabalOK(s *scenario.Scenario) {
 			scenario.ExpectJSON("share_units", "5000000"),
 		).
 		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1))
+	s.Then(scenario.EventuallyCapturedBy(events.TypeFunded, "cabal_funded", "transfer_id", s.Recall("transfer")))
 }
 
 func F07FundCabalCrashBeforeCommit(s *scenario.Scenario) {

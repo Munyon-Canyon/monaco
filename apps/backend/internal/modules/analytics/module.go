@@ -24,7 +24,20 @@ func newModule(d module.Deps, r *Registry) *Module { return &Module{deps: d, exp
 func productExports(d module.Deps) *Registry {
 	r := NewRegistry()
 	registerProposalExports(r, governance.New(d).Queries())
+	registerFundingExports(r)
+	registerTreasuryExports(r)
 	return r
+}
+
+func registerFundingExports(r *Registry) {
+	Export(r, string(events.TypeDepositCredited), exports.DepositCredited)
+}
+
+func registerTreasuryExports(r *Registry) {
+	Export(r, string(events.TypeFunded), exports.CabalFunded)
+	Export(r, string(events.TypeCashOutCompleted), exports.CashOutCompleted)
+	Export(r, string(events.TypeCashOutPartial), exports.CashOutPartial)
+	Export(r, string(events.TypeCashOutFailed), exports.CashOutFailed)
 }
 
 func registerProposalExports(r *Registry, proposers app.ProposerReader) {

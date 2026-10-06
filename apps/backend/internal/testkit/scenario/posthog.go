@@ -30,6 +30,22 @@ func WithPostHog(t *testing.T) Option {
 	})
 }
 
+func EventuallyCapturedBy(typ events.Type, event, field, value string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		rows, err := s.DB().Query(s.t.Context(),
+			`SELECT id::text FROM events WHERE type = $1 AND payload->>$2::text = $3 ORDER BY id`,
+			string(typ), field, value)
+		appended := scanIDs(s.t, typ, rows, err)
+		if len(appended) == 0 {
+			s.t.Fatalf("scenario: no %s event has %s %s to export", typ, field, value)
+		}
+		for _, id := range appended {
+			EventuallyLog(observability.AnalyticsCaptureSent, map[string]string{"event": event, "uuid": id})(s)
+		}
+	}
+}
+
 func EventuallyCaptured(typ events.Type, event string, proposal ids.ProposalID) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

@@ -47,7 +47,7 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 
 ## Product analytics (PostHog)
 
-**Identity.** `posthog.identify(<monaco user id>)` after `POST /v1/auth/session`. Person properties: `auth_state`, `login_provider`, cabal count, created at. **No email, phone, X handle or wallet address** in PostHog.
+**Identity.** `posthog.identify(<monaco user id>)` after `POST /v1/auth/session`. The id is the lowercase hyphenated UUID that the API returns, and server events use it as `distinct_id`. PostHog treats distinct ids as case-sensitive, so the app must not send Swift's uppercase `uuidString`. Person properties: `auth_state`, `login_provider`, cabal count, created at. **No email, phone, X handle or wallet address** in PostHog.
 
 **Client events** (iOS SDK):
 
@@ -69,9 +69,13 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `trade_blocked` | `trade.blocked` (flow 11) |
 | `trade_failed` | `trade.failed` (flow 11) |
 | `cash_out_completed` | `cashout.completed` (flow 14) |
+| `cash_out_partial` | `cashout.partial` (flow 14) |
+| `cash_out_failed` | `cashout.failed` (flow 14) |
 | `withdrawal_sent` | `withdrawal.confirmed` (flow 15) |
 | `follow_created` | `follow.created` (flow 20) |
 | `comment_created` | `comment.created` (flow 21) |
+
+`usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address or a transaction signature.
 
 The RFC's flow table lists `analytics` as a consumer on every one of these flows (default 2026-09-27 added it to flows 7, 10, 11, 14, 20 and 21), so `monacoctl flows check` holds each export to a test.
 
@@ -88,7 +92,7 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Propose | propose_opened → asset_selected → amount_entered → thesis_entered → submitted |
 | Vote | proposal_viewed → vote_cast |
 | Trade outcome | (server) proposal_passed → trade_executed / trade_blocked / trade_failed |
-| Cash out | cash_out_opened → amount_entered → confirmed → (server) cash_out_completed |
+| Cash out | cash_out_opened → amount_entered → confirmed → (server) cash_out_completed / cash_out_partial / cash_out_failed |
 | Withdraw | withdraw_opened → address_entered → confirmed → (server) withdrawal_sent |
 | Feed | feed_opened → item_opened → comment_opened → comment_posted |
 | Social | profile_viewed → follow_tapped; suggestion_shown → suggestion_followed / dismissed |
