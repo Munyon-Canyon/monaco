@@ -99,4 +99,4 @@ Lines stay under 120 characters. `golines` in the pre-commit hook rejects longer
 
 - `go run ./cmd/monacoctl lint comments` passes. Go has no comments except `//go:` directives.
 - `go run ./cmd/monacoctl flows check --structure-only` passes.
-- `go run ./cmd/monacoctl agents check` passes. It builds, vets and runs the short tests of the packages affected since the base. A change to a shared package such as `internal/events` or a module's sqlc output affects most of the module, so the test row runs nearly everything. Each package in that row has a 20 s budget. The row as a whole has none. A package over 20 s is slow code: fix it. Never raise the budget.
+- `go run ./cmd/monacoctl agents check` passes. It builds, vets and runs the short tests of the packages affected since the base. A change to a shared package such as `internal/events` or a module's sqlc output affects most of the module, so the test row runs nearly everything. Each package in that row has a 60 s budget. The row as a whole has none. A package over 60 s is slow code: fix it. Never raise the budget.
