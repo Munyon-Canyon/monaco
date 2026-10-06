@@ -71,12 +71,12 @@ final class APITelemetryTests: XCTestCase {
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.postProposalComment(proposalId: groupID, body: "hello")
+        _ = try? await client.castVote(proposalId: groupID, choice: "yes")
 
         let event = try XCTUnwrap(events.values.first)
         XCTAssertEqual(events.values.count, 1)
         XCTAssertEqual(event.method, "POST")
-        XCTAssertEqual(event.route, "/v1/proposals/{id}/comments")
+        XCTAssertEqual(event.route, "/v1/proposals/{id}/votes")
         XCTAssertEqual(event.outcome, .status(201))
         XCTAssertGreaterThan(event.durationMs, 0)
         XCTAssertEqual(event.serverRequestID, event.requestID)
@@ -141,7 +141,7 @@ final class APITelemetryTests: XCTestCase {
             let (client, events) = makeClient()
 
             do {
-                _ = try await client.listProposalComments(proposalId: "42")
+                _ = try await client.getGroupView(groupId: "42")
                 XCTFail("Expected \(code) to throw")
             } catch {
                 XCTAssertEqual((error as? URLError)?.code, code)
@@ -149,7 +149,7 @@ final class APITelemetryTests: XCTestCase {
 
             let event = try XCTUnwrap(events.values.first)
             XCTAssertEqual(events.values.count, 1)
-            XCTAssertEqual(event.route, "/v1/proposals/{id}/comments")
+            XCTAssertEqual(event.route, "/v1/groups/{id}/view")
             XCTAssertEqual(event.outcome, .transportError(category))
             XCTAssertGreaterThan(event.durationMs, 0)
             XCTAssertNil(event.statusCode)
@@ -213,7 +213,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         _ = try? await client.getHomePnLSeries()
-        _ = try? await client.postProposalComment(proposalId: groupID, body: "hello")
+        _ = try? await client.castVote(proposalId: groupID, choice: "yes")
 
         XCTAssertEqual(events.values.count, 2)
         for event in events.values {
@@ -300,7 +300,7 @@ final class APITelemetryTests: XCTestCase {
             let (client, _) = makeClient()
 
             do {
-                _ = try await client.postProposalComment(proposalId: "p1", body: "Nice")
+                _ = try await client.castVote(proposalId: "p1", choice: "yes")
                 XCTFail("Expected \(status) to throw")
             } catch {
                 XCTAssertNotNil(error.apiRequestID)

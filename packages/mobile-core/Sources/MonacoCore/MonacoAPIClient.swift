@@ -219,31 +219,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         _ = try await send(request, route: "/v1/proposals/{id}/votes", accepting: [200, 204])
     }
 
-    public func listProposalComments(proposalId: String) async throws -> ProposalCommentsResponseDTO {
-        let url = baseURL.appending(path: "v1/proposals/\(proposalId)/comments")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/proposals/{id}/comments")
-        return try JSONDecoder().decode(ProposalCommentsResponseDTO.self, from: response.data)
-    }
-
-    /// Posts a top-level comment, or a reply when `parentId` is set. Server trims and validates the body.
-    public func postProposalComment(proposalId: String, body: String, parentId: String? = nil) async throws
-        -> ProposalCommentDTO
-    {
-        let url = baseURL.appending(path: "v1/proposals/\(proposalId)/comments")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        try await applyAuthorizationHeader(to: &request)
-        request.httpBody = try JSONEncoder().encode(CommentRequestDTO(body: body, parentId: parentId))
-
-        let response = try await send(request, route: "/v1/proposals/{id}/comments", accepting: [200, 201])
-        return try JSONDecoder().decode(ProposalCommentDTO.self, from: response.data)
-    }
-
     public func getGroupView(groupId: String) async throws -> GroupViewDTO {
         let url = baseURL.appending(path: "v1/groups/\(groupId)/view")
         var request = URLRequest(url: url)
@@ -324,11 +299,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
 
     private struct VoteRequestDTO: Encodable {
         let choice: String
-    }
-
-    private struct CommentRequestDTO: Encodable {
-        let body: String
-        let parentId: String?
     }
 
     private func applyAuthorizationHeader(to request: inout URLRequest) async throws {
