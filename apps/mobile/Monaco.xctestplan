@@ -1,0 +1,33 @@
+{
+  "configurations" : [
+    {
+      "id" : "5B0C2C5E-3A8E-4E0F-9D6B-7E1A2F3C4D01",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Monaco.xcodeproj",
+        "identifier" : "B463061F30590360008E7964",
+        "name" : "MonacoTests"
+      }
+    },
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Monaco.xcodeproj",
+        "identifier" : "B463062930590360008E7964",
+        "name" : "MonacoUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

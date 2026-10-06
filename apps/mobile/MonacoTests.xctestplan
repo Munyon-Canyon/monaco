@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "8D4F1E2A-6B3C-4A7D-9E5F-0C1B2A3D4E02",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Monaco.xcodeproj",
+        "identifier" : "B463061F30590360008E7964",
+        "name" : "MonacoTests"
+      }
+    }
+  ],
+  "version" : 1
+}
