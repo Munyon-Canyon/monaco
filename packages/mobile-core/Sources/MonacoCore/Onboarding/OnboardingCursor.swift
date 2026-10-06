@@ -9,7 +9,7 @@ public enum OnboardingCursor: Equatable, Sendable {
         switch step {
         case .phone: .socials
         case .socials: .finished
-        case .session, .restricted, .handle, .app: self
+        case .session, .restricted, .handle, .findFriends, .app: self
         }
     }
 }

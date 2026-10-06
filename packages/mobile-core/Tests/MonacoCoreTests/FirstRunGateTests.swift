@@ -14,12 +14,12 @@ final class FirstRunGateTests: XCTestCase {
     private static let cursors: [OnboardingCursor] = [.start, .socials, .finished]
 
     private func me(
-        handle: String?, authState: AuthState, accountStatus: AccountStatus
+        handle: String?, authState: AuthState, accountStatus: AccountStatus, phoneLinked: Bool = false
     ) -> SessionProfile {
         SessionProfile(
             userID: "user-1", handle: handle, displayName: "", photoURL: nil,
             authState: authState, accountStatus: accountStatus, memberWalletAddress: "wallet-1",
-            phoneLinked: false, xUsername: nil, handleChangeableAt: nil,
+            phoneLinked: phoneLinked, xUsername: nil, handleChangeableAt: nil,
             createdAt: Date()
         )
     }
@@ -178,11 +178,60 @@ final class FirstRunGateTests: XCTestCase {
     func testCursor_stepsWithoutACursorLeaveItAlone() {
         for cursor in Self.cursors {
             for step: FirstRunDestination in [
-                .session, .handle, .restricted(.banned), .app(restricted: false), .app(restricted: true),
+                .session, .handle, .restricted(.banned), .findFriends, .app(restricted: false),
+                .app(restricted: true),
             ] {
                 XCTAssertEqual(cursor.advanced(past: step), cursor, "\(cursor) past \(step)")
             }
         }
+    }
+
+    func testFindFriendsShowsOnceForAVerifiedPhone() {
+        let verified = me(handle: "ana", authState: .onboardingCompleted, accountStatus: .active, phoneLinked: true)
+        XCTAssertEqual(
+            FirstRunGate.destination(for: verified, onboardingCursor: .finished, contactsPromptSeen: false),
+            .findFriends)
+        XCTAssertEqual(
+            FirstRunGate.destination(for: verified, onboardingCursor: .finished, contactsPromptSeen: true),
+            .app(restricted: false))
+        let stillOnboarding = me(handle: "ana", authState: .created, accountStatus: .active, phoneLinked: true)
+        XCTAssertEqual(
+            FirstRunGate.destination(for: stillOnboarding, onboardingCursor: .start, contactsPromptSeen: false),
+            .phone)
+    }
+
+    func testFindFriendsIsSkippedWithoutAVerifiedPhone() {
+        let skipped = me(handle: "ana", authState: .onboardingCompleted, accountStatus: .active, phoneLinked: false)
+        XCTAssertEqual(
+            FirstRunGate.destination(for: skipped, onboardingCursor: .finished, contactsPromptSeen: false),
+            .app(restricted: false))
+        let suspended = me(handle: "ana", authState: .onboardingCompleted, accountStatus: .suspended, phoneLinked: true)
+        XCTAssertEqual(
+            FirstRunGate.destination(for: suspended, onboardingCursor: .finished, contactsPromptSeen: true),
+            .app(restricted: true))
+    }
+
+    func testNotNowHidesFindFriendsOnTheNextLaunch() {
+        let suite = "find-friends-gate-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suite) else {
+            XCTFail("the contacts prompt suite did not open")
+            return
+        }
+        defaults.removePersistentDomain(forName: suite)
+        let verified = me(handle: "ana", authState: .onboardingCompleted, accountStatus: .active, phoneLinked: true)
+        XCTAssertFalse(FirstRunGate.contactsPromptSeen(in: defaults))
+        XCTAssertEqual(
+            FirstRunGate.destination(
+                for: verified, onboardingCursor: .start,
+                contactsPromptSeen: FirstRunGate.contactsPromptSeen(in: defaults)),
+            .findFriends)
+        FirstRunGate.markContactsPromptSeen(in: defaults)
+        XCTAssertEqual(
+            FirstRunGate.destination(
+                for: verified, onboardingCursor: .start,
+                contactsPromptSeen: FirstRunGate.contactsPromptSeen(in: defaults)),
+            .app(restricted: false))
+        defaults.removePersistentDomain(forName: suite)
     }
 
     func testCopy_passesTheMainFlowAudit() {

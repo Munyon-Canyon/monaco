@@ -15,6 +15,7 @@ struct SessionGateView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppSessionStore.self) private var session
     @State private var onboardingCursor = OnboardingCursor.start
+    @State private var contactsPromptSeen = FirstRunGate.contactsPromptSeen()
 
     private var debugDetail: String? {
         #if DEBUG
@@ -50,13 +51,22 @@ struct SessionGateView: View {
     }
     @ViewBuilder
     private func routed(_ profile: SessionProfile) -> some View {
-        let destination = FirstRunGate.destination(for: profile, onboardingCursor: onboardingCursor)
+        let destination = FirstRunGate.destination(
+            for: profile, onboardingCursor: onboardingCursor, contactsPromptSeen: contactsPromptSeen)
         let advance = { onboardingCursor = onboardingCursor.advanced(past: destination) }
         switch destination {
         case .session: SessionGateSkeleton()
         case .handle: HandleStepView(onContinue: advance)
         case .phone: PhoneStepView(onContinue: advance)
         case .socials: SocialsStepView(onContinue: advance)
+        case .findFriends:
+            NavigationStack {
+                FriendsScreen(onSkip: {
+                    FirstRunGate.markContactsPromptSeen()
+                    contactsPromptSeen = true
+                })
+                .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+            }
         case .restricted(.banned): RestrictedAccountView()
         case .app(let restricted):
             VStack(spacing: 0) {
