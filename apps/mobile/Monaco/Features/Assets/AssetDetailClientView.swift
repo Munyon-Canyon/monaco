@@ -20,6 +20,7 @@ struct AssetDetailClientView: View {
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await start()
+                await model?.loadHeldByVotingCabal()
                 await model?.observe()
             }
             .onScreenVisibilityChange { model?.setVisible($0) }
@@ -78,23 +79,7 @@ struct AssetDetailClientView: View {
         }
         .monacoCanvas()
         .foregroundStyle(MonacoTheme.ink)
-        .safeAreaInset(edge: .bottom) {
-            BottomCTA {
-                VStack(spacing: MonacoTheme.Space.xs) {
-                    Button(AssetDetailBuyCTA.title(tradable: detail.isTradable)) {
-                        AssetDetailBuyCTA.open(symbol: symbol) {
-                            environment.navigator.open($0, in: $1)
-                        }
-                    }
-                    .buttonStyle(.monacoPrimary)
-                    .disabled(!detail.isTradable)
-                    .accessibilityIdentifier("asset-detail-propose-buy")
-                    Text("Your cabal votes before anything is bought")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                }
-            }
-        }
+        .safeAreaInset(edge: .bottom) { proposeBar(detail, model: model) }
         .accessibilityIdentifier("asset-detail-root")
     }
 
@@ -263,13 +248,44 @@ struct AssetDetailClientView: View {
     }
 }
 
+extension AssetDetailClientView {
+    fileprivate func proposeBar(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
+        BottomCTA {
+            VStack(spacing: MonacoTheme.Space.xs) {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    Button(AssetDetailBuyCTA.title(tradable: detail.isTradable)) {
+                        AssetDetailBuyCTA.open(symbol: symbol, kind: .buy) {
+                            environment.navigator.open($0, in: $1)
+                        }
+                    }
+                    .buttonStyle(.monacoPrimary)
+                    .disabled(!detail.isTradable)
+                    .accessibilityIdentifier("asset-detail-propose-buy")
+                    if model.heldByVotingCabal {
+                        Button("Propose sell") {
+                            AssetDetailBuyCTA.open(symbol: symbol, kind: .sell) {
+                                environment.navigator.open($0, in: $1)
+                            }
+                        }
+                        .buttonStyle(.monacoSecondary)
+                        .accessibilityIdentifier("asset-detail-propose-sell")
+                    }
+                }
+                Text("Your cabal votes before anything is bought")
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+            }
+        }
+    }
+}
+
 enum AssetDetailBuyCTA {
     static func title(tradable: Bool) -> String {
         tradable ? "Propose buy" : "Can't buy right now"
     }
 
-    static func open(symbol: String, navigator: (ProposeFromAssetRoute, MainTab) -> Void) {
-        navigator(ProposeFromAssetRoute(symbol: symbol, kind: .buy), .stocks)
+    static func open(symbol: String, kind: ProposeKind, navigator: (ProposeFromAssetRoute, MainTab) -> Void) {
+        navigator(ProposeFromAssetRoute(symbol: symbol, kind: kind), .stocks)
     }
 }
 
