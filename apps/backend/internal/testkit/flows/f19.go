@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -244,6 +245,24 @@ const rankedMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
 
 func seedRankedAsset(s *scenario.Scenario) {
 	insertAsset(s, ids.Real{}.NewV7(), "AAPLx", rankedMint, time.Now().UTC())
+	var kind domain.Kind
+	err := s.DB().QueryRow(s.Context(), `SELECT kind FROM assets WHERE mint = $1`, rankedMint).Scan(&kind)
+	if err != nil {
+		s.Fatalf("flows: read the kind of AAPLx: %v", err)
+	}
+	session, err := domain.Session(kind, time.Now().UTC())
+	if err != nil {
+		s.Fatalf("flows: the session of AAPLx: %v", err)
+	}
+	if session.Continuous || session.State == domain.StateOpen {
+		return
+	}
+	if _, err := s.DB().Exec(s.Context(),
+		`INSERT INTO price_points (mint, ts, price_micros, source) VALUES ($1, $2, $3, 'jupiter')
+		ON CONFLICT (mint, ts) DO NOTHING`,
+		rankedMint, session.LastClose.Add(-time.Minute), assetPriceMicros); err != nil {
+		s.Fatalf("flows: seed the close price: %v", err)
+	}
 }
 
 func rankedUsers() []scenario.Step {
