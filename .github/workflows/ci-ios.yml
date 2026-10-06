@@ -43,31 +43,26 @@ jobs:
             echo "SIM=$sim"
           } >> "$GITHUB_ENV"
 
-      # The checkouts plus workspace-state.json resolve offline from Package.resolved, so the
-      # repositories git mirrors (about 1 GB) stay out of the cache.
-      - name: Restore Swift packages
-        id: spm
+      # One cache entry holds the Swift package checkouts and DerivedData/Build from the last staging
+      # run, because each actions/cache step costs its own setup and extraction. The checkouts plus
+      # workspace-state.json resolve offline from Package.resolved, so the repositories git mirrors
+      # (about 1 GB) stay out. Build holds the compiled Swift packages, the swift-openapi-generator
+      # output, mobile-core and the app; the DerivedData path is the same on every runner, so
+      # xcodebuild builds incrementally on top of it. Each staging save gets its own key; PRs restore
+      # the newest entry for the same Xcode and Package.resolved files, and staging.yml's prune job
+      # keeps only the newest.
+      - name: Restore the Swift packages and the build
+        id: cache
         uses: actions/cache/restore@v4
         with:
           path: |
             ${{ env.DERIVED_DATA }}/SourcePackages/checkouts
             ${{ env.DERIVED_DATA }}/SourcePackages/artifacts
             ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
-          key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
-
-      # DerivedData/Build from the last staging run: the compiled Swift packages, the
-      # swift-openapi-generator output, mobile-core and the app. The DerivedData path is the same on
-      # every runner, so xcodebuild builds incrementally on top of it. Each staging save gets its own
-      # key; PRs restore the newest entry for the same Xcode and Package.resolved files, and
-      # staging.yml's prune job keeps only the newest.
-      - name: Restore the build
-        id: build
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.DERIVED_DATA }}/Build
-          key: xcode-build-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+            ${{ env.DERIVED_DATA }}/Build
+          key: xcode-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
-            xcode-build-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
+            xcode-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
 
       # The Swift driver decides what to recompile from each source's mtime, and a fresh checkout
       # stamps every file with the current time. Give each tracked file an mtime derived from its blob
@@ -85,40 +80,47 @@ jobs:
               mode, blob = meta.split()[:2]
               if mode == b"120000":
                   continue
-              ns = (base + int(blob[:7], 16)) * 10**9 + int(blob[7:14], 16) % 10**9
+              ns = (base + int(blob[:7], 16)) * 10**9 + int(blob[7:14], 16)
               os.utime(path, ns=(ns, ns))
           '
 
       - name: Placeholder app config
         run: scripts/ensure-ios-privy-config.sh placeholder
 
-      # One xcodebuild test compiles the app and MonacoTests, then runs MonacoTests. The MonacoTests
-      # test plan leaves MonacoUITests out, so CI never compiles it; the scheme's default plan keeps both.
-      - name: Build the app and run MonacoTests
+      # build-for-testing compiles the app and MonacoTests without a booted simulator, so the boot
+      # started above overlaps the build. The MonacoTests test plan leaves MonacoUITests out, so CI
+      # never compiles it; the scheme's default plan keeps both.
+      - name: Build the app and MonacoTests
+        run: |
+          # With restored checkouts, skip resolution: otherwise SwiftPM fetches every repository
+          # again, and privy-ios alone took 184 s (#3349).
+          offline=()
+          if [[ -f "$DERIVED_DATA/SourcePackages/workspace-state.json" ]]; then
+            offline=(-skipPackageUpdates -disableAutomaticPackageResolution)
+          fi
+          xcodebuild build-for-testing -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation "${offline[@]}" \
+            -showBuildTimingSummary CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Run MonacoTests
         run: |
           xcrun simctl bootstatus "$SIM" -b
-          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
+          xcodebuild test-without-building -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
-            -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation \
-            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO test
+            -quiet CODE_SIGNING_ALLOWED=NO
 
-      - name: Save Swift packages
-        if: inputs.save-cache && steps.spm.outputs.cache-hit != 'true'
+      - name: Save the Swift packages and the build
+        if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
             ${{ env.DERIVED_DATA }}/SourcePackages/checkouts
             ${{ env.DERIVED_DATA }}/SourcePackages/artifacts
             ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
-          key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
-
-      - name: Save the build
-        if: inputs.save-cache && steps.build.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.DERIVED_DATA }}/Build
-          key: xcode-build-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+            ${{ env.DERIVED_DATA }}/Build
+          key: xcode-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
 
       - name: Upload test results
         if: failure()
