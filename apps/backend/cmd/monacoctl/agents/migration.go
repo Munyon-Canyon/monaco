@@ -101,7 +101,9 @@ func (env *Env) regenMigrations(ctx context.Context, dir string, stack []stackPR
 	}
 	newest := ""
 	for _, n := range strings.Fields(names) {
-		newest = max(newest, path.Base(n))
+		if strings.HasSuffix(n, ".sql") {
+			newest = max(newest, path.Base(n))
+		}
 	}
 	for i, p := range stack {
 		if _, err := env.Run(ctx, dir, "", "gt", "checkout", "--no-interactive", p.Head); err != nil {
