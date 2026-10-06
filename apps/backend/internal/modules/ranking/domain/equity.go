@@ -7,12 +7,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
+var ErrUnusableStart = errs.New(errs.CodeInvalidInput, "ranking.UnusableStart")
+
 func MemberEquity(shares, total money.SharesUnits, nav money.Micros) (money.Micros, error) {
 	if shares.IsZero() {
 		return money.Micros{}, nil
 	}
 	if shares.Uint64() > total.Uint64() {
-		return money.Micros{}, errs.New(errs.CodeInvalidInput, "ranking.MemberEquity",
+		return money.Micros{}, errs.Wrap(ErrUnusableStart, errs.CodeInvalidInput, "ranking.MemberEquity",
 			slog.String("shares", shares.String()), slog.String("total", total.String()))
 	}
 	v, err := money.MulDiv(shares.Uint64(), nav.Uint64(), total.Uint64())
