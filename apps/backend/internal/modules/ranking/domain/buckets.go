@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"sort"
 	"time"
 )
@@ -37,7 +38,18 @@ func BucketTimes(r Range, now, first time.Time) []time.Time {
 	for i := range out {
 		out[count-1-i] = now.Add(-time.Duration(i) * width)
 	}
-	return out
+	if first.After(start) {
+		start = first
+	}
+	return withLead(out, start, now)
+}
+
+func withLead(out []time.Time, lead, now time.Time) []time.Time {
+	i := sort.Search(len(out), func(i int) bool { return !out[i].Before(lead) })
+	if lead.After(now) || (i < len(out) && out[i].Equal(lead)) {
+		return out
+	}
+	return slices.Insert(out, i, lead)
 }
 
 func LastAtOrBefore[T any](points []T, t time.Time, at func(T) time.Time) *T {

@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -41,6 +42,17 @@ func assertEvenlySpaced(t *testing.T, got []time.Time, width time.Duration) {
 	}
 }
 
+func withoutLead(t *testing.T, got []time.Time, first time.Time, lead bool) []time.Time {
+	t.Helper()
+	if !lead {
+		return got
+	}
+	if !got[0].Equal(first) {
+		t.Fatalf("lead = %v, want the first snapshot %v", got[0], first)
+	}
+	return got[1:]
+}
+
 func TestBucketTimes(t *testing.T) {
 	t.Parallel()
 	now := bucketNowAt()
@@ -49,14 +61,15 @@ func TestBucketTimes(t *testing.T) {
 		first time.Time
 		count int
 		start time.Time
+		lead  bool
 	}{
 		"1H":                {r: domain.Range1H, count: 31, start: now.Add(-time.Hour)},
 		"1D":                {r: domain.Range1D, count: 145, start: now.Add(-24 * time.Hour)},
 		"1W":                {r: domain.Range1W, count: 169, start: now.Add(-7 * 24 * time.Hour)},
 		"1M":                {r: domain.Range1M, count: 181, start: now.Add(-30 * 24 * time.Hour)},
 		"ALL from first":    {r: domain.RangeAll, first: now.Add(-10 * 24 * time.Hour), count: 11},
-		"ALL young cabal":   {r: domain.RangeAll, first: now.Add(-time.Hour), count: 1},
-		"ALL partial width": {r: domain.RangeAll, first: now.Add(-36 * time.Hour), count: 2},
+		"ALL young cabal":   {r: domain.RangeAll, first: now.Add(-time.Hour), count: 2, lead: true},
+		"ALL partial width": {r: domain.RangeAll, first: now.Add(-36 * time.Hour), count: 3, lead: true},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -68,8 +81,25 @@ func TestBucketTimes(t *testing.T) {
 			if !tt.start.IsZero() && !got[0].Equal(tt.start) {
 				t.Fatalf("first = %v, want %v", got[0], tt.start)
 			}
-			assertEvenlySpaced(t, got, domain.BucketWidth(tt.r))
+			assertEvenlySpaced(t, withoutLead(t, got, tt.first, tt.lead), domain.BucketWidth(tt.r))
 		})
+	}
+}
+
+func TestBucketTimes_ADifferentFirstSnapshotIsAPointOfItsOwn(t *testing.T) {
+	t.Parallel()
+	now := bucketNowAt()
+	first := now.Add(-25 * time.Minute)
+	got := domain.BucketTimes(domain.Range1H, now, first)
+	i := slices.IndexFunc(got, func(at time.Time) bool { return at.Equal(first) })
+	if len(got) != 32 || i != 18 || !got[i-1].Equal(first.Add(-time.Minute)) ||
+		!got[i+1].Equal(first.Add(time.Minute)) {
+		t.Fatalf("BucketTimes = %v, want the first snapshot between its neighbouring buckets", got)
+	}
+	for name, at := range map[string]time.Time{"on a bucket": now.Add(-30 * time.Minute), "after now": now.Add(time.Minute)} {
+		if got := domain.BucketTimes(domain.Range1H, now, at); len(got) != 31 {
+			t.Fatalf("%s: %d buckets, want the 31 from the range", name, len(got))
+		}
 	}
 }
 
