@@ -410,6 +410,7 @@ class JourneyTradeEngine(unittest.TestCase):
                 raise RuntimeError("stop")
 
             with unittest.mock.patch.dict(os.environ, environ, clear=True), \
+                    unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
                     unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
                     unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
                 with self.assertRaises(RuntimeError):
@@ -466,6 +467,7 @@ class Slots(unittest.TestCase):
         popen = []
         with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
                                         type("P", (), {"poll": lambda self: None})()), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
                 unittest.mock.patch.object(journey, "backend_is_running", lambda url: True):
             journey.start_backend("http://127.0.0.1:8180", slot=1)
         self.assertEqual(popen[0]["MONACO_HTTP_ADDR"], ":8180")
@@ -1057,6 +1059,88 @@ class Output(Tree):
         super().tearDown()
 
 
+class RemappedRun(Output):
+    """A doc-actor-A journey that holds login C must not touch A's simulator or derived data."""
+
+    def accounts(self):
+        row = {"actor": "A", "phone": "3", "email": "", "code": "", "name": "", "login": "C"}
+        return {"A": row}
+
+    def derived_arg(self):
+        args = journey.xcodebuild("sim")
+        return args[args.index("-derivedDataPath") + 1]
+
+    def test_held_logins_follow_the_remapping(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        self.assertEqual(journey.held_logins(loaded, self.accounts()), {"A": "C"})
+
+    def test_a_remapped_actor_gets_the_held_logins_simulator(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        created = []
+
+        def result(stdout=""):
+            return type("R", (), {"stdout": stdout, "returncode": 0})()
+
+        devices = {"rt": [{"udid": "gold", "name": "Monaco Gold", "isAvailable": True,
+                           "deviceTypeIdentifier": "phone"},
+                          {"udid": "sim-a", "name": "Monaco Journeys A", "isAvailable": True}]}
+
+        def stub(args, **kwargs):
+            if args == ["scripts/gold-sim-udid.sh"]:
+                return result("gold\n")
+            if args[:3] == ["xcrun", "simctl", "create"]:
+                created.append(args[3])
+                return result("sim-c\n")
+            return result()
+
+        logins = journey.held_logins(loaded, self.accounts())
+        with unittest.mock.patch.object(journey, "sh", stub), \
+                unittest.mock.patch.object(journey, "simulator_devices", lambda: devices), \
+                unittest.mock.patch.object(journey, "lane_name", lambda: None), redirect_stdout(StringIO()):
+            sims = journey.resolve_simulators(loaded, {}, logins)
+        self.assertEqual(sims, {"A": "sim-c"})
+        self.assertEqual(created, ["Monaco Journeys C"])
+
+    def test_a_remapped_run_builds_into_its_own_derived_data(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        with unittest.mock.patch.object(journey, "DERIVED", journey.DERIVED):
+            journey.use_derived_data(journey.held_logins(loaded, self.accounts()))
+            self.assertEqual(self.derived_arg(), str(journey.OUT / "derived-C"))
+            journey.use_derived_data({"A": "A", "B": "B"})
+            self.assertEqual(self.derived_arg(), str(journey.OUT / "derived-A-B"))
+
+
+class BusApply(unittest.TestCase):
+    def test_bus_apply_runs_before_the_backend_boots(self):
+        order = []
+
+        def stub(args, **kwargs):
+            order.append(" ".join(args))
+            return type("R", (), {"returncode": 0})()
+
+        def popen(args, **kwargs):
+            order.append("BOOT " + " ".join(args))
+            raise StopIteration
+
+        with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
+                unittest.mock.patch.object(journey, "sh", stub), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", popen), redirect_stdout(StringIO()):
+            with self.assertRaises(StopIteration):
+                journey.start_backend("http://127.0.0.1:8080")
+        self.assertEqual(order[-2:], ["scripts/with-dotenv-local.sh bin/monacoctl bus apply", "BOOT just run backend"])
+        self.assertLess(order.index("docker compose up -d --wait postgres nats"), len(order) - 2)
+
+    def test_a_failed_bus_apply_stops_the_run_before_boot(self):
+        booted = []
+        with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
+                unittest.mock.patch.object(journey, "sh", lambda args, **k: type("R", (), {"returncode": 1})()), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: booted.append(a)), \
+                redirect_stdout(StringIO()):
+            with self.assertRaisesRegex(journey.JourneyError, "failed, see"):
+                journey.start_backend("http://127.0.0.1:8080")
+        self.assertEqual(booted, [])
+
+
 def _gone(probe, wait=5.0, every=0.05):
     """Polls probe until it raises ProcessLookupError; SIGKILL delivery and reaping lag the kill under load."""
     deadline = time.monotonic() + wait
@@ -1077,7 +1161,7 @@ class Budget(Output):
         hang.chmod(0o755)
         args = ["run", "auth/sign-in", "--no-build", "--timeout", "2"]
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
-                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
+                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
@@ -1159,7 +1243,7 @@ class KnownRuns(Output):
         fake = self.write("xcodebuild.sh", "#!/bin/sh\ncat %s\n" % log)
         fake.chmod(0o755)
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
-                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
+                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
@@ -1264,7 +1348,7 @@ class All(Output):
             return [], "PASS"
 
         with unittest.mock.patch.object(journey, "journey_backend", backend), \
-                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
+                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
                 unittest.mock.patch.object(journey, "ensure_build", lambda sim, log, rebuild=False: builds.append(sim)), \
@@ -1387,6 +1471,7 @@ class StartBackend(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
                 unittest.mock.patch.dict(os.environ, environ, clear=True), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
                 unittest.mock.patch.object(journey.subprocess, "Popen", popen), redirect_stdout(StringIO()):
             with self.assertRaises(StopIteration):
                 journey.start_backend("http://127.0.0.1:8080")
