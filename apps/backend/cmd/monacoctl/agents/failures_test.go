@@ -110,10 +110,37 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 			nil, nil, waiting,
 		},
 		{
-			"a PR that a closed draft ran is left to the eject path once the last run is past its removal",
+			"a PR that a closed draft ran since the last run is a drop, with that draft's failing job",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before))},
+			[]want{{"dropped from the Graphite merge queue", 11}},
+			[]string{draftNode("gtmq_1", "Merge queue: #1", ran, rollup(flakeJob))},
+			waiting,
+		},
+		{
+			"a PR that a closed draft ran before the last run is not news",
 			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before))},
 			nil,
-			[]string{draftNode("gtmq_1", "Merge queue: #1", ran, rollup(flakeJob))},
+			[]string{draftNode("gtmq_1", "Merge queue: #1", since.Add(-30*time.Second), rollup(flakeJob))},
+			waiting,
+		},
+		{
+			"the newest closed draft that ran the PR decides when it is listed first",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before.Add(-time.Minute)))},
+			[]want{{"dropped from the Graphite merge queue", 11}},
+			[]string{
+				draftNode("gtmq_1", "Merge queue: #1", ran, rollup(flakeJob)),
+				draftNode("gtmq_1", "Merge queue: #1", since.Add(-30*time.Second), rollup(lintJob)),
+			},
+			waiting,
+		},
+		{
+			"the newest closed draft that ran the PR decides when it is listed last",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before.Add(-time.Minute)))},
+			[]want{{"dropped from the Graphite merge queue", 11}},
+			[]string{
+				draftNode("gtmq_1", "Merge queue: #1", since.Add(-30*time.Second), rollup(lintJob)),
+				draftNode("gtmq_1", "Merge queue: #1", ran, rollup(flakeJob)),
+			},
 			waiting,
 		},
 		{
@@ -318,24 +345,56 @@ func TestFailures_watchOnceLeavesAPRGraphiteTookWhileItWaitsForADraft(t *testing
 	}
 }
 
+func closedDraftNode(head, title string, at time.Time, state, oid string) string {
+	node := draftNode(head, title, at, rollup(greenOK))
+	return strings.Replace(node, `{"title"`, fmt.Sprintf(`{"state":%q,"headRefOid":%q,"title"`, state, oid), 1)
+}
+
 func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 	t.Parallel()
-	const every = 5 * time.Minute
+	const (
+		every   = 5 * time.Minute
+		squash  = `[{"commit":{"message":"A (#5)"}}]`
+		onTrunk = `{"status":"behind"}`
+		offIt   = `{"status":"diverged"}`
+	)
 	for _, tc := range []struct {
-		name          string
-		opens, closes time.Duration
-		want          []time.Duration
+		name           string
+		opens, closes  time.Duration
+		state          string
+		trunk, compare string
+		want           []time.Duration
+		reads          int
 	}{
 		{name: "no draft ever opens", want: []time.Duration{30 * time.Minute}},
 		{
-			name:  "a draft ran it and closed before the hold ran out, while Graphite had yet to close the PR",
-			opens: 5 * time.Minute, closes: 25 * time.Minute,
+			name:  "a draft ran it and failed, leaving nothing of it on the trunk",
+			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "CLOSED", compare: offIt,
+			want: []time.Duration{25 * time.Minute}, reads: 1,
+		},
+		{
+			name:  "a draft ran it and merged",
+			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "MERGED", reads: 1,
+		},
+		{
+			name:  "a draft ran it and closed with the PR's squash commit on the trunk",
+			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "CLOSED", trunk: squash, reads: 1,
+		},
+		{
+			name:  "a draft ran it and closed with its head on the trunk",
+			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "CLOSED", compare: onTrunk, reads: 1,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
 			first := f.now
+			if tc.trunk != "" {
+				f.hub.on(list("/commits?sha=fb&since=2026-09-27T10:58:00Z"), tc.trunk)
+			}
+			if tc.compare != "" {
+				f.hub.on(get("/compare/fb...d5"), tc.compare)
+			}
 			var reported []time.Duration
 			for offset := time.Duration(0); offset <= time.Hour; offset += every {
 				f.now = first.Add(offset)
@@ -346,7 +405,7 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 					open := draftNode("gtmq_5", "Merge queue: #5", first, noRollup)
 					drafts = []string{strings.Replace(open, `{"title"`, `{"state":"OPEN","title"`, 1)}
 				default:
-					drafts = []string{draftNode("gtmq_5", "Merge queue: #5", first.Add(tc.closes), rollup(greenOK))}
+					drafts = []string{closedDraftNode("gtmq_5", "Merge queue: #5", first.Add(tc.closes), tc.state, "d5")}
 				}
 				f.hub.on(graphqlRoute, draftData(drafts,
 					watchNode(5, "fb", rollup(greenOK), dropped(first.Add(-2*time.Minute)))))
@@ -362,7 +421,41 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 			if !slices.Equal(reported, tc.want) {
 				t.Fatalf("reported after %v, want after %v", reported, tc.want)
 			}
+			if got := len(f.hub.callsContaining("/commits?sha=")); got != tc.reads {
+				t.Fatalf("read the trunk %d times, want %d: %v", got, tc.reads, f.hub.callsContaining("/commits?sha="))
+			}
 		})
+	}
+}
+
+func TestWatchOnce_aFailedTrunkReadFailsThePassAndKeepsTheDropForTheNextOne(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(graphqlRoute, draftData(
+		[]string{closedDraftNode("gtmq_5", "Merge queue: #5", f.now.Add(-time.Minute), "CLOSED", "d5")},
+		watchNode(5, "fb", rollup(greenOK), dropped(f.now.Add(-5*time.Minute))),
+	))
+	f.hub.on(get("/compare/fb...d5"), `{"status":"diverged"}`)
+	route := list("/commits?sha=fb&since=2026-09-27T10:55:00Z")
+	f.hub.status[route] = http.StatusInternalServerError
+	f.hub.on(route, "boom")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 1 || !strings.Contains(stderr, "list fb commits") || strings.Contains(stdout, "dropped") {
+		t.Fatalf("a failed read: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	delete(f.hub.status, route)
+	f.hub.on(route, `[]`)
+	code, stdout, stderr = f.agents(t, "watch", "--once")
+	if code != 1 || !strings.HasPrefix(stdout, "#5 dropped from the Graphite merge queue\n") || stderr != "" {
+		t.Fatalf("the next pass: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestFailureQuery_asksForTheHeadOfEveryDraft(t *testing.T) {
+	t.Parallel()
+	query := failureQuery("")
+	if drafts := query[strings.Index(query, "drafts:"):]; !strings.Contains(drafts, "headRefOid") {
+		t.Fatalf("the drafts selection lacks headRefOid:\n%s", drafts)
 	}
 }
 

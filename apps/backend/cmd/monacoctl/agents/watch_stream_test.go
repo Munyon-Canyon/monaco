@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -781,6 +782,32 @@ func TestWatchStream_aDroppedLabelIsNotReportedWhileAnOpenDraftListsThePR(t *tes
 		"#7 dropped from the Graphite merge queue",
 	) {
 		t.Fatalf("no drop once the draft closed:\n%s", got)
+	}
+}
+
+func TestWatchStream_aFailedTrunkReadPrintsAWatchErrorAndNoDrop(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	f.hub.on(graphqlRoute, draftData(
+		[]string{closedDraftNode("gtmq_7", "Merge queue: #7", f.now.Add(2*time.Minute), "CLOSED", "d7")},
+		watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(time.Minute))),
+	))
+	f.hub.on(get("/compare/fb...d7"), `{"status":"diverged"}`)
+	route := list("/commits?sha=fb&since=2026-09-27T11:01:00Z")
+	f.hub.status[route] = http.StatusInternalServerError
+	f.hub.on(route, "boom")
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(3 * time.Minute)
+	got := strings.Join(s.next(t.Context()), "\n")
+	if !strings.Contains(got, "watch error: ") || !strings.Contains(got, "list fb commits") ||
+		strings.Contains(got, "#7 dropped") {
+		t.Fatalf("a failed read:\n%s", got)
+	}
+	delete(f.hub.status, route)
+	f.hub.on(route, `[]`)
+	if got := strings.Join(s.next(t.Context()), "\n"); !strings.Contains(got, "#7 dropped from the Graphite merge queue") {
+		t.Fatalf("the next round:\n%s", got)
 	}
 }
 
