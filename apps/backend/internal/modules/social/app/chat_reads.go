@@ -73,7 +73,11 @@ func ListChatChannel(ctx context.Context, db sqlc.DBTX, members Members, q ChatC
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return storedMessages(rows), nil
+	page := storedMessages(rows)
+	if q.Before != nil {
+		return page, nil
+	}
+	return page, withSeenCount(ctx, reads, q.CabalID, page)
 }
 
 func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThreadQuery) (ChatThread, error) {

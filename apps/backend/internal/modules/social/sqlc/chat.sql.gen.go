@@ -363,6 +363,41 @@ func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams
 	return items, nil
 }
 
+const listSeenBy = `-- name: ListSeenBy :many
+SELECT user_id
+FROM chat_seen
+WHERE cabal_id = $1
+  AND user_id <> $2
+  AND last_seen_at >= $3::timestamptz
+ORDER BY last_seen_at DESC, user_id
+`
+
+type ListSeenByParams struct {
+	CabalID   uuid.UUID
+	AuthorID  uuid.UUID
+	MessageAt time.Time
+}
+
+func (q *Queries) ListSeenBy(ctx context.Context, arg ListSeenByParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listSeenBy, arg.CabalID, arg.AuthorID, arg.MessageAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockChatMessage = `-- name: LockChatMessage :one
 SELECT id, cabal_id, author_id, parent_id, (deleted_at IS NOT NULL)::bool AS deleted
 FROM cabal_messages
@@ -410,6 +445,38 @@ func (q *Queries) MarkChatSeen(ctx context.Context, arg MarkChatSeenParams) (tim
 	var last_seen_at time.Time
 	err := row.Scan(&last_seen_at)
 	return last_seen_at, err
+}
+
+const newestSeenCount = `-- name: NewestSeenCount :one
+WITH newest AS (
+  SELECT id, author_id, created_at
+  FROM cabal_messages
+  WHERE cabal_id = $1
+    AND (parent_id IS NULL OR also_in_channel)
+    AND deleted_at IS NULL
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1
+)
+SELECT newest.id AS message_id, (
+  SELECT count(*)::int
+  FROM chat_seen
+  WHERE chat_seen.cabal_id = $1
+    AND chat_seen.user_id <> newest.author_id
+    AND chat_seen.last_seen_at >= newest.created_at
+) AS seen_count
+FROM newest
+`
+
+type NewestSeenCountRow struct {
+	MessageID uuid.UUID
+	SeenCount int32
+}
+
+func (q *Queries) NewestSeenCount(ctx context.Context, cabalID uuid.UUID) (NewestSeenCountRow, error) {
+	row := q.db.QueryRow(ctx, newestSeenCount, cabalID)
+	var i NewestSeenCountRow
+	err := row.Scan(&i.MessageID, &i.SeenCount)
+	return i, err
 }
 
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :execrows

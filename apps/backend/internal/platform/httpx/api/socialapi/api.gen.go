@@ -214,6 +214,24 @@ type ChatMessage struct {
 	//
 	// Examples: 0
 	ReplyCount int `json:"reply_count"`
+
+	// SeenCount How many other members have seen the message. Set only on the newest channel message of a channel read without `before`, and null everywhere else.
+	//
+	// Examples: null
+	SeenCount *int `json:"seen_count"`
+}
+
+// ChatSeenBy The members who have seen a message.
+type ChatSeenBy struct {
+	// Count How many other members have seen it.
+	//
+	// Examples: 1
+	Count int `json:"count"`
+
+	// Members Newest watermark first.
+	//
+	// Examples: []
+	Members []ChatSeenMember `json:"members"`
 }
 
 // ChatSeenMark The caller's seen watermark.
@@ -222,6 +240,29 @@ type ChatSeenMark struct {
 	//
 	// Examples: 2026-10-03T12:00:00Z
 	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+// ChatSeenMember A member who has seen a message. A deleted account has a null handle and an empty name.
+type ChatSeenMember struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId The member's user id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
 }
 
 // ChatThread A top-level message and one page of its replies.
@@ -598,6 +639,12 @@ type ChatCabalId = openapi_types.UUID
 // ChatMessageId Examples: 01920000-0000-7000-8000-000000000007
 type ChatMessageId = openapi_types.UUID
 
+// GetChatSeenByParams defines parameters for GetChatSeenBy.
+type GetChatSeenByParams struct {
+	// MessageId The message to read the seen list of.
+	MessageId openapi_types.UUID `form:"message_id" json:"message_id"`
+}
+
 // MarkChatSeenParams defines parameters for MarkChatSeen.
 type MarkChatSeenParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -795,6 +842,9 @@ type PostUserFollowJSONRequestBody = FollowRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetChatSeenBy List who has seen a chat message.
+	// (GET /v1/cabals/{id}/chat/seen)
+	GetChatSeenBy(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatSeenByParams)
 	// MarkChatSeen Mark the cabal's chat as seen.
 	// (POST /v1/cabals/{id}/chat/seen)
 	MarkChatSeen(w http.ResponseWriter, r *http.Request, id ChatCabalId, params MarkChatSeenParams)
@@ -865,6 +915,48 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetChatSeenBy operation middleware
+func (siw *ServerInterfaceWrapper) GetChatSeenBy(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetChatSeenByParams
+
+	// ------------- Required query parameter "message_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "message_id", r.URL.Query(), &params.MessageId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "message_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetChatSeenBy(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // MarkChatSeen operation middleware
 func (siw *ServerInterfaceWrapper) MarkChatSeen(w http.ResponseWriter, r *http.Request) {
@@ -2164,6 +2256,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.GetChatSeenBy)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.MarkChatSeen)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.PostChatMessage)
@@ -2186,6 +2279,46 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
+}
+
+type GetChatSeenByRequestObject struct {
+	Id     ChatCabalId `json:"id"`
+	Params GetChatSeenByParams
+}
+
+type GetChatSeenByResponseObject interface {
+	VisitGetChatSeenByResponse(w http.ResponseWriter) error
+}
+
+type GetChatSeenBy200JSONResponse ChatSeenBy
+
+func (response GetChatSeenBy200JSONResponse) VisitGetChatSeenByResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChatSeenBydefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetChatSeenBydefaultApplicationProblemPlusJSONResponse) VisitGetChatSeenByResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type MarkChatSeenRequestObject struct {
@@ -2969,6 +3102,9 @@ func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetChatSeenBy List who has seen a chat message.
+	// (GET /v1/cabals/{id}/chat/seen)
+	GetChatSeenBy(ctx context.Context, request GetChatSeenByRequestObject) (GetChatSeenByResponseObject, error)
 	// MarkChatSeen Mark the cabal's chat as seen.
 	// (POST /v1/cabals/{id}/chat/seen)
 	MarkChatSeen(ctx context.Context, request MarkChatSeenRequestObject) (MarkChatSeenResponseObject, error)
@@ -3068,6 +3204,33 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetChatSeenBy operation middleware
+func (sh *strictHandler) GetChatSeenBy(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatSeenByParams) {
+	var request GetChatSeenByRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetChatSeenBy(ctx, request.(GetChatSeenByRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetChatSeenBy")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetChatSeenByResponseObject); ok {
+		if err := validResponse.VisitGetChatSeenByResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // MarkChatSeen operation middleware

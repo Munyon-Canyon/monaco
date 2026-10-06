@@ -101,3 +101,30 @@ SELECT newest.id AS message_id, (
 ) AS seen_count
 FROM newest
 WHERE EXISTS (SELECT 1 FROM claim);
+
+-- name: NewestSeenCount :one
+WITH newest AS (
+  SELECT id, author_id, created_at
+  FROM cabal_messages
+  WHERE cabal_id = sqlc.arg(cabal_id)
+    AND (parent_id IS NULL OR also_in_channel)
+    AND deleted_at IS NULL
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1
+)
+SELECT newest.id AS message_id, (
+  SELECT count(*)::int
+  FROM chat_seen
+  WHERE chat_seen.cabal_id = sqlc.arg(cabal_id)
+    AND chat_seen.user_id <> newest.author_id
+    AND chat_seen.last_seen_at >= newest.created_at
+) AS seen_count
+FROM newest;
+
+-- name: ListSeenBy :many
+SELECT user_id
+FROM chat_seen
+WHERE cabal_id = sqlc.arg(cabal_id)
+  AND user_id <> sqlc.arg(author_id)
+  AND last_seen_at >= sqlc.arg(message_at)::timestamptz
+ORDER BY last_seen_at DESC, user_id;
