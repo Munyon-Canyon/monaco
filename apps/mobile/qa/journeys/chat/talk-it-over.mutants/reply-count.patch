@@ -1,0 +1,18 @@
+journey: chat/talk-it-over
+expect-fail: S3
+
+A thread with one reply reads "1 replies". S3.3 expects "1 reply · last reply", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift b/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
+index 6e31d18a9..4d6933f79 100644
+--- a/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
++++ b/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
+@@ -54,6 +54,6 @@ public enum GroupChatCopy {
+     }
+ 
+     public static func replies(_ count: Int) -> String {
+-        count == 1 ? "1 reply" : "\(count) replies"
++        "\(count) replies"
+     }
+ }
