@@ -41,6 +41,8 @@ func F06CreateOnrampSessionOK(s *scenario.Scenario) {
 			scenario.EventuallyPublished(events.TypeOnrampStatusChanged, 3),
 			scenario.EventuallyHint("onramp_changed"),
 		)
+	s.Then(scenario.EventuallyCapturedBy(
+		events.TypeOnrampStatusChanged, "onramp_status_changed", "session_id", s.Recall("session")))
 }
 
 func F06ExchangeOnrampTokenOnrampLinkInvalid(s *scenario.Scenario) {

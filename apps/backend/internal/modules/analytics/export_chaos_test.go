@@ -84,6 +84,8 @@ func moneyChaosCases(s moneyScene) []chaosCase {
 	signature := keyOf(9, 64)
 	return []chaosCase{
 		{depositOf(s, keyOf(7, 32), signature), "deposit_credited"},
+		{onrampOf(s, nil, "created"), "onramp_status_changed"},
+		{withdrawalOf(s, keyOf(5, 32), signature), "withdrawal_sent"},
 		{
 			events.Funded{
 				V: 1, TransferID: s.id, CabalID: s.cabal, UserID: s.user,

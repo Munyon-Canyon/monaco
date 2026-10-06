@@ -65,6 +65,8 @@ func F15WithdrawOK(s *scenario.Scenario) {
 			SettledWithdrawal(member),
 		).
 		Then(scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1))
+	s.Then(scenario.EventuallyCapturedBy(
+		events.TypeWithdrawalConfirmed, "withdrawal_sent", "withdrawal_id", s.Recall("withdrawal")))
 }
 
 func F15WithdrawCrashBeforeCommit(s *scenario.Scenario) {

@@ -39,6 +39,8 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		"analytics.posthog.trade.blocked",
 		"analytics.posthog.trade.failed",
 		"analytics.posthog.deposit.credited",
+		"analytics.posthog.onramp.status_changed",
+		"analytics.posthog.withdrawal.confirmed",
 		"analytics.posthog.cabal.funded",
 		"analytics.posthog.cashout.completed",
 		"analytics.posthog.cashout.partial",

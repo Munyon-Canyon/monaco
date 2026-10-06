@@ -15,6 +15,18 @@ func DepositCredited(_ context.Context, e events.DepositCredited) (app.Capture, 
 	})
 }
 
+func OnrampStatusChanged(_ context.Context, e events.OnrampStatusChanged) (app.Capture, bool, error) {
+	return byUser("onramp_status_changed", e.UserID, map[string]any{
+		"session_id": e.SessionID.String(), "from": e.From, "to": e.To,
+	})
+}
+
+func WithdrawalConfirmed(_ context.Context, e events.WithdrawalConfirmed) (app.Capture, bool, error) {
+	return byUser("withdrawal_sent", e.UserID, map[string]any{
+		"withdrawal_id": e.WithdrawalID.String(), "usdc_amount": usdc(e.AmountMicros),
+	})
+}
+
 func byUser(event string, user uuid.UUID, props map[string]any) (app.Capture, bool, error) {
 	return app.Capture{Event: event, DistinctID: user.String(), Properties: props}, true, nil
 }
