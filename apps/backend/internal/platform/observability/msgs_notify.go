@@ -7,4 +7,5 @@ var (
 		Required: []string{"user_id", "environment"},
 	}
 	NotifyDeviceUnregisterSkipped = Msg{Name: "notify.device.unregister_skipped", Required: []string{"user_id"}}
+	NotifyPushResult              = Msg{Name: "notify.push.result", Required: []string{"user_id", "kind", "status"}}
 )

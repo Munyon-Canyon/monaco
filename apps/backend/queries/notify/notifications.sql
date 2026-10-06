@@ -8,7 +8,11 @@ RETURNING id;
 INSERT INTO notifications (
   id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+VALUES (
+  sqlc.arg(id), NULLIF(sqlc.arg(broadcast_id)::uuid, '00000000-0000-0000-0000-000000000000'), sqlc.arg(user_id),
+  sqlc.arg(kind), sqlc.arg(source_event_id), sqlc.arg(title), sqlc.arg(body), sqlc.arg(data), sqlc.arg(collapse_id),
+  sqlc.arg(state), sqlc.arg(created_at)
+)
 ON CONFLICT (source_event_id, user_id, kind) DO NOTHING
 RETURNING id;
 
@@ -28,3 +32,6 @@ WHERE id = sqlc.arg(id) AND state = 'pending';
 -- name: CountKindSince :one
 SELECT count(*) FROM notifications
 WHERE user_id = $1 AND kind = $2 AND created_at >= $3;
+
+-- name: EventActor :one
+SELECT actor_type, actor_id FROM events WHERE id = $1;
