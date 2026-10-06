@@ -38,6 +38,7 @@ type HTTP struct {
 	Invite  *app.InviteMemberHandler
 	DB      sqlc.DBTX
 	Users   app.UserCards
+	Unread  app.UnreadCounter
 	Clock   clock.Clock
 }
 
@@ -131,15 +132,36 @@ func (h HTTP) GetMyCabals(
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "cabal.GetMyCabals")
 	}
+	unread, err := h.unreadCounts(ctx, user, rows)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]api.MyCabal, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, api.MyCabal{
 			Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl), Role: row.Role,
 			CanVote: row.CanVote, MemberCount: row.MemberCount, JoinedAt: row.JoinedAt,
-			PendingRequestCount: row.PendingRequestCount,
+			PendingRequestCount: row.PendingRequestCount, UnreadCount: unread[ids.CabalIDFrom(row.ID)],
 		})
 	}
 	return api.GetMyCabals200JSONResponse(items), nil
+}
+
+func (h HTTP) unreadCounts(
+	ctx context.Context, user ids.UserID, rows []sqlc.ListMyCabalsRow,
+) (map[ids.CabalID]int, error) {
+	if len(rows) == 0 {
+		return map[ids.CabalID]int{}, nil
+	}
+	cabals := make([]ids.CabalID, len(rows))
+	for i, row := range rows {
+		cabals[i] = ids.CabalIDFrom(row.ID)
+	}
+	counts, err := h.Unread.UnreadCounts(ctx, user, cabals)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "cabal.GetMyCabals")
+	}
+	return counts, nil
 }
 
 func cabalSearchParams(

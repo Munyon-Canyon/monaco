@@ -20,7 +20,7 @@ struct CabalsTabComingSlotsTests {
     @Test func returnSlotShowsWithOneCabal() {
         let cabal = Components.Schemas.MyCabal(
             id: "c-1", name: "QA pot", pictureUrl: nil, role: "creator", canVote: true, memberCount: 1,
-            joinedAt: Date(), pendingRequestCount: 0)
+            joinedAt: Date(), pendingRequestCount: 0, unreadCount: 0)
         #expect(CabalsValueChartSlot.shows(.loaded([cabal])))
     }
 }

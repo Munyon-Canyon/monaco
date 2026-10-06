@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
@@ -15,6 +16,7 @@ import (
 const (
 	seededMessages = 10_000
 	seenIndex      = "chat_seen_cabal_last_seen_idx"
+	channelIndex   = "cabal_messages_channel_idx"
 )
 
 func seededChat(t *testing.T) (*pgxpool.Pool, testkit.SeededCabal, time.Time) {
@@ -72,22 +74,26 @@ func plan(t *testing.T, pool *pgxpool.Pool, query string, args ...any) string {
 	return out.String()
 }
 
-func TestSeenQueries_useIndexesOnTenThousandMessages(t *testing.T) {
+func TestChatQueries_useIndexesOnTenThousandMessages(t *testing.T) {
 	t.Parallel()
 	pool, cabal, now := seededChat(t)
 	tests := []struct {
-		name, query string
-		args        []any
+		name, query, index string
+		args               []any
 	}{
-		{"newest seen count", sqlc.NewestSeenCountSQL, []any{cabal.ID.UUID()}},
-		{"seen by list", sqlc.ListSeenBySQL, []any{cabal.ID.UUID(), cabal.Members[0].ID.UUID(), now}},
+		{"newest seen count", sqlc.NewestSeenCountSQL, seenIndex, []any{cabal.ID.UUID()}},
+		{"seen by list", sqlc.ListSeenBySQL, seenIndex, []any{cabal.ID.UUID(), cabal.Members[0].ID.UUID(), now}},
+		{
+			"unread counts", sqlc.UnreadCountsSQL, channelIndex,
+			[]any{cabal.Members[1].ID.UUID(), []uuid.UUID{cabal.ID.UUID()}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := plan(t, pool, tt.query, tt.args...)
-			if strings.Contains(got, "Seq Scan") || !strings.Contains(got, seenIndex) {
-				t.Fatalf("plan =\n%s\nwant %s and no sequential scan", got, seenIndex)
+			if strings.Contains(got, "Seq Scan") || !strings.Contains(got, tt.index) {
+				t.Fatalf("plan =\n%s\nwant %s and no sequential scan", got, tt.index)
 			}
 		})
 	}

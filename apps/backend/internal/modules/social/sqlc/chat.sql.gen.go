@@ -497,3 +497,51 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 	}
 	return result.RowsAffected(), nil
 }
+
+const unreadCounts = `-- name: UnreadCounts :many
+SELECT c.id::uuid AS cabal_id, (
+  SELECT count(*)::int
+  FROM (
+    SELECT 1
+    FROM cabal_messages m
+    WHERE m.cabal_id = c.id
+      AND (m.parent_id IS NULL OR m.also_in_channel)
+      AND m.deleted_at IS NULL
+      AND m.author_id <> $1
+      AND m.created_at > coalesce(s.last_seen_at, '-infinity'::timestamptz)
+    LIMIT 100
+  ) AS capped
+) AS unread
+FROM unnest($2::uuid[]) AS c(id)
+LEFT JOIN chat_seen s ON s.cabal_id = c.id AND s.user_id = $1
+`
+
+type UnreadCountsParams struct {
+	UserID   uuid.UUID
+	CabalIds []uuid.UUID
+}
+
+type UnreadCountsRow struct {
+	CabalID uuid.UUID
+	Unread  int32
+}
+
+func (q *Queries) UnreadCounts(ctx context.Context, arg UnreadCountsParams) ([]UnreadCountsRow, error) {
+	rows, err := q.db.Query(ctx, unreadCounts, arg.UserID, arg.CabalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UnreadCountsRow
+	for rows.Next() {
+		var i UnreadCountsRow
+		if err := rows.Scan(&i.CabalID, &i.Unread); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -135,7 +135,7 @@ private struct LeaveCabalPreviewTransport: ClientTransport {
             let row =
                 #"{"id":"\#(LeaveCabalModel.previewCabalID)","name":"QA pot","picture_url":null,"#
                 + #""role":"\#(role)","can_vote":true,"member_count":\#(memberCount),"#
-                + #""joined_at":"2026-10-02T15:00:00Z","pending_request_count":0}"#
+                + #""joined_at":"2026-10-02T15:00:00Z","pending_request_count":0,"unread_count":0}"#
             return (response, HTTPBody("[\(row)]"))
         }
         switch refusal {

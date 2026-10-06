@@ -19,6 +19,7 @@ type Module struct {
 	deps     module.Deps
 	wallets  app.TreasuryWallets
 	treasury app.TreasuryReads
+	unread   app.UnreadCounter
 }
 
 type Option func(*Module)
@@ -39,12 +40,24 @@ func New(d module.Deps, opts ...Option) *Module {
 	return m
 }
 
+func (m *Module) Wire(set module.Set) {
+	for _, mod := range set {
+		if provider, ok := mod.(interface{ Chat() app.UnreadCounter }); ok {
+			m.unread = provider.Chat()
+		}
+	}
+}
+
 func (*Module) Name() string { return "cabal" }
 
 func (m *Module) Mount(r api.Mount) { cabalapi.Mount(m.http(), r) }
 
 func (m *Module) http() adapters.HTTP {
 	users := identity.New(m.deps).Queries()
+	unread := m.unread
+	if unread == nil {
+		unread = app.UnwiredUnread{}
+	}
 	return adapters.HTTP{
 		Create:  m.CreateCabalHandler(),
 		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
@@ -55,7 +68,7 @@ func (m *Module) http() adapters.HTTP {
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
 		Leave:   app.NewLeaveCabalHandler(m.deps.UoW, m.deps.Pool, m.treasury),
 		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, m.deps.IDs, m.deps.Clock),
-		DB:      m.deps.Pool, Users: users, Clock: m.deps.Clock,
+		DB:      m.deps.Pool, Users: users, Unread: unread, Clock: m.deps.Clock,
 	}
 }
 

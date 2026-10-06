@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -17,11 +18,13 @@ import (
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -45,7 +48,9 @@ func (f createFixture) routes(users app.UserCards) adapters.HTTP {
 	if users == nil {
 		users = identity.New(module.Deps{Pool: f.pool}).Queries()
 	}
-	return adapters.HTTP{Create: f.handler(), DB: f.pool, Users: users}
+	return adapters.HTTP{
+		Create: f.handler(), DB: f.pool, Users: users, Unread: social.New(module.Deps{Pool: f.pool}).Chat(),
+	}
 }
 
 func (f createFixture) router(t *testing.T) (http.Handler, *auth.DevVerifier) {
@@ -786,3 +791,44 @@ func searchCabals(
 func ptr[T any](value T) *T { return &value }
 
 func cabalCursor(value string) string { return base64.RawURLEncoding.EncodeToString([]byte(value)) }
+
+func TestMyCabals_UnreadCount(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	deps := module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.ids, Clock: f.clock}
+	chatty, quiet := testkit.NewCabal(t, f.pool), testkit.NewCabal(t, f.pool)
+	joinMyCabal(t, f, chatty.ID.UUID(), f.clock.Now().Add(-time.Hour))
+	joinMyCabal(t, f, quiet.ID.UUID(), f.clock.Now().Add(-2*time.Hour))
+	for _, body := range []string{"one", "two"} {
+		if _, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at)
+			VALUES (gen_random_uuid(), $1, $2, $3, $4)`,
+			chatty.ID.UUID(), chatty.Creator.ID.UUID(), body, f.clock.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := cabal.New(deps, cabal.WithTreasuryWallets(adapters.AppWallets{Client: f.wallets}))
+	m.Wire(module.NewSet(social.New(deps)))
+	res, err := cabal.HTTPOf(m).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[uuid.UUID]int{}
+	for _, item := range res.(api.GetMyCabals200JSONResponse) {
+		got[item.Id] = item.UnreadCount
+	}
+	if want := map[uuid.UUID]int{chatty.ID.UUID(): 2, quiet.ID.UUID(): 0}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unread counts = %v, want %v", got, want)
+	}
+}
+
+func TestMyCabals_failsClosedWhileTheChatIsNotWired(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	joinMyCabal(t, f, testkit.NewCabal(t, f.pool).ID.UUID(), f.clock.Now())
+	deps := module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.ids, Clock: f.clock}
+	m := cabal.New(deps, cabal.WithTreasuryWallets(adapters.AppWallets{Client: f.wallets}))
+	_, err := cabal.HTTPOf(m).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("GetMyCabals without a chat counter = %v, want internal", err)
+	}
+}
