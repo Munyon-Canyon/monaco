@@ -21,6 +21,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -123,6 +124,11 @@ func derivedID(namespace uuid.UUID, scope, old string, stamp time.Time) uuid.UUI
 		copy(id[:6], ms[2:])
 	}
 	return id
+}
+
+func SeedConsumers(all []bus.Consumer) []bus.Consumer {
+	keep := []string{"treasury_trades", "ranking_membership", "ranking_triggers"}
+	return slices.DeleteFunc(slices.Clone(all), func(c bus.Consumer) bool { return !slices.Contains(keep, c.Durable) })
 }
 
 func rowsSeeded(name string) bool { return name == "two-cabals-ranked" }

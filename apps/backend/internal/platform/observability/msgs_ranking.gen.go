@@ -7,5 +7,6 @@ func init() {
 		RankingSnapshotsThinned,
 		RankingRangeStartSkipped,
 		RankingCabalExcluded,
+		RankingRunCompleted,
 	)
 }

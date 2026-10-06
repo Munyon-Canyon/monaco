@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-19	Valuation + leaderboards	ranking	poller:ranking.valuation	RunValuation	ranking.snapshot_written	ranking.hints	ok;PricesStale;ConservationBroken;CabalPaused;crash:before-commit	built	docs/architecture/leaderboards.md#3-batch-valuation-job
+19	Valuation + leaderboards	ranking	poller:ranking.valuation	RunValuation	ranking.snapshot_written	ranking.hints	ok;PricesStale;ConservationBroken;CabalPaused;crash:before-commit	verified	docs/architecture/leaderboards.md#3-batch-valuation-job

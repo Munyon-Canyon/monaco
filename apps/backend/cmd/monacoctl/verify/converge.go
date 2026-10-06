@@ -29,8 +29,9 @@ func (d *driver) watchedBy(u Unit) []watched {
 	return out
 }
 
-func (d *driver) flowEvents(ctx context.Context, users []string) ([]string, error) {
-	rows, err := d.env.Pool.Query(ctx, `SELECT id::text FROM events WHERE actor_id = ANY($1) ORDER BY id`, users)
+func (d *driver) flowEvents(ctx context.Context, users, polled []string) ([]string, error) {
+	rows, err := d.env.Pool.Query(ctx, `SELECT id::text FROM events
+		WHERE actor_id = ANY($1) OR (type = ANY($2) AND actor_id LIKE 'poller.%') ORDER BY id`, users, polled)
 	var ids []string
 	if err == nil {
 		ids, err = pgx.CollectRows(rows, pgx.RowTo[string])

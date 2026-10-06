@@ -76,6 +76,8 @@ func (p ValuationPoller) Tick(ctx context.Context) (poller.Report, error) {
 	if err != nil {
 		return poller.Report{}, err
 	}
+	observability.Info(ctx, observability.RankingRunCompleted, slog.String("run_id", runID.String()),
+		slog.Int("rows", len(valuation.Entries)), slog.Int("excluded", valuation.Excluded))
 	return poller.Report{
 		Scanned: len(valuation.Cabals) + len(valuation.Flagged), Changed: len(valuation.Entries),
 		Attrs: []slog.Attr{slog.String("run_id", runID.String())},

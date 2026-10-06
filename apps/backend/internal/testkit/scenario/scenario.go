@@ -69,7 +69,7 @@ type backend struct {
 	published     func(t T, typ events.Type, eventIDs []string) uint64
 	hold          func()
 	crashAt       func(t T, point faultpoint.Name)
-	seed          func(t T, name string) []testkit.Seeded
+	seed          func(t T, name string, users []ids.UserID) []testkit.Seeded
 	lines         func(from int) ([]string, <-chan struct{})
 	tick          func(t T, poller string) (stop func())
 	coreSubscribe func(t T, subject string) <-chan []byte
