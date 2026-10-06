@@ -26,4 +26,12 @@ final class FeedPreviewTests: XCTestCase {
         await failed.load()
         guard case .failed = failed.phase else { return XCTFail("expected failure, got \(failed.phase)") }
     }
+
+    func testTheFollowsNobodyHarnessAsksToFollowInTheFollowingScope() async {
+        let model = FeedModel.preview(.followsNobody, clock: TestClock())
+        await model.load()
+        XCTAssertEqual(model.phase, .empty(query: nil))
+        await model.select(.following)
+        XCTAssertEqual(model.phase, .followsNobody)
+    }
 }

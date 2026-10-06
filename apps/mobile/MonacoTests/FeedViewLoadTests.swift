@@ -15,6 +15,7 @@ struct FeedViewLoadTests {
         let transport = StubTransport(.json(.ok, try Self.page(Components.Schemas.FeedItem.samples)))
         let model = FeedModel(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            viewerID: nil,
             hints: FakeHintSource(),
             clock: ContinuousClock()
         )
