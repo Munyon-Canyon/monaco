@@ -1829,6 +1829,28 @@ paths:
                 $ref: "#/components/schemas/FeedPage"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/feed/comments/{comment_id}:
+    delete:
+      operationId: deleteFeedComment
+      tags: [social]
+      x-idempotent: true
+      summary: Delete your comment.
+      description: >-
+        Author only, otherwise comment_not_author. An unknown comment is comment_not_found. The comment
+        keeps its place in its thread with a null body, and the item's `comment_count` drops by one. A
+        second delete returns 204 and changes nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: comment_id
+          in: path
+          required: true
+          description: The comment's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      responses:
+        "204":
+          description: The comment is deleted.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/feed/{id}:
     get:
       operationId: getFeedItem
@@ -1920,6 +1942,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Comment"
+        default:
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: getFeedComments
+      tags: [social]
+      summary: Read the comments on a feed item.
+      description: >-
+        Returns the top-level comments oldest first, one page at a time, each with all its replies
+        oldest first. A deleted comment keeps its place with a null `body` and the `body_display`
+        `Comment deleted`. An unknown item is feed_item_not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The feed item's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 128, examples: ["MTc1OTQ3OTMzMDEyMzQ1Ni4wMTkyMDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDc"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size, counted in top-level comments. Defaults to 50 and cannot exceed 100.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: One page of comment threads.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentPage"
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/feed-mutes:
@@ -4332,6 +4387,36 @@ components:
         handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
         display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
         photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+    CommentPage:
+      type: object
+      description: One page of comment threads, oldest first.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The page.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/CommentThread"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
+    CommentThread:
+      type: object
+      description: A top-level comment and all its replies.
+      additionalProperties: false
+      required: [comment, replies]
+      properties:
+        comment:
+          $ref: "#/components/schemas/Comment"
+        replies:
+          type: array
+          description: The replies, oldest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/Comment"
     CreateCommentRequest:
       type: object
       description: A comment to post.
@@ -4394,15 +4479,20 @@ components:
         updated_at: {type: string, format: date-time, description: "When the item last changed.", examples: ["2026-10-03T08:00:00Z"]}
     FeedItemDetail:
       type: object
-      description: One feed item and whether it passes the request's filters.
+      description: One feed item, whether it passes the request's filters and whether the caller can comment on it.
       additionalProperties: false
-      required: [item, visible]
+      required: [item, visible, can_comment]
       properties:
         item:
           $ref: "#/components/schemas/FeedItem"
         visible:
           type: boolean
           description: True when the item passes the filters sent with the request.
+          examples: [true]
+        can_comment:
+          type: boolean
+          description: >-
+            False on a proposal of a cabal the caller is not in, which only members can comment on. True otherwise.
           examples: [true]
     FeedMute:
       type: object

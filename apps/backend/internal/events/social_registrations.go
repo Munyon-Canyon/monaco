@@ -4,6 +4,7 @@ func socialRegistrations() []Registration {
 	return []Registration{
 		Register[ChatMessagePosted](TypeChatMessagePosted, 1),
 		Register[CommentCreated](TypeCommentCreated, 1),
+		Register[CommentDeleted](TypeCommentDeleted, 1),
 		Register[FollowCreated](TypeFollowCreated, 1),
 		Register[FollowRemoved](TypeFollowRemoved, 1),
 	}

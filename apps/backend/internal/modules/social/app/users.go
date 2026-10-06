@@ -8,6 +8,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
+type UserCard = port.UserCard
+
 type Users interface {
 	UsersByID(ctx context.Context, userIDs []ids.UserID) (map[ids.UserID]port.UserCard, error)
 }

@@ -81,22 +81,25 @@ func (m *Module) http() adapters.HTTP {
 		UoW: m.deps.UoW, Members: m.members, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		Publish: app.NewChatPublisher(m.realtime, adapters.ChatWire(m.users)),
 	}
+	comments := app.CommentDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, IDs: m.deps.IDs, Clock: m.deps.Clock,
+		Hints: m.deps.Bus,
+	}
 	return adapters.HTTP{
 		Follow: app.NewFollowHandler(app.FollowDeps{
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
-		Unfollow:   app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
-		Mute:       app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
-		Unmute:     app.NewUnmuteHandler(m.deps.UoW),
-		PostChat:   app.NewPostChatMessageHandler(chat),
-		DeleteChat: app.NewDeleteChatMessageHandler(chat),
-		Token:      app.NewRealtimeTokenHandler(m.members, m.realtime),
-		CreateComment: app.NewCreateCommentHandler(app.CommentDeps{
-			UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, IDs: m.deps.IDs, Clock: m.deps.Clock,
-		}),
-		Members: m.members,
-		Reads:   m.deps.Pool,
-		Users:   m.users,
+		Unfollow:      app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
+		Mute:          app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
+		Unmute:        app.NewUnmuteHandler(m.deps.UoW),
+		PostChat:      app.NewPostChatMessageHandler(chat),
+		DeleteChat:    app.NewDeleteChatMessageHandler(chat),
+		Token:         app.NewRealtimeTokenHandler(m.members, m.realtime),
+		CreateComment: app.NewCreateCommentHandler(comments),
+		DeleteComment: app.NewDeleteCommentHandler(comments),
+		Members:       m.members,
+		Reads:         m.deps.Pool,
+		Users:         m.users,
 	}
 }
 

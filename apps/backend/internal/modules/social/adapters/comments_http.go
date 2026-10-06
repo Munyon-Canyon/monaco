@@ -13,6 +13,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
+const commentDeletedDisplay = "Comment deleted"
+
 func (h HTTP) PostFeedComment(
 	ctx context.Context, req api.PostFeedCommentRequestObject,
 ) (api.PostFeedCommentResponseObject, error) {
@@ -45,6 +47,18 @@ func (h HTTP) PostFeedComment(
 func wireComments(
 	ctx context.Context, users app.Users, viewer ids.UserID, comments []app.Comment,
 ) ([]api.Comment, error) {
+	cards, err := users.UsersByID(ctx, commentPeople(comments))
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireComments")
+	}
+	out := make([]api.Comment, len(comments))
+	for i, c := range comments {
+		out[i] = wireComment(c, viewer, cards)
+	}
+	return out, nil
+}
+
+func commentPeople(comments []app.Comment) []ids.UserID {
 	var people []ids.UserID
 	for _, c := range comments {
 		for _, id := range []ids.UserID{c.AuthorID, c.ReplyToUserID} {
@@ -53,25 +67,82 @@ func wireComments(
 			}
 		}
 	}
-	cards, err := users.UsersByID(ctx, people)
+	return people
+}
+
+func wireComment(c app.Comment, viewer ids.UserID, cards map[ids.UserID]app.UserCard) api.Comment {
+	author := api.CommentAuthor{Id: c.AuthorID.UUID()}
+	if card, ok := cards[c.AuthorID]; ok && !card.Deleted {
+		author.Handle, author.DisplayName = optionalWireText(card.Handle), card.DisplayName
+		author.PhotoUrl = optionalWireText(card.PhotoURL)
+	}
+	out := api.Comment{
+		Id: c.ID, ParentCommentId: optionalWireID(c.ParentID), Author: author, IsMine: c.AuthorID == viewer,
+		CreatedAt: c.CreatedAt, BodyDisplay: c.Body,
+	}
+	if card, ok := cards[c.ReplyToUserID]; ok && !card.Deleted {
+		out.ReplyToHandle = optionalWireText(card.Handle)
+	}
+	if c.Deleted {
+		out.BodyDisplay = commentDeletedDisplay
+	} else {
+		out.Body = &c.Body
+	}
+	return out
+}
+
+func (h HTTP) GetFeedComments(
+	ctx context.Context, req api.GetFeedCommentsRequestObject,
+) (api.GetFeedCommentsResponseObject, error) {
+	me, err := caller(ctx)
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireComments")
+		return nil, err
 	}
-	out := make([]api.Comment, len(comments))
-	for i, c := range comments {
-		author := api.CommentAuthor{Id: c.AuthorID.UUID()}
-		if card, ok := cards[c.AuthorID]; ok && !card.Deleted {
-			author.Handle, author.DisplayName = optionalWireText(card.Handle), card.DisplayName
-			author.PhotoUrl = optionalWireText(card.PhotoURL)
-		}
-		out[i] = api.Comment{
-			Id: c.ID, ParentCommentId: optionalWireID(c.ParentID), Author: author, IsMine: c.AuthorID == viewer,
-			CreatedAt: c.CreatedAt, BodyDisplay: c.Body,
-		}
-		if card, ok := cards[c.ReplyToUserID]; ok && !card.Deleted {
-			out[i].ReplyToHandle = optionalWireText(card.Handle)
-		}
-		out[i].Body = &c.Body
+	q := app.CommentsQuery{FeedObjectID: req.Id, Limit: app.CommentPageDefault}
+	if req.Params.Limit != nil {
+		q.Limit = *req.Params.Limit
 	}
-	return out, nil
+	if req.Params.Cursor != nil {
+		after, err := domain.ParseKeyset(*req.Params.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		q.After = &after
+	}
+	page, err := app.ListComments(ctx, h.Reads, q)
+	if err != nil {
+		return nil, err
+	}
+	var flat []app.Comment
+	for _, thread := range page.Threads {
+		flat = append(flat, thread.Comment)
+		flat = append(flat, thread.Replies...)
+	}
+	wire, err := wireComments(ctx, h.Users, me, flat)
+	if err != nil {
+		return nil, err
+	}
+	body := api.CommentPage{Items: make([]api.CommentThread, len(page.Threads))}
+	for i, thread := range page.Threads {
+		body.Items[i] = api.CommentThread{Comment: wire[0], Replies: wire[1 : 1+len(thread.Replies)]}
+		wire = wire[1+len(thread.Replies):]
+	}
+	if page.Next != nil {
+		next := page.Next.Encode()
+		body.NextCursor = &next
+	}
+	return api.GetFeedComments200JSONResponse(body), nil
+}
+
+func (h HTTP) DeleteFeedComment(
+	ctx context.Context, req api.DeleteFeedCommentRequestObject,
+) (api.DeleteFeedCommentResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.DeleteComment.Handle(ctx, app.DeleteComment{CommentID: req.CommentId, Caller: me}); err != nil {
+		return nil, err
+	}
+	return api.DeleteFeedComment204Response{}, nil
 }

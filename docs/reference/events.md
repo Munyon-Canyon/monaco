@@ -305,6 +305,17 @@ Subject `events.comment.created`, version 1.
 | `proposal_id` | `*uuid.UUID` |
 | `excerpt` | `string` |
 
+## `comment.deleted`
+
+Subject `events.comment.deleted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `comment_id` | `uuid.UUID` |
+| `feed_object_id` | `uuid.UUID` |
+| `deleted_by` | `uuid.UUID` |
+
 ## `deposit.credited`
 
 Subject `events.deposit.credited`, version 1.

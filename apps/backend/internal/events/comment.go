@@ -2,7 +2,10 @@ package events
 
 import "github.com/google/uuid"
 
-const TypeCommentCreated Type = "comment.created"
+const (
+	TypeCommentCreated Type = "comment.created"
+	TypeCommentDeleted Type = "comment.deleted"
+)
 
 const commentAggregate = "feed_comment"
 
@@ -29,3 +32,16 @@ func (CommentCreated) Type() Type { return TypeCommentCreated }
 func (CommentCreated) AggregateType() string { return commentAggregate }
 
 func (e CommentCreated) AggregateID() uuid.UUID { return e.CommentID }
+
+type CommentDeleted struct {
+	V            int       `json:"v"`
+	CommentID    uuid.UUID `json:"comment_id"`
+	FeedObjectID uuid.UUID `json:"feed_object_id"`
+	DeletedBy    uuid.UUID `json:"deleted_by"     pii:"true"`
+}
+
+func (CommentDeleted) Type() Type { return TypeCommentDeleted }
+
+func (CommentDeleted) AggregateType() string { return commentAggregate }
+
+func (e CommentDeleted) AggregateID() uuid.UUID { return e.CommentID }

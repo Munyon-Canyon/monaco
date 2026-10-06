@@ -44,7 +44,14 @@ type CommentDeps struct {
 	Members Members
 	IDs     ids.Generator
 	Clock   clock.Clock
+	Hints   Hints
 }
+
+type Hints interface {
+	PublishHint(ctx context.Context, key string, payload []byte)
+}
+
+const FeedHint = "global.feed"
 
 type CreateCommentHandler struct {
 	d CommentDeps
@@ -67,7 +74,7 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	case err != nil:
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	allowed, err := canComment(ctx, h.d.Members, feed.Kind(item.Kind), ids.CabalIDFrom(item.CabalID.Bytes), cmd.Author)
+	allowed, err := CanComment(ctx, h.d.Members, feed.Kind(item.Kind), ids.CabalIDFrom(item.CabalID.Bytes), cmd.Author)
 	if err != nil {
 		return Comment{}, err
 	}
@@ -97,6 +104,7 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
 		created = commentOf(row)
+		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
 		return tx.Events.Append(ctx, createdEvent(item, row, target, cmd.Body))
 	})
 	if err != nil {
@@ -108,7 +116,7 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 }
 
 func createdEvent(
-	item sqlc.GetCommentItemRow, row sqlc.InsertCommentRow, target sqlc.GetCommentTargetRow, body domain.CommentBody,
+	item sqlc.GetCommentItemRow, row sqlc.FeedComment, target sqlc.GetCommentTargetRow, body domain.CommentBody,
 ) events.CommentCreated {
 	e := events.CommentCreated{
 		V: 1, CommentID: row.ID, FeedObjectID: row.FeedObjectID, FeedKind: item.Kind, RefType: item.RefType,
@@ -123,15 +131,15 @@ func createdEvent(
 	return e
 }
 
-func commentOf(row sqlc.InsertCommentRow) Comment {
+func commentOf(row sqlc.FeedComment) Comment {
 	return Comment{
 		ID: row.ID, FeedObjectID: row.FeedObjectID, AuthorID: ids.UserIDFrom(row.AuthorID),
 		ParentID: row.ParentCommentID.Bytes, ReplyToUserID: ids.UserIDFrom(row.ReplyToUserID.Bytes),
-		Body: row.Body, CreatedAt: row.CreatedAt.UTC(),
+		Body: row.Body, CreatedAt: row.CreatedAt.UTC(), Deleted: row.DeletedAt.Valid,
 	}
 }
 
-func canComment(
+func CanComment(
 	ctx context.Context, members Members, kind feed.Kind, cabal ids.CabalID, user ids.UserID,
 ) (bool, error) {
 	if kind != feed.KindProposal {
@@ -139,7 +147,7 @@ func canComment(
 	}
 	member, err := members.IsMember(ctx, cabal, user)
 	if err != nil {
-		return false, errs.Wrap(err, errs.CodeOf(err), "social.canComment")
+		return false, errs.Wrap(err, errs.CodeOf(err), "social.CanComment")
 	}
 	return member, nil
 }

@@ -70,7 +70,13 @@ func (h HTTP) GetFeedItem(
 	if err != nil {
 		return nil, err
 	}
-	return api.GetFeedItem200JSONResponse(api.FeedItemDetail{Item: wireFeedItem(view.Item), Visible: view.Visible}), nil
+	can, err := app.CanComment(ctx, h.Members, view.Item.Kind, view.Item.CabalID, me)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetFeedItem200JSONResponse(api.FeedItemDetail{
+		Item: wireFeedItem(view.Item), Visible: view.Visible, CanComment: can,
+	}), nil
 }
 
 func feedFilter(kinds *string, cabal *uuid.UUID, symbol, q, scope *string) (app.FeedFilter, error) {
