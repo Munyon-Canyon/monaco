@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -71,4 +72,28 @@ func (historicalStore) CabalContributionHistory(
 
 func (historicalStore) UserStakeHistory(context.Context, uuid.UUID) ([]sqlc.UserStakeHistoryRow, error) {
 	return nil, nil
+}
+
+type flowReadStore struct {
+	rows []sqlc.MemberFlowsBetweenRow
+	err  error
+}
+
+func (f flowReadStore) MemberFlowsBetween(
+	context.Context, sqlc.MemberFlowsBetweenParams,
+) ([]sqlc.MemberFlowsBetweenRow, error) {
+	return f.rows, f.err
+}
+
+func TestMemberFlowsBetweenDecodeFailures(t *testing.T) {
+	t.Parallel()
+	q := &Queries{}
+	q.flows = flowReadStore{err: errs.New(errs.CodeInternal, "test")}
+	if _, err := q.MemberFlowsBetween(t.Context(), time.Time{}, time.Time{}); err == nil {
+		t.Fatal("MemberFlowsBetween query error = nil")
+	}
+	q.flows = flowReadStore{rows: []sqlc.MemberFlowsBetweenRow{{Amount: "bad"}}}
+	if _, err := q.MemberFlowsBetween(t.Context(), time.Time{}, time.Time{}); err == nil {
+		t.Fatal("MemberFlowsBetween amount error = nil")
+	}
 }

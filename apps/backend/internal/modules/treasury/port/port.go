@@ -38,6 +38,13 @@ type MemberStake struct {
 	NetContributedMicros money.SignedMicros
 }
 
+type MemberFlow struct {
+	UserID  ids.UserID
+	CabalID ids.CabalID
+	Amount  money.SignedMicros
+	At      time.Time
+}
+
 type ContributionPoint struct {
 	At             time.Time
 	NetContributed money.SignedMicros
@@ -66,6 +73,7 @@ type StakesReader interface {
 type HistoricalReader interface {
 	CabalPositionsAt(ctx context.Context, t time.Time) ([]CabalPositions, error)
 	MemberStakesAt(ctx context.Context, t time.Time) ([]MemberStake, error)
+	MemberFlowsBetween(ctx context.Context, from, to time.Time) ([]MemberFlow, error)
 }
 
 type HistoryReader interface {

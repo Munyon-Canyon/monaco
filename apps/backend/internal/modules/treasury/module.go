@@ -60,6 +60,7 @@ type (
 	Stake          = port.Stake
 	CabalPositions = port.CabalPositions
 	MemberStake    = port.MemberStake
+	MemberFlow     = port.MemberFlow
 	SignatureOwner = port.SignatureOwner
 	WalletLedger   = port.WalletLedger
 )

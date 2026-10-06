@@ -67,3 +67,48 @@ func (q *Queries) LatestCabalValues(ctx context.Context) ([]CabalValueSnapshot, 
 	}
 	return items, nil
 }
+
+const snapshotsAt = `-- name: SnapshotsAt :many
+SELECT DISTINCT ON (snapshots.cabal_id, bucket.idx)
+  (bucket.idx - 1)::int AS bucket, snapshots.cabal_id, snapshots.at, snapshots.value_micros,
+  snapshots.nav_per_share_micros, snapshots.total_shares
+FROM unnest($1::timestamptz[]) WITH ORDINALITY AS bucket(t, idx)
+JOIN cabal_value_snapshots AS snapshots ON snapshots.at <= bucket.t
+ORDER BY snapshots.cabal_id, bucket.idx, snapshots.at DESC
+`
+
+type SnapshotsAtRow struct {
+	Bucket            int32
+	CabalID           uuid.UUID
+	At                time.Time
+	ValueMicros       int64
+	NavPerShareMicros int64
+	TotalShares       int64
+}
+
+func (q *Queries) SnapshotsAt(ctx context.Context, ts []time.Time) ([]SnapshotsAtRow, error) {
+	rows, err := q.db.Query(ctx, snapshotsAt, ts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SnapshotsAtRow
+	for rows.Next() {
+		var i SnapshotsAtRow
+		if err := rows.Scan(
+			&i.Bucket,
+			&i.CabalID,
+			&i.At,
+			&i.ValueMicros,
+			&i.NavPerShareMicros,
+			&i.TotalShares,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
