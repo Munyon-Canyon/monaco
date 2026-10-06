@@ -180,8 +180,14 @@ ready_actor B "$token_b"
 
 closed="$(expire_open_proposals "$id_a" "$id_b")"
 
-host_token="$(token new)"
-call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
+# Reuse the newest QA host: Privy caps the app's users, so a new one per scenario eventually fails.
+host_user="$(sql <<<"SELECT id FROM users WHERE display_name = 'QA host' ORDER BY id DESC LIMIT 1")"
+if [[ -n "$host_user" ]]; then
+  host_token="$(token "$host_user")"
+else
+  host_token="$(token new)"
+  call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
+fi
 host_id="$(call GET /v1/me "$host_token" | field id)"
 cabal_name="QA vote $run $scenario"
 cabal_id="$(call POST /v1/cabals "$host_token" \

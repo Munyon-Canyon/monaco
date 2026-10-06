@@ -116,7 +116,8 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             symbol: value.symbol, usdcMicros: value.usdcMicros, tokenAmount: value.tokenAmount,
             quoteOutAmount: value.quoteOutAmount, thesis: value.thesis, status: value.status,
             statusReason: value.statusReason, statusMessage: value.statusMessage, expiresAt: value.expiresAt,
-            createdAt: value.createdAt, tally: value.tally)
+            createdAt: value.createdAt, tally: value.tally,
+            myBallot: value.myBallot.flatMap { Components.Schemas.Proposal.MyBallotPayload(rawValue: $0.rawValue) })
         self.init(
             summary: ProposalSummary(
                 proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap)),

@@ -65,6 +65,7 @@ struct ProposalCard: View {
         .padding(MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(MonacoTheme.surface, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("proposal-card-\(summary.id)")
     }
 

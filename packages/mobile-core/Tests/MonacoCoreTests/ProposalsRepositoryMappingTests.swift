@@ -69,6 +69,12 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         XCTAssertFalse(detail.summary.canWithdraw)
     }
 
+    func testDetailKeepsTheCallersBallot() async throws {
+        let body = detailBody.replacingOccurrences(of: #""my_ballot":null"#, with: #""my_ballot":"yes""#)
+        let detail = try await repository(StubTransport(.json(.ok, body))).detail(id: "p")
+        XCTAssertEqual(detail.summary.myBallot, "yes")
+    }
+
     func testMembersAndAssetExposeScreenMetadata() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, cabalBody),
