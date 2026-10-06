@@ -39,6 +39,7 @@ struct ProposeBuyStockView: View {
             if model.rows.isEmpty { await model.load() }
         }
         .onChange(of: query) { _, query in model?.setQuery(query) }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-buy-stock")
     }
 
