@@ -8,6 +8,9 @@ Diffs BASE_SHA...HEAD_SHA and reports each finding as `path:line: <rule>: <what>
   .swiftlint.yml); a new row or a raised count in a row file (ROW_FILES); a lowered value
   in packages/mobile-core/coverage-floor.txt. A newly created gate file is not a finding: it
   adds a gate, it does not loosen one.
+- floor-raise: an added line in packages/mobile-core/coverage-floor.txt in a change that also touches
+  another file. A raise goes in its own PR (scripts/mobile-core-test.sh --update-floor), so feature
+  PRs do not conflict on that file.
 - test-skip: an added line in a *_test.go that calls t.Skip, t.Skipf, t.SkipNow or b.Skip*, or
   in a Swift test file that adds XCTSkip, .disabled( or withKnownIssue.
 - test-removed: a Go Test, Fuzz or Benchmark function, or a Swift `func test…(` or `@Test`
@@ -245,6 +248,18 @@ def gate_findings(added: list[Added], golangci_exclusions: set[int], base, head)
     return findings
 
 
+def floor_raise_findings(added: list[Added], removed: list[Added], base) -> list[Finding]:
+    paths = {a.path for a in added + removed}
+    if COVERAGE_FLOOR not in paths or paths == {COVERAGE_FLOOR}:
+        return []
+    base_floor = floors(base(COVERAGE_FLOOR))
+    return [
+        Finding(a.path, a.line, "floor-raise", f"raised `{p}` {base_floor[p]:.2f} -> {v:.2f} in a PR that is not a floor-only PR")
+        for a in added if a.path == COVERAGE_FLOOR
+        for p, v in floors(a.text).items() if v > base_floor.get(p, v)
+    ]
+
+
 def skip_findings(added: list[Added]) -> list[Finding]:
     return [
         Finding(a.path, a.line, "test-skip", f"added `{a.text.strip()}`")
@@ -428,7 +443,7 @@ def read(path: str) -> str:
 def check(added: list[Added], removed: list[Added], base, head, head_ls, base_tests, head_tests) -> list[Finding]:
     exclusions = exclusion_lines(head(GOLANGCI)) if any(a.path == GOLANGCI for a in added) else set()
     return (gate_findings(added, exclusions, base, head) + skip_findings(added)
-            + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head)
+            + floor_raise_findings(added, removed, base) + removed_findings(base_tests, head_tests) + strictness_findings(added, removed, base, head)
             + flow_status_findings(added, removed, base, head) + graph_findings(added, removed, base, head)
             + scenario_manifest_findings(added, removed, head, head_ls) + fail_path_findings(removed, base, head))
 

@@ -4,9 +4,9 @@
 # then holds every single test to a 2 s budget and line coverage of Sources/ to this
 # platform's row in coverage-floor.txt. Extra arguments go to swift test and skip both
 # checks, because a partial run cannot be judged. Coverage below the floor fails. Coverage more than 0.5 above it
-# never fails: the run rewrites this platform's row to the measured value, for the author to commit (a CI run's
-# rewrite is discarded, and ci-mobile-core.yml turns the line into a warning). --update-floor raises the row at any
-# margin and refuses to lower it. Bash, awk and llvm-cov only: swift:6.3-noble has no python3 or jq.
+# never fails and never edits the file: the run prints "coverage rose" (ci-mobile-core.yml turns it into a warning).
+# Only a small PR of its own commits a raise, with --update-floor, which raises the row at any margin and refuses to
+# lower it, so feature PRs never conflict on coverage-floor.txt. Bash, awk and llvm-cov only: swift:6.3-noble has no python3 or jq.
 # Rules: docs/architecture/ci.md#what-runs-where
 set -euo pipefail
 
@@ -126,7 +126,6 @@ if below "$actual" "$floor"; then
   exit 1
 fi
 if below "$(awk -v f="$floor" 'BEGIN { print f + 0.5 }')" "$actual"; then
-  write_floor
-  echo "coverage rose: $platform $floor -> $actual (packages/mobile-core/coverage-floor.txt now holds $platform $actual: commit it)"
+  echo "coverage rose: $platform $floor -> $actual (do not commit it in a feature PR: raise the floor in its own PR with scripts/mobile-core-test.sh --update-floor)"
 fi
 echo "coverage: $platform $actual (floor $floor)"
