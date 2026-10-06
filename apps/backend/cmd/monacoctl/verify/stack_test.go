@@ -80,6 +80,23 @@ func TestUp_pointsTheBinariesAtTheFakeAblyWithAnAPIKey(t *testing.T) {
 	}
 }
 
+func TestUp_pointsTheBinariesAtTheFakeAPNsWithAKey(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.CoverDir = t.TempDir()
+	s, err := Up(t.Context(), o)
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Down(context.WithoutCancel(t.Context())) })
+	host := slices.Contains(s.env, "APNS_BASE_URL="+s.Fakes+"/apns")
+	key := slices.Contains(s.env, "APNS_KEY_P8="+testkit.APNsKeyP8())
+	if !host || !key {
+		t.Fatalf("child env has APNS_BASE_URL at the fakes' /apns route: %t, the test APNS_KEY_P8: %t; "+
+			"want both, or the worker binds the noop sender and never reaches the fakes", host, key)
+	}
+}
+
 func TestUp_aStackThatNeverGetsHealthyFailsNamingStackUp(t *testing.T) {
 	t.Parallel()
 	o := testOptions(t, fakeSick)

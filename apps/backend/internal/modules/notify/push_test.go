@@ -127,12 +127,25 @@ func (r *pushRig) handle(
 	return handleKinds(t, r, sender, d, e, kinds...)
 }
 
+func (r *pushRig) handleIn(
+	ctx context.Context, sender apns.Sender, d bus.Delivery, e events.NotifyTestRequested,
+	kinds ...app.Kind[events.NotifyTestRequested],
+) error {
+	return handleKindsIn(ctx, r, sender, d, e, kinds...)
+}
+
 func handleKinds[E events.Event](
 	t *testing.T, r *pushRig, sender apns.Sender, d bus.Delivery, e E, kinds ...app.Kind[E],
 ) error {
 	t.Helper()
+	return handleKindsIn(t.Context(), r, sender, d, e, kinds...)
+}
+
+func handleKindsIn[E events.Event](
+	ctx context.Context, r *pushRig, sender apns.Sender, d bus.Delivery, e E, kinds ...app.Kind[E],
+) error {
 	logger := observability.NewLogger(config.Config{Env: config.EnvTest}, r.logs)
-	ctx := observability.WithLogger(observability.WithActor(t.Context(), "system:"+d.Handler), logger)
+	ctx = observability.WithLogger(observability.WithActor(ctx, "system:"+d.Handler), logger)
 	pusher := app.NewPusher(r.uow, r.users, sender, r.ids, r.clock)
 	return app.Notify[E]{Pusher: pusher, Kinds: kinds}.Handle(ctx, d, e)
 }
@@ -300,11 +313,11 @@ func TestPush_settlesEachAnswerAndARedeliveryResendsOnlyPendingRows(t *testing.T
 		resends  int
 		recorded int
 	}{
-		"403 terms and stays pending": {
+		"403 records its code, terms and stays pending": {
 			[]apns.Result{{Status: http.StatusForbidden}},
 			errs.CodeAPNSAuthFailed, errs.VerdictTerm, "pending",
 			[]bool{false},
-			1, 0,
+			1, 1,
 		},
 		"400 BadTopic is rejected, pending and acked": {
 			[]apns.Result{{Status: http.StatusBadRequest, Reason: "BadTopic"}},
@@ -495,6 +508,7 @@ func TestPush_termsAnEventWithNoRowBeforeWritingOrSending(t *testing.T) {
 func TestPush_returnsEachStoreFailureAndRecordsNothing(t *testing.T) {
 	t.Parallel()
 	ok, gone := apns.Result{Status: http.StatusOK}, apns.Result{Status: http.StatusGone}
+	denied := apns.Result{Status: http.StatusForbidden}
 	one := func(ids.UserID, ids.UserID) app.Kind[events.NotifyTestRequested] { return app.Test{} }
 	two := func(user, other ids.UserID) app.Kind[events.NotifyTestRequested] {
 		return &crowd{users: []ids.UserID{user, other}}
@@ -518,6 +532,10 @@ func TestPush_returnsEachStoreFailureAndRecordsNothing(t *testing.T) {
 		"disable":    {[]string{`ALTER TABLE device_tokens ADD CHECK (disabled_at IS NULL)`}, one, gone, errs.CodeInternal},
 		"delivered":  {[]string{`ALTER TABLE notifications ADD CHECK (state <> 'delivered')`}, one, ok, errs.CodeInternal},
 		"sent event": {[]string{`ALTER TABLE events ADD CHECK (type <> 'notification.sent')`}, one, ok, errs.CodeInternal},
+		"delivery":   {[]string{`ALTER TABLE event_deliveries ADD CHECK (false)`}, one, ok, errs.CodeInternal},
+		"denied delivery": {
+			[]string{`ALTER TABLE event_deliveries ADD CHECK (false)`}, one, denied, errs.CodeInternal,
+		},
 		"no device": {
 			[]string{`DELETE FROM device_tokens`, `ALTER TABLE notifications ADD CHECK (state <> 'no_device')`},
 			one, ok, errs.CodeInternal,

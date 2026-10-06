@@ -4,6 +4,9 @@ package flows
 
 func (defined) ScriptsF24() map[string]Script {
 	return map[string]Script{
-		"F24NotifyOK": F24NotifyOK,
+		"F24NotifyOK":                F24NotifyOK,
+		"F24NotifyAPNSUnavailable":   F24NotifyAPNSUnavailable,
+		"F24NotifyAPNSAuthFailed":    F24NotifyAPNSAuthFailed,
+		"F24NotifyCrashBeforeCommit": F24NotifyCrashBeforeCommit,
 	}
 }
