@@ -22,9 +22,4 @@ struct HomeSlotsTests {
         ]
         #expect(order == expected.map { ObjectIdentifier($0) })
     }
-
-    @Test func aCabalRowCountsItsMembers() {
-        #expect(CabalPortfolioRow.members(1) == "1 member")
-        #expect(CabalPortfolioRow.members(4) == "4 members")
-    }
 }

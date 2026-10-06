@@ -10,11 +10,15 @@ enum ProfileCabalsSlot: ProfileSection {
     }
 }
 
-private struct ProfileCabals: View {
+struct ProfileCabals: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var model: MonacoCore.CabalsTabModel?
+    @State private var model: PortfolioModel?
+
+    init(model: PortfolioModel? = nil) {
+        _model = State(initialValue: model)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -22,14 +26,19 @@ private struct ProfileCabals: View {
                 .padding(.horizontal, MonacoTheme.Space.m)
             content
         }
-        .onAppear {
+        .task {
             let model = preparedModel()
             refresh?.register("profile-cabals") { await model.load() }
-            Task { await model.load() }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await model.load() }
+                group.addTask { await model.observe() }
+            }
         }
-        .onChange(of: model?.failureTick) { _, _ in
-            guard case .loaded = model?.state, let error = model?.lastError else { return }
-            toasts.show(error)
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .onChange(of: model?.toast) { _, message in
+            guard let message else { return }
+            toasts.current = MonacoToast(message: message)
+            model?.dismissToast()
         }
     }
 
@@ -45,26 +54,23 @@ private struct ProfileCabals: View {
                 Task { await model?.load() }
             }
             .accessibilityIdentifier("profile-cabals-retry")
-        case .loaded(let cabals) where cabals.isEmpty:
-            EmptyState(title: "No cabals yet", message: "Start a cabal or join one from the Cabals tab.")
-                .accessibilityIdentifier("profile-cabals-empty")
-        case .loaded(let cabals):
+        case .loaded(let summary) where summary.isEmpty:
+            EmptyState(
+                title: "No cabals yet", message: "Start a cabal or join one from the Cabals tab.", actionTitle: nil
+            )
+            .accessibilityIdentifier("profile-cabals-empty")
+        case .loaded(let summary):
             MonacoGroupedList {
-                ForEach(cabals, id: \.id) { cabal in
-                    CabalPortfolioRow(cabal: cabal, isLast: cabal.id == cabals.last?.id)
+                ForEach(summary.rows) { row in
+                    CabalPortfolioRow(row: row, isLast: row.id == summary.rows.last?.id)
                 }
             }
-            Text("Pot values show up here soon.")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .padding(.horizontal, MonacoTheme.Space.m)
-                .accessibilityIdentifier("profile-cabals-coming")
         }
     }
 
-    private func preparedModel() -> MonacoCore.CabalsTabModel {
+    private func preparedModel() -> PortfolioModel {
         if let model { return model }
-        let created = MonacoCore.CabalsTabModel(api: environment.api)
+        let created = PortfolioModel(api: environment.api, hints: environment.hints)
         model = created
         return created
     }
