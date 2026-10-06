@@ -3,6 +3,7 @@ package agents
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -55,6 +56,9 @@ type checkHarness struct {
 	goos        string
 	lookPath    func(string) (string, error)
 	budget      map[string]time.Duration
+	load        float64
+	cores       int
+	actions     bool
 	xcodeBuild  func(ctx context.Context, waited string) error
 }
 
@@ -137,7 +141,9 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 			if h.goos != "" {
 				env.GOOS = h.goos
 			}
-			env.Load = func(context.Context, string) (float64, error) { return 41.5, nil }
+			env.Actions = h.actions
+			env.Load = func(context.Context, string) (float64, error) { return h.loadOr(41.5), nil }
+			env.Cores = func() int { return cmp.Or(h.cores, 64) }
 			env.LookPath = h.lookPath
 			if env.LookPath == nil {
 				env.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
@@ -146,6 +152,8 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 	)
 	return code, stdout.String(), stderr.String()
 }
+
+func (h *checkHarness) loadOr(def float64) float64 { return cmp.Or(h.load, def) }
 
 func (h *checkHarness) base(t *testing.T, files map[string]string) {
 	t.Helper()
@@ -1456,6 +1464,119 @@ func TestCheck_aPackageStillOverBudgetWhenRerunAloneFailsNamingTheRerun(t *testi
 		t.Fatalf("recorded the tree: %v", err)
 	}
 }
+
+func (h *checkHarness) loaded(load float64) {
+	h.load, h.cores = load, 8
+	h.affected = "./internal/fast\n./internal/slow\n"
+}
+
+func TestCheck_aPackageWithinTheLoadScaledBudgetPasses(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.loaded(16)
+	h.replies = []reply{{prefix: "go test", took: 31 * time.Second, out: slowPackageEvents(30 * time.Second)}}
+	code, stdout, stderr := h.check(t)
+	want := "ok    31.0s  budget 40s (base 20s, x2.0 for load1 16.0 over 8 cores)"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("a package within the scaled budget passes and says why: %d %q %q", code, stdout, stderr)
+	}
+	if !slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, " -timeout 40s ") }) {
+		t.Fatalf("go test gets the scaled timeout: %v", h.calls)
+	}
+}
+
+func TestCheck_theScaledBudgetIsCappedAtFourTimesTheBase(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.loaded(150)
+	h.replies = []reply{
+		{prefix: rerunPrefix, took: 10 * time.Second, out: rerunEvents(10 * time.Second)},
+		{prefix: "go test", took: 81 * time.Second, out: slowPackageEvents(81 * time.Second)},
+	}
+	code, stdout, stderr := h.check(t)
+	if code != 0 ||
+		!strings.Contains(stdout, "ok    over budget under load (load1 150.0), ./internal/slow passed alone in 10.0s") {
+		t.Fatalf("a package over the cap is rerun alone: %d %q %q", code, stdout, stderr)
+	}
+	if !slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, " -timeout 1m20s ") }) {
+		t.Fatalf("the timeout stops at 4x the base: %v", h.calls)
+	}
+}
+
+func TestCheck_aPackageSlowAloneStillFailsUnderLoadNamingBothBudgets(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.loaded(16)
+	h.replies = []reply{
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: "go test", took: 46 * time.Second, out: slowPackageEvents(45 * time.Second)},
+	}
+	code, stdout, stderr := h.check(t)
+	want := "package ./internal/slow took 45.0s, over the 40s (base 20s, x2.0 for load1 16.0 over 8 cores) per-package budget; " +
+		"rerun alone: package ./internal/slow took 25.0s, over the 20s base budget"
+	if code != 1 || !strings.Contains(stderr, want) || !strings.Contains(stdout, "go test -short  over budget") {
+		t.Fatalf("slow alone fails: %d %q %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("recorded the tree: %v", err)
+	}
+}
+
+func TestCheck_ciKeepsTheBaseBudgetWhateverTheLoad(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.loaded(150)
+	h.actions = true
+	h.replies = []reply{
+		{prefix: rerunPrefix, took: 25 * time.Second, out: slowPackageEvents(25 * time.Second)},
+		{prefix: "go test", took: 31 * time.Second, out: slowPackageEvents(30 * time.Second)},
+	}
+	code, _, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stderr, "took 30.0s, over the 20s per-package budget; rerun alone") {
+		t.Fatalf("CI keeps 20s: %d %q", code, stderr)
+	}
+	if slices.ContainsFunc(h.calls, func(c string) bool {
+		return strings.Contains(c, " -timeout ") && !strings.Contains(c, " -timeout 20s ")
+	}) {
+		t.Fatalf("CI never raises the timeout: %v", h.calls)
+	}
+}
+
+func TestScaleBudget_followsLoadPerCoreAndNeverBelowTheBase(t *testing.T) {
+	t.Parallel()
+	base := 20 * time.Second
+	for _, tc := range []struct {
+		name  string
+		env   Env
+		limit time.Duration
+	}{
+		{"idle", Env{Load: fakeLoad(2, nil), Cores: fakeCores(8)}, base},
+		{"at one per core", Env{Load: fakeLoad(8, nil), Cores: fakeCores(8)}, base},
+		{"busy", Env{Load: fakeLoad(12, nil), Cores: fakeCores(8)}, 30 * time.Second},
+		{"capped", Env{Load: fakeLoad(150, nil), Cores: fakeCores(8)}, 80 * time.Second},
+		{"unknown load", Env{Load: fakeLoad(0, errors.New("no load")), Cores: fakeCores(8)}, base},
+		{"no cores", Env{Load: fakeLoad(150, nil), Cores: fakeCores(0)}, base},
+		{"in CI", Env{Load: fakeLoad(150, nil), Cores: fakeCores(8), Actions: true}, base},
+	} {
+		if got := tc.env.scaleBudget(context.Background(), base).limit; got != tc.limit {
+			t.Errorf("%s: limit %s, want %s", tc.name, got, tc.limit)
+		}
+	}
+	env := Env{Load: fakeLoad(150, nil)}
+	if got := env.scaleBudget(context.Background(), base); got.cores != runtime.NumCPU() {
+		t.Errorf("cores default to the host: %d", got.cores)
+	}
+}
+
+func fakeLoad(v float64, err error) func(context.Context, string) (float64, error) {
+	return func(context.Context, string) (float64, error) { return v, err }
+}
+
+func fakeCores(n int) func() int { return func() int { return n } }
 
 func TestCheck_aRealFailureInAnotherPackageIsNotRerun(t *testing.T) {
 	t.Parallel()

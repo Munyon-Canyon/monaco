@@ -897,16 +897,8 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		_, _ = fmt.Fprintf(&r.log, "skip %s: %s\n", row.label, row.skip)
 		return nil
 	}
-	budget := r.env.Config.Budget[row.kind]
-	if row.kind != packageKind {
-		limit := budget
-		if row.lockWaited != "" {
-			limit += xcodeLockWait * time.Duration(len(row.cmds))
-		}
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, limit)
-		defer cancel()
-	}
+	ctx, cancel, sb := r.rowBudget(ctx, row)
+	defer cancel()
 	if row.lockWaited != "" {
 		if _, err := r.env.writeState(lockWaitedDir, filepath.Base(row.lockWaited), nil); err != nil {
 			return err
@@ -916,10 +908,13 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	warnings := 0
 	var waited time.Duration
 	for _, cmd := range row.cmds {
+		if sb.scaled() {
+			cmd = withTimeout(cmd, sb.limit)
+		}
 		text, err := r.exec(ctx, row, cmd)
 		warnings += strings.Count(text, "::warning ")
 		waited = lockWaited(row.lockWaited)
-		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, budget, rowStart, waited, first)
+		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, sb, rowStart, waited, first)
 		if budgetErr != nil {
 			return budgetErr
 		}
@@ -931,12 +926,28 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	if waited > 0 {
 		note += fmt.Sprintf("  waited %s for %s lock", waited, row.label)
 	}
+	if sb.scaled() {
+		note += "  budget " + sb.String()
+	}
 	if warnings > 0 {
 		note += fmt.Sprintf("  %d warnings in the log", warnings)
 	}
 	took := r.env.Now().Sub(rowStart) - waited
 	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs%s\n", row.label, took.Seconds(), note)
 	return nil
+}
+
+func (r *checkRun) rowBudget(ctx context.Context, row checkRow) (context.Context, context.CancelFunc, scaledBudget) {
+	budget := r.env.Config.Budget[row.kind]
+	if row.kind == packageKind {
+		return ctx, func() {}, r.env.scaleBudget(ctx, budget)
+	}
+	limit := budget
+	if row.lockWaited != "" {
+		limit += xcodeLockWait * time.Duration(len(row.cmds))
+	}
+	ctx, cancel := context.WithTimeout(ctx, limit)
+	return ctx, cancel, scaledBudget{base: budget, limit: budget, factor: 1}
 }
 
 func failRow(stdout io.Writer, row checkRow, cmd []string, text string, err error) error {
@@ -952,18 +963,69 @@ func (r *checkRun) checkBudget(
 	stdout io.Writer,
 	row checkRow,
 	cmd []string,
-	budget time.Duration,
+	sb scaledBudget,
 	rowStart time.Time,
 	waited time.Duration,
 	first int,
 ) (bool, error) {
 	if row.kind == packageKind {
-		retried, err := r.retryAlone(ctx, stdout, row, cmd, budget, r.timings[first:])
+		retried, err := r.retryAlone(ctx, stdout, row, cmd, sb, r.timings[first:])
 		if retried || err != nil {
 			return retried, err
 		}
 	}
-	return false, r.overBudget(stdout, row, budget, rowStart, waited, r.timings[first:])
+	return false, r.overBudget(stdout, row, sb, rowStart, waited, r.timings[first:])
+}
+
+type scaledBudget struct {
+	base, limit time.Duration
+	factor      float64
+	load        float64
+	cores       int
+}
+
+const maxBudgetScale = 4
+
+func (s scaledBudget) scaled() bool { return s.limit > s.base }
+
+func (s scaledBudget) String() string {
+	if !s.scaled() {
+		return s.limit.String()
+	}
+	return fmt.Sprintf("%s (base %s, x%.1f for load1 %.1f over %d cores)",
+		s.limit, s.base, s.factor, s.load, s.cores)
+}
+
+func (env *Env) scaleBudget(ctx context.Context, base time.Duration) scaledBudget {
+	sb := scaledBudget{base: base, limit: base, factor: 1}
+	if env.Actions {
+		return sb
+	}
+	load, err := env.loadValue(ctx)
+	if err != nil {
+		return sb
+	}
+	cores := runtime.NumCPU()
+	if env.Cores != nil {
+		cores = env.Cores()
+	}
+	if cores < 1 {
+		return sb
+	}
+	factor := min(max(1, load/float64(cores)), maxBudgetScale)
+	limit := time.Duration(float64(base) * factor).Round(100 * time.Millisecond)
+	if limit <= base {
+		return sb
+	}
+	return scaledBudget{base: base, limit: limit, factor: factor, load: load, cores: cores}
+}
+
+func withTimeout(cmd []string, d time.Duration) []string {
+	out := slices.Clone(cmd)
+	if i := slices.Index(out, "-timeout"); i >= 0 && i+1 < len(out) {
+		out[i+1] = d.String()
+	}
+	return out
 }
 
 func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string, error) {
@@ -1005,9 +1067,9 @@ func rerunCmd(cmd []string, pkgs []timing) []string {
 }
 
 func (r *checkRun) retryAlone(
-	ctx context.Context, stdout io.Writer, row checkRow, cmd []string, budget time.Duration, timings []timing,
+	ctx context.Context, stdout io.Writer, row checkRow, cmd []string, sb scaledBudget, timings []timing,
 ) (bool, error) {
-	slow := slowPackages(timings, budget)
+	slow := slowPackages(timings, sb.limit)
 	if len(slow) == 0 || slices.ContainsFunc(slow, func(t timing) bool { return !strings.HasPrefix(t.name, "./") }) {
 		return false, nil
 	}
@@ -1017,17 +1079,25 @@ func (r *checkRun) retryAlone(
 		return false, nil
 	}
 	first := len(r.timings)
-	text, err := r.exec(ctx, row, rerunCmd(cmd, slow))
+	alone := rerunCmd(withTimeout(cmd, sb.base), slow)
+	text, err := r.exec(ctx, row, alone)
 	again := r.timings[first:]
-	if still := slowPackages(again, budget); len(still) > 0 {
+	if still := slowPackages(again, sb.base); len(still) > 0 {
 		s, orig := slowest(still), slowest(slow)
 		_, _ = fmt.Fprintf(stdout, "  %-15s over budget\n", row.label)
 		return false, detailErr(errs.CodeUpstreamTimeout, "monacoctl.agents.check", fmt.Sprintf(
-			"%s: package %s took %.1fs, over the %s per-package budget; rerun alone: package %s took %.1fs",
-			row.label, orig.name, orig.took.Seconds(), budget, s.name, s.took.Seconds()))
+			"%s: package %s took %.1fs, over the %s per-package budget; rerun alone: package %s took %.1fs, over the %s base budget",
+			row.label,
+			orig.name,
+			orig.took.Seconds(),
+			sb,
+			s.name,
+			s.took.Seconds(),
+			sb.base,
+		))
 	}
 	if err != nil {
-		return false, failRow(stdout, row, rerunCmd(cmd, slow), text, err)
+		return false, failRow(stdout, row, alone, text, err)
 	}
 	load := r.env.load1(ctx)
 	for _, t := range again {
@@ -1038,15 +1108,19 @@ func (r *checkRun) retryAlone(
 }
 
 func (env *Env) load1(ctx context.Context) string {
-	load := env.Load
-	if load == nil {
-		load = loadAverage
-	}
-	v, err := load(ctx, env.GOOS)
+	v, err := env.loadValue(ctx)
 	if err != nil {
 		return "unknown"
 	}
 	return strconv.FormatFloat(v, 'f', 1, 64)
+}
+
+func (env *Env) loadValue(ctx context.Context) (float64, error) {
+	load := env.Load
+	if load == nil {
+		load = loadAverage
+	}
+	return load(ctx, env.GOOS)
 }
 
 func loadAverage(ctx context.Context, goos string) (float64, error) {
@@ -1075,25 +1149,25 @@ func parseLoad(raw string) (float64, error) {
 }
 
 func (r *checkRun) overBudget(
-	stdout io.Writer, row checkRow, budget time.Duration, rowStart time.Time, waited time.Duration, timings []timing,
+	stdout io.Writer, row checkRow, sb scaledBudget, rowStart time.Time, waited time.Duration, timings []timing,
 ) error {
 	var detail string
 	if row.kind == packageKind {
-		slow := slices.DeleteFunc(slices.Clone(timings), func(t timing) bool { return t.took < budget })
+		slow := slowPackages(timings, sb.limit)
 		if len(slow) == 0 {
 			return nil
 		}
 		s := slowest(slow)
 		detail = fmt.Sprintf("%s: package %s took %.1fs, over the %s per-package budget",
-			row.label, s.name, s.took.Seconds(), budget)
+			row.label, s.name, s.took.Seconds(), sb)
 	} else {
 		took := r.env.Now().Sub(rowStart) - waited
-		if took <= budget {
+		if took <= sb.limit {
 			return nil
 		}
 		s := slowest(timings)
 		detail = fmt.Sprintf("%s row over the %s %s budget after %.0fs; slowest: %s (%.1fs)",
-			row.label, budget, row.kind, took.Seconds(), s.name, s.took.Seconds())
+			row.label, sb, row.kind, took.Seconds(), s.name, s.took.Seconds())
 	}
 	if waited > 0 {
 		detail += fmt.Sprintf("; waited %s for %s lock, not counted", waited, row.label)
