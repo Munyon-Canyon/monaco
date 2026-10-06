@@ -51,8 +51,18 @@ func unlabel(at time.Time, label, actor string) string {
 func dropped(at time.Time) string { return unlabel(at, "merge-queue", graphiteBot) }
 
 func draftNode(head, title string, at time.Time, commit string) string {
-	return fmt.Sprintf(`{"title":%q,"body":"","headRefName":%q,"updatedAt":%q,"commits":{"nodes":[{"commit":%s}]}}`,
-		title, head, at.Format(time.RFC3339), commit)
+	return fmt.Sprintf(
+		`{"title":%q,"body":"","headRefName":%q,"updatedAt":%q,"closedAt":%q,"commits":{"nodes":[{"commit":%s}]}}`,
+		title, head, at.Format(time.RFC3339), at.Format(time.RFC3339), commit)
+}
+
+func movedUpdate(t *testing.T, node string, closed, updated time.Time) string {
+	t.Helper()
+	from := fmt.Sprintf(`"updatedAt":%q`, closed.Format(time.RFC3339))
+	if !strings.Contains(node, from) {
+		t.Fatalf("draftNode no longer carries %s", from)
+	}
+	return strings.Replace(node, from, fmt.Sprintf(`"updatedAt":%q`, updated.Format(time.RFC3339)), 1)
 }
 
 func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
@@ -183,6 +193,15 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
 			nil,
 			[]string{draftNode("gtmq_1", "Merge queue: #1", since.Add(30*time.Second), rollup(flakeJob))},
+			waiting,
+		},
+		{
+			"deleting that draft's branch after the take does not make it a run since the take",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
+			nil,
+			[]string{movedUpdate(t,
+				draftNode("gtmq_1", "Merge queue: #1", since.Add(30*time.Second), rollup(flakeJob)),
+				since.Add(30*time.Second), after.Add(time.Second))},
 			waiting,
 		},
 		{
@@ -345,9 +364,13 @@ func TestFailures_watchOnceLeavesAPRGraphiteTookWhileItWaitsForADraft(t *testing
 	}
 }
 
-func closedDraftNode(head, title string, at time.Time, state, oid string) string {
-	node := draftNode(head, title, at, rollup(greenOK))
+func closedDraftWith(head, title string, at time.Time, state, oid, commit string) string {
+	node := draftNode(head, title, at, commit)
 	return strings.Replace(node, `{"title"`, fmt.Sprintf(`{"state":%q,"headRefOid":%q,"title"`, state, oid), 1)
+}
+
+func closedDraftNode(head, title string, at time.Time, state, oid string) string {
+	return closedDraftWith(head, title, at, state, oid, rollup(greenOK))
 }
 
 func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
@@ -359,17 +382,22 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 		offTrunk = `{"status":"diverged"}`
 	)
 	for _, tc := range []struct {
-		name           string
-		opens, closes  time.Duration
-		state          string
-		trunk, compare string
-		want           []time.Duration
-		reads          int
+		name                 string
+		opens, closes, moved time.Duration
+		state                string
+		trunk, compare       string
+		want                 []time.Duration
+		reads                int
 	}{
 		{name: "no draft ever opens", want: []time.Duration{30 * time.Minute}},
 		{
 			name:  "a draft ran it and failed, leaving nothing of it on the trunk",
 			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "CLOSED", compare: offTrunk,
+			want: []time.Duration{25 * time.Minute}, reads: 1,
+		},
+		{
+			name:  "Graphite deletes the failed draft's branch a minute after closing it, which moves its updatedAt",
+			opens: 5 * time.Minute, closes: 25 * time.Minute, moved: time.Minute, state: "CLOSED", compare: offTrunk,
 			want: []time.Duration{25 * time.Minute}, reads: 1,
 		},
 		{
@@ -405,9 +433,12 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 					open := draftNode("gtmq_5", "Merge queue: #5", first, noRollup)
 					drafts = []string{strings.Replace(open, `{"title"`, `{"state":"OPEN","title"`, 1)}
 				default:
-					drafts = []string{
-						closedDraftNode("gtmq_5", "Merge queue: #5", first.Add(tc.closes), tc.state, "d5"),
+					closed := first.Add(tc.closes)
+					node := closedDraftNode("gtmq_5", "Merge queue: #5", closed, tc.state, "d5")
+					if offset >= tc.closes+tc.moved {
+						node = movedUpdate(t, node, closed, closed.Add(tc.moved))
 					}
+					drafts = []string{node}
 				}
 				f.hub.on(graphqlRoute, draftData(drafts,
 					watchNode(5, "fb", rollup(greenOK), dropped(first.Add(-2*time.Minute)))))
@@ -450,6 +481,60 @@ func TestWatchOnce_aFailedTrunkReadFailsThePassAndKeepsTheDropForTheNextOne(t *t
 	code, stdout, stderr = f.agents(t, "watch", "--once")
 	if code != 1 || !strings.HasPrefix(stdout, "#5 dropped from the Graphite merge queue\n") || stderr != "" {
 		t.Fatalf("the next pass: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestWatchOnce_aDraftThatClosesWhileTheWatchReadsGitHubIsReportedByTheNextPass(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	node := watchNode(5, "fb", rollup(greenOK), dropped(f.now.Add(-5*time.Minute)))
+	f.hub.on(graphqlRoute, failureData(node))
+	f.hub.on(get("/compare/fb...d5"), `{"status":"diverged"}`)
+	advanced := false
+	f.hub.hook = func(method, _, _ string, _ int) {
+		if method == http.MethodPost && !advanced {
+			advanced = true
+			f.now = f.now.Add(10 * time.Second)
+		}
+	}
+	closedAt := f.now.Add(5 * time.Second)
+	if code, stdout, stderr := f.agents(t, "watch", "--once"); code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("the read: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	f.hub.on(graphqlRoute, draftData(
+		[]string{closedDraftNode("gtmq_5", "Merge queue: #5", closedAt, "CLOSED", "d5")}, node,
+	))
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 1 || !strings.HasPrefix(stdout, "#5 dropped from the Graphite merge queue\n") || stderr != "" {
+		t.Fatalf("the next pass: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestWatchOnce_printsOneDropBlockForAnOwnedStackThatOneFailedDraftDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	took := unlabel(f.now.Add(-5*time.Minute), "merge-queue", graphiteApp)
+	setUnlabels(t, s.prs[1], took)
+	setUnlabels(t, s.prs[2], took)
+	failed := closedDraftWith("gtmq_1", "Merge queue: #1 #2", f.now.Add(-time.Minute), "CLOSED", "d1", rollup(flakeJob))
+	f.hub.on(graphqlRoute, draftData([]string{failed},
+		watchNode(1, "fb", rollup(greenOK), took),
+		watchNode(2, "b1", rollup(greenOK), took),
+	))
+	f.hub.on(get("/compare/fb...d1"), `{"status":"diverged"}`)
+	f.hub.on(get("/actions/jobs/11/logs"), "--- FAIL: TestFlaky\n")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	want := "unqueued: #40; #2 left the Graphite merge queue. " +
+		"Fix the stack with gt modify and gt submit --stack --draft, then run land-stack 2\n" +
+		"#1 dropped from the Graphite merge queue\n  failing job: https://gh/job/11\n  fresh owner\n" +
+		"  ticket: 40\n  worktree: /w/40\n  head: sha1\n  log: " + f.Env(t).statePath("logs", "job-11.log") +
+		"\n  brief: docs/agents/owner.md\n"
+	if code != 1 || stderr != "" || stdout != want {
+		t.Fatalf("code=%d stderr=%q stdout=\n%s\nwant\n%s", code, stderr, stdout, want)
+	}
+	if f.owned(t).Queued != nil {
+		t.Fatal("kept the queued mark")
 	}
 }
 
