@@ -14,3 +14,8 @@ var RankingCabalExcluded = Msg{
 	Name:     "ranking.cabal.excluded",
 	Required: []string{"cabal", "reason"},
 }
+
+var RankingRunCompleted = Msg{
+	Name:     "ranking.run.completed",
+	Required: []string{"run_id", "rows", "excluded"},
+}

@@ -45,9 +45,13 @@ type liveMarket struct {
 
 func flow19Scenario(t *testing.T) *scenario.Scenario {
 	t.Helper()
-	return scenario.New(t, scenario.WithModules(func(d module.Deps) module.Module {
-		return rankingOver(d)
-	}))
+	return scenario.New(t, scenario.WithModules(
+		func(d module.Deps) module.Module { return rankingOver(d) },
+		func(d module.Deps) module.Module {
+			d.Config = testkit.Config()
+			return treasury.New(d)
+		},
+	))
 }
 
 func rankingOver(d module.Deps) *ranking.Module {

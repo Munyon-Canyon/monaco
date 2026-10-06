@@ -143,7 +143,7 @@ func TestDriver_reportsDatabaseFailures(t *testing.T) {
 	d, res := servedDriver(t)
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := d.flowEvents(cancelled, res.Users); err == nil {
+	if _, err := d.flowEvents(cancelled, res.Users, nil); err == nil {
 		t.Error("flowEvents on a cancelled context succeeded")
 	}
 	if _, err := d.stuck(cancelled, nil, res.Events); err == nil {

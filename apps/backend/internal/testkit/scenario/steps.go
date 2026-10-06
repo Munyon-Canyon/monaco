@@ -273,6 +273,14 @@ func ExpectLogs(message string, n int) Step {
 	}
 }
 
+func EventuallyLogged(message string) Step {
+	return Eventually("a "+message+" log line", func(s *Scenario) bool {
+		var got int
+		CountLogs(message, &got)(s)
+		return got > 0
+	})
+}
+
 func CountLogs(message string, dst *int) Step {
 	return func(s *Scenario) {
 		lines, _ := s.app.lines(0)
@@ -496,11 +504,24 @@ func SeededUser(name, status string) Step {
 	}
 }
 
+func SeededOnto(name string, users ...string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		onto := make([]ids.UserID, len(users))
+		for i, user := range users {
+			onto[i] = s.user(user).id
+		}
+		for _, ev := range s.app.seed(s.t, name, onto) {
+			s.remember[string(ev.Event.Type())] = ev.Event.AggregateID().String()
+		}
+	}
+}
+
 func Seeded(name string, users ...string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
 		seen := map[string]bool{}
-		for _, ev := range s.app.seed(s.t, name) {
+		for _, ev := range s.app.seed(s.t, name, nil) {
 			s.remember[string(ev.Event.Type())] = ev.Event.AggregateID().String()
 			kind, id, _ := strings.Cut(ev.Actor, ":")
 			if kind != "user" || seen[id] || len(seen) == len(users) {

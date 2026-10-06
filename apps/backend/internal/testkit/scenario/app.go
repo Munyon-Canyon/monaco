@@ -395,9 +395,12 @@ func (a *app) crashAt(_ T, point faultpoint.Name) {
 	a.held.Store(false)
 }
 
-func (a *app) seed(t T, name string) []testkit.Seeded {
+func (a *app) seed(t T, name string, users []ids.UserID) []testkit.Seeded {
 	t.Helper()
-	return testkit.Seed(t, a.pool, name, a.consumers...)
+	if users == nil {
+		return testkit.Seed(t, a.pool, name, a.consumers...)
+	}
+	return testkit.SeedOnto(t, a.pool, name, users, a.consumers...)
 }
 
 type Served struct {

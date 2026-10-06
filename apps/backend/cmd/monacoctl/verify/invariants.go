@@ -63,7 +63,7 @@ func (e *InvariantError) Error() string {
 func (d *driver) settle(ctx context.Context, res *Result) error {
 	query, cancel := detached(ctx)
 	defer cancel()
-	ids, err := d.flowEvents(query, res.Users)
+	ids, err := d.flowEvents(query, res.Users, polledEvents(res.Unit))
 	res.Events = ids
 	if err != nil {
 		return err
@@ -301,6 +301,7 @@ func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
 	if _, isCode := res.Unit.Outcome.CodeName(); isCode {
 		return needs
 	}
+	needs = append(needs, flowLogs(res.Unit)...)
 	if d.wroteDurableEvent(ctx, res.Unit.Flow.Events, res.startedAt) {
 		needs = append(needs, logNeed{msg: observability.BusRelayTick})
 	}

@@ -5,12 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -30,10 +28,6 @@ func seedTool(environ []string) tool {
 		}
 		return seedOn(cfg, db.Open, args, stdout, stderr)
 	}
-}
-
-func seedDurables() []string {
-	return []string{"treasury_trades", "ranking_membership", "ranking_triggers"}
 }
 
 func seedOn(cfg config.Config, open openDB, args []string, stdout, stderr io.Writer) int {
@@ -121,13 +115,7 @@ func applySeed(
 ) (int, error) {
 	uow := db.New(pool, ids.Real{}, clock.Real{})
 	set := registeredSet(cfg, pool, uow, clock.Real{})
-	var consumers []bus.Consumer
-	for _, c := range set.Consumers() {
-		if slices.Contains(seedDurables(), c.Durable) {
-			consumers = append(consumers, c)
-		}
-	}
-	seeded, err := testkit.SeedEvents(ctx, pool, name, raw, users, consumers...)
+	seeded, err := testkit.SeedEvents(ctx, pool, name, raw, users, testkit.SeedConsumers(set.Consumers())...)
 	if err != nil || len(seeded) == 0 {
 		return len(seeded), err
 	}

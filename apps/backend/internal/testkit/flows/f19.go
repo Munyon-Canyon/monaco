@@ -2,9 +2,13 @@ package flows
 
 import (
 	"crypto/rand"
+	"encoding/json"
+	"net/url"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -66,32 +70,31 @@ func seedCabal(s *scenario.Scenario, mint chain.SolanaAddress) valuationSeed {
 }
 
 func F19RunValuationOK(s *scenario.Scenario) {
-	mint := seedAsset(s)
-	seed := seedCabal(s, mint)
-	s.Given(scenario.AsSeededUser("viewer", seed.cabal.Creator.ID)).When(
-		queueValuation(seed),
+	seedRankedAsset(s)
+	s.Given(rankedUsers()...).When(
 		scenario.AwaitTick(valuationPoller),
 	).Then(
-		seed.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
-		seed.awaitSnapshot(valuationPotMicros),
+		awaitRankedRows(),
+		readBoard("/v1/leaderboards/cabals?range=ALL", rankedCabals, ""),
+		readBoard("/v1/leaderboards/people?range=1W", rankedPeople, ""),
 		awaitSnapshotEvent(),
 		scenario.EventuallyGlobalHint("leaderboards_updated"),
+		scenario.EventuallyLogged("ranking.run.completed"),
 	)
 }
 
 func F19RunValuationPricesStale(s *scenario.Scenario) {
-	mint := seedAsset(s)
-	seed := seedCabal(s, mint)
-	s.Given().When(
-		queueValuation(seed),
+	seedRankedAsset(s)
+	s.Given(rankedUsers()...).When(
 		scenario.AwaitTick(valuationPoller),
-		seed.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
-		makePricesStale(mint),
-		queueValuation(seed),
+		awaitRankedRows(),
+		makePricesStale(rankedMint),
+		queueRankedValuation(),
 		scenario.AwaitTick(valuationPoller),
 	).Then(
-		seed.awaitRows(rowCounts{cabals: 1, members: 1, flag: "stale_prices"}),
-		seed.awaitCabalRowValue(valuationPotMicros),
+		awaitRankedFlag("stale_prices"),
+		readBoard("/v1/leaderboards/cabals?range=ALL", rankedCabals, "stale_prices"),
+		scenario.EventuallyLogged("ranking.cabal.excluded"),
 	)
 }
 
@@ -182,18 +185,6 @@ func (v valuationSeed) awaitSnapshot(micros int64) scenario.Step {
 	})
 }
 
-func (v valuationSeed) awaitCabalRowValue(micros int64) scenario.Step {
-	return scenario.Eventually("the stale cabal's row at its previous value", func(s *scenario.Scenario) bool {
-		var n int
-		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM leaderboard_entries
-			WHERE range = 'ALL' AND board = 'cabals' AND subject_id = $1 AND value_micros = $2`,
-			v.cabal.ID.UUID(), micros).Scan(&n); err != nil {
-			s.Fatalf("flows: read the cabal row: %v", err)
-		}
-		return n > 0
-	})
-}
-
 func awaitSnapshotEvent() scenario.Step {
 	return scenario.Eventually("a ranking.snapshot_written event", func(s *scenario.Scenario) bool {
 		var n int
@@ -209,7 +200,7 @@ func makePricesStale(mint chain.SolanaAddress) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
 		if _, err := s.DB().Exec(s.Context(),
-			`UPDATE price_points SET ts = ts - interval '10 minutes' WHERE mint = $1`, string(mint)); err != nil {
+			`UPDATE price_points SET ts = ts - interval '6 minutes' WHERE mint = $1`, string(mint)); err != nil {
 			s.Fatalf("flows: age the prices: %v", err)
 		}
 	}
@@ -245,6 +236,137 @@ func pauseCabal(v valuationSeed) scenario.Step {
 		if _, err := s.DB().Exec(s.Context(), `INSERT INTO cabal_pauses (id, cabal_id, reason, created_at)
 			VALUES ($1, $2, 'ops', now())`, ids.Real{}.NewV7(), v.cabal.ID.UUID()); err != nil {
 			s.Fatalf("flows: pause the cabal: %v", err)
+		}
+	}
+}
+
+const rankedMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
+
+func seedRankedAsset(s *scenario.Scenario) {
+	insertAsset(s, ids.Real{}.NewV7(), "AAPLx", rankedMint, time.Now().UTC())
+}
+
+func rankedUsers() []scenario.Step {
+	return []scenario.Step{
+		scenario.SeededUser("alice", "active"),
+		scenario.SeededUser("bob", "active"),
+		scenario.SeededOnto("two-cabals-ranked", "alice", "bob"),
+		scenario.AsUser("alice"),
+	}
+}
+
+func rankedPeople(s *scenario.Scenario) []string {
+	s.Helper()
+	return []string{s.Recall("alice"), s.Recall("bob")}
+}
+
+func rankedCabals(s *scenario.Scenario) []string {
+	s.Helper()
+	rows, err := s.DB().Query(s.Context(),
+		`SELECT id::text FROM cabals WHERE creator_id = ANY($1::uuid[]) ORDER BY name`, rankedPeople(s))
+	if err != nil {
+		s.Fatalf("flows: read the seeded cabals: %v", err)
+	}
+	cabals, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(cabals) != 2 {
+		s.Fatalf("flows: the seeded cabals = %v, want 2: %v", cabals, err)
+	}
+	return cabals
+}
+
+func awaitRankedRows() scenario.Step {
+	return scenario.Eventually("the two seeded cabals on the cabals board", func(s *scenario.Scenario) bool {
+		var n int
+		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM leaderboard_entries
+			WHERE board = 'cabals' AND range = 'ALL' AND subject_id = ANY($1::uuid[])`,
+			rankedCabals(s)).Scan(&n); err != nil {
+			s.Fatalf("flows: count the cabals board rows: %v", err)
+		}
+		return n == 2
+	})
+}
+
+func awaitRankedFlag(flag string) scenario.Step {
+	return scenario.Eventually("the "+flag+" flag on the holding cabal", func(s *scenario.Scenario) bool {
+		var n int
+		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM leaderboard_entries
+			WHERE board = 'cabals' AND range = 'ALL' AND subject_id = ANY($1::uuid[]) AND $2 = ANY(flags)`,
+			rankedCabals(s), flag).Scan(&n); err != nil {
+			s.Fatalf("flows: read the flags of the seeded cabals: %v", err)
+		}
+		return n == 1
+	})
+}
+
+func queueRankedValuation() scenario.Step {
+	return func(s *scenario.Scenario) {
+		s.Helper()
+		if _, err := s.DB().Exec(s.Context(), `INSERT INTO ranking_triggers (cabal_id, reason, created_at)
+			SELECT id, 'flow19', now() - interval '2 seconds' FROM cabals WHERE id = ANY($1::uuid[])`,
+			rankedCabals(s)); err != nil {
+			s.Fatalf("flows: queue a valuation of the seeded cabals: %v", err)
+		}
+	}
+}
+
+type boardRow struct {
+	Subject struct {
+		ID string `json:"id"`
+	} `json:"subject"`
+	Flags []string `json:"flags"`
+}
+
+func boardRows(s *scenario.Scenario, raw json.RawMessage) []boardRow {
+	s.Helper()
+	var rows []boardRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		s.Fatalf("flows: decode the board rows %s: %v", raw, err)
+	}
+	return rows
+}
+
+func readBoard(path string, want func(*scenario.Scenario) []string, flag string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		s.Helper()
+		listed := boardPages(s, path)
+		flagged := false
+		for _, id := range want(s) {
+			flags, ok := listed[id]
+			if !ok && flag == "" {
+				s.Fatalf("flows: %s does not list %s among %d rows", path, id, len(listed))
+			}
+			flagged = flagged || slices.Contains(flags, flag)
+		}
+		if flag != "" && !flagged {
+			s.Fatalf("flows: no seeded subject on %s carries %s among %d rows", path, flag, len(listed))
+		}
+	}
+}
+
+func boardPages(s *scenario.Scenario, path string) map[string][]string {
+	s.Helper()
+	listed, cursor := map[string][]string{}, ""
+	for {
+		page := path + "&limit=50"
+		if cursor != "" {
+			page += "&cursor=" + url.QueryEscape(cursor)
+		}
+		scenario.Get(page)(s)
+		scenario.ExpectStatus(200)(s)
+		scenario.ExpectField("rows", func(s *scenario.Scenario, raw json.RawMessage) {
+			for _, row := range boardRows(s, raw) {
+				listed[row.Subject.ID] = row.Flags
+			}
+		})(s)
+		cursor = ""
+		scenario.ExpectField("next_cursor", func(s *scenario.Scenario, raw json.RawMessage) {
+			s.Helper()
+			if err := json.Unmarshal(raw, &cursor); err != nil {
+				s.Fatalf("flows: decode next_cursor %s: %v", raw, err)
+			}
+		})(s)
+		if cursor == "" {
+			return listed
 		}
 	}
 }

@@ -163,7 +163,10 @@ func (r *remote) tickCrash(t T, _ string, point faultpoint.Name) {
 	r.crashAt(t, point)
 }
 
-func (r *remote) seed(t T, name string) []testkit.Seeded {
+func (r *remote) seed(t T, name string, users []ids.UserID) []testkit.Seeded {
 	t.Helper()
-	return testkit.Seed(t, r.Pool, name, r.Consumers...)
+	if users == nil {
+		return testkit.Seed(t, r.Pool, name, r.Consumers...)
+	}
+	return testkit.SeedOnto(t, r.Pool, name, users, r.Consumers...)
 }

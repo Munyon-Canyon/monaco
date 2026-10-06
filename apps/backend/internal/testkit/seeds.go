@@ -90,6 +90,19 @@ func Seed(t SeedT, pool *pgxpool.Pool, name string, consumers ...bus.Consumer) [
 	return SeedJSONL(t, pool, name, raw, consumers...)
 }
 
+func SeedOnto(t SeedT, pool *pgxpool.Pool, name string, users []ids.UserID, consumers ...bus.Consumer) []Seeded {
+	t.Helper()
+	raw, err := Scenario(name)
+	if err != nil {
+		t.Fatalf("testkit.Seed: %v", err)
+	}
+	seeded, err := SeedEvents(t.Context(), pool, name, raw, users, SeedConsumers(consumers)...)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	return seeded
+}
+
 func SeedJSONL(t SeedT, pool *pgxpool.Pool, name string, raw []byte, consumers ...bus.Consumer) []Seeded {
 	t.Helper()
 	users, err := existingUsers(t.Context(), pool, raw)
@@ -160,6 +173,9 @@ func applySeedLine(
 		seedRows(baseCtx, t, pool, line, ev)
 	}
 	for _, h := range handlersFor(line.Type, consumers) {
+		if h.OwnIdempotency() {
+			continue
+		}
 		fetched, err := h.Fetch(ctx, ev)
 		if err != nil {
 			t.Fatalf("testkit.Seed: %s line %d: %s: %v", name, n, h.Name, err)
