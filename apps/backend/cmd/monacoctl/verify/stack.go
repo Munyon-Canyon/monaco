@@ -156,6 +156,8 @@ func (s *Stack) processes(ctx context.Context) error {
 		"SUPABASE_SERVICE_ROLE_KEY=verify-service-role",
 		"POSTHOG_API_KEY=verify-posthog-key",
 		"POSTHOG_HOST=http://"+fakes.addr+"/posthog",
+		"ABLY_API_KEY=verify.key:verify-ably-secret",
+		"ABLY_REST_HOST=http://"+fakes.addr+"/ably",
 		"MONACO_BUS_ACK_WAIT=100ms",
 		"PRIVY_APP_ID="+PrivyAppID,
 		"PRIVY_APP_SECRET=verify-app-secret",

@@ -6,6 +6,9 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -14,6 +17,8 @@ const (
 	chatParentPath = chatPath + "/{parent}"
 	missingChat    = missingCabal + "/messages"
 	missingMessage = "01890a5d-ac96-774b-bcce-000000000005"
+
+	ablyMessagesRoute = "/ably/channels/messages"
 )
 
 func chatCreatorOf(script string) string { return "did:privy:qa-f22-" + script + "-creator" }
@@ -95,6 +100,8 @@ func F22PostChatMessageOK(s *scenario.Scenario) {
 			scenario.ExpectEvents(events.TypeChatMessagePosted, 2),
 			scenario.ExpectEventPayload(events.TypeChatMessagePosted, map[string]any{"also_in_channel": true}),
 			scenario.EventuallyPublished(events.TypeChatMessagePosted, 2),
+			scenario.ExpectAblyPublished(app.EventMessageCreated, "cabal", 2),
+			scenario.ExpectAblyPublished(app.EventThreadUpdated, "cabal", 1),
 		)
 }
 
@@ -148,6 +155,26 @@ func F22PostChatMessageCrashBeforeCommit(s *scenario.Scenario) {
 			chatRows(1),
 			scenario.ExpectEvents(events.TypeChatMessagePosted, 1),
 			scenario.EventuallyPublished(events.TypeChatMessagePosted, 1),
+			scenario.ExpectAblyPublished(app.EventMessageCreated, "cabal", 1),
+		)
+}
+
+func ChatPostSurvivesAblyDown(s *scenario.Scenario) {
+	s.Given(append(chatCabal("post-ably-down"),
+		scenario.FakeUpstream(fakes.Step{
+			Route: ablyMessagesRoute, Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
+		}),
+		scenario.SignIn(chatCreatorOf("post-ably-down")),
+	)...).
+		When(
+			scenario.Post(chatPath, `{"body":"gm"}`),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.ExpectJSON("body", "gm"),
+		).
+		Then(
+			chatRows(1),
+			scenario.EventuallyLog(observability.SocialChatPublishFailed, map[string]string{"event": app.EventMessageCreated}),
+			scenario.ExpectAblyPublished(app.EventMessageCreated, "cabal", 0),
 		)
 }
 
@@ -162,7 +189,11 @@ func F22DeleteChatMessageOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("messages", []any{}),
 		).
-		Then(chatRows(1), scenario.ExpectEvents(events.TypeChatMessagePosted, 1))
+		Then(
+			chatRows(1),
+			scenario.ExpectEvents(events.TypeChatMessagePosted, 1),
+			scenario.ExpectAblyPublished(app.EventMessageDeleted, "cabal", 1),
+		)
 }
 
 func F22DeleteChatMessageChatMessageNotOwned(s *scenario.Scenario) {

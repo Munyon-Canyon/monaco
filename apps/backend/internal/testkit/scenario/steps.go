@@ -82,6 +82,13 @@ func FakeWallet(id string) Step { return fakeControl("/_wallet", fakes.SetWallet
 
 func FakeSwap(sw fakes.SetSwap) Step { return fakeControl("/_swap", sw) }
 
+func ExpectAblyPublished(event, cabalKey string, n int) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		fakeControl("/_ably", fakes.AblyExpect{Channel: "cabal:" + s.Recall(cabalKey), Event: event, Count: n})(s)
+	}
+}
+
 func fakeControl(path string, body any) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

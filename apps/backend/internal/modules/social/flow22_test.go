@@ -9,13 +9,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-const chatPrivyAppID = "app-fixture"
+const (
+	chatPrivyAppID = "app-fixture"
+	chatAblyKey    = "flow22.key:flow22-secret"
+)
 
 func chatScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
@@ -29,11 +33,13 @@ func chatScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 			AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
 			AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
 		},
-		Timeouts: config.Timeouts{Privy: 10 * time.Second},
+		Ably:     config.Ably{APIKey: chatAblyKey, RESTHost: srv.URL + "/ably"},
+		Timeouts: config.Timeouts{Privy: 10 * time.Second, Ably: 5 * time.Second},
 	}
 	withCfg := func(build func(module.Deps) module.Module) func(module.Deps) module.Module {
 		return func(d module.Deps) module.Module {
 			d.Config = cfg
+			d.HTTPClient = httpclient.New
 			return build(d)
 		}
 	}
@@ -50,6 +56,11 @@ func chatScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 func TestFlow22_PostChatMessage_OK(t *testing.T) {
 	t.Parallel()
 	flows.F22PostChatMessageOK(chatScenario(t))
+}
+
+func TestPostChatMessage_aFailedAblyPublishStillReturns201(t *testing.T) {
+	t.Parallel()
+	flows.ChatPostSurvivesAblyDown(chatScenario(t))
 }
 
 func TestFlow22_PostChatMessage_NotCabalMember(t *testing.T) {
