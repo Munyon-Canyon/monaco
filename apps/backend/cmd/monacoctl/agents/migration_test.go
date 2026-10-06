@@ -112,3 +112,55 @@ func (s *stackGH) ran(prefix string) bool {
 	}
 	return slices.ContainsFunc(s.gitCalls, func(c string) bool { return strings.Contains("git "+c, prefix) })
 }
+
+func TestMigrationWait_aFailedStepDisarmsAndNamesTheReason(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, fail, gitFail, route, newest string
+		openFail                           int
+		stay                               bool
+	}{
+		{name: "own files", route: "/pulls/2/files?", stay: true},
+		{name: "queued files", route: "/pulls/7/files?", stay: true},
+		{name: "queued stacks", openFail: 2, stay: true},
+		{name: "fetch", gitFail: "fetch --no-tags origin fb"},
+		{name: "merge-base", gitFail: "merge-base origin/fb"},
+		{name: "diff", gitFail: "diff --name-only"},
+		{name: "sync", fail: "gt sync"},
+		{name: "regen", fail: "bash"},
+		{name: "list", gitFail: "ls-tree"},
+		{name: "checkout", fail: "gt checkout"},
+		{name: "mv", gitFail: "mv"},
+		{name: "generate", fail: "go generate"},
+		{name: "modify", fail: "gt modify"},
+		{name: "stage 0", fail: "go run"},
+		{name: "submit", fail: "gt submit"},
+		{name: "stamp", newest: migrationsDir + "99999999999999_x.sql\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f, s := migrationStacks(t)
+			heldFor(t, f, s, "waiting on queued stack #7")
+			if !tc.stay {
+				s.prs[7].Labels.Nodes = nil
+			}
+			s.gitOut[migrationsDiff] = newestOnTrunk + "\n"
+			if tc.newest != "" {
+				s.gitOut["ls-tree --name-only origin/fb "+migrationsDir] = tc.newest
+			}
+			s.fail, s.gitFail = tc.fail, tc.gitFail
+			if tc.openFail > 0 {
+				s.openFail = s.opens + tc.openFail
+			}
+			if tc.route != "" {
+				f.hub.mu.Lock()
+				delete(f.hub.routes, list(tc.route))
+				f.hub.mu.Unlock()
+			}
+			code, stdout, _ := f.agents(t, "watch", "--once")
+			if !strings.Contains(stdout, "disarmed: migration restack:") || f.owned(t).Armed != nil {
+				t.Fatalf("%d %q", code, stdout)
+			}
+		})
+	}
+}
