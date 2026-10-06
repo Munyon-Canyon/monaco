@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeSellJourney {
     static let id = "governance/propose-sell"
-    static let version = 1
+    static let version = 2
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -20,20 +20,20 @@ enum GovernanceProposeSellJourney {
 
         recorder.step("S1.2", "the chooser offers a sell") {
             buy.openChooser(app, step: "S1.2")
-            let sell = app.buttons["Sell something the cabal owns"].firstMatch
-            XCTAssertTrue(sell.waitForExistence(timeout: 10), "S1.2: no Sell something the cabal owns")
+            let sell = app.buttons["propose-kind-sell"].firstMatch
+            XCTAssertTrue(sell.waitForExistence(timeout: 10), "S1.2: no propose-kind-sell")
             XCTAssertTrue(sell.isEnabled, "S1.2: the sell row is disabled")
             XCTAssertFalse(app.staticTexts["Nothing to sell yet"].exists, "S1.2: the cabal has nothing to sell")
         }
 
         recorder.step("S1.3", "pick Sell") {
-            buy.tapLabel(app, "Sell something the cabal owns", step: "S1.3")
+            buy.tapLabel(app, "propose-kind-sell", step: "S1.3")
             buy.expectTitle(app, "Sell", step: "S1.3")
             buy.expectText(app, "What the cabal owns", step: "S1.3")
         }
 
         recorder.step("S1.4", "pick AAPL") {
-            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS 'AAPL'")).firstMatch
+            let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'propose-sell-AAPL'")).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.4: no AAPL holding within 10 s (#2136)")
             row.tap()
             for chip in ["25%", "50%", "All"] {
