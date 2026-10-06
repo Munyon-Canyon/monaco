@@ -1024,6 +1024,75 @@ class RemappedSetup(Output):
         self.assertEqual(logs, ["backend-slot0.log", "backend-slot1.log"])
 
 
+class ReadyLogin(unittest.TestCase):
+    """scripts/qa/ready-login.sh with qa_api, qa_sql and the account lookup stubbed in bash."""
+
+    REPO = Path(__file__).resolve().parents[2]
+
+    def run_script(self, body, row="|CREATED", taken=("qa_cayman",)):
+        script = """set -euo pipefail
+source scripts/qa/ready-login.sh
+qa_api_ready() { :; }
+_qa_account() { case "$2" in privy_user_id) echo did:privy:cmu6gsdaa02g00dlierzbikgz;; name) echo Cayman;; esac; }
+qa_sql() { cat >/dev/null; echo "$ROW"; }
+qa_api() {
+  echo "api $1 $2 $3 $4" >> "$CALLS"
+  if [[ "$3" == /v1/me/handle ]]; then
+    for h in $TAKEN; do
+      if [[ "$4" == *"\\"$h\\""* ]]; then
+        echo '{"code":"handle_taken"}' >&2
+        echo "qa_api $1 $2 $3: HTTP 422" >&2
+        return 1
+      fi
+    done
+  fi
+}
+""" + body
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = Path(tmp) / "calls"
+            env = dict(os.environ, ROW=row, TAKEN=" ".join(taken), CALLS=str(calls))
+            done = subprocess.run(["bash", "-c", script], cwd=str(self.REPO), env=env, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, universal_newlines=True)
+            return done, calls.read_text().splitlines() if calls.exists() else []
+
+    def test_the_handle_is_qa_name(self):
+        done, _ = self.run_script('qa_handle "Link number"; qa_handle Cayman')
+        self.assertEqual(done.stdout.split(), ["qa_linknumber", "qa_cayman"], done.stderr)
+
+    def test_the_fallback_handle_ends_in_six_characters_of_the_privy_id(self):
+        done, _ = self.run_script("qa_handle_fallback Cayman did:privy:cmu6gsdaa02g00dlierzbikgz")
+        self.assertEqual(done.stdout.strip(), "qa_cayman_cmu6gs", done.stderr)
+
+    def test_a_free_handle_is_used_and_the_phone_step_is_skipped(self):
+        done, calls = self.run_script("ready_login A", taken=())
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(calls, ['api A PUT /v1/me/handle {"handle":"qa_cayman"}',
+                                 'api A POST /v1/me/onboarding/skip {"step":"phone"}'])
+        self.assertIn("is @qa_cayman, AWAITING_PHONE", done.stdout)
+
+    def test_a_taken_handle_falls_back_to_the_logins_own(self):
+        done, calls = self.run_script("ready_login A")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(calls[:2], ['api A PUT /v1/me/handle {"handle":"qa_cayman"}',
+                                     'api A PUT /v1/me/handle {"handle":"qa_cayman_cmu6gs"}'])
+        self.assertIn("got the handle qa_cayman_cmu6gs", done.stdout)
+
+    def test_another_failure_is_not_retried_with_a_fallback(self):
+        done, calls = self.run_script("qa_api() { echo boom >&2; return 1; }; ready_login A")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("boom", done.stderr)
+        self.assertEqual(calls, [])
+
+    def test_a_member_with_a_handle_and_a_state_past_created_is_left_alone(self):
+        done, calls = self.run_script("ready_login A", row="qa_cayman_cmu6gs|AWAITING_PHONE")
+        self.assertEqual((done.returncode, calls), (0, []), done.stderr)
+
+    def test_a_login_with_no_users_row_waits_for_its_first_sign_in(self):
+        done, calls = self.run_script("ready_login A", row="")
+        self.assertEqual((done.returncode, calls), (0, []), done.stderr)
+        self.assertIn("signs in once first", done.stdout)
+
+
 class BusApply(unittest.TestCase):
     def test_bus_apply_runs_before_the_backend_boots(self):
         order = []
