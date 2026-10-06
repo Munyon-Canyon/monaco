@@ -2,38 +2,7 @@ import Foundation
 import MonacoCore
 
 struct HomeDashboardDTO: Codable, Equatable {
-    let netWorthUsd: String
-    let netWorthDollarPnl: String
-    let netWorthPercentReturn: String?
-    let myGroups: [HomeMyGroupRowDTO]
-    let pnlSeries1H: [HomePnLSeriesPointDTO]
     let leaderboard: HomeLeaderboardSectionDTO
-}
-
-struct HomeMyGroupRowDTO: Codable, Equatable, Identifiable {
-    let groupId: String
-    let name: String
-    let equityUsd: String
-    let slicePercent: String
-    let dollarPnl: String
-    let percentReturn: String?
-    /// The cabal's picture; nil falls back to the tinted initials.
-    var pictureUrl: String? = nil
-
-    var id: String { groupId }
-}
-
-struct HomePnLSeriesPointDTO: Codable, Equatable, Identifiable {
-    let ts: Date
-    let equityUsd: String
-    let dollarPnl: String
-
-    var id: TimeInterval { ts.timeIntervalSince1970 }
-
-    var chartValue: Double {
-        let cleaned = dollarPnl.replacingOccurrences(of: "+", with: "")
-        return Double(cleaned) ?? 0
-    }
 }
 
 struct HomeLeaderboardSectionDTO: Codable, Equatable {
@@ -57,10 +26,6 @@ enum HomeLeaderboardRange: String, CaseIterable {
         case .all: "All"
         }
     }
-}
-
-struct HomePnLSeriesDTO: Codable, Equatable {
-    let points: [HomePnLSeriesPointDTO]
 }
 
 func monacoISO8601JSONDecoder() -> JSONDecoder {

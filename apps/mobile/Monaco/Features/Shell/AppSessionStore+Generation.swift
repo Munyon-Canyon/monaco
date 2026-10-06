@@ -50,24 +50,6 @@ extension AppSessionStore {
         }
     }
 
-    func refreshHomePnLSeries(auth: SessionAuthenticating, accessToken: String? = nil) async {
-        let token = accessToken ?? auth.accessToken
-        guard let token else { return }
-        let generation = refreshGenerationValue()
-        isHomePnLSeriesLoading = homePnLSeries == nil
-        defer { isHomePnLSeriesLoading = false }
-        do {
-            let series = try await apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
-            guard mayWrite(generation) else { return }
-            homePnLSeries = series.points
-        } catch {
-            if error.isRequestCancellation { return }
-            if case MonacoAPIError.httpStatus(let status) = error, status == 401 {
-                await auth.signOutAfterRejectedSession(rejectedToken: token)
-            }
-        }
-    }
-
     func resolvedAccessToken(_ provided: String?, auth: SessionAuthenticating) async -> String? {
         if let provided { return provided }
         return await accessToken(auth: auth)
@@ -179,9 +161,7 @@ extension AppSessionStore {
         guard mayWrite(generation) else { return }
         errorMessage = nil
         startDeferredWork { [self] in
-            async let deferred: Void = refreshDeferredHomePayloads(auth: auth, accessToken: token)
-            async let pnlSeries: Void = refreshHomePnLSeries(auth: auth, accessToken: token)
-            _ = await (deferred, pnlSeries)
+            await refreshDeferredHomePayloads(auth: auth, accessToken: token)
         }
     }
 
@@ -221,17 +201,14 @@ extension AppSessionStore {
 
         async let dashboardLoad = apiClient.getHomeDashboard(accessToken: token, leaderboardRange: request.range)
         async let homeLoad = apiClient.getHome(accessToken: token)
-        async let seriesLoad = apiClient.getHomePnLSeries(accessToken: token, range: .oneHour)
 
         let loadedDashboard = try await dashboardLoad
         let boards = try? await homeLoad
-        let series = try? await seriesLoad
         guard generation == refreshGenerationValue(), isCurrent(request), poll == pollGenerationValue(),
             !Task.isCancelled
         else { return }
         QuietUpdate.apply(loadedDashboard, over: dashboard) { dashboard = $0 }
         if let boards { QuietUpdate.apply(boards, over: home) { home = $0 } }
-        if let series { QuietUpdate.apply(series.points, over: homePnLSeries) { homePnLSeries = $0 } }
         if profile != nil { errorMessage = nil }
     }
 }

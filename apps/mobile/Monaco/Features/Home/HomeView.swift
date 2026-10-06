@@ -35,10 +35,6 @@ struct HomeView: View {
         session.joinedCabals
     }
 
-    private var potValuesUsd: [String: String] {
-        Dictionary(joinedCabals.map { ($0.groupId, $0.potValueUsd) }, uniquingKeysWith: { first, _ in first })
-    }
-
     private var leaderboardSource: LiveHomeLeaderboardDashboardSource {
         LiveHomeLeaderboardDashboardSource(auth: auth, session: session)
     }
@@ -106,32 +102,11 @@ struct HomeView: View {
             // No horizontal padding on the stack: the ruled lists run edge to edge, and each
             // section insets its own header and figures.
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-
-                // The 1H series loads after first paint (#217); the slot is sized from the
-                // dashboard so the layout does not move when it lands. `homePnLSeries` is nil
-                // until that read finishes, which is what tells the slot to stay silent
-                // instead of announcing an empty curve it has not asked about yet.
-                HomeNetWorthSection(
-                    dashboard: dashboard,
-                    chart: HomeHeroChart.resolve(
-                        loaded: session.homePnLSeries,
-                        embedded: dashboard.pnlSeries1H,
-                        hasCabals: !dashboard.myGroups.isEmpty
-                    )
-                )
-
-                HomePositionsSection(
-                    auth: auth,
-                    rows: dashboard.myGroups,
-                    potValuesUsd: potValuesUsd,
-                    onBrowseCabals: { selectedTab = .cabals }
-                )
-
                 HomeLeaderboardSection(
                     auth: auth,
                     model: leaderboard,
                     people: dashboard.leaderboard.people,
-                    hasCabals: !dashboard.myGroups.isEmpty,
+                    hasCabals: !joinedCabals.isEmpty,
                     onSelect: { leaderboard.select($0, from: leaderboardSource) },
                     onRetry: { leaderboard.retry(from: leaderboardSource) }
                 )
@@ -210,20 +185,6 @@ private struct HomeSkeletonView: View {
 #Preview {
     let session = AppSessionStore(apiClient: MonacoAPIClient())
     session.dashboard = HomeDashboardDTO(
-        netWorthUsd: "1248.50",
-        netWorthDollarPnl: "+48.20",
-        netWorthPercentReturn: "0.040",
-        myGroups: [
-            HomeMyGroupRowDTO(
-                groupId: "g1",
-                name: "Weekend investors",
-                equityUsd: "3.35",
-                slicePercent: "0.12",
-                dollarPnl: "+0.10",
-                percentReturn: "0.031"
-            )
-        ],
-        pnlSeries1H: [],
         leaderboard: HomeLeaderboardSectionDTO(
             range: "ALL",
             people: [

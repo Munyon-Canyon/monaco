@@ -122,34 +122,7 @@ final class MonacoAPIClientTests: XCTestCase {
         // Assert
         XCTAssertEqual(capturedPath, "/v1/home/dashboard")
         XCTAssertEqual(capturedQuery, "leaderboardRange=ALL")
-        XCTAssertEqual(dashboard.myGroups.count, 1)
-        XCTAssertEqual(dashboard.myGroups[0].groupID, "g1")
-    }
-
-    func testAPIClient_getHomePnLSeries_callsV1HomePnlSeries() async throws {
-        var capturedPath: String?
-        var capturedQuery: String?
-        MockURLProtocol.requestHandler = { request in
-            capturedPath = request.url?.path
-            capturedQuery = request.url?.query
-            let body = #"{"points":[]}"#
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data(body.utf8))
-        }
-        let client = MonacoAPIClient(
-            baseURL: URL(string: "https://api.test")!,
-            session: makeMockURLSession(),
-            accessTokenProvider: { TestFixtures.fixtureSessionToken }
-        )
-        let series = try await client.getHomePnLSeries(range: .oneHour)
-        XCTAssertEqual(capturedPath, "/v1/home/pnl-series")
-        XCTAssertEqual(capturedQuery, "range=1H")
-        XCTAssertEqual(series.points, [])
+        XCTAssertEqual(dashboard.leaderboard.people.count, 1)
     }
 
     private func makeMockURLSession() -> URLSession {
