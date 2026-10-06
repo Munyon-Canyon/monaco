@@ -15,7 +15,7 @@ func withSocial() scenario.Option {
 
 func TestFlow20_Follow_OK(t *testing.T) {
 	t.Parallel()
-	flows.F20FollowOK(scenario.New(t, withSocial()))
+	flows.F20FollowOK(scenario.New(t, withSocial(), scenario.WithPostHog(t)))
 }
 
 func TestFlow20_Follow_CannotFollowSelf(t *testing.T) {

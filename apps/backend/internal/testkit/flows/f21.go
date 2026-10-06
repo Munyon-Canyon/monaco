@@ -146,6 +146,10 @@ func F21CreateCommentOK(s *scenario.Scenario) {
 			scenario.ExpectEvents(events.TypeCommentDeleted, 1),
 			scenario.EventuallyPublished(events.TypeCommentCreated, 4),
 		)
+	s.Then(
+		scenario.EventuallyCapturedBy(events.TypeCommentCreated, "comment_created", "feed_object_id", w.proposal),
+		scenario.EventuallyCapturedBy(events.TypeCommentCreated, "comment_created", "feed_object_id", w.trade),
+	)
 }
 
 func F21CreateCommentInvalidInput(s *scenario.Scenario) {

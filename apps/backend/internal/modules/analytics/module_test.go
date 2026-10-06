@@ -48,6 +48,8 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		"analytics.posthog.cabal.created",
 		"analytics.posthog.cabal.member_joined",
 		"analytics.posthog.cabal.member_left",
+		"analytics.posthog.follow.created",
+		"analytics.posthog.comment.created",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("handlers = %v, want %v", got, want)

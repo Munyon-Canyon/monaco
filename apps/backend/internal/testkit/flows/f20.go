@@ -82,6 +82,7 @@ func F20FollowOK(s *scenario.Scenario) {
 			scenario.EventuallyPublished(events.TypeFollowCreated, 1),
 			followHolds(),
 		)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeFollowCreated, "follow_created", "follower_id", s.Recall("alice")))
 }
 
 func F20FollowCannotFollowSelf(s *scenario.Scenario) {
