@@ -124,6 +124,8 @@ enum GovernanceProposeBuyJourney {
             expectLabel(app, "Popular", step: "S1.3")
             let field = app.element("monaco-search-field")
             XCTAssertTrue(field.waitForExistence(timeout: checkTimeout), "S1.3: no stock search")
+            XCTAssertTrue(
+                field.isHittable, "S1.3: stock search is off screen. On screen:\n\(app.debugDescription.suffix(6000))")
             field.tap()
             field.typeText("GOOGL")
             let row = app.descendants(matching: .any)
