@@ -40,6 +40,7 @@ public final class AssetDetailClientModel {
     public private(set) var selectedRange: AssetChartRange = .oneDay
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
+    public private(set) var heldByVotingCabal = false
     private var chartGeneration = 0
     private let api: APIClient?
     private let symbol: String
@@ -108,6 +109,19 @@ public final class AssetDetailClientModel {
             failureTick += 1
             if detail == nil { detailPhase = .failed(error) }
         }
+    }
+
+    public func loadHeldByVotingCabal() async {
+        guard let api else { return }
+        guard let cabals = try? await api.read({ try await $0.getMyCabals().ok.body.json }) else { return }
+        for cabal in cabals where cabal.canVote {
+            let pot = try? await api.read { try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json }
+            if pot?.holdings.contains(where: { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame }) == true {
+                heldByVotingCabal = true
+                return
+            }
+        }
+        heldByVotingCabal = false
     }
 
     public func observe() async {
