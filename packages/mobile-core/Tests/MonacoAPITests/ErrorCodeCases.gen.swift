@@ -101,8 +101,11 @@ extension Components.Schemas.ErrorCode {
         case .proposalStillOpen: true
         case .rateLimited: true
         case .reasonRequired: true
+        case .referralAlreadyAttached: true
         case .referralCodePending: true
         case .referralCodeUnknown: true
+        case .referralSelf: true
+        case .referralWindowClosed: true
         case .relayerUnderfunded: true
         case .requestNotNeeded: true
         case .requestPending: true

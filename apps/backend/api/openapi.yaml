@@ -3279,8 +3279,11 @@ components:
         - proposal_still_open
         - rate_limited
         - reason_required
+        - referral_already_attached
         - referral_code_pending
         - referral_code_unknown
+        - referral_self
+        - referral_window_closed
         - relayer_underfunded
         - request_not_needed
         - request_pending
