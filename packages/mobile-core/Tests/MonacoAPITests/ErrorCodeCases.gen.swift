@@ -18,6 +18,7 @@ extension Components.Schemas.ErrorCode {
         case .assetNotFound: true
         case .assetUntradable: true
         case .authStateTransition: true
+        case .bounceFailed: true
         case .cabalBanned: true
         case .cabalNotFound: true
         case .cabalPaused: true

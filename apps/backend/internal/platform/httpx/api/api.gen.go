@@ -24,6 +24,7 @@ const (
 	AssetNotFound              ErrorCode = "asset_not_found"
 	AssetUntradable            ErrorCode = "asset_untradable"
 	AuthStateTransition        ErrorCode = "auth_state_transition"
+	BounceFailed               ErrorCode = "bounce_failed"
 	CabalBanned                ErrorCode = "cabal_banned"
 	CabalNotFound              ErrorCode = "cabal_not_found"
 	CabalPaused                ErrorCode = "cabal_paused"
@@ -153,6 +154,8 @@ func (e ErrorCode) Valid() bool {
 	case AssetUntradable:
 		return true
 	case AuthStateTransition:
+		return true
+	case BounceFailed:
 		return true
 	case CabalBanned:
 		return true

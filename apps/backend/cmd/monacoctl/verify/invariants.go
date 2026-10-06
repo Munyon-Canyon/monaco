@@ -246,19 +246,19 @@ func (d *driver) triggerLine(u Unit, kind tools.TriggerKind, name string) (logNe
 	code := string(codeNamed(codeName))
 	if kind == tools.TriggerPoller {
 		if isCode {
-			return logNeed{observability.PollerFailed, map[string]string{"poller": name, "code": code}},
-				fmt.Sprintf("no poller.tick.failed for %s with code %s after the script started", name, code)
+			return logNeed{carries: code},
+				fmt.Sprintf("no log line for %s carrying code %s after the script started", name, code)
 		}
-		return logNeed{observability.PollerTick, map[string]string{"poller": name}},
+		return logNeed{msg: observability.PollerTick, attrs: map[string]string{"poller": name}},
 			fmt.Sprintf("no poller.tick for %s after the script started", name)
 	}
 	subject := d.env.Subject(events.Type(name).Subject())
 	if isCode {
-		return logNeed{observability.BusDispatched, map[string]string{"subject": subject, "code": code}},
+		return logNeed{msg: observability.BusDispatched, attrs: map[string]string{"subject": subject, "code": code}},
 			fmt.Sprintf("no bus.dispatched for %s with code %s after the script started", name, code)
 	}
 	ack := string(bus.OutcomeAck)
-	return logNeed{observability.BusDispatched, map[string]string{"subject": subject, "outcome": ack}},
+	return logNeed{msg: observability.BusDispatched, attrs: map[string]string{"subject": subject, "outcome": ack}},
 		fmt.Sprintf("no bus.dispatched for %s with outcome %s after the script started", name, ack)
 }
 
@@ -285,14 +285,18 @@ func codeNamed(name string) errs.Code {
 }
 
 type logNeed struct {
-	msg   observability.Msg
-	attrs map[string]string
+	msg     observability.Msg
+	attrs   map[string]string
+	carries string
 }
 
 func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
 	needs := d.triggerLogs(res.Unit)
 	if code, accepted := acceptedForConsumers(res); accepted {
-		return append(needs[:1], logNeed{observability.BusDispatched, map[string]string{"code": string(code)}})
+		return append(needs[:1], logNeed{
+			msg:   observability.BusDispatched,
+			attrs: map[string]string{"code": string(code)},
+		})
 	}
 	if _, isCode := res.Unit.Outcome.CodeName(); isCode {
 		return needs
@@ -302,7 +306,10 @@ func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
 	}
 	for _, w := range d.watchedBy(res.Unit) {
 		if d.wroteDurableEvent(ctx, []string{w.typ}, res.startedAt) {
-			needs = append(needs, logNeed{observability.BusDispatched, map[string]string{"handler": w.handler}})
+			needs = append(needs, logNeed{
+				msg:   observability.BusDispatched,
+				attrs: map[string]string{"handler": w.handler},
+			})
 		}
 	}
 	return needs
@@ -343,9 +350,12 @@ func (d *driver) triggerLogs(u Unit) []logNeed {
 		return []logNeed{need}
 	}
 	method, route, _ := strings.Cut(name, " ")
-	needs := []logNeed{{observability.HTTPRequest, map[string]string{"method": method, "route": route}}}
+	needs := []logNeed{{msg: observability.HTTPRequest, attrs: map[string]string{"method": method, "route": route}}}
 	if code, isCode := u.Outcome.CodeName(); isCode {
-		needs = append(needs, logNeed{observability.HTTPProblem, map[string]string{"code": string(codeNamed(code))}})
+		needs = append(
+			needs,
+			logNeed{msg: observability.HTTPProblem, attrs: map[string]string{"code": string(codeNamed(code))}},
+		)
 	}
 	return needs
 }
@@ -355,6 +365,9 @@ func logsMissing(lines []Line, needs []logNeed) ([]string, string) {
 	for _, need := range needs {
 		i := slices.IndexFunc(lines, func(l Line) bool { return lineMatches(l, need) })
 		if i < 0 {
+			if need.carries != "" {
+				return found, "no log line carrying " + need.carries
+			}
 			return found, fmt.Sprintf("no %s log line with %v", need.msg.Name, need.attrs)
 		}
 		fields := map[string]any{}
@@ -372,8 +385,16 @@ func logsMissing(lines []Line, needs []logNeed) ([]string, string) {
 
 func lineMatches(line Line, need logNeed) bool {
 	fields := map[string]any{}
-	return json.Unmarshal([]byte(line.Text), &fields) == nil && fields["msg"] == need.msg.Name &&
-		matches(fields, need.attrs)
+	parsed := json.Unmarshal([]byte(line.Text), &fields) == nil
+	if need.carries != "" {
+		for _, v := range fields {
+			if fmt.Sprint(v) == need.carries {
+				return true
+			}
+		}
+		return false
+	}
+	return parsed && fields["msg"] == need.msg.Name && matches(fields, need.attrs)
 }
 
 func matches(fields map[string]any, attrs map[string]string) bool {

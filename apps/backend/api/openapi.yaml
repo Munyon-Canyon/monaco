@@ -2452,6 +2452,7 @@ components:
         - asset_not_found
         - asset_untradable
         - auth_state_transition
+        - bounce_failed
         - cabal_banned
         - cabal_not_found
         - cabal_paused

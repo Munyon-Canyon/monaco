@@ -14,5 +14,6 @@ func init() {
 		FundingBounceMoved,
 		FundingBounceFailed,
 		FundingBounceOps,
+		FundingReconcileFailed,
 	)
 }

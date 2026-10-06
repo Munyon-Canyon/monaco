@@ -49,3 +49,8 @@ var FundingBounceOps = Msg{
 	Name:     "funding.bounce.ops",
 	Required: []string{"external_deposit_id", "action", "operator"},
 }
+
+var FundingReconcileFailed = Msg{
+	Name:     "funding.reconcile.failed",
+	Required: []string{"cabal_id", "code", "err"},
+}

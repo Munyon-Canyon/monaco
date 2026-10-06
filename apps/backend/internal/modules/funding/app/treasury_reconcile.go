@@ -2,10 +2,14 @@ package app
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"slices"
+	"strings"
+	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
@@ -19,15 +23,16 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
 const (
-	ReconcileInterval      = 60 * time.Second
 	reconcileFanOut        = 8
 	reconcilePageSize      = 50
 	reconcileBootstrapPage = 20
 	usdcDecimals           = 6
+	reconcileBudgetPercent = 80
 )
 
 type ReconcileChain interface {
@@ -60,49 +65,124 @@ type TreasuryReconcileDeps struct {
 	Chain      ReconcileChain
 	Detect     Detector
 	USDC       chain.SolanaAddress
+	Interval   time.Duration
+	Failed     metric.Int64Counter
 }
 
-type TreasuryReconcilePoller struct{ d TreasuryReconcileDeps }
+type TreasuryReconcilePoller struct {
+	d TreasuryReconcileDeps
+
+	mu      sync.Mutex
+	pass    int
+	reached map[ids.CabalID]int
+}
 
 func NewTreasuryReconcilePoller(d TreasuryReconcileDeps) *TreasuryReconcilePoller {
-	return &TreasuryReconcilePoller{d: d}
+	return &TreasuryReconcilePoller{d: d, reached: map[ids.CabalID]int{}}
 }
 
 func (*TreasuryReconcilePoller) Name() string { return "funding.treasury-reconcile" }
 
-func (*TreasuryReconcilePoller) Interval() time.Duration { return ReconcileInterval }
+func (p *TreasuryReconcilePoller) Interval() time.Duration { return p.d.Interval }
 
 type reconciled struct {
+	started  bool
+	cut      bool
 	surplus  bool
 	recorded int
 	err      error
 }
 
 func (p *TreasuryReconcilePoller) Tick(ctx context.Context) (poller.Report, error) {
+	const op = "funding.TreasuryReconcile.Tick"
 	wallets, err := p.d.Treasuries.TreasuryWallets(ctx)
 	if err != nil {
-		return poller.Report{}, errs.Wrap(err, errs.CodeOf(err), "funding.TreasuryReconcile.Tick")
+		return poller.Report{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
+	wallets = p.order(wallets)
+	work, cancel := p.budgeted(ctx)
+	defer cancel()
 	results, err := concurrency.FanOut(ctx, reconcileFanOut, wallets,
-		func(ctx context.Context, w cabalport.TreasuryWallet) (reconciled, error) {
-			surplus, recorded, err := p.reconcile(ctx, w)
-			return reconciled{surplus: surplus, recorded: recorded, err: err}, nil
+		func(_ context.Context, w cabalport.TreasuryWallet) (reconciled, error) {
+			return p.visit(work, w), nil
 		})
 	if err != nil {
-		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "funding.TreasuryReconcile.Tick")
+		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	report := poller.Report{Scanned: len(wallets)}
-	var surpluses int
-	var tickErr error
-	for _, r := range results {
+	return p.report(ctx, wallets, results), nil
+}
+
+func (p *TreasuryReconcilePoller) visit(work context.Context, w cabalport.TreasuryWallet) reconciled {
+	if work.Err() != nil {
+		return reconciled{}
+	}
+	surplus, recorded, err := p.reconcile(work, w)
+	cut := err != nil && work.Err() != nil
+	return reconciled{started: true, cut: cut, surplus: surplus, recorded: recorded, err: err}
+}
+
+func (p *TreasuryReconcilePoller) order(wallets []cabalport.TreasuryWallet) []cabalport.TreasuryWallet {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := slices.Clone(wallets)
+	slices.SortStableFunc(out, func(a, b cabalport.TreasuryWallet) int {
+		if pa, pb := p.reached[a.CabalID], p.reached[b.CabalID]; pa != pb {
+			return pa - pb
+		}
+		return strings.Compare(b.CabalID.String(), a.CabalID.String())
+	})
+	return out
+}
+
+func (p *TreasuryReconcilePoller) report(
+	ctx context.Context, wallets []cabalport.TreasuryWallet, results []reconciled,
+) poller.Report {
+	p.mu.Lock()
+	p.pass++
+	live := make(map[ids.CabalID]int, len(wallets))
+	for i, w := range wallets {
+		live[w.CabalID] = p.reached[w.CabalID]
+		if results[i].started {
+			live[w.CabalID] = p.pass
+		}
+	}
+	p.reached = live
+	p.mu.Unlock()
+	report := poller.Report{}
+	var surpluses, failed int
+	for i, r := range results {
+		if !r.started || r.cut {
+			continue
+		}
+		report.Scanned++
 		report.Changed += r.recorded
 		if r.surplus {
 			surpluses++
 		}
-		tickErr = errors.Join(tickErr, r.err)
+		if r.err != nil {
+			failed++
+			p.failed(ctx, wallets[i].CabalID, r.err)
+		}
 	}
-	report.Attrs = []slog.Attr{slog.Int("surpluses", surpluses)}
-	return report, tickErr
+	report.Attrs = []slog.Attr{
+		slog.Int("surpluses", surpluses), slog.Int("failed", failed),
+		slog.Int("unreached", len(wallets)-report.Scanned),
+	}
+	return report
+}
+
+func (p *TreasuryReconcilePoller) failed(ctx context.Context, cabal ids.CabalID, err error) {
+	code := string(errs.CodeOf(err))
+	observability.Degraded(ctx, observability.FundingReconcileFailed,
+		slog.String("cabal_id", cabal.String()), slog.String("code", code), slog.Any("err", err))
+	p.d.Failed.Add(ctx, 1, metric.WithAttributes(attribute.String("code", code)))
+}
+
+func (p *TreasuryReconcilePoller) budgeted(ctx context.Context) (context.Context, context.CancelFunc) {
+	if p.d.Interval <= 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, p.d.Interval*reconcileBudgetPercent/100)
 }
 
 func (p *TreasuryReconcilePoller) reconcile(ctx context.Context, w cabalport.TreasuryWallet) (bool, int, error) {
