@@ -5,15 +5,15 @@ expect-fail: S1
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
-index ca1ed9131..bb547588c 100644
+index 0f03a52ef..1152d7952 100644
 --- a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
 +++ b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
-@@ -22,7 +22,7 @@ struct ContactsExplainerView: View {
+@@ -32,7 +32,7 @@ struct ContactsExplainerView: View {
                      .buttonStyle(.monacoPrimary)
-                     .disabled(true)
-                     .accessibilityIdentifier("friends-find-coming")
--                Button("Not now") { dismiss() }
-+                Button("Not now") {}
-                     .buttonStyle(.monacoSecondary)
-                     .accessibilityIdentifier("friends-not-now")
+                     .accessibilityIdentifier("friends-find")
              }
+-            Button("Not now", action: skip)
++            Button("Not now") {}
+                 .buttonStyle(.monacoSecondary)
+                 .accessibilityIdentifier("friends-not-now")
+         }
