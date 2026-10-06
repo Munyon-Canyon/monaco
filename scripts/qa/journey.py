@@ -548,6 +548,11 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     api_port, worker_port = SLOT_PORTS[slot]
     env["MONACO_HTTP_ADDR"] = ":%d" % api_port
     env["MONACO_WORKER_HEALTH_ADDR"] = ":%d" % worker_port
+    # run-with-logs.sh names its folder after the second, so two backends started together would share one:
+    # each slot logs api.log and worker.log under its own folder.
+    log_dir = OUT / ("backend-slot%d-%s" % (slot, stamp()))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    env["MONACO_LOG_DIR"] = str(log_dir)
     if env.get("QA_FAKE_RPC") == "1":
         env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
     env.setdefault("TRADE_ENGINE", trade_engine)
@@ -565,12 +570,42 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     raise JourneyError("the backend did not answer /healthz within %d s, see %s" % (timeout, log))
 
 
-def stop_backend(process):
-    sh(["just", "stop", "backend"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    try:
-        process.wait(timeout=30)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGTERM)
+def backend_group(pgid, run=None):
+    """[(pid, command)] of the processes in a process group."""
+    run = run or sh
+    listing = run(["ps", "-axo", "pid=,pgid=,command="], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
+    found = []
+    for line in listing.splitlines():
+        fields = line.split(None, 2)
+        if len(fields) == 3 and fields[1] == str(pgid):
+            found.append((int(fields[0]), fields[2]))
+    return found
+
+
+def stop_backend(process, grace=10, run=None, kill=os.kill, killpg=os.killpg, sleep=time.sleep):
+    """Stops this run's backend and nothing else. `just stop backend` and the trap of `just run backend` both
+    pkill bin/api and bin/worker by name, and two slots run the same binaries, so either would take the other
+    slot's backend down too. This signals only the process group start_backend made: the wrappers die first,
+    before their trap can run, then api and worker get SIGTERM and `grace` seconds, then the group gets SIGKILL."""
+    group = backend_group(process.pid, run)
+    services = (str(ROOT / "bin" / "api"), str(ROOT / "bin" / "worker"))
+    for pid, command in group:
+        if command not in services:
+            with contextlib.suppress(ProcessLookupError):
+                kill(pid, signal.SIGKILL)
+    for pid, command in group:
+        if command in services:
+            with contextlib.suppress(ProcessLookupError):
+                kill(pid, signal.SIGTERM)
+    for _ in range(int(grace / 0.2)):
+        if not [pid for pid, _ in backend_group(process.pid, run)]:
+            break
+        sleep(0.2)
+    # EPERM, not ESRCH, is what macOS raises for a group that has only zombies left.
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        killpg(process.pid, signal.SIGKILL)
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=5)
 
 
 @contextlib.contextmanager
