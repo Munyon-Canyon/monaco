@@ -1313,6 +1313,44 @@ func TestCheck_aRestackThatLeavesTheDiffUnchangedCarriesTheStage0Pass(t *testing
 	}
 }
 
+func TestCheck_aRestackThatOnlyRegeneratesFilesCarriesStage0(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{
+		".gitattributes": "apps/backend/api/openapi.yaml linguist-generated\n" +
+			"apps/backend/internal/modules/*/sqlc/*.gen.go\n" +
+			"docs/reference/*.md merge=union\n",
+	})
+	gen := "apps/backend/api/openapi.yaml"
+	sqlc := "apps/backend/internal/modules/m/sqlc/q.gen.go"
+	h.onPRBranch(t, map[string]string{"README.md": "one\n", gen: "v1\n", sqlc: "v1\n"})
+	if code, _, stderr := h.check(t); code != 0 {
+		t.Fatalf("first check: %d %q", code, stderr)
+	}
+	oldTree := h.treeOf(t)
+
+	h.commit(t, map[string]string{gen: "v2\n", sqlc: "v2\n"})
+	h.calls = nil
+	code, stdout, stderr := h.check(t)
+	want := "stage 0 carried from tree " + oldTree[:12] + " (same diff against origin/fb)\n" +
+		"carry key ignored 2 generated files: " + gen + ", " + sqlc + "\n"
+	if code != 0 || stdout != want || h.ranRows() {
+		t.Fatalf("generated-only change: %d %q %q calls %v", code, stdout, stderr, h.calls)
+	}
+
+	h.commit(t, map[string]string{"README.md": "two\n", gen: "v3\n"})
+	h.calls = nil
+	if code, stdout, stderr := h.check(t); code != 0 || !h.ranRows() || strings.Contains(stdout, "carried") {
+		t.Fatalf("hand-written change: %d %q %q %v", code, stdout, stderr, h.calls)
+	}
+
+	h.commit(t, map[string]string{"docs/reference/events.md": "not generated here\n"})
+	h.calls = nil
+	if code, stdout, _ := h.check(t); code != 0 || !h.ranRows() || strings.Contains(stdout, "carried") {
+		t.Fatalf("merge=union path is hand-written: %d %q %v", code, stdout, h.calls)
+	}
+}
+
 func TestCheck_aChangedDiffAfterTheRestackRunsStage0InFull(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
