@@ -22,7 +22,7 @@ import (
 
 func TestFlow05_CreditDeposit_OK(t *testing.T) {
 	t.Parallel()
-	s := flow05Scenario(t)
+	s := flow05Scenario(t, scenario.WithPostHog(t))
 	flows.F05CreditDepositOK(s)
 	s.Then(scenario.EventuallyEvent(events.TypeDepositCredited))
 	var id uuid.UUID
@@ -49,12 +49,12 @@ func TestFlow05_CreditDeposit_RPCUnavailable(t *testing.T) {
 	flows.F05CreditDepositRPCUnavailable(flow05Scenario(t))
 }
 
-func flow05Scenario(t *testing.T) *scenario.Scenario {
+func flow05Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
 	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
-	return scenario.New(t,
+	return scenario.New(t, append([]scenario.Option{
 		scenario.WithPrivy(upstreams, "app"),
 		scenario.WithModules(func(d module.Deps) module.Module {
 			d.Config = config.Config{
@@ -68,5 +68,5 @@ func flow05Scenario(t *testing.T) *scenario.Scenario {
 			d.Config.Solana.USDCMint = string(testkit.USDCMint)
 			return treasury.New(d)
 		}),
-	)
+	}, extra...)...)
 }

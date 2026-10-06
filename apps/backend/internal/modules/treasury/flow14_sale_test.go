@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
 func saleAndPayout(t *testing.T, invested uint64) (*saleRig, *payoutRig) {
@@ -49,7 +50,7 @@ func TestFlow14_CashOut_SaleShort(t *testing.T) {
 	t.Parallel()
 	t.Run("a short Jupiter fill pays what it raised", func(t *testing.T) {
 		t.Parallel()
-		flows.F14CashOutPayoutsSaleShort(flow14(t))
+		flows.F14CashOutPayoutsSaleShort(flow14(t, scenario.WithPostHog(t)))
 	})
 	t.Run("partial proceeds pay what the sale raised and return the uncovered units", func(t *testing.T) {
 		t.Parallel()

@@ -10,3 +10,7 @@ func NewWithExports(d module.Deps, r *Registry) *Module { return newModule(d, r)
 func RegisterProposalExports(r *Registry, proposers app.ProposerReader) {
 	registerProposalExports(r, proposers)
 }
+
+func RegisterFundingExports(r *Registry) { registerFundingExports(r) }
+
+func RegisterTreasuryExports(r *Registry) { registerTreasuryExports(r) }

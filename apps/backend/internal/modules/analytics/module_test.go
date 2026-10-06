@@ -38,6 +38,11 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		"analytics.posthog.trade.confirmed",
 		"analytics.posthog.trade.blocked",
 		"analytics.posthog.trade.failed",
+		"analytics.posthog.deposit.credited",
+		"analytics.posthog.cabal.funded",
+		"analytics.posthog.cashout.completed",
+		"analytics.posthog.cashout.partial",
+		"analytics.posthog.cashout.failed",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("handlers = %v, want %v", got, want)
