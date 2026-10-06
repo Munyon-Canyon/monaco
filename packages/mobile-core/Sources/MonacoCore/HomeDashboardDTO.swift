@@ -1,41 +1,7 @@
 import Foundation
 
 public struct HomeDashboardDTO: Codable, Equatable, Sendable {
-    public let leaderboard: HomeLeaderboardSectionDTO
-
-    public init(
-        leaderboard: HomeLeaderboardSectionDTO
-    ) {
-        self.leaderboard = leaderboard
-    }
-}
-
-public struct HomeLeaderboardSectionDTO: Codable, Equatable, Sendable {
-    public let range: String
-    public let people: [HomePeopleBoardRowDTO]
-
-    public init(range: String, people: [HomePeopleBoardRowDTO]) {
-        self.range = range
-        self.people = people
-    }
-}
-
-public enum HomeLeaderboardRange: String, CaseIterable, Sendable {
-    case oneHour = "1H"
-    case oneDay = "1D"
-    case oneWeek = "1W"
-    case oneMonth = "1M"
-    case all = "ALL"
-
-    public var label: String {
-        switch self {
-        case .oneHour: "1H"
-        case .oneDay: "1D"
-        case .oneWeek: "1W"
-        case .oneMonth: "1M"
-        case .all: "All"
-        }
-    }
+    public init() {}
 }
 
 func monacoISO8601JSONDecoder() -> JSONDecoder {

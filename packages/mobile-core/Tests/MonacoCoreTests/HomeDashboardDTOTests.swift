@@ -3,18 +3,6 @@ import XCTest
 @testable import MonacoCore
 
 final class HomeDashboardDTOTests: XCTestCase {
-    func testHomeDashboardDTO_decodesDashboardPayload() throws {
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "home_dashboard", withExtension: "json")
-        )
-        let data = try Data(contentsOf: fixtureURL)
-
-        let dto = try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: data)
-
-        XCTAssertEqual(dto.leaderboard.range, "ALL")
-        XCTAssertEqual(dto.leaderboard.people.count, 1)
-    }
-
     func testMonacoISO8601JSONDecoder_nonISO8601Timestamp_throwsDataCorrupted() {
         let json = #"{ "ts": "1789675200" }"#
 

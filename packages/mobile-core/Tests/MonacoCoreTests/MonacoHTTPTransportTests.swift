@@ -373,7 +373,7 @@ final class MonacoHTTPTransportTests: XCTestCase {
         )
 
         do {
-            _ = try await client.getHome()
+            _ = try await client.getHomeDashboard()
             XCTFail("expected a decoding error")
         } catch {
             XCTAssertTrue(error is DecodingError, "got \(error)")
@@ -390,7 +390,7 @@ final class MonacoHTTPTransportTests: XCTestCase {
         )
 
         do {
-            _ = try await client.getHome()
+            _ = try await client.getHomeDashboard()
             XCTFail("expected 401")
         } catch {
             XCTAssertEqual(error as? MonacoAPIError, .httpStatus(401))
