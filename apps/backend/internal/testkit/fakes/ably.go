@@ -3,6 +3,7 @@ package fakes
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -78,6 +79,34 @@ func (s *Server) ablyPublish(w http.ResponseWriter, r *http.Request) {
 	s.ably = append(s.ably, published...)
 	s.mu.Unlock()
 	s.serveFixture(w, []string{ablyFixture})
+}
+
+type AblyExpect struct {
+	Channel string `json:"channel"`
+	Event   string `json:"event"`
+	Count   int    `json:"count"`
+}
+
+func (s *Server) ablyExpect(w http.ResponseWriter, r *http.Request) {
+	var want AblyExpect
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&want); err != nil {
+		http.Error(w, "decode: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	got := 0
+	for _, p := range s.AblyPublishes() {
+		if p.Channel == want.Channel && p.Name == want.Event {
+			got++
+		}
+	}
+	if got != want.Count {
+		msg := "ably saw " + strconv.Itoa(got) + " " + want.Event + " on " + want.Channel
+		http.Error(w, msg+", want "+strconv.Itoa(want.Count), http.StatusConflict)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) AblyPublishes() []AblyPublish {

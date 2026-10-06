@@ -63,6 +63,23 @@ func TestUp_pointsTheBinariesAtTheFakePostHogWithAnAPIKey(t *testing.T) {
 	}
 }
 
+func TestUp_pointsTheBinariesAtTheFakeAblyWithAnAPIKey(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.CoverDir = t.TempDir()
+	s, err := Up(t.Context(), o)
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Down(context.WithoutCancel(t.Context())) })
+	host := slices.Contains(s.env, "ABLY_REST_HOST="+s.Fakes+"/ably")
+	key := slices.Contains(s.env, "ABLY_API_KEY=verify.key:verify-ably-secret")
+	if !host || !key {
+		t.Fatalf("child env has ABLY_REST_HOST at the fakes' /ably route: %t, the verify ABLY_API_KEY: %t; "+
+			"want both, or the api never publishes chat events to the fake", host, key)
+	}
+}
+
 func TestUp_aStackThatNeverGetsHealthyFailsNamingStackUp(t *testing.T) {
 	t.Parallel()
 	o := testOptions(t, fakeSick)

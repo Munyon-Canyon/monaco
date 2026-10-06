@@ -109,6 +109,7 @@ func newFrom(fsys fs.FS, root string) *Server {
 	s.mux.HandleFunc("POST /_balance", s.setBalance)
 	s.mux.HandleFunc("POST /_swap", s.setSwap)
 	s.mux.HandleFunc("POST /_wallet", s.setWallet)
+	s.mux.HandleFunc("POST /_ably", s.ablyExpect)
 	s.live.HandleFunc("POST /rpc/sendTransaction", sendTransaction)
 	s.live.HandleFunc("GET "+orderRoute, s.jupiterOrder)
 	s.live.HandleFunc("POST /rpc/getSignatureStatuses", s.signatureStatuses)
