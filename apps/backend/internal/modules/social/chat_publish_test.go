@@ -224,3 +224,29 @@ func TestDeleteChatMessage_aFailedPublishStillDeletesAndLogsIt(t *testing.T) {
 		t.Fatalf("logs = %s, want one %s for %s", out, publishFailedLog, app.EventMessageDeleted)
 	}
 }
+
+func TestPostChatMessage_aReplyStillPublishesTheThreadUpdateWhenTheMessageCannotBeBuilt(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	top := f.mustSend(t, f.member(0), "top", nil)
+	deps := f.deps
+	deps.Publish = app.NewChatPublisher(f.rt, func(context.Context, app.ChatMessage) (any, error) {
+		return nil, errs.New(errs.CodeUpstreamUnavailable, "test.authors")
+	})
+	body, err := domain.ParseChatBody("reply")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := len(f.rt.Published())
+	reply, err := app.NewPostChatMessageHandler(deps).Handle(f.as(t, f.member(1)), app.PostChatMessage{
+		CabalID: f.cabal.ID, Author: f.member(1), Body: body, Reply: &domain.Reply{Parent: top.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	thread := app.ThreadUpdated{MessageID: top.ID, ReplyCount: 1, LastReplyAt: reply.CreatedAt}
+	want := []testkit.RealtimePublish{{Channel: f.channel(), Name: app.EventThreadUpdated, Data: jsonOf(t, thread)}}
+	if got := f.rt.Published()[before:]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("published after the reply = %+v, want only %+v", got, want)
+	}
+}

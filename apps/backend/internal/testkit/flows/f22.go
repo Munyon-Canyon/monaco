@@ -18,8 +18,6 @@ const (
 	chatParentPath = chatPath + "/{parent}"
 	missingChat    = missingCabal + "/messages"
 	missingMessage = "01890a5d-ac96-774b-bcce-000000000005"
-
-	ablyMessagesRoute = "/ably/channels/messages"
 )
 
 func chatCreatorOf(script string) string { return "did:privy:qa-f22-" + script + "-creator" }
@@ -214,7 +212,7 @@ func F22PostChatMessageCrashBeforeCommit(s *scenario.Scenario) {
 func ChatPostSurvivesAblyDown(s *scenario.Scenario) {
 	s.Given(append(chatCabal("post-ably-down"),
 		scenario.FakeUpstream(fakes.Step{
-			Route: ablyMessagesRoute, Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
+			Route: fakes.AblyMessagesRun, Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
 		}),
 		scenario.SignIn(chatCreatorOf("post-ably-down")),
 	)...).

@@ -22,9 +22,6 @@ func routeOf(upstream string, r *http.Request) (string, []string) {
 	if route, keys, ok := foldedRoute(upstream, r); ok {
 		return route, keys
 	}
-	if route, keys, ok := foldedAblyRoute(upstream, r); ok {
-		return route, keys
-	}
 	route := "/" + upstream + r.URL.Path
 	if upstream != "rpc" || r.Method != http.MethodPost || r.URL.Path != "/" {
 		return route, []string{route}

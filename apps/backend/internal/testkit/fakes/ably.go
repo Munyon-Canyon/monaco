@@ -9,7 +9,7 @@ import (
 
 const (
 	ablyFixture     = "/ably/channels/message_ok"
-	ablyMessagesRun = "/ably/channels/messages"
+	AblyMessagesRun = "/ably/channels/messages"
 )
 
 type AblyPublish struct {
@@ -44,7 +44,7 @@ func foldedAblyRoute(upstream string, r *http.Request) (string, []string, bool) 
 	if upstream != "ably" || !folded {
 		return "", nil, false
 	}
-	return ablyMessagesRun, []string{ablyMessagesRun}, true
+	return AblyMessagesRun, []string{AblyMessagesRun}, true
 }
 
 func (s *Server) ablyPublish(w http.ResponseWriter, r *http.Request) {
