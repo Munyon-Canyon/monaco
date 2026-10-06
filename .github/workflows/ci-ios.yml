@@ -98,18 +98,12 @@ jobs:
               os.utime(path, ns=(ns, ns))
           '
 
-      # build-for-testing compiles the app and MonacoTests without a booted simulator, so the boot
-      # started above overlaps the build. The MonacoTests test plan leaves MonacoUITests out, so CI
+      # build-for-testing compiles the app and MonacoTests for the generic simulator, arm64 only, so it
+      # never waits on CoreSimulator (with the simulator's id it sat about 2 minutes before resolving
+      # packages while the device booted) and the boot overlaps the build. The MonacoTests test plan leaves MonacoUITests out, so CI
       # never compiles it; the scheme's default plan keeps both.
       - name: Build the app and MonacoTests
         run: |
-          for _ in $(seq 180); do [[ -s "$RUNNER_TEMP/sim" ]] && break; sleep 1; done
-          if [[ ! -s "$RUNNER_TEMP/sim" ]]; then
-            cat "$RUNNER_TEMP/simctl-boot.log"
-            exit 1
-          fi
-          SIM="$(cat "$RUNNER_TEMP/sim")"
-          echo "SIM=$SIM" >> "$GITHUB_ENV"
           # With the restored package graph, skip resolution, which otherwise fetches every package
           # again (216 s, privy-ios alone 184 s).
           offline=()
@@ -117,12 +111,18 @@ jobs:
             offline=(-skipPackageUpdates -disableAutomaticPackageResolution)
           fi
           xcodebuild build-for-testing -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
-            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath "$DERIVED_DATA" \
             -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation "${offline[@]}" \
-            -showBuildTimingSummary CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO
+            -showBuildTimingSummary ARCHS=arm64 CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Run MonacoTests
         run: |
+          for _ in $(seq 180); do [[ -s "$RUNNER_TEMP/sim" ]] && break; sleep 1; done
+          if [[ ! -s "$RUNNER_TEMP/sim" ]]; then
+            cat "$RUNNER_TEMP/simctl-boot.log"
+            exit 1
+          fi
+          SIM="$(cat "$RUNNER_TEMP/sim")"
           xcrun simctl bootstatus "$SIM" -b
           xcodebuild test-without-building -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
