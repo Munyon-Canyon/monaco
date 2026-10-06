@@ -46,35 +46,8 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(HealthResponse.self, from: data)
     }
 
-    func getHome(accessToken: String) async throws -> HomeViewDTO {
-        let url = baseURL.appending(path: "v1/home")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try JSONDecoder().decode(HomeViewDTO.self, from: data)
-    }
-
-    func getHomeDashboard(accessToken: String, leaderboardRange: HomeLeaderboardRange = .all) async throws
-        -> HomeDashboardDTO
-    {
-        var components = URLComponents(
-            url: baseURL.appending(path: "v1/home/dashboard"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [
-            URLQueryItem(name: "leaderboardRange", value: leaderboardRange.rawValue)
-        ]
-        guard let url = components.url else {
-            throw MonacoAPIError.invalidResponse
-        }
+    func getHomeDashboard(accessToken: String) async throws -> HomeDashboardDTO {
+        let url = baseURL.appending(path: "v1/home/dashboard")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         try applyAuthorizationHeader(accessToken: accessToken, to: &request)

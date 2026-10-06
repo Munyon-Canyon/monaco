@@ -7,8 +7,7 @@ import os
 /// Shared app-session reads; production uses `MonacoAPIClient`, tests use a stub.
 @MainActor
 protocol AppSessionDataSource: Sendable {
-    func getHome(accessToken: String) async throws -> HomeViewDTO
-    func getHomeDashboard(accessToken: String, leaderboardRange: HomeLeaderboardRange) async throws -> HomeDashboardDTO
+    func getHomeDashboard(accessToken: String) async throws -> HomeDashboardDTO
 }
 
 /// The token source and rejected-session sink; production uses `PrivyAuthService`.
@@ -31,7 +30,6 @@ extension PrivyAuthService: SessionAuthenticating {}
 @Observable
 @MainActor
 final class AppSessionStore {
-    var home: HomeViewDTO?
     var dashboard: HomeDashboardDTO?
     var profile: SessionProfile? { didSet { onProfileChange?(profile) } }
     var onProfileChange: ((SessionProfile?) -> Void)?
@@ -41,7 +39,6 @@ final class AppSessionStore {
     #endif
     var isLoading = true
     var nudgeDismissed = false
-    private(set) var leaderboardRange: HomeLeaderboardRange = .all
 
     let apiClient: AppSessionDataSource
     let sessions: SessionAPI?
@@ -107,11 +104,10 @@ final class AppSessionStore {
         }
     }
 
-    /// Reloads Home and Profile without changing a range the member already picked.
+    /// Reloads Home and Profile.
     func refresh(
         auth: SessionAuthenticating,
         accessToken: String? = nil,
-        leaderboardRange: HomeLeaderboardRange? = nil,
         includeProfile: Bool = true
     ) async {
         let token = await resolvedAccessToken(accessToken, auth: auth)
@@ -120,10 +116,6 @@ final class AppSessionStore {
             isLoading = false
             return
         }
-        if let leaderboardRange {
-            self.leaderboardRange = leaderboardRange
-        }
-
         cancelDeferredWork()
         refreshGeneration += 1
         let generation = refreshGeneration
@@ -131,10 +123,7 @@ final class AppSessionStore {
         let profileGeneration = profileWriteGeneration
 
         do {
-            async let dashboardLoad = apiClient.getHomeDashboard(
-                accessToken: token,
-                leaderboardRange: request.range
-            )
+            async let dashboardLoad = apiClient.getHomeDashboard(accessToken: token)
             async let meLoad: SessionProfile? = includeProfile ? await self.loadProfile(auth: auth, token: token) : nil
             let loadedDashboard = try await dashboardLoad
             let loadedProfile = await meLoad
@@ -185,16 +174,12 @@ final class AppSessionStore {
 
     func nextDashboardRequest() -> DashboardRequest {
         dashboardGeneration += 1
-        return DashboardRequest(range: leaderboardRange, generation: dashboardGeneration)
+        return DashboardRequest(generation: dashboardGeneration)
     }
 
     func nextPollGeneration() -> Int {
         pollGeneration += 1
         return pollGeneration
-    }
-
-    func setLeaderboardRange(_ range: HomeLeaderboardRange) {
-        leaderboardRange = range
     }
 
     func replaceDeferredWork(with task: Task<Void, Never>) {
@@ -210,7 +195,6 @@ final class AppSessionStore {
     func reset() {
         cancelAndClearDeferredWork()
         resetGenerations()
-        home = nil
         dashboard = nil
         profile = nil
         errorMessage = nil
@@ -219,7 +203,6 @@ final class AppSessionStore {
         #endif
         isLoading = false
         nudgeDismissed = false
-        leaderboardRange = .all
         skipsSessionOpen = false
     }
 

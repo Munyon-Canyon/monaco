@@ -111,25 +111,7 @@ struct ProfileSampleHarness: View {
             createdAt: ISO8601DateFormatter().date(from: "2026-09-01T14:30:00Z")
         )
 
-        let joined = scenario != .empty
-        session.home = HomeViewDTO(
-            groups: joined
-                ? [
-                    HomeGroupBoardRowDTO(
-                        groupId: "g1", name: "Weekend investors", potValueUsd: "548.20", percentReturn: "0.124",
-                        dollarPnl: "+48.20", isJoined: true),
-                    HomeGroupBoardRowDTO(
-                        groupId: "g2", name: "Semis or bust", potValueUsd: "2310.75", percentReturn: "-0.031",
-                        dollarPnl: "-73.90", isJoined: true),
-                    HomeGroupBoardRowDTO(
-                        groupId: "g3", name: "Index huggers", potValueUsd: "120.00", percentReturn: nil,
-                        dollarPnl: "+0.00", isJoined: true),
-                ] : [],
-            people: []
-        )
-        session.dashboard = HomeDashboardDTO(
-            leaderboard: HomeLeaderboardSectionDTO(range: "ALL", people: [])
-        )
+        session.dashboard = HomeDashboardDTO()
     }
 
     static func sampleProfile(userID: String, displayName: String, photoURL: URL?, createdAt: Date? = nil)

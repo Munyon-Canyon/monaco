@@ -154,19 +154,7 @@ private struct HomeSkeletonView: View {
 
 #Preview {
     let session = AppSessionStore(apiClient: MonacoAPIClient())
-    session.dashboard = HomeDashboardDTO(
-        leaderboard: HomeLeaderboardSectionDTO(
-            range: "ALL",
-            people: [
-                HomePeopleBoardRowDTO(
-                    userId: "u1",
-                    displayName: "Alfred",
-                    percentReturn: "0.124",
-                    dollarPnl: "+48.20"
-                )
-            ]
-        )
-    )
+    session.dashboard = HomeDashboardDTO()
     return NavigationStack {
         HomeView(auth: PrivyAuthService(), selectedTab: .constant(.home))
             .environment(session)
