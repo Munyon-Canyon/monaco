@@ -75,11 +75,13 @@ struct ProposalDetailSlotView: View {
             let model = preparedModel()
             await model.load()
             guard let cabalID = model.value?.summary.cabalID else { return }
+            async let detailHints: Void = model.observe()
             let pause = ProposalPauseModel(
                 cabalID: cabalID, repository: ProposalsRepository(api: environment.api), hints: environment.hints)
             self.pause = pause
             await pause.load()
             await pause.observe()
+            await detailHints
         }
         .onScreenVisibilityChange {
             model?.setVisible($0)

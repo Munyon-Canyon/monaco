@@ -120,6 +120,7 @@ public final class ProposalDetailModel {
     }
 
     public func observe() async {
+        let cabalID = value?.summary.cabalID ?? cabalID
         await refresher.observe(hints.hints(matching: .cabal(id: cabalID, what: "proposal_updated")))
     }
     public func setVisible(_ visible: Bool) { refresher.setVisible(visible) }

@@ -13,6 +13,7 @@ private struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @State private var model: ProposalListModel?
+    @State private var closed: ProposalListModel?
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
 
@@ -29,7 +30,10 @@ private struct CabalProposals: View {
                 }
             }
         }
-        .task { await preparedModel().load() }
+        .task {
+            await preparedModel().load()
+            await closed?.load()
+        }
         .task {
             let pause = preparedPause()
             await pause.load()
@@ -47,6 +51,9 @@ private struct CabalProposals: View {
         }
         if model.pager.items.isEmpty {
             EmptyState(title: "No open votes", message: "Propose the first buy.")
+            if closed?.pager.items.isEmpty == false {
+                NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
+            }
         } else {
             HStack {
                 MonacoSectionHeader("Needs your vote", count: needsVote.count)
@@ -76,6 +83,9 @@ private struct CabalProposals: View {
         voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
         let created = ProposalListModel(
             cabalID: cabalID, filter: .open, repository: ProposalsRepository(api: environment.api),
+            hints: environment.hints)
+        closed = ProposalListModel(
+            cabalID: cabalID, filter: .closed, repository: ProposalsRepository(api: environment.api),
             hints: environment.hints)
         model = created
         return created
