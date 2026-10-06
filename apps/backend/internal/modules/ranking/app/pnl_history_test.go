@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -79,6 +80,22 @@ func TestReadPnLHistory_IsEmptyWithoutARunOrAStakeAndReadsNoSnapshots(t *testing
 	}
 }
 
+func TestReadPnLHistory_SkipsACabalWhoseStakeOutgrowsItsSnapshotInsteadOfFailing(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	cabal := ids.CabalIDFrom(ids.Real{}.NewV7())
+	held := []app.StakePoint{{CabalID: cabal, At: at.Add(-time.Hour), ShareUnits: money.SharesUnitsFromUint64(2)}}
+	snaps := &fakeCabalSnapshots{series: map[ids.CabalID][]domain.Snapshot{
+		cabal: {{At: at, Value: money.MicrosFromUint64(10), TotalShares: money.SharesUnitsFromUint64(1)}},
+	}}
+	in := app.ReadPnLHistory{Range: domain.Range1H}
+	boards := fakeBoards{run: domain.Run{AsOf: at}, hasRun: true}
+	got, err := in.Run(t.Context(), boards, snaps, fakeStakes{points: held})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("Run = %+v, %v, want no points and no error", got, err)
+	}
+}
+
 func TestReadPnLHistory_Failures(t *testing.T) {
 	t.Parallel()
 	boom := errs.New(errs.CodeInternal, "test")
@@ -102,7 +119,7 @@ func TestReadPnLHistory_Failures(t *testing.T) {
 		"curve": {
 			boards: fakeBoards{run: domain.Run{AsOf: at}, hasRun: true}, stakes: fakeStakes{points: held},
 			snaps: &fakeCabalSnapshots{series: map[ids.CabalID][]domain.Snapshot{
-				cabal: {{At: at, TotalShares: money.SharesUnitsFromUint64(1)}},
+				cabal: {{At: at, Value: money.MicrosFromUint64(math.MaxUint64), TotalShares: money.SharesUnitsFromUint64(2)}},
 			}},
 		},
 	} {

@@ -1691,6 +1691,8 @@ paths:
         sum to 10000, with the remainder on the largest cabal, and are all 0 when the total is 0.
         Cash on the platform is not included. A cabal with no snapshot yet is left out of the rows
         and the total. Before the first run `cabals` is empty, the total is 0 and the times are null.
+        The P&L and the return cover current holdings only: realised P&L from cabals the user has fully
+        left is not in them. A cabal whose stake outgrows its latest snapshot is left out as well.
       responses:
         "200":
           description: The caller's portfolio.

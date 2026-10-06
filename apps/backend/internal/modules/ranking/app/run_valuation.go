@@ -200,6 +200,17 @@ func pricingInstant(session market.SessionInfo, at time.Time) time.Time {
 	return session.LastClose
 }
 
+func logSkipped(ctx context.Context) func(ids.CabalID) {
+	seen := map[ids.CabalID]bool{}
+	return func(cabalID ids.CabalID) {
+		if !seen[cabalID] {
+			seen[cabalID] = true
+			observability.Info(ctx, observability.RankingCabalExcluded,
+				slog.String("cabal", cabalID.String()), slog.String("reason", "shares_exceed_total"))
+		}
+	}
+}
+
 func logExcluded(ctx context.Context, cabalID ids.CabalID, code errs.Code) {
 	observability.Info(ctx, observability.RankingCabalExcluded,
 		slog.String("cabal", cabalID.String()), slog.String("reason", string(code)))

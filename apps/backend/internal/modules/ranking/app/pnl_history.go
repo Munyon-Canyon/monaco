@@ -70,7 +70,7 @@ func (r ReadPnLHistory) Run(
 	if err != nil {
 		return nil, err
 	}
-	out, err := domain.PnLCurve(r.Range, run.AsOf, points, series)
+	out, err := domain.PnLCurve(r.Range, run.AsOf, points, series, logSkipped(ctx))
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "ranking.ReadPnLHistory")
 	}
