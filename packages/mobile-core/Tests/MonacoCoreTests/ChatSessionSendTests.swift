@@ -45,6 +45,59 @@ final class ChatSessionSendTests: XCTestCase {
         XCTAssertEqual(state.timeline.rows.map(\.delivery), [.sent])
     }
 
+    func testALiveMessageWithAFailedRowsBodyLeavesTheFailedRowAndItsRetry() async throws {
+        let elsewhere = Fixtures.message("m1", author: Fixtures.viewerID, body: "gm", minutes: 1)
+        let transport = StubTransport(scripted: [try Fixtures.page([]), .failure(URLError(.notConnectedToInternet))])
+        let session = Fixtures.session(transport)
+        await session.open()
+        await session.send(body: "gm")
+
+        await session.apply(.messageCreated(elsewhere))
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["m1", "key-1"])
+        XCTAssertEqual(state.timeline.rows.map(\.delivery), [.sent, .failed])
+    }
+
+    func testACatchUpPageNeverSettlesAnUnsentRowByBody() async throws {
+        let elsewhere = Fixtures.message("m1", author: Fixtures.viewerID, body: "gm", minutes: 1)
+        let transport = StubTransport(scripted: [
+            try Fixtures.page([Fixtures.message("m0", minutes: 0)]),
+            .gate,
+            try Fixtures.page([elsewhere]),
+        ])
+        let session = Fixtures.session(transport)
+        await session.open()
+        let sending = Task { await session.send(body: "gm") }
+        await transport.waitForRequests(2)
+
+        await session.apply(.attached(resumed: false))
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["m0", "m1", "key-1"])
+        XCTAssertEqual(state.timeline.rows.last?.delivery, .pending)
+        await transport.releaseGate(
+            try Fixtures.created(Fixtures.message("m2", author: Fixtures.viewerID, body: "gm", minutes: 2)))
+        _ = await sending.value
+    }
+
+    func testTwoIdenticalSendsWhereOnlyOneLandsLeaveOneSentRowAndOneFailedRow() async throws {
+        let stored = Fixtures.message("m1", author: Fixtures.viewerID, body: "gm", minutes: 1)
+        let transport = StubTransport(scripted: [
+            try Fixtures.page([]),
+            .failure(URLError(.notConnectedToInternet)),
+            try Fixtures.created(stored),
+        ])
+        let session = Fixtures.session(transport)
+        await session.open()
+
+        await session.send(body: "gm")
+        await session.send(body: "gm")
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["m1", "key-1"])
+        XCTAssertEqual(state.timeline.rows.map(\.delivery), [.sent, .failed])
+    }
+
     func testAPendingSendKeepsTheIdempotencyKeyAsItsRowID() async throws {
         let transport = StubTransport(scripted: [try Fixtures.page([]), .gate])
         let session = Fixtures.session(transport)

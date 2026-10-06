@@ -9,6 +9,7 @@ final class AppEnvironment {
     let tokens: SessionTokens
     let api: APIClient
     let hints: any HintConnecting
+    let chatRealtime: SharedChatRealtime
     let auth: PrivyAuthService
     let linking: any AccountLinking
     let navigator = AppNavigator()
@@ -50,6 +51,7 @@ final class AppEnvironment {
         self.hints = hints
         let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
+        self.chatRealtime = SharedChatRealtime { AblyChatRealtime(api: api) }
         self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints)
         self.cashOuts = CashOutJobWatcher(api: api, hints: hints)
         let push = PushRegistrar(
@@ -178,6 +180,7 @@ final class AppEnvironment {
     }
 
     private func clearSignedInState() {
+        chatRealtime.close()
         navigator.reset()
         cardDeposit.reset()
         cashOuts.reset()

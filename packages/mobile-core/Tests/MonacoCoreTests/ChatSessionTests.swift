@@ -43,6 +43,43 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&limit=50")
     }
 
+    func testACatchUpAfterAGapStartsAtTheNewestFetchedMessageNotTheViewersOwnSend() async throws {
+        let held = Fixtures.message("m1", minutes: 1)
+        let others = Fixtures.message("m2", minutes: 2)
+        let mine = Fixtures.message("m3", author: Fixtures.viewerID, body: "gm", minutes: 3)
+        let transport = StubTransport(scripted: [
+            try Fixtures.page([held]),
+            try Fixtures.created(mine),
+            try Fixtures.page([others, mine]),
+        ])
+        let session = Fixtures.session(transport)
+        await session.open()
+
+        await session.apply(.detached)
+        await session.send(body: "gm")
+        await session.apply(.attached(resumed: false))
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["m1", "m2", "m3"])
+        let sent = await transport.sent
+        XCTAssertEqual(sent[2].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&limit=50")
+    }
+
+    func testALiveMessageMovesTheCatchUpCursorForward() async throws {
+        let transport = StubTransport(scripted: [
+            try Fixtures.page([Fixtures.message("m1", minutes: 1)]),
+            try Fixtures.page([]),
+        ])
+        let session = Fixtures.session(transport)
+        await session.open()
+
+        await session.apply(.messageCreated(Fixtures.message("m2", minutes: 2)))
+        await session.apply(.attached(resumed: false))
+
+        let sent = await transport.sent
+        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m2&limit=50")
+    }
+
     func testAResumedAttachFetchesNothing() async throws {
         let transport = StubTransport(scripted: [try Fixtures.page([Fixtures.message("m1")])])
         let session = Fixtures.session(transport)

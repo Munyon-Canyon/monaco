@@ -55,6 +55,9 @@ struct GroupChatThreadView: View {
             }
             .onScrollPhaseChange { _, phase in track(phase) }
             .onChange(of: rows) { old, new in rowsChanged(from: old, to: new) }
+            .onChange(of: isLoadingOlder) { _, loading in
+                if !loading { topRowBeforeLoadingOlder = nil }
+            }
             .onChange(of: scrollToBottomRequests) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
             }

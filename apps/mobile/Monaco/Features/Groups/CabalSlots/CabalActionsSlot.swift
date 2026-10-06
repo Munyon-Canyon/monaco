@@ -16,7 +16,6 @@ struct CabalActionsLive: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.cabalRetry) private var retry
     @State private var model: CabalActionsModel?
-    @State private var hasAppeared = false
 
     init(cabalID: String, model: CabalActionsModel? = nil) {
         self.cabalID = cabalID
@@ -32,11 +31,6 @@ struct CabalActionsLive: View {
             await model.load()
             await model.loadUnread()
             await model.observe()
-        }
-        .onAppear {
-            defer { hasAppeared = true }
-            guard hasAppeared, let model else { return }
-            Task { await model.loadUnread() }
         }
     }
 

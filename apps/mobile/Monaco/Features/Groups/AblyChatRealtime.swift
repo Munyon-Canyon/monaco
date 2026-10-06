@@ -3,7 +3,7 @@ import Foundation
 import MonacoAPI
 import MonacoCore
 
-final class AblyChatRealtime: ChatRealtime {
+final class AblyChatRealtime: ChatRealtimeLink {
     private let connection: AblyChatConnection
 
     init(api: APIClient) {
@@ -24,6 +24,11 @@ final class AblyChatRealtime: ChatRealtime {
     nonisolated func detach(cabalId: String) {
         let connection = connection
         Task { @MainActor in connection.unsubscribe(cabalId, only: nil) }
+    }
+
+    nonisolated func close() {
+        let connection = connection
+        Task { @MainActor in connection.closeAll() }
     }
 }
 
@@ -61,7 +66,10 @@ private final class AblyChatConnection {
         subscription.channel.off(subscription.states)
         subscription.channel.detach()
         subscription.continuation.finish()
-        guard subscriptions.isEmpty else { return }
+    }
+
+    func closeAll() {
+        for cabalId in Array(subscriptions.keys) { unsubscribe(cabalId, only: nil) }
         realtime?.close()
         realtime = nil
     }
