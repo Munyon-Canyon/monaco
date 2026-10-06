@@ -2,6 +2,7 @@ package verify
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"os"
 	"os/exec"
@@ -254,5 +255,23 @@ func writeFlows(t *testing.T, backendDir, tsv string) {
 		if err := os.WriteFile(filepath.Join(dir, id+".tsv"), []byte(header+"\n"+row), 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestWorkerConsumers_buildsTheModulesWithAnHTTPClientLikeTheWorker(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.CoverDir = t.TempDir()
+	s, err := Up(t.Context(), o)
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Down(context.WithoutCancel(t.Context())) })
+	var got module.Deps
+	consumers, err := workerConsumers(func(d module.Deps) module.Set { got = d; return nil }, s, nil)
+	if err != nil || consumers != nil || got.Config.PostHog.APIKey == "" || got.HTTPClient == nil {
+		t.Fatalf("workerConsumers = %v, %v with a PostHog key set: %t, an HTTPClient: %t; want an HTTPClient with the "+
+			"key, because analytics builds its PostHog client from it when it declares its consumers",
+			consumers, err, got.Config.PostHog.APIKey != "", got.HTTPClient != nil)
 	}
 }

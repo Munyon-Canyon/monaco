@@ -66,6 +66,8 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `proposal_failed` | `proposal.failed` (flow 10) |
 | `proposal_expired` | `proposal.expired` (flow 10) |
 | `trade_executed` | `trade.confirmed` (flow 11) |
+| `trade_blocked` | `trade.blocked` (flow 11) |
+| `trade_failed` | `trade.failed` (flow 11) |
 | `cash_out_completed` | `cashout.completed` (flow 14) |
 | `withdrawal_sent` | `withdrawal.confirmed` (flow 15) |
 | `follow_created` | `follow.created` (flow 20) |
@@ -85,7 +87,7 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Join cabal | cabal_viewed → join_tapped → request_sent / joined → fund_sheet_opened → (server) cabal_funded |
 | Propose | propose_opened → asset_selected → amount_entered → thesis_entered → submitted |
 | Vote | proposal_viewed → vote_cast |
-| Trade outcome | (server) proposal_passed → trade_executed / blocked |
+| Trade outcome | (server) proposal_passed → trade_executed / trade_blocked / trade_failed |
 | Cash out | cash_out_opened → amount_entered → confirmed → (server) cash_out_completed |
 | Withdraw | withdraw_opened → address_entered → confirmed → (server) withdrawal_sent |
 | Feed | feed_opened → item_opened → comment_opened → comment_posted |

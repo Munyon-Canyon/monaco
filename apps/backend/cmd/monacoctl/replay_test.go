@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
 const (
@@ -135,5 +138,21 @@ func TestReplayAndBackfill_refuseBadArgumentsAndUnusableDatabases(t *testing.T) 
 				t.Fatalf("code=%d stderr=%q, want %d and a stderr starting %q", code, stderr, tc.code, tc.stderr)
 			}
 		})
+	}
+}
+
+func TestProjections_buildTheRegisteredModulesWhenAPostHogKeyIsSet(t *testing.T) {
+	t.Parallel()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("projections panicked with a PostHog key set: %v", r)
+		}
+	}()
+	cfg := config.Config{
+		PostHog:  config.PostHog{APIKey: "ph-test-key", Host: "http://127.0.0.1:1"},
+		Timeouts: config.Timeouts{PostHog: time.Second},
+	}
+	if got := projections(cfg, nil, nil, &replay.Clock{}); got == nil {
+		t.Fatal("projections returned no handlers, want the registered projections")
 	}
 }

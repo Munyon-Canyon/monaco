@@ -10,3 +10,4 @@ Dated record of changes to [analytics-admin.md](../analytics-admin.md). Add one 
 - 2026-09-26: Outbox rows replaced by `events` rows delivered over the NATS event bus ([event-bus.md](../event-bus.md)).
 - 2026-09-26: Initial decision. Prometheus for system health, Postgres for business metrics, PostHog for behavior; admin panel with audited, reason-required actions through the normal backend services.
 - 2026-10-06: Server events: added `proposal_failed` and `proposal_expired` (flow 10). Neither event carries its proposer, so the export reads it through governance's `Proposer` port and uses it as the PostHog `distinct_id` (#635).
+- 2026-10-06: Server events: added `trade_blocked` and `trade_failed` (flow 11) and put `analytics` in the consumers of flows 10 and 11. A `trade.*` event whose source is not a proposal, such as a cash out sale, is not exported here; cash out has its own event (#635).

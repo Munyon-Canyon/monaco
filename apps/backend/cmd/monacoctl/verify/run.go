@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
@@ -181,7 +182,7 @@ func workerConsumers(modules func(module.Deps) module.Set, stack *Stack, env []s
 	}
 	return modules(module.Deps{
 		Config: appCfg, Clock: clock.Real{}, IDs: ids.Real{}, Pool: stack.Pool, Bus: stack.Bus,
-		UoW: db.New(stack.Pool, ids.Real{}, clock.Real{}),
+		UoW: db.New(stack.Pool, ids.Real{}, clock.Real{}), HTTPClient: httpclient.New,
 	}).Consumers(), nil
 }
 

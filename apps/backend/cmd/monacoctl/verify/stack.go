@@ -154,6 +154,8 @@ func (s *Stack) processes(ctx context.Context) error {
 		"SOLANA_USDC_MINT="+string(testkit.USDCMint),
 		"SUPABASE_URL=http://"+fakes.addr,
 		"SUPABASE_SERVICE_ROLE_KEY=verify-service-role",
+		"POSTHOG_API_KEY=verify-posthog-key",
+		"POSTHOG_HOST=http://"+fakes.addr+"/posthog",
 		"MONACO_BUS_ACK_WAIT=100ms",
 		"PRIVY_APP_ID="+PrivyAppID,
 		"PRIVY_APP_SECRET=verify-app-secret",
