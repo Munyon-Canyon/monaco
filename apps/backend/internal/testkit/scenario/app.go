@@ -242,7 +242,7 @@ func (a *app) backend() *backend {
 		pool:          a.pool,
 		mint:          a.mint,
 		privyToken:    a.privyToken,
-		script:        a.scriptFakes,
+		control:       a.controlFakes,
 		newUserID:     a.newUserID,
 		enter:         func(Stage) {},
 		exchanged:     func(Exchange) {},
@@ -301,19 +301,16 @@ func (a *app) privyToken(sub string) string {
 	return fakes.PrivyAccessToken(a.privyAppID, sub, time.Now(), time.Hour)
 }
 
-func (a *app) scriptFakes(ctx context.Context, t T, step fakes.Step) {
+func (a *app) controlFakes(ctx context.Context, t T, path string, body any) {
 	t.Helper()
-	raw, err := json.Marshal(step)
+	raw, err := json.Marshal(body)
 	if err != nil {
-		t.Fatalf("scenario: script %+v: %v", step, err)
+		t.Fatalf("scenario: fakes %s %+v: %v", path, body, err)
 	}
 	rec := httptest.NewRecorder()
-	a.upstreams.ServeHTTP(
-		rec,
-		httptest.NewRequestWithContext(ctx, http.MethodPost, "/_script", bytes.NewReader(raw)),
-	)
+	a.upstreams.ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(raw)))
 	if rec.Code != http.StatusNoContent {
-		t.Fatalf("scenario: script %s answered %d %s", raw, rec.Code, rec.Body)
+		t.Fatalf("scenario: fakes %s %s answered %d %s", path, raw, rec.Code, rec.Body)
 	}
 }
 
