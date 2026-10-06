@@ -23,25 +23,33 @@ public struct PortfolioSummary: Equatable, Sendable {
         public let id: String
         public let name: String
         public let pictureURL: String?
+        public let valueMicros: Int64
         public let value: String
         public let pnl: String
         public let returnText: String
+        public let returnBps: Int64?
         public let slice: String
+        public var share: String { "\(slice) of your money" }
         public let direction: Direction
 
         init(_ cabal: Components.Schemas.PortfolioCabal) {
             id = cabal.cabal.id
             name = cabal.cabal.name
             pictureURL = cabal.cabal.pictureUrl
+            valueMicros = cabal.valueMicros
             value = UsdAmountFormatter.format(micros: cabal.valueMicros)
             pnl = UsdAmountFormatter.format(signedMicros: cabal.pnlMicros)
             returnText = PortfolioSummary.percent(cabal.returnBps)
+            returnBps = cabal.returnBps
             slice = PercentFormatter.format(basisPoints: cabal.sliceBps, signed: false)
             direction = Direction(signedMicros: cabal.pnlMicros)
         }
     }
 
+    public let totalMicros: Int64
     public let total: String
+    public let pnl: String
+    public let returnText: String
     public let chip: String
     public let direction: Direction
     public let rows: [Row]
@@ -50,7 +58,10 @@ public struct PortfolioSummary: Equatable, Sendable {
 
     public init(_ portfolio: Components.Schemas.MyPortfolio) {
         rows = portfolio.cabals.map(Row.init)
+        totalMicros = portfolio.totalValueMicros
         total = UsdAmountFormatter.format(micros: portfolio.totalValueMicros)
+        pnl = UsdAmountFormatter.format(signedMicros: portfolio.pnlMicros)
+        returnText = Self.percent(portfolio.returnBps)
         direction = Direction(signedMicros: portfolio.pnlMicros)
         if portfolio.cabals.isEmpty {
             chip = UsdAmountFormatter.format(micros: 0)

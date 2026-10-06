@@ -9,6 +9,8 @@ final class PortfolioSummaryTests: XCTestCase {
 
         XCTAssertEqual(summary.total, "$1,000.00")
         XCTAssertEqual(summary.chip, "▲ $14.00 · 1.42%")
+        XCTAssertEqual(summary.pnl, "+$14.00")
+        XCTAssertEqual(summary.returnText, "+1.42%")
         XCTAssertEqual(summary.direction, .up)
         XCTAssertFalse(summary.isEmpty)
     }
@@ -22,6 +24,7 @@ final class PortfolioSummaryTests: XCTestCase {
         XCTAssertEqual(rows[0].returnText, "+1.69%")
         XCTAssertEqual(rows[0].slice, "60.00%")
         XCTAssertEqual(rows[1].slice, "40.00%")
+        XCTAssertEqual(rows[0].share, "60.00% of your money")
         XCTAssertEqual(rows[0].id, Components.Schemas.CabalRef.sampleAlpha.id)
     }
 
@@ -57,5 +60,6 @@ final class PortfolioSummaryTests: XCTestCase {
         portfolio.returnBps = nil
 
         XCTAssertEqual(PortfolioSummary(portfolio).chip, "▲ $14.00 · —")
+        XCTAssertEqual(PortfolioSummary(portfolio).returnText, "—")
     }
 }

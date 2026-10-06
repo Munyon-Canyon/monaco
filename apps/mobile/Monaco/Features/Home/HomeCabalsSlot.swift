@@ -14,7 +14,7 @@ private struct HomeCabals: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var model: MonacoCore.CabalsTabModel?
+    @State private var model: PortfolioModel?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -22,14 +22,19 @@ private struct HomeCabals: View {
                 .padding(.horizontal, MonacoTheme.Space.m)
             content
         }
-        .onAppear {
+        .task {
             let model = preparedModel()
             refresh?.register("home-cabals") { await model.load() }
-            Task { await model.load() }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await model.load() }
+                group.addTask { await model.observe() }
+            }
         }
-        .onChange(of: model?.failureTick) { _, _ in
-            guard case .loaded = model?.state, let error = model?.lastError else { return }
-            toasts.show(error)
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .onChange(of: model?.toast) { _, message in
+            guard let message else { return }
+            toasts.current = MonacoToast(message: message)
+            model?.dismissToast()
         }
     }
 
@@ -45,7 +50,7 @@ private struct HomeCabals: View {
                 Task { await model?.load() }
             }
             .accessibilityIdentifier("home-cabals-retry")
-        case .loaded(let cabals) where cabals.isEmpty:
+        case .loaded(let summary) where summary.isEmpty:
             EmptyState(
                 title: "No cabals yet",
                 message: "Start one with friends or join an open one.",
@@ -54,23 +59,18 @@ private struct HomeCabals: View {
                 environment.navigator.selectedTab = .cabals
             }
             .accessibilityIdentifier("home-cabals-empty")
-        case .loaded(let cabals):
+        case .loaded(let summary):
             MonacoGroupedList {
-                ForEach(cabals, id: \.id) { cabal in
-                    CabalPortfolioRow(cabal: cabal, isLast: cabal.id == cabals.last?.id)
+                ForEach(summary.rows) { row in
+                    CabalPortfolioRow(row: row, isLast: row.id == summary.rows.last?.id)
                 }
             }
-            Text("Pot values show up here soon.")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .padding(.horizontal, MonacoTheme.Space.m)
-                .accessibilityIdentifier("home-cabals-coming")
         }
     }
 
-    private func preparedModel() -> MonacoCore.CabalsTabModel {
+    private func preparedModel() -> PortfolioModel {
         if let model { return model }
-        let created = MonacoCore.CabalsTabModel(api: environment.api)
+        let created = PortfolioModel(api: environment.api, hints: environment.hints)
         model = created
         return created
     }
