@@ -57,8 +57,34 @@ func TestPush_convergesUnderChaosWithATokenlessAndADeletedUser(t *testing.T) {
 }
 
 func chaosPushEvent(i int) events.Event {
-	if i < chaosUsers {
+	switch i / chaosUsers {
+	case 0:
 		return events.NotifyTestRequested{V: 1, UserID: chaosRecipient(i)}
+	case 1:
+		return chaosComment(i)
 	}
 	return chaosNudge(i)
+}
+
+func chaosComment(i int) events.Event {
+	parent := i % chaosUsers
+	id := func(what string) uuid.UUID {
+		return uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-chaos-"+what+"-"+strconv.Itoa(i)))
+	}
+	thread, parentAuthor, ref := id("thread"), chaosRecipient(parent), id("ref")
+	e := events.CommentCreated{
+		V: 1, CommentID: id("comment"), FeedObjectID: id("item"), FeedKind: "trade", RefType: "swaps", RefID: ref,
+		AuthorID: chaosRecipient((parent + 1) % chaosUsers), ParentCommentID: &thread, ParentAuthorID: &parentAuthor,
+		Excerpt: "chaos reply " + strconv.Itoa(i),
+	}
+	switch parent {
+	case 1:
+		cabal := chaosCabal(0)
+		e.FeedKind, e.RefType, e.CabalID, e.ProposalID = "proposal", "proposals", &cabal, &ref
+	case 2:
+		e.ParentDeleted = true
+	case 3:
+		e.ParentCommentID, e.ParentAuthorID = nil, nil
+	}
+	return e
 }

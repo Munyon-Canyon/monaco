@@ -662,6 +662,9 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string
 			events.TypeFollowCreated, renderer[events.FollowCreated](app.NewFollower{Users: users}),
 		},
 		"nudge": {events.TypeUserNudgeDue, renderer[events.UserNudgeDue](app.Nudge{Users: users})},
+		"comment_reply": {
+			events.TypeCommentCreated, renderer[events.CommentCreated](app.CommentReply{Users: users}),
+		},
 	}
 }
 
@@ -725,7 +728,9 @@ func TestNotifyCopy(t *testing.T) {
 	proposer := identity.UserCard{ID: ids.UserIDFrom(created.ProposerID), DisplayName: memberNames()[0]}
 	followed := goldenEvent(t, events.TypeFollowCreated).(events.FollowCreated)
 	follower := identity.UserCard{ID: ids.UserIDFrom(followed.FollowerID), DisplayName: memberNames()[1], Handle: "bea"}
-	users := fakes.NewIdentity([]identity.UserCard{proposer, follower}, nil)
+	commented := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
+	replier := identity.UserCard{ID: ids.UserIDFrom(commented.AuthorID), DisplayName: memberNames()[2]}
+	users := fakes.NewIdentity([]identity.UserCard{proposer, follower, replier}, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
 	goldenDirs := map[string]string{"proposal_passed_buy": "buy"}
 	covered := map[events.Type]bool{}
