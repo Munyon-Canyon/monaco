@@ -73,12 +73,14 @@ func rpcReply(w http.ResponseWriter, id json.RawMessage, result any, fault *rpcF
 	}{"2.0", id, result, fault})
 }
 
-func (s *Server) answerRPC(w http.ResponseWriter, r *http.Request, route string, scriptedFixture bool) bool {
+func (s *Server) answerRPC(
+	w http.ResponseWriter, r *http.Request, route string, keys []string, scriptedFixture bool,
+) bool {
 	switch route {
 	case "/rpc/getMultipleAccounts":
 		return s.multipleAccounts(w, r)
 	case "/rpc/getTokenAccountsByOwner":
-		return !scriptedFixture && s.tokenAccounts(w, r)
+		return !scriptedFixture && s.tokenAccounts(w, r, keys)
 	}
 	return false
 }
@@ -120,7 +122,7 @@ func (s *Server) setBalance(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request) bool {
+func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request, keys []string) bool {
 	var call rpcCall
 	var owner string
 	var filter struct {
@@ -135,7 +137,7 @@ func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request) bool {
 	balance, ok := held[filter.Mint]
 	s.mu.Unlock()
 	if !set {
-		return false
+		return s.fixtureTokenAccounts(w, call.ID, keys, filter.Mint)
 	}
 	accounts := []any{}
 	if ok {
@@ -159,4 +161,42 @@ func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request) bool {
 	}
 	rpcReply(w, call.ID, map[string]any{"context": map[string]any{"slot": 451000000}, "value": accounts}, nil)
 	return true
+}
+
+func (s *Server) fixtureTokenAccounts(w http.ResponseWriter, id json.RawMessage, keys []string, mint string) bool {
+	for _, key := range keys {
+		f, ok := s.fixtures[key]
+		if !ok {
+			continue
+		}
+		var reply struct {
+			Result struct {
+				Context json.RawMessage   `json:"context"`
+				Value   []json.RawMessage `json:"value"`
+			} `json:"result"`
+		}
+		if f.Status != http.StatusOK || json.Unmarshal(f.Body, &reply) != nil {
+			return false
+		}
+		accounts := []json.RawMessage{}
+		for _, raw := range reply.Result.Value {
+			var acct struct {
+				Account struct {
+					Data struct {
+						Parsed struct {
+							Info struct {
+								Mint string `json:"mint"`
+							} `json:"info"`
+						} `json:"parsed"`
+					} `json:"data"`
+				} `json:"account"`
+			}
+			if json.Unmarshal(raw, &acct) == nil && acct.Account.Data.Parsed.Info.Mint == mint {
+				accounts = append(accounts, raw)
+			}
+		}
+		rpcReply(w, id, map[string]any{"context": reply.Result.Context, "value": accounts}, nil)
+		return true
+	}
+	return false
 }

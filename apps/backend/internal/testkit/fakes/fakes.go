@@ -275,7 +275,7 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 			s.live.ServeHTTP(w, live)
 			return
 		}
-		if s.answerRPC(w, r, route, step.fixture != "") {
+		if s.answerRPC(w, r, route, keys, step.fixture != "") {
 			return
 		}
 		s.serveFixture(w, keys)
