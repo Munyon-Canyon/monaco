@@ -28,6 +28,7 @@ type Market interface {
 type Treasury interface {
 	CabalPositionsAt(context.Context, time.Time) ([]treasury.CabalPositions, error)
 	MemberStakesAt(context.Context, time.Time) ([]treasury.MemberStake, error)
+	MemberFlowsBetween(context.Context, time.Time, time.Time) ([]treasury.MemberFlow, error)
 }
 
 type Funding interface {

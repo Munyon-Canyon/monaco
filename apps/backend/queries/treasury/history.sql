@@ -27,3 +27,13 @@ SELECT cabal_id, created_at,
   (sum(contributed) OVER (PARTITION BY cabal_id ORDER BY created_at, id))::text AS net_contributed_micros
 FROM per_txn
 ORDER BY created_at, id;
+
+-- name: MemberFlowsBetween :many
+SELECT t.user_id, t.cabal_id::uuid AS cabal_id, t.created_at, sum(e.amount)::text AS amount
+FROM user_txns AS t
+JOIN user_txn_entries AS e ON e.txn_id = t.id
+WHERE t.created_at > sqlc.arg(from_at)::timestamptz AND t.created_at <= sqlc.arg(to_at)::timestamptz
+  AND t.cabal_id IS NOT NULL AND e.account = 'cabal'
+GROUP BY t.id, t.user_id, t.cabal_id, t.created_at
+HAVING sum(e.amount) <> 0
+ORDER BY t.created_at, t.id;

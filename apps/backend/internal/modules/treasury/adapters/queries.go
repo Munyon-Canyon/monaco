@@ -30,6 +30,7 @@ type Queries struct {
 	q         queryStore
 	pot       potStore
 	history   historyStore
+	flows     flowStore
 	signature signatureStore
 	wallet    walletLedgerStore
 	catalog   app.MintResolver
@@ -56,6 +57,10 @@ type historyStore interface {
 	UserStakeHistory(context.Context, uuid.UUID) ([]sqlc.UserStakeHistoryRow, error)
 }
 
+type flowStore interface {
+	MemberFlowsBetween(context.Context, sqlc.MemberFlowsBetweenParams) ([]sqlc.MemberFlowsBetweenRow, error)
+}
+
 type signatureStore interface {
 	OwnsSignature(context.Context, string) (pgtype.Bool, error)
 }
@@ -74,6 +79,7 @@ func NewQueries(
 		q:         queries,
 		pot:       queries,
 		history:   queries,
+		flows:     queries,
 		signature: queries,
 		wallet:    queries,
 		catalog:   catalog,
@@ -383,6 +389,25 @@ func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]port.Memb
 			UserID: ids.UserIDFrom(row.UserID), CabalID: ids.CabalIDFrom(uuid.UUID(row.CabalID.Bytes)),
 			ShareUnits:           shareUnits,
 			NetContributedMicros: net,
+		})
+	}
+	return out, nil
+}
+
+func (q *Queries) MemberFlowsBetween(ctx context.Context, from, to time.Time) ([]port.MemberFlow, error) {
+	rows, err := q.flows.MemberFlowsBetween(ctx, sqlc.MemberFlowsBetweenParams{FromAt: from, ToAt: to})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.MemberFlowsBetween")
+	}
+	out := make([]port.MemberFlow, 0, len(rows))
+	for _, row := range rows {
+		amount, err := money.ParseSignedMicros(row.Amount)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.Queries.MemberFlowsBetween")
+		}
+		out = append(out, port.MemberFlow{
+			UserID: ids.UserIDFrom(row.UserID), CabalID: ids.CabalIDFrom(row.CabalID),
+			Amount: amount, At: row.CreatedAt,
 		})
 	}
 	return out, nil

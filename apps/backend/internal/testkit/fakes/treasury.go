@@ -23,6 +23,7 @@ type Treasury struct {
 	stakes           []treasury.Stake
 	cabalPositionsAt []treasury.CabalPositions
 	memberStakesAt   []treasury.MemberStake
+	memberFlows      []treasury.MemberFlow
 	contributions    map[ids.CabalID][]port.ContributionPoint
 	stakeHistory     map[ids.UserID][]port.StakePoint
 }
@@ -95,6 +96,12 @@ func (f *Treasury) SetMemberStakesAt(stakes []treasury.MemberStake) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.memberStakesAt = slices.Clone(stakes)
+}
+
+func (f *Treasury) SetMemberFlows(flows []treasury.MemberFlow) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.memberFlows = slices.Clone(flows)
 }
 
 func (f *Treasury) SetCabalContributionHistory(cabalID ids.CabalID, points []port.ContributionPoint) {
@@ -216,6 +223,17 @@ func (f *Treasury) MemberStakesAt(_ context.Context, _ time.Time) ([]treasury.Me
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.memberStakesAt), nil
+}
+
+func (f *Treasury) MemberFlowsBetween(_ context.Context, from, to time.Time) ([]treasury.MemberFlow, error) {
+	if err := f.Check("MemberFlowsBetween"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.DeleteFunc(slices.Clone(f.memberFlows), func(flow treasury.MemberFlow) bool {
+		return !flow.At.After(from) || flow.At.After(to)
+	}), nil
 }
 
 func (f *Treasury) stake(cabalID ids.CabalID, user ids.UserID) treasury.Stake {

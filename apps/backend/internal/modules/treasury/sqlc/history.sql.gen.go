@@ -51,6 +51,54 @@ func (q *Queries) CabalContributionHistory(ctx context.Context, cabalID uuid.UUI
 	return items, nil
 }
 
+const memberFlowsBetween = `-- name: MemberFlowsBetween :many
+SELECT t.user_id, t.cabal_id::uuid AS cabal_id, t.created_at, sum(e.amount)::text AS amount
+FROM user_txns AS t
+JOIN user_txn_entries AS e ON e.txn_id = t.id
+WHERE t.created_at > $1::timestamptz AND t.created_at <= $2::timestamptz
+  AND t.cabal_id IS NOT NULL AND e.account = 'cabal'
+GROUP BY t.id, t.user_id, t.cabal_id, t.created_at
+HAVING sum(e.amount) <> 0
+ORDER BY t.created_at, t.id
+`
+
+type MemberFlowsBetweenParams struct {
+	FromAt time.Time
+	ToAt   time.Time
+}
+
+type MemberFlowsBetweenRow struct {
+	UserID    uuid.UUID
+	CabalID   uuid.UUID
+	CreatedAt time.Time
+	Amount    string
+}
+
+func (q *Queries) MemberFlowsBetween(ctx context.Context, arg MemberFlowsBetweenParams) ([]MemberFlowsBetweenRow, error) {
+	rows, err := q.db.Query(ctx, memberFlowsBetween, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MemberFlowsBetweenRow
+	for rows.Next() {
+		var i MemberFlowsBetweenRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.CabalID,
+			&i.CreatedAt,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const userStakeHistory = `-- name: UserStakeHistory :many
 WITH per_txn AS (
   SELECT t.id, t.cabal_id, t.created_at,
