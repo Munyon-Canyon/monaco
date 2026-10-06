@@ -84,5 +84,48 @@ private struct CabalProposals: View {
 
 private nonisolated struct CabalProposalListRoute: Hashable, AppRoute {
     let cabalID: String
-    @MainActor func destination() -> some View { CabalProposals(cabalID: cabalID) }
+    @MainActor func destination() -> some View { CabalAllProposals(cabalID: cabalID) }
+}
+
+private struct CabalAllProposals: View {
+    let cabalID: String
+    @Environment(AppEnvironment.self) private var environment
+    @State private var open: ProposalListModel?
+    @State private var closed: ProposalListModel?
+    @State private var voting: ProposalVoteModel?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                if let open, let closed, let voting {
+                    ForEach(open.pager.items + closed.pager.items) { proposal in
+                        ProposalVoteCard(
+                            proposal: proposal, voting: voting,
+                            onVoted: { await open.pager.refreshFirstPage() })
+                    }
+                }
+            }
+            .padding(MonacoTheme.Space.m)
+        }
+        .navigationTitle("Proposals")
+        .task {
+            let models = preparedModels()
+            await models.open.load()
+            await models.closed.load()
+        }
+    }
+
+    private func preparedModels() -> (open: ProposalListModel, closed: ProposalListModel) {
+        if let open, let closed { return (open, closed) }
+        let repository = ProposalsRepository(api: environment.api)
+        let created = (
+            open: ProposalListModel(cabalID: cabalID, filter: .open, repository: repository, hints: environment.hints),
+            closed: ProposalListModel(
+                cabalID: cabalID, filter: .closed, repository: repository, hints: environment.hints)
+        )
+        voting = ProposalVoteModel(repository: repository)
+        open = created.open
+        closed = created.closed
+        return created
+    }
 }
