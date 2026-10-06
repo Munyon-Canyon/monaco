@@ -7,7 +7,7 @@ nightly GitHub workflow. PR and Graphite merge queue CI do not build the app. Th
 
 | When | Workflow / job | Runs |
 | --- | --- | --- |
-| Ready PRs touching the `backend` filter in `ci-jobs.yml` (`apps/backend/**`, the backend install, test and CI scripts, `Justfile`, `docker-compose.yml`) or a file no filter owns; manual dispatch | `ci-jobs.yml` · `lint`, `ready`, `vuln` (Linux); `backend` and `e2e` in the Graphite merge queue | backend checks, by stage in [CI](../architecture/ci.md#check-stages) |
+| Ready PRs touching the `backend` filter in `ci-jobs.yml` (`apps/backend/**`, the backend install, test and CI scripts, `Justfile`, `docker-compose.yml`) or a file no filter owns; manual dispatch | `ci-jobs.yml` · `lint`, `ready`, `vuln` (Linux); `backend` and `e2e` in stage 1 | backend checks, by stage in [CI](../architecture/ci.md#check-stages) |
 | Every ready PR to `main`, manual dispatch | `ci.yml` · `plan` (Linux) | runner-label check (`scripts/ci/check-runners.sh`), path filters, and `npm test` for `apps/web` when it changed |
 | Ready PRs to `main` touching `packages/mobile-core/**` or `ci.yml`; manual dispatch | `ci.yml` · `mobile-core` (Linux, `swift:6.3-noble`) | `swift test` in `packages/mobile-core` |
 | A PR that changes `apps/mobile/**` | local, before push | `just build mobile` and `-only-testing:MonacoTests`. CI does not build the app. |

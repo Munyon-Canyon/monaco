@@ -33,7 +33,7 @@ Real call sites:
 4. Every channel is bounded. Use unbuffered or an explicit, justified size. No "big enough" buffers.
 5. Backpressure over dropping. Drop only live SSE hints, and count the drops in a metric.
 6. Shared mutable state lives behind one goroutine or a mutex in the same struct, never both. Prefer ownership over locks.
-7. The race detector runs in CI. The Graphite queue runs `go test -race` over the backend through `scripts/test-backend.sh`.
+7. The race detector runs in CI. Stage 1's `backend` job runs `go test -race` over the backend through `scripts/test-backend.sh`.
 8. JetStream `MaxAckPending` is the cross-process bound. It is `maxAckPending` (64) in `apps/backend/internal/platform/bus/registry.go`. An in-process pool inside a consumer must not exceed it.
 
 ## Context in concurrent code
@@ -46,7 +46,7 @@ Real call sites:
 
 - Time-dependent code takes the injected `clock.Clock` from `apps/backend/internal/platform/clock`. Tests use `testing/synctest` or `testkit.Eventually`. `time.Sleep` is banned in tests, and the `testwait` analyzer in `apps/backend/internal/platform/lint/nogo/testwait.go` bans its disguises.
 - Test the failure path. Assert that the first error cancels the rest, that results keep their order, and that a cancelled parent context ends the work.
-- Stage 0 (`go run ./cmd/monacoctl agents check`) runs the short tests without `-race`. The Graphite queue runs them with `-race`. Owners do not run `-race` locally.
+- Stage 0 (`go run ./cmd/monacoctl agents check`) runs the short tests without `-race`. Stage 1 runs them with `-race`. Owners do not run `-race` locally.
 
 ## Checklist
 

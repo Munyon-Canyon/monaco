@@ -464,7 +464,7 @@ Also in CI:
 | Contract | server responses match `openapi.yaml`; event payloads match golden JSON | `kin-openapi` validator middleware in every HTTP test; golden files with `-update` | `just test backend` |
 | Acceptance | one scenario per Flows row, in business language | Go scenario DSL (`scenario.New(t).Given(...).When(...).Then(...)`) over HTTP against the in-process app | `just test backend` |
 | E2E | same scenarios against real `api` + `worker` binaries | compose: PG + NATS + fake externals; `-cover` binaries | PR CI |
-| QA | `monacoctl verify` on the real binaries; evidence is the `verify-evidence` CI artifact | `cmd/monacoctl verify` | stage 2 (Graphite merge queue) and nightly |
+| QA | `monacoctl verify` on the real binaries; evidence is the `verify-evidence` CI artifact | `cmd/monacoctl verify` | stage 1 and nightly |
 | Crash-point | panic at named points (after create, after sign, after `/execute`, before commit, after publish), restart, assert convergence. A `created` row was never signed or sent, so the sweeper fails it after 2 min; a crash after the send leaves the row `submitted`, which the sweeper resolves through `getSignatureStatuses`. | `faultpoint` hooks compiled in under the `faultpoints` build tag | `just test backend` in process; E2E in PR CI |
 | Jitter / concurrency | pools, pipelines, relay, consumers under random delays and interleavings | `testing/synctest` + seeded delay injection + `-race` | `just test backend` (fixed seeds), nightly (seed sweep) |
 | Performance (deterministic) | allocations per op on hot paths; query count per request | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`. Both compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
@@ -587,7 +587,7 @@ Flow 00 (Ping) is the reference app flow, verified on both sides. Copy its files
 
 `monacoctl flows check` runs in CI and fails on any column's check. It also reads `go test -json` from the run and requires, for each flow with `status` ≥ `built`, a passing test named `TestFlow<id>_<Command>_<Outcome>` per outcome. A flow row with no test is a red build, not a backlog item. The check is what makes the file a map of the system instead of a wish list.
 
-`status = built` means every non-crash outcome has a flow script registered in `Scripts()` (`internal/testkit/flows/scripts.go`), so `monacoctl verify all` drives it against the real binaries in stage 2. Crash scripts ship with the `--crash-at` line that runs them, and the rest ship at `verified`, which means every outcome has a script. `monacoctl flows check` fails a `built` flow whose non-crash outcome has no script, and a `verified` flow with an outcome that has no script.
+`status = built` means every non-crash outcome has a flow script registered in `Scripts()` (`internal/testkit/flows/scripts.go`), so `monacoctl verify all` drives it against the real binaries in stage 1. Crash scripts ship with the `--crash-at` line that runs them, and the rest ship at `verified`, which means every outcome has a script. `monacoctl flows check` fails a `built` flow whose non-crash outcome has no script, and a `verified` flow with an outcome that has no script.
 
 `monacoctl verify` checks each outcome by the kind of trigger, and every log line it asks for must be written after the script started:
 
@@ -809,7 +809,7 @@ Cost: IDE hover shows no docs. With `internal/`-only code and descriptive names,
 
 ### Verification skill
 
-Agents need to prove backend work runs, not only that it compiles and its unit tests pass. `verify-backend` runs the real `api` and `worker` binaries against a real database and bus, drives a flow the way the app would, and writes down what the system did. It runs in the Graphite merge queue (stage 2) and nightly, after the tests.
+Agents need to prove backend work runs, not only that it compiles and its unit tests pass. `verify-backend` runs the real `api` and `worker` binaries against a real database and bus, drives a flow the way the app would, and writes down what the system did. It runs in stage 1 and nightly, after the tests.
 
 What lives where:
 
@@ -850,8 +850,8 @@ An evidence file holds: the commit SHA and whether the tree was dirty, the flow 
 
 Gates:
 
-- **In the Graphite merge queue.** The `e2e` job runs `scripts/ci/e2e.sh` on every backend queue entry and fails on any failed invariant or budget. Owners do not run `verify`; stage 0 is `monacoctl agents check`.
-- **On failure.** Fix the code and let the queue rerun it. Read the `verify-evidence` artifact to see what the system did. Never weaken an invariant or raise a budget to get green.
+- **In stage 1.** The `e2e` job runs `scripts/ci/e2e.sh` behind the `backend` filter and fails on any failed invariant or budget. Owners do not run `verify`; stage 0 is `monacoctl agents check`.
+- **On failure.** Fix the code and let stage 1 rerun it. Read the `verify-evidence` artifact to see what the system did. Never weaken an invariant or raise a budget to get green.
 
 #### Budget: 90 s, enforced
 
@@ -888,7 +888,7 @@ Rollout step 1 measures a real run on the scaffold and confirms the phase budget
   - `go-concurrency`: when to use `Pool`, `Stage`, `FanOut`, errgroup; the eight concurrency rules; `goleak` and `-race` required. References the Mario Carrión fan-in/fan-out article for the base pattern and the helpers for the house version.
   - `money-change`: checklist for anything touching ledgers, shares, swaps: property test, crash-point test, guarded update, event in same tx.
   - `nats-consumer`: `bus.Dispatch` contract, idempotency via `event_deliveries`, retryable vs term, `InProgress` for long work, `Nats-Msg-Id` on publish, consumer-not-stream per module.
-  - `verify-backend`: the instructions and feature map above. The Graphite merge queue runs it on every backend entry.
+  - `verify-backend`: the instructions and feature map above. Stage 1 runs it behind the `backend` filter.
 
 ## Pull requests: small and stacked
 
@@ -931,7 +931,7 @@ Checks run in three stages, and each stage runs only what the stage before it sk
 
 | Stage | Where | Runs | Budget | Runs how often |
 | --- | --- | --- | --- | --- |
-| 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then golangci-lint, nogo and the comment lint, then `go test -short -count=1` on affected packages, no `-race`, and the `coverage` row, which fails on an uncovered statement in any non-test Go file of a package that has a changed non-test Go file, so a change that uncovers an unchanged file of its package fails here and not in the queue. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`). Journey paths run `journey.py check`, `test_journey.py`, and `test_skill_eval.py`. Path-triggered rows mirror CI's `ready`, migration lint, OpenAPI lint and oasdiff, and `mkdocs --strict` | per row, under `[check.budget]` in `.monaco/agents.toml`; no cap on the whole run | Once before each push (hook-enforced) |
+| 0. Agent check | Owner's worktree, `monacoctl agents check` | `go build` and `go vet` on affected packages, then golangci-lint, nogo and the comment lint, then `go test -short -count=1` on affected packages, no `-race`, and the `coverage` row, which fails on an uncovered statement in any non-test Go file of a package that has a changed non-test Go file, so a change that uncovers an unchanged file of its package fails here and not in stage 1. For non-Go paths, the cheap row for that path (`bash -n` and shellcheck; `cd scripts && go test -short` on the touched test files; `python3 -m unittest …`; `swift test` for `packages/mobile-core`). Journey paths run `journey.py check`, `test_journey.py`, and `test_skill_eval.py`. Path-triggered rows mirror CI's `ready`, migration lint, OpenAPI lint and oasdiff, and `mkdocs --strict` | per row, under `[check.budget]` in `.monaco/agents.toml`; no cap on the whole run | Once before each push (hook-enforced) |
 | 1. PR check | CI, `pull_request` | Every job behind its path filter, tests included ([ci.md](ci.md#check-stages)), plus PR format. | ≤2 min | Once per change to the PR's diff. A push with the same diff reuses the last green result. |
 | 2. Queue check | CI on the Graphite merge queue's `gtmq_` draft PR | `ci-ok` alone: `scripts/ci/ready.sh` (build, vet, tidy, generated files) on the combined stack. No tests ([ci.md](ci.md#check-stages)). | ≤5 min backend-only (iOS adds ~12) | Once per stack in the queue. Reruns only after an ejection. |
 
