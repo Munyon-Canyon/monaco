@@ -296,11 +296,11 @@ func TestVerify_aPollerFlowPassesOnATickAndNamesThePollerWhenNoneComes(t *testin
 	}
 }
 
-func TestVerify_aPollerCodeOutcomePassesOnlyOnAFailedTickWithThatCode(t *testing.T) {
+func TestVerify_aPollerCodeOutcomePassesOnlyOnALineCarryingThatCode(t *testing.T) {
 	t.Parallel()
 	unavailable := errs.New(errs.CodeUpstreamUnavailable, "fixture.tick")
-	const noFailedTick = "flow 95 UpstreamUnavailable invariant: no poller.tick.failed for fixture.prices " +
-		"with code upstream_unavailable after the script started"
+	const noFailedTick = "flow 95 UpstreamUnavailable invariant: no log line for fixture.prices " +
+		"carrying code upstream_unavailable after the script started"
 	for _, tc := range []struct {
 		name, outcome string
 		err           error
