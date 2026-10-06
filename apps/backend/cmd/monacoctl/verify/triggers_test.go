@@ -146,7 +146,9 @@ func TestOutcomeMismatch_readsTheTriggerLineOfTheKindAndOutcomeWrittenAfterTheSc
 		termed = `{"msg":"bus.dispatched","subject":"ns.events.system.pinged","outcome":"term","code":"invalid_input"}`
 
 		noTick   = "no poller.tick for fixture.prices after the script started"
-		noFailed = "no poller.tick.failed for fixture.prices with code upstream_unavailable after the script started"
+		recorded = `{"msg":"fixture.recorded","status_after":"upstream_unavailable"}`
+
+		noFailed = "no log line for fixture.prices carrying code upstream_unavailable after the script started"
 		noAck    = "no bus.dispatched for system.pinged with outcome ack after the script started"
 		noCode   = "no bus.dispatched for system.pinged with code invalid_input after the script started"
 	)
@@ -160,6 +162,8 @@ func TestOutcomeMismatch_readsTheTriggerLineOfTheKindAndOutcomeWrittenAfterTheSc
 		{"95", "ok", []string{tick}, []string{failed}, noTick},
 		{"95", "UpstreamUnavailable", nil, []string{tick, failed}, ""},
 		{"95", "UpstreamUnavailable", []string{failed}, []string{tick}, noFailed},
+		{"95", "UpstreamUnavailable", nil, []string{tick, recorded}, ""},
+		{"95", "UpstreamUnavailable", []string{recorded}, []string{tick}, noFailed},
 		{"96", "ok", nil, []string{termed, acked}, ""},
 		{"96", "ok", []string{acked}, []string{termed}, noAck},
 		{"96", "ok", nil, []string{bare}, noAck},

@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -21,7 +22,7 @@ const (
 
 func (defined) WorkerEnvF08() []string { return []string{"FUNDING_TREASURY_RECONCILE_INTERVAL=1s"} }
 
-func seedStrayTransfers(s *scenario.Scenario) []scenario.Step {
+func seedStrayTransfers(s *scenario.Scenario) (ids.CabalID, []scenario.Step) {
 	cabal := testkit.NewCabal(seedT{s}, s.DB())
 	if _, err := s.DB().Exec(s.Context(), `UPDATE treasury_wallets SET address = $1 WHERE address = $2`,
 		string(freshAddress(s)), reconcileTreasury); err != nil {
@@ -31,14 +32,18 @@ func seedStrayTransfers(s *scenario.Scenario) []scenario.Step {
 		reconcileTreasury, cabal.ID.UUID()); err != nil {
 		s.Fatalf("flows: point the treasury at the fixture address: %v", err)
 	}
-	return []scenario.Step{
-		scenario.FakeUpstream(fakes.Step{
-			Route: "/rpc/getSignaturesForAddress", Action: fakes.ActionSucceed,
-			Fixture: "/rpc/getSignaturesForAddress/" + reconcileTreasury, Times: 100, Reset: true,
-		}),
-		scenario.FakeUpstream(fakes.Step{
-			Route: "/rpc/getTransaction", Action: fakes.ActionSucceed, Times: 100, Reset: true,
-		}),
+	if _, err := s.DB().Exec(s.Context(), `UPDATE external_deposits
+		SET signature = 'retired-' || id, bounce_signature = 'retired-bounce-' || id,
+			status = CASE WHEN status IN ('detected', 'bouncing') THEN 'held' ELSE status END
+		WHERE signature = ANY($1)`,
+		[]string{reconcileUSDCSig, reconcileDustSig, reconcileOtherSig}); err != nil {
+		s.Fatalf("flows: retire the fixture transfers an earlier run recorded: %v", err)
+	}
+	return cabal.ID, []scenario.Step{
+		scenario.FakeUpstream(
+			fakes.Step{Route: "/rpc/getSignaturesForAddress", Action: fakes.ActionSucceed, Reset: true},
+		),
+		scenario.FakeUpstream(fakes.Step{Route: "/rpc/getTransaction", Action: fakes.ActionSucceed, Reset: true}),
 	}
 }
 
@@ -59,30 +64,34 @@ func externalDepositIs(sig string, statuses ...string) scenario.Step {
 }
 
 func F08DetectExternalDepositOK(s *scenario.Scenario) {
-	s.Given(seedStrayTransfers(s)...).When(
+	cabal, seed := seedStrayTransfers(s)
+	s.Given(seed...).When(
 		scenario.AwaitTick(reconcilePoller),
 		externalDepositIs(reconcileUSDCSig, "detected", "bouncing", "returned", "bounce_failed"),
-		scenario.EventuallyEvent(events.TypeCabalExternalDepositDetected),
-		scenario.EventuallyEvent(events.TypeCabalPaused),
+		scenario.EventuallyCabalEvent(cabal, events.TypeCabalExternalDepositDetected),
+		scenario.EventuallyCabalEvent(cabal, events.TypeCabalPaused),
 	).Then()
 }
 
 func F08DetectExternalDepositDust(s *scenario.Scenario) {
-	s.Given(seedStrayTransfers(s)...).When(
+	_, seed := seedStrayTransfers(s)
+	s.Given(seed...).When(
 		scenario.AwaitTick(reconcilePoller),
 		externalDepositIs(reconcileDustSig, "ignored_dust"),
 	).Then()
 }
 
 func F08DetectExternalDepositUnknownAsset(s *scenario.Scenario) {
-	s.Given(seedStrayTransfers(s)...).When(
+	_, seed := seedStrayTransfers(s)
+	s.Given(seed...).When(
 		scenario.AwaitTick(reconcilePoller),
 		externalDepositIs(reconcileOtherSig, "ignored_unknown"),
 	).Then()
 }
 
 func F08DetectExternalDepositBounceFailed(s *scenario.Scenario) {
-	s.Given(seedStrayTransfers(s)...).When(
+	_, seed := seedStrayTransfers(s)
+	s.Given(seed...).When(
 		scenario.AwaitTick(reconcilePoller),
 		externalDepositIs(reconcileUSDCSig, "bounce_failed"),
 		scenario.EventuallyLog(observability.FundingBounceFailed, map[string]string{"reason": "recipient_token_account_closed"}),

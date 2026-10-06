@@ -320,6 +320,25 @@ func EventuallyEvent(typ events.Type) Step {
 	}
 }
 
+func EventuallyCabalEvent(cabalID ids.CabalID, typ events.Type) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		var appended []string
+		await(s.t, "a "+string(typ)+" event for cabal "+cabalID.String(), func() (bool, <-chan struct{}) {
+			rows, err := s.app.pool.Query(s.t.Context(),
+				`SELECT id::text FROM events WHERE type = $1 AND aggregate_id = $2 ORDER BY id`,
+				string(typ), cabalID.UUID())
+			if appended = scanIDs(s.t, typ, rows, err); len(appended) > 0 {
+				return true, nil
+			}
+			changed := make(chan struct{})
+			time.AfterFunc(publishPoll, func() { close(changed) })
+			return false, changed
+		})
+		s.app.awaitHandled(s.t, typ, appended)
+	}
+}
+
 func EventuallyHint(what string) Step { return EventuallyHints(what, 1) }
 
 func EventuallyHints(what string, n int) Step {
