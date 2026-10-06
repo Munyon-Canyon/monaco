@@ -73,7 +73,7 @@ final class ChatSessionSampleTests: XCTestCase {
         XCTAssertEqual(reopened.load, .loaded)
     }
 
-    func testACatchUpAfterTheNewestMessageFindsNothingNewAndCloseDetaches() async {
+    func testACatchUpAfterTheNewestMessageFindsNothingNewAndClosingKeepsTheRows() async {
         let session = session(ChatSampleScenario())
         await session.open()
         let before = await state(session)

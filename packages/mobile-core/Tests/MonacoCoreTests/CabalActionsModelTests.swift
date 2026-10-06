@@ -173,6 +173,31 @@ final class CabalActionsModelTests: XCTestCase {
         XCTAssertTrue(reread)
     }
 
+    func testAHintBurstDuringAnUnreadReadGivesOneTrailingRead() async {
+        let (model, transport, hints) = make([
+            .json(.ok, Self.myCabals(unread: 3)),
+            .gate,
+            .json(.ok, Self.myCabals(unread: 0)),
+        ])
+        await model.loadUnread()
+        let observer = await observing(model, hints)
+        addTeardownBlock { observer.cancel() }
+
+        await hints.send(.changed(.user("me"), what: "cabals", id: "1"))
+        await transport.waitForRequests(2)
+        for id in 2...6 {
+            await hints.send(.changed(.user("me"), what: "cabals", id: "\(id)"))
+        }
+        _ = await waitUntil { false }
+        await transport.releaseGate(.json(.ok, Self.myCabals(unread: 1)))
+
+        let settled = await waitUntil { await transport.sent.count == 3 && !model.hasUnreadChat }
+        XCTAssertTrue(settled)
+        _ = await waitUntil { false }
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 3)
+    }
+
     func testAFailedUnreadReadKeepsTheDot() async {
         let (model, _, _) = make([
             .json(.ok, Self.myCabals(unread: 3)),

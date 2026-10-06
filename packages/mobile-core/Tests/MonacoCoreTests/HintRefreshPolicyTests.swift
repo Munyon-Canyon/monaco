@@ -2,7 +2,7 @@ import Foundation
 import MonacoAPI
 import XCTest
 
-@testable import MonacoCore
+@testable import MonacoAPI
 
 final class HintRefreshPolicyTests: XCTestCase {
     func testTenHintsDuringOneRefreshGiveOneTrailingRefresh() {

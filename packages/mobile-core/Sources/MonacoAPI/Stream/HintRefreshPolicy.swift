@@ -1,5 +1,3 @@
-import MonacoAPI
-
 public struct HintRefreshPolicy: Equatable, Sendable {
     public enum Input: Equatable, Sendable {
         case hint

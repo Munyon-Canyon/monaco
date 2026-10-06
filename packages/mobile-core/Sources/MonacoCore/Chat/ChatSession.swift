@@ -41,6 +41,7 @@ public actor ChatSession {
     var deletions: [String: IdempotentSubmission] = [:]
     var isOpen = false
     private var noticeSerial = 0
+    private var cursor = CatchUpCursor()
 
     public init(
         cabalID: String,
@@ -140,7 +141,9 @@ public actor ChatSession {
         for thread in attached.values { await thread.apply(event) }
         switch event {
         case .messageCreated(let message):
-            guard state.timeline.hasLoadedNewest, state.timeline.insertLive(message) else { return }
+            guard state.timeline.hasLoadedNewest else { return }
+            cursor.advance(with: [message])
+            guard state.timeline.insertLive(message) else { return }
             publish()
             await onArrival()
             return
@@ -182,6 +185,7 @@ public actor ChatSession {
         do {
             let page = try await fetch()
             state.timeline.mergeNewest(page, pageSize: Self.pageSize)
+            cursor.advance(with: page)
             adoptSeen(from: page)
             state.load = .loaded
             state.isClosed = false
@@ -192,21 +196,22 @@ public actor ChatSession {
     }
 
     private func catchUp() async {
-        guard var cursor = state.timeline.newestID else {
+        guard var after = cursor.id else {
             await loadNewest()
             return
         }
         for _ in 0..<Self.maxCatchUpPages {
             do {
-                let page = try await fetch(after: cursor)
+                let page = try await fetch(after: after)
                 state.timeline.mergeNewer(page)
+                cursor.advance(with: page)
                 adoptSeen(from: page)
                 state.isClosed = false
                 publish()
-                guard page.count >= Self.pageSize, let newest = state.timeline.newestID, newest != cursor else {
+                guard page.count >= Self.pageSize, let newest = cursor.id, newest != after else {
                     return
                 }
-                cursor = newest
+                after = newest
             } catch {
                 fail(error, firstLoad: false)
                 publish()
@@ -242,16 +247,6 @@ public actor ChatSession {
             }
         }
         publish()
-    }
-
-    private func fetch(before: String? = nil, after: String? = nil) async throws -> [ChatMessage] {
-        let cabalID = cabalID
-        return try await api.read { client in
-            try await client.getChatMessages(
-                path: .init(id: cabalID),
-                query: .init(before: before, after: after, limit: Self.pageSize)
-            ).ok.body.json.messages
-        }
     }
 
     private func fail(_ error: any Error, firstLoad: Bool) {

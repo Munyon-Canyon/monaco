@@ -178,9 +178,9 @@ public struct ChatTimeline: Equatable, Sendable {
     }
 
     private mutating func dropEchoed(by message: ChatMessage) {
-        guard message.author.id == viewerID, let index = unsent.firstIndex(where: { $0.body == message.body }) else {
-            return
-        }
+        guard message.author.id == viewerID,
+            let index = unsent.firstIndex(where: { !$0.failed && $0.body == message.body })
+        else { return }
         unsent.remove(at: index)
     }
 
@@ -196,7 +196,6 @@ public struct ChatTimeline: Equatable, Sendable {
             } else {
                 messages.append(message)
                 added.append(message)
-                dropEchoed(by: message)
                 changed = true
             }
         }
@@ -246,7 +245,7 @@ public struct ChatTimeline: Equatable, Sendable {
         )
     }
 
-    private static func chronological(_ lhs: ChatMessage, _ rhs: ChatMessage) -> Bool {
+    static func chronological(_ lhs: ChatMessage, _ rhs: ChatMessage) -> Bool {
         if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
         return lhs.id < rhs.id
     }

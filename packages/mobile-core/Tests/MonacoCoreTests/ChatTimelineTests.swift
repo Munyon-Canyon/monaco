@@ -177,7 +177,11 @@ final class ChatTimelineTests: XCTestCase {
         XCTAssertEqual(timeline.unsent(key: "k1")?.body, "gm")
 
         timeline.insertLive(Fixtures.message("m2", author: Fixtures.viewerID, body: "gm", minutes: 61))
-        XCTAssertEqual(timeline.rows.map(\.id), ["m1", "m2"])
+        XCTAssertEqual(timeline.rows.map(\.id), ["m1", "m2", "k1"])
+
+        timeline.setFailed(key: "k1", false)
+        timeline.insertLive(Fixtures.message("m3", author: Fixtures.viewerID, body: "gm", minutes: 62))
+        XCTAssertEqual(timeline.rows.map(\.id), ["m1", "m2", "m3"])
         XCTAssertNil(timeline.unsent(key: "k1"))
     }
 

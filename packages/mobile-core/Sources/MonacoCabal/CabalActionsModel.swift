@@ -23,6 +23,7 @@ public final class CabalActionsModel {
     private let hints: any HintSource
     private var generation = 0
     private var unreadGeneration = 0
+    @ObservationIgnored private lazy var unreadRefresher = HintRefresher { [weak self] in await self?.loadUnread() }
 
     public var hasUnreadChat: Bool { unreadCount > 0 }
 
@@ -80,7 +81,7 @@ public final class CabalActionsModel {
             if case .changed = hint { return true }
             return false
         }
-        async let unread: Void = reloadUnread(on: hints.hints(matching: .user(what: "cabals")))
+        async let unread: Void = unreadRefresher.observe(hints.hints(matching: .user(what: "cabals")))
         _ = await (cabal, access, unread)
     }
 
@@ -92,13 +93,6 @@ public final class CabalActionsModel {
         for await hint in stream where wanted(hint) {
             if Task.isCancelled { return }
             await load()
-        }
-    }
-
-    private func reloadUnread(on stream: AsyncStream<Hint>) async {
-        for await _ in stream {
-            if Task.isCancelled { return }
-            await loadUnread()
         }
     }
 

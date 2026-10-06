@@ -75,6 +75,8 @@ struct GroupChatScreen: View {
             } else {
                 thread(chat)
             }
+        } else if chat?.isClosed == true {
+            Color.clear
         } else if case .failed = chat?.load {
             GroupChatLoadFailureView { Task { await session?.reload() } }
         } else {
