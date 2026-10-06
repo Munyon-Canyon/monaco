@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -89,12 +90,25 @@ func (m *Module) Mount(r api.Mount) {
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }
 
 func (m *Module) consumers() []bus.Consumer {
-	return []bus.Consumer{membership(), m.names()}
+	return []bus.Consumer{membership(), m.names(), triggers()}
 }
 
 func (m *Module) Pollers() []poller.Poller {
-	return []poller.Poller{app.NewThinSnapshots(m.deps.Pool, m.deps.Clock)}
+	return []poller.Poller{app.NewThinSnapshots(m.deps.Pool, m.deps.Clock), m.valuation()}
 }
+
+func (m *Module) valuation() adapters.ValuationPoller {
+	return adapters.ValuationPoller{
+		Reads:  sqlc.New(m.deps.Pool),
+		Runner: m.RunValuation(),
+		Writer: app.NewSnapshotWriter(m.deps.UoW, m.deps.IDs),
+		Clock:  m.deps.Clock,
+	}
+}
+
+type Port = port.Queries
+
+func (m *Module) Queries() port.Queries { return adapters.Latest{DB: m.deps.Pool} }
 
 type marketPort struct {
 	catalog  market.Catalog
