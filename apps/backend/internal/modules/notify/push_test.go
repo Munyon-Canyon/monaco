@@ -230,6 +230,10 @@ func (c *crowd) Render(ctx context.Context, e events.NotifyTestRequested, to ids
 	return app.Test{}.Render(ctx, e, to)
 }
 
+type cappedTest struct{ app.Test }
+
+func (cappedTest) DailyCap() int { return 1 }
+
 type hooked struct {
 	*testkit.FakeSender
 	before func(ctx context.Context, p apns.Push) error
@@ -516,6 +520,7 @@ func TestPush_returnsEachStoreFailureAndRecordsNothing(t *testing.T) {
 		return &crowd{users: []ids.UserID{user, other}}
 	}
 	none := func(ids.UserID, ids.UserID) app.Kind[events.NotifyTestRequested] { return &crowd{} }
+	capped := func(ids.UserID, ids.UserID) app.Kind[events.NotifyTestRequested] { return cappedTest{} }
 	for name, tc := range map[string]struct {
 		arrange []string
 		kind    func(user, other ids.UserID) app.Kind[events.NotifyTestRequested]
@@ -525,6 +530,7 @@ func TestPush_returnsEachStoreFailureAndRecordsNothing(t *testing.T) {
 		"event actor":  {[]string{`ALTER TABLE events RENAME TO gone`}, one, ok, errs.CodeDBUnavailable},
 		"broadcast":    {[]string{`ALTER TABLE notification_broadcasts ADD CHECK (recipient_count < 2)`}, two, ok, errs.CodeInternal},
 		"notification": {[]string{`ALTER TABLE notifications ADD CHECK (false)`}, one, ok, errs.CodeInternal},
+		"cap count":    {[]string{`ALTER TABLE notifications RENAME TO gone`}, capped, ok, errs.CodeInternal},
 		"undelivered":  {[]string{`ALTER TABLE notifications RENAME TO gone`}, none, ok, errs.CodeDBUnavailable},
 		"tokens":       {[]string{`ALTER TABLE device_tokens RENAME TO gone`}, one, ok, errs.CodeDBUnavailable},
 		"data": {[]string{`INSERT INTO notifications
@@ -652,6 +658,9 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string
 		},
 		"proposal_passed":     {events.TypeProposalPassed, passed},
 		"proposal_passed_buy": {events.TypeProposalPassed, passed},
+		"new_follower": {
+			events.TypeFollowCreated, renderer[events.FollowCreated](app.NewFollower{Users: users}),
+		},
 	}
 }
 
@@ -713,7 +722,9 @@ func TestNotifyCopy(t *testing.T) {
 	}
 	cabals := fakes.NewCabal(seeds, nil)
 	proposer := identity.UserCard{ID: ids.UserIDFrom(created.ProposerID), DisplayName: memberNames()[0]}
-	users := fakes.NewIdentity([]identity.UserCard{proposer}, nil)
+	followed := goldenEvent(t, events.TypeFollowCreated).(events.FollowCreated)
+	follower := identity.UserCard{ID: ids.UserIDFrom(followed.FollowerID), DisplayName: memberNames()[1], Handle: "bea"}
+	users := fakes.NewIdentity([]identity.UserCard{proposer, follower}, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
 	goldenDirs := map[string]string{"proposal_passed_buy": "buy"}
 	covered := map[events.Type]bool{}

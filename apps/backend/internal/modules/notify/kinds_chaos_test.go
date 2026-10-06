@@ -114,3 +114,22 @@ func TestNotify_DepositAndCabalPauseKinds_ConvergeUnderChaos(t *testing.T) {
 		}
 	})
 }
+
+func chaosFollow(i int) events.Event {
+	round, followee := i/chaosUsers, i%chaosUsers
+	return events.FollowCreated{
+		V: 1, FollowID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-chaos-follow-"+strconv.Itoa(i))),
+		FollowerID: chaosRecipient((followee + 1 + round) % chaosUsers), FolloweeID: chaosRecipient(followee),
+		Source:    []string{"profile", "phone", "x", "cabal", "feed", "suggested", "referral"}[i%7],
+		CreatedAt: time.Date(2026, 3, 1, 11, 0, 0, 0, time.UTC),
+	}
+}
+
+func TestNotify_FollowKind_ConvergesUnderChaos(t *testing.T) {
+	t.Parallel()
+	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
+		seedChaosUsers(t, h)
+		deps := module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, UoW: db.New(h.Pool, h.IDs, h.Clock)}
+		return notify.New(deps, notify.WithSender(&testkit.FakeSender{})).Consumers()[0]
+	}, func(_ *rand.Rand, i int) events.Event { return chaosFollow(i) })
+}

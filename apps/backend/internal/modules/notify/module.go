@@ -69,8 +69,12 @@ func (m *Module) Mount(r api.Mount) {
 	}, r)
 }
 
+func (m *Module) pusher() *app.Pusher {
+	return app.NewPusher(m.deps.UoW, m.users, m.sender, m.deps.IDs, m.deps.Clock)
+}
+
 func (m *Module) Consumers() []bus.Consumer {
-	pusher := app.NewPusher(m.deps.UoW, m.users, m.sender, m.deps.IDs, m.deps.Clock)
+	pusher := m.pusher()
 	return []bus.Consumer{{Durable: "notify", Handlers: []bus.HandlerSpec{
 		adapters.Push(pusher, app.Test{}),
 		adapters.Push(pusher, app.DepositCredited{}),
@@ -80,7 +84,10 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.TradeFailed{Cabals: m.cabals, Assets: m.assets}),
 		adapters.Push(pusher, app.ProposalCreated{Cabals: m.cabals, Users: m.users, Assets: m.assets}),
 		adapters.Push(pusher, app.ProposalPassed{Cabals: m.cabals, Voters: m.voters, Assets: m.assets}),
+		adapters.Push(pusher, app.NewFollower{Users: m.users}),
 	}}}
 }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	return []poller.Poller{app.NewFollowDigest(m.pusher())}
+}

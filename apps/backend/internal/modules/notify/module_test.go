@@ -12,7 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestModule_servesDevicesAndConsumesEveryPushKindWithNoPollers(t *testing.T) {
+func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *testing.T) {
 	t.Parallel()
 	m := notify.New(module.Deps{})
 	var handlers []string
@@ -21,8 +21,14 @@ func TestModule_servesDevicesAndConsumesEveryPushKindWithNoPollers(t *testing.T)
 			handlers = append(handlers, c.Durable+" "+h.Name+" "+string(h.Type()))
 		}
 	}
+	running := m.Pollers()
+	pollers := make([]string, 0, len(running))
+	for _, p := range running {
+		pollers = append(pollers, p.Name()+" "+p.Interval().String())
+	}
 	if m.Name() != "notify" || !testkit.Serves(m.Mount, "POST", "/v1/devices") ||
-		!testkit.Serves(m.Mount, "DELETE", "/v1/devices/"+token('a')) || m.Pollers() != nil ||
+		!testkit.Serves(m.Mount, "DELETE", "/v1/devices/"+token('a')) ||
+		!slices.Equal(pollers, []string{"notify.follow_digest 1h0m0s"}) ||
 		!slices.Equal(handlers, []string{
 			"notify notify.notify_test_requested notify.test_requested",
 			"notify notify.deposit_credited deposit.credited",
@@ -32,8 +38,9 @@ func TestModule_servesDevicesAndConsumesEveryPushKindWithNoPollers(t *testing.T)
 			"notify notify.trade_failed trade.failed",
 			"notify notify.proposal_created proposal.created",
 			"notify notify.proposal_passed proposal.passed",
+			"notify notify.follow_created follow.created",
 		}) {
-		t.Fatalf("module = %s, handlers %q, pollers %v", m.Name(), handlers, m.Pollers())
+		t.Fatalf("module = %s, handlers %q, pollers %q", m.Name(), handlers, pollers)
 	}
 }
 
