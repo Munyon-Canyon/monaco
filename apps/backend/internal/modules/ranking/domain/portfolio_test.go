@@ -60,7 +60,10 @@ func TestProperty_SlicesSumTo10000(t *testing.T) {
 		for _, v := range raw {
 			total += v
 		}
-		got := domain.Slices(micros(raw...), money.MicrosFromUint64(total))
+		got, err := domain.Slices(micros(raw...), money.MicrosFromUint64(total))
+		if err != nil {
+			t.Fatalf("Slices(%v) = %v", raw, err)
+		}
 		switch want := uint64(10_000); {
 		case total == 0 && sum(got) != 0:
 			t.Fatalf("Slices of a zero total = %v, want all 0", got)
@@ -74,12 +77,56 @@ func TestProperty_SlicesSumTo10000(t *testing.T) {
 
 func TestSlices_RemainderGoesToTheFirstLargest(t *testing.T) {
 	t.Parallel()
-	got := domain.Slices(micros(1, 1, 1), money.MicrosFromUint64(3))
+	got, err := domain.Slices(micros(1, 1, 1), money.MicrosFromUint64(3))
+	if err != nil {
+		t.Fatalf("Slices = %v", err)
+	}
 	if got[0] != 3334 || got[1] != 3333 || got[2] != 3333 {
 		t.Fatalf("Slices = %v, want 3334 3333 3333", got)
 	}
-	if got = domain.Slices(nil, money.Micros{}); len(got) != 0 {
-		t.Fatalf("Slices(nil) = %v", got)
+	if got, err = domain.Slices(nil, money.Micros{}); err != nil || len(got) != 0 {
+		t.Fatalf("Slices(nil) = %v, %v", got, err)
+	}
+}
+
+func TestSlices_AValueAboveTheTotalIsAnErrorNotAPanic(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		values []money.Micros
+		total  uint64
+	}{
+		"just above":         {micros(4, 1), 3},
+		"above a small one":  {micros(1, 9), 3},
+		"hi word would trip": {micros(math.MaxUint64, 1), 10},
+	} {
+		got, err := domain.Slices(tc.values, money.MicrosFromUint64(tc.total))
+		if errs.CodeOf(err) != errs.CodeInvalidInput || got != nil {
+			t.Errorf("%s: Slices = %v, %v, want invalid_input", name, got, err)
+		}
+	}
+}
+
+func skipNone(ids.CabalID) {}
+
+func recordSkips() (*[]ids.CabalID, func(ids.CabalID)) {
+	var got []ids.CabalID
+	return &got, func(id ids.CabalID) { got = append(got, id) }
+}
+
+func TestNewPortfolio_ACabalWithMoreSharesThanItsSnapshotIsSkippedAndReported(t *testing.T) {
+	t.Parallel()
+	now := bucketNowAt()
+	a, b := newCabalID(), newCabalID()
+	stakes := []domain.StakePoint{stake(a, now, 3, 1), stake(b, now, 2, 5)}
+	latest := map[ids.CabalID]domain.Snapshot{a: potSnap(now, 5, 2), b: potSnap(now, 100, 4)}
+	skipped, record := recordSkips()
+	got, err := domain.NewPortfolio(stakes, latest, record)
+	if err != nil || len(got.Rows) != 1 || got.Rows[0].CabalID != b || got.Total != money.MicrosFromUint64(50) ||
+		got.Rows[0].SliceBps != 10_000 {
+		t.Fatalf("NewPortfolio = %+v, %v, want only the cabal %v at 50", got, err, b)
+	}
+	if len(*skipped) != 1 || (*skipped)[0] != a {
+		t.Fatalf("skipped = %v, want [%v]", *skipped, a)
 	}
 }
 
@@ -123,7 +170,7 @@ func TestNewPortfolio_RowsTotalsAndSlices(t *testing.T) {
 	latest := map[ids.CabalID]domain.Snapshot{
 		big: potSnap(now, 2_000, 10), small: potSnap(now, 400, 5), left: potSnap(now, 900, 5),
 	}
-	got, err := domain.NewPortfolio(stakes, latest)
+	got, err := domain.NewPortfolio(stakes, latest, skipNone)
 	if err != nil || len(got.Rows) != 2 {
 		t.Fatalf("NewPortfolio = %+v, %v, want the two held and valued cabals", got, err)
 	}
@@ -142,11 +189,11 @@ func TestNewPortfolio_TiesBreakByCabalIDAndAnEmptyPortfolioHasNoReturn(t *testin
 	cabals := idsInOrder(2)
 	stakes := []domain.StakePoint{stake(cabals[1], now, 1, 0), stake(cabals[0], now, 1, 0)}
 	latest := map[ids.CabalID]domain.Snapshot{cabals[0]: potSnap(now, 50, 1), cabals[1]: potSnap(now, 50, 1)}
-	got, err := domain.NewPortfolio(stakes, latest)
+	got, err := domain.NewPortfolio(stakes, latest, skipNone)
 	if err != nil || got.Rows[0].CabalID != cabals[0] || got.Rows[0].SliceBps != 5000 || got.Return != nil {
 		t.Fatalf("NewPortfolio = %+v, %v, want the lowest id first and no return with nothing contributed", got, err)
 	}
-	if empty, err := domain.NewPortfolio(nil, nil); err != nil || empty.Rows == nil || len(empty.Rows) != 0 ||
+	if empty, err := domain.NewPortfolio(nil, nil, skipNone); err != nil || empty.Rows == nil || len(empty.Rows) != 0 ||
 		!empty.Total.IsZero() || empty.Return != nil {
 		t.Fatalf("empty = %+v, %v", empty, err)
 	}
@@ -161,9 +208,6 @@ func TestNewPortfolio_Failures(t *testing.T) {
 		stakes []domain.StakePoint
 		latest map[ids.CabalID]domain.Snapshot
 	}{
-		"more shares than the pot has": {
-			stakes: []domain.StakePoint{stake(a, now, 3, 1)}, latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, 5, 2)},
-		},
 		"a row's pnl does not fit": {
 			stakes: []domain.StakePoint{stake(a, now, 1, 0)},
 			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, math.MaxUint64, 1)},
@@ -181,7 +225,7 @@ func TestNewPortfolio_Failures(t *testing.T) {
 			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, huge, 1), b: potSnap(now, huge, 1)},
 		},
 	} {
-		if _, err := domain.NewPortfolio(tc.stakes, tc.latest); errs.CodeOf(err) != errs.CodeInvalidInput {
+		if _, err := domain.NewPortfolio(tc.stakes, tc.latest, skipNone); errs.CodeOf(err) != errs.CodeInvalidInput {
 			t.Errorf("%s: err = %v, want invalid_input", name, err)
 		}
 	}

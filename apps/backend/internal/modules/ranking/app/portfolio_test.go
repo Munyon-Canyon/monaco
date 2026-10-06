@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -84,6 +85,20 @@ func TestReadPortfolio_ValuesTheStakeAndNamesTheCabal(t *testing.T) {
 	}
 }
 
+func TestReadPortfolio_SkipsACabalWhoseStakeOutgrowsItsSnapshotInsteadOfFailing(t *testing.T) {
+	t.Parallel()
+	f := newPortfolioFixture()
+	f.latest.values[f.cabal] = domain.Snapshot{
+		At:          f.run.PricesAsOf.Add(time.Hour),
+		Value:       money.MicrosFromUint64(400),
+		TotalShares: money.SharesUnitsFromUint64(2),
+	}
+	got, err := f.read(t, fakeBoards{run: f.run, hasRun: true})
+	if err != nil || len(got.Rows) != 0 || got.Total.Uint64() != 0 || f.cards.queries != 0 {
+		t.Fatalf("oversold cabal = %+v, %v, want an empty portfolio and no error", got, err)
+	}
+}
+
 func TestReadPortfolio_IsEmptyWithoutARun(t *testing.T) {
 	t.Parallel()
 	f := newPortfolioFixture()
@@ -124,7 +139,10 @@ func TestReadPortfolio_Failures(t *testing.T) {
 		"stakes":     {func(f *portfolioFixture) fakeBoards { f.stakes = fakeStakes{err: boom}; return good }},
 		"snapshots":  {func(f *portfolioFixture) fakeBoards { f.latest.err = boom; return good }},
 		"portfolio": {func(f *portfolioFixture) fakeBoards {
-			f.latest.values[f.cabal] = domain.Snapshot{At: f.run.PricesAsOf.Add(time.Hour), TotalShares: money.SharesUnitsFromUint64(1)}
+			f.latest.values[f.cabal] = domain.Snapshot{
+				At: f.run.PricesAsOf.Add(time.Hour), Value: money.MicrosFromUint64(math.MaxUint64),
+				TotalShares: money.SharesUnitsFromUint64(5),
+			}
 			return good
 		}},
 		"names":        {func(f *portfolioFixture) fakeBoards { f.cards.err = boom; return good }},

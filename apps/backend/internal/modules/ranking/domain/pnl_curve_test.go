@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func hourly(from time.Time, hours int, value, total uint64) []domain.Snapshot {
 
 func TestPnLCurve_EmptyWithoutStakes(t *testing.T) {
 	t.Parallel()
-	got, err := domain.PnLCurve(domain.Range1D, bucketNowAt(), nil, nil)
+	got, err := domain.PnLCurve(domain.Range1D, bucketNowAt(), nil, nil, skipNone)
 	if err != nil || got == nil || len(got) != 0 {
 		t.Fatalf("PnLCurve = %#v, %v, want an empty slice", got, err)
 	}
@@ -52,7 +53,7 @@ func TestPnLCurve_AFundMidRangeAtAFlatPotIsNotAGain(t *testing.T) {
 	before := hourly(now.Add(-4*time.Hour), 3, 100_000, 100)
 	after := hourly(now.Add(-time.Hour), 2, 200_000, 200)
 	snaps := map[ids.CabalID][]domain.Snapshot{cabal: append(before, after...)}
-	got, err := domain.PnLCurve(domain.Range1D, now, stakes, snaps)
+	got, err := domain.PnLCurve(domain.Range1D, now, stakes, snaps, skipNone)
 	if err != nil || len(got) == 0 {
 		t.Fatalf("PnLCurve = %d points, %v", len(got), err)
 	}
@@ -75,7 +76,7 @@ func TestPnLCurve_CabalsSumAndALeftCabalKeepsItsRealisedGain(t *testing.T) {
 		stake(kept, from, 10, 1_000), stake(left, from, 5, 500), stake(left, now.Add(-90*time.Minute), 0, -300),
 	}
 	snaps := map[ids.CabalID][]domain.Snapshot{kept: hourly(from, 4, 2_000, 10), left: hourly(from, 4, 800, 5)}
-	got, err := domain.PnLCurve(domain.Range1D, now, stakes, snaps)
+	got, err := domain.PnLCurve(domain.Range1D, now, stakes, snaps, skipNone)
 	if err != nil || len(got) == 0 {
 		t.Fatalf("PnLCurve = %d points, %v", len(got), err)
 	}
@@ -93,19 +94,45 @@ func TestPnLCurve_SkipsBucketsWithoutASnapshotForAHeldCabal(t *testing.T) {
 	cabal := newCabalID()
 	stakes := []domain.StakePoint{stake(cabal, now.Add(-3*time.Hour), 10, 1_000)}
 	snaps := map[ids.CabalID][]domain.Snapshot{cabal: hourly(now.Add(-time.Hour), 2, 1_500, 10)}
-	got, err := domain.PnLCurve(domain.Range1D, now, stakes, snaps)
+	got, err := domain.PnLCurve(domain.Range1D, now, stakes, snaps, skipNone)
 	if err != nil || len(got) == 0 || got[0].At.Before(now.Add(-time.Hour)) {
 		t.Fatalf("PnLCurve = %+v, %v, want points only from the first snapshot", got, err)
 	}
 	late := map[ids.CabalID][]domain.Snapshot{cabal: {potSnap(now.Add(-4*time.Hour), 900, 10)}}
 	before := []domain.StakePoint{stake(cabal, now.Add(-5*time.Hour), 10, 1_000)}
-	if got, err = domain.PnLCurve(domain.Range1D, now, before, late); err != nil || len(got) == 0 ||
+	if got, err = domain.PnLCurve(domain.Range1D, now, before, late, skipNone); err != nil || len(got) == 0 ||
 		got[len(got)-1].Equity.Uint64() != 900 {
 		t.Fatalf("PnLCurve = %+v, %v, want the older snapshot to keep serving", got, err)
 	}
 	unstaked := []domain.StakePoint{stake(cabal, now, 10, 1_000)}
-	if got, err = domain.PnLCurve(domain.Range1H, now, unstaked, late); err != nil || len(got) != 0 {
+	if got, err = domain.PnLCurve(domain.Range1H, now, unstaked, late, skipNone); err != nil || len(got) != 0 {
 		t.Fatalf("PnLCurve = %+v, %v, want no point when the stake began after the snapshot", got, err)
+	}
+}
+
+func TestPnLCurve_ACabalWithMoreSharesThanItsSnapshotIsSkippedAndReported(t *testing.T) {
+	t.Parallel()
+	now := bucketNowAt()
+	a, b := newCabalID(), newCabalID()
+	from := now.Add(-time.Hour)
+	stakes := []domain.StakePoint{stake(a, from, 11, 1), stake(b, from, 2, 5)}
+	snaps := map[ids.CabalID][]domain.Snapshot{a: hourly(from, 2, 5, 10), b: hourly(from, 2, 100, 4)}
+	skipped, record := recordSkips()
+	got, err := domain.PnLCurve(domain.Range1H, now, stakes, snaps, record)
+	if err != nil || len(got) == 0 {
+		t.Fatalf("PnLCurve = %+v, %v, want points for the cabal that is not skipped", got, err)
+	}
+	for _, p := range got {
+		if p.Equity != money.MicrosFromUint64(50) {
+			t.Fatalf("point %+v, want an equity of 50 from cabal %v alone", p, b)
+		}
+	}
+	if len(*skipped) == 0 || slices.Contains(*skipped, b) {
+		t.Fatalf("skipped = %v, want only %v", *skipped, a)
+	}
+	only := []domain.StakePoint{stake(a, from, 11, 1)}
+	if got, err = domain.PnLCurve(domain.Range1H, now, only, snaps, skipNone); err != nil || len(got) != 0 {
+		t.Fatalf("PnLCurve = %+v, %v, want no point when every cabal is skipped", got, err)
 	}
 }
 
@@ -118,10 +145,6 @@ func TestPnLCurve_Failures(t *testing.T) {
 		stakes []domain.StakePoint
 		snaps  map[ids.CabalID][]domain.Snapshot
 	}{
-		"more shares than the pot has": {
-			stakes: []domain.StakePoint{stake(a, now, 11, 1)},
-			snaps:  map[ids.CabalID][]domain.Snapshot{a: {potSnap(now, 5, 10)}},
-		},
 		"net contributed overflows": {
 			stakes: []domain.StakePoint{stake(a, now, 1, math.MaxInt64), stake(b, now, 1, math.MaxInt64)},
 			snaps:  map[ids.CabalID][]domain.Snapshot{a: {potSnap(now, 1, 1)}, b: {potSnap(now, 1, 1)}},
@@ -142,6 +165,7 @@ func TestPnLCurve_Failures(t *testing.T) {
 			now,
 			tc.stakes,
 			tc.snaps,
+			skipNone,
 		); errs.CodeOf(
 			err,
 		) != errs.CodeInvalidInput {
@@ -150,7 +174,8 @@ func TestPnLCurve_Failures(t *testing.T) {
 	}
 	negative := []domain.StakePoint{stake(a, now, 1, math.MinInt64), stake(b, now, 1, -1)}
 	snaps := map[ids.CabalID][]domain.Snapshot{a: {potSnap(now, 1, 1)}, b: {potSnap(now, 1, 1)}}
-	if _, err := domain.PnLCurve(domain.Range1H, now, negative, snaps); errs.CodeOf(err) != errs.CodeInvalidInput {
+	_, err := domain.PnLCurve(domain.Range1H, now, negative, snaps, skipNone)
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Errorf("net underflows: err = %v, want invalid_input", err)
 	}
 }

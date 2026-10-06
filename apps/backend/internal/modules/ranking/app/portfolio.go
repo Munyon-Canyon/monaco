@@ -49,7 +49,7 @@ func (r ReadPortfolio) Run(
 	if err != nil {
 		return PortfolioView{}, err
 	}
-	portfolio, err := domain.NewPortfolio(points, values)
+	portfolio, err := domain.NewPortfolio(points, values, logSkipped(ctx))
 	if err != nil {
 		return PortfolioView{}, errs.Wrap(err, errs.CodeInternal, "ranking.ReadPortfolio")
 	}

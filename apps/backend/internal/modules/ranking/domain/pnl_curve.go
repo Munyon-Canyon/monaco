@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"log/slog"
 	"math"
 	"time"
@@ -23,7 +24,9 @@ type PnLPoint struct {
 	PnL    money.SignedMicros
 }
 
-func PnLCurve(r Range, now time.Time, stakes []StakePoint, snaps map[ids.CabalID][]Snapshot) ([]PnLPoint, error) {
+func PnLCurve(
+	r Range, now time.Time, stakes []StakePoint, snaps map[ids.CabalID][]Snapshot, skipped func(ids.CabalID),
+) ([]PnLPoint, error) {
 	points := []PnLPoint{}
 	if len(stakes) == 0 {
 		return points, nil
@@ -33,7 +36,7 @@ func PnLCurve(r Range, now time.Time, stakes []StakePoint, snaps map[ids.CabalID
 		byCabal[s.CabalID] = append(byCabal[s.CabalID], s)
 	}
 	for _, end := range BucketTimes(r, now, stakes[0].At) {
-		held, ok, err := heldAt(end, byCabal, snaps)
+		held, ok, err := heldAt(end, byCabal, snaps, skipped)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +58,9 @@ type held struct {
 	cabals int
 }
 
-func heldAt(end time.Time, byCabal map[ids.CabalID][]StakePoint, snaps map[ids.CabalID][]Snapshot) (held, bool, error) {
+func heldAt(
+	end time.Time, byCabal map[ids.CabalID][]StakePoint, snaps map[ids.CabalID][]Snapshot, skipped func(ids.CabalID),
+) (held, bool, error) {
 	var out held
 	for cabal, stakes := range byCabal {
 		if stakes[0].At.After(end) {
@@ -69,7 +74,12 @@ func heldAt(end time.Time, byCabal map[ids.CabalID][]StakePoint, snaps map[ids.C
 		if stake == nil {
 			continue
 		}
-		if err := out.add(*stake, *snap); err != nil {
+		err := out.add(*stake, *snap)
+		if errors.Is(err, ErrUnusableStart) {
+			skipped(cabal)
+			continue
+		}
+		if err != nil {
 			return held{}, false, err
 		}
 	}
