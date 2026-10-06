@@ -21,6 +21,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
@@ -32,6 +33,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 const (
@@ -81,6 +84,11 @@ func (r *pushRig) exec(t *testing.T, sql string, args ...any) {
 func (r *pushRig) trigger(t *testing.T, actor string, user ids.UserID) (bus.Delivery, events.NotifyTestRequested) {
 	t.Helper()
 	e := events.NotifyTestRequested{V: 1, UserID: user.UUID()}
+	return r.emit(t, actor, e), e
+}
+
+func (r *pushRig) emit(t *testing.T, actor string, e events.Event) bus.Delivery {
+	t.Helper()
 	ctx := observability.WithActor(t.Context(), actor)
 	if err := r.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error { return tx.Events.Append(ctx, e) }); err != nil {
 		t.Fatal(err)
@@ -90,7 +98,25 @@ func (r *pushRig) trigger(t *testing.T, actor string, user ids.UserID) (bus.Deli
 		string(e.Type())).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	return bus.Delivery{Handler: pushHandler, EventID: ids.EventIDFrom(id), At: r.clock.Now()}, e
+	handler := "notify." + strings.ReplaceAll(string(e.Type()), ".", "_")
+	return bus.Delivery{Handler: handler, EventID: ids.EventIDFrom(id), At: r.clock.Now()}
+}
+
+func (r *pushRig) dispatchTo(t *testing.T, m *notify.Module, actor string, e events.Event) bus.Delivery {
+	t.Helper()
+	conn := testkit.NATS(t).Conn
+	reg, err := bus.NewRegistry(conn, r.uow, r.clock, m.Consumers())
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := r.emit(t, actor, e)
+	var payload []byte
+	if err := r.pool.QueryRow(t.Context(), `SELECT payload FROM events WHERE id = $1`, d.EventID.UUID()).
+		Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	reg.Dispatch(t.Context(), "notify", chaos.NewMsg(conn, e.Type(), d.EventID, payload))
+	return d
 }
 
 func (r *pushRig) handle(
@@ -98,10 +124,17 @@ func (r *pushRig) handle(
 	kinds ...app.Kind[events.NotifyTestRequested],
 ) error {
 	t.Helper()
+	return handleKinds(t, r, sender, d, e, kinds...)
+}
+
+func handleKinds[E events.Event](
+	t *testing.T, r *pushRig, sender apns.Sender, d bus.Delivery, e E, kinds ...app.Kind[E],
+) error {
+	t.Helper()
 	logger := observability.NewLogger(config.Config{Env: config.EnvTest}, r.logs)
-	ctx := observability.WithLogger(observability.WithActor(t.Context(), "system:"+pushHandler), logger)
+	ctx := observability.WithLogger(observability.WithActor(t.Context(), "system:"+d.Handler), logger)
 	pusher := app.NewPusher(r.uow, r.users, sender, r.ids, r.clock)
-	return app.Notify[events.NotifyTestRequested]{Pusher: pusher, Kinds: kinds}.Handle(ctx, d, e)
+	return app.Notify[E]{Pusher: pusher, Kinds: kinds}.Handle(ctx, d, e)
 }
 
 func (r *pushRig) wantCount(t *testing.T, what string, want int, query string, args ...any) {
@@ -576,9 +609,16 @@ func renderer[E events.Event](k app.Kind[E]) func(context.Context, events.Event,
 	}
 }
 
-func copyCases() map[string]copyCase {
+func copyCases(cabals app.Cabals) map[string]copyCase {
 	return map[string]copyCase{
-		"test": {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
+		"test":             {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
+		"deposit_credited": {events.TypeDepositCredited, renderer[events.DepositCredited](app.DepositCredited{})},
+		"cabal_paused": {
+			events.TypeCabalPaused, renderer[events.CabalPaused](app.CabalPaused{Cabals: cabals}),
+		},
+		"cabal_resumed": {
+			events.TypeCabalResumed, renderer[events.CabalResumed](app.CabalResumed{Cabals: cabals}),
+		},
 	}
 }
 
@@ -626,8 +666,11 @@ func goldenEvent(t *testing.T, typ events.Type) events.Event {
 func TestNotifyCopy(t *testing.T) {
 	t.Parallel()
 	to := ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-copy-recipient")))
+	paused := goldenEvent(t, events.TypeCabalPaused).(events.CabalPaused)
+	seed := fakes.CabalSeed{View: cabal.View{ID: ids.CabalIDFrom(*paused.CabalID), Name: cabalName}}
+	cabals := fakes.NewCabal([]fakes.CabalSeed{seed}, nil)
 	covered := map[events.Type]bool{}
-	for name, c := range copyCases() {
+	for name, c := range copyCases(cabals) {
 		covered[c.typ] = true
 		msg, err := c.render(t.Context(), goldenEvent(t, c.typ), to)
 		if err != nil {

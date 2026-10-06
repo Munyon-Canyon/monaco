@@ -10,10 +10,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
-	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
 )
 
-func TestModule_servesDevicesAndConsumesTestPushRequestsWithNoPollers(t *testing.T) {
+func TestModule_servesDevicesAndConsumesEveryPushKindWithNoPollers(t *testing.T) {
 	t.Parallel()
 	m := notify.New(module.Deps{})
 	var handlers []string
@@ -24,7 +23,12 @@ func TestModule_servesDevicesAndConsumesTestPushRequestsWithNoPollers(t *testing
 	}
 	if m.Name() != "notify" || !testkit.Serves(m.Mount, "POST", "/v1/devices") ||
 		!testkit.Serves(m.Mount, "DELETE", "/v1/devices/"+token('a')) || m.Pollers() != nil ||
-		!slices.Equal(handlers, []string{"notify notify.notify_test_requested notify.test_requested"}) {
+		!slices.Equal(handlers, []string{
+			"notify notify.notify_test_requested notify.test_requested",
+			"notify notify.deposit_credited deposit.credited",
+			"notify notify.cabal_paused cabal.paused",
+			"notify notify.cabal_resumed cabal.resumed",
+		}) {
 		t.Fatalf("module = %s, handlers %q, pollers %v", m.Name(), handlers, m.Pollers())
 	}
 }
@@ -67,17 +71,5 @@ func TestModule_sendsThroughTheChosenSender(t *testing.T) {
 
 func dispatch(t *testing.T, r *pushRig, m *notify.Module, user ids.UserID) bus.Delivery {
 	t.Helper()
-	conn := testkit.NATS(t).Conn
-	reg, err := bus.NewRegistry(conn, r.uow, r.clock, m.Consumers())
-	if err != nil {
-		t.Fatal(err)
-	}
-	d, _ := r.trigger(t, opsActor, user)
-	var payload []byte
-	if err := r.pool.QueryRow(t.Context(), `SELECT payload FROM events WHERE id = $1`, d.EventID.UUID()).
-		Scan(&payload); err != nil {
-		t.Fatal(err)
-	}
-	reg.Dispatch(t.Context(), "notify", chaos.NewMsg(conn, events.TypeNotifyTestRequested, d.EventID, payload))
-	return d
+	return r.dispatchTo(t, m, opsActor, events.NotifyTestRequested{V: 1, UserID: user.UUID()})
 }
