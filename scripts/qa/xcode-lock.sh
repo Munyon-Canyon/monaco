@@ -30,7 +30,8 @@
 # does it queue for a slot.
 #
 # Environment:
-#   MONACO_XCODE_SLOTS         `xcode` slots (default max(1, RAM GB / 16))
+#   MONACO_XCODE_SLOTS         `xcode` slots (default: the number in the clone's
+#                              .git/.monaco/xcode-slots, else max(1, RAM GB / 16))
 #   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, RAM GB / 8))
 #   MONACO_XCODE_LOCK_DIR      `xcode` lock dir (default /private/tmp/monaco-xcodebuild.lock)
 #   MONACO_SWIFTPM_LOCK_DIR    `swiftpm` lock dir (default /private/tmp/monaco-swiftpm.lock)
@@ -57,7 +58,9 @@ ram_gb=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
 case "$class" in
   xcode)
     base_dir="${MONACO_XCODE_LOCK_DIR:-/private/tmp/monaco-xcodebuild.lock}"
-    slots="${MONACO_XCODE_SLOTS:-$((ram_gb / 16))}"
+    slots_file="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)/.monaco/xcode-slots"
+    machine_slots="$(cat "$slots_file" 2>/dev/null || true)"
+    slots="${MONACO_XCODE_SLOTS:-${machine_slots:-$((ram_gb / 16))}}"
     ;;
   swiftpm)
     base_dir="${MONACO_SWIFTPM_LOCK_DIR:-/private/tmp/monaco-swiftpm.lock}"
