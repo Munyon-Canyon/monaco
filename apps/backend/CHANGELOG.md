@@ -50,6 +50,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - identity's Postgres query implementation moved from `identity/port` to `identity/adapters`, and `identity.Module.Queries()` returns the `port.Queries` interface. A `port` package may import only its own module's `domain`.
 - The `market.catalog` poller checks each new asset's decimals and Token-2022 UI multiplier against the chain (`SOLANA_RPC_URL`), up to 200 a tick, and stores the chain's values with `chain_checked_at`. An asset is tradable only once checked, a disagreement with the issuer's decimals logs `market.catalog.decimals_corrected`, and an RPC failure leaves that asset for the next tick and counts in `poller_errors_total`. `monacoctl market tradable` prints `chain_checked`.
 - `analytics.CheckNoPII` also refuses a transaction signature by value, wherever it sits in a capture. It used to refuse one only under the keys `signature` and `tx_signature`.
+- `monacoctl replay` rebuilds only the projections `projectionDurables` (`cmd/monacoctl/replay.go`) names; every other consumer stays out (#3100).
 
 ## [checkpoint 4] - 2026-09-29
 
@@ -78,7 +79,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - `govulncheck` in the backend nightly, and a summary line for each mutation run.
 - `platform/chain` adapters. `chain/privy` verifies access tokens and Svix webhooks, reads users, finds or creates a member's one wallet, creates app-owned wallets idempotently and signs under the app authorization key. `chain/solana` reads balances, signature statuses, mint configs and inbound SPL transfers, and sends transactions. `chain/relayer` builds relayer-paid `TransferChecked` transfers that are fully signed before broadcast. `testkit/chainfake` stands in for all three in module tests.
 - Config keys `PRIVY_*`, `SOLANA_RPC_URL`, `SOLANA_USDC_MINT` and `RELAYER_PRIVATE_KEY`, and the `privy_unavailable`, `rpc_unavailable`, `relayer_underfunded` and `invalid_address` error codes.
-- `monacoctl replay --into <database_url> [--to <event_id>] [--verify]` rebuilds the projections `projectionDurables` (`cmd/monacoctl/replay.go`) names into a fresh database from the `events` table and diffs it against the source. It refuses the source database and the dev container. `replay.RegisterLedgerCheck` is the hook for money modules.
+- `monacoctl replay --into <database_url> [--to <event_id>] [--verify]` rebuilds every projection into a fresh database from the `events` table and diffs it against the source. It refuses the source database and the dev container. `replay.RegisterLedgerCheck` is the hook for money modules.
 - `monacoctl backfill --consumer <handler> --types <t1,t2> [--since <event_id>]` runs one handler over past events. `event_deliveries` dedupes it, so a second run applies nothing.
 - `monacoctl events export [--aggregate <type>:<id>] [--anonymize]` writes the `events` table as seed-scenario JSONL. `--anonymize` replaces the actor and `pii`-tagged fields with deterministic pseudonyms, so the output still seeds.
 - `monacoctl deadletter list` and `monacoctl deadletter retry <seq> | --all --consumer <durable>`. A retried event that a handler already applied is a no-op.
