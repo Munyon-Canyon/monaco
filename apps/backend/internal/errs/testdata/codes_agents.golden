@@ -1,0 +1,6 @@
+agent_budget_exceeded
+agent_exists
+agent_holdings_exceeded
+agent_not_found
+agent_paused
+agent_wrong_status

@@ -21,6 +21,82 @@ Subject `events.admin.revoked`, version 1.
 | `v` | `int` |
 | `user_id` | `uuid.UUID` |
 
+## `agent.change_blocked`
+
+Subject `events.agent.change_blocked`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `cabal_id` | `uuid.UUID` |
+| `proposal_id` | `uuid.UUID` |
+| `kind` | `string` |
+| `code` | `errs.Code` |
+
+## `agent.enabled`
+
+Subject `events.agent.enabled`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `agent_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `proposal_id` | `uuid.UUID` |
+| `name` | `string` |
+| `budget_usdc_micros` | `money.Micros` |
+| `reason` | `string` |
+
+## `agent.intent_created`
+
+Subject `events.agent.intent_created`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `intent_id` | `uuid.UUID` |
+| `agent_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `side` | `string` |
+| `mint` | `chain.SolanaAddress` |
+| `symbol` | `string` |
+| `usdc_micros` | `money.Micros` |
+| `token_amount` | `uint64` |
+| `quote_out_amount` | `uint64` |
+
+## `agent.key_revealed`
+
+Subject `events.agent.key_revealed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `agent_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+
+## `agent.paused`
+
+Subject `events.agent.paused`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `agent_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `proposal_id` | `uuid.UUID` |
+
+## `agent.removed`
+
+Subject `events.agent.removed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `agent_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `proposal_id` | `uuid.UUID` |
+
 ## `asset.price_moved`
 
 Subject `events.asset.price_moved`, version 1.

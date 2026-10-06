@@ -11,6 +11,12 @@ extension Components.Schemas.ErrorCode {
         case .accountStatusTransition: true
         case .accountSuspended: true
         case .adminForbidden: true
+        case .agentBudgetExceeded: true
+        case .agentExists: true
+        case .agentHoldingsExceeded: true
+        case .agentNotFound: true
+        case .agentPaused: true
+        case .agentWrongStatus: true
         case .alreadyMember: true
         case .analyticsPii: true
         case .apnsAuthFailed: true

@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "intent_id": "01890a5d-ac96-774b-bcce-b302099a805d",
+  "agent_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "cabal_id": "01890a5d-ac96-774b-bcce-b302099a8058",
+  "side": "buy",
+  "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+  "symbol": "AAPLx",
+  "usdc_micros": "25000000",
+  "token_amount": "0",
+  "quote_out_amount": "10863000"
+}
