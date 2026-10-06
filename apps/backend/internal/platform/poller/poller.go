@@ -143,6 +143,8 @@ func flow(poller string) string {
 		return "18"
 	case "identity.nudges":
 		return "28"
+	case "ranking.valuation":
+		return "19"
 	default:
 		return ""
 	}

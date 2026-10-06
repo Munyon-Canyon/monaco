@@ -36,13 +36,24 @@ func TestModule_declaresEachConsumerWithItsOwnDurable(t *testing.T) {
 	}
 }
 
-func TestModule_registersTheMonthlyThinningPoller(t *testing.T) {
+func TestModule_registersTheThinningAndTheValuationPollers(t *testing.T) {
 	t.Parallel()
 	pollers := ranking.New(module.Deps{}).Pollers()
-	if len(pollers) != 1 || pollers[0].Name() != "ranking.snapshot_thinning" ||
-		pollers[0].Interval() != 30*24*time.Hour {
-		t.Fatalf("pollers = %v, want the monthly ranking.snapshot_thinning", pollers)
+	if len(pollers) != 2 || pollers[0].Name() != "ranking.snapshot_thinning" ||
+		pollers[0].Interval() != 30*24*time.Hour || pollers[1].Name() != "ranking.valuation" ||
+		pollers[1].Interval() != time.Second {
+		t.Fatalf("pollers = %v, want the monthly ranking.snapshot_thinning and the 1 s ranking.valuation", pollers)
 	}
+}
+
+func TestModule_declaresTheTriggersConsumer(t *testing.T) {
+	t.Parallel()
+	for _, c := range ranking.New(module.Deps{}).Consumers() {
+		if c.Durable == "ranking_triggers" && len(c.Handlers) == 3 {
+			return
+		}
+	}
+	t.Fatal("ranking_triggers with three handlers is not registered")
 }
 
 func TestModule_wiresEveryValuationReadPort(t *testing.T) {
