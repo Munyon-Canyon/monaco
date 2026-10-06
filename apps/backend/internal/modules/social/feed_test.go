@@ -18,7 +18,7 @@ import (
 func TestFeedConsumer_isRegistered(t *testing.T) {
 	t.Parallel()
 	for _, consumer := range social.New(module.Deps{}).Consumers() {
-		registered := consumer.Durable == "social_feed" && len(consumer.Handlers) == 14
+		registered := consumer.Durable == "social_feed" && len(consumer.Handlers) == 15
 		if registered && consumer.Handlers[0].Name == "social.feed" {
 			return
 		}

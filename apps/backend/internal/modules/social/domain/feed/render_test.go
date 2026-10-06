@@ -54,6 +54,10 @@ func renderCases() []renderCase {
 			CabalName: alpha, Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
 			USDCMicros: usd(12_500_000_000),
 		}},
+		{"trade_buy_filled", feed.KindTrade, feed.Payload{
+			CabalName: alpha, Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
+			USDCMicros: usd(500_000_000), PriceMicros: usd(212_400_000),
+		}},
 		{"trade_sell", feed.KindTrade, feed.Payload{
 			CabalName: alpha, Symbol: "AAPLx", Action: feed.ActionSell, USDCMicros: usd(99_990_000),
 		}},

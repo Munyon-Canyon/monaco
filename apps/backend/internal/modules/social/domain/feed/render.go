@@ -35,7 +35,10 @@ func RenderDetail(k Kind, p Payload) string {
 	case KindProposal:
 		return statusLabel(p.Status, p.StatusCode)
 	case KindTrade:
-		return p.AssetName
+		if p.PriceMicros.IsZero() {
+			return p.AssetName
+		}
+		return "Filled at " + priceOf(p.PriceMicros)
 	case KindPriceMove:
 		return join(" · ", p.AssetName, priceOf(p.PriceMicros))
 	case KindCabalCreated, KindMemberJoined:

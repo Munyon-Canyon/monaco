@@ -414,4 +414,9 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 	if err := rows.Err(); err != nil || !slices.Equal(got, want) {
 		t.Fatalf("proposal items = %v, %v, want %v", got, err, want)
 	}
+	var title string
+	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'trade'`).Scan(&title)
+	if err != nil || title != "Beta bought $7.50 of AAPLx" {
+		t.Fatalf("trade item = %q, %v", title, err)
+	}
 }

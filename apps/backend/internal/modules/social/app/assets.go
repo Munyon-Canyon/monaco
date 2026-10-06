@@ -7,8 +7,10 @@ import (
 )
 
 type AssetCard struct {
-	ID   uuid.UUID
-	Name string
+	ID       uuid.UUID
+	Symbol   string
+	Name     string
+	Decimals uint8
 }
 
 type Assets interface {
