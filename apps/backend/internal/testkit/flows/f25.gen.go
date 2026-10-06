@@ -12,5 +12,6 @@ func (defined) ScriptsF25() map[string]Script {
 		"F25AttachReferralUnauthorized":            F25AttachReferralUnauthorized,
 		"F25AttachReferralRateLimited":             F25AttachReferralRateLimited,
 		"F25AttachReferralCrashBeforeCommit":       F25AttachReferralCrashBeforeCommit,
+		"F25AttachReferralSocialFollowsBothWays":   F25AttachReferralSocialFollowsBothWays,
 	}
 }

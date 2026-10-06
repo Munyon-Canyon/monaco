@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -49,4 +50,10 @@ func TestFlow25_AttachReferral_Unauthorized(t *testing.T) {
 func TestFlow25_AttachReferral_RateLimited(t *testing.T) {
 	t.Parallel()
 	flows.F25AttachReferralRateLimited(referralScenario(t))
+}
+
+func TestAttachReferral_Ok_SocialFollowsBothWays(t *testing.T) {
+	t.Parallel()
+	flows.F25AttachReferralSocialFollowsBothWays(referralScenario(t,
+		scenario.WithModules(func(d module.Deps) module.Module { return social.New(d) })))
 }

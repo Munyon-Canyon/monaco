@@ -269,3 +269,49 @@ func F25AttachReferralCrashBeforeCommit(s *scenario.Scenario) {
 			expectAttribution("caller", "random", "manual"),
 		)
 }
+
+func expectReferralFollows(referrer, referee string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		pairs := map[string]string{s.Recall(referrer): s.Recall(referee), s.Recall(referee): s.Recall(referrer)}
+		for follower, followee := range pairs {
+			var created int
+			err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM follows f
+				JOIN events e ON e.aggregate_id = f.id AND e.type = 'follow.created'
+				WHERE f.follower_id = $1::text::uuid AND f.followee_id = $2::text::uuid AND f.source = 'referral'
+				  AND f.deleted_at IS NULL AND e.payload->>'source' = 'referral'
+				  AND e.payload->>'follower_id' = $1::text AND e.payload->>'followee_id' = $2::text`,
+				follower, followee).Scan(&created)
+			if err != nil || created != 1 {
+				s.Fatalf("flows: referral follow %s -> %s with one follow.created = %d (%v), want 1",
+					follower, followee, created, err)
+			}
+		}
+		var acked int
+		err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM event_deliveries d
+			JOIN events e ON e.id = d.event_id
+			WHERE d.handler = 'social.referral_follows' AND d.code = 'ok' AND e.type = 'referral.attributed'`).Scan(&acked)
+		if err != nil || acked != 1 {
+			s.Fatalf("flows: social.referral_follows acked %d referral.attributed events (%v), want 1", acked, err)
+		}
+	}
+}
+
+func F25AttachReferralSocialFollowsBothWays(s *scenario.Scenario) {
+	inv := newInvite()
+	s.Given(attachPair(inv), scenario.AsUser("caller")).
+		When(
+			scenario.Post(attachPath, inv.codeBody("manual")),
+			scenario.ExpectStatus(http.StatusCreated),
+		).
+		Then(
+			scenario.EventuallyPublished(events.TypeReferralAttributed, 1),
+			scenario.Eventually("both referral follows land", func(s *scenario.Scenario) bool {
+				var n int
+				err := s.DB().QueryRow(s.Context(),
+					`SELECT count(*) FROM events WHERE type = 'follow.created'`).Scan(&n)
+				return err == nil && n == 2
+			}),
+			scenario.ExpectAllEvents(events.TypeFollowCreated, 2),
+			expectReferralFollows("referrer", "caller"),
+		)
+}
