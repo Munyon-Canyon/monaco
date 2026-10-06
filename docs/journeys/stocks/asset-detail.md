@@ -41,7 +41,7 @@ Starts signed in (auth/sign-in).
 | S1.5 | tap | "1W" in `asset-chart-ranges` | | Within 10 s, "1W" is selected and `asset-detail-range-change` reads "Past week · JRNYA". Old app: a range chip reloaded the series. screens.md: chips 1D 1W 1M 3M 1Y ALL |
 | S1.6 | tap | "1Y" in `asset-chart-ranges` | | Within 10 s, "1Y" is selected and `asset-detail-range-change` reads "Past year · JRNYA". Old app: a range chip reloaded the series. screens.md: chips 1D 1W 1M 3M 1Y ALL |
 | S1.7 | wait | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose buy", is enabled, and "Your cabal votes before anything is bought" shows under it. Old app: the pinned Propose buy CTA. screens.md: Pinned CTA "Propose buy" with the caption "Your cabal votes before anything is bought" |
-| S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows with the title "Which cabal should buy JRNYAx?" and at least two cabal rows. Old app: Propose buy opened the cabal picker. screens.md: Propose from a stock (#613) |
+| S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows with the title "Which cabal should buy JRNYA?" and at least two cabal rows. Old app: Propose buy opened the cabal picker. screens.md: Propose from a stock (#613) |
 | S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows titled "Amount" with the stock row for JRNYAx. A backs out without proposing. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
 
 ### S2 Stats and the 52-week bar

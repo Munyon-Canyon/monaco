@@ -32,6 +32,10 @@ enum StocksAssetDetailJourney {
             app.element("asset-detail-root").waitForExistence(timeout: 15), "\(step): the asset screen did not show")
     }
 
+    static func cabalRows(_ app: XCUIApplication) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'propose-pick-cabal-'"))
+    }
+
     static func scrollToText(_ app: XCUIApplication, _ text: String, step: String) {
         let element = app.staticTexts[text]
         var swipes = 0
@@ -111,15 +115,16 @@ enum StocksAssetDetailJourney {
 
         recorder.step("S1.8", "tap Propose buy") {
             app.buttons["asset-detail-propose-buy"].tap()
-            let title = "Which cabal should buy \(alpha.symbol)?"
+            let title = "Which cabal should buy \(alpha.ticker)?"
             XCTAssertTrue(
                 app.navigationBars[title].waitForExistence(timeout: 10),
                 "S1.8: Propose buy did not open the cabal picker titled '\(title)' (#613)")
-            XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: 10), "S1.8: no cabal row in the picker")
+            XCTAssertTrue(cabalRows(app).firstMatch.waitForExistence(timeout: 10), "S1.8: no cabal row in the picker")
+            XCTAssertGreaterThanOrEqual(cabalRows(app).count, 2, "S1.8: the picker lists fewer than two cabals")
         }
 
         recorder.step("S1.9", "pick a cabal and reach Amount") {
-            app.cells.firstMatch.tap()
+            cabalRows(app).firstMatch.tap()
             XCTAssertTrue(
                 app.element("propose-amount-screen").waitForExistence(timeout: 10),
                 "S1.9: the cabal row did not open the Amount screen (#613)")
