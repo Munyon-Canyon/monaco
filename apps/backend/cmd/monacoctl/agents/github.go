@@ -56,6 +56,7 @@ type Issue struct {
 }
 type File struct {
 	Filename  string `json:"filename"`
+	Status    string `json:"status"`
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 	Patch     string `json:"patch"`

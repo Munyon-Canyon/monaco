@@ -126,6 +126,9 @@ func (env *Env) landArmed(ctx context.Context, r Record, reran map[int64]int) []
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}
 	}
+	if lines, handled := env.migrationStep(ctx, r, dir, stack); handled {
+		return lines
+	}
 	if failed := blocker(stack); failed != "" {
 		return env.disarm(ctx, r, failed)
 	}
