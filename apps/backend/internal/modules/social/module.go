@@ -91,9 +91,12 @@ func (m *Module) http() adapters.HTTP {
 		PostChat:   app.NewPostChatMessageHandler(chat),
 		DeleteChat: app.NewDeleteChatMessageHandler(chat),
 		Token:      app.NewRealtimeTokenHandler(m.members, m.realtime),
-		Members:    m.members,
-		Reads:      m.deps.Pool,
-		Users:      m.users,
+		CreateComment: app.NewCreateCommentHandler(app.CommentDeps{
+			UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, IDs: m.deps.IDs, Clock: m.deps.Clock,
+		}),
+		Members: m.members,
+		Reads:   m.deps.Pool,
+		Users:   m.users,
 	}
 }
 

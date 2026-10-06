@@ -16,16 +16,17 @@ import (
 )
 
 type HTTP struct {
-	Follow     *app.FollowHandler
-	Unfollow   *app.UnfollowHandler
-	Mute       *app.MuteHandler
-	Unmute     *app.UnmuteHandler
-	PostChat   *app.PostChatMessageHandler
-	DeleteChat *app.DeleteChatMessageHandler
-	Token      *app.RealtimeTokenHandler
-	Members    app.Members
-	Reads      sqlc.DBTX
-	Users      app.Users
+	Follow        *app.FollowHandler
+	Unfollow      *app.UnfollowHandler
+	Mute          *app.MuteHandler
+	Unmute        *app.UnmuteHandler
+	PostChat      *app.PostChatMessageHandler
+	DeleteChat    *app.DeleteChatMessageHandler
+	Token         *app.RealtimeTokenHandler
+	CreateComment *app.CreateCommentHandler
+	Members       app.Members
+	Reads         sqlc.DBTX
+	Users         app.Users
 }
 
 func (h HTTP) GetUserFollowers(
