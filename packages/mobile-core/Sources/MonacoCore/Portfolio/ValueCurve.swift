@@ -16,6 +16,14 @@ public struct ValueCurve: Equatable, Sendable {
         public let at: Date
         public let value: Int64
         public let pnl: Int64
+        public let nav: Int64?
+
+        public init(at: Date, value: Int64, pnl: Int64, nav: Int64? = nil) {
+            self.at = at
+            self.value = value
+            self.pnl = pnl
+            self.nav = nav
+        }
     }
 
     public struct Readout: Equatable, Sendable {
@@ -36,11 +44,17 @@ public struct ValueCurve: Equatable, Sendable {
     }
 
     public init(_ history: Components.Schemas.CabalValueHistory) {
-        samples = history.points.map { Sample(at: $0.at, value: $0.valueMicros, pnl: $0.pnlMicros) }
+        samples = history.points.map {
+            Sample(at: $0.at, value: $0.valueMicros, pnl: $0.pnlMicros, nav: $0.navPerShareMicros)
+        }
     }
 
     public var points: [CurvePoint] {
         samples.map { CurvePoint(at: $0.at, value: $0.value) }
+    }
+
+    public var navPoints: [CurvePoint] {
+        samples.compactMap { sample in sample.nav.map { CurvePoint(at: sample.at, value: $0) } }
     }
 
     public var hasEnoughHistory: Bool { samples.count >= 2 }

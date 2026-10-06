@@ -44,7 +44,10 @@ public final class ValueChartModel {
     }
 
     public func setSubjects(_ next: [PnLHistoryLoader.Subject]) async {
-        guard next != subjects else { return }
+        if next == subjects {
+            if case .failed = state { await show(range) }
+            return
+        }
         subjects = next
         shownRange = nil
         state = .idle

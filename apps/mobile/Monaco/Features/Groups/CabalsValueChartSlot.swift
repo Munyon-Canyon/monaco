@@ -9,41 +9,94 @@ enum CabalsValueChartSlot: CabalsTabSection {
         CabalsValueChart()
     }
 
-    static func shows(_ state: LoadState<[Components.Schemas.MyCabal]>) -> Bool {
-        if case .loaded(let cabals) = state { return !cabals.isEmpty }
-        return false
+    static func shows(_ phase: CabalValueHistoryModel.Phase) -> Bool {
+        phase != .hidden
     }
 }
 
 private struct CabalsValueChart: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var model: MonacoCore.CabalsTabModel?
+    @State private var model: CabalValueHistoryModel?
+
+    private var phase: CabalValueHistoryModel.Phase { model?.phase ?? .loading }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            if let model, CabalsValueChartSlot.shows(model.state) {
+            if CabalsValueChartSlot.shows(phase) {
                 MonacoSectionHeader("Your cabals' return")
-                Text("Your cabals' return shows up here soon.")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .accessibilityIdentifier("cabals-value-chart-coming")
+                content
             }
         }
         .padding(.horizontal, MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-value-chart")
-        .onAppear {
+        .task {
             let model = preparedModel()
             refresh?.register("cabals-value-chart") { await model.load() }
-            Task { await model.load() }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await model.load() }
+                group.addTask { await model.observe() }
+            }
+        }
+        .onScreenVisibilityChange { model?.setVisible($0) }
+        .onChange(of: model?.toast) { _, message in
+            guard let message else { return }
+            toasts.current = MonacoToast(message: message)
+            model?.dismissToast()
         }
     }
 
-    private func preparedModel() -> MonacoCore.CabalsTabModel {
+    @ViewBuilder private var content: some View {
+        switch phase {
+        case .loading, .hidden:
+            SkeletonBlock(height: 160, radius: 12)
+                .accessibilityIdentifier("cabals-value-chart-loading")
+        case .failed:
+            HStack(spacing: MonacoTheme.Space.s) {
+                Text("Couldn't load your cabals' return.")
+                    .font(MonacoTheme.Typo.body)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button("Try again") { Task { await model?.load() } }
+                    .buttonStyle(.monacoSecondary)
+                    .accessibilityIdentifier("cabals-value-chart-retry")
+            }
+        case .loaded:
+            if let model {
+                loaded(model)
+            }
+        }
+    }
+
+    @ViewBuilder private func loaded(_ model: CabalValueHistoryModel) -> some View {
+        if model.hasEnoughHistory {
+            CabalLinesChart(
+                lines: model.lines.filter(\.curve.hasEnoughHistory).map {
+                    .init(id: $0.id, name: $0.name, points: $0.curve.navPoints)
+                },
+                range: model.range, identifier: "cabals-value-chart-lines")
+        } else {
+            MonacoRule()
+                .padding(.vertical, MonacoTheme.Space.m)
+            Text(model.range.shortHistoryLine)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .accessibilityIdentifier("cabals-value-chart-short")
+        }
+        MonacoRangeChips(
+            ranges: model.ranges, selection: model.range, identifierPrefix: "cabals-value-chart"
+        ) { range in
+            Task { await model.select(range) }
+        }
+    }
+
+    private func preparedModel() -> CabalValueHistoryModel {
         if let model { return model }
-        let created = MonacoCore.CabalsTabModel(api: environment.api)
+        let created = CabalValueHistoryModel(api: environment.api, hints: environment.hints)
         model = created
         return created
     }
