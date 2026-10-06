@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeSellJourney {
     static let id = "governance/propose-sell"
-    static let version = 2
+    static let version = 3
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -45,7 +45,7 @@ enum GovernanceProposeSellJourney {
 
         recorder.step("S1.5", "review 25%") {
             buy.tapLabel(app, "25%", step: "S1.5")
-            buy.tapLabel(app, "Review", step: "S1.5")
+            tapID(app, "propose-amount-review", step: "S1.5")
             buy.expectTitle(app, "Review", step: "S1.5")
             let summary = app.staticTexts.matching(
                 NSPredicate(format: "label BEGINSWITH 'Sell ' AND label ENDSWITH ' of AAPL'")
@@ -55,7 +55,17 @@ enum GovernanceProposeSellJourney {
         }
 
         recorder.step("S1.6", "send to the cabal") {
-            buy.send(app, to: name, step: "S1.6")
+            tapID(app, "propose-review-send", step: "S1.6")
+            JoinJourney.waitForToast(app, "Proposal sent to \(name)", step: "S1.6")
         }
+    }
+
+    static func tapID(_ app: XCUIApplication, _ id: String, step: String) {
+        let target = app.buttons[id].firstMatch
+        guard target.waitForExistence(timeout: 10) else {
+            XCTFail("\(step): no \(id) to tap within 10 s. On screen:\n\(app.debugDescription.suffix(9000))")
+            return
+        }
+        target.tap()
     }
 }

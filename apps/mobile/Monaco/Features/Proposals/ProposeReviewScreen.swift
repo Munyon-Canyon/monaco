@@ -37,6 +37,7 @@ struct ProposeReviewScreen: View {
         .navigationTitle("Review")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-review-screen")
     }
 

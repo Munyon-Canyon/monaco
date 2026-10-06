@@ -1,7 +1,7 @@
 ---
 id: governance/propose-sell
 title: Propose a sell
-version: 2
+version: 3
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -35,8 +35,8 @@ The format of this doc is in [App journeys](../README.md).
 | S1.2 | A | tap | `cabal-action-propose` | | The chooser titled "Propose" shows `propose-kind-sell` within 10 s, and it is enabled, not "Nothing to sell yet" (old app: `ProposeChooserView`) |
 | S1.3 | A | tap | `propose-kind-sell` | | The screen titled "Sell" shows the header "What the cabal owns" and the AAPL row within 10 s (old app: `ProposeSellView`) |
 | S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The amount screen shows the chips "25%", "50%", "All" and the helper "The cabal holds …" within 10 s |
-| S1.5 | A | tap, then tap | "25%", then "Review" | | The screen titled "Review" reads "Sell … of AAPL" with the rows "Raises", "Cabal keeps" and "Who votes" within 10 s |
-| S1.6 | A | tap | "Send to cabal" | | The toast "Proposal sent to QA sell {QA.run}" shows and the flow closes back to the cabal screen within 10 s |
+| S1.5 | A | tap, then tap | "25%", then `propose-amount-review` "Review" | | The screen titled "Review" reads "Sell … of AAPL" with the rows "Raises", "Cabal keeps" and "Who votes" within 10 s |
+| S1.6 | A | tap | `propose-review-send` "Send to cabal" | | The toast "Proposal sent to QA sell {QA.run}" shows and the flow closes back to the cabal screen within 10 s |
 
 ## Ground truth
 
@@ -48,6 +48,5 @@ None.
 
 ## Not covered
 
-- S1.5 and S1.6 target labels. The amount screen gives its chips no identifier, and XCUITest finds no `propose-amount-review` under the screen's own `propose-amount-screen` identifier (run 20261006T005749Z), so the steps tap "Review" and "Send to cabal" the way `governance/propose-buy` does.
 - A holding without a price, which takes a "Shares" or "Tokens" quantity. Flow 09's outcomes cover the server side.
 - "Propose sell" from the asset screen (`asset-detail-sell`). `governance/propose-from-asset` covers the buy entry; the sell entry is the same route with the sell kind.
