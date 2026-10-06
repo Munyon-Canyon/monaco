@@ -26,14 +26,15 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	if p.Sort != nil && !p.Sort.Valid() {
-		return nil, errs.New(errs.CodeInvalidInput, "social.GetFeed", slog.String("sort", string(*p.Sort)))
+	if q.Sort, err = feedSort(p.Sort); err != nil {
+		return nil, err
 	}
+	q.Now = h.Clock.Now()
 	if p.Limit != nil {
 		q.Limit = *p.Limit
 	}
 	if p.Cursor != nil {
-		after, err := domain.ParseKeyset(*p.Cursor)
+		after, err := parseFeedCursor(q.Sort, *p.Cursor)
 		if err != nil {
 			return nil, err
 		}
@@ -52,6 +53,23 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 		body.NextCursor = &next
 	}
 	return api.GetFeed200JSONResponse(body), nil
+}
+
+func feedSort(raw *api.GetFeedParamsSort) (feed.Sort, error) {
+	if raw == nil {
+		return feed.SortNew, nil
+	}
+	if !raw.Valid() {
+		return "", errs.New(errs.CodeInvalidInput, "social.GetFeed", slog.String("sort", string(*raw)))
+	}
+	return feed.Sort(*raw), nil
+}
+
+func parseFeedCursor(sort feed.Sort, raw string) (domain.Keyset, error) {
+	if sort == feed.SortTop {
+		return domain.ParseRankedKeyset(raw)
+	}
+	return domain.ParseKeyset(raw)
 }
 
 func (h HTTP) GetFeedItem(

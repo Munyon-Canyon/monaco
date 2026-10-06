@@ -3,6 +3,7 @@ package feed
 import (
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
@@ -62,3 +63,12 @@ const (
 	TonePositive Tone = "positive"
 	ToneNegative Tone = "negative"
 )
+
+type Sort string
+
+const (
+	SortNew Sort = "new"
+	SortTop Sort = "top"
+)
+
+const TopWindow = 24 * time.Hour

@@ -88,10 +88,10 @@ GET /v1/feed?kind=proposal,trade&cabal_id=…&symbol=AAPL&q=earnings
 | `cabal_id`, `symbol` | Scope to one cabal or one stock. |
 | `scope` | `all` (default), `mine` (cabals I am in), `following` (users I follow, [followers.md](followers.md); there are no cabal follows in MVP). |
 | `q` | Full-text search over the `search` column (Postgres `tsvector`, GIN index). Symbol and cabal-name matches rank first. |
-| `sort` | `new` (default, `created_at desc`) or `top`: `comment_count` plus votes, over items from the last 24 h (default 2026-09-27). |
-| `cursor` | Keyset pagination on `(created_at, id)`. No offset paging. |
+| `sort` | `new` (default, `created_at desc`) or `top`: comment count, then recency, over the items from the last 24 h (default 2026-09-27). Votes are left out because `governance` emits no per-vote event (decided 2026-10-06). |
+| `cursor` | Keyset pagination on `(created_at, id)`, or on `(comment_count, created_at, id)` for `sort=top`. A cursor works only for the sort that wrote it. No offset paging. |
 
-Each item in the response carries `title`, `detail` and `tone` (`neutral`, `positive` or `negative`), all rendered by the server from `payload`, and never the raw `payload`. `GET /v1/feed/{id}` returns one item plus `visible`, whether it passes the filters sent with the request. The cursor is opaque base64 of `(created_at, id)`. `q` filters with `websearch_to_tsquery` under both the `english` and `simple` configurations and keeps the newest-first order.
+Each item in the response carries `title`, `detail` and `tone` (`neutral`, `positive` or `negative`), all rendered by the server from `payload`, and never the raw `payload`. `GET /v1/feed/{id}` returns one item plus `visible`, whether it passes the filters sent with the request. The cursor is opaque base64 of the keyset position. `q` filters with `websearch_to_tsquery` under both the `english` and `simple` configurations and keeps the newest-first order.
 
 This is a CQRS-lite query: it reads `feed_objects` directly through sqlc and bypasses the domain ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). `scope=mine` needs the viewer's cabals. The `social` module keeps that membership from `cabal.member_joined` and `cabal.member_left`, which it already consumes, or reads it through the `cabal` module's query port.
 

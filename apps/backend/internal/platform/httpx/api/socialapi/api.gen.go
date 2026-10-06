@@ -71,12 +71,15 @@ func (e GetFeedParamsScope) Valid() bool {
 // Defines values for GetFeedParamsSort.
 const (
 	New GetFeedParamsSort = "new"
+	Top GetFeedParamsSort = "top"
 )
 
 // Valid indicates whether the value is a known member of the GetFeedParamsSort enum.
 func (e GetFeedParamsSort) Valid() bool {
 	switch e {
 	case New:
+		return true
+	case Top:
 		return true
 	default:
 		return false
@@ -619,7 +622,7 @@ type GetFeedParams struct {
 	// Scope `all` (the default), `following` (the items whose actor the caller follows) or `mine` (the items of the cabals the caller is in, without price moves).
 	Scope *GetFeedParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
 
-	// Sort `new` (the default): newest first.
+	// Sort `new` (the default): newest first. `top`: the items from the last 24 hours, most comments first, then newest first. A cursor is valid only for the sort that wrote it.
 	Sort *GetFeedParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// Cursor The `next_cursor` from the previous page. Absent reads the first page.

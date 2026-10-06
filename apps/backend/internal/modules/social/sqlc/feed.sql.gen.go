@@ -269,6 +269,150 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 	return items, nil
 }
 
+const listTopFeed = `-- name: ListTopFeed :many
+SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
+  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
+FROM feed_objects f
+WHERE (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
+  AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $2::uuid)
+  AND ($3::text = '' OR lower(f.symbol) = lower($3::text))
+  AND (
+    $4::text = ''
+    OR f.search @@ websearch_to_tsquery('english', $4::text)
+    OR f.search @@ websearch_to_tsquery('simple', $4::text)
+  )
+  AND (
+    NOT $5::bool
+    OR f.actor_id IN (
+      SELECT followee_id FROM follows WHERE follower_id = $6::uuid AND deleted_at IS NULL
+    )
+  )
+  AND (
+    NOT $7::bool
+    OR (
+      f.kind <> 'price_move'
+      AND EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = $6::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+    )
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = $6::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+  )
+  AND f.created_at >= $8::timestamptz
+  AND (
+    NOT $9::bool
+    OR (f.comment_count, f.created_at, f.id)
+      < ($10::int, $11::timestamptz, $12::uuid)
+  )
+ORDER BY f.comment_count DESC, f.created_at DESC, f.id DESC
+LIMIT $13::int
+`
+
+type ListTopFeedParams struct {
+	Kinds      []string
+	CabalID    uuid.UUID
+	Symbol     string
+	Q          string
+	Following  bool
+	Viewer     uuid.UUID
+	Mine       bool
+	Since      time.Time
+	HasCursor  bool
+	AfterCount int32
+	AfterAt    time.Time
+	AfterID    uuid.UUID
+	RowLimit   int32
+}
+
+type ListTopFeedRow struct {
+	ID           uuid.UUID
+	Kind         string
+	RefType      string
+	RefID        uuid.UUID
+	CabalID      pgtype.UUID
+	ActorID      pgtype.UUID
+	Symbol       pgtype.Text
+	Title        string
+	Body         pgtype.Text
+	Payload      []byte
+	Status       pgtype.Text
+	AssetID      pgtype.UUID
+	CabalName    pgtype.Text
+	CommentCount int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) ListTopFeed(ctx context.Context, arg ListTopFeedParams) ([]ListTopFeedRow, error) {
+	rows, err := q.db.Query(ctx, listTopFeed,
+		arg.Kinds,
+		arg.CabalID,
+		arg.Symbol,
+		arg.Q,
+		arg.Following,
+		arg.Viewer,
+		arg.Mine,
+		arg.Since,
+		arg.HasCursor,
+		arg.AfterCount,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTopFeedRow
+	for rows.Next() {
+		var i ListTopFeedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.RefType,
+			&i.RefID,
+			&i.CabalID,
+			&i.ActorID,
+			&i.Symbol,
+			&i.Title,
+			&i.Body,
+			&i.Payload,
+			&i.Status,
+			&i.AssetID,
+			&i.CabalName,
+			&i.CommentCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertFeedItem = `-- name: UpsertFeedItem :one
 INSERT INTO feed_objects (
   id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload, status,

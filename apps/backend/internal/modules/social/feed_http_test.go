@@ -95,7 +95,7 @@ func TestGetFeed_refusesUnknownParamValues(t *testing.T) {
 	for name, p := range map[string]api.GetFeedParams{
 		"scope":  {Scope: ptr(api.GetFeedParamsScope("bogus"))},
 		"kind":   {Kind: ptr("proposal,news")},
-		"sort":   {Sort: ptr(api.GetFeedParamsSort("top"))},
+		"sort":   {Sort: ptr(api.GetFeedParamsSort("bogus"))},
 		"cursor": {Cursor: ptr("not a cursor")},
 		"limit":  {Limit: ptr(51)},
 	} {
@@ -144,4 +144,47 @@ func TestFeedRoutes_requireASignedInUser(t *testing.T) {
 	wantCode(t, err, errs.CodeUnauthorized)
 	_, err = f.routes().GetFeedItem(context.Background(), api.GetFeedItemRequestObject{Id: f.gen.NewV7()})
 	wantCode(t, err, errs.CodeUnauthorized)
+}
+
+func TestGetFeed_sortTopRanksByCommentsOverTheLastDayOnTheFakeClock(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	quiet := f.item(t)
+	f.clock.Advance(time.Minute)
+	busy := f.commented(t, 3)
+	top := api.GetFeedParamsSort("top")
+	first := f.getFeed(t, viewer, api.GetFeedParams{Sort: &top, Limit: ptr(1)})
+	if len(first.Items) != 1 || first.Items[0].Id != busy || first.NextCursor == nil {
+		t.Fatalf("first top page = %+v, want %s and a cursor", first, busy)
+	}
+	second := f.getFeed(t, viewer, api.GetFeedParams{Sort: &top, Limit: ptr(1), Cursor: first.NextCursor})
+	if len(second.Items) != 1 || second.Items[0].Id != quiet || second.NextCursor != nil {
+		t.Fatalf("second top page = %+v, want %s and the end", second, quiet)
+	}
+	f.clock.Advance(feed.TopWindow)
+	if aged := f.getFeed(t, viewer, api.GetFeedParams{Sort: &top}); len(aged.Items) != 1 || aged.Items[0].Id != busy {
+		t.Fatalf("aged top page = %+v, want only the item still inside the window", aged)
+	}
+}
+
+func TestGetFeed_keepsAPlainAndARankedCursorApart(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	f.item(t)
+	f.clock.Advance(time.Second)
+	f.item(t)
+	top, fresh := api.GetFeedParamsSort("top"), api.GetFeedParamsSort("new")
+	ranked := f.getFeed(t, viewer, api.GetFeedParams{Sort: &top, Limit: ptr(1)}).NextCursor
+	plain := f.getFeed(t, viewer, api.GetFeedParams{Sort: &fresh, Limit: ptr(1)}).NextCursor
+	for name, p := range map[string]api.GetFeedParams{
+		"ranked on new": {Sort: &fresh, Cursor: ranked},
+		"plain on top":  {Sort: &top, Cursor: plain},
+	} {
+		_, err := f.routes().GetFeed(asUser(t.Context(), viewer), api.GetFeedRequestObject{Params: p})
+		if errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Errorf("%s: err = %v, want invalid_input", name, err)
+		}
+	}
 }

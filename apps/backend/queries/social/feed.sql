@@ -69,6 +69,63 @@ WHERE (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds):
 ORDER BY f.created_at DESC, f.id DESC
 LIMIT sqlc.arg(row_limit)::int;
 
+-- name: ListTopFeed :many
+SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
+  f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
+FROM feed_objects f
+WHERE (cardinality(sqlc.arg(kinds)::text[]) = 0 OR f.kind = ANY(sqlc.arg(kinds)::text[]))
+  AND (sqlc.arg(cabal_id)::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = sqlc.arg(cabal_id)::uuid)
+  AND (sqlc.arg(symbol)::text = '' OR lower(f.symbol) = lower(sqlc.arg(symbol)::text))
+  AND (
+    sqlc.arg(q)::text = ''
+    OR f.search @@ websearch_to_tsquery('english', sqlc.arg(q)::text)
+    OR f.search @@ websearch_to_tsquery('simple', sqlc.arg(q)::text)
+  )
+  AND (
+    NOT sqlc.arg(following)::bool
+    OR f.actor_id IN (
+      SELECT followee_id FROM follows WHERE follower_id = sqlc.arg(viewer)::uuid AND deleted_at IS NULL
+    )
+  )
+  AND (
+    NOT sqlc.arg(mine)::bool
+    OR (
+      f.kind <> 'price_move'
+      AND EXISTS (
+        SELECT 1 FROM feed_memberships fm
+        WHERE fm.user_id = sqlc.arg(viewer)::uuid AND fm.active AND fm.cabal_id = f.cabal_id
+      )
+    )
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'kind' AND m.target_id = f.kind
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'cabal' AND m.target_id = f.cabal_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'asset' AND m.target_id = f.asset_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'user' AND m.target_id = f.actor_id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM feed_mutes m
+    WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+  )
+  AND f.created_at >= sqlc.arg(since)::timestamptz
+  AND (
+    NOT sqlc.arg(has_cursor)::bool
+    OR (f.comment_count, f.created_at, f.id)
+      < (sqlc.arg(after_count)::int, sqlc.arg(after_at)::timestamptz, sqlc.arg(after_id)::uuid)
+  )
+ORDER BY f.comment_count DESC, f.created_at DESC, f.id DESC
+LIMIT sqlc.arg(row_limit)::int;
+
 -- name: GetFeedItem :one
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
