@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -441,14 +442,29 @@ func TestRunValuation_excludesUnpricedAndReturnsUnexpectedConservationErrors(t *
 	}
 }
 
-func TestRunValuation_refusesAnUncataloguedHeldMint(t *testing.T) {
+func TestRunValuation_flagsACabalHoldingAnUncataloguedMintAndValuesTheRest(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 2)
+	stray := f.positionRows[0].Holdings[1]
+	stray.Mint = "11111111111111111111111111111111"
+	f.positionRows[0].Holdings = []treasury.Position{f.positionRows[0].Holdings[0], stray}
+	got, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc).
+		Run(t.Context(), valuationTime())
+	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].CabalID != f.cabals[1].ID || len(got.Flagged) != 1 ||
+		got.Flagged[0].CabalID != f.cabals[0].ID || got.Flagged[0].Flags[0] != domain.FlagUnpricedAssets ||
+		got.Excluded != 1 {
+		t.Fatalf("Run() = %#v, %v, want the healthy cabal valued and the stray holder flagged", got, err)
+	}
+}
+
+func TestRunValuation_flagsACabalTreasuryCouldNotPrice(t *testing.T) {
 	t.Parallel()
 	f, usdc := heldAssetPorts(t, 1)
-	f.assetRows = nil
-	_, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc).
+	f.positionRows[0].Unpriced = true
+	got, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc).
 		Run(t.Context(), valuationTime())
-	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
-		t.Fatalf("Run() = %v, want upstream_unavailable", err)
+	if err != nil || len(got.Cabals) != 0 || len(got.Flagged) != 1 {
+		t.Fatalf("Run() = %#v, %v, want the cabal flagged and the tick to succeed", got, err)
 	}
 }
 

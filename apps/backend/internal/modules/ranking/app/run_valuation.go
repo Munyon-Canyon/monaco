@@ -288,16 +288,17 @@ func (r RunValuation) input(
 		return valuationInput{}, nil, false, err
 	}
 	assetIDs := make([]market.AssetID, 0, len(tokens))
+	unpriced := position.Unpriced
 	for _, holding := range tokens {
 		asset, ok := assets[string(holding.Mint)]
 		if !ok {
-			return valuationInput{}, nil, false, errs.New(
-				errs.CodeUpstreamUnavailable,
-				"ranking.RunValuation",
-				slog.String("mint", string(holding.Mint)),
-			)
+			unpriced = true
+			continue
 		}
 		assetIDs = append(assetIDs, asset.ID)
+	}
+	if unpriced {
+		return valuationInput{cabalID: cabal.ID, position: position, unpriced: true}, nil, true, nil
 	}
 	return valuationInput{cabalID: cabal.ID, position: position, cash: cash, tokens: tokens}, assetIDs, true, nil
 }
@@ -320,6 +321,9 @@ func (r RunValuation) values(
 		concurrency.Feed(ctx, inputs),
 		64,
 		func(_ context.Context, in valuationInput) (valuedCabal, error) {
+			if in.unpriced {
+				return valuedCabal{valuationInput: in, flags: []domain.Flag{domain.FlagUnpricedAssets}}, nil
+			}
 			nav, flags, err := r.cabalNAV(
 				in.cash,
 				in.reserved,
@@ -473,6 +477,7 @@ func (r RunValuation) cabalNAV(
 }
 
 type valuationInput struct {
+	unpriced bool
 	cabalID  ids.CabalID
 	position treasury.CabalPositions
 	cash     money.Micros

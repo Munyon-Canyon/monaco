@@ -384,6 +384,10 @@ func (q *Queries) CabalPositionsAt(ctx context.Context, at time.Time) ([]port.Ca
 			out = append(out, port.CabalPositions{CabalID: cabalID, TotalShares: shareUnits})
 		}
 		position, err := q.position(ctx, row.Asset, row.Units, row.CostBasisMicros, assets)
+		if unresolvedMint(err) {
+			out[len(out)-1].Unpriced = true
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -576,6 +580,14 @@ func shares(raw string) (money.SharesUnits, error) {
 		)
 	}
 	return money.SharesUnitsFromUint64(value.Uint64()), nil
+}
+
+func unresolvedMint(err error) bool {
+	if errs.CodeOf(err) != errs.CodePriceUnavailable {
+		return false
+	}
+	cause := errors.Unwrap(err)
+	return cause == nil || errs.CodeOf(cause) == errs.CodeAssetNotFound
 }
 
 func priceUnavailable(cause error, mint chain.SolanaAddress) error {

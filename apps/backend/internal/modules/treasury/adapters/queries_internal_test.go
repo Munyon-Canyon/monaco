@@ -490,3 +490,38 @@ func TestCashOutReservationsReadFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestCabalPositionsAtMarksACabalWithAnUnresolvableMintAndKeepsTheRest(t *testing.T) {
+	t.Parallel()
+	good, bad := ids.Real{}.NewV7(), ids.Real{}.NewV7()
+	q := &Queries{usdc: usdcMint, history: historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{
+		{
+			CabalID:         bad,
+			Asset:           "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+			Units:           "1",
+			CostBasisMicros: "0",
+			ShareUnits:      "1",
+		},
+		{CabalID: good, Asset: usdcMint, Units: "5", CostBasisMicros: "5", ShareUnits: "1"},
+	}}}
+	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
+		return app.Asset{}, errs.New(errs.CodeAssetNotFound, "test")
+	})
+	got, err := q.CabalPositionsAt(t.Context(), time.Time{})
+	if err != nil || len(got) != 2 || !got[0].Unpriced || len(got[0].Holdings) != 0 || got[1].Unpriced ||
+		len(got[1].Holdings) != 1 {
+		t.Fatalf("CabalPositionsAt() = %#v, %v, want the first cabal unpriced and the second intact", got, err)
+	}
+	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
+		return app.Asset{Decimals: 8}, nil
+	})
+	if got, err := q.CabalPositionsAt(t.Context(), time.Time{}); err != nil || !got[0].Unpriced {
+		t.Fatalf("CabalPositionsAt() with an unchecked asset = %#v, %v, want unpriced", got, err)
+	}
+	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {
+		return app.Asset{}, errs.New(errs.CodeDBUnavailable, "test")
+	})
+	if _, err := q.CabalPositionsAt(t.Context(), time.Time{}); err == nil {
+		t.Fatal("CabalPositionsAt with the catalog down error = nil, want the tick to fail")
+	}
+}

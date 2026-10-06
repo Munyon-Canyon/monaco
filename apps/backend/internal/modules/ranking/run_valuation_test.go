@@ -197,3 +197,27 @@ func TestRunValuation_aGlobalPauseKeepsTheBoardsAndWritesNothing(t *testing.T) {
 		t.Fatalf("a refused write left %d runs, want only the first run and its event", runs)
 	}
 }
+
+func TestRunValuation_aCabalHoldingAnUncataloguedMintKeepsItsRowsFlaggedWhileTheRestAreWritten(t *testing.T) {
+	t.Parallel()
+	rig := newValuationRig(t)
+	other := testkit.NewCabal(t, rig.pool)
+	rig.ledger.WithFundedMember(other.Creator.ID, other.ID, money.MicrosFromUint64(40_000_000))
+	rig.write(t, rig.run(t, rig.now.Add(time.Minute)))
+	rig.ledger.WithHolding(other.ID, "11111111111111111111111111111111", money.NewBaseUnits(1, 8))
+	second := rig.run(t, rig.now.Add(2*time.Minute))
+	rig.write(t, second)
+	if len(second.Cabals) != 1 || len(second.Flagged) != 1 || second.Flagged[0].CabalID != other.ID {
+		t.Fatalf("second run = %d valued, %+v flagged, want the original cabal valued and the other flagged",
+			len(second.Cabals), second.Flagged)
+	}
+	flagged := count(t, rig.pool, `SELECT count(*) FROM leaderboard_entries WHERE range = 'ALL'
+		AND flags = ARRAY['unpriced_assets'] AND (subject_id = $1 OR board = $2)`,
+		other.ID.UUID(), app.MembersBoard(other.ID.UUID()))
+	healthy := count(t, rig.pool, `SELECT count(*) FROM leaderboard_entries WHERE range = 'ALL'
+		AND flags = '{}' AND (subject_id = $1 OR board = $2)`,
+		rig.cabal.ID.UUID(), app.MembersBoard(rig.cabal.ID.UUID()))
+	if flagged != 2 || healthy != 2 {
+		t.Fatalf("flagged rows = %d, healthy rows = %d, want 2 and 2", flagged, healthy)
+	}
+}
