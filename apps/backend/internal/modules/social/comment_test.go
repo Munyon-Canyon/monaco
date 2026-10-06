@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +33,9 @@ type commentFixture struct {
 	gen      *testkit.IDs
 	clock    *testkit.Clock
 	uow      *db.UnitOfWork
+	hints    *hintLog
 	create   *app.CreateCommentHandler
+	remove   *app.DeleteCommentHandler
 	cabal    testkit.SeededCabal
 	outsider ids.UserID
 }
@@ -42,12 +46,13 @@ func newCommentFixture(t *testing.T) commentFixture {
 	g := testkit.NewIDs(622)
 	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
 	uow := db.New(pool, g, clk)
+	hints := &hintLog{}
+	deps := app.CommentDeps{
+		UoW: uow, Reads: pool, Members: cabal.New(module.Deps{Pool: pool}).Queries(), IDs: g, Clock: clk, Hints: hints,
+	}
 	return commentFixture{
-		pool: pool, gen: g, clock: clk, uow: uow,
-		create: app.NewCreateCommentHandler(app.CommentDeps{
-			UoW: uow, Reads: pool, Members: cabal.New(module.Deps{Pool: pool}).Queries(),
-			IDs: g, Clock: clk,
-		}),
+		pool: pool, gen: g, clock: clk, uow: uow, hints: hints,
+		create: app.NewCreateCommentHandler(deps), remove: app.NewDeleteCommentHandler(deps),
 		cabal:    testkit.NewCabal(t, pool, testkit.WithMembers(2)),
 		outsider: testkit.SeedUser(t, pool, testkit.UserOpts{}).ID,
 	}
@@ -255,7 +260,7 @@ func TestCreateComment_passesAMembershipLookupFailureThrough(t *testing.T) {
 	f := newCommentFixture(t)
 	boom := errs.New(errs.CodeUpstreamUnavailable, "test")
 	h := app.NewCreateCommentHandler(app.CommentDeps{
-		UoW: f.uow, Reads: f.pool, Members: failingMembers{boom}, IDs: f.gen, Clock: f.clock,
+		UoW: f.uow, Reads: f.pool, Members: failingMembers{boom}, IDs: f.gen, Clock: f.clock, Hints: f.hints,
 	})
 	body, _ := domain.ParseCommentBody("hi")
 	_, err := h.Handle(t.Context(), app.CreateComment{
@@ -305,5 +310,37 @@ func TestCreateComment_failsWithInternalWhenTheStoreFails(t *testing.T) {
 			_, err := f.comment(t, item, f.outsider, "hi", parent)
 			wantCode(t, err, errs.CodeInternal)
 		})
+	}
+}
+
+type hintLog struct {
+	mu   sync.Mutex
+	keys []string
+}
+
+func (h *hintLog) PublishHint(_ context.Context, key string, _ []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.keys = append(h.keys, key)
+}
+
+func (h *hintLog) seen() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.keys)
+}
+
+func TestCreateComment_hintsTheFeedOnlyAfterTheCommit(t *testing.T) {
+	t.Parallel()
+	f := newCommentFixture(t)
+	proposal := f.item(t, feed.KindProposal)
+	_, err := f.comment(t, proposal, f.outsider, "refused", uuid.Nil)
+	wantCode(t, err, errs.CodeCommentMembersOnly)
+	if got := f.hints.seen(); len(got) != 0 {
+		t.Fatalf("hints after a refusal = %v, want none", got)
+	}
+	f.mustComment(t, f.item(t, feed.KindTrade), f.outsider, "hi", uuid.Nil)
+	if got := f.hints.seen(); !slices.Equal(got, []string{"global.feed"}) {
+		t.Fatalf("hints = %v, want [global.feed]", got)
 	}
 }

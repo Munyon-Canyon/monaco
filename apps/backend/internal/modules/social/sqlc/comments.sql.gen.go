@@ -99,7 +99,7 @@ VALUES (
   NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'),
   $6, $7
 )
-RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at
+RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by
 `
 
 type InsertCommentParams struct {
@@ -112,17 +112,7 @@ type InsertCommentParams struct {
 	CreatedAt       time.Time
 }
 
-type InsertCommentRow struct {
-	ID              uuid.UUID
-	FeedObjectID    uuid.UUID
-	AuthorID        uuid.UUID
-	ParentCommentID pgtype.UUID
-	ReplyToUserID   pgtype.UUID
-	Body            string
-	CreatedAt       time.Time
-}
-
-func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (InsertCommentRow, error) {
+func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (FeedComment, error) {
 	row := q.db.QueryRow(ctx, insertComment,
 		arg.ID,
 		arg.FeedObjectID,
@@ -132,7 +122,7 @@ func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (I
 		arg.Body,
 		arg.CreatedAt,
 	)
-	var i InsertCommentRow
+	var i FeedComment
 	err := row.Scan(
 		&i.ID,
 		&i.FeedObjectID,
@@ -141,6 +131,118 @@ func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (I
 		&i.ReplyToUserID,
 		&i.Body,
 		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.DeletedBy,
 	)
 	return i, err
+}
+
+const listCommentThreads = `-- name: ListCommentThreads :many
+WITH tops AS (
+  SELECT t.id
+  FROM feed_comments t
+  WHERE t.feed_object_id = $1
+    AND t.parent_comment_id IS NULL
+    AND (
+      NOT $2::bool
+      OR (t.created_at, t.id) > ($3::timestamptz, $4::uuid)
+    )
+  ORDER BY t.created_at, t.id
+  LIMIT $5::int
+)
+SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.body, c.created_at,
+  c.deleted_at, c.deleted_by
+FROM feed_comments c
+WHERE c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops)
+ORDER BY c.created_at, c.id
+`
+
+type ListCommentThreadsParams struct {
+	FeedObjectID uuid.UUID
+	HasCursor    bool
+	AfterAt      time.Time
+	AfterID      uuid.UUID
+	RowLimit     int32
+}
+
+func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreadsParams) ([]FeedComment, error) {
+	rows, err := q.db.Query(ctx, listCommentThreads,
+		arg.FeedObjectID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FeedComment
+	for rows.Next() {
+		var i FeedComment
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedObjectID,
+			&i.AuthorID,
+			&i.ParentCommentID,
+			&i.ReplyToUserID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.DeletedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockComment = `-- name: LockComment :one
+SELECT id, feed_object_id, author_id, (deleted_at IS NOT NULL)::bool AS deleted
+FROM feed_comments
+WHERE id = $1
+FOR UPDATE
+`
+
+type LockCommentRow struct {
+	ID           uuid.UUID
+	FeedObjectID uuid.UUID
+	AuthorID     uuid.UUID
+	Deleted      bool
+}
+
+func (q *Queries) LockComment(ctx context.Context, id uuid.UUID) (LockCommentRow, error) {
+	row := q.db.QueryRow(ctx, lockComment, id)
+	var i LockCommentRow
+	err := row.Scan(
+		&i.ID,
+		&i.FeedObjectID,
+		&i.AuthorID,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const softDeleteComment = `-- name: SoftDeleteComment :execrows
+UPDATE feed_comments
+SET deleted_at = $1::timestamptz, deleted_by = $2::uuid
+WHERE id = $3 AND deleted_at IS NULL
+`
+
+type SoftDeleteCommentParams struct {
+	At time.Time
+	By uuid.UUID
+	ID uuid.UUID
+}
+
+func (q *Queries) SoftDeleteComment(ctx context.Context, arg SoftDeleteCommentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, softDeleteComment, arg.At, arg.By, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

@@ -288,6 +288,30 @@ type CommentAuthor struct {
 	PhotoUrl *string `json:"photo_url"`
 }
 
+// CommentPage One page of comment threads, oldest first.
+type CommentPage struct {
+	// Items The page.
+	//
+	// Examples: []
+	Items []CommentThread `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
+// CommentThread A top-level comment and all its replies.
+type CommentThread struct {
+	// Comment One comment on a feed item.
+	Comment Comment `json:"comment"`
+
+	// Replies The replies, oldest first.
+	//
+	// Examples: []
+	Replies []Comment `json:"replies"`
+}
+
 // CreateCommentRequest A comment to post.
 type CreateCommentRequest struct {
 	// Body The text, trimmed by the server to 1 to 1000 Unicode scalars.
@@ -394,8 +418,13 @@ type FeedItem struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// FeedItemDetail One feed item and whether it passes the request's filters.
+// FeedItemDetail One feed item, whether it passes the request's filters and whether the caller can comment on it.
 type FeedItemDetail struct {
+	// CanComment False on a proposal of a cabal the caller is not in, which only members can comment on. True otherwise.
+	//
+	// Examples: true
+	CanComment bool `json:"can_comment"`
+
 	// Item One feed item with its display strings rendered.
 	Item FeedItem `json:"item"`
 
@@ -606,6 +635,12 @@ type GetFeedParamsScope string
 // GetFeedParamsSort defines parameters for GetFeed.
 type GetFeedParamsSort string
 
+// DeleteFeedCommentParams defines parameters for DeleteFeedComment.
+type DeleteFeedCommentParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetFeedItemParams defines parameters for GetFeedItem.
 type GetFeedItemParams struct {
 	// Kind A comma-separated list of kinds to include: `proposal`, `trade`, `price_move`, `cabal_created` and `member_joined`. Absent includes every kind.
@@ -626,6 +661,15 @@ type GetFeedItemParams struct {
 
 // GetFeedItemParamsScope defines parameters for GetFeedItem.
 type GetFeedItemParamsScope string
+
+// GetFeedCommentsParams defines parameters for GetFeedComments.
+type GetFeedCommentsParams struct {
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size, counted in top-level comments. Defaults to 50 and cannot exceed 100.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // PostFeedCommentParams defines parameters for PostFeedComment.
 type PostFeedCommentParams struct {
@@ -713,9 +757,15 @@ type ServerInterface interface {
 	// GetFeed Read the feed.
 	// (GET /v1/feed)
 	GetFeed(w http.ResponseWriter, r *http.Request, params GetFeedParams)
+	// DeleteFeedComment Delete your comment.
+	// (DELETE /v1/feed/comments/{comment_id})
+	DeleteFeedComment(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params DeleteFeedCommentParams)
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams)
+	// GetFeedComments Read the comments on a feed item.
+	// (GET /v1/feed/{id}/comments)
+	GetFeedComments(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedCommentsParams)
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostFeedCommentParams)
@@ -1127,6 +1177,60 @@ func (siw *ServerInterfaceWrapper) GetFeed(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteFeedComment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFeedComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "comment_id" -------------
+	var commentId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "comment_id", r.PathValue("comment_id"), &commentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "comment_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteFeedCommentParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFeedComment(w, r, commentId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetFeedItem operation middleware
 func (siw *ServerInterfaceWrapper) GetFeedItem(w http.ResponseWriter, r *http.Request) {
 
@@ -1212,6 +1316,61 @@ func (siw *ServerInterfaceWrapper) GetFeedItem(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetFeedItem(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFeedComments operation middleware
+func (siw *ServerInterfaceWrapper) GetFeedComments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFeedCommentsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFeedComments(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1785,7 +1944,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}", wrapper.DeleteChatMessage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}", wrapper.DeleteFeedComment)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.GetFeedComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.PostFeedComment)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.PutMeFeedMutes)
@@ -1995,6 +2156,40 @@ func (response GetFeeddefaultApplicationProblemPlusJSONResponse) VisitGetFeedRes
 	return err
 }
 
+type DeleteFeedCommentRequestObject struct {
+	CommentId openapi_types.UUID `json:"comment_id"`
+	Params    DeleteFeedCommentParams
+}
+
+type DeleteFeedCommentResponseObject interface {
+	VisitDeleteFeedCommentResponse(w http.ResponseWriter) error
+}
+
+type DeleteFeedComment204Response struct {
+}
+
+func (response DeleteFeedComment204Response) VisitDeleteFeedCommentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitDeleteFeedCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetFeedItemRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params GetFeedItemParams
@@ -2024,6 +2219,46 @@ type GetFeedItemdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetFeedItemdefaultApplicationProblemPlusJSONResponse) VisitGetFeedItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFeedCommentsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetFeedCommentsParams
+}
+
+type GetFeedCommentsResponseObject interface {
+	VisitGetFeedCommentsResponse(w http.ResponseWriter) error
+}
+
+type GetFeedComments200JSONResponse CommentPage
+
+func (response GetFeedComments200JSONResponse) VisitGetFeedCommentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFeedCommentsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetFeedCommentsdefaultApplicationProblemPlusJSONResponse) VisitGetFeedCommentsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2400,9 +2635,15 @@ type StrictServerInterface interface {
 	// GetFeed Read the feed.
 	// (GET /v1/feed)
 	GetFeed(ctx context.Context, request GetFeedRequestObject) (GetFeedResponseObject, error)
+	// DeleteFeedComment Delete your comment.
+	// (DELETE /v1/feed/comments/{comment_id})
+	DeleteFeedComment(ctx context.Context, request DeleteFeedCommentRequestObject) (DeleteFeedCommentResponseObject, error)
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(ctx context.Context, request GetFeedItemRequestObject) (GetFeedItemResponseObject, error)
+	// GetFeedComments Read the comments on a feed item.
+	// (GET /v1/feed/{id}/comments)
+	GetFeedComments(ctx context.Context, request GetFeedCommentsRequestObject) (GetFeedCommentsResponseObject, error)
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(ctx context.Context, request PostFeedCommentRequestObject) (PostFeedCommentResponseObject, error)
@@ -2614,6 +2855,33 @@ func (sh *strictHandler) GetFeed(w http.ResponseWriter, r *http.Request, params 
 	}
 }
 
+// DeleteFeedComment operation middleware
+func (sh *strictHandler) DeleteFeedComment(w http.ResponseWriter, r *http.Request, commentId openapi_types.UUID, params DeleteFeedCommentParams) {
+	var request DeleteFeedCommentRequestObject
+
+	request.CommentId = commentId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFeedComment(ctx, request.(DeleteFeedCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFeedComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFeedCommentResponseObject); ok {
+		if err := validResponse.VisitDeleteFeedCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetFeedItem operation middleware
 func (sh *strictHandler) GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams) {
 	var request GetFeedItemRequestObject
@@ -2634,6 +2902,33 @@ func (sh *strictHandler) GetFeedItem(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetFeedItemResponseObject); ok {
 		if err := validResponse.VisitGetFeedItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFeedComments operation middleware
+func (sh *strictHandler) GetFeedComments(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedCommentsParams) {
+	var request GetFeedCommentsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFeedComments(ctx, request.(GetFeedCommentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFeedComments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFeedCommentsResponseObject); ok {
+		if err := validResponse.VisitGetFeedCommentsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

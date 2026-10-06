@@ -24,6 +24,7 @@ type HTTP struct {
 	DeleteChat    *app.DeleteChatMessageHandler
 	Token         *app.RealtimeTokenHandler
 	CreateComment *app.CreateCommentHandler
+	DeleteComment *app.DeleteCommentHandler
 	Members       app.Members
 	Reads         sqlc.DBTX
 	Users         app.Users

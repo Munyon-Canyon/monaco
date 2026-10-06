@@ -24,3 +24,15 @@ type CabalMessage struct {
 	ProposalID    pgtype.UUID
 	DeletedAt     pgtype.Timestamptz
 }
+
+type FeedComment struct {
+	ID              uuid.UUID
+	FeedObjectID    uuid.UUID
+	AuthorID        uuid.UUID
+	ParentCommentID pgtype.UUID
+	ReplyToUserID   pgtype.UUID
+	Body            string
+	CreatedAt       time.Time
+	DeletedAt       pgtype.Timestamptz
+	DeletedBy       pgtype.UUID
+}
