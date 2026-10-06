@@ -68,12 +68,12 @@ max_load = 12
 slots = 2
 
 # agents check gives each row its own budget, except `go test -short`, which is budgeted per package
-# (`package`, the same 60 s that fails a package in `monacoctl test-report`). The go budget applies to
+# (`package`, twice the 60 s that fails a package in `monacoctl test-report`, so an Intel laptop can finish a wide backend diff). The go budget applies to
 # go build and go vet separately; lint covers golangci-lint, nogo and the comment lint.
 # Outside CI, `package` scales by max(1, load1 / cores), capped at 4x; the values below are the unscaled base.
 [check.budget]
 go = "60s"
-package = "60s"
+package = "120s"
 lint = "60s"
 swift = "150s"
 xcode = "300s"
