@@ -296,6 +296,51 @@ final class UserProfileListModelTests: XCTestCase {
         XCTAssertNotNil(model.lastError)
     }
 
+    func testRetryAfterAFailedRefreshOfAFullyLoadedListRefetchesPageOne() async throws {
+        let page = Components.Schemas.FollowsPage.self
+        let transport = try StubTransport(scripted: [
+            .page(.sampleFirst),
+            .page(.sampleLast),
+            UserProfileSupport.problem(500, "internal", "Something went wrong."),
+            .page(.sampleFirst),
+        ])
+        let model = UserProfileSupport.model(transport)
+
+        await model.loadFollowers()
+        await model.loadMoreFollowers()
+        await model.loadFollowers()
+        XCTAssertTrue(model.followersPageFailed)
+        await model.retryFollowers()
+
+        XCTAssertFalse(model.followersPageFailed)
+        XCTAssertEqual(model.followerRows.map(\.id), page.sampleFirst.items.map(\.userId))
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 4)
+        XCTAssertEqual(paths[3], "/v1/users/\(UserProfileSupport.userID)/followers?limit=30")
+    }
+
+    func testRetryAfterAFailedLaterPageFetchesThatPage() async throws {
+        let page = Components.Schemas.FollowsPage.self
+        let transport = try StubTransport(scripted: [
+            .page(.sampleFirst),
+            UserProfileSupport.problem(500, "internal", "Something went wrong."),
+            .page(.sampleLast),
+        ])
+        let model = UserProfileSupport.model(transport)
+
+        await model.loadFollowing()
+        await model.loadMoreFollowing()
+        XCTAssertTrue(model.followingPageFailed)
+        await model.retryFollowing()
+
+        XCTAssertFalse(model.followingPageFailed)
+        XCTAssertEqual(model.followingRows.map(\.id), (page.sampleFirst.items + page.sampleLast.items).map(\.userId))
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 3)
+        XCTAssertTrue(paths[2].contains("cursor=\(page.sampleCursor)"))
+        XCTAssertTrue(paths[2].contains("/following"))
+    }
+
     func testAFailedFirstListLoadHasNoRowsAndNoToast() async throws {
         let transport = StubTransport(UserProfileSupport.problem(500, "internal", "Something went wrong."))
         let model = UserProfileSupport.model(transport)

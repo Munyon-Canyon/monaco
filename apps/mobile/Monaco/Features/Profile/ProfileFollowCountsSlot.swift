@@ -33,7 +33,11 @@ private struct ProfileFollowCountLinks: View {
             .task(id: userID) {
                 let model = prepared()
                 refresh?.register("profile-follow-counts") { await model.refresh() }
-                await model.load()
+                if model.profile == nil {
+                    await model.load()
+                } else {
+                    await model.refresh()
+                }
             }
             .onChange(of: model?.toastTick) {
                 if let error = model?.lastError { toasts.show(error) }
