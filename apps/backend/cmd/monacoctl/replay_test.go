@@ -177,7 +177,10 @@ func TestProjections_leaveOutEveryConsumerThatIsNotAProjection(t *testing.T) {
 	want := []string{
 		"ranking.membership", "ranking.membership.left", "ranking.names",
 		"social.feed", "social.feed.cabal_updated", "social.feed.joined", "social.feed.left",
-		"social.feed.profile_updated",
+		"social.feed.profile_updated", "social.feed.proposal_blocked", "social.feed.proposal_created",
+		"social.feed.proposal_executed", "social.feed.proposal_expired", "social.feed.proposal_failed",
+		"social.feed.proposal_passed", "social.feed.proposal_voided", "social.feed.proposal_withdrawn",
+		"social.feed.trade_failed",
 		"system.echo",
 		"treasury.activity.confirmed", "treasury.activity.failed", "treasury.activity.fund_failed",
 		"treasury.activity.fund_submitted", "treasury.activity.funded", "treasury.activity.submitted",

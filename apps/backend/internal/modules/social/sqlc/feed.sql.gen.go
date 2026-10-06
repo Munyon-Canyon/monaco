@@ -269,42 +269,6 @@ func (q *Queries) ListFeed(ctx context.Context, arg ListFeedParams) ([]ListFeedR
 	return items, nil
 }
 
-const updateFeedStatus = `-- name: UpdateFeedStatus :execrows
-UPDATE feed_objects
-SET status = $1::text, title = $2, payload = $3,
-  updated_at = $4
-WHERE ref_type = $5 AND ref_id = $6 AND kind = $7
-  AND status = $8::text
-`
-
-type UpdateFeedStatusParams struct {
-	ToStatus   string
-	Title      string
-	Payload    []byte
-	At         time.Time
-	RefType    string
-	RefID      uuid.UUID
-	Kind       string
-	FromStatus string
-}
-
-func (q *Queries) UpdateFeedStatus(ctx context.Context, arg UpdateFeedStatusParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateFeedStatus,
-		arg.ToStatus,
-		arg.Title,
-		arg.Payload,
-		arg.At,
-		arg.RefType,
-		arg.RefID,
-		arg.Kind,
-		arg.FromStatus,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const upsertFeedItem = `-- name: UpsertFeedItem :one
 INSERT INTO feed_objects (
   id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, body, payload, status,

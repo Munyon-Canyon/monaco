@@ -13,6 +13,47 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const advanceFeedProposal = `-- name: AdvanceFeedProposal :one
+WITH moved AS (
+  UPDATE feed_objects
+  SET status = $2::text, payload = payload || $3::jsonb, updated_at = $4
+  WHERE ref_type = 'proposals' AND ref_id = $1::uuid AND kind = 'proposal'
+    AND status = ANY($5::text[])
+  RETURNING 1
+)
+SELECT
+  (SELECT count(*) FROM moved)::int AS moved,
+  EXISTS(
+    SELECT 1 FROM feed_objects WHERE ref_type = 'proposals' AND ref_id = $1::uuid AND kind = 'proposal'
+  ) AS found
+`
+
+type AdvanceFeedProposalParams struct {
+	ProposalID   uuid.UUID
+	ToStatus     string
+	Patch        []byte
+	At           time.Time
+	FromStatuses []string
+}
+
+type AdvanceFeedProposalRow struct {
+	Moved int32
+	Found bool
+}
+
+func (q *Queries) AdvanceFeedProposal(ctx context.Context, arg AdvanceFeedProposalParams) (AdvanceFeedProposalRow, error) {
+	row := q.db.QueryRow(ctx, advanceFeedProposal,
+		arg.ProposalID,
+		arg.ToStatus,
+		arg.Patch,
+		arg.At,
+		arg.FromStatuses,
+	)
+	var i AdvanceFeedProposalRow
+	err := row.Scan(&i.Moved, &i.Found)
+	return i, err
+}
+
 const deleteFeedMembership = `-- name: DeleteFeedMembership :execrows
 INSERT INTO feed_memberships (cabal_id, user_id, joined_at, event_id, active)
 VALUES ($1, $2, $3, $4, false)
@@ -66,11 +107,13 @@ func (q *Queries) FeedCabalName(ctx context.Context, cabalID uuid.UUID) (string,
 
 const insertFeedConsumerItem = `-- name: InsertFeedConsumerItem :exec
 INSERT INTO feed_objects (
-  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, title, payload, created_at, updated_at
+  id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, payload, status,
+  created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $10
+  $7, $8, $9, $10, $11,
+  $12, $13, $13
 )
 ON CONFLICT (ref_type, ref_id, kind) DO NOTHING
 `
@@ -83,8 +126,11 @@ type InsertFeedConsumerItemParams struct {
 	CabalID   pgtype.UUID
 	CabalName pgtype.Text
 	ActorID   pgtype.UUID
+	AssetID   pgtype.UUID
+	Symbol    pgtype.Text
 	Title     string
 	Payload   []byte
+	Status    pgtype.Text
 	At        time.Time
 }
 
@@ -97,8 +143,11 @@ func (q *Queries) InsertFeedConsumerItem(ctx context.Context, arg InsertFeedCons
 		arg.CabalID,
 		arg.CabalName,
 		arg.ActorID,
+		arg.AssetID,
+		arg.Symbol,
 		arg.Title,
 		arg.Payload,
+		arg.Status,
 		arg.At,
 	)
 	return err

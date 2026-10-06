@@ -1,7 +1,6 @@
 package social_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -156,8 +155,10 @@ func TestFeedStoreUpsertItem_refreshesTheSnapshotAndKeepsIdentityAndStatus(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 1 || title != "Bravo proposed buying $500 of AAPLx" || name != "Bravo" || status != "open" ||
-		!createdAt.Equal(created) || !updated.Equal(f.clock.Now()) {
+	if count != 1 || title != "A member proposed buying $500.00 of AAPLx in Bravo" || name != "Bravo" ||
+		status != "open" ||
+		!createdAt.Equal(created) ||
+		!updated.Equal(f.clock.Now()) {
 		t.Fatalf("row = %q %q %q created %s updated %s (%d rows)", title, name, status, createdAt, updated, count)
 	}
 }
@@ -168,46 +169,4 @@ func TestFeedStoreUpsertItem_refusesAKindWithNoSourceTable(t *testing.T) {
 	_, err := adapters.NewFeedStore(f.pool).UpsertItem(t.Context(), f.gen.NewV7(),
 		feed.Item{Kind: "news", RefID: f.gen.NewV7()}, f.clock.Now())
 	wantCode(t, err, errs.CodeInternal)
-}
-
-func TestFeedStoreUpdateStatus_movesOnlyFromTheExpectedStatus(t *testing.T) {
-	t.Parallel()
-	f := newFeedFixture(t)
-	ref := f.gen.NewV7()
-	id := f.item(t, func(it *feed.Item) { it.Kind, it.RefID, it.Status = feed.KindProposal, ref, "open" })
-	store := adapters.NewFeedStore(f.pool)
-	change := feed.StatusChange{
-		Kind: feed.KindProposal, RefID: ref, From: "open", To: "passed",
-		Payload: feed.Payload{CabalName: "Alpha", Symbol: "AAPLx", VoterCount: 3, YesVotes: 2},
-	}
-	f.clock.Advance(time.Minute)
-	moved, err := store.UpdateStatus(t.Context(), change, f.clock.Now())
-	if err != nil || !moved {
-		t.Fatalf("first move = %v, %v, want true", moved, err)
-	}
-	change.To = "expired"
-	if moved, err := store.UpdateStatus(t.Context(), change, f.clock.Now()); err != nil || moved {
-		t.Fatalf("stale move = %v, %v, want false", moved, err)
-	}
-	var status, title string
-	var updated time.Time
-	err = f.pool.QueryRow(t.Context(), `SELECT status, title, updated_at FROM feed_objects WHERE id = $1`, id).
-		Scan(&status, &title, &updated)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status != "passed" || title != "Alpha proposed buying AAPLx" || !updated.Equal(f.clock.Now()) {
-		t.Fatalf("row = %q %q %s", status, title, updated)
-	}
-}
-
-func TestFeedStoreUpdateStatus_reportsADatabaseFailure(t *testing.T) {
-	t.Parallel()
-	f := newFeedFixture(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	_, err := adapters.NewFeedStore(f.pool).UpdateStatus(ctx, feed.StatusChange{Kind: feed.KindProposal}, f.clock.Now())
-	if err == nil {
-		t.Fatal("UpdateStatus on a cancelled context succeeded")
-	}
 }

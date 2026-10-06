@@ -14,13 +14,6 @@ ON CONFLICT (ref_type, ref_id, kind) DO UPDATE SET
   payload = excluded.payload, updated_at = excluded.updated_at
 RETURNING id;
 
--- name: UpdateFeedStatus :execrows
-UPDATE feed_objects
-SET status = sqlc.arg(to_status)::text, title = sqlc.arg(title), payload = sqlc.arg(payload),
-  updated_at = sqlc.arg(at)
-WHERE ref_type = sqlc.arg(ref_type) AND ref_id = sqlc.arg(ref_id) AND kind = sqlc.arg(kind)
-  AND status = sqlc.arg(from_status)::text;
-
 -- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at

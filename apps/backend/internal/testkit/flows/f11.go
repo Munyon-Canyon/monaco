@@ -77,6 +77,7 @@ func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
 	}); err != nil {
 		s.Fatalf("flows: insert proposal: %v", err)
 	}
+	seedFeedProposal(s, t.openProposal)
 	testkit.NewLedger(seedT{s}, s.DB()).WithFundedMember(c.Creator.ID, c.ID, money.MicrosFromUint64(fundedMicros))
 	ensureTradableAAPLx(s)
 	t.given = []scenario.Step{

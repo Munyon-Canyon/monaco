@@ -2,6 +2,7 @@ package feed
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -23,9 +24,10 @@ type Payload struct {
 	USDCMicros  money.Micros `json:"usdc_micros,omitzero"`
 	PriceMicros money.Micros `json:"price_micros,omitzero"`
 	ChangeBps   int64        `json:"change_bps,omitzero"`
-	VoterCount  int          `json:"voter_count,omitzero"`
-	YesVotes    int          `json:"yes_votes,omitzero"`
-	NoVotes     int          `json:"no_votes,omitzero"`
+	TokenAmount uint64       `json:"token_amount,string,omitzero"`
+	Status      string       `json:"status,omitempty"`
+	StatusCode  string       `json:"status_code,omitempty"`
+	ExpiresAt   time.Time    `json:"expires_at,omitzero"`
 }
 
 func (p Payload) JSON() []byte {

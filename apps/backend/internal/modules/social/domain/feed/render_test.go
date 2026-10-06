@@ -4,9 +4,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -25,18 +27,29 @@ func renderCases() []renderCase {
 	alpha := "Alpha Cabal"
 	return []renderCase{
 		{"proposal_buy", feed.KindProposal, feed.Payload{
-			CabalName: alpha, Symbol: "AAPLx", Action: feed.ActionBuy, USDCMicros: usd(500_000_000), VoterCount: 3,
+			CabalName: alpha, ActorName: "alice", Symbol: "AAPLx", Action: feed.ActionBuy,
+			USDCMicros: usd(500_000_000), Status: "open",
 		}},
 		{"proposal_buy_cents", feed.KindProposal, feed.Payload{
-			CabalName: alpha, Symbol: "TSLAx", Action: feed.ActionBuy, USDCMicros: usd(1_234_567_891), VoterCount: 1,
+			CabalName: alpha, ActorName: "alice", Symbol: "TSLAx", Action: feed.ActionBuy,
+			USDCMicros: usd(1_234_567_891), Status: "passed",
 		}},
 		{"proposal_sell_no_amount", feed.KindProposal, feed.Payload{
-			CabalName: alpha, Symbol: "NVDAx", Action: feed.ActionSell, VoterCount: 4, YesVotes: 2, NoVotes: 1,
+			CabalName: alpha, ActorName: "bob", Symbol: "NVDAx", Action: feed.ActionSell, Status: "executed",
 		}},
 		{"proposal_sell_amount", feed.KindProposal, feed.Payload{
-			CabalName: alpha, Symbol: "NVDAx", Action: feed.ActionSell, USDCMicros: usd(25_050_000),
-			VoterCount: 1, YesVotes: 1,
+			CabalName: alpha, ActorName: "bob", Symbol: "NVDAx", Action: feed.ActionSell,
+			USDCMicros: usd(25_050_000), Status: "execution_failed",
 		}},
+		{"proposal_blocked", feed.KindProposal, feed.Payload{
+			CabalName: alpha, Symbol: "AAPLx", Action: feed.ActionBuy, USDCMicros: usd(500_000_000),
+			Status: "execution_blocked", StatusCode: string(errs.CodeFeedItemPending),
+		}},
+		{"proposal_failed", feed.KindProposal, feed.Payload{CabalName: alpha, Symbol: "AAPLx", Status: "failed"}},
+		{"proposal_expired", feed.KindProposal, feed.Payload{CabalName: alpha, Symbol: "AAPLx", Status: "expired"}},
+		{"proposal_withdrawn", feed.KindProposal, feed.Payload{CabalName: alpha, Symbol: "AAPLx", Status: "withdrawn"}},
+		{"proposal_voided", feed.KindProposal, feed.Payload{CabalName: alpha, Symbol: "AAPLx", Status: "voided"}},
+		{"proposal_unknown_status", feed.KindProposal, feed.Payload{CabalName: alpha, Symbol: "AAPLx"}},
 		{"trade_buy", feed.KindTrade, feed.Payload{
 			CabalName: alpha, Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
 			USDCMicros: usd(12_500_000_000),
@@ -105,6 +118,30 @@ func TestRender_neverWritesBannedWords(t *testing.T) {
 			if strings.Contains(text, banned) {
 				t.Errorf("%s renders %q, which says %q", c.name, text, banned)
 			}
+		}
+	}
+}
+
+func TestProposalStatus_movesForwardOnly(t *testing.T) {
+	t.Parallel()
+	terminal := []string{"open", "passed", "execution_failed"}
+	want := map[feed.ProposalStatus][]string{
+		feed.StatusOpen:             nil,
+		feed.StatusPassed:           {"open"},
+		feed.StatusExecutionFailed:  {"open", "passed"},
+		feed.StatusFailed:           terminal,
+		feed.StatusExpired:          terminal,
+		feed.StatusWithdrawn:        terminal,
+		feed.StatusVoided:           terminal,
+		feed.StatusExecuted:         terminal,
+		feed.StatusExecutionBlocked: terminal,
+	}
+	if got := feed.ProposalStatus("unknown").MovesFrom(); !slices.Equal(got, terminal) {
+		t.Errorf("unknown.MovesFrom() = %v, want %v", got, terminal)
+	}
+	for to, from := range want {
+		if got := to.MovesFrom(); !slices.Equal(got, from) {
+			t.Errorf("%s.MovesFrom() = %v, want %v", to, got, from)
 		}
 	}
 }

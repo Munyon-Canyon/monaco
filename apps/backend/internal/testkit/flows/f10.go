@@ -55,7 +55,28 @@ func seedOpenProposal(s *scenario.Scenario, members int) openProposal {
 	if _, err := sqlc.New(s.DB()).InsertProposal(s.Context(), params); err != nil {
 		s.Fatalf("flows: insert proposal: %v", err)
 	}
+	seedFeedProposal(s, p)
 	return p
+}
+
+func seedFeedCabal(s *scenario.Scenario, cabal ids.CabalID) {
+	s.Helper()
+	if _, err := s.DB().Exec(s.Context(), `INSERT INTO feed_cabals (cabal_id, name, updated_at)
+		SELECT id, name, now() FROM cabals WHERE id = $1 ON CONFLICT (cabal_id) DO NOTHING`, cabal.UUID()); err != nil {
+		s.Fatalf("flows: seed the feed cabal: %v", err)
+	}
+}
+
+func seedFeedProposal(s *scenario.Scenario, p openProposal) {
+	s.Helper()
+	seedFeedCabal(s, p.cabalID)
+	if _, err := s.DB().Exec(s.Context(), `INSERT INTO feed_objects
+		(id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, symbol, title, payload, status, created_at, updated_at)
+		SELECT $1, 'proposal', 'proposals', $2, $3, name, $4, 'AAPLx', 'seeded', '{"status":"open"}', 'open', now(), now()
+		FROM cabals WHERE id = $3`,
+		ids.Real{}.NewV7(), p.id.UUID(), p.cabalID.UUID(), p.proposerID.UUID()); err != nil {
+		s.Fatalf("flows: seed the proposal feed item: %v", err)
+	}
 }
 
 func tally(yes, no, voters, needed int) map[string]int {

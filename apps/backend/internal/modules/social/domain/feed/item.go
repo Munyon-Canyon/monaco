@@ -20,14 +20,6 @@ type Item struct {
 	Payload Payload
 }
 
-type StatusChange struct {
-	Kind    Kind
-	RefID   uuid.UUID
-	From    string
-	To      string
-	Payload Payload
-}
-
 type Scope string
 
 const (
