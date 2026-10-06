@@ -41,6 +41,7 @@ print(found[0] if found else "")
 
 udid="$(find_by_name)"
 if [[ -n "$udid" ]]; then
+  "$root/scripts/simslim-ensure.sh" check "$udid"
   printf '%s\n' "$udid"
   exit 0
 fi
@@ -97,15 +98,6 @@ echo "created simulator \"${name}\" (${udid}) from ${device_type} ${runtime}" >&
 # apart from the operator's own and deletes them once their worktree is gone.
 printf '%s\t%s\t%s\n' "$udid" "${top##*/}" "$name" >> "$common_dir/monaco-lane-sims.tsv"
 
-if command -v simslim >/dev/null 2>&1; then
-  profile="${SIMSLIM_PROFILE:-}"
-  if [[ -z "$profile" && -f "${HOME}/.config/simslim/base-slim.json" ]]; then
-    profile="${HOME}/.config/simslim/base-slim.json"
-  fi
-  if [[ -n "$profile" ]]; then
-    simslim on "$udid" --profile "$profile" >/dev/null 2>&1 \
-      || echo "warning: simslim on failed for ${udid}. using it without slim." >&2
-  fi
-fi
+"$root/scripts/simslim-ensure.sh" create "$udid"
 
 printf '%s\n' "$udid"

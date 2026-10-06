@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -11,7 +12,7 @@ import (
 
 // simScripts are the scripts a scratch checkout carries; they find the checkout from
 // their own path, so each test runs real copies outside this repo's own worktree.
-var simScripts = []string{"lane-sim-udid.sh", "resolve-ios-sim.sh", "gold-sim-udid.sh", "stop-mobile.sh"}
+var simScripts = []string{"lane-sim-udid.sh", "simslim-ensure.sh", "resolve-ios-sim.sh", "gold-sim-udid.sh", "stop-mobile.sh"}
 
 // simCheckout is a scratch git repo with the sim scripts committed. lane is "" for the
 // primary checkout, or the name of a linked worktree added under it.
@@ -276,7 +277,102 @@ func TestResolveIOSSim_laneSlimsANewSimulator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "on " + r.udid + " --profile " + profile + "\n"; !strings.Contains(string(got), want) {
+	if want := "on " + r.udid + " --profile " + profile + " --preserve-boot-state\n"; !strings.Contains(string(got), want) {
 		t.Fatalf("simslim calls %q, want %q", got, want)
+	}
+}
+
+// simslimBin is a PATH holding a mocked simslim that logs its calls. verify exits with
+// verifyRC; on always succeeds.
+func simslimBin(t *testing.T, verifyRC int) (path, calls string) {
+	t.Helper()
+	bin := t.TempDir()
+	calls = filepath.Join(t.TempDir(), "simslim.calls")
+	script := "#!/bin/sh\necho \"$*\" >> " + calls + "\n[ \"$1\" = verify ] && exit " + strconv.Itoa(verifyRC) + "\nexit 0\n"
+	writeExecutable(t, filepath.Join(bin, "simslim"), script)
+	fake := filepath.Join(repoRoot(t), "scripts", "testdata", "fakebin")
+	return fake + string(os.PathListSeparator) + bin + string(os.PathListSeparator) + os.Getenv("PATH"), calls
+}
+
+func ensure(t *testing.T, path, mode, udid string, env ...string) (calls string, out string) {
+	t.Helper()
+	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "simslim-ensure.sh"), mode, udid)
+	cmd.Env = append(os.Environ(), append([]string{"PATH=" + path, "HOME=/nonexistent"}, env...)...)
+	b, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("simslim-ensure.sh %s: %v\n%s", mode, err, b)
+	}
+	return "", string(b)
+}
+
+func readCalls(t *testing.T, calls string) string {
+	t.Helper()
+	b, _ := os.ReadFile(calls)
+	return string(b)
+}
+
+func TestSimslimEnsure_createCallsOnWithTheProfile(t *testing.T) {
+	path, calls := simslimBin(t, 0)
+	ensure(t, path, "create", "UDID1", "SIMSLIM_PROFILE=/p.json")
+	if got, want := readCalls(t, calls), "on UDID1 --profile /p.json --preserve-boot-state\n"; got != want {
+		t.Fatalf("calls %q, want %q", got, want)
+	}
+}
+
+func TestSimslimEnsure_defaultProfileIsUnderHome(t *testing.T) {
+	path, calls := simslimBin(t, 0)
+	ensure(t, path, "create", "UDID1", "HOME=/h")
+	if got, want := readCalls(t, calls), "on UDID1 --profile /h/.config/simslim/base-slim.json --preserve-boot-state\n"; got != want {
+		t.Fatalf("calls %q, want %q", got, want)
+	}
+}
+
+func TestSimslimEnsure_checkLeavesASlimSimulatorAlone(t *testing.T) {
+	path, calls := simslimBin(t, 0)
+	ensure(t, path, "check", "UDID1", "SIMSLIM_PROFILE=/p.json")
+	if got, want := readCalls(t, calls), "verify UDID1 --profile /p.json\n"; got != want {
+		t.Fatalf("calls %q, want %q", got, want)
+	}
+}
+
+func TestSimslimEnsure_checkRepairsOnceWhenNotSlim(t *testing.T) {
+	path, calls := simslimBin(t, 1)
+	ensure(t, path, "check", "UDID1", "SIMSLIM_PROFILE=/p.json")
+	want := "verify UDID1 --profile /p.json\non UDID1 --profile /p.json --preserve-boot-state\n"
+	if got := readCalls(t, calls); got != want {
+		t.Fatalf("calls %q, want %q", got, want)
+	}
+}
+
+func TestSimslimEnsure_missingSimslimWarnsAndContinues(t *testing.T) {
+	_, out := ensure(t, "/usr/bin:/bin", "create", "UDID1")
+	if !strings.Contains(out, "warning: SimSlim not installed") {
+		t.Fatalf("output %q, want a missing simslim warning", out)
+	}
+}
+
+func TestSimslimEnsure_optOutSkipsSimslim(t *testing.T) {
+	path, calls := simslimBin(t, 1)
+	_, out := ensure(t, path, "check", "UDID1", "MONACO_NO_SIMSLIM=1")
+	if got := readCalls(t, calls); got != "" || out != "" {
+		t.Fatalf("calls %q output %q, want none", got, out)
+	}
+}
+
+func TestResolveIOSSim_laneChecksAnExistingSimulator(t *testing.T) {
+	path, calls := simslimBin(t, 1)
+	lane := simCheckout(t, "again")
+	state := t.TempDir()
+	env := []string{"HOME=/h", "PATH=" + path}
+	first := runSim(t, lane, "resolve-ios-sim.sh", "simctl", state, env...)
+	second := runSim(t, lane, "resolve-ios-sim.sh", "simctl", state, env...)
+	if first.err != nil || second.err != nil || first.udid != second.udid {
+		t.Fatalf("runs %v %v: %q %q", first.err, second.err, first.out, second.out)
+	}
+	want := "on " + first.udid + " --profile /h/.config/simslim/base-slim.json --preserve-boot-state\n" +
+		"verify " + first.udid + " --profile /h/.config/simslim/base-slim.json\n" +
+		"on " + first.udid + " --profile /h/.config/simslim/base-slim.json --preserve-boot-state\n"
+	if got := readCalls(t, calls); !strings.Contains(got, want) {
+		t.Fatalf("calls %q, want to contain %q", got, want)
 	}
 }
