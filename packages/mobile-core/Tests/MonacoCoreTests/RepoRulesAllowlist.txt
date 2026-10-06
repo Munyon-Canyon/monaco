@@ -61,6 +61,5 @@ view-hints	apps/mobile/Monaco/Features/Shell/HintConnecting.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/AssetActivityCopy.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/DiagnosticPayloadStore.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	1
-wall-clock	packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift	3

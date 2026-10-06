@@ -71,12 +71,12 @@ final class APITelemetryTests: XCTestCase {
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.postGroupMessage(groupId: groupID, body: "hello")
+        _ = try? await client.postProposalComment(proposalId: groupID, body: "hello")
 
         let event = try XCTUnwrap(events.values.first)
         XCTAssertEqual(events.values.count, 1)
         XCTAssertEqual(event.method, "POST")
-        XCTAssertEqual(event.route, "/v1/groups/{id}/messages")
+        XCTAssertEqual(event.route, "/v1/proposals/{id}/comments")
         XCTAssertEqual(event.outcome, .status(201))
         XCTAssertGreaterThan(event.durationMs, 0)
         XCTAssertEqual(event.serverRequestID, event.requestID)
@@ -213,7 +213,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         _ = try? await client.getHomePnLSeries()
-        _ = try? await client.postGroupMessage(groupId: groupID, body: "hello")
+        _ = try? await client.postProposalComment(proposalId: groupID, body: "hello")
 
         XCTAssertEqual(events.values.count, 2)
         for event in events.values {
