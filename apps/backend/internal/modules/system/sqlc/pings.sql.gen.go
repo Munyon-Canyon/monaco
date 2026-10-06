@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const echoPing = `-- name: EchoPing :execrows
@@ -24,6 +25,24 @@ type EchoPingParams struct {
 
 func (q *Queries) EchoPing(ctx context.Context, arg EchoPingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, echoPing, arg.ID, arg.EchoedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const flagPing = `-- name: FlagPing :execrows
+UPDATE system_pings SET flagged_at = $2::timestamptz
+WHERE id = $1 AND flagged_at IS NULL
+`
+
+type FlagPingParams struct {
+	ID        uuid.UUID
+	FlaggedAt time.Time
+}
+
+func (q *Queries) FlagPing(ctx context.Context, arg FlagPingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, flagPing, arg.ID, arg.FlaggedAt)
 	if err != nil {
 		return 0, err
 	}
@@ -69,4 +88,15 @@ type InsertPingParams struct {
 func (q *Queries) InsertPing(ctx context.Context, arg InsertPingParams) error {
 	_, err := q.db.Exec(ctx, insertPing, arg.ID, arg.UserID, arg.Note)
 	return err
+}
+
+const pingFlagState = `-- name: PingFlagState :one
+SELECT flagged_at FROM system_pings WHERE id = $1
+`
+
+func (q *Queries) PingFlagState(ctx context.Context, id uuid.UUID) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, pingFlagState, id)
+	var flagged_at pgtype.Timestamptz
+	err := row.Scan(&flagged_at)
+	return flagged_at, err
 }

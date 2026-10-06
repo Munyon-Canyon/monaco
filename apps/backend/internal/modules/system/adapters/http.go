@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system/sqlc"
@@ -15,6 +16,7 @@ import (
 
 type HTTP struct {
 	Record *app.RecordPingHandler
+	Flag   *app.FlagPingHandler
 	Reads  sqlc.DBTX
 	IDs    ids.Generator
 }
@@ -51,6 +53,36 @@ func (h HTTP) GetSystemPing(
 		return nil, err
 	}
 	return api.GetSystemPing200JSONResponse(wire(ping)), nil
+}
+
+func (h HTTP) FlagSystemPing(
+	ctx context.Context, req api.FlagSystemPingRequestObject,
+) (api.FlagSystemPingResponseObject, error) {
+	admin, err := adminCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reason, err := events.NewReason(req.Body.Reason)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Flag.Handle(ctx, app.FlagPing{PingID: req.Id, AdminID: admin, Reason: reason}); err != nil {
+		return nil, err
+	}
+	return api.FlagSystemPing204Response{}, nil
+}
+
+func adminCaller(ctx context.Context) (ids.UserID, error) {
+	const op = "system.adminCaller"
+	actor, ok := auth.ActorFrom(ctx)
+	if !ok || actor.Kind != auth.ActorAdmin {
+		return ids.UserID{}, errs.New(errs.CodeAdminForbidden, op)
+	}
+	admin, err := ids.ParseUserID(actor.ID)
+	if err != nil {
+		return ids.UserID{}, errs.Wrap(err, errs.CodeAdminForbidden, op)
+	}
+	return admin, nil
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

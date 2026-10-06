@@ -2618,6 +2618,38 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/system.yaml
+  /v1/admin/system/pings/{id}/flag:
+    post:
+      operationId: flagSystemPing
+      tags: [system]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Flag a ping as an administrator.
+      description: >-
+        Marks the ping flagged and appends `system.ping_flagged` and `admin.action` in one transaction,
+        then answers 204. The `admin.audit` consumer writes the `admin_actions` row after that. This is the
+        reference admin command that every later one copies. A ping that is already flagged answers
+        already_flagged, and an unknown ping answers not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the ping to flag.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+      requestBody:
+        description: Why the administrator flags the ping.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: spam}
+      responses:
+        "204": {description: The ping is flagged.}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/system/pings:
     post:
       operationId: postSystemPing
@@ -3215,6 +3247,22 @@ components:
           type: boolean
           description: True when the same request may succeed if sent again later.
           examples: [false]
+    ReasonBody:
+      type: object
+      description: The reason an administrator gives for an action.
+      examples:
+        - reason: spam
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: >-
+            Free text. The server trims it and requires 3 to 500 characters, otherwise it answers
+            reason_required.
+          minLength: 1
+          maxLength: 500
+          examples: [spam]
   # api/spec/cabal.yaml
     AccessDecisionRequest:
       type: object
@@ -3448,6 +3496,7 @@ components:
         - agent_not_found
         - agent_paused
         - agent_wrong_status
+        - already_flagged
         - already_member
         - analytics_pii
         - apns_auth_failed

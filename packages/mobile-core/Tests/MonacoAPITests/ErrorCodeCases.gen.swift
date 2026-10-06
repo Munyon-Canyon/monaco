@@ -17,6 +17,7 @@ extension Components.Schemas.ErrorCode {
         case .agentNotFound: true
         case .agentPaused: true
         case .agentWrongStatus: true
+        case .alreadyFlagged: true
         case .alreadyMember: true
         case .analyticsPii: true
         case .apnsAuthFailed: true
