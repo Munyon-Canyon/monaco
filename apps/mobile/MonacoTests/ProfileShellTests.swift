@@ -18,11 +18,9 @@ nonisolated final class ProfileShellTests: XCTestCase {
     }
 
     @MainActor
-    func testFriendsRouteOpensFriendsOnMonacoAndItsContactsRowOpensTheExplainer() {
+    func testFriendsRouteOpensTheFriendsScreen() {
         let friends: Any = FriendsRoute().destination()
-        XCTAssertTrue(friends is FriendsOnMonacoView)
-        let explainer: Any = ContactsExplainerRoute().destination()
-        XCTAssertTrue(explainer is ContactsExplainerView)
+        XCTAssertTrue(friends is FriendsScreen)
     }
 
     @MainActor
