@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	flow08Treasury chain.SolanaAddress = "Aiegw7e8Uy2LbuR5ZULUzorxR8wHsKTMXbBQtY59BbYV"
+	flow08Treasury chain.SolanaAddress = "7Moh9vxpdx8awiKHGpWLFze6sXVeZgBphdP2EopQ78UG"
 	flow08Sender   chain.SolanaAddress = "6CBBbEVgz7TsMc9yuU3tekHwnjE6BiSwFb4afWDrc8gd"
 	flow08XStock   chain.SolanaAddress = "BcgXM4PrgxrBzBgEm2pvh7uDzKJ3ykw3SVLvzQgqF6xp"
 	flow08Unknown  chain.SolanaAddress = "7cKjFHECViDkTcXeKsCXNFWaFYpHkJmVyEttvdacrgb4"

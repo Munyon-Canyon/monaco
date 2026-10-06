@@ -137,6 +137,8 @@ func flow(poller string) string {
 		return "05"
 	case "funding.withdrawals":
 		return "15"
+	case "funding.treasury-reconcile", "funding.bounce-sweeper":
+		return "08"
 	case "market.prices":
 		return "18"
 	case "identity.nudges":

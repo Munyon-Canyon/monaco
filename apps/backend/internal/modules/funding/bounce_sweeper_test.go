@@ -25,9 +25,13 @@ func (f *bounceFixture) inFlight(t *testing.T) uuid.UUID {
 	return id
 }
 
+func (f *bounceFixture) sweeper() *app.BounceSweeper {
+	return app.NewBounceSweeper(f.bouncer, app.DefaultBounceSweepTiming())
+}
+
 func (f *bounceFixture) tick(t *testing.T) poller.Report {
 	t.Helper()
-	report, err := app.NewBounceSweeper(f.bouncer).Tick(bounceCtx(t))
+	report, err := f.sweeper().Tick(bounceCtx(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,9 +49,30 @@ func (f *bounceFixture) bounce(t *testing.T, id uuid.UUID) (sig string, attempts
 
 func TestBounceSweeper_IsAThirtySecondPoller(t *testing.T) {
 	t.Parallel()
-	s := app.NewBounceSweeper(nil)
+	s := app.NewBounceSweeper(nil, app.DefaultBounceSweepTiming())
 	if s.Name() != "funding.bounce-sweeper" || s.Interval() != 30*time.Second {
 		t.Fatalf("sweeper = %s@%s, want funding.bounce-sweeper@30s", s.Name(), s.Interval())
+	}
+}
+
+func TestBounceSweeper_SweepsOnTheTimingItIsGiven(t *testing.T) {
+	t.Parallel()
+	f := newBounceFixture(t)
+	f.chain.state = solana.StateProcessing
+	id := f.detected(t, flow08USDCSig)
+	if err := f.bouncer.Start(bounceCtx(t), id); err != nil {
+		t.Fatal(err)
+	}
+	f.chain.state = solana.StateFinalized
+	if report := f.tick(t); report.Scanned != 0 {
+		t.Fatalf("default report = %+v, want a bounce younger than 2m skipped", report)
+	}
+	s := app.NewBounceSweeper(f.bouncer, app.BounceSweepTiming{Interval: time.Second, Age: time.Second})
+	report, err := s.Tick(bounceCtx(t))
+	if err != nil || report.Scanned != 1 || report.Changed != 1 || s.Interval() != time.Second ||
+		f.status(t, id) != "returned" {
+		t.Fatalf("report = %+v, %v, interval %s, status %s, want the bounce returned on a 1s age",
+			report, err, s.Interval(), f.status(t, id))
 	}
 }
 
@@ -178,7 +203,7 @@ func TestBounceSweeper_ReportsChainAndDecodeErrors(t *testing.T) {
 			f.chain.state = solana.StateNotFound
 			arrange(f)
 
-			if _, err := app.NewBounceSweeper(f.bouncer).Tick(bounceCtx(t)); err == nil {
+			if _, err := f.sweeper().Tick(bounceCtx(t)); err == nil {
 				t.Fatal("Tick = nil, want the error")
 			}
 		})
@@ -191,7 +216,7 @@ func TestBounceSweeper_ListFailureIsInternal(t *testing.T) {
 	ctx, cancel := context.WithCancel(bounceCtx(t))
 	cancel()
 
-	if _, err := app.NewBounceSweeper(f.bouncer).Tick(ctx); errs.CodeOf(err) != errs.CodeInternal {
+	if _, err := f.sweeper().Tick(ctx); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("Tick = %v, want internal", err)
 	}
 }

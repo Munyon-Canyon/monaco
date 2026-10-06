@@ -25,17 +25,31 @@ const (
 	bounceSweepBatch    = 50
 )
 
-type BounceSweeper struct{ b *Bouncer }
+type BounceSweepTiming struct {
+	Interval time.Duration
+	Age      time.Duration
+}
 
-func NewBounceSweeper(b *Bouncer) *BounceSweeper { return &BounceSweeper{b: b} }
+func DefaultBounceSweepTiming() BounceSweepTiming {
+	return BounceSweepTiming{Interval: BounceSweepInterval, Age: BounceSweepAge}
+}
+
+type BounceSweeper struct {
+	b      *Bouncer
+	timing BounceSweepTiming
+}
+
+func NewBounceSweeper(b *Bouncer, timing BounceSweepTiming) *BounceSweeper {
+	return &BounceSweeper{b: b, timing: timing}
+}
 
 func (*BounceSweeper) Name() string { return "funding.bounce-sweeper" }
 
-func (*BounceSweeper) Interval() time.Duration { return BounceSweepInterval }
+func (s *BounceSweeper) Interval() time.Duration { return s.timing.Interval }
 
 func (s *BounceSweeper) Tick(ctx context.Context) (poller.Report, error) {
 	due, err := sqlc.New(s.b.d.Reads).ListStaleBounces(ctx, sqlc.ListStaleBouncesParams{
-		OlderThan: s.b.d.Clock.Now().Add(-BounceSweepAge), MaxRows: bounceSweepBatch,
+		OlderThan: s.b.d.Clock.Now().Add(-s.timing.Age), MaxRows: bounceSweepBatch,
 	})
 	if err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "funding.BounceSweeper.list")

@@ -4,9 +4,12 @@ package flows
 
 func (defined) ScriptsF08() map[string]Script {
 	return map[string]Script{
-		"F08DetectExternalDepositOK":           F08DetectExternalDepositOK,
-		"F08DetectExternalDepositDust":         F08DetectExternalDepositDust,
-		"F08DetectExternalDepositUnknownAsset": F08DetectExternalDepositUnknownAsset,
-		"F08DetectExternalDepositBounceFailed": F08DetectExternalDepositBounceFailed,
+		"F08DetectExternalDepositOK":                  F08DetectExternalDepositOK,
+		"F08DetectExternalDepositDust":                F08DetectExternalDepositDust,
+		"F08DetectExternalDepositUnknownAsset":        F08DetectExternalDepositUnknownAsset,
+		"F08DetectExternalDepositBounceFailed":        F08DetectExternalDepositBounceFailed,
+		"F08DetectExternalDepositCrashBeforeCommit":   F08DetectExternalDepositCrashBeforeCommit,
+		"F08DetectExternalDepositCrashAfterSign":      F08DetectExternalDepositCrashAfterSign,
+		"F08DetectExternalDepositCrashAfterBroadcast": F08DetectExternalDepositCrashAfterBroadcast,
 	}
 }

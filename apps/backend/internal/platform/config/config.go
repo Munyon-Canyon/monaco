@@ -147,6 +147,8 @@ type Funding struct {
 	DepositPollInterval       time.Duration
 	DepositRPCRate            int32
 	TreasuryReconcileInterval time.Duration
+	BounceSweepInterval       time.Duration
+	BounceSweepAge            time.Duration
 }
 
 type Privy struct {
@@ -439,6 +441,10 @@ func fundingFields() []field {
 		count("FUNDING_DEPOSIT_RPC_RATE", 20, func(c *Config) *int32 { return &c.Funding.DepositRPCRate }),
 		duration("FUNDING_TREASURY_RECONCILE_INTERVAL", 60*time.Second,
 			func(c *Config) *time.Duration { return &c.Funding.TreasuryReconcileInterval }),
+		duration("FUNDING_BOUNCE_SWEEP_INTERVAL", 30*time.Second,
+			func(c *Config) *time.Duration { return &c.Funding.BounceSweepInterval }),
+		duration("FUNDING_BOUNCE_SWEEP_AGE", 2*time.Minute,
+			func(c *Config) *time.Duration { return &c.Funding.BounceSweepAge }),
 	}
 }
 

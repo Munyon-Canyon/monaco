@@ -226,6 +226,40 @@ func (q *Queries) OwnsBounceSignature(ctx context.Context, signature string) (bo
 	return exists, err
 }
 
+const pausesOnSettledExternalDeposits = `-- name: PausesOnSettledExternalDeposits :many
+SELECT p.id AS pause_id, d.id AS external_deposit_id, d.status
+FROM cabal_pauses p
+JOIN external_deposits d ON d.id = p.external_deposit_id
+WHERE p.resolved_at IS NULL AND d.status IN ('returned', 'held')
+ORDER BY p.id
+`
+
+type PausesOnSettledExternalDepositsRow struct {
+	PauseID           uuid.UUID
+	ExternalDepositID uuid.UUID
+	Status            string
+}
+
+func (q *Queries) PausesOnSettledExternalDeposits(ctx context.Context) ([]PausesOnSettledExternalDepositsRow, error) {
+	rows, err := q.db.Query(ctx, pausesOnSettledExternalDeposits)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PausesOnSettledExternalDepositsRow
+	for rows.Next() {
+		var i PausesOnSettledExternalDepositsRow
+		if err := rows.Scan(&i.PauseID, &i.ExternalDepositID, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resignBounce = `-- name: ResignBounce :execrows
 UPDATE external_deposits
 SET bounce_signature = $1::text, bounce_signed_tx = $2::bytea,
