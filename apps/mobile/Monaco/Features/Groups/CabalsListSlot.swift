@@ -22,8 +22,11 @@ private struct MyCabalsList: View {
             .onAppear {
                 let model = preparedModel()
                 refresh?.register("cabals-list") { await model.load() }
+                model.setVisible(true)
                 Task { await model.load() }
             }
+            .onDisappear { model?.setVisible(false) }
+            .task { await preparedModel().observe(hints: environment.hints) }
             .newCabalSheet(isPresented: $showsNewCabal)
             .onChange(of: model?.failureTick) { _, _ in
                 guard case .loaded = model?.state, let error = model?.lastError else { return }
@@ -136,6 +139,16 @@ private struct MyCabalCard: View {
             HStack(alignment: .top) {
                 CabalMark(groupId: cabal.id, name: cabal.name, size: 36, pictureUrl: cabal.pictureUrl)
                 Spacer(minLength: 0)
+                if let unread = CabalCopy.unreadBadge(cabal.unreadCount) {
+                    Text(unread)
+                        .font(MonacoTheme.Typo.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 7)
+                        .frame(minWidth: 22, minHeight: 22)
+                        .background(Capsule().fill(MonacoTheme.destructive))
+                        .accessibilityLabel(CabalCopy.unreadLabel(cabal.unreadCount))
+                        .accessibilityIdentifier("cabals-list-card-unread")
+                }
                 if let requests = CabalCopy.requestBadge(cabal) {
                     Text("\(requests)")
                         .font(MonacoTheme.Typo.caption.weight(.semibold).monospacedDigit())

@@ -9,6 +9,7 @@ public final class CabalsTabModel {
     public private(set) var failureTick = 0
     private let api: APIClient
     private var generation = 0
+    @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
 
     public init(api: APIClient) {
         self.api = api
@@ -31,5 +32,13 @@ public final class CabalsTabModel {
             if case .loaded = state { return }
             state = .failed(error)
         }
+    }
+
+    public func observe(hints: any HintSource) async {
+        await refresher.observe(hints.hints(matching: .user(what: "cabals")))
+    }
+
+    public func setVisible(_ visible: Bool) {
+        refresher.setVisible(visible)
     }
 }

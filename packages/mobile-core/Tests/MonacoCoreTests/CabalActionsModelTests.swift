@@ -116,6 +116,7 @@ final class CabalActionsModelTests: XCTestCase {
         let (model, transport, hints) = make([
             .json(.ok, Self.cabal(me: Self.voter)),
             .json(.ok, Self.cabal(me: "null")),
+            .json(.ok, Self.cabal(me: "null")),
         ])
         await model.load()
         let observer = await observing(model, hints)
@@ -126,8 +127,62 @@ final class CabalActionsModelTests: XCTestCase {
         let hidden = await waitUntil { model.actions == .hidden }
         XCTAssertTrue(hidden)
         _ = await waitUntil { false }
-        let count = await transport.sent.count
-        XCTAssertEqual(count, 2)
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths.filter { $0 == "/v1/cabals/\(Self.cabalID)" }.count, 2)
+    }
+
+    func testUnreadCountIsTheServersNumberForThisCabal() async {
+        let (model, transport, _) = make([.json(.ok, Self.myCabals(unread: 3))])
+        XCTAssertFalse(model.hasUnreadChat)
+
+        await model.loadUnread()
+
+        XCTAssertEqual(model.unreadCount, 3)
+        XCTAssertTrue(model.hasUnreadChat)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.path), ["/v1/me/cabals"])
+    }
+
+    func testACabalsHintReadsTheUnreadCountAgainAndClearsTheDot() async {
+        let (model, _, hints) = make([
+            .json(.ok, Self.myCabals(unread: 3)),
+            .json(.ok, Self.myCabals(unread: 0)),
+        ])
+        await model.loadUnread()
+        let observer = await observing(model, hints)
+        addTeardownBlock { observer.cancel() }
+
+        await hints.send(.changed(.user("me"), what: "cabals", id: "1"))
+
+        let cleared = await waitUntil { !model.hasUnreadChat }
+        XCTAssertTrue(cleared)
+    }
+
+    func testAResyncReadsTheUnreadCountAgain() async {
+        let (model, transport, hints) = make([
+            .json(.ok, Self.myCabals(unread: 3)),
+            .json(.ok, Self.myCabals(unread: 0)),
+        ])
+        await model.loadUnread()
+        let observer = await observing(model, hints)
+        addTeardownBlock { observer.cancel() }
+
+        await hints.send(.resync)
+
+        let reread = await waitUntil { await transport.sent.filter { $0.path == "/v1/me/cabals" }.count == 2 }
+        XCTAssertTrue(reread)
+    }
+
+    func testAFailedUnreadReadKeepsTheDot() async {
+        let (model, _, _) = make([
+            .json(.ok, Self.myCabals(unread: 3)),
+            .failure(URLError(.networkConnectionLost)),
+        ])
+        await model.loadUnread()
+
+        await model.loadUnread()
+
+        XCTAssertEqual(model.unreadCount, 3)
     }
 
     func testThePreviewShowsTheSampleRole() async {
@@ -159,7 +214,7 @@ final class CabalActionsModelTests: XCTestCase {
 
     private func observing(_ model: CabalActionsModel, _ hints: FakeHintStream) async -> Task<Void, Never> {
         let observer = Task { await model.observe() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 3 }
         XCTAssertTrue(subscribed)
         return observer
     }
@@ -170,6 +225,11 @@ final class CabalActionsModelTests: XCTestCase {
             await Task.yield()
         }
         return await predicate()
+    }
+
+    private static func myCabals(unread: Int) -> String {
+        ##"[{"id":"\##(cabalID)","name":"QA pot","picture_url":null,"role":"member","can_vote":true,"##
+            + ##""member_count":2,"joined_at":"2026-10-02T15:00:00Z","pending_request_count":0,"unread_count":\##(unread)}]"##
     }
 
     private static let voter = #"{"role":"member","can_vote":true}"#

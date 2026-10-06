@@ -5,15 +5,15 @@ A voter's Propose action is disabled. S1.1 checks it is enabled, so it must fail
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index a6cb42cd..28b44ce0 100644
+index adde7c05c..664d8872e 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -80,7 +80,7 @@ struct CabalActionsRow: View {
+@@ -92,7 +92,7 @@ struct CabalActionsRow: View {
              HStack(alignment: .top, spacing: 0) {
                  action("Add money", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
                  action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
 -                    .disabled(!canPropose)
 +                    .disabled(true)
                  action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
-                 action("Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID))
-             }
+                 action(
+                     "Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID),

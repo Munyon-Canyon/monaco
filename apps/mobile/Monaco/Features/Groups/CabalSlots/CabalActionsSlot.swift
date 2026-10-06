@@ -16,6 +16,7 @@ struct CabalActionsLive: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.cabalRetry) private var retry
     @State private var model: CabalActionsModel?
+    @State private var hasAppeared = false
 
     init(cabalID: String, model: CabalActionsModel? = nil) {
         self.cabalID = cabalID
@@ -29,7 +30,13 @@ struct CabalActionsLive: View {
         .task(id: retry.tick) {
             let model = preparedModel()
             await model.load()
+            await model.loadUnread()
             await model.observe()
+        }
+        .onAppear {
+            defer { hasAppeared = true }
+            guard hasAppeared, let model else { return }
+            Task { await model.loadUnread() }
         }
     }
 
@@ -87,7 +94,9 @@ struct CabalActionsRow: View {
                 action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
                     .disabled(!canPropose)
                 action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
-                action("Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID))
+                action(
+                    "Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID),
+                    unread: model?.hasUnreadChat == true)
             }
             if !canPropose {
                 Text("Only voters can propose")
@@ -98,10 +107,28 @@ struct CabalActionsRow: View {
         }
     }
 
-    private func action(_ title: String, _ systemImage: String, id: String, _ route: some AppRoute) -> some View {
+    private func action(
+        _ title: String, _ systemImage: String, id: String, _ route: some AppRoute, unread: Bool = false
+    ) -> some View {
         CircleAction(title, systemImage: systemImage) { open(route) }
             .frame(maxWidth: .infinity)
+            .overlay(alignment: .top) { if unread { UnreadDot() } }
+            .accessibilityLabel(unread ? CabalCopy.chatUnreadAction : title)
             .accessibilityIdentifier(id)
+    }
+}
+
+private struct UnreadDot: View {
+    @ScaledMetric(relativeTo: .footnote) private var scaledDiscSize: CGFloat = 56
+
+    var body: some View {
+        Circle()
+            .fill(MonacoTheme.destructive)
+            .frame(width: 8, height: 8)
+            .overlay(Circle().strokeBorder(MonacoTheme.background, lineWidth: 1.5))
+            .offset(x: CircleActionMetrics.discSize(scaled: scaledDiscSize) / 2 - 6, y: 2)
+            .accessibilityHidden(true)
+            .accessibilityIdentifier("cabal-action-chat-unread")
     }
 }
 

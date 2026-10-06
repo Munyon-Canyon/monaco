@@ -14,7 +14,9 @@ struct CabalActionsRetryTests {
     func joiningInPlaceShowsTheMemberActions() async throws {
         let transport = StubTransport(scripted: [
             try Self.reply(.sample(role: nil)),
+            Self.noUnread,
             try Self.reply(.sample(role: "member", canVote: true)),
+            Self.noUnread,
         ])
         let model = CabalActionsModel(
             cabalID: "cabal-1",
@@ -29,8 +31,12 @@ struct CabalActionsRetryTests {
         tick.value += 1
 
         await Self.until { model.actions == .member(canPropose: true) }
-        #expect(await transport.sent.count == 2)
+        await transport.waitForRequests(4)
+        #expect(await transport.sent.count == 4)
     }
+
+    private static let noUnread = StubTransport.Reply.response(
+        status: .ok, contentType: "application/json", body: Data("[]".utf8))
 
     private static func reply(_ cabal: Components.Schemas.Cabal) throws -> StubTransport.Reply {
         .response(status: .ok, contentType: "application/json", body: try JSONEncoder().encode(cabal))

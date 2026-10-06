@@ -5,15 +5,15 @@ The Chat action opens Fund this cabal. S1.1 expects chat-title to read the cabal
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index a6cb42cda..dadc63414 100644
+index adde7c05c..85967d86b 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -82,7 +82,7 @@ struct CabalActionsRow: View {
-                 action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
+@@ -95,7 +95,7 @@ struct CabalActionsRow: View {
                      .disabled(!canPropose)
                  action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
--                action("Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID))
-+                action("Chat", "bubble.left", id: "cabal-action-chat", FundRoute(cabalID: cabalID))
+                 action(
+-                    "Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID),
++                    "Chat", "bubble.left", id: "cabal-action-chat", FundRoute(cabalID: cabalID),
+                     unread: model?.hasUnreadChat == true)
              }
              if !canPropose {
-                 Text("Only voters can propose")
