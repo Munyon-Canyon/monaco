@@ -30,6 +30,8 @@ func flowsFixture(t *testing.T, f fixture) flowsCase {
 	mustFundHistory(t, f, other, otherCabal, 7_000_000, 7)
 	second := port.MemberFlow{UserID: other, CabalID: otherCabal, Amount: net(7_000_000), At: f.clock.Now()}
 	f.clock.Advance(time.Second)
+	postNoCabalDeposit(t, f, f.user(t))
+	f.clock.Advance(time.Second)
 	mustCashOutHistory(t, f, user, cabal, 25_000_000, 25)
 	third := port.MemberFlow{UserID: user, CabalID: cabal, Amount: net(-25_000_000), At: f.clock.Now()}
 	to := f.clock.Now()

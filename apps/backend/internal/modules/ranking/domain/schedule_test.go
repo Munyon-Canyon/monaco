@@ -35,3 +35,17 @@ func TestShouldRun(t *testing.T) {
 		})
 	}
 }
+
+func TestMaxSnapshotGap(t *testing.T) {
+	t.Parallel()
+	for _, r := range []domain.Range{domain.Range1H, domain.Range1D} {
+		if got := domain.MaxSnapshotGap(r); got != 3*domain.RunEvery {
+			t.Fatalf("MaxSnapshotGap(%s) = %v, want three run intervals", r, got)
+		}
+	}
+	for _, r := range []domain.Range{domain.Range1W, domain.Range1M, domain.RangeAll} {
+		if got := domain.MaxSnapshotGap(r); got != time.Hour+2*domain.RunEvery {
+			t.Fatalf("MaxSnapshotGap(%s) = %v, want an hour of thinning plus two run intervals", r, got)
+		}
+	}
+}

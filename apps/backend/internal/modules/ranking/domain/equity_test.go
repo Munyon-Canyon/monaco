@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -43,7 +44,7 @@ func TestMemberEquity_MoreSharesThanTotal(t *testing.T) {
 			shares(5),
 			total,
 			usd(100),
-		); errs.CodeOf(err) != errs.CodeInvalidInput ||
+		); errs.CodeOf(err) != errs.CodeInvalidInput || !errors.Is(err, domain.ErrUnusableStart) ||
 			!got.IsZero() {
 			t.Fatalf("MemberEquity(5 of %v) = %v, %v, want invalid_input", total, got, err)
 		}
