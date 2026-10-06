@@ -30,12 +30,14 @@ struct ProposeAmountScreen: View {
                 .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
                 if !showsReason {
                     Button("+ Add a reason") { showsReason = true }.buttonStyle(.monacoSecondary)
+                        .accessibilityIdentifier("propose-amount-add-reason")
                 } else {
                     TextField(
                         model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?",
-                        text: Binding(get: { model.thesis }, set: { model.thesis = $0 }), axis: .vertical
+                        text: Binding(get: { model.thesis }, set: { model.setThesis($0) }), axis: .vertical
                     )
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("propose-amount-reason")
                     if ProposeReasonRules.showsCounter(for: model.thesis) {
                         Text("\(model.thesis.count)/\(ProposeReasonRules.thesisLimit)").foregroundStyle(
                             MonacoTheme.muted)

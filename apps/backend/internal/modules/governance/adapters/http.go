@@ -236,7 +236,7 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		Id: v.ID.UUID(), CabalId: v.CabalID.UUID(), ProposerId: v.ProposerID.UUID(), Kind: api.ProposalKind(v.Kind),
 		Symbol: v.Symbol, UsdcMicros: positive(v.USDCMicros), TokenAmount: positive(v.TokenAmount),
 		QuoteOutAmount: v.QuoteOut, Status: api.ProposalStatus(v.Status), ExpiresAt: v.ExpiresAt,
-		CreatedAt: v.CreatedAt, Tally: wireTally(v.Tally),
+		CreatedAt: v.CreatedAt, Tally: wireTally(v.Tally), CanVote: v.CanVote,
 	}
 	out.Thesis = present(v.Thesis)
 	if v.StatusReason != "" {

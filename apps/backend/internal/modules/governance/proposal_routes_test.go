@@ -1,6 +1,7 @@
 package governance_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -40,6 +41,7 @@ func TestProposalRoutes_aMemberAndAStrangerReadTheSameProposal(t *testing.T) {
 			scenario.Get("/v1/cabals/"+c.ID.String()+"/proposals?filter=open"),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("next_cursor", nil),
+			expectListedCanVote(t, true),
 			scenario.Get(detail),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("can_vote", true),
@@ -49,6 +51,9 @@ func TestProposalRoutes_aMemberAndAStrangerReadTheSameProposal(t *testing.T) {
 			scenario.Get("/v1/me/pending-votes"),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.AsSeededUser("stranger", stranger),
+			scenario.Get("/v1/cabals/"+c.ID.String()+"/proposals?filter=open"),
+			scenario.ExpectStatus(http.StatusOK),
+			expectListedCanVote(t, false),
 			scenario.Get(detail),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("can_vote", false),
@@ -56,4 +61,16 @@ func TestProposalRoutes_aMemberAndAStrangerReadTheSameProposal(t *testing.T) {
 			scenario.ExpectJSON("my_ballot", nil),
 		).
 		Then(scenario.ExpectStatus(http.StatusOK))
+}
+
+func expectListedCanVote(t *testing.T, want bool) scenario.Step {
+	t.Helper()
+	return scenario.ExpectField("proposals", func(_ *scenario.Scenario, raw json.RawMessage) {
+		var items []struct {
+			CanVote bool `json:"can_vote"`
+		}
+		if err := json.Unmarshal(raw, &items); err != nil || len(items) != 1 || items[0].CanVote != want {
+			t.Fatalf("listed proposals %s: want one with can_vote %v (err %v)", raw, want, err)
+		}
+	})
 }

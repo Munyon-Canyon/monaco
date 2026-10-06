@@ -148,7 +148,7 @@ func TestProposals_List_itemCarriesTallyBallotAndBlockedReason(t *testing.T) {
 	wantBlocked, wantVoted := base, base
 	wantBlocked.Status, wantBlocked.StatusReason = domain.StatusExecutionBlocked, errs.CodeNoRoute
 	wantBlocked.Tally = app.Tally{Voters: 1, Needed: 1}
-	wantVoted.Status, wantVoted.MyBallot = domain.StatusOpen, domain.ChoiceYes
+	wantVoted.Status, wantVoted.MyBallot, wantVoted.CanVote = domain.StatusOpen, domain.ChoiceYes, true
 	wantVoted.Tally = app.Tally{Yes: 1, No: 1, Voters: 3, Needed: 2}
 	want := []app.ProposalView{wantBlocked, wantVoted}
 	for i, got := range page.Items {
@@ -261,7 +261,7 @@ func TestHTTP_GetCabalProposals(t *testing.T) {
 	wantSell.StatusReason, wantSell.StatusMessage = ptr("no_route"), ptr(errs.Message(errs.CodeNoRoute))
 	wantSell.Tally.No = 1
 	wantBuy.Id, wantBuy.Kind, wantBuy.UsdcMicros = older, "buy", ptr(int64(25_000_000))
-	wantBuy.Status, wantBuy.Thesis = "open", ptr("Earnings next week.")
+	wantBuy.Status, wantBuy.Thesis, wantBuy.CanVote = "open", ptr("Earnings next week."), true
 	for _, pair := range [][2]*api.Proposal{{&wantSell, &first.Proposals[0]}, {&wantBuy, &second.Proposals[0]}} {
 		want, got := pair[0], pair[1]
 		want.ProposerId, want.ExpiresAt, want.CreatedAt = got.ProposerId, got.ExpiresAt, got.CreatedAt

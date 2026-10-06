@@ -184,6 +184,11 @@ type Proposal struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	CabalId openapi_types.UUID `json:"cabal_id"`
 
+	// CanVote Whether the caller can vote on it now, which means it is open and they are one of its voters.
+	//
+	// Examples: true
+	CanVote bool `json:"can_vote"`
+
 	// CreatedAt When the proposal opened.
 	//
 	// Examples: 2026-10-03T15:00:00Z

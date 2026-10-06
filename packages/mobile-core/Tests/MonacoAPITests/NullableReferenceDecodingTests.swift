@@ -20,7 +20,7 @@ final class NullableReferenceDecodingTests: XCTestCase {
             + ##""usdc_micros":25000000,"token_amount":null,"quote_out_amount":105000000,"thesis":null,"##
             + ##""status":"open","status_reason":null,"status_message":null,"##
             + ##""expires_at":"2026-10-04T15:00:00Z","created_at":"2026-10-03T15:00:00Z","##
-            + ##""tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":\##(myBallot)}"##
+            + ##""tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":\##(myBallot),"can_vote":false}"##
     }
 
     private func decode<T: Decodable>(_: T.Type, _ raw: String) throws -> T {

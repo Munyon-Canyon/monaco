@@ -3126,6 +3126,7 @@ components:
         - created_at
         - tally
         - my_ballot
+        - can_vote
       properties:
         id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
@@ -3166,6 +3167,10 @@ components:
           type: [string, "null"]
           enum: ["yes", "no", null]
           x-go-type: BallotChoice
+        can_vote:
+          type: boolean
+          description: Whether the caller can vote on it now, which means it is open and they are one of its voters.
+          examples: [true]
     ProposalDetail:
       type: object
       description: One proposal with its voters, the caller's permissions and its linked trade.

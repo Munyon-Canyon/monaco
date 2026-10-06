@@ -102,22 +102,29 @@ SELECT
   proposal_voters.proposal_id,
   count(*)::int AS voters,
   (count(*) FILTER (WHERE votes.choice = 'yes'))::int AS yes,
-  (count(*) FILTER (WHERE votes.choice = 'no'))::int AS no
+  (count(*) FILTER (WHERE votes.choice = 'no'))::int AS no,
+  bool_or(proposal_voters.voter_id = $1)::bool AS caller_votes
 FROM proposal_voters
 LEFT JOIN votes USING (proposal_id, voter_id)
-WHERE proposal_voters.proposal_id = ANY($1::uuid[])
+WHERE proposal_voters.proposal_id = ANY($2::uuid[])
 GROUP BY proposal_voters.proposal_id
 `
 
-type TallyProposalsRow struct {
-	ProposalID uuid.UUID
-	Voters     int32
-	Yes        int32
-	No         int32
+type TallyProposalsParams struct {
+	CallerID    uuid.UUID
+	ProposalIds []uuid.UUID
 }
 
-func (q *Queries) TallyProposals(ctx context.Context, proposalIds []uuid.UUID) ([]TallyProposalsRow, error) {
-	rows, err := q.db.Query(ctx, tallyProposals, proposalIds)
+type TallyProposalsRow struct {
+	ProposalID  uuid.UUID
+	Voters      int32
+	Yes         int32
+	No          int32
+	CallerVotes bool
+}
+
+func (q *Queries) TallyProposals(ctx context.Context, arg TallyProposalsParams) ([]TallyProposalsRow, error) {
+	rows, err := q.db.Query(ctx, tallyProposals, arg.CallerID, arg.ProposalIds)
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +137,7 @@ func (q *Queries) TallyProposals(ctx context.Context, proposalIds []uuid.UUID) (
 			&i.Voters,
 			&i.Yes,
 			&i.No,
+			&i.CallerVotes,
 		); err != nil {
 			return nil, err
 		}

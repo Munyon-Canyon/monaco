@@ -9,6 +9,8 @@ public final class ProposalVoteModel {
     private let repository: ProposalsRepository
     private var submissions: [String: IdempotentSubmission] = [:]
 
+    public var votedIDs: Set<String> { Set(ballots.keys) }
+
     public init(repository: ProposalsRepository) {
         self.repository = repository
     }
