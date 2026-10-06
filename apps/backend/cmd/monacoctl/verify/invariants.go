@@ -406,14 +406,51 @@ func matches(fields map[string]any, attrs map[string]string) bool {
 	return true
 }
 
+type termKey struct{ subject, code string }
+
+func termOf(u Unit) (string, errs.Code, bool) {
+	kind, trigger := u.Flow.TriggerKind(u.Command)
+	name, isCode := u.Outcome.CodeName()
+	code := codeNamed(name)
+	return trigger, code, isCode && kind == tools.TriggerConsumer && errs.Alert(code)
+}
+
+func (rep *report) expectedLetters(flow string) uint64 {
+	var n uint64
+	for _, u := range rep.units {
+		if _, _, ok := termOf(u); ok && (flow == "" || u.Flow.ID == flow) {
+			n++
+		}
+	}
+	return n
+}
+
+func (rep *report) lettersIn(flow string) uint64 {
+	if rep.deadLetters != rep.expectedLetters("") {
+		return rep.deadLetters
+	}
+	return rep.expectedLetters(flow)
+}
+
+func (d *driver) expectedTerms(units []Unit) map[termKey]uint64 {
+	terms := map[termKey]uint64{}
+	for _, u := range units {
+		if trigger, code, ok := termOf(u); ok {
+			terms[termKey{d.env.Subject(events.Type(trigger).Subject()), string(code)}]++
+		}
+	}
+	return terms
+}
+
 func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) []error {
+	terms, want := d.expectedTerms(rep.units), rep.expectedLetters("")
 	var failures []error
 	stream, err := d.env.JS.Stream(ctx, d.env.DeadLetter)
 	if err != nil {
 		failures = append(failures, fmt.Errorf("read %s: %w", d.env.DeadLetter, err))
-	} else if rep.deadLetters = stream.CachedInfo().State.Msgs; rep.deadLetters > 0 {
-		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%d dead letters in %s", rep.deadLetters,
-			d.env.DeadLetter)})
+	} else if rep.deadLetters = stream.CachedInfo().State.Msgs; rep.deadLetters != want {
+		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%d dead letters in %s, want %d", rep.deadLetters,
+			d.env.DeadLetter, want)})
 	}
 	internal := map[string]bool{}
 	for _, c := range errs.All() {
@@ -421,12 +458,22 @@ func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) 
 	}
 	for _, line := range d.env.Logs.Lines() {
 		var fields struct {
-			Code any `json:"code"`
+			Msg     string `json:"msg"`
+			Outcome string `json:"outcome"`
+			Subject string `json:"subject"`
+			Code    any    `json:"code"`
 		}
-		if json.Unmarshal([]byte(line.Text), &fields) == nil && internal[fmt.Sprint(fields.Code)] {
-			failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%s logged an internal error: %s",
-				line.Process, line.Text)})
+		if json.Unmarshal([]byte(line.Text), &fields) != nil || !internal[fmt.Sprint(fields.Code)] {
+			continue
 		}
+		key := termKey{fields.Subject, fmt.Sprint(fields.Code)}
+		term := fields.Msg == observability.BusDispatched.Name && fields.Outcome == string(bus.OutcomeTerm)
+		if term && terms[key] > 0 {
+			terms[key]--
+			continue
+		}
+		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%s logged an internal error: %s",
+			line.Process, line.Text)})
 	}
 	for _, l := range ledger {
 		if err := l.Check(ctx, d.env.Pool); err != nil {

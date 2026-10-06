@@ -699,6 +699,83 @@ func TestVerifyUnits_failsOnDeadLettersInternalErrorsAndLedgerChecks(t *testing.
 	}
 }
 
+const deniedSubject = "verify.events.system.pinged"
+
+func termLine(subject, outcome string) string {
+	return `{"msg":"bus.dispatched","subject":"` + subject + `","outcome":"` + outcome + `","code":"apns_auth_failed"}`
+}
+
+func globalFailures(t *testing.T, units []Unit, letters uint64, lines ...string) (uint64, string) {
+	t.Helper()
+	env := servedEnv(t)
+	env.Subject = func(subject string) string { return "verify." + subject }
+	ns := strings.TrimSuffix(env.DeadLetter, "_"+bus.StreamDeadLetter)
+	for range letters {
+		if _, err := env.JS.Publish(t.Context(), ns+".deadletter.notify", []byte("{}")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, line := range lines {
+		env.Logs.add("worker", line)
+	}
+	d, err := newDriver(env, DefaultBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep := &report{units: units}
+	failures := make([]string, 0, 3)
+	for _, err := range d.global(t.Context(), nil, rep) {
+		failures = append(failures, err.Error())
+	}
+	return rep.deadLetters, strings.Join(failures, "\n")
+}
+
+func TestGlobal_expectsOneDeadLetterAndOneTermLinePerAlertingConsumerOutcome(t *testing.T) {
+	t.Parallel()
+	denied := Unit{
+		Flow:    tools.Flow{ID: "90", Trigger: "consumer:system.pinged", Commands: []string{"Ping"}},
+		Command: "Ping", Outcome: "APNSAuthFailed",
+	}
+	route, quiet, ok, crash := denied, denied, denied, denied
+	route.Flow.Trigger, quiet.Outcome, ok.Outcome, crash.Outcome = "POST /v1/ping", "InvalidInput", "ok", "crash:before-commit"
+	term, acked := termLine(deniedSubject, "term"), termLine(deniedSubject, "ack")
+	elsewhere := termLine("verify.events.other", "term")
+	other := `{"msg":"http.problem","subject":"` + deniedSubject + `","outcome":"term","code":"apns_auth_failed"}`
+	for _, tc := range []struct {
+		name    string
+		units   []Unit
+		letters uint64
+		lines   []string
+		want    []string
+	}{
+		{"its own term and dead letter", []Unit{denied}, 1, []string{term}, nil},
+		{"a second dead letter", []Unit{denied}, 2, []string{term}, []string{"2 dead letters in", ", want 1"}},
+		{"its dead letter missing", []Unit{denied}, 0, []string{term}, []string{"0 dead letters in", ", want 1"}},
+		{"a second term line", []Unit{denied}, 1, []string{term, term}, []string{"error: " + term}},
+		{"another message with its code", []Unit{denied}, 1, []string{other}, []string{"error: " + other}},
+		{"a dispatch that did not term", []Unit{denied}, 1, []string{acked}, []string{"error: " + acked}},
+		{"a term on another subject", []Unit{denied}, 1, []string{elsewhere}, []string{"error: " + elsewhere}},
+		{"no outcome expecting it", nil, 1, []string{term}, []string{"1 dead letters in", ", want 0", "error: " + term}},
+		{"a route outcome", []Unit{route}, 1, []string{term}, []string{"1 dead letters in", "error: " + term}},
+		{"an outcome that does not alert", []Unit{quiet}, 1, []string{term}, []string{"1 dead letters in", "error: " + term}},
+		{"a consumer ok outcome", []Unit{ok}, 1, nil, []string{"1 dead letters in", ", want 0"}},
+		{"a consumer crash outcome", []Unit{crash}, 1, nil, []string{"1 dead letters in", ", want 0"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			letters, failures := globalFailures(t, tc.units, tc.letters, tc.lines...)
+			if letters != tc.letters || (len(tc.want) == 0) != (failures == "") {
+				t.Fatalf("dead letters = %d, failures = %q, want %d and %q", letters, failures, tc.letters, tc.want)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(failures, want) {
+					t.Errorf("failures = %q, want one containing %q", failures, want)
+				}
+			}
+		})
+	}
+}
+
 func TestWithDeadline_firesItsCauseOnTheClockAndCancelsTwiceSafely(t *testing.T) {
 	t.Parallel()
 	clk := fakeClock()

@@ -146,7 +146,7 @@ func (rep *report) write(ctx context.Context, dir string, runErr error) error {
 			order = append(order, u.Flow.ID)
 			byFlow[u.Flow.ID] = &Evidence{
 				Flow: u.Flow.ID, Result: resultPass, Commit: commit, Dirty: dirty, CrashAt: rep.target.CrashAt,
-				Crashes: rep.crashes, Consumers: rep.consumers, DeadLetters: rep.deadLetters,
+				Crashes: rep.crashes, Consumers: rep.consumers, DeadLetters: rep.lettersIn(u.Flow.ID),
 				RunFailures: rep.global, PhasesMS: millis(rep.phases), Host: rep.host,
 				Outcomes: []OutcomeEvidence{},
 			}

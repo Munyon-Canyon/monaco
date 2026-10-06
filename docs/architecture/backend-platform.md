@@ -829,7 +829,7 @@ What one run does:
 2. **Seed.** Replay the flow's starting scenario, for example `cabal-with-members` for flow 7.
 3. **Drive.** Run the flow script over HTTP with real auth headers, `Idempotency-Key`s and the SSE stream open.
 4. **Wait for convergence.** Poll until every event the flow emitted has been acked by every consumer in its flow file, or time out at 30 s. A timeout is a failure with the stuck consumer named.
-5. **Check invariants.** Ledger entries sum to zero per asset. Share units match the pot. No dead letters. No `KindInternal` in the logs. Every log line the flow must emit (registered in `msgs.go`) is present. For a route trigger, the HTTP status and `code` match the expected outcome.
+5. **Check invariants.** Ledger entries sum to zero per asset. Share units match the pot. No dead letters and no `KindInternal` in the logs, except the term of a consumer outcome whose code alerts: exactly one dead letter and one `bus.dispatched` term line on the trigger's subject for each such outcome, such as flow 24 `APNSAuthFailed`. Every log line the flow must emit (registered in `msgs.go`) is present. For a route trigger, the HTTP status and `code` match the expected outcome.
 6. **Write evidence** and print a readable summary.
 7. **Tear down.** Stop the binaries, remove the container, merge coverage into `GOCOVERDIR`.
 
