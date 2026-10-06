@@ -18,9 +18,10 @@ type HTTP struct {
 	Cabals    app.CabalCheck
 	Pages     app.PageLoader
 	Follows   app.Follows
-	Snapshots app.Snapshots
+	Snapshots app.SnapshotReads
 	Ledger    app.Contributions
 	Histories app.HistoryLoader
+	Stakes    app.StakeHistory
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -102,6 +103,34 @@ func (h HTTP) GetCabalValueHistory(
 		return nil, err
 	}
 	return api.GetCabalValueHistory200JSONResponse(out), nil
+}
+
+func (h HTTP) GetMyPnlHistory(
+	ctx context.Context, req api.GetMyPnlHistoryRequestObject,
+) (api.GetMyPnlHistoryResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rng := domain.RangeAll
+	if req.Params.Range != nil {
+		if rng, err = domain.ParseRange(string(*req.Params.Range)); err != nil {
+			return nil, err
+		}
+	}
+	points, err := app.ReadPnLHistory{User: user, Range: rng}.Run(ctx, h.Boards, h.Snapshots, h.Stakes)
+	if err != nil {
+		return nil, err
+	}
+	out := api.MyPnlHistory{Range: api.MyPnlHistoryRange(rng), Points: make([]api.PnlPoint, 0, len(points))}
+	for _, p := range points {
+		equity := p.Equity.Uint64()
+		if equity > math.MaxInt64 {
+			return nil, errs.New(errs.CodeInternal, "ranking.GetMyPnlHistory", slog.Uint64("equity", equity))
+		}
+		out.Points = append(out.Points, api.PnlPoint{At: p.At, EquityMicros: int64(equity), PnlMicros: p.PnL.Int64()})
+	}
+	return api.GetMyPnlHistory200JSONResponse(out), nil
 }
 
 func wireHistory(history domain.ValueHistory, in app.ReadValueHistory) (api.CabalValueHistory, error) {

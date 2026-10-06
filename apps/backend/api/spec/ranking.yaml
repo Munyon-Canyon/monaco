@@ -110,6 +110,30 @@ paths:
                 $ref: "#/components/schemas/CabalValueHistory"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/pnl-history:
+    get:
+      operationId: getMyPnlHistory
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read the caller's P&L history.
+      description: >-
+        Returns the caller's equity and P&L across every cabal they have held a stake in, one point
+        per bucket, oldest first. At each bucket a cabal's stake is read at the time of its latest
+        snapshot, so a fund or a cash out between two snapshots is not a gain or a loss. P&L is equity
+        minus the net contributed, so it keeps the gain a member realised after a cash out. A bucket
+        where a held cabal has no snapshot yet is left out. Before the first run, or with no stake,
+        `points` is empty. An unknown range is invalid_input.
+      parameters:
+        - $ref: "#/components/parameters/ValueHistoryRange"
+      responses:
+        "200":
+          description: The caller's P&L history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyPnlHistory"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     LeaderboardRange:
@@ -166,6 +190,32 @@ components:
           format: date-time
           description: The price time of the run the curve ends at. Null before the first run.
           examples: ["2026-10-04T11:59:00Z"]
+    MyPnlHistory:
+      type: object
+      description: The caller's equity and P&L curve.
+      additionalProperties: false
+      required: [range, points]
+      properties:
+        range:
+          type: string
+          enum: ["1H", "1D", "1W", "1M", ALL]
+          description: The window the curve covers.
+          examples: [ALL]
+        points:
+          type: array
+          description: One point per bucket, oldest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/PnlPoint"
+    PnlPoint:
+      type: object
+      description: The caller's equity and P&L at the end of one bucket.
+      additionalProperties: false
+      required: [at, equity_micros, pnl_micros]
+      properties:
+        at: {type: string, format: date-time, description: The end of the bucket., examples: ["2026-10-04T12:00:00Z"]}
+        equity_micros: {type: integer, format: int64, description: The caller's share of every pot in USDC micros., examples: [1000000]}
+        pnl_micros: {type: integer, format: int64, description: "Equity minus the net contributed, negative for a loss.", examples: [-5]}
     CabalValuePoint:
       type: object
       description: The cabal's value at the end of one bucket.

@@ -12,6 +12,50 @@ import (
 	"github.com/google/uuid"
 )
 
+const snapshotsOfCabals = `-- name: SnapshotsOfCabals :many
+SELECT s.cabal_id, s.at, s.value_micros, s.nav_per_share_micros, s.total_shares
+FROM cabal_value_snapshots AS s
+WHERE s.cabal_id = ANY($1::uuid[])
+  AND s.at <= $2::timestamptz
+  AND s.at >= coalesce(
+    (SELECT max(prior.at) FROM cabal_value_snapshots AS prior
+     WHERE prior.cabal_id = s.cabal_id AND prior.at <= $3::timestamptz),
+    $3::timestamptz)
+ORDER BY s.cabal_id, s.at
+`
+
+type SnapshotsOfCabalsParams struct {
+	CabalIds []uuid.UUID
+	Until    time.Time
+	Since    time.Time
+}
+
+func (q *Queries) SnapshotsOfCabals(ctx context.Context, arg SnapshotsOfCabalsParams) ([]CabalValueSnapshot, error) {
+	rows, err := q.db.Query(ctx, snapshotsOfCabals, arg.CabalIds, arg.Until, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CabalValueSnapshot
+	for rows.Next() {
+		var i CabalValueSnapshot
+		if err := rows.Scan(
+			&i.CabalID,
+			&i.At,
+			&i.ValueMicros,
+			&i.NavPerShareMicros,
+			&i.TotalShares,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const snapshotsSince = `-- name: SnapshotsSince :many
 SELECT s.at, s.value_micros, s.nav_per_share_micros, s.total_shares
 FROM cabal_value_snapshots AS s
