@@ -216,6 +216,14 @@ type ChatMessage struct {
 	ReplyCount int `json:"reply_count"`
 }
 
+// ChatSeenMark The caller's seen watermark.
+type ChatSeenMark struct {
+	// LastSeenAt The watermark after the call.
+	//
+	// Examples: 2026-10-03T12:00:00Z
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
 // ChatThread A top-level message and one page of its replies.
 type ChatThread struct {
 	// Parent One chat message.
@@ -590,6 +598,12 @@ type ChatCabalId = openapi_types.UUID
 // ChatMessageId Examples: 01920000-0000-7000-8000-000000000007
 type ChatMessageId = openapi_types.UUID
 
+// MarkChatSeenParams defines parameters for MarkChatSeen.
+type MarkChatSeenParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetChatMessagesParams defines parameters for GetChatMessages.
 type GetChatMessagesParams struct {
 	// Before A message id. Returns the messages older than it.
@@ -781,6 +795,9 @@ type PostUserFollowJSONRequestBody = FollowRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// MarkChatSeen Mark the cabal's chat as seen.
+	// (POST /v1/cabals/{id}/chat/seen)
+	MarkChatSeen(w http.ResponseWriter, r *http.Request, id ChatCabalId, params MarkChatSeenParams)
 	// GetChatMessages Read a cabal's chat channel.
 	// (GET /v1/cabals/{id}/messages)
 	GetChatMessages(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatMessagesParams)
@@ -848,6 +865,60 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// MarkChatSeen operation middleware
+func (siw *ServerInterfaceWrapper) MarkChatSeen(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params MarkChatSeenParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkChatSeen(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetChatMessages operation middleware
 func (siw *ServerInterfaceWrapper) GetChatMessages(w http.ResponseWriter, r *http.Request) {
@@ -2093,6 +2164,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.MarkChatSeen)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.PostChatMessage)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}", wrapper.DeleteChatMessage)
@@ -2114,6 +2186,46 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
+}
+
+type MarkChatSeenRequestObject struct {
+	Id     ChatCabalId `json:"id"`
+	Params MarkChatSeenParams
+}
+
+type MarkChatSeenResponseObject interface {
+	VisitMarkChatSeenResponse(w http.ResponseWriter) error
+}
+
+type MarkChatSeen200JSONResponse ChatSeenMark
+
+func (response MarkChatSeen200JSONResponse) VisitMarkChatSeenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkChatSeendefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response MarkChatSeendefaultApplicationProblemPlusJSONResponse) VisitMarkChatSeenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetChatMessagesRequestObject struct {
@@ -2857,6 +2969,9 @@ func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// MarkChatSeen Mark the cabal's chat as seen.
+	// (POST /v1/cabals/{id}/chat/seen)
+	MarkChatSeen(ctx context.Context, request MarkChatSeenRequestObject) (MarkChatSeenResponseObject, error)
 	// GetChatMessages Read a cabal's chat channel.
 	// (GET /v1/cabals/{id}/messages)
 	GetChatMessages(ctx context.Context, request GetChatMessagesRequestObject) (GetChatMessagesResponseObject, error)
@@ -2953,6 +3068,33 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// MarkChatSeen operation middleware
+func (sh *strictHandler) MarkChatSeen(w http.ResponseWriter, r *http.Request, id ChatCabalId, params MarkChatSeenParams) {
+	var request MarkChatSeenRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkChatSeen(ctx, request.(MarkChatSeenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkChatSeen")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkChatSeenResponseObject); ok {
+		if err := validResponse.VisitMarkChatSeenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetChatMessages operation middleware

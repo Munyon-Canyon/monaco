@@ -122,6 +122,7 @@ func (m *Module) http() adapters.HTTP {
 		Unmute:        app.NewUnmuteHandler(m.deps.UoW),
 		PostChat:      app.NewPostChatMessageHandler(chat),
 		DeleteChat:    app.NewDeleteChatMessageHandler(chat),
+		MarkSeen:      app.NewMarkChatSeenHandler(chat),
 		Token:         app.NewRealtimeTokenHandler(m.members, m.realtime),
 		CreateComment: app.NewCreateCommentHandler(comments),
 		DeleteComment: app.NewDeleteCommentHandler(comments),

@@ -67,3 +67,37 @@ WHERE parent_id = sqlc.arg(parent_id)::uuid
   )
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit)::int;
+
+-- name: MarkChatSeen :one
+INSERT INTO chat_seen (cabal_id, user_id, last_seen_at)
+VALUES (sqlc.arg(cabal_id), sqlc.arg(user_id), sqlc.arg(now)::timestamptz)
+ON CONFLICT (cabal_id, user_id) DO UPDATE
+SET last_seen_at = GREATEST(chat_seen.last_seen_at, EXCLUDED.last_seen_at)
+RETURNING last_seen_at;
+
+-- name: ClaimSeenPublish :one
+WITH newest AS (
+  SELECT id, author_id, created_at
+  FROM cabal_messages
+  WHERE cabal_id = sqlc.arg(cabal_id)
+    AND (parent_id IS NULL OR also_in_channel)
+    AND deleted_at IS NULL
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1
+), claim AS (
+  UPDATE chat_seen
+  SET seen_published_at = sqlc.arg(now)::timestamptz
+  WHERE chat_seen.cabal_id = sqlc.arg(cabal_id) AND chat_seen.user_id = sqlc.arg(user_id)
+    AND (seen_published_at IS NULL OR seen_published_at <= sqlc.arg(now)::timestamptz - interval '5 seconds')
+    AND EXISTS (SELECT 1 FROM newest)
+  RETURNING 1
+)
+SELECT newest.id AS message_id, (
+  SELECT count(*)::int
+  FROM chat_seen
+  WHERE chat_seen.cabal_id = sqlc.arg(cabal_id)
+    AND chat_seen.user_id <> newest.author_id
+    AND chat_seen.last_seen_at >= newest.created_at
+) AS seen_count
+FROM newest
+WHERE EXISTS (SELECT 1 FROM claim);

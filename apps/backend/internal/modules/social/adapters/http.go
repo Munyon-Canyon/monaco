@@ -23,6 +23,7 @@ type HTTP struct {
 	Unmute        *app.UnmuteHandler
 	PostChat      *app.PostChatMessageHandler
 	DeleteChat    *app.DeleteChatMessageHandler
+	MarkSeen      *app.MarkChatSeenHandler
 	Token         *app.RealtimeTokenHandler
 	CreateComment *app.CreateCommentHandler
 	DeleteComment *app.DeleteCommentHandler

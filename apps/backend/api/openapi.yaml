@@ -1645,6 +1645,31 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/social.yaml
+  /v1/cabals/{id}/chat/seen:
+    post:
+      operationId: markChatSeen
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 10}}
+      summary: Mark the cabal's chat as seen.
+      description: >-
+        Moves the caller's seen watermark to the server's clock and never moves it backwards, so
+        a replay or a slow client cannot undo a later call. Only a member can mark, otherwise
+        not_cabal_member. Nothing is appended to the event log. Open screens get the new "seen
+        by" count from a `seen.updated` event on the cabal channel, sent at most once per member
+        every 5 seconds.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+      responses:
+        "200":
+          description: The watermark after the call.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSeenMark"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/messages:
     post:
       operationId: postChatMessage
@@ -4423,6 +4448,13 @@ components:
           description: The proposal a proposal card message is about. Null otherwise.
           examples: [null]
         deleted: {type: boolean, description: True on a deleted top-level message kept for its thread., examples: [false]}
+    ChatSeenMark:
+      type: object
+      description: The caller's seen watermark.
+      additionalProperties: false
+      required: [last_seen_at]
+      properties:
+        last_seen_at: {type: string, format: date-time, description: The watermark after the call., examples: ["2026-10-03T12:00:00Z"]}
     ChatThread:
       type: object
       description: A top-level message and one page of its replies.

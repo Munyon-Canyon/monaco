@@ -38,6 +38,52 @@ func (q *Queries) BumpChatReplies(ctx context.Context, arg BumpChatRepliesParams
 	return i, err
 }
 
+const claimSeenPublish = `-- name: ClaimSeenPublish :one
+WITH newest AS (
+  SELECT id, author_id, created_at
+  FROM cabal_messages
+  WHERE cabal_id = $1
+    AND (parent_id IS NULL OR also_in_channel)
+    AND deleted_at IS NULL
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1
+), claim AS (
+  UPDATE chat_seen
+  SET seen_published_at = $2::timestamptz
+  WHERE chat_seen.cabal_id = $1 AND chat_seen.user_id = $3
+    AND (seen_published_at IS NULL OR seen_published_at <= $2::timestamptz - interval '5 seconds')
+    AND EXISTS (SELECT 1 FROM newest)
+  RETURNING 1
+)
+SELECT newest.id AS message_id, (
+  SELECT count(*)::int
+  FROM chat_seen
+  WHERE chat_seen.cabal_id = $1
+    AND chat_seen.user_id <> newest.author_id
+    AND chat_seen.last_seen_at >= newest.created_at
+) AS seen_count
+FROM newest
+WHERE EXISTS (SELECT 1 FROM claim)
+`
+
+type ClaimSeenPublishParams struct {
+	CabalID uuid.UUID
+	Now     time.Time
+	UserID  uuid.UUID
+}
+
+type ClaimSeenPublishRow struct {
+	MessageID uuid.UUID
+	SeenCount int32
+}
+
+func (q *Queries) ClaimSeenPublish(ctx context.Context, arg ClaimSeenPublishParams) (ClaimSeenPublishRow, error) {
+	row := q.db.QueryRow(ctx, claimSeenPublish, arg.CabalID, arg.Now, arg.UserID)
+	var i ClaimSeenPublishRow
+	err := row.Scan(&i.MessageID, &i.SeenCount)
+	return i, err
+}
+
 const getChatCursor = `-- name: GetChatCursor :one
 SELECT created_at, id
 FROM cabal_messages
@@ -343,6 +389,27 @@ func (q *Queries) LockChatMessage(ctx context.Context, id uuid.UUID) (LockChatMe
 		&i.Deleted,
 	)
 	return i, err
+}
+
+const markChatSeen = `-- name: MarkChatSeen :one
+INSERT INTO chat_seen (cabal_id, user_id, last_seen_at)
+VALUES ($1, $2, $3::timestamptz)
+ON CONFLICT (cabal_id, user_id) DO UPDATE
+SET last_seen_at = GREATEST(chat_seen.last_seen_at, EXCLUDED.last_seen_at)
+RETURNING last_seen_at
+`
+
+type MarkChatSeenParams struct {
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+	Now     time.Time
+}
+
+func (q *Queries) MarkChatSeen(ctx context.Context, arg MarkChatSeenParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, markChatSeen, arg.CabalID, arg.UserID, arg.Now)
+	var last_seen_at time.Time
+	err := row.Scan(&last_seen_at)
+	return last_seen_at, err
 }
 
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :execrows
