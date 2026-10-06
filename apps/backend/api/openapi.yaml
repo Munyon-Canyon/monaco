@@ -1764,6 +1764,58 @@ paths:
                 $ref: "#/components/schemas/FollowState"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/users/{id}/followers:
+    get:
+      operationId: getUserFollowers
+      tags: [social]
+      summary: List a user's followers.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page.
+          schema: {type: string, maxLength: 128, examples: ["MTc1OTQ3OTMzMDEyMzQ1Ni4wMTkyMDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDc"]}
+        - name: limit
+          in: query
+          required: false
+          description: The page size, 30 by default.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 30, examples: [30]}
+      responses:
+        "200":
+          description: One page of followers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowsPage"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/users/{id}/following:
+    get:
+      operationId: getUserFollowing
+      tags: [social]
+      summary: List the users a user follows.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page.
+          schema: {type: string, maxLength: 128, examples: ["MTc1OTQ3OTMzMDEyMzQ1Ni4wMTkyMDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDc"]}
+        - name: limit
+          in: query
+          required: false
+          description: The page size, 30 by default.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 30, examples: [30]}
+      responses:
+        "200":
+          description: One page of followed users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowsPage"
+        default:
+          $ref: "#/components/responses/Problem"
   # api/spec/system.yaml
   /v1/system/pings:
     post:
@@ -3854,6 +3906,33 @@ components:
           type: boolean
           description: True after a follow and false after an unfollow.
           examples: [true]
+    FollowUser:
+      type: object
+      description: A listed user, with whether the caller follows them.
+      additionalProperties: false
+      required: [user_id, handle, display_name, photo_url, followed_by_me]
+      properties:
+        user_id: {type: string, format: uuid}
+        handle: {type: string}
+        display_name: {type: string}
+        photo_url: {type: [string, "null"]}
+        followed_by_me: {type: boolean}
+    FollowsPage:
+      type: object
+      description: One page of a user's followers or following, newest first.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The page.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/FollowUser"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
   # api/spec/system.yaml
     Ping:
       type: object

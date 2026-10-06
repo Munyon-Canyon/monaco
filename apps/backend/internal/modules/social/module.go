@@ -46,6 +46,7 @@ func (m *Module) http() adapters.HTTP {
 		Mute:     app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
 		Unmute:   app.NewUnmuteHandler(m.deps.UoW),
 		Reads:    m.deps.Pool,
+		Users:    m.users,
 	}
 }
 
