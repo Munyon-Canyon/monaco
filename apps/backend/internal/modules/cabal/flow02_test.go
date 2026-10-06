@@ -54,7 +54,7 @@ func cabalScenarioWith(t *testing.T, opts []cabal.Option, extra ...scenario.Opti
 
 func TestFlow02_CreateCabal_OK(t *testing.T) {
 	t.Parallel()
-	flows.F02CreateCabalOK(cabalScenario(t))
+	flows.F02CreateCabalOK(cabalScenario(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow02_CreateCabal_InvalidInput(t *testing.T) {

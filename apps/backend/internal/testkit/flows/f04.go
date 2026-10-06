@@ -148,6 +148,7 @@ func F04LeaveCabalOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusNoContent),
 		).
 		Then(left()...)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeCabalMemberLeft, "cabal_left", "cabal_id", s.Recall("cabal")))
 }
 
 func F04LeaveCabalUnauthorized(s *scenario.Scenario) {

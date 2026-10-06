@@ -75,6 +75,7 @@ func F03JoinCabalOK(s *scenario.Scenario) {
 			scenario.EventuallyHint("cabal_access"),
 			cabalHolds(),
 		)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeCabalMemberJoined, "cabal_joined", "cabal_id", s.Recall("cabal")))
 }
 
 func F03JoinCabalUnauthorized(s *scenario.Scenario) {
