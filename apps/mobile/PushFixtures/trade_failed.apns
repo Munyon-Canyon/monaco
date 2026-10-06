@@ -1,0 +1,12 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "Trade didn't go through",
+      "body": "Your cabal's buy of Apple failed. No money moved."
+    }
+  },
+  "kind": "trade_failed",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "txn_id": "01920000-0000-7000-8000-000000000b01"
+}

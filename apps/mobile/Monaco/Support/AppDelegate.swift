@@ -6,6 +6,8 @@ import os
 final class AppDelegate: NSObject, UIApplicationDelegate {
     static weak var environment: AppEnvironment?
 
+    private var pushCenter: PushCenterDelegate?
+
     static func registerIfAuthorized() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         guard let environment else { return }
@@ -14,6 +16,20 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
             return
         }
         UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        guard let environment = Self.environment else {
+            AppLogger.session.error("Push taps will not open a screen: the app environment is missing at launch")
+            return true
+        }
+        let center = PushCenterDelegate(router: PushRouter(environment: environment))
+        pushCenter = center
+        UNUserNotificationCenter.current().delegate = center
+        return true
     }
 
     func application(

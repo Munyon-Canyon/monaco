@@ -1,0 +1,12 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "Trade filled",
+      "body": "Your cabal bought $50.00 of Apple"
+    }
+  },
+  "kind": "trade_filled",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "txn_id": "01920000-0000-7000-8000-000000000b01"
+}

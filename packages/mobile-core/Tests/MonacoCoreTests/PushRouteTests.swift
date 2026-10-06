@@ -183,6 +183,54 @@ final class PushRouteTests: XCTestCase {
         XCTAssertNotEqual(cabal, cabal.uppercased())
     }
 
+    func testEveryFixtureCarriesItsSendersKeysAndOpensItsScreen() throws {
+        let rows: [(file: String, keys: Set<String>, screen: String)] = [
+            ("trade_filled", ["kind", "cabal_id", "txn_id"], "transaction"),
+            ("trade_failed", ["kind", "cabal_id", "txn_id"], "transaction"),
+            ("proposal_created", ["kind", "cabal_id", "proposal_id"], "proposal"),
+            ("cabal_paused", ["kind", "cabal_id"], "cabal"),
+            ("deposit_credited", ["kind"], "home"),
+            ("nudge", ["kind", "user_id"], "home"),
+            ("new_follower", ["kind", "user_id"], "userProfile"),
+            ("chat_mention", ["kind", "cabal_id", "message_id"], "chat"),
+            ("chat_thread_reply", ["kind", "cabal_id", "message_id"], "chat"),
+            ("comment_reply_feed", ["kind", "feed_item_id"], "feedItem"),
+            ("comment_reply_proposal", ["kind", "feed_item_id", "proposal_id", "cabal_id"], "proposal"),
+            ("malformed", ["kind", "cabal_id", "txn_id"], "home"),
+        ]
+        var directory = URL(fileURLWithPath: #filePath)
+        for _ in 0..<5 { directory.deleteLastPathComponent() }
+        directory = directory.appendingPathComponent("apps/mobile/PushFixtures")
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.hasSuffix(".apns") }
+            .sorted()
+        XCTAssertEqual(files, rows.map { "\($0.file).apns" }.sorted())
+        for row in rows {
+            let data = try Data(contentsOf: directory.appendingPathComponent("\(row.file).apns"))
+            var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any], row.file)
+            XCTAssertEqual(
+                payload.removeValue(forKey: "Simulator Target Bundle") as? String, "com.monaco.app", row.file)
+            let alert = (payload.removeValue(forKey: "aps") as? [String: Any])?["alert"] as? [String: Any]
+            XCTAssertNotNil(alert?["title"] as? String, row.file)
+            XCTAssertNotNil(alert?["body"] as? String, row.file)
+            XCTAssertEqual(Set(payload.keys), row.keys, row.file)
+            XCTAssertEqual(screen(of: PushRoute.parse(payload)), row.screen, row.file)
+        }
+    }
+
+    private func screen(of route: PushRoute) -> String {
+        switch route {
+        case .userProfile: "userProfile"
+        case .chat: "chat"
+        case .transaction: "transaction"
+        case .proposal: "proposal"
+        case .feedItem: "feedItem"
+        case .cabal: "cabal"
+        case .home: "home"
+        }
+    }
+
     private func wire(_ kind: String, _ data: [String: Any]) -> [String: Any] {
         let aps: [String: Any] = ["alert": ["title": "Title", "body": "Body"]]
         return data.merging(["aps": aps, "kind": kind]) { _, standard in standard }

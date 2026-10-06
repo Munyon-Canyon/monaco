@@ -1,0 +1,12 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "QA cabal",
+      "body": "Maya mentioned you"
+    }
+  },
+  "kind": "chat_mention",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "message_id": "01920000-0000-7000-8000-000000000f01"
+}
