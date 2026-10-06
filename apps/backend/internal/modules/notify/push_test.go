@@ -35,6 +35,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 const (
@@ -627,7 +628,7 @@ func renderer[E events.Event](k app.Kind[E]) func(context.Context, events.Event,
 	}
 }
 
-func copyCases(cabals app.Cabals) map[string]copyCase {
+func copyCases(cabals app.Cabals, assets app.Assets) map[string]copyCase {
 	return map[string]copyCase{
 		"test":             {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
 		"deposit_credited": {events.TypeDepositCredited, renderer[events.DepositCredited](app.DepositCredited{})},
@@ -637,12 +638,18 @@ func copyCases(cabals app.Cabals) map[string]copyCase {
 		"cabal_resumed": {
 			events.TypeCabalResumed, renderer[events.CabalResumed](app.CabalResumed{Cabals: cabals}),
 		},
+		"trade_filled": {
+			events.TypeTradeConfirmed, renderer[events.TradeConfirmed](app.TradeFilled{Cabals: cabals, Assets: assets}),
+		},
+		"trade_failed": {
+			events.TypeTradeFailed, renderer[events.TradeFailed](app.TradeFailed{Cabals: cabals, Assets: assets}),
+		},
 	}
 }
 
 func copyFaults(m app.Message) []string {
 	base58Run := regexp.MustCompile(`[1-9A-HJ-NP-Za-km-z]+`)
-	banned := regexp.MustCompile(`(?i)\b(group|club)s?\b|xstock`)
+	banned := regexp.MustCompile(`(?i)\b(group|club)s?\b|xstock|(?-i:\b[A-Z]+x\b)`)
 	texts := make([]string, 0, 2+2*len(m.Data))
 	texts = append(texts, m.Title, m.Body)
 	var faults []string
@@ -687,8 +694,9 @@ func TestNotifyCopy(t *testing.T) {
 	paused := goldenEvent(t, events.TypeCabalPaused).(events.CabalPaused)
 	seed := fakes.CabalSeed{View: cabal.View{ID: ids.CabalIDFrom(*paused.CabalID), Name: cabalName}}
 	cabals := fakes.NewCabal([]fakes.CabalSeed{seed}, nil)
+	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
 	covered := map[events.Type]bool{}
-	for name, c := range copyCases(cabals) {
+	for name, c := range copyCases(cabals, assets) {
 		covered[c.typ] = true
 		msg, err := c.render(t.Context(), goldenEvent(t, c.typ), to)
 		if err != nil {
@@ -718,10 +726,13 @@ func TestNotifyCopy_catchesEveryPlantedFault(t *testing.T) {
 		"club in the body":      {app.Message{Body: "The CLUB voted"}, true},
 		"groups in the body":    {app.Message{Body: "Two Groups bought"}, true},
 		"brand in a data value": {app.Message{Data: map[string]string{"symbol": "TSLAxStock"}}, true},
+		"issuer symbol in body": {app.Message{Body: "Your cabal bought $50.00 of AAPLx"}, true},
+		"issuer symbol in data": {app.Message{Data: map[string]string{"symbol": "NVDAx"}}, true},
 		"address in the body":   {app.Message{Body: "Bought " + mint}, true},
 		"address as a data key": {app.Message{Data: map[string]string{mint: "x"}}, true},
 		"badge key in any case": {app.Message{Data: map[string]string{"Badge": "1"}}, true},
 		"near misses":           {app.Message{Title: "Your cabal bought", Body: "Clubhouse groupies"}, false},
+		"names that end in x":   {app.Message{Body: "Your cabal sold $5.00 of Netflix, Xerox and SpaceX"}, false},
 		"a longer base58 run":   {app.Message{Body: mint + mint}, false},
 		"a uuid":                {app.Message{Data: map[string]string{"id": "019b76da-a800-7e41-9d3c-5b2a8f6e1c07"}}, false},
 	} {

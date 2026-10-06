@@ -3,6 +3,7 @@ package notify
 import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
@@ -17,6 +18,7 @@ type Module struct {
 	deps   module.Deps
 	users  app.Users
 	cabals app.Cabals
+	assets app.Assets
 	sender apns.Sender
 }
 
@@ -30,12 +32,19 @@ func WithCabals(cabals app.Cabals) Option {
 	return func(m *Module) { m.cabals = cabals }
 }
 
+func WithAssets(assets app.Assets) Option {
+	return func(m *Module) { m.assets = assets }
+}
+
 func WithSender(sender apns.Sender) Option {
 	return func(m *Module) { m.sender = sender }
 }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{deps: d, users: identity.New(d).Queries(), cabals: cabal.New(d).Queries(), sender: d.APNs}
+	m := &Module{
+		deps: d, users: identity.New(d).Queries(), cabals: cabal.New(d).Queries(),
+		assets: market.New(d).Catalog(), sender: d.APNs,
+	}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -61,6 +70,8 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.DepositCredited{}),
 		adapters.Push(pusher, app.CabalPaused{Cabals: m.cabals}),
 		adapters.Push(pusher, app.CabalResumed{Cabals: m.cabals}),
+		adapters.Push(pusher, app.TradeFilled{Cabals: m.cabals, Assets: m.assets}),
+		adapters.Push(pusher, app.TradeFailed{Cabals: m.cabals, Assets: m.assets}),
 	}}}
 }
 
