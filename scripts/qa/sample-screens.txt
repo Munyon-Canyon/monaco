@@ -65,8 +65,9 @@ cabal-invite-code             -MonacoCabalInviteCodeSample
 propose-from-stock            -MonacoProposalFeedSample -MonacoProposeSampleStock
 
 chat-busy                     -MonacoChatSampleQA -MonacoChatSampleBusy
-chat-closed-blip              -MonacoChatSampleQA -MonacoChatSampleClosedBlip
 chat-closed-first-load        -MonacoChatSampleQA -MonacoChatSampleClosedFirstLoad
+chat-closed-on-send           -MonacoChatSampleQA -MonacoChatSampleClosedOnSend
+chat-flaky                    -MonacoChatSampleQA -MonacoChatSampleFlaky
 
 profile-save-failure          -MonacoProfileSample saveFailure
 profile-save-success          -MonacoProfileSample saveSuccess

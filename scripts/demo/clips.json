@@ -496,7 +496,7 @@
         },
         {
           "tap": {
-            "id": "group-chat-composer"
+            "id": "chat-composer"
           }
         },
         {
@@ -504,7 +504,7 @@
         },
         {
           "tap": {
-            "id": "group-chat-send"
+            "id": "chat-send"
           }
         },
         {
@@ -523,7 +523,7 @@
         },
         {
           "tap": {
-            "id": "group-chat-composer"
+            "id": "chat-composer"
           }
         },
         {
@@ -531,7 +531,7 @@
         },
         {
           "tap": {
-            "id": "group-chat-send"
+            "id": "chat-send"
           }
         },
         {
