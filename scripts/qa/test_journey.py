@@ -71,8 +71,10 @@ JOURNEY_SWIFT = """enum SignInJourney {
 """
 
 TESTS_SWIFT = """nonisolated final class SignInJourneyUITests: XCTestCase {
-    func testS1SignIn() throws {}
-    func testS2Relaunch() throws {}
+    func testJourney() throws {
+        try session.scenario("S1") {}
+        try session.scenario("S2") {}
+    }
 }
 """
 
@@ -143,9 +145,26 @@ class Check(Tree):
         (journey.ROOT / "ui/SignInJourneyUITests.swift").unlink()
         self.assertIn("does not exist", self.problems()[0])
 
-    def test_a_scenario_with_no_test_method_is_named(self):
-        self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT.replace("    func testS2Relaunch() throws {}\n", ""))
-        self.assertTrue(any("no test method named testS2" in p for p in self.problems()))
+    def test_a_scenario_missing_from_test_journey_is_named(self):
+        self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT.replace('        try session.scenario("S2") {}\n', ""))
+        self.assertIn('testJourney has no session.scenario("S2")', self.problems()[0])
+
+    def test_scenarios_out_of_the_docs_order_are_named(self):
+        self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT.replace("S1", "SX").replace("S2", "S1").replace("SX", "S2"))
+        self.assertIn("runs its scenarios out of the doc's order S1 S2", self.problems()[0])
+
+    def test_per_scenario_test_methods_are_still_accepted_until_the_journeys_move(self):
+        self.write("ui/SignInJourneyUITests.swift", """nonisolated final class SignInJourneyUITests: XCTestCase {
+    func testS1SignIn() throws {}
+    func testS2Relaunch() throws {}
+}
+""")
+        self.assertEqual(self.problems(), [])
+        self.write("ui/SignInJourneyUITests.swift", """nonisolated final class SignInJourneyUITests: XCTestCase {
+    func testS1SignIn() throws {}
+}
+""")
+        self.assertIn("no test method named testS2", self.problems()[0])
 
     def test_a_doc_step_the_test_does_not_record_is_named(self):
         self.write("ui/SignInJourney.swift", JOURNEY_SWIFT.replace('step("S1.2"); ', ""))
@@ -265,29 +284,6 @@ class Composition(Tree):
         self.add("cabal/create", ["cabal/join"])
         self.add("cabal/join", ["cabal/create"])
         self.assertTrue(any("requires form a cycle" in p for p in self.problems()))
-
-    def test_phases_run_in_number_order_each_on_its_actor(self):
-        self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT.replace(
-            "    func testS2Relaunch() throws {}\n",
-            "    func testS2Phase2BJoins() throws {}\n    func testS2Phase1ACreates() throws {}\n"
-            "    func testS2Phase3ASeesB() throws {}\n"))
-        loaded = journey.load_journeys()["auth/sign-in"]
-        self.assertEqual(journey.xcuitest_phases(loaded, "S2"), [
-            (1, "A", "SignInJourneyUITests/testS2Phase1ACreates"),
-            (2, "B", "SignInJourneyUITests/testS2Phase2BJoins"),
-            (3, "A", "SignInJourneyUITests/testS2Phase3ASeesB"),
-        ])
-        self.assertEqual(journey.xcuitest_phases(loaded, "S1"), [(1, "A", "SignInJourneyUITests/testS1SignIn")])
-
-    def test_a_scenario_does_not_match_another_scenario_with_its_number_prefix(self):
-        self.write("ui/SignInJourneyUITests.swift", """nonisolated final class SignInJourneyUITests: XCTestCase {
-    func testS1A() throws {}
-    func testS10B() throws {}
-}
-""")
-        self.assertEqual(journey.xcuitest_phases(journey.load_journeys()["auth/sign-in"], "S1"), [
-            (1, "A", "SignInJourneyUITests/testS1A"),
-        ])
 
 
 class Accounts(Tree):
@@ -609,96 +605,6 @@ if [[ $1 == inspect ]]; then echo true; else /bin/cat; fi"""})
 
 
 class Runner(Tree):
-    def test_the_test_runner_passes_its_health_checked_api_url_to_the_app(self):
-        loaded = journey.load_journeys()["auth/sign-in"]
-        run_dir = journey.ROOT / "run"
-        run_dir.mkdir()
-        calls = []
-        saved_sh = journey.sh
-
-        def stub(args, **kwargs):
-            calls.append(kwargs["env"])
-            return type("Result", (), {"stdout": ""})()
-
-        journey.sh = stub
-        try:
-            journey.run_xcuitest(loaded, ["S1"], {"A": "sim"}, journey.load_accounts(environ={}),
-                                 "sms", run_dir, "http://127.0.0.1:8080", "RUN123")
-        finally:
-            journey.sh = saved_sh
-
-        self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_API_BASE_URL"], "http://127.0.0.1:8080")
-        self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_RUN"], "RUN123")
-
-    def test_the_setup_and_truth_scripts_get_the_slots_api_url(self):
-        loaded = journey.load_journeys()["auth/sign-in"]
-        self.write("qa/auth/sign-in.setup.sh", "#!/usr/bin/env bash\n")
-        self.write("qa/auth/sign-in.truth.sh", "#!/usr/bin/env bash\n")
-        run_dir = journey.ROOT / "run"
-        run_dir.mkdir()
-        envs = []
-        saved_sh = journey.sh
-
-        def stub(args, **kwargs):
-            envs.append((Path(args[0]).name, kwargs["env"]))
-            return type("Result", (), {"stdout": "", "returncode": 0})()
-
-        journey.sh = stub
-        try:
-            accounts = journey.load_accounts(environ={})
-            journey.run_xcuitest(loaded, ["S1"], {"A": "sim"}, accounts, "sms", run_dir, "http://127.0.0.1:8180", "R")
-            journey.run_truth(loaded, accounts, "sms", "R", run_dir / "handoff.json", api_base_url="http://127.0.0.1:8180")
-        finally:
-            journey.sh = saved_sh
-        scripts = [env for name, env in envs if name.startswith("sign-in.")]
-        self.assertEqual(len(scripts), 2)
-        for env in scripts:
-            self.assertEqual(env["MONACO_API_BASE_URL"], "http://127.0.0.1:8180")
-            self.assertEqual(env["MONACO_QA_API_BASE_URL"], "http://127.0.0.1:8180")
-
-    def test_a_setup_script_runs_before_each_scenario_in_a_call_of_its_own(self):
-        loaded = journey.load_journeys()["auth/sign-in"]
-        self.write("qa/auth/sign-in.setup.sh", "#!/usr/bin/env bash\n")
-        run_dir = journey.ROOT / "run"
-        run_dir.mkdir()
-        calls = []
-        saved_sh = journey.sh
-
-        def stub(args, **kwargs):
-            if args[0].endswith("setup.sh"):
-                calls.append(("setup", args[1], kwargs["env"]["MONACO_QA_RUN"], kwargs["env"]["MONACO_QA_HANDOFF"]))
-                return type("Result", (), {"returncode": 0})()
-            calls.append(("test", [a for a in args if a.startswith("-only-testing")]))
-            return type("Result", (), {"stdout": ""})()
-
-        journey.sh = stub
-        try:
-            journey.run_xcuitest(loaded, ["S1", "S2"], {"A": "sim"}, journey.load_accounts(environ={}),
-                                 "sms", run_dir, "http://127.0.0.1:8080", "RUN123")
-        finally:
-            journey.sh = saved_sh
-
-        self.assertEqual(calls, [
-            ("setup", "S1", "RUN123", str(run_dir / "handoff.json")),
-            ("test", ["-only-testing:MonacoUITests/SignInJourneyUITests/testS1SignIn"]),
-            ("setup", "S2", "RUN123", str(run_dir / "handoff.json")),
-            ("test", ["-only-testing:MonacoUITests/SignInJourneyUITests/testS2Relaunch"]),
-        ])
-
-    def test_a_failed_setup_stops_the_run_before_its_scenario(self):
-        loaded = journey.load_journeys()["auth/sign-in"]
-        self.write("qa/auth/sign-in.setup.sh", "#!/usr/bin/env bash\n")
-        run_dir = journey.ROOT / "run"
-        run_dir.mkdir()
-        saved_sh = journey.sh
-        journey.sh = lambda args, **kwargs: type("Result", (), {"returncode": 2, "stdout": ""})()
-        try:
-            with self.assertRaisesRegex(journey.JourneyError, "could not set up S1"):
-                journey.run_xcuitest(loaded, ["S1"], {"A": "sim"}, journey.load_accounts(environ={}),
-                                     "sms", run_dir, "http://127.0.0.1:8080", "RUN123")
-        finally:
-            journey.sh = saved_sh
-
     def test_the_truth_check_receives_the_actor_environment(self):
         loaded = journey.load_journeys()["auth/sign-in"]
         self.write("qa/auth/sign-in.truth.sh", "#!/usr/bin/env bash\n")
@@ -744,9 +650,7 @@ class Simulators(Tree):
     def result(self, stdout="", returncode=0):
         return type("Result", (), {"stdout": stdout, "returncode": returncode})()
 
-    def test_an_unmapped_actor_gets_a_dedicated_simulator_built_like_gold(self):
-        calls = []
-
+    def stub_for(self, calls, created="journey"):
         def stub(args, **kwargs):
             calls.append(args)
             if args == ["scripts/gold-sim-udid.sh"]:
@@ -754,75 +658,48 @@ class Simulators(Tree):
             if args == ["xcrun", "simctl", "list", "devices", "--json"]:
                 return self.result(json.dumps({"devices": self.devices}))
             if args[:3] == ["xcrun", "simctl", "create"]:
-                return self.result("journey-a\n")
-            if args[0].endswith("simslim-ensure.sh"):
-                return self.result()
-            self.fail("unexpected command: %r" % (args,))
-
-        journey.sh = stub
-        self.assertEqual(journey.resolve_simulators(self.loaded, {}), {"A": "journey-a"})
-        self.assertEqual(calls[-2], [
-            "xcrun", "simctl", "create", "Monaco Journeys A", "phone",
-            "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
-        ])
-
-    def test_a_lane_names_its_actor_simulators_after_itself(self):
-        calls = []
-
-        def stub(args, **kwargs):
-            calls.append(args)
-            if args == ["scripts/gold-sim-udid.sh"]:
-                return self.result("gold\n")
-            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
-                devices = dict(self.devices)
-                devices["other"] = [{"udid": "primary-a", "name": "Monaco Journeys A", "isAvailable": True}]
-                return self.result(json.dumps({"devices": devices}))
-            if args[:3] == ["xcrun", "simctl", "create"]:
-                return self.result("lane-a\n")
+                return self.result(created + "\n")
             if args[:2] == ["git", "rev-parse"]:
                 return self.result(self.tmp.name + "\n")
             if args[0].endswith("simslim-ensure.sh"):
                 return self.result()
             self.fail("unexpected command: %r" % (args,))
+        return stub
 
-        journey.sh = stub
+    def test_one_dedicated_simulator_is_built_like_gold_whatever_the_actors(self):
+        calls = []
+        journey.sh = self.stub_for(calls)
+        self.assertEqual(journey.resolve_simulator(), "journey")
+        self.assertEqual([c for c in calls if c[:3] == ["xcrun", "simctl", "create"]], [[
+            "xcrun", "simctl", "create", "Monaco Journeys", "phone",
+            "com.apple.CoreSimulator.SimRuntime.iOS-26-5"]])
+
+    def test_a_lane_names_its_simulator_after_itself(self):
+        calls = []
+        self.devices["other"] = [{"udid": "primary", "name": "Monaco Journeys", "isAvailable": True}]
+        journey.sh = self.stub_for(calls, "lane")
         journey.lane_name = lambda: "agent-7"
-        self.assertEqual(journey.resolve_simulators(self.loaded, {}), {"A": "lane-a"})
-        self.assertIn(["xcrun", "simctl", "create", "Monaco Journeys agent-7 A", "phone",
+        self.assertEqual(journey.resolve_simulator(), "lane")
+        self.assertIn(["xcrun", "simctl", "create", "Monaco Journeys agent-7", "phone",
                        "com.apple.CoreSimulator.SimRuntime.iOS-26-5"], calls)
         registry = Path(self.tmp.name, "monaco-lane-sims.tsv").read_text()
-        self.assertEqual(registry, "lane-a\tagent-7\tMonaco Journeys agent-7 A\n")
+        self.assertEqual(registry, "lane\tagent-7\tMonaco Journeys agent-7\n")
 
-    def test_a_new_actor_simulator_is_slimmed_and_an_existing_one_is_checked(self):
+    def test_a_new_simulator_is_slimmed_and_an_existing_one_is_checked(self):
         calls = []
-
-        def stub(args, **kwargs):
-            calls.append(args)
-            if args == ["scripts/gold-sim-udid.sh"]:
-                return self.result("gold\n")
-            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
-                return self.result(json.dumps({"devices": self.devices}))
-            if args[:3] == ["xcrun", "simctl", "create"]:
-                return self.result("journey-a\n")
-            if args[0].endswith("simslim-ensure.sh"):
-                return self.result()
-            self.fail("unexpected command: %r" % (args,))
-
-        journey.sh = stub
-        journey.resolve_simulators(self.loaded, {})
+        journey.sh = self.stub_for(calls)
+        journey.resolve_simulator()
         ensure = [c[1:] for c in calls if c[0].endswith("simslim-ensure.sh")]
-        self.assertEqual(ensure, [["create", "journey-a"]])
-        devices = dict(self.devices)
-        devices["other"] = [{"udid": "have-a", "name": "Monaco Journeys A", "isAvailable": True}]
-        self.devices = devices
+        self.assertEqual(ensure, [["create", "journey"]])
+        self.devices["other"] = [{"udid": "have", "name": "Monaco Journeys", "isAvailable": True}]
         del calls[:]
-        journey.resolve_simulators(self.loaded, {})
+        self.assertEqual(journey.resolve_simulator(), "have")
         ensure = [c[1:] for c in calls if c[0].endswith("simslim-ensure.sh")]
-        self.assertEqual(ensure, [["check", "have-a"]])
+        self.assertEqual(ensure, [["check", "have"]])
 
-    def test_an_explicit_simulator_is_not_slimmed(self):
+    def test_an_explicit_simulator_is_kept_and_not_slimmed(self):
         journey.sh = lambda args, **kwargs: self.fail("unexpected command: %r" % (args,))
-        self.assertEqual(journey.resolve_simulators(self.loaded, {"A": "mine"}), {"A": "mine"})
+        self.assertEqual(journey.resolve_simulator("mine"), "mine")
 
     def test_lane_name_is_the_linked_worktree_directory(self):
         journey.lane_name = self.saved_lane_name
@@ -835,21 +712,8 @@ class Simulators(Tree):
         journey.ROOT = root / "wt" / "agent-7"
         self.assertEqual(journey.lane_name(), "agent-7")
 
-    def test_an_explicit_simulator_mapping_is_kept(self):
-        def unexpected(*args, **kwargs):
-            self.fail("simctl call: %r" % (args,))
-
-        journey.sh = unexpected
-        self.assertEqual(journey.resolve_simulators(self.loaded, {"A": "chosen"}), {"A": "chosen"})
-
     def test_a_conflicting_simulator_environment_stops_the_run(self):
-        devices = {
-            "runtime": [{"udid": "journey-a", "name": "Monaco Journeys A", "isAvailable": True}],
-        }
-
         def stub(args, **kwargs):
-            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
-                return self.result(json.dumps({"devices": devices}))
             if args == ["xcrun", "simctl", "boot", "journey-a"]:
                 return self.result()
             if args == ["xcrun", "simctl", "bootstatus", "journey-a", "-b"]:
@@ -859,45 +723,26 @@ class Simulators(Tree):
             self.fail("unexpected command: %r" % (args,))
 
         journey.sh = stub
-        with self.assertRaisesRegex(journey.JourneyError, "simulator Monaco Journeys A has MONACO_API_BASE_URL=http://127.0.0.1:8082"):
-            journey.check_simulator_api_environment({"A": "journey-a"}, "http://127.0.0.1:8080")
+        with self.assertRaisesRegex(journey.JourneyError, "simulator journey-a has MONACO_API_BASE_URL=http://127.0.0.1:8082"):
+            journey.check_simulator_api_environment("journey-a", "http://127.0.0.1:8080")
 
-    def test_only_dedicated_simulators_are_reset_without_fresh(self):
+    def test_a_dedicated_simulator_is_reset_without_fresh_and_an_explicit_one_is_not(self):
         calls = []
-        self.loaded.actors = ["A", "B"]
-        devices = {
-            "runtime": [
-                {"udid": "journey-a", "name": "Monaco Journeys A", "isAvailable": True},
-                {"udid": "chosen-b", "name": "Chosen B", "isAvailable": True},
-            ],
-        }
-
-        def stub(args, **kwargs):
-            calls.append(args)
-            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
-                return self.result(json.dumps({"devices": devices}))
-            return self.result()
-
-        journey.sh = stub
-        journey.reset_journey_simulators(self.loaded, {"A": "journey-a", "B": "chosen-b"}, {"B"}, False)
-        self.assertEqual(calls[1:], [
-            ["xcrun", "simctl", "boot", "journey-a"],
-            ["xcrun", "simctl", "bootstatus", "journey-a", "-b"],
-            ["xcrun", "simctl", "uninstall", "journey-a", "com.monaco.app"],
+        journey.sh = lambda args, **kwargs: calls.append(args) or self.result()
+        journey.reset_journey_simulator("chosen", True, False)
+        self.assertEqual(calls, [])
+        journey.reset_journey_simulator("journey", False, False)
+        self.assertEqual(calls, [
+            ["xcrun", "simctl", "boot", "journey"],
+            ["xcrun", "simctl", "bootstatus", "journey", "-b"],
+            ["xcrun", "simctl", "uninstall", "journey", "com.monaco.app"],
         ])
 
     def test_fresh_resets_an_explicit_simulator(self):
         calls = []
-
-        def stub(args, **kwargs):
-            calls.append(args)
-            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
-                return self.result(json.dumps({"devices": self.devices}))
-            return self.result()
-
-        journey.sh = stub
-        journey.reset_journey_simulators(self.loaded, {"A": "gold"}, {"A"}, True)
-        self.assertEqual(calls[1:], [
+        journey.sh = lambda args, **kwargs: calls.append(args) or self.result()
+        journey.reset_journey_simulator("gold", True, True)
+        self.assertEqual(calls, [
             ["xcrun", "simctl", "boot", "gold"],
             ["xcrun", "simctl", "bootstatus", "gold", "-b"],
             ["xcrun", "simctl", "uninstall", "gold", "com.monaco.app"],
@@ -1097,8 +942,8 @@ class RemappedRun(Output):
         with unittest.mock.patch.object(journey, "sh", stub), \
                 unittest.mock.patch.object(journey, "simulator_devices", lambda: devices), \
                 unittest.mock.patch.object(journey, "lane_name", lambda: None), redirect_stdout(StringIO()):
-            sims = journey.resolve_simulators(loaded, {}, logins)
-        self.assertEqual(sims, {"A": "sim-c"})
+            sim = journey.resolve_simulator("", logins)
+        self.assertEqual(sim, "sim-c")
         self.assertEqual(created, ["Monaco Journeys C"])
 
     def test_a_remapped_run_builds_into_its_own_derived_data(self):
@@ -1235,10 +1080,10 @@ class Budget(Output):
         hang.chmod(0o755)
         args = ["run", "auth/sign-in", "--no-build", "--timeout", "2"]
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
-                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
-                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
-                unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
                 unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *extra: [str(hang)]), \
                 redirect_stdout(StringIO()) as printed:
@@ -1248,10 +1093,10 @@ class Budget(Output):
 
         self.assertEqual(code, 1)
         self.assertLess(took, 10)
-        self.assertIn("auth/sign-in timed out after 2 s in S1,S2 test", printed.getvalue())
+        self.assertIn("auth/sign-in timed out after 2 s in S1 test", printed.getvalue())
         rows = [line.split("\t") for line in journey.RESULTS.read_text().splitlines()[1:]]
         results = {row[journey.COLUMNS.index("scenario")]: row[journey.COLUMNS.index("result")] for row in rows}
-        self.assertEqual(results, {"S1": "TIMEOUT", "S2": "TIMEOUT", "*": "TIMEOUT"})
+        self.assertEqual(results, {"S1": "TIMEOUT", "S2": "SKIP", "*": "TIMEOUT"})
         leader, child = (int(pid) for pid in pids.read_text().split())
         self.assertTrue(_gone(lambda: os.killpg(leader, 0)), "the hung test's process group outlived its kill")
         self.assertTrue(_gone(lambda: os.kill(child, 0)), "the hung test's child outlived its group kill")
@@ -1300,28 +1145,30 @@ class KnownFailures(Tree):
 
 
 class KnownRuns(Output):
-    """A full run whose xcodebuild prints a canned log: S1 fails at `s1_fails_at`, S2 passes."""
+    """A full run whose xcodebuild prints a canned log: S1 fails at `s1_fails_at`, or both scenarios pass."""
 
     def run_journey(self, s1_fails_at, known):
         self.write("docs/journeys/auth/sign-in.md", DOC + "\n## Known failures on staging\n\n" + known)
-        test = "Test Case '-[MonacoUITests.SignInJourneyUITests %s]' %s"
-        lines = [test % ("testS1SignIn", "started.")]
+        test = "Test Case '-[MonacoUITests.SignInJourneyUITests testJourney]' %s"
+        lines = [test % "started.", "JOURNEYSCENARIO\tbegin\tS1"]
         for step in ("S1.1", "S1.2"):
             lines.append("JOURNEYSTEP\tbegin\t0\t%s" % step)
             if step == s1_fails_at:
                 break
             lines.append("JOURNEYSTEP\tend\t0\t%s\t10" % step)
-        lines.append(test % ("testS1SignIn", "failed (1.000 seconds)." if s1_fails_at else "passed (1.000 seconds)."))
-        lines += [test % ("testS2Relaunch", "started."), "JOURNEYSTEP\tbegin\t0\tS2.1",
-                  "JOURNEYSTEP\tend\t0\tS2.1\t10", test % ("testS2Relaunch", "passed (1.000 seconds).")]
+        if s1_fails_at:
+            lines += [test % "failed (2.000 seconds)."]
+        else:
+            lines += ["JOURNEYSCENARIO\tend\tS1\t1000", "JOURNEYSCENARIO\tbegin\tS2", "JOURNEYSTEP\tbegin\t0\tS2.1",
+                      "JOURNEYSTEP\tend\t0\tS2.1\t10", "JOURNEYSCENARIO\tend\tS2\t1000", test % "passed (2.000 seconds)."]
         log = self.write("canned.log", "\n".join(lines) + "\n")
         fake = self.write("xcodebuild.sh", "#!/bin/sh\ncat %s\n" % log)
         fake.chmod(0o755)
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
-                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
-                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
-                unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
                 unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *extra: [str(fake)]), \
                 redirect_stdout(StringIO()) as printed:
@@ -1338,15 +1185,16 @@ class KnownRuns(Output):
     def test_a_failure_at_a_known_step_is_known_and_the_run_passes(self):
         code, results, printed = self.run_journey("S1.2", "- S1.2: no form. Blocked by #2140.\n")
         self.assertEqual(code, 0)
-        self.assertEqual(results, {"S1": ("KNOWN", "FAIL"), "S2": ("PASS", "PASS"), "*": ("PASS", "PASS")})
-        self.assertIn("S1 KNOWN 1.0s at S1.2 (#2140)", printed)
-        self.assertIn("| auth/sign-in | %s | S2 | S1 at S1.2 (#2140) | - | - |" % self.last_run(), self.report())
+        self.assertEqual(results, {"S1": ("KNOWN", "FAIL"), "S2": ("SKIP", "PASS"), "*": ("PASS", "PASS")})
+        self.assertIn("S1 KNOWN 0.0s at S1.2 (#2140)", printed)
+        self.assertIn("S2 SKIP 0.0s after S1 FAIL", printed)
+        self.assertIn("| auth/sign-in | %s | - | S1 at S1.2 (#2140) | - | - |" % self.last_run(), self.report())
 
     def test_a_failure_at_an_unlisted_step_is_a_new_failure_and_the_run_fails(self):
         code, results, _ = self.run_journey("S1.1", "- S1.2: no form. Blocked by #2140.\n")
         self.assertEqual(code, 1)
-        self.assertEqual(results, {"S1": ("FAIL", "PASS"), "S2": ("PASS", "PASS"), "*": ("FAIL", "PASS")})
-        self.assertIn("| S2 | - | - | S1 FAIL at S1.1 |", self.report())
+        self.assertEqual(results, {"S1": ("FAIL", "PASS"), "S2": ("SKIP", "PASS"), "*": ("FAIL", "PASS")})
+        self.assertIn("| - | - | - | S1 FAIL at S1.1 |", self.report())
 
     def test_a_known_step_that_passes_is_fixed(self):
         code, results, _ = self.run_journey(None, "- S1.2: no form. Blocked by #2140.\n")
@@ -1367,6 +1215,170 @@ class KnownRuns(Output):
 @contextlib.contextmanager
 def _yielding(value):
     yield value
+
+
+SESSION_SWIFT = """nonisolated final class SignInJourneyUITests: XCTestCase {
+    func testJourney() throws {
+        try session.scenario("S1") {}
+        try session.scenario("S2") {}
+    }
+}
+"""
+
+SESSION_TEST = "Test Case '-[MonacoUITests.SignInJourneyUITests testJourney]' %s"
+
+
+class Session(Output):
+    """A journey whose test is one testJourney method: every scenario in one xcodebuild call."""
+
+    def setUp(self):
+        super().setUp()
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]", "actors: [A, B]"))
+        self.write("ui/SignInJourneyUITests.swift", SESSION_SWIFT)
+        self.write("qa/accounts.tsv", "actor\tname\tphone\temail\tcode\nA\tAlfred\t555\ta@b.c\t123456\n"
+                   "B\tBea\t556\tb@b.c\t654321\n")
+        self.calls = self.write("calls", "")
+
+    def fake_xcodebuild(self, body):
+        """A stand-in for xcodebuild that appends its argv and environment to `calls`, then runs body."""
+        script = self.write("xcodebuild.sh", "#!/bin/bash\n"
+                            "echo \"$* | $TEST_RUNNER_MONACO_QA_B_PHONE | $TEST_RUNNER_MONACO_QA_LAST_SCENARIO\" >> %s\n"
+                            "%s\n" % (self.calls, body))
+        script.chmod(0o755)
+        return script
+
+    def run_journey(self, body, *extra):
+        script = self.fake_xcodebuild(body)
+        with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
+                unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
+                unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
+                unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *args: [str(script)] + list(args)), \
+                redirect_stdout(StringIO()) as printed, unittest.mock.patch("sys.stderr", StringIO()) as err:
+            code = journey.main(["run", "auth/sign-in", "--no-build"] + list(extra))
+        rows = []
+        if journey.RESULTS.exists():
+            lines = journey.RESULTS.read_text().splitlines()
+            rows = [dict(zip(lines[0].split("\t"), line.split("\t"))) for line in lines[1:]]
+        return code, {row["scenario"]: (row["result"], row["failed_step"]) for row in rows}, printed.getvalue() + err.getvalue()
+
+    def canned(self, *lines):
+        return "cat <<'LOG'\n%s\nLOG" % "\n".join(lines)
+
+    def test_every_scenario_runs_in_one_call_with_every_actors_login(self):
+        code, results, _ = self.run_journey(self.canned(
+            SESSION_TEST % "started.",
+            "JOURNEYSCENARIO\tbegin\tS1", "JOURNEYSTEP\tbegin\t0\tS1.1", "JOURNEYSTEP\tend\t0\tS1.1\t10",
+            "JOURNEYSTEP\tbegin\t0\tS1.2", "JOURNEYSTEP\tend\t0\tS1.2\t10", "JOURNEYSCENARIO\tend\tS1\t1500",
+            "JOURNEYSCENARIO\tbegin\tS2", "JOURNEYSTEP\tbegin\t0\tS2.1", "JOURNEYSTEP\tend\t0\tS2.1\t10",
+            "JOURNEYSCENARIO\tend\tS2\t500", SESSION_TEST % "passed (2.000 seconds)."))
+        self.assertEqual(code, 0)
+        self.assertEqual(results, {"S1": ("PASS", ""), "S2": ("PASS", ""), "*": ("PASS", "")})
+        calls = self.calls.read_text().splitlines()
+        self.assertEqual(len(calls), 1)
+        self.assertIn("-only-testing:MonacoUITests/SignInJourneyUITests/testJourney", calls[0])
+        self.assertTrue(calls[0].endswith("| 556 | S2"), calls[0])
+
+    def test_a_failed_scenario_fails_at_its_own_step_and_the_rest_are_skipped(self):
+        self.write("docs/journeys/auth/sign-in.md", DOC + "\n### S3 Again\n\n| Step | Action |\n| --- | --- |\n| S3.1 | tap |\n")
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT.replace('step("S2.1")', 'step("S2.1"); step("S3.1")'))
+        self.write("ui/SignInJourneyUITests.swift", SESSION_SWIFT.replace(
+            '        try session.scenario("S2") {}\n', '        try session.scenario("S2") {}\n        try session.scenario("S3") {}\n'))
+        code, results, _ = self.run_journey(self.canned(
+            SESSION_TEST % "started.",
+            "JOURNEYSCENARIO\tbegin\tS1", "JOURNEYSTEP\tbegin\t0\tS1.1", "JOURNEYSTEP\tend\t0\tS1.1\t10",
+            "JOURNEYSCENARIO\tend\tS1\t1500",
+            "JOURNEYSCENARIO\tbegin\tS2", "JOURNEYSTEP\tbegin\t0\tS2.1",
+            "SignInJourney.swift:12: error: XCTAssertTrue failed - S2.1: no button",
+            SESSION_TEST % "failed (2.000 seconds)."))
+        self.assertEqual(code, 1)
+        self.assertEqual(results, {"S1": ("PASS", ""), "S2": ("FAIL", "S2.1"), "S3": ("SKIP", "after S2 FAIL"),
+                                   "*": ("FAIL", "")})
+        steps = (journey.OUT.glob("*/steps.tsv").__next__()).read_text()
+        self.assertEqual(steps, "S1\tS1.1\t10\t0\n")
+
+    def test_a_skipped_test_is_an_error_not_a_failure(self):
+        code, results, _ = self.run_journey(self.canned(
+            SESSION_TEST % "started.", "error: no sms login for actor B", SESSION_TEST % "skipped (0.100 seconds)."))
+        self.assertEqual(code, 2)
+        self.assertEqual(results["S1"], ("ERROR", "the test did not run S1 (skipped)"))
+        self.assertEqual(results["S2"], ("SKIP", "after S1 ERROR"))
+
+    def test_the_app_and_the_setup_script_get_the_slots_api_url(self):
+        order = journey.ROOT / "order"
+        self.write("qa/auth/sign-in.setup.sh", "#!/bin/bash\necho \"setup $MONACO_API_BASE_URL $MONACO_QA_API_BASE_URL\" >> %s\n"
+                   % order).chmod(0o755)
+        body = "\n".join([
+            "d=\"$TEST_RUNNER_MONACO_QA_SETUP_DIR\"",
+            "echo \"test $TEST_RUNNER_MONACO_QA_API_BASE_URL\" >> %s" % order,
+            "echo \"%s\"" % (SESSION_TEST % "started."),
+            "for s in S1 S2; do : > \"$d/$s.request\"; while [ ! -f \"$d/$s.done\" ]; do sleep 0.05; done; done",
+            "echo \"%s\"" % (SESSION_TEST % "passed (1.000 seconds)."),
+        ])
+        self.run_journey(body)
+        lines = order.read_text().splitlines()
+        self.assertEqual(lines[0], "test http://127.0.0.1:8080")
+        self.assertEqual(lines[1:], ["setup http://127.0.0.1:8080 http://127.0.0.1:8080"] * 2)
+
+    def test_scenario_runs_every_scenario_up_to_the_last_named(self):
+        code, results, _ = self.run_journey(self.canned(
+            SESSION_TEST % "started.", "JOURNEYSCENARIO\tbegin\tS1", "JOURNEYSCENARIO\tend\tS1\t10",
+            SESSION_TEST % "passed (1.000 seconds)."), "--scenario", "S1")
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(results), ["*", "S1"])
+        self.assertTrue(self.calls.read_text().strip().endswith("| S1"))
+
+    def handshake(self, setup_exit):
+        order = journey.ROOT / "order"
+        self.write("qa/auth/sign-in.setup.sh", "#!/bin/bash\necho \"setup $1 $MONACO_QA_RUN\" >> %s\nexit %d\n"
+                   % (order, setup_exit)).chmod(0o755)
+        body = "\n".join([
+            "d=\"$TEST_RUNNER_MONACO_QA_SETUP_DIR\"",
+            "echo \"%s\"" % (SESSION_TEST % "started."),
+            "for s in S1 S2; do",
+            "  : > \"$d/$s.request\"",
+            "  while [ ! -f \"$d/$s.done\" ]; do sleep 0.05; done",
+            "  if [ \"$(cat \"$d/$s.done\")\" != ok ]; then echo \"%s\"; exit 1; fi" % (SESSION_TEST % "failed (1.000 seconds)."),
+            "  echo \"test $s\" >> %s" % order,
+            "  printf 'JOURNEYSCENARIO\\tbegin\\t%s\\nJOURNEYSCENARIO\\tend\\t%s\\t10\\n' $s $s",
+            "done",
+            "echo \"%s\"" % (SESSION_TEST % "passed (1.000 seconds)."),
+        ])
+        code, results, printed = self.run_journey(body)
+        return code, results, printed, [line.split(" ")[:2] for line in order.read_text().splitlines()]
+
+    def test_the_setup_script_runs_when_the_test_reaches_each_scenario(self):
+        code, results, _, order = self.handshake(0)
+        self.assertEqual(code, 0)
+        self.assertEqual(order, [["setup", "S1"], ["test", "S1"], ["setup", "S2"], ["test", "S2"]])
+        self.assertEqual(results["S2"], ("PASS", ""))
+
+    def test_a_failed_setup_stops_the_run_and_names_its_scenario(self):
+        code, _, printed, order = self.handshake(3)
+        self.assertEqual(code, 2)
+        self.assertEqual(order, [["setup", "S1"]])
+        self.assertIn("could not set up S1", printed)
+
+    def test_a_hung_session_times_out_in_its_open_scenario(self):
+        code, results, printed = self.run_journey(self.canned(
+            SESSION_TEST % "started.", "JOURNEYSCENARIO\tbegin\tS1", "JOURNEYSTEP\tbegin\t0\tS1.1") + "\nsleep 60",
+            "--timeout", "2")
+        self.assertEqual(code, 1)
+        self.assertIn("auth/sign-in timed out after 2 s in S1 test", printed)
+        self.assertEqual(results, {"S1": ("TIMEOUT", "S1.1"), "S2": ("SKIP", "after S1 TIMEOUT"), "*": ("TIMEOUT", "")})
+
+
+class MutantCaught(unittest.TestCase):
+    def rows(self, *pairs):
+        return [{"scenario": s, "result": r, "expected": e} for s, r, e in pairs]
+
+    def test_every_expected_scenario_must_fail_or_be_skipped_after_one_that_failed(self):
+        self.assertTrue(journey.mutant_caught(self.rows(("S1", "PASS", "PASS"), ("S2", "FAIL", "FAIL"), ("S3", "SKIP", "FAIL"))))
+        self.assertFalse(journey.mutant_caught(self.rows(("S1", "FAIL", "PASS"), ("S2", "SKIP", "FAIL"))))
+        self.assertFalse(journey.mutant_caught(self.rows(("S1", "PASS", "FAIL"), ("S2", "FAIL", "FAIL"))))
+        self.assertFalse(journey.mutant_caught(self.rows(("S1", "PASS", "PASS"))))
 
 
 class Stamp(Output):
@@ -1424,10 +1436,10 @@ class All(Output):
             return [], "PASS"
 
         with unittest.mock.patch.object(journey, "journey_backend", backend), \
-                unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
-                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
-                unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
                 unittest.mock.patch.object(journey, "ensure_build", lambda sim, log, rebuild=False: builds.append(sim)), \
                 unittest.mock.patch.object(journey, "run_once", run_once), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
