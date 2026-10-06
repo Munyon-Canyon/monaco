@@ -540,8 +540,13 @@ func (env *Env) justUnlabeled(p stackPR) bool {
 }
 
 func (env *Env) waitsForDraft(p gqlPR, drafts []queueDraft) bool {
+	_, taken := env.takenUntil(p, drafts)
+	return taken
+}
+
+func (env *Env) takenUntil(p gqlPR, drafts []queueDraft) (time.Time, bool) {
 	at, byGraphite, ok := p.TimelineItems.removal(env.Config.QueueLabel)
-	return ok && byGraphite && awaitsDraft(drafts, p.Number, at, env.Now())
+	return at.Add(takenFor), ok && byGraphite && awaitsDraft(drafts, p.Number, at, env.Now())
 }
 
 func awaitsDraft(drafts []queueDraft, pr int, takenAt, now time.Time) bool {

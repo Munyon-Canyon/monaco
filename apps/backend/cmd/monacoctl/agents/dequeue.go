@@ -46,6 +46,9 @@ func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 	if err := env.releaseQueue(ctx, rec.Queued, nil); err != nil {
 		return err
 	}
+	if err := env.clearOfGraphite(ctx, n, rec.Queued.PRs); err != nil {
+		return err
+	}
 	if err := env.unmark(ctx, rec); err != nil {
 		return err
 	}
@@ -65,20 +68,18 @@ func (env *Env) dequeueLabeled(ctx context.Context, top int, stdout io.Writer) e
 			prs = append(prs, p.Number)
 		}
 	}
-	if len(prs) == 0 {
-		drafts, err := env.queueDrafts(ctx)
-		if err != nil {
+	if len(prs) > 0 {
+		if err := env.releaseQueue(ctx, &Queue{Top: top, PRs: prs}, nil); err != nil {
 			return err
 		}
-		if slices.ContainsFunc(chain, func(p stackPR) bool { return env.heldByGraphite(p.gqlPR, drafts) }) {
-			return stillHeld(top)
-		}
+	}
+	if err := env.clearOfGraphite(ctx, top, numbers(chain)); err != nil {
+		return err
+	}
+	if len(prs) == 0 {
 		_, _ = fmt.Fprintf(stdout, "no PR of the stack under #%d carries %s; safe to push\n",
 			top, env.Config.QueueLabel)
 		return nil
-	}
-	if err := env.releaseQueue(ctx, &Queue{Top: top, PRs: prs}, nil); err != nil {
-		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "dequeued %s; safe to push\n", prRefs(prs))
 	return nil
@@ -164,22 +165,61 @@ func (env *Env) graphiteHolds(ctx context.Context, nums []int) (bool, error) {
 			return false, fmt.Errorf("wait for Graphite: %w", context.Cause(ctx))
 		case <-env.After(dequeueEvery):
 		}
-		prs, err := env.stackPulls(ctx, nums)
-		if err != nil {
-			return false, err
-		}
-		if slices.ContainsFunc(prs, func(p stackPR) bool { return p.labeled(env.Config.QueueLabel) }) {
-			return true, nil
-		}
-		drafts, err := env.queueDrafts(ctx)
-		if err != nil {
-			return false, err
-		}
-		if slices.ContainsFunc(prs, func(p stackPR) bool { return env.heldByGraphite(p.gqlPR, drafts) }) {
-			return true, nil
+		h, err := env.readHold(ctx, nums)
+		if err != nil || h.queued {
+			return h.queued, err
 		}
 	}
 	return false, nil
+}
+
+type stackHold struct {
+	queued bool
+	taken  []int
+	clears time.Time
+}
+
+func (env *Env) readHold(ctx context.Context, nums []int) (stackHold, error) {
+	var h stackHold
+	if len(nums) == 0 {
+		return h, nil
+	}
+	prs, err := env.stackPulls(ctx, nums)
+	if err != nil {
+		return h, err
+	}
+	drafts, err := env.queueDrafts(ctx)
+	if err != nil {
+		return h, err
+	}
+	for _, p := range prs {
+		until, taken := env.takenUntil(p.gqlPR, drafts)
+		switch {
+		case p.labeled(env.Config.QueueLabel) || draftHolds(drafts, p.Number):
+			h.queued = true
+		case taken:
+			h.taken = append(h.taken, p.Number)
+			if until.After(h.clears) {
+				h.clears = until
+			}
+		}
+	}
+	return h, nil
+}
+
+func (env *Env) clearOfGraphite(ctx context.Context, top int, nums []int) error {
+	h, err := env.readHold(ctx, nums)
+	switch {
+	case err != nil:
+		return err
+	case h.queued:
+		return stillHeld(top)
+	case len(h.taken) > 0:
+		return dequeueErr(errs.CodeVersionConflict, fmt.Sprintf(
+			"Graphite took %s and has not opened its draft; the hold clears at %s, then rerun",
+			prRefs(h.taken), h.clears.Format(time.RFC3339)))
+	}
+	return nil
 }
 
 func dequeueErr(code errs.Code, detail string) error {
