@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -136,17 +136,17 @@ enum GovernanceProposeBuyJourney {
                 app.element("propose-amount-screen").waitForExistence(timeout: checkTimeout),
                 "S1.3: no Amount screen within \(Int(checkTimeout)) s"
             )
-            expectHelper(app, "The pot has $3.00", timeout: checkTimeout, step: "S1.3")
         }
 
         recorder.step("S1.4", "an amount over the pot is refused") {
             MoneyFundCabalJourney.typeAmount(app, "5")
-            expectHelper(app, "More than the pot has", timeout: 5, step: "S1.4")
+            expectLabel(app, "More than the pot has", timeout: 5, step: "S1.4")
             XCTAssertFalse(app.buttons["propose-amount-review"].isEnabled, "S1.4: Review is enabled over the pot")
         }
 
         recorder.step("S1.5", "review $1 of GOOGL with a reason") {
             MoneyFundCabalJourney.typeAmount(app, "1")
+            expectHelper(app, "The pot has $3.00", timeout: checkTimeout, step: "S1.5")
             tap(app, "propose-amount-add-reason", step: "S1.5")
             let why = app.element("propose-amount-reason")
             XCTAssertTrue(why.waitForExistence(timeout: checkTimeout), "S1.5: no reason field")
@@ -217,7 +217,9 @@ enum GovernanceProposeBuyJourney {
         recorder.step("S2.3", "A sees B's ballot and votes yes") {
             let card = openHomeCard(app, step: "S2.3")
             let proposalID = String(card.identifier.dropFirst("proposal-card-".count))
-            card.tap()
+            let header = card.descendants(matching: .any).matching(identifier: "proposal-closes-in").firstMatch
+            XCTAssertTrue(header.waitForExistence(timeout: checkTimeout), "S2.3: the card has no header to tap")
+            header.tap()
             GovernanceVoteJourney.waitForProposalScreen(app, step: "S2.3")
             expectLabel(app, "Proposed by \(proposer)", timeout: screenTimeout, step: "S2.3")
             expectLabel(app, "\(voter) voted yes", timeout: screenTimeout, step: "S2.3")
