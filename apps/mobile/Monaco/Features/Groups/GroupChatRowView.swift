@@ -10,6 +10,8 @@ struct GroupChatRowView: View {
     var openThread: ((String) -> Void)?
     var replyHere: (() -> Void)?
     var requestDelete: ((String) -> Void)?
+    var seenLabel: String?
+    var openSeen: (() -> Void)?
 
     private var message: ChatMessage { row.message }
 
@@ -33,6 +35,7 @@ struct GroupChatRowView: View {
                                 reply: replyHere ?? { openThread?(rootID) },
                                 delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil))
                     footer
+                    seenFooter
                 }
                 if !row.isMine { Spacer(minLength: 56) }
             }
@@ -96,6 +99,20 @@ struct GroupChatRowView: View {
             .accessibilityIdentifier("chat-retry-\(row.id)")
         } else if message.replyCount > 0 {
             repliesRow
+        }
+    }
+
+    @ViewBuilder private var seenFooter: some View {
+        if let seenLabel, let openSeen {
+            Button(action: openSeen) {
+                Text(seenLabel)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("chat-seen-label")
         }
     }
 

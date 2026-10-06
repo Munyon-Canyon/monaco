@@ -8,6 +8,8 @@ struct GroupChatThreadView: View {
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
     let requestDelete: (String) -> Void
+    let seen: ChatSession.Seen?
+    let openSeen: (String) -> Void
     let retry: (String) -> Void
     let loadOlder: () -> Void
     let refresh: () async -> Void
@@ -27,7 +29,10 @@ struct GroupChatThreadView: View {
                     ForEach(rows) { row in
                         GroupChatRowView(
                             row: row, now: Date(), openProfile: openProfile, retry: retry, openThread: openThread,
-                            requestDelete: requestDelete
+                            requestDelete: requestDelete,
+                            seenLabel: row.id == seen?.messageID
+                                ? seen.flatMap { ChatSeenCopy.label(count: $0.count) } : nil,
+                            openSeen: { openSeen(row.id) }
                         )
                         .id(row.id)
                     }
