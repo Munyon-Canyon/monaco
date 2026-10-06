@@ -116,7 +116,7 @@ final class CabalsTabModelTests: XCTestCase {
     private func myCabal(role: String, pending: Int32) -> Components.Schemas.MyCabal {
         .init(
             id: "c-1", name: "QA pot", pictureUrl: nil, role: role, canVote: true, memberCount: 2,
-            joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: pending)
+            joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: pending, unreadCount: 0)
     }
 
     private func member(displayName: String, handle: String?, role: String) -> Components.Schemas.CabalMember {
@@ -146,7 +146,7 @@ final class CabalsTabModelTests: XCTestCase {
     private static func list(_ names: [String]) -> String {
         let rows = names.enumerated().map { index, name in
             """
-            {"id":"01890a5d-ac96-774b-bcce-b302099a80\(60 + index)","name":"\(name)","picture_url":null,"role":"creator","can_vote":true,"member_count":\(index + 1),"joined_at":"2026-10-02T15:00:00Z","pending_request_count":0}
+            {"id":"01890a5d-ac96-774b-bcce-b302099a80\(60 + index)","name":"\(name)","picture_url":null,"role":"creator","can_vote":true,"member_count":\(index + 1),"joined_at":"2026-10-02T15:00:00Z","pending_request_count":0,"unread_count":0}
             """
         }
         return "[\(rows.joined(separator: ","))]"

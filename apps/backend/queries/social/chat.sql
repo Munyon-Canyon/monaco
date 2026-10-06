@@ -128,3 +128,20 @@ WHERE cabal_id = sqlc.arg(cabal_id)
   AND user_id <> sqlc.arg(author_id)
   AND last_seen_at >= sqlc.arg(message_at)::timestamptz
 ORDER BY last_seen_at DESC, user_id;
+
+-- name: UnreadCounts :many
+SELECT c.id::uuid AS cabal_id, (
+  SELECT count(*)::int
+  FROM (
+    SELECT 1
+    FROM cabal_messages m
+    WHERE m.cabal_id = c.id
+      AND (m.parent_id IS NULL OR m.also_in_channel)
+      AND m.deleted_at IS NULL
+      AND m.author_id <> sqlc.arg(user_id)
+      AND m.created_at > coalesce(s.last_seen_at, '-infinity'::timestamptz)
+    LIMIT 100
+  ) AS capped
+) AS unread
+FROM unnest(sqlc.arg(cabal_ids)::uuid[]) AS c(id)
+LEFT JOIN chat_seen s ON s.cabal_id = c.id AND s.user_id = sqlc.arg(user_id);

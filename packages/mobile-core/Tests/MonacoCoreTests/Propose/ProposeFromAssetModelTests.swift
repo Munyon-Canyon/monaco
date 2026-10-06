@@ -46,6 +46,6 @@ final class ProposeFromAssetModelTests: XCTestCase {
     }
 
     private func cabal(_ id: String, canVote: Bool) -> String {
-        #"{"id":"\#(id)","name":"Cabal \#(id)","picture_url":null,"role":"member","can_vote":\#(canVote),"member_count":2,"joined_at":"2026-09-30T12:00:00Z","pending_request_count":0}"#
+        #"{"id":"\#(id)","name":"Cabal \#(id)","picture_url":null,"role":"member","can_vote":\#(canVote),"member_count":2,"joined_at":"2026-09-30T12:00:00Z","pending_request_count":0,"unread_count":0}"#
     }
 }

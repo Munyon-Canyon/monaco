@@ -543,14 +543,16 @@ paths:
       operationId: getMyCabals
       tags: [cabal]
       summary: List the caller's cabals.
-      description: Returns every cabal the caller belongs to, most recently joined first.
+      description: >-
+        Returns every cabal the caller belongs to, most recently joined first. Each row carries the
+        server-computed `unread_count` of the cabal's chat, capped at 100.
       responses:
         "200":
           description: The caller's cabals.
           content:
             application/json:
               schema: {type: array, items: {$ref: "#/components/schemas/MyCabal"}}
-              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1}]
+              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1, unread_count: 3}]
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/funding.yaml
@@ -2970,7 +2972,7 @@ components:
       type: object
       description: A cabal the caller belongs to.
       additionalProperties: false
-      required: [id, name, picture_url, role, can_vote, member_count, joined_at, pending_request_count]
+      required: [id, name, picture_url, role, can_vote, member_count, joined_at, pending_request_count, unread_count]
       properties:
         id: {type: string, format: uuid}
         name: {type: string}
@@ -2980,6 +2982,7 @@ components:
         member_count: {type: integer, format: int32}
         joined_at: {type: string, format: date-time}
         pending_request_count: {type: integer, format: int32}
+        unread_count: {type: integer, description: "Chat messages in the channel the caller has not seen, at most 100.", examples: [3]}
     UpdateCabalRequest:
       type: object
       description: The cabal fields to change. An omitted field keeps its value.

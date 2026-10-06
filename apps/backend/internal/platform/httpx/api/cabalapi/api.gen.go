@@ -398,6 +398,11 @@ type MyCabal struct {
 
 	// Role Examples: creator
 	Role string `json:"role"`
+
+	// UnreadCount Chat messages in the channel the caller has not seen, at most 100.
+	//
+	// Examples: 3
+	UnreadCount int `json:"unread_count"`
 }
 
 // UpdateCabalRequest The cabal fields to change. An omitted field keeps its value.

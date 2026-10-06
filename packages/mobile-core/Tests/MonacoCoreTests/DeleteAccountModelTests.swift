@@ -201,7 +201,7 @@ final class DeleteAccountModelTests: XCTestCase {
         let rows = names.enumerated().map { index, name in
             #"{"id":"\#(cabalID(60 + index))","name":"\#(name)","picture_url":null,"#
                 + #""role":"member","can_vote":true,"member_count":2,"joined_at":"2026-10-02T15:00:00Z","#
-                + #""pending_request_count":0}"#
+                + #""pending_request_count":0,"unread_count":0}"#
         }
         return "[\(rows.joined(separator: ","))]"
     }

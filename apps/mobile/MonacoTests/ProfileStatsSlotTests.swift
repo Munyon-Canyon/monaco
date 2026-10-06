@@ -25,6 +25,6 @@ struct ProfileStatsSlotTests {
     private func cabal(_ id: String) -> Components.Schemas.MyCabal {
         Components.Schemas.MyCabal(
             id: id, name: "Cabal \(id)", pictureUrl: nil, role: "member", canVote: true, memberCount: 3,
-            joinedAt: Date(), pendingRequestCount: 0)
+            joinedAt: Date(), pendingRequestCount: 0, unreadCount: 0)
     }
 }
