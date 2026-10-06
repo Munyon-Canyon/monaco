@@ -131,7 +131,7 @@ The next owner reads the ticket, its comments and the draft PR. It makes a workt
 | Stage | Trigger | Runs |
 | --- | --- | --- |
 | 1. PR check | the PR is ready and based on `staging` | `plan`, `lint`, `ready`, `vuln`, PR format, PR size and `gate-changes`. No tests. A push with an unchanged diff reuses the last green result. |
-| 2. Queue check | the PR entered the Graphite merge queue, which runs it on a `gtmq_` draft PR | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, `scripts`, and `mobile-core` when its paths changed. No macOS job. |
+| 2. Queue check | the PR entered the Graphite merge queue, which runs it on a `gtmq_` draft PR | Stage 1, plus `backend` (the race suite with the per-package budget and 100% coverage), the tests `-short` skips, `e2e` (`scripts/ci/e2e.sh`), `flake` on changed test files, and `mobile-core` when its paths changed. No macOS job. |
 
 Only the top PR of a stack runs stage 1, the full suite; every PR below it passes `ci / ci-ok` with every job skipped, and `monacoctl agents check` is its proof. The queue's stage 2 runs only build, vet and generated files, and every push to `staging` runs the full suite again as an advisory indicator. The only required check is `ci / ci-ok`. `gate-changes` never blocks. [What runs where](../architecture/ci.md#what-runs-where) has every job.
 
@@ -162,7 +162,7 @@ The result says which of these holds:
 | Cause | Fix |
 | --- | --- |
 | Infra flake: a Go proxy or Docker Hub error, a `curl` 500 while installing a tool, a runner timeout with every package `ok`, a run cancelled by a newer one | Requeue with no code change: `monacoctl agents land-stack <top-pr>`, which adds the `merge-queue` label again to each PR of the stack. For a failed PR-stage job, `gh run rerun <run-id> --failed` once. |
-| A real test failure, including a package over the 20 s budget | A fresh owner fixes it on the same branch with `gt modify` and `gt submit --stack --no-interactive --draft`. The verifier reviews the new head, then `land-stack` runs again. |
+| A real test failure, including a package over the 20 s budget | A fresh owner fixes it on the same branch with `gt modify` and `gt submit --stack --no-interactive --draft`. It runs `scripts/pr-body.sh` and `land-stack` as usual, and the verifier reviews the new head while stage 1 runs. |
 | A failure that already exists on the `staging` tip | Not this PR's defect. Fix the tip in its own PR, land that first, then requeue this one. |
 | A merge conflict with a stack that landed ahead | Wait for that stack to land, restack onto the tip ([Restack a stack](run-a-milestone.md#restack-a-stack)), build every branch, and land again. A restack that stops on a generated file (no conflict markers, `merge=binary`) needs only `go generate ./... && git add -A && gt continue` from `apps/backend`, after any hand-written file in the stop is resolved by hand. |
 
