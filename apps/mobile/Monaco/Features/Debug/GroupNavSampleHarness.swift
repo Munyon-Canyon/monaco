@@ -139,24 +139,18 @@ struct GroupNavSampleHarness: View {
         )
     }
 
-    /// The row Home and Profile draw for a cabal the member is in.
     private var sampleRow: some View {
-        CabalPositionRow(
-            groupId: sample.id,
-            name: sample.name,
-            potValueUsd: sample.resolvedPotTotalUsd,
-            figures: CabalPositionRowFigures(
-                equityUsd: sample.you.equityUsd,
-                dollarPnl: sample.you.dollarPnl,
-                percentReturn: sample.you.percentReturn
-            ),
+        MonacoRow(
+            title: sample.name, subtitle: CabalPositionRowFigures.potSubtitle(potValueUsd: sample.resolvedPotTotalUsd),
             isLast: true
-        )
+        ) {
+            CabalMark(groupId: sample.id, name: sample.name, size: 40)
+        }
     }
 
     // MARK: - list entry (Home "Your cabals" row, Cabals strip card)
 
-    /// Mirrors `HomePositionsSection` / `CabalsStripSection`: a destination-style
+    /// Mirrors `CabalsStripSection`: a destination-style
     /// `NavigationLink` inside a lazy container.
     private var listRoot: some View {
         ScrollView {

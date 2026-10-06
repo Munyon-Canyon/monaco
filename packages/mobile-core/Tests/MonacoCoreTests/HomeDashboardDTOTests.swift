@@ -4,69 +4,22 @@ import XCTest
 
 final class HomeDashboardDTOTests: XCTestCase {
     func testHomeDashboardDTO_decodesDashboardPayload() throws {
-        // Arrange
         let fixtureURL = try XCTUnwrap(
             Bundle.module.url(forResource: "home_dashboard", withExtension: "json")
         )
-        let decoder = monacoISO8601JSONDecoder()
         let data = try Data(contentsOf: fixtureURL)
 
-        // Act
-        let dto = try decoder.decode(HomeDashboardDTO.self, from: data)
+        let dto = try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: data)
 
-        // Assert
-        XCTAssertEqual(dto.netWorthUsd, "145.00")
-        XCTAssertEqual(dto.myGroups.count, 1)
-        XCTAssertEqual(dto.myGroups[0].groupID, "g1")
-        XCTAssertEqual(dto.pnlSeries1H.count, 2)
+        XCTAssertEqual(dto.leaderboard.range, "ALL")
         XCTAssertEqual(dto.leaderboard.people.count, 1)
     }
 
-    func testHomeDashboardDTO_wholeSecondUTCTimestamps_decodeToExactInstants() throws {
-        // Arrange: the fixture carries the wire format the backend emits, `2026-09-17T22:00:00Z`.
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "home_dashboard", withExtension: "json")
-        )
-        let data = try Data(contentsOf: fixtureURL)
+    func testMonacoISO8601JSONDecoder_nonISO8601Timestamp_throwsDataCorrupted() {
+        let json = #"{ "ts": "1789675200" }"#
 
-        // Act
-        let dto = try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: data)
-
-        // Assert: 2026-09-17T22:00:00Z is 1_789_682_400 seconds after the epoch.
-        XCTAssertEqual(dto.pnlSeries1H.map(\.ts.timeIntervalSince1970), [1_789_682_400, 1_789_686_000])
-    }
-
-    func testHomePnLSeriesDTO_wholeSecondUTCTimestamps_keepDistinctPointIDs() throws {
-        // Arrange: points one second apart, the closest the backend series can produce.
-        let json = """
-            {
-              "points": [
-                { "ts": "2026-09-17T22:00:00Z", "equityUsd": "130.00", "dollarPnl": "+0.00" },
-                { "ts": "2026-09-17T22:00:01Z", "equityUsd": "131.00", "dollarPnl": "+1.00" }
-              ]
-            }
-            """
-
-        // Act
-        let dto = try monacoISO8601JSONDecoder().decode(HomePnLSeriesDTO.self, from: Data(json.utf8))
-
-        // Assert
-        XCTAssertEqual(dto.points.map(\.id), [1_789_682_400, 1_789_682_401])
-    }
-
-    func testHomePnLSeriesDTO_nonISO8601Timestamp_throwsDataCorrupted() {
-        // Arrange: a Unix number-as-string is not a format the API emits.
-        let json = """
-            {
-              "points": [
-                { "ts": "1789675200", "equityUsd": "130.00", "dollarPnl": "+0.00" }
-              ]
-            }
-            """
-
-        // Act / Assert
         XCTAssertThrowsError(
-            try monacoISO8601JSONDecoder().decode(HomePnLSeriesDTO.self, from: Data(json.utf8))
+            try monacoISO8601JSONDecoder().decode([String: Date].self, from: Data(json.utf8))
         ) { error in
             guard case DecodingError.dataCorrupted = error else {
                 return XCTFail("expected dataCorrupted, got \(error)")
@@ -74,32 +27,12 @@ final class HomeDashboardDTOTests: XCTestCase {
         }
     }
 
-    func testHomeDashboardDTO_decodesFractionalISO8601Timestamps() throws {
-        let json = """
-            {
-              "netWorthUsd": "145.00",
-              "netWorthDollarPnl": "+15.00",
-              "netWorthPercentReturn": "0.115",
-              "myGroups": [],
-              "pnlSeries1H": [
-                {
-                  "ts": "2026-09-17T22:00:00.123456Z",
-                  "equityUsd": "130.00",
-                  "dollarPnl": "+0.00"
-                },
-                {
-                  "ts": "2026-09-17T23:00:00Z",
-                  "equityUsd": "145.00",
-                  "dollarPnl": "+15.00"
-                }
-              ],
-              "leaderboard": { "range": "ALL", "people": [] },
-              "missedProposals": []
-            }
-            """
+    func testMonacoISO8601JSONDecoder_decodesWholeSecondAndFractionalUTCInstants() throws {
+        let json = #"{ "plain": "2026-09-17T22:00:00Z", "fraction": "2026-09-17T22:00:00.5Z" }"#
 
-        let dto = try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: Data(json.utf8))
-        XCTAssertEqual(dto.pnlSeries1H.count, 2)
-        XCTAssertEqual(dto.pnlSeries1H[0].dollarPnl, "+0.00")
+        let dates = try monacoISO8601JSONDecoder().decode([String: Date].self, from: Data(json.utf8))
+
+        XCTAssertEqual(dates["plain"]?.timeIntervalSince1970, 1_789_682_400)
+        XCTAssertEqual(dates["fraction"]?.timeIntervalSince1970, 1_789_682_400.5)
     }
 }

@@ -90,18 +90,6 @@ final class CabalPictureTests: XCTestCase {
         XCTAssertEqual(row.pictureUrl, "https://cdn.test/groups/g1/abc.jpg")
     }
 
-    func testHomeMyGroupRow_decodesPictureAndToleratesItsAbsence() throws {
-        let json = #"""
-            {
-              "groupId": "g1", "name": "Weekend investors", "equityUsd": "311.50",
-              "slicePercent": "0.42", "dollarPnl": "+48.20", "percentReturn": "0.124"
-            }
-            """#
-        let row = try JSONDecoder().decode(HomeMyGroupRowDTO.self, from: Data(json.utf8))
-        XCTAssertNil(row.pictureUrl)
-        XCTAssertEqual(row.equityUsd, "311.50")
-    }
-
     func testExistingGroupFixtures_stillDecode() throws {
         let search = try Self.decodeFixture(GroupSearchResponseDTO.self, named: "groups_search")
         XCTAssertFalse(search.groups.isEmpty)

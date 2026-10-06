@@ -189,25 +189,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: response.data)
     }
 
-    public func getHomePnLSeries(range: HomeLeaderboardRange = .oneHour) async throws -> HomePnLSeriesDTO {
-        var components = URLComponents(
-            url: baseURL.appending(path: "v1/home/pnl-series"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [
-            URLQueryItem(name: "range", value: range.rawValue)
-        ]
-        guard let url = components.url else {
-            throw MonacoAPIError.invalidResponse
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/home/pnl-series")
-        return try monacoISO8601JSONDecoder().decode(HomePnLSeriesDTO.self, from: response.data)
-    }
-
     public func castVote(proposalId: String, choice: String) async throws {
         let url = baseURL.appending(path: "v1/proposals/\(proposalId)/votes")
         var request = URLRequest(url: url)

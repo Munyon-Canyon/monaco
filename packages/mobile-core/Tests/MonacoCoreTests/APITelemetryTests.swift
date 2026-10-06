@@ -212,7 +212,7 @@ final class APITelemetryTests: XCTestCase {
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.getHomePnLSeries()
+        _ = try? await client.getHomeDashboard(leaderboardRange: .all)
         _ = try? await client.castVote(proposalId: groupID, choice: "yes")
 
         XCTAssertEqual(events.values.count, 2)

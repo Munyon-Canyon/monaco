@@ -47,10 +47,6 @@ private final class StubDataSource: AppSessionDataSource {
         return Self.dashboard(range: leaderboardRange)
     }
 
-    func getHomePnLSeries(accessToken: String, range: HomeLeaderboardRange) async throws -> HomePnLSeriesDTO {
-        HomePnLSeriesDTO(points: [])
-    }
-
     func release(_ range: HomeLeaderboardRange) {
         pendingDashboards.removeValue(forKey: range)?.resume()
     }
@@ -71,11 +67,6 @@ private final class StubDataSource: AppSessionDataSource {
 
     static func dashboard(range: HomeLeaderboardRange) -> HomeDashboardDTO {
         HomeDashboardDTO(
-            netWorthUsd: "100.00",
-            netWorthDollarPnl: "+0.00",
-            netWorthPercentReturn: nil,
-            myGroups: [],
-            pnlSeries1H: [],
             leaderboard: HomeLeaderboardSectionDTO(range: range.rawValue, people: [])
         )
     }
@@ -345,7 +336,6 @@ struct AppSessionStoreBootstrapTests {
         #expect(store.profile == nil)
         #expect(store.home == nil)
         #expect(store.dashboard == nil)
-        #expect(store.homePnLSeries == nil)
     }
 
     @Test func memberBSeesNoMemberADataWhileTheirSessionOpens() async throws {
