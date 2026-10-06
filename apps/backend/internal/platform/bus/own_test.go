@@ -67,6 +67,26 @@ func TestHandleOwn_runsOutsideATransactionAndRecordsOnlyWhatTheHandlerRecords(t 
 	}
 }
 
+func TestHandleOwn_logsTheCodeTheHandlerRecordedOnItsAck(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	own := bus.HandleOwn("trading.engine", func(ctx context.Context, d bus.Delivery, _ events.SystemPinged) error {
+		return h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			_, err := d.RecordAs(ctx, tx, string(errs.CodeInsufficientFunds))
+			return err
+		})
+	})
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{own}})
+	_, msg := h.pingMsg(t)
+
+	reg.Dispatch(h.ctx(t), durable, msg)
+	reg.Dispatch(h.ctx(t), durable, fromMsg(msg, 2))
+	h.assertLines(t, "bus.dispatched",
+		map[string]any{"outcome": "ack", "code": string(errs.CodeInsufficientFunds), "delivery": 1.0},
+		map[string]any{"outcome": "ack", "code": "ok", "delivery": 2.0},
+	)
+}
+
 func TestHandleOwn_retryableErrorNaksAndAPanicTerms(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)

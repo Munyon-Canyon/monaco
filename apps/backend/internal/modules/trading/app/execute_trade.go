@@ -87,6 +87,10 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 		return err
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		if view.Status == domain.StatusFailed {
+			_, err := d.RecordAs(ctx, tx, string(errs.CodeSwapFailed))
+			return err
+		}
 		_, err := d.Record(ctx, tx)
 		return err
 	})
@@ -220,7 +224,7 @@ func (h *ExecuteTradeHandler) paused(ctx context.Context, cmd ExecuteTrade, _ *S
 func (h *ExecuteTradeHandler) block(ctx context.Context, d bus.Delivery, cmd ExecuteTrade, r refusal) error {
 	blocked := false
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		inserted, err := d.Record(ctx, tx)
+		inserted, err := d.RecordAs(ctx, tx, string(r.code))
 		if err != nil || !inserted {
 			return err
 		}
