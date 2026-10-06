@@ -368,6 +368,20 @@ func EventuallyHints(what string, n int) Step {
 	}
 }
 
+func EventuallyGlobalHint(what string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		if s.actor == nil {
+			s.t.Fatal("scenario: EventuallyGlobalHint needs AsUser first")
+		}
+		u := s.actor
+		want := sse.Hint{Key: sse.Global, What: what}
+		s.app.note.await(s.t, "hint "+string(want.Key)+" "+what, func() bool {
+			return slices.Contains(u.stream.hints, want)
+		})
+	}
+}
+
 func EventuallyCabalHint(cabalID ids.CabalID, what string) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
