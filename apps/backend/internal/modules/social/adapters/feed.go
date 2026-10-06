@@ -21,6 +21,7 @@ import (
 type Feed struct {
 	Bus    *bus.Conn
 	Users  app.Users
+	Cabals app.Cabals
 	Assets app.Assets
 	IDs    ids.Generator
 	UoW    *db.UnitOfWork

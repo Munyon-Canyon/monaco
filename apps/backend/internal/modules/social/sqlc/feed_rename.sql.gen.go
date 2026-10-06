@@ -60,7 +60,7 @@ func (q *Queries) RewriteFeedRows(ctx context.Context, arg RewriteFeedRowsParams
 
 const staleFeedByActor = `-- name: StaleFeedByActor :many
 SELECT id, kind, payload FROM feed_objects
-WHERE actor_id = $1::uuid AND payload->>'actor_name' <> $2::text
+WHERE actor_id = $1::uuid AND payload->>'actor_name' IS DISTINCT FROM $2::text
   AND id > $3::uuid
 ORDER BY id
 LIMIT $4::int

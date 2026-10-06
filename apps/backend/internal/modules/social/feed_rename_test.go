@@ -11,6 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
@@ -41,6 +42,7 @@ type renamer struct {
 	clock *testkit.Clock
 	uow   *db.UnitOfWork
 	users *fakes.Identity
+	names *cabalNames
 	conn  *bus.Conn
 	alice ids.UserID
 	bob   ids.UserID
@@ -53,7 +55,8 @@ func newRenamer(t *testing.T) renamer {
 	pool := testkit.DB(t)
 	return renamer{
 		pool: pool, gen: g, clock: clk, uow: db.New(pool, g, clk),
-		users: fakes.NewIdentity(nil, nil), alice: ids.NewUserID(g), bob: ids.NewUserID(g),
+		users: fakes.NewIdentity(nil, nil), names: &cabalNames{current: map[ids.CabalID]string{}},
+		alice: ids.NewUserID(g), bob: ids.NewUserID(g),
 	}
 }
 
@@ -89,7 +92,7 @@ func (r renamer) deliverAs(
 	t.Helper()
 	deps := module.Deps{Pool: r.pool, UoW: r.uow, IDs: r.gen, Clock: r.clock, Bus: r.conn}
 	ctx = observability.WithEventID(ctx, ids.EventIDFrom(id))
-	for _, c := range social.New(deps, social.WithUsers(r.users)).Consumers() {
+	for _, c := range social.New(deps, social.WithUsers(r.users), social.WithCabals(r.names)).Consumers() {
 		for _, h := range c.Handlers {
 			if h.Name == handler {
 				return bus.Deliver(ctx, r.uow, r.clock, h, ids.EventIDFrom(id), ev)
@@ -217,6 +220,20 @@ func profileUpdated(user uuid.UUID, name string, fields ...string) events.UserPr
 	return events.UserProfileUpdated{V: 1, UserID: user, Fields: fields, DisplayName: name}
 }
 
+type cabalNames struct {
+	current map[ids.CabalID]string
+	err     error
+}
+
+func (c *cabalNames) Cabal(_ context.Context, id ids.CabalID) (cabalport.CabalView, error) {
+	return cabalport.CabalView{ID: id, Name: c.current[id]}, c.err
+}
+
+func (r renamer) renamed(cabal ids.CabalID, actor ids.UserID, name string) events.CabalUpdated {
+	r.names.current[cabal] = name
+	return cabalRenamed(cabal.UUID(), actor.UUID(), name)
+}
+
 func cabalRenamed(cabal, actor uuid.UUID, name string) events.CabalUpdated {
 	return events.CabalUpdated{V: 1, CabalID: cabal, ActorID: actor, Changes: events.CabalChanges{Name: &name}}
 }
@@ -308,7 +325,7 @@ func TestFeedRename_Cabal(t *testing.T) {
 	sub := testkit.SubscribeCore(t, b, hintSubject)
 	r.clock.Advance(time.Hour)
 
-	r.mustDeliver(t, cabalHandler, cabalRenamed(cabal.UUID(), r.alice.UUID(), "Quorum"))
+	r.mustDeliver(t, cabalHandler, r.renamed(cabal, r.alice, "Quorum"))
 
 	wantTitles := map[string]int{
 		"Quorum bought $500 of AAPLx":                         renameRows / 3,
@@ -432,7 +449,7 @@ func TestFeedRename_CabalWaitsForItsCreation(t *testing.T) {
 	r = r.knowing(identity.UserCard{ID: r.alice, Handle: "alice"})
 	cabal := ids.CabalIDFrom(r.gen.NewV7())
 	created := events.CabalCreated{V: 1, CabalID: cabal.UUID(), CreatorID: r.alice.UUID(), Name: "Alpha"}
-	rename := cabalRenamed(cabal.UUID(), r.alice.UUID(), "Quorum")
+	rename := r.renamed(cabal, r.alice, "Quorum")
 	id := r.event(t, rename)
 
 	_, err := r.deliverAs(t.Context(), t, id, cabalHandler, rename)
@@ -470,6 +487,10 @@ func TestFeedRename_returnsEachFailure(t *testing.T) {
 		t.Helper()
 		r.users.Fail("UsersByID", errs.New(errs.CodeDBUnavailable, "test"))
 	}
+	cabalDown := func(t *testing.T, r renamer, _ ids.CabalID) {
+		t.Helper()
+		r.names.err = errs.New(errs.CodeDBUnavailable, "test")
+	}
 	for name, tc := range map[string]struct {
 		handler string
 		prepare func(*testing.T, renamer, ids.CabalID)
@@ -479,6 +500,7 @@ func TestFeedRename_returnsEachFailure(t *testing.T) {
 		"profile select":   {profileHandler, dropTable("feed_objects"), errs.CodeInternal},
 		"profile payload":  {profileHandler, badRow, errs.CodeInternal},
 		"profile update":   {profileHandler, refuseTitle("Quillen"), errs.CodeInternal},
+		"cabal read":       {cabalHandler, cabalDown, errs.CodeDBUnavailable},
 		"cabal rename":     {cabalHandler, dropTable("feed_cabals"), errs.CodeInternal},
 		"cabal select":     {cabalHandler, dropTable("feed_objects"), errs.CodeInternal},
 		"cabal payload":    {cabalHandler, badRow, errs.CodeInternal},
@@ -498,7 +520,7 @@ func TestFeedRename_returnsEachFailure(t *testing.T) {
 
 			var ev events.Event = profileUpdated(r.alice.UUID(), "Quillen", "display_name")
 			if tc.handler == cabalHandler {
-				ev = cabalRenamed(cabal.UUID(), r.alice.UUID(), "Quorum")
+				ev = r.renamed(cabal, r.alice, "Quorum")
 			}
 			_, err := r.deliver(t, tc.handler, ev)
 
@@ -573,5 +595,49 @@ func (r renamer) insertRaw(t *testing.T, actor ids.UserID, cabal ids.CabalID, pa
 		r.gen.NewV7(), r.gen.NewV7(), cabal.UUID(), actor.UUID(), payload, r.clock.Now())
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFeedRename_CabalConvergesWhenRenamesArriveOutOfOrder(t *testing.T) {
+	t.Parallel()
+	r := newRenamer(t)
+	r = r.knowing(identity.UserCard{ID: r.alice, Handle: "alice"})
+	cabal := ids.CabalIDFrom(r.gen.NewV7())
+	r.mustDeliver(t, createdHandler, events.CabalCreated{
+		V: 1, CabalID: cabal.UUID(), CreatorID: r.alice.UUID(), Name: "Alpha",
+	})
+	r.seed(t, 3, joined(r.bob, cabal, "bob"))
+	first := r.renamed(cabal, r.alice, "Beta")
+	second := r.renamed(cabal, r.alice, "Quorum")
+
+	r.mustDeliver(t, cabalHandler, second)
+	r.mustDeliver(t, cabalHandler, first)
+
+	got := r.count(t, `cabal_id = $1 AND cabal_name = 'Quorum' AND payload->>'cabal_name' = 'Quorum'`, cabal.UUID())
+	if got != 4 {
+		t.Fatalf("rows on the current name = %d, want the created item and bob's 3", got)
+	}
+	var name string
+	if err := r.pool.QueryRow(t.Context(), `SELECT name FROM feed_cabals WHERE cabal_id = $1`, cabal.UUID()).
+		Scan(&name); err != nil || name != "Quorum" {
+		t.Fatalf("feed_cabals name = %q, %v; want Quorum", name, err)
+	}
+}
+
+func TestFeedRename_ProfileRefreshesRowsWithNoStoredName(t *testing.T) {
+	t.Parallel()
+	r := newRenamer(t)
+	r = r.knowing(identity.UserCard{ID: r.alice, Handle: "alice"})
+	cabal := ids.CabalIDFrom(r.gen.NewV7())
+	r.seed(t, 2, joined(r.alice, cabal, ""))
+	if got := r.count(t, `actor_id = $1 AND NOT payload ? 'actor_name'`, r.alice.UUID()); got != 2 {
+		t.Fatalf("seeded rows with no actor_name key = %d, want 2", got)
+	}
+
+	r.mustDeliver(t, profileHandler, profileUpdated(r.alice.UUID(), "", "handle"))
+
+	if got := r.count(t, `actor_id = $1 AND title = 'alice joined Alpha' AND payload->>'actor_name' = 'alice'`,
+		r.alice.UUID()); got != 2 {
+		t.Fatalf("refreshed rows = %d, want 2", got)
 	}
 }

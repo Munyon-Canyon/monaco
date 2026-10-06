@@ -21,6 +21,7 @@ type Module struct {
 	deps     module.Deps
 	users    app.Users
 	members  app.ChatMembers
+	cabals   app.Cabals
 	realtime app.Realtime
 	assets   app.Assets
 }
@@ -29,6 +30,10 @@ type Option func(*Module)
 
 func WithUsers(users app.Users) Option {
 	return func(m *Module) { m.users = users }
+}
+
+func WithCabals(cabals app.Cabals) Option {
+	return func(m *Module) { m.cabals = cabals }
 }
 
 func WithAssets(catalog market.Catalog) Option {
@@ -64,7 +69,11 @@ func New(d module.Deps, opts ...Option) *Module {
 		m.assets = NewAssets(market.New(d).Catalog())
 	}
 	m.useDefaultRealtime()
-	m.members = cabal.New(d).Queries()
+	queries := cabal.New(d).Queries()
+	m.members = queries
+	if m.cabals == nil {
+		m.cabals = queries
+	}
 	return m
 }
 
@@ -140,7 +149,9 @@ func (m *Module) http() adapters.HTTP {
 }
 
 func (m *Module) Consumers() []bus.Consumer {
-	feed := adapters.Feed{Bus: m.deps.Bus, Users: m.users, Assets: m.assets, IDs: m.deps.IDs, UoW: m.deps.UoW}
+	feed := adapters.Feed{
+		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, IDs: m.deps.IDs, UoW: m.deps.UoW,
+	}
 	return []bus.Consumer{
 		{
 			Durable: "social_feed",
@@ -149,7 +160,7 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.HandleFetched("social.feed.joined", feed.FetchJoined, feed.ApplyJoined),
 				bus.Handle("social.feed.left", feed.Left),
 				bus.HandleFetched("social.feed.profile_updated", feed.FetchProfile, feed.ApplyProfile),
-				bus.Handle("social.feed.cabal_updated", feed.CabalUpdated),
+				bus.HandleFetched("social.feed.cabal_updated", feed.FetchCabal, feed.ApplyCabal),
 				bus.HandleFetched("social.feed.proposal_created", feed.FetchProposal, feed.ApplyProposal),
 				bus.Handle("social.feed.proposal_passed", feed.ProposalPassed),
 				bus.Handle("social.feed.proposal_failed", feed.ProposalFailed),

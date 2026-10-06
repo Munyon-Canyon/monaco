@@ -3,7 +3,7 @@ UPDATE feed_cabals SET name = sqlc.arg(name), updated_at = sqlc.arg(at) WHERE ca
 
 -- name: StaleFeedByActor :many
 SELECT id, kind, payload FROM feed_objects
-WHERE actor_id = sqlc.arg(actor_id)::uuid AND payload->>'actor_name' <> sqlc.arg(name)::text
+WHERE actor_id = sqlc.arg(actor_id)::uuid AND payload->>'actor_name' IS DISTINCT FROM sqlc.arg(name)::text
   AND id > sqlc.arg(after)::uuid
 ORDER BY id
 LIMIT sqlc.arg(row_limit)::int
