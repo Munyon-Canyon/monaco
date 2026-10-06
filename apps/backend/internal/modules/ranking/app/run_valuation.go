@@ -83,6 +83,7 @@ type readData struct {
 	users     map[ids.UserID]identity.UserCard
 	paused    funding.PausedSet
 	assets    []market.Asset
+	ranged    []rangedBook
 }
 
 func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) {
@@ -118,9 +119,13 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
+	ranged, err := r.readRanged(ctx, at)
+	if err != nil {
+		return readData{}, err
+	}
 	return readData{
 		cabals: cabals, members: members, positions: positions, stakes: stakes, reserved: reserved, users: users,
-		paused: paused, assets: assets,
+		paused: paused, assets: assets, ranged: ranged,
 	}, nil
 }
 

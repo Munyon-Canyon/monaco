@@ -47,7 +47,7 @@ func WithPorts(ports app.Ports) Option { return func(m *Module) { m.ports = port
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
 		deps:   d,
-		ports:  app.Ports{Previous: sqlc.New(d.Pool)},
+		ports:  app.Ports{Previous: sqlc.New(d.Pool), Snapshots: sqlc.New(d.Pool)},
 		pages:  adapters.PageCache{Cache: adapters.NewCache[app.PageKey, domain.BoardPage](pageCacheSize)},
 		curves: adapters.HistoryCache{Cache: adapters.NewCache[app.HistoryKey, domain.ValueHistory](curveCacheSize)},
 	}

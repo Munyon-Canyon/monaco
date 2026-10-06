@@ -59,6 +59,6 @@ func rankingOver(d module.Deps) *ranking.Module {
 		Funding:  funding.New(d).Pauses(),
 		Cabals:   cabal.New(d).Queries(),
 		Users:    identity.New(d).Queries(),
-		Previous: sqlc.New(d.Pool),
+		Previous: sqlc.New(d.Pool), Snapshots: sqlc.New(d.Pool),
 	}))
 }
