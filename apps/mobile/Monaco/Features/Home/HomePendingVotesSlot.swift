@@ -26,7 +26,7 @@ struct HomePendingVotes: View {
                     HStack {
                         MonacoSectionHeader("Needs your vote", count: model.votes.count)
                         Spacer()
-                        NavigationLink("See all", value: PendingVotesRoute())
+                        NavigationLink("See all", value: AnyAppRoute(PendingVotesRoute()))
                     }
                     ForEach(model.votes.prefix(3)) { vote in
                         if let detail = model.details[vote.id], let voting {
