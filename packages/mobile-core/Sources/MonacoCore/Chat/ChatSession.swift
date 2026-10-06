@@ -32,6 +32,8 @@ public actor ChatSession {
     let now: @Sendable () -> Date
     let makeKey: @Sendable () -> String
     private let onArrival: @Sendable () async -> Void
+    let attachTimeout: Duration
+    let clock: any Clock<Duration>
     var state: State
     private var subscribers: [UUID: AsyncStream<State>.Continuation] = [:]
     private var submissions: [String: IdempotentSubmission] = [:]
@@ -42,7 +44,11 @@ public actor ChatSession {
     var isOpen = false
     private var noticeSerial = 0
     private var cursor = CatchUpCursor()
-    private var openCoversNextAttach = false
+    var attachSignal: AsyncStream<Bool>.Continuation?
+    var openBuffer: [ChatMessage]?
+    var openGeneration = 0
+    var channelAttached = false
+    var catchUpOwed = false
 
     public init(
         cabalID: String,
@@ -51,8 +57,12 @@ public actor ChatSession {
         realtime: any ChatRealtime,
         now: @escaping @Sendable () -> Date,
         makeKey: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() },
-        onArrival: @escaping @Sendable () async -> Void = {}
+        onArrival: @escaping @Sendable () async -> Void = {},
+        attachTimeout: Duration = .seconds(3),
+        clock: any Clock<Duration> = ChatSession.systemClock
     ) {
+        self.clock = clock
+        self.attachTimeout = attachTimeout
         self.cabalID = cabalID
         self.api = api
         self.realtime = realtime
@@ -73,30 +83,12 @@ public actor ChatSession {
         return stream
     }
 
-    public func open() async {
-        guard !isOpen else { return }
-        isOpen = true
-        if state.timeline.newestID == nil {
-            await loadNewest()
-        } else {
-            await catchUp()
-        }
-        guard isOpen, !state.isClosed else { return }
-        openCoversNextAttach = listener == nil
-        subscribe()
-    }
-
     public func close() {
         isOpen = false
         if attached.isEmpty { stopListening() }
     }
 
     func newKey() -> String { makeKey() }
-
-    public func reload() async {
-        await loadNewest()
-        if isOpen, !state.isClosed { subscribe() }
-    }
 
     public func loadOlder() async {
         guard let cursor = state.timeline.oldestID, state.timeline.hasOlder, !state.isLoadingOlder else { return }
@@ -143,6 +135,7 @@ public actor ChatSession {
         for thread in attached.values { await thread.apply(event) }
         switch event {
         case .messageCreated(let message):
+            if bufferWhileOpening(message) { return }
             guard state.timeline.hasLoadedNewest else { return }
             cursor.advance(with: [message])
             guard state.timeline.insertLive(message) else { return }
@@ -154,13 +147,14 @@ public actor ChatSession {
         case .messageDeleted(let id):
             state.timeline.markDeleted(id: id)
         case .attached(let resumed):
-            let covered = openCoversNextAttach
-            openCoversNextAttach = false
-            if !resumed, !covered { await catchUp() }
+            channelAttached = true
+            await applyAttach(resumed: resumed)
         case .seenUpdated(let messageId, let count):
             guard messageId == state.timeline.newestID else { return }
             state.seen = Seen(messageID: messageId, count: count)
         case .detached:
+            channelAttached = false
+            attachSignal?.yield(false)
             return
         }
         publish()
@@ -168,7 +162,8 @@ public actor ChatSession {
 
     func stopListening() {
         listener?.cancel()
-        (listener, openCoversNextAttach) = (nil, false)
+        listener = nil
+        channelAttached = false
         realtime.detach(cabalId: cabalID)
     }
 
@@ -183,7 +178,7 @@ public actor ChatSession {
         }
     }
 
-    private func loadNewest() async {
+    func loadNewest() async {
         if state.load != .loaded { state.load = .loading }
         publish()
         do {
@@ -199,7 +194,7 @@ public actor ChatSession {
         publish()
     }
 
-    private func catchUp() async {
+    func catchUp() async {
         guard var after = cursor.id else {
             await loadNewest()
             return

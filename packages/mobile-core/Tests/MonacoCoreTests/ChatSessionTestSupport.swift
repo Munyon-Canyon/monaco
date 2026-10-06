@@ -13,6 +13,11 @@ final class FakeChatRealtime: ChatRealtime {
     }
 
     private let store = Mutex(Store())
+    private let attaches: Bool
+
+    init(attaches: Bool = true) {
+        self.attaches = attaches
+    }
 
     var subscribed: [String] { store.withLock { $0.subscribed } }
     var detached: [String] { store.withLock { $0.detached } }
@@ -23,6 +28,7 @@ final class FakeChatRealtime: ChatRealtime {
             $0.subscribed.append(cabalId)
             $0.continuation = continuation
         }
+        if attaches { continuation.yield(.attached(resumed: true)) }
         return stream
     }
 
@@ -66,7 +72,8 @@ extension ChatFixtures {
     static func session(
         _ transport: StubTransport,
         realtime: FakeChatRealtime = FakeChatRealtime(),
-        keys: [String] = ["key-1", "key-2", "key-3"]
+        keys: [String] = ["key-1", "key-2", "key-3"],
+        clock: any Clock<Duration> = ContinuousClock()
     ) -> ChatSession {
         let remaining = Mutex(keys)
         return ChatSession(
@@ -75,7 +82,8 @@ extension ChatFixtures {
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
             realtime: realtime,
             now: { epoch.addingTimeInterval(3_600) },
-            makeKey: { remaining.withLock { $0.isEmpty ? "key-extra" : $0.removeFirst() } }
+            makeKey: { remaining.withLock { $0.isEmpty ? "key-extra" : $0.removeFirst() } },
+            clock: clock
         )
     }
 
