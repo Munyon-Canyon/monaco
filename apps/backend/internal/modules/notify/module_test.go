@@ -28,6 +28,8 @@ func TestModule_servesDevicesAndConsumesEveryPushKindWithNoPollers(t *testing.T)
 			"notify notify.deposit_credited deposit.credited",
 			"notify notify.cabal_paused cabal.paused",
 			"notify notify.cabal_resumed cabal.resumed",
+			"notify notify.trade_confirmed trade.confirmed",
+			"notify notify.trade_failed trade.failed",
 		}) {
 		t.Fatalf("module = %s, handlers %q, pollers %v", m.Name(), handlers, m.Pollers())
 	}

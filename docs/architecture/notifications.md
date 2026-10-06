@@ -123,9 +123,9 @@ apns2 brings its own HTTP/2 client, so the adapter is an exception to the rule t
 
 ### Flow: trade confirmed
 
-1. The `trading` module's swap state machine moves the `swaps` row to `confirmed`. In the same `uow.Do` it appends `trade.confirmed` with `{txn_id, cabal_id, ...}` (flow 11; [trade-execution.md](trade-execution.md), step 3). The relay publishes it with `Nats-Msg-Id` set to the event id.
+1. The `trading` module's swap state machine moves the `swaps` row to `confirmed`. In the same `uow.Do` it appends `trade.confirmed` with `{swap_id, cabal_id, ...}` (flow 11; [trade-execution.md](trade-execution.md), step 3). The relay publishes it with `Nats-Msg-Id` set to the event id.
 2. The `notify` consumer receives it through `bus.Dispatch`. Its handler is a `bus.HandleOwn` handler named `notify.<type>`, so it runs outside the delivery transaction and again on every redelivery.
-3. Each kind registered for the event names its recipients, here the cabal's members through the read-only query port the `cabal` module exports ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)). The handler drops the event's causing user (its `actor_id` when the actor is a user) and deleted or unknown users, then renders the rest. One `uow.Do` writes a NotificationBroadcast when there are two or more and one `pending` Notification per recipient. Rows are unique on `(source_event_id, user_id, kind)`, so a redelivery writes nothing twice.
+3. Each kind registered for the event names its recipients, here the cabal's members when a proposal started the trade, through the read-only query port the `cabal` module exports ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)). The handler drops the event's causing user (its `actor_id` when the actor is a user) and deleted or unknown users, then renders the rest. One `uow.Do` writes a NotificationBroadcast when there are two or more and one `pending` Notification per recipient. Rows are unique on `(source_event_id, user_id, kind)`, so a redelivery writes nothing twice.
 4. After commit, the handler sends every `pending` row of the event to each active `device_tokens` row of its user, on a pool of at most 32 sends, then settles each row in its own `uow.Do` as in the table above. APNs is never called inside a transaction ([event-bus.md](event-bus.md#consumers-and-handlers)). A crash between send and `delivered_at` can send twice; `apns-collapse-id` makes the phone show one.
 5. Each delivered Notification appends `notification.sent` (flow 24). No consumer reacts to it.
 6. Last, the handler records its `event_deliveries` row. A `429` or `5xx` naks before that, so the redelivery resends only the rows still `pending`.
@@ -138,7 +138,8 @@ Push only for MVP (default 2026-09-27). There is no in-app notification list and
 
 | Push | Subject | Recipients | Copy | Source |
 | --- | --- | --- | --- | --- |
-| Trade filled or failed | `trade.confirmed`, `trade.failed` (flow 11) | Cabal members | Not written yet | default 2026-09-27 |
+| Trade filled | `trade.confirmed` (flow 11) | Every member, when a passed proposal started the trade. A cash out pushes nobody, because it is one member's business (flow 14) | "Trade filled" / "Your cabal bought $50.00 of Apple". A sell swaps "bought" for "sold" | default 2026-09-27; copy proposed 2026-10-06 (#625), needs product sign-off |
+| Trade failed | `trade.failed` (flow 11) | The same members as a filled trade | "Trade didn't go through" / "Your cabal's buy of Apple failed. No money moved." A sell swaps "buy" for "sell" | default 2026-09-27; copy proposed 2026-10-06 (#625), needs product sign-off |
 | Proposal created | `proposal.created` (flow 9) | Cabal members | Not written yet | default 2026-09-27 |
 | A proposal you voted on passed | `proposal.passed` (flow 10) | Its voters | Not written yet | default 2026-09-27 |
 | Deposit credited | `deposit.credited` (flow 5) | The depositor | "Deposit received" / "$25.00 is in your account balance." | default 2026-09-27; copy proposed 2026-10-06 (#627), needs product sign-off |
@@ -150,7 +151,7 @@ Push only for MVP (default 2026-09-27). There is no in-app notification list and
 | Onboarding nudge | `user.nudge_due` ([auth.md](auth.md#nudges)) | The user | Not written yet | decided 2026-09-27 |
 | Test push | `notify.test_requested` (flow 24), appended by `monacoctl notify test --user <id>` | That user | "Monaco test" / "Push is working." | proposed 2026-10-06 (#592), needs product sign-off |
 
-Dollar amounts in copy truncate to whole cents and carry no thousands separator.
+Dollar amounts in copy truncate to whole cents and carry no thousands separator. A stock reads as its catalog display name, never its issuer symbol, and as "a stock" when the catalog has no entry for the symbol. A trade push carries the swap id as `txn_id`, and its collapse id is `trade-<swap id>`.
 
 No other event pushes, so the RFC's [flows table](backend-platform.md#flows) lists `notify` as a consumer only of the events in this table. Referral attribution and qualification, price moves, funding, cash outs, withdrawals, agent lifecycle and admin actions send no push. Unfollows never notify.
 
