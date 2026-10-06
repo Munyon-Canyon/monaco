@@ -39,6 +39,7 @@ func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *test
 			"notify notify.proposal_created proposal.created",
 			"notify notify.proposal_passed proposal.passed",
 			"notify notify.follow_created follow.created",
+			"notify notify.user_nudge_due user.nudge_due",
 		}) {
 		t.Fatalf("module = %s, handlers %q, pollers %q", m.Name(), handlers, pollers)
 	}

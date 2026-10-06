@@ -50,9 +50,15 @@ func TestPush_convergesUnderChaosWithATokenlessAndADeletedUser(t *testing.T) {
 				t.Fatalf("seed token %d: %v", i, err)
 			}
 		}
+		seedChaosNudgeStates(t, h)
 		deps := module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, UoW: db.New(h.Pool, h.IDs, h.Clock)}
 		return notify.New(deps, notify.WithSender(&testkit.FakeSender{})).Consumers()[0]
-	}, func(_ *rand.Rand, i int) events.Event {
-		return events.NotifyTestRequested{V: 1, UserID: chaosRecipient(i % users)}
-	})
+	}, func(_ *rand.Rand, i int) events.Event { return chaosPushEvent(i) })
+}
+
+func chaosPushEvent(i int) events.Event {
+	if i < chaosUsers {
+		return events.NotifyTestRequested{V: 1, UserID: chaosRecipient(i)}
+	}
+	return chaosNudge(i)
 }

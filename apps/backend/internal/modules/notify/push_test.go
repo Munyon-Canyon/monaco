@@ -661,6 +661,7 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string
 		"new_follower": {
 			events.TypeFollowCreated, renderer[events.FollowCreated](app.NewFollower{Users: users}),
 		},
+		"nudge": {events.TypeUserNudgeDue, renderer[events.UserNudgeDue](app.Nudge{Users: users})},
 	}
 }
 
