@@ -64,6 +64,7 @@ struct ProposeAmountScreen: View {
                     draft: model.draft, preview: preview, trade: model.trade)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-amount-screen")
     }
 
