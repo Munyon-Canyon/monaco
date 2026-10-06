@@ -51,7 +51,7 @@ jobs:
       # checkouts and git mirrors, the module caches, and Build with the compiled packages, the
       # swift-openapi-generator output, mobile-core and the app. Extracting the same files from a tar
       # took 229 s on a macos-26 runner (tens of thousands of small files); the image is one file,
-      # mounted in about a second at the DerivedData path xcodebuild always uses, so xcodebuild
+      # extracted in seconds and mounted at the DerivedData path xcodebuild always uses, so xcodebuild
       # resolves packages offline and builds incrementally. Each staging save gets its own key; PRs
       # restore the newest entry for the same Xcode and Package.resolved files, and staging.yml's prune
       # job keeps only the newest.
