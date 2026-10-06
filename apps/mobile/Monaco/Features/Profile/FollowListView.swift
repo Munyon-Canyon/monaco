@@ -93,7 +93,7 @@ struct FollowListView: View {
                     }
                 }
                 if canRetryPage {
-                    Button("Try again") { Task { await loadMore() } }
+                    Button("Try again") { Task { await retry() } }
                         .buttonStyle(.monacoSecondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .padding(.horizontal, MonacoTheme.Space.m)
@@ -155,6 +155,14 @@ struct FollowListView: View {
         switch kind {
         case .followers: await model.loadFollowers()
         case .following: await model.loadFollowing()
+        }
+    }
+
+    private func retry() async {
+        guard let model else { return }
+        switch kind {
+        case .followers: await model.retryFollowers()
+        case .following: await model.retryFollowing()
         }
     }
 

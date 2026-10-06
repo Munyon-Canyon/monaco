@@ -53,6 +53,7 @@ public final class UserProfileModel {
     private var loadGeneration = 0
     private var toggling: Set<String> = []
     private var overrides: [String: Bool] = [:]
+    fileprivate var firstPageFailed: Set<Directory> = []
 
     @ObservationIgnored private lazy var followersPager: CursorPager<FollowListUser> = makePager(.followers)
     @ObservationIgnored private lazy var followingPager: CursorPager<FollowListUser> = makePager(.following)
@@ -255,7 +256,7 @@ public final class UserProfileModel {
         toastTick += 1
     }
 
-    private enum Directory {
+    fileprivate enum Directory: Hashable {
         case followers
         case following
     }
@@ -271,6 +272,7 @@ public final class UserProfileModel {
             } catch {
                 let failure = APIError(error)
                 let visible = await self?.directoryHasRows(directory) ?? false
+                await self?.recordFailure(directory, firstPage: cursor == nil)
                 if cursor != nil || visible { await self?.note(failure) }
                 throw error
             }
@@ -317,5 +319,31 @@ public final class UserProfileModel {
     private static func meansUnavailable(_ error: APIError) -> Bool {
         guard case .problem(let problem) = error else { return false }
         return problem.code.wire == "user_not_found" || problem.code.wire == "user_banned"
+    }
+}
+
+extension UserProfileModel {
+    public func retryFollowers() async {
+        await retry(.followers, pager: followersPager)
+    }
+
+    public func retryFollowing() async {
+        await retry(.following, pager: followingPager)
+    }
+
+    private func retry(_ directory: Directory, pager: CursorPager<FollowListUser>) async {
+        if firstPageFailed.contains(directory) {
+            await pager.loadFirst()
+        } else {
+            await pager.loadMore()
+        }
+    }
+
+    private func recordFailure(_ directory: Directory, firstPage: Bool) {
+        if firstPage {
+            firstPageFailed.insert(directory)
+        } else {
+            firstPageFailed.remove(directory)
+        }
     }
 }
