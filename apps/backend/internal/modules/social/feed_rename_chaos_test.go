@@ -84,7 +84,7 @@ func TestFeedRename_CabalConvergesAfterACrashBetweenBatches(t *testing.T) {
 	r := newRenamer(t)
 	cabal := r.cabal(t, "Alpha")
 	r.seed(t, renameRows, joined(r.bob, cabal, "bob"))
-	ev := cabalRenamed(cabal.UUID(), r.alice.UUID(), "Quorum")
+	ev := r.renamed(cabal, r.alice, "Quorum")
 	id := r.event(t, ev)
 
 	crashAfterCommits(t.Context(), t, 2, func(ctx context.Context) {

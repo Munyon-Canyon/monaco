@@ -384,7 +384,7 @@ type FeedItem struct {
 	// Examples: null
 	ActorId *openapi_types.UUID `json:"actor_id"`
 
-	// ActorName The acting user's display name, as it was when the item was written. Null for a system item.
+	// ActorName The acting user's display name, as of the item's last rename, so it follows a rename. Null for a system item.
 	//
 	// Examples: null
 	ActorName *string `json:"actor_name"`

@@ -53,13 +53,19 @@ func chaosFeedConsumer(t *testing.T, h testkit.Harness) bus.Consumer {
 		cards[p] = card
 	}
 	deps := module.Deps{Pool: h.Pool, UoW: db.New(h.Pool, h.IDs, h.Clock), IDs: h.IDs, Clock: h.Clock, Bus: h.Bus}
-	for _, c := range social.New(deps, social.WithUsers(fakes.NewIdentity(cards, nil))).Consumers() {
+	for _, c := range social.New(deps, social.WithUsers(fakes.NewIdentity(cards, nil)), social.WithCabals(chaosNames())).Consumers() {
 		if c.Durable == "social_feed" {
 			return c
 		}
 	}
 	t.Fatal("social_feed is not registered")
 	return bus.Consumer{}
+}
+
+func chaosNames() *cabalNames {
+	return &cabalNames{current: map[ids.CabalID]string{
+		ids.CabalIDFrom(chaosCabal(1)): "Renamed 1", ids.CabalIDFrom(chaosCabal(5)): "Renamed 5",
+	}}
 }
 
 func chaosEvent(_ *rand.Rand, i int) events.Event {

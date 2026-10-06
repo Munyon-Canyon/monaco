@@ -50,11 +50,18 @@ func (h Feed) ApplyProfile(
 	return h.rewrite(ctx, tx, at, stale, func(p *feed.Payload) { p.ActorName = name })
 }
 
-func (h Feed) CabalUpdated(ctx context.Context, tx db.Tx, e events.CabalUpdated, at time.Time) error {
+func (h Feed) FetchCabal(ctx context.Context, e events.CabalUpdated) (string, error) {
 	if e.Changes.Name == nil {
+		return "", nil
+	}
+	view, err := h.Cabals.Cabal(ctx, ids.CabalIDFrom(e.CabalID))
+	return view.Name, err
+}
+
+func (h Feed) ApplyCabal(ctx context.Context, tx db.Tx, e events.CabalUpdated, name string, at time.Time) error {
+	if name == "" {
 		return nil
 	}
-	name := *e.Changes.Name
 	err := h.UoW.Do(ctx, func(ctx context.Context, step db.Tx) error {
 		n, err := sqlc.New(step.Queries()).RenameFeedCabal(ctx, sqlc.RenameFeedCabalParams{
 			Name: name, At: at, CabalID: e.CabalID,

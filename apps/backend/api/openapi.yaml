@@ -4631,7 +4631,7 @@ components:
           format: uuid
           description: The user who acted. Null for a system item.
           examples: [null]
-        actor_name: {type: [string, "null"], description: "The acting user's display name, as it was when the item was written. Null for a system item.", examples: [null]}
+        actor_name: {type: [string, "null"], description: "The acting user's display name, as of the item's last rename, so it follows a rename. Null for a system item.", examples: [null]}
         asset_id:
           type: [string, "null"]
           format: uuid

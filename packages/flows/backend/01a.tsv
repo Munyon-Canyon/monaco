@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-01a	Set handle	identity	PUT /v1/me/handle	SetHandle	user.profile_updated		ok;HandleInvalid;HandleReserved;HandleTaken;HandleTooSoon	verified	docs/architecture/auth.md#handle
+01a	Set handle	identity	PUT /v1/me/handle	SetHandle	user.profile_updated	social.feed.profile_updated	ok;HandleInvalid;HandleReserved;HandleTaken;HandleTooSoon	verified	docs/architecture/auth.md#handle
