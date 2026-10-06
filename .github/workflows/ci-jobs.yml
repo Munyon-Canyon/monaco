@@ -491,14 +491,16 @@ jobs:
           fi
           echo "stacked=$stacked" | tee -a "$GITHUB_OUTPUT"
 
-      # Stage 2 never reuses: it tests the combined queue entry, not one PR's diff. A stacked PR never reuses
-      # either: its patch ID ignores the PRs below it, which a restack changes.
+      # Stage 2 never reuses: it tests the combined queue entry, not one PR's diff. A stacked top PR keys on the
+      # whole stack's diff from the merge base with the trunk (TRUNK_REF), since a restack changes the PRs below it.
+      # Lower PRs never get here: top.skip skips them. Checkout fetched every branch, so the merge base is local.
       - name: Reuse the last green stage 1 when the diff and workflow tree are unchanged
         id: reuse
-        if: steps.top.outputs.skip != 'true' && inputs.stage == 'pr' && github.event.pull_request && steps.stacked.outputs.stacked != 'true'
+        if: steps.top.outputs.skip != 'true' && inputs.stage == 'pr' && github.event.pull_request
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TRUNK_REF: ${{ steps.stacked.outputs.stacked == 'true' && format('origin/{0}', vars.FEATURE_BRANCH || 'main') || '' }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: scripts/ci/stage1-reuse.sh
