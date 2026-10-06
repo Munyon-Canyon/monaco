@@ -78,6 +78,7 @@ final class ChatSessionSampleTests: XCTestCase {
         await session.open()
         let before = await state(session)
 
+        await ChatFixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
         await session.close()
 

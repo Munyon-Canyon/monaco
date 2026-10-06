@@ -9,7 +9,7 @@ enum ChatThreadSampleQA {
     }
 
     @MainActor static func rootView() -> some View {
-        ChatThreadSampleHost(session: ChatSession.threadSample { Date() })
+        ChatThreadSampleHost(session: ChatSession.sample(ChatSampleScenario(threaded: true)) { Date() })
     }
 }
 

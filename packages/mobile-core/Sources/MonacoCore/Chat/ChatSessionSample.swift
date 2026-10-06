@@ -14,6 +14,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
     public var neverAnswers = false
     public var failFirstSend = false
     public var closedOnSend = false
+    public var threaded = false
 
     public init(
         startEmpty: Bool = false,
@@ -22,7 +23,8 @@ public struct ChatSampleScenario: Sendable, Equatable {
         closedFirstLoad: Bool = false,
         neverAnswers: Bool = false,
         failFirstSend: Bool = false,
-        closedOnSend: Bool = false
+        closedOnSend: Bool = false,
+        threaded: Bool = false
     ) {
         self.startEmpty = startEmpty
         self.failSends = failSends
@@ -31,6 +33,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
         self.neverAnswers = neverAnswers
         self.failFirstSend = failFirstSend
         self.closedOnSend = closedOnSend
+        self.threaded = threaded
     }
 }
 
@@ -67,17 +70,30 @@ private actor SampleChatStore {
     private var listCalls = 0
     private var postCalls = 0
     private var arrivals = 0
+    static let threadRootID = "root-1"
 
     init(scenario: ChatSampleScenario) {
         self.scenario = scenario
-        messages = scenario.startEmpty ? [] : Self.thread(busy: scenario.busy)
+        if scenario.threaded {
+            messages = [Self.message(Self.threadRootID, "u-ana", "Ana", "Apple reports Thursday.", minutesAgo: 10)]
+        } else {
+            messages = scenario.startEmpty ? [] : Self.thread(busy: scenario.busy)
+        }
+    }
+
+    func thread() -> (parent: ChatMessage, replies: [ChatMessage])? {
+        guard let parent = messages.first(where: { $0.id == Self.threadRootID }) else { return nil }
+        return (parent, messages.filter { $0.parentId == parent.id })
     }
 
     func page(before: String?, after: String?, limit: Int) async throws -> [ChatMessage] {
         if scenario.neverAnswers { try await Task.sleep(for: .seconds(3600)) }
         listCalls += 1
         if scenario.closedFirstLoad && listCalls == 1 { throw SampleChatRefusal() }
-        let ordered = messages.sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+        let ordered =
+            messages
+            .filter { $0.parentId == nil || $0.alsoInChannel }
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
         if let after, let index = ordered.firstIndex(where: { $0.id == after }) {
             return Array(ordered[(index + 1)...].prefix(limit))
         }
@@ -85,15 +101,22 @@ private actor SampleChatStore {
         return Array(older.suffix(limit).reversed())
     }
 
-    func post(body: String) async throws -> ChatMessage {
+    func post(body: String, parentID: String?, alsoInChannel: Bool) async throws -> ChatMessage {
         try await Task.sleep(for: .milliseconds(300))
         postCalls += 1
         if scenario.closedOnSend { throw SampleChatRefusal() }
         if scenario.failSends || (scenario.failFirstSend && postCalls == 1) {
             throw URLError(.notConnectedToInternet)
         }
-        let message = Self.message("sent-\(messages.count + 1)", ChatSession.sampleViewerID, "You", body, minutesAgo: 0)
+        let id = "sent-\(messages.count + 1)"
+        var message = Self.message(id, ChatSession.sampleViewerID, "You", body, minutesAgo: 0)
+        message.parentId = parentID
+        message.alsoInChannel = alsoInChannel
         messages.append(message)
+        if let parentID, let index = messages.firstIndex(where: { $0.id == parentID }) {
+            messages[index].replyCount += 1
+            messages[index].lastReplyAt = message.createdAt
+        }
         return message
     }
 
@@ -172,10 +195,22 @@ private struct SampleChatTransport: ClientTransport {
         operationID: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
         do {
-            if operationID == "postChatMessage" {
+            switch operationID {
+            case "postChatMessage":
                 let data = try await Data(collecting: body ?? "", upTo: 8_192)
-                let draft = try JSONDecoder().decode(Draft.self, from: data)
-                return try Self.reply(.created, try await store.post(body: draft.body))
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                let draft = try decoder.decode(Draft.self, from: data)
+                let stored = try await store.post(
+                    body: draft.body, parentID: draft.parentId, alsoInChannel: draft.alsoInChannel ?? false)
+                return try Self.reply(.created, stored)
+            case "getChatThread":
+                guard let thread = await store.thread() else { return Self.notFound() }
+                return try Self.reply(.ok, Thread(parent: thread.parent, replies: thread.replies))
+            case "getChatMessages":
+                break
+            default:
+                return Self.notFound()
             }
             let query = URLComponents(string: request.path ?? "")?.queryItems ?? []
             func value(_ name: String) -> String? { query.first { $0.name == name }?.value }
@@ -189,6 +224,13 @@ private struct SampleChatTransport: ClientTransport {
 
     private struct Draft: Decodable {
         let body: String
+        let parentId: String?
+        let alsoInChannel: Bool?
+    }
+
+    private struct Thread: Encodable {
+        let parent: ChatMessage
+        let replies: [ChatMessage]
     }
 
     private struct Page: Encodable {
@@ -203,6 +245,12 @@ private struct SampleChatTransport: ClientTransport {
         var response = HTTPResponse(status: status)
         response.headerFields[.contentType] = "application/json"
         return (response, HTTPBody(try encoder.encode(value)))
+    }
+
+    private static func notFound() -> (HTTPResponse, HTTPBody?) {
+        var response = HTTPResponse(status: .notFound)
+        response.headerFields[.contentType] = "application/problem+json"
+        return (response, HTTPBody(#"{"type":"about:blank","title":"Not Found","status":404}"#))
     }
 
     private static func refusal() -> (HTTPResponse, HTTPBody?) {

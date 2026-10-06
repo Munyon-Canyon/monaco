@@ -17,7 +17,7 @@ final class SampleThreadTogglePathTests: XCTestCase {
     }
 
     func testAReplySentWithTheSwitchOnReachesTheChannelAsAThreadReply() async {
-        let session = ChatSession.threadSample { Date(timeIntervalSince1970: 1_000) }
+        let session = ChatSession.sample(ChatSampleScenario(threaded: true)) { Date(timeIntervalSince1970: 1_000) }
         let thread = await openedThread(session)
 
         _ = await thread.send(body: "agree", alsoInChannel: true)
@@ -28,7 +28,7 @@ final class SampleThreadTogglePathTests: XCTestCase {
     }
 
     func testAReplySentWithTheSwitchOffStaysOutOfTheChannel() async {
-        let session = ChatSession.threadSample { Date(timeIntervalSince1970: 1_000) }
+        let session = ChatSession.sample(ChatSampleScenario(threaded: true)) { Date(timeIntervalSince1970: 1_000) }
         let thread = await openedThread(session)
 
         _ = await thread.send(body: "thread only", alsoInChannel: false)

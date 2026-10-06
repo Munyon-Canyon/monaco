@@ -71,6 +71,7 @@ final class ChatSessionSendTests: XCTestCase {
         let sending = Task { await session.send(body: "gm") }
         await transport.waitForRequests(2)
 
+        await Fixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
         let state = await Fixtures.state(session)
         XCTAssertEqual(Fixtures.ids(state), ["m0", "m1", "key-1"])

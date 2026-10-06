@@ -41,7 +41,7 @@ struct ChatThreadView: View {
             cabalID: cabalID,
             viewerID: environment.viewer?.userID ?? "",
             api: environment.api,
-            realtime: AblyChatRealtime(api: environment.api),
+            realtime: environment.chatRealtime,
             now: { Date() }
         )
         ChatSessionRegistry.register(created)
