@@ -5,15 +5,15 @@ Home names the people board "Top people". S1.1 reads "Top investors", so it must
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-index 5a0eea421..f931ab0f7 100644
+index 06ccec643..2cc4ed955 100644
 --- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-@@ -5,7 +5,7 @@ enum HomePeopleBoardSlot: HomeSection {
- 
-     static func body(for context: Void) -> some View {
+@@ -17,7 +17,7 @@ private struct HomePeopleBoard: View {
+     var body: some View {
          VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
--            MonacoSectionHeader("Top investors")
-+            MonacoSectionHeader("Top people")
-             Text("Rankings show up here soon.")
-                 .font(MonacoTheme.Typo.caption)
-                 .foregroundStyle(MonacoTheme.muted)
+             VStack(alignment: .leading, spacing: 2) {
+-                MonacoSectionHeader("Top investors")
++                MonacoSectionHeader("Top people")
+                 LeaderboardFreshnessText(loader: loader, identifier: "home-leaderboard-freshness")
+             }
+             .padding(.horizontal, MonacoTheme.Space.m)

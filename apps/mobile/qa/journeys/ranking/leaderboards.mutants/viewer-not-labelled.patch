@@ -4,16 +4,16 @@ expect-fail: S2
 The viewer's row on the member board is labelled "Me". S2.2 looks for "You", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift
-index ba8e92492..f5b3e9d92 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalMemberBoardSlot.swift
-@@ -128,7 +128,7 @@ private struct CabalMemberRow: View {
-                 .lineLimit(1)
-                 .frame(maxWidth: .infinity, alignment: .leading)
-             if isViewer {
--                Text("You")
-+                Text("Me")
-                     .font(MonacoTheme.Typo.captionStrong)
-                     .foregroundStyle(MonacoTheme.brandOnWash)
-             }
+diff --git a/apps/mobile/Monaco/Design/MonacoBoardRow.swift b/apps/mobile/Monaco/Design/MonacoBoardRow.swift
+index 7abaca3dd..3e08cddd7 100644
+--- a/apps/mobile/Monaco/Design/MonacoBoardRow.swift
++++ b/apps/mobile/Monaco/Design/MonacoBoardRow.swift
+@@ -15,7 +15,7 @@ struct BoardRow<Leading: View>: View {
+         case value
+     }
+ 
+-    static var viewerLabel: String { "You" }
++    static var viewerLabel: String { "Me" }
+ 
+     let row: LeaderboardRowView
+     var figure: Figure = .pnl

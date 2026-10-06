@@ -9,17 +9,16 @@ import SwiftUI
 /// as a glyph rather than as a coin: it means *first*, and the row prints the number beside it
 /// so the meaning never rests on the colour alone.
 struct BoardRow<Leading: View>: View {
-    /// Nil on a list that is not ranked (search results), which drops the rank column.
-    let rank: Int?
-    let name: String
-    /// A second line under the name — "3 members · Open", "(you)" and the like. Optional.
-    var detail: String? = nil
-    let percentReturn: String?
-    /// The figure under the return: a signed P&L, or a pot value for a cabal board.
-    var dollarPnl: String? = nil
-    var potValueUsd: String? = nil
-    /// The viewer's own row is washed in the brand so it can be found in a long board.
-    var isViewer = false
+    /// The figure under the return: a signed P&L for a person, the pot value for a cabal.
+    enum Figure {
+        case pnl
+        case value
+    }
+
+    static var viewerLabel: String { "You" }
+
+    let row: LeaderboardRowView
+    var figure: Figure = .pnl
     var isLast = false
     var chevron = false
     @ViewBuilder let leading: Leading
@@ -31,16 +30,14 @@ struct BoardRow<Leading: View>: View {
         MonacoRowLayout(dynamicTypeSize: dynamicTypeSize, scaledTitleWidthFloor: titleWidthFloor)
     }
 
-    private var isLeader: Bool { rank == 1 }
+    private var isLeader: Bool { row.rank == 1 }
 
     var body: some View {
         Group {
             if layout.isStacked {
-                // The figures drop under the name at the accessibility sizes, the way every
-                // `MonacoRow` stacks, instead of squeezing the name to an ellipsis.
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     HStack(spacing: MonacoTheme.Space.sm) {
-                        if rank != nil { rankColumn }
+                        rankColumn
                         leading.frame(width: 40, height: 40)
                         labels
                         if chevron { chevronGlyph }
@@ -50,7 +47,7 @@ struct BoardRow<Leading: View>: View {
                 }
             } else {
                 HStack(spacing: MonacoTheme.Space.sm) {
-                    if rank != nil { rankColumn }
+                    rankColumn
                     leading.frame(width: 40, height: 40)
                     labels
                         .frame(minWidth: layout.minimumTitleWidth, alignment: .leading)
@@ -61,10 +58,9 @@ struct BoardRow<Leading: View>: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.m)
-
         .padding(.vertical, 8)
         .frame(minHeight: 60)
-        .background(isViewer ? MonacoTheme.brandWash : Color.clear)
+        .background(row.isViewer ? MonacoTheme.brandWash : Color.clear)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if !isLast {
@@ -72,22 +68,25 @@ struct BoardRow<Leading: View>: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(spoken)
+        .accessibilityLabel(Self.spoken(row, figure: figure))
     }
 
-    /// The rule starts under the name, past the rank (when there is one) and the face.
     private var ruleInset: CGFloat {
-        let rankColumnWidth: CGFloat = rank == nil ? 0 : 24 + MonacoTheme.Space.sm
-        return MonacoTheme.Space.m + rankColumnWidth + 40 + MonacoTheme.Space.sm
+        MonacoTheme.Space.m + 24 + MonacoTheme.Space.sm + 40 + MonacoTheme.Space.sm
     }
 
     private func figures(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 2) {
-            PercentText(percentReturn: percentReturn, style: .row)
-            if let dollarPnl {
-                PnLText(dollarPnl: dollarPnl, style: .caption)
-            } else if let potValueUsd {
-                MoneyText(decimalString: potValueUsd, style: .caption, color: MonacoTheme.muted)
+            if let bps = row.returnBps {
+                PercentText(basisPoints: bps, style: .row)
+            } else {
+                PercentText(percentReturn: nil, style: .row)
+            }
+            switch figure {
+            case .pnl:
+                PnLText(signedMicros: row.pnlMicros, style: .caption)
+            case .value:
+                MoneyText(micros: row.valueMicros, style: .caption, color: MonacoTheme.muted)
             }
         }
     }
@@ -101,14 +100,13 @@ struct BoardRow<Leading: View>: View {
 
     @ViewBuilder
     private var rankColumn: some View {
-
         ZStack {
             if isLeader {
                 Image(systemName: "crown.fill")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(MonacoTheme.goldGlyph)
-            } else if let rank {
-                Text("\(rank)")
+            } else {
+                Text("\(row.rank)")
                     .font(MonacoTheme.Typo.data)
                     .foregroundStyle(MonacoTheme.tertiaryText)
             }
@@ -119,13 +117,18 @@ struct BoardRow<Leading: View>: View {
 
     private var labels: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(name)
+            Text(row.name)
                 .font(MonacoTheme.Typo.rowTitle)
                 .foregroundStyle(MonacoTheme.ink)
                 .lineLimit(layout.titleLineLimit)
                 .truncationMode(.tail)
-            if let detail, !detail.isEmpty {
-                Text(detail)
+            if row.isViewer {
+                Text(Self.viewerLabel)
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.brandOnWash)
+            }
+            if row.pricesDelayed {
+                Text("Prices delayed")
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
                     .lineLimit(layout.subtitleLineLimit)
@@ -134,13 +137,21 @@ struct BoardRow<Leading: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var spoken: String {
-        var sentence = name
-        if let rank { sentence = isLeader ? "First, \(name)" : "Rank \(rank), \(name)" }
-        if let detail, !detail.isEmpty { sentence += ", \(detail)" }
-        sentence += ", \(PnLSpeech.percent(PercentReturnFormatter.format(percentReturn)))"
-        if let dollarPnl { sentence += ", \(PnLSpeech.dollars(dollarPnl))" }
-        if let potValueUsd { sentence += ", pot \(UsdAmountFormatter.format(decimalString: potValueUsd))" }
+    static func spoken(_ row: LeaderboardRowView, figure: Figure) -> String {
+        var sentence = row.rank == 1 ? "First, \(row.name)" : "Rank \(row.rank), \(row.name)"
+        if row.isViewer { sentence += ", \(viewerLabel)" }
+        if let bps = row.returnBps {
+            sentence += ", \(PnLSpeech.percent(PercentFormatter.format(basisPoints: bps, signed: true)))"
+        } else {
+            sentence += ", no return yet"
+        }
+        switch figure {
+        case .pnl:
+            sentence += ", \(PnLSpeech.dollars(UsdAmountFormatter.format(signedMicros: row.pnlMicros)))"
+        case .value:
+            sentence += ", pot \(UsdAmountFormatter.format(micros: row.valueMicros))"
+        }
+        if row.pricesDelayed { sentence += ", prices delayed" }
         return sentence
     }
 }
