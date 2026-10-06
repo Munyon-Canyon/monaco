@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -42,20 +43,23 @@ func (h *FollowHandler) Handle(ctx context.Context, cmd Follow) error {
 		return err
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		now := h.d.Clock.Now().UTC()
-		id, err := sqlc.New(tx.Queries()).InsertFollow(ctx, sqlc.InsertFollowParams{
-			ID: h.d.IDs.NewV7(), FollowerID: cmd.Follower.UUID(), FolloweeID: cmd.Followee.UUID(),
-			Source: cmd.Source.String(), CreatedAt: now,
-		})
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return errs.Wrap(err, errs.CodeInternal, "social.Follow")
-		}
-		return tx.Events.Append(ctx, events.FollowCreated{
-			V: 1, FollowID: id, FollowerID: cmd.Follower.UUID(), FolloweeID: cmd.Followee.UUID(),
-			Source: cmd.Source.String(), CreatedAt: now,
-		})
+		return CreateFollow(ctx, tx, h.d.IDs, h.d.Clock.Now().UTC(), cmd)
+	})
+}
+
+func CreateFollow(ctx context.Context, tx db.Tx, gen ids.Generator, at time.Time, cmd Follow) error {
+	id, err := sqlc.New(tx.Queries()).InsertFollow(ctx, sqlc.InsertFollowParams{
+		ID: gen.NewV7(), FollowerID: cmd.Follower.UUID(), FolloweeID: cmd.Followee.UUID(),
+		Source: cmd.Source.String(), CreatedAt: at,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "social.Follow")
+	}
+	return tx.Events.Append(ctx, events.FollowCreated{
+		V: 1, FollowID: id, FollowerID: cmd.Follower.UUID(), FolloweeID: cmd.Followee.UUID(),
+		Source: cmd.Source.String(), CreatedAt: at,
 	})
 }
