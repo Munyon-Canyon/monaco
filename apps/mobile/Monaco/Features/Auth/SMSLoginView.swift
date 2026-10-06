@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 /// SMS one-time-code sign-in via Privy: the main way in.
