@@ -315,7 +315,7 @@ jobs:
         run: scripts/install-govulncheck.sh
 
       - name: Save the pinned govulncheck and its Go toolchain
-        if: steps.govulncheck-cache.outputs.cache-hit != 'true'
+        if: steps.govulncheck-cache.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
         uses: actions/cache/save@v4
         with:
           path: |
