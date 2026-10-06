@@ -55,11 +55,11 @@ type AttachReferralRequest struct {
 
 // AttachedReferral The attribution that was stored.
 //
-// Examples: {"referrer":{"display_name":"Kai","handle":"kaicenat","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}}
+// Examples: {"referrer":{"display_name":"Kai","handle":"kaicenat","photo_url":null,"user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}}
 type AttachedReferral struct {
-	// Referrer The person whose invite the caller attached.
+	// Referrer The person behind an invite code.
 	//
-	// Examples: {"display_name":"Kai","handle":"kaicenat","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+	// Examples: {"display_name":"Kai","handle":"kaicenat","photo_url":"https://img.example/kai.png","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
 	Referrer ReferralReferrer `json:"referrer"`
 }
 
@@ -88,9 +88,19 @@ type MyReferralCode struct {
 	Link string `json:"link"`
 }
 
-// ReferralReferrer The person whose invite the caller attached.
+// ReferralLookup The referrer behind an invite code, or null when the code does not resolve.
 //
-// Examples: {"display_name":"Kai","handle":"kaicenat","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+// Examples: {"referrer":{"display_name":"Kai","handle":"kaicenat","photo_url":"https://img.example/kai.png","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}}, {"referrer":null}
+type ReferralLookup struct {
+	// Referrer The referrer, or null when the code does not resolve.
+	//
+	// Examples: null
+	Referrer *ReferralReferrer `json:"referrer"`
+}
+
+// ReferralReferrer The person behind an invite code.
+//
+// Examples: {"display_name":"Kai","handle":"kaicenat","photo_url":"https://img.example/kai.png","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
 type ReferralReferrer struct {
 	// DisplayName The referrer's display name.
 	//
@@ -101,6 +111,11 @@ type ReferralReferrer struct {
 	//
 	// Examples: kaicenat
 	Handle string `json:"handle"`
+
+	// PhotoUrl The referrer's photo, or null when they have none.
+	//
+	// Examples: https://img.example/kai.png
+	PhotoUrl *string `json:"photo_url"`
 
 	// UserId The referrer's user id.
 	//
@@ -130,6 +145,9 @@ type ServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
+	// GetReferral Look up the referrer behind an invite code.
+	// (GET /v1/referrals/{code})
+	GetReferral(w http.ResponseWriter, r *http.Request, code string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -191,6 +209,32 @@ func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMyReferralCode(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetReferral operation middleware
+func (siw *ServerInterfaceWrapper) GetReferral(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "code" -------------
+	var code string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "code", r.PathValue("code"), &code, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "code", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetReferral(w, r, code)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -322,6 +366,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/referral", wrapper.PostMeReferral)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/referrals/{code}", wrapper.GetReferral)
 
 	return m
 }
@@ -404,6 +449,53 @@ func (response GetMyReferralCodedefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type GetReferralRequestObject struct {
+	Code string `json:"code"`
+}
+
+type GetReferralResponseObject interface {
+	VisitGetReferralResponse(w http.ResponseWriter) error
+}
+
+type GetReferral200ResponseHeaders struct {
+	CacheControl string
+}
+
+type GetReferral200JSONResponse struct {
+	Body    ReferralLookup
+	Headers GetReferral200ResponseHeaders
+}
+
+func (response GetReferral200JSONResponse) VisitGetReferralResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetReferraldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetReferraldefaultApplicationProblemPlusJSONResponse) VisitGetReferralResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// PostMeReferral Attribute the caller to an invite code.
@@ -412,6 +504,9 @@ type StrictServerInterface interface {
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
+	// GetReferral Look up the referrer behind an invite code.
+	// (GET /v1/referrals/{code})
+	GetReferral(ctx context.Context, request GetReferralRequestObject) (GetReferralResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -503,6 +598,32 @@ func (sh *strictHandler) GetMyReferralCode(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyReferralCodeResponseObject); ok {
 		if err := validResponse.VisitGetMyReferralCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetReferral operation middleware
+func (sh *strictHandler) GetReferral(w http.ResponseWriter, r *http.Request, code string) {
+	var request GetReferralRequestObject
+
+	request.Code = code
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetReferral(ctx, request.(GetReferralRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetReferral")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetReferralResponseObject); ok {
+		if err := validResponse.VisitGetReferralResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

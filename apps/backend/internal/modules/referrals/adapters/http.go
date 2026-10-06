@@ -49,17 +49,49 @@ func (h HTTP) PostMeReferral(
 	if err := h.Attach.Handle(ctx, cmd); err != nil {
 		return nil, err
 	}
-	resolved, err := h.Codes.Resolve(ctx, req.Body.Code)
+	referrer, err := h.referrerOf(ctx, req.Body.Code)
 	if err != nil {
 		return nil, err
+	}
+	return api.PostMeReferral201JSONResponse{Referrer: referrer}, nil
+}
+
+func (h HTTP) GetReferral(
+	ctx context.Context, req api.GetReferralRequestObject,
+) (api.GetReferralResponseObject, error) {
+	referrer, err := h.referrerOf(ctx, req.Code)
+	if errs.CodeOf(err) == errs.CodeReferralCodeUnknown {
+		return lookup(nil), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return lookup(&referrer), nil
+}
+
+func (h HTTP) referrerOf(ctx context.Context, code string) (api.ReferralReferrer, error) {
+	resolved, err := h.Codes.Resolve(ctx, code)
+	if err != nil {
+		return api.ReferralReferrer{}, err
 	}
 	card, err := h.Codes.Referrer(ctx, resolved)
 	if err != nil {
-		return nil, err
+		return api.ReferralReferrer{}, err
 	}
-	return api.PostMeReferral201JSONResponse{Referrer: api.ReferralReferrer{
-		UserId: card.ID.UUID(), DisplayName: card.DisplayName, Handle: card.Handle,
-	}}, nil
+	var photo *string
+	if card.PhotoURL != "" {
+		photo = &card.PhotoURL
+	}
+	return api.ReferralReferrer{
+		UserId: card.ID.UUID(), DisplayName: card.DisplayName, PhotoUrl: photo, Handle: card.Handle,
+	}, nil
+}
+
+func lookup(referrer *api.ReferralReferrer) api.GetReferral200JSONResponse {
+	return api.GetReferral200JSONResponse{
+		Body:    api.ReferralLookup{Referrer: referrer},
+		Headers: api.GetReferral200ResponseHeaders{CacheControl: "public, max-age=300"},
+	}
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

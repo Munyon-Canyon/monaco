@@ -37,7 +37,7 @@ Every user has a **random code** from account creation. After the unlock, their 
 | Route | Does |
 | --- | --- |
 | `GET /v1/me/referral-code` | The user's random code and link, plus the handle link once unlocked. |
-| `GET /v1/referrals/{code}` | Public, no auth. The referrer's display name and photo for a code, or not found. The `/r/<code>` web page calls it ([Web](#web)). |
+| `GET /v1/referrals/{code}` | Public, no auth, cached for 5 minutes. The referrer's id, display name, photo and handle for a code. A code that does not resolve gets the same 200 with `referrer: null`, so the answer never says why. The `/r/<code>` web page calls it ([Web](#web)). |
 
 Handle availability and changes are `identity` routes ([auth.md](auth.md#handle)).
 
