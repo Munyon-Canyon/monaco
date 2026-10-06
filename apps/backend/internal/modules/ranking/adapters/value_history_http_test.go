@@ -18,6 +18,12 @@ import (
 
 type stubSnapshots struct{ rows []domain.Snapshot }
 
+func (s stubSnapshots) SnapshotsOfCabals(
+	context.Context, []ids.CabalID, time.Time, time.Time,
+) (map[ids.CabalID][]domain.Snapshot, error) {
+	return map[ids.CabalID][]domain.Snapshot{}, nil
+}
+
 func (s stubSnapshots) SnapshotsSince(context.Context, ids.CabalID, time.Time, time.Time) ([]domain.Snapshot, error) {
 	return s.rows, nil
 }
@@ -87,5 +93,76 @@ func TestGetCabalValueHistory_mapsPointsAndFailsOnUnrepresentableOnes(t *testing
 		) != errs.CodeInternal {
 			t.Errorf("%s: err = %v, want internal", name, err)
 		}
+	}
+}
+
+type stubStakes struct{ points []app.StakePoint }
+
+func (s stubStakes) UserStakeHistory(context.Context, ids.UserID) ([]app.StakePoint, error) {
+	return s.points, nil
+}
+
+func TestGetMyPnlHistory_needsASignedInUserAndAKnownRange(t *testing.T) {
+	t.Parallel()
+	h := historyHTTP(0)
+	if _, err := h.GetMyPnlHistory(
+		t.Context(),
+		api.GetMyPnlHistoryRequestObject{},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUnauthorized {
+		t.Fatalf("anonymous: err = %v, want unauthorized", err)
+	}
+	ctx := asActor(t.Context(), auth.ActorUser, ids.Real{}.NewV7().String())
+	bad := api.GetMyPnlHistoryParamsRange("2Y")
+	req := api.GetMyPnlHistoryRequestObject{Params: api.GetMyPnlHistoryParams{Range: &bad}}
+	if _, err := h.GetMyPnlHistory(ctx, req); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("range: err = %v, want invalid_input", err)
+	}
+	h.Boards = stubBoards{err: errs.New(errs.CodeInternal, "test")}
+	if _, err := h.GetMyPnlHistory(ctx, api.GetMyPnlHistoryRequestObject{}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("store: err = %v, want internal", err)
+	}
+}
+
+type fixedSnapshots struct {
+	stubSnapshots
+	series map[ids.CabalID][]domain.Snapshot
+}
+
+func (f fixedSnapshots) SnapshotsOfCabals(
+	context.Context, []ids.CabalID, time.Time, time.Time,
+) (map[ids.CabalID][]domain.Snapshot, error) {
+	return f.series, nil
+}
+
+func TestGetMyPnlHistory_mapsPointsAndFailsOnUnrepresentableOnes(t *testing.T) {
+	t.Parallel()
+	ctx := asActor(t.Context(), auth.ActorUser, ids.Real{}.NewV7().String())
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	cabal := ids.CabalIDFrom(ids.Real{}.NewV7())
+	run := func(value uint64, net int64) (api.GetMyPnlHistoryResponseObject, error) {
+		stake := app.StakePoint{
+			CabalID: cabal, At: at, ShareUnits: money.SharesUnitsFromUint64(1),
+			NetContributed: money.SignedMicrosFromInt64(net),
+		}
+		snap := domain.Snapshot{
+			At:          at,
+			Value:       money.MicrosFromUint64(value),
+			TotalShares: money.SharesUnitsFromUint64(1),
+		}
+		h := historyHTTP(0)
+		h.Stakes = stubStakes{points: []app.StakePoint{stake}}
+		h.Snapshots = fixedSnapshots{series: map[ids.CabalID][]domain.Snapshot{cabal: {snap}}}
+		return h.GetMyPnlHistory(ctx, api.GetMyPnlHistoryRequestObject{})
+	}
+	got, err := run(7, 2)
+	out, ok := got.(api.GetMyPnlHistory200JSONResponse)
+	if err != nil || !ok || out.Range != api.MyPnlHistoryRangeALL || len(out.Points) != 1 ||
+		out.Points[0].EquityMicros != 7 || out.Points[0].PnlMicros != 5 {
+		t.Fatalf("response = %+v, %v", got, err)
+	}
+	if _, err = run(math.MaxInt64+10, 20_000); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("huge equity: err = %v, want internal", err)
 	}
 }

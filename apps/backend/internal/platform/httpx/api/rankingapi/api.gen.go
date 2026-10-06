@@ -109,6 +109,33 @@ func (e LeaderboardSubjectKind) Valid() bool {
 	}
 }
 
+// Defines values for MyPnlHistoryRange.
+const (
+	MyPnlHistoryRangeALL MyPnlHistoryRange = "ALL"
+	MyPnlHistoryRangeN1D MyPnlHistoryRange = "1D"
+	MyPnlHistoryRangeN1H MyPnlHistoryRange = "1H"
+	MyPnlHistoryRangeN1M MyPnlHistoryRange = "1M"
+	MyPnlHistoryRangeN1W MyPnlHistoryRange = "1W"
+)
+
+// Valid indicates whether the value is a known member of the MyPnlHistoryRange enum.
+func (e MyPnlHistoryRange) Valid() bool {
+	switch e {
+	case MyPnlHistoryRangeALL:
+		return true
+	case MyPnlHistoryRangeN1D:
+		return true
+	case MyPnlHistoryRangeN1H:
+		return true
+	case MyPnlHistoryRangeN1M:
+		return true
+	case MyPnlHistoryRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LeaderboardFilter.
 const (
 	LeaderboardFilterAll     LeaderboardFilter = "all"
@@ -307,6 +334,33 @@ func (e GetPeopleLeaderboardParamsFilter) Valid() bool {
 	}
 }
 
+// Defines values for GetMyPnlHistoryParamsRange.
+const (
+	GetMyPnlHistoryParamsRangeALL GetMyPnlHistoryParamsRange = "ALL"
+	GetMyPnlHistoryParamsRangeN1D GetMyPnlHistoryParamsRange = "1D"
+	GetMyPnlHistoryParamsRangeN1H GetMyPnlHistoryParamsRange = "1H"
+	GetMyPnlHistoryParamsRangeN1M GetMyPnlHistoryParamsRange = "1M"
+	GetMyPnlHistoryParamsRangeN1W GetMyPnlHistoryParamsRange = "1W"
+)
+
+// Valid indicates whether the value is a known member of the GetMyPnlHistoryParamsRange enum.
+func (e GetMyPnlHistoryParamsRange) Valid() bool {
+	switch e {
+	case GetMyPnlHistoryParamsRangeALL:
+		return true
+	case GetMyPnlHistoryParamsRangeN1D:
+		return true
+	case GetMyPnlHistoryParamsRangeN1H:
+		return true
+	case GetMyPnlHistoryParamsRangeN1M:
+		return true
+	case GetMyPnlHistoryParamsRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
 // CabalValueHistory A cabal's value curve.
 type CabalValueHistory struct {
 	// CabalId The cabal.
@@ -473,6 +527,42 @@ type LeaderboardSubject struct {
 // Examples: cabal
 type LeaderboardSubjectKind string
 
+// MyPnlHistory The caller's equity and P&L curve.
+type MyPnlHistory struct {
+	// Points One point per bucket, oldest first.
+	//
+	// Examples: []
+	Points []PnlPoint `json:"points"`
+
+	// Range The window the curve covers.
+	//
+	// Examples: ALL
+	Range MyPnlHistoryRange `json:"range"`
+}
+
+// MyPnlHistoryRange The window the curve covers.
+//
+// Examples: ALL
+type MyPnlHistoryRange string
+
+// PnlPoint The caller's equity and P&L at the end of one bucket.
+type PnlPoint struct {
+	// At The end of the bucket.
+	//
+	// Examples: 2026-10-04T12:00:00Z
+	At time.Time `json:"at"`
+
+	// EquityMicros The caller's share of every pot in USDC micros.
+	//
+	// Examples: 1000000
+	EquityMicros int64 `json:"equity_micros"`
+
+	// PnlMicros Equity minus the net contributed, negative for a loss.
+	//
+	// Examples: -5
+	PnlMicros int64 `json:"pnl_micros"`
+}
+
 // LeaderboardCursor Examples: MjA
 type LeaderboardCursor = string
 
@@ -548,6 +638,15 @@ type GetPeopleLeaderboardParamsRange string
 // GetPeopleLeaderboardParamsFilter defines parameters for GetPeopleLeaderboard.
 type GetPeopleLeaderboardParamsFilter string
 
+// GetMyPnlHistoryParams defines parameters for GetMyPnlHistory.
+type GetMyPnlHistoryParams struct {
+	// Range The window the curve covers. Defaults to `ALL`.
+	Range *GetMyPnlHistoryParamsRange `form:"range,omitempty" json:"range,omitempty"`
+}
+
+// GetMyPnlHistoryParamsRange defines parameters for GetMyPnlHistory.
+type GetMyPnlHistoryParamsRange string
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetCabalLeaderboard Read a cabal's members leaderboard.
@@ -562,6 +661,9 @@ type ServerInterface interface {
 	// GetPeopleLeaderboard Read the people leaderboard.
 	// (GET /v1/leaderboards/people)
 	GetPeopleLeaderboard(w http.ResponseWriter, r *http.Request, params GetPeopleLeaderboardParams)
+	// GetMyPnlHistory Read the caller's P&L history.
+	// (GET /v1/me/pnl-history)
+	GetMyPnlHistory(w http.ResponseWriter, r *http.Request, params GetMyPnlHistoryParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -814,6 +916,39 @@ func (siw *ServerInterfaceWrapper) GetPeopleLeaderboard(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyPnlHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetMyPnlHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMyPnlHistoryParams
+
+	// ------------- Optional query parameter "range" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "range", r.URL.Query(), &params.Range, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "range"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "range", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyPnlHistory(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -938,6 +1073,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/value-history", wrapper.GetCabalValueHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/cabals", wrapper.GetCabalsLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pnl-history", wrapper.GetMyPnlHistory)
 
 	return m
 }
@@ -1100,6 +1236,45 @@ func (response GetPeopleLeaderboarddefaultApplicationProblemPlusJSONResponse) Vi
 	return err
 }
 
+type GetMyPnlHistoryRequestObject struct {
+	Params GetMyPnlHistoryParams
+}
+
+type GetMyPnlHistoryResponseObject interface {
+	VisitGetMyPnlHistoryResponse(w http.ResponseWriter) error
+}
+
+type GetMyPnlHistory200JSONResponse MyPnlHistory
+
+func (response GetMyPnlHistory200JSONResponse) VisitGetMyPnlHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyPnlHistorydefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyPnlHistorydefaultApplicationProblemPlusJSONResponse) VisitGetMyPnlHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetCabalLeaderboard Read a cabal's members leaderboard.
@@ -1114,6 +1289,9 @@ type StrictServerInterface interface {
 	// GetPeopleLeaderboard Read the people leaderboard.
 	// (GET /v1/leaderboards/people)
 	GetPeopleLeaderboard(ctx context.Context, request GetPeopleLeaderboardRequestObject) (GetPeopleLeaderboardResponseObject, error)
+	// GetMyPnlHistory Read the caller's P&L history.
+	// (GET /v1/me/pnl-history)
+	GetMyPnlHistory(ctx context.Context, request GetMyPnlHistoryRequestObject) (GetMyPnlHistoryResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1254,6 +1432,32 @@ func (sh *strictHandler) GetPeopleLeaderboard(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetPeopleLeaderboardResponseObject); ok {
 		if err := validResponse.VisitGetPeopleLeaderboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyPnlHistory operation middleware
+func (sh *strictHandler) GetMyPnlHistory(w http.ResponseWriter, r *http.Request, params GetMyPnlHistoryParams) {
+	var request GetMyPnlHistoryRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyPnlHistory(ctx, request.(GetMyPnlHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyPnlHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyPnlHistoryResponseObject); ok {
+		if err := validResponse.VisitGetMyPnlHistoryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

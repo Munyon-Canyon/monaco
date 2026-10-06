@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
@@ -27,7 +29,7 @@ func (b Boards) SnapshotsSince(
 	}
 	out := make([]domain.Snapshot, 0, len(rows))
 	for _, row := range rows {
-		snap, err := snapshotFrom(row)
+		snap, err := snapshotFrom(row.At, row.ValueMicros, row.NavPerShareMicros, row.TotalShares)
 		if err != nil {
 			return nil, errs.Wrap(err, errs.CodeInternal, op)
 		}
@@ -36,18 +38,46 @@ func (b Boards) SnapshotsSince(
 	return out, nil
 }
 
-func snapshotFrom(row sqlc.SnapshotsSinceRow) (domain.Snapshot, error) {
-	value, err := money.SignedMicrosFromInt64(row.ValueMicros).Micros()
+func snapshotFrom(at time.Time, value, nav, total int64) (domain.Snapshot, error) {
+	v, err := money.SignedMicrosFromInt64(value).Micros()
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	nav, err := money.SignedMicrosFromInt64(row.NavPerShareMicros).Micros()
+	n, err := money.SignedMicrosFromInt64(nav).Micros()
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	shares, err := money.ParseSharesUnits(strconv.FormatInt(row.TotalShares, 10))
+	shares, err := money.ParseSharesUnits(strconv.FormatInt(total, 10))
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	return domain.Snapshot{At: row.At, Value: value, NavPerShare: nav, TotalShares: shares}, nil
+	return domain.Snapshot{At: at, Value: v, NavPerShare: n, TotalShares: shares}, nil
+}
+
+var _ app.CabalSnapshots = Boards{}
+
+func (b Boards) SnapshotsOfCabals(
+	ctx context.Context, cabals []ids.CabalID, since, until time.Time,
+) (map[ids.CabalID][]domain.Snapshot, error) {
+	const op = "ranking.Boards.SnapshotsOfCabals"
+	keys := make([]uuid.UUID, 0, len(cabals))
+	for _, c := range cabals {
+		keys = append(keys, c.UUID())
+	}
+	rows, err := sqlc.New(b.DB).SnapshotsOfCabals(ctx, sqlc.SnapshotsOfCabalsParams{
+		CabalIds: keys, Since: since, Until: until,
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	out := make(map[ids.CabalID][]domain.Snapshot, len(cabals))
+	for _, row := range rows {
+		snap, err := snapshotFrom(row.At, row.ValueMicros, row.NavPerShareMicros, row.TotalShares)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInternal, op)
+		}
+		cabal := ids.CabalIDFrom(row.CabalID)
+		out[cabal] = append(out[cabal], snap)
+	}
+	return out, nil
 }

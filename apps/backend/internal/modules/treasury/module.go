@@ -57,6 +57,7 @@ type fundingProvider interface {
 type (
 	Queries           = port.Queries
 	ContributionPoint = port.ContributionPoint
+	StakePoint        = port.StakePoint
 	Position          = port.Position
 	Stake             = port.Stake
 	CabalPositions    = port.CabalPositions

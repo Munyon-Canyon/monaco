@@ -34,6 +34,7 @@ type Module struct {
 	pages  adapters.PageCache
 	curves adapters.HistoryCache
 	ledger app.Contributions
+	stakes app.StakeHistory
 }
 
 type Option func(*Module)
@@ -59,6 +60,7 @@ func (m *Module) Wire(set module.Set) {
 		case interface{ Queries() treasuryport.Queries }:
 			m.ports.Treasury = provider.Queries()
 			m.ledger = provider.Queries()
+			m.stakes = provider.Queries()
 		case interface{ Pauses() fundingport.Pauses }:
 			m.ports.Funding = provider.Pauses()
 		case interface{ Queries() cabalport.Queries }:
@@ -94,7 +96,7 @@ func (m *Module) Mount(r api.Mount) {
 	boards := adapters.Boards{DB: m.deps.Pool}
 	rankingapi.Mount(adapters.HTTP{
 		Boards: boards, Cabals: app.CheckCabal(m.cabals), Pages: m.pages,
-		Follows: follows, Snapshots: boards, Ledger: m.ledger, Histories: m.curves,
+		Follows: follows, Snapshots: boards, Ledger: m.ledger, Histories: m.curves, Stakes: m.stakes,
 	}, r)
 }
 
