@@ -494,7 +494,7 @@ def logins_for(accounts, mapping):
     """accounts with each journey actor's row replaced by the login it was given."""
     result = {login: row for login, row in accounts.items() if login == "L" and "L" not in mapping}
     for actor, login in mapping.items():
-        result[actor] = dict(accounts[login], actor=actor)
+        result[actor] = dict(accounts[login], actor=actor, login=login)
     return result
 
 
@@ -520,10 +520,22 @@ def refuse_busy_ports(busy, ports=BACKEND_PORTS):
                 ", ".join("pid %s (%s)" % (pid, cwd) for pid, cwd in busy)))
 
 
+def apply_event_streams(log):
+    """Brings the local JetStream streams up to the subjects this checkout declares, so a new event subject
+    on staging cannot stop the backend at boot (bus.VerifyStreams). Idempotent, local dev only."""
+    with open(str(log), "w") as out:
+        for step in (["just", "build", "backend"],
+                     ["docker", "compose", "up", "-d", "--wait", "postgres", "nats"],
+                     ["scripts/with-dotenv-local.sh", "bin/monacoctl", "bus", "apply"]):
+            if sh(step, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
+                raise JourneyError("%s failed, see %s" % (" ".join(step[:3]), log))
+
+
 def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     log = OUT / "backend.log"
     OUT.mkdir(parents=True, exist_ok=True)
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
+    apply_event_streams(log)
     # The backend refuses unknown MONACO_ variables at boot, and a run's account overrides are MONACO_QA_.
     env = {key: value for key, value in os.environ.items() if not key.startswith("MONACO_QA_")}
     api_port, worker_port = SLOT_PORTS[slot]
@@ -532,7 +544,7 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     if env.get("QA_FAKE_RPC") == "1":
         env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
     env.setdefault("TRADE_ENGINE", trade_engine)
-    with open(str(log), "w") as out:
+    with open(str(log), "a") as out:
         process = subprocess.Popen(["just", "run", "backend"], cwd=str(ROOT), env=env, stdout=out,
                                    stderr=subprocess.STDOUT, start_new_session=True)
     deadline = time.monotonic() + timeout
@@ -645,10 +657,22 @@ def register_lane_simulator(udid, lane, name):
         registry.write("%s\t%s\t%s\n" % (udid, lane, name))
 
 
-def journey_simulator_name(actor):
-    """Actor simulators are per lane, so journeys in two worktrees never share one."""
+def journey_simulator_name(login):
+    """Simulators are per lane and per login a run holds, so two runs never share one, even when a journey's
+    actor A is remapped onto login C."""
     lane = lane_name()
-    return "Monaco Journeys %s %s" % (lane, actor) if lane else "Monaco Journeys %s" % actor
+    return "Monaco Journeys %s %s" % (lane, login) if lane else "Monaco Journeys %s" % login
+
+
+def held_logins(journey, accounts):
+    """The login each of the journey's actors was given (the actor itself when it kept its own)."""
+    return {actor: accounts.get(actor, {}).get("login", actor) for actor in journey.actors}
+
+
+def use_derived_data(logins):
+    """Each run builds into derived data named after the logins it holds, so two runs never share one."""
+    global DERIVED
+    DERIVED = OUT / ("derived-" + "-".join(sorted(set(logins.values()))))
 
 
 def simslim_ensure(mode, udid):
@@ -656,14 +680,15 @@ def simslim_ensure(mode, udid):
     sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=False)
 
 
-def resolve_simulators(journey, mapping):
+def resolve_simulators(journey, mapping, logins=None):
+    logins = logins or {}
     sims = dict(mapping)
     missing = [actor for actor in journey.actors if actor not in sims]
     if missing:
         devices = simulator_devices()
         device_type, runtime = simulator_template(devices)
         for actor in missing:
-            name = journey_simulator_name(actor)
+            name = journey_simulator_name(logins.get(actor, actor))
             sims[actor] = named_simulator(devices, name)
             if not sims[actor]:
                 sims[actor] = sh(["xcrun", "simctl", "create", name, device_type, runtime],
@@ -1229,7 +1254,9 @@ def actor_logins(journey, accounts):
 
 def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, builder):
     mapping = dict(pair.split("=", 1) for pair in args.sim)
-    sims = resolve_simulators(journey, mapping)
+    logins = held_logins(journey, accounts)
+    use_derived_data(logins)
+    sims = resolve_simulators(journey, mapping, logins)
     check_simulator_api_environment(sims, api_base_url)
     OUT.mkdir(parents=True, exist_ok=True)
     funding = funding_notice(journey, accounts)
@@ -1274,7 +1301,9 @@ def run_mutants(args, api_base_url):
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
         accounts = locks.enter_context(actor_logins(journey, load_accounts()))
         mapping = dict(pair.split("=", 1) for pair in args.sim)
-        sims = resolve_simulators(journey, mapping)
+        logins = held_logins(journey, accounts)
+        use_derived_data(logins)
+        sims = resolve_simulators(journey, mapping, logins)
         check_simulator_api_environment(sims, api_base_url)
         caught = 0
         for patch in patches:

@@ -84,7 +84,7 @@ That keeps a run the same every time, and a failure always has one step to point
 
 Each actor has its own simulator and its own account, so no step signs out to switch members.
 
-- An unmapped actor uses a dedicated simulator named `Monaco Journeys <actor>`. The runner creates it with the gold simulator's device type and runtime, or the newest available iPhone and iOS runtime when no gold simulator exists.
+- An unmapped actor uses a dedicated simulator named `Monaco Journeys <login>`, after the login the run holds for that actor, so a journey remapped from A onto C never shares A's simulator with a run on A. The runner creates it with the gold simulator's device type and runtime, or the newest available iPhone and iOS runtime when no gold simulator exists.
 - `scripts/qa/journey.py run <journey> --sim B=<udid>` overrides an actor's dedicated simulator.
 - XCUITest drives one simulator per `xcodebuild` call, so a two-actor scenario runs as phases, each on its actor's simulator, in the doc's order. How a phase is named and how one actor hands a value to the next is in the skill's `xcuitest.md`.
 
@@ -128,7 +128,7 @@ Git keeps the history. There are no `V2` copies of a doc or a test.
 
 A run passes its API URL under a QA-only name and uses dedicated journey simulators so shared simulator settings do not point it elsewhere.
 It reinstalls the app on dedicated journey simulators before every run, so every run starts signed out.
-`run` and `mutants` take a backend slot, so two journey runs can share a Mac. Slot 0 is api :8080 and worker :8081, slot 1 is :8180 and :8181. A run takes the first free slot with `/tmp/monaco-qa-slot<N>.lock`, waits when both are taken, and `--slot N` forces one. Holding its slot, a run refuses to start when anything already listens on its two ports and names its pid and worktree. Then it starts the backend with `just run backend` on those ports (with `TRADE_ENGINE=stub`, so a passed vote reaches a stub of the trade engine and moves no money, unless `TRADE_ENGINE` is set or the run moves real USDC) and stops it when the run ends. The slot's api URL goes to the app (`MONACO_QA_API_BASE_URL`) and to the setup and truth scripts (`MONACO_API_BASE_URL` and `MONACO_QA_API_BASE_URL`), so a script never assumes :8080. A run also holds `/tmp/monaco-qa-actor-<login>.lock` on the `accounts.tsv` login of each of its actors: its own login when free, otherwise the first free one among A, B and C (L, the link number, only goes to an actor L). When too few logins are free it waits. A two-actor journey on A and B in slot 0 leaves C for a one-actor journey in slot 1. With `MONACO_API_BASE_URL` set, they use that backend instead, take no slot and only check its `/healthz`.
+`run` and `mutants` take a backend slot, so two journey runs can share a Mac. Slot 0 is api :8080 and worker :8081, slot 1 is :8180 and :8181. A run takes the first free slot with `/tmp/monaco-qa-slot<N>.lock`, waits when both are taken, and `--slot N` forces one. Holding its slot, a run refuses to start when anything already listens on its two ports and names its pid and worktree. Then it runs `monacoctl bus apply` on the local dev NATS (so a new event subject cannot stop boot) and starts the backend with `just run backend` on those ports (with `TRADE_ENGINE=stub`, so a passed vote reaches a stub of the trade engine and moves no money, unless `TRADE_ENGINE` is set or the run moves real USDC) and stops it when the run ends. The slot's api URL goes to the app (`MONACO_QA_API_BASE_URL`) and to the setup and truth scripts (`MONACO_API_BASE_URL` and `MONACO_QA_API_BASE_URL`), so a script never assumes :8080. A run also holds `/tmp/monaco-qa-actor-<login>.lock` on the `accounts.tsv` login of each of its actors: its own login when free, otherwise the first free one among A, B and C (L, the link number, only goes to an actor L). When too few logins are free it waits. A two-actor journey on A and B in slot 0 leaves C for a one-actor journey in slot 1. With `MONACO_API_BASE_URL` set, they use that backend instead, take no slot and only check its `/healthz`.
 
 ```sh
 scripts/qa/journey.py check                                   # docs and tests agree
@@ -151,7 +151,7 @@ Each run appends a row to `.logs/qa/journeys/results.tsv`:
 | Catch rate | Seeded bugs the test failed on, over the seeded bugs it ran |
 | False passes | Seeded bugs not caught, plus clean runs that passed while the ground truth check failed |
 
-`run` builds the app once per checkout. After a build it writes `.logs/qa/journeys/derived/build.stamp`, the sha256 of `HEAD`, the uncommitted diff of `apps/mobile` and `packages/mobile-core`, and their untracked files. The next `run` prints `reusing build <stamp>` and skips `build-for-testing` while the stamp matches and the `.xctestrun` file is still under `derived/Build/Products`. `--rebuild` builds anyway, and `--no-build` never builds. `mutants` always builds and deletes the stamp after it reverts a patch.
+`run` builds the app once per checkout. After a build it writes `.logs/qa/journeys/derived-<logins>/build.stamp` (one derived folder per set of logins the run holds, such as `derived-A-B`, so two runs never share one), the sha256 of `HEAD`, the uncommitted diff of `apps/mobile` and `packages/mobile-core`, and their untracked files. The next `run` prints `reusing build <stamp>` and skips `build-for-testing` while the stamp matches and the `.xctestrun` file is still under `derived-<logins>/Build/Products`. `--rebuild` builds anyway, and `--no-build` never builds. `mutants` always builds and deletes the stamp after it reverts a patch.
 
 `run --all` runs every journey in `requires` order, ties by id, on one build and one backend, and exits with the worst result. It skips a journey with a `funds` block, printing `SKIP funds`, unless `MONACO_QA_REFUND_ADDRESS` is set.
 
@@ -159,7 +159,7 @@ Each run appends a row to `.logs/qa/journeys/results.tsv`:
 
 A setup script seeds through `scripts/qa/seed.sh`. A test never taps to create its starting state. The helper's `qa_api` calls a route as an actor, `qa_flow_seed` runs `monacoctl flows seed`, and `qa_sql` is for a state no route or flow seed can reach.
 
-Parallel lanes each use their own checkout's `derived/` and `Monaco Journeys <lane> <actor>` simulators under `xcode-lock.sh` slots. `/tmp/monaco-qa.lock` stays one per machine while the backend ports are shared.
+Parallel lanes each use their own checkout's `derived-<logins>/` and `Monaco Journeys <lane> <login>` simulators under `xcode-lock.sh` slots. `/tmp/monaco-qa.lock` stays one per machine while the backend ports are shared.
 
 Known failures on staging lists each step that cannot pass yet and the ticket that blocks it, as a bullet (`- S1.2 to S1.5: <why>. Blocked by #691.`) or as a table row whose first cell names the steps and whose last cell names the tickets. `S1.2 to S1.5` covers every step of the doc from S1.2 through S1.5. `check` names a listed step that the doc does not have. A run reads the section and gives each scenario one of these results:
 
