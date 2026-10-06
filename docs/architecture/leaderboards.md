@@ -136,7 +136,7 @@ A leaderboard that is fast and wrong is worse than slow. Rules the job enforces:
 4. **Minimum size to rank.** Existing `IncludeOnBoard` rule stays: a cabal or person needs a minimum net contribution to appear, so a $1 pot up 400 % does not top the board. Threshold is a product knob.
 5. **Conservation check each run.** For every cabal, the sum of member equity equals pot value (within rounding). A run that fails this for a cabal excludes that cabal and reports a `KindInternal` error, which alerts ([Errors](backend-platform.md#errors)). This catches share-unit or ledger bugs before users see them.
 6. **Deterministic ties.** Ties break by earlier `created_at`, then id, so ranks never flicker between identical runs.
-7. **Audit.** `leaderboard_runs` plus `prices_as_of` let anyone reconstruct why a row had its value: which prices, which positions. `monacoctl replay` rebuilds `leaderboard_entries` from the event log ([Replay and seeded states](backend-platform.md#replay-and-seeded-states)).
+7. **Audit.** `leaderboard_runs` plus `prices_as_of` let anyone reconstruct why a row had its value: which prices, which positions. `monacoctl replay` does not rebuild `leaderboard_entries`: only the valuation job writes them, and replay runs just the `ranking_membership` and `ranking_names` durables, which rebuild `ranking_triggers` and rename subjects on rows the job wrote ([Replay and seeded states](backend-platform.md#replay-and-seeded-states)). Rebuilding a past board from the event log is not a command yet (#659).
 8. **Rank by % return** (default 2026-09-27). `return_bps` orders every board, with rule 4's minimum size so small pots cannot dominate. A $ gain tab comes later; `pnl_micros` is already stored for it.
 
 ## Cost and latency budget
