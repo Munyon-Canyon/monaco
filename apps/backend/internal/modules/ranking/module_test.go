@@ -71,6 +71,7 @@ func TestModule_usesPortsOption(t *testing.T) {
 	if got := m.Ports(); got != ports {
 		t.Fatalf("Ports = %+v, want %+v", got, ports)
 	}
+	_ = m.RunValuation()
 }
 
 func TestModule_servesTheCabalsBoard(t *testing.T) {

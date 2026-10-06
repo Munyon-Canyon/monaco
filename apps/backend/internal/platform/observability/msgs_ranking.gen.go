@@ -5,5 +5,6 @@ package observability
 func init() {
 	register(
 		RankingSnapshotsThinned,
+		RankingCabalExcluded,
 	)
 }
