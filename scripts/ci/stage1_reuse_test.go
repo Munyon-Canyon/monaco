@@ -128,7 +128,7 @@ func (r *reuseRepo) run(base, head string) map[string]string {
 	return got
 }
 
-func (r *reuseRepo) runLog(base, head string) (map[string]string, string) {
+func (r *reuseRepo) runLog(base, head string, env ...string) (map[string]string, string) {
 	r.t.Helper()
 	root := repoRoot(r.t)
 	out := filepath.Join(r.t.TempDir(), "out")
@@ -138,6 +138,7 @@ func (r *reuseRepo) runLog(base, head string) (map[string]string, string) {
 		"PATH="+r.bin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"FAKE_GH="+r.fake, "BASE_SHA="+base, "HEAD_SHA="+head, "HEAD_REF=feature",
 		"GITHUB_REPOSITORY=o/r", "GITHUB_OUTPUT="+out)
+	cmd.Env = append(cmd.Env, env...)
 	log, err := cmd.CombinedOutput()
 	if err != nil {
 		r.t.Fatalf("stage1-reuse.sh: %v\n%s", err, log)
@@ -300,5 +301,109 @@ func TestStage1Reuse_looksAtTheFiveNewestDistinctSHAsOnly(t *testing.T) {
 	r.runs(append(append([]string{}, newer...), "a5", head)...)
 	if got := r.run(base, restacked); got["reuse"] != "false" {
 		t.Fatalf("green run at the sixth distinct SHA: %v, want a full stage 1", got)
+	}
+}
+
+// runStack runs the step as the plan job does for a stacked top PR: its base is the PR below, and TRUNK_REF names
+// the trunk, so the key covers the whole stack.
+func (r *reuseRepo) runStack(lower, head string) map[string]string {
+	r.t.Helper()
+	got, _ := r.runLog(lower, head, "TRUNK_REF=trunk")
+	return got
+}
+
+// stack builds a two-PR stack on trunk, lower then feature, records a green ci-ok for the top PR with its whole-stack
+// key, and returns that key.
+func stack(t *testing.T) (r *reuseRepo, first map[string]string) {
+	t.Helper()
+	r = newReuseRepo(t)
+	r.commit("shared.txt", "base\n")
+	r.git("switch", "-q", "-c", "lower")
+	lower := r.commit("shared.txt", "lower\n")
+	r.git("switch", "-q", "-c", "feature")
+	head := r.commit("top.txt", "top\n")
+	first = r.runStack(lower, head)
+	if first["reuse"] != "false" || first["patch-id"] == "" || len(first["ci-id"]) != 12 {
+		t.Fatalf("first push of the stack: %v", first)
+	}
+	if own := r.run(lower, head); own["patch-id"] == first["patch-id"] {
+		t.Fatalf("whole-stack patch ID %s equals the top PR's own, so it ignores the lower PR", first["patch-id"])
+	}
+	r.greenRun(head, "patch-id: "+first["patch-id"]+" ci-id: "+first["ci-id"])
+	return r, first
+}
+
+// restack moves lower onto trunk, resolving a conflict on shared.txt with resolved, then moves feature onto lower.
+func (r *reuseRepo) restack(resolved string) (lower, head string) {
+	r.t.Helper()
+	oldLower := r.git("rev-parse", "lower")
+	r.git("switch", "-q", "lower")
+	if resolved == "" {
+		r.git("rebase", "-q", "trunk")
+	} else {
+		cmd := exec.Command("git", "-c", "user.name=t", "-c", "user.email=t@example.com", "rebase", "-q", "trunk")
+		cmd.Dir = r.dir
+		if out, err := cmd.CombinedOutput(); err == nil {
+			r.t.Fatalf("rebase of lower onto trunk did not conflict:\n%s", out)
+		}
+		r.write(filepath.Join(r.dir, "shared.txt"), resolved, 0o644)
+		r.git("add", "shared.txt")
+		r.git("-c", "core.editor=true", "rebase", "--continue")
+	}
+	lower = r.git("rev-parse", "HEAD")
+	r.git("rebase", "-q", "--onto", "lower", oldLower, "feature")
+	return lower, r.git("rev-parse", "HEAD")
+}
+
+func TestStage1Reuse_cleanRestackOfAStackReuses(t *testing.T) {
+	r, first := stack(t)
+	r.git("switch", "-q", "trunk")
+	r.commit("other.txt", "moved\n")
+	lower, head := r.restack("")
+	got := r.runStack(lower, head)
+	if got["reuse"] != "true" || got["patch-id"] != first["patch-id"] || got["ci-id"] != first["ci-id"] {
+		t.Fatalf("clean restack onto an unrelated trunk change: %v, want reuse of %v", got, first)
+	}
+}
+
+func TestStage1Reuse_restackThatResolvesAConflictDoesNotReuse(t *testing.T) {
+	r, first := stack(t)
+	r.git("switch", "-q", "trunk")
+	r.commit("shared.txt", "trunk\n")
+	lower, head := r.restack("trunk\nlower\n")
+	got := r.runStack(lower, head)
+	if got["patch-id"] == first["patch-id"] || got["patch-id"] == "" {
+		t.Fatalf("conflict resolved in the lower PR: %v, want a new whole-stack patch ID", got)
+	}
+	if got["reuse"] != "false" {
+		t.Fatalf("conflict resolved in the lower PR: %v, want a full stage 1", got)
+	}
+}
+
+func TestStage1Reuse_stackRestackOntoAWorkflowChangeDoesNotReuse(t *testing.T) {
+	r, first := stack(t)
+	r.git("switch", "-q", "trunk")
+	r.commit(".github/workflows/ci.yml", "name: ci\non: push\n")
+	lower, head := r.restack("")
+	got := r.runStack(lower, head)
+	if got["patch-id"] != first["patch-id"] || got["ci-id"] == first["ci-id"] || got["ci-id"] == "" {
+		t.Fatalf("trunk workflow change under the stack: %v, want the same patch and a new ci-id", got)
+	}
+	if got["reuse"] != "false" {
+		t.Fatalf("same stack patch, different ci-id: %v, want a full stage 1", got)
+	}
+}
+
+func TestStage1Reuse_stackWithNoMergeBaseDoesNotReuse(t *testing.T) {
+	r := newReuseRepo(t)
+	r.git("switch", "-q", "--orphan", "feature")
+	if err := os.MkdirAll(filepath.Join(r.dir, ".github", "workflows"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.commit(".github/workflows/ci.yml", "name: ci\n")
+	head := r.commit("top.txt", "top\n")
+	r.greenRun(head, "patch-id:  ci-id: ")
+	if got := r.runStack(head, head); got["reuse"] != "false" || got["patch-id"] != "" || len(got["ci-id"]) != 12 {
+		t.Fatalf("stack with no merge base with trunk: %v, want no key and a full stage 1", got)
 	}
 }

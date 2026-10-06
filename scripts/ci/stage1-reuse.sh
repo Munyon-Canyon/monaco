@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 # Stage 1 reuse, docs/architecture/ci.md#check-stages. Writes patch-id, ci-id and reuse to $GITHUB_OUTPUT.
+# A stacked top PR sets TRUNK_REF, so the patch ID covers the whole stack from the merge base with the trunk.
 set -euo pipefail
 
 : "${BASE_SHA:?}" "${HEAD_SHA:?}" "${HEAD_REF:?}" "${GITHUB_REPOSITORY:?}" "${GITHUB_OUTPUT:?}"
 
+base="$BASE_SHA"
+if [[ -n "${TRUNK_REF:-}" ]]; then
+  base="$(git merge-base "$TRUNK_REF" "$HEAD_SHA")" || base=""
+fi
+
 patch_id=""
-read -r patch_id _ < <(git diff "$BASE_SHA...$HEAD_SHA" | git patch-id --stable) || true
+if [[ -n "$base" ]]; then
+  read -r patch_id _ < <(git diff "$base...$HEAD_SHA" | git patch-id --stable) || true
+fi
 echo "patch-id=$patch_id" >>"$GITHUB_OUTPUT"
 
 ci_tree="$(git rev-parse "$HEAD_SHA:.github/workflows")"
 ci_id="${ci_tree:0:12}"
 echo "ci-id=$ci_id" >>"$GITHUB_OUTPUT"
-echo "patch ID of $BASE_SHA...$HEAD_SHA: ${patch_id:-none}"
+echo "patch ID of ${base:-no merge base with ${TRUNK_REF:-}}...$HEAD_SHA: ${patch_id:-none}"
 echo "ci-id of $HEAD_SHA:.github/workflows: $ci_id"
 if [[ -z "$patch_id" ]]; then
   echo "reuse=false" >>"$GITHUB_OUTPUT"
