@@ -214,8 +214,14 @@ func (p watchPR) failure(queue queueRuns, since time.Time) (failure, bool) {
 
 func (p watchPR) droppedByGraphite(queue queueRuns, since time.Time) bool {
 	at, byGraphite, ok := p.TimelineItems.removal(queue.label)
-	return ok && byGraphite && at.After(since) && !draftHolds(queue.drafts, p.Number) &&
-		!awaitsDraft(queue.drafts, p.Number, at, queue.now)
+	held := draftHolds(queue.drafts, p.Number) || awaitsDraft(queue.drafts, p.Number, at, queue.now)
+	if !ok || !byGraphite || held {
+		return false
+	}
+	if draftRan(queue.drafts, p.Number, at) {
+		return at.After(since)
+	}
+	return at.Add(takenFor).After(since)
 }
 
 func graphiteLogin(login string) bool {
