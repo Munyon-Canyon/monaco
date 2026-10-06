@@ -52,6 +52,9 @@ func (s specDiff) addsCodeListedBy(f flows.Flow) bool {
 
 func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) (flowsWait, error) {
 	top := stack[len(stack)-1]
+	if wait, err := env.migrationWait(ctx, stack); err != nil || wait.waiting != "" {
+		return wait, err
+	}
 	reg, mine, err := env.stackFlows(ctx, stack, top)
 	if err != nil || len(mine) == 0 {
 		return flowsWait{}, err
