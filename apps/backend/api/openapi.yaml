@@ -3222,6 +3222,12 @@ components:
         - account_status_transition
         - account_suspended
         - admin_forbidden
+        - agent_budget_exceeded
+        - agent_exists
+        - agent_holdings_exceeded
+        - agent_not_found
+        - agent_paused
+        - agent_wrong_status
         - already_member
         - analytics_pii
         - apns_auth_failed

@@ -17,6 +17,12 @@ const (
 	AccountStatusTransition ErrorCode = "account_status_transition"
 	AccountSuspended ErrorCode = "account_suspended"
 	AdminForbidden ErrorCode = "admin_forbidden"
+	AgentBudgetExceeded ErrorCode = "agent_budget_exceeded"
+	AgentExists ErrorCode = "agent_exists"
+	AgentHoldingsExceeded ErrorCode = "agent_holdings_exceeded"
+	AgentNotFound ErrorCode = "agent_not_found"
+	AgentPaused ErrorCode = "agent_paused"
+	AgentWrongStatus ErrorCode = "agent_wrong_status"
 	AlreadyMember ErrorCode = "already_member"
 	AnalyticsPii ErrorCode = "analytics_pii"
 	ApnsAuthFailed ErrorCode = "apns_auth_failed"
@@ -156,6 +162,18 @@ func (e ErrorCode) Valid() bool {
 	case AccountSuspended:
 		return true
 	case AdminForbidden:
+		return true
+	case AgentBudgetExceeded:
+		return true
+	case AgentExists:
+		return true
+	case AgentHoldingsExceeded:
+		return true
+	case AgentNotFound:
+		return true
+	case AgentPaused:
+		return true
+	case AgentWrongStatus:
 		return true
 	case AlreadyMember:
 		return true
