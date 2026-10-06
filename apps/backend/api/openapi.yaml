@@ -3146,6 +3146,7 @@ components:
         - comment_not_found
         - comment_parent_mismatch
         - conservation_broken
+        - contact_hashes_invalid
         - db_schema_behind
         - db_unavailable
         - decode_failed
@@ -3221,6 +3222,7 @@ components:
         - swap_not_found
         - swap_not_retryable
         - swap_not_stuck
+        - too_many_contact_hashes
         - unauthorized
         - unknown_asset
         - upstream_timeout

@@ -6,5 +6,6 @@ func init() {
 	register(
 		SocialChatPublishFailed,
 		SocialChatAuthorUnreadable,
+		ContactsMatched,
 	)
 }
