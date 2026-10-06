@@ -112,14 +112,13 @@ struct HomeLeaderboardSection: View {
     private var board: some View {
         MonacoGroupedList {
             ForEach(Array(people.enumerated()), id: \.element.userId) { index, row in
-                NavigationLink {
-                    UserProfileGroupsView(
-                        auth: auth,
-                        userId: row.userId,
-                        displayName: row.displayName,
-                        profilePhotoUrl: row.profilePhotoUrl
-                    )
-                } label: {
+                NavigationLink(
+                    value: AnyAppRoute(
+                        UserProfileRoute(
+                            userID: row.userId,
+                            preview: UserPreview(
+                                displayName: row.displayName, handle: nil, photoURL: row.profilePhotoUrl)))
+                ) {
                     BoardRow(
                         rank: index + 1,
                         name: row.displayName,

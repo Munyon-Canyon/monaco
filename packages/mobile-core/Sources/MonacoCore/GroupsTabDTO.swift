@@ -3,8 +3,6 @@ import Foundation
 // Contracts for the Groups tab read APIs (#148):
 //   GET /v1/groups/search?q=&limit=&cursor=
 //   GET /v1/groups/leaderboard?limit=
-//   GET /v1/groups/pnl-history?range=           (one series per joined cabal)
-//   GET /v1/groups/{id}/pnl-history?range=
 // Money fields are USD decimal strings; dollarPnl carries an explicit sign.
 
 /// Who may enter a cabal without an admin.
@@ -147,72 +145,6 @@ public struct GroupLeaderboardResponseDTO: Codable, Equatable, Sendable {
     }
 }
 
-/// Lookback window for P&L history. The server caps every range at 90 days.
-public enum GroupPnLRange: String, Codable, CaseIterable, Sendable {
-    case oneDay = "1D"
-    case oneWeek = "1W"
-    case oneMonth = "1M"
-    case threeMonths = "3M"
-
-    public var label: String { rawValue }
-}
-
-/// One sample: P&L = pot value - net money members have put in.
-public struct GroupPnLPointDTO: Codable, Equatable, Sendable, Identifiable {
-    public let at: Date
-    public let potValueUsd: String
-    public let netInUsd: String
-    public let dollarPnl: String
-
-    public var id: TimeInterval { at.timeIntervalSince1970 }
-
-    /// Dollar P&L as a number for charting; 0 when unparseable.
-    public var chartValue: Double {
-        Double(dollarPnl.replacingOccurrences(of: "+", with: "")) ?? 0
-    }
-
-    public init(at: Date, potValueUsd: String, netInUsd: String, dollarPnl: String) {
-        self.at = at
-        self.potValueUsd = potValueUsd
-        self.netInUsd = netInUsd
-        self.dollarPnl = dollarPnl
-    }
-}
-
-public struct GroupPnLSeriesDTO: Codable, Equatable, Sendable, Identifiable {
-    public let groupID: String
-    public let name: String
-    public let range: String
-    /// Oldest first, UTC timestamps. The last point is the live valuation.
-    public let points: [GroupPnLPointDTO]
-
-    public var id: String { groupID }
-
-    public init(groupID: String, name: String, range: String, points: [GroupPnLPointDTO]) {
-        self.groupID = groupID
-        self.name = name
-        self.range = range
-        self.points = points
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case groupID = "groupId"
-        case name
-        case range
-        case points
-    }
-}
-
-public struct MyGroupsPnLHistoryDTO: Codable, Equatable, Sendable {
-    public let range: String
-    public let series: [GroupPnLSeriesDTO]
-
-    public init(range: String, series: [GroupPnLSeriesDTO]) {
-        self.range = range
-        self.series = series
-    }
-}
-
 /// Decides what a tap on a discovery row does.
 public enum GroupDiscoveryDestination: Equatable, Sendable {
     /// Viewer is a member: open the cabal.
@@ -232,15 +164,6 @@ public enum GroupDiscoveryDestination: Equatable, Sendable {
             }
         }
     }
-}
-
-/// Chart helpers for the multi-cabal P&L chart.
-public enum GroupPnLChartModel {
-    /// Series with at least two points can draw a line; others are "sparse".
-    public static func drawable(_ series: [GroupPnLSeriesDTO]) -> [GroupPnLSeriesDTO] {
-        series.filter { $0.points.count >= 2 }
-    }
-
 }
 
 /// Client-side mirror of the server's search query rules (2...64 characters).

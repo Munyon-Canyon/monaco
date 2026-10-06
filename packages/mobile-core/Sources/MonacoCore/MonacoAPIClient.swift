@@ -222,26 +222,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         )
     }
 
-    /// One P&L series per cabal the viewer belongs to, in a single request.
-    public func myGroupsPnLHistory(range: GroupPnLRange = .oneMonth) async throws -> MyGroupsPnLHistoryDTO {
-        try await getJSON(
-            path: "v1/groups/pnl-history",
-            route: "/v1/groups/pnl-history",
-            queryItems: [URLQueryItem(name: "range", value: range.rawValue)],
-            as: MyGroupsPnLHistoryDTO.self
-        )
-    }
-
-    /// P&L series for one cabal; readable by any signed-in user.
-    public func groupPnLHistory(groupId: String, range: GroupPnLRange = .oneMonth) async throws -> GroupPnLSeriesDTO {
-        try await getJSON(
-            path: "v1/groups/\(groupId)/pnl-history",
-            route: "/v1/groups/{id}/pnl-history",
-            queryItems: [URLQueryItem(name: "range", value: range.rawValue)],
-            as: GroupPnLSeriesDTO.self
-        )
-    }
-
     private func getJSON<T: Decodable>(
         path: String,
         route: String,

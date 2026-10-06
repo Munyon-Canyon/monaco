@@ -89,23 +89,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: data)
     }
 
-    func getUserSharedGroups(accessToken: String, userId: String) async throws -> [HomeGroupBoardRowDTO] {
-        let url = baseURL.appending(path: "v1/users/\(userId)/groups")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        let payload = try JSONDecoder().decode(UserSharedGroupsResponse.self, from: data)
-        return payload.groups
-    }
-
     func getGroup(accessToken: String, groupId: String) async throws -> GetGroupResponse {
         let url = baseURL.appending(path: "v1/groups/\(groupId)")
         var request = URLRequest(url: url)
@@ -143,18 +126,6 @@ final class MonacoAPIClient: AppSessionDataSource {
 
     func groupLeaderboard(accessToken: String, limit: Int = 20) async throws -> GroupLeaderboardResponseDTO {
         try await withCoreClient(accessToken) { try await $0.groupLeaderboard(limit: limit) }
-    }
-
-    func myGroupsPnLHistory(accessToken: String, range: GroupPnLRange = .oneMonth) async throws -> MyGroupsPnLHistoryDTO
-    {
-        try await withCoreClient(accessToken) { try await $0.myGroupsPnLHistory(range: range) }
-    }
-
-    /// One cabal's P&L series, for the curve on its hero.
-    func groupPnLHistory(accessToken: String, groupId: String, range: GroupPnLRange = .oneMonth) async throws
-        -> GroupPnLSeriesDTO
-    {
-        try await withCoreClient(accessToken) { try await $0.groupPnLHistory(groupId: groupId, range: range) }
     }
 
     private func withCoreClient<T>(
