@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"log/slog"
 	"maps"
@@ -15,7 +16,7 @@ import (
 
 const (
 	minKeyChars = 32
-	maxKeyChars = 44
+	maxSigChars = 88
 	keyBytes    = 32
 )
 
@@ -109,16 +110,23 @@ func piiValue(s string) string {
 		return "email"
 	case phoneValue.MatchString(s):
 		return "phone"
-	case solanaKey(s):
-		return "wallet_key"
 	}
-	return ""
+	return solanaValue(s)
 }
 
-func solanaKey(s string) bool {
-	if len(s) < minKeyChars || len(s) > maxKeyChars {
-		return false
+func solanaValue(s string) string {
+	if len(s) < minKeyChars || len(s) > maxSigChars {
+		return ""
 	}
 	b, ok := chain.DecodeBase58(s)
-	return ok && len(b) == keyBytes
+	if !ok {
+		return ""
+	}
+	switch len(b) {
+	case keyBytes:
+		return "wallet_key"
+	case ed25519.SignatureSize:
+		return "signature"
+	}
+	return ""
 }

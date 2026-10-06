@@ -48,6 +48,10 @@ func keyOf(fill byte, n int) string { return string(chain.AddressOf(bytes.Repeat
 
 func key(n int) string { return keyOf(7, n) }
 
+func sigOf(fill byte, n int) string { return string(chain.SignatureOf(bytes.Repeat([]byte{fill}, n))) }
+
+func sig(n int) string { return sigOf(7, n) }
+
 func TestAnalytics_CheckNoPII_acceptsACaptureMadeOfIDsFlagsAndNames(t *testing.T) {
 	t.Parallel()
 	if err := analytics.CheckNoPII(clean()); err != nil {
@@ -68,6 +72,8 @@ func lookalikes() map[string]string {
 		"key one byte short":           key(31),
 		"key one byte long":            key(33),
 		"key with a character outside": strings.Repeat("0", 43),
+		"signature one byte short":     sig(63),
+		"signature one byte long":      sig(65),
 		"hex id":                       "0190a5d000007000800000000000000a",
 		"a sentence":                   "bought the dip at 5 usdc",
 	}
@@ -134,19 +140,25 @@ func TestAnalytics_CheckNoPII_refusesEachBannedKeyWhereverItSits(t *testing.T) {
 func TestAnalytics_CheckNoPII_refusesEachValuePatternWhereverItSits(t *testing.T) {
 	t.Parallel()
 	longest := keyOf(0xff, 32)
-	if len(longest) != 44 || len(chain.SystemProgram) != 32 {
-		t.Fatalf("key fixtures have %d and %d characters, want the longest and the shortest, 44 and 32",
-			len(longest), len(chain.SystemProgram))
+	longestSig := sigOf(0xff, 64)
+	shortestSig := strings.Repeat("1", 64)
+	if len(longest) != 44 || len(chain.SystemProgram) != 32 || len(longestSig) != 88 || len(shortestSig) != 64 {
+		t.Fatalf("key and signature fixtures have %d, %d, %d and %d characters, "+
+			"want the longest and the shortest of each, 44, 32, 88 and 64",
+			len(longest), len(chain.SystemProgram), len(longestSig), len(shortestSig))
 	}
 	patterns := map[string]struct{ value, reason string }{
-		"email":          {"trader@example.com", "email"},
-		"email in text":  {"reach me at trader@example.com today", "email"},
-		"phone":          {"+14155550100", "phone"},
-		"shortest phone": {"+1234567", "phone"},
-		"longest phone":  {"+123456789012345", "phone"},
-		"wallet key":     {key(32), "wallet_key"},
-		"longest key":    {longest, "wallet_key"},
-		"shortest key":   {string(chain.SystemProgram), "wallet_key"},
+		"email":              {"trader@example.com", "email"},
+		"email in text":      {"reach me at trader@example.com today", "email"},
+		"phone":              {"+14155550100", "phone"},
+		"shortest phone":     {"+1234567", "phone"},
+		"longest phone":      {"+123456789012345", "phone"},
+		"wallet key":         {key(32), "wallet_key"},
+		"longest key":        {longest, "wallet_key"},
+		"shortest key":       {string(chain.SystemProgram), "wallet_key"},
+		"signature":          {sig(64), "signature"},
+		"longest signature":  {longestSig, "signature"},
+		"shortest signature": {shortestSig, "signature"},
 	}
 	for name, p := range patterns {
 		t.Run(name, func(t *testing.T) {
@@ -184,6 +196,7 @@ func TestAnalytics_CheckNoPII_refusesEachPatternAsAMapKeyWhereverItSits(t *testi
 		"email":      {"trader@example.com", "key_email"},
 		"phone":      {"+14155550100", "key_phone"},
 		"wallet key": {key(32), "key_wallet"},
+		"signature":  {sig(64), "key_signature"},
 	}
 	for name, p := range patterns {
 		t.Run(name, func(t *testing.T) {
