@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
@@ -52,7 +53,7 @@ func replayTool(environ []string) tool {
 		uow := db.New(pools[1], ids.Real{}, clk)
 		rep, err := replay.Run(ctx, replay.Options{
 			Source: pools[0], Target: pools[1], UoW: uow, Clock: clk,
-			Handlers: projections(cfg, pools[1], uow, clk),
+			Handlers: replayHandlers(cfg, pools[0], pools[1], uow, clk),
 			To:       toID, Verify: *verify, Checks: replay.LedgerChecks(cfg),
 		})
 		_, _ = fmt.Fprintf(
@@ -112,10 +113,14 @@ func closePools(pools []*pgxpool.Pool) {
 	}
 }
 
-func registeredConsumers(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.Consumer {
+func registeredSet(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk clock.Clock) module.Set {
 	return registered.Build(module.Deps{
 		Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: uow, HTTPClient: httpclient.New,
-	}).Consumers()
+	})
+}
+
+func registeredConsumers(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.Consumer {
+	return registeredSet(cfg, pool, uow, clk).Consumers()
 }
 
 func handlers(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.HandlerSpec {
@@ -136,6 +141,13 @@ func projections(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk 
 	keep := projectionDurables()
 	all := registeredConsumers(cfg, pool, uow, clk)
 	return replay.Handlers(slices.DeleteFunc(all, func(c bus.Consumer) bool { return !keep[c.Durable] }))
+}
+
+func replayHandlers(
+	cfg config.Config, source, target *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock,
+) []bus.HandlerSpec {
+	derived := replay.Projections(registeredSet(cfg, target, uow, clk), registeredSet(cfg, source, nil, clock.Real{}))
+	return append(projections(cfg, target, uow, clk), derived...)
 }
 
 func fail(stderr io.Writer, err error) int {

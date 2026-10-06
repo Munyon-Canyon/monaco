@@ -9,8 +9,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-func verify(ctx context.Context, o Options) ([]string, error) {
-	const op = "replay.verify"
+func verifiedTables(ctx context.Context, o Options) ([]string, error) {
+	if len(o.Tables) > 0 {
+		return o.Tables, nil
+	}
 	skip := []string{"events", "event_deliveries", "idempotency_keys"}
 	for _, c := range o.Checks {
 		skip = append(skip, c.Tables...)
@@ -19,7 +21,16 @@ func verify(ctx context.Context, o Options) ([]string, error) {
 		WHERE schemaname = 'public' AND NOT tablename = ANY($1) ORDER BY 1`, skip)
 	names, err := pgx.CollectRows(tables, pgx.RowTo[string])
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, errs.Wrap(err, errs.CodeInternal, "replay.verify")
+	}
+	return names, nil
+}
+
+func verify(ctx context.Context, o Options) ([]string, error) {
+	const op = "replay.verify"
+	names, err := verifiedTables(ctx, o)
+	if err != nil {
+		return nil, err
 	}
 	var diffs []string
 	for _, table := range names {

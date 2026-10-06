@@ -48,6 +48,21 @@ func (w SnapshotWriter) persist(
 	return w.persistQueries(ctx, sqlc.New(tx.Queries()), tx.Events, runID, valuation, startedAt, finishedAt)
 }
 
+type discardEvents struct{}
+
+func (discardEvents) Append(context.Context, events.Event) error { return nil }
+
+func ReplaySnapshot(
+	ctx context.Context,
+	tx db.Tx,
+	written events.RankingSnapshotWritten,
+	valuation Valuation,
+) error {
+	return SnapshotWriter{}.persistQueries(
+		ctx, sqlc.New(tx.Queries()), discardEvents{}, written.RunID, valuation, written.AsOf, written.ComputedAt,
+	)
+}
+
 type rankingQueries interface {
 	snapshotQueries
 	DeleteAllLeaderboardEntries(context.Context) error

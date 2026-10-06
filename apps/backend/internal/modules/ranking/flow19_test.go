@@ -46,15 +46,19 @@ type liveMarket struct {
 func flow19Scenario(t *testing.T) *scenario.Scenario {
 	t.Helper()
 	return scenario.New(t, scenario.WithModules(func(d module.Deps) module.Module {
-		d.Config = testkit.Config()
-		markets := market.New(d)
-		return ranking.New(d, ranking.WithPorts(app.Ports{
-			Market:   liveMarket{Catalog: markets.Catalog(), Prices: markets.Prices(), Calendar: markets.Calendar()},
-			Treasury: treasury.New(d).Queries(),
-			Funding:  funding.New(d).Pauses(),
-			Cabals:   cabal.New(d).Queries(),
-			Users:    identity.New(d).Queries(),
-			Previous: sqlc.New(d.Pool),
-		}))
+		return rankingOver(d)
+	}))
+}
+
+func rankingOver(d module.Deps) *ranking.Module {
+	d.Config = testkit.Config()
+	markets := market.New(d)
+	return ranking.New(d, ranking.WithPorts(app.Ports{
+		Market:   liveMarket{Catalog: markets.Catalog(), Prices: markets.Prices(), Calendar: markets.Calendar()},
+		Treasury: treasury.New(d).Queries(),
+		Funding:  funding.New(d).Pauses(),
+		Cabals:   cabal.New(d).Queries(),
+		Users:    identity.New(d).Queries(),
+		Previous: sqlc.New(d.Pool),
 	}))
 }

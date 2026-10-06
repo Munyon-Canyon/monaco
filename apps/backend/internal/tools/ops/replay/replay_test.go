@@ -211,6 +211,23 @@ func TestRun_stopsAtToAndVerifyNamesTheRowsReplayDidNotBuild(t *testing.T) {
 	})
 }
 
+func TestRun_verifyComparesOnlyTheTablesItIsGiven(t *testing.T) {
+	t.Parallel()
+	f := echoedFlow00(t)
+	t.Run("target", func(t *testing.T) {
+		t.Parallel()
+		rep, err := replayInto(t.Context(), f.pool, testkit.DB(t), replay.Options{
+			To: f.events[0], Verify: true, Tables: []string{"cabals"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rep.Diffs) != 0 {
+			t.Fatalf("diffs = %q, want none: system_pings is not one of the given tables", rep.Diffs)
+		}
+	})
+}
+
 func TestRun_refusesATargetThatAlreadyHoldsEvents(t *testing.T) {
 	t.Parallel()
 	f := echoedFlow00(t)
