@@ -322,6 +322,10 @@ public enum GroupChatCopy {
         "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
     public static let composerPlaceholder = "Message your cabal"
     public static let loadEarlier = "Load earlier messages"
+    public static let loadFailure = "Couldn't load messages."
+    public static let closed = "You're no longer in this cabal, so its chat is closed to you."
+    public static let notSent = "Not sent · Retry"
+    public static let deleted = "Message deleted"
 
     public static func sendFailure(_ error: Error) -> String {
         switch error {
@@ -485,6 +489,10 @@ public enum GroupChatCopy {
     private static func isAboutTheUser(_ serverMessage: String?) -> Bool {
         guard let serverMessage else { return false }
         return serverMessage.localizedCaseInsensitiveContains("user not found")
+    }
+
+    public static func replies(_ count: Int) -> String {
+        count == 1 ? "1 reply" : "\(count) replies"
     }
 
     /// The pill offered to a member reading history when messages land below them.
