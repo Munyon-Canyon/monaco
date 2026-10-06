@@ -72,19 +72,23 @@ struct ProposeBuyStockView: View {
                 if model.rows.isEmpty, !trimmedQuery.isEmpty {
                     EmptyState(title: "No stocks match “\(trimmedQuery)”")
                 } else {
-                    if trimmedQuery.isEmpty {
-                        MonacoSectionHeader("Popular").padding(.horizontal, MonacoTheme.Space.m)
-                    }
-                    MonacoGroupedList {
-                        ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, asset in
-                            Button {
-                                ProposeBuyStockSelection.select(asset, pick: { picked = $0 })
-                            } label: {
-                                ProposeBuyStockRow(asset: asset, isLast: index == model.rows.count - 1)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+                            if trimmedQuery.isEmpty {
+                                MonacoSectionHeader("Popular").padding(.horizontal, MonacoTheme.Space.m)
                             }
-                            .buttonStyle(.monacoRow)
-                            .disabled(!asset.isTradable)
-                            .accessibilityIdentifier("propose-buy-stock-\(asset.symbol)")
+                            MonacoGroupedList {
+                                ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, asset in
+                                    Button {
+                                        ProposeBuyStockSelection.select(asset, pick: { picked = $0 })
+                                    } label: {
+                                        ProposeBuyStockRow(asset: asset, isLast: index == model.rows.count - 1)
+                                    }
+                                    .buttonStyle(.monacoRow)
+                                    .disabled(!asset.isTradable)
+                                    .accessibilityIdentifier("propose-buy-stock-\(asset.symbol)")
+                                }
+                            }
                         }
                     }
                 }
