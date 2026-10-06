@@ -3,6 +3,7 @@ package testkit
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -36,9 +37,20 @@ func NewLedger(t SeedT, pool *pgxpool.Pool) *Ledger {
 	}
 }
 
+func NewLedgerFor(t SeedT, pool *pgxpool.Pool, gen ids.Generator, at time.Time) *Ledger {
+	t.Helper()
+	clk := NewClock(at)
+	return &Ledger{t: t, uow: db.New(pool, gen, clk), ids: gen, ledger: app.NewLedger(USDCMint, clk)}
+}
+
 func (l *Ledger) WithFundedMember(user ids.UserID, cabal ids.CabalID, micros money.Micros) *Ledger {
 	l.t.Helper()
-	l.do(func(ctx context.Context, tx db.Tx) error {
+	return l.FundMember(l.t.Context(), user, cabal, micros)
+}
+
+func (l *Ledger) FundMember(ctx context.Context, user ids.UserID, cabal ids.CabalID, micros money.Micros) *Ledger {
+	l.t.Helper()
+	l.do(ctx, func(ctx context.Context, tx db.Tx) error {
 		if err := l.ledger.LockCabal(ctx, tx, cabal); err != nil {
 			return err
 		}
@@ -117,7 +129,7 @@ func (l *Ledger) WithHolding(cabal ids.CabalID, mint chain.SolanaAddress, units 
 	if err != nil {
 		l.t.Fatalf("testkit.Ledger.WithHolding: %v", err)
 	}
-	l.do(func(ctx context.Context, tx db.Tx) error { return l.ledger.PostCabalTxn(ctx, tx, txn) })
+	l.do(l.t.Context(), func(ctx context.Context, tx db.Tx) error { return l.ledger.PostCabalTxn(ctx, tx, txn) })
 	return l
 }
 
@@ -132,9 +144,9 @@ func (l *Ledger) signed(v uint64) (money.SignedMicros, money.SignedMicros) {
 	return in, out
 }
 
-func (l *Ledger) do(fn func(ctx context.Context, tx db.Tx) error) {
+func (l *Ledger) do(ctx context.Context, fn func(ctx context.Context, tx db.Tx) error) {
 	l.t.Helper()
-	if err := l.uow.Do(l.t.Context(), fn); err != nil {
+	if err := l.uow.Do(ctx, fn); err != nil {
 		l.t.Fatalf("testkit.Ledger: %v", err)
 	}
 }
