@@ -466,3 +466,27 @@ func (h historicalStore) CabalPositionSnapshotsAt(
 func (h historicalStore) MemberStakesAt(context.Context, time.Time) ([]sqlc.MemberStakesAtRow, error) {
 	return h.members, h.membersErr
 }
+
+type reservationStoreFake struct {
+	rows []sqlc.CashOutReservationsRow
+	err  error
+}
+
+func (s reservationStoreFake) CashOutReservations(context.Context) ([]sqlc.CashOutReservationsRow, error) {
+	return s.rows, s.err
+}
+
+func TestCashOutReservationsReadFailures(t *testing.T) {
+	t.Parallel()
+	for name, store := range map[string]reservationStoreFake{
+		"read":   {err: errs.New(errs.CodeInternal, "boom")},
+		"decode": {rows: []sqlc.CashOutReservationsRow{{ReservedMicros: "-1"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := (&Queries{reserved: store}).CashOutReservations(t.Context()); err == nil {
+				t.Fatal("CashOutReservations() error = nil")
+			}
+		})
+	}
+}

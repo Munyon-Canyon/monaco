@@ -79,3 +79,39 @@ func TestBuildEntries_refusesLifetimeAndSumsThatDoNotFit(t *testing.T) {
 		})
 	}
 }
+
+func TestRunValuation_failsTheTickWhenTheReservationReadFails(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 1)
+	f.reservedErr = errs.New(errs.CodeInternal, "test")
+	if _, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc,
+	).Run(t.Context(), valuationTime()); err == nil {
+		t.Fatal("Run() error = nil")
+	}
+}
+
+func TestRunValuation_excludesTheUSDCReservedForCashOutsFromTheValue(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 1)
+	f.reservedRows = map[ids.CabalID]money.Micros{f.cabals[0].ID: money.MicrosFromUint64(1_000_000)}
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc,
+	).Run(t.Context(), valuationTime())
+	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].Value != money.MicrosFromUint64(2_000_000) ||
+		f.reservations != 1 {
+		t.Fatalf("Run() = %#v, %v, want the 3 USDC pot less the 1 USDC reserved", got, err)
+	}
+}
+
+func TestRunValuation_excludesACabalWhoseReservationsExceedItsPot(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 2)
+	f.reservedRows = map[ids.CabalID]money.Micros{f.cabals[0].ID: money.MicrosFromUint64(4_000_000)}
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc,
+	).Run(t.Context(), valuationTime())
+	if err != nil || len(got.Cabals) != 1 || got.Excluded != 1 || got.Cabals[0].CabalID != f.cabals[1].ID {
+		t.Fatalf("Run() = %#v, %v, want the over-reserved cabal excluded and the other valued", got, err)
+	}
+}

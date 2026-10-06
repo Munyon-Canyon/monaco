@@ -31,6 +31,7 @@ type Queries struct {
 	pot       potStore
 	history   historyStore
 	flows     flowStore
+	reserved  reservationStore
 	signature signatureStore
 	wallet    walletLedgerStore
 	catalog   app.MintResolver
@@ -61,6 +62,10 @@ type flowStore interface {
 	MemberFlowsBetween(context.Context, sqlc.MemberFlowsBetweenParams) ([]sqlc.MemberFlowsBetweenRow, error)
 }
 
+type reservationStore interface {
+	CashOutReservations(context.Context) ([]sqlc.CashOutReservationsRow, error)
+}
+
 type signatureStore interface {
 	OwnsSignature(context.Context, string) (pgtype.Bool, error)
 }
@@ -80,6 +85,7 @@ func NewQueries(
 		pot:       queries,
 		history:   queries,
 		flows:     queries,
+		reserved:  queries,
 		signature: queries,
 		wallet:    queries,
 		catalog:   catalog,
@@ -87,6 +93,22 @@ func NewQueries(
 		clock:     c,
 		usdc:      usdc,
 	}
+}
+
+func (q *Queries) CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error) {
+	rows, err := q.reserved.CashOutReservations(ctx)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CashOutReservations")
+	}
+	out := make(map[ids.CabalID]money.Micros, len(rows))
+	for _, row := range rows {
+		reserved, err := money.ParseMicros(row.ReservedMicros)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.Queries.CashOutReservations")
+		}
+		out[ids.CabalIDFrom(row.CabalID)] = reserved
+	}
+	return out, nil
 }
 
 func (q *Queries) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error) {
