@@ -7,6 +7,11 @@ import (
 	"sync"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
@@ -16,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -26,6 +32,7 @@ type reconcileChain struct {
 	queries    []solana.SignaturesOpts
 	balanceErr error
 	sigsErr    error
+	down       map[chain.SolanaAddress]error
 }
 
 func (c *reconcileChain) TokenBalance(
@@ -33,6 +40,9 @@ func (c *reconcileChain) TokenBalance(
 ) (money.BaseUnits, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if err := c.down[owner]; err != nil {
+		return money.BaseUnits{}, err
+	}
 	return money.NewBaseUnits(c.balances[owner][mint.Address], mint.Decimals), c.balanceErr
 }
 
@@ -41,6 +51,9 @@ func (c *reconcileChain) SignaturesFor(
 ) ([]solana.SignatureInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if err := c.down[addr]; err != nil {
+		return nil, err
+	}
 	c.queries = append(c.queries, in)
 	if c.sigsErr != nil {
 		return nil, c.sigsErr
@@ -85,6 +98,7 @@ type reconcileEnv struct {
 	chain   *reconcileChain
 	ledger  ledgerPositions
 	wallets *treasuryWallets
+	metrics *sdkmetric.ManualReader
 	deps    app.TreasuryReconcileDeps
 }
 
@@ -97,13 +111,20 @@ func newReconcileEnv(t *testing.T) *reconcileEnv {
 			balances: map[chain.SolanaAddress]map[chain.SolanaAddress]uint64{},
 			history:  map[chain.SolanaAddress][]solana.SignatureInfo{},
 		},
-		ledger: ledgerPositions{},
+		ledger:  ledgerPositions{},
+		metrics: sdkmetric.NewManualReader(),
 		wallets: &treasuryWallets{wallets: []cabalport.TreasuryWallet{
 			{CabalID: watch.cabal.ID, Address: watch.cabal.TreasuryAddress},
 		}},
 	}
+	failed, err := sdkmetric.NewMeterProvider(sdkmetric.WithReader(env.metrics)).Meter("test").
+		Int64Counter("funding_reconcile_failed_total")
+	if err != nil {
+		t.Fatal(err)
+	}
 	env.deps = app.TreasuryReconcileDeps{
-		UoW: db.New(watch.pool, testkit.NewIDs(60), watch.clock), Reads: watch.pool, Clock: watch.clock,
+		Failed: failed,
+		UoW:    db.New(watch.pool, testkit.NewIDs(60), watch.clock), Reads: watch.pool, Clock: watch.clock,
 		Treasuries: env.wallets, Ledger: env.ledger, Chain: env.chain, USDC: watch.usdc,
 		Detect: detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
 			return app.NewDetectExternalDepositHandler(watch.deps).Handle(ctx, cmd)
@@ -127,9 +148,45 @@ func (e *reconcileEnv) landed(owner chain.SolanaAddress, sigs ...chain.Signature
 
 func (e *reconcileEnv) tick(t *testing.T) (int, error) {
 	t.Helper()
-	ctx := observability.WithActor(t.Context(), "system:poller.funding.treasury-reconcile")
-	report, err := app.NewTreasuryReconcilePoller(e.deps).Tick(ctx)
+	report, err := e.tickReport(t)
 	return report.Changed, err
+}
+
+func (e *reconcileEnv) tickReport(t *testing.T) (poller.Report, error) {
+	t.Helper()
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.treasury-reconcile")
+	return app.NewTreasuryReconcilePoller(e.deps).Tick(ctx)
+}
+
+func attr(report poller.Report, key string) int64 {
+	for _, a := range report.Attrs {
+		if a.Key == key {
+			return a.Value.Int64()
+		}
+	}
+	return -1
+}
+
+func (e *reconcileEnv) failures(t *testing.T) map[string]int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := e.metrics.Collect(t.Context(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]int64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok || m.Name != "funding_reconcile_failed_total" {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				code, _ := dp.Attributes.Value(attribute.Key("code"))
+				out[code.AsString()] += dp.Value
+			}
+		}
+	}
+	return out
 }
 
 func (e *reconcileEnv) cursor(t *testing.T) string {
@@ -240,8 +297,11 @@ func TestTreasuryReconcile_AFailingTreasuryDoesNotStopTheOthers(t *testing.T) {
 
 	changed, err := env.tick(t)
 
-	if err == nil || changed != 1 || env.cursor(t) != string(stray) {
-		t.Fatalf("tick = %d, %v, want an error and the healthy cabal recorded", changed, err)
+	if err != nil || changed != 1 || env.cursor(t) != string(stray) {
+		t.Fatalf("tick = %d, %v, want no tick error and the healthy cabal recorded", changed, err)
+	}
+	if got := env.failures(t); got["upstream_unavailable"]+got["internal"] != 1 {
+		t.Fatalf("failures = %v, want the broken cabal counted once", got)
 	}
 	var brokenCursor int
 	if err := env.pool.QueryRow(t.Context(), `SELECT count(*) FROM treasury_watch_cursors WHERE cabal_id = $1`,
@@ -264,12 +324,38 @@ func (f *failOn) InboundTransfers(
 	return f.next.InboundTransfers(ctx, sig, owner)
 }
 
-func TestTreasuryReconcile_ReadFailuresFailTheTick(t *testing.T) {
+func TestTreasuryReconcile_AnRPCFailureOnOneCabalStillReconcilesTheOthers(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	broken := testkit.NewCabal(t, env.pool)
+	env.wallets.wallets = append(env.wallets.wallets,
+		cabalport.TreasuryWallet{CabalID: broken.ID, Address: broken.TreasuryAddress})
+	env.chain.down = map[chain.SolanaAddress]error{
+		broken.TreasuryAddress: errs.New(errs.CodeRPCUnavailable, "test.rpc"),
+	}
+	treasury := env.cabal.TreasuryAddress
+	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
+	env.landed(treasury, stray)
+	env.onChain(treasury, env.usdc, 5_000_000)
+
+	report, err := env.tickReport(t)
+
+	if err != nil || report.Changed != 1 || env.cursor(t) != string(stray) {
+		t.Fatalf("tick = %+v, %v, want the healthy cabal recorded and no tick error", report, err)
+	}
+	if report.Scanned != 2 || attr(report, "failed") != 1 || attr(report, "unreached") != 0 {
+		t.Fatalf("report = %+v, want both cabals scanned and one failure", report)
+	}
+	if got := env.failures(t); got[string(errs.CodeRPCUnavailable)] != 1 || len(got) != 1 {
+		t.Fatalf("failures = %v, want one rpc_unavailable", got)
+	}
+}
+
+func TestTreasuryReconcile_ACabalReadFailureIsCountedNotFatal(t *testing.T) {
 	t.Parallel()
 	cases := map[string]func(t *testing.T, e *reconcileEnv){
-		"treasury list": func(_ *testing.T, e *reconcileEnv) { e.wallets.err = errWatchDown },
-		"balance":       func(_ *testing.T, e *reconcileEnv) { e.chain.balanceErr = errWatchDown },
-		"signatures":    func(_ *testing.T, e *reconcileEnv) { e.chain.sigsErr = errWatchDown },
+		"balance":    func(_ *testing.T, e *reconcileEnv) { e.chain.balanceErr = errWatchDown },
+		"signatures": func(_ *testing.T, e *reconcileEnv) { e.chain.sigsErr = errWatchDown },
 		"ledger": func(_ *testing.T, e *reconcileEnv) {
 			e.deps.Ledger = failingLedger{}
 		},
@@ -284,10 +370,23 @@ func TestTreasuryReconcile_ReadFailuresFailTheTick(t *testing.T) {
 			env := newReconcileEnv(t)
 			env.onChain(env.cabal.TreasuryAddress, env.usdc, 5_000_000)
 			arrange(t, env)
-			if _, err := env.tick(t); err == nil {
-				t.Fatal("tick = nil error")
+			report, err := env.tickReport(t)
+			if err != nil || report.Scanned != 1 || attr(report, "failed") != 1 {
+				t.Fatalf("tick = %+v, %v, want one failed cabal and no tick error", report, err)
+			}
+			if got := env.failures(t); len(got) != 1 {
+				t.Fatalf("failures = %v, want one counted", got)
 			}
 		})
+	}
+}
+
+func TestTreasuryReconcile_AFailedTreasuryListFailsTheTick(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	env.wallets.err = errWatchDown
+	if _, err := env.tick(t); err == nil {
+		t.Fatal("tick = nil error")
 	}
 }
 

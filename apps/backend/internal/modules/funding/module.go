@@ -125,6 +125,8 @@ func (m *Module) Bouncer() *app.Bouncer {
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
+	meter := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/funding")
+	reconcileFailed, _ := meter.Int64Counter("funding_reconcile_failed_total")
 	withdrawals := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
 		Transfers: m.lazyTransfers(), Hints: m.deps.Bus, UnsentAge: cfg.Worker.WithdrawalUnsentAge,
@@ -148,6 +150,7 @@ func (m *Module) Pollers() []poller.Poller {
 			Detect:   m.DetectExternalDeposit(),
 			USDC:     chain.SolanaAddress(cfg.Solana.USDCMint),
 			Interval: cfg.Funding.TreasuryReconcileInterval,
+			Failed:   reconcileFailed,
 		}),
 	}
 }
