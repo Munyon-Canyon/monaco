@@ -76,6 +76,7 @@ const (
 	LedgerUnbalanced           ErrorCode = "ledger_unbalanced"
 	LiveSwapExists             ErrorCode = "live_swap_exists"
 	LoginMethodNotAllowed      ErrorCode = "login_method_not_allowed"
+	NoRealtimeChannels         ErrorCode = "no_realtime_channels"
 	NoRoute                    ErrorCode = "no_route"
 	NotAVoter                  ErrorCode = "not_a_voter"
 	NotCabalCreator            ErrorCode = "not_cabal_creator"
@@ -263,6 +264,8 @@ func (e ErrorCode) Valid() bool {
 	case LiveSwapExists:
 		return true
 	case LoginMethodNotAllowed:
+		return true
+	case NoRealtimeChannels:
 		return true
 	case NoRoute:
 		return true

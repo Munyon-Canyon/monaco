@@ -1942,6 +1942,30 @@ paths:
         "204": {description: The target is not muted.}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/realtime/token:
+    post:
+      operationId: createRealtimeToken
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 60, per: 1h, burst: 10}}
+      summary: Get a token request for live chat updates.
+      description: >-
+        Returns a signed Ably token request that lets the app subscribe, and only subscribe, to
+        the chat channel of every cabal the caller belongs to. The token request is valid for 15
+        minutes and carries no presence or publish right. A caller in no cabal gets
+        no_realtime_channels, because Ably rejects an empty capability. Send a new idempotency key
+        with every call, because a replay returns the first token request.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The Ably token request to hand to the Ably SDK.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RealtimeTokenRequest"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/users/{id}/follow:
     post:
       operationId: postUserFollow
@@ -2819,6 +2843,7 @@ components:
         - ledger_unbalanced
         - live_swap_exists
         - login_method_not_allowed
+        - no_realtime_channels
         - no_route
         - not_a_voter
         - not_cabal_creator
@@ -4377,6 +4402,23 @@ components:
           type: boolean
           description: Show the reply in the channel too. Needs a parent_id. Defaults to false.
           examples: [false]
+    RealtimeTokenRequest:
+      type: object
+      description: >-
+        An Ably token request, signed with the app key. The app passes it to Ably unchanged.
+      additionalProperties: false
+      required: [keyName, clientId, capability, timestamp, ttl, nonce, mac]
+      properties:
+        keyName: {type: string, description: "The Ably key name, not its secret.", examples: ["appid.keyid"]}
+        clientId: {type: string, description: "The caller's user id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        capability:
+          type: string
+          description: A JSON object that maps each cabal channel to `["subscribe"]`.
+          examples: ['{"cabal:01920000-0000-7000-8000-000000000001":["subscribe"]}']
+        timestamp: {type: integer, format: int64, description: "When it was signed, in milliseconds since the epoch.", examples: [1791300000000]}
+        ttl: {type: integer, format: int64, description: "How long the token lives, in milliseconds.", examples: [900000]}
+        nonce: {type: string, description: A one-time value that stops a replay., examples: [d3b07384d113edec]}
+        mac: {type: string, description: The signature over the other fields., examples: [c2lnbmF0dXJl]}
   # api/spec/system.yaml
     Ping:
       type: object

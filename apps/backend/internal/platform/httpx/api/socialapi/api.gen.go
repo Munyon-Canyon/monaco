@@ -404,6 +404,44 @@ type PostChatMessageRequest struct {
 	ParentId *openapi_types.UUID `json:"parent_id,omitempty"`
 }
 
+// RealtimeTokenRequest An Ably token request, signed with the app key. The app passes it to Ably unchanged.
+type RealtimeTokenRequest struct {
+	// Capability A JSON object that maps each cabal channel to `["subscribe"]`.
+	//
+	// Examples: {"cabal:01920000-0000-7000-8000-000000000001":["subscribe"]}
+	Capability string `json:"capability"`
+
+	// ClientId The caller's user id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ClientId string `json:"clientId"`
+
+	// KeyName The Ably key name, not its secret.
+	//
+	// Examples: appid.keyid
+	KeyName string `json:"keyName"`
+
+	// Mac The signature over the other fields.
+	//
+	// Examples: c2lnbmF0dXJl
+	Mac string `json:"mac"`
+
+	// Nonce A one-time value that stops a replay.
+	//
+	// Examples: d3b07384d113edec
+	Nonce string `json:"nonce"`
+
+	// Timestamp When it was signed, in milliseconds since the epoch.
+	//
+	// Examples: 1791300000000
+	Timestamp int64 `json:"timestamp"`
+
+	// Ttl How long the token lives, in milliseconds.
+	//
+	// Examples: 900000
+	Ttl int64 `json:"ttl"`
+}
+
 // ChatCabalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 type ChatCabalId = openapi_types.UUID
 
@@ -512,6 +550,12 @@ type DeleteMeFeedMutesTargetTypeTargetIDParams struct {
 // DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType defines parameters for DeleteMeFeedMutesTargetTypeTargetID.
 type DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType string
 
+// CreateRealtimeTokenParams defines parameters for CreateRealtimeToken.
+type CreateRealtimeTokenParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteUserFollowParams defines parameters for DeleteUserFollow.
 type DeleteUserFollowParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -580,6 +624,9 @@ type ServerInterface interface {
 	// DeleteMeFeedMutesTargetTypeTargetID Unmute a feed target.
 	// (DELETE /v1/me/feed-mutes/{target_type}/{target_id})
 	DeleteMeFeedMutesTargetTypeTargetID(w http.ResponseWriter, r *http.Request, targetType DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType, targetId string, params DeleteMeFeedMutesTargetTypeTargetIDParams)
+	// CreateRealtimeToken Get a token request for live chat updates.
+	// (POST /v1/realtime/token)
+	CreateRealtimeToken(w http.ResponseWriter, r *http.Request, params CreateRealtimeTokenParams)
 	// DeleteUserFollow Unfollow a user.
 	// (DELETE /v1/users/{id}/follow)
 	DeleteUserFollow(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params DeleteUserFollowParams)
@@ -1192,6 +1239,51 @@ func (siw *ServerInterfaceWrapper) DeleteMeFeedMutesTargetTypeTargetID(w http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// CreateRealtimeToken operation middleware
+func (siw *ServerInterfaceWrapper) CreateRealtimeToken(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateRealtimeTokenParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateRealtimeToken(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteUserFollow operation middleware
 func (siw *ServerInterfaceWrapper) DeleteUserFollow(w http.ResponseWriter, r *http.Request) {
 
@@ -1539,6 +1631,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.PutMeFeedMutes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me/feed-mutes/{target_type}/{target_id}", wrapper.DeleteMeFeedMutesTargetTypeTargetID)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/realtime/token", wrapper.CreateRealtimeToken)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.PostUserFollow)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/followers", wrapper.GetUserFollowers)
@@ -1890,6 +1983,45 @@ func (response DeleteMeFeedMutesTargetTypeTargetIDdefaultApplicationProblemPlusJ
 	return err
 }
 
+type CreateRealtimeTokenRequestObject struct {
+	Params CreateRealtimeTokenParams
+}
+
+type CreateRealtimeTokenResponseObject interface {
+	VisitCreateRealtimeTokenResponse(w http.ResponseWriter) error
+}
+
+type CreateRealtimeToken200JSONResponse RealtimeTokenRequest
+
+func (response CreateRealtimeToken200JSONResponse) VisitCreateRealtimeTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateRealtimeTokendefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response CreateRealtimeTokendefaultApplicationProblemPlusJSONResponse) VisitCreateRealtimeTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteUserFollowRequestObject struct {
 	Id     externalRef0.UserId `json:"id"`
 	Params DeleteUserFollowParams
@@ -2080,6 +2212,9 @@ type StrictServerInterface interface {
 	// DeleteMeFeedMutesTargetTypeTargetID Unmute a feed target.
 	// (DELETE /v1/me/feed-mutes/{target_type}/{target_id})
 	DeleteMeFeedMutesTargetTypeTargetID(ctx context.Context, request DeleteMeFeedMutesTargetTypeTargetIDRequestObject) (DeleteMeFeedMutesTargetTypeTargetIDResponseObject, error)
+	// CreateRealtimeToken Get a token request for live chat updates.
+	// (POST /v1/realtime/token)
+	CreateRealtimeToken(ctx context.Context, request CreateRealtimeTokenRequestObject) (CreateRealtimeTokenResponseObject, error)
 	// DeleteUserFollow Unfollow a user.
 	// (DELETE /v1/users/{id}/follow)
 	DeleteUserFollow(ctx context.Context, request DeleteUserFollowRequestObject) (DeleteUserFollowResponseObject, error)
@@ -2381,6 +2516,32 @@ func (sh *strictHandler) DeleteMeFeedMutesTargetTypeTargetID(w http.ResponseWrit
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteMeFeedMutesTargetTypeTargetIDResponseObject); ok {
 		if err := validResponse.VisitDeleteMeFeedMutesTargetTypeTargetIDResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateRealtimeToken operation middleware
+func (sh *strictHandler) CreateRealtimeToken(w http.ResponseWriter, r *http.Request, params CreateRealtimeTokenParams) {
+	var request CreateRealtimeTokenRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateRealtimeToken(ctx, request.(CreateRealtimeTokenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateRealtimeToken")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateRealtimeTokenResponseObject); ok {
+		if err := validResponse.VisitCreateRealtimeTokenResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

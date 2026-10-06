@@ -70,6 +70,7 @@ extension Components.Schemas.ErrorCode {
         case .ledgerUnbalanced: true
         case .liveSwapExists: true
         case .loginMethodNotAllowed: true
+        case .noRealtimeChannels: true
         case .noRoute: true
         case .notAVoter: true
         case .notCabalCreator: true
