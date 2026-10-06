@@ -15,5 +15,8 @@ func (defined) ScriptsF14() map[string]Script {
 		"F14CashOutPayoutsSaleShort":             F14CashOutPayoutsSaleShort,
 		"F14CashOutPayoutsCrashAfterSellRequest": F14CashOutPayoutsCrashAfterSellRequest,
 		"F14CashOutPayoutsCrashAfterSellConfirm": F14CashOutPayoutsCrashAfterSellConfirm,
+		"F14CashOutPayoutsCrashAfterSign":        F14CashOutPayoutsCrashAfterSign,
+		"F14CashOutPayoutsCrashAfterBroadcast":   F14CashOutPayoutsCrashAfterBroadcast,
+		"F14CashOutPayoutsCrashBeforeCommit":     F14CashOutPayoutsCrashBeforeCommit,
 	}
 }

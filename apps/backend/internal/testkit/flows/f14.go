@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 const (
 	cashOutsPath   = cabalsPath + "/{cabal}/cashouts"
 	cashOutJobPath = cashOutsPath + "/{job}"
+	potPath        = cabalsPath + "/{cabal}/pot"
 	cashOutPayout  = "treasury.cashout_payout"
 	f14Stake       = 2_000_000
 	rpcAttempts    = 3
@@ -186,10 +188,25 @@ func paid() []scenario.Step {
 	}
 }
 
+func potHolds(cash int64, stocks int) []scenario.Step {
+	return []scenario.Step{
+		scenario.Get(potPath),
+		scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectJSON("cash_micros", cash),
+		scenario.ExpectField("holdings", func(s *scenario.Scenario, raw json.RawMessage) {
+			var holdings []json.RawMessage
+			if err := json.Unmarshal(raw, &holdings); err != nil || len(holdings) != stocks {
+				s.Fatalf("flows: pot holdings %s, want %d stocks", raw, stocks)
+			}
+		}),
+	}
+}
+
 func F14CashOutOK(s *scenario.Scenario) {
 	s.Given(append(f14Staked("ok"), chainSays("finalized"))...).
-		When(append(cashedOut("1000000"), scenario.Replay(), scenario.ExpectEvents(events.TypeCashOutStarted, 1))...).
-		Then(paid()...)
+		When(slices.Concat(potHolds(f14Stake, 0), cashedOut("1000000"),
+			[]scenario.Step{scenario.Replay(), scenario.ExpectEvents(events.TypeCashOutStarted, 1)})...).
+		Then(append(paid(), potHolds(f14Stake-1_000_000, 0)...)...)
 }
 
 func F14CashOutInvalidInput(s *scenario.Scenario) {
@@ -399,4 +416,30 @@ func F14CashOutPayoutsCrashAfterSellRequest(s *scenario.Scenario) {
 
 func F14CashOutPayoutsCrashAfterSellConfirm(s *scenario.Scenario) {
 	sellCrashed("confirmcrash", faultpoint.AfterSellConfirm)(s)
+}
+
+func payoutCrashed(script string, point faultpoint.Name) func(*scenario.Scenario) {
+	return func(s *scenario.Scenario) {
+		s.Given(append(f14Staked(script), chainSays("finalized"))...).
+			When(append(cashedOut("1000000"), scenario.PublishCrashingAt(point))...).
+			Then(
+				jobEnds("completed", ""),
+				jobEvents(events.TypeCashOutCompleted, 1),
+				jobEvents(events.TypeCashOutFailed, 0),
+				sharesHeld("1000000"),
+				cabalHolds(),
+			)
+	}
+}
+
+func F14CashOutPayoutsCrashAfterSign(s *scenario.Scenario) {
+	payoutCrashed("signcrash", faultpoint.AfterSign)(s)
+}
+
+func F14CashOutPayoutsCrashAfterBroadcast(s *scenario.Scenario) {
+	payoutCrashed("broadcastcrash", faultpoint.AfterBroadcast)(s)
+}
+
+func F14CashOutPayoutsCrashBeforeCommit(s *scenario.Scenario) {
+	payoutCrashed("commitcrash", faultpoint.BeforeCommit)(s)
 }
