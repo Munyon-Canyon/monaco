@@ -46,8 +46,8 @@ Per outcome, in `apps/backend/cmd/monacoctl/verify/invariants.go` and `apps/back
 
 Per run:
 
-- **No dead letters.** The dead-letter stream is empty.
-- **No internal errors.** No log line carries an internal-kind `errs` code.
+- **No dead letters.** The dead-letter stream is empty, except for exactly one letter for each selected consumer outcome whose code alerts, such as flow 24 `APNSAuthFailed`. A missing letter fails the run too.
+- **No internal errors.** No log line carries an internal-kind `errs` code, except one `bus.dispatched` term line on the trigger's subject for each such outcome.
 - **Ledger checks.** `verify.LedgerChecks` holds the treasury ledger check. It asserts that every header sums to zero per asset, that both headers of a transfer share a status, and that the cabal and user positions, cost basis included, equal their entries. The balance comparison with the money events joins it when the first money event registers a balance rule.
 
 ## Budgets
@@ -71,7 +71,7 @@ Per run:
 | `outcomes[].events` | Each event row, whether it was published, and its deliveries. |
 | `outcomes[].log_lines` | The required log lines that were found. |
 | `consumers` | Per durable: delivered, ack floor, ack pending, redelivered. A stuck consumer shows pending or unacked messages here. |
-| `dead_letters` | Messages a handler termed. |
+| `dead_letters` | Messages a handler termed. On a passing run, the letters the flow's own outcomes expect. When the run found any other, the whole stream's count. |
 | `latency_ms`, `phases_ms`, `host` | Where the time went, and the machine's load when it ran. |
 
 A run error marks every flow's file, so read `error` before blaming one flow.

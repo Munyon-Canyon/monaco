@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
 func readEvidence(t *testing.T, path string) Evidence {
@@ -111,6 +112,40 @@ func TestReport_marksOverBudgetAndFailuresAndNamesThePhase(t *testing.T) {
 			ev := readEvidence(t, filepath.Join(dir, ".verify", tc.file))
 			if ev.Result != tc.result || ev.Phase != tc.phase || ev.Error == "" {
 				t.Fatalf("evidence = %+v, want %s in %q", ev, tc.result, tc.phase)
+			}
+		})
+	}
+}
+
+func TestReport_recordsTheDeadLettersEachFlowExpectsAndTheStreamCountOtherwise(t *testing.T) {
+	t.Parallel()
+	denied := Unit{
+		Flow:    tools.Flow{ID: "90", Trigger: "consumer:system.pinged", Commands: []string{"Ping"}},
+		Command: "Ping", Outcome: "APNSAuthFailed",
+	}
+	for _, tc := range []struct {
+		name         string
+		letters      uint64
+		denied, rest uint64
+	}{
+		{"the expected letter", 1, 1, 0},
+		{"a letter nobody expects", 2, 2, 2},
+		{"the expected letter missing", 0, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rep := newReport(t.Context(), Target{}, []Unit{denied, plantedUnit("ok", nil)})
+			rep.deadLetters = tc.letters
+			dir := t.TempDir()
+			if err := rep.write(t.Context(), dir, nil); err != nil {
+				t.Fatal(err)
+			}
+			got := [2]uint64{
+				readEvidence(t, filepath.Join(dir, ".verify", "90.json")).DeadLetters,
+				readEvidence(t, filepath.Join(dir, ".verify", "99.json")).DeadLetters,
+			}
+			if want := [2]uint64{tc.denied, tc.rest}; got != want {
+				t.Fatalf("dead_letters in 90.json and 99.json = %v, want %v", got, want)
 			}
 		})
 	}
