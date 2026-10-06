@@ -12,5 +12,10 @@ func (defined) ScriptsF11() map[string]Script {
 		"F11ExecuteTradeCabalPaused":        F11ExecuteTradeCabalPaused,
 		"F11ExecuteTradeJupiterUnavailable": F11ExecuteTradeJupiterUnavailable,
 		"F11ExecuteTradeSwapFailed":         F11ExecuteTradeSwapFailed,
+		"F11ExecuteTradeCrashAfterCreate":   F11ExecuteTradeCrashAfterCreate,
+		"F11ExecuteTradeCrashAfterSign":     F11ExecuteTradeCrashAfterSign,
+		"F11ExecuteTradeCrashAfterExecute":  F11ExecuteTradeCrashAfterExecute,
+		"F11ExecuteTradeCrashBeforeCommit":  F11ExecuteTradeCrashBeforeCommit,
+		"F11ExecuteTradeCrashAfterPublish":  F11ExecuteTradeCrashAfterPublish,
 	}
 }
