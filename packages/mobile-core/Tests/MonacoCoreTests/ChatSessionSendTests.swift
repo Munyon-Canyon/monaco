@@ -71,7 +71,6 @@ final class ChatSessionSendTests: XCTestCase {
         let sending = Task { await session.send(body: "gm") }
         await transport.waitForRequests(2)
 
-        await Fixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
         let state = await Fixtures.state(session)
         XCTAssertEqual(Fixtures.ids(state), ["m0", "m1", "key-1"])
@@ -189,12 +188,12 @@ final class ChatSessionSendTests: XCTestCase {
         let realtime = FakeChatRealtime()
         let session = Fixtures.session(transport, realtime: realtime)
         await session.open()
-        XCTAssertTrue(realtime.subscribed.isEmpty)
+        XCTAssertEqual(realtime.detached, [Fixtures.cabalID])
 
         await session.reload()
 
         let state = await Fixtures.state(session)
         XCTAssertFalse(state.isClosed)
-        XCTAssertEqual(realtime.subscribed, [Fixtures.cabalID])
+        XCTAssertEqual(realtime.subscribed, [Fixtures.cabalID, Fixtures.cabalID])
     }
 }

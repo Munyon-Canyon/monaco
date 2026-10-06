@@ -28,6 +28,21 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertEqual(sent[0].path, "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50")
     }
 
+    func testAReconnectThatLostContinuityFetchesAfterTheNewestHeldID() async throws {
+        let held = Fixtures.message("m1", minutes: 1)
+        let missed = Fixtures.message("m2", minutes: 2)
+        let transport = StubTransport(scripted: [try Fixtures.page([held]), try Fixtures.page([missed])])
+        let session = Fixtures.session(transport)
+        await session.open()
+
+        await session.apply(.attached(resumed: false))
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["m1", "m2"])
+        let sent = await transport.sent
+        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&limit=50")
+    }
+
     func testACatchUpAfterAGapStartsAtTheNewestFetchedMessageNotTheViewersOwnSend() async throws {
         let held = Fixtures.message("m1", minutes: 1)
         let others = Fixtures.message("m2", minutes: 2)
@@ -42,7 +57,6 @@ final class ChatSessionTests: XCTestCase {
 
         await session.apply(.detached)
         await session.send(body: "gm")
-        await Fixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
 
         let state = await Fixtures.state(session)
@@ -60,7 +74,6 @@ final class ChatSessionTests: XCTestCase {
         await session.open()
 
         await session.apply(.messageCreated(Fixtures.message("m2", minutes: 2)))
-        await Fixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
 
         let sent = await transport.sent
@@ -91,7 +104,6 @@ final class ChatSessionTests: XCTestCase {
         let session = Fixtures.session(transport)
         await session.open()
 
-        await Fixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
 
         let state = await Fixtures.state(session)
@@ -199,7 +211,7 @@ final class ChatSessionTests: XCTestCase {
         let state = await Fixtures.state(session)
         XCTAssertTrue(state.isClosed)
         guard case .failed = state.load else { return XCTFail("expected a failed load") }
-        XCTAssertTrue(realtime.subscribed.isEmpty)
+        XCTAssertEqual(realtime.detached, [Fixtures.cabalID])
     }
 
     func testAFirstLoadFailureCanBeRetried() async throws {
@@ -229,7 +241,6 @@ final class ChatSessionTests: XCTestCase {
         let session = Fixtures.session(transport)
         await session.open()
 
-        await Fixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
 
         let state = await Fixtures.state(session)
@@ -298,7 +309,6 @@ final class ChatSessionTests: XCTestCase {
         let session = Fixtures.session(transport)
         await session.open()
 
-        await Fixtures.initialAttach(session)
         await session.apply(.attached(resumed: false))
 
         let state = await Fixtures.state(session)
