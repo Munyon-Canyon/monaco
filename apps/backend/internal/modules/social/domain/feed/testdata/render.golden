@@ -11,8 +11,10 @@ proposal_unknown_status	A member proposed buying AAPLx in Alpha Cabal		neutral
 trade_buy	Alpha Cabal bought $12,500 of AAPLx	Apple	neutral
 trade_buy_filled	Alpha Cabal bought $500 of AAPLx	Filled at $212.40	neutral
 trade_sell	Alpha Cabal sold $99.99 of AAPLx		neutral
-price_move_up	AAPLx is up 10.43% today	Apple · $187.42	positive
-price_move_down	TSLAx is down 5.07% today	Tesla · $1,250.00	negative
+price_move_up_500	AAPLx is up 5% today	$212.40, previous close $193.10	positive
+price_move_down_1000	TSLAx is down 10% today	$1,250.00, previous close $1,388.90	negative
+price_move_up_1234	AAPLx is up 12.34% today	$212.40, previous close $189.00	positive
+price_move_no_prev_close	AAPLx is up 5% today	$212.40	positive
 price_move_flat_no_price	AAPLx is flat today		neutral
 cabal_created	alice started Alpha Cabal		neutral
 cabal_created_no_actor	Alpha Cabal is a new cabal		neutral

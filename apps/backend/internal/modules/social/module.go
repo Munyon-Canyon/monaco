@@ -173,6 +173,7 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("social.feed.proposal_blocked", feed.ProposalBlocked),
 				bus.Handle("social.feed.trade_failed", feed.TradeFailed),
 				bus.HandleFetched("social.feed.trade_confirmed", feed.FetchTrade, feed.ApplyTrade),
+				bus.Handle("social.feed.price_moved", feed.PriceMoved),
 			},
 		},
 		{

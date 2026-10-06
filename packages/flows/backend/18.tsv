@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-18	Prices	market	poller:market.prices	SamplePrices	price.tick;asset.price_moved		ok;JupiterUnavailable;UpstreamTimeout;crash:before-commit	verified	docs/architecture/price-history.md#writer-1-live-sampler
+18	Prices	market	poller:market.prices	SamplePrices	price.tick;asset.price_moved	social.feed.price_moved	ok;JupiterUnavailable;UpstreamTimeout;crash:before-commit	verified	docs/architecture/price-history.md#writer-1-live-sampler

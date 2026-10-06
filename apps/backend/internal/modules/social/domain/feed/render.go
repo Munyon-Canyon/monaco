@@ -40,7 +40,7 @@ func RenderDetail(k Kind, p Payload) string {
 		}
 		return "Filled at " + priceOf(p.PriceMicros)
 	case KindPriceMove:
-		return join(" · ", p.AssetName, priceOf(p.PriceMicros))
+		return priceMoveDetail(p)
 	case KindCabalCreated, KindMemberJoined:
 		return ""
 	default:
@@ -122,7 +122,17 @@ func priceOf(m money.Micros) string {
 	return "$" + grouped(cents/100) + "." + strconv.FormatUint(cents%100+100, 10)[1:]
 }
 
+func priceMoveDetail(p Payload) string {
+	if p.PrevClose.IsZero() {
+		return priceOf(p.MarkMicros)
+	}
+	return join(", ", priceOf(p.MarkMicros), "previous close "+priceOf(p.PrevClose))
+}
+
 func percent(bps int64) string {
+	if bps%100 == 0 {
+		return strconv.FormatInt(bps/100, 10) + "%"
+	}
 	return strconv.FormatInt(bps/100, 10) + "." + strconv.FormatInt(bps%100+100, 10)[1:] + "%"
 }
 
