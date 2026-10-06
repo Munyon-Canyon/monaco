@@ -611,7 +611,7 @@ jobs:
       # Negated patterns only exclude under `every`, so these two filters need their own step.
       # `unknown` is a changed file no filter above owns and no line below calls inert: it runs
       # every job, so a new file can never pass ci-ok with nothing tested. The inert paths are
-      # docs/architecture/backend-platform.md#verification-scope's no-check rows.
+      # listed in docs/architecture/backend-platform.md#verification-scope.
       - uses: dorny/paths-filter@v3
         id: every
         if: steps.top.outputs.skip != 'true'
@@ -651,7 +651,9 @@ jobs:
               - '!Justfile'
               - '!docker-compose.yml'
 
-      # A workflow-only change runs this lint, not the jobs the workflow defines.
+      # A workflow-only change runs this lint and the scripts/ci tests below, plus the `scripts` job (its filter
+      # lists `.github/workflows/*.yml`) and `ios` or `mobile-core` when their own workflow file changed. The other
+      # jobs a workflow defines stay off.
       - name: Lint workflows
         if: steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.workflows == 'true'
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12
