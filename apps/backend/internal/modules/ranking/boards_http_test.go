@@ -271,7 +271,6 @@ func TestBoards_ConcurrentMissesRunOnePageQuery(t *testing.T) {
 }
 
 func TestBoards_PeopleP95(t *testing.T) {
-	t.Parallel()
 	s := newServer(t)
 	rows := boardRows("people", 10000)
 	seedBoard(t, s.pool, s.clock.Now().UTC(), rows)
