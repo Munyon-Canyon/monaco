@@ -4,16 +4,15 @@ expect-fail: S1
 The comment composer reads "Say something". S1.3 checks the spec's "Add a comment", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift b/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
-index 01ff21e4e..e29a2157f 100644
---- a/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
-+++ b/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
-@@ -19,7 +19,7 @@ public enum ProposalFeedCopy {
- 
-     public static let commentsTitle = "Discussion"
-     public static let emptyThread = "No comments yet. Make the case for or against this buy."
--    public static let composerPlaceholder = "Add a comment"
-+    public static let composerPlaceholder = "Say something"
-     public static let reply = "Reply"
-     public static let send = "Post"
-     public static let commentPosted = "Comment posted"
+diff --git a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift b/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift
+--- a/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift	2026-10-06 04:55:00
++++ b/packages/mobile-core/Sources/MonacoCore/Comments/CommentThread.swift	2026-10-06 04:55:00
+@@ -66,7 +66,7 @@
+     public static let empty = "No comments yet"
+     public static let loadFailed = "Couldn't load comments."
+     public static let tryAgain = "Try again"
+-    public static let placeholder = "Add a comment"
++    public static let placeholder = "Say something"
+     public static let membersOnly = "Only members of this cabal can comment."
+     public static let deleted = "Comment deleted."
+     public static let delete = "Delete"

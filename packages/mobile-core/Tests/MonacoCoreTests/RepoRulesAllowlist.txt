@@ -7,7 +7,7 @@ fixed-font	apps/mobile/Monaco/Features/Assets/MarketSessionChip.swift	1
 fixed-font	apps/mobile/Monaco/Features/Groups/CabalPicturePicker.swift	1
 fixed-font	apps/mobile/Monaco/Features/Groups/GroupHeroSection.swift	1
 fixed-font	apps/mobile/Monaco/Features/Profile/ProfilePhotoPicker.swift	1
-fixed-font	apps/mobile/Monaco/Features/Proposals/CommentThreadView.swift	2
+fixed-font	apps/mobile/Monaco/Features/Comments/CommentComposer.swift	2
 fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalCardView.swift	1
 fixed-font	apps/mobile/Monaco/Features/Proposals/ProposalDetailView.swift	1
 fixed-font	apps/mobile/Monaco/Features/Proposals/ProposeRoute.swift	1
