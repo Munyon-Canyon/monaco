@@ -2,8 +2,7 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-/// Cabals tab: P&L of your cabals, your cabals strip, and the
-/// platform-wide board.
+/// Cabals tab: your cabals strip and the platform-wide board.
 struct CabalsTabView: View {
     @ObservedObject var auth: PrivyAuthService
     @Environment(AppSessionStore.self) private var session
@@ -59,7 +58,6 @@ struct CabalsTabView: View {
                         onSelect: { route = $0 },
                         onRetry: { Task { await loadCabals() } }
                     )
-                    CabalsPnLChartSection(model: model, hasCabals: !session.joinedCabals.isEmpty)
                     CabalsLeaderboardSection(model: model, onSelect: { route = $0 })
                 }
                 .padding(.bottom, MonacoTheme.Space.xl)
@@ -119,11 +117,11 @@ struct CabalsTabView: View {
         }
         .task {
             if session.home == nil { await loadCabals() }
-            await model.reload(hasCabals: !session.joinedCabals.isEmpty)
+            await model.reload()
         }
-        .onChange(of: joinedIDs) { _, ids in
+        .onChange(of: joinedIDs) { _, _ in
             // Joined, created, or left a cabal somewhere in the app.
-            Task { await model.reload(hasCabals: !ids.isEmpty) }
+            Task { await model.reload() }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-root")
@@ -137,7 +135,7 @@ struct CabalsTabView: View {
         async let profile: Void = session.refresh(auth: auth)
         async let cabals: Void = loadCabals()
         _ = await (profile, cabals)
-        await model.reload(hasCabals: !session.joinedCabals.isEmpty)
+        await model.reload()
     }
 
     private func loadCabals() async {

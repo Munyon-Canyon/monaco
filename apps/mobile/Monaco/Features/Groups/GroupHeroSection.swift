@@ -1,4 +1,3 @@
-import Charts
 import MonacoCore
 import SwiftUI
 
@@ -11,16 +10,10 @@ import SwiftUI
 /// five colours of ink would stop being one app.
 struct GroupHeroSection: View {
     let view: GroupViewDTO
-    /// The pot's curve for `range`, owned by the screen.
-    var chart: GroupHeroChart = .loading
-    var range: GroupPnLRange = .oneMonth
-    var onRange: (GroupPnLRange) -> Void = { _ in }
     /// Set, replace and remove the cabal picture. Nil on surfaces that only show
     /// the hero (the sample harness's read-only states), which then get a plain mark.
     var pictureEditor: CabalPictureEditor?
     var onPictureResult: (MonacoToast) -> Void = { _ in }
-
-    private static let chartHeight: CGFloat = 76
 
     private var tint: MonacoTheme.CabalTint { .forGroupId(view.id) }
 
@@ -28,7 +21,6 @@ struct GroupHeroSection: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             identity
             pot
-            curve
             MonacoRule(color: MonacoTheme.onHeroHairline)
             slice
         }
@@ -112,75 +104,6 @@ struct GroupHeroSection: View {
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: - The curve
-
-    /// The pot's P&L over the chosen window, edge to edge, with the window chips under it.
-    /// Held at one height in every state so a range switch never moves the slice below.
-    private var curve: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            chartSlot
-                .frame(height: Self.chartHeight)
-                .padding(.horizontal, -MonacoTheme.Space.gutter)
-            rangeChips
-        }
-    }
-
-    @ViewBuilder
-    private var chartSlot: some View {
-        switch chart {
-        case .curve(let points):
-            GroupPnLCurve(points: points)
-                .accessibilityIdentifier("group-hero-chart")
-        case .loading:
-            Color.clear
-                .accessibilityHidden(true)
-                .accessibilityIdentifier("group-hero-chart-loading")
-        case .sparse:
-            chartNote("Not enough history for \(range.spokenWindow) yet")
-                .accessibilityIdentifier("group-hero-chart-sparse")
-        case .failed:
-            chartNote("Couldn't load the curve")
-                .accessibilityIdentifier("group-hero-chart-failed")
-        }
-    }
-
-    private func chartNote(_ text: String) -> some View {
-        ZStack {
-            MonacoRule(color: MonacoTheme.onHeroHairline)
-            Text(text)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.onHeroMuted)
-                .padding(.horizontal, MonacoTheme.Space.s)
-                .background(MonacoTheme.heroInk)
-        }
-    }
-
-    private var rangeChips: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            ForEach(GroupPnLRange.allCases, id: \.self) { option in
-                let isSelected = option == range
-                Button {
-                    guard !isSelected else { return }
-                    Haptics.selection()
-                    onRange(option)
-                } label: {
-                    Text(option.label)
-                        .font(MonacoTheme.Typo.dataCaption)
-                        .foregroundStyle(isSelected ? MonacoTheme.heroInk : MonacoTheme.onHeroMuted)
-                        .padding(.horizontal, 12)
-                        .frame(minWidth: 44, minHeight: 30)
-                        .background(Capsule().fill(isSelected ? MonacoTheme.onHero : Color.white.opacity(0.10)))
-                        .padding(.vertical, 7)
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(option.spokenWindow)
-                .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                .accessibilityIdentifier("group-hero-range-\(option.rawValue)")
-            }
-        }
-    }
-
     // MARK: - Your slice
 
     private var slice: some View {
@@ -205,43 +128,6 @@ struct GroupHeroSection: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("group-hero-slice")
-    }
-}
-
-/// The pot's P&L on ink: the same strip Home draws, tinted by the window's own direction.
-private struct GroupPnLCurve: View {
-    let points: [GroupPnLPointDTO]
-
-    private var isUp: Bool {
-        guard let first = points.first?.chartValue, let last = points.last?.chartValue else { return true }
-        return last >= first
-    }
-
-    private var tint: Color { isUp ? MonacoTheme.profitOnHero : MonacoTheme.lossOnHero }
-
-    var body: some View {
-        Chart(points) { point in
-            AreaMark(x: .value("Time", point.at), y: .value("P&L", point.chartValue))
-                .foregroundStyle(
-                    LinearGradient(colors: [tint.opacity(0.30), tint.opacity(0)], startPoint: .top, endPoint: .bottom)
-                )
-                .interpolationMethod(.monotone)
-            LineMark(x: .value("Time", point.at), y: .value("P&L", point.chartValue))
-                .foregroundStyle(tint)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.monotone)
-        }
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartPlotStyle { $0.background(Color.clear) }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Pot curve")
-        .accessibilityValue(summary)
-    }
-
-    private var summary: String {
-        guard let first = points.first?.chartValue, let last = points.last?.chartValue else { return "" }
-        return PnLSpeech.dollars(String(format: "%+.2f", last - first)) + " over the window"
     }
 }
 

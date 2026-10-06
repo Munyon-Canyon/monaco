@@ -1,6 +1,5 @@
 feature-observable	apps/mobile/Monaco/Features/Assets/CabalHoldingsModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Groups/CabalsTabModel.swift	1
-feature-observable	apps/mobile/Monaco/Features/Groups/GroupPnLHistoryModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Home/HomeLeaderboardModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Proposals/ProposalVoteLedger.swift	1
 fixed-font	apps/mobile/Monaco/Features/Assets/MarketSessionChip.swift	1
