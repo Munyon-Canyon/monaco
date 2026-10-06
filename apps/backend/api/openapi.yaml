@@ -1770,7 +1770,7 @@ paths:
       tags: [social]
       summary: Read the feed.
       description: >-
-        Returns feed items newest first, one page at a time. Every filter narrows the page, and
+        Returns feed items, newest first unless `sort` says otherwise, one page at a time. Every filter narrows the page, and
         an unknown kind, scope or sort, a limit outside 1 to 50 or a cursor the server did not
         write is invalid_input. The server renders every display string.
       parameters:
@@ -1808,8 +1808,10 @@ paths:
         - name: sort
           in: query
           required: false
-          description: "`new` (the default): newest first."
-          schema: {type: string, enum: [new], default: new, examples: [new]}
+          description: >-
+            `new` (the default): newest first. `top`: the items from the last 24 hours, most comments
+            first, then newest first. A cursor is valid only for the sort that wrote it.
+          schema: {type: string, enum: [new, top], default: new, examples: [top]}
         - name: cursor
           in: query
           required: false

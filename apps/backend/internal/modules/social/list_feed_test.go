@@ -309,3 +309,120 @@ func TestGetFeedItem_failsOnAPayloadItCannotReadOrADatabaseFailure(t *testing.T)
 		t.Fatal("GetFeedItem on a cancelled context succeeded")
 	}
 }
+
+func (f feedFixture) commented(t *testing.T, count int32, edits ...func(*feed.Item)) uuid.UUID {
+	t.Helper()
+	id := f.item(t, edits...)
+	if _, err := f.pool.Exec(
+		t.Context(),
+		`UPDATE feed_objects SET comment_count = $1 WHERE id = $2`,
+		count,
+		id,
+	); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func (f feedFixture) walkTop(t *testing.T, now time.Time, limit int) []app.FeedItem {
+	t.Helper()
+	q := app.FeedQuery{Sort: feed.SortTop, Now: now, Limit: limit}
+	var walked []app.FeedItem
+	for {
+		page := f.list(t, q)
+		walked = append(walked, page.Items...)
+		if page.Next == nil {
+			return walked
+		}
+		cursor, err := domain.ParseRankedKeyset(page.Next.Encode())
+		if err != nil {
+			t.Fatal(err)
+		}
+		q.After = &cursor
+	}
+}
+
+func wantRankedByCommentsThenNewest(t *testing.T, items []app.FeedItem) {
+	t.Helper()
+	for i := 1; i < len(items); i++ {
+		prev, cur := items[i-1], items[i]
+		if prev.CommentCount != cur.CommentCount {
+			if prev.CommentCount < cur.CommentCount {
+				t.Fatalf("item %d has %d comments after item %d with %d", i, cur.CommentCount, i-1, prev.CommentCount)
+			}
+			continue
+		}
+		wantNewestFirst(t, items[i-1:i+1])
+	}
+}
+
+func TestFeedQuery_TopPaginatesTiesWithNoGapOrDuplicate(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	const window = 24 * time.Hour
+	stale := f.commented(t, 99)
+	f.clock.Advance(time.Hour)
+	seeded := make([]uuid.UUID, 0, 60)
+	for i := range 60 {
+		if i%4 == 0 {
+			f.clock.Advance(time.Second)
+		}
+		seeded = append(seeded, f.commented(t, int32(i%3)))
+	}
+	f.clock.Advance(window - time.Hour - 14*time.Second)
+	walked := f.walkTop(t, f.clock.Now(), 7)
+	if len(walked) != 60 || !sameSet(idsOf(walked), seeded) {
+		t.Fatalf("walked %d items, want each of the 60 in-window items exactly once and not %s", len(walked), stale)
+	}
+	wantRankedByCommentsThenNewest(t, walked)
+	if walked[0].CommentCount != 2 || walked[len(walked)-1].CommentCount != 0 {
+		t.Fatalf("counts run %d to %d, want 2 down to 0", walked[0].CommentCount, walked[len(walked)-1].CommentCount)
+	}
+}
+
+func TestFeedQuery_TopKeepsAnItemUntilTheWindowPassesIt(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	edge := f.item(t)
+	created := f.clock.Now()
+	for name, c := range map[string]struct {
+		now  time.Time
+		want int
+	}{
+		"inside":      {created.Add(feed.TopWindow - time.Microsecond), 1},
+		"on the edge": {created.Add(feed.TopWindow), 1},
+		"past":        {created.Add(feed.TopWindow + time.Microsecond), 0},
+	} {
+		page := f.list(t, app.FeedQuery{Sort: feed.SortTop, Now: c.now})
+		if len(page.Items) != c.want || (c.want == 1 && page.Items[0].ID != edge) {
+			t.Errorf("%s: read %d items, want %d", name, len(page.Items), c.want)
+		}
+	}
+}
+
+func TestFeedQuery_TopHonoursTheFilters(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	trade := f.commented(t, 5)
+	proposal := f.commented(t, 1, func(it *feed.Item) { it.Kind, it.Status = feed.KindProposal, "open" })
+	page := f.list(t, app.FeedQuery{
+		Sort: feed.SortTop, Now: f.clock.Now(), Filter: app.FeedFilter{Kinds: []feed.Kind{feed.KindProposal}},
+	})
+	if got := idsOf(page.Items); !slices.Equal(got, []uuid.UUID{proposal}) {
+		t.Fatalf("top proposals = %v, want only %s and not the busier trade %s", got, proposal, trade)
+	}
+}
+
+func TestFeedQuery_TopReportsADatabaseFailure(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := app.ListFeed(
+		ctx,
+		f.pool,
+		app.FeedQuery{Sort: feed.SortTop, Now: f.clock.Now(), Limit: 5},
+	); err == nil {
+		t.Fatal("ListFeed on a cancelled context succeeded")
+	}
+}

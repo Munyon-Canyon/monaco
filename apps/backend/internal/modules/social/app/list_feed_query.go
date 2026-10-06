@@ -30,6 +30,8 @@ type FeedFilter struct {
 type FeedQuery struct {
 	Viewer ids.UserID
 	Filter FeedFilter
+	Sort   feed.Sort
+	Now    time.Time
 	After  *domain.Keyset
 	Limit  int
 }
@@ -65,12 +67,7 @@ func ListFeed(ctx context.Context, db sqlc.DBTX, q FeedQuery) (FeedPage, error) 
 	if q.Limit < 1 || q.Limit > FeedPageMax {
 		return FeedPage{}, errs.New(errs.CodeInvalidInput, op, slog.Int("limit", q.Limit))
 	}
-	params := filterParams(q.Viewer, q.Filter)
-	params.RowLimit = int32(q.Limit) + 1
-	if q.After != nil {
-		params.HasCursor, params.AfterAt, params.AfterID = true, q.After.At, q.After.ID
-	}
-	rows, err := sqlc.New(db).ListFeed(ctx, params)
+	rows, err := fetchFeed(ctx, sqlc.New(db), q, int32(q.Limit)+1)
 	if err != nil {
 		return FeedPage{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
@@ -84,9 +81,36 @@ func ListFeed(ctx context.Context, db sqlc.DBTX, q FeedQuery) (FeedPage, error) 
 	}
 	if len(rows) > q.Limit {
 		last := page.Items[q.Limit-1]
-		page.Next = &domain.Keyset{At: last.CreatedAt, ID: last.ID}
+		page.Next = &domain.Keyset{
+			Ranked: q.Sort == feed.SortTop, Count: last.CommentCount, At: last.CreatedAt, ID: last.ID,
+		}
 	}
 	return page, nil
+}
+
+func fetchFeed(ctx context.Context, reads *sqlc.Queries, q FeedQuery, rowLimit int32) ([]sqlc.ListFeedRow, error) {
+	params := filterParams(q.Viewer, q.Filter)
+	params.RowLimit = rowLimit
+	if q.After != nil {
+		params.HasCursor, params.AfterAt, params.AfterID = true, q.After.At, q.After.ID
+	}
+	if q.Sort != feed.SortTop {
+		return reads.ListFeed(ctx, params)
+	}
+	top := sqlc.ListTopFeedParams{
+		Kinds: params.Kinds, CabalID: params.CabalID, Symbol: params.Symbol, Q: params.Q, Following: params.Following,
+		Viewer: params.Viewer, Mine: params.Mine, Since: q.Now.Add(-feed.TopWindow), HasCursor: params.HasCursor,
+		AfterAt: params.AfterAt, AfterID: params.AfterID, RowLimit: params.RowLimit,
+	}
+	if q.After != nil {
+		top.AfterCount = q.After.Count
+	}
+	rows, err := reads.ListTopFeed(ctx, top)
+	converted := make([]sqlc.ListFeedRow, len(rows))
+	for i, row := range rows {
+		converted[i] = sqlc.ListFeedRow(row)
+	}
+	return converted, err
 }
 
 func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {

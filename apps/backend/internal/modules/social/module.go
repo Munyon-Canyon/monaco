@@ -121,6 +121,7 @@ func (m *Module) http() adapters.HTTP {
 		DeleteComment: app.NewDeleteCommentHandler(comments),
 		Members:       m.members,
 		Reads:         m.deps.Pool,
+		Clock:         m.deps.Clock,
 		Users:         m.users,
 	}
 }

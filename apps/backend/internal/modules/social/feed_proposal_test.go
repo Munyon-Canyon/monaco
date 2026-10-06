@@ -3,6 +3,7 @@ package social_test
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -18,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
@@ -374,5 +377,41 @@ func TestFeedProposal_theModuleReadsAssetsFromItsOption(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	alice, _ := ids.ParseUserID("01890a5d-ac96-774b-bcce-b302099a8101")
+	bob, _ := ids.ParseUserID("01890a5d-ac96-774b-bcce-b302099a8103")
+	users := fakes.NewIdentity([]identity.UserCard{
+		{ID: alice, Handle: "alice"}, {ID: bob, Handle: "bob"},
+	}, nil)
+	m := social.New(
+		module.Deps{Pool: f.pool, Bus: testkit.NATS(t).Conn, Clock: f.clock, IDs: f.gen},
+		social.WithUsers(users), social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx())),
+	)
+	testkit.Seed(t, f.pool, "feed-two-cabals", m.Consumers()...)
+	rows, err := f.pool.Query(t.Context(), `SELECT cabal_name, status, title FROM feed_objects WHERE kind = 'proposal'
+		ORDER BY cabal_name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var cabal, status, title string
+		if err := rows.Scan(&cabal, &status, &title); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, cabal+"|"+status+"|"+title)
+	}
+	want := []string{
+		"Alpha|open|alice proposed buying $5.00 of AAPLx in Alpha",
+		"Beta|executed|bob proposed buying $7.50 of AAPLx in Beta",
+	}
+	if err := rows.Err(); err != nil || !slices.Equal(got, want) {
+		t.Fatalf("proposal items = %v, %v, want %v", got, err, want)
 	}
 }
