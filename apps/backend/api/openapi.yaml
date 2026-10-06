@@ -1883,6 +1883,45 @@ paths:
                 $ref: "#/components/schemas/FeedItemDetail"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/feed/{id}/comments:
+    post:
+      operationId: postFeedComment
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}, ip: {rate: 30, per: 1m, burst: 30}}
+      summary: Comment on a feed item.
+      description: >-
+        Stores the comment, adds one to the item's `comment_count` and appends `comment.created`. The
+        body is trimmed and must be 1 to 1000 Unicode scalars, otherwise invalid_input. An unknown
+        item is feed_item_not_found. Only a member of the cabal can comment on a proposal, otherwise
+        comment_members_only. A reply names its `parent_comment_id`, which must be a comment on the same
+        item, otherwise comment_parent_mismatch. A reply to a reply is stored under the top-level comment
+        and names the person it answers in `reply_to_handle`, so a thread stays one level deep. A replay
+        returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The feed item's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      requestBody:
+        description: The comment.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentRequest"
+            example: {body: nice}
+      responses:
+        "201":
+          description: The stored comment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/feed-mutes:
     get:
       operationId: getMeFeedMutes
@@ -4261,6 +4300,53 @@ components:
           examples: [[]]
           items:
             $ref: "#/components/schemas/ChatMessage"
+    Comment:
+      type: object
+      description: One comment on a feed item.
+      additionalProperties: false
+      required: [id, parent_comment_id, author, reply_to_handle, body, body_display, is_mine, created_at]
+      properties:
+        id: {type: string, format: uuid, description: "The comment id.", examples: ["01920000-0000-7000-8000-000000000007"]}
+        parent_comment_id:
+          type: [string, "null"]
+          format: uuid
+          description: The top-level comment this sits under. Null on a top-level comment.
+          examples: [null]
+        author:
+          $ref: "#/components/schemas/CommentAuthor"
+        reply_to_handle:
+          type: [string, "null"]
+          description: The handle of the person a reply answers, when it answers a reply. Otherwise null.
+          examples: [null]
+        body: {type: [string, "null"], description: Null on a deleted comment., examples: [nice]}
+        body_display: {type: string, description: "The body, or `Comment deleted` once it is deleted.", examples: [nice]}
+        is_mine: {type: boolean, description: True when the caller wrote it., examples: [true]}
+        created_at: {type: string, format: date-time, description: When the server stored it., examples: ["2026-10-03T12:00:00Z"]}
+    CommentAuthor:
+      type: object
+      description: The author of a comment. A deleted account has a null handle and an empty name.
+      additionalProperties: false
+      required: [id, handle, display_name, photo_url]
+      properties:
+        id: {type: string, format: uuid, description: "The author's user id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+        display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+        photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+    CreateCommentRequest:
+      type: object
+      description: A comment to post.
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+          description: The text, trimmed by the server to 1 to 1000 Unicode scalars.
+          examples: [nice]
+        parent_comment_id:
+          type: string
+          format: uuid
+          description: The comment this replies to, on the same item. Absent for a top-level comment.
+          examples: ["01920000-0000-7000-8000-000000000007"]
     FeedItem:
       type: object
       description: One feed item with its display strings rendered.

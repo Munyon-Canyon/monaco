@@ -224,6 +224,83 @@ type ChatThread struct {
 	Replies []ChatMessage `json:"replies"`
 }
 
+// Comment One comment on a feed item.
+type Comment struct {
+	// Author The author of a comment. A deleted account has a null handle and an empty name.
+	Author CommentAuthor `json:"author"`
+
+	// Body Null on a deleted comment.
+	//
+	// Examples: nice
+	Body *string `json:"body"`
+
+	// BodyDisplay The body, or `Comment deleted` once it is deleted.
+	//
+	// Examples: nice
+	BodyDisplay string `json:"body_display"`
+
+	// CreatedAt When the server stored it.
+	//
+	// Examples: 2026-10-03T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id The comment id.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	Id openapi_types.UUID `json:"id"`
+
+	// IsMine True when the caller wrote it.
+	//
+	// Examples: true
+	IsMine bool `json:"is_mine"`
+
+	// ParentCommentId The top-level comment this sits under. Null on a top-level comment.
+	//
+	// Examples: null
+	ParentCommentId *openapi_types.UUID `json:"parent_comment_id"`
+
+	// ReplyToHandle The handle of the person a reply answers, when it answers a reply. Otherwise null.
+	//
+	// Examples: null
+	ReplyToHandle *string `json:"reply_to_handle"`
+}
+
+// CommentAuthor The author of a comment. A deleted account has a null handle and an empty name.
+type CommentAuthor struct {
+	// DisplayName Empty when the user has none.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle Null until onboarding sets one.
+	//
+	// Examples: kai
+	Handle *string `json:"handle"`
+
+	// Id The author's user id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// PhotoUrl Null when the user has none.
+	//
+	// Examples: null
+	PhotoUrl *string `json:"photo_url"`
+}
+
+// CreateCommentRequest A comment to post.
+type CreateCommentRequest struct {
+	// Body The text, trimmed by the server to 1 to 1000 Unicode scalars.
+	//
+	// Examples: nice
+	Body string `json:"body"`
+
+	// ParentCommentId The comment this replies to, on the same item. Absent for a top-level comment.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	ParentCommentId *openapi_types.UUID `json:"parent_comment_id,omitempty"`
+}
+
 // FeedItem One feed item with its display strings rendered.
 type FeedItem struct {
 	// ActorId The user who acted. Null for a system item.
@@ -550,6 +627,12 @@ type GetFeedItemParams struct {
 // GetFeedItemParamsScope defines parameters for GetFeedItem.
 type GetFeedItemParamsScope string
 
+// PostFeedCommentParams defines parameters for PostFeedComment.
+type PostFeedCommentParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PutMeFeedMutesParams defines parameters for PutMeFeedMutes.
 type PutMeFeedMutesParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -604,6 +687,9 @@ type GetUserFollowingParams struct {
 // PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
 type PostChatMessageJSONRequestBody = PostChatMessageRequest
 
+// PostFeedCommentJSONRequestBody defines body for PostFeedComment for application/json ContentType.
+type PostFeedCommentJSONRequestBody = CreateCommentRequest
+
 // PutMeFeedMutesJSONRequestBody defines body for PutMeFeedMutes for application/json ContentType.
 type PutMeFeedMutesJSONRequestBody = FeedMuteRequest
 
@@ -630,6 +716,9 @@ type ServerInterface interface {
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFeedItemParams)
+	// PostFeedComment Comment on a feed item.
+	// (POST /v1/feed/{id}/comments)
+	PostFeedComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostFeedCommentParams)
 	// GetMeFeedMutes List feed mutes.
 	// (GET /v1/me/feed-mutes)
 	GetMeFeedMutes(w http.ResponseWriter, r *http.Request)
@@ -1123,6 +1212,60 @@ func (siw *ServerInterfaceWrapper) GetFeedItem(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetFeedItem(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostFeedComment operation middleware
+func (siw *ServerInterfaceWrapper) PostFeedComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostFeedCommentParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostFeedComment(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1643,6 +1786,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.PostFeedComment)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.PutMeFeedMutes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me/feed-mutes/{target_type}/{target_id}", wrapper.DeleteMeFeedMutesTargetTypeTargetID)
@@ -1880,6 +2024,47 @@ type GetFeedItemdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetFeedItemdefaultApplicationProblemPlusJSONResponse) VisitGetFeedItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFeedCommentRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostFeedCommentParams
+	Body   *PostFeedCommentJSONRequestBody
+}
+
+type PostFeedCommentResponseObject interface {
+	VisitPostFeedCommentResponse(w http.ResponseWriter) error
+}
+
+type PostFeedComment201JSONResponse Comment
+
+func (response PostFeedComment201JSONResponse) VisitPostFeedCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostFeedCommentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitPostFeedCommentResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2218,6 +2403,9 @@ type StrictServerInterface interface {
 	// GetFeedItem Read one feed item.
 	// (GET /v1/feed/{id})
 	GetFeedItem(ctx context.Context, request GetFeedItemRequestObject) (GetFeedItemResponseObject, error)
+	// PostFeedComment Comment on a feed item.
+	// (POST /v1/feed/{id}/comments)
+	PostFeedComment(ctx context.Context, request PostFeedCommentRequestObject) (PostFeedCommentResponseObject, error)
 	// GetMeFeedMutes List feed mutes.
 	// (GET /v1/me/feed-mutes)
 	GetMeFeedMutes(ctx context.Context, request GetMeFeedMutesRequestObject) (GetMeFeedMutesResponseObject, error)
@@ -2446,6 +2634,40 @@ func (sh *strictHandler) GetFeedItem(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetFeedItemResponseObject); ok {
 		if err := validResponse.VisitGetFeedItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostFeedComment operation middleware
+func (sh *strictHandler) PostFeedComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostFeedCommentParams) {
+	var request PostFeedCommentRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostFeedCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostFeedComment(ctx, request.(PostFeedCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostFeedComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostFeedCommentResponseObject); ok {
+		if err := validResponse.VisitPostFeedCommentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
