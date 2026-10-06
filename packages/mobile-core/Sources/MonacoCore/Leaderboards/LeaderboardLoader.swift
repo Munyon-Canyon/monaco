@@ -79,6 +79,9 @@ public final class LeaderboardLoader {
     }
 
     public var phase: Phase {
+        if filter == .friends, pager.phase == .exhausted, !pager.items.contains(where: { $0.id != me?.id }) {
+            return .empty
+        }
         guard pager.items.isEmpty else { return .loaded }
         return switch pager.phase {
         case .failed(let error): .failed(error)

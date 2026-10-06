@@ -13,6 +13,7 @@ enum HomePeopleBoardSlot: HomeSection {
 
 private struct HomePeopleBoard: View {
     let loader: LeaderboardLoader
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -26,13 +27,20 @@ private struct HomePeopleBoard: View {
                 onSelect: { loader.select(range: $0) }
             )
             .padding(.horizontal, MonacoTheme.Space.m)
+            Picker(
+                "Board",
+                selection: Binding(get: { loader.filter }, set: { loader.select(filter: $0) })
+            ) {
+                Text("Everyone").tag(LeaderboardFilter.everyone)
+                Text("Friends").tag(LeaderboardFilter.friends)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, MonacoTheme.Space.m)
+            .accessibilityIdentifier("home-leaderboard-filter")
             LeaderboardBoardList(
                 loader: loader, skeletonRows: 5, failureText: "Couldn't load investors.",
                 identifier: "home-leaderboard",
-                empty: {
-                    EmptyState(title: "No investors yet", message: "Fund a cabal to get on the board.")
-                        .accessibilityIdentifier("home-leaderboard-empty")
-                },
+                empty: { empty },
                 rowContent: { row, isLast in
                     NavigationLink(
                         value: AnyAppRoute(
@@ -52,5 +60,18 @@ private struct HomePeopleBoard: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-people-board")
+    }
+
+    @ViewBuilder private var empty: some View {
+        switch loader.filter {
+        case .everyone:
+            EmptyState(title: "No investors yet", message: "Fund a cabal to get on the board.")
+                .accessibilityIdentifier("home-leaderboard-empty")
+        case .friends:
+            EmptyState(title: "Follow people to see how they do.", actionTitle: "Find friends") {
+                environment.navigator.open(FriendsRoute(), in: .home)
+            }
+            .accessibilityIdentifier("home-leaderboard-friends-empty")
+        }
     }
 }

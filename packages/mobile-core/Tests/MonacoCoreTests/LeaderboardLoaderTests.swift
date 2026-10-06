@@ -184,6 +184,32 @@ final class LeaderboardLoaderTests: XCTestCase {
         XCTAssertEqual(loader.phase, .empty)
     }
 
+    func testFriendsWithOnlyTheViewersRowIsEmpty() async throws {
+        let me = Row.sample(rank: 1, id: "me-1", name: "Me")
+        let alone = Page.samplePeople(count: 0, me: me).with(rows: [me])
+        let (loader, transport, _) = try make(.people, [.page(.samplePeople()), .page(alone)])
+        await loader.load()
+        XCTAssertEqual(loader.phase, .loaded)
+
+        loader.select(filter: .friends)
+        await transport.waitForRequests(2)
+        while loader.isLoading { await Task.yield() }
+
+        XCTAssertEqual(loader.phase, .empty)
+    }
+
+    func testFriendsWithAFollowedPersonIsLoaded() async throws {
+        let me = Row.sample(rank: 2, id: "me-1", name: "Me")
+        let friend = Row.sample(rank: 1, id: "friend-1", name: "Friend")
+        let page = Page.samplePeople(count: 0, me: me).with(rows: [friend, me])
+        let (loader, _, _) = try make(.people, [.page(page)])
+        loader.select(filter: .friends)
+        while loader.phase == .loading { await Task.yield() }
+
+        XCTAssertEqual(loader.phase, .loaded)
+        XCTAssertEqual(loader.rows.map(\.id), ["friend-1", "me-1"])
+    }
+
     func testAFailedRangeChangeKeepsTheRowsAndToasts() async throws {
         let (loader, _, _) = try make(.people, [.page(.samplePeople()), .failure])
         await loader.load()
