@@ -14,6 +14,7 @@ const StatusPassed = domain.StatusPassed
 
 type Queries interface {
 	Status(ctx context.Context, id ids.ProposalID) (Status, error)
+	Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, error)
 }
 
 type ProposedMints interface {

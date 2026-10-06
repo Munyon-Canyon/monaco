@@ -323,6 +323,17 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 	return result.RowsAffected(), nil
 }
 
+const proposerOfProposal = `-- name: ProposerOfProposal :one
+SELECT proposer_id FROM proposals WHERE id = $1
+`
+
+func (q *Queries) ProposerOfProposal(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, proposerOfProposal, id)
+	var proposer_id uuid.UUID
+	err := row.Scan(&proposer_id)
+	return proposer_id, err
+}
+
 const statusByID = `-- name: StatusByID :one
 SELECT status FROM proposals WHERE id = $1
 `

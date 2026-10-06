@@ -63,6 +63,8 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `deposit_credited` | `deposit.credited` (flow 5) |
 | `cabal_funded` | `cabal.funded` (flow 7) |
 | `proposal_passed` | `proposal.passed` (flow 10) |
+| `proposal_failed` | `proposal.failed` (flow 10) |
+| `proposal_expired` | `proposal.expired` (flow 10) |
 | `trade_executed` | `trade.confirmed` (flow 11) |
 | `cash_out_completed` | `cashout.completed` (flow 14) |
 | `withdrawal_sent` | `withdrawal.confirmed` (flow 15) |
