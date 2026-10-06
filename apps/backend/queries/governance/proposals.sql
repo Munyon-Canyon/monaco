@@ -63,6 +63,9 @@ SELECT cabal_id FROM proposals WHERE id = @id;
 -- name: ProposerOfProposal :one
 SELECT proposer_id FROM proposals WHERE id = @id;
 
+-- name: VotersOfProposal :many
+SELECT voter_id FROM votes WHERE proposal_id = @proposal_id ORDER BY cast_at, voter_id;
+
 -- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,

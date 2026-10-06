@@ -426,3 +426,27 @@ func (q *Queries) Void(ctx context.Context, arg VoidParams) (uuid.UUID, error) {
 	err := row.Scan(&cabal_id)
 	return cabal_id, err
 }
+
+const votersOfProposal = `-- name: VotersOfProposal :many
+SELECT voter_id FROM votes WHERE proposal_id = $1 ORDER BY cast_at, voter_id
+`
+
+func (q *Queries) VotersOfProposal(ctx context.Context, proposalID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, votersOfProposal, proposalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var voter_id uuid.UUID
+		if err := rows.Scan(&voter_id); err != nil {
+			return nil, err
+		}
+		items = append(items, voter_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

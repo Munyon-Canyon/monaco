@@ -44,3 +44,16 @@ func (s Queries) Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, e
 	}
 	return ids.UserIDFrom(raw), nil
 }
+
+func (s Queries) Voters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error) {
+	const op = "governance.Voters"
+	rows, err := s.q.VotersOfProposal(ctx, id.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, op)
+	}
+	voters := make([]ids.UserID, len(rows))
+	for i, row := range rows {
+		voters[i] = ids.UserIDFrom(row)
+	}
+	return voters, nil
+}

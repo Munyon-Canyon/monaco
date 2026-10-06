@@ -17,6 +17,10 @@ type Queries interface {
 	Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, error)
 }
 
+type Voters interface {
+	Voters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error)
+}
+
 type ProposedMints interface {
 	ProposedMints(ctx context.Context) ([]chain.SolanaAddress, error)
 }

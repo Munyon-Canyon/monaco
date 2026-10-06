@@ -1,13 +1,18 @@
 package governance_test
 
 import (
+	"bytes"
 	"context"
 	"slices"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -76,6 +81,59 @@ func TestPort_proposerErrors(t *testing.T) {
 	cancel()
 	if _, err := port.Proposer(ctx, unknown); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Errorf("Proposer on a cancelled context err = %v, want db_unavailable so a consumer naks", err)
+	}
+}
+
+func (d proposalDB) ballotAfter(t *testing.T, proposal, voter uuid.UUID, choice string, after time.Duration) {
+	t.Helper()
+	err := d.q.UpsertBallot(t.Context(), sqlc.UpsertBallotParams{
+		ProposalID: proposal, VoterID: voter, Choice: choice, CastAt: d.now.Add(after),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPort_votersNameEveryBallotInCastOrderAndNobodyElse(t *testing.T) {
+	t.Parallel()
+	d := newProposalDB(t)
+	voters := governance.New(module.Deps{Pool: d.pool}).Voters()
+	eligible := []uuid.UUID{d.ids.NewV7(), d.ids.NewV7(), d.ids.NewV7(), d.ids.NewV7()}
+	slices.SortFunc(eligible, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	low, mid, high, idle := eligible[0], eligible[1], eligible[2], eligible[3]
+	p, other := d.buy(eligible...), d.buy(idle)
+	d.insert(t, p)
+	d.insert(t, other)
+	d.ballotAfter(t, p.ID, mid, "yes", time.Minute)
+	d.ballotAfter(t, p.ID, low, "no", time.Minute)
+	d.ballotAfter(t, p.ID, high, "yes", 0)
+	d.ballotAfter(t, other.ID, idle, "yes", 0)
+
+	got, err := voters.Voters(t.Context(), ids.ProposalIDFrom(p.ID))
+
+	want := []ids.UserID{ids.UserIDFrom(high), ids.UserIDFrom(low), ids.UserIDFrom(mid)}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("Voters = %v, %v, want %v: both choices, earliest cast first, ties by voter, and no one who "+
+			"is eligible but did not vote or voted on another proposal", got, err, want)
+	}
+}
+
+func TestPort_votersErrors(t *testing.T) {
+	t.Parallel()
+	d := newProposalDB(t)
+	voters := governance.New(module.Deps{Pool: d.pool}).Voters()
+	p := d.buy(d.ids.NewV7())
+	d.insert(t, p)
+	unknown := d.ids.NewV7()
+	for name, id := range map[string]uuid.UUID{"a proposal nobody voted on": p.ID, "an unknown proposal": unknown} {
+		if got, err := voters.Voters(t.Context(), ids.ProposalIDFrom(id)); err != nil || len(got) != 0 {
+			t.Errorf("Voters of %s = %v, %v, want none and no error", name, got, err)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := voters.Voters(ctx, ids.ProposalIDFrom(p.ID)); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Errorf("Voters on a cancelled context err = %v, want db_unavailable so a consumer naks", err)
 	}
 }
 
