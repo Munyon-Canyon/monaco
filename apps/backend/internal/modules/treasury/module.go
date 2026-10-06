@@ -55,14 +55,15 @@ type fundingProvider interface {
 }
 
 type (
-	Queries        = port.Queries
-	Position       = port.Position
-	Stake          = port.Stake
-	CabalPositions = port.CabalPositions
-	MemberStake    = port.MemberStake
-	MemberFlow     = port.MemberFlow
-	SignatureOwner = port.SignatureOwner
-	WalletLedger   = port.WalletLedger
+	Queries           = port.Queries
+	ContributionPoint = port.ContributionPoint
+	Position          = port.Position
+	Stake             = port.Stake
+	CabalPositions    = port.CabalPositions
+	MemberStake       = port.MemberStake
+	MemberFlow        = port.MemberFlow
+	SignatureOwner    = port.SignatureOwner
+	WalletLedger      = port.WalletLedger
 )
 
 func New(d module.Deps) *Module {

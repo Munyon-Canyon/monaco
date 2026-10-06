@@ -38,6 +38,7 @@ type BoardPage struct {
 type Run struct {
 	ID         uuid.UUID
 	Rev        int32
+	AsOf       time.Time
 	PricesAsOf time.Time
 	FinishedAt time.Time
 }

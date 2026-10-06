@@ -22,13 +22,18 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-const pageCacheSize = 512
+const (
+	pageCacheSize  = 512
+	curveCacheSize = 256
+)
 
 type Module struct {
 	deps   module.Deps
 	ports  app.Ports
 	cabals app.CabalStatus
 	pages  adapters.PageCache
+	curves adapters.HistoryCache
+	ledger app.Contributions
 }
 
 type Option func(*Module)
@@ -36,8 +41,12 @@ type Option func(*Module)
 func WithPorts(ports app.Ports) Option { return func(m *Module) { m.ports = ports } }
 
 func New(d module.Deps, opts ...Option) *Module {
-	cache := adapters.NewCache[app.PageKey, domain.BoardPage](pageCacheSize)
-	m := &Module{deps: d, ports: app.Ports{Previous: sqlc.New(d.Pool)}, pages: adapters.PageCache{Cache: cache}}
+	m := &Module{
+		deps:   d,
+		ports:  app.Ports{Previous: sqlc.New(d.Pool)},
+		pages:  adapters.PageCache{Cache: adapters.NewCache[app.PageKey, domain.BoardPage](pageCacheSize)},
+		curves: adapters.HistoryCache{Cache: adapters.NewCache[app.HistoryKey, domain.ValueHistory](curveCacheSize)},
+	}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -49,6 +58,7 @@ func (m *Module) Wire(set module.Set) {
 		switch provider := mod.(type) {
 		case interface{ Queries() treasuryport.Queries }:
 			m.ports.Treasury = provider.Queries()
+			m.ledger = provider.Queries()
 		case interface{ Pauses() fundingport.Pauses }:
 			m.ports.Funding = provider.Pauses()
 		case interface{ Queries() cabalport.Queries }:
@@ -81,9 +91,10 @@ func (m *Module) Mount(r api.Mount) {
 	if follows == nil {
 		follows = app.UnwiredFollows{}
 	}
+	boards := adapters.Boards{DB: m.deps.Pool}
 	rankingapi.Mount(adapters.HTTP{
-		Boards: adapters.Boards{DB: m.deps.Pool}, Cabals: app.CheckCabal(m.cabals), Pages: m.pages,
-		Follows: follows,
+		Boards: boards, Cabals: app.CheckCabal(m.cabals), Pages: m.pages,
+		Follows: follows, Snapshots: boards, Ledger: m.ledger, Histories: m.curves,
 	}, r)
 }
 

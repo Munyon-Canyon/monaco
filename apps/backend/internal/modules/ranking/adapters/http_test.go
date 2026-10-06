@@ -20,13 +20,14 @@ import (
 
 type stubBoards struct {
 	run     bool
+	asOf    time.Time
 	entries []domain.Entry
 	me      *domain.Entry
 	err     error
 }
 
 func (s stubBoards) LatestRun(context.Context) (domain.Run, bool, error) {
-	return domain.Run{ID: ids.Real{}.NewV7()}, s.run, s.err
+	return domain.Run{ID: ids.Real{}.NewV7(), AsOf: s.asOf}, s.run, s.err
 }
 
 func (s stubBoards) Page(context.Context, string, domain.Range, int, int) ([]domain.Entry, error) {

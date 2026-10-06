@@ -82,6 +82,34 @@ paths:
                 $ref: "#/components/schemas/LeaderboardPage"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/value-history:
+    get:
+      operationId: getCabalValueHistory
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read a cabal's value history.
+      description: >-
+        Returns the cabal's pot value, NAV per share and P&L over the range, one point per bucket,
+        oldest first. P&L is the pot value minus the net contributed at the same snapshot, so a fund
+        or a cash out is not a gain or a loss. A bucket with no snapshot at or before it is left out.
+        Before the first run `prices_as_of` is null and `points` is empty. Any signed-in user may
+        read it. An unknown cabal is cabal_not_found and an unknown range is invalid_input.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal's id.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        - $ref: "#/components/parameters/ValueHistoryRange"
+      responses:
+        "200":
+          description: The cabal's value history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CabalValueHistory"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     LeaderboardRange:
@@ -108,7 +136,46 @@ components:
       required: false
       description: Page size. Defaults to 20 and cannot exceed 50.
       schema: {type: integer, minimum: 1, maximum: 50, default: 20, examples: [20]}
+    ValueHistoryRange:
+      name: range
+      in: query
+      required: false
+      description: The window the curve covers. Defaults to `ALL`.
+      schema: {type: string, enum: ["1H", "1D", "1W", "1M", ALL], default: ALL, examples: [ALL]}
   schemas:
+    CabalValueHistory:
+      type: object
+      description: A cabal's value curve.
+      additionalProperties: false
+      required: [cabal_id, range, points, prices_as_of]
+      properties:
+        cabal_id: {type: string, format: uuid, description: The cabal., examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        range:
+          type: string
+          enum: ["1H", "1D", "1W", "1M", ALL]
+          description: The window the curve covers.
+          examples: [ALL]
+        points:
+          type: array
+          description: One point per bucket, oldest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/CabalValuePoint"
+        prices_as_of:
+          type: [string, "null"]
+          format: date-time
+          description: The price time of the run the curve ends at. Null before the first run.
+          examples: ["2026-10-04T11:59:00Z"]
+    CabalValuePoint:
+      type: object
+      description: The cabal's value at the end of one bucket.
+      additionalProperties: false
+      required: [at, value_micros, nav_per_share_micros, pnl_micros]
+      properties:
+        at: {type: string, format: date-time, description: The end of the bucket., examples: ["2026-10-04T12:00:00Z"]}
+        value_micros: {type: integer, format: int64, description: The pot value in USDC micros., examples: [1000000]}
+        nav_per_share_micros: {type: integer, format: int64, description: The pot value per share in USDC micros., examples: [1000000]}
+        pnl_micros: {type: integer, format: int64, description: "The pot value minus the net contributed, negative for a loss.", examples: [-5]}
     LeaderboardPage:
       type: object
       description: One page of a leaderboard from one run.
