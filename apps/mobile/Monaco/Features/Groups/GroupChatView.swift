@@ -16,6 +16,10 @@ struct GroupChatView: View {
             cabal: cabal?.cabal,
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
+            },
+            openThread: { parentID in
+                environment.navigator.open(
+                    ChatThreadRoute(cabalID: cabalID, parentID: parentID), in: environment.navigator.selectedTab)
             }
         )
         .task {
@@ -41,6 +45,7 @@ struct GroupChatView: View {
             realtime: AblyChatRealtime(api: environment.api),
             now: { Date() }
         )
+        ChatSessionRegistry.register(created)
         session = created
         return created
     }

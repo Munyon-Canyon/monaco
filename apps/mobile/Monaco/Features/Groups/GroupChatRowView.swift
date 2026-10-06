@@ -7,6 +7,7 @@ struct GroupChatRowView: View {
     let now: Date
     let openProfile: (String) -> Void
     let retry: (String) -> Void
+    var openThread: ((String) -> Void)?
 
     private var message: ChatMessage { row.message }
 
@@ -22,7 +23,9 @@ struct GroupChatRowView: View {
                 if row.isMine { Spacer(minLength: 56) }
                 VStack(alignment: row.isMine ? .trailing : .leading, spacing: 4) {
                     if row.startsRun && !row.isMine { authorHeader }
+                    threadHeader
                     bubble
+                        .modifier(ChatMessageMenu(enabled: canOpenMenu, reply: { openThread?(rootID) }))
                     footer
                 }
                 if !row.isMine { Spacer(minLength: 56) }
@@ -60,7 +63,6 @@ struct GroupChatRowView: View {
             .font(MonacoTheme.Typo.body)
             .italic(message.deleted)
             .foregroundStyle(textColor)
-            .textSelection(.enabled)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .background(bubbleShape.fill(row.isMine ? MonacoTheme.brandFill : MonacoTheme.surface))
@@ -87,7 +89,55 @@ struct GroupChatRowView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat-retry-\(row.id)")
         } else if message.replyCount > 0 {
-            Text(GroupChatCopy.replies(message.replyCount))
+            repliesRow
+        }
+    }
+
+    private var rootID: String { message.parentId ?? message.id }
+
+    private var canOpenMenu: Bool {
+        openThread != nil && !message.deleted && row.delivery == .sent
+    }
+
+    @ViewBuilder private var threadHeader: some View {
+        if message.alsoInChannel, let parentID = message.parentId, let openThread {
+            Button {
+                openThread(parentID)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrowshape.turn.up.left")
+                    Text(ChatThreadCopy.header(parentBody: row.parentBody)).lineLimit(1)
+                }
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .frame(minHeight: 32)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("chat-thread-header-\(row.id)")
+        }
+    }
+
+    @ViewBuilder private var repliesRow: some View {
+        let summary = ChatThreadCopy.summary(
+            replyCount: message.replyCount, lastReplyAt: message.lastReplyAt, now: now)
+        if let openThread {
+            Button {
+                openThread(message.id)
+            } label: {
+                HStack(spacing: 4) {
+                    Text(summary)
+                    Image(systemName: "chevron.right").font(.caption2.weight(.semibold))
+                }
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("chat-replies-\(row.id)")
+        } else {
+            Text(summary)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("chat-replies-\(row.id)")
@@ -135,5 +185,24 @@ struct ChatDayRule: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
+    }
+}
+
+struct ChatMessageMenu: ViewModifier {
+    let enabled: Bool
+    let reply: () -> Void
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled {
+            content.contextMenu {
+                Button {
+                    reply()
+                } label: {
+                    Label(ChatThreadCopy.reply, systemImage: "arrowshape.turn.up.left")
+                }
+            }
+        } else {
+            content
+        }
     }
 }

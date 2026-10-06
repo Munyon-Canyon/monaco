@@ -25,7 +25,7 @@ public actor ChatSession {
     public static let pageSize = 50
     static let maxCatchUpPages = 10
 
-    public let cabalID: String
+    public nonisolated let cabalID: String
     let api: APIClient
     private let realtime: any ChatRealtime
     let now: @Sendable () -> Date
