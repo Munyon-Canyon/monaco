@@ -2807,6 +2807,10 @@ components:
         - chat_parent_not_found
         - client_closed
         - coin_gecko_rate_limited
+        - comment_members_only
+        - comment_not_author
+        - comment_not_found
+        - comment_parent_mismatch
         - conservation_broken
         - db_schema_behind
         - db_unavailable
