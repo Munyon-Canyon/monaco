@@ -8,11 +8,6 @@ import FoundationNetworking
 
 final class BoardPhotoDTOTests: XCTestCase {
     func testBoardDTOs_decodeProfilePhotoUrl() throws {
-        let homeURL = try XCTUnwrap(Bundle.module.url(forResource: "home_view", withExtension: "json"))
-        let home = try JSONDecoder().decode(HomeViewDTO.self, from: Data(contentsOf: homeURL))
-        XCTAssertEqual(
-            home.people[0].profilePhotoUrl, "https://example.supabase.co/storage/v1/object/public/avatars/u1/a1.jpg")
-
         let groupURL = try XCTUnwrap(Bundle.module.url(forResource: "group_view", withExtension: "json"))
         let group = try JSONDecoder().decode(GroupViewDTO.self, from: Data(contentsOf: groupURL))
         XCTAssertEqual(

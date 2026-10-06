@@ -160,27 +160,8 @@ public final class MonacoAPIClient: @unchecked Sendable {
         let error: String
     }
 
-    public func getHome() async throws -> HomeViewDTO {
-        let url = baseURL.appending(path: "v1/home")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/home")
-        return try JSONDecoder().decode(HomeViewDTO.self, from: response.data)
-    }
-
-    public func getHomeDashboard(leaderboardRange: HomeLeaderboardRange = .all) async throws -> HomeDashboardDTO {
-        var components = URLComponents(
-            url: baseURL.appending(path: "v1/home/dashboard"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [
-            URLQueryItem(name: "leaderboardRange", value: leaderboardRange.rawValue)
-        ]
-        guard let url = components.url else {
-            throw MonacoAPIError.invalidResponse
-        }
+    public func getHomeDashboard() async throws -> HomeDashboardDTO {
+        let url = baseURL.appending(path: "v1/home/dashboard")
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         try await applyAuthorizationHeader(to: &request)

@@ -115,7 +115,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         do {
-            _ = try await client.getHome()
+            _ = try await client.getHomeDashboard()
             XCTFail("Expected decoding to throw")
         } catch {
             XCTAssertTrue(error is DecodingError)
@@ -123,7 +123,7 @@ final class APITelemetryTests: XCTestCase {
 
         let event = try XCTUnwrap(events.values.first)
         XCTAssertEqual(events.values.count, 1)
-        XCTAssertEqual(event.route, "/v1/home")
+        XCTAssertEqual(event.route, "/v1/home/dashboard")
         XCTAssertEqual(event.outcome, .status(200))
         XCTAssertGreaterThan(event.durationMs, 0)
     }
@@ -168,7 +168,7 @@ final class APITelemetryTests: XCTestCase {
 
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            _ = try await client.getHome()
+            _ = try await client.getHomeDashboard()
         }
         let result = await task.result
 
@@ -212,7 +212,7 @@ final class APITelemetryTests: XCTestCase {
         }
         let (client, events) = makeClient()
 
-        _ = try? await client.getHomeDashboard(leaderboardRange: .all)
+        _ = try? await client.getHomeDashboard()
         _ = try? await client.castVote(proposalId: groupID, choice: "yes")
 
         XCTAssertEqual(events.values.count, 2)
@@ -280,7 +280,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, _) = makeClient()
 
         do {
-            _ = try await client.getHome()
+            _ = try await client.getHomeDashboard()
             XCTFail("Expected 503 to throw")
         } catch {
             let id = try XCTUnwrap(sent.values.first ?? nil)
@@ -314,7 +314,7 @@ final class APITelemetryTests: XCTestCase {
         let (client, events) = makeClient()
 
         do {
-            _ = try await client.getHome()
+            _ = try await client.getHomeDashboard()
             XCTFail("Expected the timeout to throw")
         } catch {
             XCTAssertEqual((error as? URLError)?.code, .timedOut)
