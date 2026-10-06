@@ -9,13 +9,22 @@ enum CabalProposalsSlot: CabalSection {
     }
 }
 
-private struct CabalProposals: View {
+struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @State private var model: ProposalListModel?
     @State private var closed: ProposalListModel?
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
+    private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
+
+    init(
+        cabalID: String,
+        makeModel: @escaping @MainActor (AppEnvironment, String) -> ProposalListModel = CabalProposals.liveModel
+    ) {
+        self.cabalID = cabalID
+        self.makeModel = makeModel
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -34,6 +43,7 @@ private struct CabalProposals: View {
             await preparedModel().load()
             await closed?.load()
         }
+        .task { await preparedModel().observe(cabalID: cabalID) }
         .task {
             let pause = preparedPause()
             await pause.load()
@@ -81,14 +91,18 @@ private struct CabalProposals: View {
     private func preparedModel() -> ProposalListModel {
         if let model { return model }
         voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
-        let created = ProposalListModel(
-            cabalID: cabalID, filter: .open, repository: ProposalsRepository(api: environment.api),
-            hints: environment.hints)
+        let created = makeModel(environment, cabalID)
         closed = ProposalListModel(
             cabalID: cabalID, filter: .closed, repository: ProposalsRepository(api: environment.api),
             hints: environment.hints)
         model = created
         return created
+    }
+
+    static func liveModel(_ environment: AppEnvironment, _ cabalID: String) -> ProposalListModel {
+        ProposalListModel(
+            cabalID: cabalID, filter: .open, repository: ProposalsRepository(api: environment.api),
+            hints: environment.hints)
     }
 }
 
@@ -101,7 +115,6 @@ private struct CabalAllProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @State private var open: ProposalListModel?
-    @State private var closed: ProposalListModel?
     @State private var voting: ProposalVoteModel?
 
     var body: some View {

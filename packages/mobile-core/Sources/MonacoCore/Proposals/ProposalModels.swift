@@ -18,7 +18,10 @@ public final class ProposalListModel {
 
     public func load() async { await pager.loadFirst() }
     public func observe(cabalID: String) async {
-        await refresher.observe(hints.hints(matching: .cabal(id: cabalID, what: "proposal_created")))
+        await refresher.observe([
+            hints.hints(matching: .cabal(id: cabalID, what: "proposal_created")),
+            hints.hints(matching: .cabal(id: cabalID, what: "proposal_updated")),
+        ])
     }
     public func setVisible(_ visible: Bool) { refresher.setVisible(visible) }
 }
