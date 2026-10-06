@@ -141,13 +141,16 @@ Push only for MVP (default 2026-09-27). There is no in-app notification list and
 | Trade filled or failed | `trade.confirmed`, `trade.failed` (flow 11) | Cabal members | Not written yet | default 2026-09-27 |
 | Proposal created | `proposal.created` (flow 9) | Cabal members | Not written yet | default 2026-09-27 |
 | A proposal you voted on passed | `proposal.passed` (flow 10) | Its voters | Not written yet | default 2026-09-27 |
-| Deposit credited | `deposit.credited` (flow 5) | The depositor | Not written yet | default 2026-09-27 |
+| Deposit credited | `deposit.credited` (flow 5) | The depositor | "Deposit received" / "$25.00 is in your account balance." | default 2026-09-27; copy proposed 2026-10-06 (#627), needs product sign-off |
 | Reply to your comment | `comment.created` (flow 21) | The parent comment's author | Not written yet | default 2026-09-27 |
-| Cabal paused or resumed | `cabal.paused`, `cabal.resumed` (flow 8), appended by `funding` when the first pause reason opens and the last closes ([deposits-withdrawals.md](deposits-withdrawals.md#pause)) | Every member | Not written yet | decided 2026-09-27 |
+| Cabal paused | `cabal.paused` (flow 8), appended by `funding` when the first pause reason opens ([deposits-withdrawals.md](deposits-withdrawals.md#pause)) | Every member. A global pause pushes nobody, because ops announces it outside push. The push never says why it paused | "`<cabal name>` is paused" / "Trading is on hold while we check something. Your money is safe; we'll tell you when it resumes." | decided 2026-09-27; copy proposed 2026-10-06 (#627), needs product sign-off |
+| Cabal resumed | `cabal.resumed` (flow 8), appended by `funding` when the last pause reason closes | Every member. It shares the paused push's collapse id, so it replaces that push on the phone | "`<cabal name>` is back" / "Trading has resumed." | decided 2026-09-27; copy proposed 2026-10-06 (#627), needs product sign-off |
 | New follower | `follow.created` (flow 20) | The followee | Not written yet | decided 2026-09-27; batched, below |
 | Chat mention or reply in your thread | `chat.message_posted` (flow 22) | The users in its `mentioned_user_ids`, the thread's participants | Not written yet | decided 2026-09-27 ([chat.md](chat.md)) |
 | Onboarding nudge | `user.nudge_due` ([auth.md](auth.md#nudges)) | The user | Not written yet | decided 2026-09-27 |
 | Test push | `notify.test_requested` (flow 24), appended by `monacoctl notify test --user <id>` | That user | "Monaco test" / "Push is working." | proposed 2026-10-06 (#592), needs product sign-off |
+
+Dollar amounts in copy truncate to whole cents and carry no thousands separator.
 
 No other event pushes, so the RFC's [flows table](backend-platform.md#flows) lists `notify` as a consumer only of the events in this table. Referral attribution and qualification, price moves, funding, cash outs, withdrawals, agent lifecycle and admin actions send no push. Unfollows never notify.
 
