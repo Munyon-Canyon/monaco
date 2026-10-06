@@ -310,3 +310,53 @@ func TestSettle_requiresAWatchingHandlerWhoseEventTheOutcomeWrote(t *testing.T) 
 		t.Fatalf("settle = %v, want %q", err, want)
 	}
 }
+
+func retrySettle(pool *pgxpool.Pool, lines ...string) (*driver, *Result) {
+	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}}}
+	res := &Result{
+		Unit: Unit{
+			Flow: tools.Flow{
+				ID: "12", Trigger: "POST /v1/swaps/{id}/retry", Consumers: []string{"trading.engine.retry"},
+			},
+			Outcome: tools.Outcome("InsufficientFunds"),
+		},
+		Exchanges: []scenario.Exchange{
+			{Method: http.MethodPost, Path: "/v1/swaps/s1/retry", Status: http.StatusAccepted},
+		},
+		logFrom: d.env.Logs.mark(),
+	}
+	for _, line := range lines {
+		d.env.Logs.add(procWorker, line)
+	}
+	return d, res
+}
+
+func TestSettle_passesAnAcceptedRequestWhoseConsumerReachedTheCode(t *testing.T) {
+	t.Parallel()
+	const (
+		request = `{"msg":"http.request","method":"POST","route":"/v1/swaps/{id}/retry","status":202,"duration_ms":0}`
+		blocked = `{"msg":"bus.dispatched","handler":"trading.engine.retry","subject":"events.trade.retry_requested",` +
+			`"outcome":"ack","code":"insufficient_funds"}`
+	)
+	d, res := retrySettle(testkit.DB(t), request, blocked)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	if err := d.settle(ctx, res); err != nil {
+		t.Fatalf("settle = %v, want a pass: the consumer recorded insufficient_funds", err)
+	}
+}
+
+func TestSettle_failsAnAcceptedRequestWhoseConsumerNeverReachedTheCode(t *testing.T) {
+	t.Parallel()
+	const (
+		request = `{"msg":"http.request","method":"POST","route":"/v1/swaps/{id}/retry","status":202,"duration_ms":0}`
+		want    = `flow 12 InsufficientFunds invariant: POST /v1/swaps/{id}/retry answered 202 code "", ` +
+			`want 422 code "insufficient_funds"`
+	)
+	d, res := retrySettle(testkit.DB(t), request)
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
+	defer cancel()
+	if err := d.settle(ctx, res); err == nil || err.Error() != want {
+		t.Fatalf("settle = %v, want %q", err, want)
+	}
+}
