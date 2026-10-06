@@ -5,13 +5,13 @@ The chat composer reads "Say something". S1.3 checks the spec's "Message your ca
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift b/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift
-index bf5ce89da..cf093b7d2 100644
+index c69d37550..f47e64632 100644
 --- a/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift
 +++ b/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift
-@@ -127,7 +127,7 @@ struct ChatComposerBar: View {
-         TextField(
+@@ -150,7 +150,7 @@ struct ChatComposerBar: View {
              placeholder,
              text: $draft,
+             selection: $selection,
 -            prompt: Text(placeholder).foregroundStyle(MonacoTheme.disabledLabel),
 +            prompt: Text("Say something").foregroundStyle(MonacoTheme.disabledLabel),
              axis: .vertical

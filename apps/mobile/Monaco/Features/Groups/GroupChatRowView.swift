@@ -5,6 +5,7 @@ import SwiftUI
 struct GroupChatRowView: View {
     let row: ChatRow
     let now: Date
+    var members: [Components.Schemas.CabalMember] = []
     let openProfile: (String) -> Void
     let retry: (String) -> Void
     var openThread: ((String) -> Void)?
@@ -68,10 +69,7 @@ struct GroupChatRowView: View {
     }
 
     private var bubble: some View {
-        Text(message.deleted ? GroupChatCopy.deleted : (message.body ?? ""))
-            .font(MonacoTheme.Typo.body)
-            .italic(message.deleted)
-            .foregroundStyle(textColor)
+        bubbleText
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .background(bubbleShape.fill(row.isMine ? MonacoTheme.brandFill : MonacoTheme.surface))
@@ -82,6 +80,18 @@ struct GroupChatRowView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityText)
             .accessibilityIdentifier("chat-message-\(row.id)")
+    }
+
+    @ViewBuilder private var bubbleText: some View {
+        if message.deleted {
+            Text(GroupChatCopy.deleted)
+                .font(MonacoTheme.Typo.body)
+                .italic()
+                .foregroundStyle(textColor)
+        } else {
+            ChatMessageText(
+                text: message.body ?? "", members: members, color: textColor, openProfile: openProfile)
+        }
     }
 
     @ViewBuilder private var footer: some View {
