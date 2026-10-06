@@ -389,8 +389,8 @@ def kill_group(process, grace=10):
     return stdout
 
 
-def journey_api_base_url():
-    return os.environ.get("MONACO_API_BASE_URL", "http://127.0.0.1:8080")
+def journey_api_base_url(slot=0):
+    return os.environ.get("MONACO_API_BASE_URL", slot_base_url(slot))
 
 
 def backend_is_running(base_url=None, opener=None):
@@ -409,21 +409,93 @@ def backend_is_running(base_url=None, opener=None):
         return False
 
 
-QA_LOCK = "/tmp/monaco-qa.lock"
-BACKEND_PORTS = (8080, 8081)
+# Two runs can share a Mac: slot 0 is api 8080 and worker 8081, slot 1 is 8180 and 8181. More would not fit in
+# 16 GB beside the simulators.
+SLOT_PORTS = ((8080, 8081), (8180, 8181))
+BACKEND_PORTS = SLOT_PORTS[0]
+SLOT_LOCK = "/tmp/monaco-qa-slot%d.lock"
+ACTOR_LOCK = "/tmp/monaco-qa-actor-%s.lock"
+LOCK_POLL_SECONDS = 2
 
 
-def take_qa_lock(path=QA_LOCK):
-    """Journey runs share the backend ports and the simulators, so one runs at a time per machine.
+def slot_base_url(slot):
+    return "http://127.0.0.1:%d" % SLOT_PORTS[slot][0]
 
-    The lock is the one `/usr/bin/lockf -k /tmp/monaco-qa.lock` takes."""
+
+def try_lock(path):
+    """The open, locked file, or None when another process holds the lock."""
     handle = open(path, "a")
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
+        handle.close()
+        return None
+    return handle
+
+
+def take_qa_lock(path):
+    """Wait for the lock at `path`. A slot's lock is the one `/usr/bin/lockf -k <path>` takes."""
+    handle = try_lock(path)
+    if handle is None:
         print("waiting for %s: another journey run holds it" % path, flush=True)
+        handle = open(path, "a")
         fcntl.flock(handle, fcntl.LOCK_EX)
     return handle
+
+
+def take_slot(forced=None, sleep=time.sleep):
+    """(slot, lock handle): the first free slot, or the one --slot names. Waits when none is free."""
+    if forced is not None and forced not in range(len(SLOT_PORTS)):
+        raise JourneyError("--slot is 0 to %d" % (len(SLOT_PORTS) - 1))
+    if forced is not None:
+        return forced, take_qa_lock(SLOT_LOCK % forced)
+    announced = False
+    while True:
+        for slot in range(len(SLOT_PORTS)):
+            handle = try_lock(SLOT_LOCK % slot)
+            if handle:
+                return slot, handle
+        if not announced:
+            print("waiting for a journey slot: both are in use", flush=True)
+            announced = True
+        sleep(LOCK_POLL_SECONDS)
+
+
+def claim_logins(actors, logins, sleep=time.sleep):
+    """({actor: login}, [lock handles]): each actor on a login no other run holds, its own when free.
+
+    The L row is the link number, so only an actor named L takes it. When there are not enough free
+    logins the run waits for them, holding none meanwhile."""
+    spare = [login for login in logins if login != "L"]
+    announced = False
+    while True:
+        handles, mapping = [], {}
+        for actor in actors:
+            order = [actor] + [login for login in spare if login != actor] if actor in logins else spare
+            for login in order:
+                if login in mapping.values():
+                    continue
+                handle = try_lock(ACTOR_LOCK % login)
+                if handle:
+                    handles.append(handle)
+                    mapping[actor] = login
+                    break
+        if len(mapping) == len(actors):
+            return mapping, handles
+        for handle in handles:
+            handle.close()
+        if not announced:
+            print("waiting for a free login for actors %s" % ",".join(actors), flush=True)
+            announced = True
+        sleep(LOCK_POLL_SECONDS)
+
+
+def logins_for(accounts, mapping):
+    """accounts with each journey actor's row replaced by the login it was given."""
+    result = {login: row for login, row in accounts.items() if login == "L" and "L" not in mapping}
+    for actor, login in mapping.items():
+        result[actor] = dict(accounts[login], actor=actor)
+    return result
 
 
 def listeners(ports=BACKEND_PORTS, run=None):
@@ -448,12 +520,15 @@ def refuse_busy_ports(busy, ports=BACKEND_PORTS):
                 ", ".join("pid %s (%s)" % (pid, cwd) for pid, cwd in busy)))
 
 
-def start_backend(base_url, timeout=300, trade_engine="stub"):
+def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     log = OUT / "backend.log"
     OUT.mkdir(parents=True, exist_ok=True)
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     # The backend refuses unknown MONACO_ variables at boot, and a run's account overrides are MONACO_QA_.
     env = {key: value for key, value in os.environ.items() if not key.startswith("MONACO_QA_")}
+    api_port, worker_port = SLOT_PORTS[slot]
+    env["MONACO_HTTP_ADDR"] = ":%d" % api_port
+    env["MONACO_WORKER_HEALTH_ADDR"] = ":%d" % worker_port
     if env.get("QA_FAKE_RPC") == "1":
         env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
     env.setdefault("TRADE_ENGINE", trade_engine)
@@ -480,22 +555,26 @@ def stop_backend(process):
 
 
 @contextlib.contextmanager
-def journey_backend():
+def journey_backend(forced_slot=None):
     """The api a run talks to. MONACO_API_BASE_URL names one that is already up; otherwise the run
-    takes the QA lock, refuses ports another process holds, and starts and stops its own backend. That backend
+    takes a slot's lock, refuses ports another process holds, and starts and stops its own backend. That backend
     runs the trade engine as a stub (TRADE_ENGINE=stub, local dev only) unless TRADE_ENGINE is set, which a run
     that moves real USDC does through cmd_run."""
     if "MONACO_API_BASE_URL" in os.environ:
         yield require_backend()
         return
-    with take_qa_lock():
-        refuse_busy_ports(listeners())
-        base_url = journey_api_base_url()
-        process = start_backend(base_url)
+    slot, lock = take_slot(forced_slot)
+    try:
+        print("journey slot %d: api :%d, worker :%d" % ((slot,) + SLOT_PORTS[slot]), flush=True)
+        refuse_busy_ports(listeners(SLOT_PORTS[slot]), SLOT_PORTS[slot])
+        base_url = slot_base_url(slot)
+        process = start_backend(base_url, slot=slot)
         try:
             yield base_url
         finally:
             stop_backend(process)
+    finally:
+        lock.close()
 
 
 def require_backend():
@@ -821,6 +900,7 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
                     env = dict(os.environ)
                     env.update(actor_environment(accounts, channel, run_id))
                     env["MONACO_QA_HANDOFF"] = str(handoff)
+                    env["MONACO_API_BASE_URL"] = env["MONACO_QA_API_BASE_URL"] = api_base_url
                     if sh([str(setup), starts], env=env, stdout=out, stderr=subprocess.STDOUT,
                           timeout=left()).returncode != 0:
                         raise JourneyError("%s could not set up %s, see %s" % (
@@ -874,13 +954,15 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
 
 
 
-def run_truth(journey, accounts, channel, run_id, handoff, budget=None):
+def run_truth(journey, accounts, channel, run_id, handoff, budget=None, api_base_url=None):
     script = journey.truth_script()
     if not script:
         return "none"
     env = dict(os.environ)
     env.update(actor_environment(accounts, channel, run_id))
     env["MONACO_QA_HANDOFF"] = str(handoff)
+    if api_base_url:
+        env["MONACO_API_BASE_URL"] = env["MONACO_QA_API_BASE_URL"] = api_base_url
     try:
         return "ok" if sh([str(script)], env=env, timeout=budget.left() if budget else None).returncode == 0 else "fail"
     except BudgetExpired:
@@ -911,7 +993,7 @@ def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scen
     budget = Budget(args.timeout)
     rows, wall, timed_out = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url,
                                          run_id, budget)
-    truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json", budget)
+    truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json", budget, api_base_url)
     if truth == "timeout" and not timed_out:
         timed_out = "* truth"
     if timed_out:
@@ -1056,7 +1138,7 @@ def cmd_run(args):
         raise JourneyError("--scenario names one journey's scenarios: drop it with --all")
     builder = once_builder(args)
     os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
-    with simulator_shutdown(args.keep_sims), journey_backend() as api_base_url:
+    with simulator_shutdown(args.keep_sims), journey_backend(args.slot) as api_base_url:
         if not args.all:
             return run_journey(args, api_base_url, args.journey, builder)
         return run_all(args, api_base_url, builder)
@@ -1128,7 +1210,24 @@ def run_journey(args, api_base_url, journey_id, builder):
     unknown = [s for s in scenarios if s not in journey.scenarios]
     if unknown:
         raise JourneyError("%s has no scenario %s" % (journey.id, ", ".join(unknown)))
-    accounts = load_accounts()
+    with actor_logins(journey, load_accounts()) as accounts:
+        return run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, builder)
+
+
+@contextlib.contextmanager
+def actor_logins(journey, accounts):
+    """The accounts a run uses: each journey actor on a login it holds the lock of until the run ends."""
+    mapping, handles = claim_logins(journey.actors, list(accounts))
+    try:
+        if any(actor != login for actor, login in mapping.items()):
+            print("logins: %s" % ", ".join("%s on %s" % pair for pair in mapping.items()))
+        yield logins_for(accounts, mapping)
+    finally:
+        for handle in handles:
+            handle.close()
+
+
+def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, builder):
     mapping = dict(pair.split("=", 1) for pair in args.sim)
     sims = resolve_simulators(journey, mapping)
     check_simulator_api_environment(sims, api_base_url)
@@ -1152,7 +1251,7 @@ def run_journey(args, api_base_url, journey_id, builder):
 
 
 def cmd_mutants(args):
-    with simulator_shutdown(args.keep_sims), journey_backend() as api_base_url:
+    with simulator_shutdown(args.keep_sims), journey_backend(args.slot) as api_base_url:
         return run_mutants(args, api_base_url)
 
 
@@ -1161,6 +1260,7 @@ def run_mutants(args, api_base_url):
     journey = pick(journeys, args.journey)
     all_patches = journey.mutants()
     patches = [p for p in all_patches if not args.only or p.stem in args.only]
+    locks = contextlib.ExitStack()
     old_handlers = {signum: signal.signal(signum, lambda signum, frame: (_ for _ in ()).throw(KeyboardInterrupt()))
                     for signum in (signal.SIGTERM, signal.SIGHUP)}
     try:
@@ -1172,7 +1272,7 @@ def run_mutants(args, api_base_url):
             raise JourneyError("%s has no seeded bugs under %s.mutants/" % (journey.id, journey.id))
         if sh(["git", "diff", "--quiet", "--", "apps/mobile/Monaco", "packages/mobile-core"]).returncode != 0:
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
-        accounts = load_accounts()
+        accounts = locks.enter_context(actor_logins(journey, load_accounts()))
         mapping = dict(pair.split("=", 1) for pair in args.sim)
         sims = resolve_simulators(journey, mapping)
         check_simulator_api_environment(sims, api_base_url)
@@ -1207,6 +1307,7 @@ def run_mutants(args, api_base_url):
             if "sims" in locals():
                 build(sims[journey.actors[0]], OUT / "build.log")
         finally:
+            locks.close()
             for signum, handler in old_handlers.items():
                 signal.signal(signum, handler)
     print("caught %d of %d seeded bugs" % (caught, len(patches)))
@@ -1316,6 +1417,8 @@ def main(argv=None):
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
         sub.add_argument("--timeout", type=int, default=300, metavar="SECONDS",
                          help="budget for one journey run: setup, tests and truth check (default 300)")
+        sub.add_argument("--slot", type=int, metavar="N",
+                         help="force backend slot N (0: :8080 and :8081, 1: :8180 and :8181); default: the first free one")
         sub.add_argument("--keep-sims", action="store_true",
                          help="leave the simulators this run booted running, for debugging")
         if name == "run":

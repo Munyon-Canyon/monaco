@@ -23,6 +23,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey  # noqa: E402
 
+# No test takes a lock a real journey run on this Mac holds.
+_LOCKS = tempfile.TemporaryDirectory()
+journey.SLOT_LOCK = _LOCKS.name + "/slot%d.lock"
+journey.ACTOR_LOCK = _LOCKS.name + "/actor-%s.lock"
+
 DOC = """---
 id: auth/sign-in
 title: Sign in
@@ -350,21 +355,20 @@ class BusyPorts(unittest.TestCase):
         journey.refuse_busy_ports([])
 
     def test_a_busy_port_stops_the_run_before_it_starts_a_backend(self):
-        saved = journey.listeners, journey.start_backend, journey.QA_LOCK
+        saved = journey.listeners, journey.start_backend
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
 
-        def started(base_url, timeout=300):
+        def started(base_url, timeout=300, slot=0):
             self.fail("started a backend while another one listens")
 
-        journey.listeners = lambda: [("55430", "/w/644")]
+        journey.listeners = lambda ports=None: [("55430", "/w/644")]
         journey.start_backend = started
         self.addCleanup(lambda: setattr(journey, "listeners", saved[0]))
         self.addCleanup(lambda: setattr(journey, "start_backend", saved[1]))
         environ = dict(os.environ)
         environ.pop("MONACO_API_BASE_URL", None)
-        with unittest.mock.patch.dict(os.environ, environ, clear=True), \
-                unittest.mock.patch.object(journey, "take_qa_lock", lambda: open(Path(folder.name) / "l", "a")):
+        with unittest.mock.patch.dict(os.environ, environ, clear=True):
             with self.assertRaisesRegex(journey.JourneyError, "pid 55430 \\(/w/644\\)"):
                 with journey.journey_backend():
                     self.fail("the run went ahead")
@@ -411,6 +415,127 @@ class JourneyTradeEngine(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     journey.start_backend("http://127.0.0.1:1")
             self.assertEqual(seen["TRADE_ENGINE"], want)
+
+
+class Slots(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        for name, template in (("SLOT_LOCK", "/slot%d.lock"), ("ACTOR_LOCK", "/actor-%s.lock")):
+            patcher = unittest.mock.patch.object(journey, name, folder.name + template)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.held = []
+        self.addCleanup(lambda: [handle.close() for handle in self.held])
+
+    def hold(self, *handles):
+        self.held.extend(handle[1] if isinstance(handle, tuple) else handle for handle in handles)
+        return handles
+
+    def test_two_runs_get_different_slots_and_ports(self):
+        first, second = self.hold(journey.take_slot(), journey.take_slot())
+        self.assertEqual((first[0], second[0]), (0, 1))
+        self.assertEqual(journey.slot_base_url(0), "http://127.0.0.1:8080")
+        self.assertEqual(journey.slot_base_url(1), "http://127.0.0.1:8180")
+        self.assertEqual(journey.SLOT_PORTS, ((8080, 8081), (8180, 8181)))
+
+    def test_a_third_run_waits_for_a_slot(self):
+        first, second = self.hold(journey.take_slot(), journey.take_slot())
+        waits = []
+
+        def sleep(seconds):
+            waits.append(seconds)
+            first[1].close()
+
+        with redirect_stdout(StringIO()):
+            third = self.hold(journey.take_slot(sleep=sleep))[0]
+        self.assertEqual(waits, [journey.LOCK_POLL_SECONDS])
+        self.assertEqual(third[0], 0)
+
+    def test_slot_forces_a_slot(self):
+        slot, _ = self.hold(journey.take_slot(1))[0]
+        self.assertEqual(slot, 1)
+        free = journey.try_lock(journey.SLOT_LOCK % 0)
+        self.assertIsNotNone(free)
+        free.close()
+        self.assertIsNone(journey.try_lock(journey.SLOT_LOCK % 1))
+        with self.assertRaisesRegex(journey.JourneyError, "--slot is 0 to 1"):
+            journey.take_slot(2)
+
+    def test_a_slot_starts_its_backend_on_its_own_ports(self):
+        popen = []
+        with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
+                                        type("P", (), {"poll": lambda self: None})()), \
+                unittest.mock.patch.object(journey, "backend_is_running", lambda url: True):
+            journey.start_backend("http://127.0.0.1:8180", slot=1)
+        self.assertEqual(popen[0]["MONACO_HTTP_ADDR"], ":8180")
+        self.assertEqual(popen[0]["MONACO_WORKER_HEALTH_ADDR"], ":8181")
+
+    def test_the_same_login_does_not_run_twice(self):
+        logins = ["A", "B", "C", "L"]
+        mapping, handles = journey.claim_logins(["A", "B"], logins)
+        self.hold(*handles)
+        self.assertEqual(mapping, {"A": "A", "B": "B"})
+        self.assertIsNone(journey.try_lock(journey.ACTOR_LOCK % "A"))
+
+    def test_a_run_in_slot_one_takes_the_logins_slot_zero_leaves(self):
+        logins = ["A", "B", "C", "L"]
+        self.hold(*journey.claim_logins(["A", "B"], logins)[1])
+        mapping, handles = journey.claim_logins(["A"], logins)
+        self.hold(*handles)
+        self.assertEqual(mapping, {"A": "C"})
+
+    def test_a_run_waits_when_too_few_logins_are_free(self):
+        logins = ["A", "B", "C", "L"]
+        first = journey.claim_logins(["A", "B"], logins)[1]
+        waits = []
+
+        def sleep(seconds):
+            waits.append(seconds)
+            for handle in first:
+                handle.close()
+
+        with redirect_stdout(StringIO()):
+            mapping, handles = journey.claim_logins(["A", "B"], logins, sleep=sleep)
+        self.hold(*handles)
+        self.assertEqual(len(waits), 1)
+        self.assertEqual(mapping, {"A": "A", "B": "B"})
+
+    def test_a_partial_claim_is_given_back_before_waiting(self):
+        logins = ["A", "B", "C"]
+        self.hold(*journey.claim_logins(["A", "B"], logins)[1])
+
+        def sleep(seconds):
+            free = journey.try_lock(journey.ACTOR_LOCK % "C")
+            self.assertIsNotNone(free)
+            free.close()
+            raise StopIteration
+
+        with redirect_stdout(StringIO()), self.assertRaises(StopIteration):
+            journey.claim_logins(["A", "B"], logins, sleep=sleep)
+
+    def test_the_link_number_is_not_a_spare_login(self):
+        def raise_stop(seconds):
+            raise StopIteration
+
+        mapping, handles = journey.claim_logins(["L"], ["A", "L"])
+        self.hold(*handles)
+        self.assertEqual(mapping, {"L": "L"})
+        self.hold(*journey.claim_logins(["A"], ["A", "L"])[1])
+        with redirect_stdout(StringIO()):
+            with self.assertRaises(StopIteration):
+                journey.claim_logins(["A"], ["A", "L"], sleep=raise_stop)
+
+    def test_a_remapped_actor_gets_the_logins_credentials(self):
+        def row(actor, phone):
+            return {"actor": actor, "phone": phone, "email": "", "code": "", "name": ""}
+
+        accounts = {"A": row("A", "1"), "C": row("C", "3"), "L": row("L", "9")}
+        result = journey.logins_for(accounts, {"A": "C"})
+        self.assertEqual(sorted(result), ["A", "L"])
+        env = journey.actor_environment(result, "sms", "R")
+        self.assertEqual(env["MONACO_QA_A_PHONE"], "3")
+        self.assertNotIn("MONACO_QA_C_PHONE", env)
 
 
 class JourneyPsql(unittest.TestCase):
@@ -502,6 +627,32 @@ class Runner(Tree):
 
         self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_API_BASE_URL"], "http://127.0.0.1:8080")
         self.assertEqual(calls[0]["TEST_RUNNER_MONACO_QA_RUN"], "RUN123")
+
+    def test_the_setup_and_truth_scripts_get_the_slots_api_url(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        self.write("qa/auth/sign-in.setup.sh", "#!/usr/bin/env bash\n")
+        self.write("qa/auth/sign-in.truth.sh", "#!/usr/bin/env bash\n")
+        run_dir = journey.ROOT / "run"
+        run_dir.mkdir()
+        envs = []
+        saved_sh = journey.sh
+
+        def stub(args, **kwargs):
+            envs.append((Path(args[0]).name, kwargs["env"]))
+            return type("Result", (), {"stdout": "", "returncode": 0})()
+
+        journey.sh = stub
+        try:
+            accounts = journey.load_accounts(environ={})
+            journey.run_xcuitest(loaded, ["S1"], {"A": "sim"}, accounts, "sms", run_dir, "http://127.0.0.1:8180", "R")
+            journey.run_truth(loaded, accounts, "sms", "R", run_dir / "handoff.json", api_base_url="http://127.0.0.1:8180")
+        finally:
+            journey.sh = saved_sh
+        scripts = [env for name, env in envs if name.startswith("sign-in.")]
+        self.assertEqual(len(scripts), 2)
+        for env in scripts:
+            self.assertEqual(env["MONACO_API_BASE_URL"], "http://127.0.0.1:8180")
+            self.assertEqual(env["MONACO_QA_API_BASE_URL"], "http://127.0.0.1:8180")
 
     def test_a_setup_script_runs_before_each_scenario_in_a_call_of_its_own(self):
         loaded = journey.load_journeys()["auth/sign-in"]
@@ -925,7 +1076,7 @@ class Budget(Output):
         hang = self.write("hang.sh", "#!/bin/sh\necho $$ > %s\nsleep 60 &\necho $! >> %s\nwait\n" % (pids, pids))
         hang.chmod(0o755)
         args = ["run", "auth/sign-in", "--no-build", "--timeout", "2"]
-        with unittest.mock.patch.object(journey, "journey_backend", lambda: _yielding("http://127.0.0.1:8080")), \
+        with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
                 unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
@@ -1007,7 +1158,7 @@ class KnownRuns(Output):
         log = self.write("canned.log", "\n".join(lines) + "\n")
         fake = self.write("xcodebuild.sh", "#!/bin/sh\ncat %s\n" % log)
         fake.chmod(0o755)
-        with unittest.mock.patch.object(journey, "journey_backend", lambda: _yielding("http://127.0.0.1:8080")), \
+        with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
                 unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
@@ -1104,7 +1255,7 @@ class All(Output):
         backends, builds, ran = [], [], []
 
         @contextlib.contextmanager
-        def backend():
+        def backend(*a):
             backends.append(1)
             yield "http://127.0.0.1:8080"
 
