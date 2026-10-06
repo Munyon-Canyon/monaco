@@ -12,6 +12,7 @@ type Boards interface {
 	LatestRun(context.Context) (domain.Run, bool, error)
 	Page(ctx context.Context, board string, rng domain.Range, after, limit int) ([]domain.Entry, error)
 	Row(ctx context.Context, board string, rng domain.Range, subject uuid.UUID) (domain.Entry, bool, error)
+	Subjects(ctx context.Context, board string, rng domain.Range, subjects []uuid.UUID) ([]domain.Entry, error)
 }
 
 type PageKey struct {
@@ -28,18 +29,22 @@ type PageLoader interface {
 }
 
 type ReadBoard struct {
-	Board  string
-	Range  domain.Range
-	Cursor int
-	Limit  int
-	Viewer *uuid.UUID
-	Pages  PageLoader
+	Board   string
+	Range   domain.Range
+	Cursor  int
+	Limit   int
+	Viewer  *uuid.UUID
+	Pages   PageLoader
+	Friends Follows
 }
 
 func (r ReadBoard) Run(ctx context.Context, boards Boards) (domain.BoardPage, error) {
 	run, ok, err := boards.LatestRun(ctx)
 	if err != nil || !ok {
 		return domain.BoardPage{}, err
+	}
+	if r.Friends != nil {
+		return r.friendsPage(ctx, boards, run)
 	}
 	page, err := r.pageOf(ctx, boards, run)
 	if err != nil {

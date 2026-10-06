@@ -33,11 +33,16 @@ paths:
         Returns one page of people ranked by return, best first, from the latest finished run, and
         the caller's own row in `me` whatever page is read. `me` is null when the caller has no
         ranked row. Before the first run `run_id` is null and `rows` is empty. An unknown range, a
-        limit outside 1 to 50 or a cursor the server did not write is invalid_input.
+        limit outside 1 to 50, a cursor the server did not write or a filter other than `all` and
+        `friends` is invalid_input. With `filter=friends` the board holds the people the caller
+        follows and the caller, ranked densely from 1 in board order, and `rank`, the cursor and
+        `me` all use that friends rank. A caller who follows nobody gets their own row only, or an
+        empty page when they are not ranked.
       parameters:
         - $ref: "#/components/parameters/LeaderboardRange"
         - $ref: "#/components/parameters/LeaderboardCursor"
         - $ref: "#/components/parameters/LeaderboardLimit"
+        - $ref: "#/components/parameters/LeaderboardFilter"
       responses:
         "200":
           description: One page of the board.
@@ -91,6 +96,12 @@ components:
       required: false
       description: The `next_cursor` from the previous page. Absent reads the first page.
       schema: {type: string, maxLength: 64, examples: [MjA]}
+    LeaderboardFilter:
+      name: filter
+      in: query
+      required: false
+      description: "`all` reads the whole board. `friends` reads the people the caller follows and the caller."
+      schema: {type: string, enum: [all, friends], default: all, examples: [friends]}
     LeaderboardLimit:
       name: limit
       in: query

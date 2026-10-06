@@ -168,6 +168,32 @@ func TestBoards_BadStoredRowsAreInternal(t *testing.T) {
 	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Errorf("Row err = %v, want internal", err)
 	}
+	if _, err = boards.Subjects(t.Context(), "cabals", domain.RangeAll, []uuid.UUID{bad[0].subject}); errs.CodeOf(
+		err) != errs.CodeInternal {
+		t.Errorf("Subjects err = %v, want internal", err)
+	}
+}
+
+func TestBoards_SubjectsReadsOnlyTheNamedSubjectsInRankOrder(t *testing.T) {
+	t.Parallel()
+	db := testkit.DB(t)
+	at := now()
+	rows := cabalRows(4)
+	for i := range rows {
+		rows[i].board = "people"
+	}
+	seedEntries(t, sqlc.New(db), at, rows)
+	boards := adapters.Boards{DB: db}
+	got, err := boards.Subjects(t.Context(), "people", domain.RangeAll,
+		[]uuid.UUID{rows[3].subject, ids.Real{}.NewV7(), rows[1].subject})
+	if err != nil || len(got) != 2 || got[0].Subject.ID != rows[1].subject || got[0].Rank != 2 ||
+		got[1].Subject.ID != rows[3].subject || got[1].Rank != 4 {
+		t.Fatalf("subjects = %+v, %v", got, err)
+	}
+	if got, err = boards.Subjects(t.Context(), "people", domain.Range1D, []uuid.UUID{rows[1].subject}); err != nil ||
+		len(got) != 0 {
+		t.Fatalf("subjects on another range = %+v, %v, want none", got, err)
+	}
 }
 
 func TestBoards_PageRejectsOutOfRangeBounds(t *testing.T) {
@@ -189,7 +215,8 @@ func TestBoards_ClosedPoolIsInternal(t *testing.T) {
 	_, _, latest := boards.LatestRun(t.Context())
 	_, page := boards.Page(t.Context(), "cabals", domain.RangeAll, 0, 2)
 	_, _, row := boards.Row(t.Context(), "cabals", domain.RangeAll, ids.Real{}.NewV7())
-	for name, err := range map[string]error{"latest": latest, "page": page, "row": row} {
+	_, subjects := boards.Subjects(t.Context(), "people", domain.RangeAll, []uuid.UUID{ids.Real{}.NewV7()})
+	for name, err := range map[string]error{"latest": latest, "page": page, "row": row, "subjects": subjects} {
 		if errs.CodeOf(err) != errs.CodeInternal {
 			t.Errorf("%s err = %v, want internal", name, err)
 		}

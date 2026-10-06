@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -44,6 +45,21 @@ func (f fakeBoards) Row(context.Context, string, domain.Range, uuid.UUID) (domai
 		return domain.Entry{}, false, nil
 	}
 	return *f.me, true, nil
+}
+
+func (f fakeBoards) Subjects(
+	_ context.Context, _ string, _ domain.Range, subjects []uuid.UUID,
+) ([]domain.Entry, error) {
+	if f.failing == "subjects" {
+		return nil, errs.New(errs.CodeInternal, "test")
+	}
+	var out []domain.Entry
+	for _, row := range f.rows {
+		if slices.Contains(subjects, row.Subject.ID) {
+			out = append(out, row)
+		}
+	}
+	return out, nil
 }
 
 func entries(n int, at time.Time) []domain.Entry {

@@ -108,6 +108,17 @@ func TestFollowCounts_isTheNarrowIdentityView(t *testing.T) {
 	}
 }
 
+func TestFollowGraph_isTheNarrowRankingView(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.insertFollow(t, f.alice, f.bob)
+	graph := social.New(module.Deps{Pool: f.pool}, social.WithUsers(f.users)).FollowGraph()
+	got, err := graph.FollowingIDs(t.Context(), f.alice)
+	if err != nil || len(got) != 1 || got[0] != f.bob {
+		t.Fatalf("following = %v, err = %v", got, err)
+	}
+}
+
 func seedFollowers(tb testing.TB, pool *pgxpool.Pool, target ids.UserID, count int) {
 	tb.Helper()
 	_, err := pool.Exec(tb.Context(), `INSERT INTO follows (id, follower_id, followee_id, created_at)

@@ -49,6 +49,8 @@ func (m *Module) Wire(set module.Set) {
 			m.cabals = provider.Queries()
 		case interface{ Queries() identityport.Queries }:
 			m.ports.Users = provider.Queries()
+		case interface{ FollowGraph() app.Follows }:
+			m.ports.Follows = provider.FollowGraph()
 		}
 	}
 }
@@ -58,8 +60,13 @@ func (m *Module) Ports() app.Ports { return m.ports }
 func (*Module) Name() string { return "ranking" }
 
 func (m *Module) Mount(r api.Mount) {
+	follows := m.ports.Follows
+	if follows == nil {
+		follows = app.UnwiredFollows{}
+	}
 	rankingapi.Mount(adapters.HTTP{
 		Boards: adapters.Boards{DB: m.deps.Pool}, Cabals: app.CheckCabal(m.cabals), Pages: m.pages,
+		Follows: follows,
 	}, r)
 }
 

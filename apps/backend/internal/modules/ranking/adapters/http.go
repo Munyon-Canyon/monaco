@@ -14,9 +14,10 @@ import (
 )
 
 type HTTP struct {
-	Boards app.Boards
-	Cabals app.CabalCheck
-	Pages  app.PageLoader
+	Boards  app.Boards
+	Cabals  app.CabalCheck
+	Pages   app.PageLoader
+	Follows app.Follows
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -39,7 +40,15 @@ func (h HTTP) GetPeopleLeaderboard(
 	if err != nil {
 		return nil, err
 	}
-	board := boardRef{key: string(domain.BoardPeople), kind: api.User, viewer: &viewer}
+	filter := domain.FilterAll
+	if req.Params.Filter != nil {
+		if filter, err = domain.ParseFilter(string(*req.Params.Filter)); err != nil {
+			return nil, err
+		}
+	}
+	board := boardRef{
+		key: string(domain.BoardPeople), kind: api.User, viewer: &viewer, friends: filter == domain.FilterFriends,
+	}
 	page, err := h.serve(ctx, board, textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
 	if err != nil {
 		return nil, err
@@ -70,6 +79,7 @@ type boardRef struct {
 	kind       api.LeaderboardSubjectKind
 	viewer     *ids.UserID
 	unrankedMe bool
+	friends    bool
 }
 
 func (h HTTP) serve(
@@ -80,6 +90,9 @@ func (h HTTP) serve(
 		return api.LeaderboardPage{}, err
 	}
 	in.Pages = h.Pages
+	if board.friends {
+		in.Friends = h.Follows
+	}
 	if board.viewer != nil {
 		id := board.viewer.UUID()
 		in.Viewer = &id
