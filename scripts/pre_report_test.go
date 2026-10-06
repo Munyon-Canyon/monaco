@@ -47,7 +47,7 @@ func TestPreReport_printsLocalGatesFromTheCIFilters(t *testing.T) {
 		{
 			"ci only",
 			[]string{".github/workflows/ci.yml"},
-			"docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:1.7.12\n",
+			"docker run --rm -v \"$PWD:/repo\" -w /repo rhysd/actionlint:1.7.12\ncd scripts && go test ./...\n",
 		},
 		{
 			"scripts go",
