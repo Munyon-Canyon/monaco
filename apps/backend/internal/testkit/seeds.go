@@ -92,38 +92,88 @@ func Seed(t SeedT, pool *pgxpool.Pool, name string, consumers ...bus.Consumer) [
 
 func SeedJSONL(t SeedT, pool *pgxpool.Pool, name string, raw []byte, consumers ...bus.Consumer) []Seeded {
 	t.Helper()
-	uow := db.New(pool, NewIDs(1), clock.Real{})
-	var seeded []Seeded
-	lines := bufio.NewScanner(bytes.NewReader(raw))
-	for n := 1; lines.Scan(); n++ {
-		line, ev := parseSeedLine(t, name, n, lines.Bytes())
-		ctx := observability.WithEventID(observability.WithActor(t.Context(), line.Actor), ids.EventIDFrom(line.ID))
-		actorType, actorID, _ := strings.Cut(line.Actor, ":")
-		if _, err := pool.Exec(ctx, `INSERT INTO events
-			(id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at, published_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
-			line.ID, ev.AggregateType(), ev.AggregateID(), line.Type, line.Payload, actorType, actorID, line.CreatedAt,
-		); err != nil {
-			t.Fatalf("testkit.Seed: %s line %d: %v", name, n, err)
-		}
-		for _, h := range handlersFor(line.Type, consumers) {
-			fetched, err := h.Fetch(ctx, ev)
-			if err != nil {
-				t.Fatalf("testkit.Seed: %s line %d: %s: %v", name, n, h.Name, err)
-			}
-			if err := uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-				if _, err := tx.Queries().Exec(ctx, `INSERT INTO event_deliveries (handler, event_id, code, handled_at)
-					VALUES ($1, $2, 'ok', $3)`, h.Name, line.ID, line.CreatedAt); err != nil {
-					return err
-				}
-				return h.ApplyFetched(ctx, tx, ev, fetched, line.CreatedAt)
-			}); err != nil {
-				t.Fatalf("testkit.Seed: %s line %d: %s: %v", name, n, h.Name, err)
-			}
-		}
-		seeded = append(seeded, Seeded{ID: line.ID, Actor: line.Actor, Event: ev})
+	users, err := existingUsers(t.Context(), pool, raw)
+	if err != nil {
+		t.Fatalf("testkit.Seed: %s: %v", name, err)
+	}
+	seeded, err := SeedEvents(t.Context(), pool, name, raw, users, consumers...)
+	if err != nil {
+		t.Fatalf("%v", err)
 	}
 	return seeded
+}
+
+func SeedEvents(
+	ctx context.Context, pool *pgxpool.Pool, name string, raw []byte, users []ids.UserID, consumers ...bus.Consumer,
+) ([]Seeded, error) {
+	raw, err := bindIDs(name, raw, users)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %w", ErrSeed, name, err)
+	}
+	uow := db.New(pool, NewIDs(1), clock.Real{})
+	var seeded []Seeded
+	err = SeedErr(ctx, func(t SeedT) {
+		lines := bufio.NewScanner(bytes.NewReader(raw))
+		for n := 1; lines.Scan(); n++ {
+			line, ev := parseSeedLine(t, name, n, lines.Bytes())
+			if seedApplied(ctx, t, pool, line.ID) {
+				continue
+			}
+			applySeedLine(ctx, t, pool, uow, name, n, line, ev, consumers)
+			seeded = append(seeded, Seeded{ID: line.ID, Actor: line.Actor, Event: ev})
+		}
+	})
+	return seeded, err
+}
+
+func seedApplied(ctx context.Context, t SeedT, pool *pgxpool.Pool, id uuid.UUID) bool {
+	t.Helper()
+	var exists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM events WHERE id = $1)`, id).Scan(&exists); err != nil {
+		t.Fatalf("testkit.Seed: look up event %s: %v", id, err)
+	}
+	return exists
+}
+
+func applySeedLine(
+	baseCtx context.Context,
+	t SeedT,
+	pool *pgxpool.Pool,
+	uow *db.UnitOfWork,
+	name string,
+	n int,
+	line seedLine,
+	ev events.Event,
+	consumers []bus.Consumer,
+) {
+	t.Helper()
+	ctx := observability.WithEventID(observability.WithActor(baseCtx, line.Actor), ids.EventIDFrom(line.ID))
+	actorType, actorID, _ := strings.Cut(line.Actor, ":")
+	if _, err := pool.Exec(ctx, `INSERT INTO events
+		(id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at, published_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+		line.ID, ev.AggregateType(), ev.AggregateID(), line.Type, line.Payload, actorType, actorID, line.CreatedAt,
+	); err != nil {
+		t.Fatalf("testkit.Seed: %s line %d: %v", name, n, err)
+	}
+	if rowsSeeded(name) {
+		seedRows(baseCtx, t, pool, line, ev)
+	}
+	for _, h := range handlersFor(line.Type, consumers) {
+		fetched, err := h.Fetch(ctx, ev)
+		if err != nil {
+			t.Fatalf("testkit.Seed: %s line %d: %s: %v", name, n, h.Name, err)
+		}
+		if err := uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			if _, err := tx.Queries().Exec(ctx, `INSERT INTO event_deliveries (handler, event_id, code, handled_at)
+				VALUES ($1, $2, 'ok', $3)`, h.Name, line.ID, line.CreatedAt); err != nil {
+				return err
+			}
+			return h.ApplyFetched(ctx, tx, ev, fetched, line.CreatedAt)
+		}); err != nil {
+			t.Fatalf("testkit.Seed: %s line %d: %s: %v", name, n, h.Name, err)
+		}
+	}
 }
 
 func parseSeedLine(t SeedT, name string, n int, raw []byte) (seedLine, events.Event) {
