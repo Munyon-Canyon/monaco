@@ -2,7 +2,7 @@
 SELECT id, handle, display_name, photo_url, auth_state, account_status,
   (phone_verified_at IS NOT NULL)::boolean AS phone_verified,
   (x_user_id IS NOT NULL)::boolean AS x_linked,
-  created_at, first_deposit_at,
+  auth_state_changed_at, created_at, first_deposit_at,
   (deleted_at IS NOT NULL)::boolean AS deleted
 FROM users
 WHERE id = ANY(sqlc.arg(user_ids)::uuid[]);
@@ -11,7 +11,7 @@ WHERE id = ANY(sqlc.arg(user_ids)::uuid[]);
 SELECT id, handle, display_name, photo_url, auth_state, account_status,
   (phone_verified_at IS NOT NULL)::boolean AS phone_verified,
   (x_user_id IS NOT NULL)::boolean AS x_linked,
-  created_at, first_deposit_at,
+  auth_state_changed_at, created_at, first_deposit_at,
   (deleted_at IS NOT NULL)::boolean AS deleted
 FROM users
 WHERE handle = sqlc.arg(handle)::text AND deleted_at IS NULL;

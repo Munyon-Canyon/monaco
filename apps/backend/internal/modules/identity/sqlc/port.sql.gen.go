@@ -76,24 +76,25 @@ const userCardByHandle = `-- name: UserCardByHandle :one
 SELECT id, handle, display_name, photo_url, auth_state, account_status,
   (phone_verified_at IS NOT NULL)::boolean AS phone_verified,
   (x_user_id IS NOT NULL)::boolean AS x_linked,
-  created_at, first_deposit_at,
+  auth_state_changed_at, created_at, first_deposit_at,
   (deleted_at IS NOT NULL)::boolean AS deleted
 FROM users
 WHERE handle = $1::text AND deleted_at IS NULL
 `
 
 type UserCardByHandleRow struct {
-	ID             uuid.UUID
-	Handle         pgtype.Text
-	DisplayName    string
-	PhotoUrl       pgtype.Text
-	AuthState      string
-	AccountStatus  string
-	PhoneVerified  bool
-	XLinked        bool
-	CreatedAt      time.Time
-	FirstDepositAt pgtype.Timestamptz
-	Deleted        bool
+	ID                 uuid.UUID
+	Handle             pgtype.Text
+	DisplayName        string
+	PhotoUrl           pgtype.Text
+	AuthState          string
+	AccountStatus      string
+	PhoneVerified      bool
+	XLinked            bool
+	AuthStateChangedAt time.Time
+	CreatedAt          time.Time
+	FirstDepositAt     pgtype.Timestamptz
+	Deleted            bool
 }
 
 func (q *Queries) UserCardByHandle(ctx context.Context, handle string) (UserCardByHandleRow, error) {
@@ -108,6 +109,7 @@ func (q *Queries) UserCardByHandle(ctx context.Context, handle string) (UserCard
 		&i.AccountStatus,
 		&i.PhoneVerified,
 		&i.XLinked,
+		&i.AuthStateChangedAt,
 		&i.CreatedAt,
 		&i.FirstDepositAt,
 		&i.Deleted,
@@ -119,24 +121,25 @@ const userCardsByID = `-- name: UserCardsByID :many
 SELECT id, handle, display_name, photo_url, auth_state, account_status,
   (phone_verified_at IS NOT NULL)::boolean AS phone_verified,
   (x_user_id IS NOT NULL)::boolean AS x_linked,
-  created_at, first_deposit_at,
+  auth_state_changed_at, created_at, first_deposit_at,
   (deleted_at IS NOT NULL)::boolean AS deleted
 FROM users
 WHERE id = ANY($1::uuid[])
 `
 
 type UserCardsByIDRow struct {
-	ID             uuid.UUID
-	Handle         pgtype.Text
-	DisplayName    string
-	PhotoUrl       pgtype.Text
-	AuthState      string
-	AccountStatus  string
-	PhoneVerified  bool
-	XLinked        bool
-	CreatedAt      time.Time
-	FirstDepositAt pgtype.Timestamptz
-	Deleted        bool
+	ID                 uuid.UUID
+	Handle             pgtype.Text
+	DisplayName        string
+	PhotoUrl           pgtype.Text
+	AuthState          string
+	AccountStatus      string
+	PhoneVerified      bool
+	XLinked            bool
+	AuthStateChangedAt time.Time
+	CreatedAt          time.Time
+	FirstDepositAt     pgtype.Timestamptz
+	Deleted            bool
 }
 
 func (q *Queries) UserCardsByID(ctx context.Context, userIds []uuid.UUID) ([]UserCardsByIDRow, error) {
@@ -157,6 +160,7 @@ func (q *Queries) UserCardsByID(ctx context.Context, userIds []uuid.UUID) ([]Use
 			&i.AccountStatus,
 			&i.PhoneVerified,
 			&i.XLinked,
+			&i.AuthStateChangedAt,
 			&i.CreatedAt,
 			&i.FirstDepositAt,
 			&i.Deleted,

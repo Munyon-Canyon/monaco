@@ -18,17 +18,18 @@ const (
 )
 
 type UserCard struct {
-	ID             ids.UserID
-	Handle         string
-	DisplayName    string
-	PhotoURL       string
-	AuthState      domain.AuthState
-	AccountStatus  domain.AccountStatus
-	PhoneVerified  bool
-	XLinked        bool
-	CreatedAt      time.Time
-	FirstDepositAt *time.Time
-	Deleted        bool
+	ID                 ids.UserID
+	Handle             string
+	DisplayName        string
+	PhotoURL           string
+	AuthState          domain.AuthState
+	AccountStatus      domain.AccountStatus
+	PhoneVerified      bool
+	XLinked            bool
+	AuthStateChangedAt time.Time
+	CreatedAt          time.Time
+	FirstDepositAt     *time.Time
+	Deleted            bool
 }
 
 type MemberWallet struct {
