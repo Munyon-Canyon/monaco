@@ -79,6 +79,7 @@ type readData struct {
 	members   map[ids.CabalID][]cabalport.MemberView
 	positions []treasury.CabalPositions
 	stakes    []treasury.MemberStake
+	reserved  map[ids.CabalID]money.Micros
 	users     map[ids.UserID]identity.UserCard
 	paused    funding.PausedSet
 	assets    []market.Asset
@@ -101,6 +102,10 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
+	reserved, err := r.ports.Treasury.CashOutReservations(ctx)
+	if err != nil {
+		return readData{}, err
+	}
 	users, err := r.readUsers(ctx, stakes, members)
 	if err != nil {
 		return readData{}, err
@@ -114,7 +119,7 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 		return readData{}, err
 	}
 	return readData{
-		cabals: cabals, members: members, positions: positions, stakes: stakes, users: users,
+		cabals: cabals, members: members, positions: positions, stakes: stakes, reserved: reserved, users: users,
 		paused: paused, assets: assets,
 	}, nil
 }
@@ -250,6 +255,7 @@ func (r RunValuation) inputs(
 			logExcluded(ctx, cabal.ID, errs.CodeCabalPaused)
 		}
 		input, assetIDs, ok, err := r.input(cabal, position, found, data.paused, byMint)
+		input.reserved = data.reserved[cabal.ID]
 		if err != nil {
 			return nil, nil, err
 		}
@@ -316,6 +322,7 @@ func (r RunValuation) values(
 		func(_ context.Context, in valuationInput) (valuedCabal, error) {
 			nav, flags, err := r.cabalNAV(
 				in.cash,
+				in.reserved,
 				in.tokens,
 				in.position.TotalShares,
 				byMint,
@@ -328,6 +335,10 @@ func (r RunValuation) values(
 		},
 	)
 	for result := range stage {
+		if errs.CodeOf(result.Err) == errs.CodeConservationBroken {
+			logExcluded(ctx, result.Val.cabalID, errs.CodeConservationBroken)
+			continue
+		}
 		if result.Err != nil {
 			return nil, nil, result.Err
 		}
@@ -413,7 +424,7 @@ func positionsByCabal(in []treasury.CabalPositions) map[ids.CabalID]treasury.Cab
 }
 
 func (r RunValuation) cabalNAV(
-	cash money.Micros,
+	cash, reserved money.Micros,
 	positions []treasury.Position,
 	totalShares money.SharesUnits,
 	assets map[string]market.Asset,
@@ -455,7 +466,9 @@ func (r RunValuation) cabalNAV(
 	if len(flags) != 0 {
 		return domain.NAV{}, flags, nil
 	}
-	nav, err := domain.CabalNAV(domain.NAVInput{USDC: cash, Holdings: holdings, TotalShares: totalShares})
+	nav, err := domain.CabalNAV(
+		domain.NAVInput{USDC: cash, Reserved: reserved, Holdings: holdings, TotalShares: totalShares},
+	)
 	return nav, nil, err
 }
 
@@ -463,6 +476,7 @@ type valuationInput struct {
 	cabalID  ids.CabalID
 	position treasury.CabalPositions
 	cash     money.Micros
+	reserved money.Micros
 	tokens   []treasury.Position
 }
 

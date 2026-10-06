@@ -81,11 +81,16 @@ type HistoryReader interface {
 	UserStakeHistory(ctx context.Context, userID ids.UserID) ([]StakePoint, error)
 }
 
+type ReservationReader interface {
+	CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error)
+}
+
 type Queries interface {
 	PositionsReader
 	StakesReader
 	HistoricalReader
 	HistoryReader
+	ReservationReader
 }
 
 type SignatureOwner interface {

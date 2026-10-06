@@ -236,6 +236,10 @@ func (f *Treasury) MemberFlowsBetween(_ context.Context, from, to time.Time) ([]
 	}), nil
 }
 
+func (f *Treasury) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
+	return map[ids.CabalID]money.Micros{}, f.Check("CashOutReservations")
+}
+
 func (f *Treasury) stake(cabalID ids.CabalID, user ids.UserID) treasury.Stake {
 	if i := slices.IndexFunc(f.stakes, func(stake treasury.Stake) bool {
 		return stake.CabalID == cabalID && stake.UserID == user

@@ -23,6 +23,10 @@ func TestCabalNAV(t *testing.T) {
 			in:   domain.NAVInput{USDC: usd(5_000_000), TotalShares: shares(2_000_000)},
 			want: domain.NAV{Value: usd(5_000_000), PerShare: usd(2_500_000)},
 		},
+		"cash reserved for cash-outs is not the pot's": {
+			in:   domain.NAVInput{USDC: usd(5_000_000), Reserved: usd(1_000_000), TotalShares: shares(2_000_000)},
+			want: domain.NAV{Value: usd(4_000_000), PerShare: usd(2_000_000)},
+		},
 		"no shares prices nothing per share": {
 			in:   domain.NAVInput{USDC: usd(7)},
 			want: domain.NAV{Value: usd(7)},
@@ -86,5 +90,13 @@ func TestCabalNAV_Errors(t *testing.T) {
 				t.Fatalf("CabalNAV = %+v, %v, want invalid_input and zero NAV", got, err)
 			}
 		})
+	}
+}
+
+func TestCabalNAV_ReservationOverTheValueBreaksConservation(t *testing.T) {
+	t.Parallel()
+	got, err := domain.CabalNAV(domain.NAVInput{USDC: usd(1), Reserved: usd(2)})
+	if errs.CodeOf(err) != errs.CodeConservationBroken || got != (domain.NAV{}) {
+		t.Fatalf("CabalNAV = %+v, %v, want conservation_broken and zero NAV", got, err)
 	}
 }

@@ -191,6 +191,7 @@ func TestRunValuation_cabalNAVErrors(t *testing.T) {
 	runner := NewRunValuation(Ports{Market: &countingPorts{}}, usdc)
 	if _, _, err := runner.cabalNAV(
 		money.Micros{},
+		money.Micros{},
 		[]treasury.Position{{Mint: stock.Address()}},
 		money.SharesUnits{},
 		nil,
@@ -206,6 +207,7 @@ func TestRunValuation_cabalNAVErrors(t *testing.T) {
 	assets := map[string]market.Asset{stock.String(): {ID: listed, Mint: stock}}
 	if _, flags, err := runner.cabalNAV(
 		money.Micros{},
+		money.Micros{},
 		[]treasury.Position{{Mint: stock.Address()}},
 		money.SharesUnits{},
 		assets,
@@ -219,6 +221,7 @@ func TestRunValuation_cabalNAVErrors(t *testing.T) {
 	}
 	fresh := map[market.AssetID]market.Price{listed: {Micros: money.MicrosFromUint64(1), ObservedAt: now}}
 	if _, _, err := runner.cabalNAV(
+		money.Micros{},
 		money.Micros{},
 		[]treasury.Position{{Mint: stock.Address(), Units: money.NewBaseUnits(1, 20)}},
 		money.SharesUnits{},
@@ -587,10 +590,11 @@ func TestRunValuation_flagsACabalWithAnUnpricedAssetInsteadOfDroppingIt(t *testi
 
 type countingPorts struct {
 	all, memberCalls, positions, stakes, paused, assets, latest, asOf, sessionCalls int
-	previousCalls                                                                   int
+	reservations, previousCalls                                                     int
+	reservedRows                                                                    map[ids.CabalID]money.Micros
 	userRows                                                                        map[ids.UserID]identity.UserCard
 	previousRows                                                                    []sqlc.LeaderboardEntry
-	previousErr                                                                     error
+	reservedErr, previousErr                                                        error
 	cabals                                                                          []cabal.View
 	members                                                                         map[ids.CabalID][]cabal.MemberView
 	positionRows                                                                    []treasury.CabalPositions
@@ -670,6 +674,11 @@ func (f *countingPorts) Session(_ context.Context, id market.AssetID, _ time.Tim
 
 func (f *countingPorts) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]identity.UserCard, error) {
 	return f.userRows, f.userErr
+}
+
+func (f *countingPorts) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
+	f.reservations++
+	return f.reservedRows, f.reservedErr
 }
 
 func (f *countingPorts) PreviousEntriesForCabals(

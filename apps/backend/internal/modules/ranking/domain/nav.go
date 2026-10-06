@@ -18,6 +18,7 @@ type Holding struct {
 
 type NAVInput struct {
 	USDC        money.Micros
+	Reserved    money.Micros
 	Holdings    []Holding
 	TotalShares money.SharesUnits
 }
@@ -38,14 +39,19 @@ func CabalNAV(in NAVInput) (NAV, error) {
 			return NAV{}, err
 		}
 	}
-	if in.TotalShares.IsZero() {
-		return NAV{Value: value}, nil
+	available, err := value.Sub(in.Reserved)
+	if err != nil {
+		return NAV{}, errs.New(errs.CodeConservationBroken, "ranking.CabalNAV",
+			slog.String("value", value.String()), slog.String("reserved", in.Reserved.String()))
 	}
-	perShare, err := money.MulDiv(value.Uint64(), shareScale, in.TotalShares.Uint64())
+	if in.TotalShares.IsZero() {
+		return NAV{Value: available}, nil
+	}
+	perShare, err := money.MulDiv(available.Uint64(), shareScale, in.TotalShares.Uint64())
 	if err != nil {
 		return NAV{}, err
 	}
-	return NAV{Value: value, PerShare: money.MicrosFromUint64(perShare)}, nil
+	return NAV{Value: available, PerShare: money.MicrosFromUint64(perShare)}, nil
 }
 
 func holdingValue(h Holding) (money.Micros, error) {
