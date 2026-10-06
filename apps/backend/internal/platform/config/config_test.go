@@ -41,6 +41,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		OTel: config.OTel{ServiceName: "monaco"},
 		Timeouts: config.Timeouts{
 			RPC:             5 * time.Second,
+			RPCBreakerOpen:  time.Minute,
 			Privy:           10 * time.Second,
 			APNs:            10 * time.Second,
 			JupiterQuote:    5 * time.Second,
@@ -115,6 +116,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"OTEL_SERVICE_NAME=monaco-api",
 		"MONACO_DEV_TOKEN_KEY=dev-secret",
 		"MONACO_TIMEOUT_RPC=1s",
+		"MONACO_TIMEOUT_RPC_BREAKER_OPEN=3s",
 		"MONACO_TIMEOUT_PRIVY=2s",
 		"MONACO_TIMEOUT_APNS=8s",
 		"MONACO_TIMEOUT_JUPITER_QUOTE=3s",
@@ -189,6 +191,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Auth: config.Auth{DevTokenKey: "dev-secret"},
 		Timeouts: config.Timeouts{
 			RPC:             time.Second,
+			RPCBreakerOpen:  3 * time.Second,
 			Privy:           2 * time.Second,
 			APNs:            8 * time.Second,
 			JupiterQuote:    3 * time.Second,
@@ -506,6 +509,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"OTEL_EXPORTER_OTLP_ENDPOINT", ""},
 		{"OTEL_SERVICE_NAME", "monaco"},
 		{"MONACO_TIMEOUT_RPC", "5s"},
+		{"MONACO_TIMEOUT_RPC_BREAKER_OPEN", "1m0s"},
 		{"MONACO_TIMEOUT_PRIVY", "10s"},
 		{"MONACO_TIMEOUT_JUPITER_QUOTE", "5s"},
 		{"MONACO_TIMEOUT_JUPITER_EXECUTE", "1m30s"},
