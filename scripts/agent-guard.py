@@ -660,7 +660,7 @@ open: pullRequests(states:OPEN,first:100,orderBy:{field:UPDATED_AT,direction:DES
 timelineItems(itemTypes:[LABELED_EVENT,UNLABELED_EVENT],last:20){nodes{__typename
 ... on LabeledEvent{createdAt label{name}} ... on UnlabeledEvent{createdAt label{name} actor{login}}}}}}
 closed: pullRequests(states:CLOSED,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{
-title headRefName updatedAt}}}}"""
+title headRefName closedAt}}}}"""
 
 
 def labeled_heads(cwd: str) -> dict[str, int]:
@@ -691,7 +691,7 @@ def taken_by_graphite(pr: dict, closed: list[dict], now: datetime) -> bool:
     removal = events[-1]
     login = (removal.get("actor") or {}).get("login") or ""
     at = utc(removal["createdAt"])
-    ran = any(pr["number"] in drafted(c) and utc(c["updatedAt"]) > at for c in closed)
+    ran = any(pr["number"] in drafted(c) and utc(c["closedAt"]) > at for c in closed)
     return "graphite" in login.lower() and now - at < GRAPHITE_HOLD and not ran
 
 

@@ -256,10 +256,14 @@ func (p watchPR) queueJob(drafts []queueDraft, since time.Time) gqlContext {
 }
 
 func queueJob(pr int, head lastCommits, drafts []queueDraft, since time.Time) gqlContext {
-	for i := len(drafts) - 1; i >= 0; i-- {
-		if nodes := drafts[i].Commits.Nodes; drafts[i].runs(pr, since) && len(nodes) > 0 {
-			return nodes[len(nodes)-1].Commit.failedJob()
+	var newest queueDraft
+	for _, d := range drafts {
+		if d.runs(pr, since) && d.ClosedAt.After(newest.ClosedAt) {
+			newest = d
 		}
+	}
+	if nodes := newest.Commits.Nodes; len(nodes) > 0 {
+		return nodes[len(nodes)-1].Commit.failedJob()
 	}
 	if nodes := head.Nodes; len(nodes) > 0 {
 		return nodes[len(nodes)-1].Commit.failedJob()
