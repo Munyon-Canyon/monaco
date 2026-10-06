@@ -532,7 +532,7 @@ def apply_event_streams(log):
 
 
 def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
-    log = OUT / "backend.log"
+    log = OUT / ("backend-slot%d.log" % slot)
     OUT.mkdir(parents=True, exist_ok=True)
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     apply_event_streams(log)
@@ -846,6 +846,38 @@ def new_run_id():
     return "".join(random.SystemRandom().choice(alphabet) for _ in range(6))
 
 
+def write_run_accounts(accounts):
+    """accounts.tsv as this run sees it: each actor's row holds the login the run gave that actor. Setup and
+    truth scripts read it through QA_ACCOUNTS_FILE, so a doc actor remapped onto another login seeds that
+    login's user. The name carries a hash of the rows, so runs with different logins never share a file."""
+    header = next(line for line in (QA / "accounts.tsv").read_text().splitlines()
+                  if line.strip() and not line.startswith("#")).split("\t")
+    # A setup script also seeds as helper members the journey does not list (feed/browse seeds as B), so the
+    # file keeps every login's own row and only the journey's actors take the login they hold.
+    rows = dict(load_accounts(), **accounts)
+    lines = ["\t".join(header)] + ["\t".join(row.get(column, "") for column in header)
+                                    for _, row in sorted(rows.items())]
+    text = "\n".join(lines) + "\n"
+    OUT.mkdir(parents=True, exist_ok=True)
+    path = OUT / ("accounts-%s.tsv" % hashlib.sha256(text.encode()).hexdigest()[:8])
+    tmp = path.with_suffix(".tmp%d" % os.getpid())
+    tmp.write_text(text)
+    os.replace(str(tmp), str(path))
+    return str(path)
+
+
+def prepare_logins(journey, accounts, api_base_url):
+    """Runs scripts/qa/ready-login.sh for each actor, so the login it holds opens the tab bar after sign-in."""
+    env = dict(os.environ)
+    env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)
+    env["MONACO_API_BASE_URL"] = api_base_url
+    for actor in journey.actors:
+        done = sh(["scripts/qa/ready-login.sh", actor], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        print(done.stdout.rstrip())
+        if done.returncode != 0:
+            raise JourneyError("could not prepare the login for actor %s" % actor)
+
+
 def actor_environment(accounts, channel, run_id, prefix=""):
     env = {prefix + "MONACO_QA_JOURNEYS": "1", prefix + "MONACO_QA_CHANNEL": channel, prefix + "MONACO_QA_RUN": run_id}
     if os.environ.get("MONACO_QA_REFUND_ADDRESS"):
@@ -924,6 +956,7 @@ def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_
                     out.flush()
                     env = dict(os.environ)
                     env.update(actor_environment(accounts, channel, run_id))
+                    env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)
                     env["MONACO_QA_HANDOFF"] = str(handoff)
                     env["MONACO_API_BASE_URL"] = env["MONACO_QA_API_BASE_URL"] = api_base_url
                     if sh([str(setup), starts], env=env, stdout=out, stderr=subprocess.STDOUT,
@@ -985,6 +1018,7 @@ def run_truth(journey, accounts, channel, run_id, handoff, budget=None, api_base
         return "none"
     env = dict(os.environ)
     env.update(actor_environment(accounts, channel, run_id))
+    env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)
     env["MONACO_QA_HANDOFF"] = str(handoff)
     if api_base_url:
         env["MONACO_API_BASE_URL"] = env["MONACO_QA_API_BASE_URL"] = api_base_url
@@ -1184,7 +1218,7 @@ def once_builder(args):
 
     def builder(sim):
         if not args.no_build and not done:
-            ensure_build(sim, OUT / "build.log", args.rebuild)
+            ensure_build(sim, OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]), args.rebuild)
         done.append(sim)
     return builder
 
@@ -1264,6 +1298,7 @@ def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, b
     if funding:
         print(funding)
     builder(sims[journey.actors[0]])
+    prepare_logins(journey, accounts, api_base_url)
     worst = 0
     for index in range(1, args.runs + 1):
         run_name = "%s-%s-%d" % (stamp(), journey.id.replace("/", "-"), index)
@@ -1334,7 +1369,7 @@ def run_mutants(args, api_base_url):
     finally:
         try:
             if "sims" in locals():
-                build(sims[journey.actors[0]], OUT / "build.log")
+                build(sims[journey.actors[0]], OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]))
         finally:
             locks.close()
             for signum, handler in old_handlers.items():

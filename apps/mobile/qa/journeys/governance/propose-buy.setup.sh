@@ -28,7 +28,7 @@ esac
 qa_api_ready
 for actor in A B; do
   did="$(apps/mobile/qa/journeys/privy-user-id.sh "$actor")"
-  name="$(awk -F '\t' -v actor="$actor" '$1 == actor { print $2 }' apps/mobile/qa/journeys/accounts.tsv)"
+  name="$(awk -F '\t' -v actor="$actor" '$1 == actor { print $2 }' "${QA_ACCOUNTS_FILE:-apps/mobile/qa/journeys/accounts.tsv}")"
   qa_sql -v did="$did" >/dev/null \
     <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
   qa_api "$actor" PATCH /v1/me "{\"display_name\":\"$name\"}" >/dev/null

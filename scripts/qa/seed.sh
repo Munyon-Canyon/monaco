@@ -24,7 +24,8 @@
 
 QA_ROOT="$(git rev-parse --show-toplevel)"
 QA_API="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
-QA_ACCOUNTS="$QA_ROOT/apps/mobile/qa/journeys/accounts.tsv"
+# journey.py points QA_ACCOUNTS_FILE at the run's accounts: each actor's row is the login the run holds for it.
+QA_ACCOUNTS="${QA_ACCOUNTS_FILE:-$QA_ROOT/apps/mobile/qa/journeys/accounts.tsv}"
 QA_FAKES="${QA_FAKES_URL:-http://127.0.0.1:8099}"
 if [[ "${QA_FAKE_RPC:-}" == 1 ]]; then
   export SOLANA_RPC_URL="$QA_FAKES/rpc/"

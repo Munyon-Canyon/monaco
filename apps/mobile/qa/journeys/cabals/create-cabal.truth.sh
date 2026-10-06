@@ -2,7 +2,7 @@
 set -euo pipefail
 
 api="${MONACO_QA_API_BASE_URL:-http://127.0.0.1:8080}"
-accounts="apps/mobile/qa/journeys/accounts.tsv"
+accounts="${QA_ACCOUNTS_FILE:-apps/mobile/qa/journeys/accounts.tsv}"
 privy_user_id="$(awk -F '\t' '
   $1 == "actor" {
     for (i = 1; i <= NF; i++) {
