@@ -14,7 +14,7 @@ enum FeedBrowseJourney {
     static func ownCabal(run: String) -> String { "QA own \(run)" }
 
     static func text(_ app: XCUIApplication, containing fragment: String) -> XCUIElement {
-        app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", fragment)).firstMatch
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", fragment)).firstMatch
     }
 
     static func openFeed(_ app: XCUIApplication, step: String) {
@@ -23,10 +23,15 @@ enum FeedBrowseJourney {
     }
 
     static func tapChip(_ app: XCUIApplication, _ title: String) {
+        let screen = app.frame
+        func onScreen(_ element: XCUIElement) -> Bool {
+            let frame = element.frame
+            return frame.width > 0 && frame.minX >= 0 && frame.maxX <= screen.maxX
+        }
         let chip = app.element("feed-chip-\(title)")
         var swipes = 0
-        while !chip.isHittable, swipes < 4,
-            let anchor = chips.map({ app.element("feed-chip-\($0)") }).first(where: { $0.isHittable })
+        while !onScreen(chip), swipes < 4,
+            let anchor = chips.map({ app.element("feed-chip-\($0)") }).first(where: onScreen)
         {
             if chip.frame.minX > anchor.frame.minX { anchor.swipeLeft() } else { anchor.swipeRight() }
             swipes += 1
