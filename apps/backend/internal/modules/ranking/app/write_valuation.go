@@ -53,7 +53,7 @@ type rankingQueries interface {
 	DeleteAllLeaderboardEntries(context.Context) error
 	InsertLeaderboardEntries(context.Context, []byte) error
 	DeleteRankingTriggersThrough(context.Context, time.Time) error
-	previousEntriesQuery
+	PreviousReader
 }
 
 type eventAppender interface {
@@ -185,7 +185,7 @@ func int64s(cabal CabalValue) ([3]int64, error) {
 	return out, nil
 }
 
-func keepsFlagged(ctx context.Context, q previousEntriesQuery, valuation Valuation) error {
+func keepsFlagged(ctx context.Context, q PreviousReader, valuation Valuation) error {
 	flagged := make([]ids.CabalID, len(valuation.Flagged))
 	for i, cabal := range valuation.Flagged {
 		flagged[i] = cabal.CabalID

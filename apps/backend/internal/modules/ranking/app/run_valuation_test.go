@@ -28,7 +28,7 @@ func TestRunValuation_readsEachBatchPortOnce(t *testing.T) {
 	t.Parallel()
 	f := &countingPorts{}
 	got, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 		"",
 	).Run(t.Context(), valuationTime())
 	if err != nil || len(got.Cabals) != 0 || got.Excluded != 0 {
@@ -45,7 +45,7 @@ func TestRunValuation_readsEachBatchPortOnceForFiveHundredCabals(t *testing.T) {
 	t.Parallel()
 	f := &countingPorts{cabals: make([]cabal.View, 500)}
 	got, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 		"",
 	).Run(t.Context(), valuationTime())
 	if err != nil || got.Excluded != 500 {
@@ -79,7 +79,7 @@ func TestRunValuation_excludesBannedPausedAndUnconservedCabals(t *testing.T) {
 			f := &countingPorts{cabals: []cabal.View{{ID: id}}}
 			setup(id, f)
 			got, err := NewRunValuation(
-				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 				usdc,
 			).Run(t.Context(), valuationTime())
 			if err != nil || len(got.Cabals) != 0 || got.Excluded != 1 {
@@ -110,7 +110,7 @@ func TestRunValuation_returnsReadErrors(t *testing.T) {
 			f := &countingPorts{}
 			setup(f)
 			if _, err := NewRunValuation(
-				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 				"",
 			).Run(t.Context(), valuationTime()); err == nil {
 				t.Fatal("Run() error = nil")
@@ -124,7 +124,7 @@ func TestRunValuation_returnsSessionError(t *testing.T) {
 	f, usdc := heldAssetPorts(t, 1)
 	f.sessionErr = errs.New(errs.CodeInternal, "test")
 	if _, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc,
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc,
 	).Run(t.Context(), valuationTime()); err == nil {
 		t.Fatal("Run() error = nil")
 	}
@@ -170,7 +170,7 @@ func TestRunValuation_helpers(t *testing.T) {
 	for i := range stakes {
 		stakes[i].UserID = ids.UserIDFrom(ids.Real{}.NewV7())
 	}
-	if err := NewRunValuation(Ports{Users: f}, "").readUsers(t.Context(), stakes); err != nil {
+	if _, err := NewRunValuation(Ports{Users: f, Previous: f}, "").readUsers(t.Context(), stakes, nil); err != nil {
 		t.Fatalf("readUsers() = %v", err)
 	}
 }
@@ -389,7 +389,7 @@ func TestRunValuation_rejectsInvalidCashUnits(t *testing.T) {
 	t.Parallel()
 	f, usdc := heldAssetPorts(t, 1)
 	f.positionRows[0].Holdings[0].Units = money.NewBaseUnits(1, 5)
-	_, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc).
+	_, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc).
 		Run(t.Context(), valuationTime())
 	if errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("Run() = %v", err)
@@ -425,7 +425,7 @@ func TestRunValuation_excludesUnpricedAndReturnsUnexpectedConservationErrors(t *
 			f := &countingPorts{cabals: []cabal.View{{ID: id}}}
 			setup(id, f)
 			got, runErr := NewRunValuation(
-				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+				Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 				usdc,
 			).Run(t.Context(), now)
 			if name == "unpriced" && (runErr != nil || got.Excluded != 1) {
@@ -442,7 +442,7 @@ func TestRunValuation_refusesAnUncataloguedHeldMint(t *testing.T) {
 	t.Parallel()
 	f, usdc := heldAssetPorts(t, 1)
 	f.assetRows = nil
-	_, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc).
+	_, err := NewRunValuation(Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc).
 		Run(t.Context(), valuationTime())
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("Run() = %v, want upstream_unavailable", err)
@@ -473,7 +473,7 @@ func TestRunValuation_valuesUSDCWithoutCatalogLookup(t *testing.T) {
 		},
 	}
 	got, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 		usdc,
 	).Run(t.Context(), now)
 	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].Value != money.MicrosFromUint64(2_000_000) {
@@ -544,7 +544,7 @@ func TestRunValuation_readsSessionsOncePerHeldAssetWhateverTheCabalCount(t *test
 	for _, cabals := range []int{1, 500} {
 		f, usdc := heldAssetPorts(t, cabals)
 		got, err := NewRunValuation(
-			Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+			Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 			usdc,
 		).Run(t.Context(), valuationTime())
 		if err != nil || len(got.Cabals) != cabals || len(got.Flagged) != 0 {
@@ -561,7 +561,7 @@ func TestRunValuation_returnsAValuationErrorFromTheStage(t *testing.T) {
 	f, usdc := heldAssetPorts(t, 100)
 	f.positionRows[0].Holdings[1].Units = money.NewBaseUnits(1, 20)
 	if _, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 		usdc,
 	).Run(t.Context(), valuationTime()); err == nil {
 		t.Fatal("Run() error = nil, want the stage error")
@@ -574,7 +574,7 @@ func TestRunValuation_flagsACabalWithAnUnpricedAssetInsteadOfDroppingIt(t *testi
 	delete(f.latestRows, f.assetRows[0].ID)
 	delete(f.asOfRows, f.assetRows[0].ID)
 	got, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f},
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f},
 		usdc,
 	).Run(t.Context(), valuationTime())
 	if err != nil || len(got.Cabals) != 0 || len(got.Flagged) != 2 || got.Excluded != 2 {
@@ -587,6 +587,10 @@ func TestRunValuation_flagsACabalWithAnUnpricedAssetInsteadOfDroppingIt(t *testi
 
 type countingPorts struct {
 	all, memberCalls, positions, stakes, paused, assets, latest, asOf, sessionCalls int
+	previousCalls                                                                   int
+	userRows                                                                        map[ids.UserID]identity.UserCard
+	previousRows                                                                    []sqlc.LeaderboardEntry
+	previousErr                                                                     error
 	cabals                                                                          []cabal.View
 	members                                                                         map[ids.CabalID][]cabal.MemberView
 	positionRows                                                                    []treasury.CabalPositions
@@ -665,7 +669,15 @@ func (f *countingPorts) Session(_ context.Context, id market.AssetID, _ time.Tim
 }
 
 func (f *countingPorts) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]identity.UserCard, error) {
-	return nil, f.userErr
+	return f.userRows, f.userErr
+}
+
+func (f *countingPorts) PreviousEntriesForCabals(
+	context.Context,
+	sqlc.PreviousEntriesForCabalsParams,
+) ([]sqlc.LeaderboardEntry, error) {
+	f.previousCalls++
+	return f.previousRows, f.previousErr
 }
 
 func TestRunValuation_pricesAClosedAssetAtItsCloseNotAtTheRunTime(t *testing.T) {
@@ -688,7 +700,7 @@ func TestRunValuation_pricesAClosedAssetAtItsCloseNotAtTheRunTime(t *testing.T) 
 		}
 	}
 	got, err := NewRunValuation(
-		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f}, usdc,
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f}, usdc,
 	).Run(t.Context(), now)
 	if err != nil || len(got.Cabals) != 1 || got.Cabals[0].Value != money.MicrosFromUint64(5_000_000) {
 		t.Fatalf("Run() = %#v, %v, want 1 USDC + 3 at the close + 1 open, not 7 with the off-hours sample", got, err)

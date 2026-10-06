@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -35,7 +36,7 @@ func WithPorts(ports app.Ports) Option { return func(m *Module) { m.ports = port
 
 func New(d module.Deps, opts ...Option) *Module {
 	cache := adapters.NewCache[app.PageKey, domain.BoardPage](pageCacheSize)
-	m := &Module{deps: d, pages: adapters.PageCache{Cache: cache}}
+	m := &Module{deps: d, ports: app.Ports{Previous: sqlc.New(d.Pool)}, pages: adapters.PageCache{Cache: cache}}
 	for _, opt := range opts {
 		opt(m)
 	}
