@@ -201,7 +201,7 @@ struct GroupDetailView: View {
     private func destination(for route: GroupDetailRoute) -> some View {
         switch route {
         case .chat:
-            GroupChatView(auth: auth, groupId: groupId, groupName: displayName)
+            ChatRoute(cabalID: groupId).destination()
         case .stock(let symbol):
             AssetDetailClientView(symbol: symbol)
         }

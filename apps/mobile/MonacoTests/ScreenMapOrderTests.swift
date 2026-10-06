@@ -69,7 +69,7 @@ struct ScreenMapOrderTests {
 
     @Test func theChatRouteRendersItsScreen() {
         let view: Any = ChatRoute(cabalID: "c").destination()
-        #expect(view is CabalChatView)
+        #expect(view is GroupChatView)
     }
 
     @Test func theActivityRouteRendersItsScreen() {

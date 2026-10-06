@@ -98,7 +98,7 @@ nonisolated final class GroupNavSampleUITests: XCTestCase {
     @MainActor
     private func runActionRow(entry: String) {
         let app = openCabalScreen(entry: entry)
-        assertAction(app, entry: entry, actionIdentifier: "group-action-chat", destinationIdentifier: "group-chat-view")
+        assertAction(app, entry: entry, actionIdentifier: "group-action-chat", destinationIdentifier: "chat-view")
         attachScreenshot(app, name: "\(entry)-action-row-ok")
     }
 
