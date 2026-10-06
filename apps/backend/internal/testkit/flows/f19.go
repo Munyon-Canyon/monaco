@@ -68,13 +68,14 @@ func seedCabal(s *scenario.Scenario, mint chain.SolanaAddress) valuationSeed {
 func F19RunValuationOK(s *scenario.Scenario) {
 	mint := seedAsset(s)
 	seed := seedCabal(s, mint)
-	s.Given().When(
+	s.Given(scenario.AsSeededUser("viewer", seed.cabal.Creator.ID)).When(
 		queueValuation(seed),
 		scenario.AwaitTick(valuationPoller),
 	).Then(
 		seed.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
 		seed.awaitSnapshot(valuationPotMicros),
 		awaitSnapshotEvent(),
+		scenario.EventuallyGlobalHint("leaderboards_updated"),
 	)
 }
 

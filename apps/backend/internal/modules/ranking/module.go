@@ -90,7 +90,7 @@ func (m *Module) Mount(r api.Mount) {
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }
 
 func (m *Module) consumers() []bus.Consumer {
-	return []bus.Consumer{membership(), m.names(), triggers()}
+	return []bus.Consumer{membership(), m.names(), m.hints(), triggers()}
 }
 
 func (m *Module) Pollers() []poller.Poller {
