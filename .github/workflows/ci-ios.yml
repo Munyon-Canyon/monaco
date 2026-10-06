@@ -32,21 +32,28 @@ jobs:
         run: scripts/ci/select-xcode.sh
 
       # actions/cache rejects a path with `..` in it, and a cache entry only matches the same path string.
+      # The simulator boots in the background so the cache restores don't wait on it; the processes a
+      # step starts live until the job ends, and the build step waits for the boot with bootstatus.
       - name: Resolve DerivedData and the simulator
         run: |
           sim="$(scripts/resolve-ios-sim.sh)"
-          xcrun simctl boot "$sim" || true
+          nohup xcrun simctl boot "$sim" > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
           {
             echo "DERIVED_DATA=$(cd "$GITHUB_WORKSPACE/.." && pwd -P)/DerivedData"
             echo "SIM=$sim"
           } >> "$GITHUB_ENV"
 
+      # The checkouts plus workspace-state.json resolve offline from Package.resolved, so the
+      # repositories git mirrors (about 1 GB) stay out of the cache.
       - name: Restore Swift packages
         id: spm
         uses: actions/cache/restore@v4
         with:
-          path: ${{ env.DERIVED_DATA }}/SourcePackages
-          key: spm-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
+          path: |
+            ${{ env.DERIVED_DATA }}/SourcePackages/checkouts
+            ${{ env.DERIVED_DATA }}/SourcePackages/artifacts
+            ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
+          key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
 
       - name: Placeholder app config
         run: scripts/ensure-ios-privy-config.sh placeholder
@@ -55,6 +62,7 @@ jobs:
       # test plan leaves MonacoUITests out, so CI never compiles it; the scheme's default plan keeps both.
       - name: Build the app and run MonacoTests
         run: |
+          xcrun simctl bootstatus "$SIM" -b
           xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
@@ -65,8 +73,11 @@ jobs:
         if: inputs.save-cache && steps.spm.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ env.DERIVED_DATA }}/SourcePackages
-          key: spm-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
+          path: |
+            ${{ env.DERIVED_DATA }}/SourcePackages/checkouts
+            ${{ env.DERIVED_DATA }}/SourcePackages/artifacts
+            ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
+          key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
 
       - name: Upload test results
         if: failure()
