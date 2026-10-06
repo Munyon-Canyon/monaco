@@ -222,7 +222,9 @@ func (s *stream) eject(ctx context.Context, r Record, prs []stackPR, out stackPR
 	if err := env.conclude(ctx, r, outcomeEjected, line); err != nil {
 		return []string{watchErr(fmt.Sprintf("eject #%d: ", top), err)}
 	}
-	s.reported[out.Number] = true
+	for _, p := range prs {
+		s.reported[p.Number] = true
+	}
 	f := failure{
 		PR: out.Number, Head: out.HeadOID, Body: out.Body, Why: ejectedWhy(out),
 		Job: queueJob(out.Number, out.Commits, drafts, time.Time{}),
