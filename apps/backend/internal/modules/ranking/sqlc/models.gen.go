@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type CabalValueSnapshot struct {
@@ -16,6 +17,23 @@ type CabalValueSnapshot struct {
 	ValueMicros       int64
 	NavPerShareMicros int64
 	TotalShares       int64
+}
+
+type LeaderboardEntry struct {
+	Board             string
+	Range             string
+	Rank              int32
+	SubjectID         uuid.UUID
+	SubjectName       string
+	SubjectHandle     pgtype.Text
+	SubjectPictureUrl pgtype.Text
+	SubjectCreatedAt  time.Time
+	ValueMicros       int64
+	PnlMicros         int64
+	ReturnBps         pgtype.Int8
+	PricesAsOf        time.Time
+	ComputedAt        time.Time
+	Flags             []string
 }
 
 type LeaderboardRun struct {
