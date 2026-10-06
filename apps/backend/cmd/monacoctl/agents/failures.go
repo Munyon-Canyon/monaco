@@ -23,7 +23,7 @@ func failureQuery(after string) string {
 	drafts := ""
 	if after == "" {
 		drafts = `drafts: pullRequests(states:[OPEN,CLOSED],last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
-			`number state title body headRefName headRefOid updatedAt commits(last:1){nodes{commit{...runs}}}}}`
+			`number state title body headRefName headRefOid updatedAt closedAt commits(last:1){nodes{commit{...runs}}}}}`
 	}
 	return `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
 		`pullRequests(` + openPage(after) + `){pageInfo{hasNextPage endCursor} ` +
@@ -49,6 +49,7 @@ type queueDraft struct {
 	HeadRefName string      `json:"headRefName"`
 	HeadRefOID  string      `json:"headRefOid"`
 	UpdatedAt   time.Time   `json:"updatedAt"`
+	ClosedAt    time.Time   `json:"closedAt"`
 	Commits     lastCommits `json:"commits"`
 }
 
@@ -97,7 +98,7 @@ func (d *queueDraft) commits() []*gqlCommit {
 }
 
 func (d queueDraft) runs(pr int, since time.Time) bool {
-	return d.State != "OPEN" && d.UpdatedAt.After(since) && d.tests(pr)
+	return d.State != "OPEN" && d.ClosedAt.After(since) && d.tests(pr)
 }
 
 func draftHolds(drafts []queueDraft, pr int) bool {
@@ -266,16 +267,16 @@ func queueJob(pr int, head lastCommits, drafts []queueDraft, since time.Time) gq
 	return gqlContext{}
 }
 
-func (env *Env) failures(ctx context.Context) ([]failure, watchData, error) {
+func (env *Env) failures(ctx context.Context, rs []Record) ([]failure, watchData, error) {
 	since, err := env.lastRun()
 	if err != nil {
 		return nil, watchData{}, err
 	}
+	now := env.Now()
 	data, err := env.watchData(ctx)
 	if err != nil {
 		return nil, watchData{}, err
 	}
-	now := env.Now()
 	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: now}
 	if queue.landed, err = env.landedDrops(ctx, queue, data.prs, since); err != nil {
 		return nil, watchData{}, err
@@ -284,7 +285,28 @@ func (env *Env) failures(ctx context.Context) ([]failure, watchData, error) {
 	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
 		return nil, watchData{}, err
 	}
-	return failures(data.prs, queue, env.Config.FeatureBranch, since), data, nil
+	return onePerOwnedStack(failures(data.prs, queue, env.Config.FeatureBranch, since), rs), data, nil
+}
+
+func onePerOwnedStack(failed []failure, rs []Record) []failure {
+	type report struct {
+		ticket int
+		job    int64
+	}
+	ownedDrop := func(f failure) (report, bool) {
+		_, ticket, owned := ownerStack(rs, f.PR)
+		return report{ticket, f.Job.DatabaseID}, owned && f.Why == droppedWhy
+	}
+	lowest := map[report]int{}
+	for _, f := range failed {
+		if r, ok := ownedDrop(f); ok && (lowest[r] == 0 || f.PR < lowest[r]) {
+			lowest[r] = f.PR
+		}
+	}
+	return slices.DeleteFunc(failed, func(f failure) bool {
+		r, ok := ownedDrop(f)
+		return ok && f.PR != lowest[r]
+	})
 }
 
 func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string) []string {

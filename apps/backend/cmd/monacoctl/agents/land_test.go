@@ -1182,17 +1182,17 @@ func setUnlabels(t *testing.T, p *stackPR, events ...string) {
 	}
 }
 
-func closedDraftOf(t *testing.T, n int, prs string, updated time.Time) string {
+func closedDraftOf(t *testing.T, n int, prs string, closed time.Time) string {
 	t.Helper()
 	node := closedDraft(n, noRollup)
 	for _, swap := range [][2]string{
 		{"(PRs 1, 2)", "(PRs " + prs + ")"},
-		{"2026-09-27T11:59:00Z", updated.Format(time.RFC3339)},
+		{"2026-09-27T11:59:00Z", closed.Format(time.RFC3339)},
 	} {
 		if !strings.Contains(node, swap[0]) {
 			t.Fatalf("closedDraft no longer carries %q", swap[0])
 		}
-		node = strings.Replace(node, swap[0], swap[1], 1)
+		node = strings.ReplaceAll(node, swap[0], swap[1])
 	}
 	return node
 }

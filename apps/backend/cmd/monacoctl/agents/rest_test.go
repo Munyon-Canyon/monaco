@@ -276,7 +276,7 @@ func TestRESTStackAndDrafts(t *testing.T) {
 	f.hub.on(closedDraftList(), `[]`)
 	f.hub.status[route] = 0
 	f.hub.on(route, `[{"number":4,"title":"keep","state":"closed","merged_at":"`+merged+
-		`","head":{"ref":"gtmq_a"},"updated_at":"`+merged+
+		`","head":{"ref":"gtmq_a"},"updated_at":"`+merged+`","closed_at":"`+merged+
 		`"},{"number":5,"title":"old","state":"closed","head":{"ref":"gtmq_b"}},`+
 		`{"number":6,"title":"drop","head":{"ref":"feature"}}]`)
 	var drafts struct {
@@ -292,6 +292,9 @@ func TestRESTStackAndDrafts(t *testing.T) {
 	nodes := drafts.Repository.Drafts.Nodes
 	if len(nodes) != 2 || nodes[0].State != "MERGED" || nodes[1].State != "CLOSED" || nodes[0].HeadRefName != "gtmq_a" {
 		t.Fatalf("%+v", nodes)
+	}
+	if nodes[0].ClosedAt.Format(time.RFC3339) != merged || !nodes[1].ClosedAt.IsZero() {
+		t.Fatalf("closedAt %v and %v, want %s and none", nodes[0].ClosedAt, nodes[1].ClosedAt, merged)
 	}
 	f.hub.status[route] = http.StatusInternalServerError
 	f.hub.on(route, "boom")
@@ -310,9 +313,9 @@ func TestRESTMode_holdsAGraphiteTakenPRUntilAClosedDraftRanItThenEjectsIt(t *tes
 	for _, tc := range []struct{ name, closed, want string }{
 		{"no draft yet", `[]`, prTaken},
 		{"a closed draft ran the PR since", `[{"number":90,"title":"(PRs 1)","state":"closed",` +
-			`"head":{"ref":"gtmq_a"},"updated_at":"2026-09-27T11:59:00Z"}]`, prEjected},
+			`"head":{"ref":"gtmq_a"},"updated_at":"2026-09-27T11:59:00Z","closed_at":"2026-09-27T11:59:00Z"}]`, prEjected},
 		{"a closed draft ran it before Graphite took it", `[{"number":90,"title":"(PRs 1)","state":"closed",` +
-			`"head":{"ref":"gtmq_a"},"updated_at":"2026-09-27T11:57:00Z"}]`, prTaken},
+			`"head":{"ref":"gtmq_a"},"updated_at":"2026-09-27T11:57:00Z","closed_at":"2026-09-27T11:57:00Z"}]`, prTaken},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

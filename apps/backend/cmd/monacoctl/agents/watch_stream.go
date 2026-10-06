@@ -279,14 +279,15 @@ func (s *stream) failures(ctx context.Context, data watchData, queued []int) []s
 		labeled[p.Number] = slices.Contains(p.Labels.Nodes, gqlName{env.Config.QueueLabel})
 	}
 	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: env.Now()}
+	var items []string
 	landed, err := env.landedDrops(ctx, queue, data.prs, s.since)
-	if err != nil {
-		return []string{watchErr("", err)}
+	trunkUnread := err != nil
+	if trunkUnread {
+		items = append(items, watchErr("", err))
 	}
 	queue.landed = landed
-	var items []string
 	for _, f := range failures(data.prs, queue, env.Config.FeatureBranch, s.since) {
-		if f.Why == droppedWhy && (labeled[f.PR] || s.reported[f.PR] || slices.Contains(queued, f.PR)) {
+		if f.Why == droppedWhy && (trunkUnread || labeled[f.PR] || s.reported[f.PR] || slices.Contains(queued, f.PR)) {
 			continue
 		}
 		items = append(items, s.block(ctx, f))

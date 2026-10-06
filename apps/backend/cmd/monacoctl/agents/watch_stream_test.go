@@ -26,7 +26,8 @@ func queueDraftNode(n int, title, commit string) string {
 
 func closedDraft(n int, commit string) string {
 	title := fmt.Sprintf("[Graphite MQ] Draft PR GROUP:spec_%d (PRs 1, 2)", n)
-	return strings.Replace(queueDraftNode(n, title, commit), `"state":"OPEN"`, `"state":"CLOSED"`, 1)
+	closed := `"state":"CLOSED","closedAt":"2026-09-27T11:59:00Z"`
+	return strings.Replace(queueDraftNode(n, title, commit), `"state":"OPEN"`, closed, 1)
 }
 
 func streamRounds(t *testing.T, f *fixture, rounds int, between func(round int)) string {
@@ -272,7 +273,7 @@ func TestMentions_readsGraphiteDraftTitles(t *testing.T) {
 		t.Error("#N references")
 	}
 	since := time.Date(2026, 9, 29, 6, 0, 0, 0, time.UTC)
-	d := queueDraft{State: "CLOSED", HeadRefName: "gtmq_spec_de1996", Title: mqTitle, UpdatedAt: since.Add(time.Minute)}
+	d := queueDraft{State: "CLOSED", HeadRefName: "gtmq_spec_de1996", Title: mqTitle, ClosedAt: since.Add(time.Minute)}
 	if !d.runs(1308, since) || d.runs(1310, since) {
 		t.Error("a closed draft runs the PRs its title lists")
 	}
@@ -771,7 +772,8 @@ func TestWatchStream_aDroppedLabelIsNotReportedWhileAnOpenDraftListsThePR(t *tes
 		t.Fatalf("stream:\n%s", got)
 	}
 	closed := strings.NewReplacer(
-		`"OPEN"`, `"CLOSED"`, "2026-09-27T11:59:00Z", f.now.Format(time.RFC3339),
+		`"state":"OPEN"`, `"state":"CLOSED","closedAt":"`+f.now.Format(time.RFC3339)+`"`,
+		"2026-09-27T11:59:00Z", f.now.Format(time.RFC3339),
 	).Replace(draft)
 	f.hub.on(graphqlRoute, draftData([]string{closed}, node))
 	if got := strings.Join(
@@ -808,6 +810,35 @@ func TestWatchStream_aFailedTrunkReadPrintsAWatchErrorAndNoDrop(t *testing.T) {
 	f.hub.on(route, `[]`)
 	got = strings.Join(s.next(t.Context()), "\n")
 	if !strings.Contains(got, "#7 dropped from the Graphite merge queue") {
+		t.Fatalf("the next round:\n%s", got)
+	}
+}
+
+func TestWatchStream_aFailedTrunkReadStillPrintsTheRoundsRedStage1Blocks(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	f.hub.on(graphqlRoute, draftData(
+		[]string{closedDraftNode("gtmq_7", "Merge queue: #7", f.now.Add(2*time.Minute), "CLOSED", "d7")},
+		watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(time.Minute))),
+		watchNode(8, "fb", rollup(redOK, lintJob), ""),
+	))
+	f.hub.on(get("/compare/fb...d7"), `{"status":"diverged"}`)
+	route := list("/commits?sha=fb&since=2026-09-27T11:01:00Z")
+	f.hub.status[route] = http.StatusInternalServerError
+	f.hub.on(route, "boom")
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(3 * time.Minute)
+	const red = "#8 stage 1 is red\n  failing job: https://gh/job/12\n"
+	got := strings.Join(s.next(t.Context()), "\n")
+	if !strings.Contains(got, "watch error: ") || !strings.Contains(got, "list fb commits") ||
+		!strings.Contains(got, red) || strings.Contains(got, "#7 dropped") {
+		t.Fatalf("a failed read:\n%s", got)
+	}
+	delete(f.hub.status, route)
+	f.hub.on(route, `[]`)
+	got = strings.Join(s.next(t.Context()), "\n")
+	if !strings.Contains(got, "#7 dropped from the Graphite merge queue") || strings.Contains(got, red) {
 		t.Fatalf("the next round:\n%s", got)
 	}
 }
@@ -1131,7 +1162,9 @@ func TestWatchStream_reportsAStackGraphiteMergedBeforeClosingItsPRsAsLandedNotEj
 				for _, n := range []int{1, 2} {
 					setUnlabels(t, s.prs[n], dropped(f.now.Add(-2*time.Minute)))
 				}
-				closed := strings.Replace(draft, `"state":"OPEN"`, `"state":"`+tc.closed+`","headRefOid":"d90"`, 1)
+				closedAt := `"closedAt":"` + f.now.Add(-time.Minute).Format(time.RFC3339) + `"`
+				closed := strings.Replace(draft, `"state":"OPEN"`,
+					`"state":"`+tc.closed+`","headRefOid":"d90",`+closedAt, 1)
 				f.hub.on(
 					graphqlRoute,
 					draftData([]string{closedDraftOf(t, 91, "8, 9", f.now.Add(-time.Minute)), closed}),

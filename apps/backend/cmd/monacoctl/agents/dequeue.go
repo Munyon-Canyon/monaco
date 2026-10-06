@@ -21,7 +21,7 @@ const (
 		`drafts: pullRequests(states:OPEN,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
 		`number state title body headRefName}} ` +
 		`closed: pullRequests(states:CLOSED,last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
-		`number state title body headRefName headRefOid updatedAt}}}}`
+		`number state title body headRefName headRefOid updatedAt closedAt}}}}`
 )
 
 func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {

@@ -38,7 +38,7 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 			lines = append(lines, env.landArmed(ctx, r, map[int64]int{})...)
 		}
 	}
-	failed, data, err := env.failures(ctx)
+	failed, data, err := env.failures(ctx, rs)
 	if err != nil {
 		return err
 	}

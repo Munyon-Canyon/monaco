@@ -51,8 +51,18 @@ func unlabel(at time.Time, label, actor string) string {
 func dropped(at time.Time) string { return unlabel(at, "merge-queue", graphiteBot) }
 
 func draftNode(head, title string, at time.Time, commit string) string {
-	return fmt.Sprintf(`{"title":%q,"body":"","headRefName":%q,"updatedAt":%q,"commits":{"nodes":[{"commit":%s}]}}`,
-		title, head, at.Format(time.RFC3339), commit)
+	return fmt.Sprintf(
+		`{"title":%q,"body":"","headRefName":%q,"updatedAt":%q,"closedAt":%q,"commits":{"nodes":[{"commit":%s}]}}`,
+		title, head, at.Format(time.RFC3339), at.Format(time.RFC3339), commit)
+}
+
+func movedUpdate(t *testing.T, node string, closed, updated time.Time) string {
+	t.Helper()
+	from := fmt.Sprintf(`"updatedAt":%q`, closed.Format(time.RFC3339))
+	if !strings.Contains(node, from) {
+		t.Fatalf("draftNode no longer carries %s", from)
+	}
+	return strings.Replace(node, from, fmt.Sprintf(`"updatedAt":%q`, updated.Format(time.RFC3339)), 1)
 }
 
 func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
@@ -186,6 +196,15 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 			waiting,
 		},
 		{
+			"deleting that draft's branch after the take does not make it a run since the take",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
+			nil,
+			[]string{movedUpdate(t,
+				draftNode("gtmq_1", "Merge queue: #1", since.Add(30*time.Second), rollup(flakeJob)),
+				since.Add(30*time.Second), after.Add(time.Second))},
+			waiting,
+		},
+		{
 			"a person removing the label or Graphite removing another label is no failure",
 			[]string{
 				watchNode(1, "fb", rollup(greenOK), unlabel(after, "merge-queue", "logan")),
@@ -269,12 +288,12 @@ func TestWatch_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":{"repository":{`+
 		`"c0":`+rollup(ciOK("SUCCESS", 3), `{"name":"ci / Flake","conclusion":"SUCCESS","completedAt":"2026-09-29T11:03:00Z"}`)+
 		`,"c1":`+rollup(ciOK("FAILURE", 3), lintJob)+`}}}`)
-	failed, _, err := f.Env(t).failures(context.Background())
+	failed, _, err := f.Env(t).failures(context.Background(), nil)
 	if err != nil || len(failed) != 1 || failed[0].PR != 6 || failed[0].Job.DatabaseID != 12 {
 		t.Fatalf("%+v %v", failed, err)
 	}
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":null,"errors":[{"message":"rate limited"}]}`)
-	if _, _, err := f.Env(t).failures(context.Background()); cliText(err) != "graphql: rate limited" {
+	if _, _, err := f.Env(t).failures(context.Background(), nil); cliText(err) != "graphql: rate limited" {
 		t.Fatal(err)
 	}
 }
@@ -345,9 +364,13 @@ func TestFailures_watchOnceLeavesAPRGraphiteTookWhileItWaitsForADraft(t *testing
 	}
 }
 
-func closedDraftNode(head, title string, at time.Time, state, oid string) string {
-	node := draftNode(head, title, at, rollup(greenOK))
+func closedDraftWith(head, title string, at time.Time, state, oid, commit string) string {
+	node := draftNode(head, title, at, commit)
 	return strings.Replace(node, `{"title"`, fmt.Sprintf(`{"state":%q,"headRefOid":%q,"title"`, state, oid), 1)
+}
+
+func closedDraftNode(head, title string, at time.Time, state, oid string) string {
+	return closedDraftWith(head, title, at, state, oid, rollup(greenOK))
 }
 
 func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
@@ -359,17 +382,22 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 		offTrunk = `{"status":"diverged"}`
 	)
 	for _, tc := range []struct {
-		name           string
-		opens, closes  time.Duration
-		state          string
-		trunk, compare string
-		want           []time.Duration
-		reads          int
+		name                 string
+		opens, closes, moved time.Duration
+		state                string
+		trunk, compare       string
+		want                 []time.Duration
+		reads                int
 	}{
 		{name: "no draft ever opens", want: []time.Duration{30 * time.Minute}},
 		{
 			name:  "a draft ran it and failed, leaving nothing of it on the trunk",
 			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "CLOSED", compare: offTrunk,
+			want: []time.Duration{25 * time.Minute}, reads: 1,
+		},
+		{
+			name:  "Graphite deletes the failed draft's branch a minute after closing it, which moves its updatedAt",
+			opens: 5 * time.Minute, closes: 25 * time.Minute, moved: time.Minute, state: "CLOSED", compare: offTrunk,
 			want: []time.Duration{25 * time.Minute}, reads: 1,
 		},
 		{
@@ -405,9 +433,12 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 					open := draftNode("gtmq_5", "Merge queue: #5", first, noRollup)
 					drafts = []string{strings.Replace(open, `{"title"`, `{"state":"OPEN","title"`, 1)}
 				default:
-					drafts = []string{
-						closedDraftNode("gtmq_5", "Merge queue: #5", first.Add(tc.closes), tc.state, "d5"),
+					closed := first.Add(tc.closes)
+					node := closedDraftNode("gtmq_5", "Merge queue: #5", closed, tc.state, "d5")
+					if offset >= tc.closes+tc.moved {
+						node = movedUpdate(t, node, closed, closed.Add(tc.moved))
 					}
+					drafts = []string{node}
 				}
 				f.hub.on(graphqlRoute, draftData(drafts,
 					watchNode(5, "fb", rollup(greenOK), dropped(first.Add(-2*time.Minute)))))
@@ -453,11 +484,123 @@ func TestWatchOnce_aFailedTrunkReadFailsThePassAndKeepsTheDropForTheNextOne(t *t
 	}
 }
 
+func TestWatchOnce_aDraftThatClosesWhileTheWatchReadsGitHubIsReportedByTheNextPass(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	node := watchNode(5, "fb", rollup(greenOK), dropped(f.now.Add(-5*time.Minute)))
+	f.hub.on(graphqlRoute, failureData(node))
+	f.hub.on(get("/compare/fb...d5"), `{"status":"diverged"}`)
+	advanced := false
+	f.hub.hook = func(method, _, _ string, _ int) {
+		if method == http.MethodPost && !advanced {
+			advanced = true
+			f.now = f.now.Add(10 * time.Second)
+		}
+	}
+	closedAt := f.now.Add(5 * time.Second)
+	if code, stdout, stderr := f.agents(t, "watch", "--once"); code != 0 || stdout != "" || stderr != "" {
+		t.Fatalf("the read: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	f.hub.on(graphqlRoute, draftData(
+		[]string{closedDraftNode("gtmq_5", "Merge queue: #5", closedAt, "CLOSED", "d5")}, node,
+	))
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 1 || !strings.HasPrefix(stdout, "#5 dropped from the Graphite merge queue\n") || stderr != "" {
+		t.Fatalf("the next pass: code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestWatchOnce_printsOneDropBlockForAnOwnedStackThatOneFailedDraftDropped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	took := unlabel(f.now.Add(-5*time.Minute), "merge-queue", graphiteApp)
+	setUnlabels(t, s.prs[1], took)
+	setUnlabels(t, s.prs[2], took)
+	failed := closedDraftWith("gtmq_1", "Merge queue: #1 #2", f.now.Add(-time.Minute), "CLOSED", "d1", rollup(flakeJob))
+	f.hub.on(graphqlRoute, draftData([]string{failed},
+		watchNode(1, "fb", rollup(greenOK), took),
+		watchNode(2, "b1", rollup(greenOK), took),
+	))
+	f.hub.on(get("/compare/fb...d1"), `{"status":"diverged"}`)
+	f.hub.on(get("/actions/jobs/11/logs"), "--- FAIL: TestFlaky\n")
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	want := "unqueued: #40; #2 left the Graphite merge queue. " +
+		"Fix the stack with gt modify and gt submit --stack --draft, then run land-stack 2\n" +
+		"#1 dropped from the Graphite merge queue\n  failing job: https://gh/job/11\n  fresh owner\n" +
+		"  ticket: 40\n  worktree: /w/40\n  head: sha1\n  log: " + f.Env(t).statePath("logs", "job-11.log") +
+		"\n  brief: docs/agents/owner.md\n"
+	if code != 1 || stderr != "" || stdout != want {
+		t.Fatalf("code=%d stderr=%q stdout=\n%s\nwant\n%s", code, stderr, stdout, want)
+	}
+	if f.owned(t).Queued != nil {
+		t.Fatal("kept the queued mark")
+	}
+}
+
 func TestFailureQuery_asksForTheHeadOfEveryDraft(t *testing.T) {
 	t.Parallel()
 	_, drafts, found := strings.Cut(failureQuery(""), "drafts:")
 	if !found || !strings.Contains(drafts, "headRefOid") {
 		t.Fatalf("the drafts selection lacks headRefOid:\n%s", drafts)
+	}
+}
+
+func TestFailureQuery_asksForWhenEveryDraftClosed(t *testing.T) {
+	t.Parallel()
+	_, drafts, found := strings.Cut(failureQuery(""), "drafts:")
+	if !found || !strings.Contains(drafts, " closedAt ") {
+		t.Fatalf("the drafts selection lacks closedAt:\n%s", drafts)
+	}
+}
+
+func TestOnePerOwnedStack_keepsTheLowestDropOfEachStackAndEachDraft(t *testing.T) {
+	t.Parallel()
+	rs := []Record{
+		{Ticket: 40, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}},
+		{Ticket: 41, Armed: &Arm{Top: 6, PRs: []int{5, 6}}},
+	}
+	drop := func(pr int, job int64) failure {
+		return failure{PR: pr, Why: droppedWhy, Job: gqlContext{DatabaseID: job}}
+	}
+	red := failure{PR: 3, Why: "stage 1 is red", Job: gqlContext{DatabaseID: 11}}
+	for _, tc := range []struct {
+		name     string
+		in, want []failure
+	}{
+		{
+			"the lowest dropped PR speaks for its stack",
+			[]failure{drop(3, 11), drop(1, 11), drop(2, 11)},
+			[]failure{drop(1, 11)},
+		},
+		{
+			"the lowest PR that dropped speaks when a lower one of the stack did not",
+			[]failure{drop(3, 11), drop(2, 11)},
+			[]failure{drop(2, 11)},
+		},
+		{
+			"a PR that another draft dropped is its own report",
+			[]failure{drop(1, 11), drop(2, 12), drop(3, 12)},
+			[]failure{drop(1, 11), drop(2, 12)},
+		},
+		{
+			"each owned stack keeps its own, armed or queued",
+			[]failure{drop(2, 11), drop(5, 11), drop(1, 11), drop(6, 11)},
+			[]failure{drop(5, 11), drop(1, 11)},
+		},
+		{
+			"a red stage 1 and the drops of PRs no record covers stay",
+			[]failure{drop(1, 11), red, drop(2, 11), drop(9, 11), drop(8, 11)},
+			[]failure{drop(1, 11), red, drop(9, 11), drop(8, 11)},
+		},
+		{"no failure stays none", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := onePerOwnedStack(tc.in, rs); !slices.Equal(got, tc.want) {
+				t.Fatalf("got %+v, want %+v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -487,7 +630,11 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 	env := f.Env(t)
 	state := env.statePath("watch", lastRunState)
 	writeFile(t, state, "yesterday\n")
-	if _, _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "parse watch") {
+	read := func() error {
+		_, _, err := env.failures(context.Background(), nil)
+		return err
+	}
+	if err := read(); err == nil || !strings.Contains(err.Error(), "parse watch") {
 		t.Fatalf("corrupt state: %v", err)
 	}
 	if err := os.Remove(state); err != nil {
@@ -506,7 +653,7 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.noFailures()
-	if _, _, err := env.failures(context.Background()); err == nil || !strings.Contains(err.Error(), "write") {
+	if err := read(); err == nil || !strings.Contains(err.Error(), "write") {
 		t.Fatalf("state write: %v", err)
 	}
 	if err := os.Remove(state); err != nil {
@@ -596,7 +743,7 @@ func TestStage1_aRunWhoseCIOKHasNotStartedIsPending(t *testing.T) {
 
 func TestQueueJob_namesTheQueueCIJobNotAPushOnlyWorkflow(t *testing.T) {
 	t.Parallel()
-	raw := strings.Replace(numberedDraft(4, time.Unix(1, 0), goCacheJob, flakeJob), `"body":""`, `"body":"#4"`, 1)
+	raw := closedDraftWith("gtmq_4", "Merge queue: #4", time.Unix(1, 0), "CLOSED", "d4", rollup(goCacheJob, flakeJob))
 	var d queueDraft
 	if err := json.Unmarshal([]byte(raw), &d); err != nil {
 		t.Fatal(err)
