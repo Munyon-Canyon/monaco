@@ -46,32 +46,27 @@ enum CabalsTabSampleData {
         let percent: String?
         let joined: Bool
         let mode: GroupJoinMode
-        /// Daily P&L path for the chart, oldest first.
-        let path: [Double]
     }
 
     static let cabals: [Cabal] = [
         Cabal(
             id: "5b1f0c9e-0001-4c55-9a51-000000000001", name: "Weekend investors", members: 4, pot: "548.20",
-            pnl: "+48.20", percent: "0.0964", joined: true, mode: .open,
-            path: [0, 4.1, 9.8, 7.2, 15.5, 22.0, 19.4, 31.7, 38.9, 48.2]),
+            pnl: "+48.20", percent: "0.0964", joined: true, mode: .open),
         Cabal(
             id: "5b1f0c9e-0002-4c55-9a51-000000000002", name: "Rent money", members: 3, pot: "212.40", pnl: "-7.60",
-            percent: "-0.0345", joined: true, mode: .request,
-            path: [0, -1.2, 2.4, 3.1, -0.8, -4.5, -2.2, -6.0, -5.1, -7.6]),
+            percent: "-0.0345", joined: true, mode: .request),
         Cabal(
             id: "5b1f0c9e-0003-4c55-9a51-000000000003", name: "Apple heads", members: 2, pot: "91.35", pnl: "+1.35",
-            percent: "0.015", joined: true, mode: .open,
-            path: [0, 0.2, 0.9, 1.1, 0.4, 1.35]),
+            percent: "0.015", joined: true, mode: .open),
         Cabal(
             id: "5b1f0c9e-0004-4c55-9a51-000000000004", name: "Dorm 4B fund", members: 9, pot: "1320.00",
-            pnl: "+320.00", percent: "0.32", joined: false, mode: .open, path: []),
+            pnl: "+320.00", percent: "0.32", joined: false, mode: .open),
         Cabal(
             id: "5b1f0c9e-0005-4c55-9a51-000000000005", name: "Tesla or bust", members: 5, pot: "760.10",
-            pnl: "+110.10", percent: "0.1694", joined: false, mode: .request, path: []),
+            pnl: "+110.10", percent: "0.1694", joined: false, mode: .request),
         Cabal(
             id: "5b1f0c9e-0006-4c55-9a51-000000000006", name: "Weekend warriors", members: 3, pot: "64.00",
-            pnl: "-6.00", percent: "-0.0857", joined: false, mode: .open, path: []),
+            pnl: "-6.00", percent: "-0.0857", joined: false, mode: .open),
     ]
 
     static var home: HomeViewDTO {
@@ -116,36 +111,6 @@ enum CabalsTabSampleData {
                         isJoined: cabal.joined, joinMode: cabal.mode
                     )
                 })
-        }
-
-        func pnlHistory(range: GroupPnLRange) async throws -> MyGroupsPnLHistoryDTO {
-            let now = Date()
-            let series = cabals.filter(\.joined).map { cabal in
-                let step: TimeInterval = 3 * 24 * 3600
-                let points = cabal.path.enumerated().map { index, value in
-                    GroupPnLPointDTO(
-                        at: now.addingTimeInterval(-step * Double(cabal.path.count - 1 - index)),
-                        potValueUsd: cabal.pot,
-                        netInUsd: cabal.pot,
-                        dollarPnl: String(format: "%+.2f", value)
-                    )
-                }
-                let windowDays: Double =
-                    switch range {
-                    case .oneDay: 1
-                    case .oneWeek: 7
-                    case .oneMonth: 30
-                    case .threeMonths: 90
-                    }
-                let since = now.addingTimeInterval(-windowDays * 24 * 3600)
-                return GroupPnLSeriesDTO(
-                    groupID: cabal.id,
-                    name: cabal.name,
-                    range: range.rawValue,
-                    points: points.filter { $0.at >= since }
-                )
-            }
-            return MyGroupsPnLHistoryDTO(range: range.rawValue, series: series)
         }
     }
 }

@@ -41,9 +41,6 @@ struct GroupDetailView: View {
     @State private var isLoading: Bool
     /// The blocking first load has run at least once; re-appearing is the poll loop's job.
     @State private var didInitialLoad = false
-    /// The pot's curve on the hero: one slot per range, re-read with the rest of the screen.
-    @State private var pnl: GroupPnLHistoryModel
-
     @State private var route: GroupDetailRoute?
     @State private var showDetailsSheet = false
     @State private var heroScrolledAway = false
@@ -73,8 +70,6 @@ struct GroupDetailView: View {
         self.groupName = groupName
         self.initialView = initialView
         _isLoading = State(initialValue: initialView == nil)
-        _pnl = State(
-            initialValue: GroupPnLHistoryModel(groupId: groupId, source: LiveGroupPnLHistorySource(auth: auth)))
     }
 
     private var displayName: String {
@@ -120,11 +115,6 @@ struct GroupDetailView: View {
             .pollWhileVisible(every: pollInterval, isActive: groupView != nil, gate: refreshGate) {
                 try await refresh(.quiet)
             }
-            // A range chip on the hero: read that window if it has not been read yet.
-            .onChange(of: pnl.range) { _, range in
-                Task { await pnl.load(range: range) }
-            }
-
             .refreshable {
                 await refreshGate.runNow {
                     try? await refresh(.userInitiated)
@@ -151,10 +141,7 @@ struct GroupDetailView: View {
                     environment.navigator.open(ProposeRoute(cabalID: groupId), in: environment.navigator.selectedTab)
                 },
                 onToast: { toast = $0 },
-                onHeroScrolledAway: { heroScrolledAway = $0 },
-                heroChart: pnl.chart,
-                heroRange: pnl.range,
-                onHeroRange: { pnl.range = $0 }
+                onHeroScrolledAway: { heroScrolledAway = $0 }
             )
         } else if let errorMessage {
 
@@ -245,12 +232,6 @@ struct GroupDetailView: View {
         }
 
         async let viewLoad = apiClient.getGroupView(accessToken: token, groupId: groupId)
-        // The curve rides along with the rest of the read; its failures are its own, and a
-        // quiet one leaves the drawn curve alone.
-        async let curveLoad: Void = pnl.load(range: pnl.range, quietly: mode == .quiet)
-
-        await curveLoad
-
         var loadedView: GroupViewDTO?
         var viewFailure: Error?
         do {
@@ -307,10 +288,6 @@ struct GroupDetailContent: View {
     var onHeroScrolledAway: (Bool) -> Void = { _ in }
     /// Nil on read-only surfaces; the hero then draws a plain mark.
     var pictureEditor: CabalPictureEditor?
-    /// The pot's curve on the hero, owned by the screen.
-    var heroChart: GroupHeroChart = .loading
-    var heroRange: GroupPnLRange = .oneMonth
-    var onHeroRange: (GroupPnLRange) -> Void = { _ in }
 
     var body: some View {
         ScrollView {
@@ -320,9 +297,6 @@ struct GroupDetailContent: View {
                 VStack(spacing: MonacoTheme.Space.l) {
                     GroupHeroSection(
                         view: view,
-                        chart: heroChart,
-                        range: heroRange,
-                        onRange: onHeroRange,
                         pictureEditor: pictureEditor,
                         onPictureResult: onToast
                     )

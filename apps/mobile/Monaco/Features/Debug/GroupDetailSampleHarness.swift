@@ -97,9 +97,7 @@ struct GroupDetailSampleHarness: View {
             onPropose: {},
             onToast: { toast = $0 },
             onHeroScrolledAway: { heroScrolledAway = $0 },
-            pictureEditor: pictureEditor,
-            heroChart: scenario == .empty ? .sparse : .curve(GroupDetailSampleData.pnlPoints),
-            heroRange: .oneMonth
+            pictureEditor: pictureEditor
         )
 
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -140,21 +138,6 @@ struct GroupDetailSampleHarness: View {
 
 enum GroupDetailSampleData {
     static let viewerId = "u2"
-
-    /// A month of the pot's P&L, three days a sample, ending on the hero's all-time figure.
-    static var pnlPoints: [GroupPnLPointDTO] {
-        let path: [Double] = [0, 4.1, 9.8, 7.2, 15.5, 12.0, 19.4, 24.7, 18.9, 20.87]
-        let step: TimeInterval = 3 * 24 * 3600
-        let now = Date()
-        return path.enumerated().map { index, value in
-            GroupPnLPointDTO(
-                at: now.addingTimeInterval(-step * Double(path.count - 1 - index)),
-                potValueUsd: "548.20",
-                netInUsd: "527.33",
-                dollarPnl: String(format: "%+.2f", value)
-            )
-        }
-    }
 
     static let view = GroupViewDTO(
         id: "5b1f0c9e-0001-4c55-9a51-000000000001",
