@@ -51,7 +51,7 @@ private struct CabalProposals: View {
             HStack {
                 MonacoSectionHeader("Needs your vote", count: needsVote.count)
                 Spacer()
-                NavigationLink("See all", value: CabalProposalListRoute(cabalID: cabalID))
+                NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
             }
             ForEach(needsVote) { proposal in
                 if let voting {

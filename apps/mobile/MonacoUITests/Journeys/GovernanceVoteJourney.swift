@@ -203,6 +203,9 @@ enum GovernanceVoteJourney {
 
         recorder.step("S3.2", "See all lists the open and the closed proposal") {
             app.buttons["See all"].tap()
+            XCTAssertTrue(
+                app.navigationBars["Proposals"].waitForExistence(timeout: screenTimeout),
+                "S3.2: See all did not open the Proposals list within \(Int(screenTimeout)) s")
             let closed = card(app, closedProposalID)
             XCTAssertTrue(
                 closed.waitForExistence(timeout: screenTimeout),
