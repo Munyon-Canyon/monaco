@@ -145,7 +145,9 @@ enum CreateCabalJourney {
 
     static func duoCabal(run: String) -> String { "QA duo \(run)" }
 
-    static func creatorStartsAnOpenCabal(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
+    static func creatorStartsAnOpenCabal(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws
+        -> String
+    {
         let name = duoCabal(run: run)
         let submit = app.buttons["create-group-submit"]
 
@@ -190,11 +192,11 @@ enum CreateCabalJourney {
             XCTAssertEqual(code.count, 10, "S4.3: the invite code '\(code)' is not 10 characters")
         }
         try JourneyHandoff.write(duoCodeKey, code)
+        return code
     }
 
-    static func friendJoinsWithTheCode(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
+    static func friendJoinsWithTheCode(_ app: XCUIApplication, run: String, code: String, recorder: JourneyRecorder) {
         let name = duoCabal(run: run)
-        let code = try JourneyHandoff.read(duoCodeKey)
 
         recorder.step("S4.4", "open Join with an invite code") {
             app.tab("Cabals").tap()
@@ -251,14 +253,5 @@ enum CreateCabalJourney {
             app.scrollIntoReach(row, maxSwipes: 12)
             XCTAssertTrue(row.waitForExistence(timeout: listTimeout), "S4.7: no member board row names \(friend)")
         }
-    }
-
-    static func ensureCabalCreated(_ app: XCUIApplication, as account: JourneyAccount) -> String {
-        SignInJourney.ensureSignedIn(app, as: account)
-        let recorder = recorder()
-        let name = uniqueName()
-        openForm(app, recorder: recorder)
-        create(app, named: name, recorder: recorder)
-        return name
     }
 }

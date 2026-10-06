@@ -52,9 +52,10 @@ enum DemoStoryJourney {
 
     static func startAndShareTheCode(
         _ app: XCUIApplication, as account: JourneyAccount, run: String, recorder: JourneyRecorder
-    ) throws {
+    ) throws -> String {
         recorder.step("S1.1", "sign in and land on Home") {
-            SignInJourney.ensureSignedIn(app, as: account)
+            XCTAssertTrue(app.tab("Home").waitForExistence(timeout: 30), "S1.1: the tab bar did not show within 30 s")
+            app.tab("Home").tap()
         }
 
         recorder.step("S1.2", "the profile carries the name") {
@@ -65,8 +66,10 @@ enum DemoStoryJourney {
             )
         }
 
+        var code = ""
         try recorder.step("S1.3", "start a cabal and set the rules") {
-            try CreateCabalJourney.creatorStartsAnOpenCabal(app, run: run, recorder: CreateCabalJourney.recorder())
+            code = try CreateCabalJourney.creatorStartsAnOpenCabal(
+                app, run: run, recorder: CreateCabalJourney.recorder())
         }
 
         recorder.step("S1.4", "the invite code is ready to copy") {
@@ -74,11 +77,13 @@ enum DemoStoryJourney {
             XCTAssertEqual(app.staticTexts["cabal-invite-code"].label.count, 10, "S1.4: the code is not 10 characters")
             XCTAssertTrue(app.buttons["cabal-invite-copy"].exists, "S1.4: no Copy code button")
         }
+        return code
     }
 
-    static func friendJoins(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
-        try recorder.step("S1.5", "paste the code and join") {
-            try CreateCabalJourney.friendJoinsWithTheCode(app, run: run, recorder: CreateCabalJourney.recorder())
+    static func friendJoins(_ app: XCUIApplication, run: String, code: String, recorder: JourneyRecorder) {
+        recorder.step("S1.5", "paste the code and join") {
+            CreateCabalJourney.friendJoinsWithTheCode(
+                app, run: run, code: code, recorder: CreateCabalJourney.recorder())
         }
     }
 

@@ -74,10 +74,6 @@ enum ProfileEditJourney {
         photo.tap()
     }
 
-    static func ensureOnProfile(_ app: XCUIApplication, as account: JourneyAccount) {
-        SignInJourney.ensureSignedIn(app, as: account)
-    }
-
     static func changeName(_ app: XCUIApplication, recorder: JourneyRecorder) throws {
         let name = try newName()
         var shown = ""

@@ -6,39 +6,34 @@ nonisolated final class StocksAssetDetailJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func start() throws -> XCUIApplication {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = StocksAssetDetailJourney.recorder()
         _ = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        return app
-    }
 
-    @MainActor
-    func testS1HeroChartAndBuy() throws {
-        let app = try start()
-        StocksAssetDetailJourney.heroChartAndBuy(app, recorder: StocksAssetDetailJourney.recorder())
-        attachScreenshot(of: app, named: "S1-propose-buy")
-    }
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            StocksAssetDetailJourney.heroChartAndBuy(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-propose-buy")
+        }
 
-    @MainActor
-    func testS2Stats() throws {
-        let app = try start()
-        StocksAssetDetailJourney.stats(app, recorder: StocksAssetDetailJourney.recorder())
-        attachScreenshot(of: app, named: "S2-stats")
-    }
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            StocksAssetDetailJourney.stats(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-stats")
+        }
 
-    @MainActor
-    func testS3PreIpo() throws {
-        let app = try start()
-        StocksAssetDetailJourney.preIpoBlock(app, recorder: StocksAssetDetailJourney.recorder())
-        attachScreenshot(of: app, named: "S3-pre-ipo")
-    }
+        try session.scenario("S3") {
+            try session.act(as: "A")
+            StocksAssetDetailJourney.preIpoBlock(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-pre-ipo")
+        }
 
-    @MainActor
-    func testS4Position() throws {
-        let app = try start()
-        StocksAssetDetailJourney.position(app, recorder: StocksAssetDetailJourney.recorder())
-        attachScreenshot(of: app, named: "S4-position")
+        try session.scenario("S4") {
+            try session.act(as: "A")
+            StocksAssetDetailJourney.position(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-position")
+        }
     }
 }

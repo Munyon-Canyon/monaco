@@ -6,37 +6,30 @@ nonisolated final class SettingsDeleteAccountJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func devToken() throws -> String {
-        _ = try JourneyAccount.load()
-        return try JourneyHandoff.read("devToken")
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = SettingsDeleteAccountJourney.recorder()
 
-    @MainActor
-    func testS1ReadAndBackOut() throws {
-        let token = try devToken()
-        let app = XCUIApplication.monacoForJourneys()
-        SettingsDeleteAccountJourney.readAndBackOut(
-            app, devToken: token, recorder: SettingsDeleteAccountJourney.recorder())
-        attachScreenshot(of: app, named: "S1 checklist after Cancel")
-    }
+        try session.scenario("S1") {
+            let token = try JourneyHandoff.read("devToken")
+            SettingsDeleteAccountJourney.readAndBackOut(app, devToken: token, recorder: recorder)
+            attachScreenshot(of: app, named: "S1 checklist after Cancel")
+        }
 
-    @MainActor
-    func testS2Delete() throws {
-        let token = try devToken()
-        let app = XCUIApplication.monacoForJourneys()
-        SettingsDeleteAccountJourney.delete(app, devToken: token, recorder: SettingsDeleteAccountJourney.recorder())
-        attachScreenshot(of: app, named: "S2 deleted")
-    }
+        try session.scenario("S2") {
+            let token = try JourneyHandoff.read("devToken")
+            SettingsDeleteAccountJourney.delete(app, devToken: token, recorder: recorder)
+            attachScreenshot(of: app, named: "S2 deleted")
+        }
 
-    @MainActor
-    func testS3EmptyCabalOffChecklist() throws {
-        let token = try devToken()
-        let cabalID = try JourneyHandoff.read("cabalID")
-        let cabalName = try JourneyHandoff.read("cabalName")
-        let app = XCUIApplication.monacoForJourneys()
-        SettingsDeleteAccountJourney.emptyCabalOffChecklist(
-            app, devToken: token, cabalID: cabalID, cabalName: cabalName,
-            recorder: SettingsDeleteAccountJourney.recorder())
-        attachScreenshot(of: app, named: "S3 empty cabal off the checklist")
+        try session.scenario("S3") {
+            let token = try JourneyHandoff.read("devToken")
+            let cabalID = try JourneyHandoff.read("cabalID")
+            let cabalName = try JourneyHandoff.read("cabalName")
+            SettingsDeleteAccountJourney.emptyCabalOffChecklist(
+                app, devToken: token, cabalID: cabalID, cabalName: cabalName, recorder: recorder)
+            attachScreenshot(of: app, named: "S3 empty cabal off the checklist")
+        }
     }
 }
