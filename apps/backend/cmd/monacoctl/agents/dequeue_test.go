@@ -201,6 +201,33 @@ func TestDequeue_aLabeledTopDoesNotHideALowerPRGraphiteTook(t *testing.T) {
 	}
 }
 
+func TestDequeue_aLandedPRIsNotHeld(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, state, trunk string }{
+		{"a closed PR", "CLOSED", ""},
+		{"an open PR with its squash commit on the trunk", "OPEN", `[{"commit":{"message":"A (#1)"}}]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			s, env := dequeueStack(t, f)
+			setUnlabels(t, s.prs[1], unlabel(f.now.Add(-2*time.Minute), "merge-queue", graphiteApp))
+			s.prs[1].State = tc.state
+			if tc.trunk != "" {
+				f.hub.on(list("/commits?sha=fb&since=2026-09-27T10:58:00Z"), tc.trunk)
+			}
+			var out strings.Builder
+			err := dequeueCmd(t.Context(), env, []string{"2"}, &out)
+			if err != nil || out.String() != "dequeued #1 #2; safe to push\n" {
+				t.Fatalf("%q %s", out.String(), textOf(err))
+			}
+			if f.owned(t).Queued != nil {
+				t.Fatal("dequeue kept the queued mark")
+			}
+		})
+	}
+}
+
 func TestDequeue_namesWhenTheLastPRGraphiteTookStopsBeingHeld(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -323,6 +350,12 @@ func TestDequeue_failures(t *testing.T) {
 		}},
 		{name: "drafts unreadable", want: "graphql", edit: func(f *fixture, _ *stackGH, _ *Env) {
 			f.hub.on(graphqlRoute, `{"data":null,"errors":[{"message":"rate limited"}]}`)
+		}},
+		{name: "trunk unreadable", want: "list fb commits", edit: func(f *fixture, s *stackGH, _ *Env) {
+			setUnlabels(t, s.prs[1], unlabel(f.now.Add(-2*time.Minute), "merge-queue", graphiteApp))
+			route := list("/commits?sha=fb&since=2026-09-27T10:58:00Z")
+			f.hub.status[route] = http.StatusInternalServerError
+			f.hub.on(route, "boom")
 		}},
 		{name: "stack unreadable", want: "#1 is not a PR", edit: func(_ *fixture, s *stackGH, env *Env) {
 			env.After = func(time.Duration) <-chan time.Time {

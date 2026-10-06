@@ -204,16 +204,10 @@ func (s *stream) queueFull(drafts []queueDraft) bool {
 
 func (s *stream) eject(ctx context.Context, r Record, prs []stackPR, out stackPR, drafts []queueDraft) []string {
 	env, top := s.env, r.Queued.Top
-	held := false
-	for _, p := range prs {
-		if p.labeled(env.Config.QueueLabel) {
-			if err := env.removeLabel(ctx, p.Number); err != nil {
-				return []string{watchErr(fmt.Sprintf("eject #%d: ", top), err)}
-			}
-		}
-		held = held || draftHolds(drafts, p.Number)
+	if err := env.unlabel(ctx, prs); err != nil {
+		return []string{watchErr(fmt.Sprintf("eject #%d: ", top), err)}
 	}
-	if held {
+	if _, held := draftTesting(prs, drafts); held {
 		s.ejected[r.Ticket] = true
 		return nil
 	}
@@ -285,6 +279,11 @@ func (s *stream) failures(ctx context.Context, data watchData, queued []int) []s
 		labeled[p.Number] = slices.Contains(p.Labels.Nodes, gqlName{env.Config.QueueLabel})
 	}
 	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: env.Now()}
+	landed, err := env.landedDrops(ctx, queue, data.prs, s.since)
+	if err != nil {
+		return []string{watchErr("", err)}
+	}
+	queue.landed = landed
 	var items []string
 	for _, f := range failures(data.prs, queue, env.Config.FeatureBranch, s.since) {
 		if f.Why == droppedWhy && (labeled[f.PR] || s.reported[f.PR] || slices.Contains(queued, f.PR)) {

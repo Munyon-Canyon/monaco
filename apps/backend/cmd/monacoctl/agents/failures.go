@@ -23,7 +23,7 @@ func failureQuery(after string) string {
 	drafts := ""
 	if after == "" {
 		drafts = `drafts: pullRequests(states:[OPEN,CLOSED],last:30,orderBy:{field:UPDATED_AT,direction:ASC}){nodes{` +
-			`number state title body headRefName updatedAt commits(last:1){nodes{commit{...runs}}}}}`
+			`number state title body headRefName headRefOid updatedAt commits(last:1){nodes{commit{...runs}}}}}`
 	}
 	return `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){` +
 		`pullRequests(` + openPage(after) + `){pageInfo{hasNextPage endCursor} ` +
@@ -172,6 +172,7 @@ type queueRuns struct {
 	label  string
 	drafts []queueDraft
 	now    time.Time
+	landed map[int]bool
 }
 
 func failures(prs []watchPR, queue queueRuns, trunk string, since time.Time) []failure {
@@ -218,10 +219,31 @@ func (p watchPR) droppedByGraphite(queue queueRuns, since time.Time) bool {
 	if !ok || !byGraphite || held {
 		return false
 	}
-	if draftRan(queue.drafts, p.Number, at) {
-		return at.After(since)
+	if ran := newestRun(queue.drafts, p.Number, at); !ran.IsZero() {
+		return ran.After(since) && !queue.landed[p.Number]
 	}
 	return at.Add(takenFor).After(since)
+}
+
+func (env *Env) landedDrops(
+	ctx context.Context,
+	queue queueRuns,
+	prs []watchPR,
+	since time.Time,
+) (map[int]bool, error) {
+	landed := map[int]bool{}
+	for _, p := range prs {
+		at, _, _ := p.TimelineItems.removal(queue.label)
+		if !draftRan(queue.drafts, p.Number, at) || !p.droppedByGraphite(queue, since) {
+			continue
+		}
+		in, err := env.draftLanded(ctx, p.Number, at, queue.drafts)
+		if err != nil {
+			return nil, err
+		}
+		landed[p.Number] = in
+	}
+	return landed, nil
 }
 
 func graphiteLogin(login string) bool {
@@ -254,11 +276,14 @@ func (env *Env) failures(ctx context.Context) ([]failure, watchData, error) {
 		return nil, watchData{}, err
 	}
 	now := env.Now()
+	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: now}
+	if queue.landed, err = env.landedDrops(ctx, queue, data.prs, since); err != nil {
+		return nil, watchData{}, err
+	}
 	stamp := now.UTC().Format(time.RFC3339Nano)
 	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
 		return nil, watchData{}, err
 	}
-	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: now}
 	return failures(data.prs, queue, env.Config.FeatureBranch, since), data, nil
 }
 

@@ -193,18 +193,31 @@ func (env *Env) readHold(ctx context.Context, nums []int) (stackHold, error) {
 		return h, err
 	}
 	for _, p := range prs {
+		if p.State != "OPEN" {
+			continue
+		}
 		until, taken := env.takenUntil(p.gqlPR, drafts)
 		switch {
 		case p.labeled(env.Config.QueueLabel) || draftHolds(drafts, p.Number):
 			h.queued = true
 		case taken:
-			h.taken = append(h.taken, p.Number)
-			if until.After(h.clears) {
-				h.clears = until
+			landed, err := env.landedBeforeGraphiteClosed(ctx, p, drafts)
+			if err != nil {
+				return h, err
+			}
+			if !landed {
+				h.take(p.Number, until)
 			}
 		}
 	}
 	return h, nil
+}
+
+func (h *stackHold) take(pr int, until time.Time) {
+	h.taken = append(h.taken, pr)
+	if until.After(h.clears) {
+		h.clears = until
+	}
 }
 
 func (env *Env) clearOfGraphite(ctx context.Context, top int, nums []int) error {

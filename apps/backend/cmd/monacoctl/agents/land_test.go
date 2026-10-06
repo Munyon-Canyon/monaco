@@ -1038,9 +1038,10 @@ func TestWatch_unqueueFailures(t *testing.T) {
 			draftData([]string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:x (PRs 1)", noRollup)}),
 		)
 		code, stdout, stderr := f.agents(t, "watch", "--once")
-		if code != 1 || !strings.Contains(stderr, "Graphite still holds #3") || strings.Contains(stdout, "unqueued") ||
-			f.owned(t).Queued == nil {
-			t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
+		const want = "stack #3 left queued: an open Graphite draft still tests #1\n"
+		if code != 0 || stdout != want || stderr != "" || f.owned(t).Queued == nil ||
+			slices.Contains(f.waited, dequeueEvery) {
+			t.Fatalf("%d %q %q queued %+v waited %v", code, stdout, stderr, f.owned(t).Queued, f.waited)
 		}
 	})
 	t.Run("the record cannot be written", func(t *testing.T) {
@@ -1308,6 +1309,52 @@ func TestWatchOnce_releasesTheEjectedPROfAStackGraphiteHoldsInPart(t *testing.T)
 	}
 }
 
+func TestWatchOnce_removesTheLabelsOfAStackAnOpenDraftStillTests(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	labeled(s.prs[1], "merge-queue")
+	labeled(s.prs[3], "merge-queue")
+	f.hub.on(
+		graphqlRoute,
+		draftData([]string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:x (PRs 1, 3)", noRollup)}),
+	)
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	const want = "stack #3 left queued: an open Graphite draft still tests #1\n"
+	if code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if r := f.owned(t); r.Queued == nil || r.Settled != nil || len(f.waited) != 0 {
+		t.Fatalf("queued %+v settled %+v waited %v", r.Queued, r.Settled, f.waited)
+	}
+	released := []string{
+		"DELETE /repos/o/r/issues/1/labels/merge-queue",
+		"DELETE /repos/o/r/issues/3/labels/merge-queue",
+	}
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, released) {
+		t.Fatalf("label calls %v, want %v", got, released)
+	}
+}
+
+func TestWatchOnce_reportsALabelItCannotRemoveFromAStackAnOpenDraftStillTests(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	labeled(s.prs[1], "merge-queue")
+	route := "DELETE /repos/o/r/issues/1/labels/merge-queue"
+	f.hub.status[route] = http.StatusInternalServerError
+	f.hub.on(route, "boom")
+	f.hub.on(
+		graphqlRoute,
+		draftData([]string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:x (PRs 1)", noRollup)}),
+	)
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 1 || !strings.Contains(stderr, "boom") || strings.Contains(stdout, "left queued") ||
+		f.owned(t).Queued == nil {
+		t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
+	}
+}
+
 func TestLandStack_doesNotRelabelAStackGraphiteTookWhileItWaitsForADraft(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -1444,7 +1491,8 @@ func TestEjectStack_leavesAStackQueuedWhenLandStackQueuesItAgainDuringTheRelease
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f, s, again := requeuedDuringRelease(t, tc.at, tc.relabel)
-			line, requeued, err := f.Env(t).ejectStack(t.Context(), f.owned(t), *s.prs[2])
+			prs := []stackPR{*s.prs[1], *s.prs[2]}
+			line, requeued, err := f.Env(t).ejectStack(t.Context(), f.owned(t), prs[1], prs, nil)
 			if err != nil || !requeued || line != "stack #2 was re-queued during its release; left it queued" {
 				t.Fatalf("ejectStack = %q, %v, %v", line, requeued, err)
 			}
@@ -1482,7 +1530,8 @@ func TestEjectStack_reportsAnOwnerRecordItCannotReread(t *testing.T) {
 				}
 			}
 		}
-		if _, _, err := env.ejectStack(t.Context(), rec, *s.prs[2]); err == nil {
+		prs := []stackPR{*s.prs[1], *s.prs[2]}
+		if _, _, err := env.ejectStack(t.Context(), rec, prs[1], prs, nil); err == nil {
 			t.Fatalf("record removed at wait %d: ejectStack returned no error", at)
 		}
 	}
