@@ -50,7 +50,7 @@ components:
       name: id
       in: path
       required: true
-      description: The id of the user to follow or unfollow.
+      description: The id of the user.
       schema:
         type: string
         format: uuid

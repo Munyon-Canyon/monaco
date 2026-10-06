@@ -29,6 +29,7 @@ type Module struct {
 	photos   app.PhotoStore
 	stakes   app.Stakes
 	balances app.Balances
+	follows  app.FollowCounts
 	meters   metric.MeterProvider
 }
 
@@ -52,10 +53,14 @@ func WithHoldings(stakes app.Stakes, balances app.Balances) Option {
 	return func(m *Module) { m.stakes, m.balances = stakes, balances }
 }
 
+func WithFollowCounts(follows app.FollowCounts) Option {
+	return func(m *Module) { m.follows = follows }
+}
+
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
 		deps: d, meters: otel.GetMeterProvider(),
-		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{},
+		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{}, follows: app.UnwiredFollowCounts{},
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -69,10 +74,15 @@ func (m *Module) Wire(set module.Set) {
 	for _, mod := range set {
 		_, balancesUnwired := m.balances.(app.UnwiredHoldings)
 		_, stakesUnwired := m.stakes.(app.UnwiredHoldings)
+		_, followsUnwired := m.follows.(app.UnwiredFollowCounts)
 		switch provider := mod.(type) {
 		case interface{ Balances() fundingport.Balances }:
 			if balancesUnwired {
 				m.balances = provider.Balances()
+			}
+		case interface{ FollowCounts() app.FollowCounts }:
+			if followsUnwired {
+				m.follows = provider.FollowCounts()
 			}
 		case interface{ Queries() treasuryport.Queries }:
 			if stakesUnwired {

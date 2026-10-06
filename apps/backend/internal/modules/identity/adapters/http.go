@@ -25,6 +25,8 @@ type HTTP struct {
 	DevX      *app.DevXLink
 	Reads     sqlc.DBTX
 	Clock     clock.Clock
+	Cards     app.UserCards
+	Follows   app.FollowCounts
 }
 
 func (h HTTP) PutMeHandle(
@@ -134,6 +136,21 @@ func (h HTTP) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeRes
 		return nil, err
 	}
 	return api.GetMe200JSONResponse(wireMe(me)), nil
+}
+
+func (h HTTP) GetUser(ctx context.Context, req api.GetUserRequestObject) (api.GetUserResponseObject, error) {
+	viewer, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	user, err := app.GetUser(ctx, h.Cards, h.Follows, viewer, ids.UserIDFrom(req.Id))
+	if err != nil {
+		return nil, err
+	}
+	return api.GetUser200JSONResponse{
+		Id: user.ID.UUID(), Handle: user.Handle, DisplayName: user.DisplayName, PhotoUrl: present(user.PhotoURL),
+		FollowerCount: user.FollowerCount, FollowingCount: user.FollowingCount, FollowedByMe: user.FollowedByMe,
+	}, nil
 }
 
 func (h HTTP) SearchUsers(

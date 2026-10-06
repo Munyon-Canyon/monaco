@@ -6,3 +6,5 @@ func (m *Module) EnsuredPrivy() any {
 	m.ensurePrivy()
 	return m.privy
 }
+
+func (m *Module) Follows() any { return m.follows }
