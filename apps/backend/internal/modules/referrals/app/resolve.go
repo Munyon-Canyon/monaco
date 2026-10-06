@@ -42,6 +42,18 @@ func (r Resolver) Resolve(ctx context.Context, input string) (Resolved, error) {
 	return Resolved{UserID: card.ID, CodeKind: domain.CodeKindHandle, Code: domain.Code(code)}, nil
 }
 
+func (r Resolver) Referrer(ctx context.Context, resolved Resolved) (identity.UserCard, error) {
+	cards, err := r.Users.UsersByID(ctx, []ids.UserID{resolved.UserID})
+	if err != nil {
+		return identity.UserCard{}, err
+	}
+	card, ok := cards[resolved.UserID]
+	if !ok {
+		return identity.UserCard{}, errs.New(errs.CodeInternal, resolveOp)
+	}
+	return card, nil
+}
+
 func (r Resolver) random(ctx context.Context, code domain.Code) (Resolved, error) {
 	owner, err := sqlc.New(r.Reads).ReferralCodeOwner(ctx, string(code))
 	switch {

@@ -12,7 +12,8 @@ import (
 )
 
 type HTTP struct {
-	Codes app.Resolver
+	Codes  app.Resolver
+	Attach *app.AttachReferralHandler
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -31,6 +32,34 @@ func (h HTTP) GetMyReferralCode(
 	return api.GetMyReferralCode200JSONResponse{
 		Code: mine.Code, Link: mine.Link, HandleLink: mine.HandleLink, HandleUnlocked: mine.HandleUnlocked,
 	}, nil
+}
+
+func (h HTTP) PostMeReferral(
+	ctx context.Context, req api.PostMeReferralRequestObject,
+) (api.PostMeReferralResponseObject, error) {
+	const op = "referrals.PostMeReferral"
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil || !req.Body.Source.Valid() || req.Body.Code == "" {
+		return nil, errs.New(errs.CodeInvalidInput, op)
+	}
+	cmd := app.AttachReferral{CallerID: user, Code: req.Body.Code, Source: string(req.Body.Source)}
+	if err := h.Attach.Handle(ctx, cmd); err != nil {
+		return nil, err
+	}
+	resolved, err := h.Codes.Resolve(ctx, req.Body.Code)
+	if err != nil {
+		return nil, err
+	}
+	card, err := h.Codes.Referrer(ctx, resolved)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostMeReferral201JSONResponse{Referrer: api.ReferralReferrer{
+		UserId: card.ID.UUID(), DisplayName: card.DisplayName, Handle: card.Handle,
+	}}, nil
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

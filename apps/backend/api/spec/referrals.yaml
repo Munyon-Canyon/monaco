@@ -17,6 +17,39 @@ paths:
                 $ref: "#/components/schemas/MyReferralCode"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/referral:
+    post:
+      operationId: postMeReferral
+      tags: [referrals]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 10, per: 1h, burst: 5}}
+      summary: Attribute the caller to an invite code.
+      description: >-
+        Resolves the code, refuses a self invite, an invite already used, or a caller outside the
+        new-account window, then stores the attribution. A replay of the same idempotency key
+        returns the first 201. A banned, suspended, deleted or locked referrer is an unknown code.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The invite code and where the caller found it.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachReferralRequest"
+            example: {code: k7m4qx2p, source: manual}
+      responses:
+        "201":
+          description: The referrer the caller is now attributed to.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachedReferral"
+              example:
+                referrer:
+                  {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, handle: kaicenat}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   schemas:
     MyReferralCode:
@@ -47,3 +80,57 @@ components:
           type: boolean
           description: True once the caller's first deposit is credited.
           examples: [true]
+    ReferralSource:
+      type: string
+      description: Where the caller found the invite code.
+      enum: [universal_link, clipboard, manual]
+      examples: [manual]
+    AttachReferralRequest:
+      type: object
+      description: An invite code to attach to the caller.
+      additionalProperties: false
+      required: [code, source]
+      examples:
+        - code: k7m4qx2p
+          source: manual
+      properties:
+        code:
+          type: string
+          description: A random invite code or an unlocked handle.
+          examples: [k7m4qx2p]
+        source:
+          $ref: "#/components/schemas/ReferralSource"
+    ReferralReferrer:
+      type: object
+      description: The person whose invite the caller attached.
+      additionalProperties: false
+      required: [user_id, display_name, handle]
+      examples:
+        - user_id: "01890a5d-ac96-774b-bcce-b302099a8058"
+          display_name: Kai
+          handle: kaicenat
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: The referrer's user id.
+          examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+        display_name:
+          type: string
+          description: The referrer's display name.
+          examples: [Kai]
+        handle:
+          type: string
+          description: The referrer's handle.
+          examples: [kaicenat]
+    AttachedReferral:
+      type: object
+      description: The attribution that was stored.
+      additionalProperties: false
+      required: [referrer]
+      examples:
+        - referrer:
+            {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, handle: kaicenat}
+      properties:
+        referrer:
+          $ref: "#/components/schemas/ReferralReferrer"
