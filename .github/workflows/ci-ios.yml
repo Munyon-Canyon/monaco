@@ -32,18 +32,13 @@ jobs:
         run: scripts/ci/select-xcode.sh
 
       # actions/cache rejects a path with `..` in it, and a cache entry only matches the same path string.
-      # Picking the simulator starts CoreSimulator, which took up to 55 s on a fresh runner, so the pick
-      # and the boot run in the background while the cache restores; the processes a step starts live
-      # until the job ends. The build step reads the pick from $RUNNER_TEMP/sim.
-      - name: Resolve DerivedData and start the simulator
+      - name: Resolve DerivedData
         run: |
           work="$(cd "$GITHUB_WORKSPACE/.." && pwd -P)"
           {
             echo "DERIVED_DATA=$work/DerivedData"
             echo "DERIVED_DATA_IMAGE=$work/derived-data-image/DerivedData.sparseimage"
           } >> "$GITHUB_ENV"
-          nohup bash -c 'sim="$(scripts/resolve-ios-sim.sh)" && echo "$sim" > "$RUNNER_TEMP/sim.tmp" && mv "$RUNNER_TEMP/sim.tmp" "$RUNNER_TEMP/sim" && xcrun simctl boot "$sim"' \
-            > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
 
       # The whole DerivedData of the last staging run lives in one APFS disk image: the Swift package
       # checkouts and git mirrors, the module caches, and Build with the compiled packages, the
@@ -69,7 +64,7 @@ jobs:
             hdiutil create -quiet -size 40g -type SPARSE -fs APFS -volname DerivedData "$DERIVED_DATA_IMAGE"
           fi
           mkdir -p "$DERIVED_DATA"
-          hdiutil attach -quiet -nobrowse -noverify -noautoopen -mountpoint "$DERIVED_DATA" "$DERIVED_DATA_IMAGE"
+          hdiutil attach -quiet -nobrowse -noverify -noautofsck -noautoopen -mountpoint "$DERIVED_DATA" "$DERIVED_DATA_IMAGE"
           sudo mdutil -i off "$DERIVED_DATA" > /dev/null || true
 
       # Before the stamp below, because writing the config changes its directory's mtime.
@@ -98,9 +93,10 @@ jobs:
               os.utime(path, ns=(ns, ns))
           '
 
-      # build-for-testing compiles the app and MonacoTests for the generic simulator, arm64 only, so it
-      # never waits on CoreSimulator (with the simulator's id it sat about 2 minutes before resolving
-      # packages while the device booted) and the boot overlaps the build. The MonacoTests test plan leaves MonacoUITests out, so CI
+      # build-for-testing compiles the app and MonacoTests for the generic simulator, arm64 only, so
+      # nothing touches CoreSimulator until the tests run. Booting the simulator in the background
+      # while the cache restored and the build ran slowed every other step (a 2.4 GB extract took
+      # 123 s, mounting the image 107 s, xcodebuild sat 73 s before resolving packages). The MonacoTests test plan leaves MonacoUITests out, so CI
       # never compiles it; the scheme's default plan keeps both.
       - name: Build the app and MonacoTests
         run: |
@@ -117,12 +113,7 @@ jobs:
 
       - name: Run MonacoTests
         run: |
-          for _ in $(seq 180); do [[ -s "$RUNNER_TEMP/sim" ]] && break; sleep 1; done
-          if [[ ! -s "$RUNNER_TEMP/sim" ]]; then
-            cat "$RUNNER_TEMP/simctl-boot.log"
-            exit 1
-          fi
-          SIM="$(cat "$RUNNER_TEMP/sim")"
+          SIM="$(scripts/resolve-ios-sim.sh)"
           xcrun simctl bootstatus "$SIM" -b
           xcodebuild test-without-building -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
