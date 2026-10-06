@@ -61,11 +61,17 @@ func renderCases() []renderCase {
 		{"trade_sell", feed.KindTrade, feed.Payload{
 			CabalName: alpha, Symbol: "AAPLx", Action: feed.ActionSell, USDCMicros: usd(99_990_000),
 		}},
-		{"price_move_up", feed.KindPriceMove, feed.Payload{
-			Symbol: "AAPLx", AssetName: "Apple", ChangeBps: 1043, PriceMicros: usd(187_420_000),
+		{"price_move_up_500", feed.KindPriceMove, feed.Payload{
+			Symbol: "AAPLx", ChangeBps: 500, MarkMicros: usd(212_400_000), PrevClose: usd(193_100_000),
 		}},
-		{"price_move_down", feed.KindPriceMove, feed.Payload{
-			Symbol: "TSLAx", AssetName: "Tesla", ChangeBps: -507, PriceMicros: usd(1_250_005_000),
+		{"price_move_down_1000", feed.KindPriceMove, feed.Payload{
+			Symbol: "TSLAx", ChangeBps: -1000, MarkMicros: usd(1_250_005_000), PrevClose: usd(1_388_900_000),
+		}},
+		{"price_move_up_1234", feed.KindPriceMove, feed.Payload{
+			Symbol: "AAPLx", ChangeBps: 1234, MarkMicros: usd(212_400_000), PrevClose: usd(189_000_000),
+		}},
+		{"price_move_no_prev_close", feed.KindPriceMove, feed.Payload{
+			Symbol: "AAPLx", ChangeBps: 500, MarkMicros: usd(212_400_000),
 		}},
 		{"price_move_flat_no_price", feed.KindPriceMove, feed.Payload{Symbol: "AAPLx"}},
 		{"cabal_created", feed.KindCabalCreated, feed.Payload{CabalName: alpha, ActorName: "alice"}},

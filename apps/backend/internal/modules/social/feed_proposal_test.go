@@ -419,4 +419,8 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 	if err != nil || title != "Beta bought $7.50 of AAPLx" {
 		t.Fatalf("trade item = %q, %v", title, err)
 	}
+	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'price_move'`).Scan(&title)
+	if err != nil || title != "AAPLx is up 10% today" {
+		t.Fatalf("price move item = %q, %v", title, err)
+	}
 }

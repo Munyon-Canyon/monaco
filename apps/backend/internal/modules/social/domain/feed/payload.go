@@ -25,7 +25,11 @@ type Payload struct {
 	Action        Action       `json:"action,omitempty"`
 	USDCMicros    money.Micros `json:"usdc_micros,omitzero"`
 	PriceMicros   money.Micros `json:"price_micros,omitzero"`
+	ThresholdBps  int64        `json:"threshold_bps,omitzero"`
 	ChangeBps     int64        `json:"change_bps,omitzero"`
+	MarkMicros    money.Micros `json:"mark_micros,omitzero"`
+	PrevClose     money.Micros `json:"prev_close_micros,omitzero"`
+	TradingDay    string       `json:"trading_day,omitempty"`
 	TokenAmount   uint64       `json:"token_amount,string,omitzero"`
 	TokenDecimals uint8        `json:"token_decimals,omitzero"`
 	ProposalID    uuid.UUID    `json:"proposal_id,omitzero"`
