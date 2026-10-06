@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-12	Retry failed trade	trading	POST /v1/swaps/{id}/retry	RetryTrade	trade.retry_requested;trade.blocked;trade.submitted;trade.confirmed;trade.failed	trading.engine.retry	ok;Unauthorized;SwapNotFound;NotCabalMember;SwapNotRetryable;InsufficientFunds;crash:after-create;crash:after-execute	planned	docs/architecture/trade-execution.md#retry-and-manual-paths
+12	Retry failed trade	trading	POST /v1/swaps/{id}/retry	RetryTrade	trade.retry_requested;trade.blocked;trade.submitted;trade.confirmed;trade.failed	trading.engine.retry	ok;Unauthorized;SwapNotFound;NotCabalMember;SwapNotRetryable;InsufficientFunds;crash:after-create;crash:after-execute	built	docs/architecture/trade-execution.md#retry-and-manual-paths
