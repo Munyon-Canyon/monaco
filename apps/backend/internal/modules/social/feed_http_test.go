@@ -61,8 +61,9 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 	second := f.getFeed(t, viewer, api.GetFeedParams{Limit: ptr(1), Cursor: first.NextCursor})
 	want = api.FeedItem{
 		Id: older, Kind: "trade", RefType: "swaps", RefId: trade, CabalId: ptr(cabal.UUID()),
-		ActorId: ptr(viewer.UUID()), Symbol: ptr("AAPLx"), Title: "Alpha Cabal bought $500 of AAPLx",
-		Detail: ptr("Apple"), Tone: "neutral", CreatedAt: olderAt, UpdatedAt: olderAt,
+		CabalName: ptr("Alpha Cabal"), ActorId: ptr(viewer.UUID()), Symbol: ptr("AAPLx"),
+		Title: "Alpha Cabal bought $500 of AAPLx", Detail: ptr("Apple"),
+		Tone: "neutral", CreatedAt: olderAt, UpdatedAt: olderAt,
 	}
 	if len(second.Items) != 1 || !reflect.DeepEqual(second.Items[0], want) || second.NextCursor != nil {
 		t.Fatalf("second page = %+v, want [%+v] and no cursor", second, want)

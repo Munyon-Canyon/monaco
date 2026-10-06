@@ -4256,7 +4256,7 @@ components:
       type: object
       description: One feed item with its display strings rendered.
       additionalProperties: false
-      required: [id, kind, ref_type, ref_id, cabal_id, actor_id, symbol, title, detail, body, status, tone, comment_count, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, actor_name, asset_id, symbol, title, detail, body, status, tone, comment_count, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -4273,11 +4273,18 @@ components:
           format: uuid
           description: The cabal the item is about. Null for a price move.
           examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+        cabal_name: {type: [string, "null"], description: "The cabal's current name. Null for a price move.", examples: [Alpha Cabal]}
         actor_id:
           type: [string, "null"]
           format: uuid
           description: The user who acted. Null for a system item.
           examples: [null]
+        actor_name: {type: [string, "null"], description: "The acting user's display name, as it was when the item was written. Null for a system item.", examples: [null]}
+        asset_id:
+          type: [string, "null"]
+          format: uuid
+          description: The stock's id, the target of an asset mute. Null when the item is not about a stock.
+          examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]
         symbol: {type: [string, "null"], description: "The stock symbol, if the item is about one.", examples: [AAPLx]}
         title: {type: string, description: "The rendered headline.", examples: ["Alpha Cabal bought $500 of AAPLx"]}
         detail: {type: [string, "null"], description: "A rendered second line, if the item has one.", examples: [Apple]}

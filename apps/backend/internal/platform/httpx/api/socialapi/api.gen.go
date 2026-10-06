@@ -231,6 +231,16 @@ type FeedItem struct {
 	// Examples: null
 	ActorId *openapi_types.UUID `json:"actor_id"`
 
+	// ActorName The acting user's display name, as it was when the item was written. Null for a system item.
+	//
+	// Examples: null
+	ActorName *string `json:"actor_name"`
+
+	// AssetId The stock's id, the target of an asset mute. Null when the item is not about a stock.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	AssetId *openapi_types.UUID `json:"asset_id"`
+
 	// Body Free text, such as a proposal's thesis.
 	//
 	// Examples: null
@@ -240,6 +250,11 @@ type FeedItem struct {
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	CabalId *openapi_types.UUID `json:"cabal_id"`
+
+	// CabalName The cabal's current name. Null for a price move.
+	//
+	// Examples: Alpha Cabal
+	CabalName *string `json:"cabal_name"`
 
 	// CommentCount The number of comments.
 	//

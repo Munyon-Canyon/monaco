@@ -41,6 +41,9 @@ type FeedItem struct {
 	RefID        uuid.UUID
 	CabalID      ids.CabalID
 	ActorID      ids.UserID
+	AssetID      uuid.UUID
+	CabalName    string
+	ActorName    string
 	Symbol       string
 	Title        string
 	Detail       string
@@ -95,6 +98,7 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 	return FeedItem{
 		ID: row.ID, Kind: kind, RefType: feed.RefType(row.RefType), RefID: row.RefID,
 		CabalID: ids.CabalIDFrom(row.CabalID.Bytes), ActorID: ids.UserIDFrom(row.ActorID.Bytes),
+		AssetID: row.AssetID.Bytes, CabalName: row.CabalName.String, ActorName: payload.ActorName,
 		Symbol: row.Symbol.String, Title: row.Title, Detail: feed.RenderDetail(kind, payload), Body: row.Body.String,
 		Status: row.Status.String, Tone: feed.RenderTone(kind, payload), CommentCount: row.CommentCount,
 		CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
