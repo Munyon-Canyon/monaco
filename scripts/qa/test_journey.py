@@ -559,11 +559,13 @@ class Simulators(Tree):
                 return self.result(json.dumps({"devices": self.devices}))
             if args[:3] == ["xcrun", "simctl", "create"]:
                 return self.result("journey-a\n")
+            if args[0].endswith("simslim-ensure.sh"):
+                return self.result()
             self.fail("unexpected command: %r" % (args,))
 
         journey.sh = stub
         self.assertEqual(journey.resolve_simulators(self.loaded, {}), {"A": "journey-a"})
-        self.assertEqual(calls[-1], [
+        self.assertEqual(calls[-2], [
             "xcrun", "simctl", "create", "Monaco Journeys A", "phone",
             "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
         ])
@@ -583,6 +585,8 @@ class Simulators(Tree):
                 return self.result("lane-a\n")
             if args[:2] == ["git", "rev-parse"]:
                 return self.result(self.tmp.name + "\n")
+            if args[0].endswith("simslim-ensure.sh"):
+                return self.result()
             self.fail("unexpected command: %r" % (args,))
 
         journey.sh = stub
@@ -592,6 +596,37 @@ class Simulators(Tree):
                        "com.apple.CoreSimulator.SimRuntime.iOS-26-5"], calls)
         registry = Path(self.tmp.name, "monaco-lane-sims.tsv").read_text()
         self.assertEqual(registry, "lane-a\tagent-7\tMonaco Journeys agent-7 A\n")
+
+    def test_a_new_actor_simulator_is_slimmed_and_an_existing_one_is_checked(self):
+        calls = []
+
+        def stub(args, **kwargs):
+            calls.append(args)
+            if args == ["scripts/gold-sim-udid.sh"]:
+                return self.result("gold\n")
+            if args == ["xcrun", "simctl", "list", "devices", "--json"]:
+                return self.result(json.dumps({"devices": self.devices}))
+            if args[:3] == ["xcrun", "simctl", "create"]:
+                return self.result("journey-a\n")
+            if args[0].endswith("simslim-ensure.sh"):
+                return self.result()
+            self.fail("unexpected command: %r" % (args,))
+
+        journey.sh = stub
+        journey.resolve_simulators(self.loaded, {})
+        ensure = [c[1:] for c in calls if c[0].endswith("simslim-ensure.sh")]
+        self.assertEqual(ensure, [["create", "journey-a"]])
+        devices = dict(self.devices)
+        devices["other"] = [{"udid": "have-a", "name": "Monaco Journeys A", "isAvailable": True}]
+        self.devices = devices
+        del calls[:]
+        journey.resolve_simulators(self.loaded, {})
+        ensure = [c[1:] for c in calls if c[0].endswith("simslim-ensure.sh")]
+        self.assertEqual(ensure, [["check", "have-a"]])
+
+    def test_an_explicit_simulator_is_not_slimmed(self):
+        journey.sh = lambda args, **kwargs: self.fail("unexpected command: %r" % (args,))
+        self.assertEqual(journey.resolve_simulators(self.loaded, {"A": "mine"}), {"A": "mine"})
 
     def test_lane_name_is_the_linked_worktree_directory(self):
         journey.lane_name = self.saved_lane_name

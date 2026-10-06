@@ -42,7 +42,7 @@ stock fallback.
 
 - **Simulator.** `scripts/lane-sim-udid.sh` prints the lane's simulator,
   `Monaco <lane>`. The first call creates it with the gold simulator's device type
-  and runtime, and slims it once when `simslim` and a profile are installed.
+  and runtime, and slims it (see SimSlim for lanes and journeys below).
   `scripts/resolve-ios-sim.sh` and `scripts/gold-sim-udid.sh` return it in a lane,
   so `just run mobile`, `monacoctl agents check` and MobileBuildMCP's
   `--simulator-id` all use it. Journey actors get `Monaco Journeys <lane> <actor>`.
@@ -74,6 +74,16 @@ stock fallback.
 | `MONACO_SIM_UDID` | unset | Use this simulator in any checkout, lane or primary. Nothing is created. |
 | `MONACO_XCODE_SLOTS` | RAM GB / 16, at least 1 | xcodebuild processes that may run at once. |
 | `MONACO_SWIFTPM_SLOTS` | RAM GB / 8, at least 1 | `swift build` and `swift test` processes that may run at once. |
+
+## SimSlim for lanes and journeys
+
+When `simslim` is on PATH, `scripts/simslim-ensure.sh` slims every lane simulator and
+every journey actor simulator right after it is created, with no watcher running:
+`simslim on <udid> --profile "${SIMSLIM_PROFILE:-$HOME/.config/simslim/base-slim.json}" --preserve-boot-state`.
+Before a later run the same script calls `simslim verify`, and if the simulator is no
+longer slim (recreated or erased) it re-runs `simslim on` once. A missing `simslim`
+warns on stderr and the simulator stays stock; nothing fails. `MONACO_NO_SIMSLIM=1`
+opts out.
 
 ## SimSlim profiles
 

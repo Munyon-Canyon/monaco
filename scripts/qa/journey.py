@@ -569,6 +569,11 @@ def journey_simulator_name(actor):
     return "Monaco Journeys %s %s" % (lane, actor) if lane else "Monaco Journeys %s" % actor
 
 
+def simslim_ensure(mode, udid):
+    """Slims a dedicated simulator when it is created, or repairs it once before a run. Never fails."""
+    sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=False)
+
+
 def resolve_simulators(journey, mapping):
     sims = dict(mapping)
     missing = [actor for actor in journey.actors if actor not in sims]
@@ -585,6 +590,9 @@ def resolve_simulators(journey, mapping):
                 lane = lane_name()
                 if lane:
                     register_lane_simulator(sims[actor], lane, name)
+                simslim_ensure("create", sims[actor])
+            else:
+                simslim_ensure("check", sims[actor])
     if len(set(sims.values())) != len(sims):
         raise JourneyError("two actors share one simulator: %s" % sims)
     return sims
