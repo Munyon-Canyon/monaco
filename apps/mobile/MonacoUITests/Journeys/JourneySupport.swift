@@ -238,6 +238,14 @@ extension XCUIApplication {
         back.tap()
     }
 
+    func popToRoot(maxDepth: Int = 8) {
+        for _ in 0..<maxDepth {
+            let back = navigationBars.buttons["BackButton"].firstMatch
+            guard back.waitForExistence(timeout: 1), back.isHittable else { return }
+            back.tap()
+        }
+    }
+
     func shareSheetShows(timeout: TimeInterval = 5) -> Bool {
         waitForFirst(of: [buttons["Close"].firstMatch, otherElements["ActivityListView"].firstMatch], timeout: timeout)
             != nil

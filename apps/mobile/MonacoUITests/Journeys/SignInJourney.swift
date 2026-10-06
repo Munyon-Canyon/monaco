@@ -142,6 +142,7 @@ enum SignInJourney {
 
         recorder.step("S3.1", "open Profile") {
             app.waitForToastGone()
+            app.popToRoot()
             app.tab("Profile").tap()
             XCTAssertTrue(signOut.waitForExistence(timeout: 15), "S3.1: no Sign out button on Profile")
         }

@@ -51,13 +51,16 @@ enum JoinJourney {
         let field = searchField(app)
         XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no search field on the Cabals tab")
         app.waitForToastGone()
-        field.tap()
         if let text = field.value as? String, !text.isEmpty, text != field.placeholderValue {
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: text.count))
         }
         let current = field.value as? String ?? ""
         XCTAssertTrue(
             current.isEmpty || current == field.placeholderValue, "\(step): search field still holds \(current)")
+        if field.value(forKey: "hasKeyboardFocus") as? Bool != true {
+            field.tap()
+        }
         field.typeText(query)
     }
 
