@@ -356,10 +356,11 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/ci-mobile-core.yml
 
-  # The only macOS job: builds the app, MonacoTests and MonacoUITests, then runs MonacoTests. Not in stage 2.
+  # The only macOS job: builds the app and MonacoTests, then runs MonacoTests. Staging indicator only: it took about
+  # 12 minutes on a mobile PR (#3399), and owners build the app and run MonacoTests locally before they push.
   ios:
     needs: plan
-    if: inputs.stage != 'queue' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
+    if: inputs.stage == 'staging' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.ios == 'true' || needs.plan.outputs.unknown == 'true')
     uses: ./.github/workflows/ci-ios.yml
     with:
       save-cache: ${{ inputs.stage == 'staging' }}
