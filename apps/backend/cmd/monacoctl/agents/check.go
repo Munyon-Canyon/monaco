@@ -96,9 +96,9 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		return nil
 	}
 	parent := env.stackParent(ctx, base)
-	patchID := env.patchID(ctx, parent)
+	patchID, generated := env.patchID(ctx, parent)
 	if !fresh {
-		if carried, err := env.carry(patchID, tree, head, base, parent, stdout); carried || err != nil {
+		if carried, err := env.carry(patchID, tree, head, base, parent, generated, stdout); carried || err != nil {
 			return err
 		}
 		ctx, release, err := env.takeSlot(ctx, stdout)
@@ -150,7 +150,7 @@ func (env *Env) runStage0(ctx context.Context, base, parent, head, tree, patchID
 	return nil
 }
 
-func (env *Env) carry(patchID, tree, head, base, parent string, stdout io.Writer) (bool, error) {
+func (env *Env) carry(patchID, tree, head, base, parent string, generated []string, stdout io.Writer) (bool, error) {
 	old, ok := env.carriedTree(patchID)
 	if !ok {
 		return false, nil
@@ -160,20 +160,59 @@ func (env *Env) carry(patchID, tree, head, base, parent string, stdout io.Writer
 		return false, err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 carried from tree %s (same diff against %s)\n", old[:min(12, len(old))], parent)
+	if len(generated) > 0 {
+		_, _ = fmt.Fprintf(
+			stdout, "carry key ignored %d generated files: %s\n", len(generated), strings.Join(generated, ", "),
+		)
+	}
 	return true, nil
 }
 
-func (env *Env) patchID(ctx context.Context, parent string) string {
-	diff, err := env.Run(ctx, env.Work, "", "git", "diff", parent, "HEAD")
+func (env *Env) patchID(ctx context.Context, parent string) (string, []string) {
+	globs := env.generatedGlobs()
+	spec := make([]string, 0, 2+len(globs))
+	spec = append(spec, "--", ".")
+	for _, g := range globs {
+		spec = append(spec, ":(exclude,glob)"+g)
+	}
+	diff, err := env.Run(ctx, env.Work, "", "git", append([]string{"diff", parent, "HEAD"}, spec...)...)
 	if err != nil || len(bytes.TrimSpace(diff)) == 0 {
-		return ""
+		return "", nil
 	}
 	out, err := env.Run(ctx, env.Work, string(diff), "git", "patch-id", "--verbatim")
 	id, _, _ := strings.Cut(strings.TrimSpace(string(out)), " ")
 	if err != nil {
-		return ""
+		return "", nil
 	}
-	return id
+	var generated []string
+	if len(globs) > 0 {
+		only := []string{"diff", "--name-only", parent, "HEAD", "--"}
+		for _, g := range globs {
+			only = append(only, ":(glob)"+g)
+		}
+		if names, err := env.Run(ctx, env.Work, "", "git", only...); err == nil {
+			generated = strings.Fields(string(names))
+		}
+	}
+	return id, generated
+}
+
+func (env *Env) generatedGlobs() []string {
+	raw, err := os.ReadFile(filepath.Join(env.Work, ".gitattributes"))
+	if err != nil {
+		return nil
+	}
+	var globs []string
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || strings.HasPrefix(fields[0], "#") {
+			continue
+		}
+		if len(fields) == 1 || slices.Contains(fields[1:], "linguist-generated") {
+			globs = append(globs, fields[0])
+		}
+	}
+	return globs
 }
 
 func (env *Env) carriedTree(patchID string) (string, bool) {
