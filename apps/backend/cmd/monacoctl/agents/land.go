@@ -545,8 +545,11 @@ func (env *Env) waitsForDraft(p gqlPR, drafts []queueDraft) bool {
 }
 
 func awaitsDraft(drafts []queueDraft, pr int, takenAt, now time.Time) bool {
-	return now.Sub(takenAt) < takenFor &&
-		!slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.runs(pr, takenAt) })
+	return now.Sub(takenAt) < takenFor && !draftRan(drafts, pr, takenAt)
+}
+
+func draftRan(drafts []queueDraft, pr int, takenAt time.Time) bool {
+	return slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.runs(pr, takenAt) })
 }
 
 func (env *Env) heldByGraphite(p gqlPR, drafts []queueDraft) bool {

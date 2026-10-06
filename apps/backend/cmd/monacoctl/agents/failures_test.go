@@ -94,9 +94,27 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 			lapsed,
 		},
 		{
-			"a drop before the last run is not news",
-			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before))},
+			"a take whose hold ended before the last run is not news",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(since.Add(-takenFor-time.Minute)))},
 			nil, nil, lapsed,
+		},
+		{
+			"a take before the last run is a drop once its hold runs out",
+			[]string{watchNode(1, "fb", noRollup, dropped(before))},
+			[]want{{"dropped from the Graphite merge queue", 0}},
+			nil, before.Add(takenFor),
+		},
+		{
+			"a take before the last run is no drop while its hold runs",
+			[]string{watchNode(1, "fb", noRollup, dropped(before))},
+			nil, nil, waiting,
+		},
+		{
+			"a PR that a closed draft ran is left to the eject path once the last run is past its removal",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before))},
+			nil,
+			[]string{draftNode("gtmq_1", "Merge queue: #1", ran, rollup(flakeJob))},
+			waiting,
 		},
 		{
 			"Graphite taking the PR is no drop while its draft has not run it",
@@ -295,6 +313,54 @@ func TestFailures_watchOnceLeavesAPRGraphiteTookWhileItWaitsForADraft(t *testing
 			if tc.want == "" && (code != 0 || stdout != "" || stderr != "") ||
 				tc.want != "" && (code != 1 || !strings.HasPrefix(stdout, tc.want)) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
+	t.Parallel()
+	const every = 5 * time.Minute
+	for _, tc := range []struct {
+		name          string
+		opens, closes time.Duration
+		want          []time.Duration
+	}{
+		{name: "no draft ever opens", want: []time.Duration{30 * time.Minute}},
+		{
+			name:  "a draft ran it and closed before the hold ran out, while Graphite had yet to close the PR",
+			opens: 5 * time.Minute, closes: 25 * time.Minute,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			first := f.now
+			var reported []time.Duration
+			for offset := time.Duration(0); offset <= time.Hour; offset += every {
+				f.now = first.Add(offset)
+				var drafts []string
+				switch {
+				case tc.opens == 0 || offset < tc.opens:
+				case offset < tc.closes:
+					open := draftNode("gtmq_5", "Merge queue: #5", first, noRollup)
+					drafts = []string{strings.Replace(open, `{"title"`, `{"state":"OPEN","title"`, 1)}
+				default:
+					drafts = []string{draftNode("gtmq_5", "Merge queue: #5", first.Add(tc.closes), rollup(greenOK))}
+				}
+				f.hub.on(graphqlRoute, draftData(drafts,
+					watchNode(5, "fb", rollup(greenOK), dropped(first.Add(-2*time.Minute)))))
+				code, stdout, stderr := f.agents(t, "watch", "--once")
+				if strings.Contains(stdout, "#5 dropped from the Graphite merge queue\n") {
+					reported = append(reported, offset)
+					continue
+				}
+				if code != 0 || stdout != "" || stderr != "" {
+					t.Fatalf("after %s: code=%d stdout=%q stderr=%q", offset, code, stdout, stderr)
+				}
+			}
+			if !slices.Equal(reported, tc.want) {
+				t.Fatalf("reported after %v, want after %v", reported, tc.want)
 			}
 		})
 	}
