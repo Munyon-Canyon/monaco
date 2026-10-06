@@ -160,16 +160,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         let error: String
     }
 
-    public func getHomeDashboard() async throws -> HomeDashboardDTO {
-        let url = baseURL.appending(path: "v1/home/dashboard")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: "/v1/home/dashboard")
-        return try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: response.data)
-    }
-
     public func castVote(proposalId: String, choice: String) async throws {
         let url = baseURL.appending(path: "v1/proposals/\(proposalId)/votes")
         var request = URLRequest(url: url)

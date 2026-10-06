@@ -305,7 +305,7 @@ final class HandleSampleHarnessEntry: SampleHarnessEntry {
 
 private struct HandleSampleHarness: View {
     let scenario: HandleSampleScenario
-    @State private var session = AppSessionStore(apiClient: MonacoAPIClient())
+    @State private var session = AppSessionStore()
 
     var body: some View {
         NavigationStack {

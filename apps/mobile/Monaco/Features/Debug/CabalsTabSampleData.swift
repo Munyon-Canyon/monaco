@@ -58,7 +58,7 @@ enum CabalsTabSampleData {
 struct CabalsTabSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
     @State private var session: AppSessionStore = {
-        let session = AppSessionStore(apiClient: MonacoAPIClient())
+        let session = AppSessionStore()
         session.isLoading = CabalsTabSampleData.scenario == .cabalsLoading
         return session
     }()

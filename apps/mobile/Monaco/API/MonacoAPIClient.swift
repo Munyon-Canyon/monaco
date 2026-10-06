@@ -23,7 +23,7 @@ extension Error {
     }
 }
 
-final class MonacoAPIClient: AppSessionDataSource {
+final class MonacoAPIClient {
     private let baseURL: URL
     /// Every request goes through the transport so an expired access token is
     /// refreshed and the request retried once instead of signing the user out.
@@ -44,22 +44,6 @@ final class MonacoAPIClient: AppSessionDataSource {
             throw MonacoAPIError.httpStatus(http.statusCode)
         }
         return try JSONDecoder().decode(HealthResponse.self, from: data)
-    }
-
-    func getHomeDashboard(accessToken: String) async throws -> HomeDashboardDTO {
-        let url = baseURL.appending(path: "v1/home/dashboard")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try applyAuthorizationHeader(accessToken: accessToken, to: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw MonacoAPIError.invalidResponse
-        }
-        guard http.statusCode == 200 else {
-            throw MonacoAPIError.httpStatus(http.statusCode)
-        }
-        return try monacoISO8601JSONDecoder().decode(HomeDashboardDTO.self, from: data)
     }
 
     func getGroup(accessToken: String, groupId: String) async throws -> GetGroupResponse {

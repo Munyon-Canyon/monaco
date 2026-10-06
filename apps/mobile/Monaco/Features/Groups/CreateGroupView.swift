@@ -31,9 +31,7 @@ enum CabalRulesCopy {
 struct CreateGroupView: View {
     @Environment(AppEnvironment.self) private var environment: AppEnvironment?
     @Environment(ToastCenter.self) private var toasts: ToastCenter?
-    @Environment(AppSessionStore.self) private var session: AppSessionStore?
 
-    private let auth: PrivyAuthService?
     private let injectedActions: CabalsActionSource?
     private let onCreated: ((Components.Schemas.Cabal) -> Void)?
 
@@ -42,11 +40,9 @@ struct CreateGroupView: View {
     @State private var isCreating = false
 
     init(
-        auth: PrivyAuthService? = nil,
         actions: CabalsActionSource? = nil,
         onCreated: ((Components.Schemas.Cabal) -> Void)? = nil
     ) {
-        self.auth = auth
         self.injectedActions = actions
         self.onCreated = onCreated
     }
@@ -133,9 +129,6 @@ struct CreateGroupView: View {
         defer { isCreating = false }
         do {
             let cabal = try await actions.createCabal(input, submission: submission)
-            if let auth = auth ?? environment?.auth {
-                session?.refreshAfterCreate(auth: auth, created: cabal)
-            }
             toasts?.show(success: CabalRulesCopy.created)
             if let onCreated {
                 onCreated(cabal)

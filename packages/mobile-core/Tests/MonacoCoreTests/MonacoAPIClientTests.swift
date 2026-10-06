@@ -41,42 +41,10 @@ final class MonacoAPIClientTests: XCTestCase {
         )
 
         // Act
-        _ = try await client.getHomeDashboard()
+        try await client.castVote(proposalId: "p", choice: "yes")
 
         // Assert
         XCTAssertEqual(capturedAuthorization, expectedAuthorization)
-    }
-
-    func testAPIClient_getHomeDashboard_callsV1HomeDashboard() async throws {
-        // Arrange
-        var capturedPath: String?
-        var capturedQuery: String?
-
-        MockURLProtocol.requestHandler = { request in
-            capturedPath = request.url?.path
-            capturedQuery = request.url?.query
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "application/json"]
-            )!
-            return (response, Data("{}".utf8))
-        }
-
-        let client = MonacoAPIClient(
-            baseURL: URL(string: "https://api.test")!,
-            session: makeMockURLSession(),
-            accessTokenProvider: { TestFixtures.fixtureSessionToken }
-        )
-
-        // Act
-        let dashboard = try await client.getHomeDashboard()
-
-        // Assert
-        XCTAssertEqual(capturedPath, "/v1/home/dashboard")
-        XCTAssertNil(capturedQuery)
-        XCTAssertEqual(dashboard, HomeDashboardDTO())
     }
 
     private func makeMockURLSession() -> URLSession {

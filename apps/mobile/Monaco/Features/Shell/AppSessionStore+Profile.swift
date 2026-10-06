@@ -73,7 +73,6 @@ extension AppSessionStore {
             }
             return await failure(for: error, auth: auth, rejectedToken: token)
         }
-        refreshBoardsAfterProfileWrite(auth: auth)
         return .saved
     }
 
@@ -97,7 +96,6 @@ extension AppSessionStore {
         } catch {
             return await failure(for: error, auth: auth, rejectedToken: token)
         }
-        refreshBoardsAfterProfileWrite(auth: auth)
         return .saved
     }
 

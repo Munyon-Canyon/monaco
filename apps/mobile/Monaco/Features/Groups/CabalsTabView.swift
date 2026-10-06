@@ -91,7 +91,7 @@ struct CabalsTabView: View {
 
 #if DEBUG
 #Preview {
-    let session = AppSessionStore(apiClient: MonacoAPIClient())
+    let session = AppSessionStore()
     return NavigationStack {
         CabalsTabView(auth: PrivyAuthService(), actions: CabalsTabSampleData.Actions())
             .environment(session)

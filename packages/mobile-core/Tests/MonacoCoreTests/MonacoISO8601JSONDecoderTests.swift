@@ -2,7 +2,7 @@ import XCTest
 
 @testable import MonacoCore
 
-final class HomeDashboardDTOTests: XCTestCase {
+final class MonacoISO8601JSONDecoderTests: XCTestCase {
     func testMonacoISO8601JSONDecoder_nonISO8601Timestamp_throwsDataCorrupted() {
         let json = #"{ "ts": "1789675200" }"#
 
