@@ -40,6 +40,10 @@ const (
 	ChatParentNotFound         ErrorCode = "chat_parent_not_found"
 	ClientClosed               ErrorCode = "client_closed"
 	CoinGeckoRateLimited       ErrorCode = "coin_gecko_rate_limited"
+	CommentMembersOnly         ErrorCode = "comment_members_only"
+	CommentNotAuthor           ErrorCode = "comment_not_author"
+	CommentNotFound            ErrorCode = "comment_not_found"
+	CommentParentMismatch      ErrorCode = "comment_parent_mismatch"
 	ConservationBroken         ErrorCode = "conservation_broken"
 	DbSchemaBehind             ErrorCode = "db_schema_behind"
 	DbUnavailable              ErrorCode = "db_unavailable"
@@ -192,6 +196,14 @@ func (e ErrorCode) Valid() bool {
 	case ClientClosed:
 		return true
 	case CoinGeckoRateLimited:
+		return true
+	case CommentMembersOnly:
+		return true
+	case CommentNotAuthor:
+		return true
+	case CommentNotFound:
+		return true
+	case CommentParentMismatch:
 		return true
 	case ConservationBroken:
 		return true

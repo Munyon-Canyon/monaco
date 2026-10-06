@@ -34,6 +34,10 @@ extension Components.Schemas.ErrorCode {
         case .chatParentNotFound: true
         case .clientClosed: true
         case .coinGeckoRateLimited: true
+        case .commentMembersOnly: true
+        case .commentNotAuthor: true
+        case .commentNotFound: true
+        case .commentParentMismatch: true
         case .conservationBroken: true
         case .dbSchemaBehind: true
         case .dbUnavailable: true

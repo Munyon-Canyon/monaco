@@ -283,6 +283,28 @@ Subject `events.chat.message_posted`, version 1.
 | `also_in_channel` | `bool` |
 | `created_at` | `time.Time` |
 
+## `comment.created`
+
+Subject `events.comment.created`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `comment_id` | `uuid.UUID` |
+| `feed_object_id` | `uuid.UUID` |
+| `feed_kind` | `string` |
+| `ref_type` | `string` |
+| `ref_id` | `uuid.UUID` |
+| `cabal_id` | `*uuid.UUID` |
+| `author_id` | `uuid.UUID` |
+| `parent_comment_id` | `*uuid.UUID` |
+| `parent_author_id` | `*uuid.UUID` |
+| `parent_deleted` | `bool` |
+| `reply_to_user_id` | `*uuid.UUID` |
+| `item_actor_id` | `*uuid.UUID` |
+| `proposal_id` | `*uuid.UUID` |
+| `excerpt` | `string` |
+
 ## `deposit.credited`
 
 Subject `events.deposit.credited`, version 1.
