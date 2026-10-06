@@ -68,7 +68,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
     - Before stage 0, run what the change must regenerate, and commit the output. The one regeneration command is `go generate ./...` from `apps/backend`. It writes sqlc output, `docs/reference/`, `atlas.sum`, the `verify-backend` feature map and every other generated file. CI's `ready` job (`scripts/ci/ready.sh`) fails when it leaves a diff or `go mod tidy` is stale. `scripts/ci/ready.sh` runs the same steps locally on a committed tree.
 
-    Never run `just test backend`, `go test -race` or `go test ./...` from `apps/backend` as an owner. Never run mutation testing locally. The Graphite merge queue runs the full suite, and the nightly runs mutation.
+    Never run `just test backend`, `go test -race` or `go test ./...` from `apps/backend` as an owner. Never run mutation testing locally. Stage 1 CI runs the full suite behind its path filters, and the nightly runs mutation.
 
 7. Push the stack as drafts:
 
