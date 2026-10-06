@@ -254,22 +254,14 @@ func TestResolveIOSSim_monacoSimUdidOverridesLaneAndPrimary(t *testing.T) {
 	}
 }
 
-// After creating the lane simulator, simslim slims it once when a profile is found.
+// After creating the lane simulator, simslim slims it once with the checkout's profile.
 func TestResolveIOSSim_laneSlimsANewSimulator(t *testing.T) {
 	bin := t.TempDir()
 	calls := filepath.Join(t.TempDir(), "simslim.calls")
 	script := "#!/bin/sh\necho \"$*\" >> " + calls + "\n[ \"$1\" = on ]\n"
 	writeExecutable(t, filepath.Join(bin, "simslim"), script)
-	home := t.TempDir()
-	profile := filepath.Join(home, ".config", "simslim", "base-slim.json")
-	if err := os.MkdirAll(filepath.Dir(profile), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(profile, []byte("{}"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	r := runSim(t, simCheckout(t, "slim"), "resolve-ios-sim.sh", "simctl", t.TempDir(),
-		"HOME="+home, "PATH="+filepath.Join(repoRoot(t), "scripts", "testdata", "fakebin")+string(os.PathListSeparator)+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		"HOME="+t.TempDir(), "PATH="+filepath.Join(repoRoot(t), "scripts", "testdata", "fakebin")+string(os.PathListSeparator)+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if r.err != nil {
 		t.Fatalf("resolve-ios-sim.sh: %v\n%s", r.err, r.out)
 	}
@@ -277,8 +269,8 @@ func TestResolveIOSSim_laneSlimsANewSimulator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "on " + r.udid + " --profile " + profile + " --preserve-boot-state\n"; !strings.Contains(string(got), want) {
-		t.Fatalf("simslim calls %q, want %q", got, want)
+	if want := "on " + r.udid + " --profile "; !strings.Contains(string(got), want) || !strings.Contains(string(got), "/ci/profiles/base-slim.json --preserve-boot-state\n") {
+		t.Fatalf("simslim calls %q, want %q with the checkout's ci/profiles/base-slim.json", got, want)
 	}
 }
 
@@ -319,10 +311,11 @@ func TestSimslimEnsure_createCallsOnWithTheProfile(t *testing.T) {
 	}
 }
 
-func TestSimslimEnsure_defaultProfileIsUnderHome(t *testing.T) {
+func TestSimslimEnsure_defaultProfileIsTheRepos(t *testing.T) {
 	path, calls := simslimBin(t, 0)
 	ensure(t, path, "create", "UDID1", "HOME=/h")
-	if got, want := readCalls(t, calls), "on UDID1 --profile /h/.config/simslim/base-slim.json --preserve-boot-state\n"; got != want {
+	profile := filepath.Join(repoRoot(t), "ci", "profiles", "base-slim.json")
+	if got, want := readCalls(t, calls), "on UDID1 --profile "+profile+" --preserve-boot-state\n"; got != want {
 		t.Fatalf("calls %q, want %q", got, want)
 	}
 }
@@ -369,9 +362,10 @@ func TestResolveIOSSim_laneChecksAnExistingSimulator(t *testing.T) {
 	if first.err != nil || second.err != nil || first.udid != second.udid {
 		t.Fatalf("runs %v %v: %q %q", first.err, second.err, first.out, second.out)
 	}
-	want := "on " + first.udid + " --profile /h/.config/simslim/base-slim.json --preserve-boot-state\n" +
-		"verify " + first.udid + " --profile /h/.config/simslim/base-slim.json\n" +
-		"on " + first.udid + " --profile /h/.config/simslim/base-slim.json --preserve-boot-state\n"
+	profile := filepath.Join(lane, "ci", "profiles", "base-slim.json")
+	want := "on " + first.udid + " --profile " + profile + " --preserve-boot-state\n" +
+		"verify " + first.udid + " --profile " + profile + "\n" +
+		"on " + first.udid + " --profile " + profile + " --preserve-boot-state\n"
 	if got := readCalls(t, calls); !strings.Contains(got, want) {
 		t.Fatalf("calls %q, want to contain %q", got, want)
 	}

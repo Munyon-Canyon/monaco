@@ -79,11 +79,15 @@ stock fallback.
 
 When `simslim` is on PATH, `scripts/simslim-ensure.sh` slims every lane simulator and
 every journey actor simulator right after it is created, with no watcher running:
-`simslim on <udid> --profile "${SIMSLIM_PROFILE:-$HOME/.config/simslim/base-slim.json}" --preserve-boot-state`.
+`simslim on <udid> --profile "${SIMSLIM_PROFILE:-ci/profiles/base-slim.json}" --preserve-boot-state`.
 Before a later run the same script calls `simslim verify`, and if the simulator is no
 longer slim (recreated or erased) it re-runs `simslim on` once. A missing `simslim`
 warns on stderr and the simulator stays stock; nothing fails. `MONACO_NO_SIMSLIM=1`
 opts out.
+
+`ci/profiles/base-slim.json` keeps `siri` on. Slimming it away leaves UIKit's dictation
+availability handler spinning the app's main thread as soon as a text field takes focus, so
+XCUITest never sees the app idle (#3224).
 
 ## SimSlim profiles
 

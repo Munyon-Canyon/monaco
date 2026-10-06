@@ -127,11 +127,11 @@ Start from **base-slim** (maximum cut). Add `except` / `keep` only for QA paths 
 | Location / maps | `except: ["location"]` | location |
 | iCloud / CloudKit | `except: ["icloud"]` | icloud |
 
-Example `ci/profiles/base-slim.json`:
+Example `ci/profiles/base-slim.json` (keeps `siri`: slimmed away, the keyboard's dictation handler spins the app's main thread):
 
 ```json
 {
-  "except": []
+  "except": ["siri"]
 }
 ```
 
