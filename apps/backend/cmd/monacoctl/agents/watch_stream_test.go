@@ -402,6 +402,32 @@ func TestWatchStream_anEjectedStackPrintsOneFreshOwnerBlock(t *testing.T) {
 	}
 }
 
+func TestWatchStream_anEjectedStackThatOneFailedDraftDroppedPrintsOneFreshOwnerBlock(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := queuedStack(t, f, "/w/40")
+	f.hub.on(get("/compare/fb...d1"), `{"status":"diverged"}`)
+	got := streamRounds(t, f, 5, func(round int) {
+		if round != 1 {
+			return
+		}
+		took := unlabel(f.now.Add(time.Minute), "merge-queue", graphiteApp)
+		setUnlabels(t, s.prs[1], took)
+		setUnlabels(t, s.prs[2], took)
+		f.now = f.now.Add(10 * time.Minute)
+		closed := f.now.Add(-time.Minute)
+		failed := closedDraftWith("gtmq_1", "Merge queue: #1 #2", closed, "CLOSED", "d1", rollup(flakeJob))
+		f.hub.on(graphqlRoute, draftData([]string{failed},
+			watchNode(1, "fb", rollup(greenOK), took),
+			watchNode(2, "b1", rollup(greenOK), took),
+		))
+	})
+	const block = "#1 left the Graphite merge queue\n  failing job: https://gh/job/11\n  fresh owner\n  ticket: 40\n"
+	if strings.Count(got, "  fresh owner\n") != 1 || !strings.Contains(got, block) {
+		t.Fatalf("stream:\n%s", got)
+	}
+}
+
 func TestWatchStream_rereadsTheTrunkEachRoundForASquashNotYetVisible(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

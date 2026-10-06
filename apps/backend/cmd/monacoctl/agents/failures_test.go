@@ -154,6 +154,17 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 			waiting,
 		},
 		{
+			"the draft that closed last decides when deleting an older draft's branch moved its updatedAt past it",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before.Add(-time.Minute)))},
+			[]want{{"dropped from the Graphite merge queue", 11}},
+			[]string{
+				draftNode("gtmq_1", "Merge queue: #1", ran, rollup(flakeJob)),
+				movedUpdate(t, draftNode("gtmq_1", "Merge queue: #1", after.Add(10*time.Second), rollup(lintJob)),
+					after.Add(10*time.Second), after.Add(50*time.Second)),
+			},
+			waiting,
+		},
+		{
 			"Graphite taking the PR is no drop while its draft has not run it",
 			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
 			nil, nil, waiting,

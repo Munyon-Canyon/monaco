@@ -497,9 +497,9 @@ func labelEvent(kind string, at time.Time, label, actor string) string {
 		kind, at.UTC().Format(time.RFC3339), label, login)
 }
 
-func closedMQDraft(prs string, updated time.Time) string {
-	return fmt.Sprintf(`{"title":"[Graphite MQ] Draft PR GROUP:spec_1 (PRs %s)","headRefName":"gtmq_1","updatedAt":%q}`,
-		prs, updated.UTC().Format(time.RFC3339))
+func closedMQDraft(prs string, closed, updated time.Time) string {
+	return fmt.Sprintf(`{"title":"[Graphite MQ] Draft PR GROUP:spec_1 (PRs %s)","headRefName":"gtmq_1",`+
+		`"closedAt":%q,"updatedAt":%q}`, prs, closed.UTC().Format(time.RFC3339), updated.UTC().Format(time.RFC3339))
 }
 
 func TestAgentGuard_noPushToAStackGraphiteHoldsBeforeItsDraftOpens(t *testing.T) {
@@ -524,11 +524,13 @@ func TestAgentGuard_noPushToAStackGraphiteHoldsBeforeItsDraftOpens(t *testing.T)
 			openPR(7, "lower", "Add lower"), openPR(90, "gtmq_9", fmt.Sprintf(draft, "6, 7")),
 		}, nil, true},
 		{"a closed draft ran it before Graphite took it", []string{took("graphite-app", 2)},
-			[]string{closedMQDraft("7", ago(10))}, true},
+			[]string{closedMQDraft("7", ago(10), ago(10))}, true},
+		{"a closed draft ran it before Graphite took it, though deleting its branch moved updatedAt past the take",
+			[]string{took("graphite-app", 2)}, []string{closedMQDraft("7", ago(3), ago(1))}, true},
 		{"a person removed it two minutes ago", []string{took("logan", 2)}, nil, false},
 		{"Graphite took it longer ago than the hold", []string{took("graphite-app", 31)}, nil, false},
-		{"a closed draft ran it since", []string{took("graphite-app", 5)}, []string{closedMQDraft("6, 7", ago(1))}, false},
-		{"a closed draft ran other PRs", []string{took("graphite-app", 2)}, []string{closedMQDraft("8, 9", ago(1))}, true},
+		{"a closed draft ran it since", []string{took("graphite-app", 5)}, []string{closedMQDraft("6, 7", ago(1), ago(1))}, false},
+		{"a closed draft ran other PRs", []string{took("graphite-app", 2)}, []string{closedMQDraft("8, 9", ago(1), ago(1))}, true},
 		{"a removal with no actor is no take", []string{took("", 2)}, nil, false},
 		{"a removal with no actor does not hide a take", []string{
 			openPR(8, "elsewhere", "Add elsewhere", labelEvent("UnlabeledEvent", ago(2), "merge-queue", "")), took("graphite-app", 2),
@@ -545,7 +547,7 @@ func TestAgentGuard_noPushToAStackGraphiteHoldsBeforeItsDraftOpens(t *testing.T)
 			openPR(7, "lower", "Add lower"), openPR(90, "feature", fmt.Sprintf(draft, "6, 7")),
 		}, nil, false},
 		{"a closed draft names the PR and nobody took it", []string{openPR(7, "lower", "Add lower")},
-			[]string{closedMQDraft("6, 7", ago(1))}, false},
+			[]string{closedMQDraft("6, 7", ago(1), ago(1))}, false},
 		{"Graphite took a PR outside this stack", []string{
 			openPR(8, "elsewhere", "Add elsewhere", labelEvent("UnlabeledEvent", ago(2), "merge-queue", "graphite-app")),
 		}, nil, false},
@@ -582,6 +584,9 @@ func TestAgentGuard_readsTheGraphiteQueueInOneGraphQLQuery(t *testing.T) {
 	}
 	if graphql != 1 || lists != 1 {
 		t.Fatalf("one guard run made %d GraphQL queries and %d pr lists:\n%s", graphql, lists, got)
+	}
+	if !strings.Contains(string(got), "closedAt") {
+		t.Fatalf("the GraphQL query does not ask for closedAt, so a closed draft has no time to compare:\n%s", got)
 	}
 	for _, bad := range []string{`not json`, `{"data":null,"errors":[{"message":"rate limited"}]}`, `{"data":{"repository":{}}}`} {
 		env, _ := graphiteGH(t, bad)
