@@ -4,10 +4,12 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -48,7 +50,9 @@ func (m *Module) Ports() app.Ports { return m.ports }
 
 func (*Module) Name() string { return "ranking" }
 
-func (*Module) Mount(api.Mount) {}
+func (m *Module) Mount(r api.Mount) {
+	rankingapi.Mount(adapters.HTTP{Boards: adapters.Boards{DB: m.deps.Pool}}, r)
+}
 
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }
 

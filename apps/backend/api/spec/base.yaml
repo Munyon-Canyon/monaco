@@ -31,6 +31,8 @@ tags:
     description: The asset catalog, prices and charts.
   - name: notify
     description: The devices that receive the signed-in user's push notifications.
+  - name: ranking
+    description: The cabal, people and members leaderboards.
   - name: referrals
     description: Invite codes and the links that carry them.
   - name: social

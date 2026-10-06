@@ -70,3 +70,10 @@ func TestModule_usesPortsOption(t *testing.T) {
 		t.Fatalf("Ports = %+v, want %+v", got, ports)
 	}
 }
+
+func TestModule_servesTheCabalsBoard(t *testing.T) {
+	t.Parallel()
+	if !testkit.Serves(ranking.New(module.Deps{}).Mount, "GET", "/v1/leaderboards/cabals") {
+		t.Fatal("module does not serve GET /v1/leaderboards/cabals")
+	}
+}

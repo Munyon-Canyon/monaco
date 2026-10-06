@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/marketapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/notifyapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/platformapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/referralsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/systemapi"
@@ -48,6 +49,9 @@ func DecodeOnly(m api.Mount) {
 	platformapi.Mount(struct {
 		platformapi.StrictServerInterface
 	}{}, m, func(platformapi.StrictHandlerFunc, string) platformapi.StrictHandlerFunc { return decoded })
+	rankingapi.Mount(struct {
+		rankingapi.StrictServerInterface
+	}{}, m, func(rankingapi.StrictHandlerFunc, string) rankingapi.StrictHandlerFunc { return decoded })
 	referralsapi.Mount(struct {
 		referralsapi.StrictServerInterface
 	}{}, m, func(referralsapi.StrictHandlerFunc, string) referralsapi.StrictHandlerFunc { return decoded })
