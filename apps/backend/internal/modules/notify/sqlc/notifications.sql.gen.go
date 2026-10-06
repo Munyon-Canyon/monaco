@@ -31,6 +31,22 @@ func (q *Queries) CountKindSince(ctx context.Context, arg CountKindSinceParams) 
 	return count, err
 }
 
+const eventActor = `-- name: EventActor :one
+SELECT actor_type, actor_id FROM events WHERE id = $1
+`
+
+type EventActorRow struct {
+	ActorType string
+	ActorID   string
+}
+
+func (q *Queries) EventActor(ctx context.Context, id uuid.UUID) (EventActorRow, error) {
+	row := q.db.QueryRow(ctx, eventActor, id)
+	var i EventActorRow
+	err := row.Scan(&i.ActorType, &i.ActorID)
+	return i, err
+}
+
 const insertBroadcast = `-- name: InsertBroadcast :one
 INSERT INTO notification_broadcasts (id, kind, source_event_id, recipient_count, created_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -63,14 +79,18 @@ const insertNotification = `-- name: InsertNotification :one
 INSERT INTO notifications (
   id, broadcast_id, user_id, kind, source_event_id, title, body, data, collapse_id, state, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+VALUES (
+  $1, NULLIF($2::uuid, '00000000-0000-0000-0000-000000000000'), $3,
+  $4, $5, $6, $7, $8, $9,
+  $10, $11
+)
 ON CONFLICT (source_event_id, user_id, kind) DO NOTHING
 RETURNING id
 `
 
 type InsertNotificationParams struct {
 	ID            uuid.UUID
-	BroadcastID   pgtype.UUID
+	BroadcastID   uuid.UUID
 	UserID        uuid.UUID
 	Kind          string
 	SourceEventID uuid.UUID
