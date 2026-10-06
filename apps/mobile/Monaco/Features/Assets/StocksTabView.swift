@@ -170,6 +170,7 @@ private struct StocksAssetRow: View {
                     .leading, 46 + MonacoTheme.Space.sm + MonacoTheme.Space.m)
             }
         }
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 

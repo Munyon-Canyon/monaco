@@ -75,11 +75,12 @@ struct AssetDetailClientView: View {
                 otherListings(detail.otherListings)
             }
             .padding(.vertical, MonacoTheme.Space.m)
-            .padding(.bottom, MonacoTheme.Space.xl)
+            .padding(.bottom, MonacoTheme.Space.xl + 96)
         }
         .monacoCanvas()
         .foregroundStyle(MonacoTheme.ink)
         .safeAreaInset(edge: .bottom) { proposeBar(detail, model: model) }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("asset-detail-root")
     }
 
@@ -236,6 +237,7 @@ struct AssetDetailClientView: View {
                 }
             }
             .padding(.horizontal, MonacoTheme.Space.m)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("asset-other-listings")
         }
     }
