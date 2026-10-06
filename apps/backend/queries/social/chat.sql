@@ -12,10 +12,11 @@ VALUES (
 )
 RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel;
 
--- name: BumpChatReplies :execrows
+-- name: BumpChatReplies :one
 UPDATE cabal_messages
 SET reply_count = reply_count + 1, last_reply_at = sqlc.arg(at)::timestamptz
-WHERE id = sqlc.arg(id) AND parent_id IS NULL;
+WHERE id = sqlc.arg(id) AND parent_id IS NULL
+RETURNING id, reply_count, last_reply_at;
 
 -- name: SoftDeleteChatMessage :execrows
 UPDATE cabal_messages

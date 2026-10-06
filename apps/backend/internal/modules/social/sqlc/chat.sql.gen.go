@@ -13,10 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bumpChatReplies = `-- name: BumpChatReplies :execrows
+const bumpChatReplies = `-- name: BumpChatReplies :one
 UPDATE cabal_messages
 SET reply_count = reply_count + 1, last_reply_at = $1::timestamptz
 WHERE id = $2 AND parent_id IS NULL
+RETURNING id, reply_count, last_reply_at
 `
 
 type BumpChatRepliesParams struct {
@@ -24,12 +25,17 @@ type BumpChatRepliesParams struct {
 	ID uuid.UUID
 }
 
-func (q *Queries) BumpChatReplies(ctx context.Context, arg BumpChatRepliesParams) (int64, error) {
-	result, err := q.db.Exec(ctx, bumpChatReplies, arg.At, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+type BumpChatRepliesRow struct {
+	ID          uuid.UUID
+	ReplyCount  int32
+	LastReplyAt pgtype.Timestamptz
+}
+
+func (q *Queries) BumpChatReplies(ctx context.Context, arg BumpChatRepliesParams) (BumpChatRepliesRow, error) {
+	row := q.db.QueryRow(ctx, bumpChatReplies, arg.At, arg.ID)
+	var i BumpChatRepliesRow
+	err := row.Scan(&i.ID, &i.ReplyCount, &i.LastReplyAt)
+	return i, err
 }
 
 const getChatCursor = `-- name: GetChatCursor :one

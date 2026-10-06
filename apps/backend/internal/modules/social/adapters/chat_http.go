@@ -119,13 +119,27 @@ func limitOr(limit *int) int {
 }
 
 func (h HTTP) wireChat(ctx context.Context, messages []app.ChatMessage) ([]api.ChatMessage, error) {
+	return wireChat(ctx, h.Users, messages)
+}
+
+func ChatWire(users app.Users) app.ChatWire {
+	return func(ctx context.Context, m app.ChatMessage) (any, error) {
+		wire, err := wireChat(ctx, users, []app.ChatMessage{m})
+		if err != nil {
+			return nil, err
+		}
+		return wire[0], nil
+	}
+}
+
+func wireChat(ctx context.Context, users app.Users, messages []app.ChatMessage) ([]api.ChatMessage, error) {
 	authors := make([]ids.UserID, 0, len(messages))
 	for _, m := range messages {
 		if !slices.Contains(authors, m.AuthorID) {
 			authors = append(authors, m.AuthorID)
 		}
 	}
-	cards, err := h.Users.UsersByID(ctx, authors)
+	cards, err := users.UsersByID(ctx, authors)
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireChat")
 	}

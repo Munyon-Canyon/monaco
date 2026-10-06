@@ -31,6 +31,7 @@ type chatFixture struct {
 	pool     *pgxpool.Pool
 	clock    *testkit.Clock
 	deps     app.ChatDeps
+	rt       *testkit.FakeRealtime
 	post     *app.PostChatMessageHandler
 	del      *app.DeleteChatMessageHandler
 	cabal    testkit.SeededCabal
@@ -45,13 +46,21 @@ func newChatFixture(t *testing.T) chatFixture {
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	clk := testkit.NewClock(now)
 	uow := db.New(pool, g, clk)
-	deps := app.ChatDeps{UoW: uow, Members: cabal.New(module.Deps{Pool: pool}).Queries(), IDs: g, Clock: clk}
+	rt := &testkit.FakeRealtime{}
+	deps := app.ChatDeps{
+		UoW: uow, Members: cabal.New(module.Deps{Pool: pool}).Queries(), IDs: g, Clock: clk,
+		Publish: app.NewChatPublisher(rt, plainWire),
+	}
 	return chatFixture{
-		now: now, pool: pool, clock: clk, deps: deps,
-		post: app.NewPostChatMessageHandler(deps), del: app.NewDeleteChatMessageHandler(uow, clk),
+		now: now, pool: pool, clock: clk, deps: deps, rt: rt,
+		post: app.NewPostChatMessageHandler(deps), del: app.NewDeleteChatMessageHandler(deps),
 		cabal: testkit.NewCabal(t, pool, testkit.WithMembers(3)), other: testkit.NewCabal(t, pool),
 		outsider: testkit.SeedUser(t, pool, testkit.UserOpts{}).ID,
 	}
+}
+
+func plainWire(_ context.Context, m app.ChatMessage) (any, error) {
+	return map[string]any{"id": m.ID, "body": m.Body}, nil
 }
 
 func (f chatFixture) member(i int) ids.UserID { return f.cabal.Members[i].ID }

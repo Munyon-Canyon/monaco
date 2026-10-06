@@ -8,7 +8,6 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
-	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -20,17 +19,17 @@ type DeleteChatMessage struct {
 }
 
 type DeleteChatMessageHandler struct {
-	uow   *db.UnitOfWork
-	clock clock.Clock
+	d ChatDeps
 }
 
-func NewDeleteChatMessageHandler(uow *db.UnitOfWork, clk clock.Clock) *DeleteChatMessageHandler {
-	return &DeleteChatMessageHandler{uow: uow, clock: clk}
+func NewDeleteChatMessageHandler(d ChatDeps) *DeleteChatMessageHandler {
+	return &DeleteChatMessageHandler{d: d}
 }
 
 func (h *DeleteChatMessageHandler) Handle(ctx context.Context, cmd DeleteChatMessage) error {
 	const op = "social.DeleteChatMessage"
-	return h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	deleted := false
+	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		row, found, err := lockChatMessage(ctx, q, cmd.MessageID)
 		switch {
@@ -44,10 +43,15 @@ func (h *DeleteChatMessageHandler) Handle(ctx context.Context, cmd DeleteChatMes
 			return nil
 		}
 		if _, err := q.SoftDeleteChatMessage(ctx, sqlc.SoftDeleteChatMessageParams{
-			At: h.clock.Now().UTC(), ID: cmd.MessageID,
+			At: h.d.Clock.Now().UTC(), ID: cmd.MessageID,
 		}); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
+		deleted = true
 		return nil
 	})
+	if err == nil && deleted {
+		h.d.Publish.deleted(ctx, cmd.CabalID, cmd.MessageID)
+	}
+	return err
 }
