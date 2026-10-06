@@ -121,14 +121,13 @@ jobs:
             -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation "${offline[@]}" \
             -showBuildTimingSummary CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO
 
-      # Running from the .xctestrun that build-for-testing wrote skips loading the project and the
-      # package graph again.
       - name: Run MonacoTests
         run: |
-          xctestrun="$(ls -t "$DERIVED_DATA"/Build/Products/Monaco_MonacoTests_*.xctestrun | head -n 1)"
           xcrun simctl bootstatus "$SIM" -b
-          xcodebuild test-without-building -xctestrun "$xctestrun" \
-            -destination "platform=iOS Simulator,id=$SIM" -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" -quiet
+          xcodebuild test-without-building -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
+            -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
+            -quiet CODE_SIGNING_ALLOWED=NO
 
       - name: Unmount DerivedData
         if: inputs.save-cache && steps.cache.outputs.cache-hit != 'true'
