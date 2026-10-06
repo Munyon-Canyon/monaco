@@ -206,6 +206,14 @@ def load_accounts(environ=None):
     return accounts
 
 
+def mutant_caught(rows):
+    """A seeded bug is caught when every scenario it must fail failed or never ran after a failure,
+    and at least one of them failed."""
+    expected = [row for row in rows if row["scenario"] != "*" and row.get("expected") == "FAIL"]
+    return (bool(expected) and all(row["result"] in ("FAIL", "SKIP") for row in expected)
+            and any(row["result"] == "FAIL" for row in expected))
+
+
 def mutant_expectation(patch):
     """The scenarios a seeded bug must fail, from its `expect-fail:` line."""
     match = re.search(r"^expect-fail:\s*(.+)$", patch.read_text(), re.M)
@@ -282,9 +290,17 @@ def check_journeys(journeys, accounts, git_apply_check=None):
             for step in journey.steps:
                 if '"%s"' % step not in combined:
                     bad(files[0], "no step %s" % step)
-            for scenario in journey.scenarios:
-                if not xcuitest_phases(journey, scenario):
-                    bad(files[-1], "no test method named test%s… for scenario %s" % (scenario, scenario))
+            if not session_test(journey):
+                for scenario in journey.scenarios:
+                    if not re.search(r"func test%s(?!\d)" % scenario, combined):
+                        bad(files[-1], "no testJourney, and no test method named test%s… for scenario %s" % (scenario, scenario))
+            else:
+                order = [combined.find('scenario("%s")' % scenario) for scenario in journey.scenarios]
+                for scenario, at in zip(journey.scenarios, order):
+                    if at < 0:
+                        bad(files[-1], 'testJourney has no session.scenario("%s")' % scenario)
+                if all(at >= 0 for at in order) and order != sorted(order):
+                    bad(files[-1], "testJourney runs its scenarios out of the doc's order %s" % " ".join(journey.scenarios))
         for patch in journey.mutants():
             expected = mutant_expectation(patch)
             if not expected:
@@ -315,23 +331,15 @@ def _has_cycle(journey, journeys):
     return False
 
 
-def xcuitest_phases(journey, scenario):
-    """[(phase, actor, 'Class/method')] for a scenario, in the order to run them.
-
-    A one-actor scenario is one method, test<S1>…. A scenario with more actors is one method
-    per phase, test<S1>Phase<n><actor>…, because one xcodebuild call drives one simulator.
-    """
-    phases = []
+def session_test(journey):
+    """'Class/testJourney', the one test that runs the journey, or None when the files have none."""
     for path in journey.driver_files():
-        if not path.exists():
-            continue
-        text = path.read_text()
-        class_name = re.search(r"final class (\w+): XCTestCase", text)
-        if not class_name:
-            continue
-        for method, phase, actor in re.findall(r"func (test%s(?!\d)(?:Phase(\d+)([A-Z]))?\w*)\(" % scenario, text):
-            phases.append((int(phase or 1), actor or journey.actors[0], "%s/%s" % (class_name.group(1), method)))
-    return sorted(phases)
+        if path.exists():
+            text = path.read_text()
+            class_name = re.search(r"final class (\w+): XCTestCase", text)
+            if class_name and re.search(r"func testJourney\(", text):
+                return "%s/testJourney" % class_name.group(1)
+    return None
 
 
 # ---------------------------------------------------------------- running
@@ -340,9 +348,10 @@ def xcuitest_phases(journey, scenario):
 class BudgetExpired(Exception):
     """A journey run's budget ran out while a subprocess ran. Carries the output it wrote first."""
 
-    def __init__(self, output=""):
+    def __init__(self, output="", where=""):
         super().__init__("budget expired")
         self.output = output or ""
+        self.where = where
 
 
 class Budget:
@@ -657,11 +666,12 @@ def register_lane_simulator(udid, lane, name):
         registry.write("%s\t%s\t%s\n" % (udid, lane, name))
 
 
-def journey_simulator_name(login):
-    """Simulators are per lane and per login a run holds, so two runs never share one, even when a journey's
-    actor A is remapped onto login C."""
+def journey_simulator_name(logins):
+    """The simulator is per lane and per login set a run holds, so two runs never share one, even when a
+    journey's actor A is remapped onto login C."""
     lane = lane_name()
-    return "Monaco Journeys %s %s" % (lane, login) if lane else "Monaco Journeys %s" % login
+    held = "-".join(sorted(set((logins or {}).values())))
+    return " ".join(part for part in ("Monaco Journeys", lane, held) if part)
 
 
 def held_logins(journey, accounts):
@@ -675,57 +685,42 @@ def use_derived_data(logins):
     DERIVED = OUT / ("derived-" + "-".join(sorted(set(logins.values()))))
 
 
+
 def simslim_ensure(mode, udid):
     """Slims a dedicated simulator when it is created, or repairs it once before a run. Never fails."""
     sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=False)
 
 
-def resolve_simulators(journey, mapping, logins=None):
-    logins = logins or {}
-    sims = dict(mapping)
-    missing = [actor for actor in journey.actors if actor not in sims]
-    if missing:
-        devices = simulator_devices()
-        device_type, runtime = simulator_template(devices)
-        for actor in missing:
-            name = journey_simulator_name(logins.get(actor, actor))
-            sims[actor] = named_simulator(devices, name)
-            if not sims[actor]:
-                sims[actor] = sh(["xcrun", "simctl", "create", name, device_type, runtime],
-                                 stdout=subprocess.PIPE, check=True).stdout.strip()
-                print("created simulator %s" % name)
-                lane = lane_name()
-                if lane:
-                    register_lane_simulator(sims[actor], lane, name)
-                simslim_ensure("create", sims[actor])
-            else:
-                simslim_ensure("check", sims[actor])
-    if len(set(sims.values())) != len(sims):
-        raise JourneyError("two actors share one simulator: %s" % sims)
-    return sims
+def resolve_simulator(override="", logins=None):
+    """The one simulator every actor of a run uses: --sim's, else the one named after the lane and the
+    logins the run holds, created on first use."""
+    if override:
+        return override
+    devices = simulator_devices()
+    name = journey_simulator_name(logins)
+    udid = named_simulator(devices, name)
+    if udid:
+        simslim_ensure("check", udid)
+        return udid
+    device_type, runtime = simulator_template(devices)
+    udid = sh(["xcrun", "simctl", "create", name, device_type, runtime], stdout=subprocess.PIPE, check=True).stdout.strip()
+    print("created simulator %s" % name)
+    lane = lane_name()
+    if lane:
+        register_lane_simulator(udid, lane, name)
+    simslim_ensure("create", udid)
+    return udid
 
 
-def simulator_names(sims):
-    names = {}
-    for items in simulator_devices().values():
-        for item in items:
-            if item.get("udid") in sims.values():
-                names[item["udid"]] = item.get("name", item["udid"])
-    return names
-
-
-def check_simulator_api_environment(sims, api_base_url):
-    names = simulator_names(sims)
-    for udid in sims.values():
-        boot_simulator(udid)
-        value = sh(["xcrun", "simctl", "getenv", udid, "MONACO_API_BASE_URL"], stdout=subprocess.PIPE,
-                   stderr=subprocess.DEVNULL).stdout.strip()
-        if value and value != api_base_url:
-            name = names.get(udid, udid)
-            raise JourneyError(
-                "simulator %s has MONACO_API_BASE_URL=%s in its environment, which overrides the journey's API. "
-                "Use another simulator with --sim, or clear it with: xcrun simctl spawn %s launchctl unsetenv "
-                "MONACO_API_BASE_URL" % (name, value, udid))
+def check_simulator_api_environment(udid, api_base_url):
+    boot_simulator(udid)
+    value = sh(["xcrun", "simctl", "getenv", udid, "MONACO_API_BASE_URL"], stdout=subprocess.PIPE,
+               stderr=subprocess.DEVNULL).stdout.strip()
+    if value and value != api_base_url:
+        raise JourneyError(
+            "simulator %s has MONACO_API_BASE_URL=%s in its environment, which overrides the journey's API. "
+            "Use another simulator with --sim, or clear it with: xcrun simctl spawn %s launchctl unsetenv "
+            "MONACO_API_BASE_URL" % (udid, value, udid))
 
 
 BOOTED = []
@@ -761,18 +756,13 @@ def simulator_shutdown(keep=False):
         del BOOTED[:]
 
 
-def reset_journey_simulators(journey, sims, explicit_actors, fresh):
-    """Uninstall the app from dedicated simulators before one journey run."""
-    targets = [
-        (actor, sims[actor]) for actor in journey.actors
-        if fresh or actor not in explicit_actors
-    ]
-    names = simulator_names(dict(targets))
-    for actor, udid in targets:
-        boot_simulator(udid)
-        sh(["xcrun", "simctl", "uninstall", udid, BUNDLE_ID],
-           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print("reset app on simulator %s" % names.get(udid, udid))
+def reset_journey_simulator(udid, explicit, fresh):
+    """Uninstall the app from the dedicated simulator before one journey run."""
+    if explicit and not fresh:
+        return
+    boot_simulator(udid)
+    sh(["xcrun", "simctl", "uninstall", udid, BUNDLE_ID], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print("reset app on simulator %s" % udid)
 
 
 def xcodebuild(sim, *extra):
@@ -920,93 +910,150 @@ def split_by_test(output):
     return tests
 
 
-def run_xcuitest(journey, scenarios, sims, accounts, channel, run_dir, api_base_url, run_id, budget=None):
-    """One row per scenario. A scenario passes when every phase's test passed and none skipped.
+def split_by_scenario(output):
+    """{scenario: (finished, ms, its slice of the output)} from a session test's JOURNEYSCENARIO lines."""
+    spans, current, lines = {}, None, []
+    for line in output.splitlines():
+        cells = line.split("\t")
+        if len(cells) >= 3 and cells[0] == "JOURNEYSCENARIO":
+            if cells[1] == "begin":
+                current, lines = cells[2], []
+                spans[current] = (False, 0, "")
+                continue
+            if cells[1] == "end" and cells[2] == current and len(cells) >= 4:
+                spans[current] = (True, int(cells[3]), "\n".join(lines))
+                current = None
+                continue
+        if current:
+            lines.append(line)
+            spans[current] = (False, 0, "\n".join(lines))
+    return spans
 
-    One-actor scenarios share one xcodebuild call, because starting the test runner costs more
-    than the tests. A scenario with phases runs them one call at a time, each on its actor's
-    simulator. A journey with a setup script runs every scenario in calls of its own, after
-    `<journey>.setup.sh <scenario>` has put the backend in that scenario's starting state.
-    With a budget, every call gets what is left of it, and when it runs out the scenarios not
-    finished get TIMEOUT. Returns (rows, wall seconds of every call, '<scenario> <phase>' where
-    the budget ran out or None).
+
+def session_rows(scenarios, output, test, timed_out):
+    """One row per scenario of a session test, each judged by its own steps.
+
+    A scenario that began and ended passed. One that began and did not end failed at its innermost
+    open step, or timed out. One after a failure never ran, because each scenario continues from the
+    one before: it is SKIP. Returns (rows, step timing lines for steps.tsv).
     """
-    handoff = run_dir / "handoff.json"
-    setup = journey.setup_script()
-    plan = {scenario: xcuitest_phases(journey, scenario) for scenario in scenarios}
-    for scenario, phases in plan.items():
-        if not phases:
-            raise JourneyError("%s has no test for %s" % (journey.id, scenario))
-    single = [] if setup else [s for s in scenarios if len(plan[s]) == 1 and plan[s][0][1] == journey.actors[0]]
-    calls = [(None, ",".join(single), "test", journey.actors[0], [plan[s][0][2] for s in single])] if single else []
-    for scenario in scenarios:
-        if scenario not in single:
-            calls.extend((scenario if index == 0 else None, scenario,
-                          "phase %d" % phase if len(plan[scenario]) > 1 else "test", actor, [test])
-                         for index, (phase, actor, test) in enumerate(plan[scenario]))
-    left = budget.left if budget else (lambda: None)
-
-    outcomes, wall, timed_out, partial = {}, 0.0, None, ""
-    log = run_dir / "xcuitest.log"
-    with open(str(log), "w") as out:
-        for starts, label, phase, actor, tests in calls:
-            try:
-                if setup and starts:
-                    phase_now = "setup"
-                    out.flush()
-                    env = dict(os.environ)
-                    env.update(actor_environment(accounts, channel, run_id))
-                    env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)
-                    env["MONACO_QA_HANDOFF"] = str(handoff)
-                    env["MONACO_API_BASE_URL"] = env["MONACO_QA_API_BASE_URL"] = api_base_url
-                    if sh([str(setup), starts], env=env, stdout=out, stderr=subprocess.STDOUT,
-                          timeout=left()).returncode != 0:
-                        raise JourneyError("%s could not set up %s, see %s" % (
-                            os.path.relpath(str(setup), str(ROOT)), starts, os.path.relpath(str(log), str(ROOT))))
-                phase_now = phase
-                env = dict(os.environ)
-                env.update(actor_environment(accounts, channel, run_id, prefix="TEST_RUNNER_"))
-                env["TEST_RUNNER_MONACO_QA_ACTOR"] = actor
-                env["TEST_RUNNER_MONACO_QA_HANDOFF"] = str(handoff)
-                env["TEST_RUNNER_MONACO_QA_API_BASE_URL"] = api_base_url
-                # A failed test otherwise waits up to 600 s for a sysdiagnose the journey log never reads.
-                only = ["-only-testing:MonacoUITests/%s" % test for test in tests] + ["-collect-test-diagnostics", "never"]
-                started = time.time()
-                try:
-                    done = sh(xcodebuild(sims[actor], *(only + ["test-without-building"])),
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, timeout=left())
-                finally:
-                    wall += time.time() - started
-            except BudgetExpired as expired:
-                out.write(expired.output)
-                partial, timed_out = expired.output, "%s %s" % (label, phase_now)
-                break
-            out.write(done.stdout)
-            outcomes.update(split_by_test(done.stdout))
-
-    rows = []
-    step_lines = []
+    verdict, _, body = split_by_test(output).get(test.split("/")[1], ("missing", 0.0, output))
+    spans = split_by_scenario(body)
+    rows, step_lines, stopped = [], [], ""
     for scenario in scenarios:
         result, seconds, steps_ms, failed_step = "PASS", 0.0, 0, ""
-        for _, _, test in plan[scenario]:
-            if timed_out and test.split("/")[1] not in outcomes:
-                result, failed_step = "TIMEOUT", parse_steps(partial)[1] or timed_out
-                break
-            verdict, took, body = outcomes.get(test.split("/")[1], ("missing", 0.0, ""))
-            ms, open_step, timings = parse_steps(body, include_timings=True)
+        if stopped:
+            result, failed_step = "SKIP", "after %s" % stopped
+        elif scenario in spans:
+            finished, ms, part = spans[scenario]
+            steps_ms, open_step, timings = parse_steps(part, include_timings=True)
             step_lines.extend("%s\t%s\t%d\t%d\n" % ((scenario,) + timing) for timing in timings)
-            seconds += took
-            steps_ms += ms
-            if verdict in ("missing", "skipped"):
-                result, failed_step = "ERROR", "the test did not run (%s)" % verdict
-            elif verdict == "failed":
-                result, failed_step = "FAIL", open_step or "outside a step"
-            if result != "PASS":
-                break
-        rows.append({
-            "scenario": scenario, "result": result, "wall_s": "%.1f" % seconds,
-            "steps_ms": steps_ms, "failed_step": failed_step, "log": os.path.relpath(str(log), str(ROOT)),
-        })
+            seconds = (ms if finished else steps_ms) / 1000.0
+            if not finished:
+                result = "TIMEOUT" if timed_out else "FAIL"
+                failed_step = open_step or (timed_out if timed_out else "outside a step")
+        elif timed_out:
+            result, failed_step = "TIMEOUT", timed_out
+        elif verdict == "failed":
+            result, failed_step = "FAIL", "before %s began" % scenario
+        else:
+            result, failed_step = "ERROR", "the test did not run %s (%s)" % (scenario, verdict)
+        if result != "PASS" and not stopped:
+            stopped = "%s %s" % (scenario, result)
+        rows.append({"scenario": scenario, "result": result, "wall_s": "%.1f" % seconds,
+                     "steps_ms": steps_ms, "failed_step": failed_step})
+    return rows, step_lines
+
+
+def serve_setup(process, setup, folder, env, out, left):
+    """Run `<journey>.setup.sh <scenario>` each time the session test asks for it, until the test ends.
+
+    The test writes <folder>/<scenario>.request at the start of a scenario and waits for
+    <folder>/<scenario>.done, which holds "ok" or why the setup failed. Returns (the scenarios whose
+    setup failed, seconds spent in setup scripts).
+    """
+    failed, spent = [], 0.0
+    while process.poll() is None:
+        left()
+        for request in sorted(folder.glob("*.request")):
+            scenario = request.stem
+            request.unlink()
+            out.flush()
+            started = time.time()
+            try:
+                code = sh([str(setup), scenario], env=env, stdout=out, stderr=subprocess.STDOUT,
+                          timeout=left()).returncode
+            except BudgetExpired:
+                raise BudgetExpired(where="%s setup" % scenario)
+            finally:
+                spent += time.time() - started
+            if code != 0:
+                failed.append(scenario)
+            answer = folder / (scenario + ".answer")
+            answer.write_text("ok" if code == 0 else "exit %d, see %s" % (code, os.path.relpath(out.name, str(ROOT))))
+            answer.rename(folder / (scenario + ".done"))
+        time.sleep(0.2)
+    return failed, spent
+
+
+def run_session(journey, scenarios, sim, accounts, channel, run_dir, api_base_url, run_id, budget=None):
+    """Run a journey's scenarios in order in one xcodebuild call: one app session on one simulator.
+
+    The scenarios run through the last one asked for, since each continues from the one before.
+    The test signs each actor in and out itself. With a setup script, the runner answers the
+    test's request before each scenario. Returns (rows, wall seconds, where the budget ran out or None).
+    """
+    test = session_test(journey)
+    last = max(scenarios, key=journey.scenarios.index)
+    scenarios = journey.scenarios[:journey.scenarios.index(last) + 1]
+    handoff = run_dir / "handoff.json"
+    folder = run_dir / "setup"
+    folder.mkdir(parents=True, exist_ok=True)
+    for stale in folder.iterdir():
+        stale.unlink()
+    setup = journey.setup_script()
+    left = budget.left if budget else (lambda: None)
+
+    env = dict(os.environ)
+    env.update(actor_environment(accounts, channel, run_id, prefix="TEST_RUNNER_"))
+    env["TEST_RUNNER_MONACO_QA_HANDOFF"] = str(handoff)
+    env["TEST_RUNNER_MONACO_QA_API_BASE_URL"] = api_base_url
+    env["TEST_RUNNER_MONACO_QA_LAST_SCENARIO"] = last
+    setup_env = dict(os.environ)
+    setup_env.update(actor_environment(accounts, channel, run_id))
+    setup_env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)
+    setup_env["MONACO_QA_HANDOFF"] = str(handoff)
+    setup_env["MONACO_API_BASE_URL"] = setup_env["MONACO_QA_API_BASE_URL"] = api_base_url
+    if setup:
+        env["TEST_RUNNER_MONACO_QA_SETUP_DIR"] = str(folder)
+    # A failed test otherwise waits up to 600 s for a sysdiagnose the journey log never reads.
+    args = xcodebuild(sim, "-only-testing:MonacoUITests/%s" % test, "-collect-test-diagnostics", "never",
+                      "test-without-building")
+    log, setup_log = run_dir / "xcuitest.log", run_dir / "setup.log"
+    timed_out, failed_setup, spent = None, [], 0.0
+    started = time.time()
+    with open(str(log), "w") as out, open(str(setup_log), "w") as setup_out:
+        process = subprocess.Popen(args, cwd=str(ROOT), universal_newlines=True, env=env, stdout=out,
+                                   stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            if setup:
+                failed_setup, spent = serve_setup(process, setup, folder, setup_env, setup_out, left)
+            else:
+                process.wait(timeout=left())
+        except (BudgetExpired, subprocess.TimeoutExpired) as expired:
+            kill_group(process)
+            timed_out = getattr(expired, "where", "")
+    wall = time.time() - started - spent
+    output = log.read_text()
+    if timed_out == "":
+        begun = re.findall(r"^JOURNEYSCENARIO\tbegin\t(\S+)", output, re.M)
+        timed_out = "%s test" % (begun[-1] if begun else scenarios[0])
+    if failed_setup and timed_out is None:
+        raise JourneyError("%s could not set up %s, see %s" % (
+            os.path.relpath(str(setup), str(ROOT)), ", ".join(failed_setup), os.path.relpath(str(setup_log), str(ROOT))))
+    rows, step_lines = session_rows(scenarios, output, test, timed_out)
+    for row in rows:
+        row["log"] = os.path.relpath(str(log), str(ROOT))
     (run_dir / "steps.tsv").write_text("".join(step_lines))
     return rows, "%.1f" % wall, timed_out
 
@@ -1044,14 +1091,14 @@ def record(journey, build_name, run_name, rows, summary, expected=None):
             out.write("\t".join(str(full.get(column, "")).replace("\t", " ") for column in COLUMNS) + "\n")
 
 
-def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scenarios, api_base_url, expected=None):
+def run_once(journey, journeys, args, sim, accounts, build_name, run_name, scenarios, api_base_url, expected=None):
     run_dir = OUT / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     run_id = new_run_id()
     print("  {QA.run} is %s" % run_id)
     budget = Budget(args.timeout)
-    rows, wall, timed_out = run_xcuitest(journey, scenarios, sims, accounts, args.channel, run_dir, api_base_url,
-                                         run_id, budget)
+    rows, wall, timed_out = run_session(journey, scenarios, sim, accounts, args.channel, run_dir,
+                                        api_base_url, run_id, budget)
     truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json", budget, api_base_url)
     if truth == "timeout" and not timed_out:
         timed_out = "* truth"
@@ -1061,13 +1108,15 @@ def run_once(journey, journeys, args, sims, accounts, build_name, run_name, scen
         row["truth"] = truth
     if expected is None:
         expected = classify_known(rows, journey.known)
+    for row in rows:
+        row["expected"] = expected.get(row["scenario"], "PASS")
     verdicts = [row["result"] for row in rows] + (["TIMEOUT"] if timed_out else [])
     overall = next((v for v in ("ERROR", "TIMEOUT", "FAIL") if v in verdicts), "PASS")
     summary = {"scenario": "*", "result": overall, "truth": truth, "wall_s": wall,
                "steps_ms": sum(int(row.get("steps_ms") or 0) for row in rows) or ""}
     record(journey, build_name, run_name, rows, summary, expected)
     for row in rows:
-        detail = " at %s" % row["failed_step"] if row.get("failed_step") else ""
+        detail = (" at %s" if row["result"] != "SKIP" else " %s") % row["failed_step"] if row.get("failed_step") else ""
         if row["result"] == "KNOWN":
             detail += " (%s)" % ", ".join(journey.known[row["failed_step"]])
         timing = " %ss" % row["wall_s"] if row.get("wall_s") else ""
@@ -1287,24 +1336,23 @@ def actor_logins(journey, accounts):
 
 
 def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, builder):
-    mapping = dict(pair.split("=", 1) for pair in args.sim)
     logins = held_logins(journey, accounts)
     use_derived_data(logins)
-    sims = resolve_simulators(journey, mapping, logins)
-    check_simulator_api_environment(sims, api_base_url)
+    sim = resolve_simulator(args.sim, logins)
+    check_simulator_api_environment(sim, api_base_url)
     OUT.mkdir(parents=True, exist_ok=True)
     funding = funding_notice(journey, accounts)
     refund = refund_address() if funding else ""
     if funding:
         print(funding)
-    builder(sims[journey.actors[0]])
+    builder(sim)
     prepare_logins(journey, accounts, api_base_url)
     worst = 0
     for index in range(1, args.runs + 1):
         run_name = "%s-%s-%d" % (stamp(), journey.id.replace("/", "-"), index)
         print("run %d of %d" % (index, args.runs))
-        reset_journey_simulators(journey, sims, set(mapping), args.fresh)
-        _, overall = run_once(journey, journeys, args, sims, accounts, build_label(), run_name, scenarios, api_base_url)
+        reset_journey_simulator(sim, bool(args.sim), args.fresh)
+        _, overall = run_once(journey, journeys, args, sim, accounts, build_label(), run_name, scenarios, api_base_url)
         worst = max(worst, EXIT_CODES[overall])
     if funding:
         print("this journey moved real USDC: cash out what is left and withdraw it to %s, the run's "
@@ -1335,11 +1383,10 @@ def run_mutants(args, api_base_url):
         if sh(["git", "diff", "--quiet", "--", "apps/mobile/Monaco", "packages/mobile-core"]).returncode != 0:
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
         accounts = locks.enter_context(actor_logins(journey, load_accounts()))
-        mapping = dict(pair.split("=", 1) for pair in args.sim)
         logins = held_logins(journey, accounts)
         use_derived_data(logins)
-        sims = resolve_simulators(journey, mapping, logins)
-        check_simulator_api_environment(sims, api_base_url)
+        sim = resolve_simulator(args.sim, logins)
+        check_simulator_api_environment(sim, api_base_url)
         caught = 0
         for patch in patches:
             expected_fail = mutant_expectation(patch)
@@ -1349,27 +1396,27 @@ def run_mutants(args, api_base_url):
             print("seeded bug %s: %s must fail" % (patch.stem, ", ".join(expected_fail)))
             applied = False
             try:
-                reset_journey_simulators(journey, sims, set(mapping), False)
+                reset_journey_simulator(sim, bool(args.sim), False)
                 sh(["git", "apply", str(patch)], check=True)
                 applied = True
-                build(sims[journey.actors[0]], OUT / ("build-%s.log" % patch.stem))
+                build(sim, OUT / ("build-%s.log" % patch.stem))
                 run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
-                rows, _ = run_once(journey, journeys, args, sims, accounts, build_label(patch.stem), run_name,
-                                   expected_fail, api_base_url, expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
+                rows, _ = run_once(journey, journeys, args, sim, accounts, build_label(patch.stem), run_name,
+                                   journey.scenarios, api_base_url, expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
             finally:
                 if applied:
                     sh(["git", "apply", "-R", str(patch)], check=True)
                     with contextlib.suppress(FileNotFoundError):
                         stamp_file().unlink()
-            if all(row["result"] == "FAIL" for row in rows):
+            if mutant_caught(rows):
                 caught += 1
                 print("  caught")
             else:
                 print("  MISSED: the test did not fail on a build with this bug in")
     finally:
         try:
-            if "sims" in locals():
-                build(sims[journey.actors[0]], OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]))
+            if "sim" in locals():
+                build(sim, OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]))
         finally:
             locks.close()
             for signum, handler in old_handlers.items():
@@ -1394,7 +1441,7 @@ def summarize(rows):
         for row in group:
             if row["scenario"] != "*" and "+mutant:" in row["build"]:
                 seeded.setdefault(row["build"], []).append(row)
-        caught = [rows for rows in seeded.values() if all(row["result"] == "FAIL" for row in rows)]
+        caught = [rows for rows in seeded.values() if mutant_caught(rows)]
         truth_misses = [r for r in clean if r["result"] == "PASS" and r["truth"] == "fail"]
 
         def median(column, source=passed):
@@ -1422,7 +1469,7 @@ def latest_outcomes(rows, known):
         item = {"journey": journey_id, "run": run, "passing": [], "known": [], "fixed": [], "new": []}
         tickets = known.get(journey_id, {})
         for row in rows:
-            if row["journey"] != journey_id or row["run"] != run or row["scenario"] == "*":
+            if row["journey"] != journey_id or row["run"] != run or row["scenario"] == "*" or row["result"] == "SKIP":
                 continue
             if row["result"] == "PASS":
                 item["passing"].append(row["scenario"])
@@ -1476,8 +1523,8 @@ def main(argv=None):
         sub = commands.add_parser(name)
         sub.set_defaults(run=handler)
         sub.add_argument("journey", nargs="?" if name == "run" else None, help="journey id, such as auth/sign-in")
-        sub.add_argument("--sim", action="append", default=[], metavar="ACTOR=UDID",
-                         help="the simulator an actor uses; defaults to Monaco Journeys [<lane>] <actor>")
+        sub.add_argument("--sim", default="", metavar="UDID",
+                         help="the one simulator every actor uses; defaults to Monaco Journeys [<lane>]")
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
         sub.add_argument("--timeout", type=int, default=300, metavar="SECONDS",
                          help="budget for one journey run: setup, tests and truth check (default 300)")
@@ -1486,7 +1533,8 @@ def main(argv=None):
         sub.add_argument("--keep-sims", action="store_true",
                          help="leave the simulators this run booted running, for debugging")
         if name == "run":
-            sub.add_argument("--scenario", action="append", metavar="S1", help="default: every scenario")
+            sub.add_argument("--scenario", action="append", metavar="S1",
+                             help="default: every scenario; a session test runs every scenario up to the last named")
             sub.add_argument("--runs", type=int, default=1)
             sub.add_argument("--all", action="store_true", help="every journey, in requires order, on one build")
             sub.add_argument("--no-build", action="store_true", help="reuse the last build")

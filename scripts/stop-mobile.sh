@@ -66,7 +66,7 @@ lanes = [l for l in os.environ["LIVE"].splitlines() if l]
 for ds in json.load(sys.stdin).get("devices", {}).values():
     for d in ds:
         n = d.get("name", "")
-        if any(n == "Monaco " + l or n.startswith("Monaco Journeys " + l + " ") for l in lanes):
+        if any(n in ("Monaco " + l, "Monaco Journeys " + l) or n.startswith("Monaco Journeys " + l + " ") for l in lanes):
             print(d["udid"])
 ')"$'\n'
   kept=""

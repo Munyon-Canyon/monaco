@@ -45,7 +45,7 @@ stock fallback.
   and runtime, and slims it (see SimSlim for lanes and journeys below).
   `scripts/resolve-ios-sim.sh` and `scripts/gold-sim-udid.sh` return it in a lane,
   so `just run mobile`, `monacoctl agents check` and MobileBuildMCP's
-  `--simulator-id` all use it. Journey actors get `Monaco Journeys <lane> <actor>`.
+  `--simulator-id` all use it. Journeys run on one more, `Monaco Journeys <lane>`, whatever their actors.
 - **Build cache.** `scripts/ios-build` and `scripts/ios-sim` build into the
   checkout's `.build/DerivedData`, the cache `monacoctl agents check` uses, and
   `ios-sim` installs the app built there.
