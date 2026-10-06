@@ -1,18 +1,18 @@
-apps/backend/api/openapi.yaml merge=binary linguist-generated
-apps/backend/internal/platform/httpx/api/**/*.gen.go merge=binary linguist-generated
-apps/backend/internal/modules/*/sqlc/*.gen.go merge=binary
-apps/backend/internal/platform/db/sqlc/*.go merge=binary
-apps/backend/cmd/**/*.gen.go merge=binary
-apps/backend/internal/platform/observability/msgs_*.gen.go merge=binary
-apps/backend/.golangci.yml merge=binary linguist-generated
+apps/backend/api/openapi.yaml linguist-generated
+apps/backend/internal/platform/httpx/api/**/*.gen.go linguist-generated
+apps/backend/internal/modules/*/sqlc/*.gen.go
+apps/backend/internal/platform/db/sqlc/*.go
+apps/backend/cmd/**/*.gen.go
+apps/backend/internal/platform/observability/msgs_*.gen.go
+apps/backend/.golangci.yml linguist-generated
 apps/backend/migrations/atlas.sum merge=binary
-packages/flows/Sources/MonacoFlows/*.gen.swift merge=binary linguist-generated
-packages/mobile-core/Tests/MonacoCoreTests/Flows/*.gen.swift merge=binary linguist-generated
+packages/flows/Sources/MonacoFlows/*.gen.swift linguist-generated
+packages/mobile-core/Tests/MonacoCoreTests/Flows/*.gen.swift linguist-generated
 packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift linguist-generated
-.claude/skills/verify-backend/feature-map/*.md merge=binary linguist-generated
-docs/reference/events.md merge=binary linguist-generated
-docs/reference/errors.md merge=binary linguist-generated
-docs/reference/logs.md merge=binary linguist-generated
+.claude/skills/verify-backend/feature-map/*.md linguist-generated
+docs/reference/events.md linguist-generated
+docs/reference/errors.md linguist-generated
+docs/reference/logs.md linguist-generated
 apps/backend/internal/errs/testdata/codes_*.golden merge=union
 docs/architecture/log/*.md merge=union
 apps/backend/CHANGELOG.md merge=union

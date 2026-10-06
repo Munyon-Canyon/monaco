@@ -146,11 +146,11 @@ Only the root restacks, one stack at a time.
 
     Resolve each conflict in the branch where it appears. Run `git diff --check`, then `git add` the files and `gt continue`.
 
-    A conflict in `apps/backend/api/spec/<module>.yaml` is a real conflict, because only that module's tickets edit the file. Merge both sides by hand, keep every path and schema, and run `go generate ./...`. The bundler fails on a path or schema defined in two spec files and names both. A restack stops on `apps/backend/api/openapi.yaml` or a generated API package with no markers (`merge=binary`); run `go generate ./...`, which rewrites both from the spec sources.
+    A conflict in `apps/backend/api/spec/<module>.yaml` is a real conflict, because only that module's tickets edit the file. Merge both sides by hand, keep every path and schema, and run `go generate ./...`. The bundler fails on a path or schema defined in two spec files and names both. A restack that stops on `apps/backend/api/openapi.yaml` or a generated API package needs `go generate ./...`, which rewrites both from the spec sources.
 
     A conflict in `apps/backend/internal/errs/codes_*.go` is a real conflict, because keeping one side drops the other branch's codes. Merge both sides by hand and keep every constant and row. A new feature's codes go in their own `codes_<module>_<feature>.go`, so this happens only when two tickets edit one existing area file.
 
-    A generated file never needs a hand merge. `.gitattributes` marks each one `merge=binary`, so when both sides changed it the restack stops on it with the upstream copy in place and no conflict markers. Resolve any hand-written file in the stop by hand, then regenerate from `apps/backend` and continue:
+    A generated file never needs a hand merge. `.gitattributes` leaves every generated file on git's text merge except `migrations/atlas.sum` (`merge=binary`: its first line hashes the whole file, so any concurrent migration conflicts), so two branches that edit different places merge cleanly. When both edited the same spot the restack stops with markers, and regeneration settles it, so never hand-merge markers in a generated file. `atlas.sum` stops with the upstream copy in place and no markers. Resolve any hand-written file in the stop by hand, then regenerate from `apps/backend` and continue:
 
         go generate ./... && git add -A && gt continue
 
