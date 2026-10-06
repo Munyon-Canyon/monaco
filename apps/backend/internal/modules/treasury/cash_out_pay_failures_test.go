@@ -5,12 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func refuse(table, when string) string {
@@ -194,9 +197,25 @@ func TestCashOutPayout_aHeldLedgerLockTimesOut(t *testing.T) {
 	defer func() {
 		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock_all()`)
 	}()
-	ctx, cancel := context.WithTimeout(observability.WithActor(r.f.ctx(), "system:test"), 300*time.Millisecond)
+	ctx, cancel := context.WithCancel(observability.WithActor(r.f.ctx(), "system:test"))
 	defer cancel()
-	if err := r.payouts().Advance(ctx, r.job, 0, nil); err == nil {
+	var group errgroup.Group
+	var advanced error
+	group.Go(func() error {
+		advanced = r.payouts().Advance(ctx, r.job, 0, nil)
+		return nil
+	})
+	waiting := `SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`
+	testkit.Eventually(t, func() bool {
+		var n int
+		if err := r.f.pool.QueryRow(t.Context(), waiting).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n > 0
+	}, 10*time.Second)
+	cancel()
+	_ = group.Wait()
+	if advanced == nil {
 		t.Fatal("Advance went past a held ledger lock")
 	}
 	r.wantJob(t, "paying", "")
