@@ -51,15 +51,15 @@ jobs:
       - name: Placeholder app config
         run: scripts/ensure-ios-privy-config.sh placeholder
 
-      # One xcodebuild test compiles the app, MonacoTests and MonacoUITests, then runs MonacoTests.
+      # One xcodebuild test compiles the app and MonacoTests, then runs MonacoTests. The MonacoTests
+      # test plan leaves MonacoUITests out, so CI never compiles it; the scheme's default plan keeps both.
       - name: Build the app and run MonacoTests
         run: |
-          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug \
+          xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -testPlan MonacoTests -configuration Debug \
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
             -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation \
-            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO \
-            -only-testing:MonacoTests test
+            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO test
 
       - name: Save Swift packages
         if: inputs.save-cache && steps.spm.outputs.cache-hit != 'true'
