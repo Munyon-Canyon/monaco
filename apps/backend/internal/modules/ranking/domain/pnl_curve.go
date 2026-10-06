@@ -85,11 +85,17 @@ func (h *held) add(stake StakePoint, snap Snapshot) error {
 	if h.equity, err = h.equity.Add(equity); err != nil {
 		return errs.Wrap(err, errs.CodeInvalidInput, op)
 	}
-	a, b := h.net.Int64(), stake.Net.Int64()
-	if (b > 0 && a > math.MaxInt64-b) || (b < 0 && a < math.MinInt64-b) {
-		return errs.New(errs.CodeInvalidInput, op, slog.Int64("net", a), slog.Int64("add", b))
+	if h.net, err = addSigned(op, h.net, stake.Net); err != nil {
+		return err
 	}
-	h.net = money.SignedMicrosFromInt64(a + b)
 	h.cabals++
 	return nil
+}
+
+func addSigned(op string, x, y money.SignedMicros) (money.SignedMicros, error) {
+	a, b := x.Int64(), y.Int64()
+	if (b > 0 && a > math.MaxInt64-b) || (b < 0 && a < math.MinInt64-b) {
+		return money.SignedMicros{}, errs.New(errs.CodeInvalidInput, op, slog.Int64("a", a), slog.Int64("b", b))
+	}
+	return money.SignedMicrosFromInt64(a + b), nil
 }

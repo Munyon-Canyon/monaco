@@ -22,6 +22,7 @@ type HTTP struct {
 	Ledger    app.Contributions
 	Histories app.HistoryLoader
 	Stakes    app.StakeHistory
+	Cards     app.CabalCards
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -131,6 +132,61 @@ func (h HTTP) GetMyPnlHistory(
 		out.Points = append(out.Points, api.PnlPoint{At: p.At, EquityMicros: int64(equity), PnlMicros: p.PnL.Int64()})
 	}
 	return api.GetMyPnlHistory200JSONResponse(out), nil
+}
+
+func (h HTTP) GetMyPortfolio(
+	ctx context.Context, _ api.GetMyPortfolioRequestObject,
+) (api.GetMyPortfolioResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	view, err := app.ReadPortfolio{User: user}.Run(ctx, h.Boards, h.Snapshots, h.Stakes, h.Cards)
+	if err != nil {
+		return nil, err
+	}
+	out, err := wirePortfolio(view)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetMyPortfolio200JSONResponse(out), nil
+}
+
+func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
+	const op = "ranking.wirePortfolio"
+	total := view.Total.Uint64()
+	if total > math.MaxInt64 {
+		return api.MyPortfolio{}, errs.New(errs.CodeInternal, op, slog.Uint64("total", total))
+	}
+	out := api.MyPortfolio{
+		TotalValueMicros: int64(total), PnlMicros: view.PnL.Int64(), ReturnBps: bpsOf(view.Return),
+		ComputedAt: view.ComputedAt, PricesAsOf: view.PricesAsOf, Cabals: make([]api.PortfolioCabal, 0, len(view.Rows)),
+	}
+	for _, row := range view.Rows {
+		value, shares := row.Value.Uint64(), row.Shares.Uint64()
+		if value > math.MaxInt64 || shares > math.MaxInt64 || row.SliceBps > math.MaxInt64 {
+			return api.MyPortfolio{}, errs.New(
+				errs.CodeInternal, op, slog.Uint64("value", value), slog.Uint64("shares", shares))
+		}
+		card := view.Cabals[row.CabalID]
+		ref := api.CabalRef{Id: row.CabalID.UUID(), Name: card.Name}
+		if card.PictureURL != "" {
+			ref.PictureUrl = &card.PictureURL
+		}
+		out.Cabals = append(out.Cabals, api.PortfolioCabal{
+			Cabal: ref, ValueMicros: int64(value), ShareUnits: int64(shares), NetContributedMicros: row.Net.Int64(),
+			PnlMicros: row.PnL.Int64(), ReturnBps: bpsOf(row.Return), SliceBps: int64(row.SliceBps),
+		})
+	}
+	return out, nil
+}
+
+func bpsOf(b *domain.Bps) *int64 {
+	if b == nil {
+		return nil
+	}
+	bps := int64(*b)
+	return &bps
 }
 
 func wireHistory(history domain.ValueHistory, in app.ReadValueHistory) (api.CabalValueHistory, error) {
