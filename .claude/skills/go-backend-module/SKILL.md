@@ -72,7 +72,7 @@ Run `just gen provider <name>`. Wire types stay in the provider package. The fak
 | Consumer tests and the chaos suite | `echo_test.go`, `echo_chaos_test.go` | embedded NATS through `testkit.Main(m, testkit.WithNATS())` |
 | Flow acceptance tests | `flow<id>_test.go`, calling a script in `internal/testkit/flows` | api and worker in one process through `scenario.New` |
 | Crash tests | `flow<id>_crash_test.go`, `//go:build faultpoints` | the same scenario with a fault point armed |
-| End to end | `monacoctl verify` in the Graphite queue | real binaries, see the `verify-backend` skill |
+| End to end | `monacoctl verify` in stage 1 | real binaries, see the `verify-backend` skill |
 
 Every `TestMain` lives in `main_test.go` and is exactly `testkit.Main(m, ...)`. It runs goleak.
 

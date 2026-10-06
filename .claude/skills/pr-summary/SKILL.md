@@ -102,7 +102,7 @@ Tests use `CabalFactory`, `UserFactory` and `TransactionFactory` instead of lite
 
 ## Proof
 
-`go run ./cmd/monacoctl agents check`: go build, go vet, lint and go test -short ok on 31 packages, passed in 41.2s. CI runs the race suite and `monacoctl verify` in the queue.
+`go run ./cmd/monacoctl agents check`: go build, go vet, lint and go test -short ok on 31 packages, passed in 41.2s. CI runs the race suite and `monacoctl verify` in stage 1.
 
 ## What came up
 
