@@ -23,7 +23,7 @@ import (
 
 func TestFlow15_Withdraw_OK(t *testing.T) {
 	t.Parallel()
-	flows.F15WithdrawOK(flow15Scenario(t))
+	flows.F15WithdrawOK(flow15Scenario(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow15_Withdraw_InvalidInput(t *testing.T) {
@@ -65,7 +65,7 @@ func TestWithdraw_aBannedMemberCanStillWithdraw(t *testing.T) {
 		Then(scenario.ExpectStatus(http.StatusAccepted), scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1))
 }
 
-func flow15Scenario(t *testing.T) *scenario.Scenario {
+func flow15Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
 	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
@@ -88,7 +88,7 @@ func flow15Scenario(t *testing.T) *scenario.Scenario {
 			return build(d)
 		}
 	}
-	return scenario.New(t,
+	return scenario.New(t, append([]scenario.Option{
 		scenario.WithPrivy(upstreams, "app"),
 		scenario.WithModules(
 			withConfig(func(d module.Deps) module.Module { return funding.New(d) }),
@@ -96,5 +96,5 @@ func flow15Scenario(t *testing.T) *scenario.Scenario {
 			withConfig(func(d module.Deps) module.Module { return cabal.New(d) }),
 			withConfig(func(d module.Deps) module.Module { return identity.New(d) }),
 		),
-	)
+	}, extra...)...)
 }

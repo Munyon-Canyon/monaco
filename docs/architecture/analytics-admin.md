@@ -61,6 +61,7 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | PostHog event | Bus subject ([Flows](backend-platform.md#flows)) |
 | --- | --- |
 | `deposit_credited` | `deposit.credited` (flow 5) |
+| `onramp_status_changed` | `onramp.status_changed` (flow 6) |
 | `cabal_funded` | `cabal.funded` (flow 7) |
 | `proposal_passed` | `proposal.passed` (flow 10) |
 | `proposal_failed` | `proposal.failed` (flow 10) |

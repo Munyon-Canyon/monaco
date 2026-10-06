@@ -31,6 +31,8 @@ func productExports(d module.Deps) *Registry {
 
 func registerFundingExports(r *Registry) {
 	Export(r, string(events.TypeDepositCredited), exports.DepositCredited)
+	Export(r, string(events.TypeOnrampStatusChanged), exports.OnrampStatusChanged)
+	Export(r, string(events.TypeWithdrawalConfirmed), exports.WithdrawalConfirmed)
 }
 
 func registerTreasuryExports(r *Registry) {

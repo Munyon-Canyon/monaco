@@ -20,7 +20,7 @@ func withFunding() scenario.Option {
 
 func TestFlow06_CreateOnrampSession_OK(t *testing.T) {
 	t.Parallel()
-	flows.F06CreateOnrampSessionOK(scenario.New(t, withFunding()))
+	flows.F06CreateOnrampSessionOK(scenario.New(t, withFunding(), scenario.WithPostHog(t)))
 }
 
 func TestFlow06_ExchangeOnrampToken_OnrampLinkInvalid(t *testing.T) {

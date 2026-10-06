@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-06	Card deposit	funding	POST /v1/onramp/sessions;POST /v1/onramp/sessions/exchange;PATCH /v1/onramp/sessions/{id}	CreateOnrampSession;ExchangeOnrampToken;ReportOnrampStatus	onramp.status_changed		ok;OnrampLinkInvalid;OnrampLinkExpired;OnrampInvalidTransition;Forbidden	verified	docs/architecture/deposits-withdrawals.md#card-deposit-flow
+06	Card deposit	funding	POST /v1/onramp/sessions;POST /v1/onramp/sessions/exchange;PATCH /v1/onramp/sessions/{id}	CreateOnrampSession;ExchangeOnrampToken;ReportOnrampStatus	onramp.status_changed	analytics	ok;OnrampLinkInvalid;OnrampLinkExpired;OnrampInvalidTransition;Forbidden	verified	docs/architecture/deposits-withdrawals.md#card-deposit-flow
