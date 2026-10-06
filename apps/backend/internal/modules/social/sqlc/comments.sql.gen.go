@@ -91,6 +91,19 @@ func (q *Queries) GetCommentTarget(ctx context.Context, arg GetCommentTargetPara
 	return i, err
 }
 
+const getProposalFeedItem = `-- name: GetProposalFeedItem :one
+SELECT id
+FROM feed_objects
+WHERE ref_type = 'proposals' AND ref_id = $1::uuid AND kind = 'proposal'
+`
+
+func (q *Queries) GetProposalFeedItem(ctx context.Context, proposalID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getProposalFeedItem, proposalID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertComment = `-- name: InsertComment :one
 INSERT INTO feed_comments (id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at)
 VALUES (

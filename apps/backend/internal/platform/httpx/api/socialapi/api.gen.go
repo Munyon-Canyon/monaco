@@ -528,6 +528,24 @@ type PostChatMessageRequest struct {
 	ParentId *openapi_types.UUID `json:"parent_id,omitempty"`
 }
 
+// ProposalCommentPage One page of comment threads on a proposal, oldest first.
+type ProposalCommentPage struct {
+	// FeedObjectId The id of the proposal's feed item.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000007
+	FeedObjectId openapi_types.UUID `json:"feed_object_id"`
+
+	// Items The page.
+	//
+	// Examples: []
+	Items []CommentThread `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
 // RealtimeTokenRequest An Ably token request, signed with the app key. The app passes it to Ably unchanged.
 type RealtimeTokenRequest struct {
 	// Capability A JSON object that maps each cabal channel to `["subscribe"]`.
@@ -695,6 +713,21 @@ type DeleteMeFeedMutesTargetTypeTargetIDParams struct {
 // DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType defines parameters for DeleteMeFeedMutesTargetTypeTargetID.
 type DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType string
 
+// GetProposalCommentsParams defines parameters for GetProposalComments.
+type GetProposalCommentsParams struct {
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size, counted in top-level comments. Defaults to 50 and cannot exceed 100.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// PostProposalCommentParams defines parameters for PostProposalComment.
+type PostProposalCommentParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // CreateRealtimeTokenParams defines parameters for CreateRealtimeToken.
 type CreateRealtimeTokenParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -740,6 +773,9 @@ type PostFeedCommentJSONRequestBody = CreateCommentRequest
 // PutMeFeedMutesJSONRequestBody defines body for PutMeFeedMutes for application/json ContentType.
 type PutMeFeedMutesJSONRequestBody = FeedMuteRequest
 
+// PostProposalCommentJSONRequestBody defines body for PostProposalComment for application/json ContentType.
+type PostProposalCommentJSONRequestBody = CreateCommentRequest
+
 // PostUserFollowJSONRequestBody defines body for PostUserFollow for application/json ContentType.
 type PostUserFollowJSONRequestBody = FollowRequest
 
@@ -781,6 +817,12 @@ type ServerInterface interface {
 	// DeleteMeFeedMutesTargetTypeTargetID Unmute a feed target.
 	// (DELETE /v1/me/feed-mutes/{target_type}/{target_id})
 	DeleteMeFeedMutesTargetTypeTargetID(w http.ResponseWriter, r *http.Request, targetType DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType, targetId string, params DeleteMeFeedMutesTargetTypeTargetIDParams)
+	// GetProposalComments Read the comments on a proposal.
+	// (GET /v1/proposals/{id}/comments)
+	GetProposalComments(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetProposalCommentsParams)
+	// PostProposalComment Comment on a proposal.
+	// (POST /v1/proposals/{id}/comments)
+	PostProposalComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalCommentParams)
 	// CreateRealtimeToken Get a token request for live chat updates.
 	// (POST /v1/realtime/token)
 	CreateRealtimeToken(w http.ResponseWriter, r *http.Request, params CreateRealtimeTokenParams)
@@ -1559,6 +1601,115 @@ func (siw *ServerInterfaceWrapper) DeleteMeFeedMutesTargetTypeTargetID(w http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetProposalComments operation middleware
+func (siw *ServerInterfaceWrapper) GetProposalComments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetProposalCommentsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProposalComments(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostProposalComment operation middleware
+func (siw *ServerInterfaceWrapper) PostProposalComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostProposalCommentParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProposalComment(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateRealtimeToken operation middleware
 func (siw *ServerInterfaceWrapper) CreateRealtimeToken(w http.ResponseWriter, r *http.Request) {
 
@@ -1954,6 +2105,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.PutMeFeedMutes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me/feed-mutes/{target_type}/{target_id}", wrapper.DeleteMeFeedMutesTargetTypeTargetID)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}/comments", wrapper.GetProposalComments)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/comments", wrapper.PostProposalComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/realtime/token", wrapper.CreateRealtimeToken)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.PostUserFollow)
@@ -2421,6 +2574,87 @@ func (response DeleteMeFeedMutesTargetTypeTargetIDdefaultApplicationProblemPlusJ
 	return err
 }
 
+type GetProposalCommentsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetProposalCommentsParams
+}
+
+type GetProposalCommentsResponseObject interface {
+	VisitGetProposalCommentsResponse(w http.ResponseWriter) error
+}
+
+type GetProposalComments200JSONResponse ProposalCommentPage
+
+func (response GetProposalComments200JSONResponse) VisitGetProposalCommentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProposalCommentsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetProposalCommentsdefaultApplicationProblemPlusJSONResponse) VisitGetProposalCommentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProposalCommentRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostProposalCommentParams
+	Body   *PostProposalCommentJSONRequestBody
+}
+
+type PostProposalCommentResponseObject interface {
+	VisitPostProposalCommentResponse(w http.ResponseWriter) error
+}
+
+type PostProposalComment201JSONResponse Comment
+
+func (response PostProposalComment201JSONResponse) VisitPostProposalCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProposalCommentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostProposalCommentdefaultApplicationProblemPlusJSONResponse) VisitPostProposalCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateRealtimeTokenRequestObject struct {
 	Params CreateRealtimeTokenParams
 }
@@ -2659,6 +2893,12 @@ type StrictServerInterface interface {
 	// DeleteMeFeedMutesTargetTypeTargetID Unmute a feed target.
 	// (DELETE /v1/me/feed-mutes/{target_type}/{target_id})
 	DeleteMeFeedMutesTargetTypeTargetID(ctx context.Context, request DeleteMeFeedMutesTargetTypeTargetIDRequestObject) (DeleteMeFeedMutesTargetTypeTargetIDResponseObject, error)
+	// GetProposalComments Read the comments on a proposal.
+	// (GET /v1/proposals/{id}/comments)
+	GetProposalComments(ctx context.Context, request GetProposalCommentsRequestObject) (GetProposalCommentsResponseObject, error)
+	// PostProposalComment Comment on a proposal.
+	// (POST /v1/proposals/{id}/comments)
+	PostProposalComment(ctx context.Context, request PostProposalCommentRequestObject) (PostProposalCommentResponseObject, error)
 	// CreateRealtimeToken Get a token request for live chat updates.
 	// (POST /v1/realtime/token)
 	CreateRealtimeToken(ctx context.Context, request CreateRealtimeTokenRequestObject) (CreateRealtimeTokenResponseObject, error)
@@ -3051,6 +3291,67 @@ func (sh *strictHandler) DeleteMeFeedMutesTargetTypeTargetID(w http.ResponseWrit
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteMeFeedMutesTargetTypeTargetIDResponseObject); ok {
 		if err := validResponse.VisitDeleteMeFeedMutesTargetTypeTargetIDResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProposalComments operation middleware
+func (sh *strictHandler) GetProposalComments(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetProposalCommentsParams) {
+	var request GetProposalCommentsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProposalComments(ctx, request.(GetProposalCommentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProposalComments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProposalCommentsResponseObject); ok {
+		if err := validResponse.VisitGetProposalCommentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProposalComment operation middleware
+func (sh *strictHandler) PostProposalComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalCommentParams) {
+	var request PostProposalCommentRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PostProposalCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProposalComment(ctx, request.(PostProposalCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProposalComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProposalCommentResponseObject); ok {
+		if err := validResponse.VisitPostProposalCommentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

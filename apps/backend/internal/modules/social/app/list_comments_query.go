@@ -82,3 +82,15 @@ func threadsOf(rows []sqlc.FeedComment, limit int) CommentsPage {
 	}
 	return page
 }
+
+func ProposalFeedItem(ctx context.Context, db sqlc.DBTX, proposal uuid.UUID) (uuid.UUID, error) {
+	const op = "social.ProposalFeedItem"
+	id, err := sqlc.New(db).GetProposalFeedItem(ctx, proposal)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return uuid.Nil, errs.New(errs.CodeFeedItemPending, op, slog.String("proposal_id", proposal.String()))
+	case err != nil:
+		return uuid.Nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return id, nil
+}
