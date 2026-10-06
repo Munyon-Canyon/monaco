@@ -80,14 +80,18 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `withdrawal_sent` | `withdrawal.confirmed` (flow 15) |
 | `follow_created` | `follow.created` (flow 20) |
 | `comment_created` | `comment.created` (flow 21) |
+| `referral_attributed` | `referral.attributed` (flow 25) |
+| `referral_qualified` | `referral.qualified` (flow 25) |
 
-`usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address, a transaction signature, a cabal name or a comment body.
+`usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address, a transaction signature, a cabal name, a comment body or a referral code.
 
 `user_signed_up` sets the person properties `login_provider`, `created_at` and `auth_state`. `created_at` is in UTC and `auth_state` starts at `CREATED`. `auth_state_changed` sets `auth_state` to the new state. Both send their values in PostHog's `$set` property on the capture, so the server updates the person with no separate identify call.
 
+`referral_attributed` and `referral_qualified` use the referee's id as `distinct_id` and carry the referrer's id as `referrer_id`, an opaque Monaco user id. `referral_attributed` also carries `source`. Neither sets a person property.
+
 `cabal_created`, `cabal_joined` and `cabal_left` set the person property `cabal_count` to the number of cabals the member belongs to, read through cabal's `CabalsOf` when the event is exported. A redelivered older event can set a stale count until the next membership event, which PostHog accepts because it holds behavior, not truth. `cabal_joined` also fires for a cabal's creator, with `via` set to `create`.
 
-The RFC's flow table lists `analytics` as a consumer on every one of these flows (default 2026-09-27 added it to flows 7, 10, 11, 14, 20 and 21, and flows 3 and 4 follow for the join funnel and `cabal_count`), so `monacoctl flows check` holds each export to a test.
+The RFC's flow table lists `analytics` as a consumer on every one of these flows (default 2026-09-27 added it to flows 7, 10, 11, 14, 20 and 21, flows 3 and 4 follow for the join funnel and `cabal_count`, and `referral.attributed` in flow 25 follows for the referral funnel), so `monacoctl flows check` holds each export to a test.
 
 The PostHog call is an outbound HTTP call, so it sits behind a port with an anti-corruption adapter, circuit breaker and retry ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). A PostHog outage is a retryable `KindUnavailable` code: `bus.Dispatch` naks with backoff and never blocks another consumer.
 

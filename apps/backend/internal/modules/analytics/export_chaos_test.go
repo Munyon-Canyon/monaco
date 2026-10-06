@@ -185,6 +185,20 @@ func newIdentityChaosWorld(t *testing.T) chaosWorld {
 	return appendedWorld(t, e, identityActor, s.user, identityChaosCases(s))
 }
 
+func referralChaosCases(s referralScene) []chaosCase {
+	return []chaosCase{
+		{s.attributed("clipboard"), "referral_attributed"},
+		{s.qualified(), "referral_qualified"},
+	}
+}
+
+func newReferralChaosWorld(t *testing.T) chaosWorld {
+	t.Helper()
+	e := newEnv(t, analytics.RegisterReferralExports)
+	s := newReferralScene(e)
+	return appendedWorld(t, e, referralActor, s.referee, referralChaosCases(s))
+}
+
 func appendedWorld(t *testing.T, e *env, actor string, distinct uuid.UUID, cases []chaosCase) chaosWorld {
 	t.Helper()
 	w := chaosWorld{e: e, distinct: distinct.String(), names: map[uuid.UUID]string{}}
@@ -250,4 +264,9 @@ func TestAnalytics_SocialExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 func TestAnalytics_IdentityExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 	t.Parallel()
 	exportsEachEventOnceUnderChaos(t, newIdentityChaosWorld)
+}
+
+func TestAnalytics_ReferralExports_ExportEachEventOnceUnderChaos(t *testing.T) {
+	t.Parallel()
+	exportsEachEventOnceUnderChaos(t, newReferralChaosWorld)
 }

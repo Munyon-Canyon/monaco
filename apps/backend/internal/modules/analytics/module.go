@@ -30,6 +30,7 @@ func productExports(d module.Deps) *Registry {
 	registerCabalExports(r, cabal.New(d).Queries())
 	registerSocialExports(r)
 	registerIdentityExports(r)
+	registerReferralExports(r)
 	return r
 }
 
@@ -61,6 +62,11 @@ func registerSocialExports(r *Registry) {
 func registerIdentityExports(r *Registry) {
 	Export(r, string(events.TypeUserCreated), exports.UserSignedUp)
 	Export(r, string(events.TypeUserAuthStateChanged), exports.AuthStateChanged)
+}
+
+func registerReferralExports(r *Registry) {
+	Export(r, string(events.TypeReferralAttributed), exports.ReferralAttributed)
+	Export(r, string(events.TypeReferralQualified), exports.ReferralQualified)
 }
 
 func registerProposalExports(r *Registry, proposers app.ProposerReader) {
