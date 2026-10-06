@@ -191,6 +191,17 @@ func TestProjections_leaveOutEveryConsumerThatIsNotAProjection(t *testing.T) {
 	}
 }
 
+func TestReplayHandlers_addTheRankingSnapshotProjectionToTheDurables(t *testing.T) {
+	t.Parallel()
+	got := sortedNames(replayHandlers(withPostHogKey(), nil, nil, nil, &replay.Clock{}))
+	want := sortedNames(projections(withPostHogKey(), nil, nil, &replay.Clock{}))
+	want = append(want, "ranking.replay.snapshot")
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("replayHandlers = %v, want the projections plus ranking.replay.snapshot %v", got, want)
+	}
+}
+
 func TestBackfill_resolvesAHandlerOfAConsumerThatReplayLeavesOut(t *testing.T) {
 	t.Parallel()
 	env := opsEnv(testkit.DB(t).Config().ConnString())

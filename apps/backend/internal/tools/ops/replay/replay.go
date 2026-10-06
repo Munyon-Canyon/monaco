@@ -41,6 +41,7 @@ type Options struct {
 	To             uuid.UUID
 	Verify         bool
 	Checks         []LedgerCheck
+	Tables         []string
 }
 
 type Report struct {
@@ -201,13 +202,21 @@ func deliver(ctx context.Context, uow *db.UnitOfWork, clk clock.Clock, h bus.Han
 }
 
 func sortedRows(ctx context.Context, pool *pgxpool.Pool, table string) ([]string, error) {
-	rows, _ := pool.Query(ctx, `SELECT to_jsonb(t)::text FROM `+pgx.Identifier{table}.Sanitize()+` t`)
+	rows, _ := pool.Query(ctx, `SELECT (to_jsonb(t) - $1::text[])::text FROM `+pgx.Identifier{table}.Sanitize()+` t`,
+		unrebuiltColumns(table))
 	out, err := pgx.CollectRows(rows, pgx.RowTo[string])
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "replay.sortedRows", slog.String("table", table))
 	}
 	slices.Sort(out)
 	return out, nil
+}
+
+func unrebuiltColumns(table string) []string {
+	if table == "leaderboard_runs" {
+		return []string{"started_at", "finished_at"}
+	}
+	return []string{}
 }
 
 func diffRows(table string, source, rebuilt []string) []string {
