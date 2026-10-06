@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"os"
+	"path"
 	"reflect"
 	"regexp"
 	"slices"
@@ -628,7 +629,8 @@ func renderer[E events.Event](k app.Kind[E]) func(context.Context, events.Event,
 	}
 }
 
-func copyCases(cabals app.Cabals, assets app.Assets) map[string]copyCase {
+func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string]copyCase {
+	passed := renderer[events.ProposalPassed](app.ProposalPassed{Cabals: cabals, Assets: assets})
 	return map[string]copyCase{
 		"test":             {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
 		"deposit_credited": {events.TypeDepositCredited, renderer[events.DepositCredited](app.DepositCredited{})},
@@ -644,6 +646,12 @@ func copyCases(cabals app.Cabals, assets app.Assets) map[string]copyCase {
 		"trade_failed": {
 			events.TypeTradeFailed, renderer[events.TradeFailed](app.TradeFailed{Cabals: cabals, Assets: assets}),
 		},
+		"proposal_created": {
+			events.TypeProposalCreated,
+			renderer[events.ProposalCreated](app.ProposalCreated{Cabals: cabals, Users: users, Assets: assets}),
+		},
+		"proposal_passed":     {events.TypeProposalPassed, passed},
+		"proposal_passed_buy": {events.TypeProposalPassed, passed},
 	}
 }
 
@@ -672,12 +680,18 @@ func copyFaults(m app.Message) []string {
 
 func goldenEvent(t *testing.T, typ events.Type) events.Event {
 	t.Helper()
+	return goldenEventIn(t, "", typ)
+}
+
+func goldenEventIn(t *testing.T, dir string, typ events.Type) events.Event {
+	t.Helper()
 	i := slices.IndexFunc(events.Catalog(), func(e events.Entry) bool { return e.Type == typ })
 	if i < 0 {
 		t.Fatalf("%s is not in the events catalog", typ)
 	}
 	version := events.Catalog()[i].Version
-	raw, err := fs.ReadFile(os.DirFS("../../events/testdata/golden"), fmt.Sprintf("%s.v%d.json", typ, version))
+	file := path.Join(dir, fmt.Sprintf("%s.v%d.json", typ, version))
+	raw, err := fs.ReadFile(os.DirFS("../../events/testdata/golden"), file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -692,13 +706,20 @@ func TestNotifyCopy(t *testing.T) {
 	t.Parallel()
 	to := ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-copy-recipient")))
 	paused := goldenEvent(t, events.TypeCabalPaused).(events.CabalPaused)
-	seed := fakes.CabalSeed{View: cabal.View{ID: ids.CabalIDFrom(*paused.CabalID), Name: cabalName}}
-	cabals := fakes.NewCabal([]fakes.CabalSeed{seed}, nil)
+	created := goldenEvent(t, events.TypeProposalCreated).(events.ProposalCreated)
+	seeds := []fakes.CabalSeed{
+		{View: cabal.View{ID: ids.CabalIDFrom(*paused.CabalID), Name: cabalName}},
+		{View: cabal.View{ID: ids.CabalIDFrom(created.CabalID), Name: cabalName}},
+	}
+	cabals := fakes.NewCabal(seeds, nil)
+	proposer := identity.UserCard{ID: ids.UserIDFrom(created.ProposerID), DisplayName: memberNames()[0]}
+	users := fakes.NewIdentity([]identity.UserCard{proposer}, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
+	goldenDirs := map[string]string{"proposal_passed_buy": "buy"}
 	covered := map[events.Type]bool{}
-	for name, c := range copyCases(cabals, assets) {
+	for name, c := range copyCases(cabals, users, assets) {
 		covered[c.typ] = true
-		msg, err := c.render(t.Context(), goldenEvent(t, c.typ), to)
+		msg, err := c.render(t.Context(), goldenEventIn(t, goldenDirs[name], c.typ), to)
 		if err != nil {
 			t.Fatalf("%s: Render = %v", name, err)
 		}
