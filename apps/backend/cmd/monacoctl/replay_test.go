@@ -175,6 +175,7 @@ func TestProjections_buildTheRegisteredModulesWhenAPostHogKeyIsSet(t *testing.T)
 func TestProjections_leaveOutEveryConsumerThatIsNotAProjection(t *testing.T) {
 	t.Parallel()
 	want := []string{
+		"admin.audit",
 		"ranking.membership", "ranking.membership.left", "ranking.names",
 		"social.feed", "social.feed.cabal_updated", "social.feed.joined", "social.feed.left",
 		"social.feed.price_moved", "social.feed.profile_updated", "social.feed.proposal_blocked",
@@ -188,7 +189,7 @@ func TestProjections_leaveOutEveryConsumerThatIsNotAProjection(t *testing.T) {
 		"treasury.activity.fund_submitted", "treasury.activity.funded", "treasury.activity.submitted",
 	}
 	if got := sortedNames(projections(withPostHogKey(), nil, nil, &replay.Clock{})); !slices.Equal(got, want) {
-		t.Fatalf("projections = %v, want the handlers of the five projection durables %v", got, want)
+		t.Fatalf("projections = %v, want the handlers of the six projection durables %v", got, want)
 	}
 }
 

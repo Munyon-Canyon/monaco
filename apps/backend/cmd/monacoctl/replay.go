@@ -129,6 +129,7 @@ func handlers(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *re
 
 func projectionDurables() map[string]bool {
 	return map[string]bool{
+		"admin":              true,
 		"system_echo":        true,
 		"social_feed":        true,
 		"ranking_membership": true,
