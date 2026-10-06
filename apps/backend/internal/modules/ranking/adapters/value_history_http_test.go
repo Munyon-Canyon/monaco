@@ -252,3 +252,67 @@ func TestGetMyPortfolio_failsOnAValueThatDoesNotFit(t *testing.T) {
 		t.Fatalf("huge value: err = %v, want internal", err)
 	}
 }
+
+type stubUsers struct{ known map[ids.UserID]app.UserCard }
+
+func (s stubUsers) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]app.UserCard, error) {
+	return s.known, nil
+}
+
+type stubMembers []ids.CabalID
+
+func (s stubMembers) CabalsOf(context.Context, ids.UserID) ([]ids.CabalID, error) { return s, nil }
+
+func sharedReq(t *testing.T, value uint64, net int64, known bool) (api.GetSharedCabalsResponseObject, error) {
+	t.Helper()
+	viewer := ids.UserIDFrom(ids.Real{}.NewV7())
+	other := ids.UserIDFrom(ids.Real{}.NewV7())
+	ctx := asActor(t.Context(), auth.ActorUser, viewer.String())
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	cabalID := ids.CabalIDFrom(ids.Real{}.NewV7())
+	snap := domain.Snapshot{At: at, Value: money.MicrosFromUint64(value)}
+	h := historyHTTP(net)
+	h.Users = stubUsers{known: map[ids.UserID]app.UserCard{}}
+	if known {
+		h.Users = stubUsers{known: map[ids.UserID]app.UserCard{other: {ID: other}}}
+	}
+	h.Members = stubMembers{cabalID}
+	h.Snapshots = fixedLatest{values: map[ids.CabalID]domain.Snapshot{cabalID: snap}}
+	h.Cards = stubCards{cabalID: {ID: cabalID, Name: "Alpha"}}
+	return h.GetSharedCabals(ctx, api.GetSharedCabalsRequestObject{Id: other.UUID()})
+}
+
+func TestGetSharedCabals_needsASignedInUser(t *testing.T) {
+	t.Parallel()
+	h := historyHTTP(0)
+	if _, err := h.GetSharedCabals(
+		t.Context(),
+		api.GetSharedCabalsRequestObject{},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUnauthorized {
+		t.Fatalf("anonymous: err = %v, want unauthorized", err)
+	}
+}
+
+func TestGetSharedCabals_mapsThePotFigures(t *testing.T) {
+	t.Parallel()
+	got, err := sharedReq(t, 300, 100, true)
+	out, ok := got.(api.GetSharedCabals200JSONResponse)
+	if err != nil || !ok || len(out.Cabals) != 1 || out.Cabals[0].Cabal.Name != "Alpha" ||
+		out.Cabals[0].ValueMicros != 300 ||
+		out.Cabals[0].PnlMicros != 200 ||
+		*out.Cabals[0].ReturnBps != 20_000 {
+		t.Fatalf("response = %+v, %v", got, err)
+	}
+}
+
+func TestGetSharedCabals_failsForAnUnknownUserOrAValueThatDoesNotFit(t *testing.T) {
+	t.Parallel()
+	if _, err := sharedReq(t, 300, 100, false); errs.CodeOf(err) != errs.CodeUserNotFound {
+		t.Fatalf("unknown user: err = %v, want user_not_found", err)
+	}
+	if _, err := sharedReq(t, math.MaxInt64+10, 20_000, true); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("huge value: err = %v, want internal", err)
+	}
+}

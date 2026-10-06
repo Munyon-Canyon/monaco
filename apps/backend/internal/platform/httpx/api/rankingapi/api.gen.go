@@ -650,6 +650,35 @@ type PortfolioCabal struct {
 	ValueMicros int64 `json:"value_micros"`
 }
 
+// SharedCabal One shared cabal and its pot figures.
+type SharedCabal struct {
+	// Cabal A cabal's name and picture.
+	Cabal CabalRef `json:"cabal"`
+
+	// PnlMicros The pot value minus the net contributed, negative for a loss.
+	//
+	// Examples: -5
+	PnlMicros int64 `json:"pnl_micros"`
+
+	// ReturnBps The pot's return in basis points. Null when nothing is contributed.
+	//
+	// Examples: 250
+	ReturnBps *int64 `json:"return_bps"`
+
+	// ValueMicros The pot value in USDC micros.
+	//
+	// Examples: 1000000
+	ValueMicros int64 `json:"value_micros"`
+}
+
+// SharedCabals The cabals two users share.
+type SharedCabals struct {
+	// Cabals The shared cabals, largest pot first.
+	//
+	// Examples: []
+	Cabals []SharedCabal `json:"cabals"`
+}
+
 // LeaderboardCursor Examples: MjA
 type LeaderboardCursor = string
 
@@ -754,6 +783,9 @@ type ServerInterface interface {
 	// GetMyPortfolio Read the caller's portfolio.
 	// (GET /v1/me/portfolio)
 	GetMyPortfolio(w http.ResponseWriter, r *http.Request)
+	// GetSharedCabals Read the cabals the caller and another user share.
+	// (GET /v1/users/{id}/shared-cabals)
+	GetSharedCabals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1053,6 +1085,32 @@ func (siw *ServerInterfaceWrapper) GetMyPortfolio(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetSharedCabals operation middleware
+func (siw *ServerInterfaceWrapper) GetSharedCabals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSharedCabals(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -1179,6 +1237,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pnl-history", wrapper.GetMyPnlHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/portfolio", wrapper.GetMyPortfolio)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/shared-cabals", wrapper.GetSharedCabals)
 
 	return m
 }
@@ -1418,6 +1477,45 @@ func (response GetMyPortfoliodefaultApplicationProblemPlusJSONResponse) VisitGet
 	return err
 }
 
+type GetSharedCabalsRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetSharedCabalsResponseObject interface {
+	VisitGetSharedCabalsResponse(w http.ResponseWriter) error
+}
+
+type GetSharedCabals200JSONResponse SharedCabals
+
+func (response GetSharedCabals200JSONResponse) VisitGetSharedCabalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSharedCabalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetSharedCabalsdefaultApplicationProblemPlusJSONResponse) VisitGetSharedCabalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetCabalLeaderboard Read a cabal's members leaderboard.
@@ -1438,6 +1536,9 @@ type StrictServerInterface interface {
 	// GetMyPortfolio Read the caller's portfolio.
 	// (GET /v1/me/portfolio)
 	GetMyPortfolio(ctx context.Context, request GetMyPortfolioRequestObject) (GetMyPortfolioResponseObject, error)
+	// GetSharedCabals Read the cabals the caller and another user share.
+	// (GET /v1/users/{id}/shared-cabals)
+	GetSharedCabals(ctx context.Context, request GetSharedCabalsRequestObject) (GetSharedCabalsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1628,6 +1729,32 @@ func (sh *strictHandler) GetMyPortfolio(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMyPortfolioResponseObject); ok {
 		if err := validResponse.VisitGetMyPortfolioResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSharedCabals operation middleware
+func (sh *strictHandler) GetSharedCabals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetSharedCabalsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSharedCabals(ctx, request.(GetSharedCabalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSharedCabals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSharedCabalsResponseObject); ok {
+		if err := validResponse.VisitGetSharedCabalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
