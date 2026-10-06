@@ -23,6 +23,8 @@ type HTTP struct {
 	Histories app.HistoryLoader
 	Stakes    app.StakeHistory
 	Cards     app.CabalCards
+	Users     app.Users
+	Members   app.MemberCabals
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -152,6 +154,44 @@ func (h HTTP) GetMyPortfolio(
 	return api.GetMyPortfolio200JSONResponse(out), nil
 }
 
+func (h HTTP) GetSharedCabals(
+	ctx context.Context, req api.GetSharedCabalsRequestObject,
+) (api.GetSharedCabalsResponseObject, error) {
+	viewer, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ports := app.SharedPorts{Users: h.Users, Members: h.Members, Latest: h.Snapshots, Ledger: h.Ledger, Cards: h.Cards}
+	rows, err := app.ReadSharedCabals{Viewer: viewer, Other: ids.UserIDFrom(req.Id)}.Run(ctx, ports)
+	if err != nil {
+		return nil, err
+	}
+	out := api.SharedCabals{Cabals: make([]api.SharedCabal, 0, len(rows))}
+	for _, row := range rows {
+		value := row.Value.Uint64()
+		if value > math.MaxInt64 {
+			return nil, errs.New(errs.CodeInternal, "ranking.GetSharedCabals", slog.Uint64("value", value))
+		}
+		out.Cabals = append(out.Cabals, api.SharedCabal{
+			Cabal: cabalRef(
+				row.Cabal,
+			),
+			ValueMicros: int64(value),
+			PnlMicros:   row.PnL.Int64(),
+			ReturnBps:   bpsOf(row.Return),
+		})
+	}
+	return api.GetSharedCabals200JSONResponse(out), nil
+}
+
+func cabalRef(card app.CabalView) api.CabalRef {
+	ref := api.CabalRef{Id: card.ID.UUID(), Name: card.Name}
+	if card.PictureURL != "" {
+		ref.PictureUrl = &card.PictureURL
+	}
+	return ref
+}
+
 func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 	const op = "ranking.wirePortfolio"
 	total := view.Total.Uint64()
@@ -169,10 +209,8 @@ func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 				errs.CodeInternal, op, slog.Uint64("value", value), slog.Uint64("shares", shares))
 		}
 		card := view.Cabals[row.CabalID]
-		ref := api.CabalRef{Id: row.CabalID.UUID(), Name: card.Name}
-		if card.PictureURL != "" {
-			ref.PictureUrl = &card.PictureURL
-		}
+		card.ID = row.CabalID
+		ref := cabalRef(card)
 		out.Cabals = append(out.Cabals, api.PortfolioCabal{
 			Cabal: ref, ValueMicros: int64(value), ShareUnits: int64(shares), NetContributedMicros: row.Net.Int64(),
 			PnlMicros: row.PnL.Int64(), ReturnBps: bpsOf(row.Return), SliceBps: int64(row.SliceBps),

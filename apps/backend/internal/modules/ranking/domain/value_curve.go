@@ -40,15 +40,19 @@ func ValueCurve(r Range, now time.Time, snaps []Snapshot, contributed []Contribu
 		if snap == nil {
 			continue
 		}
-		var net money.SignedMicros
-		if c := LastAtOrBefore(contributed, snap.At, func(c Contribution) time.Time { return c.At }); c != nil {
-			net = c.Net
-		}
-		pnl, _, err := Lifetime(snap.Value, net)
+		pnl, _, err := PotLifetime(*snap, contributed)
 		if err != nil {
 			return nil, err
 		}
 		points = append(points, ValuePoint{At: end, Value: snap.Value, NavPerShare: snap.NavPerShare, PnL: pnl})
 	}
 	return points, nil
+}
+
+func PotLifetime(snap Snapshot, contributed []Contribution) (money.SignedMicros, *Bps, error) {
+	var net money.SignedMicros
+	if c := LastAtOrBefore(contributed, snap.At, func(c Contribution) time.Time { return c.At }); c != nil {
+		net = c.Net
+	}
+	return Lifetime(snap.Value, net)
 }

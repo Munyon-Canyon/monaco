@@ -155,6 +155,32 @@ paths:
                 $ref: "#/components/schemas/MyPortfolio"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/users/{id}/shared-cabals:
+    get:
+      operationId: getSharedCabals
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read the cabals the caller and another user share.
+      description: >-
+        Returns the cabals both the caller and the user are members of, largest pot first, with the
+        pot's value, its P&L and its return as the latest run valued it. These are the cabal's own
+        figures, never the other user's stake. A shared cabal with no snapshot yet is left out. An
+        unknown user is user_not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The other user's id.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+      responses:
+        "200":
+          description: The shared cabals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedCabals"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     LeaderboardRange:
@@ -268,6 +294,29 @@ components:
         pnl_micros: {type: integer, format: int64, description: "Value minus the net contributed, negative for a loss.", examples: [-5]}
         return_bps: {type: [integer, "null"], format: int64, description: The return in basis points. Null when nothing is contributed., examples: [250]}
         slice_bps: {type: integer, format: int64, description: The cabal's share of the total value in basis points., examples: [5000]}
+    SharedCabals:
+      type: object
+      description: The cabals two users share.
+      additionalProperties: false
+      required: [cabals]
+      properties:
+        cabals:
+          type: array
+          description: The shared cabals, largest pot first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/SharedCabal"
+    SharedCabal:
+      type: object
+      description: One shared cabal and its pot figures.
+      additionalProperties: false
+      required: [cabal, value_micros, pnl_micros, return_bps]
+      properties:
+        cabal:
+          $ref: "#/components/schemas/CabalRef"
+        value_micros: {type: integer, format: int64, description: The pot value in USDC micros., examples: [1000000]}
+        pnl_micros: {type: integer, format: int64, description: "The pot value minus the net contributed, negative for a loss.", examples: [-5]}
+        return_bps: {type: [integer, "null"], format: int64, description: The pot's return in basis points. Null when nothing is contributed., examples: [250]}
     CabalRef:
       type: object
       description: A cabal's name and picture.

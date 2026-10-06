@@ -13,6 +13,7 @@ import (
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
@@ -55,9 +56,9 @@ func newServerWith(t *testing.T, follows app.Follows, withSocial bool) server {
 	deps := module.Deps{Pool: pool, IDs: g, Clock: clk}
 	rankingModule := ranking.New(deps, ranking.WithPorts(app.Ports{Follows: follows}))
 	if withSocial {
-		module.NewSet(rankingModule, cabal.New(deps), treasury.New(deps), social.New(deps))
+		module.NewSet(rankingModule, cabal.New(deps), treasury.New(deps), identity.New(deps), social.New(deps))
 	} else {
-		module.NewSet(rankingModule, cabal.New(deps), treasury.New(deps))
+		module.NewSet(rankingModule, cabal.New(deps), treasury.New(deps), identity.New(deps))
 	}
 	mount := rankingModule.Mount
 	h, err := httpx.Handler(httpx.Deps{
