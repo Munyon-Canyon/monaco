@@ -19,6 +19,10 @@ enum GovernanceVoteJourney {
         scope.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", value)).firstMatch
     }
 
+    static func tapHeaderToOpenProposal(_ card: XCUIElement) {
+        card.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0)).withOffset(CGVector(dx: 0, dy: 36)).tap()
+    }
+
     static func waitForText(_ scope: XCUIElement, _ value: String, timeout: TimeInterval) -> Bool {
         text(scope, containing: value).waitForExistence(timeout: timeout)
     }
@@ -91,7 +95,7 @@ enum GovernanceVoteJourney {
         }
 
         recorder.step("S1.2", "the card opens the Proposal screen") {
-            target.tap()
+            tapHeaderToOpenProposal(target)
             waitForProposalScreen(app, step: "S1.2")
             XCTAssertTrue(
                 waitForText(app, "“QA vote \(run)”", timeout: checkTimeout),
@@ -125,7 +129,7 @@ enum GovernanceVoteJourney {
 
         recorder.step("S1.6", "B opens the proposal from Home and sees A's ballot") {
             openHomeCard(app, proposalID, step: "S1.6")
-            target.tap()
+            tapHeaderToOpenProposal(target)
             XCTAssertTrue(
                 waitForText(app, "\(voter) voted yes", timeout: screenTimeout),
                 "S1.6: the Proposal screen does not read \"\(voter) voted yes\" within \(Int(screenTimeout)) s")
@@ -184,7 +188,7 @@ enum GovernanceVoteJourney {
         }
 
         recorder.step("S2.3", "the cabal's card opens the Proposal screen") {
-            target.tap()
+            tapHeaderToOpenProposal(target)
             waitForProposalScreen(app, step: "S2.3")
         }
     }
