@@ -22,6 +22,7 @@ type HTTP struct {
 	Unmute     *app.UnmuteHandler
 	PostChat   *app.PostChatMessageHandler
 	DeleteChat *app.DeleteChatMessageHandler
+	Token      *app.RealtimeTokenHandler
 	Members    app.Members
 	Reads      sqlc.DBTX
 	Users      app.Users

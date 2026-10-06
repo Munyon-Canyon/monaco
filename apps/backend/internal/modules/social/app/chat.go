@@ -16,6 +16,7 @@ import (
 
 type Members interface {
 	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
+	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
 }
 
 type ChatMessage struct {

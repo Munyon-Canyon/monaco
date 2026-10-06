@@ -161,3 +161,20 @@ func wireChat(ctx context.Context, users app.Users, messages []app.ChatMessage) 
 	}
 	return out, nil
 }
+
+func (h HTTP) CreateRealtimeToken(
+	ctx context.Context, _ api.CreateRealtimeTokenRequestObject,
+) (api.CreateRealtimeTokenResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	token, err := h.Token.Handle(ctx, me)
+	if err != nil {
+		return nil, err
+	}
+	return api.CreateRealtimeToken200JSONResponse{
+		KeyName: token.KeyName, ClientId: token.ClientID, Capability: token.Capability,
+		Timestamp: token.Timestamp, Ttl: token.TTL, Nonce: token.Nonce, Mac: token.MAC,
+	}, nil
+}
