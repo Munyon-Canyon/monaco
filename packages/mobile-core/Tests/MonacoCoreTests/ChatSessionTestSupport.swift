@@ -48,6 +48,14 @@ extension ChatFixtures {
         .json(.created, try json(message))
     }
 
+    static func thread(parent: ChatMessage, replies: [ChatMessage]) throws -> StubTransport.Reply {
+        .json(
+            .ok, #"{"parent":\#(try json(parent)),"replies":[\#(try replies.map(json).joined(separator: ","))]}"#)
+    }
+
+    static let noContent: StubTransport.Reply = .response(
+        status: .noContent, contentType: "application/json", body: Data())
+
     static func problem(_ status: Int, _ code: String, _ message: String) -> StubTransport.Reply {
         let body =
             #"{"type":"about:blank","title":"Error","status":\#(status),"code":"\#(code)","message":"\#(message)","#
