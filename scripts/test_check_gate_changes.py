@@ -448,6 +448,17 @@ class CheckTest(unittest.TestCase):
         )
         self.assertNotIn("linux", self.summary)
 
+    def test_coverage_floor_raise_in_a_feature_pr(self):
+        self.assert_flags(
+            {"packages/mobile-core/coverage-floor.txt": "darwin 89.80\nlinux 88.10\n",
+             "packages/mobile-core/Sources/MonacoCore/Fund.swift": "struct Fund { let x = 1 }\n"},
+            "packages/mobile-core/coverage-floor.txt:1: floor-raise: raised `darwin` 89.24 -> 89.80 in a PR that is not a floor-only PR",
+        )
+        self.assertNotIn("linux", self.summary)
+
+    def test_coverage_floor_raise_in_its_own_pr_passes(self):
+        self.assert_clean({"packages/mobile-core/coverage-floor.txt": "darwin 89.80\nlinux 88.10\n"})
+
     def test_looser_swift_settings(self):
         xcconfig = ["SWIFT_TREAT_WARNINGS_AS_ERRORS = NO", "SWIFT_STRICT_CONCURRENCY = targeted",
                     "SWIFT_VERSION[sdk=iphoneos*] = 5"]
@@ -471,7 +482,6 @@ class CheckTest(unittest.TestCase):
             "packages/mobile-core/Sources/MonacoCore/Fund.swift": "struct Fund { let disabled = XCTSkip.self }\n",
             "apps/mobile/.swiftlint.yml": "opt_in_rules:\n  - force_try\n",
             "packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt": ROWS["packages/mobile-core/Tests/MonacoCoreTests/RepoRulesAllowlist.txt"].replace("\t2\n", "\t1\n"),
-            "packages/mobile-core/coverage-floor.txt": "darwin 89.80\nlinux 88.10\n",
             XCCONFIG: "SWIFT_VERSION = 6.0\nSWIFT_TREAT_WARNINGS_AS_ERRORS = YES\nSWIFT_STRICT_CONCURRENCY = complete\n",
             PBXPROJ: "\t\t\t\tSWIFT_VERSION = 6.0;\n\t\t\t\tSWIFT_STRICT_CONCURRENCY = complete;\n",
             "Justfile": "test:\n    scripts/mobile-core-test.sh\n",
