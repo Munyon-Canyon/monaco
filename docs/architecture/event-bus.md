@@ -196,7 +196,7 @@ Chat keeps Ably for client delivery ([chat.md](chat.md)). Clients never connect 
 - **A new consumer** starts at new messages (`DeliverNewPolicy` above), so shipping a consumer does not replay a week of events into it. To backfill, `monacoctl` reads the `events` table for the types it needs and calls the handler directly through the same `bus.Dispatch` wrapper, so dedupe still holds.
 - **A consumer more than 7 days behind** (stream `MaxAge`) is reset the same way.
 - **Analytics history** (members per cabal last month, `auth_state` funnels) reads the `events` table, not NATS.
-- **Projections and test seeds.** `monacoctl replay --to <event_id>` rebuilds every projection into a fresh database from the `events` table, and `testkit` seeds tests from named event sequences ([Replay and seeded states](backend-platform.md#replay-and-seeded-states)). Replay never calls Jupiter, Privy or RPC.
+- **Projections and test seeds.** `monacoctl replay --to <event_id>` rebuilds the projections `projectionDurables` in `cmd/monacoctl/replay.go` names (`system_echo`, `social_feed`, `ranking_membership`, `ranking_names`, `treasury_activity`) into a fresh database from the `events` table; every other durable stays out, and `monacoctl backfill` runs any registered handler. `testkit` seeds tests from named event sequences ([Replay and seeded states](backend-platform.md#replay-and-seeded-states)). Replay never calls Jupiter, Privy or RPC.
 
 ### Local development and tests
 
