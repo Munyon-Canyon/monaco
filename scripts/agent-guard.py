@@ -326,7 +326,7 @@ def rule_push_protected(inv: Invocation) -> str | None:
     for _, dst, _ in push.targets:
         if is_protected(dst, git.cwd):
             return (f"git push to '{dst}' is not allowed. main changes only through the operator's checkpoint PR, "
-                    f"and {TRUNK} only through the Graphite merge queue after ci-ok and verify pass. "
+                    f"and {TRUNK} only through the Graphite merge queue after ci-ok passes. "
                     "Push your ticket branch with gt submit --stack.")
     return None
 
