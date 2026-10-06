@@ -291,9 +291,7 @@ def check_journeys(journeys, accounts, git_apply_check=None):
                 if '"%s"' % step not in combined:
                     bad(files[0], "no step %s" % step)
             if not session_test(journey):
-                for scenario in journey.scenarios:
-                    if not re.search(r"func test%s(?!\d)" % scenario, combined):
-                        bad(files[-1], "no testJourney, and no test method named test%s… for scenario %s" % (scenario, scenario))
+                bad(files[-1], "no testJourney: a journey is one test that runs every scenario in order")
             else:
                 order = [combined.find('scenario("%s")' % scenario) for scenario in journey.scenarios]
                 for scenario, at in zip(journey.scenarios, order):

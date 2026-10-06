@@ -153,18 +153,13 @@ class Check(Tree):
         self.write("ui/SignInJourneyUITests.swift", TESTS_SWIFT.replace("S1", "SX").replace("S2", "S1").replace("SX", "S2"))
         self.assertIn("runs its scenarios out of the doc's order S1 S2", self.problems()[0])
 
-    def test_per_scenario_test_methods_are_still_accepted_until_the_journeys_move(self):
+    def test_per_scenario_test_methods_are_not_a_journey(self):
         self.write("ui/SignInJourneyUITests.swift", """nonisolated final class SignInJourneyUITests: XCTestCase {
     func testS1SignIn() throws {}
     func testS2Relaunch() throws {}
 }
 """)
-        self.assertEqual(self.problems(), [])
-        self.write("ui/SignInJourneyUITests.swift", """nonisolated final class SignInJourneyUITests: XCTestCase {
-    func testS1SignIn() throws {}
-}
-""")
-        self.assertIn("no test method named testS2", self.problems()[0])
+        self.assertIn("no testJourney", self.problems()[0])
 
     def test_a_doc_step_the_test_does_not_record_is_named(self):
         self.write("ui/SignInJourney.swift", JOURNEY_SWIFT.replace('step("S1.2"); ', ""))
