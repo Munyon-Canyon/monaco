@@ -418,11 +418,15 @@ func (env *Env) landedBeforeGraphiteClosed(ctx context.Context, p stackPR, draft
 	if !ok {
 		return false, nil
 	}
-	if squashed, err := env.squashed(ctx, closedPR{Number: p.Number, ClosedAt: at}); err != nil || squashed {
+	return env.draftLanded(ctx, p.Number, at, drafts)
+}
+
+func (env *Env) draftLanded(ctx context.Context, pr int, at time.Time, drafts []queueDraft) (bool, error) {
+	if squashed, err := env.squashed(ctx, closedPR{Number: pr, ClosedAt: at}); err != nil || squashed {
 		return squashed, err
 	}
 	for _, d := range drafts {
-		if !d.runs(p.Number, at) {
+		if !d.runs(pr, at) {
 			continue
 		}
 		if d.State == "MERGED" {
@@ -487,7 +491,19 @@ func ejectedWhy(out stackPR) string {
 	return "left the Graphite merge queue"
 }
 
-func (env *Env) ejectStack(ctx context.Context, rec Record, out stackPR) (string, bool, error) {
+func (env *Env) ejectStack(
+	ctx context.Context,
+	rec Record,
+	out stackPR,
+	prs []stackPR,
+	drafts []queueDraft,
+) (string, bool, error) {
+	if pr, held := draftTesting(prs, drafts); held {
+		if err := env.unlabel(ctx, prs); err != nil {
+			return "", false, err
+		}
+		return leftQueuedLine(rec.Queued.Top, pr), true, nil
+	}
 	stop := env.requeued(rec)
 	err := env.releaseQueue(ctx, rec.Queued, stop)
 	if errors.Is(err, errRequeued) {
@@ -505,6 +521,29 @@ func (env *Env) ejectStack(ctx context.Context, rec Record, out stackPR) (string
 
 func requeuedLine(top int) string {
 	return fmt.Sprintf("stack #%d was re-queued during its release; left it queued", top)
+}
+
+func leftQueuedLine(top, pr int) string {
+	return fmt.Sprintf("stack #%d left queued: an open Graphite draft still tests #%d", top, pr)
+}
+
+func draftTesting(prs []stackPR, drafts []queueDraft) (int, bool) {
+	i := slices.IndexFunc(prs, func(p stackPR) bool { return draftHolds(drafts, p.Number) })
+	if i < 0 {
+		return 0, false
+	}
+	return prs[i].Number, true
+}
+
+func (env *Env) unlabel(ctx context.Context, prs []stackPR) error {
+	for _, p := range prs {
+		if p.labeled(env.Config.QueueLabel) {
+			if err := env.removeLabel(ctx, p.Number); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func ejectedLine(top int, out stackPR) string {
@@ -554,7 +593,17 @@ func awaitsDraft(drafts []queueDraft, pr int, takenAt, now time.Time) bool {
 }
 
 func draftRan(drafts []queueDraft, pr int, takenAt time.Time) bool {
-	return slices.ContainsFunc(drafts, func(d queueDraft) bool { return d.runs(pr, takenAt) })
+	return !newestRun(drafts, pr, takenAt).IsZero()
+}
+
+func newestRun(drafts []queueDraft, pr int, takenAt time.Time) time.Time {
+	var newest time.Time
+	for _, d := range drafts {
+		if d.runs(pr, takenAt) && d.UpdatedAt.After(newest) {
+			newest = d.UpdatedAt
+		}
+	}
+	return newest
 }
 
 func (env *Env) heldByGraphite(p gqlPR, drafts []queueDraft) bool {
@@ -583,7 +632,7 @@ func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Write
 		if !ok {
 			continue
 		}
-		line, requeued, err := env.ejectStack(ctx, r, out)
+		line, requeued, err := env.ejectStack(ctx, r, out, prs, open)
 		if err != nil {
 			return err
 		}

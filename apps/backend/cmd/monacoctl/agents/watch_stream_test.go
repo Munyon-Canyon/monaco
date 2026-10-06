@@ -806,8 +806,45 @@ func TestWatchStream_aFailedTrunkReadPrintsAWatchErrorAndNoDrop(t *testing.T) {
 	}
 	delete(f.hub.status, route)
 	f.hub.on(route, `[]`)
-	if got := strings.Join(s.next(t.Context()), "\n"); !strings.Contains(got, "#7 dropped from the Graphite merge queue") {
+	got = strings.Join(s.next(t.Context()), "\n")
+	if !strings.Contains(got, "#7 dropped from the Graphite merge queue") {
 		t.Fatalf("the next round:\n%s", got)
+	}
+}
+
+func TestWatchStream_aDropOfAPRThatLandedIsNotReported(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, state, trunk, compare string
+		dropped                     bool
+	}{
+		{name: "its draft merged", state: "MERGED"},
+		{name: "its squash commit is on the trunk", state: "CLOSED", trunk: `[{"commit":{"message":"A (#7)"}}]`},
+		{name: "its closed draft's head is on the trunk", state: "CLOSED", compare: `{"status":"behind"}`},
+		{name: "nothing of it is on the trunk", state: "CLOSED", compare: `{"status":"diverged"}`, dropped: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+			closedAt := f.now.Add(2 * time.Minute)
+			f.hub.on(graphqlRoute, draftData(
+				[]string{closedDraftNode("gtmq_7", "Merge queue: #7", closedAt, tc.state, "d7")},
+				watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(time.Minute))),
+			))
+			if tc.trunk != "" {
+				f.hub.on(list("/commits?sha=fb&since=2026-09-27T11:01:00Z"), tc.trunk)
+			}
+			if tc.compare != "" {
+				f.hub.on(get("/compare/fb...d7"), tc.compare)
+			}
+			s := newStream(f.Env(t))
+			f.now = f.now.Add(3 * time.Minute)
+			got := strings.Join(s.next(t.Context()), "\n")
+			if reported := strings.Contains(got, "#7 dropped from the Graphite merge queue"); reported != tc.dropped {
+				t.Fatalf("reported = %v, want %v:\n%s", reported, tc.dropped, got)
+			}
+		})
 	}
 }
 

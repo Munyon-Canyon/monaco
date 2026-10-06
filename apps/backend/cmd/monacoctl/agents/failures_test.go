@@ -353,10 +353,10 @@ func closedDraftNode(head, title string, at time.Time, state, oid string) string
 func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 	t.Parallel()
 	const (
-		every   = 5 * time.Minute
-		squash  = `[{"commit":{"message":"A (#5)"}}]`
-		onTrunk = `{"status":"behind"}`
-		offIt   = `{"status":"diverged"}`
+		every    = 5 * time.Minute
+		squash   = `[{"commit":{"message":"A (#5)"}}]`
+		onTrunk  = `{"status":"behind"}`
+		offTrunk = `{"status":"diverged"}`
 	)
 	for _, tc := range []struct {
 		name           string
@@ -369,7 +369,7 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 		{name: "no draft ever opens", want: []time.Duration{30 * time.Minute}},
 		{
 			name:  "a draft ran it and failed, leaving nothing of it on the trunk",
-			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "CLOSED", compare: offIt,
+			opens: 5 * time.Minute, closes: 25 * time.Minute, state: "CLOSED", compare: offTrunk,
 			want: []time.Duration{25 * time.Minute}, reads: 1,
 		},
 		{
@@ -405,7 +405,9 @@ func TestWatchOnce_reportsAGraphiteDropOnceWhenItsHoldRunsOut(t *testing.T) {
 					open := draftNode("gtmq_5", "Merge queue: #5", first, noRollup)
 					drafts = []string{strings.Replace(open, `{"title"`, `{"state":"OPEN","title"`, 1)}
 				default:
-					drafts = []string{closedDraftNode("gtmq_5", "Merge queue: #5", first.Add(tc.closes), tc.state, "d5")}
+					drafts = []string{
+						closedDraftNode("gtmq_5", "Merge queue: #5", first.Add(tc.closes), tc.state, "d5"),
+					}
 				}
 				f.hub.on(graphqlRoute, draftData(drafts,
 					watchNode(5, "fb", rollup(greenOK), dropped(first.Add(-2*time.Minute)))))
@@ -453,8 +455,8 @@ func TestWatchOnce_aFailedTrunkReadFailsThePassAndKeepsTheDropForTheNextOne(t *t
 
 func TestFailureQuery_asksForTheHeadOfEveryDraft(t *testing.T) {
 	t.Parallel()
-	query := failureQuery("")
-	if drafts := query[strings.Index(query, "drafts:"):]; !strings.Contains(drafts, "headRefOid") {
+	_, drafts, found := strings.Cut(failureQuery(""), "drafts:")
+	if !found || !strings.Contains(drafts, "headRefOid") {
 		t.Fatalf("the drafts selection lacks headRefOid:\n%s", drafts)
 	}
 }

@@ -1491,7 +1491,8 @@ func TestEjectStack_leavesAStackQueuedWhenLandStackQueuesItAgainDuringTheRelease
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			f, s, again := requeuedDuringRelease(t, tc.at, tc.relabel)
-			line, requeued, err := f.Env(t).ejectStack(t.Context(), f.owned(t), *s.prs[2])
+			prs := []stackPR{*s.prs[1], *s.prs[2]}
+			line, requeued, err := f.Env(t).ejectStack(t.Context(), f.owned(t), prs[1], prs, nil)
 			if err != nil || !requeued || line != "stack #2 was re-queued during its release; left it queued" {
 				t.Fatalf("ejectStack = %q, %v, %v", line, requeued, err)
 			}
@@ -1529,7 +1530,8 @@ func TestEjectStack_reportsAnOwnerRecordItCannotReread(t *testing.T) {
 				}
 			}
 		}
-		if _, _, err := env.ejectStack(t.Context(), rec, *s.prs[2]); err == nil {
+		prs := []stackPR{*s.prs[1], *s.prs[2]}
+		if _, _, err := env.ejectStack(t.Context(), rec, prs[1], prs, nil); err == nil {
 			t.Fatalf("record removed at wait %d: ejectStack returned no error", at)
 		}
 	}
