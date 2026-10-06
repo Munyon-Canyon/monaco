@@ -85,4 +85,15 @@ final class ValueCurveTests: XCTestCase {
         ])
         XCTAssertEqual(down.direction, .down)
     }
+
+    func testACabalCurveCarriesTheNavPerShareForTheReturnLines() {
+        XCTAssertEqual(pot.navPoints.map(\.value), [1_000_000, 1_000_000, 1_000_000, 1_000_000])
+        XCTAssertTrue(mine.navPoints.isEmpty)
+    }
+
+    func testTheShortHistoryLineNamesTheWindow() {
+        XCTAssertEqual(LeaderboardRange.oneMonth.shortHistoryLine, "Not enough history for the last month yet")
+        XCTAssertEqual(LeaderboardRange.oneDay.shortHistoryLine, "Not enough history for the last day yet")
+        XCTAssertEqual(LeaderboardRange.all.shortHistoryLine, "Not enough history yet")
+    }
 }

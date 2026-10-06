@@ -153,7 +153,7 @@ private struct HomePortfolioHero: View {
                         identifier: "home-pnl-chart")
                 } else {
                     hairline
-                    Text("Not enough history for \(chart.range.windowPhrase) yet")
+                    Text(chart.range.shortHistoryLine)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.onHeroMuted)
                         .accessibilityIdentifier("home-portfolio-short")
