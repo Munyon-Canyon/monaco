@@ -257,11 +257,28 @@ func TestFeedConsumer_writesCreatedSnapshot(t *testing.T) {
 	}
 }
 
+func TestFeedConsumer_hintsTheFeedOnceAfterACabalStarts(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	b := testkit.NATS(t)
+	sub := testkit.SubscribeCore(t, b, hintSubject)
+	e := adapters.Feed{Bus: b.Conn, Users: f.users, IDs: f.gen}
+	event := events.CabalCreated{V: 1, CabalID: f.gen.NewV7(), CreatorID: f.alice.UUID(), Name: "Alpha"}
+	ctx := observability.WithEventID(t.Context(), ids.EventIDFrom(f.gen.NewV7()))
+	if err := db.New(f.pool, f.gen, f.clock).Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		return e.Handle(ctx, tx, event, f.now)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	wantHints(t, b.Conn, sub, 1)
+}
+
 func TestFeedConsumer_returnsEachCreatedWriteFailure(t *testing.T) {
 	t.Parallel()
 	for name, ddl := range map[string]string{
 		"cabal":  "ALTER TABLE feed_cabals RENAME TO feed_cabals_gone",
 		"member": "ALTER TABLE feed_memberships RENAME TO feed_memberships_gone",
+		"item":   "ALTER TABLE feed_objects RENAME TO feed_objects_gone",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
