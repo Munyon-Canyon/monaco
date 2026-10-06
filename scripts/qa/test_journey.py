@@ -1110,6 +1110,80 @@ class RemappedRun(Output):
             self.assertEqual(self.derived_arg(), str(journey.OUT / "derived-A-B"))
 
 
+class RemappedSetup(Output):
+    """A doc actor remapped onto another login seeds that login, not its own."""
+
+    def setUp(self):
+        super().setUp()
+        self.write("qa/accounts.tsv", "# logins\nactor\tname\tphone\temail\tcode\tprivy_user_id\n"
+                   "A\tAlfred\t555\ta@b.c\t123456\tdid:privy:aaa\nC\tCayman\t777\tc@b.c\t654321\tdid:privy:ccc\n")
+
+    def accounts(self):
+        loaded = journey.load_accounts(environ={})
+        return journey.logins_for(loaded, {"A": "C"})
+
+    def test_the_run_accounts_file_gives_the_actor_the_held_logins_row(self):
+        path = journey.write_run_accounts(self.accounts())
+        rows = {line.split("\t")[0]: line.split("\t") for line in Path(path).read_text().splitlines()}
+        header = rows["actor"]
+        original = journey.load_accounts(environ={})
+        self.assertEqual(rows["A"][header.index("privy_user_id")], original["C"]["privy_user_id"])
+        self.assertEqual(rows["A"][header.index("phone")], original["C"]["phone"])
+        self.assertEqual(rows["C"][header.index("privy_user_id")], original["C"]["privy_user_id"])
+
+    def test_runs_with_different_logins_write_different_files(self):
+        original = journey.load_accounts(environ={})
+        self.assertNotEqual(journey.write_run_accounts(self.accounts()), journey.write_run_accounts(original))
+        self.assertEqual(journey.write_run_accounts(self.accounts()), journey.write_run_accounts(self.accounts()))
+
+    def test_a_setup_script_reads_the_held_logins_account(self):
+        path = journey.write_run_accounts(self.accounts())
+        script = ('source scripts/qa/seed.sh; _qa_account A privy_user_id; '
+                  'apps/mobile/qa/journeys/privy-user-id.sh A')
+        env = dict(os.environ, QA_ACCOUNTS_FILE=path)
+        done = subprocess.run(["bash", "-c", script], cwd=str(Path(__file__).resolve().parents[2]),
+                              env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        want = journey.load_accounts(environ={})["C"]["privy_user_id"]
+        self.assertEqual(done.stdout.split(), [want, want], done.stderr)
+
+    def test_prepare_logins_runs_the_script_for_each_actor_with_the_run_accounts(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        seen = []
+
+        def stub(args, **kwargs):
+            seen.append((args, kwargs["env"]))
+            return type("R", (), {"stdout": "ready\n", "returncode": 0})()
+
+        with unittest.mock.patch.object(journey, "sh", stub), redirect_stdout(StringIO()):
+            journey.prepare_logins(loaded, self.accounts(), "http://127.0.0.1:8180")
+        self.assertEqual([args for args, _ in seen], [["scripts/qa/ready-login.sh", "A"]])
+        env = seen[0][1]
+        self.assertEqual(env["MONACO_API_BASE_URL"], "http://127.0.0.1:8180")
+        self.assertIn("accounts-", env["QA_ACCOUNTS_FILE"])
+
+    def test_a_failed_preparation_stops_the_run(self):
+        loaded = journey.load_journeys()["auth/sign-in"]
+        with unittest.mock.patch.object(journey, "sh", lambda *a, **k: type("R", (), {"stdout": "", "returncode": 1})()), \
+                redirect_stdout(StringIO()):
+            with self.assertRaisesRegex(journey.JourneyError, "could not prepare the login for actor A"):
+                journey.prepare_logins(loaded, self.accounts(), "http://127.0.0.1:8080")
+
+    @staticmethod
+    def refuse_boot(*args, **kwargs):
+        raise RuntimeError("stop")
+
+    def test_each_slot_writes_its_own_backend_log(self):
+        logs = []
+        with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: logs.append(log.name)), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", self.refuse_boot), \
+                redirect_stdout(StringIO()):
+            for slot in (0, 1):
+                with self.assertRaises(RuntimeError):
+                    journey.start_backend("http://127.0.0.1:8080", slot=slot)
+        self.assertEqual(logs, ["backend-slot0.log", "backend-slot1.log"])
+
+
 class BusApply(unittest.TestCase):
     def test_bus_apply_runs_before_the_backend_boots(self):
         order = []
@@ -1163,6 +1237,7 @@ class Budget(Output):
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
                 unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
                 unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *extra: [str(hang)]), \
@@ -1245,6 +1320,7 @@ class KnownRuns(Output):
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
                 unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
                 unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *extra: [str(fake)]), \
@@ -1350,6 +1426,7 @@ class All(Output):
         with unittest.mock.patch.object(journey, "journey_backend", backend), \
                 unittest.mock.patch.object(journey, "resolve_simulators", lambda journey_, mapping, logins=None: {"A": "sim"}), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sims, url: None), \
+                unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulators", lambda *a: None), \
                 unittest.mock.patch.object(journey, "ensure_build", lambda sim, log, rebuild=False: builds.append(sim)), \
                 unittest.mock.patch.object(journey, "run_once", run_once), \

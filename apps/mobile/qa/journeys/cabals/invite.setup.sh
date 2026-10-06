@@ -8,7 +8,7 @@ while read -r name; do
   unset "$name"
 done < <(compgen -e | grep '^MONACO_QA_')
 api="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
-accounts="apps/mobile/qa/journeys/accounts.tsv"
+accounts="${QA_ACCOUNTS_FILE:-apps/mobile/qa/journeys/accounts.tsv}"
 
 if [[ ! -x bin/monacoctl ]]; then
   echo "run just build backend first" >&2

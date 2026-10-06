@@ -12,7 +12,7 @@ id="$(awk -F '\t' -v actor="$actor" '
     next
   }
   actor_column != "" && $actor_column == actor { print $privy_user_id_column; exit }
-' "$(dirname "$0")/accounts.tsv")"
+' "${QA_ACCOUNTS_FILE:-$(dirname "$0")/accounts.tsv}")"
 
 if [[ -z "$id" ]]; then
   echo "missing Privy user ID for actor $actor in accounts.tsv" >&2

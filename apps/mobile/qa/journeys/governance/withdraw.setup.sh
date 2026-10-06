@@ -19,7 +19,7 @@ while read -r name; do
 done < <(compgen -e | grep '^MONACO_QA_')
 api="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
 unset MONACO_API_BASE_URL
-accounts="apps/mobile/qa/journeys/accounts.tsv"
+accounts="${QA_ACCOUNTS_FILE:-apps/mobile/qa/journeys/accounts.tsv}"
 
 fail() {
   echo "withdraw.setup.sh $scenario: $*" >&2
