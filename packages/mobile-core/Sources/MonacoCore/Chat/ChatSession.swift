@@ -42,6 +42,7 @@ public actor ChatSession {
     var isOpen = false
     private var noticeSerial = 0
     private var cursor = CatchUpCursor()
+    private var openCoversNextAttach = false
 
     public init(
         cabalID: String,
@@ -81,6 +82,7 @@ public actor ChatSession {
             await catchUp()
         }
         guard isOpen, !state.isClosed else { return }
+        openCoversNextAttach = listener == nil
         subscribe()
     }
 
@@ -152,7 +154,9 @@ public actor ChatSession {
         case .messageDeleted(let id):
             state.timeline.markDeleted(id: id)
         case .attached(let resumed):
-            if !resumed { await catchUp() }
+            let covered = openCoversNextAttach
+            openCoversNextAttach = false
+            if !resumed, !covered { await catchUp() }
         case .seenUpdated(let messageId, let count):
             guard messageId == state.timeline.newestID else { return }
             state.seen = Seen(messageID: messageId, count: count)
@@ -164,7 +168,7 @@ public actor ChatSession {
 
     func stopListening() {
         listener?.cancel()
-        listener = nil
+        (listener, openCoversNextAttach) = (nil, false)
         realtime.detach(cabalId: cabalID)
     }
 
