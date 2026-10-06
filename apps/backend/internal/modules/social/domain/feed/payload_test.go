@@ -2,6 +2,7 @@ package feed_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
@@ -11,11 +12,13 @@ func TestPayload_roundTripsAmountsAsIntegerStrings(t *testing.T) {
 	t.Parallel()
 	want := feed.Payload{
 		CabalName: "Alpha", Symbol: "AAPLx", Action: feed.ActionBuy, USDCMicros: usd(500_000_001),
-		ChangeBps: -507, VoterCount: 3, YesVotes: 2,
+		ChangeBps: -507, TokenAmount: 7, Status: "open", StatusCode: "x",
+		ExpiresAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
 	}
 	raw := want.JSON()
 	if got := string(raw); got != `{"cabal_name":"Alpha","symbol":"AAPLx","action":"buy",`+
-		`"usdc_micros":"500000001","change_bps":-507,"voter_count":3,"yes_votes":2}` {
+		`"usdc_micros":"500000001","change_bps":-507,"token_amount":"7","status":"open","status_code":"x",`+
+		`"expires_at":"2026-01-02T03:04:05Z"}` {
 		t.Fatalf("JSON() = %s", got)
 	}
 	got, err := feed.ParsePayload(raw)

@@ -137,8 +137,13 @@ func withActor(item feed.Item, actor ids.UserID) feed.Item {
 	return item
 }
 
-func withVoters(item feed.Item, voters int) feed.Item {
-	item.Payload.VoterCount = voters
+func withActorName(item feed.Item, name string) feed.Item {
+	item.Payload.ActorName = name
+	return item
+}
+
+func withChange(item feed.Item, bps int64) feed.Item {
+	item.Payload.ChangeBps = bps
 	return item
 }
 
@@ -236,7 +241,7 @@ func TestFeedRename_Profile(t *testing.T) {
 	cabal := ids.CabalIDFrom(r.gen.NewV7())
 	r.seed(t, renameRows, joined(r.alice, cabal, "alice"))
 	r.seed(t, 3, joined(r.bob, cabal, "bob"))
-	proposal := r.seed(t, 1, withActor(buy(feed.KindProposal, cabal), r.alice))[0]
+	proposal := r.seed(t, 1, withActorName(withActor(buy(feed.KindProposal, cabal), r.alice), "alice"))[0]
 	sub := testkit.SubscribeCore(t, b, hintSubject)
 	seededAt := r.clock.Now()
 	r.clock.Advance(time.Hour)
@@ -253,15 +258,17 @@ func TestFeedRename_Profile(t *testing.T) {
 	if renamed != renameRows {
 		t.Fatalf("renamed rows = %d, want %d", renamed, renameRows)
 	}
-	untouched := r.count(t, `updated_at = $1 AND (
-		(actor_id = $2 AND title = 'bob joined Alpha')
-		OR (id = $3 AND title = 'Alpha proposed buying $500 of AAPLx' AND NOT payload ? 'actor_name'))`,
-		seededAt, r.bob.UUID(), proposal)
-	if untouched != 4 {
-		t.Fatalf("untouched bystander rows = %d, want bob's 3 and alice's proposal", untouched)
+	untouched := r.count(t, `updated_at = $1 AND actor_id = $2 AND title = 'bob joined Alpha'`, seededAt, r.bob.UUID())
+	if untouched != 3 {
+		t.Fatalf("untouched bystander rows = %d, want bob's 3", untouched)
 	}
-	if got := r.found(t, "Quillen"); got != renameRows {
-		t.Fatalf("q=Quillen finds %d rows, want %d", got, renameRows)
+	proposed := r.count(t, `id = $1 AND title = 'Quillen proposed buying $500.00 of AAPLx in Alpha'
+		AND payload->>'actor_name' = 'Quillen' AND updated_at = $2`, proposal, r.clock.Now())
+	if proposed != 1 {
+		t.Fatalf("renamed proposal rows = %d, want alice's proposal", proposed)
+	}
+	if got := r.found(t, "Quillen"); got != renameRows+1 {
+		t.Fatalf("q=Quillen finds %d rows, want %d", got, renameRows+1)
 	}
 	if got := r.found(t, "alice"); got != 0 {
 		t.Fatalf("q=alice still finds %d rows", got)
@@ -304,8 +311,10 @@ func TestFeedRename_Cabal(t *testing.T) {
 	r.mustDeliver(t, cabalHandler, cabalRenamed(cabal.UUID(), r.alice.UUID(), "Quorum"))
 
 	wantTitles := map[string]int{
-		"Quorum bought $500 of AAPLx": renameRows / 3, "Quorum proposed buying $500 of AAPLx": renameRows / 3,
-		"bob joined Quorum": renameRows / 3, "alice started Quorum": 1,
+		"Quorum bought $500 of AAPLx":                         renameRows / 3,
+		"A member proposed buying $500.00 of AAPLx in Quorum": renameRows / 3,
+		"bob joined Quorum":                                   renameRows / 3,
+		"alice started Quorum":                                1,
 	}
 	for title, want := range wantTitles {
 		got := r.count(t, `cabal_id = $1 AND title = $2 AND cabal_name = 'Quorum' AND payload->>'cabal_name' = 'Quorum'
@@ -440,7 +449,7 @@ func TestFeedRename_CabalWaitsForItsCreation(t *testing.T) {
 
 func TestFeedRename_returnsEachFailure(t *testing.T) {
 	t.Parallel()
-	const badPayload = `{"actor_name": "alice", "cabal_name": "Alpha", "voter_count": "many"}`
+	const badPayload = `{"actor_name": "alice", "cabal_name": "Alpha", "change_bps": "many"}`
 	dropTable := func(table string) func(*testing.T, renamer, ids.CabalID) {
 		return func(t *testing.T, r renamer, _ ids.CabalID) {
 			t.Helper()
@@ -502,7 +511,7 @@ func TestFeedRename_keepsAConcurrentWritersChange(t *testing.T) {
 	t.Parallel()
 	r := newRenamer(t)
 	r = r.knowing(identity.UserCard{ID: r.alice, Handle: "alice", DisplayName: "Quillen"})
-	row := r.seed(t, 1, withVoters(joined(r.alice, ids.CabalIDFrom(r.gen.NewV7()), "alice"), 2))[0]
+	row := r.seed(t, 1, withChange(joined(r.alice, ids.CabalIDFrom(r.gen.NewV7()), "alice"), 2))[0]
 	ev := profileUpdated(r.alice.UUID(), "Quillen", "display_name")
 	id := r.event(t, ev)
 	locked, release := make(chan struct{}), make(chan struct{})
@@ -510,7 +519,7 @@ func TestFeedRename_keepsAConcurrentWritersChange(t *testing.T) {
 	writer.Go(func() error {
 		return r.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
 			_, err := tx.Queries().
-				Exec(ctx, `UPDATE feed_objects SET payload = payload || '{"voter_count": 3}' WHERE id = $1`, row)
+				Exec(ctx, `UPDATE feed_objects SET payload = payload || '{"change_bps": 3}' WHERE id = $1`, row)
 			close(locked)
 			<-release
 			return err
@@ -535,7 +544,7 @@ func TestFeedRename_keepsAConcurrentWritersChange(t *testing.T) {
 	var voters int
 	err := r.pool.QueryRow(
 		t.Context(),
-		`SELECT payload->>'actor_name', (payload->>'voter_count')::int FROM feed_objects WHERE id = $1`,
+		`SELECT payload->>'actor_name', (payload->>'change_bps')::int FROM feed_objects WHERE id = $1`,
 		row,
 	).Scan(&name, &voters)
 	if err != nil || name != "Quillen" || voters != 3 {

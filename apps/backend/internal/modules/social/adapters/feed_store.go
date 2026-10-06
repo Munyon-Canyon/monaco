@@ -33,19 +33,6 @@ func (s FeedStore) UpsertItem(ctx context.Context, id uuid.UUID, item feed.Item,
 	return stored, nil
 }
 
-func (s FeedStore) UpdateStatus(ctx context.Context, change feed.StatusChange, at time.Time) (bool, error) {
-	const op = "social.FeedStore.UpdateStatus"
-	n, err := s.q.UpdateFeedStatus(ctx, sqlc.UpdateFeedStatusParams{
-		ToStatus: change.To, FromStatus: change.From, Title: feed.RenderTitle(change.Kind, change.Payload),
-		Payload: change.Payload.JSON(), At: at, RefType: string(change.Kind.RefType()), RefID: change.RefID,
-		Kind: string(change.Kind),
-	})
-	if err != nil {
-		return false, errs.Wrap(err, errs.CodeOf(err), op)
-	}
-	return n == 1, nil
-}
-
 func optionalID(id uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: id, Valid: id != uuid.Nil}
 }

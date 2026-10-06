@@ -33,7 +33,7 @@ func RenderTitle(k Kind, p Payload) string {
 func RenderDetail(k Kind, p Payload) string {
 	switch k {
 	case KindProposal:
-		return tally(p)
+		return statusLabel(p.Status, p.StatusCode)
 	case KindTrade:
 		return p.AssetName
 	case KindPriceMove:
@@ -61,7 +61,11 @@ func proposalTitle(p Payload) string {
 	if p.Action == ActionSell {
 		verb = "selling"
 	}
-	return p.CabalName + " proposed " + verb + " " + amountOf(p)
+	proposer := p.ActorName
+	if proposer == "" {
+		proposer = "A member"
+	}
+	return proposer + " proposed " + verb + " " + exactAmountOf(p) + " in " + p.CabalName
 }
 
 func tradeTitle(p Payload) string {
@@ -79,6 +83,13 @@ func amountOf(p Payload) string {
 	return dollars(p.USDCMicros) + " of " + p.Symbol
 }
 
+func exactAmountOf(p Payload) string {
+	if p.USDCMicros.IsZero() {
+		return p.Symbol
+	}
+	return priceOf(p.USDCMicros) + " of " + p.Symbol
+}
+
 func priceMoveTitle(p Payload) string {
 	switch {
 	case p.ChangeBps > 0:
@@ -88,21 +99,6 @@ func priceMoveTitle(p Payload) string {
 	default:
 		return p.Symbol + " is flat today"
 	}
-}
-
-func tally(p Payload) string {
-	voters := plural(p.VoterCount, "voter")
-	if p.YesVotes+p.NoVotes == 0 {
-		return voters
-	}
-	return strconv.Itoa(p.YesVotes) + " yes, " + strconv.Itoa(p.NoVotes) + " no of " + voters
-}
-
-func plural(n int, noun string) string {
-	if n == 1 {
-		return "1 " + noun
-	}
-	return strconv.Itoa(n) + " " + noun + "s"
 }
 
 const microsPerCent = 10_000

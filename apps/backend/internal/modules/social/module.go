@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters/ably"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
@@ -21,12 +22,30 @@ type Module struct {
 	users    app.Users
 	members  app.Members
 	realtime app.Realtime
+	assets   app.Assets
 }
 
 type Option func(*Module)
 
 func WithUsers(users app.Users) Option {
 	return func(m *Module) { m.users = users }
+}
+
+func WithAssets(catalog market.Catalog) Option {
+	return func(m *Module) { m.assets = NewAssets(catalog) }
+}
+
+type CatalogAssets struct{ catalog market.Catalog }
+
+func NewAssets(catalog market.Catalog) CatalogAssets { return CatalogAssets{catalog} }
+
+func (c CatalogAssets) AssetByMint(ctx context.Context, raw string) (app.AssetCard, error) {
+	mint, err := market.ParseMint(raw)
+	if err != nil {
+		return app.AssetCard{}, err
+	}
+	asset, err := c.catalog.AssetByMint(ctx, mint)
+	return app.AssetCard{ID: asset.ID.UUID(), Name: asset.DisplayName}, err
 }
 
 func WithRealtime(realtime app.Realtime) Option {
@@ -40,6 +59,9 @@ func New(d module.Deps, opts ...Option) *Module {
 	}
 	if m.users == nil {
 		m.users = identity.New(d).Queries()
+	}
+	if m.assets == nil {
+		m.assets = NewAssets(market.New(d).Catalog())
 	}
 	m.useDefaultRealtime()
 	m.members = cabal.New(d).Queries()
@@ -104,7 +126,7 @@ func (m *Module) http() adapters.HTTP {
 }
 
 func (m *Module) Consumers() []bus.Consumer {
-	feed := adapters.Feed{Bus: m.deps.Bus, Users: m.users, IDs: m.deps.IDs, UoW: m.deps.UoW}
+	feed := adapters.Feed{Bus: m.deps.Bus, Users: m.users, Assets: m.assets, IDs: m.deps.IDs, UoW: m.deps.UoW}
 	return []bus.Consumer{
 		{
 			Durable: "social_feed",
@@ -114,6 +136,15 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("social.feed.left", feed.Left),
 				bus.HandleFetched("social.feed.profile_updated", feed.FetchProfile, feed.ApplyProfile),
 				bus.Handle("social.feed.cabal_updated", feed.CabalUpdated),
+				bus.HandleFetched("social.feed.proposal_created", feed.FetchProposal, feed.ApplyProposal),
+				bus.Handle("social.feed.proposal_passed", feed.ProposalPassed),
+				bus.Handle("social.feed.proposal_failed", feed.ProposalFailed),
+				bus.Handle("social.feed.proposal_expired", feed.ProposalExpired),
+				bus.Handle("social.feed.proposal_withdrawn", feed.ProposalWithdrawn),
+				bus.Handle("social.feed.proposal_voided", feed.ProposalVoided),
+				bus.Handle("social.feed.proposal_executed", feed.ProposalExecuted),
+				bus.Handle("social.feed.proposal_blocked", feed.ProposalBlocked),
+				bus.Handle("social.feed.trade_failed", feed.TradeFailed),
 			},
 		},
 	}
