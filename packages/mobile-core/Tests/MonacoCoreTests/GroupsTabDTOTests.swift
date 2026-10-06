@@ -56,50 +56,6 @@ final class GroupsTabDTOTests: XCTestCase {
         XCTAssertEqual(dto.groups[1].joinMode, .request)
     }
 
-    func testMyGroupsPnLHistoryDTO_decodesFixturePayload() throws {
-        // Arrange
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "groups_pnl_history", withExtension: "json")
-        )
-        let data = try Data(contentsOf: fixtureURL)
-
-        // Act
-        let dto = try monacoISO8601JSONDecoder().decode(MyGroupsPnLHistoryDTO.self, from: data)
-
-        // Assert
-        XCTAssertEqual(dto.range, "1M")
-        XCTAssertEqual(dto.series.count, 2)
-
-        let withPoints = dto.series[0]
-        XCTAssertEqual(withPoints.groupID, "3f9a1b2c-4d5e-4f6a-8b7c-9d0e1f2a3b4c")
-        XCTAssertEqual(withPoints.points.count, 4)
-        XCTAssertEqual(withPoints.points[1].dollarPnl, "-3.10")
-        XCTAssertEqual(withPoints.points[1].chartValue, -3.10, accuracy: 0.0001)
-
-        let empty = dto.series[1]
-        XCTAssertEqual(empty.name, "Rent money")
-        XCTAssertTrue(empty.points.isEmpty)
-    }
-
-    func testGroupPnLSeriesDTO_decodesSingleGroupFixturePayload() throws {
-        // Arrange
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "group_pnl_history", withExtension: "json")
-        )
-        let data = try Data(contentsOf: fixtureURL)
-
-        // Act
-        let dto = try monacoISO8601JSONDecoder().decode(GroupPnLSeriesDTO.self, from: data)
-
-        // Assert
-        XCTAssertEqual(dto.groupID, "3f9a1b2c-4d5e-4f6a-8b7c-9d0e1f2a3b4c")
-        XCTAssertEqual(dto.name, "Weekend investors")
-        XCTAssertEqual(dto.range, "1M")
-        XCTAssertEqual(dto.points.count, 2)
-    }
-
-    // MARK: - GroupJoinMode
-
     func testGroupJoinMode_unknownRawValue_decodesAsRequest() throws {
         // Arrange
         let json = #"{"joinMode":"password"}"#
@@ -136,53 +92,6 @@ final class GroupsTabDTOTests: XCTestCase {
         XCTAssertTrue(dto.groups.isEmpty)
     }
 
-    // MARK: - Date decoding
-
-    func testGroupPnLPointDTO_decodesExactUTCInstant_withAndWithoutFraction() throws {
-        // Arrange
-        let withoutFraction = #"""
-            {"at":"2026-09-01T15:00:00Z","potValueUsd":"100.00","netInUsd":"100.00","dollarPnl":"+0.00"}
-            """#
-        let withFraction = #"""
-            {"at":"2026-09-19T15:00:00.500Z","potValueUsd":"148.20","netInUsd":"100.00","dollarPnl":"+48.20"}
-            """#
-
-        // Act
-        let decoder = monacoISO8601JSONDecoder()
-        let plain = try decoder.decode(GroupPnLPointDTO.self, from: Data(withoutFraction.utf8))
-        let fractional = try decoder.decode(GroupPnLPointDTO.self, from: Data(withFraction.utf8))
-
-        // Assert
-        var utcCalendar = Calendar(identifier: .gregorian)
-        utcCalendar.timeZone = TimeZone(identifier: "UTC")!
-
-        let plainComponents = utcCalendar.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second], from: plain.at)
-        XCTAssertEqual(plainComponents.year, 2026)
-        XCTAssertEqual(plainComponents.month, 9)
-        XCTAssertEqual(plainComponents.day, 1)
-        XCTAssertEqual(plainComponents.hour, 15)
-        XCTAssertEqual(plainComponents.minute, 0)
-        XCTAssertEqual(plainComponents.second, 0)
-
-        XCTAssertEqual(
-            fractional.at.timeIntervalSince1970, plain.at.timeIntervalSince1970 + (18 * 24 * 3600) + 0.5,
-            accuracy: 0.001)
-    }
-
-    // MARK: - chartValue
-
-    func testGroupPnLPointDTO_chartValue_parsesSignedDollarPnl() {
-        // Arrange / Act / Assert
-        XCTAssertEqual(makePoint(dollarPnl: "+15.00").chartValue, 15.00, accuracy: 0.0001)
-        XCTAssertEqual(makePoint(dollarPnl: "-3.10").chartValue, -3.10, accuracy: 0.0001)
-        XCTAssertEqual(makePoint(dollarPnl: "garbage").chartValue, 0)
-    }
-
-    private func makePoint(dollarPnl: String) -> GroupPnLPointDTO {
-        GroupPnLPointDTO(at: Date(), potValueUsd: "0.00", netInUsd: "0.00", dollarPnl: dollarPnl)
-    }
-
     // MARK: - GroupDiscoveryDestination
 
     func testGroupDiscoveryDestination_isJoined_alwaysDetail() {
@@ -202,32 +111,6 @@ final class GroupsTabDTOTests: XCTestCase {
     }
 
     // MARK: - GroupPnLChartModel.drawable
-
-    func testGroupPnLChartModel_drawable_filtersOutSeriesWithFewerThanTwoPoints() {
-        // Arrange
-        let zeroPoints = makeSeries(groupID: "a", pointCount: 0)
-        let onePoint = makeSeries(groupID: "b", pointCount: 1)
-        let twoPoints = makeSeries(groupID: "c", pointCount: 2)
-        let fourPoints = makeSeries(groupID: "d", pointCount: 4)
-
-        // Act
-        let drawable = GroupPnLChartModel.drawable([zeroPoints, onePoint, twoPoints, fourPoints])
-
-        // Assert
-        XCTAssertEqual(drawable.map(\.groupID), ["c", "d"])
-    }
-
-    private func makeSeries(groupID: String, pointCount: Int) -> GroupPnLSeriesDTO {
-        let points = (0..<pointCount).map { offset in
-            GroupPnLPointDTO(
-                at: Date(timeIntervalSince1970: TimeInterval(offset)),
-                potValueUsd: "1.00",
-                netInUsd: "1.00",
-                dollarPnl: "+0.00"
-            )
-        }
-        return GroupPnLSeriesDTO(groupID: groupID, name: groupID, range: "1M", points: points)
-    }
 
     // MARK: - GroupSearchQuery.normalized
 

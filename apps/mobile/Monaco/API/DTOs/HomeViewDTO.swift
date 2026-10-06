@@ -27,7 +27,3 @@ struct HomePeopleBoardRowDTO: Codable, Equatable, Identifiable {
 
     var id: String { userId }
 }
-
-struct UserSharedGroupsResponse: Codable, Equatable {
-    let groups: [HomeGroupBoardRowDTO]
-}
