@@ -110,9 +110,13 @@ enum GovernanceProposeBuyJourney {
         recorder.step("S1.2", "open the Propose chooser") {
             openChooser(app, step: "S1.2")
             expectLabels(app, ["Buy a stock", "Your cabal votes on it first", "Nothing to sell yet"], step: "S1.2")
-            let sell = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sell something'")).firstMatch
-            XCTAssertTrue(sell.exists, "S1.2: no \"Sell something the cabal owns\" row")
-            XCTAssertFalse(sell.isEnabled, "S1.2: \"Sell something the cabal owns\" is enabled with nothing to sell")
+            let sell = app.element("propose-kind-sell")
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(sell, containing: "Sell something the cabal owns", timeout: checkTimeout),
+                "S1.2: no \"Sell something the cabal owns\" row")
+            XCTAssertFalse(
+                app.buttons["propose-kind-sell"].exists,
+                "S1.2: \"Sell something the cabal owns\" can be tapped with nothing to sell")
         }
 
         recorder.step("S1.3", "pick GOOGL") {

@@ -39,6 +39,7 @@ struct ProposeBuyStockView: View {
             if model.rows.isEmpty { await model.load() }
         }
         .onChange(of: query) { _, query in model?.setQuery(query) }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-buy-stock")
     }
 
@@ -53,24 +54,33 @@ struct ProposeBuyStockView: View {
         MonacoCore.StocksTabModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
     }
 
-    @ViewBuilder
     private func content(_ model: MonacoCore.StocksTabModel) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             MonacoSearchField(placeholder: "Search Apple, Tesla, NVDA…", text: $query)
                 .padding(.horizontal, MonacoTheme.Space.m)
-            switch model.phase {
-            case .idle where model.rows.isEmpty:
-                ProposeStockSkeleton(rows: 5)
-            case .loading where model.rows.isEmpty:
-                ProposeStockSkeleton(rows: 5)
-            case .failed where model.rows.isEmpty:
-                EmptyState(title: "Couldn't load stocks.", actionTitle: "Try again") {
-                    Task { await model.load() }
-                }
-            default:
-                if model.rows.isEmpty, !trimmedQuery.isEmpty {
-                    EmptyState(title: "No stocks match “\(trimmedQuery)”")
-                } else {
+            ScrollView { results(model) }
+        }
+        .padding(.vertical, MonacoTheme.Space.s)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .monacoCanvas()
+    }
+
+    @ViewBuilder
+    private func results(_ model: MonacoCore.StocksTabModel) -> some View {
+        switch model.phase {
+        case .idle where model.rows.isEmpty:
+            ProposeStockSkeleton(rows: 5)
+        case .loading where model.rows.isEmpty:
+            ProposeStockSkeleton(rows: 5)
+        case .failed where model.rows.isEmpty:
+            EmptyState(title: "Couldn't load stocks.", actionTitle: "Try again") {
+                Task { await model.load() }
+            }
+        default:
+            if model.rows.isEmpty, !trimmedQuery.isEmpty {
+                EmptyState(title: "No stocks match “\(trimmedQuery)”")
+            } else {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                     if trimmedQuery.isEmpty {
                         MonacoSectionHeader("Popular").padding(.horizontal, MonacoTheme.Space.m)
                     }
@@ -89,9 +99,6 @@ struct ProposeBuyStockView: View {
                 }
             }
         }
-        .padding(.vertical, MonacoTheme.Space.s)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .monacoCanvas()
     }
 }
 
@@ -133,6 +140,7 @@ private struct ProposeBuyStockRow: View {
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.s)
         .frame(minHeight: 64)
+        .contentShape(Rectangle())
         .opacity(asset.isTradable ? 1 : 0.45)
         .overlay(alignment: .bottom) { if !isLast { MonacoRule().padding(.leading, 70) } }
         .accessibilityElement(children: .combine)
