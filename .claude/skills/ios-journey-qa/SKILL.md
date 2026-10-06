@@ -40,7 +40,7 @@ For a version bump, change only the steps the doc changed, then run steps 5 to 7
 
 A journey with `funds` in its doc moves real USDC: the person or agent running it funds each actor first, from the QA pot with `monacoctl qa fund` (the default, and the only option in cloud sessions) or from the Phantom MCP agent wallet, then withdraws what is left back to that wallet after (`docs/journeys/README.md`, Journeys that move money). The test itself moves no money.
 
-Each actor uses a dedicated `Monaco Journeys <actor>` simulator that the runner creates when needed. Use `--sim B=<udid>` only to override an actor's dedicated simulator.
+A journey runs on one simulator, whatever its actors: its test signs each actor in and out as the doc's Actor column changes, and its scenarios run in order in one app session ([xcuitest.md](xcuitest.md)). The runner creates the dedicated `Monaco Journeys <lane>` simulator when needed. Use `--sim <udid>` only to override it.
 
 **SimSlim for lanes and journeys.** When `simslim` is on PATH, the runner slims each actor simulator right after creating it (`scripts/simslim-ensure.sh`: `simslim on <udid> --profile "${SIMSLIM_PROFILE:-ci/profiles/base-slim.json}" --preserve-boot-state`), and before a run it runs `simslim verify` and re-runs `simslim on` once if the simulator is no longer slim. A missing `simslim` warns and continues stock. `MONACO_NO_SIMSLIM=1` opts out. No `simslim watch` is needed.
 

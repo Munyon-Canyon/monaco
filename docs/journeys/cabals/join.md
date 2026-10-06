@@ -59,6 +59,6 @@ None known.
 ## Not covered
 
 - B pasting the code A copied. Each actor has a simulator of its own, and simulators do not share a clipboard, so S1.8 puts the code on B's clipboard before tapping Paste.
-- A seeing B's request arrive on a screen already open, and B's screen turning into a member's without a relaunch. Each phase relaunches the app on its actor's simulator, so S1.10 and S1.12 load the cabal fresh. `CabalAccessModelTests` covers the hint that refreshes an open screen.
+- A seeing B's request arrive on a screen already open, and B's screen turning into a member's without a relaunch. The test signs each actor in again when the actor changes, so S1.10 and S1.12 load the cabal fresh. `CabalAccessModelTests` covers the hint that refreshes an open screen.
 - Deny and Cancel request. `CabalAccessModelTests` covers both on the host.
 - Share. It opens the system share sheet, which the journey does not drive.

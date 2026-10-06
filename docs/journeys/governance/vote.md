@@ -67,7 +67,7 @@ None.
 
 ## Not covered
 
-- The Proposal screen refreshing while it is open when B votes. Each phase relaunches the app on its actor's simulator, so A never has the screen open while B votes. S1.8 checks the result after a relaunch. Sim QA of #612 saw the screen refresh within 3 s of B's vote.
+- The Proposal screen refreshing while it is open when B votes. The test signs A out while B acts and signs A in again after, so A never has the screen open while B votes. S1.8 checks the result after a relaunch. The gap is listed under Known failures with #612.
 - Accessibility identifiers on the vote buttons. "Yes", "No" and "Change" in `apps/mobile/Monaco/Features/Proposals/ProposalCard.swift`, and "Needs your vote" and "See all" in `apps/mobile/Monaco/Features/Home/HomePendingVotesSlot.swift` and `apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift`, have no identifier. The test finds them by label inside `proposal-card-<proposalID>`. Adding identifiers is #612's, because `Features/Proposals` is outside this ticket.
 - The paused-cabal caption and the trade that runs after the vote passes. `trading/execute` covers the trade.
 - A vote refused because the proposal closed or the member is not a voter. The flow layer covers those outcomes (flow 10).

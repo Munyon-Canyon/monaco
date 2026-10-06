@@ -81,7 +81,7 @@ None known. Every step's route, `POST /v1/cabals`, is live.
 
 ## Not covered
 
-- A seeing B arrive on a screen already open. Each phase relaunches the app on its actor's simulator, so S4.7 loads the cabal fresh, as `cabals/join` S1.10 does.
+- A seeing B arrive on a screen already open. The test signs each actor in again when the actor changes, so S4.7 loads the cabal fresh, as `cabals/join` S1.10 does.
 - Copy and Share on the invite card. `cabals/join` S1.3 to S1.5 cover them.
 - A server refusal (`invalid_input`, a rate limit). Those are flow 02's outcomes, checked by its flow tests.
 - A lost response retried with the same `Idempotency-Key`. MonacoTests' `CreateCabalActionTests` covers it.

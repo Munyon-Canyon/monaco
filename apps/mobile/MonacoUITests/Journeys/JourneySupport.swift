@@ -75,6 +75,69 @@ final class JourneyRecorder {
     }
 }
 
+final class JourneySession {
+    let app = XCUIApplication.monacoForJourneys()
+    private let environment: [String: String]
+    private var actor: String?
+    private var finished = false
+    private let clock = ContinuousClock()
+    private static let setupTimeout: TimeInterval = 240
+
+    init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
+        _ = try JourneyAccount.load(actor: "A", environment: environment)
+        self.environment = environment
+    }
+
+    func account(_ actor: String) throws -> JourneyAccount {
+        try JourneyAccount.load(actor: actor, environment: environment)
+    }
+
+    @discardableResult
+    func act(as actor: String) throws -> JourneyAccount {
+        let account = try account(actor)
+        let running = app.state == .runningForeground
+        if self.actor == actor, running, SignInJourney.currentScreen(app, timeout: 2) == .tabs {
+            return account
+        }
+        SignInJourney.switchActor(app, to: account)
+        self.actor = actor
+        return account
+    }
+
+    func scenario(_ id: String, _ body: () throws -> Void) throws {
+        guard !finished else { return }
+        try waitForSetup(id)
+        print("JOURNEYSCENARIO\tbegin\t\(id)")
+        let start = clock.now
+        try body()
+        let elapsed = clock.now - start
+        let millis =
+            Int(elapsed.components.seconds) * 1000 + Int(elapsed.components.attoseconds / 1_000_000_000_000_000)
+        print("JOURNEYSCENARIO\tend\t\(id)\t\(millis)")
+        finished = environment["MONACO_QA_LAST_SCENARIO"] == id
+    }
+
+    private func waitForSetup(_ id: String) throws {
+        guard let path = environment["MONACO_QA_SETUP_DIR"], !path.isEmpty else { return }
+        let folder = URL(fileURLWithPath: path)
+        let done = folder.appendingPathComponent("\(id).done")
+        try Data().write(to: folder.appendingPathComponent("\(id).request"))
+        let deadline = Date().addingTimeInterval(Self.setupTimeout)
+        while !FileManager.default.fileExists(atPath: done.path) {
+            guard Date() < deadline else {
+                XCTFail("\(id): journey.py did not finish the setup script within \(Int(Self.setupTimeout)) s")
+                throw CocoaError(.fileReadNoSuchFile)
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        let status = (try? String(contentsOf: done, encoding: .utf8)) ?? ""
+        guard status == "ok" else {
+            XCTFail("\(id): the setup script failed: \(status)")
+            throw CocoaError(.keyValueValidation)
+        }
+    }
+}
+
 enum JourneyHandoff {
     private static func fileURL() throws -> URL {
         guard let path = ProcessInfo.processInfo.environment["MONACO_QA_HANDOFF"], !path.isEmpty else {
@@ -98,7 +161,7 @@ enum JourneyHandoff {
     static func read(_ key: String) throws -> String {
         let url = try fileURL()
         guard let value = load(url)[key] else {
-            XCTFail("hand-off has no '\(key)': the phase that writes it did not run or did not reach it")
+            XCTFail("hand-off has no '\(key)': the setup script that writes it did not run or did not reach it")
             throw CocoaError(.fileReadNoSuchFile)
         }
         return value
