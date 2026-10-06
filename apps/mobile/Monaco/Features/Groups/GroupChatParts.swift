@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -89,9 +90,23 @@ struct ChatSkeleton: View {
 struct ChatComposerBar: View {
     var focus: FocusState<Bool>.Binding
     var placeholder = GroupChatCopy.composerPlaceholder
+    var members: [Components.Schemas.CabalMember] = []
+    var viewerID = ""
     let send: (String) -> Void
 
     @State private var draft = ""
+    @State private var selection: TextSelection?
+
+    private var mentionMatches: [Components.Schemas.CabalMember] {
+        guard let query = MentionQuery.active(in: draft, cursor: cursorOffset) else { return [] }
+        return MentionQuery.matches(query, members: members, viewerID: viewerID)
+    }
+
+    private var cursorOffset: Int {
+        guard let selection, case .selection(let range) = selection.indices else { return draft.count }
+        guard range.upperBound <= draft.endIndex else { return draft.count }
+        return draft.distance(from: draft.startIndex, to: range.upperBound)
+    }
 
     private var trimmedCount: Int {
         draft.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count
@@ -102,6 +117,13 @@ struct ChatComposerBar: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if !mentionMatches.isEmpty { ChatMentionPicker(matches: mentionMatches, pick: insert) }
+            composer
+        }
+    }
+
+    private var composer: some View {
         VStack(alignment: .trailing, spacing: 4) {
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
                 field
@@ -127,6 +149,7 @@ struct ChatComposerBar: View {
         TextField(
             placeholder,
             text: $draft,
+            selection: $selection,
             prompt: Text(placeholder).foregroundStyle(MonacoTheme.disabledLabel),
             axis: .vertical
         )
@@ -153,6 +176,14 @@ struct ChatComposerBar: View {
         .disabled(!canSend)
         .accessibilityLabel("Send message")
         .accessibilityIdentifier("chat-send")
+    }
+
+    private func insert(_ member: Components.Schemas.CabalMember) {
+        guard let handle = member.handle else { return }
+        let result = MentionInsertion.insert(handle: handle, into: draft, cursor: cursorOffset)
+        draft = result.text
+        let caret = draft.index(draft.startIndex, offsetBy: result.cursor)
+        selection = TextSelection(insertionPoint: caret)
     }
 
     private func submit() {

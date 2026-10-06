@@ -16,6 +16,7 @@ struct GroupChatView: View {
             session: session,
             cabal: cabal?.cabal,
             reporter: reporter,
+            viewerID: environment.viewer?.userID ?? "",
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
             },

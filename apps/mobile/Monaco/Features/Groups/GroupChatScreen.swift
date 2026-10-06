@@ -7,6 +7,7 @@ struct GroupChatScreen: View {
     let session: ChatSession?
     let cabal: Components.Schemas.Cabal?
     var reporter: ChatSeenReporter?
+    var viewerID = ""
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
 
@@ -85,6 +86,7 @@ struct GroupChatScreen: View {
     private func thread(_ chat: ChatSession.State) -> some View {
         GroupChatThreadView(
             rows: chat.timeline.rows,
+            members: cabal?.members ?? [],
             hasOlder: chat.timeline.hasOlder,
             isLoadingOlder: chat.isLoadingOlder,
             openProfile: openProfile,
@@ -102,7 +104,9 @@ struct GroupChatScreen: View {
         if chat?.isClosed == true {
             GroupChatClosedNotice()
         } else {
-            ChatComposerBar(focus: $composerFocused) { body in
+            ChatComposerBar(
+                focus: $composerFocused, members: cabal?.members ?? [], viewerID: viewerID
+            ) { body in
                 Task { await session?.send(body: body) }
             }
         }

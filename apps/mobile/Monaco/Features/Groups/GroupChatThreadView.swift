@@ -1,8 +1,10 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
 struct GroupChatThreadView: View {
     let rows: [ChatRow]
+    var members: [Components.Schemas.CabalMember] = []
     let hasOlder: Bool
     let isLoadingOlder: Bool
     let openProfile: (String) -> Void
@@ -28,8 +30,8 @@ struct GroupChatThreadView: View {
                     if hasOlder { loadEarlierButton }
                     ForEach(rows) { row in
                         GroupChatRowView(
-                            row: row, now: Date(), openProfile: openProfile, retry: retry, openThread: openThread,
-                            requestDelete: requestDelete,
+                            row: row, now: Date(), members: members, openProfile: openProfile, retry: retry,
+                            openThread: openThread, requestDelete: requestDelete,
                             seenLabel: row.id == seen?.messageID
                                 ? seen.flatMap { ChatSeenCopy.label(count: $0.count) } : nil,
                             openSeen: { openSeen(row.id) }
