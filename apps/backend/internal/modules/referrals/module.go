@@ -36,7 +36,18 @@ func New(d module.Deps, opts ...Option) *Module {
 
 func (*Module) Name() string { return "referrals" }
 
-func (m *Module) Mount(r api.Mount) { referralsapi.Mount(adapters.HTTP{Codes: m.Resolver()}, r) }
+func (m *Module) Mount(r api.Mount) { referralsapi.Mount(m.http(), r) }
+
+func (m *Module) http() adapters.HTTP {
+	users := identity.New(m.deps).Queries()
+	resolver := app.Resolver{Reads: m.deps.Pool, Users: users}
+	return adapters.HTTP{
+		Codes: resolver,
+		Attach: app.NewAttachReferralHandler(app.AttachReferralDeps{
+			UoW: m.deps.UoW, Resolver: resolver, Users: users, IDs: m.deps.IDs, Clock: m.deps.Clock,
+		}),
+	}
+}
 
 func (m *Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{

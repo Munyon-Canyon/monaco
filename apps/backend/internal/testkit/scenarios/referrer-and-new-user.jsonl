@@ -1,0 +1,2 @@
+{"id":"019b76da-a810-708b-8526-f48928e904d0","type":"user.created","actor":"user:019b76da-a801-72bd-a4c3-8d5eb1c9d0aa","created_at":"2026-03-01T12:00:00Z","payload":{"v":1,"user_id":"019b76da-a801-72bd-a4c3-8d5eb1c9d0aa","login_provider":"sms","created_at":"2026-03-01T12:00:00Z"}}
+{"id":"019b76da-a811-708b-8526-f48928e904d1","type":"user.created","actor":"user:019b76da-a802-72e2-b933-b37cb132b566","created_at":"2026-03-01T12:05:00Z","payload":{"v":1,"user_id":"019b76da-a802-72e2-b933-b37cb132b566","login_provider":"sms","created_at":"2026-03-01T12:05:00Z"}}

@@ -13,7 +13,55 @@ import (
 	"net/http"
 
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for ReferralSource.
+const (
+	Clipboard     ReferralSource = "clipboard"
+	Manual        ReferralSource = "manual"
+	UniversalLink ReferralSource = "universal_link"
+)
+
+// Valid indicates whether the value is a known member of the ReferralSource enum.
+func (e ReferralSource) Valid() bool {
+	switch e {
+	case Clipboard:
+		return true
+	case Manual:
+		return true
+	case UniversalLink:
+		return true
+	default:
+		return false
+	}
+}
+
+// AttachReferralRequest An invite code to attach to the caller.
+//
+// Examples: {"code":"k7m4qx2p","source":"manual"}
+type AttachReferralRequest struct {
+	// Code A random invite code or an unlocked handle.
+	//
+	// Examples: k7m4qx2p
+	Code string `json:"code"`
+
+	// Source Where the caller found the invite code.
+	//
+	// Examples: manual
+	Source ReferralSource `json:"source"`
+}
+
+// AttachedReferral The attribution that was stored.
+//
+// Examples: {"referrer":{"display_name":"Kai","handle":"kaicenat","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}}
+type AttachedReferral struct {
+	// Referrer The person whose invite the caller attached.
+	//
+	// Examples: {"display_name":"Kai","handle":"kaicenat","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+	Referrer ReferralReferrer `json:"referrer"`
+}
 
 // MyReferralCode The caller's invite code and the links that carry it.
 //
@@ -40,8 +88,45 @@ type MyReferralCode struct {
 	Link string `json:"link"`
 }
 
+// ReferralReferrer The person whose invite the caller attached.
+//
+// Examples: {"display_name":"Kai","handle":"kaicenat","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}
+type ReferralReferrer struct {
+	// DisplayName The referrer's display name.
+	//
+	// Examples: Kai
+	DisplayName string `json:"display_name"`
+
+	// Handle The referrer's handle.
+	//
+	// Examples: kaicenat
+	Handle string `json:"handle"`
+
+	// UserId The referrer's user id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// ReferralSource Where the caller found the invite code.
+//
+// Examples: manual
+type ReferralSource string
+
+// PostMeReferralParams defines parameters for PostMeReferral.
+type PostMeReferralParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PostMeReferralJSONRequestBody defines body for PostMeReferral for application/json ContentType.
+type PostMeReferralJSONRequestBody = AttachReferralRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// PostMeReferral Attribute the caller to an invite code.
+	// (POST /v1/me/referral)
+	PostMeReferral(w http.ResponseWriter, r *http.Request, params PostMeReferralParams)
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(w http.ResponseWriter, r *http.Request)
@@ -55,6 +140,51 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// PostMeReferral operation middleware
+func (siw *ServerInterfaceWrapper) PostMeReferral(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostMeReferralParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostMeReferral(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetMyReferralCode operation middleware
 func (siw *ServerInterfaceWrapper) GetMyReferralCode(w http.ResponseWriter, r *http.Request) {
@@ -190,9 +320,50 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/referral", wrapper.PostMeReferral)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/referral-code", wrapper.GetMyReferralCode)
 
 	return m
+}
+
+type PostMeReferralRequestObject struct {
+	Params PostMeReferralParams
+	Body   *PostMeReferralJSONRequestBody
+}
+
+type PostMeReferralResponseObject interface {
+	VisitPostMeReferralResponse(w http.ResponseWriter) error
+}
+
+type PostMeReferral201JSONResponse AttachedReferral
+
+func (response PostMeReferral201JSONResponse) VisitPostMeReferralResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMeReferraldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostMeReferraldefaultApplicationProblemPlusJSONResponse) VisitPostMeReferralResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetMyReferralCodeRequestObject struct {
@@ -235,6 +406,9 @@ func (response GetMyReferralCodedefaultApplicationProblemPlusJSONResponse) Visit
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// PostMeReferral Attribute the caller to an invite code.
+	// (POST /v1/me/referral)
+	PostMeReferral(ctx context.Context, request PostMeReferralRequestObject) (PostMeReferralResponseObject, error)
 	// GetMyReferralCode Read the caller's invite code and links.
 	// (GET /v1/me/referral-code)
 	GetMyReferralCode(ctx context.Context, request GetMyReferralCodeRequestObject) (GetMyReferralCodeResponseObject, error)
@@ -277,6 +451,39 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// PostMeReferral operation middleware
+func (sh *strictHandler) PostMeReferral(w http.ResponseWriter, r *http.Request, params PostMeReferralParams) {
+	var request PostMeReferralRequestObject
+
+	request.Params = params
+
+	var body PostMeReferralJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostMeReferral(ctx, request.(PostMeReferralRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostMeReferral")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostMeReferralResponseObject); ok {
+		if err := validResponse.VisitPostMeReferralResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetMyReferralCode operation middleware

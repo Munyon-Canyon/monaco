@@ -29,6 +29,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 type server struct {
@@ -185,6 +186,101 @@ func TestHTTP_refusesCallersThatAreNotAUser(t *testing.T) {
 		if _, err := h.GetMyReferralCode(ctx, api.GetMyReferralCodeRequestObject{}); errs.CodeOf(err) != tc.want {
 			t.Errorf("%s: GetMyReferralCode err = %v, want %s", name, err, tc.want)
 		}
+	}
+}
+
+func TestPostMeReferral_refusesCallersAndBodiesItCannotServe(t *testing.T) {
+	t.Parallel()
+	h := adapters.HTTP{}
+	user := auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(3).NewV7().String()}
+	body := func(code string, source api.ReferralSource) *api.PostMeReferralJSONRequestBody {
+		return &api.PostMeReferralJSONRequestBody{Code: code, Source: source}
+	}
+	for name, tc := range map[string]struct {
+		actor *auth.Actor
+		body  *api.PostMeReferralJSONRequestBody
+		want  errs.Code
+	}{
+		"no actor":       {nil, body("k7m4qx2p", api.Manual), errs.CodeUnauthorized},
+		"no body":        {&user, nil, errs.CodeInvalidInput},
+		"unknown source": {&user, body("k7m4qx2p", "carrier_pigeon"), errs.CodeInvalidInput},
+		"empty code":     {&user, body("", api.Manual), errs.CodeInvalidInput},
+	} {
+		ctx := t.Context()
+		if tc.actor != nil {
+			ctx = auth.WithActor(ctx, *tc.actor)
+		}
+		req := api.PostMeReferralRequestObject{Body: tc.body}
+		if _, err := h.PostMeReferral(ctx, req); errs.CodeOf(err) != tc.want {
+			t.Errorf("%s: PostMeReferral err = %v, want %s", name, err, tc.want)
+		}
+	}
+}
+
+type countedUsers struct {
+	identity.UserReader
+	calls  *int
+	failAt int
+	missAt int
+}
+
+func (c countedUsers) UsersByID(ctx context.Context, in []ids.UserID) (map[ids.UserID]identity.UserCard, error) {
+	*c.calls++
+	switch *c.calls {
+	case c.failAt:
+		return nil, errs.New(errs.CodeDBUnavailable, "test")
+	case c.missAt:
+		return map[ids.UserID]identity.UserCard{}, nil
+	}
+	return c.UserReader.UsersByID(ctx, in)
+}
+
+func TestPostMeReferral_passesOnAReadThatFailsAfterTheAttach(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		failAt, missAt int
+		want           errs.Code
+	}{
+		"resolve fails":  {failAt: 3, want: errs.CodeDBUnavailable},
+		"referrer fails": {failAt: 4, want: errs.CodeDBUnavailable},
+		"referrer gone":  {missAt: 4, want: errs.CodeInternal},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			pool := testkit.DB(t)
+			clock := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+			generator := testkit.NewIDs(95)
+			referrer, caller := mustUser(t, generator.NewV7().String()), mustUser(t, generator.NewV7().String())
+			if _, err := pool.Exec(
+				t.Context(),
+				`INSERT INTO referral_codes (code, user_id, created_at) VALUES ('k7m4qx2p', $1, now())`,
+				referrer.UUID(),
+			); err != nil {
+				t.Fatal(err)
+			}
+			calls := 0
+			users := countedUsers{
+				UserReader: fakes.NewIdentity([]identity.UserCard{
+					{ID: referrer, AccountStatus: identity.AccountActive},
+					{ID: caller, AccountStatus: identity.AccountActive, CreatedAt: clock.Now()},
+				}, nil),
+				calls: &calls, failAt: tc.failAt, missAt: tc.missAt,
+			}
+			resolver := app.Resolver{Reads: pool, Users: users}
+			h := adapters.HTTP{
+				Codes: resolver,
+				Attach: app.NewAttachReferralHandler(app.AttachReferralDeps{
+					UoW: db.New(pool, generator, clock), Resolver: resolver, Users: users, IDs: generator, Clock: clock,
+				}),
+			}
+			ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: caller.String()})
+			req := api.PostMeReferralRequestObject{
+				Body: &api.PostMeReferralJSONRequestBody{Code: "k7m4qx2p", Source: api.Manual},
+			}
+			if _, err := h.PostMeReferral(ctx, req); errs.CodeOf(err) != tc.want {
+				t.Fatalf("PostMeReferral err = %v, want %s", err, tc.want)
+			}
+		})
 	}
 }
 
