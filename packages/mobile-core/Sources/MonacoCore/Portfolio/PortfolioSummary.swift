@@ -53,11 +53,13 @@ public struct PortfolioSummary: Equatable, Sendable {
     public let chip: String
     public let direction: Direction
     public let rows: [Row]
+    public let stats: ProfileStats
 
     public var isEmpty: Bool { rows.isEmpty }
 
     public init(_ portfolio: Components.Schemas.MyPortfolio) {
         rows = portfolio.cabals.map(Row.init)
+        stats = ProfileStats(portfolio)
         totalMicros = portfolio.totalValueMicros
         total = UsdAmountFormatter.format(micros: portfolio.totalValueMicros)
         pnl = UsdAmountFormatter.format(signedMicros: portfolio.pnlMicros)

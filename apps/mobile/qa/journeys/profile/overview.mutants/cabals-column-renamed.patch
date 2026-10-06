@@ -5,14 +5,15 @@ The stats band calls its count column "Groups". S1.2 reads "Cabals", so it must 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
+index 0e32023d7..d010af9cf 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
-@@ -55,7 +55,7 @@
-                     .accessibilityIdentifier("profile-stat-in-cabals")
-                 ProfileStatColumn(value: nil, label: "All time")
-                     .accessibilityIdentifier("profile-stat-all-time")
--                ProfileStatColumn(value: cabals, label: "Cabals")
-+                ProfileStatColumn(value: cabals, label: "Groups")
-                     .accessibilityIdentifier("profile-stat-cabals")
-             }
-             Text("Your totals show up here soon.")
+@@ -60,7 +60,7 @@ struct ProfileStatsBand: View {
+                 value: stats.allTime, label: "All time", tone: PnLTone(dollarPnl: stats.allTimePnl).color
+             )
+             .accessibilityIdentifier("profile-stat-all-time")
+-            ProfileStatColumn(value: stats.cabals, label: "Cabals", tone: nil)
++            ProfileStatColumn(value: stats.cabals, label: "Groups", tone: nil)
+                 .accessibilityIdentifier("profile-stat-cabals")
+         }
+     }
