@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-21	Feed + comments	social	POST /v1/feed/{id}/comments	CreateComment	comment.created		ok;InvalidInput;FeedItemNotFound;CommentParentMismatch;CommentMembersOnly;Unauthorized;RateLimited;crash:before-commit	planned	docs/architecture/feed.md#comments
+21	Feed + comments	social	POST /v1/feed/{id}/comments	CreateComment	comment.created		ok;InvalidInput;FeedItemNotFound;CommentParentMismatch;CommentMembersOnly;Unauthorized;RateLimited;crash:before-commit	built	docs/architecture/feed.md#comments
