@@ -161,6 +161,10 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("social.feed.trade_failed", feed.TradeFailed),
 			},
 		},
+		{
+			Durable:  "social_chat_seen_cleanup",
+			Handlers: []bus.HandlerSpec{bus.Handle("social.chat_seen_cleanup", adapters.ChatSeenCleanup{}.Handle)},
+		},
 	}
 }
 

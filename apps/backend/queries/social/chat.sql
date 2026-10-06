@@ -145,3 +145,7 @@ SELECT c.id::uuid AS cabal_id, (
 ) AS unread
 FROM unnest(sqlc.arg(cabal_ids)::uuid[]) AS c(id)
 LEFT JOIN chat_seen s ON s.cabal_id = c.id AND s.user_id = sqlc.arg(user_id);
+
+-- name: DeleteChatSeen :exec
+DELETE FROM chat_seen
+WHERE cabal_id = sqlc.arg(cabal_id) AND user_id = sqlc.arg(user_id);

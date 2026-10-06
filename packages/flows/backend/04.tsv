@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-04	Leave cabal	cabal	DELETE /v1/cabals/{id}/members/me	LeaveCabal	cabal.member_left	cabal.hints.member_left;social.feed.left;ranking.membership.left	ok;Unauthorized;NotCabalMember;LeaveHoldsShares;LeaveLastMemberPotNotEmpty;LeaveCreatorWithMembers;PriceUnavailable;crash:before-commit	verified	docs/architecture/cabals.md#leave
+04	Leave cabal	cabal	DELETE /v1/cabals/{id}/members/me	LeaveCabal	cabal.member_left	cabal.hints.member_left;social.feed.left;ranking.membership.left;social.chat_seen_cleanup	ok;Unauthorized;NotCabalMember;LeaveHoldsShares;LeaveLastMemberPotNotEmpty;LeaveCreatorWithMembers;PriceUnavailable;crash:before-commit	verified	docs/architecture/cabals.md#leave
