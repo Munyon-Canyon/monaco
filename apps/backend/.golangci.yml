@@ -236,6 +236,10 @@ linters:
       # goleak.IgnoreCurrent snapshots every goroutine, so the Close leak check runs alone (#801).
       - path: ^internal/platform/bus/close_test\.go$
         linters: [paralleltest]
+      # The people board p95 test times its loop on the wall clock, so it runs alone (#3340).
+      - path: ^internal/modules/ranking/boards_http_test\.go$
+        linters: [paralleltest]
+        text: TestBoards_PeopleP95
       - path: ^internal/testkit/(db|mainproc)\.go$
         linters: [gosec]
         text: G204
