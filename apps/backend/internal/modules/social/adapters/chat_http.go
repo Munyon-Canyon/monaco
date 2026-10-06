@@ -91,6 +91,20 @@ func (h HTTP) DeleteChatMessage(
 	return api.DeleteChatMessage204Response{}, nil
 }
 
+func (h HTTP) MarkChatSeen(
+	ctx context.Context, req api.MarkChatSeenRequestObject,
+) (api.MarkChatSeenResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen, err := h.MarkSeen.Handle(ctx, app.MarkChatSeen{CabalID: ids.CabalIDFrom(req.Id), Caller: me})
+	if err != nil {
+		return nil, err
+	}
+	return api.MarkChatSeen200JSONResponse{LastSeenAt: seen}, nil
+}
+
 func postChatCommand(cabal ids.CabalID, me ids.UserID, body *api.PostChatMessageRequest) (app.PostChatMessage, error) {
 	const op = "social.PostChatMessage"
 	if body == nil {

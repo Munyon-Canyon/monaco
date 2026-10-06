@@ -15,6 +15,7 @@ const (
 	EventMessageCreated = "message.created"
 	EventThreadUpdated  = "thread.updated"
 	EventMessageDeleted = "message.deleted"
+	EventSeenUpdated    = "seen.updated"
 )
 
 type ChatWire func(ctx context.Context, m ChatMessage) (any, error)
@@ -27,6 +28,11 @@ type ThreadUpdated struct {
 
 type MessageDeleted struct {
 	ID uuid.UUID `json:"id"`
+}
+
+type SeenUpdated struct {
+	MessageID uuid.UUID `json:"message_id"`
+	Count     int       `json:"count"`
 }
 
 type ChatPublisher struct {
