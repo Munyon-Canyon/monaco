@@ -1,11 +1,17 @@
 package verify
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
@@ -73,10 +79,67 @@ func (s *Stack) armProcess(ctx context.Context, name, fault string) error {
 	if s.armed {
 		return nil
 	}
+	if err := s.awaitEarlierEventsPublished(ctx); err != nil {
+		return err
+	}
 	err := s.procs[name].stop(ctx)
 	s.armed = true
 	s.armedName = name
 	return errors.Join(err, s.startProcess(ctx, name, "MONACO_FAULTPOINT="+fault))
+}
+
+func (s *Stack) awaitEarlierEventsPublished(ctx context.Context) error {
+	tick := time.NewTicker(s.pollInterval())
+	defer tick.Stop()
+	for {
+		probe, cancel := detached(ctx)
+		busy, err := s.busy(probe)
+		cancel()
+		if err != nil || busy == "" {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%s before arming: %w", busy, context.Cause(ctx))
+		case <-tick.C:
+		}
+	}
+}
+
+func (s *Stack) busy(ctx context.Context) (string, error) {
+	busy := ""
+	stream, err := s.NATS.JS.Stream(ctx, bus.StreamEvents)
+	if err == nil {
+		consumers := stream.ListConsumers(ctx)
+		for info := range consumers.Info() {
+			busy = cmp.Or(busy, consumerBusy(info))
+		}
+		err = consumers.Err()
+	}
+	if err == nil && busy == "" {
+		var left int
+		err = s.Pool.QueryRow(ctx, `SELECT count(*) FROM events WHERE published_at IS NULL`).Scan(&left)
+		busy = unpublished(left)
+	}
+	if err != nil {
+		return "", fmt.Errorf("read the event backlog: %w", err)
+	}
+	return busy, nil
+}
+
+func consumerBusy(info *jetstream.ConsumerInfo) string {
+	if info.NumPending == 0 && info.NumAckPending == 0 {
+		return ""
+	}
+	return fmt.Sprintf("consumer %s has %d pending and %d unacked messages",
+		info.Name, info.NumPending, info.NumAckPending)
+}
+
+func unpublished(left int) string {
+	if left == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d events unpublished", left)
 }
 
 func (s *Stack) startProcess(ctx context.Context, name string, extra ...string) error {
@@ -87,7 +150,10 @@ func (s *Stack) startProcess(ctx context.Context, name string, extra ...string) 
 }
 
 func processFor(u Unit, point faultpoint.Name) string {
-	if point == faultpoint.AfterPublish {
+	if slices.Contains(
+		[]faultpoint.Name{faultpoint.AfterPublish, faultpoint.AfterCreate, faultpoint.AfterExecute},
+		point,
+	) {
 		return procWorker
 	}
 	kind, _ := u.Flow.TriggerKind(u.Command)

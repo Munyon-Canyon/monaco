@@ -164,6 +164,10 @@ func flow(handler string) string {
 	case "trading.cashout_sell", "treasury.cashout", "treasury.cashout.confirmed", "treasury.cashout.failed",
 		"treasury.cashout.blocked", "treasury.cashout_payout":
 		return "14"
+	case "trading.engine":
+		return "11"
+	case "trading.engine.retry":
+		return "12"
 	default:
 		return ""
 	}

@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
@@ -115,6 +118,11 @@ func TestProcessFor_routesCrashToTheProcessThatRunsTheCommand(t *testing.T) {
 	if got := processFor(Unit{Flow: tools.Flow{Trigger: "GET /healthz"}}, faultpoint.AfterPublish); got != procWorker {
 		t.Fatalf("published route process = %q, want %q", got, procWorker)
 	}
+	for _, point := range []faultpoint.Name{faultpoint.AfterCreate, faultpoint.AfterExecute} {
+		if got := processFor(Unit{Flow: tools.Flow{Trigger: "POST /v1/swaps/{id}/retry"}}, point); got != procWorker {
+			t.Fatalf("%s on a route = %q, want %q: only the worker's swap layer hits it", point, got, procWorker)
+		}
+	}
 	if got := processFor(
 		Unit{Flow: tools.Flow{Trigger: "poller:market.prices"}}, faultpoint.BeforeCommit,
 	); got != procWorker {
@@ -150,5 +158,68 @@ func checkCrashFailures(t *testing.T, s *Stack) {
 	if err := s.crash(ctx, faultpoint.AfterPublish); err == nil ||
 		!strings.Contains(err.Error(), "worker did not crash at after-publish") {
 		t.Fatalf("crash of a worker that never crashes = %v", err)
+	}
+}
+
+func TestStack_armWaitsForEarlierEventsAndIdleConsumers(t *testing.T) {
+	t.Parallel()
+	s, err := Up(t.Context(), testOptions(t, "ok"))
+	defer func() { _ = s.Down(t.Context()) }()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if busy, err := s.busy(t.Context()); err != nil || busy != "" {
+		t.Fatalf("idle stack busy = %q, %v", busy, err)
+	}
+	insertUnpublishedEvent(t, s)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	err = s.armProcess(ctx, procWorker, string(faultpoint.AfterPublish))
+	if err == nil || !strings.Contains(err.Error(), "1 events unpublished") {
+		t.Fatalf("arm with an unpublished row = %v, want it to name the row", err)
+	}
+	if s.armed || !s.procs[procWorker].running() {
+		t.Fatal("arm restarted the worker while an earlier row was unpublished")
+	}
+	cancelled, stop := context.WithCancel(t.Context())
+	stop()
+	if _, err := s.busy(cancelled); err == nil {
+		t.Fatal("busy with a cancelled context returned no error")
+	}
+	addIdleConsumer(t, s)
+	if busy, err := s.busy(t.Context()); err != nil || !strings.Contains(busy, "events unpublished") {
+		t.Fatalf("busy with an idle consumer = %q, %v, want the unpublished row", busy, err)
+	}
+}
+
+func TestConsumerBusy_namesPendingAndUnackedMessages(t *testing.T) {
+	t.Parallel()
+	if got := consumerBusy(&jetstream.ConsumerInfo{Name: "idle"}); got != "" {
+		t.Fatalf("idle consumer = %q", got)
+	}
+	got := consumerBusy(&jetstream.ConsumerInfo{Name: "trading", NumPending: 2, NumAckPending: 1})
+	if got != "consumer trading has 2 pending and 1 unacked messages" {
+		t.Fatalf("busy consumer = %q", got)
+	}
+}
+
+func insertUnpublishedEvent(t *testing.T, s *Stack) {
+	t.Helper()
+	_, err := s.Pool.Exec(t.Context(), `INSERT INTO events
+		(id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id)
+		VALUES (gen_random_uuid(), 'system', gen_random_uuid(), 'system.pinged', '{"v":1}', 'system', 'test')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func addIdleConsumer(t *testing.T, s *Stack) {
+	t.Helper()
+	stream, err := s.NATS.JS.Stream(t.Context(), bus.StreamEvents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stream.CreateConsumer(t.Context(), jetstream.ConsumerConfig{Durable: "probe"}); err != nil {
+		t.Fatal(err)
 	}
 }
