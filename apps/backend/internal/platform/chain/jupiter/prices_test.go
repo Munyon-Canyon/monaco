@@ -431,3 +431,21 @@ func TestPrices_aContextThatRunsOutIsAnUpstreamTimeout(t *testing.T) {
 		t.Fatalf("Prices on a spent context = %v, want upstream_timeout", err)
 	}
 }
+
+func TestPrices_configuredRateLimitSendsTheCatalogWithoutWaiting(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		u := &upstream{handler: &jupiterfake.PriceAPI{Clock: clock.Real{}, Limit: 1000, Window: 10 * time.Second}}
+		cfg := testConfig()
+		cfg.Jupiter.RateLimit = 1000
+		start := now()
+
+		got, err := clientWith(cfg, u).Prices(t.Context(), catalog(1282))
+		if err != nil || len(got) != 1282 {
+			t.Fatalf("Prices = %d prices, %v, want all 1282 and no error", len(got), err)
+		}
+		if took := now().Sub(start); took != 0 {
+			t.Fatalf("26 requests under a limit of 1000 took %v, want no wait", took)
+		}
+	})
+}

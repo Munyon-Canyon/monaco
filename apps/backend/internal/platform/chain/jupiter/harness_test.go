@@ -98,8 +98,10 @@ func testConfig() config.Config {
 	}
 }
 
-func client(u *upstream) *jupiter.Client {
-	return jupiter.New(testConfig(), clock.Real{}, httpclient.WithTransport(u))
+func client(u *upstream) *jupiter.Client { return clientWith(testConfig(), u) }
+
+func clientWith(cfg config.Config, u *upstream) *jupiter.Client {
+	return jupiter.New(cfg, clock.Real{}, httpclient.WithTransport(u))
 }
 
 type recordingClock struct {

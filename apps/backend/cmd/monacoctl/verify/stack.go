@@ -145,6 +145,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"MONACO_DEV_TOKEN_KEY="+s.TokenKey,
 		"MONACO_JUPITER_SWAP_BASE_URL=http://"+fakes.addr+"/jupiter/swap/v2",
 		"MONACO_JUPITER_PRICE_BASE_URL=http://"+fakes.addr+"/jupiter/price/v3",
+		"MONACO_JUPITER_RATE_LIMIT=10000",
 		"XSTOCKS_BASE_URL=http://"+fakes.addr+"/xstocks",
 		"TESSERA_API_BASE_URL=http://"+fakes.addr+"/tessera",
 		"PRESTOCKS_API_BASE_URL=http://"+fakes.addr+"/prestocks",
