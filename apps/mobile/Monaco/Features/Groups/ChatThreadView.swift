@@ -8,10 +8,12 @@ struct ChatThreadView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @State private var thread: ThreadSession?
+    @State private var chat: ChatSession?
 
     var body: some View {
         ChatThreadScreen(
             thread: thread,
+            deleteMessage: { id in await chat?.delete(messageId: id) },
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
             }
@@ -22,6 +24,7 @@ struct ChatThreadView: View {
     private func preparedThread() async -> ThreadSession {
         if let thread { return thread }
         let chat = ChatSessionRegistry.session(for: cabalID) ?? standaloneChat()
+        self.chat = chat
         let created = await chat.thread(parentId: parentID)
         thread = created
         return created
@@ -42,9 +45,11 @@ struct ChatThreadView: View {
 
 struct ChatThreadScreen: View {
     let thread: ThreadSession?
+    let deleteMessage: (String) async -> APIError?
     let openProfile: (String) -> Void
 
     @State private var state: ThreadSession.State?
+    @State private var messageToDelete: String?
     @State private var alsoInChannel = false
     @State private var toast: MonacoToast?
     @FocusState private var composerFocused: Bool
@@ -65,6 +70,7 @@ struct ChatThreadScreen: View {
         .onChange(of: scenePhase) { _, phase in handle(phase) }
         .onChange(of: state?.notice) { _, notice in show(notice) }
         .onDisappear { Task { await thread?.close() } }
+        .chatDeleteConfirmation(messageID: $messageToDelete) { id in delete(id) }
         .monacoToast($toast)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat-thread-screen")
@@ -78,6 +84,8 @@ struct ChatThreadScreen: View {
                 hasOlder: state.timeline.hasOlder,
                 isLoadingOlder: state.isLoadingOlder,
                 openProfile: openProfile,
+                replyHere: { composerFocused = true },
+                requestDelete: { messageToDelete = $0 },
                 retry: { key in Task { await thread?.retry(key: key) } },
                 loadOlder: { Task { await thread?.loadOlder() } },
                 refresh: { await thread?.reload() }
@@ -128,6 +136,13 @@ struct ChatThreadScreen: View {
         }
     }
 
+    private func delete(_ id: String) {
+        Task {
+            let failure = await deleteMessage(id)
+            toast = MonacoToast(message: failure.map(ToastCopy.message(for:)) ?? GroupChatCopy.deleted)
+        }
+    }
+
     private func show(_ notice: ChatSession.Notice?) {
         guard let notice else { return }
         toast = MonacoToast(message: ToastCopy.message(for: notice.error))
@@ -140,6 +155,8 @@ struct ChatThreadList: View {
     let hasOlder: Bool
     let isLoadingOlder: Bool
     let openProfile: (String) -> Void
+    let replyHere: () -> Void
+    let requestDelete: (String) -> Void
     let retry: (String) -> Void
     let loadOlder: () -> Void
     let refresh: () async -> Void
@@ -161,8 +178,11 @@ struct ChatThreadList: View {
                             .accessibilityIdentifier("chat-thread-empty")
                     }
                     ForEach(rows) { row in
-                        GroupChatRowView(row: row, now: Date(), openProfile: openProfile, retry: retry)
-                            .id(row.id)
+                        GroupChatRowView(
+                            row: row, now: Date(), openProfile: openProfile, retry: retry,
+                            replyHere: replyHere, requestDelete: requestDelete
+                        )
+                        .id(row.id)
                     }
                     Color.clear.frame(height: 1).id(Self.bottomAnchor)
                 }

@@ -7,6 +7,7 @@ struct GroupChatThreadView: View {
     let isLoadingOlder: Bool
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
+    let requestDelete: (String) -> Void
     let retry: (String) -> Void
     let loadOlder: () -> Void
     let refresh: () async -> Void
@@ -25,7 +26,8 @@ struct GroupChatThreadView: View {
                     if hasOlder { loadEarlierButton }
                     ForEach(rows) { row in
                         GroupChatRowView(
-                            row: row, now: Date(), openProfile: openProfile, retry: retry, openThread: openThread
+                            row: row, now: Date(), openProfile: openProfile, retry: retry, openThread: openThread,
+                            requestDelete: requestDelete
                         )
                         .id(row.id)
                     }
