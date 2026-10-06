@@ -10,6 +10,7 @@ public final class FeedModel {
     public enum Phase: Equatable, Sendable {
         case loading
         case empty(query: String?)
+        case followsNobody
         case failed(APIError)
         case loaded
     }
@@ -21,16 +22,20 @@ public final class FeedModel {
     public private(set) var pager: CursorPager<Components.Schemas.FeedItem>
     public private(set) var failureTick = 0
     public private(set) var lastError: APIError?
+    private var viewerFollowsNobody = false
+    private var checkingFollows = false
 
     private let api: APIClient
+    private let viewerID: String?
     private let hints: any HintSource
     private let clock: any Clock<Duration>
     @ObservationIgnored private var typedSearch = ""
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
 
-    public init(api: APIClient, hints: any HintSource, clock: any Clock<Duration>) {
+    public init(api: APIClient, viewerID: String?, hints: any HintSource, clock: any Clock<Duration>) {
         self.api = api
+        self.viewerID = viewerID
         self.hints = hints
         self.clock = clock
         pager = Self.pager(api: api, query: FeedQuery())
@@ -45,6 +50,8 @@ public final class FeedModel {
         switch pager.phase {
         case .failed(let error): return .failed(error)
         case .exhausted:
+            if checkingFollows { return .loading }
+            if query.scope == .following && viewerFollowsNobody { return .followsNobody }
             let search = query.trimmedSearch
             return .empty(query: search.isEmpty ? nil : search)
         case .idle, .loadingFirst, .loadingMore: return .loading
@@ -96,12 +103,14 @@ public final class FeedModel {
         let pager = pager
         await pager.loadFirst()
         noteFailure(of: pager)
+        await checkFollows(after: pager)
     }
 
     public func refresh() async {
         let pager = pager
         await pager.refreshFirstPage()
         noteFailure(of: pager)
+        await checkFollows(after: pager)
     }
 
     public func loadMore() async {
@@ -122,6 +131,18 @@ public final class FeedModel {
         query = next
         pager = Self.pager(api: api, query: next)
         await reload()
+    }
+
+    private func checkFollows(after pager: CursorPager<Components.Schemas.FeedItem>) async {
+        guard pager === self.pager, query.scope == .following, pager.phase == .exhausted, pager.items.isEmpty,
+            let viewerID
+        else { return }
+        checkingFollows = true
+        defer { checkingFollows = false }
+        let profile = try? await api.read { client in
+            try await client.getUser(path: .init(id: viewerID)).ok.body.json
+        }
+        viewerFollowsNobody = profile?.followingCount == 0
     }
 
     private func noteFailure(of pager: CursorPager<Components.Schemas.FeedItem>) {

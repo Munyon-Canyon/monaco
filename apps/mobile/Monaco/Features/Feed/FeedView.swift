@@ -40,7 +40,12 @@ struct FeedView: View {
     }
 
     static func liveModel(_ environment: AppEnvironment) -> FeedModel {
-        FeedModel(api: environment.api, hints: environment.hints, clock: ContinuousClock())
+        FeedModel(
+            api: environment.api,
+            viewerID: environment.viewer?.userID,
+            hints: environment.hints,
+            clock: ContinuousClock()
+        )
     }
 }
 
@@ -91,6 +96,16 @@ private struct FeedScreen: View {
         case .empty(let query):
             EmptyState(title: query.map { "Nothing matches “\($0)”" } ?? "Nothing here yet.")
                 .accessibilityIdentifier("feed-empty")
+        case .followsNobody:
+            VStack(spacing: 0) {
+                EmptyState(title: "Follow people to see what they do.")
+                NavigationLink("Find friends", value: AnyAppRoute(FriendsRoute()))
+                    .buttonStyle(.monacoSecondary)
+                    .accessibilityIdentifier("feed-find-friends")
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("feed-follow-nobody")
         case .failed:
             EmptyState(title: "Couldn't load the feed.", actionTitle: "Try again") {
                 Task { await model.reload() }

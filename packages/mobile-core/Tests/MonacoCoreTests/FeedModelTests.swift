@@ -106,9 +106,61 @@ final class FeedModelTests: XCTestCase {
         XCTAssertEqual(model.lastError.map(ToastCopy.message(for:)), "You're offline. Try again.")
     }
 
+    func testADuplicateIdAcrossPagesAppearsOnce() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(Array(samples.prefix(3)), next: "c2")),
+            .json(.ok, try Self.page(Array(samples.suffix(3)))),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        await model.loadMore()
+        XCTAssertEqual(model.items.map(\.id), samples.map(\.id))
+    }
+
+    func testAnEmptyFollowingFeedForAViewerWhoFollowsNobodyAsksThemToFollow() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page([])),
+            .json(.ok, Self.profile(followingCount: 0)),
+        ])
+        let model = makeModel(transport)
+        await model.select(.following)
+        XCTAssertEqual(model.phase, .followsNobody)
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths.last, "/v1/users/\(Self.viewerID)")
+    }
+
+    func testAnEmptyFollowingFeedForAViewerWhoFollowsSomeoneIsPlainEmpty() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page([])),
+            .json(.ok, Self.profile(followingCount: 3)),
+        ])
+        let model = makeModel(transport)
+        await model.select(.following)
+        XCTAssertEqual(model.phase, .empty(query: nil))
+    }
+
+    func testAnEmptyEveryoneFeedDoesNotReadTheViewersProfile() async throws {
+        let transport = StubTransport(.json(.ok, try Self.page([])))
+        let model = makeModel(transport)
+        await model.load()
+        XCTAssertEqual(model.phase, .empty(query: nil))
+        let sent = await transport.sent.count
+        XCTAssertEqual(sent, 1)
+    }
+
+    private static let viewerID = "01890a5d-ac96-774b-bcce-b302099a8058"
+
+    private static func profile(followingCount: Int) -> String {
+        """
+        {"id":"\(viewerID)","handle":"maya","display_name":"Maya","photo_url":null,\
+        "follower_count":0,"following_count":\(followingCount),"followed_by_me":false}
+        """
+    }
+
     private func makeModel(_ transport: StubTransport, clock: any Clock<Duration> = TestClock()) -> FeedModel {
         FeedModel(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            viewerID: Self.viewerID,
             hints: FakeHintStream(),
             clock: clock
         )
