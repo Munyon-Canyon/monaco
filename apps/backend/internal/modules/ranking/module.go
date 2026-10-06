@@ -15,8 +15,9 @@ import (
 )
 
 type Module struct {
-	deps  module.Deps
-	ports app.Ports
+	deps   module.Deps
+	ports  app.Ports
+	cabals app.CabalStatus
 }
 
 type Option func(*Module)
@@ -40,6 +41,7 @@ func (m *Module) Wire(set module.Set) {
 			m.ports.Funding = provider.Pauses()
 		case interface{ Queries() cabalport.Queries }:
 			m.ports.Cabals = provider.Queries()
+			m.cabals = provider.Queries()
 		case interface{ Queries() identityport.Queries }:
 			m.ports.Users = provider.Queries()
 		}
@@ -51,7 +53,7 @@ func (m *Module) Ports() app.Ports { return m.ports }
 func (*Module) Name() string { return "ranking" }
 
 func (m *Module) Mount(r api.Mount) {
-	rankingapi.Mount(adapters.HTTP{Boards: adapters.Boards{DB: m.deps.Pool}}, r)
+	rankingapi.Mount(adapters.HTTP{Boards: adapters.Boards{DB: m.deps.Pool}, Cabals: app.CheckCabal(m.cabals)}, r)
 }
 
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }

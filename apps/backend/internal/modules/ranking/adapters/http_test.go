@@ -10,6 +10,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
@@ -147,5 +148,33 @@ func TestGetPeopleLeaderboard_failsOnBadInputAndUnrepresentableRows(t *testing.T
 		if _, err := people(t, tc.boards, tc.limit); errs.CodeOf(err) != tc.want {
 			t.Errorf("%s: err = %v, want %s", name, err, tc.want)
 		}
+	}
+}
+
+func cabalCheck(err error) app.CabalCheck {
+	return func(context.Context, ids.CabalID) error { return err }
+}
+
+func TestGetCabalLeaderboard_checksTheCabalAndKeepsAnUnrankedMe(t *testing.T) {
+	t.Parallel()
+	ctx := asActor(t.Context(), auth.ActorUser, ids.Real{}.NewV7().String())
+	req := api.GetCabalLeaderboardRequestObject{Id: ids.Real{}.NewV7()}
+	h := adapters.HTTP{Boards: stubBoards{run: true, me: &domain.Entry{Rank: 2}}, Cabals: cabalCheck(nil)}
+	got, err := h.GetCabalLeaderboard(ctx, req)
+	page, ok := got.(api.GetCabalLeaderboard200JSONResponse)
+	if err != nil || !ok || page.Me == nil || page.Me.Rank != 2 || page.Me.ReturnBps != nil {
+		t.Fatalf("response = %+v, %v", got, err)
+	}
+	h.Cabals = cabalCheck(errs.New(errs.CodeCabalNotFound, "test"))
+	if _, err = h.GetCabalLeaderboard(ctx, req); errs.CodeOf(err) != errs.CodeCabalNotFound {
+		t.Fatalf("unknown cabal: err = %v, want cabal_not_found", err)
+	}
+	if _, err = h.GetCabalLeaderboard(t.Context(), req); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("anonymous: err = %v, want unauthorized", err)
+	}
+	h.Cabals = cabalCheck(nil)
+	req.Params.Limit = ptr(0)
+	if _, err = h.GetCabalLeaderboard(ctx, req); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("bad limit: err = %v, want invalid_input", err)
 	}
 }

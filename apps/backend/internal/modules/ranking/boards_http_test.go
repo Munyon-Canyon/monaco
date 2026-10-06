@@ -14,6 +14,7 @@ import (
 	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 type boardRow struct {
@@ -21,6 +22,7 @@ type boardRow struct {
 	rank    int
 	subject uuid.UUID
 	bps     *int64
+	value   int64
 	handle  *string
 }
 
@@ -38,7 +40,7 @@ func seedBoard(t *testing.T, pool *pgxpool.Pool, at time.Time, rows []boardRow) 
 		wire = append(wire, map[string]any{
 			"board": r.board, "range": "ALL", "rank": r.rank, "subject_id": r.subject.String(),
 			"subject_name": "Subject", "subject_handle": r.handle, "subject_created_at": at.Format(time.RFC3339Nano),
-			"value_micros": 1000 * r.rank, "pnl_micros": -5, "return_bps": r.bps,
+			"value_micros": r.value, "pnl_micros": -5, "return_bps": r.bps,
 			"prices_as_of": at.Format(time.RFC3339Nano), "computed_at": at.Format(time.RFC3339Nano),
 			"flags": []string{"unpriced_assets"},
 		})
@@ -57,7 +59,9 @@ func boardRows(board string, n int) []boardRow {
 	rows := make([]boardRow, 0, n)
 	for i := 1; i <= n; i++ {
 		bps := int64(500 - i)
-		rows = append(rows, boardRow{board: board, rank: i, subject: ids.Real{}.NewV7(), bps: &bps})
+		rows = append(rows, boardRow{
+			board: board, rank: i, subject: ids.Real{}.NewV7(), bps: &bps, value: int64(1000 * i),
+		})
 	}
 	return rows
 }
@@ -140,5 +144,44 @@ func TestBoards_PeopleMeIsNullForAViewerOnNoBoard(t *testing.T) {
 	}
 	if rec = s.get(t, "/v1/leaderboards/people", ids.UserID{}); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("GET without a token = %d, want 401", rec.Code)
+	}
+}
+
+func TestBoards_UnknownCabal(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	viewer := ids.UserIDFrom(ids.Real{}.NewV7())
+	rec := s.get(t, "/v1/cabals/"+ids.Real{}.NewV7().String()+"/leaderboard", viewer)
+	if rec.Code != http.StatusNotFound || problemOf(t, rec) != apibase.CabalNotFound {
+		t.Fatalf("GET = %d %s, want 404 cabal_not_found", rec.Code, rec.Body)
+	}
+	if rec = s.get(t, "/v1/cabals/"+ids.Real{}.NewV7().String()+"/leaderboard", ids.UserID{}); rec.Code != 401 {
+		t.Fatalf("GET without a token = %d, want 401", rec.Code)
+	}
+}
+
+func TestBoards_MembersBoardListsZeroStakeMembers(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	cabal := testkit.NewCabal(t, s.pool, testkit.WithMembers(2))
+	board := domain.MembersBoard(cabal.ID.UUID())
+	staked, idle := cabal.Members[0], cabal.Members[1]
+	bps := int64(300)
+	rows := []boardRow{
+		{board: board, rank: 1, subject: staked.ID.UUID(), bps: &bps, value: 2000},
+		{board: board, rank: 2, subject: idle.ID.UUID()},
+	}
+	seedBoard(t, s.pool, s.clock.Now().UTC(), rows)
+	rec := s.get(t, "/v1/cabals/"+cabal.ID.String()+"/leaderboard", idle.ID)
+	page := pageOf(t, rec)
+	if rec.Code != http.StatusOK || page.Board != board || len(page.Rows) != 2 {
+		t.Fatalf("GET = %d %s", rec.Code, rec.Body)
+	}
+	zero := page.Rows[1]
+	if zero.Rank != 2 || zero.ReturnBps != nil || zero.ValueMicros != 0 || zero.Subject.Kind != api.User {
+		t.Fatalf("zero-stake row = %+v", zero)
+	}
+	if page.Me == nil || page.Me.Rank != 2 || page.Me.ReturnBps != nil || page.Me.Subject.Id != idle.ID.UUID() {
+		t.Fatalf("me = %+v, want the zero-stake member's own row", page.Me)
 	}
 }

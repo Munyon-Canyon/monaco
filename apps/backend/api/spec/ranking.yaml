@@ -47,6 +47,36 @@ paths:
                 $ref: "#/components/schemas/LeaderboardPage"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/leaderboard:
+    get:
+      operationId: getCabalLeaderboard
+      tags: [ranking]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}, ip: {rate: 600, per: 1m, burst: 100}}
+      summary: Read a cabal's members leaderboard.
+      description: >-
+        Returns one page of the cabal's members ranked by return, best first, from the latest
+        finished run, and the caller's own row in `me` when the caller is on the board. Members with
+        no stake rank after the ranked ones with a null `return_bps`. Any signed-in user may read it.
+        An unknown cabal is cabal_not_found. An unknown range, a limit outside 1 to 50 or a cursor the
+        server did not write is invalid_input.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal's id.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        - $ref: "#/components/parameters/LeaderboardRange"
+        - $ref: "#/components/parameters/LeaderboardCursor"
+        - $ref: "#/components/parameters/LeaderboardLimit"
+      responses:
+        "200":
+          description: One page of the board.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardPage"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     LeaderboardRange:
