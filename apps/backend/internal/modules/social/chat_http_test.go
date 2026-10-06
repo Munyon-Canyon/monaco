@@ -1,6 +1,7 @@
 package social_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
@@ -32,7 +34,7 @@ func newChatRoutes(t *testing.T) chatRoutes {
 		{ID: f.member(1), Handle: "gone", DisplayName: "Gone", Deleted: true},
 	}, nil)
 	deps := module.Deps{Pool: f.pool, UoW: f.deps.UoW, IDs: f.deps.IDs, Clock: f.clock}
-	f.routes = social.HTTPOf(social.New(deps, social.WithUsers(f.users)))
+	f.routes = social.HTTPOf(social.New(deps, social.WithUsers(f.users), social.WithRealtime(f.rt)))
 	return f
 }
 
@@ -472,5 +474,51 @@ func TestChatRoutes_deleteSoftDeletesTheCallersMessage(t *testing.T) {
 	}
 	if err := f.remove(t, f.member(0), ids.Real{}.NewV7()); errs.CodeOf(err) != errs.CodeChatMessageNotFound {
 		t.Fatalf("unknown message: err = %v, want chat_message_not_found", err)
+	}
+}
+
+func TestChatRoutes_publishedMessagesAreTheSameJSONAsTheChannelRows(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	top := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	assertPublishedIsRow := func(published testkit.RealtimePublish, id uuid.UUID) {
+		t.Helper()
+		var got api.ChatMessage
+		if err := json.Unmarshal(published.Data, &got); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := f.channel(t, f.member(0), api.GetChatMessagesParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range rows {
+			if row.Id == id && reflect.DeepEqual(got, row) {
+				return
+			}
+		}
+		t.Fatalf("published %+v is not a channel row in %+v", got, rows)
+	}
+	assertPublishedIsRow(f.rt.Published()[0], top.Id)
+	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{
+		Body: "wagmi", ParentId: &top.Id, AlsoInChannel: ptr(true),
+	})
+	published := f.rt.Published()
+	if len(published) != 3 || published[2].Name != app.EventThreadUpdated {
+		t.Fatalf("published = %+v, want top, reply and thread update", published)
+	}
+	assertPublishedIsRow(published[1], reply.Id)
+}
+
+func TestChatRoutes_deleteAnnouncesTheDeletion(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "oops"})
+	if err := f.remove(t, f.member(0), m.Id); err != nil {
+		t.Fatal(err)
+	}
+	published := f.rt.Published()
+	if len(published) != 2 || published[1].Name != app.EventMessageDeleted ||
+		string(published[1].Data) != `{"id":"`+m.Id.String()+`"}` {
+		t.Fatalf("published = %+v, want the post then message.deleted for %s", published, m.Id)
 	}
 }

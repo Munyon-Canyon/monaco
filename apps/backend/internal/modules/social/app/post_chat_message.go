@@ -26,6 +26,7 @@ type ChatDeps struct {
 	Members Members
 	IDs     ids.Generator
 	Clock   clock.Clock
+	Publish ChatPublisher
 }
 
 type PostChatMessageHandler struct {
@@ -42,6 +43,7 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 		return ChatMessage{}, err
 	}
 	var posted ChatMessage
+	var thread *ThreadUpdated
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		now := h.d.Clock.Now().UTC()
@@ -53,8 +55,12 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 			if err := lockParent(ctx, q, cmd.CabalID, cmd.Reply.Parent); err != nil {
 				return err
 			}
-			if _, err := q.BumpChatReplies(ctx, sqlc.BumpChatRepliesParams{At: now, ID: cmd.Reply.Parent}); err != nil {
+			bumped, err := q.BumpChatReplies(ctx, sqlc.BumpChatRepliesParams{At: now, ID: cmd.Reply.Parent})
+			if err != nil {
 				return errs.Wrap(err, errs.CodeInternal, op)
+			}
+			thread = &ThreadUpdated{
+				MessageID: bumped.ID, ReplyCount: bumped.ReplyCount, LastReplyAt: bumped.LastReplyAt.Time.UTC(),
 			}
 			params.ParentID = cmd.Reply.Parent
 			params.AlsoInChannel = cmd.Reply.AlsoInChannel
@@ -77,6 +83,7 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 	if err != nil {
 		return ChatMessage{}, err
 	}
+	h.d.Publish.created(ctx, posted, thread)
 	return posted, nil
 }
 
