@@ -3,6 +3,7 @@ package social
 import (
 	"context"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
@@ -15,8 +16,9 @@ import (
 )
 
 type Module struct {
-	deps  module.Deps
-	users app.Users
+	deps    module.Deps
+	users   app.Users
+	members app.Members
 }
 
 type Option func(*Module)
@@ -33,6 +35,7 @@ func New(d module.Deps, opts ...Option) *Module {
 	if m.users == nil {
 		m.users = identity.New(d).Queries()
 	}
+	m.members = cabal.New(d).Queries()
 	return m
 }
 
@@ -52,15 +55,18 @@ func (*Module) Name() string { return "social" }
 func (m *Module) Mount(r api.Mount) { socialapi.Mount(m.http(), r) }
 
 func (m *Module) http() adapters.HTTP {
+	chat := app.ChatDeps{UoW: m.deps.UoW, Members: m.members, IDs: m.deps.IDs, Clock: m.deps.Clock}
 	return adapters.HTTP{
 		Follow: app.NewFollowHandler(app.FollowDeps{
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
-		Unfollow: app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
-		Mute:     app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
-		Unmute:   app.NewUnmuteHandler(m.deps.UoW),
-		Reads:    m.deps.Pool,
-		Users:    m.users,
+		Unfollow:   app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
+		Mute:       app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
+		Unmute:     app.NewUnmuteHandler(m.deps.UoW),
+		PostChat:   app.NewPostChatMessageHandler(chat),
+		DeleteChat: app.NewDeleteChatMessageHandler(m.deps.UoW, m.deps.Clock),
+		Reads:      m.deps.Pool,
+		Users:      m.users,
 	}
 }
 

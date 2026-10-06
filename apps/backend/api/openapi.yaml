@@ -1559,6 +1559,59 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/social.yaml
+  /v1/cabals/{id}/messages:
+    post:
+      operationId: postChatMessage
+      tags: [social]
+      x-idempotent: true
+      summary: Post a message to a cabal's chat.
+      description: >-
+        Stores the message and appends `chat.message_posted`. Only a member can post, otherwise
+        not_cabal_member. The body is trimmed and must be 1 to 2000 Unicode scalars, otherwise
+        chat_body_invalid. A reply names its `parent_id`, which must be a live top-level message
+        in the same cabal: an unknown, deleted or other-cabal parent is chat_parent_not_found and
+        a parent that is itself a reply is chat_parent_is_reply. `also_in_channel` shows the reply
+        in the channel too and needs a `parent_id`, otherwise invalid_input. A replay returns the
+        first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+      requestBody:
+        description: The message.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostChatMessageRequest"
+            example: {body: gm}
+      responses:
+        "201":
+          description: The stored message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/messages/{message_id}:
+    delete:
+      operationId: deleteChatMessage
+      tags: [social]
+      x-idempotent: true
+      summary: Delete one of the caller's chat messages.
+      description: >-
+        Soft-deletes the message. Only its author can delete it, otherwise
+        chat_message_not_owned. A message that is unknown or in another cabal is
+        chat_message_not_found. Deleting a deleted message changes nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+      responses:
+        "204":
+          description: The message is deleted.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/feed:
     get:
       operationId: getFeed
@@ -2198,6 +2251,19 @@ components:
         type: string
         format: uuid
         examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+  # api/spec/social.yaml
+    ChatCabalId:
+      name: id
+      in: path
+      required: true
+      description: The cabal id.
+      schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+    ChatMessageId:
+      name: message_id
+      in: path
+      required: true
+      description: The message id.
+      schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
   securitySchemes:
   # api/spec/base.yaml
     bearerAuth:
@@ -3845,6 +3911,45 @@ components:
           description: True once the caller's first deposit is credited.
           examples: [true]
   # api/spec/social.yaml
+    ChatAuthor:
+      type: object
+      description: The author of a chat message. A deleted account has a null handle and an empty name.
+      additionalProperties: false
+      required: [id, handle, display_name, photo_url]
+      properties:
+        id: {type: string, format: uuid, description: "The author's user id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+        display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+        photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+    ChatMessage:
+      type: object
+      description: One chat message.
+      additionalProperties: false
+      required: [id, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted]
+      properties:
+        id: {type: string, format: uuid, description: "The message id.", examples: ["01920000-0000-7000-8000-000000000007"]}
+        author:
+          $ref: "#/components/schemas/ChatAuthor"
+        body: {type: [string, "null"], description: Null on a deleted message., examples: [gm]}
+        created_at: {type: string, format: date-time, description: When the server stored it., examples: ["2026-10-03T12:00:00Z"]}
+        parent_id:
+          type: [string, "null"]
+          format: uuid
+          description: The top-level message this replies to. Null on a top-level message.
+          examples: [null]
+        also_in_channel: {type: boolean, description: True on a reply that also shows in the channel., examples: [false]}
+        reply_count: {type: integer, description: The replies to a top-level message. 0 on a reply., examples: [0]}
+        last_reply_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the newest reply was posted. Null with no replies.
+          examples: [null]
+        proposal_id:
+          type: [string, "null"]
+          format: uuid
+          description: The proposal a proposal card message is about. Null otherwise.
+          examples: [null]
+        deleted: {type: boolean, description: True on a deleted top-level message kept for its thread., examples: [false]}
     FeedItem:
       type: object
       description: One feed item with its display strings rendered.
@@ -3976,6 +4081,25 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    PostChatMessageRequest:
+      type: object
+      description: A chat message to post.
+      additionalProperties: false
+      required: [body]
+      properties:
+        body:
+          type: string
+          description: The text, trimmed by the server to 1 to 2000 Unicode scalars.
+          examples: [gm]
+        parent_id:
+          type: string
+          format: uuid
+          description: The top-level message this replies to. Absent for a top-level message.
+          examples: ["01920000-0000-7000-8000-000000000007"]
+        also_in_channel:
+          type: boolean
+          description: Show the reply in the channel too. Needs a parent_id. Defaults to false.
+          examples: [false]
   # api/spec/system.yaml
     Ping:
       type: object
