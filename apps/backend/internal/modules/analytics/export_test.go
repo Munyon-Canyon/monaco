@@ -18,3 +18,5 @@ func RegisterTreasuryExports(r *Registry) { registerTreasuryExports(r) }
 func RegisterCabalExports(r *Registry, members app.MembershipReader) {
 	registerCabalExports(r, members)
 }
+
+func RegisterSocialExports(r *Registry) { registerSocialExports(r) }

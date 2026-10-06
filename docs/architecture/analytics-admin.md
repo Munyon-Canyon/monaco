@@ -79,7 +79,7 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `follow_created` | `follow.created` (flow 20) |
 | `comment_created` | `comment.created` (flow 21) |
 
-`usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address or a transaction signature.
+`usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address, a transaction signature, a cabal name or a comment body.
 
 `cabal_created`, `cabal_joined` and `cabal_left` set the person property `cabal_count` to the number of cabals the member belongs to, read through cabal's `CabalsOf` when the event is exported. A redelivered older event can set a stale count until the next membership event, which PostHog accepts because it holds behavior, not truth. `cabal_joined` also fires for a cabal's creator, with `via` set to `create`.
 

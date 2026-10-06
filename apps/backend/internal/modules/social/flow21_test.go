@@ -9,7 +9,7 @@ import (
 
 func TestFlow21_CreateComment_OK(t *testing.T) {
 	t.Parallel()
-	flows.F21CreateCommentOK(scenario.New(t, withSocial()))
+	flows.F21CreateCommentOK(scenario.New(t, withSocial(), scenario.WithPostHog(t)))
 }
 
 func TestFlow21_CreateComment_InvalidInput(t *testing.T) {

@@ -157,6 +157,20 @@ func newCabalChaosWorld(t *testing.T) chaosWorld {
 	return appendedWorld(t, e, userActor(s.user), s.user, cabalChaosCases(s))
 }
 
+func socialChaosCases(s socialScene) []chaosCase {
+	return []chaosCase{
+		{s.followed("feed"), "follow_created"},
+		{s.commented("proposal", nil, "gm"), "comment_created"},
+	}
+}
+
+func newSocialChaosWorld(t *testing.T) chaosWorld {
+	t.Helper()
+	e := newEnv(t, analytics.RegisterSocialExports)
+	s := newSocialScene(e)
+	return appendedWorld(t, e, userActor(s.user), s.user, socialChaosCases(s))
+}
+
 func appendedWorld(t *testing.T, e *env, actor string, distinct uuid.UUID, cases []chaosCase) chaosWorld {
 	t.Helper()
 	w := chaosWorld{e: e, distinct: distinct.String(), names: map[uuid.UUID]string{}}
@@ -212,4 +226,9 @@ func TestAnalytics_MoneyExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 func TestAnalytics_CabalExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 	t.Parallel()
 	exportsEachEventOnceUnderChaos(t, newCabalChaosWorld)
+}
+
+func TestAnalytics_SocialExports_ExportEachEventOnceUnderChaos(t *testing.T) {
+	t.Parallel()
+	exportsEachEventOnceUnderChaos(t, newSocialChaosWorld)
 }

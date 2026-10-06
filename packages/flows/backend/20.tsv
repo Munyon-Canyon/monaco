@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-20	Follow / unfollow	social	POST /v1/users/{id}/follow	Follow	follow.created;follow.removed	notify	ok;CannotFollowSelf;UserNotFound;UserBanned;Unauthorized;crash:before-commit	verified	docs/architecture/followers.md#writes
+20	Follow / unfollow	social	POST /v1/users/{id}/follow	Follow	follow.created;follow.removed	notify;analytics	ok;CannotFollowSelf;UserNotFound;UserBanned;Unauthorized;crash:before-commit	verified	docs/architecture/followers.md#writes
