@@ -2,13 +2,18 @@ package identity_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -145,5 +150,20 @@ func TestModule_wireTakesFollowCountsFromSocialInTheBuiltSet(t *testing.T) {
 	module.NewSet(winner, social.New(d))
 	if winner.Follows() != any(injected) {
 		t.Fatalf("follows = %T, want the injected stub", winner.Follows())
+	}
+}
+
+func TestGetUser_overHTTPServesAnotherMembersProfile(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixtureIn(t, config.EnvTest, config.EnvTest, identity.WithFollowCounts(stubFollows{}))
+	viewer := f.seed(t, portSeed{handle: "viewer"})
+	other := f.seed(t, portSeed{handle: "other", name: "Other"})
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/users/"+other.ID.String(), nil)
+	req.Header.Set("Authorization", "Bearer "+f.verifier.Mint(viewer.ID.String(), f.now.Add(time.Hour)))
+	rec := httptest.NewRecorder()
+	f.handler.ServeHTTP(rec, req)
+	var got api.GetUser200JSONResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != http.StatusOK || got.Handle != "other" {
+		t.Fatalf("GET /v1/users/{id} = %d %s, want 200 for @other (err %v)", rec.Code, rec.Body, err)
 	}
 }

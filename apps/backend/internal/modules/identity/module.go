@@ -104,6 +104,7 @@ func (m *Module) Mount(r api.Mount) {
 	m.ensurePrivy()
 	identityapi.Mount(adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
+		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows,
 		Onboard: app.NewOnboarding(app.OnboardingDeps{
 			UoW: m.deps.UoW, Reads: m.deps.Pool, Users: adapters.Users{}, Privy: m.privy, Clock: m.deps.Clock,
 			Hints: hints,
