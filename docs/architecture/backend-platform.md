@@ -851,7 +851,7 @@ An evidence file holds: the commit SHA and whether the tree was dirty, the flow 
 Gates:
 
 - **In stage 1.** The `e2e` job runs `scripts/ci/e2e.sh` behind the `backend` filter and fails on any failed invariant or budget. Owners do not run `verify`; stage 0 is `monacoctl agents check`.
-- **On failure.** Fix the code and let stage 1 rerun it. Read the `verify-evidence` artifact to see what the system did. Never weaken an invariant or raise a budget to get green.
+- **On failure.** Fix the code and let stage 1 rerun it. Read the `verify-evidence` artifact to see what the system did. Never weaken an invariant or raise a budget to get green. The one exception is stage 0's per-package `go test -short` budget, which stretches with machine load outside CI and fails only a package that is over the base budget when it runs alone ([ci.md](ci.md#check-stages)).
 
 #### Budget: 90 s, enforced
 
