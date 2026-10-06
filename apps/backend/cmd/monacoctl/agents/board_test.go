@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -67,6 +68,142 @@ func TestViews_readsEachTicketsPRsFromOneQuery(t *testing.T) {
 	}}, 2, true, 15, f.now.Add(-10*time.Minute), 0)
 	if got != want {
 		t.Fatalf("views\n got %s\nwant %s", got, want)
+	}
+}
+
+func boardEvent(kind string, at time.Time, actor string) string {
+	return fmt.Sprintf(`{"__typename":%q,"createdAt":%q,"label":{"name":"merge-queue"},"actor":{"login":%q}}`,
+		kind, at.Format(time.RFC3339), actor)
+}
+
+func (f *fixture) boardOf(events ...string) {
+	f.hub.on(graphqlRoute, fmt.Sprintf(`{"data":{"repository":{"t5":{"timelineItems":{"nodes":[{"source":`+
+		`{"number":11,"body":"Part of #5","createdAt":%q,"state":"OPEN","commits":{"nodes":[{"commit":`+
+		`{"committedDate":%q,"statusCheckRollup":null}}]},"timelineItems":{"nodes":[%s]}}}]}}}}}`,
+		f.at(-3*time.Hour), f.at(-2*time.Hour), strings.Join(events, ",")))
+}
+
+func (f *fixture) draftsOf(open, closed string) {
+	f.hub.onQuery("drafts: pullRequests", `{"data":{"repository":{"drafts":{"nodes":[`+open+`]},`+
+		`"closed":{"nodes":[`+closed+`]}}}}`)
+}
+
+func TestBoard_aPRGraphiteHoldsIsQueuedNotEjected(t *testing.T) {
+	t.Parallel()
+	const hold = "[Graphite MQ] Draft PR GROUP:spec_9 (PRs 11)"
+	for _, tc := range []struct {
+		name    string
+		by      string
+		ago     time.Duration
+		open    func(*fixture) string
+		closed  func(*fixture) string
+		want    string
+		queried bool
+	}{
+		{name: "Graphite took the label two minutes ago", by: graphiteApp, ago: 2 * time.Minute, want: "queued"},
+		{name: "Graphite's REST login", by: graphiteBot, ago: 2 * time.Minute, want: "queued"},
+		{name: "a person removed the label two minutes ago", by: "logan", ago: 2 * time.Minute, want: "ejected"},
+		{name: "Graphite took it a whole hold ago", by: graphiteApp, ago: takenFor, want: "ejected"},
+		{
+			name: "a closed draft ran it since Graphite took it", by: graphiteApp, ago: 2 * time.Minute, want: "ejected",
+			closed: func(f *fixture) string { return closedDraftOf(t, 91, "11", f.now.Add(-time.Minute)) },
+		},
+		{
+			name: "an open draft tests it long after Graphite took it", by: graphiteApp, ago: time.Hour, want: "queued",
+			open: func(*fixture) string { return queueDraftNode(90, hold, noRollup) },
+		},
+		{
+			name: "an open draft tests it after a person removed the label", by: "logan", ago: time.Hour, want: "queued",
+			open: func(*fixture) string { return queueDraftNode(90, hold, noRollup) },
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			f.boardOf(
+				boardEvent("LabeledEvent", f.now.Add(-tc.ago-time.Minute), "logan"),
+				boardEvent("UnlabeledEvent", f.now.Add(-tc.ago), tc.by),
+			)
+			var open, closed string
+			if tc.open != nil {
+				open = tc.open(f)
+			}
+			if tc.closed != nil {
+				closed = tc.closed(f)
+			}
+			f.draftsOf(open, closed)
+			views, err := f.Env(t).views(t.Context(), Batch{Tickets: []BatchTicket{{Ticket: 5}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := views[0].state(); got != tc.want {
+				t.Fatalf("state = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestBoard_readsAGraphiteTakeThroughRESTWhenGraphQLIsForbidden(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.status[graphqlRoute] = http.StatusForbidden
+	f.hub.on(graphqlRoute, "forbidden")
+	f.hub.on(list("/issues/5/timeline?"), `[{"event":"cross-referenced","source":{"issue":{"number":11,`+
+		`"repository_url":"https://api.github.com/repos/o/r","pull_request":{}}}}]`)
+	f.hub.on(get("/pulls/11"), fmt.Sprintf(`{"number":11,"state":"open","created_at":%q,"body":"Part of #5",`+
+		`"head":{"ref":"b11","sha":"h11"},"base":{"ref":"fb"},"labels":[]}`, f.at(-3*time.Hour)))
+	f.hub.on(list("/issues/11/events?"), fmt.Sprintf(
+		`[{"event":"labeled","created_at":%q,"label":{"name":"merge-queue"},"actor":{"login":"logan"}},`+
+			`{"event":"unlabeled","created_at":%q,"label":{"name":"merge-queue"},"actor":{"login":%q}}]`,
+		f.at(-3*time.Minute), f.at(-2*time.Minute), graphiteBot))
+	f.hub.on(get("/commits/h11"), fmt.Sprintf(`{"commit":{"committer":{"date":%q}}}`, f.at(-2*time.Hour)))
+	f.hub.on(get("/commits/h11/check-runs?per_page=100&filter=all&page=1"), `{"check_runs":[]}`)
+	f.hub.on(get("/commits/h11/status"), `{"statuses":[]}`)
+	f.hub.on(list("/pulls?state=open"), `[]`)
+	f.hub.on(closedDraftList(), `[]`)
+	views, err := f.Env(t).views(t.Context(), Batch{Tickets: []BatchTicket{{Ticket: 5}}})
+	if err != nil || len(views[0].PRs) != 1 || views[0].state() != "queued" {
+		t.Fatalf("%+v %v", views, err)
+	}
+}
+
+func TestBoard_readsDraftsOnlyForAPRThatLooksEjected(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		board func(f *fixture)
+		reads bool
+	}{
+		{"a merged PR with a removal after its head", func(f *fixture) { f.board(t) }, false},
+		{"an open PR nobody queued", func(f *fixture) { f.boardOf() }, false},
+		{"an open PR whose label was removed", func(f *fixture) {
+			f.boardOf(boardEvent("UnlabeledEvent", f.now.Add(-time.Minute), graphiteApp))
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			tc.board(f)
+			f.draftsOf("", "")
+			batch := Batch{Tickets: []BatchTicket{{Ticket: 5}, {Ticket: 6}}}
+			if _, err := f.Env(t).views(t.Context(), batch); err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Contains(f.hub.body(graphqlRoute), "drafts: pullRequests"); got != tc.reads {
+				t.Fatalf("read the drafts = %v, want %v", got, tc.reads)
+			}
+		})
+	}
+}
+
+func TestBoard_failsWhenTheDraftsOfAnEjectedLookingPRAreUnreadable(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.boardOf(boardEvent("UnlabeledEvent", f.now.Add(-time.Minute), graphiteApp))
+	f.hub.onQuery("drafts: pullRequests", `{"data":null,"errors":[{"message":"rate limited"}]}`)
+	_, err := f.Env(t).views(t.Context(), Batch{Tickets: []BatchTicket{{Ticket: 5}}})
+	if err == nil || cliText(err) != "graphql: rate limited" {
+		t.Fatalf("views with unreadable drafts: %v", err)
 	}
 }
 

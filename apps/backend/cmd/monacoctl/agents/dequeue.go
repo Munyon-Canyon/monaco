@@ -58,8 +58,21 @@ func (env *Env) dequeueLabeled(ctx context.Context, top int, stdout io.Writer) e
 	if err != nil {
 		return err
 	}
-	prs := labeledChain(open, top, env.Config.QueueLabel)
+	chain := stackChain(open, top)
+	var prs []int
+	for _, p := range chain {
+		if p.labeled(env.Config.QueueLabel) {
+			prs = append(prs, p.Number)
+		}
+	}
 	if len(prs) == 0 {
+		drafts, err := env.queueDrafts(ctx)
+		if err != nil {
+			return err
+		}
+		if slices.ContainsFunc(chain, func(p stackPR) bool { return env.heldByGraphite(p.gqlPR, drafts) }) {
+			return stillHeld(top)
+		}
 		_, _ = fmt.Fprintf(stdout, "no PR of the stack under #%d carries %s; safe to push\n",
 			top, env.Config.QueueLabel)
 		return nil
@@ -71,7 +84,7 @@ func (env *Env) dequeueLabeled(ctx context.Context, top int, stdout io.Writer) e
 	return nil
 }
 
-func labeledChain(open []stackPR, top int, label string) []int {
+func stackChain(open []stackPR, top int) []stackPR {
 	byHead := map[string]stackPR{}
 	var cur stackPR
 	for _, p := range open {
@@ -80,11 +93,9 @@ func labeledChain(open []stackPR, top int, label string) []int {
 			cur = p
 		}
 	}
-	var out []int
+	var out []stackPR
 	for seen := 0; cur.Number != 0 && seen <= len(open); seen++ {
-		if cur.labeled(label) {
-			out = append([]int{cur.Number}, out...)
-		}
+		out = append([]stackPR{cur}, out...)
 		cur = byHead[cur.Base]
 	}
 	return out
@@ -106,8 +117,12 @@ func (env *Env) releaseQueue(ctx context.Context, q *Queue, stop func(context.Co
 			return err
 		}
 	}
+	return stillHeld(q.Top)
+}
+
+func stillHeld(top int) error {
 	return dequeueErr(errs.CodeVersionConflict, fmt.Sprintf(
-		"Graphite still holds #%d; remove it from the queue in the Graphite app, then rerun", q.Top))
+		"Graphite still holds #%d; remove it from the queue in the Graphite app, then rerun", top))
 }
 
 func (env *Env) heldRecord(ctx context.Context, top int) (Record, error) {
@@ -160,7 +175,7 @@ func (env *Env) graphiteHolds(ctx context.Context, nums []int) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if slices.ContainsFunc(nums, func(n int) bool { return draftHolds(drafts, n) }) {
+		if slices.ContainsFunc(prs, func(p stackPR) bool { return env.heldByGraphite(p.gqlPR, drafts) }) {
 			return true, nil
 		}
 	}

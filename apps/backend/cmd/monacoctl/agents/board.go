@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,7 +17,7 @@ const (
 	prFields      = `number body createdAt state mergedAt closedAt headRefOid ` + labelFields + `
 commits(last:1){nodes{commit{committedDate ` + commitChecks + `}}}
 timelineItems(itemTypes:[LABELED_EVENT,UNLABELED_EVENT],last:100){nodes{__typename
-... on LabeledEvent{createdAt label{name}} ... on UnlabeledEvent{createdAt label{name}}}}`
+... on LabeledEvent{createdAt label{name}} ... on UnlabeledEvent{createdAt label{name} actor{login}}}}`
 )
 
 type gqlName struct {
@@ -43,14 +44,25 @@ type gqlPR struct {
 			Commit gqlCommit `json:"commit"`
 		} `json:"nodes"`
 	} `json:"commits"`
-	TimelineItems struct {
-		Nodes []struct {
-			Typename  string    `json:"__typename"`
-			CreatedAt time.Time `json:"createdAt"`
-			Label     gqlName   `json:"label"`
-			Actor     gqlActor  `json:"actor"`
-		} `json:"nodes"`
-	} `json:"timelineItems"`
+	TimelineItems gqlTimeline `json:"timelineItems"`
+}
+
+type gqlTimeline struct {
+	Nodes []struct {
+		Typename  string    `json:"__typename"`
+		CreatedAt time.Time `json:"createdAt"`
+		Label     gqlName   `json:"label"`
+		Actor     gqlActor  `json:"actor"`
+	} `json:"nodes"`
+}
+
+func (t gqlTimeline) removal(label string) (at time.Time, byGraphite, ok bool) {
+	for i := len(t.Nodes) - 1; i >= 0; i-- {
+		if t.Nodes[i].Label.Name == label {
+			return t.Nodes[i].CreatedAt, graphiteLogin(t.Nodes[i].Actor.Login), true
+		}
+	}
+	return time.Time{}, false, false
 }
 
 type ticketTimeline struct {
@@ -114,9 +126,10 @@ func (env *Env) views(ctx context.Context, b Batch) ([]ticketView, error) {
 	if err := env.readChecks(ctx, timelineCommits(data.Repository), env.graphQL); err != nil {
 		return nil, err
 	}
+	drafts := sync.OnceValues(func() ([]queueDraft, error) { return env.queueDrafts(ctx) })
 	out := make([]ticketView, 0, len(b.Tickets))
 	for _, t := range b.Tickets {
-		prs, err := env.ticketPRs(ctx, t.Ticket, data.Repository[fmt.Sprintf("t%d", t.Ticket)])
+		prs, err := env.ticketPRs(ctx, t.Ticket, data.Repository[fmt.Sprintf("t%d", t.Ticket)], drafts)
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +138,9 @@ func (env *Env) views(ctx context.Context, b Batch) ([]ticketView, error) {
 	return out, nil
 }
 
-func (env *Env) ticketPRs(ctx context.Context, ticket int, tl ticketTimeline) ([]ticketPR, error) {
+func (env *Env) ticketPRs(
+	ctx context.Context, ticket int, tl ticketTimeline, drafts func() ([]queueDraft, error),
+) ([]ticketPR, error) {
 	var out []ticketPR
 	for _, node := range tl.TimelineItems.Nodes {
 		src := node.Source
@@ -133,7 +148,10 @@ func (env *Env) ticketPRs(ctx context.Context, ticket int, tl ticketTimeline) ([
 		if !ok || n != ticket || slices.ContainsFunc(out, func(p ticketPR) bool { return p.Number == src.Number }) {
 			continue
 		}
-		p := src.flat(env.Config.QueueLabel)
+		p, err := env.boardPR(src, drafts)
+		if err != nil {
+			return nil, err
+		}
 		if src.State == "CLOSED" {
 			landed, err := env.landed(ctx, src.closed())
 			if err != nil {
@@ -147,6 +165,19 @@ func (env *Env) ticketPRs(ctx context.Context, ticket int, tl ticketTimeline) ([
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+func (env *Env) boardPR(src gqlPR, drafts func() ([]queueDraft, error)) (ticketPR, error) {
+	p := src.flat(env.Config.QueueLabel)
+	if src.State != "OPEN" || p.InQueue || !p.ejected() {
+		return p, nil
+	}
+	open, err := drafts()
+	if err != nil {
+		return p, err
+	}
+	p.InQueue = env.heldByGraphite(src, open)
+	return p, nil
 }
 
 func timelineCommits(tickets map[string]ticketTimeline) []*gqlCommit {

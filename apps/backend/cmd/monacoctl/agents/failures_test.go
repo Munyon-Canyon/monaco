@@ -38,7 +38,10 @@ func watchNode(n int, base, head, removals string) string {
 	)
 }
 
-const graphiteBot = "graphite-app[bot]"
+const (
+	graphiteBot = "graphite-app[bot]"
+	graphiteApp = "graphite-app"
+)
 
 func unlabel(at time.Time, label, actor string) string {
 	return fmt.Sprintf(`{"createdAt":%q,"label":{"name":%q},"actor":{"login":%q}}`,
@@ -56,6 +59,8 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 	t.Parallel()
 	since := time.Date(2026, 9, 29, 6, 0, 0, 0, time.UTC)
 	after, before := since.Add(time.Minute), since.Add(-time.Minute)
+	ran := after.Add(30 * time.Second)
+	waiting, lapsed := after.Add(time.Minute), after.Add(takenFor)
 	type want struct {
 		why string
 		job int64
@@ -65,6 +70,7 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 		nodes  []string
 		want   []want
 		drafts []string
+		now    time.Time
 	}{
 		{
 			"Graphite dropping the label names the failing job of its gtmq_ draft, not ci-ok",
@@ -72,23 +78,67 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 			[]want{{"dropped from the Graphite merge queue", 11}},
 			[]string{
 				draftNode("gtmq_old", "Merge queue: #1", before, rollup(lintJob)),
-				draftNode("gtmq_1", "Merge queue: #1", after, rollup(okJob, redOK, flakeJob)),
+				draftNode("gtmq_1", "Merge queue: #1", ran, rollup(okJob, redOK, flakeJob)),
 			},
+			waiting,
 		},
 		{
-			"without a draft for the PR the PR head's failing job is named",
+			"without a draft for the PR the PR head's failing job is named once the hold has run out",
 			[]string{watchNode(1, "fb", rollup(greenOK, lintJob), dropped(after))},
 			[]want{{"dropped from the Graphite merge queue", 12}},
 			[]string{
-				draftNode("gtmq_12", "Merge queue: #12", after, rollup(flakeJob)),
-				draftNode("other", "Fix #1", after, rollup(flakeJob)),
+				draftNode("gtmq_12", "Merge queue: #12", ran, rollup(flakeJob)),
+				draftNode("other", "Fix #1", ran, rollup(flakeJob)),
 				draftNode("gtmq_1", "Merge queue: #1", before, rollup(flakeJob)),
 			},
+			lapsed,
 		},
 		{
 			"a drop before the last run is not news",
 			[]string{watchNode(1, "fb", rollup(greenOK), dropped(before))},
-			nil, nil,
+			nil, nil, lapsed,
+		},
+		{
+			"Graphite taking the PR is no drop while its draft has not run it",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
+			nil, nil, waiting,
+		},
+		{
+			"Graphite's GraphQL login is Graphite too",
+			[]string{watchNode(1, "fb", rollup(greenOK), unlabel(after, "merge-queue", graphiteApp))},
+			nil, nil, waiting,
+		},
+		{
+			"a take just inside the hold is no drop",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
+			nil, nil, lapsed.Add(-time.Second),
+		},
+		{
+			"a take a whole hold ago with no draft is a drop",
+			[]string{watchNode(1, "fb", noRollup, dropped(after))},
+			[]want{{"dropped from the Graphite merge queue", 0}},
+			nil, lapsed,
+		},
+		{
+			"an open draft that tests the PR holds it past the hold",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
+			nil,
+			[]string{strings.Replace(draftNode("gtmq_1", "Merge queue: #1", ran, noRollup), `{"title"`, `{"state":"OPEN","title"`, 1)},
+			lapsed,
+		},
+		{
+			"a closed draft that ran other PRs does not end the hold",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
+			nil,
+			[]string{draftNode("gtmq_12", "Merge queue: #12", ran, rollup(flakeJob))},
+			waiting,
+		},
+		{
+			"a closed draft that ran the PR before Graphite took it does not end the hold",
+			[]string{watchNode(1, "fb", rollup(greenOK), dropped(after))},
+			nil,
+			[]string{draftNode("gtmq_1", "Merge queue: #1", since.Add(30*time.Second), rollup(flakeJob))},
+			waiting,
 		},
 		{
 			"a person removing the label or Graphite removing another label is no failure",
@@ -96,31 +146,32 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 				watchNode(1, "fb", rollup(greenOK), unlabel(after, "merge-queue", "logan")),
 				watchNode(2, "fb", rollup(greenOK), unlabel(after, "large-pr", "Graphite-App")),
 			},
-			nil, nil,
+			nil, nil, lapsed,
 		},
 		{
 			"only the latest removal of the queue label counts",
 			[]string{watchNode(1, "fb", noRollup,
 				dropped(after)+","+unlabel(after, "merge-queue", "logan")+","+unlabel(after, "large-pr", graphiteBot))},
-			nil, nil,
+			nil, nil, lapsed,
 		},
 		{
 			"a red stage 1 names its failing job every run",
 			[]string{watchNode(1, "fb", rollup(redOK, lintJob), dropped(before))},
 			[]want{{"stage 1 is red", 12}},
-			nil,
+			nil, waiting,
 		},
 		{
 			"a red ci-ok alone names ci-ok",
 			[]string{watchNode(1, "fb", rollup(okJob, redOK), "")},
 			[]want{{"stage 1 is red", 14}},
-			nil,
+			nil, waiting,
 		},
 		{
 			"a drop with no failed run has no job",
 			[]string{watchNode(1, "fb", noRollup, unlabel(after, "merge-queue", "Graphite-App"))},
 			[]want{{"dropped from the Graphite merge queue", 0}},
-			[]string{draftNode("gtmq_1", "#1", after, noRollup)},
+			[]string{draftNode("gtmq_1", "#1", ran, noRollup)},
+			waiting,
 		},
 		{
 			"green, pending and unrelated failures stay quiet",
@@ -129,7 +180,7 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 				watchNode(2, "fb", rollup(`{"name":"ci / ci-ok","conclusion":""}`), ""),
 				watchNode(3, "fb", noRollup, ""),
 			},
-			nil, nil,
+			nil, nil, waiting,
 		},
 		{
 			"a stacked PR counts and a PR off the feature branch does not",
@@ -139,7 +190,7 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 				watchNode(3, "main", rollup(redOK), ""),
 			},
 			[]want{{"stage 1 is red", 14}},
-			nil,
+			nil, waiting,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -153,7 +204,7 @@ func TestFailures_parsesQueueRemovalsAndRedStage1(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := make([]want, 0, len(tc.want))
-			for _, f := range failures(prs, queueRuns{"merge-queue", drafts}, "fb", since) {
+			for _, f := range failures(prs, queueRuns{label: "merge-queue", drafts: drafts, now: tc.now}, "fb", since) {
 				got = append(got, want{f.Why, f.Job.DatabaseID})
 			}
 			if !slices.Equal(got, tc.want) {
@@ -200,7 +251,7 @@ func TestWatch_printsAFreshOwnerPromptForAnEjectedEntryOnce(t *testing.T) {
 	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/wt/40"})
 	f.hub.on(graphqlRoute, draftData(
 		[]string{draftNode("gtmq_5", "Merge queue: #5", f.now.Add(-time.Minute), rollup(flakeJob))},
-		watchNode(5, "fb", rollup(greenOK), dropped(f.now.Add(-time.Minute))),
+		watchNode(5, "fb", rollup(greenOK), dropped(f.now.Add(-3*time.Minute))),
 		strings.Replace(watchNode(6, "fb", rollup(redOK, lintJob), ""), "Part of #40", "no ticket", 1),
 	))
 	f.hub.on(get("/actions/jobs/11/logs"), "--- FAIL: TestFlaky\n")
@@ -220,6 +271,32 @@ func TestWatch_printsAFreshOwnerPromptForAnEjectedEntryOnce(t *testing.T) {
 	_, stdout, _ = f.agents(t, "watch", "--once")
 	if strings.Contains(stdout, "#5") || !strings.Contains(stdout, "#6 stage 1 is red") {
 		t.Fatalf("second run:\n%s", stdout)
+	}
+}
+
+func TestFailures_watchOnceLeavesAPRGraphiteTookWhileItWaitsForADraft(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		by   string
+		ago  time.Duration
+		want string
+	}{
+		{"Graphite took the label two minutes ago", graphiteApp, 2 * time.Minute, ""},
+		{"Graphite's REST login", graphiteBot, 2 * time.Minute, ""},
+		{"Graphite took it a whole hold ago", graphiteApp, takenFor, "#5 dropped from the Graphite merge queue\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			f.hub.on(graphqlRoute, failureData(
+				watchNode(5, "fb", rollup(greenOK), unlabel(f.now.Add(-tc.ago), "merge-queue", tc.by))))
+			code, stdout, stderr := f.agents(t, "watch", "--once")
+			if tc.want == "" && (code != 0 || stdout != "" || stderr != "") ||
+				tc.want != "" && (code != 1 || !strings.HasPrefix(stdout, tc.want)) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
 	}
 }
 
