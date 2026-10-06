@@ -29,6 +29,7 @@ type CabalPositions struct {
 	CabalID     ids.CabalID
 	Holdings    []Position
 	TotalShares money.SharesUnits
+	Unpriced    bool
 }
 
 type MemberStake struct {

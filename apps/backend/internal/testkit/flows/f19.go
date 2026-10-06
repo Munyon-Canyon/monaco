@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -36,40 +35,25 @@ func seedAsset(s *scenario.Scenario) chain.SolanaAddress {
 	_, _ = rand.Read(key)
 	mint, id, now := chain.AddressOf(key), ids.Real{}.NewV7(), time.Now().UTC()
 	insertAsset(s, id, "F19"+id.String()[24:], string(mint), now)
-	catalogOtherHeldMints(s, mint, now)
 	return mint
 }
 
 func insertAsset(s *scenario.Scenario, id uuid.UUID, symbol, mint string, now time.Time) {
 	_, err := s.DB().Exec(s.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
 		issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at)
-		VALUES ($1, $2, $3, $4, 'tessera', 'pre_ipo', $2, true, $2, $5, $5, $5)`,
+		VALUES ($1, $2, $3, $4, 'tessera', 'pre_ipo', $2, true, $2, $5, $5, $5)
+		ON CONFLICT (mint) DO NOTHING`,
 		id, symbol, mint, assetDecimals, now)
 	if err != nil {
 		s.Fatalf("flows: seed the asset %s: %v", symbol, err)
 	}
 	for _, age := range []time.Duration{4 * time.Minute, 2 * time.Minute, 0} {
 		if _, err := s.DB().Exec(s.Context(),
-			`INSERT INTO price_points (mint, ts, price_micros, source) VALUES ($1, $2, $3, 'jupiter')`,
+			`INSERT INTO price_points (mint, ts, price_micros, source) VALUES ($1, $2, $3, 'jupiter')
+			ON CONFLICT (mint, ts) DO NOTHING`,
 			mint, now.Add(-age), assetPriceMicros); err != nil {
 			s.Fatalf("flows: seed a price: %v", err)
 		}
-	}
-}
-
-func catalogOtherHeldMints(s *scenario.Scenario, own chain.SolanaAddress, now time.Time) {
-	rows, err := s.DB().Query(s.Context(), `SELECT DISTINCT asset FROM cabal_positions
-		WHERE asset NOT IN ($1, $2) AND NOT EXISTS (SELECT 1 FROM assets WHERE assets.mint = cabal_positions.asset)`,
-		string(testkit.USDCMint), string(own))
-	if err != nil {
-		s.Fatalf("flows: read the mints other flows hold: %v", err)
-	}
-	mints, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil {
-		s.Fatalf("flows: read the mints other flows hold: %v", err)
-	}
-	for _, mint := range mints {
-		insertAsset(s, ids.Real{}.NewV7(), "F19"+mint[:8], mint, now)
 	}
 }
 
