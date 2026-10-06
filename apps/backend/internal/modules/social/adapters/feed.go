@@ -53,12 +53,16 @@ func (h Feed) ApplyCreated(ctx context.Context, tx db.Tx, e events.CabalCreated,
 		return err
 	}
 	faultpoint.Hit(ctx, faultpoint.BeforeCommit)
-	return q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
+	if err := q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
 		ID: eventID(ctx), Kind: "cabal_created", RefType: "cabals", RefID: e.CabalID,
 		CabalID: pgtype.UUID{Bytes: e.CabalID, Valid: true}, CabalName: pgtype.Text{String: e.Name, Valid: true},
 		ActorID: pgtype.UUID{Bytes: e.CreatorID, Valid: true}, Title: name + " started " + e.Name,
 		Payload: feed.Payload{CabalName: e.Name, ActorName: name}.JSON(), At: at,
-	})
+	}); err != nil {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
+	return nil
 }
 
 func (h Feed) Joined(ctx context.Context, tx db.Tx, e events.CabalMemberJoined, at time.Time) error {
