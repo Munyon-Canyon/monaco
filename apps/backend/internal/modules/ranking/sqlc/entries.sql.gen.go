@@ -10,7 +10,7 @@ import (
 )
 
 const deleteAllLeaderboardEntries = `-- name: DeleteAllLeaderboardEntries :exec
-DELETE FROM leaderboard_entries WHERE range = 'ALL'
+DELETE FROM leaderboard_entries
 `
 
 func (q *Queries) DeleteAllLeaderboardEntries(ctx context.Context) error {

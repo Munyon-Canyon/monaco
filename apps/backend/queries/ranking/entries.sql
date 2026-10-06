@@ -1,5 +1,5 @@
 -- name: DeleteAllLeaderboardEntries :exec
-DELETE FROM leaderboard_entries WHERE range = 'ALL';
+DELETE FROM leaderboard_entries;
 
 -- name: InsertLeaderboardEntries :exec
 INSERT INTO leaderboard_entries (

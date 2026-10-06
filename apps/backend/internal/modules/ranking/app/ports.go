@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -61,12 +62,17 @@ func (UnwiredFollows) FollowingIDs(context.Context, ids.UserID) ([]ids.UserID, e
 	return nil, errs.New(errs.CodeUpstreamUnavailable, "ranking.UnwiredFollows.FollowingIDs")
 }
 
+type RangeSnapshots interface {
+	SnapshotsAt(context.Context, []time.Time) ([]sqlc.SnapshotsAtRow, error)
+}
+
 type Ports struct {
-	Market   Market
-	Treasury Treasury
-	Funding  Funding
-	Cabals   Cabals
-	Users    Users
-	Follows  Follows
-	Previous PreviousReader
+	Market    Market
+	Treasury  Treasury
+	Funding   Funding
+	Cabals    Cabals
+	Users     Users
+	Follows   Follows
+	Previous  PreviousReader
+	Snapshots RangeSnapshots
 }

@@ -32,7 +32,7 @@ func TestRankingTables_roundTrip(t *testing.T) {
 	replaceRankingEntries(t, q, cabal, now, 200, "ALL")
 	replaceRankingEntries(t, q, cabal, now, 99, "DAY")
 	replaceRankingEntries(t, q, cabal, now, 300, "ALL")
-	assertReplacedRankingEntries(t, db, cabal, 300, 99)
+	assertReplacedRankingEntries(t, db, cabal, 300)
 	insertCabalValue(t, q, cabal, now)
 	insertLeaderboardRun(t, q, run, now)
 	assertLatestRun(t, q, run)
@@ -76,7 +76,7 @@ func replaceRankingEntries(
 	}
 }
 
-func assertReplacedRankingEntries(t *testing.T, db *pgxpool.Pool, cabal ids.CabalID, allValue, dayValue int64) {
+func assertReplacedRankingEntries(t *testing.T, db *pgxpool.Pool, cabal ids.CabalID, allValue int64) {
 	t.Helper()
 	rows, err := db.Query(t.Context(), leaderboardEntriesForSubject, cabal.UUID())
 	if err != nil {
@@ -95,8 +95,8 @@ func assertReplacedRankingEntries(t *testing.T, db *pgxpool.Pool, cabal ids.Caba
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if len(values) != 2 || values["ALL"] != allValue || values["DAY"] != dayValue {
-		t.Fatalf("leaderboard entries = %#v, want ALL=%d DAY=%d", values, allValue, dayValue)
+	if len(values) != 1 || values["ALL"] != allValue {
+		t.Fatalf("leaderboard entries = %#v, want only ALL=%d after a replacement drops every range", values, allValue)
 	}
 }
 

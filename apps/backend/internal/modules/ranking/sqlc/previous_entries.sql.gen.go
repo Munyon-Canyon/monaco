@@ -15,12 +15,9 @@ const previousEntriesForCabals = `-- name: PreviousEntriesForCabals :many
 SELECT board, range, rank, subject_id, subject_name, subject_handle, subject_picture_url, subject_created_at,
   value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags
 FROM leaderboard_entries
-WHERE range = 'ALL'
-  AND (
-    (board = 'cabals' AND subject_id = ANY($1::uuid[]))
-    OR board = ANY($2::text[])
-  )
-ORDER BY board, rank
+WHERE (board = 'cabals' AND subject_id = ANY($1::uuid[]))
+  OR board = ANY($2::text[])
+ORDER BY board, range, rank
 `
 
 type PreviousEntriesForCabalsParams struct {

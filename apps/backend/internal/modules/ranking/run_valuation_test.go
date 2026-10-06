@@ -76,7 +76,7 @@ func newValuationRig(t *testing.T) *valuationRig {
 	rig.ports = app.Ports{
 		Market:   openMarket{Catalog: marketModule.Catalog(), Prices: marketModule.Prices(), CalendarFake: calendar},
 		Treasury: rig.treasury, Funding: noPauses{}, Cabals: cabal.New(d).Queries(), Users: identity.New(d).Queries(),
-		Previous: sqlc.New(pool),
+		Previous: sqlc.New(pool), Snapshots: sqlc.New(pool),
 	}
 	rig.price(t, 2_000_000)
 	rig.ledger.
