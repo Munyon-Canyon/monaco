@@ -19,6 +19,8 @@ type (
 	swap          struct{}
 	proposal      struct{}
 	accessRequest struct{}
+	agent         struct{}
+	agentIntent   struct{}
 )
 
 type (
@@ -28,6 +30,8 @@ type (
 	SwapID          = ID[swap]
 	ProposalID      = ID[proposal]
 	AccessRequestID = ID[accessRequest]
+	AgentID         = ID[agent]
+	AgentIntentID   = ID[agentIntent]
 )
 
 type Generator interface {
@@ -72,6 +76,10 @@ func CabalIDFrom(u uuid.UUID) CabalID { return CabalID{u: u} }
 func AccessRequestIDFrom(u uuid.UUID) AccessRequestID { return AccessRequestID{u: u} }
 
 func ProposalIDFrom(u uuid.UUID) ProposalID { return ProposalID{u: u} }
+
+func AgentIDFrom(u uuid.UUID) AgentID { return AgentID{u: u} }
+
+func AgentIntentIDFrom(u uuid.UUID) AgentIntentID { return AgentIntentID{u: u} }
 
 func (id ID[T]) IsZero() bool { return id.u == uuid.Nil }
 

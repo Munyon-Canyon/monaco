@@ -113,6 +113,22 @@ func TestProposalIDFromKeepsTheUUID(t *testing.T) {
 	}
 }
 
+func TestAgentIDFromKeepsTheUUID(t *testing.T) {
+	t.Parallel()
+	u := ids.Real{}.NewV7()
+	if got := ids.AgentIDFrom(u); got.UUID() != u || got.IsZero() {
+		t.Fatalf("AgentIDFrom(%s) = %s", u, got)
+	}
+}
+
+func TestAgentIntentIDFromKeepsTheUUID(t *testing.T) {
+	t.Parallel()
+	u := ids.Real{}.NewV7()
+	if got := ids.AgentIntentIDFrom(u); got.UUID() != u || got.IsZero() {
+		t.Fatalf("AgentIntentIDFrom(%s) = %s", u, got)
+	}
+}
+
 func TestZeroValueIsInvalid(t *testing.T) {
 	t.Parallel()
 	var id ids.UserID
