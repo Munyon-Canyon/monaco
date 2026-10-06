@@ -139,13 +139,22 @@ func (p *Pusher) Push(ctx context.Context, d bus.Delivery, notes []Notification)
 	if err := p.write(ctx, d, notes); err != nil {
 		return err
 	}
-	if err := p.send(ctx, d.EventID); err != nil {
-		return err
+	sendErr := p.send(ctx, d.EventID)
+	denied := errs.CodeOf(sendErr) == errs.CodeAPNSAuthFailed
+	if sendErr != nil && !denied {
+		return sendErr
 	}
-	return p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	if err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		if denied {
+			_, err := d.RecordAs(ctx, tx, string(errs.CodeAPNSAuthFailed))
+			return err
+		}
 		_, err := d.Record(ctx, tx)
 		return err
-	})
+	}); err != nil {
+		return err
+	}
+	return sendErr
 }
 
 func (p *Pusher) write(ctx context.Context, d bus.Delivery, notes []Notification) error {

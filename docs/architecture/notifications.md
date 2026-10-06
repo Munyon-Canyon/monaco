@@ -112,7 +112,7 @@ Response handling:
 | `200` | Mark the row `delivered`, set `notifications.delivered_at` and append `notification.sent`. |
 | `410` (`Unregistered` or `ExpiredToken`), `400 BadDeviceToken` | Set `device_tokens.disabled_at`, never retry that token. A row whose every token is dead, or that has none, ends `no_device`. |
 | `429`, `5xx`, network error | Leave the row `pending` and return the retryable `apns_unavailable`, so `bus.Dispatch` naks on its backoff schedule. A send error comes back as the client returned it. The redelivered message writes no row twice and resends only the rows still `pending`. |
-| `403` auth errors | Return `apns_auth_failed`: `bus.Dispatch` terms the message to `DEADLETTER` and alerts. The key or env is misconfigured, so every push is failing. It wins over every other answer of the delivery. |
+| `403` auth errors | Record the `event_deliveries` row under `apns_auth_failed` and return that code: `bus.Dispatch` terms the message to `DEADLETTER` and alerts. The key or env is misconfigured, so every push is failing. It wins over every other answer of the delivery. |
 | Any other status, such as `400 BadTopic` or `413 PayloadTooLarge` | Keep the token and the `pending` row, and ack. The push itself is wrong, so resending cannot help. |
 
 `apns.Classify` maps these rows to `Delivered`, `TokenDead`, `Retry`, `AuthFailed` and `Rejected`. A `429` carries `Retry-After` in whole seconds as `Result.RetryAfter`, capped at an hour.
@@ -168,8 +168,8 @@ A user who stays stuck gets a nudge on days 1, 8 and 15, and then no more. Every
 
 - The Simulator cannot reliably get a real remote device token. To test how a push looks and where a tap goes, drag a `.apns` file onto the Simulator, or run `xcrun simctl push <udid> com.monaco.app payload.json`.
 - To test end to end (backend → APNs → phone), use a physical device running a debug build, which gets a sandbox token.
-- `just test backend` uses the `testkit` fake `Sender` and never calls APNs. Every consumer test runs through the chaos dispatcher, so duplicate and reordered deliveries are tested, not assumed ([Keeping it deterministic](backend-platform.md#keeping-it-deterministic)).
-- `monacoctl verify flow 24` drives the flow against real binaries. Until #629 points the worker at the fakes server, it sends through `apns.NoopSender`.
+- `just test backend` never calls APNs. The push tests use the `testkit` fake `Sender`, and the flow 24 tests send through `*apns.Client` to an in-process fakes server. Every consumer test runs through the chaos dispatcher, so duplicate and reordered deliveries are tested, not assumed ([Keeping it deterministic](backend-platform.md#keeping-it-deterministic)).
+- `monacoctl verify flow 24` drives the flow against real binaries. The worker sends through `*apns.Client` to the fakes server's `/apns` route, and the flow's outcomes cover a `429`, a `403` and a crash before commit.
 
 ## Rollout
 

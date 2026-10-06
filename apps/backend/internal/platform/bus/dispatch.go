@@ -170,6 +170,8 @@ func flow(handler string) string {
 		return "11"
 	case "trading.engine.retry":
 		return "12"
+	case "notify.notify_test_requested":
+		return "24"
 	default:
 		return ""
 	}

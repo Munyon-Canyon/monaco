@@ -10,33 +10,38 @@ import (
 )
 
 func EventuallyLog(msg observability.Msg, want map[string]string) Step {
+	return EventuallyLogs(msg, want, 1)
+}
+
+func EventuallyLogs(msg observability.Msg, want map[string]string, n int) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		from := 0
-		await(s.t, fmt.Sprintf("a %s log line with %v", msg.Name, want), func() (bool, <-chan struct{}) {
+		from, seen := 0, 0
+		await(s.t, fmt.Sprintf("%d %s log lines with %v", n, msg.Name, want), func() (bool, <-chan struct{}) {
 			lines, changed := s.app.lines(from)
 			from += len(lines)
-			line, fields, ok := findLog(lines, msg.Name, want)
-			if !ok {
-				return false, changed
-			}
-			for _, key := range msg.Required {
-				if _, ok := fields[key]; !ok {
-					s.t.Fatalf("scenario: %s log line lacks required attr %q: %s", msg.Name, key, line)
-				}
-			}
-			return true, changed
+			seen += countLogs(s.t, lines, msg, want)
+			return seen >= n, changed
 		})
 	}
 }
 
-func findLog(lines []string, name string, want map[string]string) (string, map[string]any, bool) {
+func countLogs(t T, lines []string, msg observability.Msg, want map[string]string) int {
+	t.Helper()
+	n := 0
 	for _, line := range lines {
-		if fields, ok := logFields(line); ok && fields["msg"] == name && fieldsMatch(fields, want) {
-			return line, fields, true
+		fields, ok := logFields(line)
+		if !ok || fields["msg"] != msg.Name || !fieldsMatch(fields, want) {
+			continue
 		}
+		for _, key := range msg.Required {
+			if _, ok := fields[key]; !ok {
+				t.Fatalf("scenario: %s log line lacks required attr %q: %s", msg.Name, key, line)
+			}
+		}
+		n++
 	}
-	return "", nil, false
+	return n
 }
 
 func logFields(line string) (map[string]any, bool) {
