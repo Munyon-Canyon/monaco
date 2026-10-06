@@ -11,8 +11,8 @@ final class ToastCenter {
         current = MonacoToast(message: ToastCopy.message(for: error))
     }
 
-    func show(success: String, link: MonacoToastLink? = nil) {
-        current = MonacoToast(message: success, isSuccess: true, link: link)
+    func show(success: String, link: MonacoToastLink? = nil, action: MonacoToastAction? = nil) {
+        current = MonacoToast(message: success, isSuccess: true, link: link, action: action)
     }
 }
 

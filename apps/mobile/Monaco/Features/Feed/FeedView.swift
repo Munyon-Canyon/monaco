@@ -20,6 +20,19 @@ struct FeedView: View {
         }
         .navigationTitle(FeedTab.title)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    NavigationLink("Muted", value: AnyAppRoute(FeedMutesRoute()))
+                        .accessibilityIdentifier("feed-muted-link")
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel("More")
+                .accessibilityIdentifier("feed-menu")
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-root")
         .task { await start() }
@@ -79,6 +92,15 @@ private struct FeedScreen: View {
         }
     }
 
+    private func mute(_ option: FeedMuteOption) {
+        Task {
+            guard let receipt = await model.mute(option) else { return }
+            toasts.show(
+                success: receipt.message,
+                action: MonacoToastAction(title: "Undo") { Task { await model.undo(receipt) } })
+        }
+    }
+
     private var scope: Binding<FeedScope> {
         Binding(
             get: { model.query.scope },
@@ -121,6 +143,11 @@ private struct FeedScreen: View {
         return LazyVStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 FeedItemCell(item: item)
+                    .contextMenu {
+                        ForEach(model.muteOptions(for: item)) { option in
+                            Button(option.menuTitle) { mute(option) }
+                        }
+                    }
                     .overlay(alignment: .bottom) {
                         if index < items.count - 1 { MonacoRule().padding(.leading, MonacoTheme.Space.m) }
                     }

@@ -92,6 +92,10 @@ public final class CursorPager<Item: Identifiable & Sendable> {
         }
     }
 
+    public func remove(where shouldRemove: (Item) -> Bool) {
+        items.removeAll(where: shouldRemove)
+    }
+
     private func appendDeduped(_ page: [Item]) {
         var seen = Set(items.map(\.id))
         for item in page where seen.insert(item.id).inserted {

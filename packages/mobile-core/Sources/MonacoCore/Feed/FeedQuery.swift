@@ -38,12 +38,24 @@ public enum FeedChip: CaseIterable, Hashable, Sendable {
 
 public enum FeedScope: CaseIterable, Hashable, Sendable {
     case everyone
+    case mine
     case following
 
     public var title: String {
         switch self {
         case .everyone: "Everyone"
+        case .mine: "My cabals"
         case .following: "Following"
+        }
+    }
+}
+
+extension FeedScope {
+    var wire: Operations.GetFeed.Input.Query.ScopePayload {
+        switch self {
+        case .everyone: .all
+        case .mine: .mine
+        case .following: .following
         }
     }
 }
@@ -69,7 +81,7 @@ public struct FeedQuery: Equatable, Sendable {
         return .init(
             kind: kinds.isEmpty ? nil : kinds.joined(separator: ","),
             q: q.isEmpty ? nil : q,
-            scope: scope == .everyone ? .all : .following,
+            scope: scope.wire,
             cursor: cursor,
             limit: limit
         )

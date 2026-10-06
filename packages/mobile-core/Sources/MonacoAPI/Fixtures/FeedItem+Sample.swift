@@ -25,6 +25,8 @@ extension Components.Schemas.FeedItem {
             title: "Sam joined Weekend investors", detail: nil, comments: 1, minutesAgo: 60 * 26),
     ]
 
+    private static let actorNames = ["Maya", "Alex", "Jordan", "Sam"]
+
     private static func sample(
         _ number: Int, kind: String, refType: String, cabalID: String?, actor: Int?, symbol: String?,
         title: String, detail: String?, body: String? = nil, status: String? = nil, tone: String = "neutral",
@@ -34,7 +36,11 @@ extension Components.Schemas.FeedItem {
         return Self(
             id: String(format: "00000000-0000-7000-8000-0000000fe%03d", number), kind: kind, refType: refType,
             refId: String(format: "00000000-0000-7000-8000-0000000fa%03d", number), cabalId: cabalID,
-            actorId: actor.map { String(format: "00000000-0000-7000-8000-0000000fb%03d", $0) }, symbol: symbol,
+            cabalName: cabalID.map { _ in "Weekend investors" },
+            actorId: actor.map { String(format: "00000000-0000-7000-8000-0000000fb%03d", $0) },
+            actorName: actor.map { actorNames[$0 - 1] },
+            assetId: symbol.map { _ in String(format: "00000000-0000-7000-8000-0000000fd%03d", number) },
+            symbol: symbol,
             title: title, detail: detail, body: body, status: status, tone: tone, commentCount: comments,
             createdAt: created, updatedAt: created)
     }
