@@ -22,6 +22,16 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertEqual(model.maxMicros, 500_000_000)
     }
 
+    func testTypingAReasonKeepsItAndStopsAtTheLimit() {
+        let model = ProposeAmountModel(service: PreviewService(), cabalID: "cabal", trade: Self.buy, clock: TestClock())
+
+        model.setThesis("Earnings next week")
+        XCTAssertEqual(model.thesis, "Earnings next week")
+        model.setThesis(String(repeating: "a", count: ProposeReasonRules.thesisLimit + 20))
+
+        XCTAssertEqual(model.thesis.count, ProposeReasonRules.thesisLimit)
+    }
+
     func testReviewGatesZeroLoadingAndAdvisories() async {
         let clock = TestClock()
         let service = PreviewService(code: "pot_exceeded")

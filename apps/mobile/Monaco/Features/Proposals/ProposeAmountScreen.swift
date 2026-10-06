@@ -34,7 +34,7 @@ struct ProposeAmountScreen: View {
                 } else {
                     TextField(
                         model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?",
-                        text: Binding(get: { model.thesis }, set: { model.thesis = $0 }), axis: .vertical
+                        text: Binding(get: { model.thesis }, set: { model.setThesis($0) }), axis: .vertical
                     )
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("propose-amount-reason")

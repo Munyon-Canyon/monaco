@@ -6,7 +6,7 @@ public final class ProposeAmountModel {
     public private(set) var amountMicros: Int64 = 0
     public private(set) var preview: ProposePreview?
     public private(set) var isLoading = false
-    public var thesis = "" { didSet { thesis = ProposeReasonRules.limited(thesis) } }
+    public private(set) var thesis = ""
     public let trade: ProposeTrade
 
     private let service: ProposeService
@@ -39,6 +39,8 @@ public final class ProposeAmountModel {
         guard case .sell(let holding) = trade else { return false }
         return amountMicros > holding.valueMicros
     }
+
+    public func setThesis(_ text: String) { thesis = ProposeReasonRules.limited(text) }
 
     public func setAmount(micros: Int64) {
         amountMicros = max(0, micros)
