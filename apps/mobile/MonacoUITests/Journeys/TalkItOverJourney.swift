@@ -117,7 +117,6 @@ enum TalkItOverJourney {
             if list.exists { list.swipeLeft() }
             swipes += 1
         }
-        if !found.exists { print("JOURNEYDEBUG\n\(app.debugDescription)") }
         XCTAssertTrue(found.exists, "\(step): no card for \(cabal(run: run)) on the Cabals tab")
         return found
     }
