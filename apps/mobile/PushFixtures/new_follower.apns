@@ -1,0 +1,11 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "New follower",
+      "body": "Maya (@maya) followed you"
+    }
+  },
+  "kind": "new_follower",
+  "user_id": "01920000-0000-7000-8000-000000000d01"
+}

@@ -1,0 +1,12 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "New proposal in QA cabal",
+      "body": "Maya wants to buy $25.00 of Apple. Vote now."
+    }
+  },
+  "kind": "proposal_created",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01",
+  "proposal_id": "01920000-0000-7000-8000-000000000a01"
+}

@@ -1,0 +1,10 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "Deposit received",
+      "body": "$25.00 is in your account balance."
+    }
+  },
+  "kind": "deposit_credited"
+}

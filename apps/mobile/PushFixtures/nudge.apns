@@ -1,0 +1,11 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "Find your friends on Monaco",
+      "body": "Add your number to see who you know."
+    }
+  },
+  "kind": "nudge",
+  "user_id": "01920000-0000-7000-8000-000000000d02"
+}

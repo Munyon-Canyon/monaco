@@ -1,0 +1,16 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "Monaco",
+      "body": "This push carries a payload the app cannot read."
+    }
+  },
+  "kind": 7,
+  "cabal_id": "not-a-uuid",
+  "txn_id": [
+    "not",
+    "a",
+    "string"
+  ]
+}

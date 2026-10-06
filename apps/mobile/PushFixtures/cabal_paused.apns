@@ -1,0 +1,11 @@
+{
+  "Simulator Target Bundle": "com.monaco.app",
+  "aps": {
+    "alert": {
+      "title": "QA cabal is paused",
+      "body": "Trading is on hold while we check something. Your money is safe; we'll tell you when it resumes."
+    }
+  },
+  "kind": "cabal_paused",
+  "cabal_id": "01920000-0000-7000-8000-000000000c01"
+}
