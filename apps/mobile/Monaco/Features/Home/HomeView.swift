@@ -19,30 +19,14 @@ enum HomeScreenState: Equatable {
     }
 }
 
-/// Home dashboard. Order: hero → balance row → "Needs your vote" (if any) →
-/// "Your cabals" → "Top investors". The hero is the title — no large nav title competes
-/// with it.
+/// Home dashboard shell.
 struct HomeView: View {
     @ObservedObject var auth: PrivyAuthService
     @Binding var selectedTab: MainTab
     @Environment(AppSessionStore.self) private var session
 
-    @State private var leaderboard = HomeLeaderboardModel()
     @State private var isRetrying = false
     @State private var toast: MonacoToast?
-
-    private var joinedCabals: [HomeGroupBoardRowDTO] {
-        session.joinedCabals
-    }
-
-    private var leaderboardSource: LiveHomeLeaderboardDashboardSource {
-        LiveHomeLeaderboardDashboardSource(auth: auth, session: session)
-    }
-
-    /// The range the board on screen was built with, straight from the payload.
-    private var loadedLeaderboardRange: String? {
-        session.dashboard?.leaderboard.range
-    }
 
     var body: some View {
         Group {
@@ -50,8 +34,8 @@ struct HomeView: View {
             case .loading:
                 // Skeleton until the dashboard lands (#217: session and dashboard load separately).
                 HomeSkeletonView()
-            case .loaded(let dashboard):
-                dashboardScroll(dashboard)
+            case .loaded:
+                dashboardScroll
             case .failed(let message):
                 failedScroll(message)
             }
@@ -66,9 +50,6 @@ struct HomeView: View {
         }
         .refreshable {
             await pullToRefresh()
-        }
-        .onChange(of: loadedLeaderboardRange) { _, _ in
-            leaderboard.reconcile(from: leaderboardSource)
         }
         .pollWhileVisible(every: LiveRefreshCadence.resting) {
             try await session.pollLive(auth: auth)
@@ -97,22 +78,11 @@ struct HomeView: View {
         .accessibilityIdentifier("home-profile-avatar")
     }
 
-    private func dashboardScroll(_ dashboard: HomeDashboardDTO) -> some View {
+    private var dashboardScroll: some View {
         ScrollView {
-            // No horizontal padding on the stack: the ruled lists run edge to edge, and each
-            // section insets its own header and figures.
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                HomeLeaderboardSection(
-                    auth: auth,
-                    model: leaderboard,
-                    people: dashboard.leaderboard.people,
-                    hasCabals: !joinedCabals.isEmpty,
-                    onSelect: { leaderboard.select($0, from: leaderboardSource) },
-                    onRetry: { leaderboard.retry(from: leaderboardSource) }
-                )
-            }
-            .padding(.top, MonacoTheme.Space.s)
-            .padding(.bottom, MonacoTheme.Space.xl)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {}
+                .padding(.top, MonacoTheme.Space.s)
+                .padding(.bottom, MonacoTheme.Space.xl)
         }
     }
 
@@ -167,7 +137,7 @@ struct HomeView: View {
     }
 
     private func refreshHome() async {
-        await session.refresh(auth: auth, leaderboardRange: leaderboard.selectedRange)
+        await session.refresh(auth: auth)
     }
 
 }
