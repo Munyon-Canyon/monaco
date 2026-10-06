@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
@@ -141,18 +143,59 @@ func TestReplayAndBackfill_refuseBadArgumentsAndUnusableDatabases(t *testing.T) 
 	}
 }
 
+func withPostHogKey() config.Config {
+	return config.Config{
+		PostHog:  config.PostHog{APIKey: "ph-test-key", Host: "http://127.0.0.1:1"},
+		Timeouts: config.Timeouts{PostHog: time.Second},
+	}
+}
+
+func sortedNames(specs []bus.HandlerSpec) []string {
+	names := make([]string, len(specs))
+	for i, h := range specs {
+		names[i] = h.Name
+	}
+	slices.Sort(names)
+	return names
+}
+
 func TestProjections_buildTheRegisteredModulesWhenAPostHogKeyIsSet(t *testing.T) {
 	t.Parallel()
 	defer func() {
 		if r := recover(); r != nil {
-			t.Fatalf("projections panicked with a PostHog key set: %v", r)
+			t.Fatalf("handlers panicked with a PostHog key set: %v", r)
 		}
 	}()
-	cfg := config.Config{
-		PostHog:  config.PostHog{APIKey: "ph-test-key", Host: "http://127.0.0.1:1"},
-		Timeouts: config.Timeouts{PostHog: time.Second},
+	got := sortedNames(handlers(withPostHogKey(), nil, nil, &replay.Clock{}))
+	if !slices.Contains(got, "analytics.posthog.proposal.passed") {
+		t.Fatalf("handlers = %v, want analytics.posthog.proposal.passed so backfill can resolve it", got)
 	}
-	if got := projections(cfg, nil, nil, &replay.Clock{}); got == nil {
-		t.Fatal("projections returned no handlers, want the registered projections")
+}
+
+func TestProjections_leaveOutEveryConsumerThatIsNotAProjection(t *testing.T) {
+	t.Parallel()
+	want := []string{
+		"ranking.membership", "ranking.membership.left", "ranking.names",
+		"social.feed", "social.feed.cabal_updated", "social.feed.joined", "social.feed.left",
+		"social.feed.profile_updated",
+		"system.echo",
+		"treasury.activity.confirmed", "treasury.activity.failed", "treasury.activity.fund_failed",
+		"treasury.activity.fund_submitted", "treasury.activity.funded", "treasury.activity.submitted",
+	}
+	if got := sortedNames(projections(withPostHogKey(), nil, nil, &replay.Clock{})); !slices.Equal(got, want) {
+		t.Fatalf("projections = %v, want the handlers of the five projection durables %v", got, want)
+	}
+}
+
+func TestBackfill_resolvesAHandlerOfAConsumerThatReplayLeavesOut(t *testing.T) {
+	t.Parallel()
+	env := opsEnv(testkit.DB(t).Config().ConnString())
+	env = append(env, "POSTHOG_API_KEY=ph-test-key", "POSTHOG_HOST=http://127.0.0.1:1")
+	code, stdout, stderr := runOps(
+		env, "backfill", "--consumer", "analytics.posthog.proposal.passed", "--types", "proposal.passed",
+	)
+	const want = "backfill analytics.posthog.proposal.passed: 0 events, 0 applied, 0 duplicate\n"
+	if code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("backfill: code=%d stdout=%q stderr=%q, want %q", code, stdout, stderr, want)
 	}
 }

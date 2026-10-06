@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -111,11 +112,30 @@ func closePools(pools []*pgxpool.Pool) {
 	}
 }
 
-func projections(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.HandlerSpec {
-	set := registered.Build(module.Deps{
+func registeredConsumers(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.Consumer {
+	return registered.Build(module.Deps{
 		Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: uow, HTTPClient: httpclient.New,
-	})
-	return replay.Handlers(set.Consumers())
+	}).Consumers()
+}
+
+func handlers(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.HandlerSpec {
+	return replay.Handlers(registeredConsumers(cfg, pool, uow, clk))
+}
+
+func projectionDurables() map[string]bool {
+	return map[string]bool{
+		"system_echo":        true,
+		"social_feed":        true,
+		"ranking_membership": true,
+		"ranking_names":      true,
+		"treasury_activity":  true,
+	}
+}
+
+func projections(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.HandlerSpec {
+	keep := projectionDurables()
+	all := registeredConsumers(cfg, pool, uow, clk)
+	return replay.Handlers(slices.DeleteFunc(all, func(c bus.Consumer) bool { return !keep[c.Durable] }))
 }
 
 func fail(stderr io.Writer, err error) int {

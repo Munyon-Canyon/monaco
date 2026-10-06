@@ -82,3 +82,4 @@ Work that can outlast the ack wait calls `stop := bus.KeepAlive(ctx)` and `defer
 - [ ] Post-commit side effects use `tx.AfterCommit`.
 - [ ] The chaos test converges.
 - [ ] The file of each flow that reaches the handler names it in `consumers`.
+- [ ] A consumer that rebuilds a derived table joins `projectionDurables` in `apps/backend/cmd/monacoctl/replay.go`, so `monacoctl replay` runs it.

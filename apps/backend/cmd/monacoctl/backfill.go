@@ -58,8 +58,8 @@ func consumerBackfillTool(environ []string) tool {
 		defer closePools(pools)
 		clk := &replay.Clock{}
 		uow := db.New(pools[0], ids.Real{}, clk)
-		handlers := projections(cfg, pools[0], uow, clk)
-		i := slices.IndexFunc(handlers, func(h bus.HandlerSpec) bool { return h.Name == *handler })
+		all := handlers(cfg, pools[0], uow, clk)
+		i := slices.IndexFunc(all, func(h bus.HandlerSpec) bool { return h.Name == *handler })
 		if i < 0 {
 			_, _ = fmt.Fprintf(stderr, "monacoctl: no registered handler %q\n", *handler)
 			return 1
@@ -69,7 +69,7 @@ func consumerBackfillTool(environ []string) tool {
 			typs = append(typs, events.Type(t))
 		}
 		rep, err := replay.Backfill(ctx, replay.BackfillOptions{
-			Pool: pools[0], UoW: uow, Clock: clk, Now: clock.Real{}, Handler: handlers[i], Types: typs, Since: sinceID,
+			Pool: pools[0], UoW: uow, Clock: clk, Now: clock.Real{}, Handler: all[i], Types: typs, Since: sinceID,
 		})
 		_, _ = fmt.Fprintf(stdout, "backfill %s: %d events, %d applied, %d duplicate\n",
 			*handler, rep.Events, rep.Applied, rep.Duplicates)
