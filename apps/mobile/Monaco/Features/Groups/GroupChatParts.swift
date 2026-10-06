@@ -65,11 +65,12 @@ struct GroupChatClosedNotice: View {
 }
 
 struct ChatSkeleton: View {
+    var bottomAligned = true
     private let bubbles: [(mine: Bool, width: CGFloat)] = [(false, 188), (true, 152), (false, 216)]
 
     var body: some View {
         VStack(spacing: 6) {
-            Spacer(minLength: 0)
+            if bottomAligned { Spacer(minLength: 0) }
             ForEach(Array(bubbles.enumerated()), id: \.offset) { _, bubble in
                 HStack(spacing: 0) {
                     if bubble.mine { Spacer(minLength: 56) }
@@ -77,6 +78,7 @@ struct ChatSkeleton: View {
                     if !bubble.mine { Spacer(minLength: 56) }
                 }
             }
+            if !bottomAligned { Spacer(minLength: 0) }
         }
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.bottom, MonacoTheme.Space.sm)

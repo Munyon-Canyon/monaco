@@ -9,10 +9,12 @@ struct ChatThreadView: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var thread: ThreadSession?
     @State private var chat: ChatSession?
+    @State private var channelParent: ChatMessage?
 
     var body: some View {
         ChatThreadScreen(
             thread: thread,
+            loadingParent: channelParent,
             deleteMessage: { id in await chat?.delete(messageId: id) },
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
@@ -25,6 +27,10 @@ struct ChatThreadView: View {
         if let thread { return thread }
         let chat = ChatSessionRegistry.session(for: cabalID) ?? standaloneChat()
         self.chat = chat
+        for await state in await chat.states() {
+            channelParent = state.timeline.message(id: parentID)
+            break
+        }
         let created = await chat.thread(parentId: parentID)
         thread = created
         return created
@@ -45,6 +51,7 @@ struct ChatThreadView: View {
 
 struct ChatThreadScreen: View {
     let thread: ThreadSession?
+    var loadingParent: ChatMessage?
     let deleteMessage: (String) async -> APIError?
     let openProfile: (String) -> Void
 
@@ -94,6 +101,12 @@ struct ChatThreadScreen: View {
             GroupChatLoadFailureView(message: ChatThreadCopy.loadFailure) { Task { await thread?.reload() } }
         } else if state?.isClosed == true {
             Spacer()
+        } else if let loadingParent {
+            VStack(alignment: .leading, spacing: 0) {
+                ChatThreadParent(parent: loadingParent, openProfile: openProfile)
+                    .padding(.horizontal, 16)
+                ChatSkeleton(bottomAligned: false)
+            }
         } else {
             ChatSkeleton()
         }
