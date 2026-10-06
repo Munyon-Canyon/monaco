@@ -14,6 +14,7 @@ import (
 type HTTP struct {
 	Codes  app.Resolver
 	Attach *app.AttachReferralHandler
+	Click  *app.RecordReferralClickHandler
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -67,6 +68,15 @@ func (h HTTP) GetReferral(
 		return nil, err
 	}
 	return lookup(&referrer), nil
+}
+
+func (h HTTP) RecordReferralClick(
+	ctx context.Context, req api.RecordReferralClickRequestObject,
+) (api.RecordReferralClickResponseObject, error) {
+	if err := h.Click.Handle(ctx, app.RecordReferralClick{Code: req.Body.Code}); err != nil {
+		return nil, err
+	}
+	return api.RecordReferralClick204Response{}, nil
 }
 
 func (h HTTP) referrerOf(ctx context.Context, code string) (api.ReferralReferrer, error) {

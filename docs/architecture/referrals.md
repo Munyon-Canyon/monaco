@@ -38,6 +38,7 @@ Every user has a **random code** from account creation. After the unlock, their 
 | --- | --- |
 | `GET /v1/me/referral-code` | The user's random code and link, plus the handle link once unlocked. |
 | `GET /v1/referrals/{code}` | Public, no auth, cached for 5 minutes. The referrer's id, display name, photo and handle for a code. A code that does not resolve gets the same 200 with `referrer: null`, so the answer never says why. The `/r/<code>` web page calls it ([Web](#web)). |
+| `POST /v1/referrals/clicks` | Public, no auth, with a random UUID as the `Idempotency-Key` for each tap and a limit of 20 requests a minute per IP. Adds one to the code's count for the current UTC day, so a retry with the same key counts once. A code that does not resolve is not counted and still answers 204. The `/r/<code>` web page calls it when the visitor taps "Get Monaco" ([Web](#web)). |
 
 Handle availability and changes are `identity` routes ([auth.md](auth.md#handle)).
 

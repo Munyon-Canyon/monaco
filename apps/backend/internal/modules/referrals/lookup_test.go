@@ -56,6 +56,9 @@ func TestReferralLookup_namesTheReferrerOfARandomCodeOrAnUnlockedHandle(t *testi
 		"referrer without a photo": {
 			owner{handle: "kaicenat", code: "k7m4qx2p", name: "Kai"}, "k7m4qx2p", nil,
 		},
+		"handle named like the click route": {
+			owner{handle: "clicks", unlocked: true, name: "Kai", photo: kaiPhoto}, "clicks", kaiPhoto,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -67,7 +70,7 @@ func TestReferralLookup_namesTheReferrerOfARandomCodeOrAnUnlockedHandle(t *testi
 				t.Fatalf("GET %s body %q: %v", tt.input, got.body, err)
 			}
 			want := map[string]any{"referrer": map[string]any{
-				"user_id": id.String(), "display_name": "Kai", "photo_url": tt.photo, "handle": "kaicenat",
+				"user_id": id.String(), "display_name": "Kai", "photo_url": tt.photo, "handle": tt.owner.handle,
 			}}
 			if got.status != http.StatusOK || got.cache != "public, max-age=300" || !reflect.DeepEqual(body, want) {
 				t.Fatalf("GET %s = %+v, want 200 %v with Cache-Control public, max-age=300", tt.input, got, want)
@@ -101,6 +104,22 @@ func TestReferralLookup_UnknownAndLockedLookIdentical(t *testing.T) {
 		if got := answerOf(s.lookup(t, code)); got != miss {
 			t.Errorf("%s: GET %s = %+v, want what an unknown code gets: %+v", name, code, got, miss)
 		}
+	}
+}
+
+func TestReferralLookup_theSixtyFirstLookupInAMinuteIsRateLimited(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	seedOwner(t, s.pool, owner{handle: "kaicenat", code: "k7m4qx2p", name: "Kai"})
+	for i := range 60 {
+		if got := s.lookup(t, "k7m4qx2p"); got.Code != http.StatusOK {
+			t.Fatalf("lookup %d = %d %s, want 200 inside the burst of 60", i+1, got.Code, got.Body)
+		}
+	}
+	expectRateLimited(t, s.lookup(t, "k7m4qx2p"))
+	s.clock.Advance(time.Second)
+	if got := s.lookup(t, "k7m4qx2p"); got.Code != http.StatusOK {
+		t.Fatalf("lookup a second later = %d %s, want 200: the bucket refills a token a second", got.Code, got.Body)
 	}
 }
 

@@ -46,6 +46,9 @@ func (m *Module) http() adapters.HTTP {
 		Attach: app.NewAttachReferralHandler(app.AttachReferralDeps{
 			UoW: m.deps.UoW, Resolver: resolver, Users: users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
+		Click: app.NewRecordReferralClickHandler(app.RecordReferralClickDeps{
+			Resolver: resolver, Reads: m.deps.Pool, Clock: m.deps.Clock,
+		}),
 	}
 }
 
