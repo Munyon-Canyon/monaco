@@ -317,8 +317,6 @@ struct GroupDetailContent: View {
                         onToast(MonacoToast(message: message, isSuccess: true))
                     }
                 }
-
-                MemberBoardSection(members: view.members, currentUserId: currentUserId)
             }
             .padding(.bottom, MonacoTheme.Space.xl)
         }

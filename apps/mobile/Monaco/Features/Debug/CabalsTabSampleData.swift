@@ -95,24 +95,6 @@ enum CabalsTabSampleData {
             return created
         }
     }
-
-    @MainActor
-    struct DataSource: CabalsTabDataSource {
-        func leaderboard() async throws -> GroupLeaderboardResponseDTO {
-            let ranked =
-                cabals
-                .filter { $0.percent != nil }
-                .sorted { (Double($0.percent ?? "0") ?? 0) > (Double($1.percent ?? "0") ?? 0) }
-            return GroupLeaderboardResponseDTO(
-                groups: ranked.enumerated().map { index, cabal in
-                    GroupLeaderboardRowDTO(
-                        rank: index + 1, groupID: cabal.id, name: cabal.name, memberCount: cabal.members,
-                        potValueUsd: cabal.pot, percentReturn: cabal.percent, dollarPnl: cabal.pnl,
-                        isJoined: cabal.joined, joinMode: cabal.mode
-                    )
-                })
-        }
-    }
 }
 
 /// Root view for `-MonacoCabalsTabSample`: the Cabals tab on sample data.
@@ -133,11 +115,7 @@ struct CabalsTabSampleHarness: View {
     var body: some View {
         TabView {
             NavigationStack {
-                CabalsTabView(
-                    auth: auth,
-                    dataSource: CabalsTabSampleData.DataSource(),
-                    actions: CabalsTabSampleData.Actions()
-                )
+                CabalsTabView(auth: auth, actions: CabalsTabSampleData.Actions())
             }
             .tabItem {
                 Label("Cabals", systemImage: "person.3")

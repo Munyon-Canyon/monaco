@@ -2,12 +2,11 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-/// Cabals tab: your cabals strip and the platform-wide board.
+/// Cabals tab: your cabals strip.
 struct CabalsTabView: View {
     @ObservedObject var auth: PrivyAuthService
     @Environment(AppSessionStore.self) private var session
     @Environment(\.accountRestricted) private var accountRestricted
-    @State private var model: CabalsTabModel
     @State private var showNewCabalSheet = false
     /// The pushed screen, if any. One item for the whole tab: see `CabalsRoute`.
     @State private var route: CabalsRoute?
@@ -22,19 +21,9 @@ struct CabalsTabView: View {
 
     private let actions: CabalsActionSource
 
-    init(
-        auth: PrivyAuthService,
-        dataSource: CabalsTabDataSource? = nil,
-        actions: CabalsActionSource
-    ) {
+    init(auth: PrivyAuthService, actions: CabalsActionSource) {
         self.auth = auth
         self.actions = actions
-        _model = State(initialValue: CabalsTabModel(dataSource: dataSource ?? LiveCabalsTabDataSource(auth: auth)))
-    }
-
-    /// Membership as a set: the board reordering its rows is not a membership change.
-    private var joinedIDs: Set<String> {
-        Set(session.joinedCabals.map(\.groupId))
     }
 
     /// "No cabals yet" is only true once we have actually heard from the server.
@@ -58,7 +47,6 @@ struct CabalsTabView: View {
                         onSelect: { route = $0 },
                         onRetry: { Task { await loadCabals() } }
                     )
-                    CabalsLeaderboardSection(model: model, onSelect: { route = $0 })
                 }
                 .padding(.bottom, MonacoTheme.Space.xl)
             }
@@ -117,11 +105,6 @@ struct CabalsTabView: View {
         }
         .task {
             if session.home == nil { await loadCabals() }
-            await model.reload()
-        }
-        .onChange(of: joinedIDs) { _, _ in
-            // Joined, created, or left a cabal somewhere in the app.
-            Task { await model.reload() }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-root")
@@ -135,7 +118,6 @@ struct CabalsTabView: View {
         async let profile: Void = session.refresh(auth: auth)
         async let cabals: Void = loadCabals()
         _ = await (profile, cabals)
-        await model.reload()
     }
 
     private func loadCabals() async {
@@ -150,12 +132,9 @@ struct CabalsTabView: View {
     let session = AppSessionStore(apiClient: MonacoAPIClient())
     session.home = CabalsTabSampleData.home
     return NavigationStack {
-        CabalsTabView(
-            auth: PrivyAuthService(), dataSource: CabalsTabSampleData.DataSource(),
-            actions: CabalsTabSampleData.Actions()
-        )
-        .environment(session)
-        .monacoRootAppearance()
+        CabalsTabView(auth: PrivyAuthService(), actions: CabalsTabSampleData.Actions())
+            .environment(session)
+            .monacoRootAppearance()
     }
 }
 #endif
