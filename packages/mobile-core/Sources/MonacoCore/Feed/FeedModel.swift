@@ -26,6 +26,7 @@ public final class FeedModel {
     private var checkingFollows = false
 
     private let api: APIClient
+    private let mutes: FeedMuteService
     private let viewerID: String?
     private let hints: any HintSource
     private let clock: any Clock<Duration>
@@ -35,6 +36,7 @@ public final class FeedModel {
 
     public init(api: APIClient, viewerID: String?, hints: any HintSource, clock: any Clock<Duration>) {
         self.api = api
+        mutes = FeedMuteService(api: api)
         self.viewerID = viewerID
         self.hints = hints
         self.clock = clock
@@ -127,6 +129,36 @@ public final class FeedModel {
         refresher.setVisible(visible)
     }
 
+    public func muteOptions(for item: Components.Schemas.FeedItem) -> [FeedMuteOption] {
+        FeedMuteOption.options(for: item, viewerID: viewerID)
+    }
+
+    public func mute(_ option: FeedMuteOption) async -> FeedMuteReceipt? {
+        do {
+            try await mutes.mute(option.target)
+        } catch {
+            fail(APIError(error))
+            return nil
+        }
+        pager.remove { FeedMuteMatcher.removes(option.target, $0) }
+        return FeedMuteReceipt(target: option.target, message: option.toast)
+    }
+
+    public func undo(_ receipt: FeedMuteReceipt) async {
+        do {
+            try await mutes.unmute(receipt.target)
+        } catch {
+            fail(APIError(error))
+            return
+        }
+        await reload()
+    }
+
+    private func fail(_ error: APIError) {
+        lastError = error
+        failureTick += 1
+    }
+
     private func apply(_ next: FeedQuery) async {
         query = next
         pager = Self.pager(api: api, query: next)
@@ -159,4 +191,9 @@ public final class FeedModel {
             return (page.items, page.nextCursor)
         }
     }
+}
+
+public struct FeedMuteReceipt: Equatable, Sendable {
+    public let target: FeedMuteTarget
+    public let message: String
 }

@@ -20,8 +20,9 @@ final class FeedQueryTests: XCTestCase {
 
     func testEachScopeSendsItsWireValue() {
         XCTAssertEqual(FeedQuery(scope: .everyone).parameters(cursor: nil, limit: 30).scope, .all)
+        XCTAssertEqual(FeedQuery(scope: .mine).parameters(cursor: nil, limit: 30).scope, .mine)
         XCTAssertEqual(FeedQuery(scope: .following).parameters(cursor: nil, limit: 30).scope, .following)
-        XCTAssertEqual(FeedScope.allCases.map(\.title), ["Everyone", "Following"])
+        XCTAssertEqual(FeedScope.allCases.map(\.title), ["Everyone", "My cabals", "Following"])
     }
 
     func testSearchIsTrimmedAndABlankOneSendsNoQ() {
