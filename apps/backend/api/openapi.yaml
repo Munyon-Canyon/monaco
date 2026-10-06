@@ -1670,6 +1670,31 @@ paths:
                 $ref: "#/components/schemas/ChatSeenMark"
         default:
           $ref: "#/components/responses/Problem"
+    get:
+      operationId: getChatSeenBy
+      tags: [social]
+      summary: List who has seen a chat message.
+      description: >-
+        Returns the other members whose seen watermark is at or after the message, newest first,
+        and their count. The message's author is left out, and so is a member who left the cabal.
+        A message that is not in this cabal is chat_message_not_found. Only a member can read,
+        otherwise not_cabal_member.
+      parameters:
+        - $ref: "#/components/parameters/ChatCabalId"
+        - name: message_id
+          in: query
+          required: true
+          description: The message to read the seen list of.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      responses:
+        "200":
+          description: Who has seen the message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSeenBy"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/messages:
     post:
       operationId: postChatMessage
@@ -4423,7 +4448,7 @@ components:
       type: object
       description: One chat message.
       additionalProperties: false
-      required: [id, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted]
+      required: [id, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted, seen_count]
       properties:
         id: {type: string, format: uuid, description: "The message id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         author:
@@ -4448,6 +4473,25 @@ components:
           description: The proposal a proposal card message is about. Null otherwise.
           examples: [null]
         deleted: {type: boolean, description: True on a deleted top-level message kept for its thread., examples: [false]}
+        seen_count:
+          type: [integer, "null"]
+          description: >-
+            How many other members have seen the message. Set only on the newest channel message
+            of a channel read without `before`, and null everywhere else.
+          examples: [null]
+    ChatSeenBy:
+      type: object
+      description: The members who have seen a message.
+      additionalProperties: false
+      required: [count, members]
+      properties:
+        count: {type: integer, description: How many other members have seen it., examples: [1]}
+        members:
+          type: array
+          description: Newest watermark first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/ChatSeenMember"
     ChatSeenMark:
       type: object
       description: The caller's seen watermark.
@@ -4455,6 +4499,16 @@ components:
       required: [last_seen_at]
       properties:
         last_seen_at: {type: string, format: date-time, description: The watermark after the call., examples: ["2026-10-03T12:00:00Z"]}
+    ChatSeenMember:
+      type: object
+      description: A member who has seen a message. A deleted account has a null handle and an empty name.
+      additionalProperties: false
+      required: [user_id, handle, display_name, photo_url]
+      properties:
+        user_id: {type: string, format: uuid, description: "The member's user id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+        display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+        photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
     ChatThread:
       type: object
       description: A top-level message and one page of its replies.

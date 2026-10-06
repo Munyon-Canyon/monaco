@@ -105,6 +105,34 @@ func (h HTTP) MarkChatSeen(
 	return api.MarkChatSeen200JSONResponse{LastSeenAt: seen}, nil
 }
 
+func (h HTTP) GetChatSeenBy(
+	ctx context.Context, req api.GetChatSeenByRequestObject,
+) (api.GetChatSeenByResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen, err := app.GetChatSeenBy(ctx, h.Reads, h.Members, app.ChatSeenByQuery{
+		CabalID: ids.CabalIDFrom(req.Id), Viewer: me, MessageID: req.Params.MessageId,
+	})
+	if err != nil {
+		return nil, err
+	}
+	cards, err := h.Users.UsersByID(ctx, seen.Members)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "social.GetChatSeenBy")
+	}
+	members := make([]api.ChatSeenMember, len(seen.Members))
+	for i, id := range seen.Members {
+		members[i] = api.ChatSeenMember{UserId: id.UUID()}
+		if card, ok := cards[id]; ok && !card.Deleted {
+			members[i].Handle, members[i].DisplayName = optionalWireText(card.Handle), card.DisplayName
+			members[i].PhotoUrl = optionalWireText(card.PhotoURL)
+		}
+	}
+	return api.GetChatSeenBy200JSONResponse{Count: len(members), Members: members}, nil
+}
+
 func postChatCommand(cabal ids.CabalID, me ids.UserID, body *api.PostChatMessageRequest) (app.PostChatMessage, error) {
 	const op = "social.PostChatMessage"
 	if body == nil {
@@ -167,7 +195,7 @@ func wireChat(ctx context.Context, users app.Users, messages []app.ChatMessage) 
 		out[i] = api.ChatMessage{
 			Id: m.ID, Author: author, CreatedAt: m.CreatedAt, ParentId: optionalWireID(m.ParentID),
 			AlsoInChannel: m.AlsoInChannel, ReplyCount: int(m.ReplyCount), LastReplyAt: m.LastReplyAt,
-			ProposalId: optionalWireID(m.ProposalID), Deleted: m.Deleted,
+			ProposalId: optionalWireID(m.ProposalID), Deleted: m.Deleted, SeenCount: m.SeenCount,
 		}
 		if !m.Deleted {
 			out[i].Body = &m.Body

@@ -492,6 +492,7 @@ func TestChatRoutes_publishedMessagesAreTheSameJSONAsTheChannelRows(t *testing.T
 			t.Fatal(err)
 		}
 		for _, row := range rows {
+			row.SeenCount = nil
 			if row.Id == id && reflect.DeepEqual(got, row) {
 				return
 			}
