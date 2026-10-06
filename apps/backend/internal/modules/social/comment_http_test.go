@@ -155,6 +155,10 @@ func (brokenUsers) UserIDsByHandles(context.Context, []string) (map[string]ids.U
 	return nil, errs.New(errs.CodeUpstreamUnavailable, "test")
 }
 
+func (brokenUsers) UsersByPhoneHashes(context.Context, [][]byte) (map[string]ids.UserID, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "test")
+}
+
 func TestPostFeedComment_aDeletedAuthorShowsOnlyTheId(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)

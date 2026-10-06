@@ -45,6 +45,7 @@ const (
 	CommentNotFound ErrorCode = "comment_not_found"
 	CommentParentMismatch ErrorCode = "comment_parent_mismatch"
 	ConservationBroken ErrorCode = "conservation_broken"
+	ContactHashesInvalid ErrorCode = "contact_hashes_invalid"
 	DbSchemaBehind ErrorCode = "db_schema_behind"
 	DbUnavailable ErrorCode = "db_unavailable"
 	DecodeFailed ErrorCode = "decode_failed"
@@ -120,6 +121,7 @@ const (
 	SwapNotFound ErrorCode = "swap_not_found"
 	SwapNotRetryable ErrorCode = "swap_not_retryable"
 	SwapNotStuck ErrorCode = "swap_not_stuck"
+	TooManyContactHashes ErrorCode = "too_many_contact_hashes"
 	Unauthorized ErrorCode = "unauthorized"
 	UnknownAsset ErrorCode = "unknown_asset"
 	UpstreamTimeout ErrorCode = "upstream_timeout"
@@ -207,6 +209,8 @@ func (e ErrorCode) Valid() bool {
 	case CommentParentMismatch:
 		return true
 	case ConservationBroken:
+		return true
+	case ContactHashesInvalid:
 		return true
 	case DbSchemaBehind:
 		return true
@@ -357,6 +361,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotRetryable:
 		return true
 	case SwapNotStuck:
+		return true
+	case TooManyContactHashes:
 		return true
 	case Unauthorized:
 		return true

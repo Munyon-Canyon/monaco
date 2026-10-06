@@ -13,6 +13,7 @@ type UserCard = port.UserCard
 type Users interface {
 	UsersByID(ctx context.Context, userIDs []ids.UserID) (map[ids.UserID]port.UserCard, error)
 	UserIDsByHandles(ctx context.Context, handles []string) (map[string]ids.UserID, error)
+	UsersByPhoneHashes(ctx context.Context, hashes [][]byte) (map[string]ids.UserID, error)
 }
 
 func statusOf(ctx context.Context, users Users, id ids.UserID) (domain.AccountStatus, error) {

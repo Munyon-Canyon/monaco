@@ -7,3 +7,5 @@ var SocialChatPublishFailed = Msg{
 var SocialChatAuthorUnreadable = Msg{
 	Name: "social.chat_author_unreadable", Required: []string{"message_id", "cause"},
 }
+
+var ContactsMatched = Msg{Name: "social.contacts_matched", Required: []string{"submitted", "matched"}}

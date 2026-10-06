@@ -39,6 +39,7 @@ extension Components.Schemas.ErrorCode {
         case .commentNotFound: true
         case .commentParentMismatch: true
         case .conservationBroken: true
+        case .contactHashesInvalid: true
         case .dbSchemaBehind: true
         case .dbUnavailable: true
         case .decodeFailed: true
@@ -114,6 +115,7 @@ extension Components.Schemas.ErrorCode {
         case .swapNotFound: true
         case .swapNotRetryable: true
         case .swapNotStuck: true
+        case .tooManyContactHashes: true
         case .unauthorized: true
         case .unknownAsset: true
         case .upstreamTimeout: true
