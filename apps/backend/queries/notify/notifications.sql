@@ -33,5 +33,12 @@ WHERE id = sqlc.arg(id) AND state = 'pending';
 SELECT count(*) FROM notifications
 WHERE user_id = $1 AND kind = $2 AND created_at >= $3;
 
+-- name: BatchedFollowCounts :many
+SELECT user_id, count(*) AS followers FROM notifications
+WHERE kind = 'new_follower' AND state = 'batched'
+  AND created_at >= sqlc.arg(since)::timestamptz AND created_at < sqlc.arg(until)::timestamptz
+GROUP BY user_id
+ORDER BY user_id;
+
 -- name: EventActor :one
 SELECT actor_type, actor_id FROM events WHERE id = $1;

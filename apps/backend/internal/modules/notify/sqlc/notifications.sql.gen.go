@@ -13,6 +13,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const batchedFollowCounts = `-- name: BatchedFollowCounts :many
+SELECT user_id, count(*) AS followers FROM notifications
+WHERE kind = 'new_follower' AND state = 'batched'
+  AND created_at >= $1::timestamptz AND created_at < $2::timestamptz
+GROUP BY user_id
+ORDER BY user_id
+`
+
+type BatchedFollowCountsParams struct {
+	Since time.Time
+	Until time.Time
+}
+
+type BatchedFollowCountsRow struct {
+	UserID    uuid.UUID
+	Followers int64
+}
+
+func (q *Queries) BatchedFollowCounts(ctx context.Context, arg BatchedFollowCountsParams) ([]BatchedFollowCountsRow, error) {
+	rows, err := q.db.Query(ctx, batchedFollowCounts, arg.Since, arg.Until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BatchedFollowCountsRow
+	for rows.Next() {
+		var i BatchedFollowCountsRow
+		if err := rows.Scan(&i.UserID, &i.Followers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countKindSince = `-- name: CountKindSince :one
 SELECT count(*) FROM notifications
 WHERE user_id = $1 AND kind = $2 AND created_at >= $3

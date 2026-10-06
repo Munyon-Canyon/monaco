@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -27,6 +28,7 @@ import (
 const (
 	opPush   = "notify.Push"
 	maxSends = 32
+	day      = 24 * time.Hour
 )
 
 type Message struct {
@@ -42,10 +44,15 @@ type Kind[E events.Event] interface {
 	Render(ctx context.Context, e E, to ids.UserID) (Message, error)
 }
 
+type Capped interface {
+	DailyCap() int
+}
+
 type Notification struct {
 	Kind    string
 	UserID  ids.UserID
 	Message Message
+	Cap     int
 }
 
 type Notify[E events.Event] struct {
@@ -70,6 +77,10 @@ func (n Notify[E]) Handle(ctx context.Context, d bus.Delivery, e E) error {
 	}
 	var notes []Notification
 	for i, k := range n.Kinds {
+		limit := 0
+		if c, ok := k.(Capped); ok {
+			limit = c.DailyCap()
+		}
 		for _, to := range recipients[i] {
 			if !eligible[to] {
 				continue
@@ -78,7 +89,7 @@ func (n Notify[E]) Handle(ctx context.Context, d bus.Delivery, e E) error {
 			if err != nil {
 				return err
 			}
-			notes = append(notes, Notification{Kind: k.Name(), UserID: to, Message: msg})
+			notes = append(notes, Notification{Kind: k.Name(), UserID: to, Message: msg, Cap: limit})
 		}
 	}
 	return n.Pusher.Push(ctx, d, notes)
@@ -136,7 +147,7 @@ func (p *Pusher) causingUser(ctx context.Context, event ids.EventID) (string, er
 }
 
 func (p *Pusher) Push(ctx context.Context, d bus.Delivery, notes []Notification) error {
-	if err := p.write(ctx, d, notes); err != nil {
+	if _, err := p.write(ctx, d, notes); err != nil {
 		return err
 	}
 	sendErr := p.send(ctx, d.EventID)
@@ -157,11 +168,13 @@ func (p *Pusher) Push(ctx context.Context, d bus.Delivery, notes []Notification)
 	return sendErr
 }
 
-func (p *Pusher) write(ctx context.Context, d bus.Delivery, notes []Notification) error {
+func (p *Pusher) write(ctx context.Context, d bus.Delivery, notes []Notification) (int, error) {
 	if len(notes) == 0 {
-		return nil
+		return 0, nil
 	}
-	return p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	written := 0
+	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		written = 0
 		q := sqlc.New(tx.Queries())
 		var broadcast uuid.UUID
 		if len(notes) > 1 {
@@ -178,18 +191,45 @@ func (p *Pusher) write(ctx context.Context, d bus.Delivery, notes []Notification
 			broadcast = id
 		}
 		for _, n := range notes {
+			state, err := stateFor(ctx, q, n, d.At)
+			if err != nil {
+				return err
+			}
 			data, _ := json.Marshal(n.Message.Data)
-			_, err := q.InsertNotification(ctx, sqlc.InsertNotificationParams{
+			_, err = q.InsertNotification(ctx, sqlc.InsertNotificationParams{
 				ID: p.ids.NewV7(), BroadcastID: broadcast, UserID: n.UserID.UUID(), Kind: n.Kind,
 				SourceEventID: d.EventID.UUID(), Title: n.Message.Title, Body: n.Message.Body, Data: data,
-				CollapseID: n.Message.CollapseID, State: string(domain.NotificationPending), CreatedAt: d.At,
+				CollapseID: n.Message.CollapseID, State: string(state), CreatedAt: d.At,
 			})
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			switch {
+			case errors.Is(err, sql.ErrNoRows):
+			case err != nil:
 				return err
+			default:
+				written++
 			}
 		}
 		return nil
 	})
+	return written, err
+}
+
+func stateFor(
+	ctx context.Context, q *sqlc.Queries, n Notification, at time.Time,
+) (domain.NotificationState, error) {
+	if n.Cap == 0 {
+		return domain.NotificationPending, nil
+	}
+	today, err := q.CountKindSince(ctx, sqlc.CountKindSinceParams{
+		UserID: n.UserID.UUID(), Kind: n.Kind, CreatedAt: at.UTC().Truncate(day),
+	})
+	switch {
+	case err != nil:
+		return "", err
+	case today >= int64(n.Cap):
+		return domain.NotificationBatched, nil
+	}
+	return domain.NotificationPending, nil
 }
 
 type job struct {
