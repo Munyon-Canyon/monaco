@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+24	Notifications	notify	consumer:notify.test_requested	Notify	notification.sent		ok	built	docs/architecture/notifications.md#sending-go
