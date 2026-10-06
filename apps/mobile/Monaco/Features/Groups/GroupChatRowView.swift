@@ -8,6 +8,8 @@ struct GroupChatRowView: View {
     let openProfile: (String) -> Void
     let retry: (String) -> Void
     var openThread: ((String) -> Void)?
+    var replyHere: (() -> Void)?
+    var requestDelete: ((String) -> Void)?
 
     private var message: ChatMessage { row.message }
 
@@ -25,7 +27,11 @@ struct GroupChatRowView: View {
                     if row.startsRun && !row.isMine { authorHeader }
                     threadHeader
                     bubble
-                        .modifier(ChatMessageMenu(enabled: canOpenMenu, reply: { openThread?(rootID) }))
+                        .modifier(
+                            ChatMessageMenu(
+                                enabled: canOpenMenu,
+                                reply: replyHere ?? { openThread?(rootID) },
+                                delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil))
                     footer
                 }
                 if !row.isMine { Spacer(minLength: 56) }
@@ -96,7 +102,7 @@ struct GroupChatRowView: View {
     private var rootID: String { message.parentId ?? message.id }
 
     private var canOpenMenu: Bool {
-        openThread != nil && !message.deleted && row.delivery == .sent
+        (openThread != nil || replyHere != nil) && !message.deleted && row.delivery == .sent
     }
 
     @ViewBuilder private var threadHeader: some View {
@@ -191,6 +197,7 @@ struct ChatDayRule: View {
 struct ChatMessageMenu: ViewModifier {
     let enabled: Bool
     let reply: () -> Void
+    let delete: (() -> Void)?
 
     @ViewBuilder func body(content: Content) -> some View {
         if enabled {
@@ -200,9 +207,31 @@ struct ChatMessageMenu: ViewModifier {
                 } label: {
                     Label(ChatThreadCopy.reply, systemImage: "arrowshape.turn.up.left")
                 }
+                if let delete {
+                    Button(role: .destructive, action: delete) {
+                        Label(ChatThreadCopy.delete, systemImage: "trash")
+                    }
+                }
             }
         } else {
             content
+        }
+    }
+}
+
+extension View {
+    func chatDeleteConfirmation(messageID: Binding<String?>, confirm: @escaping (String) -> Void) -> some View {
+        confirmationDialog(
+            ChatThreadCopy.deleteTitle,
+            isPresented: Binding(
+                get: { messageID.wrappedValue != nil }, set: { if !$0 { messageID.wrappedValue = nil } }),
+            titleVisibility: .visible,
+            presenting: messageID.wrappedValue
+        ) { id in
+            Button(ChatThreadCopy.delete, role: .destructive) { confirm(id) }
+            Button(ChatThreadCopy.cancel, role: .cancel) {}
+        } message: { _ in
+            Text(ChatThreadCopy.deleteMessage)
         }
     }
 }

@@ -11,6 +11,7 @@ struct GroupChatScreen: View {
 
     @State private var chat: ChatSession.State?
     @State private var toast: MonacoToast?
+    @State private var messageToDelete: String?
     @FocusState private var composerFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
@@ -32,6 +33,7 @@ struct GroupChatScreen: View {
         .onChange(of: scenePhase) { _, phase in handle(phase) }
         .onChange(of: chat?.notice) { _, notice in show(notice) }
         .onDisappear { Task { await session?.close() } }
+        .chatDeleteConfirmation(messageID: $messageToDelete) { id in delete(id) }
         .monacoToast($toast)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat-view")
@@ -74,6 +76,7 @@ struct GroupChatScreen: View {
             isLoadingOlder: chat.isLoadingOlder,
             openProfile: openProfile,
             openThread: openThread,
+            requestDelete: { messageToDelete = $0 },
             retry: { key in Task { await session?.retry(key: key) } },
             loadOlder: { Task { await session?.loadOlder() } },
             refresh: { await session?.reload() }
@@ -103,6 +106,13 @@ struct GroupChatScreen: View {
         case .background: Task { await session.close() }
         case .active: Task { await session.open() }
         default: return
+        }
+    }
+
+    private func delete(_ id: String) {
+        Task {
+            let failure = await session?.delete(messageId: id)
+            toast = MonacoToast(message: failure.map(ToastCopy.message(for:)) ?? GroupChatCopy.deleted)
         }
     }
 
