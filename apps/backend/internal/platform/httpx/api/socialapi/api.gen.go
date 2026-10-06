@@ -364,6 +364,41 @@ type CommentThread struct {
 	Replies []Comment `json:"replies"`
 }
 
+// ContactMatch A person from the caller's contacts who has a Monaco account.
+type ContactMatch struct {
+	// DisplayName Examples: Maya Angelou
+	DisplayName string `json:"display_name"`
+
+	// FollowedByMe Examples: false
+	FollowedByMe bool `json:"followed_by_me"`
+
+	// Handle Examples: maya
+	Handle string `json:"handle"`
+
+	// PhotoUrl Examples: https://img.example/maya.png
+	PhotoUrl *string            `json:"photo_url"`
+	UserId   openapi_types.UUID `json:"user_id"`
+}
+
+// ContactMatchPage One page of contact matches, newest first.
+type ContactMatchPage struct {
+	// Items Examples: []
+	Items []ContactMatch `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+}
+
+// ContactMatchRequest Lowercase SHA-256 hex hashes of E.164 phone numbers.
+type ContactMatchRequest struct {
+	// Hashes One to 2000 hashes. Each is 64 lowercase hex characters.
+	//
+	// Examples: ["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]
+	Hashes []string `json:"hashes"`
+}
+
 // CreateCommentRequest A comment to post.
 type CreateCommentRequest struct {
 	// Body The text, trimmed by the server to 1 to 1000 Unicode scalars.
@@ -759,6 +794,21 @@ type PostFeedCommentParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostMeContactsMatchParams defines parameters for PostMeContactsMatch.
+type PostMeContactsMatchParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// GetMeContactsMatchesParams defines parameters for GetMeContactsMatches.
+type GetMeContactsMatchesParams struct {
+	// Cursor The next_cursor from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size. Defaults to 30 and cannot exceed 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // PutMeFeedMutesParams defines parameters for PutMeFeedMutes.
 type PutMeFeedMutesParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -831,6 +881,9 @@ type PostChatMessageJSONRequestBody = PostChatMessageRequest
 // PostFeedCommentJSONRequestBody defines body for PostFeedComment for application/json ContentType.
 type PostFeedCommentJSONRequestBody = CreateCommentRequest
 
+// PostMeContactsMatchJSONRequestBody defines body for PostMeContactsMatch for application/json ContentType.
+type PostMeContactsMatchJSONRequestBody = ContactMatchRequest
+
 // PutMeFeedMutesJSONRequestBody defines body for PutMeFeedMutes for application/json ContentType.
 type PutMeFeedMutesJSONRequestBody = FeedMuteRequest
 
@@ -875,6 +928,12 @@ type ServerInterface interface {
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostFeedCommentParams)
+	// PostMeContactsMatch Match address-book hashes to people on Monaco.
+	// (POST /v1/me/contacts/match)
+	PostMeContactsMatch(w http.ResponseWriter, r *http.Request, params PostMeContactsMatchParams)
+	// GetMeContactsMatches List people from the caller's contacts who are on Monaco.
+	// (GET /v1/me/contacts/matches)
+	GetMeContactsMatches(w http.ResponseWriter, r *http.Request, params GetMeContactsMatchesParams)
 	// GetMeFeedMutes List feed mutes.
 	// (GET /v1/me/feed-mutes)
 	GetMeFeedMutes(w http.ResponseWriter, r *http.Request)
@@ -1642,6 +1701,97 @@ func (siw *ServerInterfaceWrapper) PostFeedComment(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// PostMeContactsMatch operation middleware
+func (siw *ServerInterfaceWrapper) PostMeContactsMatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostMeContactsMatchParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostMeContactsMatch(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMeContactsMatches operation middleware
+func (siw *ServerInterfaceWrapper) GetMeContactsMatches(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMeContactsMatchesParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMeContactsMatches(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMeFeedMutes operation middleware
 func (siw *ServerInterfaceWrapper) GetMeFeedMutes(w http.ResponseWriter, r *http.Request) {
 
@@ -2267,6 +2417,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.GetFeedComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.PostFeedComment)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/contacts/match", wrapper.PostMeContactsMatch)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/contacts/matches", wrapper.GetMeContactsMatches)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.PutMeFeedMutes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me/feed-mutes/{target_type}/{target_id}", wrapper.DeleteMeFeedMutesTargetTypeTargetID)
@@ -2712,6 +2864,85 @@ func (response PostFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitPo
 	return err
 }
 
+type PostMeContactsMatchRequestObject struct {
+	Params PostMeContactsMatchParams
+	Body   *PostMeContactsMatchJSONRequestBody
+}
+
+type PostMeContactsMatchResponseObject interface {
+	VisitPostMeContactsMatchResponse(w http.ResponseWriter) error
+}
+
+type PostMeContactsMatch200JSONResponse ContactMatchPage
+
+func (response PostMeContactsMatch200JSONResponse) VisitPostMeContactsMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostMeContactsMatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostMeContactsMatchdefaultApplicationProblemPlusJSONResponse) VisitPostMeContactsMatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeContactsMatchesRequestObject struct {
+	Params GetMeContactsMatchesParams
+}
+
+type GetMeContactsMatchesResponseObject interface {
+	VisitGetMeContactsMatchesResponse(w http.ResponseWriter) error
+}
+
+type GetMeContactsMatches200JSONResponse ContactMatchPage
+
+func (response GetMeContactsMatches200JSONResponse) VisitGetMeContactsMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeContactsMatchesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMeContactsMatchesdefaultApplicationProblemPlusJSONResponse) VisitGetMeContactsMatchesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeFeedMutesRequestObject struct {
 }
 
@@ -3135,6 +3366,12 @@ type StrictServerInterface interface {
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(ctx context.Context, request PostFeedCommentRequestObject) (PostFeedCommentResponseObject, error)
+	// PostMeContactsMatch Match address-book hashes to people on Monaco.
+	// (POST /v1/me/contacts/match)
+	PostMeContactsMatch(ctx context.Context, request PostMeContactsMatchRequestObject) (PostMeContactsMatchResponseObject, error)
+	// GetMeContactsMatches List people from the caller's contacts who are on Monaco.
+	// (GET /v1/me/contacts/matches)
+	GetMeContactsMatches(ctx context.Context, request GetMeContactsMatchesRequestObject) (GetMeContactsMatchesResponseObject, error)
 	// GetMeFeedMutes List feed mutes.
 	// (GET /v1/me/feed-mutes)
 	GetMeFeedMutes(ctx context.Context, request GetMeFeedMutesRequestObject) (GetMeFeedMutesResponseObject, error)
@@ -3511,6 +3748,65 @@ func (sh *strictHandler) PostFeedComment(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostFeedCommentResponseObject); ok {
 		if err := validResponse.VisitPostFeedCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostMeContactsMatch operation middleware
+func (sh *strictHandler) PostMeContactsMatch(w http.ResponseWriter, r *http.Request, params PostMeContactsMatchParams) {
+	var request PostMeContactsMatchRequestObject
+
+	request.Params = params
+
+	var body PostMeContactsMatchJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostMeContactsMatch(ctx, request.(PostMeContactsMatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostMeContactsMatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostMeContactsMatchResponseObject); ok {
+		if err := validResponse.VisitPostMeContactsMatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMeContactsMatches operation middleware
+func (sh *strictHandler) GetMeContactsMatches(w http.ResponseWriter, r *http.Request, params GetMeContactsMatchesParams) {
+	var request GetMeContactsMatchesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMeContactsMatches(ctx, request.(GetMeContactsMatchesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMeContactsMatches")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMeContactsMatchesResponseObject); ok {
+		if err := validResponse.VisitGetMeContactsMatchesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

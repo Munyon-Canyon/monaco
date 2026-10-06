@@ -27,6 +27,7 @@ type HTTP struct {
 	Token         *app.RealtimeTokenHandler
 	CreateComment *app.CreateCommentHandler
 	DeleteComment *app.DeleteCommentHandler
+	Match         *app.MatchContactsHandler
 	Members       app.Members
 	Reads         sqlc.DBTX
 	Clock         clock.Clock

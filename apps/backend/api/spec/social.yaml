@@ -1,4 +1,75 @@
 paths:
+  /v1/me/contacts/match:
+    post:
+      operationId: postMeContactsMatch
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 10, per: 1h, burst: 10}, ip: {rate: 30, per: 1h, burst: 30}}
+      summary: Match address-book hashes to people on Monaco.
+      description: >-
+        The body is 1 to 2000 lowercase SHA-256 hex hashes of E.164 numbers. Duplicates collapse.
+        An empty list or a hash that is not 64 lowercase hex characters is contact_hashes_invalid.
+        More than 2000 hashes is too_many_contact_hashes. A match is stored only for a verified
+        phone of an active user who is not the caller. Unmatched hashes are not stored or logged.
+        Matching again does not clear a dismissed row. The response lists the caller's live matches,
+        the same body as GET /v1/me/contacts/matches.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The address-book hashes to match.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactMatchRequest"
+            example:
+              hashes: ["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]
+      responses:
+        "200":
+          description: The caller's live contact matches.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactMatchPage"
+              example:
+                items:
+                  - {user_id: "7f0c2f6e-4c1b-4a8e-9a53-2d6f0b1c9e11", handle: maya, display_name: Maya Angelou, photo_url: "https://img.example/maya.png", followed_by_me: false}
+                next_cursor: null
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/me/contacts/matches:
+    get:
+      operationId: getMeContactsMatches
+      tags: [social]
+      summary: List people from the caller's contacts who are on Monaco.
+      description: >-
+        Live matches, newest first. Banned and deleted users are omitted. followed_by_me is true
+        when the caller has a live follow. limit defaults to 30 and cannot exceed 50. A cursor the
+        server did not write is invalid_input.
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: The next_cursor from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 128}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 30 and cannot exceed 50.
+          schema: {type: integer, minimum: 1, maximum: 50, default: 30}
+      responses:
+        "200":
+          description: One page of contact matches.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactMatchPage"
+              example:
+                items:
+                  - {user_id: "7f0c2f6e-4c1b-4a8e-9a53-2d6f0b1c9e11", handle: maya, display_name: Maya Angelou, photo_url: "https://img.example/maya.png", followed_by_me: false}
+                next_cursor: null
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/feed-mutes:
     get:
       operationId: getMeFeedMutes
@@ -660,6 +731,43 @@ components:
       description: The message id.
       schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
   schemas:
+    ContactMatchRequest:
+      type: object
+      description: Lowercase SHA-256 hex hashes of E.164 phone numbers.
+      additionalProperties: false
+      required: [hashes]
+      properties:
+        hashes:
+          type: array
+          description: One to 2000 hashes. Each is 64 lowercase hex characters.
+          items: {type: string}
+          examples: [["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]]
+    ContactMatch:
+      type: object
+      description: A person from the caller's contacts who has a Monaco account.
+      additionalProperties: false
+      required: [user_id, handle, display_name, photo_url, followed_by_me]
+      properties:
+        user_id: {type: string, format: uuid}
+        handle: {type: string, examples: [maya]}
+        display_name: {type: string, examples: [Maya Angelou]}
+        photo_url: {type: [string, "null"], examples: ["https://img.example/maya.png"]}
+        followed_by_me: {type: boolean, examples: [false]}
+    ContactMatchPage:
+      type: object
+      description: One page of contact matches, newest first.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/ContactMatch"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
     FeedMuteRequest:
       type: object
       description: The feed target to mute.
