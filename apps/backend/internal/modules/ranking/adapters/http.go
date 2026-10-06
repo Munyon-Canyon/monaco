@@ -8,7 +8,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 type HTTP struct {
@@ -20,28 +22,58 @@ var _ api.StrictServerInterface = HTTP{}
 func (h HTTP) GetCabalsLeaderboard(
 	ctx context.Context, req api.GetCabalsLeaderboardRequestObject,
 ) (api.GetCabalsLeaderboardResponseObject, error) {
-	var rng *string
-	if req.Params.Range != nil {
-		raw := string(*req.Params.Range)
-		rng = &raw
-	}
-	in, err := readOf(domain.BoardCabals, rng, req.Params.Cursor, req.Params.Limit)
+	page, err := h.serve(ctx, string(domain.BoardCabals), api.Cabal, nil,
+		textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
 	if err != nil {
 		return nil, err
+	}
+	return api.GetCabalsLeaderboard200JSONResponse(page), nil
+}
+
+func (h HTTP) GetPeopleLeaderboard(
+	ctx context.Context, req api.GetPeopleLeaderboardRequestObject,
+) (api.GetPeopleLeaderboardResponseObject, error) {
+	viewer, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page, err := h.serve(ctx, string(domain.BoardPeople), api.User, &viewer,
+		textOf(req.Params.Range), req.Params.Cursor, req.Params.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetPeopleLeaderboard200JSONResponse(page), nil
+}
+
+func (h HTTP) serve(
+	ctx context.Context, board string, kind api.LeaderboardSubjectKind, viewer *ids.UserID,
+	rng, cursor *string, limit *int,
+) (api.LeaderboardPage, error) {
+	in, err := readOf(board, rng, cursor, limit)
+	if err != nil {
+		return api.LeaderboardPage{}, err
+	}
+	if viewer != nil {
+		id := viewer.UUID()
+		in.Viewer = &id
 	}
 	page, err := in.Run(ctx, h.Boards)
 	if err != nil {
-		return nil, err
+		return api.LeaderboardPage{}, err
 	}
-	out, err := wirePage(page, in, api.Cabal)
-	if err != nil {
-		return nil, err
-	}
-	return api.GetCabalsLeaderboard200JSONResponse(out), nil
+	return wirePage(page, in, kind)
 }
 
-func readOf(board domain.Board, rng, cursor *string, limit *int) (app.ReadBoard, error) {
-	in := app.ReadBoard{Board: string(board), Range: domain.RangeAll}
+func textOf[T ~string](v *T) *string {
+	if v == nil {
+		return nil
+	}
+	raw := string(*v)
+	return &raw
+}
+
+func readOf(board string, rng, cursor *string, limit *int) (app.ReadBoard, error) {
+	in := app.ReadBoard{Board: board, Range: domain.RangeAll}
 	var err error
 	if rng != nil {
 		if in.Range, err = domain.ParseRange(*rng); err != nil {
@@ -68,7 +100,7 @@ func wirePage(page domain.BoardPage, in app.ReadBoard, kind api.LeaderboardSubje
 		}
 		rows = append(rows, row)
 	}
-	return api.LeaderboardPage{
+	out := api.LeaderboardPage{
 		RunId:      page.RunID,
 		Board:      in.Board,
 		Range:      api.LeaderboardPageRange(in.Range),
@@ -76,7 +108,31 @@ func wirePage(page domain.BoardPage, in app.ReadBoard, kind api.LeaderboardSubje
 		PricesAsOf: page.PricesAsOf,
 		Rows:       rows,
 		NextCursor: page.NextCursor,
-	}, nil
+	}
+	if page.Me != nil && page.Me.Return != nil {
+		me, err := wireRow(*page.Me, kind)
+		if err != nil {
+			return api.LeaderboardPage{}, err
+		}
+		out.Me = &me
+	}
+	return out, nil
+}
+
+func caller(ctx context.Context) (ids.UserID, error) {
+	const op = "ranking.caller"
+	actor, ok := auth.ActorFrom(ctx)
+	if !ok {
+		return ids.UserID{}, errs.New(errs.CodeUnauthorized, op)
+	}
+	if actor.Kind != auth.ActorUser {
+		return ids.UserID{}, errs.New(errs.CodeForbidden, op, slog.String("actor_kind", string(actor.Kind)))
+	}
+	user, err := ids.ParseUserID(actor.ID)
+	if err != nil {
+		return ids.UserID{}, errs.Wrap(err, errs.CodeUnauthorized, op)
+	}
+	return user, nil
 }
 
 func wireRow(entry domain.Entry, kind api.LeaderboardSubjectKind) (api.LeaderboardRow, error) {

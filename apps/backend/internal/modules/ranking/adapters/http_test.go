@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -19,6 +20,7 @@ import (
 type stubBoards struct {
 	run     bool
 	entries []domain.Entry
+	me      *domain.Entry
 	err     error
 }
 
@@ -30,8 +32,11 @@ func (s stubBoards) Page(context.Context, string, domain.Range, int, int) ([]dom
 	return s.entries, s.err
 }
 
-func (stubBoards) Row(context.Context, string, domain.Range, uuid.UUID) (domain.Entry, bool, error) {
-	return domain.Entry{}, false, nil
+func (s stubBoards) Row(context.Context, string, domain.Range, uuid.UUID) (domain.Entry, bool, error) {
+	if s.me == nil {
+		return domain.Entry{}, false, nil
+	}
+	return *s.me, true, nil
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -79,5 +84,68 @@ func TestGetCabalsLeaderboard_mapsRowsAndFailsOnUnrepresentableOnes(t *testing.T
 	_, err = h.GetCabalsLeaderboard(t.Context(), api.GetCabalsLeaderboardRequestObject{})
 	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Errorf("store error: err = %v, want internal", err)
+	}
+}
+
+func asActor(ctx context.Context, kind auth.ActorKind, id string) context.Context {
+	return auth.WithActor(ctx, auth.Actor{Kind: kind, ID: id})
+}
+
+func TestGetPeopleLeaderboard_needsASignedInUser(t *testing.T) {
+	t.Parallel()
+	h := adapters.HTTP{Boards: stubBoards{run: true}}
+	req := api.GetPeopleLeaderboardRequestObject{}
+	for name, tc := range map[string]struct {
+		with func(context.Context) context.Context
+		want errs.Code
+	}{
+		"anonymous": {func(ctx context.Context) context.Context { return ctx }, errs.CodeUnauthorized},
+		"admin":     {func(ctx context.Context) context.Context { return asActor(ctx, auth.ActorAdmin, "a") }, errs.CodeForbidden},
+		"bad id":    {func(ctx context.Context) context.Context { return asActor(ctx, auth.ActorUser, "nope") }, errs.CodeUnauthorized},
+	} {
+		if _, err := h.GetPeopleLeaderboard(tc.with(t.Context()), req); errs.CodeOf(err) != tc.want {
+			t.Errorf("%s: err = %v, want %s", name, err, tc.want)
+		}
+	}
+}
+
+func people(t *testing.T, boards stubBoards, limit *int) (api.LeaderboardPage, error) {
+	t.Helper()
+	ctx := asActor(t.Context(), auth.ActorUser, ids.Real{}.NewV7().String())
+	req := api.GetPeopleLeaderboardRequestObject{Params: api.GetPeopleLeaderboardParams{Limit: limit}}
+	got, err := adapters.HTTP{Boards: boards}.GetPeopleLeaderboard(ctx, req)
+	page, _ := got.(api.GetPeopleLeaderboard200JSONResponse)
+	return api.LeaderboardPage(page), err
+}
+
+func TestGetPeopleLeaderboard_carriesTheCallersRankedRowAsMe(t *testing.T) {
+	t.Parallel()
+	bps := domain.Bps(12)
+	page, err := people(t, stubBoards{run: true, me: &domain.Entry{Rank: 41, Return: &bps}}, nil)
+	if err != nil || page.Me == nil || page.Me.Rank != 41 || page.Me.Subject.Kind != api.User {
+		t.Fatalf("page = %+v, %v", page, err)
+	}
+	page, err = people(t, stubBoards{run: true, me: &domain.Entry{Rank: 41}}, nil)
+	if err != nil || page.Me != nil {
+		t.Fatalf("unranked me = %+v, %v, want nil", page.Me, err)
+	}
+}
+
+func TestGetPeopleLeaderboard_failsOnBadInputAndUnrepresentableRows(t *testing.T) {
+	t.Parallel()
+	bps := domain.Bps(12)
+	huge := domain.Entry{Rank: 1, Return: &bps, Value: money.MicrosFromUint64(math.MaxUint64)}
+	for name, tc := range map[string]struct {
+		boards stubBoards
+		limit  *int
+		want   errs.Code
+	}{
+		"huge me":     {stubBoards{run: true, me: &huge}, nil, errs.CodeInternal},
+		"store error": {stubBoards{err: errs.New(errs.CodeInternal, "test")}, nil, errs.CodeInternal},
+		"bad limit":   {stubBoards{run: true}, ptr(99), errs.CodeInvalidInput},
+	} {
+		if _, err := people(t, tc.boards, tc.limit); errs.CodeOf(err) != tc.want {
+			t.Errorf("%s: err = %v, want %s", name, err, tc.want)
+		}
 	}
 }

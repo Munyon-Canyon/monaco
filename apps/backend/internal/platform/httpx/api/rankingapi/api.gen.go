@@ -136,6 +136,33 @@ func (e GetCabalsLeaderboardParamsRange) Valid() bool {
 	}
 }
 
+// Defines values for GetPeopleLeaderboardParamsRange.
+const (
+	GetPeopleLeaderboardParamsRangeALL GetPeopleLeaderboardParamsRange = "ALL"
+	GetPeopleLeaderboardParamsRangeN1D GetPeopleLeaderboardParamsRange = "1D"
+	GetPeopleLeaderboardParamsRangeN1H GetPeopleLeaderboardParamsRange = "1H"
+	GetPeopleLeaderboardParamsRangeN1M GetPeopleLeaderboardParamsRange = "1M"
+	GetPeopleLeaderboardParamsRangeN1W GetPeopleLeaderboardParamsRange = "1W"
+)
+
+// Valid indicates whether the value is a known member of the GetPeopleLeaderboardParamsRange enum.
+func (e GetPeopleLeaderboardParamsRange) Valid() bool {
+	switch e {
+	case GetPeopleLeaderboardParamsRangeALL:
+		return true
+	case GetPeopleLeaderboardParamsRangeN1D:
+		return true
+	case GetPeopleLeaderboardParamsRangeN1H:
+		return true
+	case GetPeopleLeaderboardParamsRangeN1M:
+		return true
+	case GetPeopleLeaderboardParamsRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
 // LeaderboardPage One page of a leaderboard from one run.
 type LeaderboardPage struct {
 	// Board `cabals`, `people` or `cabal_members:<cabal id>`.
@@ -275,11 +302,29 @@ type GetCabalsLeaderboardParams struct {
 // GetCabalsLeaderboardParamsRange defines parameters for GetCabalsLeaderboard.
 type GetCabalsLeaderboardParamsRange string
 
+// GetPeopleLeaderboardParams defines parameters for GetPeopleLeaderboard.
+type GetPeopleLeaderboardParams struct {
+	// Range The window the return is measured over. Defaults to `ALL`.
+	Range *GetPeopleLeaderboardParamsRange `form:"range,omitempty" json:"range,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *LeaderboardCursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size. Defaults to 20 and cannot exceed 50.
+	Limit *LeaderboardLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetPeopleLeaderboardParamsRange defines parameters for GetPeopleLeaderboard.
+type GetPeopleLeaderboardParamsRange string
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetCabalsLeaderboard Read the cabals leaderboard.
 	// (GET /v1/leaderboards/cabals)
 	GetCabalsLeaderboard(w http.ResponseWriter, r *http.Request, params GetCabalsLeaderboardParams)
+	// GetPeopleLeaderboard Read the people leaderboard.
+	// (GET /v1/leaderboards/people)
+	GetPeopleLeaderboard(w http.ResponseWriter, r *http.Request, params GetPeopleLeaderboardParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -341,6 +386,65 @@ func (siw *ServerInterfaceWrapper) GetCabalsLeaderboard(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalsLeaderboard(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPeopleLeaderboard operation middleware
+func (siw *ServerInterfaceWrapper) GetPeopleLeaderboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetPeopleLeaderboardParams
+
+	// ------------- Optional query parameter "range" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "range", r.URL.Query(), &params.Range, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "range"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "range", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPeopleLeaderboard(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -471,6 +575,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/cabals", wrapper.GetCabalsLeaderboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
 
 	return m
 }
@@ -514,11 +619,53 @@ func (response GetCabalsLeaderboarddefaultApplicationProblemPlusJSONResponse) Vi
 	return err
 }
 
+type GetPeopleLeaderboardRequestObject struct {
+	Params GetPeopleLeaderboardParams
+}
+
+type GetPeopleLeaderboardResponseObject interface {
+	VisitGetPeopleLeaderboardResponse(w http.ResponseWriter) error
+}
+
+type GetPeopleLeaderboard200JSONResponse LeaderboardPage
+
+func (response GetPeopleLeaderboard200JSONResponse) VisitGetPeopleLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPeopleLeaderboarddefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetPeopleLeaderboarddefaultApplicationProblemPlusJSONResponse) VisitGetPeopleLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetCabalsLeaderboard Read the cabals leaderboard.
 	// (GET /v1/leaderboards/cabals)
 	GetCabalsLeaderboard(ctx context.Context, request GetCabalsLeaderboardRequestObject) (GetCabalsLeaderboardResponseObject, error)
+	// GetPeopleLeaderboard Read the people leaderboard.
+	// (GET /v1/leaderboards/people)
+	GetPeopleLeaderboard(ctx context.Context, request GetPeopleLeaderboardRequestObject) (GetPeopleLeaderboardResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -579,6 +726,32 @@ func (sh *strictHandler) GetCabalsLeaderboard(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalsLeaderboardResponseObject); ok {
 		if err := validResponse.VisitGetCabalsLeaderboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPeopleLeaderboard operation middleware
+func (sh *strictHandler) GetPeopleLeaderboard(w http.ResponseWriter, r *http.Request, params GetPeopleLeaderboardParams) {
+	var request GetPeopleLeaderboardRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPeopleLeaderboard(ctx, request.(GetPeopleLeaderboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPeopleLeaderboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPeopleLeaderboardResponseObject); ok {
+		if err := validResponse.VisitGetPeopleLeaderboardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
