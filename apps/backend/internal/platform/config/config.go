@@ -69,7 +69,9 @@ const (
 )
 
 type Trade struct {
-	Engine TradeEngine
+	Engine            TradeEngine
+	SwapSweepInterval time.Duration
+	SwapSweepAge      time.Duration
 }
 
 type Identity struct {
@@ -435,7 +437,7 @@ func fundingFields() []field {
 }
 
 func tradeFields() []field {
-	return []field{{
+	engine := field{
 		key:      "TRADE_ENGINE",
 		fallback: string(TradeEngineLive),
 		want:     "live or stub",
@@ -444,7 +446,17 @@ func tradeFields() []field {
 			return slices.Contains([]TradeEngine{TradeEngineLive, TradeEngineStub}, TradeEngine(v))
 		},
 		get: func(c *Config) string { return string(c.Trade.Engine) },
-	}}
+	}
+	return []field{
+		engine,
+		duration("TRADE_SWAP_SWEEP_INTERVAL", 30*time.Second,
+			func(c *Config) *time.Duration { return &c.Trade.SwapSweepInterval }),
+		duration(
+			"TRADE_SWAP_SWEEP_AGE",
+			2*time.Minute,
+			func(c *Config) *time.Duration { return &c.Trade.SwapSweepAge },
+		),
+	}
 }
 
 func (e *keysError) checkTrade(c Config) {

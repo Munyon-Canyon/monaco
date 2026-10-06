@@ -146,8 +146,10 @@ func (m *Module) engineAdapter() adapters.Engine {
 }
 
 func (m *Module) Pollers() []poller.Poller {
+	cfg := m.deps.Config.Trade
 	return []poller.Poller{app.NewSwapSweeper(m.deps.UoW, m.deps.Pool, m.deps.Clock,
-		chainadapters.NewReader(solana.New(m.deps.Config, m.deps.Clock)), m.deps.Bus)}
+		chainadapters.NewReader(solana.New(m.deps.Config, m.deps.Clock)), m.deps.Bus,
+		app.SweepTiming{Interval: cfg.SwapSweepInterval, Age: cfg.SwapSweepAge})}
 }
 
 func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }

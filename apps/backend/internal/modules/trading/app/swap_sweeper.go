@@ -26,12 +26,22 @@ const (
 	SwapSweepBatch    = 100
 )
 
+type SweepTiming struct {
+	Interval time.Duration
+	Age      time.Duration
+}
+
+func DefaultSweepTiming() SweepTiming {
+	return SweepTiming{Interval: SwapSweepInterval, Age: SwapSweepAge}
+}
+
 type SwapSweeper struct {
-	uow   *db.UnitOfWork
-	reads sqlc.DBTX
-	clock clock.Clock
-	chain ChainReader
-	hints Hints
+	uow    *db.UnitOfWork
+	reads  sqlc.DBTX
+	clock  clock.Clock
+	chain  ChainReader
+	hints  Hints
+	timing SweepTiming
 }
 
 func NewSwapSweeper(
@@ -40,18 +50,19 @@ func NewSwapSweeper(
 	c clock.Clock,
 	reader ChainReader,
 	hints Hints,
+	timing SweepTiming,
 ) *SwapSweeper {
-	return &SwapSweeper{uow: uow, reads: reads, clock: c, chain: reader, hints: hints}
+	return &SwapSweeper{uow: uow, reads: reads, clock: c, chain: reader, hints: hints, timing: timing}
 }
 
 func (*SwapSweeper) Name() string { return "trading.swap_sweeper" }
 
-func (*SwapSweeper) Interval() time.Duration { return SwapSweepInterval }
+func (p *SwapSweeper) Interval() time.Duration { return p.timing.Interval }
 
 func (p *SwapSweeper) Tick(ctx context.Context) (poller.Report, error) {
 	now := p.clock.Now()
 	created, err := sqlc.New(p.reads).ListStaleCreated(ctx, sqlc.ListStaleCreatedParams{
-		OlderThan: now.Add(-SwapSweepAge), MaxRows: SwapSweepBatch,
+		OlderThan: now.Add(-p.timing.Age), MaxRows: SwapSweepBatch,
 	})
 	if err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "trading.SwapSweeper.created")
@@ -91,7 +102,7 @@ func (p *SwapSweeper) staleSubmitted(
 	ctx context.Context, now time.Time, failures []error,
 ) ([]sqlc.ListStaleSubmittedRow, error) {
 	submitted, err := sqlc.New(p.reads).ListStaleSubmitted(ctx, sqlc.ListStaleSubmittedParams{
-		OlderThan: now.Add(-SwapSweepAge), MaxRows: SwapSweepBatch,
+		OlderThan: now.Add(-p.timing.Age), MaxRows: SwapSweepBatch,
 	})
 	if err != nil {
 		return nil, errors.Join(

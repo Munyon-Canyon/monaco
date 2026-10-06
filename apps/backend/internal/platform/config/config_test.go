@@ -70,7 +70,9 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Privy:     config.Privy{BaseURL: "https://api.privy.io"},
 		APNs:      config.APNs{Topic: "com.monaco.app"},
 		PostHog:   config.PostHog{Host: "https://us.i.posthog.com"},
-		Trade:     config.Trade{Engine: config.TradeEngineLive},
+		Trade: config.Trade{
+			Engine: config.TradeEngineLive, SwapSweepInterval: 30 * time.Second, SwapSweepAge: 2 * time.Minute,
+		},
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -137,6 +139,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"IDENTITY_PHOTO_PURGES_INTERVAL=3s",
 		"FUNDING_DEPOSIT_POLL_INTERVAL=2s",
 		"FUNDING_DEPOSIT_RPC_RATE=12",
+		"TRADE_SWAP_SWEEP_INTERVAL=4s",
+		"TRADE_SWAP_SWEEP_AGE=5s",
 		"PRIVY_APP_ID=app-id",
 		"PRIVY_APP_SECRET=app-secret",
 		"PRIVY_VERIFICATION_KEY=verification-pem",
@@ -222,7 +226,9 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Web: config.Web{
 			FundPageURL: "https://fund.example/fund", AllowedOrigins: "https://fund.example,http://127.0.0.1:5173",
 		},
-		Trade:      config.Trade{Engine: config.TradeEngineLive},
+		Trade: config.Trade{
+			Engine: config.TradeEngineLive, SwapSweepInterval: 4 * time.Second, SwapSweepAge: 5 * time.Second,
+		},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -538,6 +544,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_BUS_ACK_WAIT", ""},
 		{"MONACO_BUS_API_RELAY", "on"},
 		{"TRADE_ENGINE", "live"},
+		{"TRADE_SWAP_SWEEP_INTERVAL", "30s"},
+		{"TRADE_SWAP_SWEEP_AGE", "2m0s"},
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},

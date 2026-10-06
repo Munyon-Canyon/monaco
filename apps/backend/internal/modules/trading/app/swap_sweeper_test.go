@@ -125,7 +125,7 @@ func newSweeperEnv(t *testing.T) *sweeperEnv {
 }
 
 func (e *sweeperEnv) poller() *SwapSweeper {
-	return NewSwapSweeper(e.uow, e.pool, e.clk, e.read, e.hint)
+	return NewSwapSweeper(e.uow, e.pool, e.clk, e.read, e.hint, DefaultSweepTiming())
 }
 
 func (e *sweeperEnv) insert(t *testing.T) sqlc.InsertCreatedParams {
@@ -262,6 +262,20 @@ func TestSwapSweeper_waitsForRowsOlderThanSweepAge(t *testing.T) {
 		{created[2].ID, "failed", 1},
 		{submitted[2].ID, "confirmed", 1},
 	})
+}
+
+func TestSwapSweeper_sweepsAtTheConfiguredAgeAndInterval(t *testing.T) {
+	t.Parallel()
+	e := newSweeperEnv(t)
+	timing := SweepTiming{Interval: time.Second, Age: 2 * time.Second}
+	now := e.clk.Now()
+	created := e.ageCreated(t, []time.Time{now.Add(-time.Second), now.Add(-3 * time.Second)})
+	p := NewSwapSweeper(e.uow, e.pool, e.clk, e.read, e.hint, timing)
+	report, err := p.Tick(tickContext(t))
+	if err != nil || report.Scanned != 1 || report.Changed != 1 || p.Interval() != time.Second {
+		t.Fatalf("Tick = %+v, %v, interval %s; want the 3s old row swept every 1s", report, err, p.Interval())
+	}
+	e.assertStates(t, []sweeperState{{created[0].ID, "created", 0}, {created[1].ID, "failed", 1}})
 }
 
 func TestSwapSweeper_acceptsOnlyValidOutputDecimalBounds(t *testing.T) {
