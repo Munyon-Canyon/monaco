@@ -16,6 +16,9 @@ type ChatMessagePosted struct {
 	ParentID      *uuid.UUID `json:"parent_id"`
 	AlsoInChannel bool       `json:"also_in_channel"`
 	CreatedAt     time.Time  `json:"created_at"`
+
+	MentionedUserIDs     []uuid.UUID `json:"mentioned_user_ids"     pii:"true"`
+	ThreadParticipantIDs []uuid.UUID `json:"thread_participant_ids" pii:"true"`
 }
 
 func (ChatMessagePosted) Type() Type { return TypeChatMessagePosted }

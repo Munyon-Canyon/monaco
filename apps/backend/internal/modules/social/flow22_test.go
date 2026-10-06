@@ -58,6 +58,11 @@ func TestFlow22_PostChatMessage_OK(t *testing.T) {
 	flows.F22PostChatMessageOK(chatScenario(t))
 }
 
+func TestPostChatMessage_flowResolvesMentions(t *testing.T) {
+	t.Parallel()
+	flows.ChatPostMentionsResolved(chatScenario(t))
+}
+
 func TestPostChatMessage_aFailedAblyPublishStillReturns201(t *testing.T) {
 	t.Parallel()
 	flows.ChatPostSurvivesAblyDown(chatScenario(t))

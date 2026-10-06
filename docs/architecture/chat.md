@@ -87,13 +87,14 @@ Refusals (not a member, parent in another cabal, parent is itself a reply, empty
    - checks the parent rules, if `parent_id` is set;
    - inserts the row;
    - for a reply, updates the parent: `reply_count = reply_count + 1, last_reply_at = now()`;
-   - parses mentions: each `@handle` in the body that matches a current cabal member's handle, looked up through the `identity` query port, becomes a mentioned user ID. Unknown handles and non-members are plain text;
-   - appends the `events` row `chat.message_posted` with ids only, no body: the message, cabal, author and parent IDs, and `mentioned_user_ids`.
+   - parses mentions: each `@handle` in the body that matches a current cabal member's handle, looked up through the `identity` query port, becomes a mentioned user ID. Unknown handles, non-members and the author are dropped. The port reads run before the transaction opens, because each takes its own pool connection, and a failure still stops the post before any write;
+   - for a reply, reads the thread participants: the distinct authors of the parent and its live replies who are still members, minus the author, capped at 200;
+   - appends the `events` row `chat.message_posted` with ids only, no body: the message, cabal, author and parent IDs, `mentioned_user_ids` and `thread_participant_ids`. Both arrays are always present.
 3. After the commit, the backend publishes `message.created` on `cabal:{cabal_id}` with the full message (id, author, body, created_at, parent_id, also_in_channel). For a reply it also publishes `thread.updated` with the parent's new `reply_count` and `last_reply_at`.
 4. The handler returns `201` with the stored message. The app swaps its pending row for the real one. When its own `message.created` echo arrives, the app drops it because it already has that id.
 5. If the Ably publish fails, the handler still returns `201` and logs the decision as a registered message with the message id and cause ([Logs as evidence](backend-platform.md#logs-as-evidence)). The message is stored, and the other clients will see it on their next catch-up fetch.
 
-The relay publishes `chat.message_posted` on the NATS event bus ([event-bus.md](event-bus.md)). Side effects that must not be lost are bus consumers of that event. `notify` pushes for @mentions, to the users in `mentioned_user_ids`, and for replies in threads you started or replied in, and nothing else (default 2026-09-27). There is no digest for other messages. `analytics` can take the event too. See [notifications.md](notifications.md).
+The relay publishes `chat.message_posted` on the NATS event bus ([event-bus.md](event-bus.md)). Side effects that must not be lost are bus consumers of that event. `notify` pushes for @mentions, to the users in `mentioned_user_ids`, and for replies to the users in `thread_participant_ids`, and nothing else (default 2026-09-27). There is no digest for other messages. `analytics` can take the event too. See [notifications.md](notifications.md).
 
 The Ably publish in step 3 is a deliberate exception to the rule that side effects are bus consumers. It stays inside the `social` module, so it crosses no module wall. Routing it through a consumer would add a hop to every message for no gain: a lost chat event is harmless because the reconnect fetch covers it. Clients never connect to NATS, so Ably stays the client transport.
 

@@ -151,6 +151,10 @@ func (brokenUsers) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]port
 	return nil, errs.New(errs.CodeUpstreamUnavailable, "test")
 }
 
+func (brokenUsers) UserIDsByHandles(context.Context, []string) (map[string]ids.UserID, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "test")
+}
+
 func TestPostFeedComment_aDeletedAuthorShowsOnlyTheId(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)

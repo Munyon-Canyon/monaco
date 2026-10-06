@@ -5,5 +5,11 @@
   "author_id": "019b76da-a802-7825-86d1-31cccc1bc069",
   "parent_id": "019b76da-a803-728f-b185-68b9bc579ec8",
   "also_in_channel": true,
-  "created_at": "2026-03-01T12:00:00Z"
+  "created_at": "2026-03-01T12:00:00Z",
+  "mentioned_user_ids": [
+    "019b76da-a804-7a1e-9a43-0e6b0a5f3c11"
+  ],
+  "thread_participant_ids": [
+    "019b76da-a805-7b2f-8c54-1f7c1b604d22"
+  ]
 }

@@ -513,6 +513,34 @@ func (q *Queries) SoftDeleteChatMessage(ctx context.Context, arg SoftDeleteChatM
 	return result.RowsAffected(), nil
 }
 
+const threadParticipants = `-- name: ThreadParticipants :many
+SELECT DISTINCT author_id
+FROM cabal_messages
+WHERE (id = $1 OR parent_id = $1)
+  AND deleted_at IS NULL
+ORDER BY author_id
+`
+
+func (q *Queries) ThreadParticipants(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, threadParticipants, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var author_id uuid.UUID
+		if err := rows.Scan(&author_id); err != nil {
+			return nil, err
+		}
+		items = append(items, author_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unreadCounts = `-- name: UnreadCounts :many
 SELECT c.id::uuid AS cabal_id, (
   SELECT count(*)::int
