@@ -3,6 +3,11 @@ SELECT id, kind, ref_type, ref_id, cabal_id, actor_id
 FROM feed_objects
 WHERE id = sqlc.arg(id);
 
+-- name: GetProposalFeedItem :one
+SELECT id
+FROM feed_objects
+WHERE ref_type = 'proposals' AND ref_id = sqlc.arg(proposal_id)::uuid AND kind = 'proposal';
+
 -- name: GetCommentTarget :one
 SELECT id, author_id, parent_comment_id, (deleted_at IS NOT NULL)::bool AS deleted
 FROM feed_comments

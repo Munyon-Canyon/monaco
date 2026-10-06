@@ -2043,6 +2043,75 @@ paths:
         "204": {description: The target is not muted.}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/proposals/{id}/comments:
+    post:
+      operationId: postProposalComment
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}, ip: {rate: 30, per: 1m, burst: 30}}
+      summary: Comment on a proposal.
+      description: >-
+        Finds the proposal's feed item and does what `POST /v1/feed/{id}/comments` does: same body,
+        response and refusals. A proposal with no feed item yet is feed_item_pending, which is
+        retryable: the item arrives shortly after `proposal.created`, and an unknown proposal id
+        looks the same.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The proposal's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      requestBody:
+        description: The comment.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentRequest"
+            example: {body: agree}
+      responses:
+        "201":
+          description: The stored comment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        default:
+          $ref: "#/components/responses/Problem"
+    get:
+      operationId: getProposalComments
+      tags: [social]
+      summary: Read the comments on a proposal.
+      description: >-
+        Finds the proposal's feed item and returns what `GET /v1/feed/{id}/comments` returns, plus the
+        item's id as `feed_object_id`. A proposal with no feed item yet is feed_item_pending, which is
+        retryable.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 128, examples: ["MTc1OTQ3OTMzMDEyMzQ1Ni4wMTkyMDAwMC0wMDAwLTcwMDAtODAwMC0wMDAwMDAwMDAwMDc"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size, counted in top-level comments. Defaults to 50 and cannot exceed 100.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: One page of comment threads.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalCommentPage"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/realtime/token:
     post:
       operationId: createRealtimeToken
@@ -4607,6 +4676,27 @@ components:
           type: boolean
           description: Show the reply in the channel too. Needs a parent_id. Defaults to false.
           examples: [false]
+    ProposalCommentPage:
+      type: object
+      description: One page of comment threads on a proposal, oldest first.
+      additionalProperties: false
+      required: [feed_object_id, items, next_cursor]
+      properties:
+        feed_object_id:
+          type: string
+          format: uuid
+          description: The id of the proposal's feed item.
+          examples: ["01920000-0000-7000-8000-000000000007"]
+        items:
+          type: array
+          description: The page.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/CommentThread"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
     RealtimeTokenRequest:
       type: object
       description: >-
