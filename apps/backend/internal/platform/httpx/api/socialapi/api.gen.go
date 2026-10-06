@@ -154,6 +154,14 @@ type ChatAuthor struct {
 	PhotoUrl *string `json:"photo_url"`
 }
 
+// ChatChannelPage One page of a cabal's chat channel.
+type ChatChannelPage struct {
+	// Messages Newest first, or oldest first for an `after` request.
+	//
+	// Examples: []
+	Messages []ChatMessage `json:"messages"`
+}
+
 // ChatMessage One chat message.
 type ChatMessage struct {
 	// AlsoInChannel True on a reply that also shows in the channel.
@@ -203,6 +211,17 @@ type ChatMessage struct {
 	//
 	// Examples: 0
 	ReplyCount int `json:"reply_count"`
+}
+
+// ChatThread A top-level message and one page of its replies.
+type ChatThread struct {
+	// Parent One chat message.
+	Parent ChatMessage `json:"parent"`
+
+	// Replies Oldest first.
+	//
+	// Examples: []
+	Replies []ChatMessage `json:"replies"`
 }
 
 // FeedItem One feed item with its display strings rendered.
@@ -391,6 +410,18 @@ type ChatCabalId = openapi_types.UUID
 // ChatMessageId Examples: 01920000-0000-7000-8000-000000000007
 type ChatMessageId = openapi_types.UUID
 
+// GetChatMessagesParams defines parameters for GetChatMessages.
+type GetChatMessagesParams struct {
+	// Before A message id. Returns the messages older than it.
+	Before *openapi_types.UUID `form:"before,omitempty" json:"before,omitempty"`
+
+	// After A message id. Returns the messages newer than it, oldest first.
+	After *openapi_types.UUID `form:"after,omitempty" json:"after,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 100.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // PostChatMessageParams defines parameters for PostChatMessage.
 type PostChatMessageParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -401,6 +432,15 @@ type PostChatMessageParams struct {
 type DeleteChatMessageParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// GetChatThreadParams defines parameters for GetChatThread.
+type GetChatThreadParams struct {
+	// Before A reply id. Returns the replies older than it.
+	Before *openapi_types.UUID `form:"before,omitempty" json:"before,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 100.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // GetFeedParams defines parameters for GetFeed.
@@ -513,12 +553,18 @@ type PostUserFollowJSONRequestBody = FollowRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetChatMessages Read a cabal's chat channel.
+	// (GET /v1/cabals/{id}/messages)
+	GetChatMessages(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatMessagesParams)
 	// PostChatMessage Post a message to a cabal's chat.
 	// (POST /v1/cabals/{id}/messages)
 	PostChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, params PostChatMessageParams)
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params DeleteChatMessageParams)
+	// GetChatThread Read a chat thread.
+	// (GET /v1/cabals/{id}/messages/{message_id}/thread)
+	GetChatThread(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params GetChatThreadParams)
 	// GetFeed Read the feed.
 	// (GET /v1/feed)
 	GetFeed(w http.ResponseWriter, r *http.Request, params GetFeedParams)
@@ -556,6 +602,74 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetChatMessages operation middleware
+func (siw *ServerInterfaceWrapper) GetChatMessages(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetChatMessagesParams
+
+	// ------------- Optional query parameter "before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "before", r.URL.Query(), &params.Before, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "before", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "after" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "after", r.URL.Query(), &params.After, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "after"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "after", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetChatMessages(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // PostChatMessage operation middleware
 func (siw *ServerInterfaceWrapper) PostChatMessage(w http.ResponseWriter, r *http.Request) {
@@ -665,6 +779,70 @@ func (siw *ServerInterfaceWrapper) DeleteChatMessage(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteChatMessage(w, r, id, messageId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetChatThread operation middleware
+func (siw *ServerInterfaceWrapper) GetChatThread(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetChatThreadParams
+
+	// ------------- Optional query parameter "before" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "before", r.URL.Query(), &params.Before, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "before"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "before", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetChatThread(w, r, id, messageId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1352,8 +1530,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.PostChatMessage)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}", wrapper.DeleteChatMessage)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
@@ -1365,6 +1545,46 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
+}
+
+type GetChatMessagesRequestObject struct {
+	Id     ChatCabalId `json:"id"`
+	Params GetChatMessagesParams
+}
+
+type GetChatMessagesResponseObject interface {
+	VisitGetChatMessagesResponse(w http.ResponseWriter) error
+}
+
+type GetChatMessages200JSONResponse ChatChannelPage
+
+func (response GetChatMessages200JSONResponse) VisitGetChatMessagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChatMessagesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetChatMessagesdefaultApplicationProblemPlusJSONResponse) VisitGetChatMessagesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type PostChatMessageRequestObject struct {
@@ -1432,6 +1652,47 @@ type DeleteChatMessagedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteChatMessagedefaultApplicationProblemPlusJSONResponse) VisitDeleteChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChatThreadRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Params    GetChatThreadParams
+}
+
+type GetChatThreadResponseObject interface {
+	VisitGetChatThreadResponse(w http.ResponseWriter) error
+}
+
+type GetChatThread200JSONResponse ChatThread
+
+func (response GetChatThread200JSONResponse) VisitGetChatThreadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChatThreaddefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetChatThreaddefaultApplicationProblemPlusJSONResponse) VisitGetChatThreadResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1792,12 +2053,18 @@ func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetChatMessages Read a cabal's chat channel.
+	// (GET /v1/cabals/{id}/messages)
+	GetChatMessages(ctx context.Context, request GetChatMessagesRequestObject) (GetChatMessagesResponseObject, error)
 	// PostChatMessage Post a message to a cabal's chat.
 	// (POST /v1/cabals/{id}/messages)
 	PostChatMessage(ctx context.Context, request PostChatMessageRequestObject) (PostChatMessageResponseObject, error)
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(ctx context.Context, request DeleteChatMessageRequestObject) (DeleteChatMessageResponseObject, error)
+	// GetChatThread Read a chat thread.
+	// (GET /v1/cabals/{id}/messages/{message_id}/thread)
+	GetChatThread(ctx context.Context, request GetChatThreadRequestObject) (GetChatThreadResponseObject, error)
 	// GetFeed Read the feed.
 	// (GET /v1/feed)
 	GetFeed(ctx context.Context, request GetFeedRequestObject) (GetFeedResponseObject, error)
@@ -1866,6 +2133,33 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// GetChatMessages operation middleware
+func (sh *strictHandler) GetChatMessages(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatMessagesParams) {
+	var request GetChatMessagesRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetChatMessages(ctx, request.(GetChatMessagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetChatMessages")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetChatMessagesResponseObject); ok {
+		if err := validResponse.VisitGetChatMessagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostChatMessage operation middleware
 func (sh *strictHandler) PostChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, params PostChatMessageParams) {
 	var request PostChatMessageRequestObject
@@ -1921,6 +2215,34 @@ func (sh *strictHandler) DeleteChatMessage(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteChatMessageResponseObject); ok {
 		if err := validResponse.VisitDeleteChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetChatThread operation middleware
+func (sh *strictHandler) GetChatThread(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params GetChatThreadParams) {
+	var request GetChatThreadRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetChatThread(ctx, request.(GetChatThreadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetChatThread")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetChatThreadResponseObject); ok {
+		if err := validResponse.VisitGetChatThreadResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

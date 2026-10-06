@@ -34,6 +34,49 @@ func (h HTTP) PostChatMessage(
 	return api.PostChatMessage201JSONResponse(wire[0]), nil
 }
 
+func (h HTTP) GetChatMessages(
+	ctx context.Context, req api.GetChatMessagesRequestObject,
+) (api.GetChatMessagesResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := app.ChatChannelQuery{
+		CabalID: ids.CabalIDFrom(req.Id), Viewer: me, Before: req.Params.Before, After: req.Params.After,
+		Limit: limitOr(req.Params.Limit),
+	}
+	messages, err := app.ListChatChannel(ctx, h.Reads, h.Members, q)
+	if err != nil {
+		return nil, err
+	}
+	wire, err := h.wireChat(ctx, messages)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetChatMessages200JSONResponse(api.ChatChannelPage{Messages: wire}), nil
+}
+
+func (h HTTP) GetChatThread(
+	ctx context.Context, req api.GetChatThreadRequestObject,
+) (api.GetChatThreadResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	thread, err := app.GetChatThread(ctx, h.Reads, h.Members, app.ChatThreadQuery{
+		CabalID: ids.CabalIDFrom(req.Id), Viewer: me, ParentID: req.MessageId, Before: req.Params.Before,
+		Limit: limitOr(req.Params.Limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	wire, err := h.wireChat(ctx, append([]app.ChatMessage{thread.Parent}, thread.Replies...))
+	if err != nil {
+		return nil, err
+	}
+	return api.GetChatThread200JSONResponse(api.ChatThread{Parent: wire[0], Replies: wire[1:]}), nil
+}
+
 func (h HTTP) DeleteChatMessage(
 	ctx context.Context, req api.DeleteChatMessageRequestObject,
 ) (api.DeleteChatMessageResponseObject, error) {
@@ -66,6 +109,13 @@ func postChatCommand(cabal ids.CabalID, me ids.UserID, body *api.PostChatMessage
 		return app.PostChatMessage{}, errs.New(errs.CodeInvalidInput, op, slog.String("also_in_channel", "no parent"))
 	}
 	return cmd, nil
+}
+
+func limitOr(limit *int) int {
+	if limit == nil {
+		return app.ChatPageDefault
+	}
+	return *limit
 }
 
 func (h HTTP) wireChat(ctx context.Context, messages []app.ChatMessage) ([]api.ChatMessage, error) {

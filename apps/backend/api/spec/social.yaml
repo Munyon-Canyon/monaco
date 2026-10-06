@@ -316,6 +316,44 @@ paths:
                 $ref: "#/components/schemas/ChatMessage"
         default:
           $ref: "#/components/responses/Problem"
+    get:
+      operationId: getChatMessages
+      tags: [social]
+      summary: Read a cabal's chat channel.
+      description: >-
+        Returns the channel view: top-level messages and replies sent with `also_in_channel`.
+        Without a cursor it returns the newest page, newest first. `before` returns the page older
+        than that message, newest first. `after` returns the messages newer than that message,
+        oldest first, for catching up after a reconnect. Sending both is invalid_input, and a
+        cursor that is not a message in this cabal is chat_message_not_found. A deleted top-level
+        message that has replies comes back with `deleted: true` and a null body; other deleted
+        messages are left out. Only a member can read, otherwise not_cabal_member.
+      parameters:
+        - $ref: "#/components/parameters/ChatCabalId"
+        - name: before
+          in: query
+          required: false
+          description: A message id. Returns the messages older than it.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: after
+          in: query
+          required: false
+          description: A message id. Returns the messages newer than it, oldest first.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50 and cannot exceed 100.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: One page of the channel.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatChannelPage"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/messages/{message_id}:
     delete:
       operationId: deleteChatMessage
@@ -333,6 +371,39 @@ paths:
       responses:
         "204":
           description: The message is deleted.
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/messages/{message_id}/thread:
+    get:
+      operationId: getChatThread
+      tags: [social]
+      summary: Read a chat thread.
+      description: >-
+        Returns the top-level message and a page of its live replies, oldest first. Without
+        `before` the page is the newest replies; with it, the replies older than that reply. A
+        parent that is unknown, in another cabal, or deleted with no replies is
+        chat_message_not_found, and a message that is itself a reply is chat_parent_is_reply.
+        Only a member can read, otherwise not_cabal_member.
+      parameters:
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+        - name: before
+          in: query
+          required: false
+          description: A reply id. Returns the replies older than it.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000008"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50 and cannot exceed 100.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: The parent and one page of replies.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatThread"
         default:
           $ref: "#/components/responses/Problem"
 components:
@@ -539,3 +610,29 @@ components:
           description: The proposal a proposal card message is about. Null otherwise.
           examples: [null]
         deleted: {type: boolean, description: True on a deleted top-level message kept for its thread., examples: [false]}
+    ChatChannelPage:
+      type: object
+      description: One page of a cabal's chat channel.
+      additionalProperties: false
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          description: Newest first, or oldest first for an `after` request.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+    ChatThread:
+      type: object
+      description: A top-level message and one page of its replies.
+      additionalProperties: false
+      required: [parent, replies]
+      properties:
+        parent:
+          $ref: "#/components/schemas/ChatMessage"
+        replies:
+          type: array
+          description: Oldest first.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/ChatMessage"
