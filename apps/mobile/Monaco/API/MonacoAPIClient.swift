@@ -94,33 +94,6 @@ final class MonacoAPIClient: AppSessionDataSource {
         return try JSONDecoder().decode(GroupViewDTO.self, from: data)
     }
 
-    // MARK: Groups tab (#148). Requests and DTOs live in MonacoCore; these wrappers
-    // add the session token and map MonacoCore errors onto this client's errors.
-
-    func groupLeaderboard(accessToken: String, limit: Int = 20) async throws -> GroupLeaderboardResponseDTO {
-        try await withCoreClient(accessToken) { try await $0.groupLeaderboard(limit: limit) }
-    }
-
-    private func withCoreClient<T>(
-        _ accessToken: String,
-        _ call: (MonacoCore.MonacoAPIClient) async throws -> T
-    ) async throws -> T {
-        let token = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { throw MonacoAPIError.missingAccessToken }
-        let core = MonacoCore.MonacoAPIClient(baseURL: baseURL, transport: session, accessTokenProvider: { token })
-        do {
-            return try await call(core)
-        } catch let error as MonacoCore.MonacoAPIError {
-            switch error {
-            case .httpStatus(let status, _): throw MonacoAPIError.httpStatus(status)
-            case .invalidResponse: throw MonacoAPIError.invalidResponse
-            case .missingAccessToken: throw MonacoAPIError.missingAccessToken
-            case .rejected(let status, let message, _): throw MonacoAPIError.apiError(status: status, message: message)
-            case .rateLimited: throw MonacoAPIError.httpStatus(429)
-            }
-        }
-    }
-
     /// What the caller's own cabals are doing with one stock: holdings, open votes
     /// and activity. Scoped server-side to the caller's memberships.
     func getAssetSocial(

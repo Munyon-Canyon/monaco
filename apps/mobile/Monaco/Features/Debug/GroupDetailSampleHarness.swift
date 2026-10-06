@@ -158,17 +158,6 @@ enum GroupDetailSampleData {
         you: MemberSliceDTO(
             shareUnits: "311500000", equityUsd: "311.50", slicePercent: "0.568", dollarPnl: "+27.40",
             percentReturn: "0.096"),
-        members: [
-            LeaderboardRowDTO(
-                rank: 1, userId: "u1", displayName: "Ana Ruiz", percentReturn: "0.142", dollarPnl: "+14.20"),
-            LeaderboardRowDTO(
-                rank: 2, userId: "u2", displayName: "Logan Norman", percentReturn: "0.096", dollarPnl: "+27.40"),
-            LeaderboardRowDTO(
-                rank: 3, userId: "u3", displayName: "Leo Park", percentReturn: "0.012", dollarPnl: "+1.10"),
-            LeaderboardRowDTO(
-                rank: 4, userId: "u4", displayName: "Mia Chen", percentReturn: "-0.021", dollarPnl: "-2.10"),
-            LeaderboardRowDTO(rank: 5, userId: "u5", displayName: "Sam Okafor", percentReturn: nil, dollarPnl: "+0.00"),
-        ],
         agent: GroupAgentDTO(
             id: "a1", status: "active", agentDisplayName: "Scout", allocationUsdcMicros: "100000000", apiKey: "scout")
     )
@@ -185,10 +174,6 @@ enum GroupDetailSampleData {
         ],
         you: MemberSliceDTO(
             shareUnits: "0", equityUsd: "0.00", slicePercent: "0", dollarPnl: "+0.00", percentReturn: nil),
-        members: [
-            LeaderboardRowDTO(
-                rank: 1, userId: "u2", displayName: "Logan Norman", percentReturn: nil, dollarPnl: "+0.00")
-        ],
         agent: nil
     )
 
@@ -219,7 +204,6 @@ enum GroupDetailSampleData {
             potTotalUsd: view.potTotalUsd,
             pot: view.pot,
             you: view.you,
-            members: view.members,
             agent: view.agent,
             pictureUrl: initialPictureURL(for: scenario),
             isCreator: scenario != .pictureNotCreator

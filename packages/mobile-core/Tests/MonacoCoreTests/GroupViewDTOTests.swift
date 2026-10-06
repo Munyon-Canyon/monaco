@@ -3,7 +3,7 @@ import XCTest
 @testable import MonacoCore
 
 final class GroupViewDTOTests: XCTestCase {
-    func testGroupViewDTO_decodesFixtureWithPotAndMemberBoard() throws {
+    func testGroupViewDTO_decodesFixtureWithPot() throws {
         // Arrange
         let fixtureURL = try XCTUnwrap(
             Bundle.module.url(forResource: "group_view", withExtension: "json")
@@ -20,7 +20,6 @@ final class GroupViewDTOTests: XCTestCase {
         XCTAssertEqual(dto.pot.count, 2)
         XCTAssertEqual(dto.pot[0].dollarPnl, "+0.00")
         XCTAssertEqual(dto.pot[1].dollarPnl, "+47.51")
-        XCTAssertEqual(dto.members.count, 2)
         XCTAssertEqual(dto.you.equityUsd, "311.50")
     }
 
@@ -76,20 +75,5 @@ final class GroupViewDTOTests: XCTestCase {
 
         XCTAssertNil(agent.apiKey)
         XCTAssertNil(agent.connectText)
-    }
-
-    func testBoardCells_renderServerRankOrder_withoutResortingByDollars() {
-        // Arrange
-        let members = [
-            LeaderboardRowDTO(rank: 1, userId: "a", displayName: "A", percentReturn: "0.20", dollarPnl: "+10"),
-            LeaderboardRowDTO(rank: 2, userId: "b", displayName: "B", percentReturn: "0.15", dollarPnl: "+50"),
-        ]
-
-        // Act
-        let rows = MemberBoardRenderer.displayRows(from: members)
-
-        // Assert
-        XCTAssertEqual(rows.map(\.rank), [1, 2])
-        XCTAssertEqual(rows.map(\.displayName), ["A", "B"])
     }
 }

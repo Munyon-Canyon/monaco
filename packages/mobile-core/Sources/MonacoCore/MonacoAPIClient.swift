@@ -191,37 +191,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(GroupViewDTO.self, from: response.data)
     }
 
-    // MARK: Groups tab (#148)
-
-    /// Platform-wide cabals ranked by percent return (server caps limit at 50).
-    public func groupLeaderboard(limit: Int = 20) async throws -> GroupLeaderboardResponseDTO {
-        try await getJSON(
-            path: "v1/groups/leaderboard",
-            route: "/v1/groups/leaderboard",
-            queryItems: [URLQueryItem(name: "limit", value: String(limit))],
-            as: GroupLeaderboardResponseDTO.self
-        )
-    }
-
-    private func getJSON<T: Decodable>(
-        path: String,
-        route: String,
-        queryItems: [URLQueryItem],
-        as type: T.Type
-    ) async throws -> T {
-        var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
-        components.queryItems = queryItems
-        guard let url = components.url else {
-            throw MonacoAPIError.invalidResponse
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        try await applyAuthorizationHeader(to: &request)
-
-        let response = try await send(request, route: route)
-        return try monacoISO8601JSONDecoder().decode(T.self, from: response.data)
-    }
-
     public func devBuy(groupId: String, symbol: String, usdc: Int64) async throws -> DevBuyResponseDTO {
         let url = baseURL.appending(path: "v1/dev/groups/\(groupId)/buy")
         var request = URLRequest(url: url)

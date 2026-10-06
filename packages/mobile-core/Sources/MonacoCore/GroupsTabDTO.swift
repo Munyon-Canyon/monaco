@@ -1,8 +1,7 @@
 import Foundation
 
-// Contracts for the Groups tab read APIs (#148):
+// Contract for the Groups tab read API (#148):
 //   GET /v1/groups/search?q=&limit=&cursor=
-//   GET /v1/groups/leaderboard?limit=
 // Money fields are USD decimal strings; dollarPnl carries an explicit sign.
 
 /// Who may enter a cabal without an admin.
@@ -80,68 +79,6 @@ public struct GroupSearchResponseDTO: Codable, Equatable, Sendable {
     public init(groups: [GroupDiscoveryRowDTO], nextCursor: String?) {
         self.groups = groups
         self.nextCursor = nextCursor
-    }
-}
-
-public struct GroupLeaderboardRowDTO: Codable, Equatable, Sendable, Identifiable {
-    public let rank: Int
-    public let groupID: String
-    public let name: String
-    public let memberCount: Int
-    public let potValueUsd: String
-    public let percentReturn: String?
-    public let dollarPnl: String
-    public let isJoined: Bool
-    public let joinMode: GroupJoinMode
-    /// The cabal's picture. Nil when it has none, and the mark falls back
-    /// to its tinted initials.
-    public let pictureUrl: String?
-
-    public var id: String { groupID }
-
-    public init(
-        rank: Int,
-        groupID: String,
-        name: String,
-        memberCount: Int,
-        potValueUsd: String,
-        percentReturn: String?,
-        dollarPnl: String,
-        isJoined: Bool,
-        joinMode: GroupJoinMode,
-        pictureUrl: String? = nil
-    ) {
-        self.rank = rank
-        self.groupID = groupID
-        self.name = name
-        self.memberCount = memberCount
-        self.potValueUsd = potValueUsd
-        self.percentReturn = percentReturn
-        self.dollarPnl = dollarPnl
-        self.isJoined = isJoined
-        self.joinMode = joinMode
-        self.pictureUrl = pictureUrl
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case rank
-        case groupID = "groupId"
-        case name
-        case memberCount
-        case potValueUsd
-        case percentReturn
-        case dollarPnl
-        case isJoined
-        case joinMode
-        case pictureUrl
-    }
-}
-
-public struct GroupLeaderboardResponseDTO: Codable, Equatable, Sendable {
-    public let groups: [GroupLeaderboardRowDTO]
-
-    public init(groups: [GroupLeaderboardRowDTO]) {
-        self.groups = groups
     }
 }
 
