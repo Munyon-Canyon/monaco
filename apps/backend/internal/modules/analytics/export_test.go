@@ -20,3 +20,5 @@ func RegisterCabalExports(r *Registry, members app.MembershipReader) {
 }
 
 func RegisterSocialExports(r *Registry) { registerSocialExports(r) }
+
+func RegisterIdentityExports(r *Registry) { registerIdentityExports(r) }

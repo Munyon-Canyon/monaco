@@ -53,6 +53,7 @@ func F01OpenSessionOK(s *scenario.Scenario) {
 			sessionOpened("false"),
 			oneWallet,
 		)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeUserCreated, "user_signed_up", "user_id", s.Recall("user")))
 }
 
 func sessionOpened(created string) scenario.Step {

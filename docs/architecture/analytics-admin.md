@@ -47,7 +47,7 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 
 ## Product analytics (PostHog)
 
-**Identity.** `posthog.identify(<monaco user id>)` after `POST /v1/auth/session`. The id is the lowercase hyphenated UUID that the API returns, and server events use it as `distinct_id`. PostHog treats distinct ids as case-sensitive, so the app must not send Swift's uppercase `uuidString`. Person properties: `auth_state`, `login_provider`, `cabal_count`, created at. **No email, phone, X handle or wallet address** in PostHog.
+**Identity.** `posthog.identify(<monaco user id>)` after `POST /v1/auth/session`. The id is the lowercase hyphenated UUID that the API returns, and server events use it as `distinct_id`. PostHog treats distinct ids as case-sensitive, so the app must not send Swift's uppercase `uuidString`. Person properties: `auth_state`, `login_provider`, `cabal_count`, `created_at`. **No email, phone, X handle or wallet address** in PostHog.
 
 **Client events** (iOS SDK):
 
@@ -60,6 +60,8 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 
 | PostHog event | Bus subject ([Flows](backend-platform.md#flows)) |
 | --- | --- |
+| `user_signed_up` | `user.created` (flow 1) |
+| `auth_state_changed` | `user.auth_state_changed` (flow 1) |
 | `cabal_created` | `cabal.created` (flow 2) |
 | `cabal_joined` | `cabal.member_joined` (flow 3) |
 | `cabal_left` | `cabal.member_left` (flow 4) |
@@ -80,6 +82,8 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 | `comment_created` | `comment.created` (flow 21) |
 
 `usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address, a transaction signature, a cabal name or a comment body.
+
+`user_signed_up` sets the person properties `login_provider`, `created_at` and `auth_state`. `created_at` is in UTC and `auth_state` starts at `CREATED`. `auth_state_changed` sets `auth_state` to the new state. Both send their values in PostHog's `$set` property on the capture, so the server updates the person with no separate identify call.
 
 `cabal_created`, `cabal_joined` and `cabal_left` set the person property `cabal_count` to the number of cabals the member belongs to, read through cabal's `CabalsOf` when the event is exported. A redelivered older event can set a stale count until the next membership event, which PostHog accepts because it holds behavior, not truth. `cabal_joined` also fires for a cabal's creator, with `via` set to `create`.
 

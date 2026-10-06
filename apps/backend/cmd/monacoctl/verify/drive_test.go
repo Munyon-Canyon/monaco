@@ -71,6 +71,7 @@ func servedIdentityEnv(t *testing.T) Env {
 			d.Config = cfg
 			return identity.New(d)
 		}),
+		scenario.WithPostHog(t),
 		scenario.WithLogs(&lineWriter{line: func(s string) { logs.add("app", s) }}))
 	return Env{
 		API: sv.URL, Fakes: upstream.URL, PrivyAppID: PrivyAppID, TokenKey: sv.TokenKey, Pool: sv.Pool, JS: sv.JS,

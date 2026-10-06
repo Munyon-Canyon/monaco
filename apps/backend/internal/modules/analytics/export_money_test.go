@@ -56,7 +56,7 @@ func exportsEachCaseOnce(t *testing.T, register func(*analytics.Registry), tests
 func leaksNothing(t *testing.T, got fakes.PostHogCapture, payload []byte) {
 	t.Helper()
 	if err := analytics.CheckNoPII(analytics.Capture{
-		Event: got.Event, DistinctID: got.DistinctID, Properties: got.Properties,
+		Event: got.Event, DistinctID: got.DistinctID, Properties: got.Properties, Set: got.Set,
 	}); err != nil {
 		t.Errorf("the exported capture leaks personal data: %v", err)
 	}

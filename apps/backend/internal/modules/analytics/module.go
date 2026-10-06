@@ -29,6 +29,7 @@ func productExports(d module.Deps) *Registry {
 	registerTreasuryExports(r)
 	registerCabalExports(r, cabal.New(d).Queries())
 	registerSocialExports(r)
+	registerIdentityExports(r)
 	return r
 }
 
@@ -55,6 +56,11 @@ func registerCabalExports(r *Registry, members app.MembershipReader) {
 func registerSocialExports(r *Registry) {
 	Export(r, string(events.TypeFollowCreated), exports.FollowCreated)
 	Export(r, string(events.TypeCommentCreated), exports.CommentCreated)
+}
+
+func registerIdentityExports(r *Registry) {
+	Export(r, string(events.TypeUserCreated), exports.UserSignedUp)
+	Export(r, string(events.TypeUserAuthStateChanged), exports.AuthStateChanged)
 }
 
 func registerProposalExports(r *Registry, proposers app.ProposerReader) {
