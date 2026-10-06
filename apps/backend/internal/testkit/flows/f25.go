@@ -166,6 +166,8 @@ func F25AttachReferralOK(s *scenario.Scenario) {
 			"code_kind": "handle", "source": "universal_link",
 		}),
 	)
+	s.Then(scenario.EventuallyCapturedBy(
+		events.TypeReferralAttributed, "referral_attributed", "referrer_id", s.Recall("referrer")))
 }
 
 func F25AttachReferralReferralCodeUnknown(s *scenario.Scenario) {

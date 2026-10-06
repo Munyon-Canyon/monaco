@@ -18,7 +18,7 @@ func referralScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario
 
 func TestFlow25_AttachReferral_OK(t *testing.T) {
 	t.Parallel()
-	flows.F25AttachReferralOK(referralScenario(t))
+	flows.F25AttachReferralOK(referralScenario(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow25_AttachReferral_ReferralCodeUnknown(t *testing.T) {

@@ -12,3 +12,4 @@ Dated record of changes to [referrals.md](../referrals.md). Add one line per cha
 - 2026-09-26: Custom codes gated behind a first credited deposit (minimum amount, permanent unlock, admin override).
 - 2026-09-26: Custom referral codes (`/r/kaicenat`). Codes move from a `users` column to a `referral_codes` table; retired custom codes keep resolving; X-handle impersonation guard; admin revoke/reassign.
 - 2026-09-26: Initial decision. Referral links with clipboard handoff for deferred deep linking (option 2), manual code fallback, no attribution vendor.
+- 2026-10-06: `referral.attributed` also has `analytics` as a consumer, so the PostHog funnel gets its server event; `referral.qualified` already did (default; see #535, #686).

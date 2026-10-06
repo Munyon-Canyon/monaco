@@ -632,7 +632,7 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 | 22 | Chat | Ably for delivery; backend issues token and persists | `chat.message_posted` | notify (mentions) |
 | 23 | Profile edit | `UpdateProfile` | `user.profile_updated` | ranking (names), feed |
 | 24 | Notifications | Consumers write `notifications` row, then send | `notification.sent` | none |
-| 25 | Referrals | Click, sign-up, first deposit | `referral.attributed`, `referral.qualified` | `referral.attributed`: social. `referral.qualified`: analytics |
+| 25 | Referrals | Click, sign-up, first deposit | `referral.attributed`, `referral.qualified` | `referral.attributed`: social, analytics. `referral.qualified`: analytics |
 | 26 | Admin | Any admin command | `admin.action` | audit |
 | 27 | Dead letters | Advisory subscriber | none | admin writes `dead_letters`; `monacoctl deadletter retry` |
 | 28 | Nudges | Identity nudge job | `user.nudge_due` | notify |

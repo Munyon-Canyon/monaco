@@ -52,6 +52,8 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		"analytics.posthog.comment.created",
 		"analytics.posthog.user.created",
 		"analytics.posthog.user.auth_state_changed",
+		"analytics.posthog.referral.attributed",
+		"analytics.posthog.referral.qualified",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("handlers = %v, want %v", got, want)
