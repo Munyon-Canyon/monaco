@@ -35,6 +35,28 @@ func proposalChaosCases(s scene) []chaosCase {
 		},
 		{events.ProposalFailed{V: 1, ProposalID: s.proposal, CabalID: s.cabal}, "proposal_failed"},
 		{events.ProposalExpired{V: 1, ProposalID: s.proposal, CabalID: s.cabal}, "proposal_expired"},
+		{
+			events.TradeConfirmed{
+				V: 1, SwapID: s.swap, CabalID: s.cabal, Source: s.source(), SourceBatchSize: 1, Action: "buy",
+				Symbol: "AAPLx", InMint: usdcMint, InAmount: 25_000_000, OutMint: aaplxMint, OutAmount: 105_000_000,
+				USDCMicros: money.MicrosFromUint64(25_000_000),
+			},
+			"trade_executed",
+		},
+		{
+			events.TradeBlocked{
+				V: 1, CabalID: s.cabal, Source: s.source(), SourceBatchSize: 1, Action: "buy", Symbol: "AAPLx",
+				Code: errs.CodeInsufficientFunds, Have: 24_999_999, Need: 25_000_000,
+			},
+			"trade_blocked",
+		},
+		{
+			events.TradeFailed{
+				V: 1, SwapID: s.swap, CabalID: s.cabal, Source: s.source(), SourceBatchSize: 1, Action: "buy",
+				Symbol: "AAPLx", InMint: usdcMint, InAmount: 25_000_000, FailureCode: "jupiter_failed",
+			},
+			"trade_failed",
+		},
 	}
 }
 

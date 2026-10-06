@@ -37,7 +37,7 @@ func newFlow11(t *testing.T, arrange func(e *engineEnv)) *flow11 {
 	f := &flow11{engineEnv: e}
 	ports := e.ports()
 	ports.Proposals = nil
-	f.s = scenario.New(t, scenario.WithModules(
+	f.s = scenario.New(t, scenario.WithPostHog(t), scenario.WithModules(
 		func(d module.Deps) module.Module { return governance.New(d) },
 		func(d module.Deps) module.Module {
 			d.Config.Solana.RPCURL, d.Config.Timeouts.RPC = "http://127.0.0.1:1", time.Second
@@ -80,9 +80,14 @@ func (f *flow11) pass(then ...scenario.Step) {
 		Then(then...)
 }
 
+func (f *flow11) exported(typ busevents.Type, event string) scenario.Step {
+	return scenario.EventuallyCaptured(typ, event, f.proposal)
+}
+
 func (f *flow11) blocks(code errs.Code, have, need string) {
 	f.pass(
 		scenario.ExpectEvents(busevents.TypeTradeBlocked, 1),
+		f.exported(busevents.TypeTradeBlocked, "trade_blocked"),
 		scenario.ExpectEventPayload(busevents.TypeTradeBlocked, map[string]any{
 			"code": string(code), "have": have, "need": need, "action": "buy", "symbol": "AAPLx",
 			"cabal_id": f.cabal.String(), "source_batch_size": 1,
@@ -100,6 +105,7 @@ func TestFlow11_ExecuteTrade_OK(t *testing.T) {
 		scenario.ExpectEventPayload(busevents.TypeTradeConfirmed, map[string]any{
 			"action": "buy", "symbol": "AAPLx", "in_amount": "25000000", "usdc_micros": "25000000",
 		}),
+		f.exported(busevents.TypeTradeConfirmed, "trade_executed"),
 		scenario.ExpectEvents(busevents.TypeTradeBlocked, 0),
 	)
 }
@@ -142,6 +148,7 @@ func TestFlow11_ExecuteTrade_JupiterUnavailable(t *testing.T) {
 	f.pass(
 		scenario.ExpectEvents(busevents.TypeTradeBlocked, 0),
 		scenario.ExpectEvents(busevents.TypeTradeConfirmed, 1),
+		f.exported(busevents.TypeTradeConfirmed, "trade_executed"),
 	)
 }
 
@@ -155,6 +162,7 @@ func TestFlow11_ExecuteTrade_SwapFailed(t *testing.T) {
 		scenario.ExpectEventPayload(busevents.TypeTradeFailed, map[string]any{
 			"failure_code": "jupiter_failed", "jupiter_code": "6001",
 		}),
+		f.exported(busevents.TypeTradeFailed, "trade_failed"),
 		scenario.ExpectEvents(busevents.TypeTradeConfirmed, 0),
 		scenario.ExpectEvents(busevents.TypeTradeBlocked, 0),
 	)

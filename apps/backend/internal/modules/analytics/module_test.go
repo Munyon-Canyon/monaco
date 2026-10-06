@@ -35,6 +35,9 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		"analytics.posthog.proposal.passed",
 		"analytics.posthog.proposal.failed",
 		"analytics.posthog.proposal.expired",
+		"analytics.posthog.trade.confirmed",
+		"analytics.posthog.trade.blocked",
+		"analytics.posthog.trade.failed",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("handlers = %v, want %v", got, want)

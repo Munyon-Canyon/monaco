@@ -142,7 +142,15 @@ func (t trade) expect(want map[events.Type]int) scenario.Step {
 func (t trade) run(s *scenario.Scenario, given []scenario.Step, end events.Type, want map[events.Type]int) {
 	s.Given(append(t.given, given...)...).
 		When(t.pass()...).
-		Then(t.ends(end), t.expect(want))
+		Then(t.ends(end), t.expect(want), scenario.EventuallyCaptured(end, exportedAs(end), t.id))
+}
+
+func exportedAs(typ events.Type) string {
+	return map[events.Type]string{
+		events.TypeTradeConfirmed: "trade_executed",
+		events.TypeTradeBlocked:   "trade_blocked",
+		events.TypeTradeFailed:    "trade_failed",
+	}[typ]
 }
 
 func (t trade) blocks(s *scenario.Scenario, code errs.Code, given ...scenario.Step) {

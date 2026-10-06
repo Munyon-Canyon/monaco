@@ -29,22 +29,22 @@ func (Proposals) ProposalPassed(_ context.Context, e events.ProposalPassed) (app
 }
 
 func (p Proposals) ProposalFailed(ctx context.Context, e events.ProposalFailed) (app.Capture, bool, error) {
-	return p.byProposer(ctx, "proposal_failed", e.ProposalID, e.CabalID)
+	return p.byProposer(ctx, "proposal_failed", e.ProposalID, e.CabalID, nil)
 }
 
 func (p Proposals) ProposalExpired(ctx context.Context, e events.ProposalExpired) (app.Capture, bool, error) {
-	return p.byProposer(ctx, "proposal_expired", e.ProposalID, e.CabalID)
+	return p.byProposer(ctx, "proposal_expired", e.ProposalID, e.CabalID, nil)
 }
 
 func (p Proposals) byProposer(
-	ctx context.Context, event string, proposal, cabal uuid.UUID,
+	ctx context.Context, event string, proposal, cabal uuid.UUID, extra map[string]any,
 ) (app.Capture, bool, error) {
 	proposer, err := p.Proposers.Proposer(ctx, ids.ProposalIDFrom(proposal))
 	if err != nil {
 		return app.Capture{}, false, err
 	}
 	return app.Capture{
-		Event: event, DistinctID: proposer.String(), Properties: proposalProps(proposal, cabal, nil),
+		Event: event, DistinctID: proposer.String(), Properties: proposalProps(proposal, cabal, extra),
 	}, true, nil
 }
 

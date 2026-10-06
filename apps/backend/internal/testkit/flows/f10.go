@@ -92,6 +92,7 @@ func F10CastVoteOK(s *scenario.Scenario) {
 			scenario.ExpectEvents(events.TypeProposalPassed, 1),
 			scenario.ExpectEventPayload(events.TypeProposalPassed, passedProposal(p)),
 			scenario.EventuallyPublished(events.TypeProposalPassed, 1),
+			scenario.EventuallyCaptured(events.TypeProposalPassed, "proposal_passed", p.id),
 			scenario.EventuallyCabalHint(p.cabalID, "proposal_updated"),
 			scenario.NoHintFor("mallory", "proposal_updated", 100*time.Millisecond),
 		)

@@ -19,11 +19,17 @@ import (
 const aaplxMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
 
 type scene struct {
-	proposal, cabal, proposer, voter uuid.UUID
+	proposal, cabal, proposer, voter, swap uuid.UUID
 }
 
 func newScene(e *env) scene {
-	return scene{proposal: e.ids.NewV7(), cabal: e.ids.NewV7(), proposer: e.ids.NewV7(), voter: e.ids.NewV7()}
+	return scene{
+		proposal: e.ids.NewV7(),
+		cabal:    e.ids.NewV7(),
+		proposer: e.ids.NewV7(),
+		voter:    e.ids.NewV7(),
+		swap:     e.ids.NewV7(),
+	}
 }
 
 func (s scene) props(extra map[string]any) map[string]any {

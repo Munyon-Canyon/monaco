@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
@@ -111,7 +112,9 @@ func closePools(pools []*pgxpool.Pool) {
 }
 
 func projections(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk *replay.Clock) []bus.HandlerSpec {
-	set := registered.Build(module.Deps{Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: uow})
+	set := registered.Build(module.Deps{
+		Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: uow, HTTPClient: httpclient.New,
+	})
 	return replay.Handlers(set.Consumers())
 }
 

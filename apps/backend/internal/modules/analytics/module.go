@@ -32,6 +32,9 @@ func registerProposalExports(r *Registry, proposers app.ProposerReader) {
 	Export(r, string(events.TypeProposalPassed), p.ProposalPassed)
 	Export(r, string(events.TypeProposalFailed), p.ProposalFailed)
 	Export(r, string(events.TypeProposalExpired), p.ProposalExpired)
+	Export(r, string(events.TypeTradeConfirmed), p.TradeConfirmed)
+	Export(r, string(events.TypeTradeBlocked), p.TradeBlocked)
+	Export(r, string(events.TypeTradeFailed), p.TradeFailed)
 }
 
 func (*Module) Name() string { return "analytics" }
