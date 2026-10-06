@@ -21,6 +21,18 @@ public enum ProposalStepper: Equatable, Sendable {
     case done
     case failed(String)
 
+    public var finalStepTitle: String {
+        if case .failed(let title) = self { return title }
+        return "Done"
+    }
+
+    public var isFinalStepReached: Bool {
+        switch self {
+        case .done, .failed: true
+        case .voting, .trading: false
+        }
+    }
+
     public static func state(status: ProposalStatus, isSell: Bool, swapFailed: Bool = false) -> Self {
         let action = isSell ? "sell" : "buy"
         if swapFailed || status == .executionBlocked { return .failed("Couldn't \(action)") }

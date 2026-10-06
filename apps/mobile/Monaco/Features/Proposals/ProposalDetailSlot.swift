@@ -166,7 +166,7 @@ struct ProposalDetailSlotView: View {
                     "Voting", active: state == .voting,
                     stamp: summary.createdAt.formatted(date: .abbreviated, time: .shortened))
                 step(summary.kind == "sell" ? "Selling" : "Buying", active: state == .trading)
-                step("Done", active: state == .done)
+                step(state.finalStepTitle, active: state.isFinalStepReached)
             }
             if case .failed(let title) = state {
                 Text(summary.swap?.failureMessage ?? summary.statusMessage ?? title).foregroundStyle(MonacoTheme.loss)

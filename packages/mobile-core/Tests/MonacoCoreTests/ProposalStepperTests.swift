@@ -17,4 +17,20 @@ final class ProposalStepperTests: XCTestCase {
     func testFailedSwapWinsOverPassed() {
         XCTAssertEqual(ProposalStepper.state(status: .passed, isSell: false, swapFailed: true), .failed("Couldn't buy"))
     }
+
+    func testAFailedTradeEndsTheStepperOnItsFailureNotDone() {
+        let failed = ProposalStepper.state(status: .passed, isSell: false, swapFailed: true)
+        XCTAssertEqual(failed.finalStepTitle, "Couldn't buy")
+        XCTAssertTrue(failed.isFinalStepReached)
+        let blockedSell = ProposalStepper.state(status: .executionBlocked, isSell: true)
+        XCTAssertEqual(blockedSell.finalStepTitle, "Couldn't sell")
+    }
+
+    func testDoneAndInFlightStatesKeepTheDoneStep() {
+        XCTAssertEqual(ProposalStepper.voting.finalStepTitle, "Done")
+        XCTAssertFalse(ProposalStepper.voting.isFinalStepReached)
+        XCTAssertFalse(ProposalStepper.trading.isFinalStepReached)
+        XCTAssertEqual(ProposalStepper.done.finalStepTitle, "Done")
+        XCTAssertTrue(ProposalStepper.done.isFinalStepReached)
+    }
 }
