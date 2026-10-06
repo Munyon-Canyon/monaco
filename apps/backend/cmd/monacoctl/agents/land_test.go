@@ -1209,6 +1209,7 @@ func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		removals    []removal
+		untouched   []int
 		draftClosed time.Duration
 		draftPRs    string
 		ejected     bool
@@ -1225,6 +1226,10 @@ func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
 		{
 			name: "Graphite took it a whole hold ago", ejected: true,
 			removals: []removal{queueLabel(graphiteGraphQL, takenFor)},
+		},
+		{
+			name: "Graphite took two PRs and has not drafted them while the third is ejected", ejected: true,
+			removals: []removal{queueLabel(graphiteGraphQL, 2*time.Minute)}, untouched: []int{2},
 		},
 		{
 			name: "a person removed it two minutes ago", ejected: true,
@@ -1262,7 +1267,9 @@ func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
 				events[i] = unlabel(f.now.Add(-r.ago), r.label, r.by)
 			}
 			for _, n := range []int{1, 2, 3} {
-				setUnlabels(t, s.prs[n], events...)
+				if !slices.Contains(tc.untouched, n) {
+					setUnlabels(t, s.prs[n], events...)
+				}
 			}
 			if tc.draftClosed != 0 {
 				f.hub.on(graphqlRoute, closedDraftData(closedDraftOf(t, 90, tc.draftPRs, f.now.Add(-tc.draftClosed))))
@@ -1278,6 +1285,26 @@ func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
 				t.Fatalf("labels released = %v, want %v", released, tc.ejected)
 			}
 		})
+	}
+}
+
+func TestWatchOnce_releasesTheEjectedPROfAStackGraphiteHoldsInPart(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := ejectedStack(t, f)
+	took := unlabel(f.now.Add(-2*time.Minute), "merge-queue", graphiteApp)
+	setUnlabels(t, s.prs[1], took)
+	setUnlabels(t, s.prs[3], took)
+	s.prs[2].State = "CLOSED"
+	labeled(s.prs[2], "merge-queue")
+	f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
+	f.noFailures()
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if s.prs[2].labeled("merge-queue") || f.owned(t).Queued != nil {
+		t.Fatalf("the ejected PR kept its label %v, or the stack kept its mark %+v", s.prs[2].Labels, f.owned(t).Queued)
 	}
 }
 
