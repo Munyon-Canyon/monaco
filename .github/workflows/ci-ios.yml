@@ -32,16 +32,14 @@ jobs:
         run: scripts/ci/select-xcode.sh
 
       # actions/cache rejects a path with `..` in it, and a cache entry only matches the same path string.
-      # The simulator boots in the background so the cache restores don't wait on it; the processes a
-      # step starts live until the job ends, and the build step waits for the boot with bootstatus.
-      - name: Resolve DerivedData and the simulator
+      # Picking the simulator starts CoreSimulator, which took up to 55 s on a fresh runner, so the pick
+      # and the boot run in the background while the cache restores; the processes a step starts live
+      # until the job ends. The build step reads the pick from $RUNNER_TEMP/sim.
+      - name: Resolve DerivedData and start the simulator
         run: |
-          sim="$(scripts/resolve-ios-sim.sh)"
-          nohup xcrun simctl boot "$sim" > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
-          {
-            echo "DERIVED_DATA=$(cd "$GITHUB_WORKSPACE/.." && pwd -P)/DerivedData"
-            echo "SIM=$sim"
-          } >> "$GITHUB_ENV"
+          echo "DERIVED_DATA=$(cd "$GITHUB_WORKSPACE/.." && pwd -P)/DerivedData" >> "$GITHUB_ENV"
+          nohup bash -c 'sim="$(scripts/resolve-ios-sim.sh)" && echo "$sim" > "$RUNNER_TEMP/sim.tmp" && mv "$RUNNER_TEMP/sim.tmp" "$RUNNER_TEMP/sim" && xcrun simctl boot "$sim"' \
+            > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
 
       # One cache entry holds the Swift package checkouts and DerivedData/Build from the last staging
       # run, because each actions/cache step costs its own setup and extraction. The checkouts plus
@@ -94,6 +92,13 @@ jobs:
         run: |
           # With restored checkouts, skip resolution: otherwise SwiftPM fetches every repository
           # again, and privy-ios alone took 184 s (#3349).
+          for _ in $(seq 120); do [[ -s "$RUNNER_TEMP/sim" ]] && break; sleep 1; done
+          if [[ ! -s "$RUNNER_TEMP/sim" ]]; then
+            cat "$RUNNER_TEMP/simctl-boot.log"
+            exit 1
+          fi
+          SIM="$(cat "$RUNNER_TEMP/sim")"
+          echo "SIM=$SIM" >> "$GITHUB_ENV"
           offline=()
           if [[ -f "$DERIVED_DATA/SourcePackages/workspace-state.json" ]]; then
             offline=(-skipPackageUpdates -disableAutomaticPackageResolution)
