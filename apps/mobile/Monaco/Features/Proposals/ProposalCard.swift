@@ -113,6 +113,7 @@ struct ProposalCard: View {
                     .background(Capsule().fill(MonacoTheme.surfaceSunken))
             }
         }
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder private var amount: some View {
