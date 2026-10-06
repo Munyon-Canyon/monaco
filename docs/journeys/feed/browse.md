@@ -32,7 +32,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Feed tab | | `feed-root` shows within 15 s with `monaco-search-field` ("Search the feed"), `feed-scope` and the chips `feed-chip-All`, `feed-chip-Proposals`, `feed-chip-Trades`, `feed-chip-Price moves`, `feed-chip-Cabals` (screens.md Feed tab: "chips "All", "Proposals", "Trades", "Price moves", "Cabals"; an "Everyone" / "Following" toggle; search"; old app: Feed tab chips and toggle) |
-| S1.2 | A | swipe the chip row until hittable, then tap | `feed-chip-Cabals` | | A cell reads "started QA feed {QA.run}" within 15 s (screens.md: "cells with the actor's avatar (opens `UserProfileRoute`), title, detail, time and comment count"; old app: Feed tab cells) |
+| S1.2 | A | swipe the chip row until on screen, then tap | `feed-chip-Cabals` | | A cell reads "started QA feed {QA.run}" within 15 s (screens.md: "cells with the actor's avatar (opens `UserProfileRoute`), title, detail, time and comment count"; old app: Feed tab cells) |
 | S1.3 | A | type | `monaco-search-field` | `QA feed {QA.run}` | A cell reads "joined QA feed {QA.run}" within 10 s, and no cell reads "started QA own {QA.run}" (screens.md: "search"; old app: Feed tab search) |
 | S1.4 | A | replace text | `monaco-search-field` | `nomatch {QA.run}` | `feed-empty` reads "Nothing matches" within 10 s (screens.md: "Empty: "Nothing here yet.""; the app quotes the query) |
 
@@ -63,7 +63,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Not covered
 
-- The chip row scrolls sideways and "Cabals" starts past the right edge, so the steps swipe the row until the chip is hittable. `feed-scope` is a segmented control whose identifier sits on both its "Everyone" and "Following" buttons, so the steps pick the button by label.
+- The chip row scrolls sideways and "Cabals" starts past the right edge, so the steps swipe the row until the chip is on screen. `feed-scope` is a segmented control whose identifier sits on both its "Everyone" and "Following" buttons, so the steps pick the button by label.
 
 - Feed cells have no stable per-run identifier: `feed-cell-<id>` carries the server's feed item id, so the steps find a cell by its title text.
 - `Hide` and `Mute` have no identifiers yet. #702 adds them in `apps/mobile/Monaco/Features/Feed/FeedItemCell.swift`; this ticket does not touch app code.
