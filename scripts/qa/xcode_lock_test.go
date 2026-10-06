@@ -759,3 +759,44 @@ func TestXcodeLockWaitsForOrphanXcodebuild(t *testing.T) {
 		t.Fatalf("caller exit %d, ran %v:\n%s", code, exists(ran), w.stderr.String())
 	}
 }
+
+// With MONACO_XCODE_SLOTS unset, the clone's .git/.monaco/xcode-slots sets the slot count
+// for every worktree of the machine.
+func TestXcodeLockReadsTheCloneSlotsFile(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	repo := filepath.Join(e.dir, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, ".git", ".monaco"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".git", ".monaco", "xcode-slots"), []byte("2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unset := []string{"MONACO_XCODE_SLOTS="}
+	aIn, bIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in")
+	aRelease, bRelease := filepath.Join(e.dir, "a.release"), filepath.Join(e.dir, "b.release")
+	t.Cleanup(func() {
+		_ = os.WriteFile(aRelease, nil, 0o644)
+		_ = os.WriteFile(bRelease, nil, 0o644)
+	})
+
+	a := e.start(repo, unset, append([]string{"xcode"}, holdUntil(aIn, aRelease)...)...)
+	await(t, "the first holder to run", func() bool { return exists(aIn) }, a)
+	b := e.start(repo, unset, append([]string{"xcode"}, holdUntil(bIn, bRelease)...)...)
+	await(t, "the second holder to run", func() bool { return exists(bIn) }, a, b)
+
+	for _, c := range []struct {
+		release string
+		call    *call
+	}{{aRelease, a}, {bRelease, b}} {
+		if err := os.WriteFile(c.release, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if code := c.call.wait(t); code != 0 {
+			t.Fatalf("holder exit %d:\n%s", code, c.call.stderr.String())
+		}
+	}
+}
