@@ -33,6 +33,11 @@ const (
 	CannotFollowSelf           ErrorCode = "cannot_follow_self"
 	CannotRevokeAccess         ErrorCode = "cannot_revoke_access"
 	CashOutInProgress          ErrorCode = "cash_out_in_progress"
+	ChatBodyInvalid            ErrorCode = "chat_body_invalid"
+	ChatMessageNotFound        ErrorCode = "chat_message_not_found"
+	ChatMessageNotOwned        ErrorCode = "chat_message_not_owned"
+	ChatParentIsReply          ErrorCode = "chat_parent_is_reply"
+	ChatParentNotFound         ErrorCode = "chat_parent_not_found"
 	ClientClosed               ErrorCode = "client_closed"
 	CoinGeckoRateLimited       ErrorCode = "coin_gecko_rate_limited"
 	ConservationBroken         ErrorCode = "conservation_broken"
@@ -172,6 +177,16 @@ func (e ErrorCode) Valid() bool {
 	case CannotRevokeAccess:
 		return true
 	case CashOutInProgress:
+		return true
+	case ChatBodyInvalid:
+		return true
+	case ChatMessageNotFound:
+		return true
+	case ChatMessageNotOwned:
+		return true
+	case ChatParentIsReply:
+		return true
+	case ChatParentNotFound:
 		return true
 	case ClientClosed:
 		return true
