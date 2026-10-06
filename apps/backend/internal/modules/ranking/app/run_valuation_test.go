@@ -2,15 +2,20 @@ package app
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -225,6 +230,159 @@ func TestRunValuation_cabalNAVErrors(t *testing.T) {
 	); err == nil {
 		t.Fatal("cabalNAV invalid units error = nil")
 	}
+}
+
+func TestSnapshotWriter_queries(t *testing.T) {
+	t.Parallel()
+	if NewSnapshotWriter(nil, ids.Real{}).uow != nil {
+		t.Fatal("NewSnapshotWriter() did not keep the unit of work")
+	}
+	fake := &snapshotQueriesFake{}
+	writer := SnapshotWriter{}
+	value := CabalValue{
+		CabalID:     ids.CabalIDFrom(ids.Real{}.NewV7()),
+		Value:       money.MicrosFromUint64(1),
+		NavPerShare: money.MicrosFromUint64(1),
+		TotalShares: money.SharesUnitsFromUint64(1),
+	}
+	valuation := Valuation{AsOf: valuationTime(), PricesAsOf: valuationTime(), Cabals: []CabalValue{value}}
+	if err := writer.snapshots(t.Context(), fake, valuation); err != nil || fake.snapshots != 1 {
+		t.Fatalf("snapshots() = %v, calls %d", err, fake.snapshots)
+	}
+	fake.err = errs.New(errs.CodeInternal, "test")
+	if err := writer.snapshots(t.Context(), fake, valuation); err == nil {
+		t.Fatal("snapshots() error = nil")
+	}
+	maxMicros, maxShares := money.MicrosFromUint64(^uint64(0)), money.SharesUnitsFromUint64(^uint64(0))
+	for _, overflow := range []CabalValue{{Value: maxMicros}, {NavPerShare: maxMicros}, {TotalShares: maxShares}} {
+		if _, err := int64s(overflow); errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Fatalf("int64s(%+v) = %v", overflow, err)
+		}
+	}
+	fake.err = nil
+	now, runID := valuationTime(), ids.Real{}.NewV7()
+	if err := writer.run(t.Context(), fake, runID, valuation, now, now); err != nil {
+		t.Fatalf("run() = %v", err)
+	}
+	tooMany := Valuation{Excluded: int(^uint(0) >> 1)}
+	if err := writer.run(t.Context(), fake, runID, tooMany, now, now); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("run() = %v", err)
+	}
+}
+
+func TestSnapshotWriter_persistQueriesRejectsAnEntryThatCannotBeEncoded(t *testing.T) {
+	t.Parallel()
+	valuation := Valuation{Entries: []Entry{{SubjectCreatedAt: time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)}}}
+	if err := (SnapshotWriter{}).persistQueries(
+		t.Context(),
+		&snapshotQueriesFake{},
+		&eventAppenderFake{},
+		uuid.Nil,
+		valuation,
+		valuationTime(),
+		valuationTime(),
+	); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("persistQueries() = %v", err)
+	}
+}
+
+func TestInt32s(t *testing.T) {
+	t.Parallel()
+	if got, err := int32s(7, 9); err != nil || got[0] != 7 || got[1] != 9 {
+		t.Fatalf("int32s(7, 9) = %v, %v", got, err)
+	}
+	if _, err := int32s(7, int(^uint(0)>>1)); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("int32s(max) = %v", err)
+	}
+}
+
+func TestSnapshotWriter_persistQueriesStopsAtEveryWriteError(t *testing.T) {
+	t.Parallel()
+	writer := SnapshotWriter{}
+	valuation := Valuation{AsOf: valuationTime(), PricesAsOf: valuationTime(), Entries: []Entry{}}
+	writeErr := errs.New(errs.CodeInternal, "test")
+	for name, configure := range map[string]func(*snapshotQueriesFake, *eventAppenderFake){
+		"delete":   func(q *snapshotQueriesFake, _ *eventAppenderFake) { q.deleteErr = writeErr },
+		"entries":  func(q *snapshotQueriesFake, _ *eventAppenderFake) { q.entriesErr = writeErr },
+		"run":      func(q *snapshotQueriesFake, _ *eventAppenderFake) { q.err = writeErr },
+		"triggers": func(q *snapshotQueriesFake, _ *eventAppenderFake) { q.triggersErr = writeErr },
+		"event":    func(_ *snapshotQueriesFake, e *eventAppenderFake) { e.err = writeErr },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			queries := &snapshotQueriesFake{}
+			appender := &eventAppenderFake{}
+			configure(queries, appender)
+			if err := writer.persistQueries(
+				t.Context(),
+				queries,
+				appender,
+				uuid.Nil,
+				valuation,
+				valuationTime(),
+				valuationTime(),
+			); !errors.Is(err, writeErr) {
+				t.Fatalf("persistQueries() = %v, want %v", err, writeErr)
+			}
+		})
+	}
+	if err := writer.persistQueries(
+		t.Context(),
+		&snapshotQueriesFake{},
+		&eventAppenderFake{},
+		uuid.Nil,
+		Valuation{Cabals: []CabalValue{{Value: money.MicrosFromUint64(^uint64(0))}}, Entries: []Entry{{}}},
+		valuationTime(),
+		valuationTime(),
+	); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("persistQueries() = %v", err)
+	}
+}
+
+type snapshotQueriesFake struct {
+	err                                error
+	deleteErr, entriesErr, triggersErr error
+	previousErr                        error
+	previous                           []sqlc.LeaderboardEntry
+	snapshots                          int
+	entries                            []byte
+}
+
+func (f *snapshotQueriesFake) PreviousEntriesForCabals(
+	context.Context,
+	sqlc.PreviousEntriesForCabalsParams,
+) ([]sqlc.LeaderboardEntry, error) {
+	return f.previous, f.previousErr
+}
+
+func (f *snapshotQueriesFake) DeleteAllLeaderboardEntries(context.Context) error { return f.deleteErr }
+
+func (f *snapshotQueriesFake) InsertLeaderboardEntries(_ context.Context, rows []byte) error {
+	f.entries = rows
+	return f.entriesErr
+}
+
+func (f *snapshotQueriesFake) InsertCabalValueSnapshot(context.Context, sqlc.InsertCabalValueSnapshotParams) error {
+	f.snapshots++
+	return f.err
+}
+
+func (f *snapshotQueriesFake) InsertLeaderboardRun(context.Context, sqlc.InsertLeaderboardRunParams) error {
+	return f.err
+}
+
+func (f *snapshotQueriesFake) DeleteRankingTriggersThrough(context.Context, time.Time) error {
+	return f.triggersErr
+}
+
+type eventAppenderFake struct {
+	err error
+	got events.Event
+}
+
+func (f *eventAppenderFake) Append(_ context.Context, event events.Event) error {
+	f.got = event
+	return f.err
 }
 
 func TestRunValuation_rejectsInvalidCashUnits(t *testing.T) {

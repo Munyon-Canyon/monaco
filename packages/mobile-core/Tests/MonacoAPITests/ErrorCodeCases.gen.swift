@@ -93,6 +93,7 @@ extension Components.Schemas.ErrorCode {
         case .potExceeded: true
         case .potValueZero: true
         case .priceUnavailable: true
+        case .pricesStale: true
         case .privyUnavailable: true
         case .proposalClosed: true
         case .proposalNotFound: true

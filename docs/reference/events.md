@@ -502,6 +502,20 @@ Subject `events.proposal.withdrawn`, version 1.
 | `cabal_id` | `uuid.UUID` |
 | `proposer_id` | `uuid.UUID` |
 
+## `ranking.snapshot_written`
+
+Subject `events.ranking.snapshot_written`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `run_id` | `uuid.UUID` |
+| `as_of` | `time.Time` |
+| `prices_as_of` | `time.Time` |
+| `computed_at` | `time.Time` |
+| `rows_written` | `int` |
+| `cabals_excluded` | `int` |
+
 ## `system.pinged`
 
 Subject `events.system.pinged`, version 1.

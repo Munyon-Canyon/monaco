@@ -2,6 +2,7 @@ package errs
 
 const (
 	CodeConservationBroken Code = "conservation_broken"
+	CodePricesStale        Code = "prices_stale"
 )
 
 func (codeFiles) Ranking() map[Code]Row {
@@ -11,6 +12,10 @@ func (codeFiles) Ranking() map[Code]Row {
 			Kind:    KindInternal,
 			Alert:   true,
 			Message: "Something went wrong.",
+		},
+		CodePricesStale: {
+			Name: "PricesStale", Kind: KindUnavailable,
+			Message: "Prices are temporarily unavailable. Try again in a moment.",
 		},
 	}
 }
