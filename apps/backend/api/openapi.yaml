@@ -1780,6 +1780,36 @@ paths:
                 $ref: "#/components/schemas/MyReferralCode"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/referrals/clicks:
+    post:
+      operationId: recordReferralClick
+      tags: [referrals]
+      security: []
+      x-idempotent: true
+      x-cors: web
+      x-rate-limit: {ip: {rate: 20, per: 1m, burst: 10}}
+      summary: Count one tap on the invite page's Get Monaco button.
+      description: >-
+        Public, called by the landing page for each tap on "Get Monaco". Adds one to the count for the
+        code on the current UTC day. Send a new random UUID as the Idempotency-Key for each tap,
+        because two taps that share a key and a code count once, whoever sent them. A code that does
+        not resolve is not counted and still answers 204. The stored count holds only the code, the
+        UTC day and a number.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The invite code from the page URL.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferralClickRequest"
+            example: {code: k7m4qx2p}
+      responses:
+        "204":
+          description: The tap was counted, or the code does not resolve.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/referrals/{code}:
     get:
       operationId: getReferral
@@ -4831,6 +4861,20 @@ components:
           type: boolean
           description: True once the caller's first deposit is credited.
           examples: [true]
+    ReferralClickRequest:
+      type: object
+      description: The invite code a visitor tapped Get Monaco for.
+      additionalProperties: false
+      required: [code]
+      examples:
+        - code: k7m4qx2p
+      properties:
+        code:
+          type: string
+          description: A random invite code or an unlocked handle, as it appears in the page URL.
+          minLength: 1
+          maxLength: 40
+          examples: [k7m4qx2p]
     ReferralLookup:
       type: object
       description: The referrer behind an invite code, or null when the code does not resolve.

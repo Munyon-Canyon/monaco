@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
@@ -25,6 +25,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx"
 	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/referralsapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/ratelimit"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -35,33 +36,48 @@ import (
 type server struct {
 	pool     *pgxpool.Pool
 	handler  http.Handler
+	raw      http.Handler
 	verifier *auth.DevVerifier
 	clock    *testkit.Clock
+	logs     *testkit.Logs
 }
 
 func newServer(t *testing.T) server {
 	t.Helper()
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
-	verifier, err := auth.NewDevVerifier(
-		config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: "test-only"}}, clk)
+	cfg := config.Config{Env: config.EnvTest, Auth: config.Auth{DevTokenKey: "test-only"}}
+	verifier, err := auth.NewDevVerifier(cfg, clk)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mount := referrals.New(module.Deps{Pool: pool}).Mount
+	policies, err := ratelimit.Load(openapi.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limiter, err := ratelimit.New(pool, clk, metricnoop.NewMeterProvider())
+	if err != nil {
+		t.Fatal(err)
+	}
+	logs := &testkit.Logs{}
+	mount := referrals.New(module.Deps{Pool: pool, Clock: clk}).Mount
 	h, err := httpx.Handler(httpx.Deps{
-		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),
+		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
 		Tracer:       noop.NewTracerProvider(),
 		Clock:        clk,
 		IDs:          testkit.NewIDs(1),
 		MaxBodyBytes: 1 << 20,
 		Idempotency:  db.NewIdempotencyStore(pool, clk),
 		Verifier:     verifier,
+		RateLimit:    ratelimit.Middleware(limiter, policies, httpx.ActorKey, false),
+		WebOrigins:   cfg.WebAllowedOrigins(),
 	}, mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return server{pool: pool, handler: testkit.HTTP(t, h), verifier: verifier, clock: clk}
+	return server{
+		pool: pool, handler: testkit.HTTP(t, h), raw: h, verifier: verifier, clock: clk, logs: logs,
+	}
 }
 
 func (s server) get(t *testing.T, user ids.UserID) *httptest.ResponseRecorder {
