@@ -4,16 +4,15 @@ expect-fail: S1
 The chat composer reads "Say something". S1.3 checks the spec's "Message your cabal", so it must fail once S1.2 passes.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalChatView.swift b/apps/mobile/Monaco/Features/Groups/CabalChatView.swift
-index d92f753af..cc32941c9 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalChatView.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalChatView.swift
-@@ -128,7 +128,7 @@ private struct ComingSoonComposer: View {
-                 TextField(
-                     "Message your cabal",
-                     text: .constant(""),
--                    prompt: Text("Message your cabal").foregroundStyle(MonacoTheme.disabledLabel)
-+                    prompt: Text("Say something").foregroundStyle(MonacoTheme.disabledLabel)
-                 )
-                 .font(MonacoTheme.Typo.body)
-                 .padding(.horizontal, MonacoTheme.Space.m)
+diff --git a/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift b/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift
+--- a/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift
++++ b/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift
+@@ -125,7 +125,7 @@ struct ChatComposerBar: View {
+         TextField(
+             GroupChatCopy.composerPlaceholder,
+             text: $draft,
+-            prompt: Text(GroupChatCopy.composerPlaceholder).foregroundStyle(MonacoTheme.disabledLabel),
++            prompt: Text("Say something").foregroundStyle(MonacoTheme.disabledLabel),
+             axis: .vertical
+         )
+         .font(MonacoTheme.Typo.body)

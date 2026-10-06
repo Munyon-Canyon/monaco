@@ -11,7 +11,7 @@ import XCTest
 
 nonisolated final class ChatScrollSampleUITests: XCTestCase {
     /// The newest message in the sample backlog, so "are we at the bottom?" has an answer.
-    private let newestSampleMessage = "group-chat-message-s8"
+    private let newestSampleMessage = "chat-message-s8"
 
     nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
@@ -42,7 +42,7 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
 
     @MainActor
     private func newMessagesPill(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons["group-chat-new-messages"]
+        app.buttons["chat-new-messages"]
     }
 
     /// Scrolls up into the backlog until the newest message is no longer realised.
@@ -136,7 +136,7 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
         // slowly and *held* before lifting, because a flick carries momentum and would coast
         // right out of the window — which would be the reader genuinely leaving, not the case
         // under test.
-        let thread = anyElement(app, "group-chat-thread")
+        let thread = anyElement(app, "chat-thread")
         let start = thread.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         start.press(
             forDuration: 0.1,
@@ -184,7 +184,7 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
         XCTAssertTrue(newest.waitForExistence(timeout: 40), "the sample thread should open at its newest message")
 
         // Walk up to the top of the loaded page, where the button lives.
-        let loadEarlier = app.buttons["group-chat-load-earlier"]
+        let loadEarlier = app.buttons["chat-load-earlier"]
         for _ in 0..<12 where !loadEarlier.exists {
             app.swipeDown()
         }
@@ -197,7 +197,7 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
         // Whichever row is topmost right now is the one the reader is sitting on; ask the
         // thread rather than working it out from the sample's arithmetic.
         let messageRows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "group-chat-message-")
+            NSPredicate(format: "identifier BEGINSWITH %@", "chat-message-")
         )
         let readersRowID = try XCTUnwrap(
             messageRows.allElementsBoundByIndex.first?.identifier,
@@ -235,7 +235,7 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
         composer.tap()
         composer.typeText("Counting me in for Thursday")
 
-        let send = app.buttons["group-chat-send"]
+        let send = app.buttons["chat-send"]
         XCTAssertTrue(send.waitForExistence(timeout: 10))
         // It only enables once the draft validates, so do not race it.
         let enabled = expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: send)
