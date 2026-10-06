@@ -3,9 +3,13 @@ package notify_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"maps"
 	"net/http"
+	"os"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -18,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/notify"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/apns"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -501,5 +506,166 @@ func TestPush_returnsEachStoreFailureAndRecordsNothing(t *testing.T) {
 			}
 			r.wantCount(t, "recorded deliveries", 0, `SELECT count(*) FROM event_deliveries`)
 		})
+	}
+}
+
+func TestPush_appendsNothingForARowAnotherDeliverySettledMeanwhile(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	user := r.user(t, "active")
+	r.device(t, user, token('a'))
+	sender := hooked{FakeSender: r.sender, before: func(ctx context.Context, p apns.Push) error {
+		_, err := r.pool.Exec(ctx, `UPDATE notifications SET state = 'delivered' WHERE user_id = $1`, p.UserID.UUID())
+		return err
+	}}
+	d, e := r.trigger(t, opsActor, user)
+
+	wantVerdict(t, r.handle(t, sender, d, e, app.Test{}), "", errs.VerdictAck)
+
+	r.wantStates(t, d, map[ids.UserID]string{user: "delivered"})
+	r.wantSentEvents(t, d, 0)
+	r.wantRecorded(t, d, 1)
+}
+
+type askedUsers struct {
+	app.Users
+	asked [][]ids.UserID
+}
+
+func (u *askedUsers) UsersByID(
+	ctx context.Context, userIDs []ids.UserID,
+) (map[ids.UserID]identity.UserCard, error) {
+	u.asked = append(u.asked, slices.Clone(userIDs))
+	return u.Users.UsersByID(ctx, userIDs)
+}
+
+func TestNotify_asksTheUsersPortOnceWithEachUserOnceAndNeverForNobody(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	user := r.user(t, "active")
+	asked := &askedUsers{Users: r.users}
+	r.users = asked
+	d, e := r.trigger(t, opsActor, user)
+	quiet, quietEvent := r.trigger(t, opsActor, user)
+
+	wantVerdict(
+		t,
+		r.handle(t, r.sender, d, e, &crowd{}, app.Test{}, &crowd{users: []ids.UserID{user}}),
+		"",
+		errs.VerdictAck,
+	)
+	wantVerdict(t, r.handle(t, r.sender, quiet, quietEvent, &crowd{}), "", errs.VerdictAck)
+
+	if len(asked.asked) != 1 || !slices.Equal(asked.asked[0], []ids.UserID{user}) {
+		t.Fatalf("UsersByID asked %v, want once for the one user", asked.asked)
+	}
+	r.wantCount(t, "rows of the two kinds in one broadcast", 2, `SELECT count(*) FROM notifications n
+		JOIN notification_broadcasts b ON b.id = n.broadcast_id
+		WHERE n.source_event_id = $1 AND b.kind = 'test' AND b.recipient_count = 2`, d.EventID.UUID())
+	r.wantRecorded(t, quiet, 1)
+}
+
+type copyCase struct {
+	typ    events.Type
+	render func(ctx context.Context, e events.Event, to ids.UserID) (app.Message, error)
+}
+
+func renderer[E events.Event](k app.Kind[E]) func(context.Context, events.Event, ids.UserID) (app.Message, error) {
+	return func(ctx context.Context, e events.Event, to ids.UserID) (app.Message, error) {
+		return k.Render(ctx, e.(E), to)
+	}
+}
+
+func copyCases() map[string]copyCase {
+	return map[string]copyCase{
+		"test": {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
+	}
+}
+
+func copyFaults(m app.Message) []string {
+	base58Run := regexp.MustCompile(`[1-9A-HJ-NP-Za-km-z]+`)
+	banned := regexp.MustCompile(`(?i)\b(group|club)s?\b|xstock`)
+	texts := make([]string, 0, 2+2*len(m.Data))
+	texts = append(texts, m.Title, m.Body)
+	var faults []string
+	for k, v := range m.Data {
+		texts = append(texts, k, v)
+		if strings.EqualFold(k, "badge") {
+			faults = append(faults, "badge key "+k)
+		}
+	}
+	for _, text := range texts {
+		faults = append(faults, banned.FindAllString(text, -1)...)
+		for _, run := range base58Run.FindAllString(text, -1) {
+			if len(run) >= 32 && len(run) <= 44 {
+				faults = append(faults, "address "+run)
+			}
+		}
+	}
+	return faults
+}
+
+func goldenEvent(t *testing.T, typ events.Type) events.Event {
+	t.Helper()
+	i := slices.IndexFunc(events.Catalog(), func(e events.Entry) bool { return e.Type == typ })
+	if i < 0 {
+		t.Fatalf("%s is not in the events catalog", typ)
+	}
+	version := events.Catalog()[i].Version
+	raw, err := fs.ReadFile(os.DirFS("../../events/testdata/golden"), fmt.Sprintf("%s.v%d.json", typ, version))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := events.Decode(typ, version, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ev
+}
+
+func TestNotifyCopy(t *testing.T) {
+	t.Parallel()
+	to := ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-copy-recipient")))
+	covered := map[events.Type]bool{}
+	for name, c := range copyCases() {
+		covered[c.typ] = true
+		msg, err := c.render(t.Context(), goldenEvent(t, c.typ), to)
+		if err != nil {
+			t.Fatalf("%s: Render = %v", name, err)
+		}
+		if faults := copyFaults(msg); len(faults) > 0 || msg.Title == "" || msg.Body == "" {
+			t.Errorf("%s: copy %+v breaks the rules: %q", name, msg, faults)
+		}
+	}
+	for _, c := range notify.New(module.Deps{}).Consumers() {
+		for _, h := range c.Handlers {
+			if !covered[h.Type()] {
+				t.Errorf("the notify consumer handles %s, which has no kind in copyCases", h.Type())
+			}
+		}
+	}
+}
+
+func TestNotifyCopy_catchesEveryPlantedFault(t *testing.T) {
+	t.Parallel()
+	mint := "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
+	for name, tc := range map[string]struct {
+		msg   app.Message
+		fails bool
+	}{
+		"group in the title":    {app.Message{Title: "Your Group bought Tesla"}, true},
+		"club in the body":      {app.Message{Body: "The CLUB voted"}, true},
+		"groups in the body":    {app.Message{Body: "Two Groups bought"}, true},
+		"brand in a data value": {app.Message{Data: map[string]string{"symbol": "TSLAxStock"}}, true},
+		"address in the body":   {app.Message{Body: "Bought " + mint}, true},
+		"address as a data key": {app.Message{Data: map[string]string{mint: "x"}}, true},
+		"badge key in any case": {app.Message{Data: map[string]string{"Badge": "1"}}, true},
+		"near misses":           {app.Message{Title: "Your cabal bought", Body: "Clubhouse groupies"}, false},
+		"a longer base58 run":   {app.Message{Body: mint + mint}, false},
+		"a uuid":                {app.Message{Data: map[string]string{"id": "019b76da-a800-7e41-9d3c-5b2a8f6e1c07"}}, false},
+	} {
+		if faults := copyFaults(tc.msg); (len(faults) > 0) != tc.fails {
+			t.Errorf("%s: copy check found %q in %+v, want a fault %v", name, faults, tc.msg, tc.fails)
+		}
 	}
 }
