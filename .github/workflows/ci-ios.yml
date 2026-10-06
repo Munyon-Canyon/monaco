@@ -7,13 +7,13 @@ on:
   workflow_call:
     inputs:
       save-cache:
-        description: Save the Swift package and compilation caches. PRs restore and never save.
+        description: Save the Swift package and build caches. PRs restore and never save.
         type: boolean
         default: false
   workflow_dispatch:
     inputs:
       save-cache:
-        description: Save the Swift package and compilation caches.
+        description: Save the Swift package and build caches.
         type: boolean
         default: false
 
@@ -55,28 +55,39 @@ jobs:
             ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
           key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
 
-      # Xcode's compilation cache (CAS) under DerivedData, filled by COMPILATION_CACHE_ENABLE_CACHING=YES,
-      # as stage 0 sets it. Each staging save gets its own key; PRs restore the newest entry for the same
-      # Xcode and Package.resolved files.
-      - name: Restore the compilation cache
-        id: cas
+      # DerivedData/Build from the last staging run: the compiled Swift packages, the
+      # swift-openapi-generator output, mobile-core and the app. The DerivedData path is the same on
+      # every runner, so xcodebuild builds incrementally on top of it. Each staging save gets its own
+      # key; PRs restore the newest entry for the same Xcode and Package.resolved files, and
+      # staging.yml's prune job keeps only the newest.
+      - name: Restore the build
+        id: build
         uses: actions/cache/restore@v4
         with:
-          path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
-          key: xcode-cas-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+          path: ${{ env.DERIVED_DATA }}/Build
+          key: xcode-build-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
           restore-keys: |
-            xcode-cas-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
+            xcode-build-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
 
-      # Every save restores the last one and adds to it, so a staging run starts the CAS over once it
-      # passes 4 GB on disk (about 1.3 GB compressed; a full build is about 1.2 GB, 0.4 GB compressed).
-      - name: Drop an oversized compilation cache
-        if: inputs.save-cache
+      # The Swift driver decides what to recompile from each source's mtime, and a fresh checkout
+      # stamps every file with the current time. Give each tracked file an mtime derived from its blob
+      # hash instead: unchanged content keeps the mtime the restored build recorded, changed content
+      # gets a new one and recompiles.
+      - name: Stamp source mtimes from content
         run: |
-          cas="$DERIVED_DATA/CompilationCache.noindex"
-          if [[ -d "$cas" ]] && (( $(du -sm "$cas" | cut -f1) > 4000 )); then
-            echo "compilation cache is over 4 GB on disk; starting it over"
-            rm -rf "$cas"
-          fi
+          git ls-files -s -z | python3 -c '
+          import os, sys
+          base = 946684800  # 2000-01-01
+          for entry in sys.stdin.buffer.read().split(b"\0"):
+              if not entry:
+                  continue
+              meta, path = entry.split(b"\t", 1)
+              mode, blob = meta.split()[:2]
+              if mode == b"120000":
+                  continue
+              ns = (base + int(blob[:7], 16)) * 10**9 + int(blob[7:14], 16) % 10**9
+              os.utime(path, ns=(ns, ns))
+          '
 
       - name: Placeholder app config
         run: scripts/ensure-ios-privy-config.sh placeholder
@@ -90,7 +101,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
             -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation \
-            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO COMPILATION_CACHE_ENABLE_CACHING=YES test
+            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO test
 
       - name: Save Swift packages
         if: inputs.save-cache && steps.spm.outputs.cache-hit != 'true'
@@ -102,12 +113,12 @@ jobs:
             ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
           key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
 
-      - name: Save the compilation cache
-        if: inputs.save-cache && steps.cas.outputs.cache-hit != 'true'
+      - name: Save the build
+        if: inputs.save-cache && steps.build.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
-          key: xcode-cas-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+          path: ${{ env.DERIVED_DATA }}/Build
+          key: xcode-build-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
 
       - name: Upload test results
         if: failure()

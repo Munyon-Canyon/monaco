@@ -48,7 +48,8 @@ jobs:
     with:
       stage: staging
 
-  # Each backend leg above saves a per-SHA Go cache (ci-jobs.yml). Keep the newest per leg on this ref.
+  # Each backend leg above saves a per-SHA Go cache (ci-jobs.yml), and the ios job a per-SHA
+  # DerivedData/Build (ci-ios.yml). Keep the newest per leg, and the newest iOS build, on this ref.
   prune:
     needs: [moved, staging]
     if: always() && needs.moved.outputs.run == 'true'
@@ -68,3 +69,8 @@ jobs:
         run: |
           scripts/ci/prune-caches.sh "$REF" \
             "${PREFIX}short-1-" "${PREFIX}short-2-" "${PREFIX}rest-1-" "${PREFIX}rest-2-"
+      - name: Prune superseded iOS build caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+        run: scripts/ci/prune-caches.sh "$REF" xcode-build-ios-
