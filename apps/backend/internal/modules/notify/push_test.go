@@ -665,6 +665,14 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string
 		"comment_reply": {
 			events.TypeCommentCreated, renderer[events.CommentCreated](app.CommentReply{Users: users}),
 		},
+		"chat_mention": {
+			events.TypeChatMessagePosted,
+			renderer[events.ChatMessagePosted](app.ChatMention{Cabals: cabals, Users: users}),
+		},
+		"chat_thread_reply": {
+			events.TypeChatMessagePosted,
+			renderer[events.ChatMessagePosted](app.ChatThreadReply{Cabals: cabals, Users: users}),
+		},
 	}
 }
 
@@ -720,9 +728,11 @@ func TestNotifyCopy(t *testing.T) {
 	to := ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-copy-recipient")))
 	paused := goldenEvent(t, events.TypeCabalPaused).(events.CabalPaused)
 	created := goldenEvent(t, events.TypeProposalCreated).(events.ProposalCreated)
+	posted := goldenEvent(t, events.TypeChatMessagePosted).(events.ChatMessagePosted)
 	seeds := []fakes.CabalSeed{
 		{View: cabal.View{ID: ids.CabalIDFrom(*paused.CabalID), Name: cabalName}},
 		{View: cabal.View{ID: ids.CabalIDFrom(created.CabalID), Name: cabalName}},
+		{View: cabal.View{ID: ids.CabalIDFrom(posted.CabalID), Name: cabalName}},
 	}
 	cabals := fakes.NewCabal(seeds, nil)
 	proposer := identity.UserCard{ID: ids.UserIDFrom(created.ProposerID), DisplayName: memberNames()[0]}
@@ -730,7 +740,8 @@ func TestNotifyCopy(t *testing.T) {
 	follower := identity.UserCard{ID: ids.UserIDFrom(followed.FollowerID), DisplayName: memberNames()[1], Handle: "bea"}
 	commented := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
 	replier := identity.UserCard{ID: ids.UserIDFrom(commented.AuthorID), DisplayName: memberNames()[2]}
-	users := fakes.NewIdentity([]identity.UserCard{proposer, follower, replier}, nil)
+	poster := identity.UserCard{ID: ids.UserIDFrom(posted.AuthorID), DisplayName: memberNames()[3]}
+	users := fakes.NewIdentity([]identity.UserCard{proposer, follower, replier, poster}, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
 	goldenDirs := map[string]string{"proposal_passed_buy": "buy"}
 	covered := map[events.Type]bool{}
