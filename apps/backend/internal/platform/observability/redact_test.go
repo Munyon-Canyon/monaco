@@ -206,6 +206,16 @@ func TestRedaction_plantedEmailPrintsMask(t *testing.T) {
 	}
 }
 
+func TestRedaction_aHashesKeyIsMasked(t *testing.T) {
+	t.Parallel()
+	const hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	var buf bytes.Buffer
+	NewLogger(config.Config{}, &buf).InfoContext(t.Context(), "social.contacts_matched", slog.String("hashes", hash))
+	if got := buf.String(); !strings.Contains(got, `"hashes":"***"`) || strings.Contains(got, hash) {
+		t.Fatalf("line = %s, want hashes masked as ***", got)
+	}
+}
+
 func groupChain(depth int) slog.Attr {
 	a := slog.String("leaf", "deep-value")
 	for i := depth; i >= 0; i-- {

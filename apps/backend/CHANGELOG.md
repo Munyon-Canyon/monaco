@@ -10,6 +10,8 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 - The `ranking` module values every cabal on a 1 s poller, `ranking.valuation`, that runs every 2 minutes and 1 s after a
   trade, a funding or a cash-out, and exports `ranking.Port` with `LatestRun` and `LatestCabalValues`.
+- `POST /v1/me/contacts/match` stores phone-contact matches and `GET /v1/me/contacts/matches` lists them.
+  Unmatched hashes are not stored.
 - The `admin` module.
 - `monacoctl dev seed-scenario <name> [--actor A=<user-uuid> ...] [--json]` loads a testkit scenario into the local
   `monaco` database for QA journeys: `cabal-with-confirmed-trade`, `cabal-with-failed-trade`, `cabal-with-members`,

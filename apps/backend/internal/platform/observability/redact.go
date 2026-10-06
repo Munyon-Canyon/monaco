@@ -37,6 +37,9 @@ func sensitiveKey(key string) bool {
 		return true
 	}
 	for _, word := range words {
+		if word == "hashes" {
+			return true
+		}
 		switch strings.TrimSuffix(word, "s") {
 		case "phone", "email", "token", "key", "seed", "signature", "secret", "authorization", "password", "mnemonic":
 			return true

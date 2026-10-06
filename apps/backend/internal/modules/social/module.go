@@ -143,10 +143,13 @@ func (m *Module) http() adapters.HTTP {
 		Token:         app.NewRealtimeTokenHandler(m.members, m.realtime),
 		CreateComment: app.NewCreateCommentHandler(comments),
 		DeleteComment: app.NewDeleteCommentHandler(comments),
-		Members:       m.members,
-		Reads:         m.deps.Pool,
-		Clock:         m.deps.Clock,
-		Users:         m.users,
+		Match: app.NewMatchContactsHandler(app.MatchContactsDeps{
+			UoW: m.deps.UoW, Users: m.users, Clock: m.deps.Clock,
+		}),
+		Members: m.members,
+		Reads:   m.deps.Pool,
+		Clock:   m.deps.Clock,
+		Users:   m.users,
 	}
 }
 
