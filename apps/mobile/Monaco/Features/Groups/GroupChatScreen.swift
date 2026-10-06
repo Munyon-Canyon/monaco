@@ -6,9 +6,11 @@ struct GroupChatScreen: View {
     let cabalID: String
     let session: ChatSession?
     let cabal: Components.Schemas.Cabal?
+    var reporter: ChatSeenReporter?
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
 
+    @State private var seenTarget: SeenTarget?
     @State private var chat: ChatSession.State?
     @State private var toast: MonacoToast?
     @State private var messageToDelete: String?
@@ -16,6 +18,7 @@ struct GroupChatScreen: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var sessionID: ObjectIdentifier? { session.map(ObjectIdentifier.init) }
+    private var reporterID: ObjectIdentifier? { reporter.map(ObjectIdentifier.init) }
     private var title: String { GroupChatCopy.title(groupName: cabal?.name) }
 
     var body: some View {
@@ -30,9 +33,19 @@ struct GroupChatScreen: View {
         }
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await session?.open() }
+        .task(id: reporterID) { await reporter?.setScreenVisible(true) }
+        .onAppear { Task { await reporter?.setScreenVisible(true) } }
+        .sheet(item: $seenTarget) { target in
+            ChatSeenSheet(cabalID: cabalID, messageID: target.id, openProfile: openProfile)
+        }
         .onChange(of: scenePhase) { _, phase in handle(phase) }
         .onChange(of: chat?.notice) { _, notice in show(notice) }
-        .onDisappear { Task { await session?.close() } }
+        .onDisappear {
+            Task {
+                await reporter?.setScreenVisible(false)
+                await session?.close()
+            }
+        }
         .chatDeleteConfirmation(messageID: $messageToDelete) { id in delete(id) }
         .monacoToast($toast)
         .accessibilityElement(children: .contain)
@@ -77,6 +90,8 @@ struct GroupChatScreen: View {
             openProfile: openProfile,
             openThread: openThread,
             requestDelete: { messageToDelete = $0 },
+            seen: chat.seen,
+            openSeen: { seenTarget = SeenTarget(id: $0) },
             retry: { key in Task { await session?.retry(key: key) } },
             loadOlder: { Task { await session?.loadOlder() } },
             refresh: { await session?.reload() }
@@ -101,6 +116,7 @@ struct GroupChatScreen: View {
     }
 
     private func handle(_ phase: ScenePhase) {
+        Task { await reporter?.setAppActive(phase == .active) }
         guard let session else { return }
         switch phase {
         case .background: Task { await session.close() }
@@ -120,4 +136,8 @@ struct GroupChatScreen: View {
         guard let notice else { return }
         toast = MonacoToast(message: ToastCopy.message(for: notice.error))
     }
+}
+
+private struct SeenTarget: Identifiable {
+    let id: String
 }
