@@ -293,7 +293,10 @@ type logNeed struct {
 func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
 	needs := d.triggerLogs(res.Unit)
 	if code, accepted := acceptedForConsumers(res); accepted {
-		return append(needs[:1], logNeed{observability.BusDispatched, map[string]string{"code": string(code)}})
+		return append(needs[:1], logNeed{
+			msg:   observability.BusDispatched,
+			attrs: map[string]string{"code": string(code)},
+		})
 	}
 	if _, isCode := res.Unit.Outcome.CodeName(); isCode {
 		return needs
@@ -303,7 +306,10 @@ func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
 	}
 	for _, w := range d.watchedBy(res.Unit) {
 		if d.wroteDurableEvent(ctx, []string{w.typ}, res.startedAt) {
-			needs = append(needs, logNeed{msg: observability.BusDispatched, attrs: map[string]string{"handler": w.handler}})
+			needs = append(needs, logNeed{
+				msg:   observability.BusDispatched,
+				attrs: map[string]string{"handler": w.handler},
+			})
 		}
 	}
 	return needs
