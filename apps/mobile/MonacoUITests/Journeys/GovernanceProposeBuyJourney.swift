@@ -140,7 +140,7 @@ enum GovernanceProposeBuyJourney {
 
         recorder.step("S1.4", "an amount over the pot is refused") {
             MoneyFundCabalJourney.typeAmount(app, "5")
-            expectHelper(app, "More than the pot has", timeout: 5, step: "S1.4")
+            expectLabel(app, "More than the pot has", timeout: 5, step: "S1.4")
             XCTAssertFalse(app.buttons["propose-amount-review"].isEnabled, "S1.4: Review is enabled over the pot")
         }
 

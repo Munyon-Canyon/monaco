@@ -28,7 +28,9 @@ enum MoneyFundCabalJourney {
 
     static func typeAmount(_ app: XCUIApplication, _ amount: String) {
         let field = app.element("amount-entry-field")
-        field.tap()
+        if field.value(forKey: "hasKeyboardFocus") as? Bool != true {
+            field.tap()
+        }
         if let current = field.value as? String, !current.isEmpty {
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
         }
