@@ -98,9 +98,11 @@ func feedFilter(kinds *string, cabal *uuid.UUID, symbol, q, scope *string) (app.
 func wireFeedItem(item app.FeedItem) api.FeedItem {
 	return api.FeedItem{
 		Id: item.ID, Kind: string(item.Kind), RefType: string(item.RefType), RefId: item.RefID,
-		CabalId: optionalWireID(item.CabalID.UUID()), ActorId: optionalWireID(item.ActorID.UUID()),
-		Symbol: optionalWireText(item.Symbol), Title: item.Title, Detail: optionalWireText(item.Detail),
-		Body: optionalWireText(item.Body), Status: optionalWireText(item.Status), Tone: string(item.Tone),
+		CabalId: optionalWireID(item.CabalID.UUID()), CabalName: optionalWireText(item.CabalName),
+		ActorId: optionalWireID(item.ActorID.UUID()), ActorName: optionalWireText(item.ActorName),
+		AssetId: optionalWireID(item.AssetID), Symbol: optionalWireText(item.Symbol), Title: item.Title,
+		Detail: optionalWireText(item.Detail), Body: optionalWireText(item.Body),
+		Status: optionalWireText(item.Status), Tone: string(item.Tone),
 		CommentCount: item.CommentCount, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 }

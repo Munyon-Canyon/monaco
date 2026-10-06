@@ -35,7 +35,8 @@ func GetFeedItem(
 	item, err := feedItemOf(sqlc.ListFeedRow{
 		ID: row.ID, Kind: row.Kind, RefType: row.RefType, RefID: row.RefID, CabalID: row.CabalID,
 		ActorID: row.ActorID, Symbol: row.Symbol, Title: row.Title, Body: row.Body, Payload: row.Payload,
-		Status: row.Status, CommentCount: row.CommentCount, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Status: row.Status, AssetID: row.AssetID, CabalName: row.CabalName,
+		CommentCount: row.CommentCount, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	})
 	if err != nil {
 		return FeedItemView{}, err
