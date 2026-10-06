@@ -50,7 +50,7 @@ func SettledWithdrawal(member testkit.SeededUser) scenario.Step {
 
 func F15WithdrawOK(s *scenario.Scenario) {
 	member := SeedWithdrawer(s)
-	s.Given(scenario.AsSeededUser("member", member.ID), scenario.FakeUpstream(finalizedStatus())).
+	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
 			scenario.Post(withdrawPath, withdrawBody),
 			scenario.ExpectStatus(http.StatusAccepted),
@@ -69,7 +69,7 @@ func F15WithdrawOK(s *scenario.Scenario) {
 
 func F15WithdrawCrashBeforeCommit(s *scenario.Scenario) {
 	member := SeedWithdrawer(s)
-	s.Given(scenario.AsSeededUser("member", member.ID), scenario.FakeUpstream(finalizedStatus())).
+	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
 			scenario.Post(withdrawPath, withdrawBody),
 			scenario.Retry(),
@@ -83,7 +83,7 @@ func F15WithdrawCrashBeforeCommit(s *scenario.Scenario) {
 
 func F15WithdrawCrashAfterSign(s *scenario.Scenario) {
 	member := SeedWithdrawer(s)
-	s.Given(scenario.AsSeededUser("member", member.ID), scenario.FakeUpstream(finalizedStatus())).
+	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(
 			scenario.Post(withdrawPath, withdrawBody),
 			scenario.Retry(),

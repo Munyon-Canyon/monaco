@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
@@ -18,6 +19,7 @@ import (
 type swapHarness struct {
 	t       *testing.T
 	jup     *jupiter.Client
+	rpc     *solana.Client
 	control *httpclient.Client
 }
 
@@ -33,6 +35,10 @@ func newSwapHarness(t *testing.T) swapHarness {
 			Timeouts: config.Timeouts{
 				JupiterQuote: 5 * time.Second, JupiterExecute: 5 * time.Second,
 			},
+		}, clock.Real{}, httpclient.WithTransport(transport)),
+		rpc: solana.New(config.Config{
+			Solana:   config.Solana{RPCURL: "http://fakes.test/rpc"},
+			Timeouts: config.Timeouts{RPC: 5 * time.Second},
 		}, clock.Real{}, httpclient.WithTransport(transport)),
 		control: httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"),
 			httpclient.WithTimeout(time.Minute), httpclient.WithTransport(transport)),
@@ -194,5 +200,73 @@ func TestJupiter_anOrderWithAPayerExecutesOnlyWhenThePayerCoSigns(t *testing.T) 
 	if err != nil || got.Status != jupiter.StatusSuccess ||
 		got.Signature != string(chain.SignatureOf(tx.Signatures[0])) {
 		t.Fatalf("Execute(co-signed) = %+v, %v; want success under the payer's signature", got, err)
+	}
+}
+
+func TestJupiter_anExecutedSwapLandsOnChainAndAnUnexecutedOneExpires(t *testing.T) {
+	t.Parallel()
+	h := newSwapHarness(t)
+	h.post("/_wallet", `{"id":"treasury-b"}`)
+	taker := fakes.PrivyWalletAddress("treasury-b")
+	executed, abandoned := h.order(taker, 25_000_000), h.order(taker, 25_000_000)
+	signed, landed := signAs(t, "treasury-b", executed.Transaction)
+	if _, err := h.jup.Execute(t.Context(), executed.RequestID, signed); err != nil {
+		t.Fatal(err)
+	}
+	_, unsent := signAs(t, "treasury-b", abandoned.Transaction)
+
+	statuses, err := h.rpc.SignatureStatuses(t.Context(), []chain.Signature{landed, unsent})
+	if err != nil || statuses[0].State != solana.StateFinalized || statuses[0].Failed ||
+		statuses[1].State != solana.StateNotFound {
+		t.Fatalf("SignatureStatuses = %+v, %v; want the executed swap finalized and the other not found", statuses, err)
+	}
+	transfers, err := h.rpc.InboundTransfersForMint(t.Context(), landed, taker,
+		"XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp")
+	if err != nil || len(transfers) != 1 || transfers[0].Net != money.NewBaseUnits(11_000_000, 8) {
+		t.Fatalf("InboundTransfersForMint = %+v, %v; want 11000000 AAPLx base units at 8 decimals", transfers, err)
+	}
+}
+
+func TestJupiter_anOrderBlockhashHasExpiredAndAnyOtherIsValid(t *testing.T) {
+	t.Parallel()
+	h := newSwapHarness(t)
+	h.post("/_wallet", `{"id":"treasury-c"}`)
+	taker := fakes.PrivyWalletAddress("treasury-c")
+	hash, _ := chain.RecentBlockhash(h.order(taker, 25_000_000).Transaction)
+	if valid, err := h.rpc.BlockhashValid(t.Context(), hash); err != nil || valid {
+		t.Fatalf("BlockhashValid(order blockhash) = %v, %v; want false so the sweeper expires it", valid, err)
+	}
+	if valid, err := h.rpc.BlockhashValid(t.Context(), string(taker)); err != nil || !valid {
+		t.Fatalf("BlockhashValid(unknown) = %v, %v; want true", valid, err)
+	}
+}
+
+func TestJupiter_aPayerOrderNeedsAValidPayerAndAnyValidPayerCanPay(t *testing.T) {
+	t.Parallel()
+	h := newSwapHarness(t)
+	h.post("/_wallet", `{"id":"treasury-q"}`)
+	taker := string(fakes.PrivyWalletAddress("treasury-q"))
+	query := "?inputMint=" + string(usdcMint) + "&outputMint=XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp" +
+		"&amount=25000000&slippageBps=100&taker=" + taker
+	if got := mustCall(
+		t.Context(),
+		t,
+		h.control,
+		http.MethodGet,
+		"/jupiter/swap/v2/order"+query+"&payer=not-an-address",
+		"",
+	); got.status != http.StatusBadRequest {
+		t.Fatalf("order with a bad payer = %d %q, want 400", got.status, got.body)
+	}
+	stranger := chain.AddressOf(fakes.FixtureKey("unknown-payer").Public().(ed25519.PublicKey))
+	if got := mustCall(
+		t.Context(),
+		t,
+		h.control,
+		http.MethodGet,
+		"/jupiter/swap/v2/order"+query+"&payer="+string(stranger),
+		"",
+	); got.status != http.StatusOK {
+		t.Fatalf("order with a payer the fakes hold no key for = %d %q, want 200", got.status, got.body)
 	}
 }

@@ -38,16 +38,9 @@ func seedFund(s *scenario.Scenario) fundSeed {
 
 func (f fundSeed) path() string { return "/v1/cabals/" + f.cabal.ID.String() + "/fund" }
 
-func finalizedStatus() fakes.Step {
-	return fakes.Step{
-		Route: "/rpc/getSignatureStatuses", Action: fakes.ActionSucceed, Times: 100, Reset: true,
-		Fixture: "/rpc/getSignatureStatuses/one-finalized",
-	}
-}
-
 func F07FundCabalOK(s *scenario.Scenario) {
 	f := seedFund(s)
-	s.Given(scenario.AsSeededUser("member", f.member.ID), scenario.FakeUpstream(finalizedStatus())).
+	s.Given(scenario.AsSeededUser("member", f.member.ID)).
 		When(
 			scenario.Post(f.path(), fundBody),
 			scenario.ExpectStatus(http.StatusAccepted),
@@ -65,7 +58,7 @@ func F07FundCabalOK(s *scenario.Scenario) {
 
 func F07FundCabalCrashBeforeCommit(s *scenario.Scenario) {
 	f := seedFund(s)
-	s.Given(scenario.AsSeededUser("member", f.member.ID), scenario.FakeUpstream(finalizedStatus())).
+	s.Given(scenario.AsSeededUser("member", f.member.ID)).
 		When(
 			scenario.Post(f.path(), fundBody),
 			scenario.Retry(),
@@ -82,7 +75,7 @@ func F07FundCabalCrashBeforeCommit(s *scenario.Scenario) {
 
 func F07FundCabalCrashAfterSign(s *scenario.Scenario) {
 	f := seedFund(s)
-	s.Given(scenario.AsSeededUser("member", f.member.ID), scenario.FakeUpstream(finalizedStatus())).
+	s.Given(scenario.AsSeededUser("member", f.member.ID)).
 		When(
 			scenario.Post(f.path(), fundBody),
 			scenario.Retry(),

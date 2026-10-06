@@ -38,6 +38,7 @@ type SetWallet struct {
 
 type swapOrder struct {
 	taker   string
+	outMint string
 	in, out string
 }
 
@@ -57,7 +58,8 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	taker := q.Get("taker")
 	quoted, ok := s.quotedOrder()
-	if !ok || !s.holdsWallet(taker) {
+	walletID, held := s.walletAt(taker)
+	if !ok || !held {
 		s.serveFixture(w, []string{orderRoute})
 		return
 	}
@@ -72,13 +74,18 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 	s.orderCount++
 	n := s.orderCount
 	id := "req-" + strconv.FormatUint(n, 10)
-	s.orders[id] = swapOrder{taker: taker, in: in.String(), out: out}
+	s.orders[id] = swapOrder{taker: taker, outMint: q.Get("outputMint"), in: in.String(), out: out}
+	tx := unsignedTx(signers, n)
+	s.blockhashes[blockhashOf(tx)] = true
+	if sig, ok := expectedSignature(walletID, tx); ok {
+		s.unexecuted[sig] = true
+	}
 	s.mu.Unlock()
 	writeJSON(w, orderReply{
 		RequestID: id, InputMint: q.Get("inputMint"), OutputMint: q.Get("outputMint"),
 		InAmount: in.String(), OutAmount: out, Router: "iris", PriceImpactPct: "0.12",
 		RoutePlan:   []map[string]any{{"swapInfo": map[string]string{"label": "Meteora DLMM"}, "percent": 100}},
-		Transaction: base64.StdEncoding.EncodeToString(unsignedTx(signers, n)),
+		Transaction: base64.StdEncoding.EncodeToString(tx),
 	})
 }
 
@@ -88,15 +95,15 @@ func (s *Server) quotedOrder() (orderReply, bool) {
 	return quoted, ok && json.Unmarshal(f.Body, &quoted) == nil && quoted.InAmount != ""
 }
 
-func (s *Server) holdsWallet(address string) bool {
+func (s *Server) walletAt(address string) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, w := range s.wallets {
+	for id, w := range s.wallets {
 		if address != "" && w.Address == address {
-			return true
+			return id, true
 		}
 	}
-	return false
+	return "", false
 }
 
 func scaled(in *big.Int, quoted orderReply) string {
@@ -150,6 +157,28 @@ func fullySignedBy(tx chain.Transaction, taker string) bool {
 	return slices.Contains(tx.Signers, chain.SolanaAddress(taker))
 }
 
+func fixturePayers() []ed25519.PrivateKey {
+	return []ed25519.PrivateKey{FixtureKey("verify-relayer"), FixtureKey("f14-relayer")}
+}
+
+func expectedSignature(walletID string, unsigned []byte) (string, bool) {
+	tx, _ := chain.DecodeTransaction(unsigned)
+	for _, key := range append([]ed25519.PrivateKey{PrivyWalletKey(walletID)}, fixturePayers()...) {
+		_ = tx.Sign(key)
+	}
+	for i := range tx.Signers {
+		if !tx.Signed(i) {
+			return "", false
+		}
+	}
+	return string(chain.SignatureOf(tx.Signatures[0])), true
+}
+
+func blockhashOf(tx []byte) string {
+	hash, _ := chain.RecentBlockhash(tx)
+	return hash
+}
+
 func (s *Server) jupiterExecute(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SignedTransaction string `json:"signedTransaction"`
@@ -179,6 +208,7 @@ func (s *Server) jupiterExecute(w http.ResponseWriter, r *http.Request) {
 	case SwapPending:
 		writeJSON(w, map[string]any{"status": string(SwapPending), "signature": signature, "code": 0})
 	case SwapSuccess, "":
+		s.land(signature, order)
 		writeJSON(w, map[string]any{
 			"status": string(SwapSuccess), "signature": signature, "code": 0,
 			"inputAmountResult": order.in, "outputAmountResult": order.out,
