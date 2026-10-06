@@ -60,6 +60,9 @@ SELECT status FROM proposals WHERE id = @id;
 -- name: CabalOfProposal :one
 SELECT cabal_id FROM proposals WHERE id = @id;
 
+-- name: ProposerOfProposal :one
+SELECT proposer_id FROM proposals WHERE id = @id;
+
 -- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,

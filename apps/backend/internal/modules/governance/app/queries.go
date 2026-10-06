@@ -32,3 +32,15 @@ func (s Queries) Status(ctx context.Context, id ids.ProposalID) (domain.Status, 
 	}
 	return status, nil
 }
+
+func (s Queries) Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, error) {
+	const op = "governance.Proposer"
+	raw, err := s.q.ProposerOfProposal(ctx, id.UUID())
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return ids.UserID{}, errs.New(errs.CodeProposalNotFound, op)
+	case err != nil:
+		return ids.UserID{}, errs.Wrap(err, errs.CodeDBUnavailable, op)
+	}
+	return ids.UserIDFrom(raw), nil
+}

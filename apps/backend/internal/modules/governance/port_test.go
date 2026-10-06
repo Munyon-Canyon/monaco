@@ -51,6 +51,34 @@ func TestPort_statusErrors(t *testing.T) {
 	}
 }
 
+func TestPort_proposerNamesWhoOpenedTheProposal(t *testing.T) {
+	t.Parallel()
+	d := newProposalDB(t)
+	port := governance.New(module.Deps{Pool: d.pool}).Queries()
+	p := d.buy(d.ids.NewV7())
+	d.insert(t, p)
+	d.transition(t, p.ID, "open", "passed", "")
+	got, err := port.Proposer(t.Context(), ids.ProposalIDFrom(p.ID))
+	if err != nil || got != ids.UserIDFrom(p.ProposerID) {
+		t.Fatalf("Proposer = %s, %v, want %s", got, err, p.ProposerID)
+	}
+}
+
+func TestPort_proposerErrors(t *testing.T) {
+	t.Parallel()
+	d := newProposalDB(t)
+	port := governance.New(module.Deps{Pool: d.pool}).Queries()
+	unknown := ids.ProposalIDFrom(d.ids.NewV7())
+	if _, err := port.Proposer(t.Context(), unknown); errs.CodeOf(err) != errs.CodeProposalNotFound {
+		t.Errorf("Proposer of an unknown proposal err = %v, want proposal_not_found", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := port.Proposer(ctx, unknown); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Errorf("Proposer on a cancelled context err = %v, want db_unavailable so a consumer naks", err)
+	}
+}
+
 func TestPort_proposedMintsNameOpenAndPassedProposalsOnly(t *testing.T) {
 	t.Parallel()
 	d := newProposalDB(t)

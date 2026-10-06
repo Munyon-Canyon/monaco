@@ -1,8 +1,11 @@
 package analytics
 
 import (
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/exports"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/posthog"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -14,11 +17,22 @@ type Module struct {
 	exports *Registry
 }
 
-func New(d module.Deps) *Module { return newModule(d, productExports()) }
+func New(d module.Deps) *Module { return newModule(d, productExports(d)) }
 
 func newModule(d module.Deps, r *Registry) *Module { return &Module{deps: d, exports: r} }
 
-func productExports() *Registry { return NewRegistry() }
+func productExports(d module.Deps) *Registry {
+	r := NewRegistry()
+	registerProposalExports(r, governance.New(d).Queries())
+	return r
+}
+
+func registerProposalExports(r *Registry, proposers app.ProposerReader) {
+	p := exports.Proposals{Proposers: proposers}
+	Export(r, string(events.TypeProposalPassed), p.ProposalPassed)
+	Export(r, string(events.TypeProposalFailed), p.ProposalFailed)
+	Export(r, string(events.TypeProposalExpired), p.ProposalExpired)
+}
 
 func (*Module) Name() string { return "analytics" }
 

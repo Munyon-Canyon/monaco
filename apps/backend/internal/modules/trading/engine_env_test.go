@@ -77,6 +77,10 @@ func (p *proposalsFake) Status(context.Context, ids.ProposalID) (governance.Stat
 	return p.status, nil
 }
 
+func (p *proposalsFake) Proposer(context.Context, ids.ProposalID) (ids.UserID, error) {
+	return ids.UserID{}, nil
+}
+
 func (p *proposalsFake) set(status governance.Status) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
