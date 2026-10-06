@@ -22,7 +22,7 @@ func TestRun_refusesToBootInStagingWithTheRelayerAtTheFloor(t *testing.T) {
 		"MONACO_ENV=staging", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
 		"MONACO_DEV_TOKEN_KEY=dev-only", "SOLANA_RPC_URL=" + srv.URL + "/rpc/",
 		"RELAYER_PRIVATE_KEY=" + chain.EncodeBase58(fakes.FixtureKey("relayer-at-floor")),
-	}, testkit.APNsEnv()...), openapi.Spec, noop.NewMeterProvider())
+	}, testkit.DeployedEnv()...), openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeRelayerUnderfunded {
 		t.Fatalf("run = %v, want relayer_underfunded", err)
 	}

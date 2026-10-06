@@ -20,7 +20,7 @@ func TestRun_refusesToBootInStagingWithThePlaceholderDevTokenKey(t *testing.T) {
 	err := run(t.Context(), io.Discard, append([]string{
 		"MONACO_ENV=staging", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
 		"MONACO_DEV_TOKEN_KEY=" + auth.PlaceholderDevTokenKey,
-	}, testkit.APNsEnv()...), openapi.Spec, noop.NewMeterProvider())
+	}, testkit.DeployedEnv()...), openapi.Spec, noop.NewMeterProvider())
 	if errs.CodeOf(err) != errs.CodeInvalidConfig || !strings.HasPrefix(err.Error(), "auth.CheckDevTokenKey: ") {
 		t.Fatalf("run = %v, want invalid_config from auth.CheckDevTokenKey", err)
 	}
@@ -31,7 +31,7 @@ func TestMain_exitsOneAndLogsWhyThePlaceholderDevTokenKeyIsRefusedWithoutEchoing
 	out, err := testkit.MainCommand(t, append([]string{
 		"MONACO_ENV=staging", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
 		"MONACO_DEV_TOKEN_KEY=" + auth.PlaceholderDevTokenKey,
-	}, testkit.APNsEnv()...)).CombinedOutput()
+	}, testkit.DeployedEnv()...)).CombinedOutput()
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 1 {
 		t.Fatalf("api with the placeholder key in staging = %v\n%s", err, out)

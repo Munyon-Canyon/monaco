@@ -23,7 +23,8 @@ func TestLoad_apnsBaseURLIsAllowedOutsideProduction(t *testing.T) {
 	t.Parallel()
 	const base = "http://127.0.0.1:8099/apns"
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging} {
-		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "APNS_BASE_URL="+base)
+		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "APNS_BASE_URL="+base,
+			"ABLY_API_KEY=ably-key")
 		cfg, err := config.Load(environ)
 		if err != nil {
 			t.Fatalf("MONACO_ENV=%s with APNS_BASE_URL: %v", env, err)

@@ -27,8 +27,8 @@ func assertValid(t *testing.T, cfg config.Config) {
 	t.Helper()
 	timeouts := []time.Duration{
 		cfg.Timeouts.RPC, cfg.Timeouts.Privy, cfg.Timeouts.APNs, cfg.Timeouts.JupiterQuote,
-		cfg.Timeouts.JupiterExecute, cfg.Timeouts.PostHog, cfg.Timeouts.HTTPServerRead,
-		cfg.Timeouts.HTTPServerWrite, cfg.Timeouts.Shutdown,
+		cfg.Timeouts.JupiterExecute, cfg.Timeouts.PostHog, cfg.Timeouts.Ably,
+		cfg.Timeouts.HTTPServerRead, cfg.Timeouts.HTTPServerWrite, cfg.Timeouts.Shutdown,
 	}
 	for _, d := range timeouts {
 		if d <= 0 {
@@ -40,6 +40,9 @@ func assertValid(t *testing.T, cfg config.Config) {
 	}
 	if cfg.Env == config.EnvProduction && cfg.PostHog.APIKey == "" {
 		t.Fatalf("Load accepted a production config with no PostHog key: %+v", cfg)
+	}
+	if cfg.Env.Deployed() && cfg.Ably.APIKey == "" {
+		t.Fatalf("Load accepted a deployed config with no Ably key: %+v", cfg.Env)
 	}
 	switch cfg.Env {
 	case config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction:

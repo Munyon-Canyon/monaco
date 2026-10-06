@@ -36,7 +36,7 @@ func TestRun_refusesToBootInStagingAndProductionWithTheFixtureVerificationKey(t 
 			err := run(t.Context(), io.Discard, append([]string{
 				"MONACO_ENV=" + tc.env, "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
 				"PRIVY_VERIFICATION_KEY=" + tc.key, "POSTHOG_API_KEY=ph-key",
-			}, testkit.APNsEnv()...), openapi.Spec, noop.NewMeterProvider())
+			}, testkit.DeployedEnv()...), openapi.Spec, noop.NewMeterProvider())
 			if errs.CodeOf(err) != errs.CodeInvalidConfig ||
 				!strings.HasPrefix(err.Error(), "privy.CheckVerificationKey: ") {
 				t.Fatalf("run = %v, want invalid_config from privy.CheckVerificationKey", err)
@@ -51,7 +51,7 @@ func TestMain_exitsOneAndLogsWhyTheFixtureKeyIsRefusedWithoutEchoingIt(t *testin
 	out, err := testkit.MainCommand(t, append([]string{
 		"MONACO_ENV=production", "DATABASE_URL=postgres://localhost/monaco", "NATS_URL=nats://localhost:4222",
 		"PRIVY_VERIFICATION_KEY=" + fixture, "POSTHOG_API_KEY=ph-key",
-	}, testkit.APNsEnv()...)).CombinedOutput()
+	}, testkit.DeployedEnv()...)).CombinedOutput()
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 1 {
 		t.Fatalf("api with the fixture key in production = %v\n%s", err, out)
@@ -79,7 +79,7 @@ func TestMain_verifiesFixtureTokensOnlyWhereTheFixtureKeyIsAllowed(t *testing.T)
 		"SOLANA_RPC_URL=" + rpc.URL + "/rpc/",
 		"RELAYER_PRIVATE_KEY=" + chain.EncodeBase58(fakes.FixtureKey("relayer")),
 		"POSTHOG_API_KEY=ph-key",
-	}, testkit.APNsEnv()...)
+	}, testkit.DeployedEnv()...)
 	for name, tc := range map[string]struct {
 		env, key, wantCode string
 		extra              []string

@@ -137,6 +137,7 @@ linters:
             - { pkg: "github.com/jackc/pgx", desc: "declare a port" }
             - { pkg: "github.com/nats-io", desc: "emit via Tx.Events" }
             - { pkg: "net/http", desc: "use cases are transport-free" }
+            - { pkg: "github.com/ably/ably-go", desc: "reach Ably through the Realtime port" }
         boundary:
           files:
             - "$all"

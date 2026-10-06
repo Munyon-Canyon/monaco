@@ -42,6 +42,9 @@ func storageOr(route, upstream string, r *http.Request) string {
 	if live, ok := storageLiveRoute(upstream, r); ok {
 		return live
 	}
+	if _, _, ok := foldedAblyRoute(upstream, r); ok {
+		return "/ably" + r.URL.Path
+	}
 	return route
 }
 

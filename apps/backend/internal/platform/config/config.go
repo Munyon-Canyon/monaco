@@ -55,6 +55,7 @@ type Config struct {
 	Relayer    Relayer
 	APNs       APNs
 	PostHog    PostHog
+	Ably       Ably
 	Supabase   Supabase
 	Web        Web
 	Trade      Trade
@@ -200,6 +201,7 @@ type Timeouts struct {
 	Tessera         time.Duration
 	PreStocks       time.Duration
 	PostHog         time.Duration
+	Ably            time.Duration
 	Storage         time.Duration
 	HTTPServerRead  time.Duration
 	HTTPServerWrite time.Duration
@@ -294,7 +296,7 @@ type field struct {
 	key         string
 	fallback    string
 	mandatory   bool
-	mandatoryIn Env
+	mandatoryIn []Env
 	redact      bool
 	want        string
 	set         func(c *Config, v string) bool
@@ -306,15 +308,15 @@ func (f field) required() field {
 	return f
 }
 
-func (f field) requiredIn(env Env) field {
-	f.mandatoryIn = env
+func (f field) requiredIn(envs ...Env) field {
+	f.mandatoryIn = envs
 	return f
 }
 
 func missingIn(cfg Config) []string {
 	var keys []string
 	for _, f := range fields() {
-		if f.mandatoryIn != "" && f.mandatoryIn == cfg.Env && f.get(&cfg) == "" {
+		if slices.Contains(f.mandatoryIn, cfg.Env) && f.get(&cfg) == "" {
 			keys = append(keys, f.key)
 		}
 	}
@@ -327,7 +329,7 @@ func (f field) secret() field {
 }
 
 func fields() []field {
-	return slices.Concat(platformFields(), marketFields(), fundingFields(), webFields(), tradeFields())
+	return slices.Concat(platformFields(), marketFields(), fundingFields(), webFields(), tradeFields(), ablyFields())
 }
 
 func marketFields() []field {

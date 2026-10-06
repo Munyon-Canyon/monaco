@@ -51,6 +51,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			Tessera:         15 * time.Second,
 			PreStocks:       15 * time.Second,
 			PostHog:         3 * time.Second,
+			Ably:            2 * time.Second,
 			Storage:         10 * time.Second,
 			HTTPServerRead:  10 * time.Second,
 			HTTPServerWrite: 30 * time.Second,
@@ -74,6 +75,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
 		APNs:    config.APNs{Topic: "com.monaco.app"},
 		PostHog: config.PostHog{Host: "https://us.i.posthog.com"},
+		Ably:    config.Ably{RESTHost: "rest.ably.io"},
 		Trade: config.Trade{
 			Engine: config.TradeEngineLive, SwapSweepInterval: 30 * time.Second, SwapSweepAge: 2 * time.Minute,
 		},
@@ -127,6 +129,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_TIMEOUT_TESSERA=9s",
 		"MONACO_TIMEOUT_PRESTOCKS=11s",
 		"MONACO_TIMEOUT_POSTHOG=2500ms",
+		"MONACO_TIMEOUT_ABLY=1500ms",
 		"MONACO_TIMEOUT_HTTP_SERVER_READ=5s",
 		"MONACO_TIMEOUT_HTTP_SERVER_WRITE=6s",
 		"MONACO_TIMEOUT_SHUTDOWN=7s",
@@ -165,6 +168,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"APNS_TOPIC=com.example.app",
 		"POSTHOG_API_KEY=ph-secret",
 		"POSTHOG_HOST=http://fakes/posthog",
+		"ABLY_API_KEY=ably-secret",
+		"ABLY_REST_HOST=http://fakes/ably",
 		"SUPABASE_URL=http://127.0.0.1:54321",
 		"SUPABASE_SERVICE_ROLE_KEY=sb-secret",
 		"MONACO_TIMEOUT_STORAGE=4s",
@@ -204,6 +209,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			Tessera:         9 * time.Second,
 			PreStocks:       11 * time.Second,
 			PostHog:         2500 * time.Millisecond,
+			Ably:            1500 * time.Millisecond,
 			Storage:         4 * time.Second,
 			HTTPServerRead:  5 * time.Second,
 			HTTPServerWrite: 6 * time.Second,
@@ -234,6 +240,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Relayer:  config.Relayer{PrivateKey: "relayer-key"},
 		APNs:     config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
 		PostHog:  config.PostHog{APIKey: "ph-secret", Host: "http://fakes/posthog"},
+		Ably:     config.Ably{APIKey: "ably-secret", RESTHost: "http://fakes/ably"},
 		Supabase: config.Supabase{URL: "http://127.0.0.1:54321", ServiceRoleKey: "sb-secret"},
 		Web: config.Web{
 			FundPageURL: "https://fund.example/fund", AllowedOrigins: "https://fund.example,http://127.0.0.1:5173",
@@ -251,7 +258,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 func TestLoadAcceptsEveryEnv(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
-		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env))
+		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "ABLY_API_KEY=ably-key")
 		if env == config.EnvProduction {
 			environ = append(environ, "POSTHOG_API_KEY=ph-key")
 		}
@@ -268,7 +275,8 @@ func TestLoadAcceptsEveryEnv(t *testing.T) {
 func TestLoadBootsWithoutACoinGeckoKeyInEveryEnv(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {
-		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "POSTHOG_API_KEY=ph-key")
+		environ := append(append(required(), apnsKeys()...), "MONACO_ENV="+string(env), "POSTHOG_API_KEY=ph-key",
+			"ABLY_API_KEY=ably-key")
 		cfg, err := config.Load(environ)
 		if err != nil || cfg.CoinGecko.APIKey != "" {
 			t.Fatalf("MONACO_ENV=%s: key %q, err %v; want no key and no error", env, cfg.CoinGecko.APIKey, err)
@@ -353,7 +361,7 @@ func TestLoadFailures(t *testing.T) {
 		},
 		{
 			name:    "staging without the APNs key names every missing key",
-			environ: append(required(), "MONACO_ENV=staging"),
+			environ: append(required(), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key"),
 			want:    "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID",
 		},
 		{
@@ -362,6 +370,7 @@ func TestLoadFailures(t *testing.T) {
 				required(),
 				"MONACO_ENV=production",
 				"POSTHOG_API_KEY=ph-key",
+				"ABLY_API_KEY=ably-key",
 				"APNS_KEY_ID=key-id",
 			),
 			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_TEAM_ID",
@@ -377,6 +386,7 @@ func TestLoadFailures(t *testing.T) {
 				append(required(), apnsKeys()...),
 				"MONACO_ENV=production",
 				"POSTHOG_API_KEY=ph-key",
+				"ABLY_API_KEY=ably-key",
 				"APNS_BASE_URL=http://fakes/apns",
 			),
 			want: "config.Load: invalid_input: invalid APNS_BASE_URL (not allowed in production)",
@@ -387,6 +397,7 @@ func TestLoadFailures(t *testing.T) {
 				required(),
 				"MONACO_ENV=production",
 				"POSTHOG_API_KEY=ph-key",
+				"ABLY_API_KEY=ably-key",
 				"APNS_BASE_URL=http://fakes/apns",
 			),
 			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID; " +
@@ -399,19 +410,20 @@ func TestLoadFailures(t *testing.T) {
 		},
 		{
 			name:    "production without a PostHog key",
-			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production"),
+			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "ABLY_API_KEY=ably-key"),
 			want:    "config.Load: invalid_input: missing POSTHOG_API_KEY",
 		},
 		{
-			name:    "an empty PostHog key counts as missing in production",
-			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "POSTHOG_API_KEY="),
-			want:    "config.Load: invalid_input: missing POSTHOG_API_KEY",
+			name: "an empty PostHog key counts as missing in production",
+			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "POSTHOG_API_KEY=",
+				"ABLY_API_KEY=ably-key"),
+			want: "config.Load: invalid_input: missing POSTHOG_API_KEY",
 		},
 		{
 			name:    "production names every missing key in one error",
 			environ: []string{"MONACO_ENV=production", "NATS_URL=nats://x"},
 			want: "config.Load: invalid_input: missing DATABASE_URL, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, " +
-				"POSTHOG_API_KEY",
+				"POSTHOG_API_KEY, ABLY_API_KEY",
 		},
 		{
 			name:    "trust proxy headers not a boolean",
@@ -475,6 +487,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		"RELAYER_PRIVATE_KEY":             "relayer-secret",
 		"APNS_KEY_P8":                     "p8-secret",
 		"POSTHOG_API_KEY":                 "ph-api-secret",
+		"ABLY_API_KEY":                    "ably-api-secret",
 		"SUPABASE_SERVICE_ROLE_KEY":       "supabase-service-secret",
 	}
 	environ := make([]string, 0, 2+len(secrets))
@@ -548,6 +561,9 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"POSTHOG_API_KEY", "***"},
 		{"POSTHOG_HOST", "https://us.i.posthog.com"},
 		{"MONACO_TIMEOUT_POSTHOG", "3s"},
+		{"ABLY_API_KEY", "***"},
+		{"ABLY_REST_HOST", "rest.ably.io"},
+		{"MONACO_TIMEOUT_ABLY", "2s"},
 		{"SUPABASE_URL", ""},
 		{"SUPABASE_SERVICE_ROLE_KEY", "***"},
 		{"MONACO_TIMEOUT_STORAGE", "10s"},

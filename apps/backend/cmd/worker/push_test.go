@@ -49,7 +49,7 @@ func TestBindPush_withAKeyBindsTheRealClientAndStaysQuiet(t *testing.T) {
 	t.Parallel()
 	logs := &testkit.Logs{}
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
-	d := module.Deps{Config: pushConfig(t, testkit.APNsEnv()...)}
+	d := module.Deps{Config: pushConfig(t, testkit.DeployedEnv()...)}
 
 	if err := bindPush(ctx, &d); err != nil {
 		t.Fatal(err)

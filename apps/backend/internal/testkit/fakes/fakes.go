@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"embed"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -74,6 +75,7 @@ type Server struct {
 	createdUsers map[string]privyCreatedUser
 	objects      map[string]storedObject
 	posthog      []PostHogCapture
+	ably         []AblyPublish
 	balances     map[string]map[string]tokenBalance
 	swaps        map[string]SetSwap
 	orders       map[string]swapOrder
@@ -120,6 +122,7 @@ func newFrom(fsys fs.FS, root string) *Server {
 	s.live.HandleFunc("POST /privy/v1/wallets/{id}/rpc", s.privySign)
 	s.live.HandleFunc("POST /apns/3/device/{token}", s.apnsPush)
 	s.live.HandleFunc("POST /posthog/batch/", s.posthogBatch)
+	s.live.HandleFunc("POST /ably/channels/{name}/messages", s.ablyPublish)
 	s.mountStorage()
 	for _, name := range s.upstreams {
 		replay := s.replay(name)
@@ -250,6 +253,9 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 		step := s.next(route, r)
 		switch step.action {
 		case ActionHang:
+			if r.Body != nil {
+				_, _ = io.Copy(io.Discard, r.Body)
+			}
 			<-r.Context().Done()
 			return
 		case ActionFail:
