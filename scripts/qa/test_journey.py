@@ -9,6 +9,7 @@ import fcntl
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -458,11 +459,13 @@ class Slots(unittest.TestCase):
         popen = []
         with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
                                         type("P", (), {"poll": lambda self: None})()), \
+                unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
                 unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
                 unittest.mock.patch.object(journey, "backend_is_running", lambda url: True):
             journey.start_backend("http://127.0.0.1:8180", slot=1)
         self.assertEqual(popen[0]["MONACO_HTTP_ADDR"], ":8180")
         self.assertEqual(popen[0]["MONACO_WORKER_HEALTH_ADDR"], ":8181")
+        self.assertRegex(popen[0]["MONACO_LOG_DIR"], r"backend-slot1-\d{8}T\d{6}Z$")
 
     def test_the_same_login_does_not_run_twice(self):
         logins = ["A", "B", "C", "L"]
@@ -1091,6 +1094,56 @@ qa_api() {
         done, calls = self.run_script("ready_login A", row="")
         self.assertEqual((done.returncode, calls), (0, []), done.stderr)
         self.assertIn("signs in once first", done.stdout)
+
+
+class StopBackend(unittest.TestCase):
+    """stop_backend touches this run's process group only: the other slot's api and worker share its binaries."""
+
+    def listing(self, *rows):
+        return type("R", (), {"stdout": "".join("%5d %5d %s\n" % row for row in rows), "returncode": 0})()
+
+    def stop(self, steps, own=100):
+        calls, signals, groups, sleeps = [], [], [], []
+        remaining = list(steps)
+
+        def run(args, **kwargs):
+            calls.append(args)
+            return remaining.pop(0) if len(remaining) > 1 else remaining[0]
+
+        process = type("P", (), {"pid": own, "wait": lambda self, timeout=None: None})()
+        journey.stop_backend(process, grace=1, run=run, kill=lambda pid, sig: signals.append((pid, sig)),
+                             killpg=lambda pgid, sig: groups.append((pgid, sig)), sleep=sleeps.append)
+        return calls, signals, groups, sleeps
+
+    def test_the_group_lists_only_its_own_processes(self):
+        run = lambda args, **kwargs: self.listing(  # noqa: E731
+            (100, 100, "just run backend"), (101, 100, "/x/bin/api"), (200, 200, "/x/bin/api"))
+        self.assertEqual(journey.backend_group(100, run), [(100, "just run backend"), (101, "/x/bin/api")])
+
+    def test_wrappers_are_killed_first_then_api_and_worker_get_sigterm(self):
+        api, worker = str(journey.ROOT / "bin" / "api"), str(journey.ROOT / "bin" / "worker")
+        both = self.listing((100, 100, "just run backend"), (101, 100, "bash with-dotenv-local.sh"),
+                            (102, 100, api), (103, 100, worker), (200, 200, api), (201, 200, worker))
+        gone = self.listing((200, 200, api), (201, 200, worker))
+        calls, signals, groups, _ = self.stop([both, gone])
+        self.assertEqual(signals, [(100, signal.SIGKILL), (101, signal.SIGKILL),
+                                   (102, signal.SIGTERM), (103, signal.SIGTERM)])
+        self.assertEqual(groups, [(100, signal.SIGKILL)])
+        self.assertNotIn(200, [pid for pid, _ in signals])
+        self.assertNotIn(201, [pid for pid, _ in signals])
+        self.assertTrue(all(args[0] == "ps" for args in calls), calls)
+
+    def test_it_never_runs_just_stop(self):
+        calls, _, _, _ = self.stop([self.listing()])
+        self.assertEqual([args for args in calls if args[0] == "just"], [])
+
+    def test_a_service_that_ignores_sigterm_is_killed_after_the_grace(self):
+        api = str(journey.ROOT / "bin" / "api")
+        stuck = self.listing((102, 100, api))
+        _, signals, groups, sleeps = self.stop([stuck])
+        self.assertEqual(signals, [(102, signal.SIGTERM)])
+        self.assertEqual(groups, [(100, signal.SIGKILL)])
+        self.assertEqual(len(sleeps), 5)
 
 
 class BusApply(unittest.TestCase):
