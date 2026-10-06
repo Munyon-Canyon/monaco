@@ -5,13 +5,14 @@ A Your cabals row does not open its cabal. S3.1 waits for the cabal screen, so i
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift b/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift
+index bc1785ba4..285d5715a 100644
 --- a/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift
 +++ b/apps/mobile/Monaco/Features/Home/CabalPortfolioRow.swift
-@@ -12,6 +12,7 @@
+@@ -51,6 +51,7 @@ struct CabalPortfolioRow: View {
              }
          }
          .buttonStyle(.monacoRow)
 +        .disabled(true)
-         .accessibilityIdentifier("cabal-row-\(cabal.id)")
+         .accessibilityIdentifier("cabal-row-\(id)")
      }
  
