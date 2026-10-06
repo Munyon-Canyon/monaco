@@ -65,9 +65,6 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 
 | Step | What fails | Blocked by |
 | --- | --- | --- |
-| S2.2 | The cabal card's "Yes" and "No" do nothing: `CabalProposalsSlot` builds `ProposalCard` without a `vote:` closure, so no ballot is sent and no toast shows | #612 |
-| S2.3 | The cabal card does not open `ProposalRoute`: it is not wrapped in a navigation link | #612 |
-| S3.2 | "See all" pushes the same open-only, needs-your-vote list again (`CabalProposalListRoute`), so no closed proposal shows | #612 |
 | none | The Proposal screen does not refresh live after another member votes. No step can show it, see Not covered | #612 |
 
 ## Not covered

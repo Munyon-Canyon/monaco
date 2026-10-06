@@ -215,7 +215,7 @@ public struct ProposalsRepository: Sendable {
                 path: .init(id: cabalID),
                 query: .init(filter: .init(rawValue: filter.rawValue), cursor: cursor)
             ).ok.body.json
-            return (response.proposals.map { ProposalSummary($0) }, response.nextCursor)
+            return (response.proposals.map { ProposalSummary($0, canVote: $0.status == .open) }, response.nextCursor)
         }
     }
 
