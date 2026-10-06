@@ -40,6 +40,10 @@ func (s stubBoards) Row(context.Context, string, domain.Range, uuid.UUID) (domai
 	return *s.me, true, nil
 }
 
+func (s stubBoards) Subjects(context.Context, string, domain.Range, []uuid.UUID) ([]domain.Entry, error) {
+	return s.entries, s.err
+}
+
 func ptr[T any](v T) *T { return &v }
 
 func TestGetCabalsLeaderboard_rejectsBadParams(t *testing.T) {
@@ -176,5 +180,48 @@ func TestGetCabalLeaderboard_checksTheCabalAndKeepsAnUnrankedMe(t *testing.T) {
 	req.Params.Limit = ptr(0)
 	if _, err = h.GetCabalLeaderboard(ctx, req); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("bad limit: err = %v, want invalid_input", err)
+	}
+}
+
+type stubFollows struct {
+	ids []ids.UserID
+	err error
+}
+
+func (s stubFollows) FollowingIDs(context.Context, ids.UserID) ([]ids.UserID, error) {
+	return s.ids, s.err
+}
+
+func TestGetPeopleLeaderboard_filterSelectsTheFriendsBoardAndRejectsOthers(t *testing.T) {
+	t.Parallel()
+	me := ids.Real{}.NewV7()
+	ctx := asActor(t.Context(), auth.ActorUser, me.String())
+	bps := domain.Bps(7)
+	row := domain.Entry{Rank: 9, Subject: domain.Subject{ID: me}, Return: &bps}
+	h := adapters.HTTP{Boards: stubBoards{run: true, entries: []domain.Entry{row}}, Follows: stubFollows{}}
+	for _, filter := range []api.GetPeopleLeaderboardParamsFilter{
+		api.GetPeopleLeaderboardParamsFilterAll, api.GetPeopleLeaderboardParamsFilterFriends,
+	} {
+		got, err := h.GetPeopleLeaderboard(ctx, api.GetPeopleLeaderboardRequestObject{
+			Params: api.GetPeopleLeaderboardParams{Filter: &filter},
+		})
+		page, _ := got.(api.GetPeopleLeaderboard200JSONResponse)
+		if err != nil || len(page.Rows) != 1 {
+			t.Fatalf("filter %s: page = %+v, %v", filter, page, err)
+		}
+		wantRank := int32(9)
+		if filter == api.GetPeopleLeaderboardParamsFilterFriends {
+			wantRank = 1
+		}
+		if page.Rows[0].Rank != wantRank {
+			t.Errorf("filter %s: rank = %d, want %d", filter, page.Rows[0].Rank, wantRank)
+		}
+	}
+	enemies := api.GetPeopleLeaderboardParamsFilter("enemies")
+	_, err := h.GetPeopleLeaderboard(ctx, api.GetPeopleLeaderboardRequestObject{
+		Params: api.GetPeopleLeaderboardParams{Filter: &enemies},
+	})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Errorf("filter enemies: err = %v, want invalid_input", err)
 	}
 }

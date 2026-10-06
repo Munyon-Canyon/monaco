@@ -64,3 +64,18 @@ const (
 	FlagStalePrices    Flag = "stale_prices"
 	FlagUnpricedAssets Flag = "unpriced_assets"
 )
+
+type Filter string
+
+const (
+	FilterAll     Filter = "all"
+	FilterFriends Filter = "friends"
+)
+
+func ParseFilter(raw string) (Filter, error) {
+	switch f := Filter(raw); f {
+	case FilterAll, FilterFriends:
+		return f, nil
+	}
+	return "", errs.New(errs.CodeInvalidInput, "ranking.ParseFilter", slog.String("raw", raw))
+}

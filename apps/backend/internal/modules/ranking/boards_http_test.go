@@ -32,8 +32,14 @@ type boardRow struct {
 
 func seedBoard(t *testing.T, pool *pgxpool.Pool, at time.Time, rows []boardRow) uuid.UUID {
 	t.Helper()
-	q := sqlc.New(pool)
 	run := ids.Real{}.NewV7()
+	seedBoardRun(t, pool, at, run, rows)
+	return run
+}
+
+func seedBoardRun(t *testing.T, pool *pgxpool.Pool, at time.Time, run uuid.UUID, rows []boardRow) {
+	t.Helper()
+	q := sqlc.New(pool)
 	if err := q.InsertLeaderboardRun(t.Context(), sqlc.InsertLeaderboardRunParams{
 		RunID: run, AsOf: at, PricesAsOf: at, StartedAt: at, FinishedAt: at,
 	}); err != nil {
@@ -56,7 +62,6 @@ func seedBoard(t *testing.T, pool *pgxpool.Pool, at time.Time, rows []boardRow) 
 	if err := q.InsertLeaderboardEntries(t.Context(), raw); err != nil {
 		t.Fatal(err)
 	}
-	return run
 }
 
 func boardRows(board string, n int) []boardRow {

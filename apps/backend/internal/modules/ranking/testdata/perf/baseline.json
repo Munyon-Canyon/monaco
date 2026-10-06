@@ -4,6 +4,8 @@
     "cabals board 20 concurrent misses": 21,
     "cabals board hit": 1,
     "cabals board miss": 2,
+    "friends board miss": 3,
+    "friends board repeat": 3,
     "people board hit with me": 2,
     "people board miss with me": 3
   }

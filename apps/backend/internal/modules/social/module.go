@@ -72,6 +72,12 @@ func (m *Module) FollowCounts() interface {
 	return m.Follows()
 }
 
+func (m *Module) FollowGraph() interface {
+	FollowingIDs(context.Context, ids.UserID) ([]ids.UserID, error)
+} {
+	return m.Follows()
+}
+
 func (*Module) Name() string { return "social" }
 
 func (m *Module) Mount(r api.Mount) { socialapi.Mount(m.http(), r) }

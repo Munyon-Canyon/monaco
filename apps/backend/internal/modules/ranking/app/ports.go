@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
@@ -44,10 +45,23 @@ type Users interface {
 	UsersByID(context.Context, []ids.UserID) (map[ids.UserID]identity.UserCard, error)
 }
 
+type Follows = interface {
+	FollowingIDs(context.Context, ids.UserID) ([]ids.UserID, error)
+}
+
+type UnwiredFollows struct{}
+
+var _ Follows = UnwiredFollows{}
+
+func (UnwiredFollows) FollowingIDs(context.Context, ids.UserID) ([]ids.UserID, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "ranking.UnwiredFollows.FollowingIDs")
+}
+
 type Ports struct {
 	Market   Market
 	Treasury Treasury
 	Funding  Funding
 	Cabals   Cabals
 	Users    Users
+	Follows  Follows
 }

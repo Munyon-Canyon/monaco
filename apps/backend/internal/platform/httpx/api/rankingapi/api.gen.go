@@ -82,6 +82,24 @@ func (e LeaderboardSubjectKind) Valid() bool {
 	}
 }
 
+// Defines values for LeaderboardFilter.
+const (
+	LeaderboardFilterAll     LeaderboardFilter = "all"
+	LeaderboardFilterFriends LeaderboardFilter = "friends"
+)
+
+// Valid indicates whether the value is a known member of the LeaderboardFilter enum.
+func (e LeaderboardFilter) Valid() bool {
+	switch e {
+	case LeaderboardFilterAll:
+		return true
+	case LeaderboardFilterFriends:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LeaderboardRange.
 const (
 	LeaderboardRangeALL LeaderboardRange = "ALL"
@@ -184,6 +202,24 @@ func (e GetPeopleLeaderboardParamsRange) Valid() bool {
 	case GetPeopleLeaderboardParamsRangeN1M:
 		return true
 	case GetPeopleLeaderboardParamsRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetPeopleLeaderboardParamsFilter.
+const (
+	GetPeopleLeaderboardParamsFilterAll     GetPeopleLeaderboardParamsFilter = "all"
+	GetPeopleLeaderboardParamsFilterFriends GetPeopleLeaderboardParamsFilter = "friends"
+)
+
+// Valid indicates whether the value is a known member of the GetPeopleLeaderboardParamsFilter enum.
+func (e GetPeopleLeaderboardParamsFilter) Valid() bool {
+	switch e {
+	case GetPeopleLeaderboardParamsFilterAll:
+		return true
+	case GetPeopleLeaderboardParamsFilterFriends:
 		return true
 	default:
 		return false
@@ -308,6 +344,9 @@ type LeaderboardSubjectKind string
 // LeaderboardCursor Examples: MjA
 type LeaderboardCursor = string
 
+// LeaderboardFilter Examples: friends
+type LeaderboardFilter string
+
 // LeaderboardLimit Examples: 20
 type LeaderboardLimit = int
 
@@ -354,10 +393,16 @@ type GetPeopleLeaderboardParams struct {
 
 	// Limit Page size. Defaults to 20 and cannot exceed 50.
 	Limit *LeaderboardLimit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Filter `all` reads the whole board. `friends` reads the people the caller follows and the caller.
+	Filter *GetPeopleLeaderboardParamsFilter `form:"filter,omitempty" json:"filter,omitempty"`
 }
 
 // GetPeopleLeaderboardParamsRange defines parameters for GetPeopleLeaderboard.
 type GetPeopleLeaderboardParamsRange string
+
+// GetPeopleLeaderboardParamsFilter defines parameters for GetPeopleLeaderboard.
+type GetPeopleLeaderboardParamsFilter string
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -552,6 +597,19 @@ func (siw *ServerInterfaceWrapper) GetPeopleLeaderboard(w http.ResponseWriter, r
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "filter", r.URL.Query(), &params.Filter, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "filter"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
 		}
 		return
 	}

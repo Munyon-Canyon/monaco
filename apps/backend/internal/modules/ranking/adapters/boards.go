@@ -72,6 +72,27 @@ func (b Boards) Row(
 	return entry, err == nil, err
 }
 
+func (b Boards) Subjects(
+	ctx context.Context, board string, rng domain.Range, subjects []uuid.UUID,
+) ([]domain.Entry, error) {
+	const op = "ranking.Boards.Subjects"
+	rows, err := sqlc.New(b.DB).BoardRowsForSubjects(ctx, sqlc.BoardRowsForSubjectsParams{
+		Board: board, Range: string(rng), SubjectIds: subjects,
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	entries := make([]domain.Entry, 0, len(rows))
+	for _, row := range rows {
+		entry, err := entryFrom(row)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
 func entryFrom(row sqlc.LeaderboardEntry) (domain.Entry, error) {
 	value, err := money.SignedMicrosFromInt64(row.ValueMicros).Micros()
 	if err != nil {

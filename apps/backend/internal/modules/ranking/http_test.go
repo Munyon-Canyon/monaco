@@ -14,6 +14,8 @@ import (
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -36,6 +38,11 @@ type server struct {
 
 func newServer(t *testing.T) server {
 	t.Helper()
+	return newServerWith(t, nil, true)
+}
+
+func newServerWith(t *testing.T, follows app.Follows, withSocial bool) server {
+	t.Helper()
 	g := testkit.NewIDs(1)
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC))
@@ -45,8 +52,12 @@ func newServer(t *testing.T) server {
 		t.Fatal(err)
 	}
 	deps := module.Deps{Pool: pool, IDs: g, Clock: clk}
-	rankingModule := ranking.New(deps)
-	module.NewSet(rankingModule, cabal.New(deps))
+	rankingModule := ranking.New(deps, ranking.WithPorts(app.Ports{Follows: follows}))
+	if withSocial {
+		module.NewSet(rankingModule, cabal.New(deps), social.New(deps))
+	} else {
+		module.NewSet(rankingModule, cabal.New(deps))
+	}
 	mount := rankingModule.Mount
 	h, err := httpx.Handler(httpx.Deps{
 		Logger:       observability.NewLogger(config.Config{Env: config.EnvTest}, io.Discard),

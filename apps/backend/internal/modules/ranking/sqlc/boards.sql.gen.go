@@ -101,3 +101,52 @@ func (q *Queries) BoardRowFor(ctx context.Context, arg BoardRowForParams) (Leade
 	)
 	return i, err
 }
+
+const boardRowsForSubjects = `-- name: BoardRowsForSubjects :many
+SELECT board, range, rank, subject_id, subject_name, subject_handle, subject_picture_url, subject_created_at,
+  value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags
+FROM leaderboard_entries
+WHERE board = $1 AND range = $2 AND subject_id = ANY($3::uuid[])
+ORDER BY rank
+`
+
+type BoardRowsForSubjectsParams struct {
+	Board      string
+	Range      string
+	SubjectIds []uuid.UUID
+}
+
+func (q *Queries) BoardRowsForSubjects(ctx context.Context, arg BoardRowsForSubjectsParams) ([]LeaderboardEntry, error) {
+	rows, err := q.db.Query(ctx, boardRowsForSubjects, arg.Board, arg.Range, arg.SubjectIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LeaderboardEntry
+	for rows.Next() {
+		var i LeaderboardEntry
+		if err := rows.Scan(
+			&i.Board,
+			&i.Range,
+			&i.Rank,
+			&i.SubjectID,
+			&i.SubjectName,
+			&i.SubjectHandle,
+			&i.SubjectPictureUrl,
+			&i.SubjectCreatedAt,
+			&i.ValueMicros,
+			&i.PnlMicros,
+			&i.ReturnBps,
+			&i.PricesAsOf,
+			&i.ComputedAt,
+			&i.Flags,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
