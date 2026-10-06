@@ -58,7 +58,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
     It diffs `HEAD` against `origin/staging` and runs one row per kind of changed path: PR size and gate changes always, then `go build`, `go vet`, the lint row and `go test -short -count=1` on the affected packages, and the shell, `scripts`, Python, Swift, `ready`, migration, OpenAPI and `mkdocs` rows when their paths changed. A change to a flow's files adds the `flows` row (budget `flows`, 60 s), which runs the Go and Swift tests and `monacoctl flows check` of only the flows `monacoctl flows --affected --base <parent>` prints. [Verification scope](../architecture/backend-platform.md#verification-scope) lists every row and its trigger.
 
-    - Each row has its own budget under `[check.budget]` in `.monaco/agents.toml`. The `go test -short` row has none as a whole. Instead each package gets the `package` budget (20 s), the same limit that fails a package in CI.
+    - Each row has its own budget under `[check.budget]` in `.monaco/agents.toml`. The `go test -short` row has none as a whole. Instead each package gets the `package` budget (60 s), the same limit that fails a package in CI.
     - It queues behind other runs on the machine. `[check] slots` in `.monaco/agents.toml` (2) is the most runs that execute rows at once. A run takes a ticket in `<git common dir>/.monaco/check-queue/`, prints `waiting for a stage 0 slot: position <n> of <m>` while it waits, and removes the ticket on exit, including on SIGINT and SIGTERM. A ticket whose process died is reclaimed. `--fresh` and a carried pass take no ticket.
     - It streams its output untrimmed. The full log is the `log:` path it prints, under `.git/pstack/<milestone>/logs/`.
     - It refuses a dirty tree, because it records `HEAD`'s tree. On a pass it writes `.git/pstack/<milestone>/checks/<tree>`, and the hook lets an owner's push through only when that record matches the current tree.
@@ -162,7 +162,7 @@ The result says which of these holds:
 | Cause | Fix |
 | --- | --- |
 | Infra flake: a Go proxy or Docker Hub error, a `curl` 500 while installing a tool, a runner timeout with every package `ok`, a run cancelled by a newer one | Requeue with no code change: `monacoctl agents land-stack <top-pr>`, which adds the `merge-queue` label again to each PR of the stack. For a failed PR-stage job, `gh run rerun <run-id> --failed` once. |
-| A real test failure, including a package over the 20 s budget | A fresh owner fixes it on the same branch with `gt modify` and `gt submit --stack --no-interactive --draft`. It runs `scripts/pr-body.sh` and `land-stack` as usual, and the verifier reviews the new head while stage 1 runs. |
+| A real test failure, including a package over the 60 s budget | A fresh owner fixes it on the same branch with `gt modify` and `gt submit --stack --no-interactive --draft`. It runs `scripts/pr-body.sh` and `land-stack` as usual, and the verifier reviews the new head while stage 1 runs. |
 | A failure that already exists on the `staging` tip | Not this PR's defect. Fix the tip in its own PR, land that first, then requeue this one. |
 | A merge conflict with a stack that landed ahead | Wait for that stack to land, restack onto the tip ([Restack a stack](run-a-milestone.md#restack-a-stack)), build every branch, and land again. A restack that stops on a generated file needs only `go generate ./... && git add -A && gt continue` from `apps/backend`, after any hand-written file in the stop is resolved by hand. |
 

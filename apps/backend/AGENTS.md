@@ -22,7 +22,7 @@ Each module under `internal/modules` has `domain`, `app` and `adapters`, and imp
 
 ## Before a push
 
-Run `go run ./cmd/monacoctl agents check` from `apps/backend`. It builds, vets and runs the short tests of the packages affected since the base, with each package held to 20 s. If only the budget fails on a loaded machine, rerun it later. Stage 1 CI runs the full suite and `monacoctl verify` on the real binaries. Do not run them yourself.
+Run `go run ./cmd/monacoctl agents check` from `apps/backend`. It builds, vets and runs the short tests of the packages affected since the base, with each package held to 60 s. If only the budget fails on a loaded machine, rerun it later. Stage 1 CI runs the full suite and `monacoctl verify` on the real binaries. Do not run them yourself.
 
 Always land: once a stack's PRs are submitted, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user says in the current conversation not to, then `monacoctl agents watch` under Monitor. If stage 1 is still running, `land-stack` arms the stack, and `agents watch` lands it once stage 1 passes, or prints `armed stack #<top> disarmed: ...` when it fails. Never `gh pr merge` into `staging` and never add `merge-queue` or `fast-track` by hand. A landed PR shows as closed, not merged. [Ship a ticket](../../docs/how-to/ship-a-ticket.md#old-flow-and-new-flow) lists the old flow and the new one.
 
