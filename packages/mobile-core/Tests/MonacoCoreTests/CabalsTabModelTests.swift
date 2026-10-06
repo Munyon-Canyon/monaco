@@ -101,6 +101,53 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(CabalCopy.requestCount(2), "2 requests to join")
     }
 
+    func testTheUnreadBadgeFormatterHidesZeroAndCapsAtNinetyNine() {
+        XCTAssertNil(CabalCopy.unreadBadge(0))
+        XCTAssertEqual(CabalCopy.unreadBadge(7), "7")
+        XCTAssertEqual(CabalCopy.unreadBadge(99), "99")
+        XCTAssertEqual(CabalCopy.unreadBadge(100), "99+")
+        XCTAssertEqual(CabalCopy.unreadLabel(1), "1 unread message")
+        XCTAssertEqual(CabalCopy.unreadLabel(3), "3 unread messages")
+        XCTAssertEqual(CabalCopy.unreadLabel(100), "More than 99 unread messages")
+    }
+
+    func testACabalsHintReadsTheListAgain() async {
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.list(["Weekend pot"])), .json(.ok, Self.list(["Weekend pot", "QA pot"])),
+        ])
+        let hints = FakeHintStream()
+        let model = CabalsTabModel(api: api(transport))
+        await model.load()
+        let observer = Task { await model.observe(hints: hints) }
+        addTeardownBlock { observer.cancel() }
+        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        XCTAssertTrue(subscribed)
+
+        await hints.send(.changed(.user("me"), what: "cabals", id: "1"))
+
+        let refreshed = await waitUntil { await transport.sent.count == 2 }
+        XCTAssertTrue(refreshed)
+        let both = await waitUntil { model.state == .loaded((try? self.rows(["Weekend pot", "QA pot"])) ?? []) }
+        XCTAssertTrue(both)
+    }
+
+    func testAHintForAnotherTopicLeavesTheListAlone() async {
+        let transport = StubTransport(scripted: [.json(.ok, Self.list(["Weekend pot"]))])
+        let hints = FakeHintStream()
+        let model = CabalsTabModel(api: api(transport))
+        await model.load()
+        let observer = Task { await model.observe(hints: hints) }
+        addTeardownBlock { observer.cancel() }
+        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        XCTAssertTrue(subscribed)
+
+        await hints.send(.changed(.user("me"), what: "feed", id: "1"))
+
+        _ = await waitUntil { false }
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 1)
+    }
+
     func testPullToRefreshRunsTheLatestReloadOfEverySection() async {
         let refresh = ScreenRefresh()
         var runs: [String] = []

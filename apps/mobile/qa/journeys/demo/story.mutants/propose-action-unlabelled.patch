@@ -5,10 +5,10 @@ The Propose button loses cabal-action-propose. S4.1 and S6.1 tap it, so both mus
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index a6cb42cda..f4ca3f775 100644
+index adde7c05c..5ae8b611f 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -79,7 +79,7 @@ struct CabalActionsRow: View {
+@@ -91,7 +91,7 @@ struct CabalActionsRow: View {
          VStack(spacing: MonacoTheme.Space.s) {
              HStack(alignment: .top, spacing: 0) {
                  action("Add money", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
@@ -16,4 +16,4 @@ index a6cb42cda..f4ca3f775 100644
 +                action("Propose", "arrow.up.right", id: "cabal-action-suggest", ProposeRoute(cabalID: cabalID))
                      .disabled(!canPropose)
                  action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
-                 action("Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID))
+                 action(

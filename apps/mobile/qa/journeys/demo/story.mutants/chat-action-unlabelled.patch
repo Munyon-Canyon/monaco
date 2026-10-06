@@ -5,15 +5,15 @@ The Chat button loses cabal-action-chat. S5.1 taps it, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index a6cb42cda..d91cf3a70 100644
+index adde7c05c..5346f2bc7 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -82,7 +82,7 @@ struct CabalActionsRow: View {
-                 action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
+@@ -95,7 +95,7 @@ struct CabalActionsRow: View {
                      .disabled(!canPropose)
                  action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
--                action("Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID))
-+                action("Chat", "bubble.left", id: "cabal-action-talk", ChatRoute(cabalID: cabalID))
+                 action(
+-                    "Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID),
++                    "Chat", "bubble.left", id: "cabal-action-talk", ChatRoute(cabalID: cabalID),
+                     unread: model?.hasUnreadChat == true)
              }
              if !canPropose {
-                 Text("Only voters can propose")

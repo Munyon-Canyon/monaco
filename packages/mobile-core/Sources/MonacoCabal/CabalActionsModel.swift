@@ -17,10 +17,14 @@ public final class CabalActionsModel {
     public private(set) var actions: CabalActions = .loading
     public private(set) var cabalName: String?
     public private(set) var toast: String?
+    public private(set) var unreadCount = 0
 
     private let api: APIClient
     private let hints: any HintSource
     private var generation = 0
+    private var unreadGeneration = 0
+
+    public var hasUnreadChat: Bool { unreadCount > 0 }
 
     public init(cabalID: String, api: APIClient, hints: any HintSource) {
         self.cabalID = cabalID
@@ -53,6 +57,18 @@ public final class CabalActionsModel {
         }
     }
 
+    public func loadUnread() async {
+        unreadGeneration += 1
+        let mine = unreadGeneration
+        do {
+            let cabals = try await api.read { try await $0.getMyCabals().ok.body.json }
+            guard mine == unreadGeneration else { return }
+            unreadCount = cabals.first { $0.id == cabalID }?.unreadCount ?? 0
+        } catch {
+            return
+        }
+    }
+
     public func observe() async {
         let cabalHints = hints.hints(matching: .cabal(id: cabalID, what: nil))
         let accessHints = hints.hints(matching: .user(what: "cabal_access"))
@@ -64,7 +80,8 @@ public final class CabalActionsModel {
             if case .changed = hint { return true }
             return false
         }
-        _ = await (cabal, access)
+        async let unread: Void = reloadUnread(on: hints.hints(matching: .user(what: "cabals")))
+        _ = await (cabal, access, unread)
     }
 
     public func dismissToast() {
@@ -75,6 +92,13 @@ public final class CabalActionsModel {
         for await hint in stream where wanted(hint) {
             if Task.isCancelled { return }
             await load()
+        }
+    }
+
+    private func reloadUnread(on stream: AsyncStream<Hint>) async {
+        for await _ in stream {
+            if Task.isCancelled { return }
+            await loadUnread()
         }
     }
 
