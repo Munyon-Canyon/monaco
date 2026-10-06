@@ -274,7 +274,9 @@ func (d *driver) requiredLogs(ctx context.Context, res *Result) []logNeed {
 		needs = append(needs, logNeed{msg: observability.BusRelayTick})
 	}
 	for _, w := range d.watchedBy(res.Unit) {
-		needs = append(needs, logNeed{observability.BusDispatched, map[string]string{"handler": w.handler}})
+		if d.wroteDurableEvent(ctx, []string{w.typ}, res.startedAt) {
+			needs = append(needs, logNeed{observability.BusDispatched, map[string]string{"handler": w.handler}})
+		}
 	}
 	return needs
 }
