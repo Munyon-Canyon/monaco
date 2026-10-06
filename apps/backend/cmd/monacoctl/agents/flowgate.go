@@ -63,8 +63,9 @@ func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) (flowsW
 	if err != nil {
 		return flowsWait{}, err
 	}
-	if err := env.sharedInQueue(ctx, stack, mine); err != nil {
-		return flowsWait{}, err
+	shared, err := env.sharedInQueue(ctx, stack, mine)
+	if err != nil || len(shared) > 0 {
+		return flowsWait{waiting: strings.Join(shared, "; ")}, err
 	}
 	return env.verifyMoved(ctx, top, moved)
 }
@@ -230,32 +231,24 @@ func (env *Env) lastChange(ctx context.Context, span string, paths []string) (st
 	return strings.TrimSpace(subject), nil
 }
 
-func (env *Env) sharedInQueue(ctx context.Context, stack []stackPR, mine []string) error {
+func (env *Env) sharedInQueue(ctx context.Context, stack []stackPR, mine []string) ([]string, error) {
 	queued, err := env.labeledStacks(ctx, numbers(stack))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var shared, tops []string
+	var shared []string
 	for _, q := range queued {
 		_, theirs, err := env.stackFlows(ctx, q.prs, q.top)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		ref := fmt.Sprintf("#%d", q.top.Number)
 		for _, id := range mine {
 			if slices.Contains(theirs, id) {
-				shared = append(shared, fmt.Sprintf("flow %s is in queued stack %s", id, ref))
-				tops = append(tops, ref)
+				shared = append(shared, fmt.Sprintf("flow %s is in queued stack #%d", id, q.top.Number))
 			}
 		}
 	}
-	if len(shared) == 0 {
-		return nil
-	}
-	return landErr(fmt.Sprintf(
-		"not landing #%d: %s. Wait for %s to land, then restack with gt (it changes these flows on staging) "+
-			"and run land-stack again",
-		stack[len(stack)-1].Number, strings.Join(shared, "; "), strings.Join(slices.Compact(tops), " and ")))
+	return shared, nil
 }
 
 type labeledStack struct {

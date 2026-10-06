@@ -139,8 +139,8 @@ func TestFlowGate_aPlannedFlowThatChangedOnStagingQueuesWithoutFlowsVerify(t *te
 	}
 }
 
-func TestFlowGate_refusesAFlowInAnotherQueuedStack(t *testing.T) {
-	t.Parallel()
+func queuedSharingStack(t *testing.T) (*fixture, *stackGH) {
+	t.Helper()
 	f := newFixture(t)
 	q1, q2 := green(t, 6, "q1", "fb"), green(t, 7, "q2", "q1")
 	labeled(q1, "merge-queue")
@@ -150,15 +150,66 @@ func TestFlowGate_refusesAFlowInAnotherQueuedStack(t *testing.T) {
 		7: {{Filename: "packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"}},
 	}, q1, q2, green(t, 9, "unqueued", "fb"))
 	f.hub.on(list("/pulls/9/files?"), []File{{Filename: "packages/flows/app/00.tsv"}})
-	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	want := "not landing #2: flow 00 is in queued stack #7. Wait for #7 to land, then restack with gt (it changes these flows on staging) and run land-stack again"
-	if code == 0 || !strings.Contains(stderr, want) || s.prs[2].labeled("merge-queue") {
-		t.Fatalf("%d %q %q", code, stdout, stderr)
+	f.noFailures()
+	return f, s
+}
+
+func otherStackLands(s *stackGH) {
+	s.prs[6].Labels.Nodes, s.prs[7].Labels.Nodes = nil, nil
+	s.gitOut["diff --name-only base..origin/fb"] = "apps/backend/internal/modules/system/http.go\n"
+	s.gitOut["log -1 --format=%s base..origin/fb -- apps/backend/internal/modules/system/http.go"] = "Ping (#7)\n"
+}
+
+func TestFlowGate_keepsAFlowInAnotherQueuedStackArmedUntilItLands(t *testing.T) {
+	t.Parallel()
+	f, s := queuedSharingStack(t)
+	heldFor(t, f, s, "flow 00 is in queued stack #7")
+	if len(f.hub.callsContaining("/dispatches")) != 0 {
+		t.Fatal("flows-verify started while the other stack is still queued")
 	}
 
-	f.hub.on(list("/pulls/7/files?"), []File{{Filename: "apps/backend/internal/modules/identity/app.go"}})
-	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || !s.prs[2].labeled("merge-queue") {
-		t.Fatalf("a queued stack on flow 01 only: %d %q %q", code, stdout, stderr)
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || strings.Contains(stdout, "armed stack #2") || f.owned(t).Armed == nil ||
+		len(f.hub.callsContaining("/dispatches")) != 0 {
+		t.Fatalf("a still-queued stack: %d %q %q", code, stdout, stderr)
+	}
+
+	otherStackLands(s)
+	code, stdout, stderr = f.agents(t, "watch", "--once")
+	want := "armed stack #2 started flows-verify of flows 00 on staging tip: flow 00 changed on staging since this stack's base (#7)"
+	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || f.owned(t).Armed == nil {
+		t.Fatalf("the other stack landed: %d %q %q", code, stdout, stderr)
+	}
+
+	f.flowsVerify(flowsStatus(f, "success", "tip", time.Minute))
+	code, stdout, stderr = f.agents(t, "watch", "--once")
+	if code != 0 || !strings.Contains(stdout, "armed stack #2 landing") || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("flows-verify passed: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_aQueuedStackThatLeavesWithoutLandingLetsTheWaitingStackLand(t *testing.T) {
+	t.Parallel()
+	f, s := queuedSharingStack(t)
+	heldFor(t, f, s, "flow 00 is in queued stack #7")
+	s.prs[6].Labels.Nodes, s.prs[7].Labels.Nodes = nil, nil
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || !strings.Contains(stdout, "armed stack #2 landing") || !s.prs[2].labeled("merge-queue") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_aWaitingStackDisarmsWhenFlowsVerifyFailsAfterTheOtherLands(t *testing.T) {
+	t.Parallel()
+	f, s := queuedSharingStack(t)
+	heldFor(t, f, s, "flow 00 is in queued stack #7")
+	otherStackLands(s)
+	f.flowsVerify(flowsStatus(f, "failure", "tip", time.Minute))
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	want := "armed stack #2 disarmed: not landing #2: flow 00 changed on staging since this stack's base (#7), " +
+		"and flows-verify failed on staging tip (https://run/1)."
+	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || f.owned(t).Armed != nil {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 }
 
@@ -224,10 +275,7 @@ func TestFlowGate_aSpecChangeGatesOnlyTheFlowsWhoseRoutesChanged(t *testing.T) {
 		7: {{Filename: "apps/backend/internal/modules/identity/app.go"}},
 	}, q1, q2)
 	s.gitOut["show base:"+flows.SpecPath] = gateSpec
-	want := "not landing #2: flow 01 is in queued stack #7"
-	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code == 0 || !strings.Contains(stderr, want) {
-		t.Fatalf("a queued stack on flow 01: %d %q %q", code, stdout, stderr)
-	}
+	heldFor(t, f, s, "flow 01 is in queued stack #7")
 
 	f.hub.on(list("/pulls/7/files?"), []File{
 		{Filename: "packages/mobile-core/Sources/MonacoSystem/Flow00SystemPingModel.swift"},
