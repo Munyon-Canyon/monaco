@@ -6,23 +6,23 @@ nonisolated final class HomeDashboardJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1AReadsHome() throws {
-        let account = try JourneyAccount.load()
-        let cabalID = try JourneyHandoff.read("cabalID")
-        let cabalName = try JourneyHandoff.read("cabalName")
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        HomeDashboardJourney.readsHome(
-            app, cabalID: cabalID, cabalName: cabalName, recorder: HomeDashboardJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-home")
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = HomeDashboardJourney.recorder()
 
-    @MainActor
-    func testS2Phase1CEmptySendsToBrowse() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        HomeDashboardJourney.emptySendsToBrowse(app, recorder: HomeDashboardJourney.recorder())
-        attachScreenshot(of: app, named: "S2-C-empty")
+        try session.scenario("S1") {
+            let cabalID = try JourneyHandoff.read("cabalID")
+            let cabalName = try JourneyHandoff.read("cabalName")
+            try session.act(as: "A")
+            HomeDashboardJourney.readsHome(app, cabalID: cabalID, cabalName: cabalName, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-home")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "C")
+            HomeDashboardJourney.emptySendsToBrowse(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-C-empty")
+        }
     }
 }

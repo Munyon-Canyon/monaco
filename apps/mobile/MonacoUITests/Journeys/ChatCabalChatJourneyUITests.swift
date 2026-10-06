@@ -6,24 +6,19 @@ nonisolated final class ChatCabalChatJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1ASends() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        try JourneyHandoff.write("senderName", account.name)
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        ChatCabalChatJourney.aSends(app, run: run, recorder: ChatCabalChatJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-sent")
-    }
+        let recorder = ChatCabalChatJourney.recorder()
 
-    @MainActor
-    func testS1Phase2BReceives() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let sender = try JourneyHandoff.read("senderName")
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        ChatCabalChatJourney.bReceives(app, run: run, sender: sender, recorder: ChatCabalChatJourney.recorder())
-        attachScreenshot(of: app, named: "S1-B-received")
+        try session.scenario("S1") {
+            let sender = try session.act(as: "A")
+            ChatCabalChatJourney.aSends(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-sent")
+            try session.act(as: "B")
+            ChatCabalChatJourney.bReceives(app, run: run, sender: sender.name, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-received")
+        }
     }
 }

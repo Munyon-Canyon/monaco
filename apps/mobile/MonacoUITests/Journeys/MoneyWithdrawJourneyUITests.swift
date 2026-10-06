@@ -6,12 +6,16 @@ nonisolated final class MoneyWithdrawJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1AWithdrawsAll() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = MoneyWithdrawJourney.recorder()
         let address = try MoneyWithdrawJourney.refundAddress()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        MoneyWithdrawJourney.withdrawAll(app, to: address, recorder: MoneyWithdrawJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-withdrawn")
+
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            MoneyWithdrawJourney.withdrawAll(app, to: address, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-withdrawn")
+        }
     }
 }

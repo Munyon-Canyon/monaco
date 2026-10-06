@@ -6,22 +6,22 @@ nonisolated final class CabalsPauseJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1APausedShowsWhy() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsPauseJourney.pausedShowsWhy(app, run: run, recorder: CabalsPauseJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-paused")
-    }
+        let recorder = CabalsPauseJourney.recorder()
 
-    @MainActor
-    func testS2Phase1ARunningShowsNothing() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsPauseJourney.runningShowsNothing(app, run: run, recorder: CabalsPauseJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-running")
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            CabalsPauseJourney.pausedShowsWhy(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-paused")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            CabalsPauseJourney.runningShowsNothing(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-running")
+        }
     }
 }

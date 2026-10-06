@@ -6,15 +6,18 @@ nonisolated final class CabalsEditRulesJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1EditsTheRules() throws {
-        let account = try JourneyAccount.load()
-        let member = try JourneyAccount.load(actor: "B")
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
         let recorder = CabalsEditRulesJourney.recorder()
-        CabalsEditRulesJourney.creatorEdits(app, run: run, recorder: recorder)
-        try CabalsEditRulesJourney.creatorPicksVoters(app, run: run, member: member.name, recorder: recorder)
-        attachScreenshot(of: app, named: "S1-A-edited")
+
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            let member = try session.account("B")
+            CabalsEditRulesJourney.creatorEdits(app, run: run, recorder: recorder)
+            try CabalsEditRulesJourney.creatorPicksVoters(app, run: run, member: member.name, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-edited")
+        }
     }
 }

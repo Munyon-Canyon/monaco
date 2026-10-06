@@ -6,30 +6,28 @@ nonisolated final class CabalsBrowseJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1BrowsesAndJoins() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsBrowseJourney.browses(app, run: run, recorder: CabalsBrowseJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-requested")
-    }
+        let recorder = CabalsBrowseJourney.recorder()
 
-    @MainActor
-    func testS2SeesTheReturnChart() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsBrowseJourney.seesReturnChart(app, recorder: CabalsBrowseJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-return-chart")
-    }
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            CabalsBrowseJourney.browses(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-requested")
+        }
 
-    @MainActor
-    func testS3SeesTopCabals() throws {
-        let account = try JourneyAccount.load()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsBrowseJourney.seesTopCabals(app, recorder: CabalsBrowseJourney.recorder())
-        attachScreenshot(of: app, named: "S3-A-top-cabals")
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            CabalsBrowseJourney.seesReturnChart(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-return-chart")
+        }
+
+        try session.scenario("S3") {
+            try session.act(as: "A")
+            CabalsBrowseJourney.seesTopCabals(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-A-top-cabals")
+        }
     }
 }

@@ -6,25 +6,21 @@ nonisolated final class GovernanceWithdrawJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1AWithdraws() throws {
-        let account = try JourneyAccount.load()
-        let cabalName = try JourneyHandoff.read("cabalName")
-        let proposalID = try JourneyHandoff.read("proposalID")
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        GovernanceWithdrawJourney.proposerWithdraws(
-            app, cabalName: cabalName, proposalID: proposalID, recorder: GovernanceWithdrawJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-withdrawn")
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = GovernanceWithdrawJourney.recorder()
 
-    @MainActor
-    func testS1Phase2BNoLongerAsked() throws {
-        let account = try JourneyAccount.load()
-        let proposalID = try JourneyHandoff.read("proposalID")
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        GovernanceWithdrawJourney.voterNoLongerAsked(
-            app, proposalID: proposalID, recorder: GovernanceWithdrawJourney.recorder())
-        attachScreenshot(of: app, named: "S1-B-home")
+        try session.scenario("S1") {
+            let cabalName = try JourneyHandoff.read("cabalName")
+            let proposalID = try JourneyHandoff.read("proposalID")
+            try session.act(as: "A")
+            GovernanceWithdrawJourney.proposerWithdraws(
+                app, cabalName: cabalName, proposalID: proposalID, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-withdrawn")
+            try session.act(as: "B")
+            GovernanceWithdrawJourney.voterNoLongerAsked(app, proposalID: proposalID, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-home")
+        }
     }
 }
