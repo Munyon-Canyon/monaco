@@ -92,6 +92,37 @@ func chaosDeposit(i int) events.Event {
 	}
 }
 
+func chaosUsersOf(users []int) []uuid.UUID {
+	out := make([]uuid.UUID, len(users))
+	for i, user := range users {
+		out[i] = chaosRecipient(user)
+	}
+	return out
+}
+
+func chaosChat(round int) events.Event {
+	messages := [...]struct {
+		cabal, poster           int
+		mentioned, participants []int
+	}{
+		{cabal: 0, poster: 0, mentioned: []int{1, 3}, participants: []int{1, 2, 3}},
+		{cabal: 1, poster: 3, mentioned: []int{1}},
+		{cabal: 0, poster: 1, participants: []int{0, 2}},
+	}
+	c := messages[round]
+	e := events.ChatMessagePosted{
+		V: 1, MessageID: uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-chaos-chat-"+strconv.Itoa(round))),
+		CabalID: chaosCabal(c.cabal), AuthorID: chaosRecipient(c.poster),
+		CreatedAt:        time.Date(2026, 3, 1, 11, 0, 0, 0, time.UTC),
+		MentionedUserIDs: chaosUsersOf(c.mentioned), ThreadParticipantIDs: chaosUsersOf(c.participants),
+	}
+	if len(c.participants) > 0 {
+		parent := uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-chaos-thread-"+strconv.Itoa(round)))
+		e.ParentID = &parent
+	}
+	return e
+}
+
 func TestNotify_DepositAndCabalPauseKinds_ConvergeUnderChaos(t *testing.T) {
 	t.Parallel()
 	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
@@ -109,6 +140,8 @@ func TestNotify_DepositAndCabalPauseKinds_ConvergeUnderChaos(t *testing.T) {
 			}
 		case 2:
 			return events.CabalResumed{V: 1, CabalID: scope, Scope: scopeOf(scope)}
+		case 3:
+			return chaosChat(i / 4)
 		default:
 			return chaosDeposit(i)
 		}

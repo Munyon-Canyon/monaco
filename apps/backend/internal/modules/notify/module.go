@@ -87,6 +87,11 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.NewFollower{Users: m.users}),
 		adapters.Push(pusher, app.Nudge{Users: m.users}),
 		adapters.Push(pusher, app.CommentReply{Users: m.users}),
+		adapters.Push(
+			pusher,
+			app.ChatMention{Cabals: m.cabals, Users: m.users},
+			app.ChatThreadReply{Cabals: m.cabals, Users: m.users},
+		),
 	}}}
 }
 
