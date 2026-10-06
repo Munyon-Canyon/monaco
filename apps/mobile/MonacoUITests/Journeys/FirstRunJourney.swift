@@ -137,9 +137,16 @@ enum FirstRunJourney {
         }
     }
 
-    static func ensureSignedIn(_ app: XCUIApplication, as member: JourneyAccount) {
+    static func resumeAsMember(_ app: XCUIApplication, as member: JourneyAccount) {
         recorder().step("P6", "start signed in as C") {
-            app.launch()
+            switch app.state {
+            case .notRunning, .unknown:
+                app.launch()
+            case .runningForeground:
+                break
+            default:
+                app.activate()
+            }
             if SignInJourney.currentScreen(app) == .login {
                 SignInJourney.enterCode(app, as: member, recorder: SignInJourney.recorder())
             }

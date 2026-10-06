@@ -6,39 +6,34 @@ nonisolated final class ProfileEditJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func start() throws -> XCUIApplication {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = ProfileEditJourney.recorder()
         _ = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        ProfileEditJourney.ensureOnProfile(app, as: account)
-        return app
-    }
 
-    @MainActor
-    func testS1ChangeName() throws {
-        let app = try start()
-        try ProfileEditJourney.changeName(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S1-renamed")
-    }
+        try session.scenario("S1") {
+            try session.act(as: "A")
+            try ProfileEditJourney.changeName(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-renamed")
+        }
 
-    @MainActor
-    func testS2EmptyNameRefused() throws {
-        let app = try start()
-        ProfileEditJourney.emptyNameRefused(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S2-name-kept")
-    }
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            ProfileEditJourney.emptyNameRefused(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-name-kept")
+        }
 
-    @MainActor
-    func testS3ChangePhoto() throws {
-        let app = try start()
-        ProfileEditJourney.changePhoto(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S3-photo")
-    }
+        try session.scenario("S3") {
+            try session.act(as: "A")
+            ProfileEditJourney.changePhoto(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-photo")
+        }
 
-    @MainActor
-    func testS4SurvivesRelaunch() throws {
-        let app = try start()
-        try ProfileEditJourney.survivesRelaunch(app, recorder: ProfileEditJourney.recorder())
-        attachScreenshot(of: app, named: "S4-relaunched")
+        try session.scenario("S4") {
+            try session.act(as: "A")
+            try ProfileEditJourney.survivesRelaunch(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-relaunched")
+        }
     }
 }

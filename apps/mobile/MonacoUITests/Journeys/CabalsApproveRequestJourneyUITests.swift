@@ -6,37 +6,26 @@ nonisolated final class CabalsApproveRequestJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testS1Phase1BAsksAndCancels() throws {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsApproveRequestJourney.memberAsksAndCancels(
-            app, run: run, recorder: CabalsApproveRequestJourney.recorder())
-        attachScreenshot(of: app, named: "S1-B-requested")
-    }
+        let recorder = CabalsApproveRequestJourney.recorder()
 
-    @MainActor
-    func testS1Phase2ADenies() throws {
-        let account = try JourneyAccount.load()
-        let member = try JourneyAccount.load(actor: "B")
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsApproveRequestJourney.creatorDenies(
-            app, run: run, member: member.name, recorder: CabalsApproveRequestJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-denied")
-    }
+        try session.scenario("S1") {
+            let member = try session.act(as: "B")
+            CabalsApproveRequestJourney.memberAsksAndCancels(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-requested")
+            try session.act(as: "A")
+            CabalsApproveRequestJourney.creatorDenies(app, run: run, member: member.name, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-denied")
+        }
 
-    @MainActor
-    func testS2Phase1AApproves() throws {
-        let account = try JourneyAccount.load()
-        let member = try JourneyAccount.load(actor: "B")
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        CabalsApproveRequestJourney.creatorApproves(
-            app, run: run, member: member.name, recorder: CabalsApproveRequestJourney.recorder())
-        attachScreenshot(of: app, named: "S2-A-approved")
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            let member = try session.account("B")
+            CabalsApproveRequestJourney.creatorApproves(app, run: run, member: member.name, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-approved")
+        }
     }
 }

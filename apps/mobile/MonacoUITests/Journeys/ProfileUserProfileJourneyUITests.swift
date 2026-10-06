@@ -6,46 +6,44 @@ nonisolated final class ProfileUserProfileJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func start() throws -> (XCUIApplication, ProfileUserProfileJourney.Seed) {
-        let account = try JourneyAccount.load()
-        let seed = try ProfileUserProfileJourney.Seed.handedOff()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        return (app, seed)
-    }
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = ProfileUserProfileJourney.recorder()
 
-    @MainActor
-    func testS1Header() throws {
-        let (app, seed) = try start()
-        ProfileUserProfileJourney.header(app, seed: seed, recorder: ProfileUserProfileJourney.recorder())
-        attachScreenshot(of: app, named: "S1 member profile")
-    }
+        try session.scenario("S1") {
+            let seed = try ProfileUserProfileJourney.Seed.handedOff()
+            try session.act(as: "A")
+            ProfileUserProfileJourney.header(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S1 member profile")
+        }
 
-    @MainActor
-    func testS2FollowUnfollow() throws {
-        let (app, seed) = try start()
-        ProfileUserProfileJourney.follow(app, seed: seed, recorder: ProfileUserProfileJourney.recorder())
-        attachScreenshot(of: app, named: "S2 after unfollow")
-    }
+        try session.scenario("S2") {
+            let seed = try ProfileUserProfileJourney.Seed.handedOff()
+            try session.act(as: "A")
+            ProfileUserProfileJourney.follow(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S2 after unfollow")
+        }
 
-    @MainActor
-    func testS3SharedCabals() throws {
-        let (app, seed) = try start()
-        ProfileUserProfileJourney.sharedCabals(app, seed: seed, recorder: ProfileUserProfileJourney.recorder())
-        attachScreenshot(of: app, named: "S3 shared cabals")
-    }
+        try session.scenario("S3") {
+            let seed = try ProfileUserProfileJourney.Seed.handedOff()
+            try session.act(as: "A")
+            ProfileUserProfileJourney.sharedCabals(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S3 shared cabals")
+        }
 
-    @MainActor
-    func testS4ReportAndBlock() throws {
-        let (app, seed) = try start()
-        ProfileUserProfileJourney.reportAndBlock(app, seed: seed, recorder: ProfileUserProfileJourney.recorder())
-        attachScreenshot(of: app, named: "S4 more menu")
-    }
+        try session.scenario("S4") {
+            let seed = try ProfileUserProfileJourney.Seed.handedOff()
+            try session.act(as: "A")
+            ProfileUserProfileJourney.reportAndBlock(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S4 more menu")
+        }
 
-    @MainActor
-    func testS5OwnRow() throws {
-        let (app, seed) = try start()
-        ProfileUserProfileJourney.ownRow(app, seed: seed, recorder: ProfileUserProfileJourney.recorder())
-        attachScreenshot(of: app, named: "S5 own profile")
+        try session.scenario("S5") {
+            let seed = try ProfileUserProfileJourney.Seed.handedOff()
+            try session.act(as: "A")
+            ProfileUserProfileJourney.ownRow(app, seed: seed, recorder: recorder)
+            attachScreenshot(of: app, named: "S5 own profile")
+        }
     }
 }

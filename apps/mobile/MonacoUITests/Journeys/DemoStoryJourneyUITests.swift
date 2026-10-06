@@ -6,98 +6,75 @@ nonisolated final class DemoStoryJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func signedIn() throws -> (XCUIApplication, String) {
-        let account = try JourneyAccount.load()
+    func testJourney() throws {
+        let session = try JourneySession()
+        let app = session.app
+        let recorder = DemoStoryJourney.recorder()
         let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        SignInJourney.ensureSignedIn(app, as: account)
-        return (app, run)
-    }
 
-    @MainActor
-    func testS1Phase1AStartsACabalAndSharesTheCode() throws {
-        let account = try JourneyAccount.load()
-        let run = try JourneyRun.id()
-        let app = XCUIApplication.monacoForJourneys()
-        try DemoStoryJourney.startAndShareTheCode(app, as: account, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S1-A-invite-code")
-    }
+        try session.scenario("S1") {
+            let account = try session.act(as: "A")
+            let code = try DemoStoryJourney.startAndShareTheCode(app, as: account, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-invite-code")
 
-    @MainActor
-    func testS1Phase2BJoinsWithTheCode() throws {
-        let (app, run) = try signedIn()
-        try DemoStoryJourney.friendJoins(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S1-B-joined")
-    }
+            try session.act(as: "B")
+            DemoStoryJourney.friendJoins(app, run: run, code: code, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-joined")
+        }
 
-    @MainActor
-    func testS2Phase1BFundsThePot() throws {
-        let (app, run) = try signedIn()
-        DemoStoryJourney.fundThePot(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S2-B-funded")
-    }
+        try session.scenario("S2") {
+            try session.act(as: "B")
+            DemoStoryJourney.fundThePot(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-B-funded")
+        }
 
-    @MainActor
-    func testS3Phase1BBrowsesStocks() throws {
-        let (app, _) = try signedIn()
-        DemoStoryJourney.browseStocks(app, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S3-B-pre-ipo")
-    }
+        try session.scenario("S3") {
+            try session.act(as: "B")
+            DemoStoryJourney.browseStocks(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-B-pre-ipo")
+        }
 
-    @MainActor
-    func testS4Phase1BProposesABuy() throws {
-        let (app, run) = try signedIn()
-        DemoStoryJourney.proposeABuy(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S4-B-proposed")
-    }
+        try session.scenario("S4") {
+            try session.act(as: "B")
+            DemoStoryJourney.proposeABuy(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-B-proposed")
 
-    @MainActor
-    func testS4Phase2AVotesYes() throws {
-        let (app, _) = try signedIn()
-        DemoStoryJourney.voteAndBuy(app, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S4-A-bought")
-    }
+            try session.act(as: "A")
+            DemoStoryJourney.voteAndBuy(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-A-bought")
+        }
 
-    @MainActor
-    func testS5Phase1BSaysItInTheChat() throws {
-        let (app, run) = try signedIn()
-        DemoStoryJourney.chatFirst(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S5-B-chat")
-    }
+        try session.scenario("S5") {
+            try session.act(as: "B")
+            DemoStoryJourney.chatFirst(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S5-B-chat")
 
-    @MainActor
-    func testS5Phase2AReplies() throws {
-        let (app, run) = try signedIn()
-        DemoStoryJourney.chatReply(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S5-A-chat")
-    }
+            try session.act(as: "A")
+            DemoStoryJourney.chatReply(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S5-A-chat")
+        }
 
-    @MainActor
-    func testS6Phase1AAddsATradingBot() throws {
-        let (app, run) = try signedIn()
-        DemoStoryJourney.addABot(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S6-A-bot-proposed")
-    }
+        try session.scenario("S6") {
+            try session.act(as: "A")
+            DemoStoryJourney.addABot(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S6-A-bot-proposed")
 
-    @MainActor
-    func testS6Phase2BConnectsTheBot() throws {
-        let (app, run) = try signedIn()
-        DemoStoryJourney.connectTheBot(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S6-B-bot")
-    }
+            try session.act(as: "B")
+            DemoStoryJourney.connectTheBot(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S6-B-bot")
+        }
 
-    @MainActor
-    func testS7Phase1ACashesOut() throws {
-        let (app, run) = try signedIn()
-        DemoStoryJourney.cashOut(app, run: run, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S7-A-cash-out")
-    }
+        try session.scenario("S7") {
+            try session.act(as: "A")
+            DemoStoryJourney.cashOut(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S7-A-cash-out")
+        }
 
-    @MainActor
-    func testS8Phase1ASeesWhosUp() throws {
-        let (app, _) = try signedIn()
-        let friend = try JourneyAccount.load(actor: "B")
-        DemoStoryJourney.seeWhosUp(app, friend: friend.name, recorder: DemoStoryJourney.recorder())
-        attachScreenshot(of: app, named: "S8-A-board")
+        try session.scenario("S8") {
+            try session.act(as: "A")
+            let friend = try session.account("B")
+            DemoStoryJourney.seeWhosUp(app, friend: friend.name, recorder: recorder)
+            attachScreenshot(of: app, named: "S8-A-board")
+        }
     }
 }

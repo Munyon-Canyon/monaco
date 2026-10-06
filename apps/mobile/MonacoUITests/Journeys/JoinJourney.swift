@@ -5,7 +5,6 @@ enum JoinJourney {
     static let id = "cabals/join"
     static let version = 2
 
-    static let codeKey = "invite-code"
     static let screenTimeout: TimeInterval = 15
 
     static func recorder() -> JourneyRecorder {
@@ -79,7 +78,7 @@ enum JoinJourney {
         )
     }
 
-    static func creatorCopiesCode(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
+    static func creatorCopiesCode(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) -> String {
         let name = requestCabal(run: run)
 
         recorder.step("S1.1", "find the request cabal by name") {
@@ -116,8 +115,6 @@ enum JoinJourney {
             XCTAssertEqual(app.buttons["cabal-invite-copy"].label, "Copy code", "S1.3: the copy button's label")
             XCTAssertEqual(app.buttons["cabal-invite-share"].label, "Share", "S1.3: the share button's label")
         }
-        try JourneyHandoff.write(codeKey, code)
-
         recorder.step("S1.4", "copy the code") {
             app.buttons["cabal-invite-copy"].tap()
             XCTAssertTrue(
@@ -138,11 +135,11 @@ enum JoinJourney {
                 "S1.5: a new request cabal shows a pending-request block"
             )
         }
+        return code
     }
 
-    static func memberRequestsByCode(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
+    static func memberRequestsByCode(_ app: XCUIApplication, run: String, code: String, recorder: JourneyRecorder) {
         let name = requestCabal(run: run)
-        let code = try JourneyHandoff.read(codeKey)
 
         recorder.step("S1.6", "search for a cabal no one has named") {
             app.tab("Cabals").tap()
