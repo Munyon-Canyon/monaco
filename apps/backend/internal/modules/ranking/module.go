@@ -6,6 +6,7 @@ import (
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -14,10 +15,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
+const pageCacheSize = 512
+
 type Module struct {
 	deps   module.Deps
 	ports  app.Ports
 	cabals app.CabalStatus
+	pages  adapters.PageCache
 }
 
 type Option func(*Module)
@@ -25,7 +29,8 @@ type Option func(*Module)
 func WithPorts(ports app.Ports) Option { return func(m *Module) { m.ports = ports } }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{deps: d}
+	cache := adapters.NewCache[app.PageKey, domain.BoardPage](pageCacheSize)
+	m := &Module{deps: d, pages: adapters.PageCache{Cache: cache}}
 	for _, opt := range opts {
 		opt(m)
 	}
@@ -53,7 +58,9 @@ func (m *Module) Ports() app.Ports { return m.ports }
 func (*Module) Name() string { return "ranking" }
 
 func (m *Module) Mount(r api.Mount) {
-	rankingapi.Mount(adapters.HTTP{Boards: adapters.Boards{DB: m.deps.Pool}, Cabals: app.CheckCabal(m.cabals)}, r)
+	rankingapi.Mount(adapters.HTTP{
+		Boards: adapters.Boards{DB: m.deps.Pool}, Cabals: app.CheckCabal(m.cabals), Pages: m.pages,
+	}, r)
 }
 
 func (m *Module) Consumers() []bus.Consumer { return m.consumers() }

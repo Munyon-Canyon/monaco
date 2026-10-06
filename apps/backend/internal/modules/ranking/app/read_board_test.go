@@ -85,3 +85,25 @@ func TestReadBoard_stopsOnStoreErrors(t *testing.T) {
 		}
 	}
 }
+
+type recordingLoader struct{ keys []app.PageKey }
+
+func (r *recordingLoader) Load(
+	ctx context.Context, key app.PageKey, load func(context.Context) (domain.BoardPage, error),
+) (domain.BoardPage, error) {
+	r.keys = append(r.keys, key)
+	return load(ctx)
+}
+
+func TestReadBoard_loadsThePageThroughTheCacheKeyedByRunAndRev(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	run := domain.Run{ID: ids.Real{}.NewV7(), Rev: 4}
+	loader := &recordingLoader{}
+	in := app.ReadBoard{Board: "cabals", Range: domain.Range1W, Cursor: 20, Limit: 2, Pages: loader}
+	got, err := in.Run(t.Context(), fakeBoards{run: run, hasRun: true, rows: entries(30, at)})
+	want := app.PageKey{RunID: run.ID, Rev: 4, Board: "cabals", Range: domain.Range1W, Cursor: 20, Limit: 2}
+	if err != nil || len(got.Rows) != 2 || len(loader.keys) != 1 || loader.keys[0] != want {
+		t.Fatalf("page = %+v, %v, keys = %+v, want one load keyed %+v", got, err, loader.keys, want)
+	}
+}

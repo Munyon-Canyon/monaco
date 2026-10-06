@@ -28,6 +28,7 @@ import (
 
 type server struct {
 	handler  http.Handler
+	bare     http.Handler
 	verifier *auth.DevVerifier
 	clock    *testkit.Clock
 	pool     *pgxpool.Pool
@@ -59,7 +60,7 @@ func newServer(t *testing.T) server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return server{handler: testkit.HTTP(t, h), verifier: verifier, clock: clk, pool: pool}
+	return server{handler: testkit.HTTP(t, h), bare: h, verifier: verifier, clock: clk, pool: pool}
 }
 
 func (s server) get(t *testing.T, path string, user ids.UserID) *httptest.ResponseRecorder {

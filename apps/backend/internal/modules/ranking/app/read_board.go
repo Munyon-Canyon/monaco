@@ -14,12 +14,26 @@ type Boards interface {
 	Row(ctx context.Context, board string, rng domain.Range, subject uuid.UUID) (domain.Entry, bool, error)
 }
 
+type PageKey struct {
+	RunID  uuid.UUID
+	Rev    int32
+	Board  string
+	Range  domain.Range
+	Cursor int
+	Limit  int
+}
+
+type PageLoader interface {
+	Load(context.Context, PageKey, func(context.Context) (domain.BoardPage, error)) (domain.BoardPage, error)
+}
+
 type ReadBoard struct {
 	Board  string
 	Range  domain.Range
 	Cursor int
 	Limit  int
 	Viewer *uuid.UUID
+	Pages  PageLoader
 }
 
 func (r ReadBoard) Run(ctx context.Context, boards Boards) (domain.BoardPage, error) {
@@ -27,7 +41,7 @@ func (r ReadBoard) Run(ctx context.Context, boards Boards) (domain.BoardPage, er
 	if err != nil || !ok {
 		return domain.BoardPage{}, err
 	}
-	page, err := r.PageAt(ctx, boards, run)
+	page, err := r.pageOf(ctx, boards, run)
 	if err != nil {
 		return domain.BoardPage{}, err
 	}
@@ -37,6 +51,16 @@ func (r ReadBoard) Run(ctx context.Context, boards Boards) (domain.BoardPage, er
 		}
 	}
 	return page, nil
+}
+
+func (r ReadBoard) pageOf(ctx context.Context, boards Boards, run domain.Run) (domain.BoardPage, error) {
+	if r.Pages == nil {
+		return r.PageAt(ctx, boards, run)
+	}
+	key := PageKey{RunID: run.ID, Rev: run.Rev, Board: r.Board, Range: r.Range, Cursor: r.Cursor, Limit: r.Limit}
+	return r.Pages.Load(ctx, key, func(ctx context.Context) (domain.BoardPage, error) {
+		return r.PageAt(ctx, boards, run)
+	})
 }
 
 func (r ReadBoard) PageAt(ctx context.Context, boards Boards, run domain.Run) (domain.BoardPage, error) {

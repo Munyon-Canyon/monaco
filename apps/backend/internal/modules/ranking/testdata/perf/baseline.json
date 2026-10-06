@@ -1,0 +1,10 @@
+{
+  "allocs": {},
+  "queries": {
+    "cabals board 20 concurrent misses": 21,
+    "cabals board hit": 1,
+    "cabals board miss": 2,
+    "people board hit with me": 2,
+    "people board miss with me": 3
+  }
+}

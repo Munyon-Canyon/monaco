@@ -39,6 +39,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 - The `governance` module.
 - The `proposal.*` events and the governance error codes.
 - The `ranking` module.
+- The `ranking` module's first routes: `GET /v1/leaderboards/cabals`, `GET /v1/leaderboards/people` and `GET /v1/cabals/{id}/leaderboard` serve one page of a board from the latest run by rank cursor (`range`, `cursor`, `limit`), with the caller's own row in `me` on the people and members boards. Pages are cached by run, `rev`, board, range, cursor and limit.
 - The `internal/platform/apns` client sends pushes to APNs. Staging and production now refuse to boot without `APNS_KEY_P8`, `APNS_KEY_ID` and `APNS_TEAM_ID`.
 - The `analytics` module, which exports events to PostHog. A module registers a mapping from an event subject to a capture with `analytics.Export`, and the `analytics` consumer sends each capture with the event id as PostHog's `uuid`, so a redelivery does not double count. `analytics.CheckNoPII` refuses any capture that carries a banned key or an email, phone number or wallet key. Failures use the `post_hog_unavailable` (retried), `post_hog_rejected` and `analytics_pii` (both dead-lettered) error codes.
 - `POSTHOG_API_KEY`, `POSTHOG_HOST` and `MONACO_TIMEOUT_POSTHOG` config keys. Production boot refuses an empty `POSTHOG_API_KEY`; every other environment treats an empty key as export off.
