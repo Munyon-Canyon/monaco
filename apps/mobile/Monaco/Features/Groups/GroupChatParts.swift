@@ -27,11 +27,12 @@ struct GroupChatEmptyView: View {
 }
 
 struct GroupChatLoadFailureView: View {
+    var message = GroupChatCopy.loadFailure
     let retry: () -> Void
 
     var body: some View {
         VStack(spacing: 12) {
-            Text(GroupChatCopy.loadFailure)
+            Text(message)
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.ink)
                 .multilineTextAlignment(.center)
@@ -87,6 +88,7 @@ struct ChatSkeleton: View {
 
 struct ChatComposerBar: View {
     var focus: FocusState<Bool>.Binding
+    var placeholder = GroupChatCopy.composerPlaceholder
     let send: (String) -> Void
 
     @State private var draft = ""
@@ -123,9 +125,9 @@ struct ChatComposerBar: View {
 
     private var field: some View {
         TextField(
-            GroupChatCopy.composerPlaceholder,
+            placeholder,
             text: $draft,
-            prompt: Text(GroupChatCopy.composerPlaceholder).foregroundStyle(MonacoTheme.disabledLabel),
+            prompt: Text(placeholder).foregroundStyle(MonacoTheme.disabledLabel),
             axis: .vertical
         )
         .font(MonacoTheme.Typo.body)

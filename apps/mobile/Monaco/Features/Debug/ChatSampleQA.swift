@@ -36,7 +36,8 @@ private struct ChatSampleHost: View {
             cabalID: ChatSession.sampleCabalID,
             session: session,
             cabal: .sample(role: "member"),
-            openProfile: { openedProfile = $0 }
+            openProfile: { openedProfile = $0 },
+            openThread: { _ in }
         )
         .overlay(alignment: .top) {
             if let openedProfile {

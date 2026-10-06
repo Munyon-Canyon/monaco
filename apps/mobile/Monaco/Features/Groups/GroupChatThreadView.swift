@@ -6,6 +6,7 @@ struct GroupChatThreadView: View {
     let hasOlder: Bool
     let isLoadingOlder: Bool
     let openProfile: (String) -> Void
+    let openThread: (String) -> Void
     let retry: (String) -> Void
     let loadOlder: () -> Void
     let refresh: () async -> Void
@@ -23,8 +24,10 @@ struct GroupChatThreadView: View {
                 LazyVStack(alignment: .leading, spacing: 3) {
                     if hasOlder { loadEarlierButton }
                     ForEach(rows) { row in
-                        GroupChatRowView(row: row, now: Date(), openProfile: openProfile, retry: retry)
-                            .id(row.id)
+                        GroupChatRowView(
+                            row: row, now: Date(), openProfile: openProfile, retry: retry, openThread: openThread
+                        )
+                        .id(row.id)
                     }
                     Color.clear.frame(height: 1).id(Self.bottomAnchor)
                 }

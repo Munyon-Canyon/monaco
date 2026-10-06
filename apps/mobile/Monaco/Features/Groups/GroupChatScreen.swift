@@ -7,6 +7,7 @@ struct GroupChatScreen: View {
     let session: ChatSession?
     let cabal: Components.Schemas.Cabal?
     let openProfile: (String) -> Void
+    let openThread: (String) -> Void
 
     @State private var chat: ChatSession.State?
     @State private var toast: MonacoToast?
@@ -72,6 +73,7 @@ struct GroupChatScreen: View {
             hasOlder: chat.timeline.hasOlder,
             isLoadingOlder: chat.isLoadingOlder,
             openProfile: openProfile,
+            openThread: openThread,
             retry: { key in Task { await session?.retry(key: key) } },
             loadOlder: { Task { await session?.loadOlder() } },
             refresh: { await session?.reload() }
