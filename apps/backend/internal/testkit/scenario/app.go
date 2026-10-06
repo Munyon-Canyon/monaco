@@ -175,11 +175,14 @@ func (a *app) handler(
 }
 
 func (a *app) runRelay(ctx context.Context) {
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-a.db.Signal():
+		case <-tick.C:
 		}
 		if !a.held.Load() {
 			a.relay.Once(ctx)

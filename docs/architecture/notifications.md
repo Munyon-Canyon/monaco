@@ -79,7 +79,7 @@ device_tokens
 
 ### Sending (Go)
 
-`internal/platform/apns` wraps [`github.com/sideshow/apns2`](https://github.com/sideshow/apns2) as an anti-corruption layer, the same shape as `platform/chain`: APNs wire types never leave the package, and `apns.New` takes functional options and builds one circuit breaker per environment ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). `notify/app` declares its own `Sender` port and the worker binds it to `*apns.Client`, so no module imports apns2. `testkit.FakeSender` implements the port with `Fail` and `FailOnce`, and the `verify-backend` fakes server answers as APNs at `/apns/3/device/{token}` ([Verification skill](backend-platform.md#verification-skill)).
+`internal/platform/apns` wraps [`github.com/sideshow/apns2`](https://github.com/sideshow/apns2) as an anti-corruption layer, the same shape as `platform/chain`: APNs wire types never leave the package, and `apns.New` takes functional options and builds one circuit breaker per environment ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). `notify` sends through the `apns.Sender` port, which the worker binds to `*apns.Client`, so no module imports apns2. `testkit.FakeSender` implements the port with `Fail` and `FailOnce`, and the `verify-backend` fakes server answers as APNs at `/apns/3/device/{token}` ([Verification skill](backend-platform.md#verification-skill)).
 
 ```go
 type Sender interface {
@@ -109,11 +109,11 @@ Response handling:
 
 | APNs result | Action |
 | --- | --- |
-| `200` | Set `notifications.delivered_at`. |
-| `410` (`Unregistered` or `ExpiredToken`), `400 BadDeviceToken` | Set `device_tokens.disabled_at`, never retry that token. |
-| `429`, `5xx`, network error | Leave `delivered_at` null and return a retryable `KindUnavailable` code, so `bus.Dispatch` naks with backoff. On `429` with `Retry-After`, the nak delay is that long. The redelivered message skips Notification rows already written and resends only undelivered ones. |
-| `403` auth errors | Return a `KindInternal` code: `bus.Dispatch` terms the message to `DEADLETTER` and alerts. The key or env is misconfigured, so every push is failing. |
-| Any other status, such as `400 BadTopic` or `413 PayloadTooLarge` | Never retry and keep the token. The push itself is wrong, so resending cannot help. |
+| `200` | Mark the row `delivered`, set `notifications.delivered_at` and append `notification.sent`. |
+| `410` (`Unregistered` or `ExpiredToken`), `400 BadDeviceToken` | Set `device_tokens.disabled_at`, never retry that token. A row whose every token is dead, or that has none, ends `no_device`. |
+| `429`, `5xx`, network error | Leave the row `pending` and return the retryable `apns_unavailable`, so `bus.Dispatch` naks on its backoff schedule. A send error comes back as the client returned it. The redelivered message writes no row twice and resends only the rows still `pending`. |
+| `403` auth errors | Return `apns_auth_failed`: `bus.Dispatch` terms the message to `DEADLETTER` and alerts. The key or env is misconfigured, so every push is failing. It wins over every other answer of the delivery. |
+| Any other status, such as `400 BadTopic` or `413 PayloadTooLarge` | Keep the token and the `pending` row, and ack. The push itself is wrong, so resending cannot help. |
 
 `apns.Classify` maps these rows to `Delivered`, `TokenDead`, `Retry`, `AuthFailed` and `Rejected`. A `429` carries `Retry-After` in whole seconds as `Result.RetryAfter`, capped at an hour.
 
@@ -124,10 +124,11 @@ apns2 brings its own HTTP/2 client, so the adapter is an exception to the rule t
 ### Flow: trade confirmed
 
 1. The `trading` module's swap state machine moves the `swaps` row to `confirmed`. In the same `uow.Do` it appends `trade.confirmed` with `{txn_id, cabal_id, ...}` (flow 11; [trade-execution.md](trade-execution.md), step 3). The relay publishes it with `Nats-Msg-Id` set to the event id.
-2. The `notify` consumer receives it through `bus.Dispatch`.
-3. The handler loads the cabal's members through the read-only query port the `cabal` module exports ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)). It writes one NotificationBroadcast and one Notification per member, in the same transaction as the `event_deliveries` row, and commits. A redelivered event finds the `event_deliveries` row and does not notify twice.
-4. After commit, for each Notification, the handler sends to every active `device_tokens` row of that user and records the result as in the table above. APNs is never called inside the transaction ([event-bus.md](event-bus.md#consumers-and-handlers)). A crash between send and `delivered_at` can send twice; `apns-collapse-id` makes the phone show one.
+2. The `notify` consumer receives it through `bus.Dispatch`. Its handler is a `bus.HandleOwn` handler named `notify.<type>`, so it runs outside the delivery transaction and again on every redelivery.
+3. Each kind registered for the event names its recipients, here the cabal's members through the read-only query port the `cabal` module exports ([Dependency rules](backend-platform.md#dependency-rules-enforced-by-depguard)). The handler drops the event's causing user (its `actor_id` when the actor is a user) and deleted or unknown users, then renders the rest. One `uow.Do` writes a NotificationBroadcast when there are two or more and one `pending` Notification per recipient. Rows are unique on `(source_event_id, user_id, kind)`, so a redelivery writes nothing twice.
+4. After commit, the handler sends every `pending` row of the event to each active `device_tokens` row of its user, on a pool of at most 32 sends, then settles each row in its own `uow.Do` as in the table above. APNs is never called inside a transaction ([event-bus.md](event-bus.md#consumers-and-handlers)). A crash between send and `delivered_at` can send twice; `apns-collapse-id` makes the phone show one.
 5. Each delivered Notification appends `notification.sent` (flow 24). No consumer reacts to it.
+6. Last, the handler records its `event_deliveries` row. A `429` or `5xx` naks before that, so the redelivery resends only the rows still `pending`.
 
 Copy follows [product.md](../product.md): "cabal", not group; a human-readable stock name, never a mint address; no "xStock" branding.
 
@@ -135,17 +136,18 @@ Copy follows [product.md](../product.md): "cabal", not group; a human-readable s
 
 Push only for MVP (default 2026-09-27). There is no in-app notification list and no app badge; the app never sets `badge` in the payload. There are no per-user mute settings, so `notification_preferences` is not built. Nobody is pushed about their own action: the handler drops any recipient equal to the event's `actor_id`.
 
-| Push | Subject | Recipients | Source |
-| --- | --- | --- | --- |
-| Trade filled or failed | `trade.confirmed`, `trade.failed` (flow 11) | Cabal members | default 2026-09-27 |
-| Proposal created | `proposal.created` (flow 9) | Cabal members | default 2026-09-27 |
-| A proposal you voted on passed | `proposal.passed` (flow 10) | Its voters | default 2026-09-27 |
-| Deposit credited | `deposit.credited` (flow 5) | The depositor | default 2026-09-27 |
-| Reply to your comment | `comment.created` (flow 21) | The parent comment's author | default 2026-09-27 |
-| Cabal paused or resumed | `cabal.paused`, `cabal.resumed` (flow 8), appended by `funding` when the first pause reason opens and the last closes ([deposits-withdrawals.md](deposits-withdrawals.md#pause)) | Every member | decided 2026-09-27 |
-| New follower | `follow.created` (flow 20) | The followee | decided 2026-09-27; batched, below |
-| Chat mention or reply in your thread | `chat.message_posted` (flow 22) | The users in its `mentioned_user_ids`, the thread's participants | decided 2026-09-27 ([chat.md](chat.md)) |
-| Onboarding nudge | `user.nudge_due` ([auth.md](auth.md#nudges)) | The user | decided 2026-09-27 |
+| Push | Subject | Recipients | Copy | Source |
+| --- | --- | --- | --- | --- |
+| Trade filled or failed | `trade.confirmed`, `trade.failed` (flow 11) | Cabal members | Not written yet | default 2026-09-27 |
+| Proposal created | `proposal.created` (flow 9) | Cabal members | Not written yet | default 2026-09-27 |
+| A proposal you voted on passed | `proposal.passed` (flow 10) | Its voters | Not written yet | default 2026-09-27 |
+| Deposit credited | `deposit.credited` (flow 5) | The depositor | Not written yet | default 2026-09-27 |
+| Reply to your comment | `comment.created` (flow 21) | The parent comment's author | Not written yet | default 2026-09-27 |
+| Cabal paused or resumed | `cabal.paused`, `cabal.resumed` (flow 8), appended by `funding` when the first pause reason opens and the last closes ([deposits-withdrawals.md](deposits-withdrawals.md#pause)) | Every member | Not written yet | decided 2026-09-27 |
+| New follower | `follow.created` (flow 20) | The followee | Not written yet | decided 2026-09-27; batched, below |
+| Chat mention or reply in your thread | `chat.message_posted` (flow 22) | The users in its `mentioned_user_ids`, the thread's participants | Not written yet | decided 2026-09-27 ([chat.md](chat.md)) |
+| Onboarding nudge | `user.nudge_due` ([auth.md](auth.md#nudges)) | The user | Not written yet | decided 2026-09-27 |
+| Test push | `notify.test_requested` (flow 24), appended by `monacoctl notify test --user <id>` | That user | "Monaco test" / "Push is working." | proposed 2026-10-06 (#592), needs product sign-off |
 
 No other event pushes, so the RFC's [flows table](backend-platform.md#flows) lists `notify` as a consumer only of the events in this table. Referral attribution and qualification, price moves, funding, cash outs, withdrawals, agent lifecycle and admin actions send no push. Unfollows never notify.
 
@@ -164,7 +166,7 @@ A user who stays stuck gets a nudge on days 1, 8 and 15, and then no more. Every
 - The Simulator cannot reliably get a real remote device token. To test how a push looks and where a tap goes, drag a `.apns` file onto the Simulator, or run `xcrun simctl push <udid> com.monaco.app payload.json`.
 - To test end to end (backend → APNs → phone), use a physical device running a debug build, which gets a sandbox token.
 - `just test backend` uses the `testkit` fake `Sender` and never calls APNs. Every consumer test runs through the chaos dispatcher, so duplicate and reordered deliveries are tested, not assumed ([Keeping it deterministic](backend-platform.md#keeping-it-deterministic)).
-- `monacoctl verify flow 24` drives the flow against real binaries with the fakes server standing in for APNs.
+- `monacoctl verify flow 24` drives the flow against real binaries. Until #629 points the worker at the fakes server, it sends through `apns.NoopSender`.
 
 ## Rollout
 
