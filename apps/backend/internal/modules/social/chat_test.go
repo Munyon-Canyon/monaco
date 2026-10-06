@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -15,6 +16,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -37,6 +40,7 @@ type chatFixture struct {
 	cabal    testkit.SeededCabal
 	other    testkit.SeededCabal
 	outsider ids.UserID
+	users    *fakes.Identity
 }
 
 func newChatFixture(t *testing.T) chatFixture {
@@ -51,12 +55,23 @@ func newChatFixture(t *testing.T) chatFixture {
 		UoW: uow, Members: cabal.New(module.Deps{Pool: pool}).Queries(), IDs: g, Clock: clk,
 		Publish: app.NewChatPublisher(rt, plainWire),
 	}
-	return chatFixture{
-		now: now, pool: pool, clock: clk, deps: deps, rt: rt,
-		post: app.NewPostChatMessageHandler(deps), del: app.NewDeleteChatMessageHandler(deps),
+	f := chatFixture{
+		now: now, pool: pool, clock: clk, rt: rt,
 		cabal: testkit.NewCabal(t, pool, testkit.WithMembers(3)), other: testkit.NewCabal(t, pool),
 		outsider: testkit.SeedUser(t, pool, testkit.UserOpts{}).ID,
 	}
+	cards := make([]identity.UserCard, 0, 1+len(f.cabal.Members))
+	cards = append(cards, identity.UserCard{ID: f.outsider, Handle: "outsider", AccountStatus: identity.AccountActive})
+	for i, m := range f.cabal.Members {
+		cards = append(cards, identity.UserCard{
+			ID: m.ID, Handle: fmt.Sprintf("member%d", i), AccountStatus: identity.AccountActive,
+		})
+	}
+	f.users = fakes.NewIdentity(cards, nil)
+	deps.Users = f.users
+	f.deps = deps
+	f.post, f.del = app.NewPostChatMessageHandler(deps), app.NewDeleteChatMessageHandler(deps)
+	return f
 }
 
 func plainWire(_ context.Context, m app.ChatMessage) (any, error) {
@@ -140,6 +155,7 @@ func TestPostChatMessage_storesTheMessageAndAppendsAnIDsOnlyEvent(t *testing.T) 
 	}
 	wantEv := events.ChatMessagePosted{
 		V: 1, MessageID: got.ID, CabalID: f.cabal.ID.UUID(), AuthorID: f.member(0).UUID(), CreatedAt: f.now,
+		MentionedUserIDs: []uuid.UUID{}, ThreadParticipantIDs: []uuid.UUID{},
 	}
 	if !reflect.DeepEqual(ev, wantEv) {
 		t.Fatalf("event = %+v, want %+v", ev, wantEv)
@@ -259,6 +275,107 @@ func TestPostChatMessage_refusesBeforeWritingAnything(t *testing.T) {
 	}
 }
 
+func (f chatFixture) lastPosted(t *testing.T) events.ChatMessagePosted {
+	t.Helper()
+	var payload []byte
+	if err := f.pool.QueryRow(t.Context(),
+		`SELECT payload FROM events WHERE type = $1 ORDER BY id DESC LIMIT 1`, string(events.TypeChatMessagePosted),
+	).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	var ev events.ChatMessagePosted
+	if err := json.Unmarshal(payload, &ev); err != nil {
+		t.Fatal(err)
+	}
+	return ev
+}
+
+func (f chatFixture) leave(t *testing.T, user ids.UserID) {
+	t.Helper()
+	if _, err := f.pool.Exec(t.Context(),
+		`DELETE FROM cabal_members WHERE cabal_id = $1 AND user_id = $2`, f.cabal.ID.UUID(), user.UUID()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostChatMessage_MentionsResolved(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	f.mustSend(t, f.member(0), "@Member1 @outsider @nobody_here @member0 @member2 @member1 hi", nil)
+	ev := f.lastPosted(t)
+	want := []uuid.UUID{f.member(1).UUID(), f.member(2).UUID()}
+	noThread := len(ev.ThreadParticipantIDs) == 0 && ev.ThreadParticipantIDs != nil
+	if !reflect.DeepEqual(ev.MentionedUserIDs, want) || !noThread {
+		t.Fatalf("mentioned = %v, participants = %v, want %v and []",
+			ev.MentionedUserIDs, ev.ThreadParticipantIDs, want)
+	}
+}
+
+func TestPostChatMessage_PlainMessageCarriesEmptyArrays(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	f.mustSend(t, f.member(0), "gm", nil)
+	var raw string
+	if err := f.pool.QueryRow(t.Context(),
+		`SELECT (payload::jsonb->>'mentioned_user_ids') || (payload::jsonb->>'thread_participant_ids')
+		 FROM events WHERE type = $1`,
+		string(events.TypeChatMessagePosted)).Scan(&raw); err != nil || raw != "[][]" {
+		t.Fatalf("arrays = %q, %v, want [][]", raw, err)
+	}
+}
+
+func TestPostChatMessage_ThreadParticipants(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	top := f.mustSend(t, f.member(0), "top", nil)
+	f.mustSend(t, f.member(1), "one", &domain.Reply{Parent: top.ID})
+	f.mustSend(t, f.member(2), "two", &domain.Reply{Parent: top.ID})
+	f.leave(t, f.member(2))
+	f.mustSend(t, f.member(1), "again", &domain.Reply{Parent: top.ID})
+	got := f.lastPosted(t).ThreadParticipantIDs
+	want := []uuid.UUID{f.member(0).UUID()}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("participants = %v, want %v (parent author only; member 2 left, member 1 posted)", got, want)
+	}
+}
+
+func TestPostChatMessage_IdentityDown(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	f.users.Fail("UserIDsByHandles", errs.New(errs.CodeUpstreamUnavailable, "test"))
+	_, err := f.send(t, f.member(0), "@member1 look", nil)
+	wantCode(t, err, errs.CodeUpstreamUnavailable)
+	if n := f.count(t, `SELECT count(*) FROM cabal_messages`); n != 0 || f.posted(t) != 0 {
+		t.Fatalf("rows = %d, events = %d, want none", n, f.posted(t))
+	}
+}
+
+func TestPostChatMessage_MembersDown(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	deps := f.deps
+	deps.Members = membersListDown{f.deps.Members}
+	_, err := app.NewPostChatMessageHandler(deps).Handle(f.as(t, f.member(0)), app.PostChatMessage{
+		CabalID: f.cabal.ID, Author: f.member(0), Body: mustBody(t, "@member1"),
+	})
+	wantCode(t, err, errs.CodeUpstreamUnavailable)
+}
+
+type membersListDown struct{ app.ChatMembers }
+
+func (membersListDown) Members(context.Context, ids.CabalID) ([]cabalport.MemberView, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "test")
+}
+
+func mustBody(t *testing.T, raw string) domain.ChatBody {
+	t.Helper()
+	b, err := domain.ParseChatBody(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
 func TestPostChatMessage_returnsTheMembershipLookupFailure(t *testing.T) {
 	t.Parallel()
 	f := newChatFixture(t)
@@ -356,6 +473,22 @@ func TestChatCommands_failWithInternalWhenTheStoreFails(t *testing.T) {
 		{
 			"reply when the parent bump fails",
 			`ALTER TABLE cabal_messages ADD CONSTRAINT no_replies CHECK (reply_count = 0) NOT VALID`,
+			func(t *testing.T, f chatFixture, parent app.ChatMessage) error {
+				t.Helper()
+				_, err := f.send(t, f.member(1), "reply", &domain.Reply{Parent: parent.ID})
+				return err
+			},
+		},
+		{
+			"reply when the thread participants read fails",
+			`CREATE FUNCTION arm_reads() RETURNS trigger LANGUAGE plpgsql AS $$
+			   BEGIN PERFORM set_config('chat.reads', 'broken', true); RETURN NULL; END $$;
+			 CREATE TRIGGER arm_reads AFTER INSERT ON cabal_messages FOR EACH ROW EXECUTE FUNCTION arm_reads();
+			 ALTER TABLE cabal_messages ENABLE ROW LEVEL SECURITY;
+			 ALTER TABLE cabal_messages FORCE ROW LEVEL SECURITY;
+			 CREATE POLICY open ON cabal_messages USING (true) WITH CHECK (true);
+			 CREATE POLICY broken_reads ON cabal_messages AS RESTRICTIVE FOR SELECT
+			   USING (1 / (CASE WHEN current_setting('chat.reads', true) = 'broken' THEN 0 ELSE 1 END) = 1)`,
 			func(t *testing.T, f chatFixture, parent app.ChatMessage) error {
 				t.Helper()
 				_, err := f.send(t, f.member(1), "reply", &domain.Reply{Parent: parent.ID})

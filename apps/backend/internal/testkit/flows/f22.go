@@ -2,6 +2,7 @@ package flows
 
 import (
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -102,6 +103,57 @@ func F22PostChatMessageOK(s *scenario.Scenario) {
 			scenario.EventuallyPublished(events.TypeChatMessagePosted, 2),
 			scenario.ExpectAblyPublished(app.EventMessageCreated, "cabal", 2),
 			scenario.ExpectAblyPublished(app.EventThreadUpdated, "cabal", 1),
+		)
+}
+
+func setHandle(did, handle string) []scenario.Step {
+	return []scenario.Step{
+		scenario.SignIn(did),
+		scenario.Put(setHandlePath, `{"handle":"`+handle+`"}`),
+		scenario.ExpectStatus(http.StatusOK),
+	}
+}
+
+func mentionedHandles(want ...string) scenario.Step {
+	return func(s *scenario.Scenario) {
+		var got []string
+		rows, err := s.DB().Query(s.Context(), `
+			SELECT u.handle FROM events e, jsonb_array_elements_text(e.payload->'mentioned_user_ids') m
+			JOIN users u ON u.id = m::uuid
+			WHERE e.type = $1 ORDER BY u.handle`, string(events.TypeChatMessagePosted))
+		if err != nil {
+			s.Fatalf("read the mentioned handles: %v", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var h string
+			if err := rows.Scan(&h); err != nil {
+				s.Fatalf("scan a mentioned handle: %v", err)
+			}
+			got = append(got, h)
+		}
+		if !slices.Equal(got, want) {
+			s.Fatalf("mentioned handles = %v, want %v", got, want)
+		}
+	}
+}
+
+func ChatPostMentionsResolved(s *scenario.Scenario) {
+	const script = "post-mentions"
+	given := slices.Concat(chatCabal(script),
+		setHandle(chatCreatorOf(script), "qa22_author"),
+		setHandle(chatMemberOf(script), "qa22_member"),
+		setHandle(chatOutsiderOf(script), "qa22_outsider"),
+		[]scenario.Step{scenario.SignIn(chatCreatorOf(script))},
+	)
+	s.Given(given...).
+		When(
+			scenario.Post(chatPath, `{"body":"@qa22_member @QA22_outsider @qa22_author @qa22_nobody hi"}`),
+			scenario.ExpectStatus(http.StatusCreated),
+		).
+		Then(
+			scenario.ExpectEvents(events.TypeChatMessagePosted, 1),
+			mentionedHandles("qa22_member"),
 		)
 }
 

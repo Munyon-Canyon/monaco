@@ -149,3 +149,10 @@ LEFT JOIN chat_seen s ON s.cabal_id = c.id AND s.user_id = sqlc.arg(user_id);
 -- name: DeleteChatSeen :exec
 DELETE FROM chat_seen
 WHERE cabal_id = sqlc.arg(cabal_id) AND user_id = sqlc.arg(user_id);
+
+-- name: ThreadParticipants :many
+SELECT DISTINCT author_id
+FROM cabal_messages
+WHERE (id = sqlc.arg(parent_id) OR parent_id = sqlc.arg(parent_id))
+  AND deleted_at IS NULL
+ORDER BY author_id;

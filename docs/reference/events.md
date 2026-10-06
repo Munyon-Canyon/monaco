@@ -282,6 +282,8 @@ Subject `events.chat.message_posted`, version 1.
 | `parent_id` | `*uuid.UUID` |
 | `also_in_channel` | `bool` |
 | `created_at` | `time.Time` |
+| `mentioned_user_ids` | `[]uuid.UUID` |
+| `thread_participant_ids` | `[]uuid.UUID` |
 
 ## `comment.created`
 

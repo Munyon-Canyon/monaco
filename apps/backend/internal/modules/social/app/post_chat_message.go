@@ -23,7 +23,8 @@ type PostChatMessage struct {
 
 type ChatDeps struct {
 	UoW     *db.UnitOfWork
-	Members Members
+	Members ChatMembers
+	Users   Users
 	IDs     ids.Generator
 	Clock   clock.Clock
 	Publish ChatPublisher
@@ -42,9 +43,13 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 	if err := requireMember(ctx, h.d.Members, cmd.CabalID, cmd.Author); err != nil {
 		return ChatMessage{}, err
 	}
+	aud, err := h.audienceOf(ctx, cmd)
+	if err != nil {
+		return ChatMessage{}, err
+	}
 	var posted ChatMessage
 	var thread *ThreadUpdated
-	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		now := h.d.Clock.Now().UTC()
 		params := sqlc.InsertChatMessageParams{
@@ -70,6 +75,10 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
 		posted = postedMessage(row)
+		participants, err := aud.participants(ctx, q, cmd.Reply)
+		if err != nil {
+			return err
+		}
 		return tx.Events.Append(ctx, events.ChatMessagePosted{
 			V:             1,
 			MessageID:     row.ID,
@@ -78,6 +87,9 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 			ParentID:      parentOf(row.ParentID.Bytes),
 			AlsoInChannel: row.AlsoInChannel,
 			CreatedAt:     row.CreatedAt.UTC(),
+
+			MentionedUserIDs:     aud.mentioned,
+			ThreadParticipantIDs: participants,
 		})
 	})
 	if err != nil {
@@ -99,4 +111,58 @@ func parentOf(id uuid.UUID) *uuid.UUID {
 		return nil
 	}
 	return &id
+}
+
+const maxThreadParticipants = 200
+
+type audience struct {
+	mentioned []uuid.UUID
+	current   map[uuid.UUID]bool
+}
+
+func (h *PostChatMessageHandler) audienceOf(ctx context.Context, cmd PostChatMessage) (audience, error) {
+	const op = "social.PostChatMessage.audienceOf"
+	out := audience{mentioned: []uuid.UUID{}}
+	handles := domain.ParseMentions(cmd.Body.String())
+	if len(handles) == 0 && cmd.Reply == nil {
+		return out, nil
+	}
+	members, err := h.d.Members.Members(ctx, cmd.CabalID)
+	if err != nil {
+		return audience{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	out.current = make(map[uuid.UUID]bool, len(members))
+	for _, m := range members {
+		out.current[m.UserID.UUID()] = m.UserID != cmd.Author
+	}
+	if len(handles) == 0 {
+		return out, nil
+	}
+	byHandle, err := h.d.Users.UserIDsByHandles(ctx, handles)
+	if err != nil {
+		return audience{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	for _, handle := range handles {
+		if id, ok := byHandle[handle]; ok && out.current[id.UUID()] {
+			out.mentioned = append(out.mentioned, id.UUID())
+		}
+	}
+	return out, nil
+}
+
+func (a audience) participants(ctx context.Context, q *sqlc.Queries, reply *domain.Reply) ([]uuid.UUID, error) {
+	out := []uuid.UUID{}
+	if reply == nil {
+		return out, nil
+	}
+	authors, err := q.ThreadParticipants(ctx, reply.Parent)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "social.PostChatMessage.participants")
+	}
+	for _, id := range authors {
+		if a.current[id] && len(out) < maxThreadParticipants {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }

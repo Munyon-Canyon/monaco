@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -17,6 +18,11 @@ import (
 type Members interface {
 	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
 	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
+}
+
+type ChatMembers interface {
+	Members
+	Members(ctx context.Context, id ids.CabalID) ([]cabalport.MemberView, error)
 }
 
 type ChatMessage struct {
