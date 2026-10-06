@@ -19,6 +19,33 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for CabalValueHistoryRange.
+const (
+	CabalValueHistoryRangeALL CabalValueHistoryRange = "ALL"
+	CabalValueHistoryRangeN1D CabalValueHistoryRange = "1D"
+	CabalValueHistoryRangeN1H CabalValueHistoryRange = "1H"
+	CabalValueHistoryRangeN1M CabalValueHistoryRange = "1M"
+	CabalValueHistoryRangeN1W CabalValueHistoryRange = "1W"
+)
+
+// Valid indicates whether the value is a known member of the CabalValueHistoryRange enum.
+func (e CabalValueHistoryRange) Valid() bool {
+	switch e {
+	case CabalValueHistoryRangeALL:
+		return true
+	case CabalValueHistoryRangeN1D:
+		return true
+	case CabalValueHistoryRangeN1H:
+		return true
+	case CabalValueHistoryRangeN1M:
+		return true
+	case CabalValueHistoryRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LeaderboardPageRange.
 const (
 	LeaderboardPageRangeALL LeaderboardPageRange = "ALL"
@@ -127,6 +154,33 @@ func (e LeaderboardRange) Valid() bool {
 	}
 }
 
+// Defines values for ValueHistoryRange.
+const (
+	ValueHistoryRangeALL ValueHistoryRange = "ALL"
+	ValueHistoryRangeN1D ValueHistoryRange = "1D"
+	ValueHistoryRangeN1H ValueHistoryRange = "1H"
+	ValueHistoryRangeN1M ValueHistoryRange = "1M"
+	ValueHistoryRangeN1W ValueHistoryRange = "1W"
+)
+
+// Valid indicates whether the value is a known member of the ValueHistoryRange enum.
+func (e ValueHistoryRange) Valid() bool {
+	switch e {
+	case ValueHistoryRangeALL:
+		return true
+	case ValueHistoryRangeN1D:
+		return true
+	case ValueHistoryRangeN1H:
+		return true
+	case ValueHistoryRangeN1M:
+		return true
+	case ValueHistoryRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetCabalLeaderboardParamsRange.
 const (
 	GetCabalLeaderboardParamsRangeALL GetCabalLeaderboardParamsRange = "ALL"
@@ -148,6 +202,33 @@ func (e GetCabalLeaderboardParamsRange) Valid() bool {
 	case GetCabalLeaderboardParamsRangeN1M:
 		return true
 	case GetCabalLeaderboardParamsRangeN1W:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCabalValueHistoryParamsRange.
+const (
+	GetCabalValueHistoryParamsRangeALL GetCabalValueHistoryParamsRange = "ALL"
+	GetCabalValueHistoryParamsRangeN1D GetCabalValueHistoryParamsRange = "1D"
+	GetCabalValueHistoryParamsRangeN1H GetCabalValueHistoryParamsRange = "1H"
+	GetCabalValueHistoryParamsRangeN1M GetCabalValueHistoryParamsRange = "1M"
+	GetCabalValueHistoryParamsRangeN1W GetCabalValueHistoryParamsRange = "1W"
+)
+
+// Valid indicates whether the value is a known member of the GetCabalValueHistoryParamsRange enum.
+func (e GetCabalValueHistoryParamsRange) Valid() bool {
+	switch e {
+	case GetCabalValueHistoryParamsRangeALL:
+		return true
+	case GetCabalValueHistoryParamsRangeN1D:
+		return true
+	case GetCabalValueHistoryParamsRangeN1H:
+		return true
+	case GetCabalValueHistoryParamsRangeN1M:
+		return true
+	case GetCabalValueHistoryParamsRangeN1W:
 		return true
 	default:
 		return false
@@ -224,6 +305,57 @@ func (e GetPeopleLeaderboardParamsFilter) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// CabalValueHistory A cabal's value curve.
+type CabalValueHistory struct {
+	// CabalId The cabal.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// Points One point per bucket, oldest first.
+	//
+	// Examples: []
+	Points []CabalValuePoint `json:"points"`
+
+	// PricesAsOf The price time of the run the curve ends at. Null before the first run.
+	//
+	// Examples: 2026-10-04T11:59:00Z
+	PricesAsOf *time.Time `json:"prices_as_of"`
+
+	// Range The window the curve covers.
+	//
+	// Examples: ALL
+	Range CabalValueHistoryRange `json:"range"`
+}
+
+// CabalValueHistoryRange The window the curve covers.
+//
+// Examples: ALL
+type CabalValueHistoryRange string
+
+// CabalValuePoint The cabal's value at the end of one bucket.
+type CabalValuePoint struct {
+	// At The end of the bucket.
+	//
+	// Examples: 2026-10-04T12:00:00Z
+	At time.Time `json:"at"`
+
+	// NavPerShareMicros The pot value per share in USDC micros.
+	//
+	// Examples: 1000000
+	NavPerShareMicros int64 `json:"nav_per_share_micros"`
+
+	// PnlMicros The pot value minus the net contributed, negative for a loss.
+	//
+	// Examples: -5
+	PnlMicros int64 `json:"pnl_micros"`
+
+	// ValueMicros The pot value in USDC micros.
+	//
+	// Examples: 1000000
+	ValueMicros int64 `json:"value_micros"`
 }
 
 // LeaderboardPage One page of a leaderboard from one run.
@@ -353,6 +485,9 @@ type LeaderboardLimit = int
 // LeaderboardRange Examples: ALL
 type LeaderboardRange string
 
+// ValueHistoryRange Examples: ALL
+type ValueHistoryRange string
+
 // GetCabalLeaderboardParams defines parameters for GetCabalLeaderboard.
 type GetCabalLeaderboardParams struct {
 	// Range The window the return is measured over. Defaults to `ALL`.
@@ -367,6 +502,15 @@ type GetCabalLeaderboardParams struct {
 
 // GetCabalLeaderboardParamsRange defines parameters for GetCabalLeaderboard.
 type GetCabalLeaderboardParamsRange string
+
+// GetCabalValueHistoryParams defines parameters for GetCabalValueHistory.
+type GetCabalValueHistoryParams struct {
+	// Range The window the curve covers. Defaults to `ALL`.
+	Range *GetCabalValueHistoryParamsRange `form:"range,omitempty" json:"range,omitempty"`
+}
+
+// GetCabalValueHistoryParamsRange defines parameters for GetCabalValueHistory.
+type GetCabalValueHistoryParamsRange string
 
 // GetCabalsLeaderboardParams defines parameters for GetCabalsLeaderboard.
 type GetCabalsLeaderboardParams struct {
@@ -409,6 +553,9 @@ type ServerInterface interface {
 	// GetCabalLeaderboard Read a cabal's members leaderboard.
 	// (GET /v1/cabals/{id}/leaderboard)
 	GetCabalLeaderboard(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalLeaderboardParams)
+	// GetCabalValueHistory Read a cabal's value history.
+	// (GET /v1/cabals/{id}/value-history)
+	GetCabalValueHistory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalValueHistoryParams)
 	// GetCabalsLeaderboard Read the cabals leaderboard.
 	// (GET /v1/leaderboards/cabals)
 	GetCabalsLeaderboard(w http.ResponseWriter, r *http.Request, params GetCabalsLeaderboardParams)
@@ -485,6 +632,48 @@ func (siw *ServerInterfaceWrapper) GetCabalLeaderboard(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCabalLeaderboard(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCabalValueHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalValueHistory(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCabalValueHistoryParams
+
+	// ------------- Optional query parameter "range" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "range", r.URL.Query(), &params.Range, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "range"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "range", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalValueHistory(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -746,6 +935,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/leaderboard", wrapper.GetCabalLeaderboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/value-history", wrapper.GetCabalValueHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/cabals", wrapper.GetCabalsLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
 
@@ -781,6 +971,46 @@ type GetCabalLeaderboarddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetCabalLeaderboarddefaultApplicationProblemPlusJSONResponse) VisitGetCabalLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalValueHistoryRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetCabalValueHistoryParams
+}
+
+type GetCabalValueHistoryResponseObject interface {
+	VisitGetCabalValueHistoryResponse(w http.ResponseWriter) error
+}
+
+type GetCabalValueHistory200JSONResponse CabalValueHistory
+
+func (response GetCabalValueHistory200JSONResponse) VisitGetCabalValueHistoryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalValueHistorydefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCabalValueHistorydefaultApplicationProblemPlusJSONResponse) VisitGetCabalValueHistoryResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -875,6 +1105,9 @@ type StrictServerInterface interface {
 	// GetCabalLeaderboard Read a cabal's members leaderboard.
 	// (GET /v1/cabals/{id}/leaderboard)
 	GetCabalLeaderboard(ctx context.Context, request GetCabalLeaderboardRequestObject) (GetCabalLeaderboardResponseObject, error)
+	// GetCabalValueHistory Read a cabal's value history.
+	// (GET /v1/cabals/{id}/value-history)
+	GetCabalValueHistory(ctx context.Context, request GetCabalValueHistoryRequestObject) (GetCabalValueHistoryResponseObject, error)
 	// GetCabalsLeaderboard Read the cabals leaderboard.
 	// (GET /v1/leaderboards/cabals)
 	GetCabalsLeaderboard(ctx context.Context, request GetCabalsLeaderboardRequestObject) (GetCabalsLeaderboardResponseObject, error)
@@ -942,6 +1175,33 @@ func (sh *strictHandler) GetCabalLeaderboard(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalLeaderboardResponseObject); ok {
 		if err := validResponse.VisitGetCabalLeaderboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalValueHistory operation middleware
+func (sh *strictHandler) GetCabalValueHistory(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalValueHistoryParams) {
+	var request GetCabalValueHistoryRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalValueHistory(ctx, request.(GetCabalValueHistoryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalValueHistory")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalValueHistoryResponseObject); ok {
+		if err := validResponse.VisitGetCabalValueHistoryResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -14,10 +14,13 @@ import (
 )
 
 type HTTP struct {
-	Boards  app.Boards
-	Cabals  app.CabalCheck
-	Pages   app.PageLoader
-	Follows app.Follows
+	Boards    app.Boards
+	Cabals    app.CabalCheck
+	Pages     app.PageLoader
+	Follows   app.Follows
+	Snapshots app.Snapshots
+	Ledger    app.Contributions
+	Histories app.HistoryLoader
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -72,6 +75,51 @@ func (h HTTP) GetCabalLeaderboard(
 		return nil, err
 	}
 	return api.GetCabalLeaderboard200JSONResponse(page), nil
+}
+
+func (h HTTP) GetCabalValueHistory(
+	ctx context.Context, req api.GetCabalValueHistoryRequestObject,
+) (api.GetCabalValueHistoryResponseObject, error) {
+	if _, err := caller(ctx); err != nil {
+		return nil, err
+	}
+	rng := domain.RangeAll
+	if req.Params.Range != nil {
+		var err error
+		if rng, err = domain.ParseRange(string(*req.Params.Range)); err != nil {
+			return nil, err
+		}
+	}
+	in := app.ReadValueHistory{
+		Cabal: ids.CabalIDFrom(req.Id), Range: rng, Check: h.Cabals, Histories: h.Histories,
+	}
+	history, err := in.Run(ctx, h.Boards, h.Snapshots, h.Ledger)
+	if err != nil {
+		return nil, err
+	}
+	out, err := wireHistory(history, in)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetCabalValueHistory200JSONResponse(out), nil
+}
+
+func wireHistory(history domain.ValueHistory, in app.ReadValueHistory) (api.CabalValueHistory, error) {
+	points := make([]api.CabalValuePoint, 0, len(history.Points))
+	for _, p := range history.Points {
+		value, nav := p.Value.Uint64(), p.NavPerShare.Uint64()
+		if value > math.MaxInt64 || nav > math.MaxInt64 {
+			return api.CabalValueHistory{}, errs.New(
+				errs.CodeInternal, "ranking.wireHistory", slog.Uint64("value", value), slog.Uint64("nav", nav))
+		}
+		points = append(points, api.CabalValuePoint{
+			At: p.At, ValueMicros: int64(value), NavPerShareMicros: int64(nav), PnlMicros: p.PnL.Int64(),
+		})
+	}
+	return api.CabalValueHistory{
+		CabalId: in.Cabal.UUID(), Range: api.CabalValueHistoryRange(in.Range), Points: points,
+		PricesAsOf: history.PricesAsOf,
+	}, nil
 }
 
 type boardRef struct {

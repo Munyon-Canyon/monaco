@@ -142,3 +142,17 @@ func (p PageCache) Load(
 	}
 	return *page, nil
 }
+
+type HistoryCache struct {
+	Cache *Cache[app.HistoryKey, domain.ValueHistory]
+}
+
+func (h HistoryCache) Load(
+	ctx context.Context, key app.HistoryKey, load func(context.Context) (domain.ValueHistory, error),
+) (domain.ValueHistory, error) {
+	history, err := h.Cache.Load(ctx, key, load)
+	if err != nil {
+		return domain.ValueHistory{}, err
+	}
+	return *history, nil
+}

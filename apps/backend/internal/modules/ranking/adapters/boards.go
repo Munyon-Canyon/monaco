@@ -29,7 +29,9 @@ func (b Boards) LatestRun(ctx context.Context) (domain.Run, bool, error) {
 	case err != nil:
 		return domain.Run{}, false, errs.Wrap(err, errs.CodeInternal, "ranking.Boards.LatestRun")
 	}
-	return domain.Run{ID: run.RunID, Rev: run.Rev, PricesAsOf: run.PricesAsOf, FinishedAt: run.FinishedAt}, true, nil
+	return domain.Run{
+		ID: run.RunID, Rev: run.Rev, AsOf: run.AsOf, PricesAsOf: run.PricesAsOf, FinishedAt: run.FinishedAt,
+	}, true, nil
 }
 
 func (b Boards) Page(
