@@ -26,7 +26,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"app-only", []string{"apps/mobile/App.swift"}, []string{"mobile-core", "ios"}},
 		{"systemping-only", []string{"apps/mobile/Monaco/Features/SystemPing/SystemPingView.swift"}, []string{"mobile-core", "ios"}},
 		{"pbxproj-only", []string{"apps/mobile/Monaco.xcodeproj/project.pbxproj"}, []string{"ios"}},
-		{"ios-workflow-only", []string{".github/workflows/ci-ios.yml"}, []string{"ios", "actionlint"}},
+		{"ios-workflow-only", []string{".github/workflows/ci-ios.yml"}, []string{"ios", "scripts", "actionlint"}},
 		{"generator-only", []string{"scripts/gen-mobile-feature.sh"}, []string{"mobile-core"}},
 		{"mobile-integration-script-only", []string{"scripts/ci/mobile-integration.sh"}, []string{"mobile-core", "scripts"}},
 		{"prune-caches-script-only", []string{"scripts/ci/prune-caches.sh"}, []string{"scripts"}},
@@ -36,7 +36,7 @@ func TestCIPathFilter_jobsFollowTheWorkflow(t *testing.T) {
 		{"xcode-version-only", []string{".xcode-version"}, []string{"mobile-core", "ios"}},
 		{"mobile-core-script-only", []string{"scripts/mobile-core-test.sh"}, []string{"mobile-core"}},
 		{"flows-only", []string{"packages/flows/app/00.tsv"}, []string{"lint", "ready", "backend", "mobile-core", "ios"}},
-		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"actionlint"}},
+		{"ci-only", []string{".github/workflows/ci.yml"}, []string{"scripts", "actionlint"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -63,6 +63,7 @@ func TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges(t *testing.T) {
 		{".claude/skills/any/SKILL.md", "skill_paths_test.go"},
 		{".cursor/skills/any/SKILL.md", "skill_paths_test.go"},
 		{".github/pull_request_template.md", "test_check_pr_format.py"},
+		{".github/workflows/mutation.yml", "tool_manifest_test.go"},
 		{"packages/mobile-core/Tests/MonacoCoreTests/LegacyFreezeTests.swift", "test_check_legacy_growth.py"},
 	}
 	for _, in := range opensWithoutReadRepo {
