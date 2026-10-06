@@ -84,6 +84,74 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(model.state, .loaded(try rows(["New"])))
     }
 
+    func testAnAnswerShowsEvenWhenANewerLoadNeverFinishes() async throws {
+        let transport = StubTransport(scripted: [.gate, .hang])
+        let model = CabalsTabModel(api: api(transport))
+
+        let first = Task { await model.load() }
+        _ = await waitUntil { await transport.sent.count == 1 }
+        let second = Task { await model.load() }
+        addTeardownBlock { second.cancel() }
+        _ = await waitUntil { await transport.sent.count == 2 }
+        await transport.releaseGate(.json(.ok, Self.list(["Old"])))
+        await first.value
+
+        XCTAssertEqual(model.state, .loaded(try rows(["Old"])))
+    }
+
+    func testAFailureShowsEvenWhenANewerLoadNeverFinishes() async throws {
+        let transport = StubTransport(scripted: [.gate, .hang])
+        let model = CabalsTabModel(api: api(transport))
+
+        let first = Task { await model.load() }
+        _ = await waitUntil { await transport.sent.count == 1 }
+        let second = Task { await model.load() }
+        addTeardownBlock { second.cancel() }
+        _ = await waitUntil { await transport.sent.count == 2 }
+        await transport.releaseGate(.failure(URLError(.notConnectedToInternet)))
+        await first.value
+
+        guard case .failed = model.state else {
+            XCTFail("expected a failure, got \(model.state)")
+            return
+        }
+    }
+
+    func testAnOlderFailureDoesNotOverwriteANewerAnswer() async throws {
+        let transport = StubTransport(scripted: [.gate, .json(.ok, Self.list(["New"]))])
+        let model = CabalsTabModel(api: api(transport))
+
+        let first = Task { await model.load() }
+        _ = await waitUntil { await transport.sent.count == 1 }
+        await model.load()
+        await transport.releaseGate(.failure(URLError(.notConnectedToInternet)))
+        await first.value
+
+        XCTAssertEqual(model.state, .loaded(try rows(["New"])))
+        XCTAssertEqual(model.failureTick, 0)
+    }
+
+    func testACancelledOlderLoadShowsNoFailureWhileANewerOneRuns() async throws {
+        let transport = StubTransport(scripted: [.hang, .gate])
+        let model = CabalsTabModel(api: api(transport))
+
+        let first = Task { await model.load() }
+        _ = await waitUntil { await transport.sent.count == 1 }
+        let second = Task { await model.load() }
+        _ = await waitUntil { await transport.sent.count == 2 }
+        first.cancel()
+        await first.value
+
+        XCTAssertEqual(model.state, .loading)
+        XCTAssertEqual(model.failureTick, 0)
+        XCTAssertNil(model.lastError)
+
+        await transport.releaseGate(.json(.ok, Self.list(["New"])))
+        await second.value
+        XCTAssertEqual(model.state, .loaded(try rows(["New"])))
+        XCTAssertEqual(model.failureTick, 0)
+    }
+
     func testMemberCopy() {
         XCTAssertEqual(CabalCopy.memberCount(1), "1 member")
         XCTAssertEqual(CabalCopy.memberCount(3), "3 members")
