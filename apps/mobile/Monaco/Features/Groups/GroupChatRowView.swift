@@ -33,6 +33,7 @@ struct GroupChatRowView: View {
                             ChatMessageMenu(
                                 enabled: canOpenMenu,
                                 reply: replyHere ?? { openThread?(rootID) },
+                                copy: { UIPasteboard.general.string = message.body },
                                 delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil))
                     footer
                     seenFooter
@@ -214,6 +215,7 @@ struct ChatDayRule: View {
 struct ChatMessageMenu: ViewModifier {
     let enabled: Bool
     let reply: () -> Void
+    let copy: () -> Void
     let delete: (() -> Void)?
 
     @ViewBuilder func body(content: Content) -> some View {
@@ -223,6 +225,11 @@ struct ChatMessageMenu: ViewModifier {
                     reply()
                 } label: {
                     Label(ChatThreadCopy.reply, systemImage: "arrowshape.turn.up.left")
+                }
+                Button {
+                    copy()
+                } label: {
+                    Label(GroupChatCopy.copy, systemImage: "doc.on.doc")
                 }
                 if let delete {
                     Button(role: .destructive, action: delete) {

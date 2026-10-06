@@ -43,6 +43,7 @@ public enum GroupChatCopy {
     public static let closed = "You're no longer in this cabal, so its chat is closed to you."
     public static let notSent = "Not sent · Retry"
     public static let deleted = "Message deleted"
+    public static let copy = "Copy"
 
     public static func title(groupName: String?) -> String {
         let trimmed = groupName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
