@@ -1,0 +1,5 @@
+{
+  "status": 201,
+  "headers": {"Content-Type": "application/json"},
+  "body": {"serials": ["01FAKEABLYSERIAL0000000000"]}
+}
