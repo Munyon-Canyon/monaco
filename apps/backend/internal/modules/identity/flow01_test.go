@@ -32,7 +32,7 @@ func identityScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario
 
 func TestFlow01_OpenSession_OK(t *testing.T) {
 	t.Parallel()
-	flows.F01OpenSessionOK(identityScenario(t))
+	flows.F01OpenSessionOK(identityScenario(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow01_OpenSession_Unauthorized(t *testing.T) {

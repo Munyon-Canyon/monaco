@@ -171,6 +171,20 @@ func newSocialChaosWorld(t *testing.T) chaosWorld {
 	return appendedWorld(t, e, userActor(s.user), s.user, socialChaosCases(s))
 }
 
+func identityChaosCases(s identityScene) []chaosCase {
+	return []chaosCase{
+		{s.signedUp(), "user_signed_up"},
+		{s.advanced(), "auth_state_changed"},
+	}
+}
+
+func newIdentityChaosWorld(t *testing.T) chaosWorld {
+	t.Helper()
+	e := newEnv(t, analytics.RegisterIdentityExports)
+	s := newIdentityScene(e)
+	return appendedWorld(t, e, identityActor, s.user, identityChaosCases(s))
+}
+
 func appendedWorld(t *testing.T, e *env, actor string, distinct uuid.UUID, cases []chaosCase) chaosWorld {
 	t.Helper()
 	w := chaosWorld{e: e, distinct: distinct.String(), names: map[uuid.UUID]string{}}
@@ -231,4 +245,9 @@ func TestAnalytics_CabalExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 func TestAnalytics_SocialExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 	t.Parallel()
 	exportsEachEventOnceUnderChaos(t, newSocialChaosWorld)
+}
+
+func TestAnalytics_IdentityExports_ExportEachEventOnceUnderChaos(t *testing.T) {
+	t.Parallel()
+	exportsEachEventOnceUnderChaos(t, newIdentityChaosWorld)
 }
