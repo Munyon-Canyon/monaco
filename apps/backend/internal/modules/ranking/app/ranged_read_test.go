@@ -112,3 +112,34 @@ func TestReadRanged_ReturnsPortErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestPreviousRows_SplitsFlaggedRowsFromTheFallbackForValuedCabals(t *testing.T) {
+	t.Parallel()
+	flagged, valued := ids.CabalIDFrom(ids.Real{}.NewV7()), ids.CabalIDFrom(ids.Real{}.NewV7())
+	f := &countingPorts{previousRows: []sqlc.LeaderboardEntry{
+		{Board: "cabals", Range: "ALL", SubjectID: flagged.UUID()},
+		{Board: "cabals", Range: "1D", SubjectID: flagged.UUID()},
+		{Board: MembersBoard(flagged.UUID()), Range: "1D", SubjectID: valued.UUID()},
+		{Board: "cabals", Range: "1D", SubjectID: valued.UUID()},
+		{Board: MembersBoard(valued.UUID()), Range: "1D", SubjectID: flagged.UUID()},
+	}}
+	previous, fallback, err := NewRunValuation(Ports{Previous: f}, "").previousRows(
+		t.Context(), []ids.CabalID{flagged}, []CabalValue{{CabalID: valued}},
+	)
+	if err != nil || len(previous) != 3 || len(fallback) != 1 {
+		t.Fatalf("previousRows = %d kept, %d fallback, %v, want the flagged cabal's three rows and one fallback row",
+			len(previous), len(fallback), err)
+	}
+	if _, ok := fallback[fallbackKey{cabal: valued.UUID(), rng: "1D"}]; !ok {
+		t.Fatalf("fallback = %+v, want the valued cabal's 1D row", fallback)
+	}
+	f.previousErr = errs.New(errs.CodeInternal, "test")
+	if _, _, err := NewRunValuation(Ports{Previous: f}, "").previousRows(t.Context(), nil, nil); err != nil {
+		t.Fatalf("previousRows with no cabals = %v, want no read", err)
+	}
+	if _, _, err := NewRunValuation(Ports{Previous: f}, "").previousRows(
+		t.Context(), []ids.CabalID{flagged}, nil,
+	); err == nil {
+		t.Fatal("previousRows error = nil, want the read error")
+	}
+}
