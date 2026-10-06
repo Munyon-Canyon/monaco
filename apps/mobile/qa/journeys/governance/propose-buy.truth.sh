@@ -22,10 +22,10 @@ got=""
 for _ in $(seq 1 20); do
   got="$(qa_sql -F ' ' -v name="$name" -v a="$a" -v reason="Journey buy $run" <<'SQL'
 SELECT count(*), max(p.kind), regexp_replace(max(p.symbol), 'x$', ''), max(p.usdc_micros), max(p.status), max(p.thesis),
-  (SELECT count(*) FROM swaps s WHERE s.cabal_id = max(c.id)),
+  (SELECT count(*) FROM swaps s WHERE s.cabal_id::text = max(c.id::text)),
   (SELECT count(*) FROM event_deliveries d JOIN events e ON e.id = d.event_id
     WHERE d.handler = 'trading.engine' AND d.code = 'stubbed' AND e.type = 'proposal.passed'
-      AND e.aggregate_id = max(p.id))
+      AND e.aggregate_id::text = max(p.id::text))
 FROM proposals p JOIN cabals c ON c.id = p.cabal_id JOIN users u ON u.id = p.proposer_id
 WHERE c.name = :'name' AND u.privy_user_id = :'a' AND p.thesis = :'reason'
 SQL

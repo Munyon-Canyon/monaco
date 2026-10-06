@@ -110,16 +110,19 @@ enum GovernanceProposeBuyJourney {
         recorder.step("S1.2", "open the Propose chooser") {
             openChooser(app, step: "S1.2")
             expectLabels(app, ["Buy a stock", "Your cabal votes on it first", "Nothing to sell yet"], step: "S1.2")
-            let sell = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sell something'")).firstMatch
+            let sell = app.element("propose-kind-sell")
             XCTAssertTrue(sell.exists, "S1.2: no \"Sell something the cabal owns\" row")
-            XCTAssertFalse(sell.isEnabled, "S1.2: \"Sell something the cabal owns\" is enabled with nothing to sell")
+            XCTAssertFalse(
+                app.buttons["propose-kind-sell"].exists,
+                "S1.2: \"Sell something the cabal owns\" is tappable with nothing to sell"
+            )
         }
 
         recorder.step("S1.3", "pick GOOGL") {
             tap(app, "propose-kind-buy", step: "S1.3")
             expectTitle(app, "Buy", step: "S1.3")
             expectLabel(app, "Popular", step: "S1.3")
-            let field = app.element("monaco-search-field")
+            let field = app.textFields["monaco-search-field"]
             XCTAssertTrue(field.waitForExistence(timeout: checkTimeout), "S1.3: no stock search")
             field.tap()
             field.typeText("GOOGL")
