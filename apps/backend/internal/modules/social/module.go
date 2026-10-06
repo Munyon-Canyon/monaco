@@ -50,7 +50,9 @@ func (c CatalogAssets) AssetByMint(ctx context.Context, raw string) (app.AssetCa
 		return app.AssetCard{}, err
 	}
 	asset, err := c.catalog.AssetByMint(ctx, mint)
-	return app.AssetCard{ID: asset.ID.UUID(), Name: asset.DisplayName}, err
+	return app.AssetCard{
+		ID: asset.ID.UUID(), Symbol: asset.Symbol, Name: asset.DisplayName, Decimals: asset.Decimals,
+	}, err
 }
 
 func WithRealtime(realtime app.Realtime) Option {
@@ -170,6 +172,7 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("social.feed.proposal_executed", feed.ProposalExecuted),
 				bus.Handle("social.feed.proposal_blocked", feed.ProposalBlocked),
 				bus.Handle("social.feed.trade_failed", feed.TradeFailed),
+				bus.HandleFetched("social.feed.trade_confirmed", feed.FetchTrade, feed.ApplyTrade),
 			},
 		},
 		{

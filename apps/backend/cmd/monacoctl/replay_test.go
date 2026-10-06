@@ -180,6 +180,7 @@ func TestProjections_leaveOutEveryConsumerThatIsNotAProjection(t *testing.T) {
 		"social.feed.profile_updated", "social.feed.proposal_blocked", "social.feed.proposal_created",
 		"social.feed.proposal_executed", "social.feed.proposal_expired", "social.feed.proposal_failed",
 		"social.feed.proposal_passed", "social.feed.proposal_voided", "social.feed.proposal_withdrawn",
+		"social.feed.trade_confirmed",
 		"social.feed.trade_failed",
 		"system.echo",
 		"treasury.activity.confirmed", "treasury.activity.failed", "treasury.activity.fund_failed",
