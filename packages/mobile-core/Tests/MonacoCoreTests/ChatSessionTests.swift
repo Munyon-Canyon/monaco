@@ -2,6 +2,7 @@ import Foundation
 import HTTPTypes
 import MonacoAPI
 import MonacoTestSupport
+import Synchronization
 import XCTest
 
 @testable import MonacoCore
@@ -251,13 +252,12 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertNotNil(state.notice)
     }
 
-    func testSeenAndDetachedEventsChangeNothing() async throws {
+    func testADetachedEventChangesNothing() async throws {
         let transport = StubTransport(scripted: [try Fixtures.page([Fixtures.message("m1")])])
         let session = Fixtures.session(transport)
         await session.open()
         let before = await Fixtures.state(session)
 
-        await session.apply(.seenUpdated(messageId: "m1", count: 3))
         await session.apply(.detached)
 
         let after = await Fixtures.state(session)
@@ -277,5 +277,148 @@ final class ChatSessionTests: XCTestCase {
         let state = await Fixtures.state(session)
         XCTAssertEqual(state.load, .loaded)
         XCTAssertEqual(Fixtures.ids(state), ["m1"])
+    }
+}
+
+extension ChatSessionTests {
+    func testTheNewestMessagesSeenCountBecomesTheLabel() async throws {
+        let transport = StubTransport(scripted: [
+            try ChatFixtures.page([ChatFixtures.message("m2", minutes: 2, seenCount: 3), ChatFixtures.message("m1")])
+        ])
+        let session = ChatFixtures.session(transport)
+
+        await session.open()
+
+        let state = await ChatFixtures.state(session)
+        XCTAssertEqual(state.seen, ChatSession.Seen(messageID: "m2", count: 3))
+        XCTAssertEqual(state.seenLabel, "Seen by 3")
+    }
+
+    func testASeenUpdateForTheNewestMessageReplacesTheLabel() async throws {
+        let transport = StubTransport(scripted: [
+            try ChatFixtures.page([ChatFixtures.message("m2", minutes: 2, seenCount: 1), ChatFixtures.message("m1")])
+        ])
+        let session = ChatFixtures.session(transport)
+        await session.open()
+
+        await session.apply(.seenUpdated(messageId: "m2", count: 2))
+
+        let state = await ChatFixtures.state(session)
+        XCTAssertEqual(state.seenLabel, "Seen by 2")
+    }
+
+    func testASeenUpdateForAnOlderMessageIsIgnored() async throws {
+        let transport = StubTransport(scripted: [
+            try ChatFixtures.page([ChatFixtures.message("m2", minutes: 2, seenCount: 1), ChatFixtures.message("m1")])
+        ])
+        let session = ChatFixtures.session(transport)
+        await session.open()
+
+        await session.apply(.seenUpdated(messageId: "m1", count: 5))
+
+        let state = await ChatFixtures.state(session)
+        XCTAssertEqual(state.seen, ChatSession.Seen(messageID: "m2", count: 1))
+    }
+
+    func testANewMessageClearsTheLabelUntilTheServerSendsItsCount() async throws {
+        let transport = StubTransport(scripted: [
+            try ChatFixtures.page([ChatFixtures.message("m1", seenCount: 2)])
+        ])
+        let session = ChatFixtures.session(transport)
+        await session.open()
+
+        await session.apply(.messageCreated(ChatFixtures.message("m2", minutes: 1)))
+        let cleared = await ChatFixtures.state(session)
+        await session.apply(.seenUpdated(messageId: "m2", count: 1))
+        let counted = await ChatFixtures.state(session)
+
+        XCTAssertNil(cleared.seenLabel)
+        XCTAssertEqual(counted.seenLabel, "Seen by 1")
+    }
+
+    func testAnArrivalIsReportedOnlyForAMessageTheTimelineTakes() async throws {
+        let arrivals = ArrivalCounter()
+        let transport = StubTransport(scripted: [try ChatFixtures.page([ChatFixtures.message("m1")])])
+        let session = ChatSession(
+            cabalID: ChatFixtures.cabalID,
+            viewerID: ChatFixtures.viewerID,
+            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            realtime: FakeChatRealtime(),
+            now: { ChatFixtures.epoch },
+            onArrival: { arrivals.bump() }
+        )
+        await session.open()
+
+        await session.apply(.messageCreated(ChatFixtures.message("m2", minutes: 1)))
+        await session.apply(.messageCreated(ChatFixtures.message("m2", minutes: 1)))
+
+        XCTAssertEqual(arrivals.count, 1)
+    }
+
+    func testANewMessageIsOnScreenBeforeTheArrivalHookFinishes() async throws {
+        let gate = ArrivalGate()
+        let transport = StubTransport(scripted: [try ChatFixtures.page([ChatFixtures.message("m1")])])
+        let session = ChatSession(
+            cabalID: ChatFixtures.cabalID,
+            viewerID: ChatFixtures.viewerID,
+            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            realtime: FakeChatRealtime(),
+            now: { ChatFixtures.epoch },
+            onArrival: { await gate.enterAndWait() }
+        )
+        await session.open()
+
+        let published = Mutex<[String]>([])
+        let stream = await session.states()
+        let watching = Task {
+            for await state in stream { published.withLock { $0 = ChatFixtures.ids(state) } }
+        }
+        let applying = Task { await session.apply(.messageCreated(ChatFixtures.message("m2", minutes: 1))) }
+        await gate.waitUntilEntered()
+        for _ in 0..<1000 where !published.withLock({ $0.contains("m2") }) {
+            await Task.yield()
+        }
+        let whileHeld = published.withLock { $0 }
+        await gate.open()
+        await applying.value
+        watching.cancel()
+
+        XCTAssertEqual(whileHeld, ["m1", "m2"])
+    }
+}
+
+private final class ArrivalCounter: Sendable {
+    private let value = Mutex(0)
+
+    var count: Int { value.withLock { $0 } }
+
+    func bump() {
+        value.withLock { $0 += 1 }
+    }
+}
+
+private actor ArrivalGate {
+    private var entered = false
+    private var opened = false
+    private var holder: CheckedContinuation<Void, Never>?
+    private var watcher: CheckedContinuation<Void, Never>?
+
+    func enterAndWait() async {
+        entered = true
+        watcher?.resume()
+        watcher = nil
+        if opened { return }
+        await withCheckedContinuation { holder = $0 }
+    }
+
+    func waitUntilEntered() async {
+        if entered { return }
+        await withCheckedContinuation { watcher = $0 }
+    }
+
+    func open() {
+        opened = true
+        holder?.resume()
+        holder = nil
     }
 }

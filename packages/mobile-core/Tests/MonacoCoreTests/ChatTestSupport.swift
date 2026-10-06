@@ -15,7 +15,8 @@ enum ChatFixtures {
         minutes: Double = 0,
         parentID: String? = nil,
         alsoInChannel: Bool = false,
-        replyCount: Int = 0
+        replyCount: Int = 0,
+        seenCount: Int? = nil
     ) -> ChatMessage {
         ChatMessage(
             id: id,
@@ -25,7 +26,8 @@ enum ChatFixtures {
             parentId: parentID,
             alsoInChannel: alsoInChannel,
             replyCount: replyCount,
-            deleted: false
+            deleted: false,
+            seenCount: seenCount
         )
     }
 
