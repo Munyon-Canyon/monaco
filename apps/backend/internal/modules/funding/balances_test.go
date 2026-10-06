@@ -29,8 +29,11 @@ func requireBounceConsumer(t *testing.T, m *funding.Module) {
 func TestModule(t *testing.T) {
 	t.Parallel()
 	m := funding.New(module.Deps{Config: config.Config{
-		Solana:   config.Solana{RPCURL: "http://fakes/rpc/"},
-		Funding:  config.Funding{DepositPollInterval: time.Minute, TreasuryReconcileInterval: 2 * time.Minute},
+		Solana: config.Solana{RPCURL: "http://fakes/rpc/"},
+		Funding: config.Funding{
+			DepositPollInterval: time.Minute, TreasuryReconcileInterval: 2 * time.Minute,
+			BounceSweepInterval: 45 * time.Second,
+		},
 		Timeouts: config.Timeouts{RPC: time.Second},
 	}})
 	if got := m.Name(); got != "funding" {
@@ -48,7 +51,7 @@ func TestModule(t *testing.T) {
 		names = append(names, p.Name()+"@"+p.Interval().String())
 	}
 	want := []string{
-		"funding.deposits@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s", "funding.bounce-sweeper@30s",
+		"funding.deposits@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s", "funding.bounce-sweeper@45s",
 		"funding.treasury-reconcile@2m0s",
 	}
 	if !slices.Equal(names, want) {

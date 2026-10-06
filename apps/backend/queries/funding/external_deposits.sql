@@ -70,3 +70,10 @@ SELECT id, cabal_id, sender, coalesce(return_address, '')::text AS return_addres
 FROM external_deposits
 WHERE status IN ('detected', 'bouncing', 'bounce_failed')
 ORDER BY detected_at, id;
+
+-- name: PausesOnSettledExternalDeposits :many
+SELECT p.id AS pause_id, d.id AS external_deposit_id, d.status
+FROM cabal_pauses p
+JOIN external_deposits d ON d.id = p.external_deposit_id
+WHERE p.resolved_at IS NULL AND d.status IN ('returned', 'held')
+ORDER BY p.id;

@@ -29,6 +29,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
+	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
 type Module struct {
@@ -138,7 +139,8 @@ func (m *Module) Pollers() []poller.Poller {
 		).SkipOwned(treasury.New(m.deps).SignatureOwner()),
 		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
 		withdrawals,
-		app.NewBounceSweeper(m.Bouncer()),
+		app.NewBounceSweeper(m.Bouncer(),
+			app.BounceSweepTiming{Interval: cfg.Funding.BounceSweepInterval, Age: cfg.Funding.BounceSweepAge}),
 		app.NewTreasuryReconcilePoller(app.TreasuryReconcileDeps{
 			UoW:        m.deps.UoW,
 			Reads:      m.deps.Pool,
@@ -237,4 +239,8 @@ func (c lazyChain) Accounts(
 	ctx context.Context, addrs []chain.SolanaAddress, minContextSlot uint64,
 ) (uint64, []solana.TokenAccountState, error) {
 	return c.client().Accounts(ctx, addrs, minContextSlot)
+}
+
+func LedgerCheck(config.Config) replay.LedgerCheck {
+	return replay.LedgerCheck{Name: "funding", Check: adapters.CheckPauses}
 }

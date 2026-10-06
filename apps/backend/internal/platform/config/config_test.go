@@ -69,6 +69,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Identity:  config.Identity{NudgesInterval: 24 * time.Hour, PhotoPurgesInterval: time.Minute},
 		Funding: config.Funding{
 			DepositPollInterval: 30 * time.Second, DepositRPCRate: 20, TreasuryReconcileInterval: 60 * time.Second,
+			BounceSweepInterval: 30 * time.Second, BounceSweepAge: 2 * time.Minute,
 		},
 		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
 		APNs:    config.APNs{Topic: "com.monaco.app"},
@@ -146,6 +147,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"TRADE_SWAP_SWEEP_INTERVAL=4s",
 		"TRADE_SWAP_SWEEP_AGE=5s",
 		"FUNDING_TREASURY_RECONCILE_INTERVAL=3s",
+		"FUNDING_BOUNCE_SWEEP_INTERVAL=6s",
+		"FUNDING_BOUNCE_SWEEP_AGE=7s",
 		"PRIVY_APP_ID=app-id",
 		"PRIVY_APP_SECRET=app-secret",
 		"PRIVY_VERIFICATION_KEY=verification-pem",
@@ -220,6 +223,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Identity:  config.Identity{NudgesInterval: 2 * time.Second, PhotoPurgesInterval: 3 * time.Second},
 		Funding: config.Funding{
 			DepositPollInterval: 2 * time.Second, DepositRPCRate: 12, TreasuryReconcileInterval: 3 * time.Second,
+			BounceSweepInterval: 6 * time.Second, BounceSweepAge: 7 * time.Second,
 		},
 		Privy: config.Privy{
 			AppID: "app-id", AppSecret: "app-secret", VerificationKey: "verification-pem",
@@ -525,6 +529,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"FUNDING_DEPOSIT_POLL_INTERVAL", "30s"},
 		{"FUNDING_DEPOSIT_RPC_RATE", "20"},
 		{"FUNDING_TREASURY_RECONCILE_INTERVAL", "1m0s"},
+		{"FUNDING_BOUNCE_SWEEP_INTERVAL", "30s"},
+		{"FUNDING_BOUNCE_SWEEP_AGE", "2m0s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_READ", "10s"},
 		{"MONACO_TIMEOUT_HTTP_SERVER_WRITE", "30s"},
 		{"MONACO_TIMEOUT_SHUTDOWN", "10s"},

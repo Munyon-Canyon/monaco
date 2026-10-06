@@ -78,6 +78,7 @@ func TestFlow_associatesOnlyFlowPollers(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]string{
 		"funding.deposits": "05", "funding.withdrawals": "15", "market.prices": "18", "identity.nudges": "28", "market.catalog": "",
+		"funding.treasury-reconcile": "08", "funding.bounce-sweeper": "08",
 	} {
 		if got := flow(name); got != want {
 			t.Errorf("flow(%q) = %q, want %q", name, got, want)
