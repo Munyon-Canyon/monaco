@@ -27,10 +27,10 @@ Every milestone carries one "Update the journeys" ticket. Its Done-when is `scri
 | Path | What |
 | --- | --- |
 | `docs/journeys/<area>/<journey>.md` | The journey doc |
-| `apps/mobile/MonacoUITests/Journeys/` | The XCUITest: one `<Journey>Journey.swift` with the steps, one `<Journey>JourneyUITests.swift` with a test per scenario |
+| `apps/mobile/MonacoUITests/Journeys/` | The XCUITest: one `<Journey>Journey.swift` with the steps, one `<Journey>JourneyUITests.swift` with `testJourney`, which runs every scenario in order |
 | `apps/mobile/qa/journeys/<area>/<journey>.mutants/` | Seeded bugs for the catch rate |
 | `apps/mobile/qa/journeys/<area>/<journey>.truth.sh` | The ground truth check, run after each run |
-| `apps/mobile/qa/journeys/<area>/<journey>.setup.sh` | Optional. Run with the scenario id before each scenario, to put the backend in the state the scenario starts from. It can pass a value to the test through the hand-off file |
+| `apps/mobile/qa/journeys/<area>/<journey>.setup.sh` | Optional. Run with the scenario id when the test reaches each scenario, to put the backend in the state the scenario starts from. It can pass a value to the test through the hand-off file |
 | `apps/mobile/qa/journeys/accounts.tsv` | The login each actor uses |
 | `scripts/qa/journey.py` | Checks, runs and measures journeys |
 
@@ -45,7 +45,7 @@ title: Sign in
 version: 1                  # a whole number, see Versions
 milestone: M9
 requires: []                # journeys that must have run first, by id
-actors: [A]                 # one simulator and one account per actor
+actors: [A]                 # one account per actor; every actor shares one simulator
 flows: [01]                 # backend flows this journey exercises
 # funds: only for a journey that moves money, see below
 xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInJourney.swift, apps/mobile/MonacoUITests/Journeys/SignInJourneyUITests.swift]
@@ -80,19 +80,19 @@ Every step finishes before the next one starts. There is no step that runs "in t
 
 That keeps a run the same every time, and a failure always has one step to point at.
 
-## Two simulators
+## One simulator, one session
 
-Each actor has its own simulator and its own account, so no step signs out to switch members.
+A journey runs on one simulator in one `xcodebuild` call, whatever its actors. Its scenarios run in order in one app session, and each one continues from where the one before it left off, so no scenario launches the app again to reach its starting point.
 
-- An unmapped actor uses a dedicated simulator named `Monaco Journeys <login>`, after the login the run holds for that actor, so a journey remapped from A onto C never shares A's simulator with a run on A. The runner creates it with the gold simulator's device type and runtime, or the newest available iPhone and iOS runtime when no gold simulator exists.
-- `scripts/qa/journey.py run <journey> --sim B=<udid>` overrides an actor's dedicated simulator.
-- XCUITest drives one simulator per `xcodebuild` call, so a two-actor scenario runs as phases, each on its actor's simulator, in the doc's order. How a phase is named and how one actor hands a value to the next is in the skill's `xcuitest.md`.
+- The test switches members by signing out through Profile and signing the next actor in with the `auth/sign-in` steps (`session.act(as:)` in the skill's `xcuitest.md`). The runner passes every actor's login to the test.
+- A scenario passes or fails on its own steps. A scenario after a failed one did not run, and its result is `SKIP`.
+- The runner uses one dedicated simulator for all of a run's actors, named `Monaco Journeys <lane> <logins>` after the logins the run holds (`Monaco Journeys <logins>` in the primary checkout), so a journey remapped from A onto C never shares A's simulator with a run on A. It creates it with the gold simulator's device type and runtime, or the newest available iPhone and iOS runtime when no gold simulator exists. `--sim <udid>` overrides it.
 
 ## Journeys build on journeys
 
 `requires` lists the journeys that must have run. Create cabal has `requires: [auth/sign-in]`.
 
-The test calls the required journey's entry point (`SignInJourney.ensureSignedIn`). There is one copy of the sign-in steps, so every journey runs the current one.
+The test signs in with `session.act(as:)`, which runs the `auth/sign-in` steps. There is one copy of the sign-in steps, so every journey runs the current one.
 
 ## Journeys that move money
 
@@ -134,6 +134,7 @@ It reinstalls the app on dedicated journey simulators before every run, so every
 scripts/qa/journey.py check                                   # docs and tests agree
 scripts/qa/journey.py run auth/sign-in                        # every scenario, once
 scripts/qa/journey.py run auth/sign-in --runs 10              # for the flake rate
+scripts/qa/journey.py run auth/sign-in --scenario S2          # S1, then S2: a scenario starts where the last one ended
 scripts/qa/journey.py run --all                               # every journey, one build, one backend
 scripts/qa/journey.py run auth/sign-in --timeout 600          # a longer budget than 300 s
 scripts/qa/journey.py run auth/sign-in --rebuild              # build even when the stamp matches
@@ -155,11 +156,11 @@ Each run appends a row to `.logs/qa/journeys/results.tsv`:
 
 `run --all` runs every journey in `requires` order, ties by id, on one build and one backend, and exits with the worst result. It skips a journey with a `funds` block, printing `SKIP funds`, unless `MONACO_QA_REFUND_ADDRESS` is set.
 
-`--timeout` (seconds, default 300) is the budget for one journey run: its setup scripts, every test call and the truth check together. The build is outside it. When the budget runs out, the run stops the running command and its children, gives the unfinished scenarios the result `TIMEOUT`, and prints `<journey> timed out after <n> s in <scenario> <phase>`. A `TIMEOUT` counts as a failure in the report and exits 1.
+`--timeout` (seconds, default 300) is the budget for one journey run: its setup scripts, every test call and the truth check together. The build is outside it. When the budget runs out, the run stops the running command and its children, gives the open scenario the result `TIMEOUT` and the ones after it `SKIP`, and prints `<journey> timed out after <n> s in <scenario> test` (or `<scenario> setup`). A `TIMEOUT` counts as a failure in the report and exits 1.
 
 A setup script seeds through `scripts/qa/seed.sh`. A test never taps to create its starting state. The helper's `qa_api` calls a route as an actor, `qa_flow_seed` runs `monacoctl flows seed`, and `qa_sql` is for a state no route or flow seed can reach.
 
-Parallel lanes each use their own checkout's `derived-<logins>/` and `Monaco Journeys <lane> <login>` simulators under `xcode-lock.sh` slots. `/tmp/monaco-qa.lock` stays one per machine while the backend ports are shared.
+Parallel lanes each use their own checkout's `derived-<logins>/` and `Monaco Journeys <lane> <logins>` simulator under `xcode-lock.sh` slots. A run takes one backend slot and the locks of its actors' logins, so runs on disjoint logins can run at once.
 
 Known failures on staging lists each step that cannot pass yet and the ticket that blocks it, as a bullet (`- S1.2 to S1.5: <why>. Blocked by #691.`) or as a table row whose first cell names the steps and whose last cell names the tickets. `S1.2 to S1.5` covers every step of the doc from S1.2 through S1.5. `check` names a listed step that the doc does not have. A run reads the section and gives each scenario one of these results:
 
@@ -169,11 +170,12 @@ Known failures on staging lists each step that cannot pass yet and the ticket th
 | `KNOWN` | The scenario failed at a listed step. The `expected` column reads `FAIL` | Passes |
 | `FIXED` | Every step passed, including a listed one. Drop the step from Known failures | Passes |
 | `FAIL` | The scenario failed at a step that is not listed: a new failure | Exits 1 |
+| `SKIP` | An earlier scenario did not pass, so this one never ran | Takes the earlier scenario's result |
 | `TIMEOUT`, `ERROR` | The budget ran out, or the test did not run | Exits 1, 2 |
 
 `report` ends with a second table: each journey's last clean run, with its passing scenarios, its known failures and their tickets, its fixed scenarios and its new failures.
 
-A seeded bug is a patch under `<journey>.mutants/` that breaks one thing the doc promises. Its first lines say which scenarios must fail. `mutants` applies each patch, rebuilds, runs the test, and reverts the patch.
+A seeded bug is a patch under `<journey>.mutants/` that breaks one thing the doc promises. Its first lines say which scenarios must fail. `mutants` applies each patch, rebuilds, runs the whole journey, and reverts the patch. The bug is caught when each scenario it names fails, or is skipped after one of them failed.
 
 ## Coverage and CI guard
 

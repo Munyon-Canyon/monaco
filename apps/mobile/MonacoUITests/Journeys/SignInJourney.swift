@@ -42,20 +42,40 @@ enum SignInJourney {
     static func startSignedOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("P1", "launch to the login form") {
             app.launch()
-            switch currentScreen(app) {
-            case .login:
-                return
-            case .tabs:
-                signOut(app, recorder: recorder)
-            case .firstRunStep:
-                let signOut = firstRunSignOuts.map { app.buttons[$0] }.first(where: \.exists)
-                signOut?.tap()
-                XCTAssertEqual(
-                    currentScreen(app), .login, "P1: Sign out on the first-run step did not reach the login form")
-            case nil:
-                XCTFail("P1: neither the login form nor the tab bar showed within \(Int(launchTimeout)) s of launch")
-            }
+            reachLogin(app, recorder: recorder)
         }
+    }
+
+    private static func reachLogin(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        switch currentScreen(app) {
+        case .login:
+            return
+        case .tabs:
+            signOut(app, recorder: recorder)
+        case .firstRunStep:
+            let signOut = firstRunSignOuts.map { app.buttons[$0] }.first(where: \.exists)
+            signOut?.tap()
+            XCTAssertEqual(
+                currentScreen(app), .login, "P1: Sign out on the first-run step did not reach the login form")
+        case nil:
+            XCTFail("P1: neither the login form nor the tab bar showed within \(Int(launchTimeout)) s")
+        }
+    }
+
+    static func switchActor(_ app: XCUIApplication, to account: JourneyAccount) {
+        let recorder = recorder()
+        recorder.step("P1", "sign out to the login form") {
+            switch app.state {
+            case .notRunning, .unknown:
+                app.launch()
+            case .runningForeground:
+                break
+            default:
+                app.activate()
+            }
+            reachLogin(app, recorder: recorder)
+        }
+        signIn(app, as: account, recorder: recorder)
     }
 
     static func enterCode(_ app: XCUIApplication, as account: JourneyAccount, recorder: JourneyRecorder) {
