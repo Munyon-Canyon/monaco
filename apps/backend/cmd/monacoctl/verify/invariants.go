@@ -379,9 +379,7 @@ func logsMissing(lines []Line, needs []logNeed) ([]string, string) {
 
 func lineMatches(line Line, need logNeed) bool {
 	fields := map[string]any{}
-	if json.Unmarshal([]byte(line.Text), &fields) != nil {
-		return false
-	}
+	parsed := json.Unmarshal([]byte(line.Text), &fields) == nil
 	if need.carries != "" {
 		for _, v := range fields {
 			if fmt.Sprint(v) == need.carries {
@@ -390,7 +388,7 @@ func lineMatches(line Line, need logNeed) bool {
 		}
 		return false
 	}
-	return fields["msg"] == need.msg.Name && matches(fields, need.attrs)
+	return parsed && fields["msg"] == need.msg.Name && matches(fields, need.attrs)
 }
 
 func matches(fields map[string]any, attrs map[string]string) bool {

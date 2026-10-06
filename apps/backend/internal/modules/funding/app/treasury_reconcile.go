@@ -86,7 +86,8 @@ func (*TreasuryReconcilePoller) Name() string { return "funding.treasury-reconci
 func (p *TreasuryReconcilePoller) Interval() time.Duration { return p.d.Interval }
 
 type reconciled struct {
-	reached  bool
+	started  bool
+	cut      bool
 	surplus  bool
 	recorded int
 	err      error
@@ -116,7 +117,8 @@ func (p *TreasuryReconcilePoller) visit(work context.Context, w cabalport.Treasu
 		return reconciled{}
 	}
 	surplus, recorded, err := p.reconcile(work, w)
-	return reconciled{reached: err == nil || work.Err() == nil, surplus: surplus, recorded: recorded, err: err}
+	cut := err != nil && work.Err() != nil
+	return reconciled{started: true, cut: cut, surplus: surplus, recorded: recorded, err: err}
 }
 
 func (p *TreasuryReconcilePoller) order(wallets []cabalport.TreasuryWallet) []cabalport.TreasuryWallet {
@@ -140,7 +142,7 @@ func (p *TreasuryReconcilePoller) report(
 	live := make(map[ids.CabalID]int, len(wallets))
 	for i, w := range wallets {
 		live[w.CabalID] = p.reached[w.CabalID]
-		if results[i].reached {
+		if results[i].started {
 			live[w.CabalID] = p.pass
 		}
 	}
@@ -149,7 +151,7 @@ func (p *TreasuryReconcilePoller) report(
 	report := poller.Report{}
 	var surpluses, failed int
 	for i, r := range results {
-		if !r.reached {
+		if !r.started || r.cut {
 			continue
 		}
 		report.Scanned++
@@ -177,11 +179,10 @@ func (p *TreasuryReconcilePoller) failed(ctx context.Context, cabal ids.CabalID,
 }
 
 func (p *TreasuryReconcilePoller) budgeted(ctx context.Context) (context.Context, context.CancelFunc) {
-	deadline, ok := ctx.Deadline()
-	if !ok {
+	if p.d.Interval <= 0 {
 		return context.WithCancel(ctx)
 	}
-	return context.WithTimeout(ctx, deadline.Sub(p.d.Clock.Now())*reconcileBudgetPercent/100)
+	return context.WithTimeout(ctx, p.d.Interval*reconcileBudgetPercent/100)
 }
 
 func (p *TreasuryReconcilePoller) reconcile(ctx context.Context, w cabalport.TreasuryWallet) (bool, int, error) {

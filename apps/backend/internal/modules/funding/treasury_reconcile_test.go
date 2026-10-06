@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -33,11 +34,16 @@ type reconcileChain struct {
 	balanceErr error
 	sigsErr    error
 	down       map[chain.SolanaAddress]error
+	hang       map[chain.SolanaAddress]bool
 }
 
 func (c *reconcileChain) TokenBalance(
-	_ context.Context, owner chain.SolanaAddress, mint chain.Mint,
+	ctx context.Context, owner chain.SolanaAddress, mint chain.Mint,
 ) (money.BaseUnits, error) {
+	if c.hang[owner] {
+		<-ctx.Done()
+		return money.BaseUnits{}, errs.Wrap(ctx.Err(), errs.CodeUpstreamTimeout, "test.hang")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if err := c.down[owner]; err != nil {
@@ -348,6 +354,38 @@ func TestTreasuryReconcile_AnRPCFailureOnOneCabalStillReconcilesTheOthers(t *tes
 	}
 	if got := env.failures(t); got[string(errs.CodeRPCUnavailable)] != 1 || len(got) != 1 {
 		t.Fatalf("failures = %v, want one rpc_unavailable", got)
+	}
+}
+
+func TestTreasuryReconcile_CabalsCutOffByTheTickBudgetGoLastNextTick(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	env.deps.Interval = 300 * time.Millisecond
+	env.chain.hang = map[chain.SolanaAddress]bool{}
+	for range 10 {
+		slow := testkit.NewCabal(t, env.pool)
+		env.chain.hang[slow.TreasuryAddress] = true
+		env.wallets.wallets = append(env.wallets.wallets,
+			cabalport.TreasuryWallet{CabalID: slow.ID, Address: slow.TreasuryAddress})
+	}
+	treasury := env.cabal.TreasuryAddress
+	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
+	env.landed(treasury, stray)
+	env.onChain(treasury, env.usdc, 5_000_000)
+	reconcile := app.NewTreasuryReconcilePoller(env.deps)
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.treasury-reconcile")
+
+	first, err := reconcile.Tick(ctx)
+	if err != nil || first.Changed != 0 || attr(first, "unreached") != 11 || attr(first, "failed") != 0 {
+		t.Fatalf("first tick = %+v, %v, want every cabal unreached behind the slow ones", first, err)
+	}
+	second, err := reconcile.Tick(ctx)
+
+	if err != nil || second.Changed != 1 || env.cursor(t) != string(stray) {
+		t.Fatalf("second tick = %+v, %v, want the cabal the first tick never started reconciled", second, err)
+	}
+	if got := env.failures(t); len(got) != 0 {
+		t.Fatalf("failures = %v, want cut-off cabals not counted as failed", got)
 	}
 }
 
