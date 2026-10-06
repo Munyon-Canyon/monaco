@@ -34,7 +34,7 @@ final class GroupsTabAPITests: XCTestCase {
 
         // Act / Assert
         do {
-            _ = try await client.getHomeDashboard()
+            try await client.castVote(proposalId: "p", choice: "yes")
             XCTFail("Expected httpStatus(401) to be thrown")
         } catch let MonacoAPIError.httpStatus(code, _) {
             XCTAssertEqual(code, 401)
@@ -61,7 +61,7 @@ final class GroupsTabAPITests: XCTestCase {
 
         // Act / Assert
         do {
-            _ = try await client.getHomeDashboard()
+            _ = try await client.getGroupView(groupId: "g")
             XCTFail("Expected a DecodingError to be thrown")
         } catch is DecodingError {
             // expected

@@ -70,7 +70,7 @@ final class AppEnvironment {
         self.sessionStore =
             sessionStore
             ?? AppSessionStore(
-                apiClient: MonacoAPIClient(), sessions: SessionAPI(api: api)
+                sessions: SessionAPI(api: api)
             )
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }

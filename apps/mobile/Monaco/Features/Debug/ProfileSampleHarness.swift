@@ -45,7 +45,7 @@ struct ProfileSampleHarness: View {
         let environment = AppEnvironment(
             auth: auth,
             hints: SilentHints(),
-            sessionStore: AppSessionStore(apiClient: MonacoAPIClient()),
+            sessionStore: AppSessionStore(),
             isAuthenticated: { true },
             endAuthSession: {}
         )
@@ -111,7 +111,7 @@ struct ProfileSampleHarness: View {
             createdAt: ISO8601DateFormatter().date(from: "2026-09-01T14:30:00Z")
         )
 
-        session.dashboard = HomeDashboardDTO()
+        session.hasLoaded = true
     }
 
     static func sampleProfile(userID: String, displayName: String, photoURL: URL?, createdAt: Date? = nil)

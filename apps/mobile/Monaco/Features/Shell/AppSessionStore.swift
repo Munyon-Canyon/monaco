@@ -4,12 +4,6 @@ import Observation
 import SwiftUI
 import os
 
-/// Shared app-session reads; production uses `MonacoAPIClient`, tests use a stub.
-@MainActor
-protocol AppSessionDataSource: Sendable {
-    func getHomeDashboard(accessToken: String) async throws -> HomeDashboardDTO
-}
-
 /// The token source and rejected-session sink; production uses `PrivyAuthService`.
 @MainActor
 protocol SessionAuthenticating: AnyObject, Sendable {
@@ -26,11 +20,12 @@ protocol SessionAuthenticating: AnyObject, Sendable {
 
 extension PrivyAuthService: SessionAuthenticating {}
 
-/// Shared post-auth home + profile payload. Tabs read this instead of a one-shot DTO.
+/// Shared post-auth home + profile state. Tabs read this instead of a one-shot DTO.
 @Observable
 @MainActor
 final class AppSessionStore {
-    var dashboard: HomeDashboardDTO?
+    /// True once a refresh has finished, so Home shows its screen rather than the skeleton.
+    var hasLoaded = false
     var profile: SessionProfile? { didSet { onProfileChange?(profile) } }
     var onProfileChange: ((SessionProfile?) -> Void)?
     var errorMessage: String?
@@ -40,19 +35,13 @@ final class AppSessionStore {
     var isLoading = true
     var nudgeDismissed = false
 
-    let apiClient: AppSessionDataSource
     let sessions: SessionAPI?
     var skipsSessionOpen = false
     private var refreshGeneration = 0
-    private var dashboardGeneration = 0
-    private var pollGeneration = 0
-    /// Deferred home work is cancelled before the next refresh.
-    private var deferredWork: [Task<Void, Never>] = []
     /// Protects a local profile write from an older `/v1/me` response.
     private var profileWriteGeneration = 0
 
-    init(apiClient: AppSessionDataSource, sessions: SessionAPI? = nil) {
-        self.apiClient = apiClient
+    init(sessions: SessionAPI? = nil) {
         self.sessions = sessions
     }
 
@@ -116,36 +105,18 @@ final class AppSessionStore {
             isLoading = false
             return
         }
-        cancelDeferredWork()
         refreshGeneration += 1
         let generation = refreshGeneration
-        let request = beginDashboardRequest()
         let profileGeneration = profileWriteGeneration
 
-        do {
-            async let dashboardLoad = apiClient.getHomeDashboard(accessToken: token)
-            async let meLoad: SessionProfile? = includeProfile ? await self.loadProfile(auth: auth, token: token) : nil
-            let loadedDashboard = try await dashboardLoad
-            let loadedProfile = await meLoad
-            await finishRefresh(
-                dashboard: loadedDashboard,
-                profile: loadedProfile,
-                generation: generation,
-                profileGeneration: profileGeneration,
-                request: request,
-                auth: auth,
-                token: token
-            )
-        } catch MonacoAPIError.httpStatus(let status) where status == 401 {
-            await auth.signOutAfterRejectedSession(rejectedToken: token)
-        } catch MonacoAPIError.httpStatus {
-            guard generation == refreshGeneration else { return }
-            errorMessage = "Couldn't load this. Try again."
-        } catch {
-            if error.isRequestCancellation { return }
-            guard generation == refreshGeneration else { return }
-            errorMessage = "No connection. Check your internet and try again."
-        }
+        let loadedProfile = includeProfile ? await loadProfile(auth: auth, token: token) : nil
+        await finishRefresh(
+            profile: loadedProfile,
+            generation: generation,
+            profileGeneration: profileGeneration,
+            auth: auth,
+            token: token
+        )
     }
 
     private func loadProfile(auth: SessionAuthenticating, token: String) async -> SessionProfile? {
@@ -159,43 +130,17 @@ final class AppSessionStore {
 
     private func resetGenerations() {
         refreshGeneration += 1
-        dashboardGeneration += 1
-        pollGeneration += 1
         profileWriteGeneration += 1
     }
 
     func refreshGenerationValue() -> Int { refreshGeneration }
-    func dashboardGenerationValue() -> Int { dashboardGeneration }
-    func pollGenerationValue() -> Int { pollGeneration }
     func profileWriteGenerationValue() -> Int { profileWriteGeneration }
-    func deferredWorkValue() -> [Task<Void, Never>] { deferredWork }
 
     func bumpProfileWriteGeneration() { profileWriteGeneration += 1 }
 
-    func nextDashboardRequest() -> DashboardRequest {
-        dashboardGeneration += 1
-        return DashboardRequest(generation: dashboardGeneration)
-    }
-
-    func nextPollGeneration() -> Int {
-        pollGeneration += 1
-        return pollGeneration
-    }
-
-    func replaceDeferredWork(with task: Task<Void, Never>) {
-        deferredWork.removeAll(where: \.isCancelled)
-        deferredWork.append(task)
-    }
-
-    func cancelAndClearDeferredWork() {
-        for task in deferredWork { task.cancel() }
-        deferredWork.removeAll()
-    }
-
     func reset() {
-        cancelAndClearDeferredWork()
         resetGenerations()
-        dashboard = nil
+        hasLoaded = false
         profile = nil
         errorMessage = nil
         #if DEBUG

@@ -5,56 +5,10 @@ import Testing
 
 import enum MonacoCore.FirstRunGate
 import enum MonacoCore.LoginFailureCopy
-import class MonacoCore.MonacoAPIClient
 import struct MonacoCore.SessionAPI
 import struct MonacoCore.SessionProfile
 
 @testable import Monaco
-
-/// Records what the store asked the server for, lets a test hold the response back so a
-/// token can rotate while the read is in flight, and lets a test queue failures so the error
-/// paths are reachable without a server.
-@MainActor
-private final class StubDataSource: AppSessionDataSource {
-    var dashboardRequests = 0
-    var holdDashboard = false
-    /// Thrown by `getHomeDashboard`, one per call, oldest first. Empty means succeed.
-    var dashboardErrors: [Error] = []
-
-    private var pendingDashboard: CheckedContinuation<Void, Never>?
-    private var arrived = false
-    private var arrivalWaiter: CheckedContinuation<Void, Never>?
-
-    func getHomeDashboard(accessToken: String) async throws -> HomeDashboardDTO {
-        dashboardRequests += 1
-        arrived = true
-        arrivalWaiter?.resume()
-        arrivalWaiter = nil
-        if holdDashboard {
-            await withCheckedContinuation { continuation in
-                pendingDashboard = continuation
-            }
-        }
-        if !dashboardErrors.isEmpty {
-            throw dashboardErrors.removeFirst()
-        }
-        return HomeDashboardDTO()
-    }
-
-    func release() {
-        pendingDashboard?.resume()
-        pendingDashboard = nil
-    }
-
-    /// Returns once the store has asked for the dashboard. Lets a test sequence an in-flight
-    /// read against a later event without betting on a sleep being long enough under CI load.
-    func awaitRequest() async {
-        guard !arrived else { return }
-        await withCheckedContinuation { continuation in
-            arrivalWaiter = continuation
-        }
-    }
-}
 
 /// Stands in for `PrivyAuthService`, including its guard: a sign-out is only carried out
 /// when the token the server rejected still belongs to the open session. `SessionTokenLedger`
@@ -101,41 +55,7 @@ private final class StubAuth: SessionAuthenticating {
 }
 
 @MainActor
-struct AppSessionStoreCreateTests {
-    @Test func creatingACabalRefreshesTheDashboard() async throws {
-        let source = StubDataSource()
-        let store = AppSessionStore(apiClient: source)
-        let auth = StubAuth()
-
-        store.refreshAfterCreate(
-            auth: auth,
-            created: Components.Schemas.Cabal.sample(role: "creator")
-        )
-        await store.awaitDeferredWork()
-
-        #expect(source.dashboardRequests == 1)
-        #expect(store.dashboard == HomeDashboardDTO())
-    }
-}
-
-@MainActor
 struct AppSessionStoreBootstrapTests {
-    @Test func aFailedHomeLoadDoesNotCloseTheSessionGate() async throws {
-        let source = StubDataSource()
-        source.dashboardErrors = [MonacoAPIError.httpStatus(404)]
-        let store = AppSessionStore(apiClient: source, sessions: sessionAPI(StubTransport(.json(.ok, SessionWire.me))))
-        let auth = StubAuth()
-
-        await store.bootstrap(auth: auth)
-
-        #expect(store.profile?.displayName == "Kai Cenat")
-        #expect(FirstRunGate.destination(for: store.profile, onboardingCursor: .start) == .app(restricted: false))
-        #expect(store.isLoading == false)
-        #expect(
-            HomeScreenState.resolve(dashboard: store.dashboard, errorMessage: store.errorMessage)
-                == .failed("Couldn't load this. Try again."))
-    }
-
     @Test func bootstrapDoesNotAskForTheProfileTwice() async throws {
         let (transport, store, auth, environment) = await boot(.json(.ok, SessionWire.me))
         await store.refresh(auth: auth)
@@ -158,7 +78,7 @@ struct AppSessionStoreBootstrapTests {
     /// nor stamp their login screen with a reason meant for the previous one.
     @Test func aBootstrap401ThatOutlivedItsSignInLeavesTheNewSessionAlone() async throws {
         let transport = StubTransport(.gate)
-        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         let pending = Task { await store.bootstrap(auth: auth) }
         await transport.waitForRequest()
@@ -199,7 +119,7 @@ struct AppSessionStoreBootstrapTests {
 
     @Test func aForegroundRefreshAfterSignOutCannotReplaceTheNextMember() async throws {
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .json(.ok, SessionWire.next)])
-        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
         let refresh = Task { await store.noteForeground(auth: auth) }
@@ -217,7 +137,7 @@ struct AppSessionStoreBootstrapTests {
     @Test func aForegroundReadCannotUndoASavedDisplayName() async throws {
         let renamed = SessionWire.me.replacingOccurrences(of: "Kai Cenat", with: "New name")
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .json(.ok, renamed)])
-        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
 
@@ -234,7 +154,7 @@ struct AppSessionStoreBootstrapTests {
     @Test func aForegroundReadStartedDuringNameSaveCannotUndoIt() async throws {
         let renamed = SessionWire.me.replacingOccurrences(of: "Kai Cenat", with: "New name")
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .gate])
-        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
 
@@ -251,12 +171,11 @@ struct AppSessionStoreBootstrapTests {
     }
 
     @Test func signOutDropsAnInFlightRefresh() async {
-        let source = StubDataSource()
         let transport = StubTransport(.gate)
-        let store = AppSessionStore(apiClient: source, sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         store.profile = try? SessionProfile(json: Data(SessionWire.me.utf8))
-        store.dashboard = HomeDashboardDTO()
+        store.hasLoaded = true
         let environment = AppEnvironment(
             auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
             sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
@@ -267,15 +186,14 @@ struct AppSessionStoreBootstrapTests {
         await environment.signOut()
         await transport.releaseGate(.json(.ok, SessionWire.me))
         await refresh.value
-        await store.awaitDeferredWork()
 
         #expect(store.profile == nil)
-        #expect(store.dashboard == nil)
+        #expect(store.hasLoaded == false)
     }
 
     @Test func memberBSeesNoMemberADataWhileTheirSessionOpens() async throws {
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .json(.ok, SessionWire.next)])
-        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
         let environment = AppEnvironment(
@@ -288,7 +206,7 @@ struct AppSessionStoreBootstrapTests {
         let openingB = Task { await store.bootstrap(auth: auth) }
         while await transport.sent.count < 2 { await Task.yield() }
         #expect(store.profile == nil)
-        #expect(store.dashboard == nil)
+        #expect(store.hasLoaded == false)
 
         await transport.releaseGate(.json(.ok, SessionWire.next))
         await openingB.value
@@ -299,7 +217,6 @@ struct AppSessionStoreBootstrapTests {
         let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, SessionWire.me)])
         let store = AppSessionStore(
-            apiClient: StubDataSource(),
             sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport))
         )
         let auth = StubAuth()
@@ -327,7 +244,6 @@ struct AppSessionStoreBootstrapTests {
         )
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), try .problem(problem)])
         let store = AppSessionStore(
-            apiClient: StubDataSource(),
             sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport))
         )
         let auth = StubAuth()
@@ -353,7 +269,6 @@ struct AppSessionStoreBootstrapTests {
             .json(.ok, SessionWire.me), .json(.unauthorized, unauthorized),
         ])
         let store = AppSessionStore(
-            apiClient: StubDataSource(),
             sessions: SessionAPI(api: APIClient(serverURL: testServerURL, tokens: tokens, transport: transport))
         )
 
@@ -374,7 +289,7 @@ private func boot(_ reply: StubTransport.Reply, dev: Bool = false) async -> (
     StubTransport, AppSessionStore, StubAuth, AppEnvironment
 ) {
     let transport = StubTransport(reply)
-    let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+    let store = AppSessionStore(sessions: sessionAPI(transport))
     let environment = AppEnvironment(
         auth: PrivyAuthService.processInstance ?? PrivyAuthService(), hints: FakeHintSource(),
         sessionStore: store, isAuthenticated: { true }, endAuthSession: {}
@@ -392,7 +307,7 @@ struct AppSessionStorePhotoTests {
             with: #""display_name":"Kai Cenat","photo_url":"https://cdn.test/kai.jpg","#
         )
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .json(.ok, withPhoto)])
-        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
 
@@ -410,7 +325,7 @@ struct AppSessionStorePhotoTests {
             message: "Slow down. Try again soon.", traceId: "trace", retryable: true
         )
         let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), try .problem(problem)])
-        let store = AppSessionStore(apiClient: StubDataSource(), sessions: sessionAPI(transport))
+        let store = AppSessionStore(sessions: sessionAPI(transport))
         let auth = StubAuth()
         await store.bootstrap(auth: auth)
 
@@ -444,42 +359,4 @@ private enum SessionWire {
         #"{"id":"01890a5d-ac96-774b-bcce-b302099a9999","handle":"bee","display_name":"Bee","auth_state":"CREATED","account_status":"active","member_wallet_address":"wallet-b","phone_linked":false,"created_at":"2026-09-30T12:00:00Z"}"#
     static let deleted =
         #"{"status":403,"code":"account_deleted","message":"x","trace_id":"t","retryable":false}"#
-}
-
-/// A 401 has to name the token the request actually carried. Naming whatever token is
-/// current when the reply lands is what lets a stale rejection end a live session.
-@MainActor
-struct AppSessionStoreRejectedTokenTests {
-    @Test func aRefreshReportsTheTokenItsRequestUsed() async throws {
-        let source = StubDataSource()
-        source.holdDashboard = true
-        source.dashboardErrors = [MonacoAPIError.httpStatus(401)]
-        let store = AppSessionStore(apiClient: source)
-        let auth = StubAuth()
-
-        let refresh = Task { await store.refresh(auth: auth) }
-        await source.awaitRequest()
-        // The hourly rotation lands while the read is in flight.
-        auth.accessToken = "token-b"
-        source.release()
-        await refresh.value
-
-        #expect(auth.rejectedTokens == ["token-a"])
-    }
-
-    /// A poll is not a request the member made. Its 401 is raised so the caller's loop can
-    /// back off, and it must not sign anyone out on its own.
-    @Test func aPollRaisesIts401RatherThanSigningOut() async throws {
-        let source = StubDataSource()
-        source.dashboardErrors = [MonacoAPIError.httpStatus(401)]
-        let store = AppSessionStore(apiClient: source)
-        let auth = StubAuth()
-
-        await #expect(throws: MonacoAPIError.self) {
-            try await store.pollLive(auth: auth)
-        }
-
-        #expect(auth.rejectedTokens.isEmpty)
-        #expect(auth.signOuts.isEmpty)
-    }
 }

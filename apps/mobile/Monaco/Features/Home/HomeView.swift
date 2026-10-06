@@ -7,13 +7,13 @@ import os
 /// exactly one branch.
 enum HomeScreenState: Equatable {
     case loading
-    case loaded(HomeDashboardDTO)
+    case loaded
     case failed(String)
 
-    /// Data wins over an error: once a poll lands the board is real, and a refresh that fails
-    /// with the board on screen is reported by the toast in `body`, not by replacing it (#278).
-    static func resolve(dashboard: HomeDashboardDTO?, errorMessage: String?) -> HomeScreenState {
-        if let dashboard { return .loaded(dashboard) }
+    /// Data wins over an error: once a refresh lands the screen is real, and a refresh that fails
+    /// with it on screen is reported by the toast in `body`, not by replacing it (#278).
+    static func resolve(hasLoaded: Bool, errorMessage: String?) -> HomeScreenState {
+        if hasLoaded { return .loaded }
         if let errorMessage { return .failed(errorMessage) }
         return .loading
     }
@@ -30,9 +30,9 @@ struct HomeView: View {
 
     var body: some View {
         Group {
-            switch HomeScreenState.resolve(dashboard: session.dashboard, errorMessage: session.errorMessage) {
+            switch HomeScreenState.resolve(hasLoaded: session.hasLoaded, errorMessage: session.errorMessage) {
             case .loading:
-                // Skeleton until the dashboard lands (#217: session and dashboard load separately).
+                // Skeleton until the first refresh lands (#217: session and dashboard load separately).
                 HomeSkeletonView()
             case .loaded:
                 dashboardScroll
@@ -50,9 +50,6 @@ struct HomeView: View {
         }
         .refreshable {
             await pullToRefresh()
-        }
-        .pollWhileVisible(every: LiveRefreshCadence.resting) {
-            try await session.pollLive(auth: auth)
         }
         .monacoToast($toast)
         .monacoFrameStats("Home")
@@ -131,7 +128,7 @@ struct HomeView: View {
         guard !Task.isCancelled else { return }
         // `refresh` clears the message when it succeeds, so anything left is this read failing.
         // With the board already on screen nothing else would say so.
-        if session.dashboard != nil, session.errorMessage != nil {
+        if session.hasLoaded, session.errorMessage != nil {
             toast = MonacoToast(message: "Couldn't refresh just now")
         }
     }
@@ -153,8 +150,8 @@ private struct HomeSkeletonView: View {
 }
 
 #Preview {
-    let session = AppSessionStore(apiClient: MonacoAPIClient())
-    session.dashboard = HomeDashboardDTO()
+    let session = AppSessionStore()
+    session.hasLoaded = true
     return NavigationStack {
         HomeView(auth: PrivyAuthService(), selectedTab: .constant(.home))
             .environment(session)

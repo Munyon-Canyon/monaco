@@ -35,7 +35,7 @@ struct GroupDetailSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
 
     @State private var session: AppSessionStore = {
-        let session = AppSessionStore(apiClient: MonacoAPIClient())
+        let session = AppSessionStore()
         session.isLoading = false
         session.profile = ProfileSampleHarness.sampleProfile(
             userID: GroupDetailSampleData.viewerId,

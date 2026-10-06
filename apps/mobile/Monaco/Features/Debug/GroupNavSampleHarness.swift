@@ -51,7 +51,7 @@ struct GroupNavSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
 
     @State private var session: AppSessionStore = {
-        let session = AppSessionStore(apiClient: MonacoAPIClient())
+        let session = AppSessionStore()
         session.isLoading = false
         session.profile = ProfileSampleHarness.sampleProfile(
             userID: GroupDetailSampleData.viewerId,
@@ -286,7 +286,7 @@ struct GroupNavSampleHarness: View {
     private func destination(_ screen: GroupNavSampleScreen) -> some View {
         switch screen {
         case .start:
-            CreateGroupView(auth: auth, actions: actions) { created in
+            CreateGroupView(actions: actions) { created in
                 replaceTop(with: .cabal(id: created.id, name: created.name, isNew: true))
             }
         case .joinCode:

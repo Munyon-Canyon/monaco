@@ -43,7 +43,7 @@ struct CabalsRouteDestination: View {
         case .joinByCode:
             JoinCabalView()
         case .create:
-            CreateGroupView(auth: auth, actions: actions, onCreated: onCreated)
+            CreateGroupView(actions: actions, onCreated: onCreated)
         }
     }
 }

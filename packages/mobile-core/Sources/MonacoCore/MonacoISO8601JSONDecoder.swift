@@ -1,7 +1,4 @@
 import Foundation
-import MonacoCore
-
-struct HomeDashboardDTO: Codable, Equatable {}
 
 func monacoISO8601JSONDecoder() -> JSONDecoder {
     let decoder = JSONDecoder()
