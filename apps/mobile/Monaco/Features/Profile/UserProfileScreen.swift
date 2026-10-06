@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 struct UserProfileScreen: View {
@@ -8,6 +9,7 @@ struct UserProfileScreen: View {
 
     let context: UserProfileContext
     let sections: [any UserProfileSection.Type]
+    @State private var refresh = ScreenRefresh()
 
     init(userID: String, sections: [any UserProfileSection.Type] = Self.sections) {
         self.context = UserProfileContext(userID: userID)
@@ -16,10 +18,14 @@ struct UserProfileScreen: View {
 
     var body: some View {
         let sections = sections.map { $0.erased }
-        if SectionStack<UserProfileContext>.live(sections).isEmpty {
-            NotMigratedView(screen: "Profile")
-        } else {
-            SectionStack(context: context, sections: sections)
+        Group {
+            if SectionStack<UserProfileContext>.live(sections).isEmpty {
+                NotMigratedView(screen: "Profile")
+            } else {
+                SectionStack(context: context, sections: sections)
+            }
         }
+        .environment(refresh)
+        .refreshable { await refresh.run() }
     }
 }

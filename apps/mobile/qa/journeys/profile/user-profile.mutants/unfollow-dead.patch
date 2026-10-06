@@ -5,15 +5,15 @@ expect-fail: S2
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
-index 0cd3502aa..8b5f43879 100644
+index 1a84e560..9624e466 100644
 --- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
-@@ -106,7 +106,7 @@ private struct UserProfileHeader: View {
-     private func followButton(_ model: FollowButtonModel) -> some View {
+@@ -139,7 +139,7 @@ private struct UserProfileHeader: View {
+         let following = model.followedByMe
          Group {
-             if model.following {
--                Button("Following") { Task { await model.toggle() } }
+             if following {
+-                Button("Following") { Task { await model.unfollow(userID: model.userID) } }
 +                Button("Following") {}
                      .buttonStyle(.monacoSecondary)
+                     .accessibilityIdentifier("user-profile-follow")
              } else {
-                 Button("Follow") { Task { await model.toggle() } }
