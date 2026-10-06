@@ -122,7 +122,7 @@ enum GovernanceProposeBuyJourney {
             tap(app, "propose-kind-buy", step: "S1.3")
             expectTitle(app, "Buy", step: "S1.3")
             expectLabel(app, "Popular", step: "S1.3")
-            let field = app.textFields["monaco-search-field"]
+            let field = app.element("monaco-search-field")
             XCTAssertTrue(field.waitForExistence(timeout: checkTimeout), "S1.3: no stock search")
             field.tap()
             field.typeText("GOOGL")
