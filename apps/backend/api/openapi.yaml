@@ -1759,7 +1759,7 @@ paths:
                 $ref: "#/components/schemas/AttachedReferral"
               example:
                 referrer:
-                  {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, handle: kaicenat}
+                  {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, photo_url: null, handle: kaicenat}
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/referral-code:
@@ -1778,6 +1778,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MyReferralCode"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/referrals/{code}:
+    get:
+      operationId: getReferral
+      tags: [referrals]
+      security: []
+      x-rate-limit: {ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Look up the referrer behind an invite code.
+      description: >-
+        Public, for the invite landing page. Returns the referrer's id, display name, photo and handle
+        for a random code or an unlocked handle. A code that does not resolve gets the same 200 with
+        `referrer` null, whether it is unknown, a locked handle, or owned by a banned, suspended or
+        deleted user, so the answer never says which. Both answers carry
+        `Cache-Control: public, max-age=300`.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: A random invite code or an unlocked handle. It is compared in lowercase.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 40
+            examples: [k7m4qx2p]
+      responses:
+        "200":
+          description: The referrer, or null when the code does not resolve.
+          headers:
+            Cache-Control:
+              description: Always `public, max-age=300`.
+              required: true
+              schema:
+                type: string
+                examples: ["public, max-age=300"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralLookup"
+              example:
+                referrer:
+                  {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, photo_url: "https://img.example/kai.png", handle: kaicenat}
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/social.yaml
@@ -4757,7 +4799,7 @@ components:
       required: [referrer]
       examples:
         - referrer:
-            {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, handle: kaicenat}
+            {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, photo_url: null, handle: kaicenat}
       properties:
         referrer:
           $ref: "#/components/schemas/ReferralReferrer"
@@ -4789,14 +4831,50 @@ components:
           type: boolean
           description: True once the caller's first deposit is credited.
           examples: [true]
+    ReferralLookup:
+      type: object
+      description: The referrer behind an invite code, or null when the code does not resolve.
+      additionalProperties: false
+      required: [referrer]
+      examples:
+        - referrer:
+            {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: Kai, photo_url: "https://img.example/kai.png", handle: kaicenat}
+        - referrer: null
+      properties:
+        referrer:
+          type: [object, "null"]
+          description: The referrer, or null when the code does not resolve.
+          examples: [null]
+          x-go-type: ReferralReferrer
+          additionalProperties: false
+          required: [user_id, display_name, photo_url, handle]
+          properties:
+            user_id:
+              type: string
+              format: uuid
+              description: The referrer's user id.
+              examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
+            display_name:
+              type: string
+              description: The referrer's display name.
+              examples: [Kai]
+            photo_url:
+              type: [string, "null"]
+              description: The referrer's photo, or null when they have none.
+              examples: ["https://img.example/kai.png"]
+            handle:
+              type: string
+              description: The referrer's handle.
+              examples: [kaicenat]
     ReferralReferrer:
       type: object
-      description: The person whose invite the caller attached.
+      description: The person behind an invite code.
       additionalProperties: false
-      required: [user_id, display_name, handle]
+      required: [user_id, display_name, photo_url, handle]
       examples:
         - user_id: "01890a5d-ac96-774b-bcce-b302099a8058"
           display_name: Kai
+          photo_url: "https://img.example/kai.png"
           handle: kaicenat
       properties:
         user_id:
@@ -4808,6 +4886,10 @@ components:
           type: string
           description: The referrer's display name.
           examples: [Kai]
+        photo_url:
+          type: [string, "null"]
+          description: The referrer's photo, or null when they have none.
+          examples: ["https://img.example/kai.png"]
         handle:
           type: string
           description: The referrer's handle.

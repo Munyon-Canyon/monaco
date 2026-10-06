@@ -22,6 +22,8 @@ type owner struct {
 	status   string
 	code     string
 	unlocked bool
+	name     string
+	photo    string
 }
 
 func seedOwner(t *testing.T, pool *pgxpool.Pool, o owner) ids.UserID {
@@ -30,6 +32,14 @@ func seedOwner(t *testing.T, pool *pgxpool.Pool, o owner) ids.UserID {
 	if o.unlocked {
 		_, err := pool.Exec(t.Context(), `UPDATE users SET first_deposit_at = now() WHERE id = $1`, u.ID.UUID())
 		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if o.name != "" || o.photo != "" {
+		if _, err := pool.Exec(t.Context(),
+			`UPDATE users SET display_name = $2, photo_url = NULLIF($3, '') WHERE id = $1`,
+			u.ID.UUID(), o.name, o.photo,
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
