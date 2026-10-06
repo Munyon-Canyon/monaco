@@ -28,8 +28,8 @@ final class APITelemetryTests: XCTestCase {
         }
         let (client, events) = makeClient()
 
-        _ = try await client.groupLeaderboard()
-        _ = try await client.groupLeaderboard()
+        _ = try await client.getHomeDashboard()
+        _ = try await client.getHomeDashboard()
 
         let ids = sent.values.compactMap { $0 }
         XCTAssertEqual(ids.count, 2)
@@ -197,9 +197,9 @@ final class APITelemetryTests: XCTestCase {
             baseURL: baseURL, session: makeMockURLSession(), accessTokenProvider: { token }
         )
 
-        _ = try await client.groupLeaderboard()
+        _ = try await client.getHomeDashboard()
 
-        XCTAssertEqual(events.values.map(\.route), ["/v1/groups/leaderboard"])
+        XCTAssertEqual(events.values.map(\.route), ["/v1/home/dashboard"])
     }
 
     // MARK: Nothing sensitive is recorded

@@ -157,33 +157,6 @@ public struct MemberSliceDTO: Codable, Equatable, Sendable {
     }
 }
 
-public struct LeaderboardRowDTO: Codable, Equatable, Sendable, Identifiable {
-    public let rank: Int
-    public let userId: String
-    public let displayName: String
-    public let profilePhotoUrl: String?
-    public let percentReturn: String?
-    public let dollarPnl: String
-
-    public var id: String { userId }
-
-    public init(
-        rank: Int,
-        userId: String,
-        displayName: String,
-        profilePhotoUrl: String? = nil,
-        percentReturn: String?,
-        dollarPnl: String
-    ) {
-        self.rank = rank
-        self.userId = userId
-        self.displayName = displayName
-        self.profilePhotoUrl = profilePhotoUrl
-        self.percentReturn = percentReturn
-        self.dollarPnl = dollarPnl
-    }
-}
-
 public struct GroupAgentDTO: Codable, Equatable, Sendable {
     public let id: String
     public let status: String
@@ -218,7 +191,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
     public let potTotalUsd: String?
     public let pot: [PotRowDTO]
     public let you: MemberSliceDTO
-    public let members: [LeaderboardRowDTO]
     public let agent: GroupAgentDTO?
     /// The cabal's picture. Nil when it has none, and the mark falls back to
     /// its tinted initials.
@@ -235,7 +207,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
         potTotalUsd: String? = nil,
         pot: [PotRowDTO],
         you: MemberSliceDTO,
-        members: [LeaderboardRowDTO],
         agent: GroupAgentDTO? = nil,
         pictureUrl: String? = nil,
         isCreator: Bool? = nil
@@ -246,7 +217,6 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
         self.potTotalUsd = potTotalUsd
         self.pot = pot
         self.you = you
-        self.members = members
         self.agent = agent
         self.pictureUrl = pictureUrl
         self.isCreator = isCreator
@@ -268,11 +238,5 @@ public struct GroupViewDTO: Codable, Equatable, Sendable {
         var result = Decimal()
         NSDecimalRound(&result, &rounded, 2, .plain)
         return NSDecimalNumber(decimal: result).stringValue
-    }
-}
-
-public enum MemberBoardRenderer {
-    public static func displayRows(from members: [LeaderboardRowDTO]) -> [LeaderboardRowDTO] {
-        members
     }
 }

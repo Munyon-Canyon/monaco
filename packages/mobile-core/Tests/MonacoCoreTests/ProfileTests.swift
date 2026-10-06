@@ -6,24 +6,6 @@ import XCTest
 import FoundationNetworking
 #endif
 
-final class BoardPhotoDTOTests: XCTestCase {
-    func testBoardDTOs_decodeProfilePhotoUrl() throws {
-        let groupURL = try XCTUnwrap(Bundle.module.url(forResource: "group_view", withExtension: "json"))
-        let group = try JSONDecoder().decode(GroupViewDTO.self, from: Data(contentsOf: groupURL))
-        XCTAssertEqual(
-            group.members[0].profilePhotoUrl, "https://example.supabase.co/storage/v1/object/public/avatars/u1/a1.jpg")
-        XCTAssertNil(group.members[1].profilePhotoUrl)
-    }
-
-    func testBoardDTOs_missingProfilePhotoUrlDecodesAsNil() throws {
-        let json = #"{"rank":1,"userId":"u1","displayName":"A","percentReturn":null,"dollarPnl":"+0.00"}"#
-
-        let row = try JSONDecoder().decode(LeaderboardRowDTO.self, from: Data(json.utf8))
-
-        XCTAssertNil(row.profilePhotoUrl)
-    }
-}
-
 final class DisplayNameRulesTests: XCTestCase {
     private func scalar(_ value: UInt32) -> String {
         String(Character(Unicode.Scalar(value)!))

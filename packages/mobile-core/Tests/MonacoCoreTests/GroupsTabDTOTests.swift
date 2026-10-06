@@ -37,25 +37,6 @@ final class GroupsTabDTOTests: XCTestCase {
         XCTAssertEqual(dto.nextCursor, "eyJvZmZzZXQiOjIwfQ==")
     }
 
-    func testGroupLeaderboardResponseDTO_decodesFixturePayload() throws {
-        // Arrange
-        let fixtureURL = try XCTUnwrap(
-            Bundle.module.url(forResource: "groups_leaderboard", withExtension: "json")
-        )
-        let data = try Data(contentsOf: fixtureURL)
-
-        // Act
-        let dto = try monacoISO8601JSONDecoder().decode(GroupLeaderboardResponseDTO.self, from: data)
-
-        // Assert
-        XCTAssertEqual(dto.groups.count, 2)
-        XCTAssertEqual(dto.groups[0].rank, 1)
-        XCTAssertEqual(dto.groups[0].name, "Weekend investors")
-        XCTAssertEqual(dto.groups[1].rank, 2)
-        XCTAssertEqual(dto.groups[1].name, "Rent money")
-        XCTAssertEqual(dto.groups[1].joinMode, .request)
-    }
-
     func testGroupJoinMode_unknownRawValue_decodesAsRequest() throws {
         // Arrange
         let json = #"{"joinMode":"password"}"#

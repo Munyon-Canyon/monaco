@@ -33,7 +33,6 @@ final class CabalPictureTests: XCTestCase {
         // The rest of the payload still lands, so a cabal without a picture is
         // not a degraded cabal.
         XCTAssertEqual(view.name, "Weekend investors")
-        XCTAssertEqual(view.members.count, 1)
     }
 
     /// A server that predates the picture fields must keep working: the app is
@@ -100,9 +99,6 @@ final class CabalPictureTests: XCTestCase {
                 "shareUnits": "500000", "equityUsd": "311.50", "slicePercent": "0.42",
                 "dollarPnl": "+48.20", "percentReturn": "0.124"
               },
-              "members": [
-                { "rank": 1, "userId": "u1", "displayName": "Alfred", "percentReturn": "0.124", "dollarPnl": "+48.20" }
-              ],
               "proposals": []\(tail)
             }
             """

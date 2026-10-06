@@ -71,13 +71,6 @@ struct GroupHeroSection: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.75)
                     .accessibilityAddTraits(.isHeader)
-                HStack(spacing: MonacoTheme.Space.s) {
-                    GroupMemberAvatarStack(members: view.members, size: 22, ringColor: MonacoTheme.heroInk)
-                    Text(view.members.count == 1 ? "1 member" : "\(view.members.count) members")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.onHeroMuted)
-                }
-                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -128,57 +121,6 @@ struct GroupHeroSection: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("group-hero-slice")
-    }
-}
-
-/// Up to four member avatars, then "+N". Each is a full circle ringed in the hero tint; the
-/// overlap stays under a fifth of the diameter so every avatar's initials stay fully visible.
-struct GroupMemberAvatarStack: View {
-    let members: [LeaderboardRowDTO]
-    var size: CGFloat = 32
-    var visibleLimit = 4
-    var ringColor: Color = MonacoTheme.surface
-
-    private var overlap: CGFloat { (size * 0.19).rounded() }
-
-    var body: some View {
-        let visible = Array(members.prefix(visibleLimit))
-        let overflow = members.count - visible.count
-        HStack(spacing: -overlap) {
-            ForEach(visible) { member in
-                avatar(member)
-            }
-            if overflow > 0 {
-                bubble {
-                    Text("+\(overflow)")
-                        .font(.system(size: size * 0.36, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(MonacoTheme.heroInk)
-                }
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(members.count == 1 ? "1 member" : "\(members.count) members")
-    }
-
-    @ViewBuilder
-    private func avatar(_ member: LeaderboardRowDTO) -> some View {
-        let photo = member.profilePhotoUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if photo.isEmpty {
-            // The member's animal, the same one they are everywhere else.
-            MonacoAvatar(photoURL: nil, displayName: member.displayName, size: size, seed: member.userId)
-                .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
-        } else {
-            MonacoAvatar(photoURL: photo, displayName: member.displayName, size: size)
-                .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
-        }
-    }
-
-    private func bubble<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        Circle()
-            .fill(Color.white)
-            .overlay(Circle().strokeBorder(ringColor, lineWidth: 2))
-            .overlay(content().padding(.horizontal, 5))
-            .frame(width: size, height: size)
     }
 }
 

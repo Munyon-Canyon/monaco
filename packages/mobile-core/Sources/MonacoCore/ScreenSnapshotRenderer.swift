@@ -27,17 +27,6 @@ public enum ScreenSnapshotRenderer {
         lines.append("P&L | \(view.you.dollarPnl)")
         lines.append("Return | \(PercentReturnFormatter.format(view.you.percentReturn))")
 
-        lines.append("")
-        lines.append("## Member board")
-        if view.members.isEmpty {
-            lines.append("No members yet.")
-        } else {
-            for row in view.members {
-                let pct = PercentReturnFormatter.format(row.percentReturn)
-                lines.append("#\(row.rank) \(row.displayName) | \(pct) | \(row.dollarPnl)")
-            }
-        }
-
         return lines.joined(separator: "\n")
     }
 
