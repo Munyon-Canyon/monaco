@@ -47,7 +47,7 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 
 ## Product analytics (PostHog)
 
-**Identity.** `posthog.identify(<monaco user id>)` after `POST /v1/auth/session`. The id is the lowercase hyphenated UUID that the API returns, and server events use it as `distinct_id`. PostHog treats distinct ids as case-sensitive, so the app must not send Swift's uppercase `uuidString`. Person properties: `auth_state`, `login_provider`, cabal count, created at. **No email, phone, X handle or wallet address** in PostHog.
+**Identity.** `posthog.identify(<monaco user id>)` after `POST /v1/auth/session`. The id is the lowercase hyphenated UUID that the API returns, and server events use it as `distinct_id`. PostHog treats distinct ids as case-sensitive, so the app must not send Swift's uppercase `uuidString`. Person properties: `auth_state`, `login_provider`, `cabal_count`, created at. **No email, phone, X handle or wallet address** in PostHog.
 
 **Client events** (iOS SDK):
 
@@ -60,6 +60,9 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 
 | PostHog event | Bus subject ([Flows](backend-platform.md#flows)) |
 | --- | --- |
+| `cabal_created` | `cabal.created` (flow 2) |
+| `cabal_joined` | `cabal.member_joined` (flow 3) |
+| `cabal_left` | `cabal.member_left` (flow 4) |
 | `deposit_credited` | `deposit.credited` (flow 5) |
 | `onramp_status_changed` | `onramp.status_changed` (flow 6) |
 | `cabal_funded` | `cabal.funded` (flow 7) |
@@ -78,7 +81,9 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 
 `usdc_amount` is a decimal number of USDC for PostHog charts only. It rides on `deposit_credited`, `cabal_funded`, `cash_out_completed`, `cash_out_partial`, `withdrawal_sent`, `proposal_passed` and `trade_executed`. No event carries a wallet address or a transaction signature.
 
-The RFC's flow table lists `analytics` as a consumer on every one of these flows (default 2026-09-27 added it to flows 7, 10, 11, 14, 20 and 21), so `monacoctl flows check` holds each export to a test.
+`cabal_created`, `cabal_joined` and `cabal_left` set the person property `cabal_count` to the number of cabals the member belongs to, read through cabal's `CabalsOf` when the event is exported. A redelivered older event can set a stale count until the next membership event, which PostHog accepts because it holds behavior, not truth. `cabal_joined` also fires for a cabal's creator, with `via` set to `create`.
+
+The RFC's flow table lists `analytics` as a consumer on every one of these flows (default 2026-09-27 added it to flows 7, 10, 11, 14, 20 and 21, and flows 3 and 4 follow for the join funnel and `cabal_count`), so `monacoctl flows check` holds each export to a test.
 
 The PostHog call is an outbound HTTP call, so it sits behind a port with an anti-corruption adapter, circuit breaker and retry ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). A PostHog outage is a retryable `KindUnavailable` code: `bus.Dispatch` naks with backoff and never blocks another consumer.
 

@@ -14,7 +14,7 @@ func leaving(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 
 func TestFlow04_LeaveCabal_OK(t *testing.T) {
 	t.Parallel()
-	flows.F04LeaveCabalOK(leaving(t))
+	flows.F04LeaveCabalOK(leaving(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow04_LeaveCabal_Unauthorized(t *testing.T) {

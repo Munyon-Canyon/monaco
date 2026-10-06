@@ -5,6 +5,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/exports"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/posthog"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -26,6 +27,7 @@ func productExports(d module.Deps) *Registry {
 	registerProposalExports(r, governance.New(d).Queries())
 	registerFundingExports(r)
 	registerTreasuryExports(r)
+	registerCabalExports(r, cabal.New(d).Queries())
 	return r
 }
 
@@ -40,6 +42,13 @@ func registerTreasuryExports(r *Registry) {
 	Export(r, string(events.TypeCashOutCompleted), exports.CashOutCompleted)
 	Export(r, string(events.TypeCashOutPartial), exports.CashOutPartial)
 	Export(r, string(events.TypeCashOutFailed), exports.CashOutFailed)
+}
+
+func registerCabalExports(r *Registry, members app.MembershipReader) {
+	c := exports.Cabals{Members: members}
+	Export(r, string(events.TypeCabalCreated), c.CabalCreated)
+	Export(r, string(events.TypeCabalMemberJoined), c.CabalJoined)
+	Export(r, string(events.TypeCabalMemberLeft), c.CabalLeft)
 }
 
 func registerProposalExports(r *Registry, proposers app.ProposerReader) {

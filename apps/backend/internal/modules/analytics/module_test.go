@@ -45,6 +45,9 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		"analytics.posthog.cashout.completed",
 		"analytics.posthog.cashout.partial",
 		"analytics.posthog.cashout.failed",
+		"analytics.posthog.cabal.created",
+		"analytics.posthog.cabal.member_joined",
+		"analytics.posthog.cabal.member_left",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("handlers = %v, want %v", got, want)

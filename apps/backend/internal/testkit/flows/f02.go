@@ -52,6 +52,7 @@ func F02CreateCabalOK(s *scenario.Scenario) {
 			createdLogged(),
 			cabalHolds(),
 		)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeCabalCreated, "cabal_created", "cabal_id", s.Recall("cabal")))
 }
 
 func F02CreateCabalInvalidInput(s *scenario.Scenario) {

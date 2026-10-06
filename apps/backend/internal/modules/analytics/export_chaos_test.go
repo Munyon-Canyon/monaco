@@ -129,6 +129,34 @@ func newMoneyChaosWorld(t *testing.T) chaosWorld {
 	return appendedWorld(t, e, "system:chaos", s.user, moneyChaosCases(s))
 }
 
+func cabalChaosCases(s cabalScene) []chaosCase {
+	return []chaosCase{
+		{
+			events.CabalCreated{
+				V: 1, CabalID: s.cabal, CreatorID: s.user, Name: "Friends pot", JoinMode: "open", VoterMode: "all",
+				Threshold: "majority", ProposalExpirySeconds: 86400, SlippageBps: 100,
+				TreasuryAddress: chain.SolanaAddress(keyOf(3, 32)),
+			},
+			"cabal_created",
+		},
+		{
+			events.CabalMemberJoined{V: 1, CabalID: s.cabal, UserID: s.user, Role: "creator", Via: "create"},
+			"cabal_joined",
+		},
+		{events.CabalMemberLeft{V: 1, CabalID: s.cabal, UserID: s.user}, "cabal_left"},
+	}
+}
+
+func newCabalChaosWorld(t *testing.T) chaosWorld {
+	t.Helper()
+	s := newCabalScene(t, 1)
+	for range lookupFailures {
+		s.members.FailOnce("CabalsOf", errs.New(errs.CodeInternal, "fakes.Cabal.CabalsOf"))
+	}
+	e := newEnv(t, s.registerExports)
+	return appendedWorld(t, e, userActor(s.user), s.user, cabalChaosCases(s))
+}
+
 func appendedWorld(t *testing.T, e *env, actor string, distinct uuid.UUID, cases []chaosCase) chaosWorld {
 	t.Helper()
 	w := chaosWorld{e: e, distinct: distinct.String(), names: map[uuid.UUID]string{}}
@@ -179,4 +207,9 @@ func TestAnalytics_ProposalExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 func TestAnalytics_MoneyExports_ExportEachEventOnceUnderChaos(t *testing.T) {
 	t.Parallel()
 	exportsEachEventOnceUnderChaos(t, newMoneyChaosWorld)
+}
+
+func TestAnalytics_CabalExports_ExportEachEventOnceUnderChaos(t *testing.T) {
+	t.Parallel()
+	exportsEachEventOnceUnderChaos(t, newCabalChaosWorld)
 }

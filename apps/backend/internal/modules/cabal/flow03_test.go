@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
 func TestFlow03_JoinCabal_OK(t *testing.T) {
 	t.Parallel()
-	flows.F03JoinCabalOK(cabalScenario(t))
+	flows.F03JoinCabalOK(cabalScenario(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow03_JoinCabal_Unauthorized(t *testing.T) {

@@ -610,8 +610,8 @@ Adding a flow is one row plus the tests it names. Deleting a flow deletes the ro
 | --- | --- | --- | --- | --- |
 | 1 | Sign in (SMS or email OTP in every build; Apple and Google come with #541) | `POST /v1/auth/session` with Privy token; reuses the user's existing Privy wallet | `user.created` (first time), `user.auth_state_changed` | analytics, referrals (mint code; `AttachReferral` is the only attribution path), social (contact matches) |
 | 2 | Create cabal | `CreateCabal` | `cabal.created` | feed, analytics |
-| 3 | Join open cabal / request / invite / approve | `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess` | `cabal.member_joined`, `cabal.access_requested`, `cabal.access_decided` | feed, ranking |
-| 4 | Leave cabal | `LeaveCabal` (guarded: the member holds zero shares, so the app routes them to cash out first; not creator with members) | `cabal.member_left` | feed, ranking |
+| 3 | Join open cabal / request / invite / approve | `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess` | `cabal.member_joined`, `cabal.access_requested`, `cabal.access_decided` | feed, ranking, analytics |
+| 4 | Leave cabal | `LeaveCabal` (guarded: the member holds zero shares, so the app routes them to cash out first; not creator with members) | `cabal.member_left` | feed, ranking, analytics |
 | 5 | Crypto deposit | Deposit poller sees USDC in member wallet | `deposit.credited` | treasury (`user_txns`), notify, identity (`users.first_deposit_at` on the first deposit of at least $10), analytics |
 | 6 | Card deposit | `CreateOnrampSession`, page PATCHes status | `onramp.status_changed` then flow 5 | analytics |
 | 7 | Fund cabal | `FundCabal` → Privy transfer member→treasury → confirm → mint shares at live price | `cabal.fund_submitted`, `cabal.funded` | treasury positions, ranking, feed, referrals, analytics |

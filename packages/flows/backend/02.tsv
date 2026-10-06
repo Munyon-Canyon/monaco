@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-02	Create cabal	cabal	POST /v1/cabals	CreateCabal	cabal.created	cabal.hints;social.feed;social.feed.joined	ok;InvalidInput;Unauthorized;PrivyUnavailable;crash:before-commit	verified	docs/architecture/cabals.md#treasury-wallet
+02	Create cabal	cabal	POST /v1/cabals	CreateCabal	cabal.created	cabal.hints;social.feed;social.feed.joined;analytics	ok;InvalidInput;Unauthorized;PrivyUnavailable;crash:before-commit	verified	docs/architecture/cabals.md#treasury-wallet

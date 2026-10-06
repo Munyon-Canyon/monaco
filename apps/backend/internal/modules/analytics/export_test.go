@@ -14,3 +14,7 @@ func RegisterProposalExports(r *Registry, proposers app.ProposerReader) {
 func RegisterFundingExports(r *Registry) { registerFundingExports(r) }
 
 func RegisterTreasuryExports(r *Registry) { registerTreasuryExports(r) }
+
+func RegisterCabalExports(r *Registry, members app.MembershipReader) {
+	registerCabalExports(r, members)
+}
