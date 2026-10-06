@@ -12,6 +12,24 @@ import (
 	"github.com/google/uuid"
 )
 
+const countFollows = `-- name: CountFollows :one
+SELECT
+  (SELECT count(*) FROM follows WHERE followee_id = $1::uuid AND deleted_at IS NULL)::int AS followers,
+  (SELECT count(*) FROM follows WHERE follower_id = $1::uuid AND deleted_at IS NULL)::int AS following
+`
+
+type CountFollowsRow struct {
+	Followers int32
+	Following int32
+}
+
+func (q *Queries) CountFollows(ctx context.Context, userID uuid.UUID) (CountFollowsRow, error) {
+	row := q.db.QueryRow(ctx, countFollows, userID)
+	var i CountFollowsRow
+	err := row.Scan(&i.Followers, &i.Following)
+	return i, err
+}
+
 const followedAmong = `-- name: FollowedAmong :many
 SELECT followee_id FROM follows
 WHERE follower_id = $1::uuid AND followee_id = ANY($2::uuid[])
@@ -25,6 +43,32 @@ type FollowedAmongParams struct {
 
 func (q *Queries) FollowedAmong(ctx context.Context, arg FollowedAmongParams) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, followedAmong, arg.FollowerID, arg.FolloweeIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var followee_id uuid.UUID
+		if err := rows.Scan(&followee_id); err != nil {
+			return nil, err
+		}
+		items = append(items, followee_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const followingIDs = `-- name: FollowingIDs :many
+SELECT followee_id FROM follows
+WHERE follower_id = $1::uuid AND deleted_at IS NULL
+ORDER BY created_at DESC, followee_id DESC
+`
+
+func (q *Queries) FollowingIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, followingIDs, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +113,25 @@ func (q *Queries) InsertFollow(ctx context.Context, arg InsertFollowParams) (uui
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const isFollowing = `-- name: IsFollowing :one
+SELECT EXISTS (
+  SELECT 1 FROM follows
+  WHERE follower_id = $1::uuid AND followee_id = $2::uuid AND deleted_at IS NULL
+)
+`
+
+type IsFollowingParams struct {
+	FollowerID uuid.UUID
+	FolloweeID uuid.UUID
+}
+
+func (q *Queries) IsFollowing(ctx context.Context, arg IsFollowingParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isFollowing, arg.FollowerID, arg.FolloweeID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listFollowers = `-- name: ListFollowers :many
