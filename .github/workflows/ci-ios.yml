@@ -7,13 +7,13 @@ on:
   workflow_call:
     inputs:
       save-cache:
-        description: Save the Swift package cache. PRs restore and never save.
+        description: Save the Swift package and compilation caches. PRs restore and never save.
         type: boolean
         default: false
   workflow_dispatch:
     inputs:
       save-cache:
-        description: Save the Swift package cache.
+        description: Save the Swift package and compilation caches.
         type: boolean
         default: false
 
@@ -55,6 +55,29 @@ jobs:
             ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
           key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
 
+      # Xcode's compilation cache (CAS) under DerivedData, filled by COMPILATION_CACHE_ENABLE_CACHING=YES,
+      # as stage 0 sets it. Each staging save gets its own key; PRs restore the newest entry for the same
+      # Xcode and Package.resolved files.
+      - name: Restore the compilation cache
+        id: cas
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
+          key: xcode-cas-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            xcode-cas-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-
+
+      # Every save restores the last one and adds to it, so a staging run starts the CAS over once it
+      # passes 4 GB on disk (about 1.3 GB compressed; a full build is about 1.2 GB, 0.4 GB compressed).
+      - name: Drop an oversized compilation cache
+        if: inputs.save-cache
+        run: |
+          cas="$DERIVED_DATA/CompilationCache.noindex"
+          if [[ -d "$cas" ]] && (( $(du -sm "$cas" | cut -f1) > 4000 )); then
+            echo "compilation cache is over 4 GB on disk; starting it over"
+            rm -rf "$cas"
+          fi
+
       - name: Placeholder app config
         run: scripts/ensure-ios-privy-config.sh placeholder
 
@@ -67,7 +90,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIM" -derivedDataPath "$DERIVED_DATA" \
             -resultBundlePath "$RUNNER_TEMP/MonacoTests.xcresult" \
             -onlyUsePackageVersionsFromResolvedFile -skipPackagePluginValidation -skipMacroValidation \
-            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO test
+            -quiet CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO COMPILATION_CACHE_ENABLE_CACHING=YES test
 
       - name: Save Swift packages
         if: inputs.save-cache && steps.spm.outputs.cache-hit != 'true'
@@ -78,6 +101,13 @@ jobs:
             ${{ env.DERIVED_DATA }}/SourcePackages/artifacts
             ${{ env.DERIVED_DATA }}/SourcePackages/workspace-state.json
           key: spm-ios-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}
+
+      - name: Save the compilation cache
+        if: inputs.save-cache && steps.cas.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.DERIVED_DATA }}/CompilationCache.noindex
+          key: xcode-cas-ios-${{ hashFiles('.xcode-version') }}-${{ hashFiles('apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'packages/mobile-core/Package.resolved') }}-${{ github.sha }}
 
       - name: Upload test results
         if: failure()
