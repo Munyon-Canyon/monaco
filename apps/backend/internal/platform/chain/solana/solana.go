@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sony/gobreaker/v2"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -48,6 +50,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 			httpclient.WithBaseURL(base),
 			httpclient.WithTimeout(cfg.Timeouts.RPC),
 			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
+			httpclient.WithBreaker(gobreaker.Settings{Timeout: cfg.Timeouts.RPCBreakerOpen}),
 		}, opts...)...),
 		path:  path,
 		clock: clk,

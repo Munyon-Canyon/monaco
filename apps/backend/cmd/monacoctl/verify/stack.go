@@ -164,7 +164,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"RELAYER_PRIVATE_KEY="+chain.EncodeBase58(upstreams.FixtureKey("verify-relayer")),
 	)
 	s.Fakes = "http://" + fakes.addr
-	apiEnv, workerEnv := []string{"TRUST_PROXY_HEADERS=true"}, []string(nil)
+	apiEnv, workerEnv := []string{"TRUST_PROXY_HEADERS=true", rpcBreakerOpen}, []string(nil)
 	if s.opts.Faultpoint != "" {
 		apiEnv = append(apiEnv, "MONACO_BUS_API_RELAY=off")
 	}
@@ -174,6 +174,8 @@ func (s *Stack) processes(ctx context.Context) error {
 	}
 	return s.startWorker(ctx, workerEnv...)
 }
+
+const rpcBreakerOpen = "MONACO_TIMEOUT_RPC_BREAKER_OPEN=1s"
 
 func (s *Stack) startAPI(ctx context.Context, extra ...string) error {
 	addr := "127.0.0.1:0"
@@ -197,7 +199,7 @@ func (s *Stack) startWorker(ctx context.Context, extra ...string) error {
 	worker, err := s.start(ctx, procWorker, s.opts.Bins.Worker,
 		slices.Concat([]string{
 			"MONACO_WORKER_HEALTH_ADDR=" + addr,
-			"FUND_SEND_WINDOW=5s", "WITHDRAWAL_UNSENT_AGE=5s",
+			"FUND_SEND_WINDOW=5s", "WITHDRAWAL_UNSENT_AGE=5s", rpcBreakerOpen,
 		}, s.opts.WorkerEnv, extra)...)
 	if err != nil {
 		return err

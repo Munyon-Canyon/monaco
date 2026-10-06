@@ -188,6 +188,7 @@ type Supabase struct {
 
 type Timeouts struct {
 	RPC             time.Duration
+	RPCBreakerOpen  time.Duration
 	Privy           time.Duration
 	APNs            time.Duration
 	JupiterQuote    time.Duration
@@ -388,6 +389,8 @@ func platformFields() []field {
 			func(c *Config) *time.Duration { return &c.Identity.PhotoPurgesInterval },
 		),
 		duration("MONACO_TIMEOUT_RPC", 5*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.RPC }),
+		duration("MONACO_TIMEOUT_RPC_BREAKER_OPEN", time.Minute,
+			func(c *Config) *time.Duration { return &c.Timeouts.RPCBreakerOpen }),
 		duration("MONACO_TIMEOUT_PRIVY", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.Privy }),
 		duration("MONACO_TIMEOUT_APNS", 10*time.Second, func(c *Config) *time.Duration { return &c.Timeouts.APNs }),
 		duration("MONACO_TIMEOUT_HTTP_SERVER_READ", 10*time.Second,
