@@ -4,6 +4,7 @@ struct WithdrawConfirmView: View {
     static let caveat = "Double-check the address. Transfers can't be undone."
     let destinationAddress: String
     let amountText: String
+    var fullBalanceLabel: String?
     let isSubmitting: Bool
     let onWithdraw: () -> Void
 
@@ -14,7 +15,13 @@ struct WithdrawConfirmView: View {
                     Text("You're withdrawing")
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
-                    MoneyText(decimalString: amountText, style: .large)
+                    if let fullBalanceLabel {
+                        Text(fullBalanceLabel)
+                            .font(MonacoTheme.Typo.moneyLarge)
+                            .foregroundStyle(MonacoTheme.ink)
+                    } else {
+                        MoneyText(decimalString: amountText, style: .large)
+                    }
                 }
                 .padding(.horizontal, MonacoTheme.Space.m)
                 .accessibilityElement(children: .combine)
