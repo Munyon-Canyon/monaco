@@ -3,8 +3,7 @@ import MonacoCore
 import SwiftUI
 
 enum EditCabalCopy {
-    static let rowTitle = "Edit cabal"
-    static let screenTitle = "Edit cabal"
+    static let screenTitle = "Cabal settings"
     static let save = "Save"
     static let saving = "Saving…"
     static let saved = "Cabal updated."
@@ -12,7 +11,7 @@ enum EditCabalCopy {
     static let votersRow = "Voters"
 
     static var auditedStrings: [String] {
-        [rowTitle, screenTitle, save, saving, saved, rulesFooter, votersRow]
+        [screenTitle, save, saving, saved, rulesFooter, votersRow]
     }
 }
 

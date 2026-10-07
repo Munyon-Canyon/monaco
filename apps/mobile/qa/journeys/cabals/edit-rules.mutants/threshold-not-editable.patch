@@ -8,7 +8,7 @@ diff --git a/apps/mobile/Monaco/Features/Groups/EditCabalView.swift b/apps/mobil
 index 77c2cf73..56afad6f 100644
 --- a/apps/mobile/Monaco/Features/Groups/EditCabalView.swift
 +++ b/apps/mobile/Monaco/Features/Groups/EditCabalView.swift
-@@ -141,7 +141,7 @@ struct EditCabalView: View {
+@@ -140,7 +140,7 @@ struct EditCabalView: View {
      private var threshold: Binding<CabalThreshold> {
          Binding(
              get: { CabalThreshold(rawValue: edited.threshold) ?? .majority },

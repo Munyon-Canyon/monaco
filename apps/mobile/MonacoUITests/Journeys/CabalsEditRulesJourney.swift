@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 1
+    static let version = 2
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -39,6 +39,7 @@ enum CabalsEditRulesJourney {
             app.buttons["cabal-details-button"].tap()
             app.scrollIntoReach(app.element("cabal-rules"))
             XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S1.2: no Rules within 10 s")
+            assertRule(app, "name", reads: seededName(run: run), step: "S1.2")
             assertRule(app, "join", reads: "Anyone", step: "S1.2")
             assertRule(app, "voters", reads: "Every member", step: "S1.2")
             assertRule(app, "threshold", reads: "Majority", step: "S1.2")
@@ -48,8 +49,8 @@ enum CabalsEditRulesJourney {
 
         recorder.step("S1.3", "open the editor from a rule row") {
             rule(app, "threshold").tap()
-            XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: the Edit cabal screen did not show within 10 s")
-            XCTAssertTrue(app.navigationBars["Edit cabal"].exists, "S1.3: the editor is not titled Edit cabal")
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: Cabal settings did not show within 10 s")
+            XCTAssertTrue(app.navigationBars["Cabal settings"].exists, "S1.3: the editor is not titled Cabal settings")
             XCTAssertEqual(field.value as? String, seededName(run: run), "S1.3: the name field")
             XCTAssertEqual(
                 app.element("edit-cabal-rules-footer").label,

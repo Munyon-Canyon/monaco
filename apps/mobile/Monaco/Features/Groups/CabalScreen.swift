@@ -22,7 +22,6 @@ struct CabalScreen: View {
         CabalInviteMemberSlot.self,
         CabalRulesSlot.self,
         CabalTreasurySlot.self,
-        CabalEditSlot.self,
         CabalLeaveSlot.self,
     ]
 

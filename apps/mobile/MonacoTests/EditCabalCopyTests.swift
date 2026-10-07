@@ -10,6 +10,7 @@ struct EditCabalCopyTests {
         #expect(EditCabalCopy.rulesFooter == "Rule changes apply to new proposals. Open votes keep their rules.")
         #expect(EditCabalCopy.saved == "Cabal updated.")
         #expect(EditCabalCopy.votersRow == "Voters")
+        #expect(EditCabalCopy.screenTitle == "Cabal settings")
     }
 
     @Test func theVoterPickerSpeaksTheProductLanguage() {

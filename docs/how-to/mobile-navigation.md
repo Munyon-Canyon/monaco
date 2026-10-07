@@ -212,7 +212,6 @@ struct CabalScreen: View {
 | | `CabalInviteMemberSlot` | #696 |
 | | `CabalRulesSlot` | #2135 |
 | | `CabalTreasurySlot` | #651 |
-| | `CabalEditSlot` | #647 |
 | | `CabalLeaveSlot` | #697 |
 | `Features/Profile/UserProfileScreen.swift`, `UserProfileContext(userID: String)` | `UserProfileHeaderSlot` | #620 |
 | | `UserProfileSharedCabalsSlot` | #660 |
