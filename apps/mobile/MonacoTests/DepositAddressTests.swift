@@ -1,3 +1,4 @@
+import CoreImage
 import Foundation
 import MonacoAPI
 import Testing
@@ -41,5 +42,21 @@ struct DepositAddressCardTests {
         #expect(content.address == wallet)
         #expect(DepositAddressCard.Content.resolve(address: content.address) == .ready(wallet))
         #expect(PlatformBalanceCard(state: content.state).display == .unavailable)
+    }
+}
+
+extension DepositAddressTests {
+    @Test func theQRCodeDecodesToTheExactAddress() throws {
+        let address = "7Yk3Qn5wF2cH8sVbN4tRzLpXu9DmEaJgKq6TyWvB1xCe"
+        let image = try #require(DepositQRCode.image(for: address))
+        let scaled = image.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        let padded = scaled.composited(
+            over: CIImage(color: .white).cropped(to: scaled.extent.insetBy(dx: -32, dy: -32)))
+        let detector = try #require(
+            CIDetector(
+                ofType: CIDetectorTypeQRCode, context: nil, options: [CIDetectorAccuracy: CIDetectorAccuracyHigh])
+        )
+        let messages = detector.features(in: padded).compactMap { ($0 as? CIQRCodeFeature)?.messageString }
+        #expect(messages == [address])
     }
 }
