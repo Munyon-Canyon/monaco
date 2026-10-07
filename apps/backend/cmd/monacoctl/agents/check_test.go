@@ -1,7 +1,6 @@
 package agents
 
 import (
-	"bufio"
 	"bytes"
 	"cmp"
 	"context"
@@ -410,9 +409,9 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	}
 
 	h.calls = nil
-	code, stdout, _ = h.check(t)
+	code, stdout, stderr = h.check(t)
 	if code != 0 || stdout != "stage 0 already passed on tree "+tree[:12]+"\n" || len(h.calls) != 0 {
-		t.Fatalf("rerun on a checked tree: %d %q %v", code, stdout, h.calls)
+		t.Fatalf("rerun on a checked tree: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 }
 
@@ -1025,31 +1024,11 @@ func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
 	h.budget = map[string]time.Duration{"xcode": time.Second}
 	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
 	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"})
-	script, err := filepath.Abs("../../../../../scripts/qa/xcode-lock.sh")
-	if err != nil {
-		t.Fatal(err)
-	}
-	lockDir := filepath.Join(t.TempDir(), "xcode.lock")
-	lockEnv := append(os.Environ(), "MONACO_XCODE_LOCK_DIR="+lockDir, "MONACO_XCODE_SLOTS=1", "MONACO_LOCK_POLL=0.1")
-	holder := exec.CommandContext(t.Context(), script, "xcode", "sh", "-c", "echo held; sleep 2")
-	holder.Env = lockEnv
-	held, err := holder.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := holder.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = holder.Wait() })
-	if _, err := bufio.NewReader(held).ReadString('\n'); err != nil {
-		t.Fatalf("the holder never took the lock: %v", err)
-	}
+	script := filepath.Join(t.TempDir(), "xcode-lock.sh")
+	writeFile(t, script, "#!/bin/sh\nshift\necho 2 >> \"$MONACO_LOCK_WAITED\"\nexec \"$@\"\n")
 	h.xcodeBuild = func(ctx context.Context, waited string) error {
-		build := exec.CommandContext(ctx, script, "xcode", "true")
-		build.Env = lockEnv
-		if waited != "" {
-			build.Env = append(slices.Clone(lockEnv), "MONACO_LOCK_WAITED="+waited)
-		}
+		build := exec.CommandContext(ctx, "sh", script, "xcode", "true")
+		build.Env = append(os.Environ(), "MONACO_LOCK_WAITED="+waited)
 		before := secondsIn(waited)
 		runErr := build.Run()
 		h.clock = h.clock.Add(secondsIn(waited) - before + 100*time.Millisecond)
