@@ -409,9 +409,9 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	}
 
 	h.calls = nil
-	code, stdout, _ = h.check(t)
+	code, stdout, stderr = h.check(t)
 	if code != 0 || stdout != "stage 0 already passed on tree "+tree[:12]+"\n" || len(h.calls) != 0 {
-		t.Fatalf("rerun on a checked tree: %d %q %v", code, stdout, h.calls)
+		t.Fatalf("rerun on a checked tree: %d %q %q %v", code, stdout, stderr, h.calls)
 	}
 }
 
