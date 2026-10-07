@@ -1,7 +1,10 @@
 package adapters_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,7 +14,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -22,6 +27,7 @@ type pollerFake struct {
 	triggerErr  error
 	valueErr    error
 	writeErr    error
+	flags       []domain.Flag
 	runs, saved int
 }
 
@@ -42,7 +48,7 @@ func (f *pollerFake) OldestRankingTrigger(context.Context) (time.Time, error) {
 func (f *pollerFake) Run(context.Context, time.Time) (app.Valuation, error) {
 	f.runs++
 	return app.Valuation{
-		Cabals: []app.CabalValue{{}}, Flagged: []app.CabalValue{{}}, Entries: []app.Entry{{}, {}},
+		Cabals: []app.CabalValue{{}}, Flagged: []app.CabalValue{{Flags: f.flags}}, Entries: []app.Entry{{}, {}},
 	}, f.valueErr
 }
 
@@ -128,5 +134,38 @@ func TestValuationPoller_namesItselfAndTicksEverySecond(t *testing.T) {
 	p := adapters.ValuationPoller{}
 	if p.Name() != "ranking.valuation" || p.Interval() != time.Second {
 		t.Fatalf("poller = %s every %v, want ranking.valuation every 1s", p.Name(), p.Interval())
+	}
+}
+
+func TestValuationPoller_logsTheRealFlagForAnExcludedCabal(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	for name, tc := range map[string]struct {
+		flags []domain.Flag
+		want  string
+	}{
+		"an unpriced cabal": {[]domain.Flag{domain.FlagUnpricedAssets}, `"reason":"unpriced_assets"`},
+		"a stale cabal":     {[]domain.Flag{domain.FlagStalePrices}, `"code":"prices_stale","reason":"stale_prices"`},
+		"both flags": {
+			[]domain.Flag{domain.FlagStalePrices, domain.FlagUnpricedAssets},
+			`"code":"prices_stale","reason":"stale_prices,unpriced_assets"`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			ctx := observability.WithLogger(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)))
+			fake := &pollerFake{flags: tc.flags}
+			if _, err := fake.poller(testkit.NewClock(now)).Tick(ctx); err != nil {
+				t.Fatalf("Tick() = %v", err)
+			}
+			out := logs.String()
+			if !strings.Contains(tc.want, "prices_stale") && strings.Contains(out, "prices_stale") {
+				t.Fatalf("logs = %s, want no prices_stale code for %s", out, name)
+			}
+			if !strings.Contains(out, "ranking.cabal.excluded") || !strings.Contains(out, tc.want) {
+				t.Fatalf("logs = %s, want ranking.cabal.excluded with %s", out, tc.want)
+			}
+		})
 	}
 }

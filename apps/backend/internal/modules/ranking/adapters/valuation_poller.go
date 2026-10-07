@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,8 +73,7 @@ func (p ValuationPoller) Tick(ctx context.Context) (poller.Report, error) {
 		return poller.Report{}, stalledIfOverdue(err, now, last, hasRun)
 	}
 	for _, flagged := range valuation.Flagged {
-		observability.Info(ctx, observability.RankingCabalExcluded,
-			slog.String("cabal", flagged.CabalID.String()), slog.String("reason", string(errs.CodePricesStale)))
+		logExcluded(ctx, flagged)
 	}
 	runID, err := p.Writer.Write(ctx, valuation, now, p.Clock.Now())
 	if err != nil {
@@ -85,6 +85,22 @@ func (p ValuationPoller) Tick(ctx context.Context) (poller.Report, error) {
 		Scanned: len(valuation.Cabals) + len(valuation.Flagged), Changed: len(valuation.Entries),
 		Attrs: []slog.Attr{slog.String("run_id", runID.String())},
 	}, nil
+}
+
+func logExcluded(ctx context.Context, flagged app.CabalValue) {
+	reasons, stale := make([]string, len(flagged.Flags)), false
+	for i, flag := range flagged.Flags {
+		reasons[i] = string(flag)
+		stale = stale || flag == domain.FlagStalePrices
+	}
+	reason := strings.Join(reasons, ",")
+	if stale {
+		observability.Info(ctx, observability.RankingCabalExcluded, slog.String("cabal", flagged.CabalID.String()),
+			slog.String("code", string(errs.CodePricesStale)), slog.String("reason", reason))
+		return
+	}
+	observability.Info(ctx, observability.RankingCabalExcluded,
+		slog.String("cabal", flagged.CabalID.String()), slog.String("reason", reason))
 }
 
 func stalledIfOverdue(err error, now time.Time, last sqlc.LeaderboardRun, hasRun bool) error {
