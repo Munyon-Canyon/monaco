@@ -233,6 +233,50 @@ paths:
           description: The cabal.
           content: {application/json: {schema: {$ref: "#/components/schemas/AdminCabal"}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/txns/{id}:
+    get:
+      operationId: getAdminTxn
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Look up a transaction by id.
+      description: >-
+        Reads the ledger transaction with this id, with its entries and the swap it settles. When no ledger
+        transaction has the id, it reads the swap with this id instead, so a stuck swap from the queue resolves.
+        An unknown id answers txn_not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of a ledger transaction or of a swap.
+          schema: {type: string, format: uuid, examples: ["019cc330-3333-7000-8000-000000000001"]}
+      responses:
+        "200":
+          description: The transaction.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminTxn"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/txns:
+    get:
+      operationId: findAdminTxn
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Look up a transaction by signature.
+      description: >-
+        Returns the same document as the lookup by id. A signature that several ledger transactions share
+        resolves to the cabal side first. When no ledger transaction has the signature, it reads the swap with
+        it. An unknown signature answers txn_not_found.
+      parameters:
+        - name: signature
+          in: query
+          required: true
+          description: The Solana transaction signature.
+          schema: {type: string, minLength: 1, maxLength: 128, examples: [5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW]}
+      responses:
+        "200":
+          description: The transaction.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminTxn"}}}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   schemas:
     AdminMe:
@@ -764,3 +808,93 @@ components:
           maxItems: 20
           description: The 20 newest admin actions on the cabal, newest first.
           items: {$ref: "#/components/schemas/AdminActionRecord"}
+    AdminTxnEntry:
+      type: object
+      description: One signed line of a ledger transaction.
+      examples:
+        - {seq: 0, account: wallet, asset: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v, amount: "-10000000"}
+      additionalProperties: false
+      required: [seq, account, asset, amount]
+      properties:
+        seq: {type: integer, format: int32, description: The position of the entry in the transaction., examples: [0]}
+        account: {type: string, description: "The account the entry moves, such as wallet or treasury.", examples: [wallet]}
+        asset: {type: string, description: "The asset moved: a mint address or a shares asset.", examples: [EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v]}
+        amount: {type: string, pattern: "^-?[0-9]+$", description: The signed amount in base units as a decimal integer., examples: ["-10000000"]}
+    AdminLedgerTxn:
+      type: object
+      description: One ledger transaction with its entries.
+      examples:
+        - id: 019cc330-3333-7000-8000-000000000001
+          scope: cabal
+          user_id: null
+          cabal_id: 019cc330-2222-7000-8000-000000000001
+          kind: swap
+          status: settled
+          swap_id: 019cc330-4444-7000-8000-000000000001
+          transfer_id: null
+          tx_signature: null
+          created_at: "2026-10-06T12:00:00Z"
+          entries: []
+      additionalProperties: false
+      required: [id, scope, user_id, cabal_id, kind, status, swap_id, transfer_id, tx_signature, created_at, entries]
+      properties:
+        id: {type: string, format: uuid, description: The transaction id., examples: [019cc330-3333-7000-8000-000000000001]}
+        scope: {$ref: "#/components/schemas/AdminTxnScope"}
+        user_id: {type: [string, "null"], format: uuid, description: The user of a user-scope transaction. Null in the cabal scope., examples: [null]}
+        cabal_id: {type: [string, "null"], format: uuid, description: The cabal the transaction touches. Null for a deposit or withdrawal., examples: [019cc330-2222-7000-8000-000000000001]}
+        kind: {type: string, description: "The kind: deposit, withdrawal, fund, cash_out or swap.", examples: [swap]}
+        status: {type: string, description: "The status: pending, settled or failed.", examples: [settled]}
+        swap_id: {type: [string, "null"], format: uuid, description: The swap a cabal-scope swap transaction records. Null otherwise., examples: [019cc330-4444-7000-8000-000000000001]}
+        transfer_id: {type: [string, "null"], format: uuid, description: The fund or withdrawal transfer that links a user and a cabal transaction., examples: [null]}
+        tx_signature: {type: [string, "null"], description: The Solana signature. Null until the transaction has one., examples: [null]}
+        created_at: {type: string, format: date-time, description: When the ledger recorded it., examples: ["2026-10-06T12:00:00Z"]}
+        entries:
+          type: array
+          description: The entries of the transaction, in order.
+          items: {$ref: "#/components/schemas/AdminTxnEntry"}
+    AdminSwapEvent:
+      type: object
+      description: One trade event of a swap.
+      examples:
+        - {type: trade.submitted, at: "2026-10-06T12:00:00Z"}
+      additionalProperties: false
+      required: [type, at]
+      properties:
+        type: {type: string, description: "The event type: trade.submitted, trade.confirmed or trade.failed.", examples: [trade.submitted]}
+        at: {type: string, format: date-time, description: When the event was recorded., examples: ["2026-10-06T12:00:00Z"]}
+    AdminSwap:
+      type: object
+      description: One swap with the history of its trade events.
+      examples:
+        - id: 019cc330-4444-7000-8000-000000000001
+          status: submitted
+          failure_code: null
+          execute_request_id: req-1
+          tx_signature: null
+          created_at: "2026-10-06T12:00:00Z"
+          status_history: []
+      additionalProperties: false
+      required: [id, status, failure_code, execute_request_id, tx_signature, created_at, status_history]
+      properties:
+        id: {type: string, format: uuid, description: The swap id., examples: [019cc330-4444-7000-8000-000000000001]}
+        status: {type: string, description: "The status: created, submitted, confirmed or failed.", examples: [submitted]}
+        failure_code: {type: [string, "null"], description: Why the swap failed. Null unless it failed., examples: [null]}
+        execute_request_id: {type: [string, "null"], description: The Jupiter execute request id. Null until the swap is submitted., examples: [req-1]}
+        tx_signature: {type: [string, "null"], description: The Solana signature. Null until the swap is submitted., examples: [null]}
+        created_at: {type: string, format: date-time, description: When the swap was created., examples: ["2026-10-06T12:00:00Z"]}
+        status_history:
+          type: array
+          description: The trade events of the swap, oldest first.
+          items: {$ref: "#/components/schemas/AdminSwapEvent"}
+    AdminTxn:
+      type: object
+      description: >-
+        One transaction as an operator sees it. At least one of `ledger` and `swap` is present. `explorer_url`
+        is present when a signature is known.
+      examples:
+        - explorer_url: "https://solscan.io/tx/5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"
+      additionalProperties: false
+      properties:
+        ledger: {$ref: "#/components/schemas/AdminLedgerTxn"}
+        swap: {$ref: "#/components/schemas/AdminSwap"}
+        explorer_url: {type: string, description: The Solscan page of the signature on mainnet., examples: ["https://solscan.io/tx/5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"]}

@@ -9,8 +9,10 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -43,6 +45,20 @@ type TxnLists interface {
 		[]treasuryport.TxnHeader, error)
 	CabalTxns(ctx context.Context, cabal ids.CabalID, cursor *treasuryport.TxnCursor, limit int) (
 		[]treasuryport.TxnHeader, error)
+}
+
+type LedgerTxns interface {
+	TxnByID(ctx context.Context, id uuid.UUID) (treasuryport.Txn, bool, error)
+	TxnBySignature(ctx context.Context, sig chain.Signature) (treasuryport.Txn, bool, error)
+}
+
+type SwapReader interface {
+	Swap(ctx context.Context, id ids.SwapID) (trading.SwapView, error)
+	SwapBySignature(ctx context.Context, sig chain.Signature) (trading.SwapView, error)
+}
+
+type RequestIDs interface {
+	ExecuteRequestID(ctx context.Context, id ids.SwapID) (string, error)
 }
 
 type ShareLists interface {

@@ -2,6 +2,8 @@
   "allocs": {},
   "queries": {
     "admin GetAdminUser": 8,
-    "admin GetAdminCabal": 10
+    "admin GetAdminCabal": 10,
+    "admin GetAdminTxn": 4,
+    "admin FindAdminTxn": 4
   }
 }

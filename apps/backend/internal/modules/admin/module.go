@@ -8,6 +8,7 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -53,11 +54,20 @@ func (m *Module) cabalLookup() app.CabalLookup {
 
 func (*Module) Name() string { return "admin" }
 
+func (m *Module) txnLookup() app.TxnLookup {
+	swaps := trading.New(m.deps).Queries()
+	return app.TxnLookup{
+		Ledger: treasury.New(m.deps).Ledger(), Swaps: swaps, Requests: swaps,
+		Events: bus.NewEventLog(m.deps.Pool, m.deps.Clock),
+	}
+}
+
 func (m *Module) Mount(mount api.Mount) {
 	adminapi.Mount(adapters.HTTP{
 		Pool:    m.deps.Pool,
 		Users:   m.userLookup(),
 		Cabals:  m.cabalLookup(),
+		Txns:    m.txnLookup(),
 		Redrive: app.NewRedriveDeadLetterHandler(m.deps.UoW, m.deps.Pool, m.deps.Bus, m.deps.Clock),
 		Discard: app.NewDiscardDeadLetterHandler(m.deps.UoW, m.deps.Clock),
 	}, mount)

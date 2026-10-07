@@ -135,6 +135,7 @@ const (
 	SwapNotRetryable ErrorCode = "swap_not_retryable"
 	SwapNotStuck ErrorCode = "swap_not_stuck"
 	TooManyContactHashes ErrorCode = "too_many_contact_hashes"
+	TxnNotFound ErrorCode = "txn_not_found"
 	Unauthorized ErrorCode = "unauthorized"
 	UnknownAsset ErrorCode = "unknown_asset"
 	UpstreamTimeout ErrorCode = "upstream_timeout"
@@ -402,6 +403,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotStuck:
 		return true
 	case TooManyContactHashes:
+		return true
+	case TxnNotFound:
 		return true
 	case Unauthorized:
 		return true

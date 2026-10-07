@@ -38,10 +38,14 @@ type TxnHeader struct {
 func txnHeaders(rows []treasuryport.TxnHeader) []TxnHeader {
 	out := make([]TxnHeader, len(rows))
 	for i, r := range rows {
-		out[i] = TxnHeader{
-			ID: r.ID, Scope: string(r.Scope), Kind: r.Kind, Status: r.Status, CabalID: r.CabalID,
-			TxSignature: string(r.TxSignature), CreatedAt: r.CreatedAt,
-		}
+		out[i] = txnHeader(r)
 	}
 	return out
+}
+
+func txnHeader(r treasuryport.TxnHeader) TxnHeader {
+	return TxnHeader{
+		ID: r.ID, Scope: string(r.Scope), Kind: r.Kind, Status: r.Status, CabalID: r.CabalID,
+		TxSignature: string(r.TxSignature), CreatedAt: r.CreatedAt,
+	}
 }
