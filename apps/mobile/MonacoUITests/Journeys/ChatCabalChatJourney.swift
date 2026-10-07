@@ -2,7 +2,7 @@ import XCTest
 
 enum ChatCabalChatJourney {
     static let id = "chat/cabal-chat"
-    static let version = 1
+    static let version = 2
     static let emptyCopy = "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
 
     static func recorder() -> JourneyRecorder {
@@ -26,6 +26,10 @@ enum ChatCabalChatJourney {
 
     static func messageText(_ app: XCUIApplication, run: String) -> XCUIElement {
         app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", message(run: run))).firstMatch
+    }
+
+    static func text(_ app: XCUIApplication, containing text: String) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
     static func aSends(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
@@ -53,6 +57,34 @@ enum ChatCabalChatJourney {
                 messageText(app, run: run).waitForExistence(timeout: 10),
                 "S1.3: no message reading \(message(run: run)) within 10 s (known failure, #676)"
             )
+        }
+
+        recorder.step("S1.3b", "send twice in a row, then mention a member") {
+            let composer = app.element("chat-composer")
+            for word in ["two", "three"] {
+                composer.tap()
+                composer.typeText("QA \(word) \(run)")
+                app.element("chat-send").tap()
+                XCTAssertTrue(
+                    text(app, containing: "QA \(word) \(run)").waitForExistence(timeout: 10),
+                    "S1.3b: no message reading QA \(word) \(run) within 10 s (known failure, #3467)"
+                )
+            }
+            composer.tap()
+            composer.typeText("QA mention \(run) @")
+            let pick = app.descendants(matching: .any).matching(
+                NSPredicate(
+                    format: "identifier BEGINSWITH 'chat-mention-' AND identifier != 'chat-mention-picker'")
+            ).firstMatch
+            XCTAssertTrue(pick.waitForExistence(timeout: 5), "S1.3b: no member in the mention picker within 5 s")
+            pick.tap()
+            app.element("chat-send").tap()
+            XCTAssertTrue(
+                text(app, containing: "QA mention \(run) @").waitForExistence(timeout: 10),
+                "S1.3b: no mention message within 10 s (known failure, #3467)"
+            )
+            XCTAssertTrue(messageText(app, run: run).exists, "S1.3b: the first message vanished after the sends")
+            XCTAssertTrue(app.element("chat-thread").exists, "S1.3b: the chat thread is gone after the sends")
         }
     }
 

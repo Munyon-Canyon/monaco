@@ -66,6 +66,27 @@ final class ChatMentionsTests: XCTestCase {
         XCTAssertEqual(none.text, "hi")
     }
 
+    func testInsertKeepsCombiningAndJoinedCharactersWhole() {
+        let eAcute = "e\u{301}"
+        let family = "\u{1F469}\u{200D}\u{1F4BB}"
+        let wave = "\u{1F44B}\u{1F3FD}"
+        let text = "\(eAcute)\(family)\(wave) @ma"
+        let cursor = text.count
+        let result = MentionInsertion.insert(handle: "maya", into: text, cursor: cursor)
+        XCTAssertEqual(result.text, "\(eAcute)\(family)\(wave) @maya ")
+        XCTAssertEqual(result.cursor, result.text.count)
+        let caret = MentionInsertion.caret(in: result.text, offset: result.cursor)
+        XCTAssertEqual(caret, result.text.endIndex)
+        XCTAssertEqual(result.text.distance(from: result.text.startIndex, to: caret), 3 + 1 + 6)
+    }
+
+    func testCaretClampsInsteadOfTrappingAfterTheDraftShrinks() {
+        XCTAssertEqual(MentionInsertion.caret(in: "", offset: 9), "".endIndex)
+        XCTAssertEqual(MentionInsertion.caret(in: "hi", offset: 9), "hi".endIndex)
+        XCTAssertEqual(MentionInsertion.caret(in: "hi", offset: -3), "hi".startIndex)
+        XCTAssertNil(MentionQuery.active(in: "", cursor: 9))
+    }
+
     func testRangesCoverOnlyCurrentMembers() {
         let members = [member("1", "maya")]
         let body = "hey @Maya and @nobody"

@@ -184,12 +184,12 @@ struct ChatComposerBar: View {
         guard let handle = member.handle else { return }
         let result = MentionInsertion.insert(handle: handle, into: draft, cursor: cursorOffset)
         draft = result.text
-        let caret = draft.index(draft.startIndex, offsetBy: result.cursor)
-        selection = TextSelection(insertionPoint: caret)
+        selection = TextSelection(insertionPoint: MentionInsertion.caret(in: draft, offset: result.cursor))
     }
 
     private func submit() {
         guard case .success(let body) = GroupChatDraft.validate(draft) else { return }
+        selection = nil
         draft = ""
         send(body)
     }

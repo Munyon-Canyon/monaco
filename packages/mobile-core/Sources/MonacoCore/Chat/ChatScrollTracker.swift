@@ -64,8 +64,9 @@ public struct ChatScrollTracker: Equatable, Sendable {
             unreadCount += added.count
             return false
         }
+        let wasFollowing = isFollowingThread
         returnToEnd()
-        return true
+        return !(wasFollowing && added.contains(where: \.isMine))
     }
 
     private mutating func returnToEnd() {

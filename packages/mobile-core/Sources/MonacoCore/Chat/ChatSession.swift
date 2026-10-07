@@ -164,7 +164,10 @@ public actor ChatSession {
         listener?.cancel()
         listener = nil
         channelAttached = false
-        realtime.detach(cabalId: cabalID)
+    }
+
+    private func listenerEnded() {
+        if !Task.isCancelled { listener = nil }
     }
 
     func subscribe() {
@@ -175,6 +178,7 @@ public actor ChatSession {
                 guard let self else { return }
                 await self.apply(event)
             }
+            await self?.listenerEnded()
         }
     }
 

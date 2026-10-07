@@ -50,6 +50,10 @@ public enum MentionInsertion {
         let result = String(chars[..<at]) + inserted + String(chars[cursor...])
         return (result, at + inserted.count)
     }
+
+    public static func caret(in text: String, offset: Int) -> String.Index {
+        text.index(text.startIndex, offsetBy: max(offset, 0), limitedBy: text.endIndex) ?? text.endIndex
+    }
 }
 
 public enum MentionRanges {

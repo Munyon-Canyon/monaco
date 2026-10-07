@@ -1,7 +1,7 @@
 ---
 id: chat/cabal-chat
 title: Cabal chat
-version: 1
+version: 2
 milestone: M19
 requires: [auth/sign-in]
 actors: [A, B]
@@ -34,6 +34,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.1 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-chat` | `QA chat {QA.run}` | `chat-title` reads `QA chat {QA.run}` within 15 s (screens.md Chat: "Title is the cabal tile and name"; old app: Cabal -> Chat) |
 | S1.2 | A | wait | `chat-empty` | | Reads "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy." within 10 s (screens.md Chat: "Empty: the tile, the name, "No messages yet. ..."") |
 | S1.3 | A | type, then tap | `chat-composer`, then `chat-send` | `QA hi {QA.run}` | The composer's placeholder was "Message your cabal", and a message reads `QA hi {QA.run}` within 10 s (screens.md Chat: "Composer "Message your cabal" with a send disc"; "mine on the right in ink"; old app: `GroupChatView` send) |
+| S1.3b | A | type, tap, type, tap, type `@`, tap, then tap | `chat-composer`, `chat-send`, the first `chat-mention-<handle>` in `chat-mention-picker`, then `chat-send` | `QA two {QA.run}`, `QA three {QA.run}`, then `QA mention {QA.run} @` | Each of the three messages reads in the thread within 10 s, `QA hi {QA.run}` is still there, and the app neither crashes nor hangs (#3467) |
 | S1.4 | B | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-action-chat` | `QA chat {QA.run}` | A message reads `QA hi {QA.run}` within 15 s, with A's name over it (screens.md Chat: "Others' messages on the left with the author's avatar ... and name over the first of a run"; old app: B waits for the message) |
 
 ## Ground truth
