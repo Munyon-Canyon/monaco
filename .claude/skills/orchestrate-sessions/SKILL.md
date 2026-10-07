@@ -57,7 +57,7 @@ Never use `gt sync` while other lanes have unpushed work, because it resets thei
 ## Capacity
 
 - A ticket comes first, then an agent. Never start an agent just to fill a lane.
-- Stage 0 capacity is what's short, not dispatch. The check queue, `[check] slots` and the `xcode`/`swiftpm` locks pace the heavy work. Dispatching an agent costs almost no CPU, so keep `[dispatch] max_load` high (300) and don't let it block dispatch.
+- Stage 0 capacity is what's short, not dispatch. The check queue, `[check] slots` and the `xcode`/`swiftpm` locks pace the heavy work. Dispatch is gated by stage 0 queue depth: it refuses while the queue holds more live tickets than `[dispatch] max_queue` × `[check] slots`, so a deep backlog slows dispatch and machine load does not.
 - To raise throughput, change `lanes`, `[check] slots` or `xcode-slots` in `.git/.monaco/`, one at a time, and only after the CI manager's numbers say the machine has room. Back the change off if timing failures pass one every 10 minutes.
 - A check that is already waiting keeps the slot count it read at start. After raising slots, restart the waiting checks, or they hold the head of the line at the old count.
 - Back up the file before you change it. Log each change with what you measured.

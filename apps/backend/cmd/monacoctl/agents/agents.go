@@ -137,6 +137,7 @@ func runCLI(
 			_, _ = fmt.Fprintf(stderr,
 				"monacoctl agents: warning: unknown key %q in %s (newer config, or a typo)\n", key, configPath)
 		}
+		warnDeprecated(stderr, env.Config)
 	}
 	if env != nil && env.featureNote != "" {
 		_, _ = fmt.Fprintln(stderr, env.featureNote)
@@ -282,6 +283,13 @@ func readConfig(top, common string) (Config, string, error) {
 		defer func() { _ = lf.Close() }()
 		cfg, err = applyLocalConfig(cfg, lf)
 		return cfg, local, err
+	}
+}
+
+func warnDeprecated(stderr io.Writer, cfg Config) {
+	for _, path := range cfg.Deprecated {
+		_, _ = fmt.Fprintf(stderr, "monacoctl agents: warning: dispatch.max_load is deprecated and ignored in %s; "+
+			"dispatch is gated by dispatch.max_queue\n", path)
 	}
 }
 

@@ -252,29 +252,30 @@ func TestParseConfig_readsTheCheckSlots(t *testing.T) {
 	}
 }
 
-func TestParseConfig_readsTheDispatchLoadCeilingAndRejectsBadValues(t *testing.T) {
+func TestParseConfig_readsTheDispatchQueueLimitAndRejectsBadValues(t *testing.T) {
 	t.Parallel()
 	base := strings.TrimSuffix(testConfig, "[batch]\nsize = 2\n") + "[batch]\nsize = 2\n"
 	cfg, err := parseConfig(strings.NewReader(base))
-	if err != nil || cfg.MaxLoad != 12 {
-		t.Fatalf("default: %v %v", cfg.MaxLoad, err)
+	if err != nil || cfg.MaxQueue != 3 {
+		t.Fatalf("default: %v %v", cfg.MaxQueue, err)
 	}
-	cfg, err = parseConfig(strings.NewReader(base + "[dispatch]\nmax_load = 8\n"))
-	if err != nil || cfg.MaxLoad != 8 {
-		t.Fatalf("set: %v %v", cfg.MaxLoad, err)
+	cfg, err = parseConfig(strings.NewReader(base + "[dispatch]\nmax_queue = 5\n"))
+	if err != nil || cfg.MaxQueue != 5 {
+		t.Fatalf("set: %v %v", cfg.MaxQueue, err)
 	}
 	for tail, want := range map[string]string{
-		"[dispatch]\nmax_load = 0\n":    "dispatch.max_load: want above 0, got 0",
-		"[dispatch]\nmax_load = high\n": "int: strconv.Atoi",
-		"[dispatch]\nmax_load\n":        "want key = value",
+		"[dispatch]\nmax_queue = 0\n":    "dispatch.max_queue: want at least 1, got 0",
+		"[dispatch]\nmax_queue = high\n": "int: strconv.Atoi",
+		"[dispatch]\nmax_queue\n":        "want key = value",
 	} {
 		if _, err := parseConfig(strings.NewReader(base + tail)); err == nil || !strings.Contains(cliText(err), want) {
 			t.Errorf("%q: got %v, want %q", tail, err, want)
 		}
 	}
-	cfg, err = parseConfig(strings.NewReader(base + "[dispatch]\nlanes_hint = 3\n"))
-	if err != nil || cfg.MaxLoad != 12 || !slices.Equal(cfg.Unknown, []string{"dispatch.lanes_hint"}) {
-		t.Errorf("unknown dispatch key: %q %v", cfg.Unknown, err)
+	cfg, err = parseConfig(strings.NewReader(base + "[dispatch]\nmax_load = 12\n"))
+	if err != nil || cfg.MaxQueue != 3 || len(cfg.Unknown) != 0 || !slices.Equal(cfg.Deprecated, []string{configPath}) {
+		t.Errorf("deprecated max_load: queue=%d unknown=%q deprecated=%q %v",
+			cfg.MaxQueue, cfg.Unknown, cfg.Deprecated, err)
 	}
 }
 
@@ -327,9 +328,9 @@ func TestApplyLocalConfig_acceptsCapacityTrackingAndMilestoneWithinBounds(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := applyLocalConfig(tracked, strings.NewReader("[dispatch]\nmax_load = 20\n"))
-	if err != nil || got.MaxLoad != 20 || got.Lanes != tracked.Lanes || got.Slots != tracked.Slots {
-		t.Fatalf("max_load: %+v %v", got, err)
+	got, err := applyLocalConfig(tracked, strings.NewReader("[dispatch]\nmax_queue = 20\n"))
+	if err != nil || got.MaxQueue != 20 || got.Lanes != tracked.Lanes || got.Slots != tracked.Slots {
+		t.Fatalf("max_queue: %+v %v", got, err)
 	}
 	applied := tracked
 	applied.Tracking, applied.Milestone = 512, "m12"
@@ -345,13 +346,18 @@ func TestApplyLocalConfig_acceptsCapacityTrackingAndMilestoneWithinBounds(t *tes
 		"lanes = 0\n":                    ".monaco/agents.local.toml: lanes: want at least 1, got 0",
 		"tracking = 0\n":                 ".monaco/agents.local.toml: tracking: want at least 1, got 0",
 		"milestone = \"\"\n":             `.monaco/agents.local.toml: milestone: want a name, got ""`,
-		"[dispatch]\nmax_load = 0\n":     ".monaco/agents.local.toml: dispatch.max_load: want above 0, got 0",
+		"[dispatch]\nmax_queue = 0\n":    ".monaco/agents.local.toml: dispatch.max_queue: want at least 1, got 0",
 		"lanes = [\n":                    ".monaco/agents.local.toml:1: want a list",
 	} {
 		if _, err := applyLocalConfig(tracked, strings.NewReader(body)); err == nil ||
 			!strings.Contains(cliText(err), want) {
 			t.Errorf("%q: got %v, want %q", body, cliText(err), want)
 		}
+	}
+	got, err = applyLocalConfig(tracked, strings.NewReader("[dispatch]\nmax_load = 60\n"))
+	if err != nil || got.MaxQueue != tracked.MaxQueue || len(got.Unknown) != 0 ||
+		!slices.Equal(got.Deprecated, []string{localConfigPath}) {
+		t.Fatalf("deprecated max_load: %+v %v", got, err)
 	}
 	if tracked.Budget["go"] != defaultBudget()["go"] {
 		t.Fatalf("a rejected budget line changed the tracked budget: %v", tracked.Budget["go"])
@@ -393,5 +399,22 @@ func TestParseConfig_readsWatchStuckAfterAndDefaultsTo12m(t *testing.T) {
 	if _, err := parseConfig(strings.NewReader(testConfig + "\n[watch]\nstuck_after = \"0s\"\n")); err == nil ||
 		!strings.Contains(cliText(err), "watch.stuck_after: want a positive duration") {
 		t.Fatalf("zero stuck_after: %v", cliText(err))
+	}
+}
+
+func TestAgents_warnsThatMaxLoadIsDeprecatedInBothFiles(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	writeFile(t, filepath.Join(f.dir, configPath), testConfig+"[dispatch]\nmax_load = 300\n")
+	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath), "[dispatch]\nmax_load = 60\n")
+	f.hub.on(list("/pulls?state=open"), []PR{})
+	f.noFailures()
+	code, _, stderr := f.agents(t, "watch", "--once")
+	want := "monacoctl agents: warning: dispatch.max_load is deprecated and ignored in .monaco/agents.toml; " +
+		"dispatch is gated by dispatch.max_queue\n" +
+		"monacoctl agents: warning: dispatch.max_load is deprecated and ignored in .monaco/agents.local.toml; " +
+		"dispatch is gated by dispatch.max_queue\n"
+	if code != 0 || stderr != want {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
 	}
 }
