@@ -24,7 +24,7 @@ HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?
 HEREDOC_OP_RE = re.compile(r"<<(-?)[ \t]*(['\"]?)([^\s'\";&|<>()]+)\2")
 WRAPPERS = {"nohup", "command", "exec", "time", "builtin"}
 SHELL_KEYWORDS = {"do", "then", "else", "elif", "if", "while", "until", "!", "{"}
-SHELLS = {"bash", "sh", "zsh"}
+SHELLS = {"bash", "sh", "zsh", "dash"}
 LOOP_RE = re.compile(r"(^|[\s;&|(])(while|until|for)\s")
 SLEEP_RE = re.compile(r"(\d+(?:\.\d*)?|\.\d+)([smhd]?)")
 SLEEP_UNITS = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -188,6 +188,13 @@ def parse(src: str, cwd: str) -> list[Invocation]:
             continue
         if head in SHELLS and "-c" in argv[1:-1]:
             inner = parse(argv[argv.index("-c") + 1], cwd)
+            for inv in inner:
+                inv.under_timeout = inv.under_timeout or under_timeout
+                inv.in_loop = inv.in_loop or in_loop
+            parsed.extend(inner)
+            continue
+        if head in SHELLS and stdin is not None and all(a.startswith("-") for a in argv[1:]):
+            inner = parse(stdin, cwd)
             for inv in inner:
                 inv.under_timeout = inv.under_timeout or under_timeout
                 inv.in_loop = inv.in_loop or in_loop

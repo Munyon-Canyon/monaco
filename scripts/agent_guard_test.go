@@ -336,6 +336,26 @@ func TestAgentGuard_ignoresCommandTextInsideHeredocBodiesAndComments(t *testing.
 	assertBlocked(t, guard(t, work, "cat > b <<EOF\nx\nEOF\ngit push origin main"), "push after a heredoc", "'main' is not allowed")
 }
 
+func TestAgentGuard_runsRulesOverShellHeredocsAndDashC(t *testing.T) {
+	t.Setenv("PYENV_VERSION", "system")
+	worktree := filepath.Join(t.TempDir(), ".worktrees", "lane")
+	for cmd, want := range map[string]string{
+		"bash <<'EOF'\ngit rebase main\nEOF":                "gt restack",
+		"sh <<EOF\npkill -f foo\nEOF":                       "reaches every lane's processes",
+		"env -i /bin/bash -e <<'EOF'\ngit rebase main\nEOF": "gt restack",
+		"bash -c 'killall go'":                              "reaches every lane's processes",
+	} {
+		assertBlocked(t, guard(t, worktree, cmd), cmd, want)
+	}
+	for _, cmd := range []string{
+		"cat > f <<EOF\ngit rebase main\nEOF",
+		"python3 - <<'EOF'\nprint(\"pkill\")\nEOF",
+		"bash <<'EOF'\ngit status\nEOF",
+	} {
+		assertAllowed(t, guard(t, worktree, cmd), cmd)
+	}
+}
+
 func commitFile(t *testing.T, dir, name, subject string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(subject), 0o644); err != nil {
