@@ -54,7 +54,7 @@ func newQueueHarness(t *testing.T, slots int) *queueHarness {
 	t.Helper()
 	h := &queueHarness{dead: map[int]bool{}, clock: time.Unix(1_800_000_000, 0)}
 	h.q = &checkQueue{
-		dir: filepath.Join(t.TempDir(), "check-queue"), slots: slots,
+		dir: filepath.Join(t.TempDir(), "check-queue"), slots: func() int { return slots },
 		alive: func(pid int) bool { return !h.dead[pid] },
 		after: func(time.Duration) <-chan time.Time { return nil },
 		now: func() time.Time {
@@ -120,6 +120,49 @@ func TestCheckQueue_aCheckRunsOnlyWhenItIsAmongTheFirstSlotsLiveTickets(t *testi
 	}
 	if want := "waiting for a stage 0 slot: position 4 of 4\nwaiting for a stage 0 slot: position 3 of 3\n"; laterWaiting.out.String() != want {
 		t.Fatalf("later printed %q, want %q", laterWaiting.out, want)
+	}
+}
+
+func TestCheckQueue_aWaitingCheckTakesASlotAddedToTheLocalConfigMidWait(t *testing.T) {
+	t.Parallel()
+	f := newFixtureFrom(t, rootedRepo)
+	env := f.Env(t)
+	if env.Config.Slots != 2 {
+		t.Fatalf("the fixture starts at %d slots, want 2", env.Config.Slots)
+	}
+	h := newQueueHarness(t, 0)
+	q := env.checkQueue()
+	q.dir, q.alive, q.now = h.q.dir, h.q.alive, h.q.now
+	h.q = q
+	h.take(t, 101)
+	h.take(t, 102)
+	third := h.take(t, 103)
+	local := filepath.Join(env.Common, localConfigPath)
+	writeFile(t, local, "[check]\nslots = 0\n")
+	w := h.wait(context.Background(), third)
+	w.spin(4)
+	select {
+	case got := <-w.done:
+		t.Fatalf("an unreadable local config dropped the startup slot count: %v", got.err)
+	default:
+	}
+	writeFile(t, local, "[check]\nslots = 3\n")
+	for polls := 0; ; polls++ {
+		select {
+		case got := <-w.done:
+			if got.err != nil {
+				t.Fatalf("the third check runs once check.slots rises to 3: %v", got.err)
+			}
+		case w.tick <- time.Time{}:
+			if polls == 1 {
+				t.Fatal("the third check still waits after check.slots rose to 3")
+			}
+			continue
+		}
+		break
+	}
+	if want := "waiting for a stage 0 slot: position 3 of 3\n"; w.out.String() != want {
+		t.Fatalf("printed %q, want %q", w.out, want)
 	}
 }
 
