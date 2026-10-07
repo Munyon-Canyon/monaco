@@ -43,7 +43,7 @@ func (d proposalDB) buy(voters ...uuid.UUID) sqlc.InsertProposalParams {
 		VoterIds: voters, ID: d.ids.NewV7(), CabalID: d.ids.NewV7(), ProposerID: d.ids.NewV7(),
 		Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 25_000_000, Valid: true},
 		Thesis: pgtype.Text{String: "Earnings next week.", Valid: true}, QuoteOutAmount: 105_000_000,
-		ExpiresAt: d.now.Add(24 * time.Hour), CreatedAt: d.now,
+		ExpiresAt: d.now.Add(24 * time.Hour), CreatedAt: d.now, Threshold: "majority",
 	}
 }
 

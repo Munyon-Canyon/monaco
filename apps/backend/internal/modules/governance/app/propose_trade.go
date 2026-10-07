@@ -113,6 +113,10 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err != nil {
 		return OpenedProposal{}, err
 	}
+	rule, err := domain.ParseThresholdRule(string(rules.Threshold))
+	if err != nil {
+		return OpenedProposal{}, err
+	}
 	voters, err := h.proposerVoters(ctx, cmd)
 	if err != nil {
 		return OpenedProposal{}, err
@@ -132,7 +136,7 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 		return OpenedProposal{}, err
 	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		if _, err := sqlc.New(tx.Queries()).OpenProposal(ctx, openParams(p.Draft(), voters, now)); err != nil {
+		if _, err := sqlc.New(tx.Queries()).OpenProposal(ctx, openParams(p.Draft(), rule, voters, now)); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
 		return tx.Events.Append(ctx, created(p.Draft(), len(voters)))
@@ -141,10 +145,6 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 		return OpenedProposal{}, err
 	}
 	h.hints.ProposalCreated(ctx, cmd.CabalID, p.Draft().ID)
-	rule, err := domain.ParseThresholdRule(string(rules.Threshold))
-	if err != nil {
-		return OpenedProposal{}, err
-	}
 	canVote := false
 	for _, voter := range voters {
 		canVote = canVote || voter == cmd.ProposerID
@@ -237,11 +237,12 @@ func route(
 	return routes.CheckRoute(ctx, asset.ID, market.SideSell, money.NewBaseUnits(trade.TokenAmount, asset.Decimals))
 }
 
-func openParams(d domain.Draft, voters []ids.UserID, now time.Time) sqlc.OpenProposalParams {
+func openParams(d domain.Draft, rule domain.ThresholdRule, voters []ids.UserID, now time.Time) sqlc.OpenProposalParams {
 	params := sqlc.OpenProposalParams{
 		ID: d.ID.UUID(), CabalID: d.CabalID.UUID(), ProposerID: d.ProposerID.UUID(), Kind: string(d.Kind),
 		Symbol: d.Symbol, Mint: string(d.Mint), UsdcMicros: d.USDCMicros.String(), TokenAmount: d.TokenAmount.String(),
-		Thesis: d.Thesis, QuoteOutAmount: strconv.FormatUint(d.QuoteOut, 10), ExpiresAt: d.ExpiresAt, CreatedAt: now,
+		Thesis: d.Thesis, QuoteOutAmount: strconv.FormatUint(d.QuoteOut, 10), Threshold: string(rule),
+		ExpiresAt: d.ExpiresAt, CreatedAt: now,
 		VoterIds: make([]uuid.UUID, len(voters)),
 	}
 	for i, v := range voters {

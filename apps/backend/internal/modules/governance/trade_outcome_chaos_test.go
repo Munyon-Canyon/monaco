@@ -70,6 +70,7 @@ func seedChaosProposals(t *testing.T, h testkit.Harness) {
 			ProposerID: chaosProposal(100 + i), Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint,
 			UsdcMicros: pgtype.Int8{Int64: 25_000_000, Valid: true}, QuoteOutAmount: 105_000_000,
 			ExpiresAt: h.Clock.Now().Add(24 * time.Hour), CreatedAt: h.Clock.Now(),
+			Threshold: "majority",
 		})
 		if err != nil {
 			t.Fatal(err)

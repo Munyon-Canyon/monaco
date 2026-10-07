@@ -40,16 +40,12 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, lookupFailed(err, op)
 	}
-	rule, err := r.thresholds.Threshold(ctx, ids.CabalIDFrom(row.CabalID))
-	if err != nil {
-		return ProposalDetail{}, err
-	}
 	ballots, err := r.q.ProposalVoters(ctx, row.ID)
 	if err != nil {
 		return ProposalDetail{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	voters, tally, isVoter, othersVoted := tallyVoters(ballots, req.Caller)
-	tally.Needed = rule.Needed(tally.Voters)
+	tally.Needed = domain.ThresholdRule(row.Threshold).Needed(tally.Voters)
 	view, err := proposalView(sqlc.ListProposalsRow(row), tally)
 	if err != nil {
 		return ProposalDetail{}, err

@@ -34,7 +34,8 @@ The creator sets the rules at creation:
 
 - **Join mode.** Open (anyone can join) or by request (the creator approves each request).
 - **Voter set.** Every member, or a named list (at least one person, which may be only the creator).
-- **Threshold.** Majority of the voter set, or unanimous.
+- **Threshold.** Majority of the voter set, or unanimous. It is frozen on each proposal when it opens, so a later rules change does not move an open vote.
+- **Whose vote counts.** The voter set is whose vote counts. There is no separate list of required approvers. Every yes from a voter counts toward passing, and people outside the voter set cannot vote.
 - **Vote expiry.** How long a proposal stays open. A proposal that has not passed by then dies and nothing trades.
 
 Rules for membership:

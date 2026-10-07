@@ -23,8 +23,8 @@ VALUES ($1, 'MintHeld', 3, 0, $2)`
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO proposals (id, cabal_id, proposer_id, kind, symbol, mint,
-  usdc_micros, quote_out_amount, status, expires_at, created_at, updated_at)
-VALUES ($1, $2, $3, 'buy', 'PRPx', 'MintProposed', 5, 1, 'open', $4, $4, $4)`,
+  usdc_micros, quote_out_amount, threshold, status, expires_at, created_at, updated_at)
+VALUES ($1, $2, $3, 'buy', 'PRPx', 'MintProposed', 5, 1, 'majority', 'open', $4, $4, $4)`,
 		g.NewV7(), g.NewV7(), g.NewV7(), now); err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,6 @@ func TestHTTP_PostCabalProposal_refusesBeforeAndAfterTheCommand(t *testing.T) {
 	t.Parallel()
 	h := newProposeHarness(t)
 	member := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: h.w.members[0].String()})
-	gone := errs.New(errs.CodeCabalNotFound, "test")
 	thesis := "earnings"
 	usdc := int64(5_000_000)
 	stranger := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: ids.NewUserID(h.d.ids).String()})
@@ -50,7 +49,7 @@ func TestHTTP_PostCabalProposal_refusesBeforeAndAfterTheCommand(t *testing.T) {
 	} {
 		adapter := adapters.HTTP{
 			Propose: h.handler(h.d.ids),
-			Reads:   app.NewProposalReads(h.d.pool, threshold{err: gone}, fakes.NewTrading()),
+			Reads:   app.NewProposalReads(h.d.pool, fakes.NewTrading()),
 		}
 		req := api.PostCabalProposalRequestObject{Id: h.w.cabal.UUID(), Body: &tc.body}
 		got, err := adapter.PostCabalProposal(tc.caller(), req)

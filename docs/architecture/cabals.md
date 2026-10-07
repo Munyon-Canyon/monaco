@@ -93,7 +93,7 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 
 - `UpdateCabal` is creator only. It changes the name, the picture and any rule in [Rules](#rules), the voter list included.
 - A rules change applies to proposals created afterwards. Open proposals keep the voter set frozen at their creation ([proposals.md](proposals.md#data-model)) and their `expires_at`.
-- Two rules are still read live today. The vote path reads `threshold` ([proposals.md](proposals.md#vote-path)) and the trade engine reads `slippage_bps` ([trade-execution.md](trade-execution.md#stage-2-trade-engine)) through this module's query port when they run. Until governance copies both onto the proposal at creation, a change to either reaches open proposals ([Open questions](#open-questions)).
+- `threshold` is frozen on the proposal at creation ([proposals.md](proposals.md#data-model)), so a change never reaches an open vote. The trade engine still reads `slippage_bps` ([trade-execution.md](trade-execution.md#stage-2-trade-engine)) through this module's query port when it runs, so a change to it reaches open proposals ([Open questions](#open-questions)).
 - Switching `join_mode` from `request` to `open` leaves pending requests as they are. The creator can still decide them, and the requester can now join directly; that `JoinCabal` sets their pending request to `approved` in the same Unit of Work.
 - Emits `cabal.updated` with the fields that changed.
 
@@ -151,7 +151,7 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 
 ## Open questions
 
-- **Freezing threshold and slippage.** [Edit](#edit) says a rules change applies to later proposals, but [proposals.md](proposals.md#vote-path) counts votes against the cabal's current threshold and the trade engine reads the current slippage. Closing the gap means `ProposeTrade` copies both onto the proposal, which is a governance change.
+- **Freezing slippage.** [Edit](#edit) says a rules change applies to later proposals, but the trade engine reads the current slippage. Closing the gap means `ProposeTrade` copies it onto the proposal, which is a governance change.
 - **Admin role.** Whether a creator can name co-admins who decide requests and invite. Not in the MVP.
 - **Invite code rotation.** Whether the creator can rotate a leaked code. Not in the MVP; the code grants no access beyond the join mode, so a leak in a `request` cabal only produces requests.
 

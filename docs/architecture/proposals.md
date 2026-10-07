@@ -38,12 +38,13 @@ Only `proposals`, `proposal_voters` and `votes` are governance tables. The other
 | `usdc_micros` / `token_amount` | Trade amount. Exactly one is set: `usdc_micros` for a buy, `token_amount` (the mint's base units) for a sell. On `proposal.passed`, `usdc_micros` is a `money.Micros` and `token_amount` is a `uint64` encoded as a JSON string. Immutable once the first vote is cast. |
 | `thesis` | Proposer's short reason, shown on the card. |
 | `quote_out_amount` | Quote at creation. Reference price for the slippage check at execution (see [trade-execution.md](trade-execution.md#stage-2-trade-engine)). |
+| `threshold` | `majority` or `unanimous`, copied from the cabal's rules in the `ProposeTrade` transaction. Immutable. Vote tallies and the `need` in proposal reads use this value, never the cabal's current rule. |
 | `status` | See below. |
 | `status_reason` | The `errs` code from `trade.blocked` when `execution_blocked`; null otherwise. The user-facing message comes from the [code table](backend-platform.md#errors). |
 | `void_reason` | The reason given when the proposal is `voided`; null otherwise. It is carried as `reason` on `proposal.voided`. |
 | `expires_at`, `created_at`, `updated_at` | |
 
-**`proposal_voters`**: `proposal_id`, `voter_id`. The cabal's voter set, copied from the cabal module's query port in the `ProposeTrade` transaction. Members who join or leave mid-vote do not change it, so the threshold a proposal needs is fixed when it opens.
+**`proposal_voters`**: `proposal_id`, `voter_id`. The cabal's voter set, copied from the cabal module's query port in the `ProposeTrade` transaction. Members who join or leave mid-vote do not change it, so the number of yes votes a proposal needs is fixed when it opens.
 
 **`votes`**: `proposal_id`, `voter_id`, `choice` (`yes`/`no`), `cast_at`. One ballot per voter per proposal. A voter may change their ballot while the proposal is `open` (upsert on the primary key); ballots are frozen once status leaves `open`.
 
@@ -81,7 +82,7 @@ For agent proposals (`agent_*` kinds), `passed` emits `proposal.passed` like any
 
 1. Lock the proposal row. Refuse with a `Blocked` code if not `open`, or `Forbidden` if the caller is not in the proposal's frozen voter set (`proposal_voters`).
 2. Upsert the ballot.
-3. Count yes and no against the frozen voter set and the cabal's threshold rule (majority or unanimous). This is a pure domain function over integers, no network.
+3. Count yes and no against the frozen voter set and the proposal's own frozen `threshold` (majority or unanimous), read from the locked row. This is a pure domain function over integers, no network.
 4. If still undecided, commit and return. **No execution check.**
 5. If `failed`, guarded update to `failed`, append `proposal.failed`, commit.
 6. If `passed`, guarded update to `passed`, append `proposal.passed`, commit. The trade engine picks it up over the bus. The HTTP response returns `passed` immediately. Execution is asynchronous, and the client sees `executed` or `execution_blocked` on the proposal detail after an SSE hint or a push.

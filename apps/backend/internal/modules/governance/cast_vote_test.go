@@ -22,19 +22,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-type threshold struct {
-	rule   domain.ThresholdRule
-	err    error
-	before func(ctx context.Context)
-}
-
-func (r threshold) Threshold(ctx context.Context, _ ids.CabalID) (domain.ThresholdRule, error) {
-	if r.before != nil {
-		r.before(ctx)
-	}
-	return r.rule, r.err
-}
-
 type voteDB struct {
 	proposalDB
 	uow *db.UnitOfWork
@@ -50,17 +37,23 @@ func newVoteDB(t *testing.T) voteDB {
 
 func (d voteDB) open(t *testing.T, voters int) (sqlc.InsertProposalParams, []uuid.UUID) {
 	t.Helper()
+	return d.openUnder(t, voters, "majority")
+}
+
+func (d voteDB) openUnder(t *testing.T, voters int, rule string) (sqlc.InsertProposalParams, []uuid.UUID) {
+	t.Helper()
 	set := make([]uuid.UUID, voters)
 	for i := range set {
 		set[i] = d.ids.NewV7()
 	}
 	p := d.buy(set...)
+	p.Threshold = rule
 	d.insert(t, p)
 	return p, set
 }
 
-func (d voteDB) handler(t threshold) *app.CastVoteHandler {
-	return app.NewCastVoteHandler(d.uow, d.pool, d.clk, t, app.NoHints{})
+func (d voteDB) handler() *app.CastVoteHandler {
+	return app.NewCastVoteHandler(d.uow, d.clk, app.NoHints{})
 }
 
 func (voteDB) cast(
@@ -149,7 +142,7 @@ func wantResult(t *testing.T, got app.CastVoteResult, status domain.Status, tall
 func TestCastVote_MajorityPasses(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
-	h := d.handler(threshold{rule: domain.RuleMajority})
+	h := d.handler()
 	p, v := d.open(t, 4)
 	wantResult(t, d.mustCast(t, h, p.ID, v[0], domain.ChoiceYes), domain.StatusOpen,
 		app.Tally{Yes: 1, Voters: 4, Needed: 3}, domain.ChoiceYes)
@@ -196,7 +189,7 @@ func TestCastVote_sellPassesWithItsTokenAmount(t *testing.T) {
 	p := d.buy(voter)
 	p.Kind, p.UsdcMicros, p.TokenAmount = "sell", pgtype.Int8{}, pgtype.Int8{Int64: 3_000_000, Valid: true}
 	d.insert(t, p)
-	d.mustCast(t, d.handler(threshold{rule: domain.RuleMajority}), p.ID, voter, domain.ChoiceYes)
+	d.mustCast(t, d.handler(), p.ID, voter, domain.ChoiceYes)
 	var ev events.ProposalPassed
 	if err := json.Unmarshal(d.payloads(t, p.ID, events.TypeProposalPassed)[0], &ev); err != nil {
 		t.Fatal(err)
@@ -209,8 +202,8 @@ func TestCastVote_sellPassesWithItsTokenAmount(t *testing.T) {
 func TestCastVote_UnanimousFailsOnFirstNo(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
-	h := d.handler(threshold{rule: domain.RuleUnanimous})
-	p, v := d.open(t, 3)
+	h := d.handler()
+	p, v := d.openUnder(t, 3, "unanimous")
 	d.mustCast(t, h, p.ID, v[0], domain.ChoiceYes)
 	got := d.mustCast(t, h, p.ID, v[1], domain.ChoiceNo)
 	wantResult(t, got, domain.StatusFailed, app.Tally{Yes: 1, No: 1, Voters: 3, Needed: 3}, domain.ChoiceNo)
@@ -227,10 +220,30 @@ func TestCastVote_UnanimousFailsOnFirstNo(t *testing.T) {
 	}
 }
 
+func TestCastVote_openProposalKeepsItsThresholdAfterARuleChange(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	c := testkit.NewCabal(t, d.pool, testkit.WithMembers(3))
+	p, v := d.open(t, 3)
+	p.CabalID = c.ID.UUID()
+	move := `UPDATE proposals SET cabal_id = $2 WHERE id = $1`
+	if _, err := d.pool.Exec(t.Context(), move, p.ID, p.CabalID); err != nil {
+		t.Fatal(err)
+	}
+	tighten := `UPDATE cabals SET threshold = 'unanimous' WHERE id = $1`
+	if _, err := d.pool.Exec(t.Context(), tighten, p.CabalID); err != nil {
+		t.Fatal(err)
+	}
+	h := d.handler()
+	d.mustCast(t, h, p.ID, v[0], domain.ChoiceYes)
+	got := d.mustCast(t, h, p.ID, v[1], domain.ChoiceYes)
+	wantResult(t, got, domain.StatusPassed, app.Tally{Yes: 2, Voters: 3, Needed: 2}, domain.ChoiceYes)
+}
+
 func TestCastVote_ChangeBallotWhileOpen(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
-	h := d.handler(threshold{rule: domain.RuleMajority})
+	h := d.handler()
 	p, v := d.open(t, 3)
 	d.mustCast(t, h, p.ID, v[0], domain.ChoiceNo)
 	got := d.mustCast(t, h, p.ID, v[0], domain.ChoiceYes)
@@ -245,7 +258,7 @@ func TestCastVote_ChangeBallotWhileOpen(t *testing.T) {
 func TestCastVote_VoterSetFrozen(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
-	h := d.handler(threshold{rule: domain.RuleMajority})
+	h := d.handler()
 	p, _ := d.open(t, 2)
 	joinedLater := d.ids.NewV7()
 	_, err := d.cast(t.Context(), h, p.ID, joinedLater, domain.ChoiceYes)
@@ -260,7 +273,7 @@ func TestCastVote_VoterSetFrozen(t *testing.T) {
 func TestCastVote_refusals(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
-	h := d.handler(threshold{rule: domain.RuleMajority})
+	h := d.handler()
 	_, err := d.cast(t.Context(), h, d.ids.NewV7(), d.ids.NewV7(), domain.ChoiceYes)
 	if errs.CodeOf(err) != errs.CodeProposalNotFound {
 		t.Errorf("a vote on an unknown proposal err = %v, want proposal_not_found", err)
@@ -272,29 +285,8 @@ func TestCastVote_refusals(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := d.cast(ctx, h, p.ID, v[0], domain.ChoiceYes); errs.CodeOf(err) != errs.CodeInternal {
-		t.Errorf("a vote on a cancelled context err = %v, want internal", err)
-	}
-	broken := d.handler(threshold{err: errs.New(errs.CodeCabalNotFound, "test")})
-	if _, err := d.cast(t.Context(), broken, p.ID, v[0], domain.ChoiceYes); errs.CodeOf(err) != errs.CodeCabalNotFound {
-		t.Errorf("a vote whose cabal rule cannot be read err = %v, want cabal_not_found", err)
-	}
-}
-
-func TestCastVote_proposalGoneBeforeTheLockIsNotFound(t *testing.T) {
-	t.Parallel()
-	d := newVoteDB(t)
-	p, v := d.open(t, 1)
-	h := d.handler(threshold{rule: domain.RuleMajority, before: func(ctx context.Context) {
-		if _, err := d.pool.Exec(ctx, `DELETE FROM proposal_voters WHERE proposal_id = $1;`, p.ID); err != nil {
-			t.Error(err)
-		}
-		if _, err := d.pool.Exec(ctx, `DELETE FROM proposals WHERE id = $1`, p.ID); err != nil {
-			t.Error(err)
-		}
-	}})
-	if _, err := d.cast(t.Context(), h, p.ID, v[0], domain.ChoiceYes); errs.CodeOf(err) != errs.CodeProposalNotFound {
-		t.Fatalf("err = %v, want proposal_not_found", err)
+	if _, err := d.cast(ctx, h, p.ID, v[0], domain.ChoiceYes); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Errorf("a vote on a cancelled context err = %v, want db_unavailable", err)
 	}
 }
 
@@ -317,7 +309,7 @@ func TestCastVote_aRefusedWriteRollsTheBallotBack(t *testing.T) {
 			if _, err := d.pool.Exec(t.Context(), trigger); err != nil {
 				t.Fatal(err)
 			}
-			_, err := d.cast(t.Context(), d.handler(threshold{rule: domain.RuleMajority}), p.ID, v[0], domain.ChoiceYes)
+			_, err := d.cast(t.Context(), d.handler(), p.ID, v[0], domain.ChoiceYes)
 			if err == nil {
 				t.Fatal("CastVote succeeded through a refused write")
 			}
@@ -331,7 +323,7 @@ func TestCastVote_aRefusedWriteRollsTheBallotBack(t *testing.T) {
 func TestCastVote_ConcurrentDecidingVotes(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
-	h := d.handler(threshold{rule: domain.RuleMajority})
+	h := d.handler()
 	p, v := d.open(t, 20)
 	results := make([]app.CastVoteResult, len(v))
 	failures := make([]error, len(v))

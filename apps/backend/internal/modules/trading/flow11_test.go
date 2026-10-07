@@ -60,8 +60,8 @@ func (f *flow11) openBuy(t *testing.T) {
 	f.proposal, f.votes = ids.ProposalIDFrom(id), "/v1/proposals/"+id.String()+"/votes"
 	if _, err := f.s.DB().Exec(t.Context(), `WITH p AS (
 		INSERT INTO proposals (id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, quote_out_amount,
-			status, expires_at, created_at, updated_at)
-		VALUES ($1, $2, $3, 'buy', 'AAPLx', $4, $5, $6, 'open', $7, $8, $8) RETURNING id)
+			threshold, status, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, 'buy', 'AAPLx', $4, $5, $6, 'majority', 'open', $7, $8, $8) RETURNING id)
 		INSERT INTO proposal_voters (proposal_id, voter_id) SELECT p.id, $3 FROM p`,
 		id, f.cabal.UUID(), f.voter.UUID(), aaplxMint, buyMicros, quotedOut, now.Add(24*time.Hour), now,
 	); err != nil {
