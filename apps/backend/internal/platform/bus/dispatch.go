@@ -340,6 +340,11 @@ func (r *Registry) respond(
 			}, res.handler)
 		}
 	}
+	if verdict == OutcomeAck && msg.Headers().Get(RedrivenHeader) == durable {
+		r.deadLetter(ctx, durable, DeadLetter{
+			Consumer: durable, Subject: msg.Subject(), MsgID: EventIDOf(msg.Headers()), Code: ResolvedCode,
+		}, "resolved/"+msg.Headers().Get(jetstream.MsgIDHeader))
+	}
 	var err error
 	switch verdict {
 	case OutcomeNak:

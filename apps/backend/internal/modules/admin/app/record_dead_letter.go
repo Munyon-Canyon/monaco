@@ -24,7 +24,6 @@ import (
 const (
 	DeadLettersDurable = "admin_deadletters"
 	deadLettersBatch   = 100
-	resolvedCode       = "ok"
 	statusResolved     = "resolved"
 )
 
@@ -52,7 +51,7 @@ func NewRecordDeadLetter(uow *db.UnitOfWork, g ids.Generator, c clock.Clock, eve
 }
 
 func (h *RecordDeadLetter) Record(ctx context.Context, letter bus.DeadLetter) (bool, error) {
-	if letter.Code == resolvedCode {
+	if letter.Code == bus.ResolvedCode {
 		return h.resolve(ctx, letter)
 	}
 	origin, err := h.origin(ctx, letter)
@@ -105,7 +104,7 @@ func (h *RecordDeadLetter) resolve(ctx context.Context, marker bus.DeadLetter) (
 		return false, err
 	}
 	observability.Info(ctx, observability.AdminDeadLetterRecorded,
-		slog.String("consumer", marker.Consumer), slog.String("code", resolvedCode),
+		slog.String("consumer", marker.Consumer), slog.String("code", bus.ResolvedCode),
 		slog.String("status", statusResolved))
 	return true, nil
 }

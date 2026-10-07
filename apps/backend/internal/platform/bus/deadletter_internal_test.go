@@ -136,3 +136,17 @@ func TestDeadLetterEventID_prefersTheRedriveHeaderOverTheStreamMessageID(t *test
 		t.Fatalf("EventID = %q, want the Monaco-Event-Id header", got)
 	}
 }
+
+type letterGetter map[uint64]string
+
+func (g letterGetter) GetMsg(_ context.Context, seq uint64, _ ...jetstream.GetMsgOpt) (*jetstream.RawStreamMsg, error) {
+	return &jetstream.RawStreamMsg{Data: []byte(g[seq])}, nil
+}
+
+func TestReadDeadLetters_skipsResolutionMarkers(t *testing.T) {
+	t.Parallel()
+	letters, err := readDeadLetters(t.Context(), letterGetter{1: `{"code":"ok"}`, 2: `{"code":"invalid_input"}`}, 1, 2)
+	if err != nil || len(letters) != 1 || letters[0].Seq != 2 || letters[0].Code != "invalid_input" {
+		t.Fatalf("letters = %+v, %v, want only the termed letter at sequence 2", letters, err)
+	}
+}
