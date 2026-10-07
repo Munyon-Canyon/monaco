@@ -2,7 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -13,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -53,23 +58,28 @@ func (*SamplePrices) Name() string { return "market.prices" }
 func (p *SamplePrices) Interval() time.Duration { return p.interval }
 
 func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
-	assets, err := p.catalog.ListAll(ctx)
-	if err != nil {
+	assets, allErr := p.catalog.ListAll(ctx)
+	listed, listedErr := p.catalog.ListPriceable(ctx)
+	if err := errors.Join(allErr, listedErr); err != nil {
 		return poller.Report{}, err
 	}
 	at := domain.Bucket(p.clock.Now())
-	need, err := p.needs(ctx, assets)
+	need, err := p.needs(ctx, assets, listed)
 	if err != nil {
 		return poller.Report{}, err
 	}
+	asked := need.mints()
 	fetchCtx, cancelFetch := context.WithTimeout(ctx, p.interval/2)
-	answered, sampleErr := p.source.Prices(fetchCtx, need.mints)
+	answered, sampleErr := p.source.Prices(fetchCtx, asked)
 	cancelFetch()
 	rows := sqlc.InsertPricePointsParams{Ts: at, Source: string(domain.SourceJupiter)}
-	for _, m := range need.mints {
-		if stored, ok := storable(answered, m); ok {
-			rows.Mints = append(rows.Mints, m.String())
+	var left []domain.Asset
+	for _, a := range need.assets {
+		if stored, ok := storable(answered, a.Mint); ok {
+			rows.Mints = append(rows.Mints, a.Mint.String())
 			rows.PriceMicros = append(rows.PriceMicros, stored)
+		} else {
+			left = append(left, a)
 		}
 	}
 	written, err := p.insert(ctx, rows)
@@ -86,8 +96,9 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 	if err != nil {
 		return poller.Report{}, err
 	}
-	missing := len(need.mints) - len(rows.Mints)
-	report := poller.Report{Scanned: len(need.mints), Changed: written, Attrs: []slog.Attr{
+	missing := len(left)
+	logMissing(ctx, left)
+	report := poller.Report{Scanned: len(asked), Changed: written, Attrs: []slog.Attr{
 		slog.Int("priced", len(rows.Mints)), slog.Int("missing", missing),
 		slog.Int("hot", need.hot), slog.Int("cold", need.cold), slog.Int("failed_batches", 0),
 	}}
@@ -97,6 +108,29 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 			slog.Int("hot", need.hot), slog.Int("cold", need.cold))
 	}
 	return report, nil
+}
+
+const missingMintsLogged = 10
+
+func logMissing(ctx context.Context, left []domain.Asset) {
+	if len(left) == 0 {
+		return
+	}
+	byIssuer := map[domain.Issuer]int{}
+	first := make([]string, 0, missingMintsLogged)
+	for _, a := range left {
+		byIssuer[a.Issuer]++
+		if len(first) < missingMintsLogged {
+			first = append(first, a.Mint.String())
+		}
+	}
+	issuers := make([]string, 0, len(byIssuer))
+	for issuer, n := range byIssuer {
+		issuers = append(issuers, string(issuer)+"="+strconv.Itoa(n))
+	}
+	slices.Sort(issuers)
+	observability.Info(ctx, observability.MarketPricesMissing, slog.Int("missing", len(left)),
+		slog.String("by_issuer", strings.Join(issuers, ",")), slog.String("mints", strings.Join(first, ",")))
 }
 
 func storable(answered map[domain.Mint]money.Micros, m domain.Mint) (int64, bool) {

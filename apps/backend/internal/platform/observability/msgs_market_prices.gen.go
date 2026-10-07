@@ -5,6 +5,7 @@ package observability
 func init() {
 	register(
 		MarketPriceMoved,
+		MarketPricesMissing,
 		JupiterPriceSkipped,
 	)
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -136,14 +137,18 @@ func seedAssets(t *testing.T, pool *pgxpool.Pool, at time.Time, assets ...market
 	t.Helper()
 	rows := make([][]any, len(assets))
 	for i, a := range assets {
+		var rank any
+		if a.PopularRank > 0 {
+			rank = a.PopularRank
+		}
 		rows[i] = []any{
 			a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind),
-			a.DisplayName, a.IssuerTradable, a.CompanyKey, at, at,
+			a.DisplayName, a.IssuerTradable, a.CompanyKey, at, at, at, rank,
 		}
 	}
 	columns := []string{
 		"id", "symbol", "mint", "decimals", "issuer", "kind", "display_name", "issuer_tradable", "company_key",
-		"first_seen_at", "updated_at",
+		"first_seen_at", "updated_at", "chain_checked_at", "popular_rank",
 	}
 	if _, err := pool.CopyFrom(t.Context(), pgx.Identifier{"assets"}, columns, pgx.CopyFromRows(rows)); err != nil {
 		t.Fatal(err)
@@ -272,7 +277,7 @@ func wantTick(t *testing.T, got events.PriceTick, asOf time.Time, want ...events
 	}
 }
 
-func TestSamplePrices_writesEachPricedMintInItsBucketPausedMintsIncluded(t *testing.T) {
+func TestSamplePrices_writesEachPricedMintInItsBucketAndSkipsAPausedUnpopularOne(t *testing.T) {
 	t.Parallel()
 	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
 	q := &quotes{}
@@ -283,19 +288,17 @@ func TestSamplePrices_writesEachPricedMintInItsBucketPausedMintsIncluded(t *test
 		t.Fatalf("poller %s every %s, want market.prices every 2m", r.poller.Name(), r.poller.Interval())
 	}
 	report, err := r.poller.Tick(t.Context())
-	if err != nil || report.Scanned != 3 || report.Changed != 2 || attr(report.Attrs, "priced") != "2" ||
+	if err != nil || report.Scanned != 2 || report.Changed != 1 || attr(report.Attrs, "priced") != "1" ||
 		attr(report.Attrs, "missing") != "1" {
-		t.Fatalf("Tick = %+v, %v, want 3 scanned, 2 written and TSLAx counted missing", report, err)
+		t.Fatalf("Tick = %+v, %v, want 2 scanned, 1 written and TSLAx counted missing, paused JPSTx not asked",
+			report, err)
 	}
-	wantPoints(t, r.pool,
-		pricePoint{aapl.Mint.String(), r.bucket, 254_371_234, "jupiter"},
-		pricePoint{jpst.Mint.String(), r.bucket, 50_120_000, "jupiter"},
-	)
+	wantPoints(t, r.pool, pricePoint{aapl.Mint.String(), r.bucket, 254_371_234, "jupiter"})
 	sent := r.ticks.published()
 	if len(sent) != 1 {
 		t.Fatalf("published %d price.tick messages, want 1", len(sent))
 	}
-	wantTick(t, sent[0], r.bucket, tickPrice(aapl, 254_371_234, r.bucket), tickPrice(jpst, 50_120_000, r.bucket))
+	wantTick(t, sent[0], r.bucket, tickPrice(aapl, 254_371_234, r.bucket))
 }
 
 func TestSamplePrices_aRestartInTheSameBucketLeavesOneRowPerMint(t *testing.T) {
@@ -445,13 +448,18 @@ func TestSamplePrices_aTickAsksForTheHotMintsAndOneColdSlotOnly(t *testing.T) {
 	}
 }
 
-func TestSamplePrices_thirteenTicksAskForTheWholeCatalog(t *testing.T) {
+func TestSamplePrices_ceilListedOver100TicksAskForEveryListedMintAndNoOther(t *testing.T) {
 	t.Parallel()
-	assets := generatedCatalog(t, 1282)
+	const listed, unlisted = 1282, 40
+	assets := generatedCatalog(t, listed+unlisted)
+	for i := listed; i < len(assets); i++ {
+		assets[i].IssuerTradable = false
+	}
 	asked := &askedSource{next: &quotes{}}
 	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return asked }, assets...)
 	seen := map[domain.Mint]bool{}
-	for i := range 13 {
+	ticks := (listed + 99) / 100
+	for i := range ticks {
 		if _, err := r.poller.Tick(t.Context()); err != nil {
 			t.Fatal(err)
 		}
@@ -464,8 +472,56 @@ func TestSamplePrices_thirteenTicksAskForTheWholeCatalog(t *testing.T) {
 		}
 		r.clock.Advance(2 * time.Minute)
 	}
-	if len(seen) != 1282 {
-		t.Fatalf("13 ticks asked for %d distinct mints, want all 1282", len(seen))
+	for i, a := range assets {
+		if listedMint := i < listed; seen[a.Mint] != listedMint {
+			t.Fatalf("asset %d asked = %v over %d ticks, want %v", i, seen[a.Mint], ticks, listedMint)
+		}
+	}
+}
+
+func TestSamplePrices_aTickAsksForPopularMintsEvenWhenTheyAreNotListed(t *testing.T) {
+	t.Parallel()
+	assets := generatedCatalog(t, 300)
+	assets[10].PopularRank = 1
+	assets[299].PopularRank = 2
+	assets[299].IssuerTradable = false
+	asked := &askedSource{next: &quotes{}}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return asked }, assets...)
+	report, err := r.poller.Tick(t.Context())
+	got := asked.tick(0)
+	if err != nil || attr(report.Attrs, "hot") != "2" || !slices.Contains(got, assets[10].Mint) ||
+		!slices.Contains(got, assets[299].Mint) {
+		t.Fatalf("Tick = %+v, %v, asked %d mints, want both popular mints as the 2 hot", report, err, len(got))
+	}
+}
+
+func TestSamplePrices_logsTheMintsJupiterLeftOutByIssuerWithTheFirstTen(t *testing.T) {
+	t.Parallel()
+	assets := generatedCatalog(t, 14)
+	assets[0].Issuer = domain.IssuerPreStocks
+	q := &quotes{}
+	q.quote(assets[13], 1_000_000)
+	r := newSampleRig(t, fixed(q), assets...)
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	if _, err := r.poller.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var lines []map[string]any
+	for line := range strings.Lines(string(logs.Bytes())) {
+		var got map[string]any
+		if json.Unmarshal([]byte(line), &got) == nil && got["msg"] == "market.prices.missing" {
+			lines = append(lines, got)
+		}
+	}
+	if len(lines) != 1 {
+		t.Fatalf("got %d market.prices.missing lines, want 1 per tick", len(lines))
+	}
+	got := lines[0]
+	mints := strings.Split(got["mints"].(string), ",")
+	missing := attr([]slog.Attr{slog.Any("missing", got["missing"])}, "missing")
+	if missing != "13" || got["by_issuer"] != "prestocks=1,xstocks=12" || len(mints) != 10 {
+		t.Fatalf("missing line = %v, want 13 missing, prestocks=1,xstocks=12 and 10 mints", got)
 	}
 }
 

@@ -189,11 +189,16 @@ func ensureSamplerCatalog() scenario.Step {
 		for _, a := range append(marketfake.Fixtures(), marketfake.TSpaceX()) {
 			_, err := s.DB().Exec(s.Context(), `INSERT INTO assets (
 				id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable, company_key,
-				first_seen_at, updated_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				first_seen_at, updated_at, chain_checked_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $10)
 				ON CONFLICT DO NOTHING`,
 				a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind),
-				a.DisplayName, a.IssuerTradable, a.CompanyKey, now, now)
+				a.DisplayName, a.IssuerTradable, a.CompanyKey, now)
+			if err == nil {
+				_, err = s.DB().Exec(s.Context(),
+					`UPDATE assets SET chain_checked_at = $2 WHERE mint = $1 AND chain_checked_at IS NULL`,
+					a.Mint.String(), now)
+			}
 			if err != nil {
 				s.Fatalf("flows: seed %s: %v", a.Symbol, err)
 			}
@@ -241,7 +246,9 @@ func deletePricePoints() scenario.Step {
 
 func countAssets(dst *int) scenario.Step {
 	return func(s *scenario.Scenario) {
-		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM assets`).Scan(dst); err != nil {
+		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM assets
+			WHERE popular_rank IS NOT NULL
+			   OR (chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable))`).Scan(dst); err != nil {
 			s.Fatalf("flows: count assets: %v", err)
 		}
 	}

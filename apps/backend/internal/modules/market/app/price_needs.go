@@ -16,11 +16,19 @@ type HotMints func(context.Context) ([]chain.SolanaAddress, error)
 const coldPerTick = 100
 
 type priceNeeds struct {
-	mints     []domain.Mint
+	assets    []domain.Asset
 	hot, cold int
 }
 
-func (p *SamplePrices) needs(ctx context.Context, assets []domain.Asset) (priceNeeds, error) {
+func (n priceNeeds) mints() []domain.Mint {
+	out := make([]domain.Mint, len(n.assets))
+	for i, a := range n.assets {
+		out[i] = a.Mint
+	}
+	return out
+}
+
+func (p *SamplePrices) needs(ctx context.Context, all, listed []domain.Asset) (priceNeeds, error) {
 	hot := map[chain.SolanaAddress]bool{}
 	for _, read := range p.hot {
 		mints, err := read(ctx)
@@ -32,15 +40,16 @@ func (p *SamplePrices) needs(ctx context.Context, assets []domain.Asset) (priceN
 		}
 	}
 	var n priceNeeds
-	for _, a := range assets {
-		if hot[a.Mint.Address()] {
-			n.mints = append(n.mints, a.Mint)
+	for _, a := range all {
+		if hot[a.Mint.Address()] || a.PopularRank > 0 {
+			hot[a.Mint.Address()] = true
+			n.assets = append(n.assets, a)
 		}
 	}
-	n.hot = len(n.mints)
-	for _, a := range coldSlot(assets, p.clock.Now(), p.interval) {
+	n.hot = len(n.assets)
+	for _, a := range coldSlot(listed, p.clock.Now(), p.interval) {
 		if !hot[a.Mint.Address()] {
-			n.mints = append(n.mints, a.Mint)
+			n.assets = append(n.assets, a)
 			n.cold++
 		}
 	}
