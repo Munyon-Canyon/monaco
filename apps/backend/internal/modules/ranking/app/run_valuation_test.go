@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
@@ -257,6 +258,11 @@ func TestSnapshotWriter_queries(t *testing.T) {
 	if err := writer.snapshots(t.Context(), fake, valuation); err == nil {
 		t.Fatal("snapshots() error = nil")
 	}
+	if err := writer.snapshots(t.Context(), &snapshotQueriesFake{}, Valuation{
+		AsOf: time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC), Cabals: []CabalValue{value},
+	}); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("snapshots() with an unencodable time = %v", err)
+	}
 	maxMicros, maxShares := money.MicrosFromUint64(^uint64(0)), money.SharesUnitsFromUint64(^uint64(0))
 	for _, overflow := range []CabalValue{{Value: maxMicros}, {NavPerShare: maxMicros}, {TotalShares: maxShares}} {
 		if _, err := int64s(overflow); errs.CodeOf(err) != errs.CodeInvalidInput {
@@ -271,6 +277,43 @@ func TestSnapshotWriter_queries(t *testing.T) {
 	tooMany := Valuation{Excluded: int(^uint(0) >> 1)}
 	if err := writer.run(t.Context(), fake, runID, tooMany, now, now); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("run() = %v", err)
+	}
+}
+
+func TestSnapshotWriter_snapshotsMakeOneStatementForEveryCabal(t *testing.T) {
+	t.Parallel()
+	fake := &snapshotQueriesFake{}
+	valuation := Valuation{AsOf: valuationTime(), PricesAsOf: valuationTime()}
+	for i := range 3 {
+		valuation.Cabals = append(valuation.Cabals, CabalValue{
+			CabalID:     ids.CabalIDFrom(ids.Real{}.NewV7()),
+			Value:       money.MicrosFromUint64(uint64(10 + i)),
+			NavPerShare: money.MicrosFromUint64(uint64(20 + i)),
+			TotalShares: money.SharesUnitsFromUint64(uint64(30 + i)),
+		})
+	}
+	if err := (SnapshotWriter{}).snapshots(t.Context(), fake, valuation); err != nil {
+		t.Fatalf("snapshots() = %v", err)
+	}
+	var rows []snapshotRow
+	if err := json.Unmarshal(fake.snapshotRows, &rows); err != nil || fake.snapshots != 1 || len(rows) != 3 {
+		t.Fatalf("snapshots() made %d statements with %d rows (%v), want 1 with 3", fake.snapshots, len(rows), err)
+	}
+	for i, row := range rows {
+		cabal := valuation.Cabals[i]
+		if row.CabalID != cabal.CabalID.UUID() || !row.At.Equal(valuation.AsOf) || row.ValueMicros != int64(10+i) ||
+			row.NavPerShareMicros != int64(20+i) || row.TotalShares != int64(30+i) {
+			t.Fatalf("row %d = %+v, want cabal %v at %v", i, row, cabal.CabalID, valuation.AsOf)
+		}
+	}
+}
+
+func TestSnapshotWriter_snapshotsMakeNoStatementWithoutCabals(t *testing.T) {
+	t.Parallel()
+	fake := &snapshotQueriesFake{}
+	if err := (SnapshotWriter{}).snapshots(t.Context(), fake, Valuation{AsOf: valuationTime()}); err != nil ||
+		fake.snapshots != 0 {
+		t.Fatalf("snapshots() = %v after %d statements, want none", err, fake.snapshots)
 	}
 }
 
@@ -349,6 +392,7 @@ type snapshotQueriesFake struct {
 	previousErr                        error
 	previous                           []sqlc.LeaderboardEntry
 	snapshots                          int
+	snapshotRows                       []byte
 	entries                            []byte
 }
 
@@ -366,8 +410,9 @@ func (f *snapshotQueriesFake) InsertLeaderboardEntries(_ context.Context, rows [
 	return f.entriesErr
 }
 
-func (f *snapshotQueriesFake) InsertCabalValueSnapshot(context.Context, sqlc.InsertCabalValueSnapshotParams) error {
+func (f *snapshotQueriesFake) InsertCabalValueSnapshots(_ context.Context, rows []byte) error {
 	f.snapshots++
+	f.snapshotRows = rows
 	return f.err
 }
 

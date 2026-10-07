@@ -1,6 +1,9 @@
--- name: InsertCabalValueSnapshot :exec
+-- name: InsertCabalValueSnapshots :exec
 INSERT INTO cabal_value_snapshots (cabal_id, at, value_micros, nav_per_share_micros, total_shares)
-VALUES (sqlc.arg(cabal_id), sqlc.arg(at), sqlc.arg(value_micros), sqlc.arg(nav_per_share_micros), sqlc.arg(total_shares));
+SELECT cabal_id, at, value_micros, nav_per_share_micros, total_shares
+FROM jsonb_to_recordset(sqlc.arg(rows)::jsonb) AS rows(
+  cabal_id uuid, at timestamptz, value_micros bigint, nav_per_share_micros bigint, total_shares bigint
+);
 
 -- name: LatestCabalValues :many
 SELECT DISTINCT ON (cabal_id) cabal_id, at, value_micros, nav_per_share_micros, total_shares

@@ -30,6 +30,10 @@ type Poller interface {
 	Tick(ctx context.Context) (Report, error)
 }
 
+type Budgeted interface {
+	TickBudget() time.Duration
+}
+
 type Report struct {
 	Scanned, Changed int
 	Attrs            []slog.Attr
@@ -112,7 +116,7 @@ func (r *Runner) attempt(ctx context.Context, p Poller, lock *db.Lock) {
 	}
 	start := r.clock.Now()
 	actor := auth.Actor{Kind: auth.ActorSystem, ID: "poller." + name}
-	tickCtx, cancelTick := context.WithTimeout(auth.WithActor(ctx, actor), p.Interval())
+	tickCtx, cancelTick := context.WithTimeout(auth.WithActor(ctx, actor), TickBudget(p))
 	report, err := tick(tickCtx, p)
 	cancelTick()
 	if err != nil {
@@ -124,8 +128,17 @@ func (r *Runner) attempt(ctx context.Context, p Poller, lock *db.Lock) {
 		slog.Int64("duration_ms", r.clock.Now().Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
 }
 
+func TickBudget(p Poller) time.Duration {
+	if b, ok := p.(Budgeted); ok {
+		return b.TickBudget()
+	}
+	return p.Interval()
+}
+
 func deadlineAsTimeout(err error) error {
-	if errs.KindOf(errs.CodeOf(err)) == errs.KindInternal && errors.Is(err, context.DeadlineExceeded) {
+	code := errs.CodeOf(err)
+	if errs.KindOf(code) == errs.KindInternal && code != errs.CodeRankingRunsStalled &&
+		errors.Is(err, context.DeadlineExceeded) {
 		return errs.Wrap(err, errs.CodeUpstreamTimeout, "poller.tick")
 	}
 	return err

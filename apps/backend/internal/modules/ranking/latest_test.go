@@ -37,13 +37,10 @@ func seedRuns(t *testing.T, d deliverer, now time.Time) {
 	}
 	cabal := uuid.NewSHA1(uuid.Nil, []byte("cabal"))
 	for i, value := range []int64{5, 9} {
-		snapshot := sqlc.InsertCabalValueSnapshotParams{
+		insertSnapshotRows(t, q, snapshotInput{
 			CabalID: cabal, At: now.Add(time.Duration(i) * time.Minute), ValueMicros: value,
 			NavPerShareMicros: 2, TotalShares: 3,
-		}
-		if err := q.InsertCabalValueSnapshot(t.Context(), snapshot); err != nil {
-			t.Fatal(err)
-		}
+		})
 	}
 }
 
@@ -67,10 +64,7 @@ func TestQueries_returnTheLatestRunAndEachCabalsLatestValue(t *testing.T) {
 func TestQueries_refusesANegativeStoredAmount(t *testing.T) {
 	t.Parallel()
 	d := newDeliverer(t)
-	snapshot := sqlc.InsertCabalValueSnapshotParams{CabalID: d.gen.NewV7(), At: d.clock.Now(), ValueMicros: -1}
-	if err := sqlc.New(d.pool).InsertCabalValueSnapshot(t.Context(), snapshot); err != nil {
-		t.Fatal(err)
-	}
+	insertSnapshotRows(t, sqlc.New(d.pool), snapshotInput{CabalID: d.gen.NewV7(), At: d.clock.Now(), ValueMicros: -1})
 	queries := ranking.New(module.Deps{Pool: d.pool}).Queries()
 	_, err := queries.LatestCabalValues(t.Context())
 	if errs.CodeOf(err) != errs.CodeDecodeFailed {

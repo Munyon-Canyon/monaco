@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	ValuationInterval = time.Second
-	valuationOp       = "ranking.ValuationPoller.Tick"
+	ValuationInterval   = time.Second
+	ValuationTickBudget = 90 * time.Second
+	valuationOp         = "ranking.ValuationPoller.Tick"
 )
 
 type ValuationReads interface {
@@ -47,6 +48,8 @@ func (ValuationPoller) Name() string { return "ranking.valuation" }
 
 func (ValuationPoller) Interval() time.Duration { return ValuationInterval }
 
+func (ValuationPoller) TickBudget() time.Duration { return ValuationTickBudget }
+
 func (p ValuationPoller) Tick(ctx context.Context) (poller.Report, error) {
 	now := p.Clock.Now()
 	last, hasRun, err := p.lastRun(ctx)
@@ -66,7 +69,7 @@ func (p ValuationPoller) Tick(ctx context.Context) (poller.Report, error) {
 	}
 	valuation, err := p.Runner.Run(ctx, now)
 	if err != nil {
-		return poller.Report{}, err
+		return poller.Report{}, stalledIfOverdue(err, now, last, hasRun)
 	}
 	for _, flagged := range valuation.Flagged {
 		observability.Info(ctx, observability.RankingCabalExcluded,
@@ -74,7 +77,7 @@ func (p ValuationPoller) Tick(ctx context.Context) (poller.Report, error) {
 	}
 	runID, err := p.Writer.Write(ctx, valuation, now, p.Clock.Now())
 	if err != nil {
-		return poller.Report{}, err
+		return poller.Report{}, stalledIfOverdue(err, now, last, hasRun)
 	}
 	observability.Info(ctx, observability.RankingRunCompleted, slog.String("run_id", runID.String()),
 		slog.Int("rows", len(valuation.Entries)), slog.Int("excluded", valuation.Excluded))
@@ -82,6 +85,13 @@ func (p ValuationPoller) Tick(ctx context.Context) (poller.Report, error) {
 		Scanned: len(valuation.Cabals) + len(valuation.Flagged), Changed: len(valuation.Entries),
 		Attrs: []slog.Attr{slog.String("run_id", runID.String())},
 	}, nil
+}
+
+func stalledIfOverdue(err error, now time.Time, last sqlc.LeaderboardRun, hasRun bool) error {
+	if !hasRun || now.Sub(last.FinishedAt) <= 3*domain.RunEvery {
+		return err
+	}
+	return errs.Wrap(err, errs.CodeRankingRunsStalled, valuationOp)
 }
 
 func (p ValuationPoller) lastRun(ctx context.Context) (sqlc.LeaderboardRun, bool, error) {

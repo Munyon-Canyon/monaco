@@ -1,21 +1,41 @@
 package ranking_test
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func insertSnapshot(t *testing.T, q *sqlc.Queries, cabal ids.CabalID, at time.Time, value int64) {
+type snapshotInput struct {
+	CabalID           uuid.UUID `json:"cabal_id"`
+	At                time.Time `json:"at"`
+	ValueMicros       int64     `json:"value_micros"`
+	NavPerShareMicros int64     `json:"nav_per_share_micros"`
+	TotalShares       int64     `json:"total_shares"`
+}
+
+func insertSnapshotRows(t *testing.T, q *sqlc.Queries, rows ...snapshotInput) {
 	t.Helper()
-	if err := q.InsertCabalValueSnapshot(t.Context(), sqlc.InsertCabalValueSnapshotParams{
-		CabalID: cabal.UUID(), At: at, ValueMicros: value, NavPerShareMicros: value / 100, TotalShares: 100,
-	}); err != nil {
+	encoded, err := json.Marshal(rows)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if err := q.InsertCabalValueSnapshots(t.Context(), encoded); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func insertSnapshot(t *testing.T, q *sqlc.Queries, cabal ids.CabalID, at time.Time, value int64) {
+	t.Helper()
+	insertSnapshotRows(t, q, snapshotInput{
+		CabalID: cabal.UUID(), At: at, ValueMicros: value, NavPerShareMicros: value / 100, TotalShares: 100,
+	})
 }
 
 func TestSnapshotsAt_LatestAtOrBeforeEachBucket(t *testing.T) {
