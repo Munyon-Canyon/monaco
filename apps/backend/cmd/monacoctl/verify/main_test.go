@@ -215,6 +215,7 @@ func testBudget() Budget {
 	b.Flow = time.Minute
 	b.Converge = 2 * time.Minute
 	b.Teardown = 20 * time.Second
+	b.Seed = 10 * time.Second
 	return b
 }
 

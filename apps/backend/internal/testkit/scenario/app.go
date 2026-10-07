@@ -54,6 +54,7 @@ type app struct {
 	server    *httptest.Server
 	relay     *bus.Relay
 	held      atomic.Bool
+	relayMu   sync.Mutex
 	consumers []bus.Consumer
 	pollers   []poller.Poller
 	runner    *poller.Runner
@@ -184,9 +185,11 @@ func (a *app) runRelay(ctx context.Context) {
 		case <-a.db.Signal():
 		case <-tick.C:
 		}
+		a.relayMu.Lock()
 		if !a.held.Load() {
 			a.relay.Once(ctx)
 		}
+		a.relayMu.Unlock()
 	}
 }
 
@@ -385,7 +388,11 @@ func (a *app) published(t T, typ events.Type, _ []string) uint64 {
 	return info.State.Subjects[a.bus.Conn.Subject(typ.Subject())]
 }
 
-func (a *app) hold() { a.held.Store(true) }
+func (a *app) hold() {
+	a.relayMu.Lock()
+	defer a.relayMu.Unlock()
+	a.held.Store(true)
+}
 
 func (a *app) crashAt(_ T, point faultpoint.Name) {
 	testkit.CrashAt(a.tb, point, func(ctx context.Context) error {

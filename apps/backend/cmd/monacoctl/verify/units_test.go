@@ -127,7 +127,7 @@ func TestInvariantHelpers(t *testing.T) {
 
 func servedDriver(t *testing.T) (*driver, *Result) {
 	t.Helper()
-	d, err := newDriver(servedEnv(t), DefaultBudget())
+	d, err := newDriver(servedEnv(t), testBudget())
 	if err != nil {
 		t.Fatal(err)
 	}

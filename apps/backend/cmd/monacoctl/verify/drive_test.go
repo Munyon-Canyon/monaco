@@ -243,7 +243,7 @@ func driveConfig(budget Budget) (Config, *bytes.Buffer) {
 
 func verifyFlow00(t *testing.T, env Env) {
 	t.Helper()
-	cfg, out := driveConfig(DefaultBudget())
+	cfg, out := driveConfig(testBudget())
 	if err := verifyUnits(
 		t.Context(),
 		cfg,
