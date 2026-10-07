@@ -73,7 +73,7 @@ func seedCabal(s *scenario.Scenario, mint chain.SolanaAddress) valuationSeed {
 func F19RunValuationOK(s *scenario.Scenario) {
 	seedRankedAsset(s)
 	s.Given(rankedUsers()...).When(
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
 		awaitRankedRows(),
 		readBoard("/v1/leaderboards/cabals?range=ALL", rankedCabals, ""),
@@ -87,11 +87,11 @@ func F19RunValuationOK(s *scenario.Scenario) {
 func F19RunValuationPricesStale(s *scenario.Scenario) {
 	seedRankedAsset(s)
 	s.Given(rankedUsers()...).When(
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 		awaitRankedRows(),
 		makePricesStale(rankedMint),
 		queueRankedValuation(),
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
 		awaitRankedFlag("stale_prices"),
 		readBoard("/v1/leaderboards/cabals?range=ALL", rankedCabals, "stale_prices"),
@@ -104,11 +104,11 @@ func F19RunValuationConservationBroken(s *scenario.Scenario) {
 	seed, healthy := seedCabal(s, mint), seedCabal(s, mint)
 	s.Given().When(
 		queueValuation(seed),
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 		seed.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
 		reserveMoreThanThePot(seed),
 		queueValuation(seed),
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
 		seed.awaitRows(rowCounts{}),
 		healthy.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
@@ -120,11 +120,11 @@ func F19RunValuationCabalPaused(s *scenario.Scenario) {
 	seed, healthy := seedCabal(s, mint), seedCabal(s, mint)
 	s.Given().When(
 		queueValuation(seed),
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 		seed.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
 		pauseCabal(seed),
 		queueValuation(seed),
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
 		seed.awaitRows(rowCounts{}),
 		healthy.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
@@ -137,7 +137,7 @@ func F19RunValuationCrashBeforeCommit(s *scenario.Scenario) {
 	s.Given().When(
 		queueValuation(seed),
 		scenario.TickCrashingAt(valuationPoller, faultpoint.BeforeCommit),
-		scenario.AwaitTick(valuationPoller),
+		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
 		seed.awaitRows(rowCounts{cabals: 1, people: 1, members: 1}),
 		seed.awaitSnapshot(valuationPotMicros),

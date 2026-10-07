@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
@@ -21,6 +22,34 @@ func AwaitTick(poller string) Step {
 		seen, _ := s.app.lines(0)
 		return len(seen)
 	}, "after the step started")
+}
+
+func AwaitTickPastTimeouts(poller string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		seen, _ := s.app.lines(0)
+		from := len(seen)
+		stop := s.app.tick(s.t, poller)
+		defer stop()
+		var found tick
+		await(s.t, "a tick of poller "+poller+" that did not time out", func() (bool, <-chan struct{}) {
+			lines, changed := s.app.lines(from)
+			from += len(lines)
+			for _, line := range lines {
+				got, ok := firstTick([]string{line}, poller)
+				if ok && !timedOut(got.code) {
+					found = got
+					return true, changed
+				}
+			}
+			return false, changed
+		})
+		s.ticks[poller] = found
+	}
+}
+
+func timedOut(code string) bool {
+	return code == string(errs.CodeUpstreamTimeout) || code == string(errs.CodeDBUnavailable)
 }
 
 func AwaitTickOrEarlier(poller string) Step {
@@ -55,8 +84,8 @@ func AwaitMarkedTickAfterCrash(poller string, point faultpoint.Name) Step {
 					crashed = strings.Contains(line, crash)
 					continue
 				}
-				if tick, ok := firstTick([]string{line}, poller); ok {
-					found = tick
+				if got, ok := firstTick([]string{line}, poller); ok {
+					found = got
 					return true, changed
 				}
 			}

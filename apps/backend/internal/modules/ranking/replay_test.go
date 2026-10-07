@@ -28,7 +28,7 @@ func twoRuns(t *testing.T) (source *pgxpool.Pool, firstRows []string) {
 			SELECT id, 'replay', now() - interval '2 seconds' FROM cabals`); err != nil {
 			s.Fatalf("queue a second valuation: %v", err)
 		}
-	}, scenario.AwaitTick("ranking.valuation")).Then(
+	}, scenario.AwaitTickPastTimeouts("ranking.valuation")).Then(
 		scenario.Eventually("two ranking.snapshot_written events", func(s *scenario.Scenario) bool {
 			return len(snapshotEvents(t, s.DB())) == 2
 		}),

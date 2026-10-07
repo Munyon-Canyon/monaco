@@ -133,6 +133,60 @@ func TestAwaitTick_inProcessTicksThePollerOnceAndExpectTickChecksWhatItFound(t *
 	}
 }
 
+type timingOutPoller struct {
+	name     string
+	timeouts int32
+	code     errs.Code
+	ticks    *atomic.Int32
+}
+
+func (p timingOutPoller) Name() string { return p.name }
+
+func (timingOutPoller) Interval() time.Duration { return 10 * time.Millisecond }
+
+func (p timingOutPoller) Tick(context.Context) (poller.Report, error) {
+	if p.ticks.Add(1) <= p.timeouts {
+		return poller.Report{}, errs.New(p.code, "fixture.tick")
+	}
+	return poller.Report{Scanned: 1, Changed: 1}, nil
+}
+
+func TestAwaitTickPastTimeouts_waitsThroughTimeoutsButNotOtherFailures(t *testing.T) {
+	t.Parallel()
+	var slow, unavailable, failing atomic.Int32
+	a := start(t, options{modules: []func(module.Deps) module.Module{func(module.Deps) module.Module {
+		return fixtureModule{pollers: []poller.Poller{
+			timingOutPoller{name: "fixture.slow", timeouts: 1, code: errs.CodeUpstreamTimeout, ticks: &slow},
+			timingOutPoller{name: "fixture.db", timeouts: 2, code: errs.CodeDBUnavailable, ticks: &unavailable},
+			fixturePoller{
+				name: "fixture.failing", err: errs.New(errs.CodeUpstreamUnavailable, "fixture.tick"), ticks: &failing,
+			},
+		}}
+	}}})
+	inProcess := func(r T) *Scenario { return newScenario(r, a.backend()) }
+	for _, tc := range []struct {
+		name  string
+		steps []Step
+		want  string
+	}{
+		{"timeout", []Step{AwaitTickPastTimeouts("fixture.slow"), ExpectTick("fixture.slow", 1, 1)}, ""},
+		{"db unavailable", []Step{AwaitTickPastTimeouts("fixture.db"), ExpectTick("fixture.db", 1, 1)}, ""},
+		{
+			"other failure",
+			[]Step{AwaitTickPastTimeouts("fixture.failing"), ExpectTickFailed("fixture.failing", "upstream_unavailable")},
+			"",
+		},
+	} {
+		if got := failure(t, t.Context, inProcess, tc.steps...); got != tc.want {
+			t.Errorf("%s: failure = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	if slow.Load() < 2 || unavailable.Load() < 3 || failing.Load() != 1 {
+		t.Fatalf("ticks = %d slow, %d db, %d failing, want at least 2 and 3, and exactly 1",
+			slow.Load(), unavailable.Load(), failing.Load())
+	}
+}
+
 func TestAwaitMarkedTickAfterCrash_ignoresAnInFlightTick(t *testing.T) {
 	t.Parallel()
 	stack := &lineLog{note: newNotifier()}
