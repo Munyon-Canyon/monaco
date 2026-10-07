@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -22,12 +23,17 @@ type reconcileRig struct {
 
 func newReconcileRig(t *testing.T, assets ...market.Asset) *reconcileRig {
 	t.Helper()
+	return newHotReconcileRig(t, nil, assets...)
+}
+
+func newHotReconcileRig(t *testing.T, hot []app.HotMints, assets ...market.Asset) *reconcileRig {
+	t.Helper()
 	b := newBackfillRig(t)
 	seedAssets(t, b.pool, b.clock.Now(), assets...)
 	ids := testkit.NewIDs(5)
 	return &reconcileRig{
 		backfillRig: b,
-		reconcile:   app.NewReconcile(db.New(b.pool, ids, b.clock), b.pool, b.history),
+		reconcile:   app.NewReconcile(db.New(b.pool, ids, b.clock), b.pool, b.clock, b.history, hot...),
 	}
 }
 
@@ -36,10 +42,10 @@ func (r *reconcileRig) tick(t *testing.T) (poller.Report, error) {
 	return r.reconcile.Tick(r.ctx(t))
 }
 
-func TestReconcile_OneDaysTwoCallPerListedMint(t *testing.T) {
+func TestReconcile_OneDaysTwoCallPerListedMintInTheSlot(t *testing.T) {
 	t.Parallel()
 	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
-	tsla.IssuerTradable = false
+	tsla.IssuerTradable, tsla.PopularRank = false, 0
 	r := newReconcileRig(t, aapl, tsla)
 	r.history.Put(aapl.Mint, 2,
 		sample(r.day.Add(5*time.Hour+4*time.Minute+9*time.Second), 105_000_000),
@@ -60,6 +66,96 @@ func TestReconcile_OneDaysTwoCallPerListedMint(t *testing.T) {
 	}
 	if len(r.points(t, tsla.Mint)) != 0 {
 		t.Fatal("an unlisted mint gained points")
+	}
+}
+
+const reconcileSlot = 150
+
+func calledMints(r *reconcileRig) map[market.Mint]bool {
+	out := map[market.Mint]bool{}
+	for _, c := range r.history.Calls() {
+		out[c.Mint] = true
+	}
+	return out
+}
+
+func TestReconcile_aTickCallsEveryHotMintAndAtMostOneSlotOfTheRest(t *testing.T) {
+	t.Parallel()
+	const listed, unlisted = 1300, 20
+	assets := generatedCatalog(t, listed+unlisted)
+	for i := listed; i < len(assets); i++ {
+		assets[i].IssuerTradable = false
+	}
+	assets[900].PopularRank = 3
+	assets[listed+1].PopularRank = 4
+	held := []chain.SolanaAddress{assets[5].Mint.Address(), assets[listed].Mint.Address(), "NotInTheCatalog"}
+	proposed := []chain.SolanaAddress{assets[1299].Mint.Address(), assets[5].Mint.Address()}
+	hot := []app.HotMints{
+		func(context.Context) ([]chain.SolanaAddress, error) { return held, nil },
+		func(context.Context) ([]chain.SolanaAddress, error) { return proposed, nil },
+	}
+	r := newHotReconcileRig(t, hot, assets...)
+
+	report, err := r.tick(t)
+	const hotMints = 5
+	if err != nil || report.Scanned != hotMints+reconcileSlot || len(r.history.Calls()) != hotMints+reconcileSlot {
+		t.Fatalf("tick = %+v, %v with %d calls, want the %d hot mints plus a slot of %d",
+			report, err, len(r.history.Calls()), hotMints, reconcileSlot)
+	}
+	called := calledMints(r)
+	for _, i := range []int{5, 900, 1299, listed, listed + 1} {
+		if !called[assets[i].Mint] {
+			t.Fatalf("hot asset %d was not called", i)
+		}
+	}
+	for i := listed + 2; i < len(assets); i++ {
+		if called[assets[i].Mint] {
+			t.Fatalf("unlisted, not hot asset %d was called", i)
+		}
+	}
+}
+
+func TestReconcile_theSlotRotatesSoSuccessiveNightsCoverEveryListedMint(t *testing.T) {
+	t.Parallel()
+	const listed = 1300
+	assets := generatedCatalog(t, listed)
+	r := newReconcileRig(t, assets...)
+	nights := (listed + reconcileSlot - 1) / reconcileSlot
+	var previous map[market.Mint]bool
+	seen := map[market.Mint]bool{}
+	for night := range nights {
+		before := len(r.history.Calls())
+		if _, err := r.tick(t); err != nil {
+			t.Fatal(err)
+		}
+		tonight := map[market.Mint]bool{}
+		for _, c := range r.history.Calls()[before:] {
+			tonight[c.Mint] = true
+			seen[c.Mint] = true
+		}
+		if len(tonight) > reconcileSlot {
+			t.Fatalf("night %d called %d mints, want at most %d", night, len(tonight), reconcileSlot)
+		}
+		for m := range previous {
+			if tonight[m] {
+				t.Fatalf("night %d repeated mint %s from the night before", night, m)
+			}
+		}
+		previous = tonight
+		r.clock.Advance(app.ReconcileInterval)
+	}
+	if len(seen) != listed {
+		t.Fatalf("%d nights covered %d mints, want all %d listed", nights, len(seen), listed)
+	}
+}
+
+func TestReconcile_aFailedHotReadFailsTheTickBeforeAnyCall(t *testing.T) {
+	t.Parallel()
+	down := errs.New(errs.CodeUpstreamTimeout, "down")
+	hot := []app.HotMints{func(context.Context) ([]chain.SolanaAddress, error) { return nil, down }}
+	r := newHotReconcileRig(t, hot, marketfake.AAPLx())
+	if _, err := r.tick(t); errs.CodeOf(err) != errs.CodeUpstreamTimeout || len(r.history.Calls()) != 0 {
+		t.Fatalf("tick = %v with %d calls, want upstream_timeout and no call", err, len(r.history.Calls()))
 	}
 }
 
@@ -137,7 +233,7 @@ func TestReconcile_databaseFailuresAreReported(t *testing.T) {
 
 func TestReconcile_isNamedAndRunsEveryDay(t *testing.T) {
 	t.Parallel()
-	p := app.NewReconcile(nil, nil, &marketfake.PriceHistoryFake{})
+	p := app.NewReconcile(nil, nil, nil, &marketfake.PriceHistoryFake{})
 	if p.Name() != "market.reconcile" || p.Interval() != 24*time.Hour {
 		t.Fatalf("Reconcile = %s every %v, want market.reconcile every 24h", p.Name(), p.Interval())
 	}

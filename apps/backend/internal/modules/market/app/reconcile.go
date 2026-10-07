@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -16,14 +17,20 @@ import (
 
 const ReconcileInterval = 24 * time.Hour
 
+const reconcileColdPerTick = 150
+
 type Reconcile struct {
 	uow     *db.UnitOfWork
 	catalog *Catalog
 	history PriceHistory
+	clock   clock.Clock
+	hot     []HotMints
 }
 
-func NewReconcile(uow *db.UnitOfWork, reads sqlc.DBTX, history PriceHistory) *Reconcile {
-	return &Reconcile{uow: uow, catalog: NewCatalog(reads), history: history}
+func NewReconcile(
+	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, history PriceHistory, hot ...HotMints,
+) *Reconcile {
+	return &Reconcile{uow: uow, catalog: NewCatalog(reads), history: history, clock: c, hot: hot}
 }
 
 func (*Reconcile) Name() string { return "market.reconcile" }
@@ -35,7 +42,7 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 		observability.Degraded(ctx, observability.MarketReconcileSkippedNoKey)
 		return poller.Report{}, nil
 	}
-	assets, err := r.catalog.ListPriceable(ctx)
+	assets, err := r.nightly(ctx)
 	if err != nil {
 		return poller.Report{}, err
 	}
@@ -54,6 +61,27 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 	}
 	report.Attrs = []slog.Attr{slog.Int("calls", report.Scanned), slog.Int("failed", len(failed))}
 	return report, errors.Join(failed...)
+}
+
+func (r *Reconcile) nightly(ctx context.Context) ([]domain.Asset, error) {
+	all, err := r.catalog.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hot, err := hotSet(ctx, r.hot, all)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "market.Reconcile.nightly")
+	}
+	var out, cold []domain.Asset
+	for _, a := range all {
+		switch {
+		case hot[a.Mint.Address()]:
+			out = append(out, a)
+		case a.Tradable():
+			cold = append(cold, a)
+		}
+	}
+	return append(out, coldSlot(cold, r.clock.Now(), ReconcileInterval, reconcileColdPerTick)...), nil
 }
 
 func (r *Reconcile) fill(ctx context.Context, mint domain.Mint) (int, error) {
