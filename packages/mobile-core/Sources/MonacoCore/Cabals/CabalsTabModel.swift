@@ -9,6 +9,7 @@ public final class CabalsTabModel {
     public private(set) var failureTick = 0
     private let api: APIClient
     private var generation = 0
+    private var settled = 0
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
 
     public init(api: APIClient) {
@@ -21,11 +22,14 @@ public final class CabalsTabModel {
         if case .loaded = state {} else { state = .loading }
         do {
             let cabals = try await api.read { try await $0.getMyCabals().ok.body.json }
-            guard issued == generation else { return }
+            guard issued > settled else { return }
+            settled = issued
             state = .loaded(cabals)
             lastError = nil
         } catch {
-            guard issued == generation else { return }
+            if Task.isCancelled { return }
+            guard issued > settled else { return }
+            settled = issued
             let error = APIError(error)
             lastError = error
             failureTick += 1
