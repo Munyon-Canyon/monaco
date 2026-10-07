@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	opDo          = "db.UnitOfWork.Do"
 	maxAttempts   = 4
 	retryBase     = 10 * time.Millisecond
 	finishTimeout = 10 * time.Second
@@ -51,9 +52,8 @@ func New(pool *pgxpool.Pool, g ids.Generator, c clock.Clock) *UnitOfWork {
 func (u *UnitOfWork) Signal() <-chan struct{} { return u.signal }
 
 func (u *UnitOfWork) Do(ctx context.Context, fn func(ctx context.Context, tx Tx) error) error {
-	const op = "db.UnitOfWork.Do"
 	for attempt := 1; ; attempt++ {
-		committed, err := u.run(ctx, fn, attempt)
+		committed, err, rbErr := u.run(ctx, fn, attempt)
 		if err == nil {
 			select {
 			case u.signal <- struct{}{}:
@@ -66,11 +66,12 @@ func (u *UnitOfWork) Do(ctx context.Context, fn func(ctx context.Context, tx Tx)
 			}
 			return nil
 		}
-		err = classify(err, op)
+		err = classify(err, opDo)
 		code := string(errs.CodeOf(err))
-		observability.Info(ctx, observability.TxRolledBack, slog.String("code", code), slog.Int("attempt", attempt))
+		observability.Info(ctx, observability.TxRolledBack,
+			slog.String("code", code), slog.Int("attempt", attempt), slog.Any("rollback_error", rbErr))
 		if !transient(err) || attempt == maxAttempts {
-			return err
+			return withRollback(err, rbErr)
 		}
 		delay := backoff(attempt)
 		boundary.Warn(ctx, observability.TxRetry,
@@ -78,7 +79,7 @@ func (u *UnitOfWork) Do(ctx context.Context, fn func(ctx context.Context, tx Tx)
 		select {
 		case <-u.clock.After(delay):
 		case <-ctx.Done():
-			return errs.Wrap(context.Cause(ctx), errs.CodeDBUnavailable, op)
+			return errs.Wrap(context.Cause(ctx), errs.CodeDBUnavailable, opDo)
 		}
 	}
 }
@@ -94,10 +95,10 @@ type committed struct {
 
 func (u *UnitOfWork) run(
 	ctx context.Context, fn func(ctx context.Context, tx Tx) error, attempt int,
-) (committed, error) {
+) (committed, error, error) {
 	pgtx, err := u.pool.Begin(ctx)
 	if err != nil {
-		return committed{}, classify(err, "db.UnitOfWork.Do")
+		return committed{}, classify(err, opDo), nil
 	}
 	var after []func(context.Context)
 	tx := Tx{tx: pgtx, Events: &Events{q: sqlc.New(pgtx), ids: u.ids, clock: u.clock}, after: &after}
@@ -116,18 +117,18 @@ func (u *UnitOfWork) run(
 		rollbackAndRepanic(ctx, pgtx, r)
 	}()
 	if err := fn(ctx, tx); err != nil {
-		return committed{}, withRollback(err, rollback(ctx, pgtx))
+		return committed{}, classify(err, opDo), rollback(ctx, pgtx)
 	}
 	if err := ctx.Err(); err != nil {
-		return committed{}, withRollback(err, rollback(ctx, pgtx))
+		return committed{}, classify(err, opDo), rollback(ctx, pgtx)
 	}
 	faultpoint.Hit(ctx, faultpoint.BeforeCommit)
 	finishCtx, cancel := finishContext(ctx)
 	defer cancel()
 	if err := pgtx.Commit(finishCtx); err != nil {
-		return committed{}, withRollback(err, rollback(ctx, pgtx))
+		return committed{}, classify(err, opDo), rollback(ctx, pgtx)
 	}
-	return committed{appended: tx.Events.appended, after: after}, nil
+	return committed{appended: tx.Events.appended, after: after}, nil, nil
 }
 
 func finishContext(ctx context.Context) (context.Context, context.CancelFunc) {
