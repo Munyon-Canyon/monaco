@@ -28,7 +28,7 @@ func (n priceNeeds) mints() []domain.Mint {
 	return out
 }
 
-func (p *SamplePrices) needs(ctx context.Context, all, listed []domain.Asset) (priceNeeds, error) {
+func (p *SamplePrices) needs(ctx context.Context, all []domain.Asset) (priceNeeds, error) {
 	hot := map[chain.SolanaAddress]bool{}
 	for _, read := range p.hot {
 		mints, err := read(ctx)
@@ -40,10 +40,14 @@ func (p *SamplePrices) needs(ctx context.Context, all, listed []domain.Asset) (p
 		}
 	}
 	var n priceNeeds
+	var listed []domain.Asset
 	for _, a := range all {
 		if hot[a.Mint.Address()] || a.PopularRank > 0 {
 			hot[a.Mint.Address()] = true
 			n.assets = append(n.assets, a)
+		}
+		if a.Tradable() {
+			listed = append(listed, a)
 		}
 	}
 	n.hot = len(n.assets)

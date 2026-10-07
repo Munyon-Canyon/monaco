@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -58,13 +57,12 @@ func (*SamplePrices) Name() string { return "market.prices" }
 func (p *SamplePrices) Interval() time.Duration { return p.interval }
 
 func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
-	assets, allErr := p.catalog.ListAll(ctx)
-	listed, listedErr := p.catalog.ListPriceable(ctx)
-	if err := errors.Join(allErr, listedErr); err != nil {
+	assets, err := p.catalog.ListAll(ctx)
+	if err != nil {
 		return poller.Report{}, err
 	}
 	at := domain.Bucket(p.clock.Now())
-	need, err := p.needs(ctx, assets, listed)
+	need, err := p.needs(ctx, assets)
 	if err != nil {
 		return poller.Report{}, err
 	}
