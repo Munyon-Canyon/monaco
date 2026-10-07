@@ -36,4 +36,23 @@ struct WithdrawRouteTests {
         #expect(WithdrawView.toast(for: .submitting) == nil)
         #expect(WithdrawView.toast(for: .idle) == nil)
     }
+
+    @Test func maxShowsOneFlooredAmountOnConfirmAndToast() throws {
+        let available: Int64 = 2_998_175
+        var amount = WithdrawAmount()
+        amount.tapMax()
+        let label = try #require(amount.fullBalanceLabel(availableMicros: available))
+        #expect(label == "$2.99 (full balance)")
+        #expect(amount.micros(availableMicros: available) == available)
+        let sent = Withdrawal(withdrawalID: "w-1", status: .confirmed, amountMicros: available, txSignature: signature)
+        #expect(WithdrawView.message(for: .submitted(sent), fullBalanceLabel: label)?.contains(label) == true)
+        let toast = try #require(WithdrawView.toast(for: .confirmed(sent), fullBalanceLabel: label))
+        #expect(toast.message == "Withdrawal complete: \(label)")
+    }
+
+    @Test func typedAmountsKeepTheirPlainToast() throws {
+        var amount = WithdrawAmount()
+        amount.edit(to: "2")
+        #expect(amount.fullBalanceLabel(availableMicros: 2_998_175) == nil)
+    }
 }

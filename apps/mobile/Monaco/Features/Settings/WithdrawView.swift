@@ -40,6 +40,7 @@ struct WithdrawView: View {
             WithdrawConfirmView(
                 destinationAddress: trimmedAddress,
                 amountText: amount.text,
+                fullBalanceLabel: amount.fullBalanceLabel(availableMicros: balanceSource?.balance?.availableMicros),
                 isSubmitting: withdrawing?.isSubmitting ?? false,
                 onWithdraw: { Task { await withdraw() } }
             )
@@ -62,15 +63,18 @@ struct WithdrawView: View {
         guard let withdrawing, let micros = amount.micros(availableMicros: balanceSource?.balance?.availableMicros),
             micros > 0
         else { return }
+        let fullBalanceLabel = amount.fullBalanceLabel(availableMicros: balanceSource?.balance?.availableMicros)
         switch await withdrawing.submit(micros: micros, toAddress: trimmedAddress) {
         case .accepted:
-            if let line = withdrawing.progress.toast { toasts.show(success: line) }
+            if let line = Self.message(for: withdrawing.progress, fullBalanceLabel: fullBalanceLabel) {
+                toasts.show(success: line)
+            }
             showConfirm = false
             dismiss()
             Task { [toasts] in
                 let settled = await withdrawing.settle()
                 guard settled.isSettled else { return }
-                toasts.current = Self.toast(for: settled)
+                toasts.current = Self.toast(for: settled, fullBalanceLabel: fullBalanceLabel)
             }
         case .refused(.address(let message)):
             refusedAddress = message
@@ -83,8 +87,20 @@ struct WithdrawView: View {
         }
     }
 
-    static func toast(for progress: WithdrawProgress) -> MonacoToast? {
+    static func message(for progress: WithdrawProgress, fullBalanceLabel: String?) -> String? {
         guard let line = progress.toast else { return nil }
+        let sent: Withdrawal
+        switch progress {
+        case .submitted(let withdrawal), .confirmed(let withdrawal): sent = withdrawal
+        case .idle, .submitting, .failed: return line
+        }
+        guard let fullBalanceLabel else { return line }
+        return line.replacingOccurrences(
+            of: UsdAmountFormatter.format(micros: sent.amountMicros), with: fullBalanceLabel)
+    }
+
+    static func toast(for progress: WithdrawProgress, fullBalanceLabel: String? = nil) -> MonacoToast? {
+        guard let line = message(for: progress, fullBalanceLabel: fullBalanceLabel) else { return nil }
         guard case .confirmed(let withdrawal) = progress else { return MonacoToast(message: line) }
         let link = withdrawal.solscanURL.map { MonacoToastLink(title: "View on Solscan", url: $0) }
         return MonacoToast(message: line, isSuccess: true, link: link)
@@ -103,6 +119,15 @@ struct WithdrawAmount: Equatable {
 
     mutating func tapMax() {
         withdrawAll = true
+    }
+
+    func fullBalanceLabel(availableMicros: Int64?) -> String? {
+        guard withdrawAll, let availableMicros else { return nil }
+        return Self.fullBalanceLabel(micros: availableMicros)
+    }
+
+    static func fullBalanceLabel(micros: Int64) -> String {
+        "\(UsdAmountFormatter.format(micros: micros - micros % 10_000)) (full balance)"
     }
 
     func micros(availableMicros: Int64?) -> Int64? {
