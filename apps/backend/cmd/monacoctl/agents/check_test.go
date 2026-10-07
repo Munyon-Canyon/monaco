@@ -65,6 +65,7 @@ type checkHarness struct {
 	xcodeBuild  func(ctx context.Context, waited string) error
 	swiftWaited []string
 	swiftRun    func(waited string)
+	onCall      func(line string)
 }
 
 func newCheckHarness(t *testing.T) *checkHarness {
@@ -105,6 +106,9 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 	rel, _ := filepath.Rel(h.work, dir)
 	h.calls = append(h.calls, rel+": "+line)
 	h.names = append(h.names, name)
+	if h.onCall != nil {
+		h.onCall(line)
+	}
 	if strings.HasPrefix(line, "ci affected") {
 		return []byte(h.affected), h.affectedErr
 	}
@@ -383,13 +387,13 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		pr + "check-pr-size.py",
 		pr + "check-gate-changes.py",
 		pr + "check-legacy-growth.py",
-		upTestDB(0),
-		dropDeadClones,
 		"apps/backend: go build -o /dev/null -tags faultpoints ./internal/x ./cmd/api",
 		"apps/backend: go vet -tags faultpoints ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: golangci-lint run --allow-parallel-runners ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./internal/platform/lint/nogo/cmd/nogo ./internal/x ./internal/t ./cmd/api",
 		"apps/backend: go run ./cmd/monacoctl lint comments",
+		upTestDB(0),
+		dropDeadClones,
 		goTest[0],
 		goTest[1] + " --only internal/x/x.go",
 		".: bash -n scripts/foo.sh",
@@ -1079,7 +1083,29 @@ func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
 	}
 }
 
-func TestCheck_theXcodeRowRunsLastAndOutsideTheStage0SlotAndTestDatabase(t *testing.T) {
+func heldSlots(t *testing.T, env *Env) int {
+	t.Helper()
+	dir := filepath.Join(env.Common, ".monaco", "test-db")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	busy, err := busySlots(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return busy
+}
+
+func ticketCount(t *testing.T, env *Env, class string) int {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(env.Common, ".monaco", "check-queue", class))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	return len(entries)
+}
+
+func TestCheck_theXcodeRowRunsLastHoldingNoTokenAndNoTestDatabase(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.goos = "darwin"
@@ -1087,31 +1113,74 @@ func TestCheck_theXcodeRowRunsLastAndOutsideTheStage0SlotAndTestDatabase(t *test
 	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
 	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"})
 	env := h.Env(t)
-	writeFile(t, filepath.Join(env.Common, localConfigPath), "[check]\nslots = 1\n")
 	var during []string
 	h.xcodeBuild = func(context.Context, string) error {
 		if !slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "journey.py check") }) {
 			during = append(during, "the journeys row had not run")
 		}
-		q := env.checkQueue()
-		q.now = func() time.Time { return time.Unix(1<<33, 0) }
-		second, err := q.take("/second", os.Getppid())
-		if err != nil {
-			return err
+		for _, class := range []string{"db", "cpu"} {
+			if n := ticketCount(t, env, class); n != 0 {
+				during = append(during, fmt.Sprintf("%d %s tickets held", n, class))
+			}
 		}
-		defer q.drop(second)
-		if got, err := q.standing(second); err != nil || !got.run {
-			during = append(during,
-				fmt.Sprintf("a second check stands at %d of %d with 1 slot: %v", got.position, got.total, err))
-		}
-		if busy, err := busySlots(filepath.Join(env.Common, ".monaco", "test-db")); err != nil || busy != 0 {
-			during = append(during, fmt.Sprintf("%d test database slots held: %v", busy, err))
+		if busy := heldSlots(t, env); busy != 0 {
+			during = append(during, fmt.Sprintf("%d test database slots held", busy))
 		}
 		return nil
 	}
 	code, stdout, stderr := h.check(t)
 	if code != 0 || len(during) != 0 || !strings.Contains(stdout, "xcode           ok") {
-		t.Fatalf("the xcode row ran in the slot: %d %q %q\n%s", code, during, stdout, stderr)
+		t.Fatalf("the xcode row held a token: %d %q %q\n%s", code, during, stdout, stderr)
+	}
+}
+
+func TestCheck_eachRowHoldsOnlyItsClassTokenAndOnlyDatabaseRowsHoldATestDatabase(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	env := h.Env(t)
+	seen := map[string]string{}
+	h.onCall = func(line string) {
+		for _, row := range []string{"go build", "go vet", "go test"} {
+			if !strings.Contains(line, row+" ") {
+				continue
+			}
+			seen[row] = fmt.Sprintf("db=%d cpu=%d slots=%d",
+				ticketCount(t, env, "db"), ticketCount(t, env, "cpu"), heldSlots(t, env))
+		}
+	}
+	if code, stdout, stderr := h.check(t); code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	for row, want := range map[string]string{
+		"go build": "db=0 cpu=1 slots=0",
+		"go vet":   "db=0 cpu=1 slots=0",
+		"go test":  "db=1 cpu=0 slots=1",
+	} {
+		if seen[row] != want {
+			t.Errorf("%s ran holding %q, want %q", row, seen[row], want)
+		}
+	}
+	if ticketCount(t, env, "db") != 0 || ticketCount(t, env, "cpu") != 0 {
+		t.Fatal("tickets left after the run")
+	}
+}
+
+func TestCheck_aRowWithNoClassNeverTouchesTheQueueEvenWhenEveryTokenIsTaken(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"x.sh": "echo\n"})
+	env := h.Env(t)
+	for _, class := range []string{"db", "cpu"} {
+		q := env.checkQueue(class)
+		for _, pid := range []int{os.Getpid(), os.Getppid(), 1} {
+			writeFile(t, filepath.Join(q.dir, "1-"+strconv.Itoa(pid)), "/other/.worktrees/"+strconv.Itoa(pid)+"\n")
+		}
+	}
+	writeFile(t, filepath.Join(env.Common, localConfigPath), "[check.tokens]\ndb = 1\ncpu = 1\n")
+	if code, stdout, stderr := h.check(t); code != 0 || strings.Contains(stdout, "waiting") {
+		t.Fatalf("a shell row waited: %d %q %q", code, stdout, stderr)
 	}
 }
 

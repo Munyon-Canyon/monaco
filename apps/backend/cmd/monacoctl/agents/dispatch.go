@@ -39,10 +39,17 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 		return err
 	}
 	if env.localConfig != "" {
-		_, _ = fmt.Fprintf(stdout,
-			"local config: %s (lanes=%d, check.slots=%d, dispatch.max_queue=%d, tracking=%d, milestone=%s)\n",
-			env.localConfig, env.Config.Lanes, env.Config.Slots, env.Config.MaxQueue,
-			env.Config.Tracking, env.Config.Milestone)
+		_, _ = fmt.Fprintf(
+			stdout,
+			"local config: %s (lanes=%d, check.tokens.db=%d, check.tokens.cpu=%d, dispatch.max_queue=%d, tracking=%d, milestone=%s)\n",
+			env.localConfig,
+			env.Config.Lanes,
+			env.Config.Tokens.DB,
+			env.Config.Tokens.CPU,
+			env.Config.MaxQueue,
+			env.Config.Tracking,
+			env.Config.Milestone,
+		)
 	}
 	if _, err := env.Run(ctx, env.Work, "", "git", "fetch", "origin", env.Config.FeatureBranch); err != nil {
 		return err
@@ -171,17 +178,22 @@ func (env *Env) gates(ctx context.Context, in dispatchIn, stdout io.Writer) erro
 }
 
 func (env *Env) backlogGate(_ context.Context) (string, error) {
-	live, err := env.checkQueue().live()
-	if err != nil {
-		return "", err
+	live := 0
+	for _, class := range checkClasses() {
+		tickets, err := env.checkQueue(class).live()
+		if err != nil {
+			return "", err
+		}
+		live += len(tickets)
 	}
-	limit := env.Config.MaxQueue * env.Config.Slots
-	if len(live) > limit {
+	tokens := env.Config.Tokens.DB + env.Config.Tokens.CPU
+	limit := env.Config.MaxQueue * tokens
+	if live > limit {
 		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", fmt.Sprintf(
-			"stage 0 queue holds %d live tickets, over the limit of %d (max_queue %d x %d slots); "+
-				"wait or dispatch with --urgent", len(live), limit, env.Config.MaxQueue, env.Config.Slots))
+			"stage 0 queue holds %d live tickets, over the limit of %d (max_queue %d x %d tokens); "+
+				"wait or dispatch with --urgent", live, limit, env.Config.MaxQueue, tokens))
 	}
-	return fmt.Sprintf("%d live tickets, limit %d", len(live), limit), nil
+	return fmt.Sprintf("%d live tickets, limit %d", live, limit), nil
 }
 
 func (env *Env) queueGate(ctx context.Context) (string, error) {

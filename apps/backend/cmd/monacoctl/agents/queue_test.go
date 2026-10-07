@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,7 +55,7 @@ func newQueueHarness(t *testing.T, slots int) *queueHarness {
 	t.Helper()
 	h := &queueHarness{dead: map[int]bool{}, clock: time.Unix(1_800_000_000, 0)}
 	h.q = &checkQueue{
-		dir: filepath.Join(t.TempDir(), "check-queue"), slots: func() int { return slots },
+		class: "db", dir: filepath.Join(t.TempDir(), "check-queue"), slots: func() int { return slots },
 		alive: func(pid int) bool { return !h.dead[pid] },
 		after: func(time.Duration) <-chan time.Time { return nil },
 		now: func() time.Time {
@@ -134,10 +135,10 @@ func TestCheckQueue_aCheckRunsOnlyWhenItIsAmongTheFirstSlotsLiveTickets(t *testi
 	if got := laterWaiting.pump(); got.err != nil {
 		t.Fatalf("the fourth check runs after the second frees: %v", got.err)
 	}
-	if want := "waiting for a stage 0 slot: position 3 of 4\n"; waiting.out.String() != want {
+	if want := "waiting for a db token: position 3 of 4\n"; waiting.out.String() != want {
 		t.Fatalf("third printed %q, want %q", waiting.out, want)
 	}
-	if want := "waiting for a stage 0 slot: position 4 of 4\nwaiting for a stage 0 slot: position 3 of 3\n"; laterWaiting.out.String() != want {
+	if want := "waiting for a db token: position 4 of 4\nwaiting for a db token: position 3 of 3\n"; laterWaiting.out.String() != want {
 		t.Fatalf("later printed %q, want %q", laterWaiting.out, want)
 	}
 }
@@ -159,7 +160,7 @@ func TestCheckQueue_aLaneRunsOneCheckAtATimeAndLaterLanesPassItsSecond(t *testin
 	if got := w.pump(); got.err != nil {
 		t.Fatalf("the lane's second check runs once its first finishes: %v", got.err)
 	}
-	if want := "waiting for a stage 0 slot: position 2 of 3; this lane already runs a check\n"; w.out.String() != want {
+	if want := "waiting for a db token: position 2 of 3; this lane already runs a check\n"; w.out.String() != want {
 		t.Fatalf("printed %q, want %q", w.out, want)
 	}
 }
@@ -241,46 +242,77 @@ func TestLane_isTheLeadingDigitsUnderWorktreesAndElseTheWholePath(t *testing.T) 
 	}
 }
 
-func TestCheckQueue_aWaitingCheckTakesASlotAddedToTheLocalConfigMidWait(t *testing.T) {
+func TestCheckQueue_aWaitingCheckTakesATokenAddedToTheLocalConfigMidWait(t *testing.T) {
 	t.Parallel()
 	f := newFixtureFrom(t, rootedRepo)
 	env := f.Env(t)
-	if env.Config.Slots != 2 {
-		t.Fatalf("the fixture starts at %d slots, want 2", env.Config.Slots)
-	}
+	local := filepath.Join(env.Common, localConfigPath)
+	writeFile(t, local, "[check.tokens]\ndb = 2\ncpu = 1\n")
+	env = f.Env(t)
 	h := newQueueHarness(t, 0)
-	q := env.checkQueue()
+	q := env.checkQueue("db")
 	q.dir, q.alive, q.now = h.q.dir, h.q.alive, h.q.now
 	h.q = q
 	h.take(t, 101)
 	h.take(t, 102)
 	third := h.take(t, 103)
-	local := filepath.Join(env.Common, localConfigPath)
-	writeFile(t, local, "[check]\nslots = 0\n")
+	writeFile(t, local, "[check.tokens]\ndb = 0\n")
 	w := h.wait(context.Background(), third)
 	w.spin(4)
 	select {
 	case got := <-w.done:
-		t.Fatalf("an unreadable local config dropped the startup slot count: %v", got.err)
+		t.Fatalf("an unreadable local config dropped the startup token count: %v", got.err)
 	default:
 	}
-	writeFile(t, local, "[check]\nslots = 3\n")
+	writeFile(t, local, "[check.tokens]\ndb = 3\n")
 	for polls := 0; ; polls++ {
 		select {
 		case got := <-w.done:
 			if got.err != nil {
-				t.Fatalf("the third check runs once check.slots rises to 3: %v", got.err)
+				t.Fatalf("the third check runs once check.tokens.db rises to 3: %v", got.err)
 			}
 		case w.tick <- time.Time{}:
 			if polls == 1 {
-				t.Fatal("the third check still waits after check.slots rose to 3")
+				t.Fatal("the third check still waits after check.tokens.db rose to 3")
 			}
 			continue
 		}
 		break
 	}
-	if want := "waiting for a stage 0 slot: position 3 of 3\n"; w.out.String() != want {
+	if want := "waiting for a db token: position 3 of 3\n"; w.out.String() != want {
 		t.Fatalf("printed %q, want %q", w.out, want)
+	}
+	if env.tokens("cpu") != 6 {
+		t.Fatalf("the cpu class rereads its own count: %d", env.tokens("cpu"))
+	}
+}
+
+func TestCheckQueue_eachClassHasItsOwnQueueSoCPURowsRunWhileADatabaseRowWaits(t *testing.T) {
+	t.Parallel()
+	db, cpu := newQueueHarness(t, 1), newQueueHarness(t, 2)
+	cpu.q.class = "cpu"
+	a1 := db.takeIn(t, 101, "/repo/.worktrees/3462")
+	b1 := db.takeIn(t, 102, "/repo/.worktrees/3500")
+	a2, b2 := cpu.takeIn(t, 101, "/repo/.worktrees/3462"), cpu.takeIn(t, 102, "/repo/.worktrees/3500")
+	for _, name := range []string{a2, b2} {
+		if err := cpu.q.await(context.Background(), name, &bytes.Buffer{}); err != nil {
+			t.Fatalf("both checks hold a cpu token together: %v", err)
+		}
+	}
+	if err := db.q.await(context.Background(), a1, &bytes.Buffer{}); err != nil {
+		t.Fatalf("the first database row runs: %v", err)
+	}
+	w := db.wait(context.Background(), b1)
+	w.stillWaits(t, "the second database row, beside the first")
+	db.q.drop(a1)
+	if got := w.pump(); got.err != nil {
+		t.Fatalf("the second database row runs after the first drops: %v", got.err)
+	}
+	if want := "waiting for a db token: position 2 of 2\n"; w.out.String() != want {
+		t.Fatalf("printed %q, want %q", w.out, want)
+	}
+	if got := cpu.q.dir; got == db.q.dir {
+		t.Fatal("two classes share one queue directory")
 	}
 }
 
@@ -351,20 +383,28 @@ func TestCheckQueue_pidAliveSeesThisProcessAndNotAnExitedOne(t *testing.T) {
 	}
 }
 
-func TestCheck_takesATicketForTheRunAndRemovesItAfterwards(t *testing.T) {
+func (h *checkHarness) backendChange(t *testing.T, name string) {
+	t.Helper()
+	h.commit(t, map[string]string{"apps/backend/internal/a/" + name + ".go": "package a\n"})
+	h.affected = "./internal/a\n"
+}
+
+func TestCheck_takesATicketPerClassedRowAndRemovesItAfterwards(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
-	h.commit(t, map[string]string{"x.sh": "echo\n"})
+	h.backendChange(t, "a")
 	if code, stdout, stderr := h.check(t); code != 0 || strings.Contains(stdout, "waiting") {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	queue := filepath.Join(h.Env(t).Common, ".monaco", "check-queue")
-	left, err := os.ReadDir(queue)
-	if err != nil || len(left) != 0 {
-		t.Fatalf("tickets left after the run: %v %v", left, err)
+	for _, class := range []string{"db", "cpu"} {
+		left, err := os.ReadDir(filepath.Join(queue, class))
+		if err != nil || len(left) != 0 {
+			t.Fatalf("%s tickets left after the run: %v %v", class, left, err)
+		}
 	}
 
-	h.commit(t, map[string]string{"y.sh": "echo\n"})
+	h.backendChange(t, "b")
 	if err := os.RemoveAll(queue); err != nil {
 		t.Fatal(err)
 	}
@@ -374,10 +414,10 @@ func TestCheck_takesATicketForTheRunAndRemovesItAfterwards(t *testing.T) {
 	}
 }
 
-func TestCheck_aFreshRunTakesATicketAndRemovesItAfterwards(t *testing.T) {
+func TestCheck_aFreshRunTakesTicketsToo(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
-	h.commit(t, map[string]string{"x.sh": "echo\n"})
+	h.backendChange(t, "a")
 	if code, _, stderr := h.check(t); code != 0 {
 		t.Fatalf("first: %d %q", code, stderr)
 	}
@@ -395,7 +435,7 @@ func TestCheck_aFreshRunTakesATicketAndRemovesItAfterwards(t *testing.T) {
 	if code, stdout, stderr := h.check(t, "--fresh"); code != 0 || !strings.Contains(stdout, "passed") {
 		t.Fatalf("--fresh: %d %q %q", code, stdout, stderr)
 	}
-	if left, err := os.ReadDir(queue); err != nil || len(left) != 0 {
+	if left, err := os.ReadDir(filepath.Join(queue, "cpu")); err != nil || len(left) != 0 {
 		t.Fatalf("--fresh left a ticket or took none: %v %v", left, err)
 	}
 }
@@ -422,12 +462,12 @@ func TestCheck_aCarriedRunTakesNoTicket(t *testing.T) {
 	}
 }
 
-func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testing.T) {
+func TestTakeToken_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	env := h.Env(t)
 	writeFile(t, filepath.Join(env.Common, ".monaco"), "not a directory\n")
-	if _, err := env.takeSlot(context.Background(), &bytes.Buffer{}); err == nil ||
+	if _, err := env.takeToken(context.Background(), "db", &bytes.Buffer{}); err == nil ||
 		!strings.Contains(cliText(err), "take a stage 0 ticket") {
 		t.Fatalf("an unwritable queue fails the check: %v", err)
 	}
@@ -435,7 +475,8 @@ func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testin
 	if err := os.Remove(filepath.Join(env.Common, ".monaco")); err != nil {
 		t.Fatal(err)
 	}
-	queue := filepath.Join(env.Common, ".monaco", "check-queue")
+	writeFile(t, filepath.Join(env.Common, localConfigPath), "[check.tokens]\ndb = 1\n")
+	queue := filepath.Join(env.Common, ".monaco", "check-queue", "db")
 	if err := os.MkdirAll(queue, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -445,12 +486,78 @@ func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testin
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var out bytes.Buffer
-	if _, err := env.takeSlot(ctx, &out); !errors.Is(err, context.Canceled) ||
-		!strings.Contains(out.String(), "position 3 of 3") {
+	if _, err := env.takeToken(ctx, "db", &out); !errors.Is(err, context.Canceled) ||
+		!strings.Contains(out.String(), "waiting for a db token: position 3 of 3") {
 		t.Fatalf("a cancelled wait: %v %q", err, out.String())
 	}
 	left, _ := os.ReadDir(queue)
 	if len(left) != 2 {
 		t.Fatalf("the cancelled wait left its ticket: %v", left)
+	}
+}
+
+func TestCheck_aTokenWaitIsPrintedLoggedAndNotChargedToTheRowBudget(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	env := h.Env(t)
+	env.Actions = true
+	env.Config.Budget["go"] = 10 * time.Second
+	writeFile(t, filepath.Join(env.Common, localConfigPath), "[check.tokens]\ncpu = 1\n")
+	env.Now = func() time.Time { return h.clock }
+	holder := filepath.Join(env.Common, ".monaco", "check-queue", "cpu", "1-"+strconv.Itoa(os.Getppid()))
+	writeFile(t, holder, "/other/.worktrees/9\n")
+	env.After = func(time.Duration) <-chan time.Time {
+		h.clock = h.clock.Add(30 * time.Second)
+		_ = os.Remove(holder)
+		tick := make(chan time.Time, 1)
+		tick <- h.clock
+		return tick
+	}
+	run := &checkRun{env: env, start: env.Now()}
+	var out bytes.Buffer
+	row := checkRow{label: "go vet", kind: "go", dir: env.Work, class: "cpu", cmds: [][]string{{"vet"}}}
+	if err := run.row(context.Background(), row, &out); err != nil {
+		t.Fatalf("a 30 s wait fails a 10 s budget: %v\n%s", err, out.String())
+	}
+	for _, want := range []string{
+		"waiting for a cpu token: position 2 of 2", "go vet          ok    1.0s  waited 30s for a cpu token",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("stdout lacks %q: %q", want, out.String())
+		}
+	}
+	if !strings.Contains(run.log.String(), "go vet: waited 30s for a cpu token\n") {
+		t.Errorf("log lacks the wait: %q", run.log.String())
+	}
+}
+
+func TestCheck_aDatabaseRowThatCannotTakeATestDatabaseReleasesItsToken(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	env := h.Env(t)
+	writeFile(t, filepath.Join(env.Common, ".monaco", "test-db"), "not a directory\n")
+	run := &checkRun{env: env, start: env.Now()}
+	row := checkRow{
+		label: "go test -short", kind: "go", dir: env.Work, class: "db",
+		dbCmds: func(testDB) [][]string { return nil },
+	}
+	if err := run.row(context.Background(), row, &bytes.Buffer{}); err == nil {
+		t.Fatal("no test database slot fails the row")
+	}
+	if n := ticketCount(t, env, "db"); n != 0 {
+		t.Fatalf("%d db tickets left", n)
+	}
+}
+
+func TestCheck_aFailingTestDatabaseStartFailsTheRowBeforeItsCommands(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	h.replies = []reply{{prefix: "docker compose", err: errors.New("no docker")}}
+	code, stdout, _ := h.check(t)
+	if code != 1 || !strings.Contains(stdout, "go test -short  FAIL  docker compose") ||
+		slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "go test ") }) {
+		t.Fatalf("code=%d stdout=%q calls=%v", code, stdout, h.calls)
 	}
 }

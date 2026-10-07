@@ -23,24 +23,36 @@ var (
 )
 
 const (
-	configPath      = ".monaco/agents.toml"
-	localConfigPath = ".monaco/agents.local.toml"
-	defaultLabel    = "merge-queue"
-	budgetSection   = "[check.budget]"
-	budgetPrefix    = "check.budget."
-	checkSection    = "[check]"
-	batchSection    = "[batch]"
-	checkPrefix     = "check."
-	batchPrefix     = "batch."
-	defaultSlots    = 2
-	defaultQueue    = 3
-	retiredMaxLoad  = "dispatch.max_load"
-	dispatchSection = "[dispatch]"
-	dispatchPrefix  = "dispatch."
-	watchSection    = "[watch]"
-	watchPrefix     = "watch."
-	defaultStuck    = 12 * time.Minute
+	configPath       = ".monaco/agents.toml"
+	localConfigPath  = ".monaco/agents.local.toml"
+	defaultLabel     = "merge-queue"
+	budgetSection    = "[check.budget]"
+	budgetPrefix     = "check.budget."
+	checkSection     = "[check]"
+	batchSection     = "[batch]"
+	checkPrefix      = "check."
+	batchPrefix      = "batch."
+	defaultDBTokens  = 4
+	defaultCPUTokens = 6
+	tokensSection    = "[check.tokens]"
+	tokensPrefix     = "check.tokens."
+	defaultQueue     = 3
+	retiredMaxLoad   = "dispatch.max_load"
+	dispatchSection  = "[dispatch]"
+	dispatchPrefix   = "dispatch."
+	watchSection     = "[watch]"
+	watchPrefix      = "watch."
+	defaultStuck     = 12 * time.Minute
 )
+
+type Tokens struct{ DB, CPU int }
+
+func (t Tokens) of(class string) int {
+	if class == "db" {
+		return t.DB
+	}
+	return t.CPU
+}
 
 func defaultBudget() map[string]time.Duration {
 	return map[string]time.Duration{
@@ -63,7 +75,7 @@ type Config struct {
 	Milestone            string
 	QueueLabel           string
 	QueueConcurrency     int
-	Slots                int
+	Tokens               Tokens
 	MaxQueue             int
 	StuckAfter           time.Duration
 	Budget               map[string]time.Duration
@@ -73,17 +85,29 @@ type Config struct {
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	c := Config{Budget: defaultBudget(), Slots: defaultSlots, MaxQueue: defaultQueue, StuckAfter: defaultStuck}
+	c := Config{
+		Budget:     defaultBudget(),
+		Tokens:     Tokens{DB: defaultDBTokens, CPU: defaultCPUTokens},
+		MaxQueue:   defaultQueue,
+		StuckAfter: defaultStuck,
+	}
 	section := ""
+	var slotsIgnoredSince3670 int
 	seen := map[string]bool{}
 	strs := map[string]*string{
 		"repo": &c.Repo, "feature_branch": &c.FeatureBranch, "verifier_app": &c.VerifierApp,
 		"milestone": &c.Milestone, "queue_label": &c.QueueLabel,
 	}
 	ints := map[string]*int{
-		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch.size": &c.Batch,
-		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots, "dispatch.max_queue": &c.MaxQueue,
-		"queue_concurrency": &c.QueueConcurrency,
+		"tracking":              &c.Tracking,
+		"lanes":                 &c.Lanes,
+		"batch.size":            &c.Batch,
+		"verifier_installation": &c.VerifierInstallation,
+		"check.slots":           &slotsIgnoredSince3670,
+		"dispatch.max_queue":    &c.MaxQueue,
+		"check.tokens.db":       &c.Tokens.DB,
+		"check.tokens.cpu":      &c.Tokens.CPU,
+		"queue_concurrency":     &c.QueueConcurrency,
 	}
 	ints[retiredMaxLoad] = new(int)
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
@@ -130,9 +154,15 @@ func parseConfig(r io.Reader) (Config, error) {
 
 func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 	section := ""
+	var slotsIgnoredSince3670 int
 	strs := map[string]*string{"milestone": &c.Milestone}
 	ints := map[string]*int{
-		"lanes": &c.Lanes, "check.slots": &c.Slots, "dispatch.max_queue": &c.MaxQueue, "tracking": &c.Tracking,
+		"lanes":              &c.Lanes,
+		"check.slots":        &slotsIgnoredSince3670,
+		"dispatch.max_queue": &c.MaxQueue,
+		"tracking":           &c.Tracking,
+		"check.tokens.db":    &c.Tokens.DB,
+		"check.tokens.cpu":   &c.Tokens.CPU,
 	}
 	ints[retiredMaxLoad] = new(int)
 	lines, err := logicalLines(r, localConfigPath)
@@ -167,9 +197,11 @@ func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 }
 
 func checkCapacity(path string, c Config) error {
-	if c.Slots < 1 {
-		return detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
-			fmt.Sprintf("%s: check.slots: want at least 1, got %d", path, c.Slots))
+	for _, class := range []string{"db", "cpu"} {
+		if n := c.Tokens.of(class); n < 1 {
+			return detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
+				fmt.Sprintf("%s: check.tokens.%s: want at least 1, got %d", path, class, n))
+		}
 	}
 	if c.MaxQueue < 1 {
 		return detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
@@ -220,7 +252,7 @@ func opensList(line string) bool {
 
 func sectionPrefix(line string) (string, bool) {
 	prefix, ok := map[string]string{
-		budgetSection: budgetPrefix, checkSection: checkPrefix, dispatchSection: dispatchPrefix,
+		budgetSection: budgetPrefix, checkSection: checkPrefix, tokensSection: tokensPrefix, dispatchSection: dispatchPrefix,
 		batchSection: batchPrefix, watchSection: watchPrefix,
 	}[line]
 	return prefix, ok
