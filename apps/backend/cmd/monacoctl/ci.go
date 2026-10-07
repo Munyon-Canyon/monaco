@@ -190,7 +190,7 @@ func seedDirs(byDir map[string]listedPackage, f string) []string {
 }
 
 func runsEverything(f string) bool {
-	return strings.HasPrefix(f, "internal/testkit/") || f == "go.mod" || f == "go.sum" || f == ".golangci.yml"
+	return f == "go.mod" || f == "go.sum" || f == ".golangci.yml"
 }
 
 func sqlcDirs(byDir map[string]listedPackage) []string {

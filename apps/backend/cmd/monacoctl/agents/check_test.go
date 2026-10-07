@@ -176,15 +176,11 @@ func (h *checkHarness) commit(t *testing.T, files map[string]string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func (h *checkHarness) goTest(t *testing.T, p string, pkgs ...string) []string {
+func (h *checkHarness) goTest(t *testing.T, p, cover string, pkgs ...string) []string {
 	t.Helper()
 	profile := h.profile(t)
 	return []string{
-		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " go test -tags faultpoints -short -count=1 -timeout 20s -p " + p + " -json -coverpkg=" +
-			strings.Join(
-				slices.DeleteFunc(slices.Clone(pkgs), func(p string) bool { return p == "./internal/t" }),
-				",",
-			) +
+		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " go test -tags faultpoints -short -count=1 -timeout 20s -p " + p + " -json -coverpkg=" + cover +
 			" -coverprofile=" + profile + " " + strings.Join(
 			pkgs,
 			" ",
@@ -338,6 +334,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	goTest := h.goTest(
 		t,
 		strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
+		"./internal/x",
 		"./internal/x",
 		"./internal/t",
 		"./cmd/api",
@@ -1113,7 +1110,7 @@ func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T
 	})
 	h.affected = "./internal/a\n"
 	p := strconv.Itoa(testParallelism(runtime.NumCPU(), 4))
-	goTest := strings.Replace(h.goTest(t, p, "./internal/a")[0], ":54323/", ":54326/", 1)
+	goTest := strings.Replace(h.goTest(t, p, "./internal/a", "./internal/a")[0], ":54323/", ":54326/", 1)
 	drop := ".: docker exec monaco-postgres-test-3 sh -c " + dropLeftoverClones
 	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, upTestDB(3)) ||
 		!slices.Contains(h.calls, drop) || !slices.Contains(h.calls, goTest) {
@@ -1133,7 +1130,7 @@ func TestCheck_eachBusySlotGetsItsOwnTestDatabaseAndAShareOfTheCPUs(t *testing.T
 
 	h.calls = nil
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // again\n", compose: "ports: []\n"})
-	goTest = h.goTest(t, p, "./internal/a")[0]
+	goTest = h.goTest(t, p, "./internal/a", "./internal/a")[0]
 	if code, _, stderr := h.check(t); code != 0 || !slices.Contains(h.calls, upTestDB(0)) ||
 		!slices.Contains(h.calls, dropDeadClones) || !slices.Contains(h.calls, goTest) {
 		t.Fatalf(
@@ -1761,5 +1758,46 @@ func TestCheck_theFlowsRowReportsWhatItCannotRead(t *testing.T) {
 	writeFile(t, h.stateDir(t, "flows"), "")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+h.stateDir(t, "flows")) {
 		t.Fatalf("an unwritable state dir: %d %q", code, stderr)
+	}
+}
+
+func TestCheck_coverpkgListsOnlyPackagesWithChangedSources(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{
+		"apps/backend/internal/a/a.go":      "package a\n",
+		"apps/backend/internal/b/b.go":      "package b\n",
+		"apps/backend/internal/c/c_test.go": "package c\n",
+	})
+	h.commit(t, map[string]string{
+		"apps/backend/internal/a/a.go":      "package a // changed\n",
+		"apps/backend/internal/c/c_test.go": "package c // changed\n",
+	})
+	h.affected = "./internal/a\n./internal/b\n./internal/c\n"
+	h.calls = nil
+	if code, stdout, stderr := h.check(t); code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)), "./internal/a",
+		"./internal/a", "./internal/b", "./internal/c")[0]
+	if !slices.Contains(h.calls, want) {
+		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
+	}
+}
+
+func TestCheck_goTestWritesNoProfileWhenNoSourceChanged(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.commit(t, map[string]string{"apps/backend/internal/a/a_test.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	h.calls = nil
+	if code, stdout, stderr := h.check(t); code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	for _, c := range h.calls {
+		if strings.Contains(c, "go test") && strings.Contains(c, "-cover") {
+			t.Fatalf("go test instruments with no changed source: %s", c)
+		}
 	}
 }

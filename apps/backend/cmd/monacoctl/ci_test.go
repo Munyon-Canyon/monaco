@@ -20,15 +20,17 @@ func ciModule(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	files := map[string]string{
-		"go.mod":                      "module example.com/m\n\ngo 1.25.0\n",
-		"README.md":                   "m\n",
-		"leaf/leaf.go":                "package leaf\n",
-		"shared/shared.go":            "package shared\n\nfunc S() int { return 1 }\n",
-		"mid/mid.go":                  "package mid\n\nimport \"example.com/m/shared\"\n\nfunc M() int { return shared.S() }\n",
-		"top/top.go":                  "package top\n\nimport \"example.com/m/mid\"\n\nfunc T() int { return mid.M() }\n",
-		"user/user.go":                "package user\n\nimport _ \"errors\"\n",
-		"user/user_test.go":           "package user_test\n\nimport \"example.com/m/shared\"\n\nvar _ = shared.S\n",
-		"internal/testkit/testkit.go": "package testkit\n",
+		"go.mod":                          "module example.com/m\n\ngo 1.25.0\n",
+		"README.md":                       "m\n",
+		"leaf/leaf.go":                    "package leaf\n",
+		"shared/shared.go":                "package shared\n\nfunc S() int { return 1 }\n",
+		"mid/mid.go":                      "package mid\n\nimport \"example.com/m/shared\"\n\nfunc M() int { return shared.S() }\n",
+		"top/top.go":                      "package top\n\nimport \"example.com/m/mid\"\n\nfunc T() int { return mid.M() }\n",
+		"user/user.go":                    "package user\n\nimport _ \"errors\"\n",
+		"user/user_test.go":               "package user_test\n\nimport \"example.com/m/shared\"\n\nvar _ = shared.S\n",
+		"internal/testkit/testkit.go":     "package testkit\n",
+		"internal/testkit/flows/flows.go": "package flows\n\nfunc F() int { return 1 }\n",
+		"flowuser/flowuser.go":            "package flowuser\n\nimport \"example.com/m/internal/testkit/flows\"\n\nvar _ = flows.F\n",
 	}
 	for name, body := range files {
 		writeCIFile(t, dir, name, body)
@@ -73,9 +75,14 @@ func TestCIAffectedPrintsChangedPackagesAndTheirImporters(t *testing.T) {
 		{"go.mod change", map[string]string{"go.mod": "module example.com/m\n\ngo 1.25.1\n"}, "./...\n"},
 		{"go.sum change", map[string]string{"go.sum": ""}, "./...\n"},
 		{
-			"testkit change",
+			"a testkit flows change reaches its importers, not every package",
+			map[string]string{"internal/testkit/flows/flows.go": "package flows\n\nfunc F() int { return 2 }\n"},
+			"./flowuser\n./internal/testkit/flows\n",
+		},
+		{
+			"a testkit change with no importers selects only itself",
 			map[string]string{"internal/testkit/testkit.go": "package testkit\n\nvar X = 1\n"},
-			"./...\n",
+			"./internal/testkit\n",
 		},
 		{"non-Go change", map[string]string{"README.md": "changed\n"}, "./...\n"},
 		{"Go file outside any package", map[string]string{"leaf/testdata/x.go": "package x\n"}, "./...\n"},
@@ -177,6 +184,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 		"internal/platform/db/sqlc":   pkg("internal/platform/db/sqlc"),
 		"internal/tools/flows":        pkg("internal/tools/flows"),
 		"internal/testkit/flows":      pkg("internal/testkit/flows"),
+		"top":                         pkg("top", "internal/testkit/flows"),
 		"cmd/gen":                     pkg("cmd/gen"),
 		"cmd/monacoctl":               pkg("cmd/monacoctl"),
 		"cmd/monacoctl/agents":        pkg("cmd/monacoctl/agents"),
@@ -211,7 +219,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 			[]string{"packages/flows/backend/03.tsv"},
 			[]string{
 				"./cmd/gen", "./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify",
-				"./internal/testkit/flows", "./internal/tools/flows", "./internal/tools/gen",
+				"./internal/testkit/flows", "./internal/tools/flows", "./internal/tools/gen", "./top",
 			},
 		},
 		{"mixed seeds union", []string{"leaf/x.go", "api/openapi.yaml"}, []string{"./api", "./app", "./leaf"}},
@@ -222,7 +230,11 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 		{"go.mod", []string{"go.mod"}, all},
 		{"go.sum", []string{"go.sum"}, all},
 		{".golangci.yml", []string{".golangci.yml"}, all},
-		{"testkit non-Go file", []string{"internal/testkit/data.json"}, all},
+		{
+			"a testkit fixture yields its package and importers",
+			[]string{"internal/testkit/flows/testdata/x.json"},
+			[]string{"./internal/testkit/flows", "./top"},
+		},
 		{"one fallback among seeds", []string{"leaf/x.go", "go.mod"}, all},
 	}
 	for _, tc := range cases {

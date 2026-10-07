@@ -658,6 +658,7 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string,
 	if err != nil {
 		return nil, err
 	}
+	covered := coverageFiles(backend, changed)
 	return []checkRow{
 		{
 			label: "go build", kind: "go", dir: backend,
@@ -669,15 +670,13 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string,
 			label: "go test -short", kind: packageKind, dir: backend,
 			cmds: [][]string{slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
 				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
-				"-coverpkg=" + strings.Join(buildable(backend, pkgs), ","), "-coverprofile=" + profile,
-			}, pkgs)},
+			}, coverFlags(backend, pkgs, covered, profile), pkgs)},
 		},
-		coverageRow(backend, self, profile, changed),
+		coverageRow(backend, self, profile, covered),
 	}, nil
 }
 
-func coverageRow(backend, self, profile string, changed []string) checkRow {
-	row := checkRow{label: "coverage", kind: "go", dir: backend}
+func coverageFiles(backend string, changed []string) map[string]bool {
 	only := map[string]bool{}
 	for _, f := range changed {
 		rel, ok := strings.CutPrefix(f, "apps/backend/")
@@ -692,6 +691,23 @@ func coverageRow(backend, self, profile string, changed []string) checkRow {
 			}
 		}
 	}
+	return only
+}
+
+func coverFlags(backend string, pkgs []string, covered map[string]bool, profile string) []string {
+	dirs := map[string]bool{}
+	for rel := range covered {
+		dirs["./"+path.Dir(rel)] = true
+	}
+	judged := slices.DeleteFunc(buildable(backend, pkgs), func(pkg string) bool { return !dirs[pkg] })
+	if len(judged) == 0 {
+		return nil
+	}
+	return []string{"-coverpkg=" + strings.Join(judged, ","), "-coverprofile=" + profile}
+}
+
+func coverageRow(backend, self, profile string, only map[string]bool) checkRow {
+	row := checkRow{label: "coverage", kind: "go", dir: backend}
 	cmd := make([]string, 0, 4+2*len(only))
 	cmd = append(cmd, self, "coverage", "--profile", profile)
 	for _, rel := range slices.Sorted(maps.Keys(only)) {
