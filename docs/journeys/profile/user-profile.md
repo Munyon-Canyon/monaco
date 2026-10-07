@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileUserProfileJourney.swift, a
 
 # Another member's profile
 
-A member opens a cabal, taps another member's row on the member board, reads their profile, follows and unfollows them, reads the cabals they share, and opens the "…" menu. On their own row the profile hides Follow and the menu. The design is the [User profile](../../screens.md#profile-tab) (`UserProfileRoute`). The old app's version is `Home/UserProfileGroupsView.swift` at `c838bd24`, opened from a leaderboard or member row.
+A member opens a cabal, taps another member's row on the member board, reads their profile, follows and unfollows them, reads the cabals they share, and opens the "…" menu. On their own row the profile hides Follow and the menu. The design is the [User profile](../../screens.md#profile-tab) (`UserProfileRoute`). The old app opened its profile from a leaderboard or member row; the new app's is `UserProfileRoute`, which renders `UserProfileScreen`.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 
@@ -33,7 +33,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap, then tap | the Profile tab, then `cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-details-button` | A leaderboard or Groups row opens the cabal |
-| S1.2 | scroll to, then tap | `cabal-member-{memberID}` | | `user-profile-header` shows within 15 s | A member row opens `UserProfileGroupsView` |
+| S1.2 | scroll to, then tap | `cabal-member-{memberID}` | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
 | S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the header shows "Followers" (`user-profile-followers`) and "Following" (`user-profile-following`), as screens.md's header "avatar, name, "@handle", follower counts" | The profile header: avatar, name, "@handle", counts |
 | S1.4 | read | `user-profile-more` | | The "…" menu shows in the toolbar, labelled "More" | The report and block menu |
 
@@ -53,8 +53,8 @@ Starts signed in (auth/sign-in). Fails on staging until the route lands (Known f
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | tap, tap, then tap | the Profile tab, `cabal-row-{cabalID}`, then `cabal-member-{memberID}` | | `user-profile-header` shows within 15 s | A member row opens `UserProfileGroupsView` |
-| S3.2 | scroll to | "Cabals you share" | | "Cabals you share" lists a row for `cabalName` within 15 s, and `user-profile-shared-coming` ("Shared cabals show up here soon.") does not show | `UserProfileGroupsView` lists the shared groups |
+| S3.1 | tap, tap, then tap | the Profile tab, `cabal-row-{cabalID}`, then `cabal-member-{memberID}` | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
+| S3.2 | scroll to | "Cabals you share" | | "Cabals you share" lists a row for `cabalName` within 15 s, and `user-profile-shared-coming` ("Shared cabals show up here soon.") does not show | The profile lists the shared groups (`UserProfileSharedCabalsSlot`) |
 | S3.3 | tap | the row for `cabalName` | | The cabal screen shows within 15 s, with `cabal-details-button` | A shared group row opens the group |
 
 ### S4 Report and block
