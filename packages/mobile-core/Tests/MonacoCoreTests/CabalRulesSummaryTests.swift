@@ -18,13 +18,19 @@ final class CabalRulesSummaryTests: XCTestCase {
         }
     }
 
+    private var cabalName: String { Components.Schemas.Cabal.sampleWithMembers(role: "member").name }
+
     private var ids: [String] { Components.Schemas.Cabal.sampleWithMembers(role: nil).members.map(\.userId) }
 
     func testTheRowsComeInOrderWithTheirTitles() {
         let rows = summary { _ in }.rows
 
-        XCTAssertEqual(rows.map(\.title), ["Who can join", "Who votes", "To pass", "Votes stay open"])
-        XCTAssertEqual(rows.map(\.value), ["Anyone", "Every member", "Everyone agrees", "1 day"])
+        XCTAssertEqual(rows.map(\.title), ["Name", "Who can join", "Who votes", "To pass", "Votes stay open"])
+        XCTAssertEqual(rows.map(\.value), [cabalName, "Anyone", "Every member", "Everyone agrees", "1 day"])
+    }
+
+    func testTheNameRowShowsTheCabalName() {
+        XCTAssertEqual(summary { $0.name = "Lunch club" }.name.value, "Lunch club")
     }
 
     func testJoinModes() {
@@ -93,6 +99,6 @@ final class CabalRulesSummaryTests: XCTestCase {
             $0.rules.proposalExpirySeconds = 7200
         }.rows
 
-        XCTAssertEqual(rows.map(\.value), ["invite_only", "council", "two_thirds", "7200"])
+        XCTAssertEqual(rows.dropFirst().map(\.value), ["invite_only", "council", "two_thirds", "7200"])
     }
 }

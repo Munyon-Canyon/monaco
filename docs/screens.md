@@ -124,10 +124,9 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | --- | --- | --- | --- |
 | 1 | `CabalInviteCodeSlot` | #646 | Card "Invite code", the code in mono, "Friends paste this code to join the cabal.", primary "Copy code" (turns into "Copied") and secondary "Share" |
 | 2 | `CabalInviteMemberSlot` | #696 | Row "Invite someone" that pushes the invite-by-handle screen |
-| 3 | `CabalRulesSlot` | #2135 | "Rules", read-only for everyone: who can join, who votes (with the voter names when it is a list), what passes, how long votes stay open. The creator's rows open the editor (#647) |
+| 3 | `CabalRulesSlot` | #2135 | "Rules", read-only for everyone: the cabal name, who can join, who votes (with the voter names when it is a list), what passes, how long votes stay open. The creator's rows, including Name, open "Cabal settings" (#647) |
 | 4 | `CabalTreasurySlot` | #651 | "Cabal treasury", the warning "Cabal treasury. Do not send funds here. Transfers are returned.", the address, and "View on Solscan". No copy button |
-| 5 | `CabalEditSlot` | #647 | Creator only: "Edit cabal" |
-| 6 | `CabalLeaveSlot` | #697 | Destructive "Leave cabal" with the confirm dialog |
+| 5 | `CabalLeaveSlot` | #697 | Destructive "Leave cabal" with the confirm dialog |
 
 ### Proposal card
 
