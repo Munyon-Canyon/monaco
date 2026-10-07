@@ -1065,6 +1065,16 @@ func TestLandArmed_ignoresAStaleArmedCopyOfAQueuedRecord(t *testing.T) {
 	}
 }
 
+func TestWatchOnce_failsThePassWhenTheQueueDraftsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	queuedStack(t, f, "/w/40")
+	f.hub.onQuery(`states:CLOSED,last:30`, `{"data":null,"errors":[{"message":"rate limited"}]}`)
+	if code, _, stderr := f.agents(t, "watch", "--once"); code != 1 || !strings.Contains(stderr, "rate limited") {
+		t.Fatalf("drafts: %d %q", code, stderr)
+	}
+}
+
 func TestLandArmed_reportsAnArmedRecordThatCannotBeReadBack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
