@@ -11,7 +11,7 @@ index adde7c05c..5ae8b611f 100644
 @@ -91,7 +91,7 @@ struct CabalActionsRow: View {
          VStack(spacing: MonacoTheme.Space.s) {
              HStack(alignment: .top, spacing: 0) {
-                 action("Add money", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
+                 action("Fund", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
 -                action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
 +                action("Propose", "arrow.up.right", id: "cabal-action-suggest", ProposeRoute(cabalID: cabalID))
                      .disabled(!canPropose)

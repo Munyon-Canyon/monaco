@@ -48,7 +48,7 @@ Cabals ┬─ + ──▶ New cabal sheet ─┬─ Start a cabal ──▶ crea
        │                         └─ Join with an invite code ──▶ JoinRoute ──▶ CabalRoute
        ├─ search result / card / Top cabals row ──▶ CabalRoute
 CabalRoute ─┬─ i ──▶ Cabal details sheet (invite code, rules, treasury, edit, leave)
-            ├─ Add money ──▶ FundRoute
+            ├─ Fund ───────▶ FundRoute
             ├─ Propose ────▶ ProposeRoute ──▶ Buy | Sell | Add a trading bot
             ├─ Cash out ───▶ CashOutRoute
             ├─ Chat ───────▶ ChatRoute
@@ -111,7 +111,7 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | 4 | `CabalSliceSlot` | #2137 | yes | hidden | Hero, ink, under a hairline: "Your slice", its value, and on the right "38% of the pot" over your gain or loss. No stake: "$0.00" with "Add money to get a slice" |
 | 5 | `CabalPauseSlot` | #657 | yes | yes | A warning row when the cabal is paused, with the reason and "Funding and cash outs resume after…". Hidden otherwise |
 | 6 | `CabalJoinSlot` | #646 | creator only | yes | Non-member: primary "Join cabal", "Request to join", or "Request sent" with "Cancel request". Creator: "2 people want to join" with Approve and Deny per row. Hidden otherwise |
-| 7 | `CabalActionsSlot` | #2134 | yes | hidden | Four round ink buttons, equal width: "Add money" (`plus`, `FundRoute`), "Propose" (`arrow.up.right`, `ProposeRoute(cabalID:)`, #613), "Cash out" (`arrow.down.left`, `CashOutRoute`), "Chat" (`bubble.left`, `ChatRoute`, with an unread dot from #704). Propose is disabled with the caption "Only voters can propose" when `me.can_vote` is false. While the cabal is paused the buttons stay enabled, and Fund and Cash out show the pause on their own screens (#651, #657) |
+| 7 | `CabalActionsSlot` | #2134 | yes | hidden | Four round ink buttons, equal width: "Fund" (`plus`, `FundRoute`), "Propose" (`arrow.up.right`, `ProposeRoute(cabalID:)`, #613), "Cash out" (`arrow.down.left`, `CashOutRoute`), "Chat" (`bubble.left`, `ChatRoute`, with an unread dot from #704). Propose is disabled with the caption "Only voters can propose" when `me.can_vote` is false. While the cabal is paused the buttons stay enabled, and Fund and Cash out show the pause on their own screens (#651, #657) |
 | 8 | `CabalProposalsSlot` | #612 | yes | yes, read-only | "Needs your vote" with a count badge and "See all" (the full open and closed list). Open proposal cards, newest first. Passed proposals whose trade has not finished sit under "In progress" until the trade is bought, sold or failed. Each section is hidden when empty. Empty for a member: "No open votes" / "Propose the first buy." |
 | 9 | `CabalHoldingsSlot` | #2137 | yes | yes | "Holdings": an allocation bar with a legend ("● GOOGL 25%  Cash 75%"), then one row per holding (logo, ticker, "0.73 shares · $341.58", value over its gain or loss) and a "Cash" row. Rows open `AssetRoute`. Empty pot: the Cash row and "Nothing bought yet. Propose the first buy." Zero pot: "Add money, then propose the first buy." |
 | 10 | `CabalAgentSlot` | #691 | yes | yes | "Trading bot": one row with the bot's name, "$200.00 budget" and its state ("Active", "Paused"). Opens the trading bot screen. Hidden when the cabal has no bot |

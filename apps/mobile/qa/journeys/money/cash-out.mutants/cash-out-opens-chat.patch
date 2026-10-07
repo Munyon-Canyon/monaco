@@ -9,7 +9,7 @@ index adde7c05c..e4ad831b3 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 @@ -93,7 +93,7 @@ struct CabalActionsRow: View {
-                 action("Add money", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
+                 action("Fund", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
                  action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
                      .disabled(!canPropose)
 -                action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
