@@ -261,7 +261,7 @@ reset *target:
         ;;
     esac
 
-# Apply pending migrations to the .env.local database and print its revision. `just run backend` never migrates.
+# Apply pending migrations to the .env.local database, print its revision, then apply the NATS stream config. `just run backend` does neither.
 migrate target:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -269,8 +269,10 @@ migrate target:
       db)
         mkdir -p bin
         (cd apps/backend && go build -o ../../bin/ ./cmd/monacoctl)
+        docker compose up -d --wait postgres nats
         {{_dotenvx}} "$PWD/bin/monacoctl" migrate apply
         {{_dotenvx}} "$PWD/bin/monacoctl" migrate status
+        {{_dotenvx}} "$PWD/bin/monacoctl" bus apply
         ;;
       *)
         echo "error: unknown target '{{target}}' (use db)"

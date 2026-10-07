@@ -111,12 +111,12 @@ func TestJustRunBackend_startsTheServicesWithoutMigrating(t *testing.T) {
 	}
 }
 
-func TestJustMigrateDb_appliesThenReportsTheRevision(t *testing.T) {
+func TestJustMigrateDb_appliesThenReportsTheRevisionThenAppliesTheStreams(t *testing.T) {
 	s := newRecipeSandbox(t)
 
 	calls := s.just(t, "migrate", "db")
 
-	want := []string{"monacoctl migrate apply", "monacoctl migrate status"}
+	want := []string{"monacoctl migrate apply", "monacoctl migrate status", "monacoctl bus apply"}
 	got := calls[len(calls)-len(want):]
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("calls end with %q, want %q\nall calls:\n%s", got, want, strings.Join(calls, "\n"))
