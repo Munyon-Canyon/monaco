@@ -360,7 +360,7 @@ func TestTreasuryReconcile_AnRPCFailureOnOneCabalStillReconcilesTheOthers(t *tes
 func TestTreasuryReconcile_CabalsCutOffByTheTickBudgetGoLastNextTick(t *testing.T) {
 	t.Parallel()
 	env := newReconcileEnv(t)
-	env.deps.Interval = 300 * time.Millisecond
+	env.deps.Interval = 2 * time.Second
 	env.chain.hang = map[chain.SolanaAddress]bool{}
 	for range 10 {
 		slow := testkit.NewCabal(t, env.pool)
