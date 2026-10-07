@@ -57,7 +57,7 @@ func TestProposalHints_CastVoteAndWithdrawPublishAfterCommit(t *testing.T) {
 	d := newVoteDB(t)
 	hints := &proposalHints{}
 	voteProposal, voters := d.open(t, 1)
-	vote := app.NewCastVoteHandler(d.uow, d.pool, d.clk, threshold{rule: domain.RuleMajority}, hints)
+	vote := app.NewCastVoteHandler(d.uow, d.clk, hints)
 	d.mustCast(t, vote, voteProposal.ID, voters[0], domain.ChoiceYes)
 	withdrawProposal, proposer := d.buy(d.ids.NewV7()), d.ids.NewV7()
 	withdrawProposal.ProposerID = proposer
@@ -79,7 +79,7 @@ func TestProposalHints_RefusalsPublishNothing(t *testing.T) {
 	d := newVoteDB(t)
 	hints := &proposalHints{}
 	p, voters := d.open(t, 1)
-	vote := app.NewCastVoteHandler(d.uow, d.pool, d.clk, threshold{rule: domain.RuleMajority}, hints)
+	vote := app.NewCastVoteHandler(d.uow, d.clk, hints)
 	if _, err := d.cast(t.Context(), vote, p.ID, d.ids.NewV7(), domain.ChoiceYes); err == nil {
 		t.Fatal("non-voter ballot = nil")
 	}
@@ -110,7 +110,7 @@ func TestProposalHints_PublishFailure_CommandSucceeds(t *testing.T) {
 	d := newVoteDB(t)
 	drops := &proposalHints{}
 	p, voters := d.open(t, 1)
-	vote := app.NewCastVoteHandler(d.uow, d.pool, d.clk, threshold{rule: domain.RuleMajority}, drops)
+	vote := app.NewCastVoteHandler(d.uow, d.clk, drops)
 	d.mustCast(t, vote, p.ID, voters[0], domain.ChoiceYes)
 	proposer := d.ids.NewV7()
 	withdrawn := d.buy(proposer)
@@ -148,7 +148,7 @@ func TestProposalHints_VoidExpiryAndTradeOutcome(t *testing.T) {
 		t.Fatalf("no-op expiry = %v with hints %q", err, hints.updated)
 	}
 	passed, voters := d.open(t, 1)
-	d.mustCast(t, d.handler(threshold{rule: domain.RuleMajority}), passed.ID, voters[0], domain.ChoiceYes)
+	d.mustCast(t, d.handler(), passed.ID, voters[0], domain.ChoiceYes)
 	outcome := adapters.TradeOutcome{Hints: hints}
 	e := events.TradeConfirmed{
 		V: 1, CabalID: passed.CabalID, Source: events.TradeSource{Kind: "proposal", ID: passed.ID},
@@ -176,7 +176,7 @@ func TestProposalHints_TradeOutcomeAppendFailurePublishesNothing(t *testing.T) {
 	d := newVoteDB(t)
 	hints := &proposalHints{}
 	refused, voters := d.open(t, 1)
-	d.mustCast(t, d.handler(threshold{rule: domain.RuleMajority}), refused.ID, voters[0], domain.ChoiceYes)
+	d.mustCast(t, d.handler(), refused.ID, voters[0], domain.ChoiceYes)
 	stmt := `ALTER TABLE events ADD CONSTRAINT no_executed CHECK (type <> 'proposal.executed') NOT VALID`
 	if _, err := d.pool.Exec(t.Context(), stmt); err != nil {
 		t.Fatal(err)

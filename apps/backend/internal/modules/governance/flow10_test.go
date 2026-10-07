@@ -3,7 +3,6 @@ package governance_test
 import (
 	"testing"
 
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
@@ -51,7 +50,7 @@ func TestFlow10_CastVote_ProposalClosed(t *testing.T) {
 	flows.F10CastVoteProposalClosed(scenario.New(t, withGovernance()))
 }
 
-func TestCastVote_overHTTPAProposalWhoseCabalIsGoneIsCabalNotFound(t *testing.T) {
+func TestCastVote_overHTTPAProposalWhoseCabalIsGoneStillCountsFromItsFrozenThreshold(t *testing.T) {
 	t.Parallel()
 	s := scenario.New(t, withGovernance())
 	d := proposalDB{q: sqlc.New(s.DB()), ids: testkit.NewIDs(7), now: clock.Real{}.Now().UTC()}
@@ -63,5 +62,5 @@ func TestCastVote_overHTTPAProposalWhoseCabalIsGoneIsCabalNotFound(t *testing.T)
 	d.insert(t, p)
 	s.Given(scenario.AsSeededUser("alice", voter)).
 		When(scenario.Post("/v1/proposals/"+p.ID.String()+"/votes", `{"choice":"yes"}`)).
-		Then(scenario.ExpectProblem(errs.CodeCabalNotFound))
+		Then(scenario.ExpectJSON("status", "passed"))
 }

@@ -440,8 +440,8 @@ func TestNotify_Proposal_RefusesAKindItCannotPhraseBeforeReadingAnyPort(t *testi
 func (r *pushRig) insertProposal(t *testing.T, refs proposalRefs, voters ...ids.UserID) {
 	t.Helper()
 	r.exec(t, `INSERT INTO proposals (id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, quote_out_amount,
-		status, expires_at, created_at, updated_at)
-		VALUES ($1, $2, $3, 'buy', 'AAPLx', 'mint', $4, 105000000, 'passed', $5, $6, $6)`,
+		threshold, status, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, 'buy', 'AAPLx', 'mint', $4, 105000000, 'majority', 'passed', $5, $6, $6)`,
 		refs.proposal, refs.cabal.UUID(), refs.proposer.UUID(), buyMicros, r.clock.Now().Add(time.Hour), r.clock.Now())
 	for _, voter := range voters {
 		r.exec(t, `INSERT INTO votes (proposal_id, voter_id, choice, cast_at) VALUES ($1, $2, 'yes', $3)`,

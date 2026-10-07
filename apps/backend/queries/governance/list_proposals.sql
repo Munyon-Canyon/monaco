@@ -1,7 +1,7 @@
 -- name: ListProposals :many
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.thesis, p.status, p.status_reason, p.expires_at, p.created_at,
+  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at,
   coalesce(mine.choice, '')::text AS my_ballot
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = @caller_id

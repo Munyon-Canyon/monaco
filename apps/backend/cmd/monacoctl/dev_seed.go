@@ -208,7 +208,7 @@ func insertDevProposal(t testkit.SeedT, deps module.Deps, cabal testkit.SeededCa
 	params := governance.InsertProposalParams{
 		ID: id, CabalID: cabal.ID.UUID(), ProposerID: proposer.UUID(), Kind: "buy", Symbol: "AAPLx",
 		Mint: devProposalMint, UsdcMicros: pgtype.Int8{Int64: devProposalMicros, Valid: true},
-		QuoteOutAmount: devProposalQuote, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now,
+		QuoteOutAmount: devProposalQuote, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 	}
 	for _, m := range cabal.Members {
 		params.VoterIds = append(params.VoterIds, m.ID.UUID())

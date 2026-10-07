@@ -36,7 +36,7 @@ func newReadsDB(t *testing.T) readsDB {
 }
 
 func (d readsDB) reads() *app.ProposalReads {
-	return app.NewProposalReads(d.pool, threshold{rule: domain.RuleMajority}, d.swaps)
+	return app.NewProposalReads(d.pool, d.swaps)
 }
 
 func (d readsDB) seed(t *testing.T, at time.Time, voters ...uuid.UUID) uuid.UUID {
@@ -190,10 +190,6 @@ func TestProposals_List_failures(t *testing.T) {
 	t.Parallel()
 	d := newReadsDB(t)
 	req := app.ListProposals{CabalID: ids.CabalIDFrom(d.cabal), Caller: ids.UserIDFrom(d.caller)}
-	gone := app.NewProposalReads(d.pool, threshold{err: errs.New(errs.CodeCabalNotFound, "t")}, d.swaps)
-	if _, err := gone.List(t.Context(), req); errs.CodeOf(err) != errs.CodeCabalNotFound {
-		t.Errorf("List of an unknown cabal err = %v, want cabal_not_found", err)
-	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := d.reads().List(ctx, req); errs.CodeOf(err) != errs.CodeInternal {

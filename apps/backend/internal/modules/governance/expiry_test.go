@@ -176,7 +176,7 @@ func raceVoteFirst(t *testing.T) {
 	p, v := d.open(t, 1)
 	d.clk.Set(p.ExpiresAt)
 	release := d.holdBallots(t)
-	h := d.handler(threshold{rule: domain.RuleMajority})
+	h := d.handler()
 	var voted, ticked errgroup.Group
 	var vote app.CastVoteResult
 	var tick poller.Report
@@ -208,7 +208,7 @@ func raceExpiryFirst(t *testing.T) {
 	p, v := d.open(t, 1)
 	d.clk.Set(p.ExpiresAt)
 	d.mustTick(t, 1, 1)
-	_, err := d.cast(t.Context(), d.handler(threshold{rule: domain.RuleMajority}), p.ID, v[0], domain.ChoiceYes)
+	_, err := d.cast(t.Context(), d.handler(), p.ID, v[0], domain.ChoiceYes)
 	if errs.CodeOf(err) != errs.CodeProposalClosed {
 		t.Fatalf("a vote after the expiry err = %v, want proposal_closed", err)
 	}

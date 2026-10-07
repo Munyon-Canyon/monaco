@@ -62,13 +62,12 @@ type ProposalPage struct {
 }
 
 type ProposalReads struct {
-	q          *sqlc.Queries
-	thresholds Thresholds
-	swaps      Swaps
+	q     *sqlc.Queries
+	swaps Swaps
 }
 
-func NewProposalReads(db sqlc.DBTX, t Thresholds, s Swaps) *ProposalReads {
-	return &ProposalReads{q: sqlc.New(db), thresholds: t, swaps: s}
+func NewProposalReads(db sqlc.DBTX, s Swaps) *ProposalReads {
+	return &ProposalReads{q: sqlc.New(db), swaps: s}
 }
 
 type pageCursor struct {
@@ -80,10 +79,6 @@ type pageCursor struct {
 func (r *ProposalReads) List(ctx context.Context, req ListProposals) (ProposalPage, error) {
 	const op = "governance.ListProposals"
 	filter, limit, cursor, err := parseList(req)
-	if err != nil {
-		return ProposalPage{}, err
-	}
-	rule, err := r.thresholds.Threshold(ctx, req.CabalID)
 	if err != nil {
 		return ProposalPage{}, err
 	}
@@ -103,7 +98,7 @@ func (r *ProposalReads) List(ctx context.Context, req ListProposals) (ProposalPa
 	if len(rows) == 0 {
 		return page, nil
 	}
-	tallies, err := r.tallies(ctx, rule, req.Caller, rows)
+	tallies, err := r.tallies(ctx, req.Caller, rows)
 	if err != nil {
 		return ProposalPage{}, err
 	}
@@ -124,11 +119,13 @@ type listedTally struct {
 }
 
 func (r *ProposalReads) tallies(
-	ctx context.Context, rule domain.ThresholdRule, caller ids.UserID, rows []sqlc.ListProposalsRow,
+	ctx context.Context, caller ids.UserID, rows []sqlc.ListProposalsRow,
 ) (map[uuid.UUID]listedTally, error) {
 	proposals := make([]uuid.UUID, len(rows))
+	rules := make(map[uuid.UUID]domain.ThresholdRule, len(rows))
 	for i, row := range rows {
 		proposals[i] = row.ID
+		rules[row.ID] = domain.ThresholdRule(row.Threshold)
 	}
 	counts, err := r.q.TallyProposals(ctx, sqlc.TallyProposalsParams{ProposalIds: proposals, CallerID: caller.UUID()})
 	if err != nil {
@@ -137,8 +134,9 @@ func (r *ProposalReads) tallies(
 	out := make(map[uuid.UUID]listedTally, len(counts))
 	for _, c := range counts {
 		voters := int(c.Voters)
+		needed := rules[c.ProposalID].Needed(voters)
 		out[c.ProposalID] = listedTally{
-			tally:       Tally{Yes: int(c.Yes), No: int(c.No), Voters: voters, Needed: rule.Needed(voters)},
+			tally:       Tally{Yes: int(c.Yes), No: int(c.No), Voters: voters, Needed: needed},
 			callerVotes: c.CallerVotes,
 		}
 	}

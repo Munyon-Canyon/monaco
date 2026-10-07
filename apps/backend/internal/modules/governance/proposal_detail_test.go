@@ -54,6 +54,23 @@ func TestProposals_Detail_NonMemberViewOnly(t *testing.T) {
 	}
 }
 
+func TestProposals_Detail_reportsTheFrozenThresholdNeed(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	voters := []uuid.UUID{d.caller, d.ids.NewV7(), d.ids.NewV7()}
+	p := d.buy(voters...)
+	p.CabalID, p.ProposerID, p.Threshold = d.cabal, d.caller, "unanimous"
+	d.insert(t, p)
+	if got := d.get(t, p.ID, d.caller).Proposal.Tally.Needed; got != 3 {
+		t.Fatalf("detail needed = %d, want 3 under the frozen unanimous rule", got)
+	}
+	d.seed(t, d.now.Add(time.Minute))
+	page := d.list(t, app.FilterAll, 10, "")
+	if len(page.Items) != 2 || page.Items[0].Tally.Needed != 1 || page.Items[1].Tally.Needed != 3 {
+		t.Fatalf("list needs = %+v, want each proposal's own frozen threshold", page.Items)
+	}
+}
+
 func TestProposals_Detail_votersAndPermissions(t *testing.T) {
 	t.Parallel()
 	d := newReadsDB(t)
@@ -127,10 +144,6 @@ func TestProposals_Detail_failures(t *testing.T) {
 	cancel()
 	if _, err := d.reads().Get(ctx, req); errs.CodeOf(err) != errs.CodeInternal {
 		t.Errorf("Get on a cancelled context err = %v, want internal", err)
-	}
-	gone := app.NewProposalReads(d.pool, threshold{err: errs.New(errs.CodeCabalNotFound, "t")}, d.swaps)
-	if _, err := gone.Get(t.Context(), req); errs.CodeOf(err) != errs.CodeCabalNotFound {
-		t.Errorf("Get whose cabal is gone err = %v, want cabal_not_found", err)
 	}
 	d.swaps.FailOnce(errs.New(errs.CodeDBUnavailable, "t"))
 	if _, err := d.reads().Get(t.Context(), req); errs.CodeOf(err) != errs.CodeDBUnavailable {

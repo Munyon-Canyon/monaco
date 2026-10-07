@@ -24,7 +24,8 @@ func seededProposals(t *testing.T) (tool, uuid.UUID, *pgxpool.Pool) {
 	if _, err := sqlc.New(pool).InsertProposal(t.Context(), sqlc.InsertProposalParams{
 		ID: id, CabalID: ids.Real{}.NewV7(), ProposerID: voter, Kind: "buy", Symbol: "AAPLx",
 		Mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
-		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(time.Hour), CreatedAt: now, VoterIds: []uuid.UUID{voter},
+		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(time.Hour), CreatedAt: now, Threshold: "majority",
+		VoterIds: []uuid.UUID{voter},
 	}); err != nil {
 		t.Fatal(err)
 	}

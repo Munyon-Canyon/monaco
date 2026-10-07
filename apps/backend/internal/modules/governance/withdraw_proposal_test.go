@@ -34,7 +34,7 @@ func TestWithdrawProposal_theProposersOwnBallotDoesNotBlockIt(t *testing.T) {
 	p := d.buy(proposer, other, d.ids.NewV7())
 	p.ProposerID = proposer
 	d.insert(t, p)
-	d.mustCast(t, d.handler(threshold{rule: domain.RuleMajority}), p.ID, proposer, domain.ChoiceYes)
+	d.mustCast(t, d.handler(), p.ID, proposer, domain.ChoiceYes)
 	if err := d.withdraw(t, p.ID, proposer); err != nil {
 		t.Fatalf("withdraw after only the proposer's ballot = %v, want nil", err)
 	}
@@ -90,9 +90,9 @@ func TestHTTP_DeleteProposal(t *testing.T) {
 		t.Fatalf("DeleteProposal with no actor = %v, want unauthorized", err)
 	}
 	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: d.caller.String()})
-	h.Reads = app.NewProposalReads(d.pool, threshold{err: errs.New(errs.CodeCabalNotFound, "t")}, d.swaps)
-	if _, err := h.DeleteProposal(ctx, req); errs.CodeOf(err) != errs.CodeCabalNotFound {
-		t.Fatalf("DeleteProposal whose detail read fails = %v, want cabal_not_found", err)
+	d.swaps.FailOnce(errs.New(errs.CodeDBUnavailable, "t"))
+	if _, err := h.DeleteProposal(ctx, req); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("DeleteProposal whose detail read fails = %v, want db_unavailable", err)
 	}
 	if r := d.row(t, p); r.status.String != "withdrawn" {
 		t.Fatalf("proposal after a failed detail read is %s, want withdrawn", r.status.String)

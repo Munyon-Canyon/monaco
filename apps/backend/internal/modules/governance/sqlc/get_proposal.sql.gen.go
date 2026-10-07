@@ -16,7 +16,7 @@ import (
 const getProposal = `-- name: GetProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.thesis, p.status, p.status_reason, p.expires_at, p.created_at,
+  p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at,
   coalesce(mine.choice, '')::text AS my_ballot
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = $1
@@ -38,6 +38,7 @@ type GetProposalRow struct {
 	TokenAmount    pgtype.Int8
 	QuoteOutAmount int64
 	Thesis         pgtype.Text
+	Threshold      string
 	Status         string
 	StatusReason   pgtype.Text
 	ExpiresAt      time.Time
@@ -58,6 +59,7 @@ func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetPr
 		&i.TokenAmount,
 		&i.QuoteOutAmount,
 		&i.Thesis,
+		&i.Threshold,
 		&i.Status,
 		&i.StatusReason,
 		&i.ExpiresAt,

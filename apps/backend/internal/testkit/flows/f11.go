@@ -72,7 +72,7 @@ func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
 	if _, err := sqlc.New(s.DB()).InsertProposal(s.Context(), sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: opts.symbol,
 		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: opts.micros, Valid: true},
-		QuoteOutAmount: opts.quoteOut, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now,
+		QuoteOutAmount: opts.quoteOut, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 		VoterIds: []uuid.UUID{c.Creator.ID.UUID()},
 	}); err != nil {
 		s.Fatalf("flows: insert proposal: %v", err)

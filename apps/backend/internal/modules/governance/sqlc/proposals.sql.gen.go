@@ -133,11 +133,11 @@ const insertProposal = `-- name: InsertProposal :execrows
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, status, expires_at, created_at, updated_at
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at
   )
   VALUES (
     $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, 'open', $12, $13, $13
+    $11, $12, 'open', $13, $14, $14
   )
   RETURNING id
 )
@@ -158,6 +158,7 @@ type InsertProposalParams struct {
 	TokenAmount    pgtype.Int8
 	Thesis         pgtype.Text
 	QuoteOutAmount int64
+	Threshold      string
 	ExpiresAt      time.Time
 	CreatedAt      time.Time
 }
@@ -175,6 +176,7 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 		arg.TokenAmount,
 		arg.Thesis,
 		arg.QuoteOutAmount,
+		arg.Threshold,
 		arg.ExpiresAt,
 		arg.CreatedAt,
 	)
@@ -219,7 +221,7 @@ func (q *Queries) LockForWithdraw(ctx context.Context, id uuid.UUID) (LockForWit
 const lockProposal = `-- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.status,
+  p.status, p.threshold,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = $1
   ) AS is_voter
@@ -244,6 +246,7 @@ type LockProposalRow struct {
 	TokenAmount    pgtype.Int8
 	QuoteOutAmount int64
 	Status         string
+	Threshold      string
 	IsVoter        bool
 }
 
@@ -261,6 +264,7 @@ func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (Loc
 		&i.TokenAmount,
 		&i.QuoteOutAmount,
 		&i.Status,
+		&i.Threshold,
 		&i.IsVoter,
 	)
 	return i, err
@@ -270,13 +274,13 @@ const openProposal = `-- name: OpenProposal :execrows
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, status, expires_at, created_at, updated_at
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at
   )
   VALUES (
     $2, $3, $4, $5, $6, $7,
     NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
-    NULLIF($10::text, ''), $11::text::bigint, 'open', $12,
-    $13, $13
+    NULLIF($10::text, ''), $11::text::bigint, $12, 'open', $13,
+    $14, $14
   )
   RETURNING id
 )
@@ -297,6 +301,7 @@ type OpenProposalParams struct {
 	TokenAmount    string
 	Thesis         string
 	QuoteOutAmount string
+	Threshold      string
 	ExpiresAt      time.Time
 	CreatedAt      time.Time
 }
@@ -314,6 +319,7 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 		arg.TokenAmount,
 		arg.Thesis,
 		arg.QuoteOutAmount,
+		arg.Threshold,
 		arg.ExpiresAt,
 		arg.CreatedAt,
 	)

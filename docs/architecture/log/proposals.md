@@ -10,3 +10,4 @@ Dated record of changes to [proposals.md](../proposals.md). Add one line per cha
 - 2026-09-26: Added `voided` status (admin action).
 - 2026-09-26: Comments moved to FeedComment on the proposal's feed item (feed decision).
 - 2026-09-26: Initial decision. Proposals are simple CRUD with votes, comments and status; execution checks only on threshold met; future chat references planned.
+- 2026-10-07: The pass threshold is copied onto the proposal at creation, so a cabal rules change no longer moves an open vote (#3464).
