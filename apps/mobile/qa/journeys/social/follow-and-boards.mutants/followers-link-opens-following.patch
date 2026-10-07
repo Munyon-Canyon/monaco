@@ -1,0 +1,18 @@
+journey: social/follow-and-boards
+expect-fail: S4
+
+The "Followers" count on the Profile tab opens the "Following" list. S4.2 waits for the "Followers" screen, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
+--- a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
+@@ -67,7 +67,7 @@
+             .accessibilityIdentifier("profile-follow-counts-error")
+         case .loaded:
+             HStack(spacing: 0) {
+-                link("\(model?.followerCount ?? 0) Followers", .followers, id: "profile-followers")
++                link("\(model?.followerCount ?? 0) Followers", .following, id: "profile-followers")
+                 Text(" · ")
+                     .font(MonacoTheme.Typo.calloutStrong)
+                     .foregroundStyle(MonacoTheme.muted)
