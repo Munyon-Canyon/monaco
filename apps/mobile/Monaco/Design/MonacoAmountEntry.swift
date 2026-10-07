@@ -22,7 +22,6 @@ struct AmountEntry: View {
     private let helper: String?
     private let overLimitHelper: String
     private let problem: String?
-    private let showsKeyboardDoneButton: Bool
     private let onPreset: (AmountPreset) -> Void
 
     @FocusState private var focused: Bool
@@ -33,11 +32,6 @@ struct AmountEntry: View {
     /// - Parameter problem: why the amount can't be used, in the member's words. It replaces
     ///   `helper` while it is set, so a screen with a rule of its own — a minimum, a remainder
     ///   too small to leave behind — can say so instead of leaving a dead button unexplained.
-    /// - Parameter showsKeyboardDoneButton: puts a Done button in the navigation bar while the
-    ///   decimal pad is up, because the pad has no return key of its own. It lives in the bar, not
-    ///   on the keyboard: as a keyboard accessory it floated over the screen's `BottomCTA` on
-    ///   iOS 26 and covered the end of its label. Opt-in, because it needs a navigation bar and a
-    ///   screen that has nothing else in the bar's trailing slot.
     init(
         amountText: Binding<String>,
         max: Decimal? = nil,
@@ -45,7 +39,6 @@ struct AmountEntry: View {
         helper: String? = nil,
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
-        showsKeyboardDoneButton: Bool = false,
         onPreset: @escaping (AmountPreset) -> Void = { _ in }
     ) {
         _amountText = amountText
@@ -54,7 +47,6 @@ struct AmountEntry: View {
         self.helper = helper
         self.overLimitHelper = overLimitHelper
         self.problem = problem
-        self.showsKeyboardDoneButton = showsKeyboardDoneButton
         self.onPreset = onPreset
     }
 
@@ -93,17 +85,6 @@ struct AmountEntry: View {
             guard !Task.isCancelled else { return }
             hasRaisedKeyboard = true
             focused = true
-        }
-        .toolbar {
-            // The decimal pad has no return key, so the member needs a way out of it. Only while
-            // the pad is up, and only for the screens that asked.
-            if showsKeyboardDoneButton, focused {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { focused = false }
-                        .font(MonacoTheme.Typo.bodyStrong)
-                        .accessibilityIdentifier("amount-entry-done-button")
-                }
-            }
         }
         .onChange(of: amountText) { _, newValue in
             let cleaned = AmountEntryText.sanitize(newValue)
