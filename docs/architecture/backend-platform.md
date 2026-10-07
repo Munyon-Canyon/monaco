@@ -468,10 +468,12 @@ Also in CI:
 | QA | `monacoctl verify` on the real binaries; evidence is the `verify-evidence` CI artifact | `cmd/monacoctl verify` | stage 1 and nightly |
 | Crash-point | panic at named points (after create, after sign, after `/execute`, before commit, after publish), restart, assert convergence. A `created` row was never signed or sent, so the sweeper fails it after 2 min; a crash after the send leaves the row `submitted`, which the sweeper resolves through `getSignatureStatuses`. | `faultpoint` hooks compiled in under the `faultpoints` build tag | `just test backend` in process; E2E in PR CI |
 | Jitter / concurrency | pools, pipelines, relay, consumers under random delays and interleavings | `testing/synctest` + seeded delay injection + `-race` | `just test backend` (fixed seeds), nightly (seed sweep) |
-| Performance (deterministic) | allocations per op on hot paths; query count per request | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`. Both compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
-| Performance (timing) | benchmarks compared against `main`; load on the full stack | `b.Loop` + `benchstat`; `vegeta` against the e2e stack | nightly, and on PRs labelled `perf` |
+| Performance (deterministic) | allocations per op on hot paths; query count per request; plan shape and shared buffers per statement | `testkit.AssertAllocs` (`testing.AllocsPerRun`) in `allocs_test.go`, which runs alone and without `-race`; `testkit.AssertQueries` counts the queries on the test's own `testkit.DB`; `testkit.Plan` runs `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` at the default planner settings, so a test asserts the index the plan uses (`Uses`), that it does not scan a table (`SeqScans`), and `testkit.AssertBuffers` compares the shared hit and read blocks at the root. A seed ends with `VACUUM (ANALYZE)` so the plan is stable. All three compare with the package's `testdata/perf/baseline.json`, and `-testkit.perf-update` rewrites it | `just test backend` |
+| Performance (timing) | benchmarks compared against `main`; load on the full stack | `b.Loop` + `benchstat`; `vegeta` against the e2e stack. Timing lives only in `Benchmark*` functions: a `Test*` never asserts wall-clock latency, because under load it measures the machine, not the code | nightly, and on PRs labelled `perf` |
 | Mutation | all non-generated packages | `gremlins` through `just test mutation` (`monacoctl mutation`): on a PR, only the lines the diff against its base changes (`gremlins --diff`); `--all` mutates every line of the whole module. A survivor fails unless `mutants.allow` lists it with a reason | PR CI (changed lines), nightly (every line) |
 | Leak | every package | `goleak.VerifyTestMain`, run by `testkit.Main`, the only allowed `TestMain` body (nogo `testmain`) | always |
+
+**Rule: timing assertions live in `Benchmark*` functions, never in `Test*`.** A test that asserts a latency measures the machine: a query that takes 4 ms alone took over 100 ms inside a loaded stage 0 (#3549). Assert what makes the code fast instead: the index the plan uses, the shared buffers it reads, the queries it runs and the allocations it makes. Add a `Benchmark*` beside the test, and the nightly `benchstat` job watches the time.
 
 ### Keeping it fast
 
@@ -550,7 +552,7 @@ Lint that makes the shared-state leak a compile-time failure:
 | --- | --- |
 | Merged statement coverage | 100% of non-excluded statements |
 | Mutation efficacy on changed packages | 100% of mutants killed, or listed in `mutants.allow` with a reason (equivalent mutants only; reviewed like a lint exclusion) |
-| Allocations and query counts | no increase over the recorded baseline without a baseline update in the same PR |
+| Allocations, query counts and buffer counts | no increase over the recorded baseline without a baseline update in the same PR |
 | `-race`, `goleak`, `-shuffle=on` | zero findings |
 | Nightly benchmarks | alert on a >10% `benchstat` regression with p < 0.05 |
 

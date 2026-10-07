@@ -29,3 +29,4 @@ Dated record of changes to [backend-platform.md](../backend-platform.md). Add on
 - 2026-10-06: Flows 3 and 4 list `analytics` as a consumer, for the join funnel and the `cabal_count` person property (default; see #535, #687).
 - 2026-10-06: Flow 25 lists `analytics` as a consumer of `referral.attributed` as well as `referral.qualified`, because the referral funnel needs the server event (default; see #535, #686).
 - 2026-10-06: A poller's tick deadline is its `Interval()` unless it implements `poller.Budgeted` and returns a longer `TickBudget()`; `/healthz` bases its staleness limit on that budget (default; see #3454).
+- 2026-10-07: Timing assertions live in `Benchmark*` functions and never in `Test*`. The cabal search and people board p95 tests became plan, buffer and query-count gates (`testkit.Plan`, `testkit.AssertBuffers`) plus nightly benchmarks, because a wall-clock limit measured the machine under load, not the query (operator-approved; see #3549).
