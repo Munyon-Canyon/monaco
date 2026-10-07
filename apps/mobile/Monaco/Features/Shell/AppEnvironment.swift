@@ -17,6 +17,7 @@ final class AppEnvironment {
     let cashOuts: CashOutJobWatcher
     let sessionStore: AppSessionStore
     let push: PushRegistrar
+    let referrals: ReferralAttacher
     let pushPrePrompt: PushPrePrompt
     var viewer: Viewer?
     #if DEBUG
@@ -61,6 +62,7 @@ final class AppEnvironment {
             clock: ContinuousClock()
         )
         self.push = push
+        self.referrals = ReferralAttacher(api: api, store: UserDefaults.standard, now: { Date() })
         self.pushPrePrompt = PushPrePrompt(
             authorization: LiveNotificationAuthorizing(),
             defaults: .standard,

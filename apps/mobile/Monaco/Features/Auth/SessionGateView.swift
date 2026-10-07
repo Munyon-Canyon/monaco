@@ -14,6 +14,8 @@ enum SessionGateCopy {
 struct SessionGateView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppSessionStore.self) private var session
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.scenePhase) private var scenePhase
     @State private var onboardingCursor = OnboardingCursor.start
     @State private var contactsPromptSeen = FirstRunGate.contactsPromptSeen()
 
@@ -47,8 +49,25 @@ struct SessionGateView: View {
             onboardingCursor = .start
             guard environment.isSignedIn else { return }
             await session.bootstrap(auth: environment.auth, devSession: environment.skipsSessionOpen)
+            await attachReferral()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await attachReferral() }
         }
     }
+
+    private func attachReferral() async {
+        guard let userID = session.profile?.userID,
+            let result = await environment.referrals.attachPending(userID: userID)
+        else { return }
+        switch result.outcome {
+        case .attached: toasts.show(success: result.toast)
+        case .refusedClear: toasts.current = MonacoToast(message: result.toast)
+        case .retryLater: break
+        }
+    }
+
     @ViewBuilder
     private func routed(_ profile: SessionProfile) -> some View {
         let destination = FirstRunGate.destination(
@@ -98,6 +117,7 @@ private struct AccountUnderReviewNotice: View {
     SessionGateView()
         .environment(environment)
         .environment(environment.sessionStore)
+        .environment(ToastCenter())
 }
 
 /// Why the app can't get past sign-in, and the two ways on: try again, or sign out. The restore
