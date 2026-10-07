@@ -55,6 +55,7 @@ const (
 	ContactHashesInvalid ErrorCode = "contact_hashes_invalid"
 	DbSchemaBehind ErrorCode = "db_schema_behind"
 	DbUnavailable ErrorCode = "db_unavailable"
+	DeadLetterNotOpen ErrorCode = "dead_letter_not_open"
 	DecodeFailed ErrorCode = "decode_failed"
 	DisplayNameInvalid ErrorCode = "display_name_invalid"
 	Dust ErrorCode = "dust"
@@ -241,6 +242,8 @@ func (e ErrorCode) Valid() bool {
 	case DbSchemaBehind:
 		return true
 	case DbUnavailable:
+		return true
+	case DeadLetterNotOpen:
 		return true
 	case DecodeFailed:
 		return true

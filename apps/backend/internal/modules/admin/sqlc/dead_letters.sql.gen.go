@@ -55,6 +55,85 @@ func (q *Queries) DeadLetterSeen(ctx context.Context, streamSeq int64) (bool, er
 	return exists, err
 }
 
+const getDeadLetter = `-- name: GetDeadLetter :one
+SELECT id, stream_seq, occurrences, status, letter FROM dead_letters WHERE id = $1
+`
+
+type GetDeadLetterRow struct {
+	ID          uuid.UUID
+	StreamSeq   int64
+	Occurrences int32
+	Status      string
+	Letter      []byte
+}
+
+func (q *Queries) GetDeadLetter(ctx context.Context, id uuid.UUID) (GetDeadLetterRow, error) {
+	row := q.db.QueryRow(ctx, getDeadLetter, id)
+	var i GetDeadLetterRow
+	err := row.Scan(
+		&i.ID,
+		&i.StreamSeq,
+		&i.Occurrences,
+		&i.Status,
+		&i.Letter,
+	)
+	return i, err
+}
+
+const markDiscarded = `-- name: MarkDiscarded :execrows
+UPDATE dead_letters
+SET status = 'discarded', resolved_at = $1::timestamptz, resolved_by = $2::uuid,
+  resolve_reason = $3::text
+WHERE id = $4 AND status IN ('open', 'redriven')
+`
+
+type MarkDiscardedParams struct {
+	ResolvedAt time.Time
+	AdminID    uuid.UUID
+	Reason     string
+	ID         uuid.UUID
+}
+
+func (q *Queries) MarkDiscarded(ctx context.Context, arg MarkDiscardedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markDiscarded,
+		arg.ResolvedAt,
+		arg.AdminID,
+		arg.Reason,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markRedriven = `-- name: MarkRedriven :execrows
+UPDATE dead_letters
+SET status = 'redriven', redriven_at = $1::timestamptz, resolved_by = $2::uuid,
+  resolve_reason = $3::text
+WHERE id = $4 AND status IN ('open', 'redriven')
+`
+
+type MarkRedrivenParams struct {
+	RedrivenAt time.Time
+	AdminID    uuid.UUID
+	Reason     string
+	ID         uuid.UUID
+}
+
+func (q *Queries) MarkRedriven(ctx context.Context, arg MarkRedrivenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markRedriven,
+		arg.RedrivenAt,
+		arg.AdminID,
+		arg.Reason,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const resolveDeadLetter = `-- name: ResolveDeadLetter :execrows
 UPDATE dead_letters
 SET status = 'resolved', resolved_at = $1::timestamptz

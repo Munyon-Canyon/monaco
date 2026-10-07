@@ -31,3 +31,18 @@ SELECT consumer, count(*)::bigint AS live
 FROM dead_letters
 WHERE status IN ('open', 'redriven')
 GROUP BY consumer;
+
+-- name: GetDeadLetter :one
+SELECT id, stream_seq, occurrences, status, letter FROM dead_letters WHERE id = sqlc.arg(id);
+
+-- name: MarkRedriven :execrows
+UPDATE dead_letters
+SET status = 'redriven', redriven_at = sqlc.arg(redriven_at)::timestamptz, resolved_by = sqlc.arg(admin_id)::uuid,
+  resolve_reason = sqlc.arg(reason)::text
+WHERE id = sqlc.arg(id) AND status IN ('open', 'redriven');
+
+-- name: MarkDiscarded :execrows
+UPDATE dead_letters
+SET status = 'discarded', resolved_at = sqlc.arg(resolved_at)::timestamptz, resolved_by = sqlc.arg(admin_id)::uuid,
+  resolve_reason = sqlc.arg(reason)::text
+WHERE id = sqlc.arg(id) AND status IN ('open', 'redriven');
