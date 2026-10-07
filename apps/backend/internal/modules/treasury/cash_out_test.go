@@ -2,11 +2,13 @@ package treasury_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
@@ -33,7 +35,13 @@ func cashOutHandler(f fixture, paused bool) *app.CashOutHandler {
 }
 
 func cashOutHandlerWith(f fixture, pauses cashOutPauses, values port.PositionsReader) *app.CashOutHandler {
-	return app.NewCashOutHandler(f.uow, f.ledger, values, pauses, f.clock, f.ids, f.pool)
+	return cashOutHandlerHinting(f, pauses, values, &hints{})
+}
+
+func cashOutHandlerHinting(
+	f fixture, pauses cashOutPauses, values port.PositionsReader, sent app.Hints,
+) *app.CashOutHandler {
+	return app.NewCashOutHandler(f.uow, f.ledger, values, pauses, f.clock, f.ids, f.pool, sent)
 }
 
 type cashOutValues struct {
@@ -234,6 +242,46 @@ func TestCashOut_returnsPauseAndValueFailures(t *testing.T) {
 		if _, err := h.Handle(f.ctx(), app.CashOut{CabalID: cabal, UserID: user, All: true}); err == nil {
 			t.Fatal("CashOut error = nil")
 		}
+	}
+}
+
+func TestCashOut_hintsTheUserAndCabalAfterCommit(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, cabal := f.user(t), f.cabal(t)
+	cashOutFund(t, f, user, cabal, 100_000_000)
+	sent := &hints{}
+	h := cashOutHandlerHinting(f, cashOutPauses{}, newQueries(f), sent)
+	ctx := observability.WithActor(f.ctx(), "user:"+user.String())
+	if _, err := h.Handle(ctx, app.CashOut{
+		CabalID: cabal, UserID: user, PayoutMicros: money.MicrosFromUint64(10_000_000),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{events.UserCashOutChangedHint(user), events.CabalActivityChangedHint(cabal)}
+	if got := sent.sent(); !slices.Equal(got, want) {
+		t.Fatalf("hints = %q, want %q", got, want)
+	}
+}
+
+func TestCashOut_hintsNothingWhenTheStartRollsBack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, cabal := f.user(t), f.cabal(t)
+	cashOutFund(t, f, user, cabal, 100_000_000)
+	if _, err := f.pool.Exec(t.Context(), refuse("events", "NEW.type = 'cashout.started'")); err != nil {
+		t.Fatal(err)
+	}
+	sent := &hints{}
+	h := cashOutHandlerHinting(f, cashOutPauses{}, newQueries(f), sent)
+	ctx := observability.WithActor(f.ctx(), "user:"+user.String())
+	if _, err := h.Handle(ctx, app.CashOut{
+		CabalID: cabal, UserID: user, PayoutMicros: money.MicrosFromUint64(10_000_000),
+	}); err == nil {
+		t.Fatal("CashOut error = nil, want the refused event to roll the start back")
+	}
+	if got := sent.sent(); len(got) != 0 || f.count(t, "cash_out_jobs") != 0 {
+		t.Fatalf("hints = %q, jobs = %d; want none after a rollback", got, f.count(t, "cash_out_jobs"))
 	}
 }
 

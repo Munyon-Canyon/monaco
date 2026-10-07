@@ -20,12 +20,18 @@ func TestTriggers_convergeUnderChaos(t *testing.T) {
 		return rankingConsumer(t, h, "ranking_triggers")
 	}, func(rng *rand.Rand, i int) events.Event {
 		cabal := uuid.NewSHA1(uuid.Nil, []byte("cabal"+strconv.Itoa(i)+strconv.FormatUint(rng.Uint64(), 10)))
-		switch i % 3 {
+		switch i % 6 {
 		case 0:
 			return events.TradeConfirmed{V: 1, CabalID: cabal}
 		case 1:
 			return events.Funded{V: 1, CabalID: cabal}
+		case 2:
+			return events.CashOutCompleted{V: 1, CabalID: cabal}
+		case 3:
+			return events.CashOutStarted{V: 1, CabalID: cabal}
+		case 4:
+			return events.CashOutPartial{V: 1, CabalID: cabal}
 		}
-		return events.CashOutCompleted{V: 1, CabalID: cabal}
+		return events.CashOutFailed{V: 1, CabalID: cabal}
 	})
 }

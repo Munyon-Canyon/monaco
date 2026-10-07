@@ -134,6 +134,7 @@ func (m *Module) Mount(r api.Mount) {
 			m.deps.Clock,
 			m.deps.IDs,
 			m.deps.Pool,
+			m.deps.Bus,
 		),
 		Pot:     m.reads(),
 		Cabals:  m.cabals,
