@@ -74,6 +74,25 @@ func (h *queueHarness) take(t *testing.T, pid int) string {
 	return name
 }
 
+func (h *queueHarness) takeIn(t *testing.T, pid int, worktree string) string {
+	t.Helper()
+	name, err := h.q.take(worktree, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return name
+}
+
+func (w *waiter) stillWaits(t *testing.T, what string) {
+	t.Helper()
+	w.spin(8)
+	select {
+	case got := <-w.done:
+		t.Fatalf("%s ran: %v", what, got.err)
+	default:
+	}
+}
+
 type awaited struct {
 	err error
 	out *bytes.Buffer
@@ -120,6 +139,105 @@ func TestCheckQueue_aCheckRunsOnlyWhenItIsAmongTheFirstSlotsLiveTickets(t *testi
 	}
 	if want := "waiting for a stage 0 slot: position 4 of 4\nwaiting for a stage 0 slot: position 3 of 3\n"; laterWaiting.out.String() != want {
 		t.Fatalf("later printed %q, want %q", laterWaiting.out, want)
+	}
+}
+
+func TestCheckQueue_aLaneRunsOneCheckAtATimeAndLaterLanesPassItsSecond(t *testing.T) {
+	t.Parallel()
+	h := newQueueHarness(t, 2)
+	a1 := h.takeIn(t, 101, "/repo/.worktrees/3462")
+	a2 := h.takeIn(t, 102, "/repo/.worktrees/3462-access-pushes")
+	b1 := h.takeIn(t, 103, "/repo/.worktrees/3500-other")
+	for _, name := range []string{a1, b1} {
+		if err := h.q.await(context.Background(), name, &bytes.Buffer{}); err != nil {
+			t.Fatalf("%s should run: %v", name, err)
+		}
+	}
+	w := h.wait(context.Background(), a2)
+	w.stillWaits(t, "the lane's second check, beside its first")
+	h.q.drop(a1)
+	if got := w.pump(); got.err != nil {
+		t.Fatalf("the lane's second check runs once its first finishes: %v", got.err)
+	}
+	if want := "waiting for a stage 0 slot: position 2 of 3; this lane already runs a check\n"; w.out.String() != want {
+		t.Fatalf("printed %q, want %q", w.out, want)
+	}
+}
+
+func (h *queueHarness) admitted(t *testing.T, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		if err := h.q.await(context.Background(), name, &bytes.Buffer{}); err != nil {
+			t.Fatalf("%s should run: %v", name, err)
+		}
+	}
+}
+
+func TestCheckQueue_aLoneLaneWithFreeSlotsRunsSeveralChecksAtOnce(t *testing.T) {
+	t.Parallel()
+	h := newQueueHarness(t, 4)
+	a := h.takeIn(t, 101, "/repo/.worktrees/3462")
+	b := h.takeIn(t, 102, "/repo/.worktrees/3462-b")
+	c := h.takeIn(t, 103, "/repo/.worktrees/3462-c")
+	h.admitted(t, a, b, c)
+}
+
+func TestCheckQueue_aLaneSecondCheckRunsOnceNoOtherLaneIsWaiting(t *testing.T) {
+	t.Parallel()
+	h := newQueueHarness(t, 3)
+	a1 := h.takeIn(t, 101, "/repo/.worktrees/3462")
+	a2 := h.takeIn(t, 102, "/repo/.worktrees/3462-b")
+	b1 := h.takeIn(t, 103, "/repo/.worktrees/3500")
+	h.admitted(t, a1, b1, a2)
+}
+
+func TestCheckQueue_anAdmittedCheckKeepsItsSlotWhenANewLaneArrives(t *testing.T) {
+	t.Parallel()
+	h := newQueueHarness(t, 2)
+	a1 := h.takeIn(t, 101, "/repo/.worktrees/3462")
+	a2 := h.takeIn(t, 102, "/repo/.worktrees/3462-b")
+	h.admitted(t, a1, a2)
+	c1 := h.takeIn(t, 103, "/repo/.worktrees/3500")
+	w := h.wait(context.Background(), c1)
+	w.stillWaits(t, "a new lane's check, with both slots held")
+	h.q.drop(a1)
+	if got := w.pump(); got.err != nil {
+		t.Fatalf("the new lane's check runs once a slot frees: %v", got.err)
+	}
+}
+
+func TestCheckQueue_aTicketThatCannotRecordItsAdmissionFails(t *testing.T) {
+	t.Parallel()
+	h := newQueueHarness(t, 1)
+	if err := h.q.admit("missing"); err == nil {
+		t.Fatal("recording an admission on a missing ticket fails")
+	}
+}
+
+func TestCheckQueue_aLiveTicketThatCannotBeReadIsSkipped(t *testing.T) {
+	t.Parallel()
+	h := newQueueHarness(t, 1)
+	mine := h.takeIn(t, os.Getpid(), "/repo/.worktrees/1")
+	if err := os.Mkdir(filepath.Join(h.q.dir, "0-"+strconv.Itoa(os.Getpid())), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.q.await(context.Background(), mine, &bytes.Buffer{}); err != nil {
+		t.Fatalf("an unreadable ticket ahead does not hold the slot: %v", err)
+	}
+}
+
+func TestLane_isTheLeadingDigitsUnderWorktreesAndElseTheWholePath(t *testing.T) {
+	t.Parallel()
+	for worktree, want := range map[string]string{
+		"/repo/.worktrees/3462":               "3462",
+		"/repo/.worktrees/3462-access-pushes": "3462",
+		"/repo/.worktrees/scratch":            "/repo/.worktrees/scratch",
+		"/repo":                               "/repo",
+		"/repo/3462":                          "/repo/3462",
+	} {
+		if got := lane(worktree); got != want {
+			t.Errorf("lane(%q) = %q, want %q", worktree, got, want)
+		}
 	}
 }
 
@@ -182,8 +300,8 @@ func TestCheckQueue_aTicketWhosePIDIsDeadIsReclaimed(t *testing.T) {
 	if err := os.WriteFile(junk, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, total, err := h.q.standing(live); err != nil || total != 1 {
-		t.Fatalf("a malformed name is reclaimed: %d %v", total, err)
+	if got, err := h.q.standing(live); err != nil || got.total != 1 {
+		t.Fatalf("a malformed name is reclaimed: %d %v", got.total, err)
 	}
 }
 
@@ -206,7 +324,7 @@ func TestCheckQueue_cancellingTheWaitReturnsAndALostTicketFails(t *testing.T) {
 	if err := os.RemoveAll(h.q.dir); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := h.q.standing(waiterTicket); err == nil {
+	if _, err := h.q.standing(waiterTicket); err == nil {
 		t.Fatal("an unreadable queue directory fails")
 	}
 }
@@ -218,7 +336,7 @@ func TestCheckQueue_standingFailsWhenTheQueueDirectoryIsAFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeFile(t, h.q.dir, "not a directory")
-	if _, _, err := h.q.standing("ticket"); err == nil || !strings.Contains(err.Error(), "read the stage 0 queue") {
+	if _, err := h.q.standing("ticket"); err == nil || !strings.Contains(err.Error(), "read the stage 0 queue") {
 		t.Fatalf("a queue path that is a file: %v", err)
 	}
 }
@@ -322,7 +440,7 @@ func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testin
 		t.Fatal(err)
 	}
 	for _, pid := range []int{os.Getpid(), os.Getppid()} {
-		writeFile(t, filepath.Join(queue, "1-"+strconv.Itoa(pid)), "/other\n")
+		writeFile(t, filepath.Join(queue, "1-"+strconv.Itoa(pid)), "/other/"+strconv.Itoa(pid)+"\n")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
