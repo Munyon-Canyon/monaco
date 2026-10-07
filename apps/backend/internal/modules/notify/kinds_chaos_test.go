@@ -166,3 +166,31 @@ func TestNotify_FollowKind_ConvergesUnderChaos(t *testing.T) {
 		return notify.New(deps, notify.WithSender(&testkit.FakeSender{})).Consumers()[0]
 	}, func(_ *rand.Rand, i int) events.Event { return chaosFollow(i) })
 }
+
+func chaosAccess(i int) events.Event {
+	cabalID, requester := chaosCabal(i%2), chaosRecipient((i+1)%chaosUsers)
+	id := uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-chaos-access-"+strconv.Itoa(i)))
+	if i%2 == 0 {
+		return events.CabalAccessRequested{
+			V: 1, RequestID: id, CabalID: cabalID, UserID: requester, Direction: "request", ActorID: requester,
+		}
+	}
+	return events.CabalAccessDecided{
+		V: 1, RequestID: id, CabalID: cabalID, UserID: requester, Direction: "request",
+		Decision: []string{"approved", "denied"}[(i/2)%2], ActorID: chaosRecipient(0),
+	}
+}
+
+func TestNotify_AccessKinds_ConvergeUnderChaos(t *testing.T) {
+	t.Parallel()
+	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
+		seedChaosUsers(t, h)
+		deps := module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, UoW: db.New(h.Pool, h.IDs, h.Clock)}
+		creator0, creator1 := ids.UserIDFrom(chaosRecipient(0)), ids.UserIDFrom(chaosRecipient(1))
+		first := cabal.View{ID: ids.CabalIDFrom(chaosCabal(0)), Name: cabalName, CreatorID: creator0}
+		second := cabal.View{ID: ids.CabalIDFrom(chaosCabal(1)), Name: "Rocket", CreatorID: creator1}
+		seeds := []fakes.CabalSeed{{View: first}, {View: second}}
+		return notify.New(deps, notify.WithSender(&testkit.FakeSender{}),
+			notify.WithCabals(fakes.NewCabal(seeds, nil))).Consumers()[0]
+	}, func(_ *rand.Rand, i int) events.Event { return chaosAccess(i) })
+}

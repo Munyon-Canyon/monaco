@@ -673,6 +673,13 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string
 			events.TypeChatMessagePosted,
 			renderer[events.ChatMessagePosted](app.ChatThreadReply{Cabals: cabals, Users: users}),
 		},
+		"cabal_access_requested": {
+			events.TypeCabalAccessRequested,
+			renderer[events.CabalAccessRequested](app.CabalAccessRequested{Cabals: cabals, Users: users}),
+		},
+		"cabal_access_approved": {
+			events.TypeCabalAccessDecided, renderer[events.CabalAccessDecided](app.CabalAccessApproved{Cabals: cabals}),
+		},
 	}
 }
 
@@ -729,10 +736,14 @@ func TestNotifyCopy(t *testing.T) {
 	paused := goldenEvent(t, events.TypeCabalPaused).(events.CabalPaused)
 	created := goldenEvent(t, events.TypeProposalCreated).(events.ProposalCreated)
 	posted := goldenEvent(t, events.TypeChatMessagePosted).(events.ChatMessagePosted)
+	asked := goldenEvent(t, events.TypeCabalAccessRequested).(events.CabalAccessRequested)
+	decided := goldenEvent(t, events.TypeCabalAccessDecided).(events.CabalAccessDecided)
 	seeds := []fakes.CabalSeed{
 		{View: cabal.View{ID: ids.CabalIDFrom(*paused.CabalID), Name: cabalName}},
 		{View: cabal.View{ID: ids.CabalIDFrom(created.CabalID), Name: cabalName}},
 		{View: cabal.View{ID: ids.CabalIDFrom(posted.CabalID), Name: cabalName}},
+		{View: cabal.View{ID: ids.CabalIDFrom(asked.CabalID), Name: cabalName}},
+		{View: cabal.View{ID: ids.CabalIDFrom(decided.CabalID), Name: cabalName}},
 	}
 	cabals := fakes.NewCabal(seeds, nil)
 	proposer := identity.UserCard{ID: ids.UserIDFrom(created.ProposerID), DisplayName: memberNames()[0]}
@@ -741,7 +752,8 @@ func TestNotifyCopy(t *testing.T) {
 	commented := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
 	replier := identity.UserCard{ID: ids.UserIDFrom(commented.AuthorID), DisplayName: memberNames()[2]}
 	poster := identity.UserCard{ID: ids.UserIDFrom(posted.AuthorID), DisplayName: memberNames()[3]}
-	users := fakes.NewIdentity([]identity.UserCard{proposer, follower, replier, poster}, nil)
+	requester := identity.UserCard{ID: ids.UserIDFrom(asked.UserID), DisplayName: memberNames()[0]}
+	users := fakes.NewIdentity([]identity.UserCard{proposer, follower, replier, poster, requester}, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
 	goldenDirs := map[string]string{"proposal_passed_buy": "buy"}
 	covered := map[events.Type]bool{}
