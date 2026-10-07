@@ -31,7 +31,7 @@ func readEvidence(t *testing.T, path string) Evidence {
 func TestReport_writesOneEvidenceFilePerFlowWithWhatTheSystemDid(t *testing.T) {
 	t.Parallel()
 	env := servedEnv(t)
-	cfg, out := driveConfig(DefaultBudget())
+	cfg, out := driveConfig(testBudget())
 	rep := newReport(t.Context(), Target{}, flow00(t, Target{Flow: "00"}))
 	if err := verifyUnits(t.Context(), cfg, env, rep, parallelFlows); err != nil {
 		t.Fatalf("verifyUnits: %v\n%s", err, out)
