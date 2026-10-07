@@ -741,6 +741,7 @@ func TestGlobal_expectsOneDeadLetterAndOneTermLinePerAlertingConsumerOutcome(t *
 	route.Flow.Trigger, quiet.Outcome, ok.Outcome, crash.Outcome = "POST /v1/ping", "InvalidInput", "ok", "crash:before-commit"
 	term, acked := termLine(deniedSubject, "term"), termLine(deniedSubject, "ack")
 	elsewhere := termLine("verify.events.other", "term")
+	recorded := `{"msg":"admin.dead_letter.recorded","consumer":"notify","code":"apns_auth_failed","status":"open"}`
 	other := `{"msg":"http.problem","subject":"` + deniedSubject + `","outcome":"term","code":"apns_auth_failed"}`
 	for _, tc := range []struct {
 		name    string
@@ -750,6 +751,7 @@ func TestGlobal_expectsOneDeadLetterAndOneTermLinePerAlertingConsumerOutcome(t *
 		want    []string
 	}{
 		{"its own term and dead letter", []Unit{denied}, 1, []string{term}, nil},
+		{"its own term and the sink's line about the letter", []Unit{denied}, 1, []string{term, recorded}, nil},
 		{"a second dead letter", []Unit{denied}, 2, []string{term}, []string{"2 dead letters in", ", want 1"}},
 		{"its dead letter missing", []Unit{denied}, 0, []string{term}, []string{"0 dead letters in", ", want 1"}},
 		{"a second term line", []Unit{denied}, 1, []string{term, term}, []string{"error: " + term}},

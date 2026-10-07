@@ -443,16 +443,8 @@ func (d *driver) expectedTerms(units []Unit) map[termKey]uint64 {
 	return terms
 }
 
-func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) []error {
-	terms, want := d.expectedTerms(rep.units), rep.expectedLetters("")
+func (d *driver) internalErrorLines(terms map[termKey]uint64) []error {
 	var failures []error
-	stream, err := d.env.JS.Stream(ctx, d.env.DeadLetter)
-	if err != nil {
-		failures = append(failures, fmt.Errorf("read %s: %w", d.env.DeadLetter, err))
-	} else if rep.deadLetters = stream.CachedInfo().State.Msgs; rep.deadLetters != want {
-		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%d dead letters in %s, want %d", rep.deadLetters,
-			d.env.DeadLetter, want)})
-	}
 	internal := map[string]bool{}
 	for _, c := range errs.All() {
 		internal[string(c)] = errs.KindOf(c) == errs.KindInternal
@@ -467,6 +459,9 @@ func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) 
 		if json.Unmarshal([]byte(line.Text), &fields) != nil || !internal[fmt.Sprint(fields.Code)] {
 			continue
 		}
+		if fields.Msg == observability.AdminDeadLetterRecorded.Name {
+			continue
+		}
 		key := termKey{fields.Subject, fmt.Sprint(fields.Code)}
 		term := fields.Msg == observability.BusDispatched.Name && fields.Outcome == string(bus.OutcomeTerm)
 		if term && terms[key] > 0 {
@@ -476,6 +471,20 @@ func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) 
 		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%s logged an internal error: %s",
 			line.Process, line.Text)})
 	}
+	return failures
+}
+
+func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) []error {
+	terms, want := d.expectedTerms(rep.units), rep.expectedLetters("")
+	var failures []error
+	stream, err := d.env.JS.Stream(ctx, d.env.DeadLetter)
+	if err != nil {
+		failures = append(failures, fmt.Errorf("read %s: %w", d.env.DeadLetter, err))
+	} else if rep.deadLetters = stream.CachedInfo().State.Msgs; rep.deadLetters != want {
+		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%d dead letters in %s, want %d", rep.deadLetters,
+			d.env.DeadLetter, want)})
+	}
+	failures = append(failures, d.internalErrorLines(terms)...)
 	for _, l := range ledger {
 		if err := l.Check(ctx, d.env.Pool); err != nil {
 			failures = append(failures, &InvariantError{Msg: "ledger " + l.Name + ": " + err.Error()})

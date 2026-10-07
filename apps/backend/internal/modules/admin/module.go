@@ -1,7 +1,10 @@
 package admin
 
 import (
+	"go.opentelemetry.io/otel"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	adminapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
@@ -23,4 +26,18 @@ func (*Module) Consumers() []bus.Consumer {
 	}
 }
 
-func (*Module) Pollers() []poller.Poller { return nil }
+func (m *Module) Pollers() []poller.Poller {
+	meter := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/admin")
+	return []poller.Poller{
+		app.NewDeadLettersPoller(app.DeadLettersDeps{
+			Source:   m.deps.Bus,
+			Events:   adapters.BusEvents{Conn: m.deps.Bus},
+			UoW:      m.deps.UoW,
+			Reads:    m.deps.Pool,
+			IDs:      m.deps.IDs,
+			Clock:    m.deps.Clock,
+			Meter:    meter,
+			Interval: m.deps.Config.Admin.DeadLettersInterval,
+		}),
+	}
+}

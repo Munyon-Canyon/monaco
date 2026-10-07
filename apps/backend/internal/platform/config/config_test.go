@@ -83,6 +83,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Trade: config.Trade{
 			Engine: config.TradeEngineLive, SwapSweepInterval: 30 * time.Second, SwapSweepAge: 2 * time.Minute,
 		},
+		Admin: config.Admin{DeadLettersInterval: 10 * time.Second},
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -153,6 +154,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"FUNDING_DEPOSIT_RPC_RATE=12",
 		"TRADE_SWAP_SWEEP_INTERVAL=4s",
 		"TRADE_SWAP_SWEEP_AGE=5s",
+		"ADMIN_DEADLETTERS_INTERVAL=8s",
 		"FUNDING_TREASURY_RECONCILE_INTERVAL=3s",
 		"FUNDING_BOUNCE_SWEEP_INTERVAL=6s",
 		"FUNDING_BOUNCE_SWEEP_AGE=7s",
@@ -254,6 +256,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Trade: config.Trade{
 			Engine: config.TradeEngineLive, SwapSweepInterval: 4 * time.Second, SwapSweepAge: 5 * time.Second,
 		},
+		Admin:      config.Admin{DeadLettersInterval: 8 * time.Second},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -611,6 +614,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"TRADE_ENGINE", "live"},
 		{"TRADE_SWAP_SWEEP_INTERVAL", "30s"},
 		{"TRADE_SWAP_SWEEP_AGE", "2m0s"},
+		{"ADMIN_DEADLETTERS_INTERVAL", "10s"},
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},

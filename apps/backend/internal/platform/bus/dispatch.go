@@ -132,7 +132,7 @@ func (r *Registry) decode(handlers []HandlerSpec, msg jetstream.Msg) (ids.EventI
 	if len(handlers) == 0 {
 		return none, nil, errs.New(errs.CodeDecodeFailed, op, slog.String("subject", msg.Subject()))
 	}
-	raw := eventIDOf(msg.Headers())
+	raw := EventIDOf(msg.Headers())
 	id, err := ids.ParseEventID(raw)
 	if err != nil {
 		return none, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("msg_id", raw))
@@ -318,6 +318,8 @@ type DeadLetter struct {
 	Data     json.RawMessage `json:"data,omitempty"`
 	Advisory json.RawMessage `json:"advisory,omitempty"`
 }
+
+func (l DeadLetter) EventID() string { return EventIDOf(l.Headers) }
 
 func (r *Registry) respond(
 	ctx context.Context, durable string, msg jetstream.Msg, delivery uint64, results []result,

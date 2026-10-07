@@ -180,7 +180,7 @@ func TestDispatch_recordsHandlerDurationPerOutcome(t *testing.T) {
 	}
 }
 
-func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
+func TestRegistry_gaugesReportPendingAndAckPendingAndNoLongerCountDeadLetters(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	started := make(chan struct{}, 1)
@@ -209,15 +209,23 @@ func TestRegistry_gaugesReportPendingAckPendingAndDeadLetters(t *testing.T) {
 	}
 	close(release)
 	h.waitDeadLetters(t, 1)
-	if got := h.gaugeByConsumer(t, "monaco_dead_letters"); got[durable] != 1 {
-		t.Fatalf("dead letters = %v, want 1 for %s", got, durable)
+	var rm metricdata.ResourceMetrics
+	if err := h.reader.Collect(t.Context(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name == "monaco_dead_letters" {
+				t.Fatalf("bus observes %s, want the admin module to observe it from its dead_letters rows", m.Name)
+			}
+		}
 	}
 	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_ack_pending"); got[durable] != 0 {
 		t.Fatalf("ack pending after term = %v, want 0", got)
 	}
 }
 
-func TestRegistry_gaugesFailWhenTheConsumerOrTheStreamIsGone(t *testing.T) {
+func TestRegistry_gaugesFailWhenTheConsumerIsGone(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	ctx := h.ctx(t)
@@ -226,16 +234,7 @@ func TestRegistry_gaugesFailWhenTheConsumerOrTheStreamIsGone(t *testing.T) {
 		t,
 		h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}}),
 	)
-	if err := h.bus.JS.DeleteStream(ctx, h.bus.DeadLetter); err != nil {
-		t.Fatal(err)
-	}
 	var rm metricdata.ResourceMetrics
-	if err := h.reader.Collect(ctx, &rm); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
-		t.Fatalf("collect without DEADLETTER = %v, want upstream_unavailable", err)
-	}
-	if _, err := h.bus.Conn.Apply(ctx); err != nil {
-		t.Fatal(err)
-	}
 	if err := h.bus.JS.DeleteConsumer(ctx, h.bus.Events, durable); err != nil {
 		t.Fatal(err)
 	}
