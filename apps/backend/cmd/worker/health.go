@@ -31,6 +31,7 @@ type health struct {
 	ticks     lastTicker
 	pollers   []poller.Poller
 	clock     clock.Clock
+	pingLimit time.Duration
 }
 
 func (h health) mux() *http.ServeMux {
@@ -65,7 +66,11 @@ func (h health) nats() string {
 }
 
 func (h health) db(ctx context.Context) string {
-	ctx, cancel := context.WithTimeout(ctx, pingTimeout)
+	limit := pingTimeout
+	if h.pingLimit > 0 {
+		limit = h.pingLimit
+	}
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	if err := h.pool.Ping(ctx); err != nil {
 		return err.Error()

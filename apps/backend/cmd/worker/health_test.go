@@ -13,6 +13,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
+const starvedDBPingLimit = 30 * time.Second
+
 type ticks map[string]time.Time
 
 func (t ticks) LastTick(name string) time.Time { return t[name] }
@@ -45,7 +47,8 @@ func TestHealth_isOKOnlyWhileNATSIsUpThePoolPingsAndEveryPollerTickedWithinThree
 	pool := testkit.DB(t)
 	h := health{
 		connected: func() bool { return true }, pool: pool, pollers: pollers, clock: testkit.NewClock(now),
-		ticks: ticks{"a.fresh": now, "b.edge": now.Add(-3*time.Minute + time.Nanosecond)},
+		pingLimit: starvedDBPingLimit,
+		ticks:     ticks{"a.fresh": now, "b.edge": now.Add(-3*time.Minute + time.Nanosecond)},
 	}
 	want := []string{"nats ok", "db ok", "poller:a.fresh ok", "poller:b.edge ok"}
 	if code, lines := get(h); code != http.StatusOK || !slices.Equal(lines, want) {
@@ -55,8 +58,9 @@ func TestHealth_isOKOnlyWhileNATSIsUpThePoolPingsAndEveryPollerTickedWithinThree
 	pool.Close()
 	h = health{
 		connected: func() bool { return false }, pool: pool, clock: testkit.NewClock(now),
-		pollers: append(pollers, testPoller("c.never")),
-		ticks:   ticks{"a.fresh": now, "b.edge": now.Add(-3 * time.Minute)},
+		pingLimit: starvedDBPingLimit,
+		pollers:   append(pollers, testPoller("c.never")),
+		ticks:     ticks{"a.fresh": now, "b.edge": now.Add(-3 * time.Minute)},
 	}
 	want = []string{
 		"nats disconnected", "db closed pool", "poller:a.fresh ok", "poller:b.edge stale: last tick 3m0s ago",
@@ -72,7 +76,8 @@ func TestHealth_oneFailingCheckAloneMakesTheWorkerUnhealthy(t *testing.T) {
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	h := health{
 		connected: func() bool { return false }, pool: testkit.DB(t), clock: testkit.NewClock(now),
-		pollers: []poller.Poller{testPoller("a.fresh")}, ticks: ticks{"a.fresh": now},
+		pingLimit: starvedDBPingLimit,
+		pollers:   []poller.Poller{testPoller("a.fresh")}, ticks: ticks{"a.fresh": now},
 	}
 	if code, lines := get(h); code != http.StatusServiceUnavailable || lines[0] != "nats disconnected" {
 		t.Fatalf("worker with NATS down = %d %q, want 503 naming nats", code, lines)
@@ -84,8 +89,9 @@ func TestHealth_aBudgetedPollerIsStaleOnlyAfterThreeTickBudgets(t *testing.T) {
 	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	h := health{
 		connected: func() bool { return true }, pool: testkit.DB(t), clock: testkit.NewClock(now),
-		pollers: []poller.Poller{budgetedPoller{"a.long"}, budgetedPoller{"b.dead"}},
-		ticks:   ticks{"a.long": now.Add(-89 * time.Second), "b.dead": now.Add(-270 * time.Second)},
+		pingLimit: starvedDBPingLimit,
+		pollers:   []poller.Poller{budgetedPoller{"a.long"}, budgetedPoller{"b.dead"}},
+		ticks:     ticks{"a.long": now.Add(-89 * time.Second), "b.dead": now.Add(-270 * time.Second)},
 	}
 	want := []string{"nats ok", "db ok", "poller:a.long ok", "poller:b.dead stale: last tick 4m30s ago"}
 	if code, lines := get(h); code != http.StatusServiceUnavailable || !slices.Equal(lines, want) {
