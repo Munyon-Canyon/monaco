@@ -190,6 +190,23 @@ func TestAgentGuard_headlessClaudeNeedsTimeout(t *testing.T) {
 	}
 }
 
+func TestAgentGuard_killsReachOnlyThisWorktreesProcesses(t *testing.T) {
+	cwd, _ := pushRepo(t)
+	root := strings.TrimSpace(gitOut(t, cwd, "rev-parse", "--show-toplevel"))
+	for _, cmd := range []string{
+		`pkill -f "agents check"`, `pkill -9 -f "go test"`, `killall go`, `/usr/bin/killall -9 swift`,
+		`timeout 5 pkill -f foo`, `cd x && pkill -f foo`, `pkill -u 501 -f foo`,
+	} {
+		assertBlocked(t, guard(t, cwd, cmd), cmd, "reaches every lane's processes")
+	}
+	for _, cmd := range []string{
+		`pkill -P 123`, `pkill -P123 foo`, `pkill --parent 123`, `pkill -g 5 foo`, `pkill -f foo -g5`,
+		`pkill -TERM -f "` + root + `/bin/api"`, `kill 123`, `pgrep -f x`,
+	} {
+		assertAllowed(t, guard(t, cwd, cmd), cmd)
+	}
+}
+
 func ghStub(t *testing.T, statuses string) (env []string, calls string) {
 	t.Helper()
 	return ghStubOnBase(t, "backend-rewrite-9", statuses)
