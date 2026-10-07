@@ -4,11 +4,13 @@ import (
 	"context"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -17,15 +19,23 @@ type Trading struct {
 	swaps []trading.SwapView
 	err   error
 	once  error
+	clock clock.Clock
 }
 
 var _ trading.Queries = (*Trading)(nil)
 
 func NewTrading(swaps ...trading.SwapView) *Trading {
-	f := &Trading{}
+	f := &Trading{clock: clock.Real{}}
 	for _, s := range swaps {
 		f.Put(s)
 	}
+	return f
+}
+
+func (f *Trading) At(c clock.Clock) *Trading {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.clock = c
 	return f
 }
 
@@ -114,4 +124,40 @@ func (f *Trading) OwnsSignature(ctx context.Context, sig chain.Signature) (bool,
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (f *Trading) stuck(olderThan time.Duration) ([]trading.SwapView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.failure(); err != nil {
+		return nil, err
+	}
+	cutoff := f.clock.Now().Add(-olderThan)
+	var out []trading.SwapView
+	for _, v := range f.swaps {
+		unfinished := v.Status == domain.StatusCreated || v.Status == domain.StatusSubmitted
+		if unfinished && v.CreatedAt.Before(cutoff) {
+			out = append(out, v)
+		}
+	}
+	slices.SortFunc(out, func(a, b trading.SwapView) int { return a.CreatedAt.Compare(b.CreatedAt) })
+	return out, nil
+}
+
+func (f *Trading) Stuck(_ context.Context, olderThan time.Duration, limit int) ([]trading.SwapView, error) {
+	out, err := f.stuck(olderThan)
+	return out[:min(limit, len(out))], err
+}
+
+func (f *Trading) CountStuck(_ context.Context, olderThan time.Duration) (int, error) {
+	out, err := f.stuck(olderThan)
+	return len(out), err
+}
+
+func (f *Trading) ExecuteRequestID(_ context.Context, id ids.SwapID) (string, error) {
+	match := func(v trading.SwapView) bool { return v.ID == id }
+	if _, err := f.find("fakes.Trading.ExecuteRequestID", match); err != nil {
+		return "", err
+	}
+	return "request-" + id.UUID().String(), nil
 }

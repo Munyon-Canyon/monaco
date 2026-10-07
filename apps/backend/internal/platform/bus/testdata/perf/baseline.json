@@ -1,0 +1,8 @@
+{
+  "allocs": {},
+  "queries": {
+    "EventLog CountUnpublished": 1,
+    "EventLog EventsByAggregate": 1,
+    "EventLog Unpublished": 1
+  }
+}

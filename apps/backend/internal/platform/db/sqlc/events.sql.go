@@ -63,6 +63,19 @@ func (q *Queries) Backlog(ctx context.Context, now time.Time) (BacklogRow, error
 	return i, err
 }
 
+const countStaleUnpublished = `-- name: CountStaleUnpublished :one
+SELECT count(*)::bigint
+FROM events
+WHERE published_at IS NULL AND created_at < $1::timestamptz
+`
+
+func (q *Queries) CountStaleUnpublished(ctx context.Context, cutoff time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countStaleUnpublished, cutoff)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteDeliveriesBefore = `-- name: DeleteDeliveriesBefore :execrows
 DELETE FROM event_deliveries
 WHERE (handler, event_id) IN (
@@ -99,6 +112,69 @@ func (q *Queries) DeliveryExists(ctx context.Context, arg DeliveryExistsParams) 
 	return exists, err
 }
 
+const eventsByAggregate = `-- name: EventsByAggregate :many
+SELECT id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at, published_at
+FROM events
+WHERE aggregate_type = $1 AND aggregate_id = $2
+  AND (cardinality($3::text[]) = 0 OR type = ANY($3::text[]))
+ORDER BY id
+LIMIT $4::bigint
+`
+
+type EventsByAggregateParams struct {
+	AggregateType string
+	AggregateID   uuid.UUID
+	Types         []string
+	RowLimit      int64
+}
+
+type EventsByAggregateRow struct {
+	ID            uuid.UUID
+	AggregateType string
+	AggregateID   uuid.UUID
+	Type          string
+	Payload       []byte
+	ActorType     string
+	ActorID       string
+	CreatedAt     time.Time
+	PublishedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) EventsByAggregate(ctx context.Context, arg EventsByAggregateParams) ([]EventsByAggregateRow, error) {
+	rows, err := q.db.Query(ctx, eventsByAggregate,
+		arg.AggregateType,
+		arg.AggregateID,
+		arg.Types,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EventsByAggregateRow
+	for rows.Next() {
+		var i EventsByAggregateRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AggregateType,
+			&i.AggregateID,
+			&i.Type,
+			&i.Payload,
+			&i.ActorType,
+			&i.ActorID,
+			&i.CreatedAt,
+			&i.PublishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertDelivery = `-- name: InsertDelivery :execrows
 INSERT INTO event_deliveries (handler, event_id, code, handled_at)
 VALUES ($1, $2, $3, $4)
@@ -123,6 +199,53 @@ func (q *Queries) InsertDelivery(ctx context.Context, arg InsertDeliveryParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listStaleUnpublished = `-- name: ListStaleUnpublished :many
+SELECT id, aggregate_type, aggregate_id, type, created_at
+FROM events
+WHERE published_at IS NULL AND created_at < $1::timestamptz
+ORDER BY id
+LIMIT $2::bigint
+`
+
+type ListStaleUnpublishedParams struct {
+	Cutoff   time.Time
+	RowLimit int64
+}
+
+type ListStaleUnpublishedRow struct {
+	ID            uuid.UUID
+	AggregateType string
+	AggregateID   uuid.UUID
+	Type          string
+	CreatedAt     time.Time
+}
+
+func (q *Queries) ListStaleUnpublished(ctx context.Context, arg ListStaleUnpublishedParams) ([]ListStaleUnpublishedRow, error) {
+	rows, err := q.db.Query(ctx, listStaleUnpublished, arg.Cutoff, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStaleUnpublishedRow
+	for rows.Next() {
+		var i ListStaleUnpublishedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AggregateType,
+			&i.AggregateID,
+			&i.Type,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listUnpublished = `-- name: ListUnpublished :many

@@ -31,3 +31,23 @@ WHERE (handler, event_id) IN (
 SELECT count(*)::bigint AS unpublished, coalesce(min(created_at), @now::timestamptz)::timestamptz AS oldest_created_at
 FROM events
 WHERE published_at IS NULL;
+
+-- name: EventsByAggregate :many
+SELECT id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at, published_at
+FROM events
+WHERE aggregate_type = @aggregate_type AND aggregate_id = @aggregate_id
+  AND (cardinality(@types::text[]) = 0 OR type = ANY(@types::text[]))
+ORDER BY id
+LIMIT @row_limit::bigint;
+
+-- name: ListStaleUnpublished :many
+SELECT id, aggregate_type, aggregate_id, type, created_at
+FROM events
+WHERE published_at IS NULL AND created_at < @cutoff::timestamptz
+ORDER BY id
+LIMIT @row_limit::bigint;
+
+-- name: CountStaleUnpublished :one
+SELECT count(*)::bigint
+FROM events
+WHERE published_at IS NULL AND created_at < @cutoff::timestamptz;

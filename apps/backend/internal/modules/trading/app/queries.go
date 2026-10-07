@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -33,10 +34,18 @@ type SwapView struct {
 }
 
 type Queries struct {
-	q *sqlc.Queries
+	q     *sqlc.Queries
+	clock clock.Clock
 }
 
-func NewQueries(db sqlc.DBTX) Queries { return Queries{q: sqlc.New(db)} }
+func NewQueries(db sqlc.DBTX) Queries { return Queries{q: sqlc.New(db), clock: clock.Real{}} }
+
+func (s Queries) At(c clock.Clock) Queries {
+	if c != nil {
+		s.clock = c
+	}
+	return s
+}
 
 func (s Queries) Swap(ctx context.Context, id ids.SwapID) (SwapView, error) {
 	row, err := s.q.SwapByID(ctx, id.UUID())
@@ -67,6 +76,43 @@ func (s Queries) HasLiveSwap(ctx context.Context, src domain.Source) (bool, erro
 		return false, errs.Wrap(err, errs.CodeInternal, "trading.HasLiveSwap")
 	}
 	return live, nil
+}
+
+func (s Queries) Stuck(ctx context.Context, olderThan time.Duration, limit int) ([]SwapView, error) {
+	const op = "trading.Stuck"
+	rows, err := s.q.StuckSwaps(ctx, sqlc.StuckSwapsParams{
+		Cutoff: s.clock.Now().Add(-olderThan), RowLimit: int64(limit),
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	out := make([]SwapView, len(rows))
+	for i, row := range rows {
+		if out[i], err = view(op, row); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (s Queries) CountStuck(ctx context.Context, olderThan time.Duration) (int, error) {
+	n, err := s.q.CountStuckSwaps(ctx, s.clock.Now().Add(-olderThan))
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeInternal, "trading.CountStuck")
+	}
+	return int(n), nil
+}
+
+func (s Queries) ExecuteRequestID(ctx context.Context, id ids.SwapID) (string, error) {
+	const op = "trading.ExecuteRequestID"
+	requestID, err := s.q.ExecuteRequestID(ctx, id.UUID())
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", errs.New(errs.CodeSwapNotFound, op)
+	case err != nil:
+		return "", errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return requestID, nil
 }
 
 func (s Queries) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error) {

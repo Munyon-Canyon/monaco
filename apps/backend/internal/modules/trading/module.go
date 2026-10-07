@@ -3,6 +3,7 @@ package trading
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
@@ -41,12 +42,23 @@ type (
 
 const usdcDecimals = 6
 
-type Queries interface {
+type SwapReader interface {
 	Swap(ctx context.Context, id ids.SwapID) (SwapView, error)
 	SwapBySignature(ctx context.Context, sig chain.Signature) (SwapView, error)
 	LatestBySource(ctx context.Context, src Source) (SwapView, bool, error)
 	HasLiveSwap(ctx context.Context, src Source) (bool, error)
 	OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error)
+}
+
+type StuckReader interface {
+	Stuck(ctx context.Context, olderThan time.Duration, limit int) ([]SwapView, error)
+	CountStuck(ctx context.Context, olderThan time.Duration) (int, error)
+	ExecuteRequestID(ctx context.Context, id ids.SwapID) (string, error)
+}
+
+type Queries interface {
+	SwapReader
+	StuckReader
 }
 
 type Module struct {
@@ -152,7 +164,7 @@ func (m *Module) Pollers() []poller.Poller {
 		app.SweepTiming{Interval: cfg.SwapSweepInterval, Age: cfg.SwapSweepAge})}
 }
 
-func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool) }
+func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool).At(m.deps.Clock) }
 
 func (m *Module) SignatureOwner() app.Queries { return m.Queries() }
 
