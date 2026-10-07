@@ -13,6 +13,10 @@ type Balances interface {
 	Available(ctx context.Context, user ids.UserID) (Balance, error)
 }
 
+type DisplayBalances interface {
+	ForDisplay(ctx context.Context, user ids.UserID) (Balance, error)
+}
+
 type SignatureOwner interface {
 	OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error)
 }

@@ -34,7 +34,7 @@ import (
 
 type Module struct {
 	deps     module.Deps
-	balances port.Balances
+	balances *adapters.Balances
 	owners   []port.SignatureOwner
 }
 
@@ -46,7 +46,7 @@ func (m *Module) Mount(r api.Mount) {
 	cfg := m.deps.Config
 	wallets := app.WalletReader{Reader: identity.New(m.deps).Queries()}
 	fundingapi.Mount(adapters.HTTP{
-		Balances: m.Balances(), Wallets: wallets,
+		Balances: m.balanceReader(), Wallets: wallets,
 		Create:      app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
 		Exchange:    app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, wallets, cfg.Solana.USDCMint),
 		Report:      app.NewReportOnrampStatusHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
@@ -157,7 +157,9 @@ func (m *Module) Pollers() []poller.Poller {
 	}
 }
 
-func (m *Module) Balances() port.Balances {
+func (m *Module) Balances() port.Balances { return m.balanceReader() }
+
+func (m *Module) balanceReader() *adapters.Balances {
 	if m.balances != nil {
 		return m.balances
 	}

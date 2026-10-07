@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
@@ -29,6 +30,8 @@ type Balances struct {
 	newRPC   func() TokenBalances
 	rpc      TokenBalances
 	once     sync.Once
+	mu       sync.Mutex
+	readings map[ids.UserID]reading
 	outflows Outflows
 	clock    clock.Clock
 	usdc     chain.Mint
@@ -43,7 +46,17 @@ func NewBalances(
 	clk clock.Clock,
 	usdc chain.Mint,
 ) *Balances {
-	return &Balances{wallets: wallets, newRPC: newRPC, outflows: outflows, clock: clk, usdc: usdc}
+	return &Balances{
+		wallets: wallets, newRPC: newRPC, outflows: outflows, clock: clk, usdc: usdc,
+		readings: map[ids.UserID]reading{},
+	}
+}
+
+const displayMaxAge = 10 * time.Minute
+
+type reading struct {
+	onChain money.Micros
+	at      time.Time
 }
 
 func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance, error) {
@@ -60,6 +73,40 @@ func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance
 	if onChain.Decimals() != b.usdc.Decimals {
 		return port.Balance{}, errs.New(errs.CodeDecodeFailed, op)
 	}
+	now := b.clock.Now()
+	b.record(user, reading{onChain: onChainMicros(onChain), at: now})
+	return b.compose(ctx, user, onChainMicros(onChain), now)
+}
+
+func (b *Balances) ForDisplay(ctx context.Context, user ids.UserID) (port.Balance, error) {
+	got, err := b.Available(ctx, user)
+	if err == nil || errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		return got, err
+	}
+	last, ok := b.lastReading(user)
+	if !ok || b.clock.Now().Sub(last.at) >= displayMaxAge {
+		return port.Balance{}, err
+	}
+	return b.compose(ctx, user, last.onChain, last.at)
+}
+
+func (b *Balances) record(user ids.UserID, r reading) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.readings[user] = r
+}
+
+func (b *Balances) lastReading(user ids.UserID) (reading, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	r, ok := b.readings[user]
+	return r, ok
+}
+
+func (b *Balances) compose(
+	ctx context.Context, user ids.UserID, onChain money.Micros, asOf time.Time,
+) (port.Balance, error) {
+	const op = "funding.Balances.compose"
 	fund, err := b.outflows.Funds.InFlightMicros(ctx, user)
 	if err != nil {
 		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
@@ -68,7 +115,7 @@ func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance
 	if err != nil {
 		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	available, err := spendable(onChainMicros(onChain), fund, withdrawals)
+	available, err := spendable(onChain, fund, withdrawals)
 	if err != nil {
 		observability.Degraded(ctx, observability.FundingBalanceClamped,
 			slog.String("user_id", user.String()), slog.String("on_chain_micros", onChain.String()),
@@ -76,8 +123,8 @@ func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance
 			slog.String("in_flight_withdrawal_micros", withdrawals.String()))
 	}
 	return port.Balance{
-		OnChainMicros: onChainMicros(onChain), InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
-		AvailableMicros: available, AsOf: b.clock.Now(),
+		OnChainMicros: onChain, InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
+		AvailableMicros: available, AsOf: asOf,
 	}, nil
 }
 

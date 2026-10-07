@@ -18,7 +18,7 @@ import (
 var _ api.StrictServerInterface = HTTP{}
 
 type HTTP struct {
-	Balances    port.Balances
+	Balances    port.DisplayBalances
 	Wallets     app.MemberWallets
 	Create      *app.CreateOnrampSessionHandler
 	Exchange    *app.ExchangeOnrampTokenHandler
@@ -83,7 +83,7 @@ func (h HTTP) GetMyBalance(
 	if err != nil {
 		return nil, err
 	}
-	balance, err := h.Balances.Available(ctx, user)
+	balance, err := h.Balances.ForDisplay(ctx, user)
 	if err != nil {
 		return nil, err
 	}
