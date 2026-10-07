@@ -158,6 +158,8 @@ No fiat off-ramp in MVP: withdrawals are crypto only. Privy's on-ramp docs cover
 
 `GET /v1/me/balance` is owned by `funding`. It returns the member wallet's on-chain USDC minus the amounts of the caller's in-flight fund transfers and withdrawals, so money already on its way out is never shown as spendable. In-flight withdrawals come from `funding`'s own `withdrawals` rows; in-flight fund transfers come from `treasury`'s query port, which owns `fund_transfers` ([data-model.md](data-model.md#decision)).
 
+When the RPC is rate-limited, the display read serves the user's last on-chain reading if it is under 10 minutes old (in-flight amounts still fresh, `as_of` is the reading's time); fund and withdraw never use it, because a command must not act on a stale balance.
+
 ## Alternatives considered
 
 | Alternative | Why not (for now) |

@@ -101,7 +101,9 @@ func (e WithdrawalStatus) Valid() bool {
 
 // Balance The member wallet's on-chain USDC and currently spendable platform balance.
 type Balance struct {
-	// AsOf Examples: 2026-10-03T15:00:00Z
+	// AsOf When on_chain_micros was read from the chain. Up to 10 minutes old when the chain is unreachable.
+	//
+	// Examples: 2026-10-03T15:00:00Z
 	AsOf time.Time `json:"as_of"`
 
 	// AvailableMicros Examples: 22500000
