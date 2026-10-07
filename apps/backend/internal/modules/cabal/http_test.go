@@ -8,12 +8,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
@@ -566,55 +566,6 @@ func TestSearchCabals_routerAcceptsAnEmptyQuery(t *testing.T) {
 	}
 }
 
-func TestSearchCabals_usesTheTrigramIndex(t *testing.T) {
-	t.Parallel()
-	f := newCreate(t)
-	conn, err := f.pool.Acquire(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Release()
-	if _, err := conn.Exec(t.Context(), `SET enable_seqscan = off`); err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _, _ = conn.Exec(t.Context(), `RESET enable_seqscan`) }()
-	rows, err := conn.Query(t.Context(), `EXPLAIN SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
-  (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
-  EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = $1) AS is_member,
-  r.status AS my_access_request_status
-FROM cabals c
-LEFT JOIN cabal_access_requests r ON r.cabal_id = c.id AND r.user_id = $1
-  AND r.direction = 'request' AND r.status = 'pending'
-WHERE c.status <> 'banned'
-  AND ($2::text = '' OR lower(c.name) LIKE '%' || lower($2::text) || '%')
-  AND (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id) > 0
-  AND (
-    $3::int IS NULL
-    OR (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int < $3::int
-    OR (
-      (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int = $3::int
-      AND (c.created_at, c.id) < ($4::timestamptz, $5::uuid)
-    )
-  )
-ORDER BY member_count DESC, c.created_at DESC, c.id DESC
-LIMIT $6::int`, f.user.ID.UUID(), "fri", nil, nil, nil, int32(21))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	var plan strings.Builder
-	for rows.Next() {
-		var line string
-		if err := rows.Scan(&line); err != nil {
-			t.Fatal(err)
-		}
-		plan.WriteString(line)
-	}
-	if err := rows.Err(); err != nil || !strings.Contains(plan.String(), "cabals_name_trgm_idx") {
-		t.Fatalf("plan = %q, %v", plan.String(), err)
-	}
-}
-
 func TestMyCabals_listsMembershipsAndCreatorRequests(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
@@ -683,23 +634,7 @@ func TestMyCabals_reportsAnUnavailableRead(t *testing.T) {
 	}
 }
 
-func TestSearchCabals_threeCharacterQueryIsUnderAHundredMillisecondsP95(t *testing.T) {
-	t.Parallel()
-	f := newCreate(t)
-	seedSearchPerfCabals(t, f)
-	conn, err := f.pool.Acquire(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Release()
-	durations := make([]time.Duration, 60)
-	for i := range durations {
-		var plan []struct {
-			ExecutionTime json.RawMessage `json:"Execution Time"`
-		}
-		row := conn.QueryRow(
-			t.Context(),
-			`EXPLAIN (ANALYZE, FORMAT JSON) SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
+const searchCabalsSQL = `SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
   (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
   EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = $1) AS is_member,
   r.status AS my_access_request_status
@@ -718,44 +653,40 @@ WHERE c.status <> 'banned'
     )
   )
 ORDER BY member_count DESC, c.created_at DESC, c.id DESC
-			LIMIT $6::int`,
-			f.user.ID.UUID(), "abc", nil, nil, nil, int32(21),
-		)
-		if err := row.Scan(&plan); err != nil {
-			t.Fatal(err)
-		}
-		if len(plan) != 1 {
-			t.Fatalf("EXPLAIN plan = %#v", plan)
-		}
-		duration, err := time.ParseDuration(string(plan[0].ExecutionTime) + "ms")
-		if err != nil {
-			t.Fatal(err)
-		}
-		durations[i] = duration
+LIMIT $6::int`
+
+func TestSearchCabals_threeCharacterQueryUsesTheTrigramIndexOnTenThousandCabals(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	seedSearchPerfCabals(t, f.pool, f.user.ID.UUID())
+	p := testkit.Plan(t, f.pool, searchCabalsSQL, f.user.ID.UUID(), "abc", nil, nil, nil, int32(21))
+	if !p.Uses("cabals_name_trgm_idx") || p.SeqScans("cabals") {
+		t.Fatalf("plan = %+v, want cabals_name_trgm_idx and no sequential scan of cabals", p)
 	}
-	slices.Sort(durations)
-	p95 := durations[56]
-	t.Logf("search p95 = %s", p95)
-	if p95 >= 100*time.Millisecond {
-		t.Fatalf("search p95 = %s, want under 100ms", p95)
-	}
+	testkit.AssertBuffers(t, "search cabals 3 chars 10k", p.Buffers())
+	testkit.AssertQueries(t, "search cabals page", func() {
+		page, err := searchCabals(t, f, f.user.ID, "abc", nil, nil)
+		if err != nil || len(page.Items) != 14 {
+			t.Errorf("GetCabals = %d items, %v, want 14", len(page.Items), err)
+		}
+	})
 }
 
-func seedSearchPerfCabals(t *testing.T, f createFixture) {
-	t.Helper()
-	_, err := f.pool.Exec(t.Context(), `WITH seeded AS (
+func seedSearchPerfCabals(tb testing.TB, pool *pgxpool.Pool, userID uuid.UUID) {
+	tb.Helper()
+	_, err := pool.Exec(tb.Context(), `WITH seeded AS (
 		INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds,
 			slippage_bps, invite_code, created_at, updated_at)
 		SELECT md5(n::text)::uuid, CASE WHEN n <= 14 THEN 'abc cabal ' || n ELSE 'other cabal ' || n END,
 			$1, 'open', 'all', 'majority', 86400, 100,
 			lpad(n::text, 10, '0'), now(), now() FROM generate_series(1, 10000) n RETURNING id
 	) INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
-	SELECT id, $1, 'creator', true, now() FROM seeded`, f.user.ID.UUID())
+	SELECT id, $1, 'creator', true, now() FROM seeded`, userID)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
-	if _, err := f.pool.Exec(t.Context(), `ANALYZE cabals, cabal_members`); err != nil {
-		t.Fatal(err)
+	if _, err := pool.Exec(tb.Context(), `VACUUM (ANALYZE) cabals, cabal_members`); err != nil {
+		tb.Fatal(err)
 	}
 }
 

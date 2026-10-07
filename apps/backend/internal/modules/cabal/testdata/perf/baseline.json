@@ -14,6 +14,10 @@
     "Status": 1,
     "TreasuryWallet": 1,
     "TreasuryWallets over 1000 cabals": 1,
-    "VoterSet": 1
+    "VoterSet": 1,
+    "search cabals page": 1
+  },
+  "buffers": {
+    "search cabals 3 chars 10k": 147
   }
 }
