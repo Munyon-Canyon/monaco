@@ -1065,6 +1065,20 @@ func TestLandArmed_ignoresAStaleArmedCopyOfAQueuedRecord(t *testing.T) {
 	}
 }
 
+func TestLandArmed_reportsAnArmedRecordThatCannotBeReadBack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	armedWatch(t, f)
+	stale := f.owned(t)
+	if err := os.Remove(f.Env(t).recordPath(stale.Ticket)); err != nil {
+		t.Fatal(err)
+	}
+	got := f.Env(t).landArmed(t.Context(), stale, map[int64]int{})
+	if len(got) != 1 || !strings.Contains(got[0], "armed stack #2: ") {
+		t.Fatalf("lines %q", got)
+	}
+}
+
 func TestSilentStalls_saysNothingForAGreenTopThatIsArmed(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

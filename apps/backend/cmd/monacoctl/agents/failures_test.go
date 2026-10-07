@@ -688,7 +688,11 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 	if len(f.hub.callsContaining("/events")) != 0 || len(f.hub.callsContaining("/timeline")) != 0 {
 		t.Fatalf("rest reads %v", f.hub.callsContaining("/issues/"))
 	}
+	f.noFailures()
 	writeFile(t, env.recordPath(40), "{")
+	if code, _, stderr := f.agents(t, "watch", "--once"); code != 1 || !strings.Contains(stderr, "decode") {
+		t.Fatalf("records: %d %q", code, stderr)
+	}
 	got := env.freshOwnerFor(context.Background(), failure{PR: 5, Body: "Part of #40"})
 	if !strings.Contains(got, "ticket: 40\n  worktree: unknown\n") {
 		t.Fatalf("unreadable record:\n%s", got)
