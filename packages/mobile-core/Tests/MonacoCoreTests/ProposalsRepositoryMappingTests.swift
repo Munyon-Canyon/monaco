@@ -182,11 +182,11 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         let model = ProposalDetailModel(id: "p", cabalID: "c", repository: repository(transport), hints: hints)
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await eventArrives(within: 30) { await hints.waitForSubscribers(1) }
         XCTAssertTrue(subscribed)
         model.setVisible(true)
         await hints.send(.changed(.cabal("c"), what: "proposal_updated", id: "1"))
-        let refreshed = await waitUntil { await transport.sent.count == 1 }
+        let refreshed = await eventArrives(within: 30) { await transport.waitForRequest() }
         XCTAssertTrue(refreshed)
     }
 
@@ -238,11 +238,11 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         let model = ProposalListModel(cabalID: "c", filter: .open, repository: repository(transport), hints: hints)
         let observer = Task { await model.observe(cabalID: "c") }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        let subscribed = await eventArrives(within: 30) { await hints.waitForSubscribers(2) }
         XCTAssertTrue(subscribed)
         model.setVisible(true)
         await hints.send(.changed(.cabal("c"), what: "proposal_created", id: "1"))
-        let refreshed = await waitUntil { await transport.sent.count == 1 }
+        let refreshed = await eventArrives(within: 30) { await transport.waitForRequest() }
         XCTAssertTrue(refreshed)
     }
 
@@ -265,14 +265,5 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     private func repository(_ transport: StubTransport) -> ProposalsRepository {
         ProposalsRepository(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport))
-    }
-
-    @MainActor
-    private func waitUntil(_ condition: @escaping @MainActor () async -> Bool) async -> Bool {
-        for _ in 0..<100 {
-            if await condition() { return true }
-            await Task.yield()
-        }
-        return await condition()
     }
 }
