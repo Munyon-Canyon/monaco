@@ -102,7 +102,7 @@ The queue is ordered by `popular_rank` (unranked last), then request time, so po
 
 After a deploy that ships this scope, run `monacoctl backfill prices --all` once. It queues and drains every listed mint (three calls each, once) so no popular stock waits on the 10-mints-per-5-minutes queue.
 
-**Reconcile** runs nightly. One `days=2` hourly call per listed mint fills any hole the sampler left (deploys, outages). That is 30 credits a month per listed mint, so the Demo cap fits about 300 listed mints. The QA database lists 1,278 of 1,283 mints (2026-10-07), so reconcile runs at about 38k credits a month, about 4x the cap. Scoping to listed mints barely helps today; the reduction is tracked in a follow-up ticket. Unlisted rows are never reconciled.
+**Reconcile** runs nightly. One `days=2` hourly call per listed mint fills any hole the sampler left (deploys, outages). That is 30 credits a month per listed mint, so the Demo cap fits about 300 listed mints. The QA database lists 1,278 of 1,283 mints (2026-10-07), so reconcile runs at about 38k credits a month, about 4x the cap. Scoping to listed mints barely helps today; the reduction is tracked in [#3554](https://github.com/Munyon-Canyon/monaco/issues/3554). Unlisted rows are never reconciled.
 
 CoinGecko is called with the Demo key (`COINGECKO_API_KEY` in encrypted `.env.production`, read once by `platform/config`; header `x-cg-demo-api-key`, host `api.coingecko.com`). The client is a `market` adapter: an anti-corruption layer with functional options, a circuit breaker and a client-side limiter that holds every call to well under the plan rate ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). A 429 is a retryable `KindUnavailable` code and backs off for the `retry-after` the response names. Missing key means backfill is skipped and logged, never that the keyless API is polled.
 
@@ -131,7 +131,7 @@ A monthly `market` poller, under the same advisory-lock rule, thins old rows: 2-
 | Vendor | Calls | Per month |
 | --- | --- | --- |
 | Jupiter Price v3 | Hot mints plus 100 cold, so 3 to 4 calls per 120 s tick (50 mints a call), about 2 a minute | ~90k. The free tier allows 60 requests a minute in a 60-second sliding window, and Price, Swap and Token calls share one bucket ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits), read 2026-09-27; the [pricing page](https://developers.jup.ag/pricing) states 1 request a second). The poller uses about 2 of the 60 and leaves 58 a minute for quotes and token lookups. No monthly cap is published for the free tier. |
-| CoinGecko Demo | 3 per newly listed mint once, 1 per listed mint nightly | 30 a month per listed mint (the Demo cap fits about 300), plus 3 per listed mint once for the post-deploy backfill. Today's 1,278 listed mints put reconcile at ~38k a month, over the 10k cap; the reduction is tracked in a follow-up ticket. |
+| CoinGecko Demo | 3 per newly listed mint once, 1 per listed mint nightly | 30 a month per listed mint (the Demo cap fits about 300), plus 3 per listed mint once for the post-deploy backfill. Today's 1,278 listed mints put reconcile at ~38k a month, over the 10k cap; the reduction is tracked in [#3554](https://github.com/Munyon-Canyon/monaco/issues/3554). |
 
 User traffic contributes zero to either row.
 
