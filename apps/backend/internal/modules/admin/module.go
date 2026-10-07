@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -22,8 +23,6 @@ type Module struct {
 }
 
 func New(deps module.Deps) *Module { return &Module{deps: deps} }
-
-func (*Module) Name() string { return "admin" }
 
 func (m *Module) Wire(set module.Set) {
 	for _, mod := range set {
@@ -44,10 +43,21 @@ func (m *Module) userLookup() app.UserLookup {
 	}
 }
 
+func (m *Module) cabalLookup() app.CabalLookup {
+	ledger := treasury.New(m.deps).Ledger()
+	return app.CabalLookup{
+		Cabals: m.cabals, Details: m.cabals, Users: m.users, Shares: ledger, Holdings: ledger,
+		Assets: market.New(m.deps).Catalog(), Txns: ledger, Actions: adapters.ActionLog{DB: m.deps.Pool},
+	}
+}
+
+func (*Module) Name() string { return "admin" }
+
 func (m *Module) Mount(mount api.Mount) {
 	adminapi.Mount(adapters.HTTP{
 		Pool:    m.deps.Pool,
 		Users:   m.userLookup(),
+		Cabals:  m.cabalLookup(),
 		Redrive: app.NewRedriveDeadLetterHandler(m.deps.UoW, m.deps.Pool, m.deps.Bus, m.deps.Clock),
 		Discard: app.NewDiscardDeadLetterHandler(m.deps.UoW, m.deps.Clock),
 	}, mount)

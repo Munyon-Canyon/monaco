@@ -50,6 +50,20 @@ func (h HTTP) FindAdminUser(
 	return api.FindAdminUser200JSONResponse(userBody(view)), nil
 }
 
+func (h HTTP) GetAdminCabal(
+	ctx context.Context, req api.GetAdminCabalRequestObject,
+) (api.GetAdminCabalResponseObject, error) {
+	id, err := ids.ParseCabalID(req.Id.String())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeCabalNotFound, "admin.GetAdminCabal")
+	}
+	view, err := h.Cabals.ByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetAdminCabal200JSONResponse(cabalBody(view)), nil
+}
+
 func userBody(v app.UserView) api.AdminUser {
 	card := v.Card
 	history := make([]api.AdminAuthTransition, len(v.History))
@@ -70,6 +84,42 @@ func userBody(v app.UserView) api.AdminUser {
 		XLinked: card.XLinked, CreatedAt: card.CreatedAt.UTC(), FirstDepositAt: utcOrNil(card.FirstDepositAt),
 		Wallet: optionalString(v.Wallet), AuthStateHistory: history, Cabals: cabals, Positions: positions,
 		RecentTxns: txnHeaders(v.Txns), RecentAdminActions: actionRecords(v.Actions),
+	}
+}
+
+func cabalBody(v app.CabalView) api.AdminCabal {
+	members := make([]api.AdminCabalMember, len(v.Members))
+	for i, m := range v.Members {
+		members[i] = api.AdminCabalMember{
+			UserId: m.View.UserID.UUID(), Handle: optionalString(m.Handle), Role: string(m.View.Role),
+			CanVote: m.View.CanVote, JoinedAt: m.View.JoinedAt.UTC(), ShareUnits: m.ShareUnits.String(),
+		}
+	}
+	holdings := make([]api.AdminHolding, len(v.Holdings))
+	for i, h := range v.Holdings {
+		holdings[i] = api.AdminHolding{Mint: h.Mint, Symbol: optionalString(h.Symbol), Units: h.Units.String()}
+	}
+	return api.AdminCabal{
+		Id:                 v.Cabal.ID.UUID(),
+		Name:               v.Cabal.Name,
+		Status:             api.AdminCabalStatus(v.Cabal.Status),
+		CreatedAt:          v.Cabal.CreatedAt.UTC(),
+		CreatorId:          v.Cabal.CreatorID.UUID(),
+		Rules:              rulesBody(v),
+		MemberCount:        int64(v.Cabal.MemberCount),
+		Members:            members,
+		TreasuryAddress:    string(v.Treasury.Address),
+		Positions:          holdings,
+		RecentTxns:         txnHeaders(v.Txns),
+		RecentAdminActions: actionRecords(v.Actions),
+	}
+}
+
+func rulesBody(v app.CabalView) api.AdminCabalRules {
+	r := v.Rules
+	return api.AdminCabalRules{
+		JoinMode: string(r.JoinMode), VoterMode: string(r.VoterMode), Threshold: string(r.Threshold),
+		ProposalExpirySeconds: int64(r.ProposalExpiry.Seconds()), SlippageBps: r.SlippageBps,
 	}
 }
 

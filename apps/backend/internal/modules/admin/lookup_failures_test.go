@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -28,6 +29,7 @@ type stubPorts struct {
 	fail    string
 	wallet  error
 	payload string
+	cabal   cabalport.CabalView
 }
 
 func (s stubPorts) err(method string) error {
@@ -56,12 +58,28 @@ func (s stubPorts) MemberWallet(context.Context, ids.UserID) (identityport.Membe
 	return identityport.MemberWallet{Address: "ABCDEFGHIJKL"}, s.err("MemberWallet")
 }
 
+func (s stubPorts) Cabal(context.Context, ids.CabalID) (cabalport.CabalView, error) {
+	return s.cabal, s.err("Cabal")
+}
+
 func (s stubPorts) Cabals(_ context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID]cabalport.CabalView, error) {
 	return map[ids.CabalID]cabalport.CabalView{cabalIDs[0]: {Name: "c"}}, s.err("Cabals")
 }
 
 func (s stubPorts) CabalsOf(context.Context, ids.UserID) ([]ids.CabalID, error) {
 	return []ids.CabalID{ids.CabalIDFrom(s.g.NewV7()), ids.CabalIDFrom(s.g.NewV7())}, s.err("CabalsOf")
+}
+
+func (s stubPorts) Members(context.Context, ids.CabalID) ([]cabalport.MemberView, error) {
+	return []cabalport.MemberView{{UserID: ids.UserIDFrom(s.g.NewV7())}}, s.err("Members")
+}
+
+func (s stubPorts) Rules(context.Context, ids.CabalID) (cabalport.Rules, error) {
+	return cabalport.Rules{}, s.err("Rules")
+}
+
+func (s stubPorts) TreasuryWallet(context.Context, ids.CabalID) (cabalport.TreasuryWallet, error) {
+	return cabalport.TreasuryWallet{}, s.err("TreasuryWallet")
 }
 
 func (s stubPorts) UserTxns(
@@ -76,13 +94,19 @@ func (s stubPorts) CabalTxns(
 	return nil, s.err("CabalTxns")
 }
 
+func (s stubPorts) UserShares(context.Context, ids.UserID) ([]treasuryport.Share, error) {
+	return nil, s.err("UserShares")
+}
+
 func (s stubPorts) CabalShares(context.Context, ids.CabalID) ([]treasuryport.Share, error) {
 	return nil, s.err("CabalShares")
 }
 
-func (s stubPorts) UserShares(context.Context, ids.UserID) ([]treasuryport.Share, error) {
-	return nil, s.err("UserShares")
+func (s stubPorts) CabalHoldings(context.Context, ids.CabalID) ([]treasuryport.RawHolding, error) {
+	return nil, s.err("CabalHoldings")
 }
+
+func (s stubPorts) ListAll(context.Context) ([]market.Asset, error) { return nil, s.err("ListAll") }
 
 func (s stubPorts) EventsByAggregate(
 	context.Context, string, uuid.UUID, []string, int,
@@ -111,6 +135,12 @@ func failing(method string) func(*stubPorts) { return func(s *stubPorts) { s.fai
 func userLookup(s stubPorts) app.UserLookup {
 	return app.UserLookup{
 		Users: s, Wallets: s, Cabals: s, Shares: s, Txns: s, Events: s, Actions: s,
+	}
+}
+
+func cabalLookup(s stubPorts) app.CabalLookup {
+	return app.CabalLookup{
+		Cabals: s, Details: s, Users: s, Shares: s, Holdings: s, Assets: s, Txns: s, Actions: s,
 	}
 }
 
@@ -153,6 +183,19 @@ func TestUserLookup_RefusesAnAuthStateEventItCannotDecode(t *testing.T) {
 	if _, err := userLookup(bad).ByID(t.Context(), ids.UserIDFrom(bad.g.NewV7())); errs.CodeOf(err) !=
 		errs.CodeDecodeFailed {
 		t.Fatalf("ByID = %v, want decode_failed", err)
+	}
+}
+
+func TestCabalLookup_PassesEveryPortFailureOn(t *testing.T) {
+	t.Parallel()
+	id := ids.CabalIDFrom(newStub().g.NewV7())
+	for _, method := range []string{
+		"Cabal", "Rules", "TreasuryWallet", "Members", "CabalShares", "UsersByID", "CabalHoldings", "ListAll",
+		"CabalTxns", "Recent",
+	} {
+		if _, err := cabalLookup(newStub(failing(method))).ByID(t.Context(), id); !isPortDown(err) {
+			t.Errorf("ByID with %s down = %v", method, err)
+		}
 	}
 }
 
