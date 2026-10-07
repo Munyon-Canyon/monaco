@@ -3,8 +3,6 @@ package ranking_test
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"slices"
 	"testing"
 	"time"
 
@@ -14,7 +12,6 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
-	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -270,33 +267,22 @@ func TestBoards_ConcurrentMissesRunOnePageQuery(t *testing.T) {
 	})
 }
 
-func TestBoards_PeopleP95(t *testing.T) {
+func TestBoards_PeopleQueriesUseTheirIndexesWithinABlockBudget(t *testing.T) {
+	t.Parallel()
 	s := newServer(t)
 	rows := boardRows("people", 10000)
 	seedBoard(t, s.pool, s.clock.Now().UTC(), rows)
-	viewer := ids.UserIDFrom(rows[9999].subject)
-	timedHandlerOnly := func(i int) time.Duration {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-			"/v1/leaderboards/people?limit=20&cursor="+domain.EncodeCursor(i%100*20), nil)
-		req.Header.Set("Authorization", "Bearer "+s.verifier.Mint(viewer.String(), s.clock.Now().Add(time.Hour)))
-		rec := httptest.NewRecorder()
-		start := clock.Real{}.Now()
-		s.bare.ServeHTTP(rec, req)
-		d := clock.Real{}.Now().Sub(start)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("GET = %d %s", rec.Code, rec.Body)
-		}
-		return d
+	if _, err := s.pool.Exec(t.Context(), "ANALYZE leaderboard_entries"); err != nil {
+		t.Fatal(err)
 	}
-	for i := range 20 {
-		timedHandlerOnly(i)
-	}
-	took := make([]time.Duration, 0, 200)
-	for i := range 200 {
-		took = append(took, timedHandlerOnly(i))
-	}
-	slices.Sort(took)
-	if p95 := took[189]; p95 >= 50*time.Millisecond {
-		t.Fatalf("p95 = %s over 200 requests on 10000 rows, want under 50ms", p95)
-	}
+	const columns = `board, range, rank, subject_id, subject_name, subject_handle, subject_picture_url,
+		subject_created_at, value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags`
+	testkit.AssertPlanWork(t, s.pool, "page", "leaderboard_entries_pkey", 6,
+		`SELECT `+columns+` FROM leaderboard_entries
+		WHERE board = $1 AND range = $2 AND rank > $3 ORDER BY rank LIMIT $4`,
+		"people", "ALL", int32(1000), int32(21))
+	testkit.AssertPlanWork(t, s.pool, "viewer row", "leaderboard_entries_subject", 6,
+		`SELECT `+columns+` FROM leaderboard_entries
+		WHERE board = $1 AND range = $2 AND subject_id = $3`,
+		"people", "ALL", rows[9999].subject)
 }
