@@ -96,6 +96,7 @@ func (s *stream) next(ctx context.Context) []string {
 
 func (s *stream) round(ctx context.Context) ([]string, []string) {
 	env := s.env
+	data, dataErr := env.watchData(ctx)
 	rs, err := env.records()
 	if err != nil {
 		return []string{watchErr("", err)}, nil
@@ -104,9 +105,8 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	if err != nil {
 		items = append(items, watchErr("", err))
 	}
-	data, err := env.watchData(ctx)
-	if err != nil {
-		items = append(items, watchErr("", err))
+	if dataErr != nil {
+		items = append(items, watchErr("", dataErr))
 	}
 	var queued []int
 	for _, r := range rs {

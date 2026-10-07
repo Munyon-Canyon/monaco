@@ -22,6 +22,10 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if !once {
 		return env.watchStream(ctx, every, stdout)
 	}
+	data, err := env.watchData(ctx)
+	if err != nil {
+		return err
+	}
 	rs, err := env.records()
 	if err != nil {
 		return err
@@ -33,12 +37,8 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	for _, r := range rs {
-		if r.Queued == nil && r.Armed != nil {
-			lines = append(lines, env.landArmed(ctx, r, map[int64]int{})...)
-		}
-	}
-	failed, data, err := env.failures(ctx, rs)
+	lines = append(lines, env.landArmedOnce(ctx, rs)...)
+	failed, err := env.failures(ctx, rs, data)
 	if err != nil {
 		return err
 	}
@@ -51,6 +51,16 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		return errs.New(errs.CodeForbidden, "monacoctl.agents.watch")
 	}
 	return nil
+}
+
+func (env *Env) landArmedOnce(ctx context.Context, rs []Record) []string {
+	var lines []string
+	for _, r := range rs {
+		if r.Queued == nil && r.Armed != nil {
+			lines = append(lines, env.landArmed(ctx, r, map[int64]int{})...)
+		}
+	}
+	return lines
 }
 
 func (env *Env) ownerLines(ctx context.Context, rs []Record) ([]string, int, error) {

@@ -54,6 +54,7 @@ type queueDraft struct {
 }
 
 type watchData struct {
+	at     time.Time
 	prs    []watchPR
 	drafts []queueDraft
 }
@@ -271,25 +272,21 @@ func queueJob(pr int, head lastCommits, drafts []queueDraft, since time.Time) gq
 	return gqlContext{}
 }
 
-func (env *Env) failures(ctx context.Context, rs []Record) ([]failure, watchData, error) {
+func (env *Env) failures(ctx context.Context, rs []Record, data watchData) ([]failure, error) {
 	since, err := env.lastRun()
 	if err != nil {
-		return nil, watchData{}, err
+		return nil, err
 	}
-	now := env.Now()
-	data, err := env.watchData(ctx)
-	if err != nil {
-		return nil, watchData{}, err
-	}
+	now := data.at
 	queue := queueRuns{label: env.Config.QueueLabel, drafts: data.drafts, now: now}
 	if queue.landed, err = env.landedDrops(ctx, queue, data.prs, since); err != nil {
-		return nil, watchData{}, err
+		return nil, err
 	}
 	stamp := now.UTC().Format(time.RFC3339Nano)
 	if _, err := env.writeState("watch", lastRunState, []byte(stamp+"\n")); err != nil {
-		return nil, watchData{}, err
+		return nil, err
 	}
-	return onePerOwnedStack(failures(data.prs, queue, env.Config.FeatureBranch, since), rs), data, nil
+	return onePerOwnedStack(failures(data.prs, queue, env.Config.FeatureBranch, since), rs), nil
 }
 
 func onePerOwnedStack(failed []failure, rs []Record) []failure {
@@ -406,7 +403,6 @@ func restackReason(prs []watchPR, top watchPR) string {
 	for _, head := range chainDown(prs, top) {
 		i := slices.IndexFunc(prs, func(q watchPR) bool { return q.HeadRefName == head })
 		switch {
-		case i < 0:
 		case strings.HasPrefix(prs[i].BaseRefName, "graphite-base/"):
 			return fmt.Sprintf("#%d sits on %s", prs[i].Number, prs[i].BaseRefName)
 		case prs[i].Mergeable == conflicting:
@@ -486,6 +482,7 @@ func stackTop(prs []watchPR, p watchPR) int {
 }
 
 func (env *Env) watchData(ctx context.Context) (watchData, error) {
+	at := env.Now()
 	var prs []watchPR
 	var drafts []queueDraft
 	for after := ""; ; {
@@ -519,7 +516,7 @@ func (env *Env) watchData(ctx context.Context) (watchData, error) {
 	if err := env.readChecks(ctx, commits, env.graphQL); err != nil {
 		return watchData{}, err
 	}
-	return watchData{prs: prs, drafts: drafts}, nil
+	return watchData{at: at, prs: prs, drafts: drafts}, nil
 }
 
 func (env *Env) lastRun() (time.Time, error) {
