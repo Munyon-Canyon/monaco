@@ -190,7 +190,7 @@ func subtractCashOutReservation(total money.Micros, raw string) (money.Micros, e
 	}
 	available, err := total.Sub(reserved)
 	if err != nil {
-		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.PotValue")
+		return money.Micros{}, errs.Wrap(err, errs.CodePotValueChanged, "treasury.Queries.PotValue")
 	}
 	return available, nil
 }

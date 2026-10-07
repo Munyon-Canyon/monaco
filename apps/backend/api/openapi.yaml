@@ -4430,6 +4430,7 @@ components:
         - post_hog_rejected
         - post_hog_unavailable
         - pot_exceeded
+        - pot_value_changed
         - pot_value_zero
         - price_unavailable
         - prices_stale

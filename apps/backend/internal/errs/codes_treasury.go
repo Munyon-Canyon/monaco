@@ -9,6 +9,7 @@ const (
 	CodeCashOutInProgress  Code = "cash_out_in_progress"
 	CodeSaleShort          Code = "sale_short"
 	CodePayoutFailed       Code = "payout_failed"
+	CodePotValueChanged    Code = "pot_value_changed"
 )
 
 func (codeFiles) Treasury() map[Code]Row {
@@ -33,6 +34,10 @@ func (codeFiles) Treasury() map[Code]Row {
 		CodePayoutFailed: {
 			Name: "PayoutFailed", Kind: KindInternal, Alert: true,
 			Message: "The cash out didn't go through. Your shares are back in the cabal.",
+		},
+		CodePotValueChanged: {
+			Name: "PotValueChanged", Kind: KindConflict, Retryable: true,
+			Message: "The pot's value changed. Check the amount and try again.",
 		},
 		CodeSaleShort: {
 			Name: "SaleShort", Kind: KindBlocked, Message: "The sale raised less than this cash out's slice.",

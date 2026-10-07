@@ -100,6 +100,7 @@ extension Components.Schemas.ErrorCode {
         case .postHogRejected: true
         case .postHogUnavailable: true
         case .potExceeded: true
+        case .potValueChanged: true
         case .potValueZero: true
         case .priceUnavailable: true
         case .pricesStale: true

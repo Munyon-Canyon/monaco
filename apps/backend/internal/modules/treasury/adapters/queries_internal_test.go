@@ -29,7 +29,7 @@ func TestSubtractCashOutReservation(t *testing.T) {
 	}{
 		"subtracts reservation":       {total: money.MicrosFromUint64(10), raw: "3", want: money.MicrosFromUint64(7)},
 		"rejects invalid reservation": {total: money.MicrosFromUint64(10), raw: "bad", code: errs.CodeDecodeFailed},
-		"rejects over reservation":    {total: money.MicrosFromUint64(3), raw: "10", code: errs.CodeInvalidInput},
+		"rejects over reservation":    {total: money.MicrosFromUint64(3), raw: "10", code: errs.CodePotValueChanged},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

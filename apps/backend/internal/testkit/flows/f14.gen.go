@@ -6,6 +6,7 @@ func (defined) ScriptsF14() map[string]Script {
 	return map[string]Script{
 		"F14CashOutOK":                           F14CashOutOK,
 		"F14CashOutInvalidInput":                 F14CashOutInvalidInput,
+		"F14CashOutPotValueChanged":              F14CashOutPotValueChanged,
 		"F14CashOutInsufficientShares":           F14CashOutInsufficientShares,
 		"F14CashOutCashOutInProgress":            F14CashOutCashOutInProgress,
 		"F14CashOutCabalPaused":                  F14CashOutCabalPaused,

@@ -106,6 +106,7 @@ const (
 	PostHogRejected ErrorCode = "post_hog_rejected"
 	PostHogUnavailable ErrorCode = "post_hog_unavailable"
 	PotExceeded ErrorCode = "pot_exceeded"
+	PotValueChanged ErrorCode = "pot_value_changed"
 	PotValueZero ErrorCode = "pot_value_zero"
 	PriceUnavailable ErrorCode = "price_unavailable"
 	PricesStale ErrorCode = "prices_stale"
@@ -345,6 +346,8 @@ func (e ErrorCode) Valid() bool {
 	case PostHogUnavailable:
 		return true
 	case PotExceeded:
+		return true
+	case PotValueChanged:
 		return true
 	case PotValueZero:
 		return true

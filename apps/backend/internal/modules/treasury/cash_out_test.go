@@ -236,3 +236,19 @@ func TestCashOut_returnsPauseAndValueFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestCashOut_reservationsAboveThePotArePotValueChanged(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, cabal := f.user(t), f.cabal(t)
+	cashOutFund(t, f, user, cabal, 100_000_000)
+	if _, err := f.pool.Exec(t.Context(), `INSERT INTO cash_out_jobs
+		(id, cabal_id, user_id, share_units, payout_micros, slice_micros, status, created_at, updated_at)
+		VALUES (gen_random_uuid(), $1, gen_random_uuid(), 1, 100000001, 100000001, 'started', now(), now())`, cabal.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	_, err := cashOutHandler(f, false).Handle(f.ctx(), app.CashOut{CabalID: cabal, UserID: user, All: true})
+	if errs.CodeOf(err) != errs.CodePotValueChanged {
+		t.Fatalf("CashOut code = %q, err %v, want %q", errs.CodeOf(err), err, errs.CodePotValueChanged)
+	}
+}
