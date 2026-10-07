@@ -58,6 +58,7 @@ func (m *Module) Consumers() []bus.Consumer {
 			Durable: "referrals",
 			Handlers: []bus.HandlerSpec{
 				bus.Handle("referrals.mint_code", adapters.MintCode{Entropy: m.entropy}.Handle),
+				bus.Handle("referrals.qualify", adapters.Qualify{Users: identity.New(m.deps).Queries()}.Handle),
 			},
 		},
 	}

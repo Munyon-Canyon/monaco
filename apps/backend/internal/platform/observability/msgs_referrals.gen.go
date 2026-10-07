@@ -6,5 +6,7 @@ func init() {
 	register(
 		ReferralsAttributed,
 		ReferralsClick,
+		ReferralsQualified,
+		ReferralsQualifySkipped,
 	)
 }

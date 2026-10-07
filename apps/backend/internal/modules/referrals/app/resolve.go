@@ -20,9 +20,11 @@ type Resolved struct {
 	Code     domain.Code
 }
 
+type UserReader = identity.UserReader
+
 type Resolver struct {
 	Reads sqlc.DBTX
-	Users identity.UserReader
+	Users UserReader
 }
 
 func (r Resolver) Resolve(ctx context.Context, input string) (Resolved, error) {
