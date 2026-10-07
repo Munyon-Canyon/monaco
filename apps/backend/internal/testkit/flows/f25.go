@@ -1,22 +1,31 @@
 package flows
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
 const (
 	attachPath    = "/v1/me/referral"
 	attachDisplay = "Kai"
+
+	qualifyFundBody = `{"amount_micros":"10000000"}`
 )
 
 type invite struct{ code, handle string }
@@ -129,10 +138,51 @@ func attachPair(inv invite) scenario.Step {
 	}
 }
 
+type payer struct {
+	cabal testkit.SeededCabal
+	user  testkit.SeededUser
+}
+
+func (p payer) fundPath() string { return "/v1/cabals/" + p.cabal.ID.String() + "/fund" }
+
+func seedPayer(s *scenario.Scenario, referrer string) payer {
+	user := testkit.SeedUser(seedT{s}, s.DB(), testkit.UserOpts{WithWallet: true})
+	user.Address = chain.AddressOf(fakes.PrivyWalletKey(user.PrivyWalletID).Public().(ed25519.PublicKey))
+	if _, err := s.DB().Exec(s.Context(), `UPDATE user_wallets SET address = $1 WHERE user_id = $2`,
+		string(user.Address), user.ID.UUID()); err != nil {
+		s.Fatalf("flows: give the payer the fake Privy wallet's address: %v", err)
+	}
+	if _, err := s.DB().Exec(s.Context(), `UPDATE users SET phone_verified_at = now() WHERE id = $1`,
+		user.ID.UUID()); err != nil {
+		s.Fatalf("flows: verify the payer's phone: %v", err)
+	}
+	friend, err := ids.ParseUserID(s.Recall(referrer))
+	if err != nil {
+		s.Fatalf("flows: referrer id: %v", err)
+	}
+	return payer{
+		user:  user,
+		cabal: testkit.NewCabal(seedT{s}, s.DB(), testkit.WithCreator(user.ID), testkit.WithJoiner(friend)),
+	}
+}
+
+func expectQualified(referee string) scenario.Step {
+	return scenario.Eventually("the referral of "+referee+" qualified", func(s *scenario.Scenario) bool {
+		var qualified bool
+		err := s.DB().QueryRow(s.Context(), `SELECT EXISTS (SELECT 1 FROM referrals r
+			JOIN events e ON e.type = 'referral.qualified' AND e.aggregate_id = r.id
+			WHERE r.referee_id = $1::uuid AND r.status = 'qualified' AND r.qualified_at IS NOT NULL)`,
+			referee).Scan(&qualified)
+		return err == nil && qualified
+	})
+}
+
 func F25AttachReferralOK(s *scenario.Scenario) {
 	inv := newInvite()
+	var pay payer
 	s.Given(
 		seedInvite("referrer", inv),
+		func(s *scenario.Scenario) { pay = seedPayer(s, "referrer") },
 		seedNewUser("caller"),
 		seedNewUser("week"),
 		ageCreated("week", "6 days 23 hours"),
@@ -155,9 +205,28 @@ func F25AttachReferralOK(s *scenario.Scenario) {
 		scenario.Post(attachPath, inv.handleBody("universal_link")),
 		scenario.ExpectStatus(http.StatusCreated),
 		expectReferrer("referrer", inv),
+		func(s *scenario.Scenario) { scenario.AsSeededUser("payer", pay.user.ID)(s) },
+		scenario.Post(attachPath, inv.codeBody("clipboard")),
+		scenario.ExpectStatus(http.StatusCreated),
+		func(s *scenario.Scenario) { scenario.Post(pay.fundPath(), qualifyFundBody)(s) },
+		scenario.ExpectStatus(http.StatusAccepted),
+		scenario.AwaitTick("treasury.fund-transfers"),
+		scenario.AwaitTick("treasury.fund-transfers"),
+		func(s *scenario.Scenario) { expectQualified(pay.user.ID.String())(s) },
 	).Then(
-		scenario.ExpectEvents(events.TypeReferralAttributed, 4),
-		scenario.EventuallyPublished(events.TypeReferralAttributed, 4),
+		scenario.ExpectEvents(events.TypeReferralAttributed, 5),
+		scenario.EventuallyPublished(events.TypeReferralAttributed, 5),
+		func(s *scenario.Scenario) {
+			var referral uuid.UUID
+			if err := s.DB().QueryRow(s.Context(), `SELECT id FROM referrals WHERE referee_id = $1::uuid`,
+				pay.user.ID.String()).Scan(&referral); err != nil {
+				s.Fatalf("flows: read the payer's referral: %v", err)
+			}
+			scenario.EventuallyAggregateEvent(referral, "referral "+referral.String(), events.TypeReferralQualified)(s)
+			scenario.EventuallyLog(observability.ReferralsQualified,
+				map[string]string{"referral_id": referral.String()})(s)
+		},
+		scenario.EventuallyEvent(events.TypeReferralAttributed),
 		expectAttribution("caller", "random", "manual"),
 		expectAttribution("week", "random", "manual"),
 		expectAttribution("day", "random", "manual"),

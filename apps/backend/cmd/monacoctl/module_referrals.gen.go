@@ -5,8 +5,10 @@ package main
 import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
 func init() {
 	registered.Add(func(d module.Deps) module.Module { return referrals.New(d) })
+	replay.RegisterLedgerCheck(referrals.LedgerCheck)
 }
