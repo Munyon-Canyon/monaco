@@ -39,7 +39,7 @@ final class CreateCabalFormTests: XCTestCase {
         XCTAssertEqual(sent["join_mode"] as? String, "open")
         XCTAssertEqual(sent["voter_mode"] as? String, "all")
         XCTAssertEqual(sent["threshold"] as? String, "majority")
-        XCTAssertEqual(sent["proposal_expiry_seconds"] as? Int, 86_400)
+        XCTAssertEqual(sent["proposal_expiry_seconds"] as? Int, 604_800)
     }
 
     func testTheRequestLeavesSlippageToTheServer() throws {

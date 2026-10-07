@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 3
+    static let version = 4
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -46,6 +46,8 @@ enum CreateCabalJourney {
             for rule in ["create-rule-join", "create-rule-voters", "create-rule-threshold", "create-rule-expiry"] {
                 XCTAssertTrue(app.element(rule).exists, "S1.3: the form has no \(rule)")
             }
+            let week = app.element("create-rule-expiry").buttons["1 week"]
+            XCTAssertTrue(week.isSelected, "S1.3: '1 week' is not selected in create-rule-expiry")
         }
     }
 

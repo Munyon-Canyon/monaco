@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 3
+version: 4
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Cabals tab | | The toolbar "+" (`cabals-new-button`) shows within 15 s. Old app: the Cabals tab "+" in `CabalsTabView` |
 | S1.2 | tap | `cabals-new-button` | | The New cabal sheet shows `new-cabal-create-row` ("Start a cabal" / "Name it and set the rules") and `new-cabal-join-row` ("Join with an invite code" / "Paste the code a friend sent you") within 10 s. Old app: the same two rows in `CabalsTabView`'s "New cabal" sheet |
-| S1.3 | tap | `new-cabal-create-row` | | "Start a cabal" shows `create-group-name` within 10 s, with "The rules": `create-rule-join` ("Who can join"), `create-rule-voters` ("Who votes"), `create-rule-threshold` ("To pass") and `create-rule-expiry` ("Votes stay open"). Old app: `CreateGroupView` |
+| S1.3 | tap | `new-cabal-create-row` | | "Start a cabal" shows `create-group-name` within 10 s, with "The rules": `create-rule-join` ("Who can join"), `create-rule-voters` ("Who votes"), `create-rule-threshold` ("To pass") and `create-rule-expiry` ("Votes stay open"); `create-rule-expiry` starts on "1 week". Old app: `CreateGroupView` |
 
 ### S2 Create a cabal
 

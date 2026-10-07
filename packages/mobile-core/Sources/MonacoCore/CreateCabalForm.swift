@@ -146,7 +146,7 @@ public struct CreateCabalForm: Equatable, Sendable {
         joinMode: CabalJoinMode = .open,
         voterMode: CabalVoterMode = .everyone,
         threshold: CabalThreshold = .majority,
-        expiry: CabalProposalExpiry = .oneDay
+        expiry: CabalProposalExpiry = .oneWeek
     ) {
         self.name = name
         self.joinMode = joinMode
