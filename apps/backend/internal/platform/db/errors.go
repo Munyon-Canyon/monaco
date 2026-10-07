@@ -27,6 +27,9 @@ func transient(err error) bool {
 func classify(err error, op string) error {
 	var coded *errs.Error
 	if errors.As(err, &coded) {
+		if coded.Code == errs.CodeInternal && codeFor(err) == errs.CodeDBUnavailable {
+			return errs.Wrap(err, errs.CodeDBUnavailable, op)
+		}
 		return err
 	}
 	return errs.Wrap(err, codeFor(err), op)
