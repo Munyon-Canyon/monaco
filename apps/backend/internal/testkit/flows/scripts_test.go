@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -94,5 +96,27 @@ func TestAlone_marksOnlyTheDeclaredScripts(t *testing.T) {
 	}
 	if flows.Alone(flows.F14CashOutPayoutsPrivyUnavailable) {
 		t.Error("flow 14 PrivyUnavailable scripts its own treasury wallet route, want it to run with others")
+	}
+}
+
+func TestLettersOf_returnsTheLettersADeclaredScriptExpectsAndNothingForAnyOther(t *testing.T) {
+	t.Parallel()
+	refused := flows.Letter{Subject: events.TypeFollowCreated, Code: errs.CodePostHogRejected}
+	resolved := flows.Letter{Subject: events.TypeFollowCreated, Code: "ok"}
+	for _, tc := range []struct {
+		name   string
+		script flows.Script
+		want   []flows.Letter
+	}{
+		{"record", flows.F27RecordDeadLetterOK, []flows.Letter{refused}},
+		{"discard", flows.F27DiscardDeadLetterOK, []flows.Letter{refused}},
+		{"redrive", flows.F27RedriveDeadLetterOK, []flows.Letter{refused, resolved}},
+		{"a refusal", flows.F27RedriveDeadLetterNotFound, nil},
+		{"another flow", flows.F00RecordPingOK, nil},
+		{"no script", nil, nil},
+	} {
+		if got := flows.LettersOf(tc.script); !slices.Equal(got, tc.want) {
+			t.Errorf("LettersOf(%s) = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
