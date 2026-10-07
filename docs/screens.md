@@ -137,7 +137,7 @@ Used by Home's "Needs your vote", the cabal's proposals and the proposals list (
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
-| 1 | `ProposalDetailSlot` | #612 | The card's header and amount. "Proposed by Jordan · 33m". The tracker, then each voter's line ("Priya voted yes"). Voting buttons as on the card. "Why buy" with the reason as a quote. "Expected" with `quote_out_amount` as "about 0.73 shares at $341.57". A "Status" stepper "Voting", "Buying", "Done" that marks the reached step; a failed trade shows "Couldn't buy" at the last step with `swap.failure_message`, a "Retry" button when `retryable`, and a link to its `TransactionRoute`. The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn."). A gold coin burst plays once when a buy reaches Done |
+| 1 | `ProposalDetailSlot` | #612 | The card's header and amount. "Proposed by Jordan · 33m". The tracker, then each voter's line ("Priya voted yes"). Voting buttons as on the card. "Why buy" with the reason in a ruled section. "Expected" with `quote_out_amount` as "about 0.73 shares at $341.57". A "Status" stepper "Voting", "Buying", "Done" that marks the reached step; a failed trade shows "Couldn't buy" at the last step with `swap.failure_message`, a "Retry" button when `retryable`, and a link to its `TransactionRoute`. The proposer sees "Withdraw proposal" while it is open (confirm "Withdraw this proposal?" / "Votes so far are dropped.", toast "Proposal withdrawn."). A gold coin burst plays once when a buy reaches Done |
 | 2 | `ProposalCommentsSlot` | #711 | "Comments", the thread, and a composer pinned at the bottom, "Add a comment". Empty: "No comments yet" |
 
 ## Propose (#613)

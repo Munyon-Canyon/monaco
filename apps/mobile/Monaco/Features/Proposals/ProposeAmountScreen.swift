@@ -9,6 +9,7 @@ struct ProposeAmountScreen: View {
     @State private var model: ProposeAmountModel
     @State private var amountText = ""
     @State private var showsReason = false
+    @FocusState private var reasonFocused: Bool
 
     init(service: MonacoCore.ProposeService, cabalID: String, stock: ProposeStock, trade: ProposeTrade? = nil) {
         self.stock = stock
@@ -29,18 +30,14 @@ struct ProposeAmountScreen: View {
                 )
                 .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
                 if !showsReason {
-                    Button("+ Add a reason") { showsReason = true }.buttonStyle(.monacoSecondary)
+                    Button("Add a reason") { showsReason = true }.buttonStyle(.monacoSecondary)
                         .accessibilityIdentifier("propose-amount-add-reason")
                 } else {
-                    TextField(
-                        model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?",
-                        text: Binding(get: { model.thesis }, set: { model.setThesis($0) }), axis: .vertical
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("propose-amount-reason")
+                    reasonField
                     if ProposeReasonRules.showsCounter(for: model.thesis) {
-                        Text("\(model.thesis.count)/\(ProposeReasonRules.thesisLimit)").foregroundStyle(
-                            MonacoTheme.muted)
+                        Text("\(model.thesis.count)/\(ProposeReasonRules.thesisLimit)")
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.muted)
                     }
                 }
                 if let message = model.message(assetName: stock.name) {
@@ -68,6 +65,19 @@ struct ProposeAmountScreen: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-amount-screen")
+    }
+
+    private var reasonField: some View {
+        TextField(
+            model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?",
+            text: Binding(get: { model.thesis }, set: { model.setThesis($0) }), axis: .vertical
+        )
+        .font(MonacoTheme.Typo.body)
+        .foregroundStyle(MonacoTheme.ink)
+        .tint(MonacoTheme.ink)
+        .focused($reasonFocused)
+        .monacoFieldChrome(isFocused: reasonFocused)
+        .accessibilityIdentifier("propose-amount-reason")
     }
 
     private var presets: [AmountPreset] {

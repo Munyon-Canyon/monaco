@@ -290,6 +290,7 @@ enum RepoRules {
             ],
             applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
         ),
+        roundedBorderField,
         RepoRule(
             name: "flow-switch",
             roots: productCode,
@@ -673,4 +674,15 @@ final class RepoRulesTests: XCTestCase {
             XCTAssertEqual(found, [message], text)
         }
     }
+}
+
+extension RepoRules {
+    static let roundedBorderField = RepoRule(
+        name: "rounded-border-field",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"\.roundedBorder\b"#,
+        message: "A text field draws with monacoFieldChrome, not the system rounded box.",
+        failing: [".textFieldStyle(.roundedBorder)"],
+        passing: [".monacoFieldChrome(isFocused: focused)", ".textFieldStyle(.plain)"]
+    )
 }
