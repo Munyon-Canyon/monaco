@@ -41,7 +41,15 @@ func (db testDB) url() string {
 	return strings.Replace(config.DefaultTestDBURL, port(testDBPort), port(db.port()), 1)
 }
 
-func (db testDB) testEnv() []string { return []string{"env", "TEST_DATABASE_URL=" + db.url()} }
+const stage0ChaosSeedsPerSuite = "10"
+
+func (db testDB) testEnv() []string {
+	env := []string{"env", "TEST_DATABASE_URL=" + db.url()}
+	if os.Getenv("CHAOS_SEEDS") == "" {
+		env = append(env, "CHAOS_SEEDS="+stage0ChaosSeedsPerSuite)
+	}
+	return env
+}
 
 func (db testDB) row(work string) checkRow {
 	project, vars := "monaco", []string(nil)
