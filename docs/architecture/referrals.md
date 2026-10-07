@@ -109,7 +109,7 @@ On success: insert `referrals` row (`status = attributed`) and append the `event
 A referral moves `attributed → qualified`, or `rejected`. Nothing is paid or granted on qualifying.
 
 - **Qualified** when the referee first funds a cabal with at least $10 (`10_000_000` micros), default 2026-09-27. Funding a cabal is real use, which a deposit alone is not. Triggered by the `referrals` consumer of `cabal.funded` (flow 7), never from the client. Qualifying appends `referral.qualified`, whose consumer is `analytics` (flow 25); it sends no push. `deposit.credited` (flow 5) only unlocks the handle as a code, through `identity`'s consumer. `referrals` does not consume it.
-- **Honest counts.** Qualification also requires the referee's phone to be verified ([auth.md](auth.md)); verified phones are unique, so one person cannot inflate a referrer's numbers with extra Apple IDs. Bursts from one referrer are flagged for review in the admin panel.
+- **Honest counts.** Qualification also requires the referee's phone to be verified ([auth.md](auth.md)); verified phones are unique, so one person cannot inflate a referrer's numbers with extra Apple IDs. The phone check runs at each funding: a funding made before the phone is verified does not qualify, there is no retroactive sweep when it is verified later, and the next funding of at least $10 qualifies (#521). Bursts from one referrer are flagged for review in the admin panel.
 - **If a reward comes later**, it is a new consumer of `referral.qualified`. A cash reward moves money, so that consumer would live in the module that owns member balances, not in `referrals`.
 
 ## Data

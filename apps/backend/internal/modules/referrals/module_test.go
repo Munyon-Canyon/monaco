@@ -15,16 +15,18 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestModule_registersTheReferralsDurableWithMintCodeOnUserCreated(t *testing.T) {
+func TestModule_registersTheReferralsDurableWithMintCodeOnUserCreatedAndQualifyOnFunded(t *testing.T) {
 	t.Parallel()
 	m := referrals.New(module.Deps{})
 	consumers := m.Consumers()
 	if m.Name() != "referrals" || !testkit.Serves(m.Mount, "GET", "/v1/me/referral-code") || m.Pollers() != nil ||
 		len(consumers) != 1 ||
 		consumers[0].Durable != "referrals" ||
-		len(consumers[0].Handlers) != 1 ||
+		len(consumers[0].Handlers) != 2 ||
 		consumers[0].Handlers[0].Name != "referrals.mint_code" ||
-		consumers[0].Handlers[0].Type() != events.TypeUserCreated {
+		consumers[0].Handlers[0].Type() != events.TypeUserCreated ||
+		consumers[0].Handlers[1].Name != "referrals.qualify" ||
+		consumers[0].Handlers[1].Type() != events.TypeFunded {
 		t.Fatalf("module = %s, consumers %+v, pollers %v", m.Name(), consumers, m.Pollers())
 	}
 }
