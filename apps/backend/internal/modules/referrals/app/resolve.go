@@ -28,7 +28,10 @@ type Resolver struct {
 func (r Resolver) Resolve(ctx context.Context, input string) (Resolved, error) {
 	code := domain.NormalizeInput(input)
 	if domain.IsRandomShape(code) {
-		return r.random(ctx, domain.Code(code))
+		resolved, err := r.random(ctx, domain.Code(code))
+		if errs.CodeOf(err) != errs.CodeReferralCodeUnknown {
+			return resolved, err
+		}
 	}
 	card, err := r.Users.UserByHandle(ctx, code)
 	switch {

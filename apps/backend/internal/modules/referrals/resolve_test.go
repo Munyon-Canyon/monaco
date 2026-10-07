@@ -67,6 +67,7 @@ func TestResolve_returnsTheOwnerOfARandomCodeOrAnUnlockedHandle(t *testing.T) {
 		"handle unlocked":       {owner{handle: "kaicenat", unlocked: true}, "kaicenat", domain.CodeKindHandle, "kaicenat"},
 		"uppercase handle":      {owner{handle: "kaicenat", unlocked: true}, "KaiCenat", domain.CodeKindHandle, "kaicenat"},
 		"handle with spaces":    {owner{handle: "kaicenat", unlocked: true}, " kaicenat\t", domain.CodeKindHandle, "kaicenat"},
+		"random-shaped handle":  {owner{handle: "mattcarr", unlocked: true}, "mattcarr", domain.CodeKindHandle, "mattcarr"},
 		"random of an unlocked": {owner{handle: "kaicenat", code: "k7m4qx2p", unlocked: true}, "k7m4qx2p", domain.CodeKindRandom, "k7m4qx2p"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -82,22 +83,35 @@ func TestResolve_returnsTheOwnerOfARandomCodeOrAnUnlockedHandle(t *testing.T) {
 	}
 }
 
+func TestResolve_aMintedCodeWinsOverAHandleWithTheSameSpelling(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	minted := seedOwner(t, pool, owner{code: "mattcarr"})
+	seedOwner(t, pool, owner{handle: "mattcarr", unlocked: true})
+	got, err := referrals.New(module.Deps{Pool: pool}).Resolver().Resolve(t.Context(), "mattcarr")
+	want := app.Resolved{UserID: minted, CodeKind: domain.CodeKindRandom, Code: "mattcarr"}
+	if err != nil || got != want {
+		t.Fatalf("Resolve = %+v, %v; want %+v", got, err, want)
+	}
+}
+
 func TestResolve_givesTheSameUnknownCodeWhateverTheReason(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
 		owner owner
 		input string
 	}{
-		"random miss":                {owner{code: "k7m4qx2p"}, "k7m4qx2q"},
-		"handle miss":                {owner{handle: "kaicenat", unlocked: true}, "kaicenot"},
-		"handle locked":              {owner{handle: "kaicenat"}, "kaicenat"},
-		"handle of a banned user":    {owner{handle: "kaicenat", unlocked: true, status: "banned"}, "kaicenat"},
-		"handle of a suspended user": {owner{handle: "kaicenat", unlocked: true, status: "suspended"}, "kaicenat"},
-		"handle of a deleted user":   {owner{handle: "kaicenat", unlocked: true, status: "deleted"}, "kaicenat"},
-		"random of a banned user":    {owner{code: "k7m4qx2p", status: "banned"}, "k7m4qx2p"},
-		"random of a deleted user":   {owner{code: "k7m4qx2p", status: "deleted"}, "k7m4qx2p"},
-		"empty input":                {owner{}, "   "},
-		"not a handle":               {owner{}, "kai cenat!"},
+		"random miss":                 {owner{code: "k7m4qx2p"}, "k7m4qx2q"},
+		"handle miss":                 {owner{handle: "kaicenat", unlocked: true}, "kaicenot"},
+		"handle locked":               {owner{handle: "kaicenat"}, "kaicenat"},
+		"random-shaped handle locked": {owner{handle: "mattcarr"}, "mattcarr"},
+		"handle of a banned user":     {owner{handle: "kaicenat", unlocked: true, status: "banned"}, "kaicenat"},
+		"handle of a suspended user":  {owner{handle: "kaicenat", unlocked: true, status: "suspended"}, "kaicenat"},
+		"handle of a deleted user":    {owner{handle: "kaicenat", unlocked: true, status: "deleted"}, "kaicenat"},
+		"random of a banned user":     {owner{code: "k7m4qx2p", status: "banned"}, "k7m4qx2p"},
+		"random of a deleted user":    {owner{code: "k7m4qx2p", status: "deleted"}, "k7m4qx2p"},
+		"empty input":                 {owner{}, "   "},
+		"not a handle":                {owner{}, "kai cenat!"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
