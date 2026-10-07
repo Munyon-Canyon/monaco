@@ -1,7 +1,7 @@
 ---
 id: stocks/browse
 title: Browse stocks
-version: 1
+version: 2
 milestone: M11
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/StocksBrowseJourney.swift, apps/mo
 
 # Browse stocks
 
-A signed-in member opens the Stocks tab, reads the Popular, Pre-IPO and All stocks sections, searches by name, finds nothing for a nonsense query, and pulls to refresh. The spec is [Stocks tab](../../screens.md#stocks-tab). The old app's tab is `apps/mobile/Monaco/Features/Assets/AssetsTabView.swift` at `c838bd24`, which every step cites as "old app".
+A signed-in member opens the Stocks tab, reads the All list and the Popular and Pre-IPO chips, searches by name, finds nothing for a nonsense query, and pulls to refresh. The spec is [Stocks tab](../../screens.md#stocks-tab). The old app's tab is `apps/mobile/Monaco/Features/Assets/AssetsTabView.swift` at `c838bd24`, which every step cites as "old app".
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -26,16 +26,17 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Scenarios
 
-### S1 Browse the sections
+### S1 Browse with the chips
 
 Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Stocks tab, `tab-assets` | | Within 15 s, `assets-root` shows under the large title "Stocks", with `monaco-search-field` holding the placeholder "Search Apple, Tesla, NVDA…". Old app: the Stocks tab opened `assets-root` with the same placeholder. screens.md: Large title "Stocks". Search "Search Apple, Tesla, NVDA…" |
-| S1.2 | wait | `assets-grid` | | Within 15 s, the "Popular" header shows, and `assets-row-JRNYAx` shows reading "JRNYA" and "Journey Alpha" with "$123.45". Old app: `assets-popular` under "Popular". screens.md: "Popular" (`filter=popular`); rows show logo, ticker over name, price, day change chip |
-| S1.3 | scroll to | `assets-row-JRNYPx` | | Within 10 s, the "Pre-IPO" header and `assets-row-JRNYPx` reading "Journey Private" show. Old app: `assets-preipo` under the Pre-IPO title. screens.md: "Pre-IPO" (`filter=pre_ipo`) |
-| S1.4 | scroll to | `assets-row-JRNYZx` | | Within 30 s, the "All stocks" header and `assets-row-JRNYZx` reading "Journey Zulu" show. Scrolling loads more pages until the row is in. Old app: the catalogue paged under "Load more" (`assets-load-more`). screens.md: "All stocks" (`filter=all`, paged) |
+| S1.2 | wait | `assets-grid` | | Within 15 s, the chips `stocks-chip-All`, `stocks-chip-Popular` and `stocks-chip-Pre-IPO` show under the search field with "All" selected, and `assets-row-JRNYAx` shows reading "JRNYA" and "Journey Alpha" with "$123.45". screens.md: chips "All" (`filter=all`, default), "Popular", "Pre-IPO"; rows show logo, ticker over name, price, day change chip |
+| S1.3 | tap | `stocks-chip-Popular` | | Within 10 s, `assets-row-JRNYAx` shows and `assets-row-JRNYPx` and `assets-row-JRNYZx` do not. screens.md: "Popular" (`filter=popular`) |
+| S1.4 | tap | `stocks-chip-Pre-IPO` | | Within 10 s, `assets-row-JRNYPx` shows reading "Journey Private", and `assets-row-JRNYAx` does not. screens.md: "Pre-IPO" (`filter=pre_ipo`) |
+| S1.5 | tap, then scroll to | `stocks-chip-All`, then `assets-row-JRNYZx` | | Within 30 s, `assets-row-JRNYZx` reading "Journey Zulu" shows. Scrolling loads more pages until the row is in. screens.md: "All" (`filter=all`, paged) |
 
 ### S2 Search
 
@@ -43,9 +44,9 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap, then type | the Stocks tab, then `monaco-search-field` | `Journey Alpha` | Within 10 s, `assets-grid-search` replaces the sections, holds `assets-row-JRNYAx`, and holds no `assets-row-JRNYZx`. Old app: search results in `assets-grid-search`. screens.md: results replace the sections |
+| S2.1 | tap, then type | the Stocks tab, then `monaco-search-field` | `Journey Alpha` | Within 10 s, `assets-grid-search` replaces the list, holds `assets-row-JRNYAx`, and holds no `assets-row-JRNYZx`. Old app: search results in `assets-grid-search`. screens.md: results replace the list |
 | S2.2 | clear, then type | `monaco-search-field` | `zzqj{QA.run}` | Within 10 s, `assets-search-empty` reads "No stocks match “zzqj{QA.run}”". Old app: "No matches for that search". screens.md: no match shows "No stocks match “<q>”" |
-| S2.3 | clear | `monaco-search-field` | | Within 10 s, `assets-grid` is back with the "Popular" header and `assets-row-JRNYAx`. Old app: an empty query showed the browse sections again |
+| S2.3 | clear | `monaco-search-field` | | Within 10 s, `assets-grid` is back with the selected chip and `assets-row-JRNYAx`. Old app: an empty query showed the browse sections again |
 
 ### S3 Pull to refresh
 

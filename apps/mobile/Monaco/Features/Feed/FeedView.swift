@@ -73,7 +73,9 @@ private struct FeedScreen: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 MonacoSearchField(placeholder: "Search the feed", text: $search)
                     .padding(.horizontal, MonacoTheme.Space.m)
-                FeedChipBar(selected: model.query.chip) { chip in
+                MonacoChipBar(
+                    items: FeedChip.allCases, selected: model.query.chip, title: \.title, identifierPrefix: "feed-chip"
+                ) { chip in
                     Task { await model.select(chip) }
                 }
                 MonacoSegmented(FeedScope.allCases, selection: scope, label: \.title)
@@ -159,41 +161,6 @@ private struct FeedScreen: View {
             if model.isLoadingMore {
                 BoardRowSkeleton(rows: 1)
             }
-        }
-    }
-}
-
-private struct FeedChipBar: View {
-    let selected: FeedChip
-    let select: (FeedChip) -> Void
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: MonacoTheme.Space.s) {
-                ForEach(FeedChip.allCases, id: \.self) { chip in
-                    let isSelected = chip == selected
-                    Button {
-                        guard !isSelected else { return }
-                        Haptics.selection()
-                        select(chip)
-                    } label: {
-                        Text(chip.title)
-                            .font(MonacoTheme.Typo.calloutStrong)
-                            .foregroundStyle(isSelected ? MonacoTheme.primaryButtonLabel : MonacoTheme.ink)
-                            .padding(.horizontal, MonacoTheme.Space.m)
-                            .frame(minHeight: 36)
-                            .background(
-                                isSelected ? MonacoTheme.primaryButtonFill : MonacoTheme.surfaceSunken, in: Capsule()
-                            )
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-                    .accessibilityIdentifier("feed-chip-\(chip.title)")
-                }
-            }
-            .padding(.horizontal, MonacoTheme.Space.m)
         }
     }
 }

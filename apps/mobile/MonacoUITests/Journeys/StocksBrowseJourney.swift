@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksBrowseJourney {
     static let id = "stocks/browse"
-    static let version = 1
+    static let version = 2
 
     static let searchPlaceholder = "Search Apple, Tesla, NVDA…"
     static let alpha = SeededAsset(symbol: "JRNYAx", ticker: "JRNYA", name: "Journey Alpha", price: "$123.45")
@@ -70,6 +70,10 @@ enum StocksBrowseJourney {
         field.typeText(text)
     }
 
+    static func chip(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        app.element("stocks-chip-\(title)")
+    }
+
     static func browseSections(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the Stocks tab") {
             openStocks(app, step: "S1.1")
@@ -79,22 +83,33 @@ enum StocksBrowseJourney {
                 field.placeholderValue, searchPlaceholder, "S1.1: the search field's placeholder is not the spec's")
         }
 
-        recorder.step("S1.2", "see Popular") {
+        recorder.step("S1.2", "see the chips and All") {
             waitForRow(app, alpha, step: "S1.2", timeout: 15)
-            XCTAssertTrue(app.staticTexts["Popular"].exists, "S1.2: no 'Popular' header")
+            for title in ["All", "Popular", "Pre-IPO"] {
+                XCTAssertTrue(chip(app, title).exists, "S1.2: no stocks-chip-\(title)")
+            }
+            XCTAssertTrue(chip(app, "All").isSelected, "S1.2: All is not selected")
             assertRowReads(app, alpha, price: true, step: "S1.2")
         }
 
-        recorder.step("S1.3", "scroll to Pre-IPO") {
-            XCTAssertTrue(scrollTo(app, row(app, preIpo), timeout: 10), "S1.3: no \(preIpo.rowID) within 10 s")
-            XCTAssertTrue(app.staticTexts["Pre-IPO"].exists, "S1.3: no 'Pre-IPO' header")
-            assertRowReads(app, preIpo, price: false, step: "S1.3")
+        recorder.step("S1.3", "tap Popular") {
+            chip(app, "Popular").tap()
+            waitForRow(app, alpha, step: "S1.3", timeout: 10)
+            XCTAssertFalse(row(app, preIpo).exists, "S1.3: \(preIpo.rowID) shows under Popular")
+            XCTAssertFalse(row(app, zulu).exists, "S1.3: \(zulu.rowID) shows under Popular")
         }
 
-        recorder.step("S1.4", "scroll to All stocks") {
-            XCTAssertTrue(scrollTo(app, row(app, zulu), timeout: 30), "S1.4: no \(zulu.rowID) within 30 s")
-            XCTAssertTrue(app.staticTexts["All stocks"].exists, "S1.4: no 'All stocks' header")
-            assertRowReads(app, zulu, price: false, step: "S1.4")
+        recorder.step("S1.4", "tap Pre-IPO") {
+            chip(app, "Pre-IPO").tap()
+            waitForRow(app, preIpo, step: "S1.4", timeout: 10)
+            assertRowReads(app, preIpo, price: false, step: "S1.4")
+            XCTAssertFalse(row(app, alpha).exists, "S1.4: \(alpha.rowID) shows under Pre-IPO")
+        }
+
+        recorder.step("S1.5", "tap All and scroll to the last row") {
+            chip(app, "All").tap()
+            XCTAssertTrue(scrollTo(app, row(app, zulu), timeout: 30), "S1.5: no \(zulu.rowID) within 30 s")
+            assertRowReads(app, zulu, price: false, step: "S1.5")
         }
     }
 
@@ -107,7 +122,7 @@ enum StocksBrowseJourney {
             XCTAssertTrue(field.waitForExistence(timeout: 15), "S2.1: no search field on the Stocks tab")
             replaceQuery(app, with: alpha.name)
             let results = app.element("assets-grid-search")
-            XCTAssertTrue(results.waitForExistence(timeout: 10), "S2.1: results did not replace the sections")
+            XCTAssertTrue(results.waitForExistence(timeout: 10), "S2.1: results did not replace the list")
             waitForRow(app, alpha, step: "S2.1", timeout: 10)
             XCTAssertFalse(row(app, zulu).exists, "S2.1: \(zulu.rowID) shows for '\(alpha.name)'")
         }
@@ -123,9 +138,9 @@ enum StocksBrowseJourney {
         recorder.step("S2.3", "clear the search") {
             replaceQuery(app, with: "")
             let sections = app.element("assets-grid")
-            XCTAssertTrue(sections.waitForExistence(timeout: 10), "S2.3: the sections did not come back")
+            XCTAssertTrue(sections.waitForExistence(timeout: 10), "S2.3: the list did not come back")
             waitForRow(app, alpha, step: "S2.3", timeout: 10)
-            XCTAssertTrue(app.staticTexts["Popular"].exists, "S2.3: no 'Popular' header after clearing")
+            XCTAssertTrue(chip(app, "All").isSelected, "S2.3: the chip is not back on All after clearing")
         }
     }
 
