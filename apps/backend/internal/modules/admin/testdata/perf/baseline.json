@@ -4,6 +4,9 @@
     "admin GetAdminUser": 8,
     "admin GetAdminCabal": 10,
     "admin GetAdminTxn": 4,
-    "admin FindAdminTxn": 4
+    "admin FindAdminTxn": 4,
+    "admin GetAdminQueues": 3,
+    "admin GetStuckTxns": 1,
+    "admin GetUnpublishedEvents": 1
   }
 }

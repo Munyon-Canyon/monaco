@@ -62,12 +62,20 @@ func (m *Module) txnLookup() app.TxnLookup {
 	}
 }
 
+func (m *Module) queues() app.Queues {
+	return app.Queues{
+		Swaps: trading.New(m.deps).Queries(), Events: bus.NewEventLog(m.deps.Pool, m.deps.Clock),
+		Letters: adapters.DeadLetterCount{DB: m.deps.Pool}, Clock: m.deps.Clock,
+	}
+}
+
 func (m *Module) Mount(mount api.Mount) {
 	adminapi.Mount(adapters.HTTP{
 		Pool:    m.deps.Pool,
 		Users:   m.userLookup(),
 		Cabals:  m.cabalLookup(),
 		Txns:    m.txnLookup(),
+		Queues:  m.queues(),
 		Redrive: app.NewRedriveDeadLetterHandler(m.deps.UoW, m.deps.Pool, m.deps.Bus, m.deps.Clock),
 		Discard: app.NewDiscardDeadLetterHandler(m.deps.UoW, m.deps.Clock),
 	}, mount)

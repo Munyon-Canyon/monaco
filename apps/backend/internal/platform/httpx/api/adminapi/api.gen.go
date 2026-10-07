@@ -574,6 +574,34 @@ type AdminMe struct {
 	UserId openapi_types.UUID `json:"user_id"`
 }
 
+// AdminQueue One queue and its size.
+//
+// Examples: {"count":0,"href":"/v1/admin/queues/stuck-txns","name":"stuck_txns"}
+type AdminQueue struct {
+	// Count How many items the queue holds.
+	//
+	// Examples: 0
+	Count int64 `json:"count"`
+
+	// Href The route that lists the queue.
+	//
+	// Examples: /v1/admin/queues/stuck-txns
+	Href string `json:"href"`
+
+	// Name The queue: stuck_txns, unpublished_events or dead_letters.
+	//
+	// Examples: stuck_txns
+	Name string `json:"name"`
+}
+
+// AdminQueues The size of every queue.
+//
+// Examples: {"queues":[{"count":0,"href":"/v1/admin/queues/stuck-txns","name":"stuck_txns"}]}
+type AdminQueues struct {
+	// Queues The queues, in the order the panel shows them.
+	Queues []AdminQueue `json:"queues"`
+}
+
 // AdminRole The administrator's access level.
 //
 // Examples: operator
@@ -918,6 +946,111 @@ type DeadLetters struct {
 	NextCursor *openapi_types.UUID `json:"next_cursor"`
 }
 
+// StuckTxn One swap that has not finished.
+//
+// Examples: {"action":"buy","age_seconds":400,"cabal_id":"019cc330-2222-7000-8000-000000000001","created_at":"2026-10-06T12:00:00Z","id":"019cc330-4444-7000-8000-000000000001","status":"submitted","symbol":"AAPLx","tx_signature":null}
+type StuckTxn struct {
+	// Action Whether the swap buys or sells.
+	//
+	// Examples: buy
+	Action string `json:"action"`
+
+	// AgeSeconds Seconds since the swap was created.
+	//
+	// Examples: 400
+	AgeSeconds int64 `json:"age_seconds"`
+
+	// CabalId The cabal that trades.
+	//
+	// Examples: 019cc330-2222-7000-8000-000000000001
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CreatedAt When the swap was created.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id The swap id. Pass it to the transaction lookup.
+	//
+	// Examples: 019cc330-4444-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// Status The status: created or submitted.
+	//
+	// Examples: submitted
+	Status string `json:"status"`
+
+	// Symbol The symbol of the token traded.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// TxSignature The Solana signature. Null until the swap is submitted.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
+}
+
+// StuckTxns The stuck swaps, oldest first.
+//
+// Examples: {"items":[]}
+type StuckTxns struct {
+	// Items The swaps.
+	Items []StuckTxn `json:"items"`
+}
+
+// UnpublishedEvent One events row the relay has not published.
+//
+// Examples: {"age_seconds":45,"aggregate":{"id":"019cc330-4444-7000-8000-000000000001","type":"swap"},"created_at":"2026-10-06T12:00:00Z","id":"019cc330-5555-7000-8000-000000000001","type":"trade.submitted"}
+type UnpublishedEvent struct {
+	// AgeSeconds Seconds since the event was recorded.
+	//
+	// Examples: 45
+	AgeSeconds int64 `json:"age_seconds"`
+
+	// Aggregate The aggregate the event belongs to.
+	Aggregate struct {
+		// Id The aggregate id.
+		//
+		// Examples: 019cc330-4444-7000-8000-000000000001
+		Id openapi_types.UUID `json:"id"`
+
+		// Type The aggregate type.
+		//
+		// Examples: swap
+		Type string `json:"type"`
+	} `json:"aggregate"`
+
+	// CreatedAt When the event was recorded.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id The event id.
+	//
+	// Examples: 019cc330-5555-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// Type The event type.
+	//
+	// Examples: trade.submitted
+	Type string `json:"type"`
+}
+
+// UnpublishedEvents The unpublished events, oldest first.
+//
+// Examples: {"items":[]}
+type UnpublishedEvents struct {
+	// Items The events.
+	Items []UnpublishedEvent `json:"items"`
+}
+
+// OlderThan Examples: 5m
+type OlderThan = string
+
+// QueueLimit Examples: 50
+type QueueLimit = int
+
 // GetAdminActionsParams defines parameters for GetAdminActions.
 type GetAdminActionsParams struct {
 	// AdminId Only actions taken by this administrator.
@@ -966,6 +1099,24 @@ type RedriveDeadLetterParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetStuckTxnsParams defines parameters for GetStuckTxns.
+type GetStuckTxnsParams struct {
+	// OlderThan How old an item must be to count, as a duration such as 30s or 5m. It cannot exceed 24h. Each queue has its own default.
+	OlderThan *OlderThan `form:"older_than,omitempty" json:"older_than,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 200.
+	Limit *QueueLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetUnpublishedEventsParams defines parameters for GetUnpublishedEvents.
+type GetUnpublishedEventsParams struct {
+	// OlderThan How old an item must be to count, as a duration such as 30s or 5m. It cannot exceed 24h. Each queue has its own default.
+	OlderThan *OlderThan `form:"older_than,omitempty" json:"older_than,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 200.
+	Limit *QueueLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // FindAdminTxnParams defines parameters for FindAdminTxn.
 type FindAdminTxnParams struct {
 	// Signature The Solana transaction signature.
@@ -1007,6 +1158,15 @@ type ServerInterface interface {
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(w http.ResponseWriter, r *http.Request)
+	// GetAdminQueues Count the items in each queue.
+	// (GET /v1/admin/queues)
+	GetAdminQueues(w http.ResponseWriter, r *http.Request)
+	// GetStuckTxns List stuck swaps.
+	// (GET /v1/admin/queues/stuck-txns)
+	GetStuckTxns(w http.ResponseWriter, r *http.Request, params GetStuckTxnsParams)
+	// GetUnpublishedEvents List events the relay has not published.
+	// (GET /v1/admin/queues/unpublished-events)
+	GetUnpublishedEvents(w http.ResponseWriter, r *http.Request, params GetUnpublishedEventsParams)
 	// FindAdminTxn Look up a transaction by signature.
 	// (GET /v1/admin/txns)
 	FindAdminTxn(w http.ResponseWriter, r *http.Request, params FindAdminTxnParams)
@@ -1362,6 +1522,112 @@ func (siw *ServerInterfaceWrapper) GetAdminMe(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetAdminQueues operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminQueues(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminQueues(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetStuckTxns operation middleware
+func (siw *ServerInterfaceWrapper) GetStuckTxns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetStuckTxnsParams
+
+	// ------------- Optional query parameter "older_than" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "older_than", r.URL.Query(), &params.OlderThan, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "older_than"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "older_than", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStuckTxns(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUnpublishedEvents operation middleware
+func (siw *ServerInterfaceWrapper) GetUnpublishedEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUnpublishedEventsParams
+
+	// ------------- Optional query parameter "older_than" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "older_than", r.URL.Query(), &params.OlderThan, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "older_than"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "older_than", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUnpublishedEvents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // FindAdminTxn operation middleware
 func (siw *ServerInterfaceWrapper) FindAdminTxn(w http.ResponseWriter, r *http.Request) {
 
@@ -1607,6 +1873,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/discard", wrapper.DiscardDeadLetter)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/redrive", wrapper.RedriveDeadLetter)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/me", wrapper.GetAdminMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues", wrapper.GetAdminQueues)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues/stuck-txns", wrapper.GetStuckTxns)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues/unpublished-events", wrapper.GetUnpublishedEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/txns", wrapper.FindAdminTxn)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/txns/{id}", wrapper.GetAdminTxn)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/users", wrapper.FindAdminUser)
@@ -1878,6 +2147,122 @@ func (response GetAdminMedefaultApplicationProblemPlusJSONResponse) VisitGetAdmi
 	return err
 }
 
+type GetAdminQueuesRequestObject struct {
+}
+
+type GetAdminQueuesResponseObject interface {
+	VisitGetAdminQueuesResponse(w http.ResponseWriter) error
+}
+
+type GetAdminQueues200JSONResponse AdminQueues
+
+func (response GetAdminQueues200JSONResponse) VisitGetAdminQueuesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminQueuesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminQueuesdefaultApplicationProblemPlusJSONResponse) VisitGetAdminQueuesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStuckTxnsRequestObject struct {
+	Params GetStuckTxnsParams
+}
+
+type GetStuckTxnsResponseObject interface {
+	VisitGetStuckTxnsResponse(w http.ResponseWriter) error
+}
+
+type GetStuckTxns200JSONResponse StuckTxns
+
+func (response GetStuckTxns200JSONResponse) VisitGetStuckTxnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStuckTxnsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetStuckTxnsdefaultApplicationProblemPlusJSONResponse) VisitGetStuckTxnsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUnpublishedEventsRequestObject struct {
+	Params GetUnpublishedEventsParams
+}
+
+type GetUnpublishedEventsResponseObject interface {
+	VisitGetUnpublishedEventsResponse(w http.ResponseWriter) error
+}
+
+type GetUnpublishedEvents200JSONResponse UnpublishedEvents
+
+func (response GetUnpublishedEvents200JSONResponse) VisitGetUnpublishedEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetUnpublishedEventsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetUnpublishedEventsdefaultApplicationProblemPlusJSONResponse) VisitGetUnpublishedEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type FindAdminTxnRequestObject struct {
 	Params FindAdminTxnParams
 }
@@ -2057,6 +2442,15 @@ type StrictServerInterface interface {
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(ctx context.Context, request GetAdminMeRequestObject) (GetAdminMeResponseObject, error)
+	// GetAdminQueues Count the items in each queue.
+	// (GET /v1/admin/queues)
+	GetAdminQueues(ctx context.Context, request GetAdminQueuesRequestObject) (GetAdminQueuesResponseObject, error)
+	// GetStuckTxns List stuck swaps.
+	// (GET /v1/admin/queues/stuck-txns)
+	GetStuckTxns(ctx context.Context, request GetStuckTxnsRequestObject) (GetStuckTxnsResponseObject, error)
+	// GetUnpublishedEvents List events the relay has not published.
+	// (GET /v1/admin/queues/unpublished-events)
+	GetUnpublishedEvents(ctx context.Context, request GetUnpublishedEventsRequestObject) (GetUnpublishedEventsResponseObject, error)
 	// FindAdminTxn Look up a transaction by signature.
 	// (GET /v1/admin/txns)
 	FindAdminTxn(ctx context.Context, request FindAdminTxnRequestObject) (FindAdminTxnResponseObject, error)
@@ -2297,6 +2691,82 @@ func (sh *strictHandler) GetAdminMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminMeResponseObject); ok {
 		if err := validResponse.VisitGetAdminMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminQueues operation middleware
+func (sh *strictHandler) GetAdminQueues(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminQueuesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminQueues(ctx, request.(GetAdminQueuesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminQueues")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminQueuesResponseObject); ok {
+		if err := validResponse.VisitGetAdminQueuesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetStuckTxns operation middleware
+func (sh *strictHandler) GetStuckTxns(w http.ResponseWriter, r *http.Request, params GetStuckTxnsParams) {
+	var request GetStuckTxnsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStuckTxns(ctx, request.(GetStuckTxnsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStuckTxns")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStuckTxnsResponseObject); ok {
+		if err := validResponse.VisitGetStuckTxnsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetUnpublishedEvents operation middleware
+func (sh *strictHandler) GetUnpublishedEvents(w http.ResponseWriter, r *http.Request, params GetUnpublishedEventsParams) {
+	var request GetUnpublishedEventsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUnpublishedEvents(ctx, request.(GetUnpublishedEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUnpublishedEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUnpublishedEventsResponseObject); ok {
+		if err := validResponse.VisitGetUnpublishedEventsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

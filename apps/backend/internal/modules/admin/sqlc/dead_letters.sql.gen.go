@@ -45,6 +45,17 @@ func (q *Queries) CountLiveDeadLetters(ctx context.Context) ([]CountLiveDeadLett
 	return items, nil
 }
 
+const countOpenDeadLetters = `-- name: CountOpenDeadLetters :one
+SELECT count(*)::bigint FROM dead_letters WHERE status = 'open'
+`
+
+func (q *Queries) CountOpenDeadLetters(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenDeadLetters)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deadLetterSeen = `-- name: DeadLetterSeen :one
 SELECT EXISTS (SELECT 1 FROM dead_letters WHERE stream_seq = $1)
 `

@@ -24,6 +24,7 @@ type HTTP struct {
 	Users   app.UserLookup
 	Cabals  app.CabalLookup
 	Txns    app.TxnLookup
+	Queues  app.Queues
 	Redrive *app.RedriveDeadLetterHandler
 	Discard *app.DiscardDeadLetterHandler
 }

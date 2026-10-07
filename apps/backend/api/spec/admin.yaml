@@ -277,7 +277,72 @@ paths:
           description: The transaction.
           content: {application/json: {schema: {$ref: "#/components/schemas/AdminTxn"}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/queues:
+    get:
+      operationId: getAdminQueues
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Count the items in each queue.
+      description: >-
+        Returns the size of every queue for the panel's home tiles, each with the route that lists it. Stuck
+        transactions use the default age of five minutes, unpublished events thirty seconds, and dead letters
+        count the open ones.
+      responses:
+        "200":
+          description: The queue sizes.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminQueues"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/queues/stuck-txns:
+    get:
+      operationId: getStuckTxns
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List stuck swaps.
+      description: >-
+        Lists swaps that are still created or submitted after `older_than`, oldest first. A created swap counts
+        from its creation and a submitted swap from its submission.
+      parameters:
+        - $ref: "#/components/parameters/OlderThan"
+        - $ref: "#/components/parameters/QueueLimit"
+      responses:
+        "200":
+          description: The stuck swaps.
+          content: {application/json: {schema: {$ref: "#/components/schemas/StuckTxns"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/queues/unpublished-events:
+    get:
+      operationId: getUnpublishedEvents
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List events the relay has not published.
+      description: Lists events rows with no `published_at` that are older than `older_than`, oldest first.
+      parameters:
+        - $ref: "#/components/parameters/OlderThan"
+        - $ref: "#/components/parameters/QueueLimit"
+      responses:
+        "200":
+          description: The unpublished events.
+          content: {application/json: {schema: {$ref: "#/components/schemas/UnpublishedEvents"}}}
+        default: {$ref: "#/components/responses/Problem"}
 components:
+  parameters:
+    OlderThan:
+      name: older_than
+      in: query
+      required: false
+      description: >-
+        How old an item must be to count, as a duration such as 30s or 5m. It cannot exceed 24h. Each queue has its
+        own default.
+      schema: {type: string, maxLength: 16, examples: [5m]}
+    QueueLimit:
+      name: limit
+      in: query
+      required: false
+      description: Page size. Defaults to 50 and cannot exceed 200.
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50, examples: [50]}
   schemas:
     AdminMe:
       type: object
@@ -898,3 +963,97 @@ components:
         ledger: {$ref: "#/components/schemas/AdminLedgerTxn"}
         swap: {$ref: "#/components/schemas/AdminSwap"}
         explorer_url: {type: string, description: The Solscan page of the signature on mainnet., examples: ["https://solscan.io/tx/5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"]}
+    AdminQueue:
+      type: object
+      description: One queue and its size.
+      examples:
+        - {name: stuck_txns, count: 0, href: /v1/admin/queues/stuck-txns}
+      additionalProperties: false
+      required: [name, count, href]
+      properties:
+        name: {type: string, description: "The queue: stuck_txns, unpublished_events or dead_letters.", examples: [stuck_txns]}
+        count: {type: integer, format: int64, description: How many items the queue holds., examples: [0]}
+        href: {type: string, description: The route that lists the queue., examples: [/v1/admin/queues/stuck-txns]}
+    AdminQueues:
+      type: object
+      description: The size of every queue.
+      examples:
+        - queues: [{name: stuck_txns, count: 0, href: /v1/admin/queues/stuck-txns}]
+      additionalProperties: false
+      required: [queues]
+      properties:
+        queues:
+          type: array
+          description: The queues, in the order the panel shows them.
+          items: {$ref: "#/components/schemas/AdminQueue"}
+    StuckTxn:
+      type: object
+      description: One swap that has not finished.
+      examples:
+        - id: 019cc330-4444-7000-8000-000000000001
+          cabal_id: 019cc330-2222-7000-8000-000000000001
+          action: buy
+          symbol: AAPLx
+          status: submitted
+          tx_signature: null
+          created_at: "2026-10-06T12:00:00Z"
+          age_seconds: 400
+      additionalProperties: false
+      required: [id, cabal_id, action, symbol, status, tx_signature, created_at, age_seconds]
+      properties:
+        id: {type: string, format: uuid, description: The swap id. Pass it to the transaction lookup., examples: [019cc330-4444-7000-8000-000000000001]}
+        cabal_id: {type: string, format: uuid, description: The cabal that trades., examples: [019cc330-2222-7000-8000-000000000001]}
+        action: {type: string, description: "Whether the swap buys or sells.", examples: [buy]}
+        symbol: {type: string, description: The symbol of the token traded., examples: [AAPLx]}
+        status: {type: string, description: "The status: created or submitted.", examples: [submitted]}
+        tx_signature: {type: [string, "null"], description: The Solana signature. Null until the swap is submitted., examples: [null]}
+        created_at: {type: string, format: date-time, description: When the swap was created., examples: ["2026-10-06T12:00:00Z"]}
+        age_seconds: {type: integer, format: int64, description: Seconds since the swap was created., examples: [400]}
+    StuckTxns:
+      type: object
+      description: The stuck swaps, oldest first.
+      examples:
+        - items: []
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: The swaps.
+          items: {$ref: "#/components/schemas/StuckTxn"}
+    UnpublishedEvent:
+      type: object
+      description: One events row the relay has not published.
+      examples:
+        - id: 019cc330-5555-7000-8000-000000000001
+          type: trade.submitted
+          aggregate: {type: swap, id: 019cc330-4444-7000-8000-000000000001}
+          created_at: "2026-10-06T12:00:00Z"
+          age_seconds: 45
+      additionalProperties: false
+      required: [id, type, aggregate, created_at, age_seconds]
+      properties:
+        id: {type: string, format: uuid, description: The event id., examples: [019cc330-5555-7000-8000-000000000001]}
+        type: {type: string, description: The event type., examples: [trade.submitted]}
+        aggregate:
+          type: object
+          description: The aggregate the event belongs to.
+          additionalProperties: false
+          required: [type, id]
+          properties:
+            type: {type: string, description: The aggregate type., examples: [swap]}
+            id: {type: string, format: uuid, description: The aggregate id., examples: [019cc330-4444-7000-8000-000000000001]}
+        created_at: {type: string, format: date-time, description: When the event was recorded., examples: ["2026-10-06T12:00:00Z"]}
+        age_seconds: {type: integer, format: int64, description: Seconds since the event was recorded., examples: [45]}
+    UnpublishedEvents:
+      type: object
+      description: The unpublished events, oldest first.
+      examples:
+        - items: []
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: The events.
+          items: {$ref: "#/components/schemas/UnpublishedEvent"}
