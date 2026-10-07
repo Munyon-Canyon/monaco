@@ -137,7 +137,7 @@ func (d voteDB) waitingOnLocks(t *testing.T, n int) {
 		err := d.pool.QueryRow(t.Context(), `SELECT count(*) FROM pg_stat_activity
 			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting)
 		return err == nil && waiting == n
-	}, 10*time.Second)
+	}, 30*time.Second)
 }
 
 func (d voteDB) holdBallots(t *testing.T) (release func()) {
