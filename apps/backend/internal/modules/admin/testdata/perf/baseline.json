@@ -1,0 +1,6 @@
+{
+  "allocs": {},
+  "queries": {
+    "admin GetAdminUser": 8
+  }
+}
