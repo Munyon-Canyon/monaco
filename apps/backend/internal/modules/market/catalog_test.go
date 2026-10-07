@@ -128,6 +128,15 @@ func TestCatalog_listsTradablePopularFirstAndAllBySymbol(t *testing.T) {
 	if got := symbols(tradable); !slices.Equal(got, []string{"AAPLx", "TSLAx", "ABCx"}) {
 		t.Fatalf("ListTradable = %v, want AAPLx, TSLAx, then ABCx by its override", got)
 	}
+	priceable, err := catalog.ListPriceable(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := symbols(priceable)
+	slices.Sort(got)
+	if !slices.Equal(got, []string{"AAPLx", "ABCx", "TSLAx"}) {
+		t.Fatalf("ListPriceable = %v, want the same checked, tradable set as ListTradable", got)
+	}
 	all, err := catalog.ListAll(t.Context())
 	if err != nil {
 		t.Fatal(err)

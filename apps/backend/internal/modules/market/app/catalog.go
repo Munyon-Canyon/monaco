@@ -38,6 +38,11 @@ func (c *Catalog) ListTradable(ctx context.Context) ([]domain.Asset, error) {
 	return many(rows, err, "market.Catalog.ListTradable")
 }
 
+func (c *Catalog) ListPriceable(ctx context.Context) ([]domain.Asset, error) {
+	rows, err := c.q.ListPriceableAssets(ctx)
+	return many(rows, err, "market.Catalog.ListPriceable")
+}
+
 func (c *Catalog) ListAll(ctx context.Context) ([]domain.Asset, error) {
 	rows, err := c.q.ListAssets(ctx)
 	return many(rows, err, "market.Catalog.ListAll")

@@ -69,7 +69,12 @@ xStocks use the multiplier for dividends, so it is above 1 for most of them. AAP
 
 ### Writer 1: live sampler
 
-The `market` price poller in `cmd/worker` is the only one (flow 18). On each 120 s tick it asks the catalog for every routable mint (about 60 xStocks, 8 PreStocks, 3 Tessera today), batches them 50 per Jupiter Price v3 call, publishes one `price.tick`, and inserts one row per mint with `ts` truncated to its 2-minute bucket. `ON CONFLICT DO NOTHING` keeps the first sample in each bucket, so the table holds at most one row per mint per 2 minutes, even when a restart runs an extra tick. Vendor calls depend on catalog size and cadence, never on how many people are looking.
+The `market` price poller in `cmd/worker` is the only one (flow 18). The catalog is far larger than the Stocks list shows (1,282 mints on 2026-10-06), and one Jupiter call carries at most 50 mints, so each 120 s tick samples two sets, not everything:
+
+- **Hot mints**, every tick: every mint a cabal holds, every mint in an open proposal, and every asset with a `popular_rank`. Hot mints are priced even when the asset is paused or unchecked, so a held stock never loses its price.
+- **One cold slot**, 100 mints per tick, drawn only from listed assets (`ListPriceable`: `chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable)`), ordered by mint address and rotated by tick time. The listed catalog is covered in `ceil(listed/100)` ticks. Non-tradable, delisted and unchecked assets are never in the rotation.
+
+The tick batches the mints 50 per Jupiter Price v3 call, publishes one `price.tick`, and inserts one row per mint with `ts` truncated to its 2-minute bucket. `ON CONFLICT DO NOTHING` keeps the first sample in each bucket, so the table holds at most one row per mint per 2 minutes, even when a restart runs an extra tick. Mints Jupiter leaves out of an answer are skipped; each tick logs one `market.prices.missing` line with the count, the count by issuer and the first 10 mints. Vendor calls depend on the hot set and the cold slot size, never on how many people are looking.
 
 Prices are sampled always, including when the equity market is shut (default 2026-09-27). Charts draw the live token price and mark after-hours at read. Leaderboards value holdings at the last regular-session close while the market is shut, so weekend moves in a thin market do not reshuffle boards ([leaderboards.md](leaderboards.md)).
 
@@ -123,7 +128,7 @@ A monthly `market` poller, under the same advisory-lock rule, thins old rows: 2-
 
 | Vendor | Calls | Per month |
 | --- | --- | --- |
-| Jupiter Price v3 | 2 per 120 s tick, 1 a minute | ~22k. The free tier allows 60 requests a minute in a 60-second sliding window, and Price, Swap and Token calls share one bucket ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits), read 2026-09-27; the [pricing page](https://developers.jup.ag/pricing) states 1 request a second). The poller uses 1 of the 60 and leaves 59 a minute for quotes and token lookups. No monthly cap is published for the free tier. |
+| Jupiter Price v3 | Hot mints plus 100 cold, so 3 to 4 calls per 120 s tick (50 mints a call), about 2 a minute | ~90k. The free tier allows 60 requests a minute in a 60-second sliding window, and Price, Swap and Token calls share one bucket ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits), read 2026-09-27; the [pricing page](https://developers.jup.ag/pricing) states 1 request a second). The poller uses about 2 of the 60 and leaves 58 a minute for quotes and token lookups. No monthly cap is published for the free tier. |
 | CoinGecko Demo | 3 per new mint once, 1 per mint nightly | ~2.1k of 10k |
 
 User traffic contributes zero to either row.

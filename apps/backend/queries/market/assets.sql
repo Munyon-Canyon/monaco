@@ -12,6 +12,11 @@ SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_mult
 WHERE chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable)
 ORDER BY popular_rank NULLS LAST, symbol;
 
+-- name: ListPriceableAssets :many
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at FROM assets
+WHERE chain_checked_at IS NOT NULL AND coalesce(tradable_override, issuer_tradable)
+ORDER BY mint;
+
 -- name: ListAssets :many
 SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at FROM assets ORDER BY symbol;
 
