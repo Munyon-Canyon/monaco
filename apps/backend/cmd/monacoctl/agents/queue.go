@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -110,21 +109,15 @@ func (q *checkQueue) await(ctx context.Context, name string, stdout io.Writer) e
 	}
 }
 
-func (env *Env) takeSlot(ctx context.Context, stdout io.Writer) (context.Context, func(), error) {
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+func (env *Env) takeSlot(ctx context.Context, stdout io.Writer) (func(), error) {
 	q := env.checkQueue()
 	name, err := q.take(env.Work, os.Getpid())
 	if err != nil {
-		stop()
-		return ctx, func() {}, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", err.Error())
-	}
-	release := func() {
-		q.drop(name)
-		stop()
+		return nil, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", err.Error())
 	}
 	if err := q.await(ctx, name, stdout); err != nil {
-		release()
-		return ctx, func() {}, err
+		q.drop(name)
+		return nil, err
 	}
-	return ctx, release, nil
+	return func() { q.drop(name) }, nil
 }

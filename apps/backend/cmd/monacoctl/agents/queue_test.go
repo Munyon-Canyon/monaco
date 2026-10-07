@@ -288,7 +288,7 @@ func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testin
 	h := newCheckHarness(t)
 	env := h.Env(t)
 	writeFile(t, filepath.Join(env.Common, ".monaco"), "not a directory\n")
-	if _, _, err := env.takeSlot(context.Background(), &bytes.Buffer{}); err == nil ||
+	if _, err := env.takeSlot(context.Background(), &bytes.Buffer{}); err == nil ||
 		!strings.Contains(cliText(err), "take a stage 0 ticket") {
 		t.Fatalf("an unwritable queue fails the check: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testin
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var out bytes.Buffer
-	if _, _, err := env.takeSlot(ctx, &out); !errors.Is(err, context.Canceled) ||
+	if _, err := env.takeSlot(ctx, &out); !errors.Is(err, context.Canceled) ||
 		!strings.Contains(out.String(), "position 3 of 3") {
 		t.Fatalf("a cancelled wait: %v %q", err, out.String())
 	}

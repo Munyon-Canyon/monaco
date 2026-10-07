@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -50,6 +52,7 @@ type checkRow struct {
 }
 
 const (
+	xcodeKind     = "xcode"
 	xcodeLockWait = 90 * time.Minute
 	lockWaitedDir = "xcode-lock"
 )
@@ -65,6 +68,7 @@ type checkRun struct {
 	start   time.Time
 	log     bytes.Buffer
 	timings []timing
+	leave   func()
 }
 
 func parseCheckArgs(base string, args []string) (string, bool, error) {
@@ -101,29 +105,36 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		if carried, err := env.carry(patchID, tree, head, base, parent, generated, stdout); carried || err != nil {
 			return err
 		}
-		ctx, release, err := env.takeSlot(ctx, stdout)
+		ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		leave, err := env.takeSlot(ctx, stdout)
 		if err != nil {
 			return err
 		}
-		defer release()
-		return env.runStage0(ctx, base, parent, head, tree, patchID, stdout)
+		defer leave()
+		return env.runStage0(ctx, leave, base, parent, head, tree, patchID, stdout)
 	}
-	return env.runStage0(ctx, base, parent, head, tree, patchID, stdout)
+	return env.runStage0(ctx, func() {}, base, parent, head, tree, patchID, stdout)
 }
 
-func (env *Env) runStage0(ctx context.Context, base, parent, head, tree, patchID string, stdout io.Writer) error {
+func (env *Env) runStage0(
+	ctx context.Context, leaveSlot func(), base, parent, head, tree, patchID string, stdout io.Writer,
+) error {
 	defer func() { _ = os.Remove(env.coverProfile(head)) }()
-	db, release, err := env.takeTestDB()
+	db, releaseDB, err := env.takeTestDB()
 	if err != nil {
 		return err
 	}
-	defer release()
+	defer releaseDB()
 	rows, err := env.stage0(ctx, base, parent, head, db)
 	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s, parent %s)\n", tree[:12], base, parent)
-	run := &checkRun{env: env, start: env.Now()}
+	run := &checkRun{env: env, start: env.Now(), leave: func() {
+		leaveSlot()
+		releaseDB()
+	}}
 	if slices.ContainsFunc(rows, func(r checkRow) bool { return r.label == "test db" }) {
 		_, _ = fmt.Fprintf(&run.log, "test database: port %d; go test -p %d (%d CPUs over %d busy stage 0 slots)\n",
 			db.port(), testParallelism(runtime.NumCPU(), db.busy), runtime.NumCPU(), db.busy)
@@ -454,7 +465,7 @@ func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
 		append(slices.Clone(locked), xcodeScript("build-for-testing")),
 		append(slices.Clone(locked), xcodeScript("-only-testing:MonacoTests test-without-building")),
 	)
-	return checkRow{label: "xcode", kind: "xcode", dir: env.Work, cmds: cmds, lockWaited: waited}, true
+	return checkRow{label: "xcode", kind: xcodeKind, dir: env.Work, cmds: cmds, lockWaited: waited}, true
 }
 
 func seconds(d time.Duration) string {
@@ -890,7 +901,18 @@ func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) 
 	if err := r.tools(stdout); err != nil {
 		return err
 	}
+	var paced []checkRow
 	for _, row := range rows {
+		if row.kind == xcodeKind {
+			paced = append(paced, row)
+			continue
+		}
+		if err := r.row(ctx, row, stdout); err != nil {
+			return err
+		}
+	}
+	r.leave()
+	for _, row := range paced {
 		if err := r.row(ctx, row, stdout); err != nil {
 			return err
 		}

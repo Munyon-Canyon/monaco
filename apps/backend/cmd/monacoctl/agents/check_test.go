@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1070,6 +1071,45 @@ func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
 	writeFile(t, h.stateDir(t, "xcode-lock"), "not a directory\n")
 	if code, stdout, stderr = h.check(t); code != 1 || !strings.Contains(stderr, "xcode-lock") {
 		t.Fatalf("an unwritable lock wait file stops the row: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_theXcodeRowRunsLastAndOutsideTheStage0SlotAndTestDatabase(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.goos = "darwin"
+	h.lookPath = func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
+	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
+	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"})
+	env := h.Env(t)
+	writeFile(t, filepath.Join(env.Common, localConfigPath), "[check]\nslots = 1\n")
+	var during []string
+	h.xcodeBuild = func(context.Context, string) error {
+		if !slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, "journey.py check") }) {
+			during = append(during, "the journeys row had not run")
+		}
+		q := env.checkQueue()
+		q.now = func() time.Time { return time.Unix(1<<33, 0) }
+		second, err := q.take("/second", os.Getppid())
+		if err != nil {
+			return err
+		}
+		defer q.drop(second)
+		if position, total, err := q.standing(second); err != nil || position > q.slots() {
+			during = append(during,
+				fmt.Sprintf("a second check stands at %d of %d with 1 slot: %v", position, total, err))
+		}
+		syscall.ForkLock.Lock()
+		busy, err := busySlots(filepath.Join(env.Common, ".monaco", "test-db"))
+		syscall.ForkLock.Unlock()
+		if err != nil || busy != 0 {
+			during = append(during, fmt.Sprintf("%d test database slots held: %v", busy, err))
+		}
+		return nil
+	}
+	code, stdout, stderr := h.check(t)
+	if code != 0 || len(during) != 0 || !strings.Contains(stdout, "xcode           ok") {
+		t.Fatalf("the xcode row ran in the slot: %d %q %q\n%s", code, during, stdout, stderr)
 	}
 }
 
