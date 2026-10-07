@@ -130,6 +130,36 @@ func TestProposals_List_FilterClosed(t *testing.T) {
 	}
 }
 
+func TestProposals_List_FilterByStatusGroup(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	byStatus := map[domain.Status]uuid.UUID{}
+	for i, status := range domain.Statuses() {
+		id := d.seed(t, d.now.Add(time.Duration(i)*time.Second))
+		d.setStatus(t, id, string(status), "")
+		byStatus[status] = id
+	}
+	tests := []struct {
+		filter app.Filter
+		want   []domain.Status
+	}{
+		{app.FilterPassed, []domain.Status{domain.StatusPassed}},
+		{app.FilterExecuted, []domain.Status{domain.StatusExecuted}},
+		{app.FilterFailed, []domain.Status{domain.StatusExecutionBlocked, domain.StatusExpired, domain.StatusFailed}},
+	}
+	for _, tt := range tests {
+		got := d.list(t, tt.filter, 0, "")
+		var statuses []domain.Status
+		for _, v := range got.Items {
+			statuses = append(statuses, v.Status)
+		}
+		slices.Sort(statuses)
+		if !slices.Equal(statuses, tt.want) {
+			t.Errorf("filter %s statuses = %v, want %v", tt.filter, statuses, tt.want)
+		}
+	}
+}
+
 func TestProposals_List_itemCarriesTallyBallotAndBlockedReason(t *testing.T) {
 	t.Parallel()
 	d := newReadsDB(t)

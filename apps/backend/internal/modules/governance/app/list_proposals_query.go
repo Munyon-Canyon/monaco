@@ -24,9 +24,12 @@ const (
 type Filter string
 
 const (
-	FilterAll    Filter = "all"
-	FilterOpen   Filter = "open"
-	FilterClosed Filter = "closed"
+	FilterAll      Filter = "all"
+	FilterOpen     Filter = "open"
+	FilterPassed   Filter = "passed"
+	FilterExecuted Filter = "executed"
+	FilterFailed   Filter = "failed"
+	FilterClosed   Filter = "closed"
 )
 
 type ListProposals struct {
@@ -167,7 +170,7 @@ func parseList(req ListProposals) (Filter, int32, pageCursor, error) {
 	switch filter {
 	case "":
 		filter = FilterAll
-	case FilterAll, FilterOpen, FilterClosed:
+	case FilterAll, FilterOpen, FilterPassed, FilterExecuted, FilterFailed, FilterClosed:
 	default:
 		return "", 0, pageCursor{}, errs.New(errs.CodeInvalidInput, op, slog.String("field", "filter"))
 	}
