@@ -110,12 +110,15 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	}
 	var queued []int
 	for _, r := range rs {
-		switch {
-		case r.Queued != nil:
-			queued = append(queued, r.Queued.PRs...)
-			items = append(items, s.stack(ctx, r, data.drafts)...)
-		case r.Armed != nil:
-			items = append(items, env.landArmed(ctx, r, s.reran)...)
+		if line, stale := r.staleLine(); stale {
+			items = append(items, line)
+		}
+		for _, q := range r.Queued {
+			queued = append(queued, q.PRs...)
+			items = append(items, s.stack(ctx, r, q, data.drafts)...)
+		}
+		for _, a := range r.Armed {
+			items = append(items, env.landArmed(ctx, r, a, s.reran)...)
 		}
 		if r.Settled != nil && r.Settled.At.After(s.since) {
 			items = append(items, r.Settled.Detail)
@@ -126,9 +129,9 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	return append(items, s.failures(ctx, data, queued)...), every
 }
 
-func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []string {
-	env, top := s.env, r.Queued.Top
-	prs, err := env.stackPulls(ctx, r.Queued.PRs)
+func (s *stream) stack(ctx context.Context, r Record, q Queue, drafts []queueDraft) []string {
+	env, top := s.env, q.Top
+	prs, err := env.stackPulls(ctx, q.PRs)
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("stack #%d: ", top), err)}
 	}
@@ -156,21 +159,21 @@ func (s *stream) stack(ctx context.Context, r Record, drafts []queueDraft) []str
 		}
 	}
 	items = append(items, s.stuck(top, slices.Contains(states, prWaiting), drafts)...)
-	wasOut := s.ejected[r.Ticket]
-	delete(s.ejected, r.Ticket)
+	wasOut := s.ejected[top]
+	delete(s.ejected, top)
 	switch {
 	case landed == len(prs):
-		if err := env.settle(ctx, r, prs, each, io.Discard); err != nil {
+		if err := env.settle(ctx, r, q, prs, each, io.Discard); err != nil {
 			return append(items, watchErr(fmt.Sprintf("settle #%d: ", top), err))
 		}
-		return append(items, landedLine(r.Queued))
+		return append(items, landedLine(q))
 	case out.Number == 0:
 		return items
 	case !wasOut:
-		s.ejected[r.Ticket] = true
+		s.ejected[top] = true
 		return items
 	}
-	return append(items, s.eject(ctx, r, prs, out, drafts)...)
+	return append(items, s.eject(ctx, r, q, prs, out, drafts)...)
 }
 
 func (s *stream) stuck(top int, waiting bool, drafts []queueDraft) []string {
@@ -202,16 +205,23 @@ func (s *stream) queueFull(drafts []queueDraft) bool {
 	return s.env.Config.QueueConcurrency > 0 && n >= s.env.Config.QueueConcurrency
 }
 
-func (s *stream) eject(ctx context.Context, r Record, prs []stackPR, out stackPR, drafts []queueDraft) []string {
-	env, top := s.env, r.Queued.Top
+func (s *stream) eject(
+	ctx context.Context,
+	r Record,
+	q Queue,
+	prs []stackPR,
+	out stackPR,
+	drafts []queueDraft,
+) []string {
+	env, top := s.env, q.Top
 	if err := env.unlabel(ctx, prs); err != nil {
 		return []string{watchErr(fmt.Sprintf("eject #%d: ", top), err)}
 	}
 	if _, held := draftTesting(prs, drafts); held {
-		s.ejected[r.Ticket] = true
+		s.ejected[top] = true
 		return nil
 	}
-	again, err := env.requeued(r)(ctx)
+	again, err := env.requeued(r, q)(ctx)
 	if err != nil {
 		return []string{watchErr(fmt.Sprintf("eject #%d: ", top), err)}
 	}
@@ -219,7 +229,7 @@ func (s *stream) eject(ctx context.Context, r Record, prs []stackPR, out stackPR
 		return []string{requeuedLine(top)}
 	}
 	line := ejectedLine(top, out)
-	if err := env.conclude(ctx, r, outcomeEjected, line); err != nil {
+	if err := env.conclude(ctx, r, q, outcomeEjected, line); err != nil {
 		return []string{watchErr(fmt.Sprintf("eject #%d: ", top), err)}
 	}
 	for _, p := range prs {

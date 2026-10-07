@@ -460,11 +460,11 @@ func chainDown(prs []watchPR, p watchPR) []string {
 
 func ownerStack(rs []Record, pr int) (int, int, bool) {
 	for _, r := range rs {
-		if r.Queued != nil && slices.Contains(r.Queued.PRs, pr) {
-			return r.Queued.Top, r.Ticket, true
+		if q := r.Queued.holding(pr); q != nil {
+			return q.Top, r.Ticket, true
 		}
-		if r.Armed != nil && slices.Contains(r.Armed.PRs, pr) {
-			return r.Armed.Top, r.Ticket, true
+		if a := r.Armed.holding(pr); a != nil {
+			return a.Top, r.Ticket, true
 		}
 	}
 	return 0, 0, false

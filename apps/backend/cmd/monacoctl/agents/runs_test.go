@@ -96,7 +96,7 @@ func TestLandStack_refusesWhenARerunFailsAgainAndLabelsNothing(t *testing.T) {
 	if got := f.hub.callsContaining("/labels"); len(got) != 0 {
 		t.Fatalf("labelled %v", got)
 	}
-	if f.owned(t).Queued != nil {
+	if len(f.owned(t).Queued) > 0 {
 		t.Fatal("marked queued")
 	}
 }
@@ -173,7 +173,7 @@ func TestLandStack_failsWhenTheStackCannotBeReadAfterTheDraftWait(t *testing.T) 
 	}
 	code, stdout, stderr := f.agents(t, "land-stack", "1")
 	if code != 1 || !strings.Contains(stderr, "boom") || strings.Contains(stdout, "run land-stack again") ||
-		f.owned(t).Queued == nil {
+		len(f.owned(t).Queued) == 0 {
 		t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
 	}
 }

@@ -33,11 +33,7 @@ type Queue struct {
 	At  time.Time `json:"at,omitzero"`
 }
 
-type Arm struct {
-	Top int       `json:"top"`
-	PRs []int     `json:"prs"`
-	At  time.Time `json:"at"`
-}
+type Arm = Queue
 
 type stackPR struct {
 	gqlPR
@@ -66,14 +62,14 @@ func landStackCmd(ctx context.Context, env *Env, args []string, stdout io.Writer
 	if err != nil {
 		return err
 	}
-	if rec.Queued != nil {
-		if rec.Queued.Top != n {
-			return landErr(fmt.Sprintf("#%d already has #%d queued", ticket, rec.Queued.Top))
+	if q := rec.Queued.holding(n); q != nil {
+		if q.Top != n {
+			return landErr(fmt.Sprintf("#%d already has #%d queued", ticket, q.Top))
 		}
-		if done, err := env.settleQueued(ctx, rec, stdout); done || err != nil {
+		if done, err := env.settleQueued(ctx, rec, *q, stdout); done || err != nil {
 			return err
 		}
-		rec.Queued = nil
+		rec.Queued = rec.Queued.without(n)
 	}
 	stack, dir, err := env.stackOf(ctx, rec, n, stdout)
 	if err != nil {
@@ -96,7 +92,7 @@ func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []
 		return nil
 	}
 	err := env.updateRecord(ctx, rec.Ticket, func(r *Record) {
-		r.Armed = &Arm{Top: top, PRs: numbers(stack), At: env.Now()}
+		r.Armed = r.Armed.with(Arm{Top: top, PRs: numbers(stack), At: env.Now()})
 		r.Changed = env.Now()
 	})
 	if err != nil {
@@ -121,19 +117,19 @@ func blocker(stack []stackPR) string {
 	return ""
 }
 
-func (env *Env) landArmed(ctx context.Context, r Record, reran map[int64]int) []string {
+func (env *Env) landArmed(ctx context.Context, r Record, a Arm, reran map[int64]int) []string {
 	fresh, err := env.localRecord(r.Ticket)
 	if err != nil {
-		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", r.Armed.Top), err)}
+		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", a.Top), err)}
 	}
-	if fresh.Armed == nil || !fresh.Armed.At.Equal(r.Armed.At) {
+	cur := fresh.Armed.find(a.Top)
+	if cur == nil || !cur.At.Equal(a.At) {
 		return nil
 	}
-	return env.landFresh(ctx, fresh, reran)
+	return env.landFresh(ctx, fresh, a.Top, reran)
 }
 
-func (env *Env) landFresh(ctx context.Context, r Record, reran map[int64]int) []string {
-	top := r.Armed.Top
+func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int64]int) []string {
 	var out strings.Builder
 	stack, dir, err := env.stackOf(ctx, r, top, &out)
 	if err != nil {
@@ -143,7 +139,7 @@ func (env *Env) landFresh(ctx context.Context, r Record, reran map[int64]int) []
 		return lines
 	}
 	if failed := blocker(stack); failed != "" {
-		return env.disarm(ctx, r, failed)
+		return env.disarm(ctx, r, top, failed)
 	}
 	if len(waitingOn(stack)) > 0 {
 		return nil
@@ -151,7 +147,7 @@ func (env *Env) landFresh(ctx context.Context, r Record, reran map[int64]int) []
 	flows, err := env.flowGate(ctx, r, stack)
 	switch {
 	case err != nil:
-		return env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
+		return env.disarm(ctx, r, top, cmp.Or(cliText(err), err.Error()))
 	case flows.started:
 		return []string{fmt.Sprintf("armed stack #%d started %s", top, flows.waiting)}
 	case flows.waiting != "":
@@ -159,7 +155,7 @@ func (env *Env) landFresh(ctx context.Context, r Record, reran map[int64]int) []
 	}
 	state, err := env.checkRuns(ctx, stack, reran, &out)
 	if err != nil {
-		disarmed := env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))
+		disarmed := env.disarm(ctx, r, top, cmp.Or(cliText(err), err.Error()))
 		items := make([]string, 0, len(disarmed)+1)
 		items = append(items, fmt.Sprintf("armed stack #%d landing", top))
 		return append(items, disarmed...)
@@ -173,15 +169,14 @@ func (env *Env) landFresh(ctx context.Context, r Record, reran map[int64]int) []
 		items = append(items, strings.TrimSuffix(line, "\n"))
 	}
 	if err != nil {
-		return append(items, env.disarm(ctx, r, cmp.Or(cliText(err), err.Error()))...)
+		return append(items, env.disarm(ctx, r, top, cmp.Or(cliText(err), err.Error()))...)
 	}
 	return items
 }
 
-func (env *Env) disarm(ctx context.Context, r Record, why string) []string {
-	top := r.Armed.Top
+func (env *Env) disarm(ctx context.Context, r Record, top int, why string) []string {
 	err := env.updateRecord(ctx, r.Ticket, func(r *Record) {
-		r.Armed = nil
+		r.Armed = r.Armed.without(top)
 		r.Changed = env.Now()
 	})
 	if err != nil {
@@ -190,8 +185,8 @@ func (env *Env) disarm(ctx context.Context, r Record, why string) []string {
 	return []string{fmt.Sprintf("armed stack #%d disarmed: %s", top, why)}
 }
 
-func (env *Env) settleQueued(ctx context.Context, rec Record, stdout io.Writer) (bool, error) {
-	queued, err := env.stackPulls(ctx, rec.Queued.PRs)
+func (env *Env) settleQueued(ctx context.Context, rec Record, q Queue, stdout io.Writer) (bool, error) {
+	queued, err := env.stackPulls(ctx, q.PRs)
 	if err != nil {
 		return true, err
 	}
@@ -204,10 +199,10 @@ func (env *Env) settleQueued(ctx context.Context, rec Record, stdout io.Writer) 
 		return true, err
 	}
 	if !env.ejected(queued, landed, drafts) {
-		return true, env.settle(ctx, rec, queued, landed, stdout)
+		return true, env.settle(ctx, rec, q, queued, landed, stdout)
 	}
-	_, _ = fmt.Fprintf(stdout, "#%d left the Graphite merge queue; relanding its stack\n", rec.Queued.Top)
-	return false, env.unmark(ctx, rec)
+	_, _ = fmt.Fprintf(stdout, "#%d left the Graphite merge queue; relanding its stack\n", q.Top)
+	return false, env.unmark(ctx, rec.Ticket, q.Top, nil)
 }
 
 func walkStack(open []stackPR, top int, trunk string) ([]stackPR, error) {
@@ -364,8 +359,8 @@ func (env *Env) queue(ctx context.Context, rec Record, dir string, stack []stack
 		}
 	}
 	err := env.updateRecord(ctx, rec.Ticket, func(r *Record) {
-		r.Queued = &Queue{Top: top, PRs: nums, At: env.Now()}
-		r.Armed = nil
+		r.Queued = r.Queued.with(Queue{Top: top, PRs: nums, At: env.Now()})
+		r.Armed = r.Armed.without(top)
 		r.Settled = nil
 		r.Changed = env.Now()
 	})
@@ -403,7 +398,7 @@ func (env *Env) mergeable(ctx context.Context, worktree string, bottom stackPR, 
 	}
 }
 
-func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []bool, stdout io.Writer) error {
+func (env *Env) settle(ctx context.Context, rec Record, q Queue, prs []stackPR, landed []bool, stdout io.Writer) error {
 	top := prs[len(prs)-1]
 	if slices.Contains(landed, false) {
 		_, _ = fmt.Fprintf(stdout, "#%d is queued in the Graphite merge queue\n", top.Number)
@@ -411,10 +406,10 @@ func (env *Env) settle(ctx context.Context, rec Record, prs []stackPR, landed []
 	}
 	sha := shortSHA(cmp.Or(top.MergeCommit.OID, top.HeadOID))
 	_, _ = fmt.Fprintf(stdout, "#%d merged as %s\n", top.Number, sha)
-	return env.conclude(ctx, rec, outcomeLanded, landedLine(rec.Queued))
+	return env.conclude(ctx, rec, q, outcomeLanded, landedLine(q))
 }
 
-func landedLine(q *Queue) string {
+func landedLine(q Queue) string {
 	return fmt.Sprintf("stack #%d landed (%s)", q.Top, prRefs(q.PRs))
 }
 
@@ -514,6 +509,7 @@ func ejectedWhy(out stackPR) string {
 func (env *Env) ejectStack(
 	ctx context.Context,
 	rec Record,
+	q Queue,
 	out stackPR,
 	prs []stackPR,
 	drafts []queueDraft,
@@ -522,21 +518,21 @@ func (env *Env) ejectStack(
 		if err := env.unlabel(ctx, prs); err != nil {
 			return "", false, err
 		}
-		return leftQueuedLine(rec.Queued.Top, pr), true, nil
+		return leftQueuedLine(q.Top, pr), true, nil
 	}
-	stop := env.requeued(rec)
-	err := env.releaseQueue(ctx, rec.Queued, stop)
+	stop := env.requeued(rec, q)
+	err := env.releaseQueue(ctx, &q, stop)
 	if errors.Is(err, errRequeued) {
-		return requeuedLine(rec.Queued.Top), true, nil
+		return requeuedLine(q.Top), true, nil
 	}
 	if err != nil {
 		return "", false, err
 	}
 	if again, err := stop(ctx); err != nil || again {
-		return requeuedLine(rec.Queued.Top), again, err
+		return requeuedLine(q.Top), again, err
 	}
-	line := ejectedLine(rec.Queued.Top, out)
-	return line, false, env.conclude(ctx, rec, outcomeEjected, line)
+	line := ejectedLine(q.Top, out)
+	return line, false, env.conclude(ctx, rec, q, outcomeEjected, line)
 }
 
 func requeuedLine(top int) string {
@@ -570,27 +566,29 @@ func ejectedLine(top int, out stackPR) string {
 	return fmt.Sprintf("stack #%d ejected: #%d %s", top, out.Number, ejectedWhy(out))
 }
 
-func (env *Env) requeued(rec Record) func(context.Context) (bool, error) {
+func (env *Env) requeued(rec Record, q Queue) func(context.Context) (bool, error) {
 	return func(ctx context.Context) (bool, error) {
 		cur, err := env.record(ctx, rec.Ticket)
 		if err != nil {
 			return false, err
 		}
-		return cur.Queued != nil && !cur.Queued.At.Equal(rec.Queued.At), nil
+		cur2 := cur.Queued.find(q.Top)
+		return cur2 != nil && !cur2.At.Equal(q.At), nil
 	}
 }
 
-func (env *Env) conclude(ctx context.Context, rec Record, outcome Outcome, detail string) error {
-	q := rec.Queued
-	rec.Settled = &Settlement{Top: q.Top, PRs: q.PRs, Outcome: outcome, Detail: detail, At: env.Now()}
-	return env.unmark(ctx, rec)
+func (env *Env) conclude(ctx context.Context, rec Record, q Queue, outcome Outcome, detail string) error {
+	settled := &Settlement{Top: q.Top, PRs: q.PRs, Outcome: outcome, Detail: detail, At: env.Now()}
+	return env.unmark(ctx, rec.Ticket, q.Top, settled)
 }
 
-func (env *Env) unmark(ctx context.Context, rec Record) error {
-	return env.updateRecord(ctx, rec.Ticket, func(r *Record) {
-		r.Queued = nil
-		r.Armed = nil
-		r.Settled = rec.Settled
+func (env *Env) unmark(ctx context.Context, ticket, top int, settled *Settlement) error {
+	return env.updateRecord(ctx, ticket, func(r *Record) {
+		r.Queued = r.Queued.without(top)
+		r.Armed = r.Armed.without(top)
+		if settled != nil {
+			r.Settled = settled
+		}
 		r.Changed = env.Now()
 	})
 }
@@ -635,37 +633,49 @@ func (env *Env) heldByGraphite(p gqlPR, drafts []queueDraft) bool {
 func (env *Env) unqueueEjected(ctx context.Context, rs []Record, stdout io.Writer) error {
 	drafts := sync.OnceValues(func() ([]queueDraft, error) { return env.queueDrafts(ctx) })
 	for _, r := range rs {
-		if r.Queued == nil {
-			continue
+		for _, q := range r.Queued {
+			if err := env.unqueueStack(ctx, r, q, drafts, stdout); err != nil {
+				return err
+			}
 		}
-		open, err := drafts()
-		if err != nil {
-			return err
-		}
-		prs, err := env.stackPulls(ctx, r.Queued.PRs)
-		if err != nil {
-			return err
-		}
-		landed, err := env.landedEach(ctx, prs, open)
-		if err != nil {
-			return err
-		}
-		out, ok := env.firstEjected(prs, landed, open)
-		if !ok {
-			continue
-		}
-		line, requeued, err := env.ejectStack(ctx, r, out, prs, open)
-		if err != nil {
-			return err
-		}
-		if requeued {
-			_, _ = fmt.Fprintln(stdout, line)
-			continue
-		}
-		_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the Graphite merge queue. "+
-			"Fix the stack with gt modify and gt submit --stack --draft, then run land-stack %d\n",
-			r.Ticket, r.Queued.Top, r.Queued.Top)
 	}
+	return nil
+}
+
+func (env *Env) unqueueStack(
+	ctx context.Context,
+	r Record,
+	q Queue,
+	drafts func() ([]queueDraft, error),
+	stdout io.Writer,
+) error {
+	open, err := drafts()
+	if err != nil {
+		return err
+	}
+	prs, err := env.stackPulls(ctx, q.PRs)
+	if err != nil {
+		return err
+	}
+	landed, err := env.landedEach(ctx, prs, open)
+	if err != nil {
+		return err
+	}
+	out, ok := env.firstEjected(prs, landed, open)
+	if !ok {
+		return nil
+	}
+	line, requeued, err := env.ejectStack(ctx, r, q, out, prs, open)
+	if err != nil {
+		return err
+	}
+	if requeued {
+		_, _ = fmt.Fprintln(stdout, line)
+		return nil
+	}
+	_, _ = fmt.Fprintf(stdout, "unqueued: #%d; #%d left the Graphite merge queue. "+
+		"Fix the stack with gt modify and gt submit --stack --draft, then run land-stack %d\n",
+		r.Ticket, q.Top, q.Top)
 	return nil
 }
 

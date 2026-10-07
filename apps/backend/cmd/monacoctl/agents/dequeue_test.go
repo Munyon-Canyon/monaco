@@ -15,7 +15,7 @@ func dequeueStack(t *testing.T, f *fixture, drafts ...string) (*stackGH, *Env) {
 	t.Helper()
 	s := newStackGH(t, f,
 		labeled(green(t, 1, "b1", "fb"), "merge-queue"), labeled(green(t, 2, "b2", "b1"), "merge-queue"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", Queued: Queues{{Top: 2, PRs: []int{1, 2}}}})
 	f.hub.on(graphqlRoute, `{"data":{"repository":{"drafts":{"nodes":[`+strings.Join(drafts, ",")+`]}}}}`)
 	return s, f.Env(t)
 }
@@ -52,7 +52,7 @@ func TestDequeue_removesTheLabelAndWaitsForGraphiteToLetGo(t *testing.T) {
 			if err := dequeueCmd(t.Context(), env, []string{"2"}, &out); err != nil {
 				t.Fatal(err)
 			}
-			if out.String() != "dequeued #1 #2; safe to push\n" || f.owned(t).Queued != nil {
+			if out.String() != "dequeued #1 #2; safe to push\n" || len(f.owned(t).Queued) > 0 {
 				t.Fatalf("%q, queued %+v", out.String(), f.owned(t).Queued)
 			}
 			want := slices.Repeat([]string{
@@ -122,7 +122,7 @@ func TestDequeue_givesUpWhileGraphiteStillHoldsTheStack(t *testing.T) {
 			if cliText(err) != "Graphite still holds #2; remove it from the queue in the Graphite app, then rerun" {
 				t.Fatal(err)
 			}
-			if f.owned(t).Queued == nil || len(f.hub.callsContaining("/labels")) != 6 {
+			if len(f.owned(t).Queued) == 0 || len(f.hub.callsContaining("/labels")) != 6 {
 				t.Fatalf("queued %+v, calls %v", f.owned(t).Queued, f.hub.callsContaining("/labels"))
 			}
 		})
@@ -176,7 +176,7 @@ func TestDequeue_aStackGraphiteTookIsNotSafeToPushBeforeItsDraftOpens(t *testing
 			if textOf(err) != tc.want || strings.Contains(out.String(), "safe to push") {
 				t.Fatalf("%q %s", out.String(), textOf(err))
 			}
-			if tc.queued && f.owned(t).Queued == nil {
+			if tc.queued && len(f.owned(t).Queued) == 0 {
 				t.Fatal("dequeue unmarked a stack Graphite still holds")
 			}
 		})
@@ -221,7 +221,7 @@ func TestDequeue_aLandedPRIsNotHeld(t *testing.T) {
 			if err != nil || out.String() != "dequeued #1 #2; safe to push\n" {
 				t.Fatalf("%q %s", out.String(), textOf(err))
 			}
-			if f.owned(t).Queued != nil {
+			if len(f.owned(t).Queued) > 0 {
 				t.Fatal("dequeue kept the queued mark")
 			}
 		})
@@ -410,12 +410,12 @@ func TestDequeue_clearsTheArmOfAnArmedStack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
-	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", Armed: &Arm{Top: 2, PRs: []int{1, 2}}})
+	f.owner(t, Record{Ticket: 40, Worktree: "/w/40", Armed: Arms{{Top: 2, PRs: []int{1, 2}}}})
 	var out strings.Builder
 	if err := dequeueCmd(t.Context(), f.Env(t), []string{"2"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.String() != "disarmed #2; agents watch will not land it\n" || f.owned(t).Armed != nil {
+	if out.String() != "disarmed #2; agents watch will not land it\n" || len(f.owned(t).Armed) > 0 {
 		t.Fatalf("%q, armed %+v", out.String(), f.owned(t).Armed)
 	}
 	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 || len(f.waited) != 0 {
@@ -493,5 +493,35 @@ func TestDequeue_aRecordWithNoQueueEntryReportsGitHubFailures(t *testing.T) {
 				t.Fatalf("%v", err)
 			}
 		})
+	}
+}
+
+func TestDequeue_removesOnlyTheNamedStackFromARecordHoldingSeveral(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	newStackGH(t, f,
+		labeled(green(t, 1, "b1", "fb"), "merge-queue"), labeled(green(t, 2, "b2", "b1"), "merge-queue"),
+		labeled(green(t, 3, "b3", "fb"), "merge-queue"), stackOf(t, 5, "b5", "fb", "pending", "SUCCESS"))
+	f.owner(t, Record{
+		Ticket: 40, Worktree: "/w/40",
+		Queued: Queues{{Top: 2, PRs: []int{1, 2}}, {Top: 3, PRs: []int{3}}}, Armed: Arms{{Top: 5, PRs: []int{5}}},
+	})
+	f.hub.on(graphqlRoute, `{"data":{"repository":{"drafts":{"nodes":[]}}}}`)
+	var out strings.Builder
+	if err := dequeueCmd(t.Context(), f.Env(t), []string{"2"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	r := f.owned(t)
+	if out.String() != "dequeued #1 #2; safe to push\n" || len(r.Queued) != 1 || r.Queued[0].Top != 3 ||
+		len(r.Armed) != 1 || r.Armed[0].Top != 5 {
+		t.Fatalf("%q, queued %+v armed %+v", out.String(), r.Queued, r.Armed)
+	}
+	out.Reset()
+	if err := dequeueCmd(t.Context(), f.Env(t), []string{"5"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if r := f.owned(t); out.String() != "disarmed #5; agents watch will not land it\n" ||
+		len(r.Queued) != 1 || len(r.Armed) != 0 {
+		t.Fatalf("%q, queued %+v armed %+v", out.String(), r.Queued, r.Armed)
 	}
 }

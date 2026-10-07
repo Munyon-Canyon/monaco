@@ -33,26 +33,27 @@ func dequeueCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) 
 	if err != nil {
 		return err
 	}
+	q := rec.Queued.find(n)
 	switch {
-	case rec.Queued == nil && rec.Armed == nil:
+	case len(rec.Queued) == 0 && len(rec.Armed) == 0:
 		return env.dequeueLabeled(ctx, n, stdout)
-	case rec.Queued == nil:
-		if err := env.unmark(ctx, rec); err != nil {
+	case q == nil:
+		if err := env.unmark(ctx, rec.Ticket, n, nil); err != nil {
 			return err
 		}
 		_, _ = fmt.Fprintf(stdout, "disarmed #%d; agents watch will not land it\n", n)
 		return nil
 	}
-	if err := env.releaseQueue(ctx, rec.Queued, nil); err != nil {
+	if err := env.releaseQueue(ctx, q, nil); err != nil {
 		return err
 	}
-	if err := env.clearOfGraphite(ctx, n, rec.Queued.PRs); err != nil {
+	if err := env.clearOfGraphite(ctx, n, q.PRs); err != nil {
 		return err
 	}
-	if err := env.unmark(ctx, rec); err != nil {
+	if err := env.unmark(ctx, rec.Ticket, n, nil); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(stdout, "dequeued %s; safe to push\n", prRefs(rec.Queued.PRs))
+	_, _ = fmt.Fprintf(stdout, "dequeued %s; safe to push\n", prRefs(q.PRs))
 	return nil
 }
 
@@ -139,9 +140,9 @@ func (env *Env) heldRecord(ctx context.Context, top int) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	queued := rec.Queued != nil && rec.Queued.Top == top
-	armed := rec.Queued == nil && rec.Armed != nil && rec.Armed.Top == top
-	empty := rec.Queued == nil && rec.Armed == nil
+	queued := rec.Queued.find(top) != nil
+	armed := rec.Armed.find(top) != nil
+	empty := len(rec.Queued) == 0 && len(rec.Armed) == 0
 	if !queued && !armed && !empty {
 		return Record{}, dequeueErr(errs.CodeInvalidInput,
 			fmt.Sprintf("#%d has no queued or armed stack with top #%d", ticket, top))

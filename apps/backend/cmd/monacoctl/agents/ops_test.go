@@ -555,10 +555,10 @@ func TestLanesOpen_reportsAnIssueLookupFailure(t *testing.T) {
 func TestExited_refusesWhileTheOwnerHoldsAStackInTheQueue(t *testing.T) {
 	t.Parallel()
 	for _, rec := range []Record{
-		{Ticket: 40, State: Running, Worktree: "/w/40", Armed: &Arm{Top: 2, PRs: []int{1, 2}}},
-		{Ticket: 40, State: Running, Worktree: "/w/40", Queued: &Queue{Top: 2, PRs: []int{1, 2}}},
+		{Ticket: 40, State: Running, Worktree: "/w/40", Armed: Arms{{Top: 2, PRs: []int{1, 2}}}},
+		{Ticket: 40, State: Running, Worktree: "/w/40", Queued: Queues{{Top: 2, PRs: []int{1, 2}}}},
 	} {
-		t.Run(fmt.Sprintf("armed %t", rec.Armed != nil), func(t *testing.T) {
+		t.Run(fmt.Sprintf("armed %t", len(rec.Armed) > 0), func(t *testing.T) {
 			t.Parallel()
 			f := newFixture(t)
 			f.owner(t, rec)

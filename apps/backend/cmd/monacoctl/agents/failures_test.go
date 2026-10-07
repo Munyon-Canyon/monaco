@@ -554,7 +554,7 @@ func TestWatchOnce_printsOneDropBlockForAnOwnedStackThatOneFailedDraftDropped(t 
 	if code != 1 || stderr != "" || stdout != want {
 		t.Fatalf("code=%d stderr=%q stdout=\n%s\nwant\n%s", code, stderr, stdout, want)
 	}
-	if f.owned(t).Queued != nil {
+	if len(f.owned(t).Queued) > 0 {
 		t.Fatal("kept the queued mark")
 	}
 }
@@ -578,8 +578,8 @@ func TestFailureQuery_asksForWhenEveryDraftClosed(t *testing.T) {
 func TestOnePerOwnedStack_keepsTheLowestDropOfEachStackAndEachDraft(t *testing.T) {
 	t.Parallel()
 	rs := []Record{
-		{Ticket: 40, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}},
-		{Ticket: 41, Armed: &Arm{Top: 6, PRs: []int{5, 6}}},
+		{Ticket: 40, Queued: Queues{{Top: 3, PRs: []int{1, 2, 3}}}},
+		{Ticket: 41, Armed: Arms{{Top: 6, PRs: []int{5, 6}}}},
 	}
 	drop := func(pr int, job int64) failure {
 		return failure{PR: pr, Why: droppedWhy, Job: gqlContext{DatabaseID: job}}
