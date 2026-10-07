@@ -372,6 +372,32 @@ func TestAgentGuard_blocksRawRebaseAndMergeInAWorktreeAndAtTheRoot(t *testing.T)
 	assertAllowed(t, guard(t, elsewhere, "git rebase origin/main"), "git rebase origin/main")
 }
 
+func TestAgentGuard_allowsRebaseControlAndRemoteOnlyRebase(t *testing.T) {
+	t.Setenv("PYENV_VERSION", "system")
+	work, _ := pushRepo(t)
+	git(t, work, "remote", "add", "upstream", work)
+	allowed := []string{
+		"git rebase --continue", "git rebase --abort", "git rebase --skip", "git rebase --quit", "git merge --abort",
+		"git rebase origin/staging", "git rebase upstream/main", "git rebase --autostash origin/staging",
+		"git rebase --onto origin/staging origin/old", "git rebase --onto=origin/staging origin/old",
+		"git -C " + work + " rebase origin/staging",
+	}
+	for _, cmd := range allowed {
+		assertAllowed(t, guard(t, work, cmd), cmd)
+	}
+	blocked := []string{
+		"git rebase -i origin/staging", "git rebase --interactive origin/staging", "git rebase origin/staging -i",
+		"git rebase staging", "git rebase main", "git rebase", "git rebase --root", "git rebase --root origin/staging",
+		"git rebase origin/staging ticket", "git rebase --onto staging origin/old", "git rebase --onto origin/staging old",
+		"git rebase nope/staging", "git rebase origin/", "git rebase --exec true origin/staging",
+		"git rebase --continue origin/staging", "git merge origin/staging", "git merge", "git merge --continue",
+		"git merge --abort --no-edit",
+	}
+	for _, cmd := range blocked {
+		assertBlocked(t, guard(t, work, cmd), cmd, "remote-tracking ref")
+	}
+}
+
 func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
