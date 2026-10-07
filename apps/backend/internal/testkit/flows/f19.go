@@ -3,6 +3,7 @@ package flows
 import (
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"slices"
 	"time"
@@ -70,8 +71,10 @@ func seedCabal(s *scenario.Scenario, mint chain.SolanaAddress) valuationSeed {
 	return valuationSeed{cabal: cabal}
 }
 
-func F19RunValuationOK(s *scenario.Scenario) {
-	seedRankedAsset(s)
+func F19RunValuationOK(s *scenario.Scenario) { RankedValuationOKAt(s, time.Now().UTC()) }
+
+func RankedValuationOKAt(s *scenario.Scenario, now time.Time) {
+	seedRankedAsset(s, now)
 	s.Given(rankedUsers()...).When(
 		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
@@ -85,12 +88,16 @@ func F19RunValuationOK(s *scenario.Scenario) {
 }
 
 func F19RunValuationPricesStale(s *scenario.Scenario) {
-	seedRankedAsset(s)
+	RankedValuationPricesStaleAt(s, time.Now().UTC())
+}
+
+func RankedValuationPricesStaleAt(s *scenario.Scenario, now time.Time) {
+	seedRankedAsset(s, now)
 	s.Given(rankedUsers()...).When(
 		scenario.AwaitTickPastTimeouts(valuationPoller),
 		awaitRankedRows(),
-		makePricesStale(rankedMint),
-		queueRankedValuation(),
+		makePricesStale(rankedMint, now),
+		queueRankedValuation(now),
 		scenario.AwaitTickPastTimeouts(valuationPoller),
 	).Then(
 		awaitRankedFlag("stale_prices"),
@@ -197,11 +204,21 @@ func awaitSnapshotEvent() scenario.Step {
 	})
 }
 
-func makePricesStale(mint chain.SolanaAddress) scenario.Step {
+func makePricesStale(mint chain.SolanaAddress, now time.Time) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
+		aged := 6 * time.Minute
+		if session := rankedSession(s, now); !session.Continuous && session.State != domain.StateOpen {
+			var newest time.Time
+			if err := s.DB().QueryRow(s.Context(),
+				`SELECT max(ts) FROM price_points WHERE mint = $1`, string(mint)).Scan(&newest); err != nil {
+				s.Fatalf("flows: read the newest price: %v", err)
+			}
+			aged = max(aged, newest.Sub(session.LastClose)+6*time.Minute)
+		}
 		if _, err := s.DB().Exec(s.Context(),
-			`UPDATE price_points SET ts = ts - interval '6 minutes' WHERE mint = $1`, string(mint)); err != nil {
+			`UPDATE price_points SET ts = ts - $2 * interval '1 microsecond' WHERE mint = $1`,
+			string(mint), aged.Microseconds()); err != nil {
 			s.Fatalf("flows: age the prices: %v", err)
 		}
 	}
@@ -243,17 +260,9 @@ func pauseCabal(v valuationSeed) scenario.Step {
 
 const rankedMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
 
-func seedRankedAsset(s *scenario.Scenario) {
-	insertAsset(s, ids.Real{}.NewV7(), "AAPLx", rankedMint, time.Now().UTC())
-	var kind domain.Kind
-	err := s.DB().QueryRow(s.Context(), `SELECT kind FROM assets WHERE mint = $1`, rankedMint).Scan(&kind)
-	if err != nil {
-		s.Fatalf("flows: read the kind of AAPLx: %v", err)
-	}
-	session, err := domain.Session(kind, time.Now().UTC())
-	if err != nil {
-		s.Fatalf("flows: the session of AAPLx: %v", err)
-	}
+func seedRankedAsset(s *scenario.Scenario, now time.Time) {
+	insertAsset(s, ids.Real{}.NewV7(), "AAPLx", rankedMint, now)
+	session := rankedSession(s, now)
 	if session.Continuous || session.State == domain.StateOpen {
 		return
 	}
@@ -263,6 +272,56 @@ func seedRankedAsset(s *scenario.Scenario) {
 		rankedMint, session.LastClose.Add(-time.Minute), assetPriceMicros); err != nil {
 		s.Fatalf("flows: seed the close price: %v", err)
 	}
+}
+
+type RankedPin struct {
+	Name string
+	At   time.Time
+}
+
+func RankedOffSessionPins(from time.Time) ([]RankedPin, error) {
+	et, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		return nil, fmt.Errorf("flows: load the New York zone: %w", err)
+	}
+	at := func(day time.Time, hour, minute int) time.Time {
+		return time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, et).UTC()
+	}
+	day := from.In(et).AddDate(0, 0, 1)
+	for {
+		session, err := domain.Session(domain.KindEquity, at(day, 17, 0))
+		if err != nil {
+			return nil, fmt.Errorf("flows: the session of %s: %w", day.Format(time.DateOnly), err)
+		}
+		if session.State == domain.StateAfterHours && session.LastClose.Equal(at(day, 16, 0)) {
+			break
+		}
+		day = day.AddDate(0, 0, 1)
+	}
+	weekend := day
+	for weekend.Weekday() != time.Saturday {
+		weekend = weekend.AddDate(0, 0, 1)
+	}
+	return []RankedPin{
+		{"AfterClose", at(day, 17, 0)},
+		{"Weekend", at(weekend, 12, 0)},
+		{"InsideCloseWindow", at(day, 16, 3)},
+		{"LateInCloseWindow", at(day, 16, 5)},
+	}, nil
+}
+
+func rankedSession(s *scenario.Scenario, now time.Time) domain.SessionInfo {
+	s.Helper()
+	var kind domain.Kind
+	err := s.DB().QueryRow(s.Context(), `SELECT kind FROM assets WHERE mint = $1`, rankedMint).Scan(&kind)
+	if err != nil {
+		s.Fatalf("flows: read the kind of AAPLx: %v", err)
+	}
+	session, err := domain.Session(kind, now)
+	if err != nil {
+		s.Fatalf("flows: the session of AAPLx: %v", err)
+	}
+	return session
 }
 
 func rankedUsers() []scenario.Step {
@@ -317,12 +376,12 @@ func awaitRankedFlag(flag string) scenario.Step {
 	})
 }
 
-func queueRankedValuation() scenario.Step {
+func queueRankedValuation(now time.Time) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
 		if _, err := s.DB().Exec(s.Context(), `INSERT INTO ranking_triggers (cabal_id, reason, created_at)
-			SELECT id, 'flow19', now() - interval '2 seconds' FROM cabals WHERE id = ANY($1::uuid[])`,
-			rankedCabals(s)); err != nil {
+			SELECT id, 'flow19', $2 FROM cabals WHERE id = ANY($1::uuid[])`,
+			rankedCabals(s), now.Add(-2*time.Second)); err != nil {
 			s.Fatalf("flows: queue a valuation of the seeded cabals: %v", err)
 		}
 	}
