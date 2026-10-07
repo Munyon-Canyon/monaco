@@ -27,10 +27,13 @@ fi
 
 cd apps/backend
 toolchain="$(awk '$1 == "toolchain" {print $2}' go.mod)"
-GOTOOLCHAIN="${toolchain:?apps/backend/go.mod has no toolchain line}" go vet ./...
+# A newer local Go overrides go.mod's toolchain line and writes different generated files
+# (go1.27 names json.RawMessage jsontext.Value in docs/reference/events.md), so every step runs on CI's toolchain.
+export GOTOOLCHAIN="${toolchain:?apps/backend/go.mod has no toolchain line}"
+go vet ./...
 go mod tidy -diff
 go generate ./...
 fresh "go generate ./..."
 go run ./cmd/monacoctl flows check --structure-only
 go run ./cmd/monacoctl migrate order
-echo "ready: vet on go.mod's toolchain, go.mod tidy, everything go generate writes (sqlc, atlas.sum and the reference docs among it), the flow files and migration order are all current"
+echo "ready: on go.mod's toolchain, vet, go.mod tidy, everything go generate writes (sqlc, atlas.sum and the reference docs among it), the flow files and migration order are all current"
