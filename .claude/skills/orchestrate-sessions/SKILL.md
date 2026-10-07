@@ -18,7 +18,7 @@ Each worker session spawns its own subagents in worktrees under `.worktrees/`. T
 ## Start
 
 1. Get the order from the user as a chain of milestones, for example `M9 => M12 => M11/M10 => M13 & M14`. Send it to the dispatcher. Every dispatch decision follows it.
-2. Write the exit condition as something checkable: the ready tickets of the named milestones dispatched and landed in order, no stall over 30 minutes, mobile QA run on every ticket that names it.
+2. Write the exit condition as something checkable: the ready tickets of the named milestones dispatched and landed in order, no stall over 15 minutes, mobile QA run on every ticket that names it.
 3. Start the decision log with the **show-me-your-work** skill. Log one row per decision, landing batch and stall.
 4. Record the `origin/staging` SHA. A landing is a new SHA, counted with `git log <last>..origin/staging`. Commit dates lie after a queue squash.
 5. Keep the Mac awake for the whole run (`caffeinate -dimsu`). A sleeping Mac freezes the watch, the runners and every check-in.
@@ -30,7 +30,7 @@ Each worker session spawns its own subagents in worktrees under `.worktrees/`. T
 2. Read the queue and the armed stacks from `bin/monacoctl agents watch --once` and `gh pr list --label merge-queue`.
 3. Confirm the watch is alive. Its process exists and its log moved in the last 5 minutes.
 4. Check the load (`uptime`) against `[dispatch] max_load` in `.git/.monaco/agents.local.toml`.
-5. If nothing landed for 30 minutes, find the cause with the table below and send it to the session that owns it. Name the PR, the evidence and the one action you want.
+5. If nothing landed for 15 minutes, find the cause with the table below and send it to the session that owns it. Name the PR, the evidence and the one action you want.
 6. Every hour, compare the open tickets of the current milestones with the owner records. A ready ticket on the critical path with no owner goes to the dispatcher.
 
 Sessions report finished work by message. Read the report and check the claim against `git`, `gh` and the logs before you log it as done.
