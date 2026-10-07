@@ -843,12 +843,64 @@ def rule_role_pr_ready(inv: Invocation) -> str | None:
     return f"gh pr ready skips the local PR format check. {READY_FLOW}"
 
 
+PKILL_VALUED = {"-P", "-g", "-u", "-U", "-G", "-t", "-s", "-F", "-O", "--parent", "--pgroup", "--euid", "--uid", "--group", "--terminal", "--session", "--pidfile"}
+PKILL_SCOPE_RE = re.compile(r"^(-[Pg]\S+|--(parent|pgroup)=\S+)$")
+
+
+def pkill_pattern(args: list[str]) -> str | None:
+    pattern, i = None, 0
+    while i < len(args):
+        if args[i] in PKILL_VALUED:
+            i += 2
+        elif args[i].startswith("-"):
+            i += 1
+        else:
+            pattern, i = args[i], i + 1
+    return pattern
+
+
+def pkill_scoped_by_tree(args: list[str]) -> bool:
+    for i, arg in enumerate(args):
+        if PKILL_SCOPE_RE.match(arg) or (arg in {"-P", "-g", "--parent", "--pgroup"} and i + 1 < len(args)):
+            return True
+    return False
+
+
+def worktree_root(cwd: str) -> str:
+    try:
+        done = run(["git", "rev-parse", "--show-toplevel"], cwd)
+        if done.returncode == 0 and done.stdout.strip():
+            return done.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return cwd
+
+
+def rule_scoped_kill(inv: Invocation) -> str | None:
+    head = os.path.basename(inv.argv[0])
+    if head not in {"pkill", "killall"}:
+        return None
+    root = worktree_root(inv.cwd)
+    if head == "pkill":
+        args = inv.argv[1:]
+        if pkill_scoped_by_tree(args):
+            return None
+        pattern = pkill_pattern(args)
+        if pattern and root in pattern:
+            return None
+    return (f"{head} matches by name, so it reaches every lane's processes on this Mac. On 2026-10-07 dozens of "
+            "pattern kills killed every queued agents check and the shared watch. Kill by pid instead: find it with "
+            "`pgrep -fl <pattern>`, confirm its cwd is your worktree with `lsof -a -p <pid> -d cwd`, then `kill <pid>`. "
+            f"Or scope the pkill pattern to {root}, for example `pkill -f {root}/bin/api`.")
+
+
 RULES = [
     rule_mutation,
     rule_push_protected,
     rule_force_push,
     rule_push_behind,
     rule_claude_timeout,
+    rule_scoped_kill,
     rule_merge_needs_verify,
     rule_edit_base,
     rule_queue_label,
