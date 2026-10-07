@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 2
+    static let version = 3
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -84,10 +84,6 @@ enum CabalsEditRulesJourney {
             )
         }
 
-        recorder.step("S1.6", "save") {
-            app.buttons["edit-cabal-save"].tap()
-            JoinJourney.waitForToast(app, "Cabal updated.", step: "S1.6")
-        }
     }
 
     static func creatorPicksVoters(
@@ -95,46 +91,43 @@ enum CabalsEditRulesJourney {
     ) throws {
         let memberID = try JourneyHandoff.read(memberKey)
         let name = newName(run: run)
-        let field = app.textFields["edit-cabal-name"]
 
-        recorder.step("S1.7", "open Who votes") {
-            let voters = app.buttons["edit-cabal-voters"]
+        recorder.step("S1.6", "pick People I pick") {
+            let voters = app.element("edit-rule-voters")
             app.scrollIntoReach(voters)
-            voters.tap()
-            XCTAssertTrue(app.buttons["voters-pick"].waitForExistence(timeout: 10), "S1.7: Who votes did not show")
-            XCTAssertTrue(app.buttons["voters-everyone"].isSelected, "S1.7: Everyone is not selected")
+            XCTAssertTrue(voters.buttons["Everyone"].isSelected, "S1.6: Everyone is not selected")
+            voters.buttons["People I pick"].tap()
+            XCTAssertTrue(
+                app.element("edit-cabal-voters").waitForExistence(timeout: 10), "S1.6: the voter list did not show")
         }
 
-        recorder.step("S1.8", "pick B as a voter") {
-            app.buttons["voters-pick"].tap()
+        recorder.step("S1.7", "pick B as a voter") {
             let row = app.buttons["voters-member-\(memberID)"]
-            XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.8: no row for \(member) within 10 s")
-            XCTAssertTrue(row.label.contains(member), "S1.8: the voter row does not name \(member)")
+            app.scrollIntoReach(row)
+            XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.7: no row for \(member) within 10 s")
+            XCTAssertTrue(row.label.contains(member), "S1.7: the voter row does not name \(member)")
             row.tap()
-            XCTAssertTrue(row.isSelected, "S1.8: \(member) is not selected")
-            XCTAssertTrue(app.buttons["voters-save"].isEnabled, "S1.8: Save is not enabled")
+            XCTAssertTrue(row.isSelected, "S1.7: \(member) is not selected")
         }
 
-        recorder.step("S1.9", "save the voters") {
-            app.buttons["voters-save"].tap()
-            JoinJourney.waitForToast(app, "Voters updated.", step: "S1.9")
+        recorder.step("S1.8", "save the rules and the voters once") {
+            app.buttons["edit-cabal-save"].tap()
+            JoinJourney.waitForToast(app, "Cabal updated.", step: "S1.8")
         }
 
-        recorder.step("S1.10", "go back to the rules") {
+        recorder.step("S1.9", "go back to the rules") {
             app.navigationBars.buttons.firstMatch.tap()
-            XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.10: the editor did not come back")
-            app.navigationBars.buttons.firstMatch.tap()
-            assertRule(app, "threshold", reads: "Everyone agrees", step: "S1.10")
-            assertRule(app, "expiry", reads: "1 week", step: "S1.10")
-            assertRule(app, "voters", reads: member, step: "S1.10")
+            assertRule(app, "threshold", reads: "Everyone agrees", step: "S1.9")
+            assertRule(app, "expiry", reads: "1 week", step: "S1.9")
+            assertRule(app, "voters", reads: member, step: "S1.9")
             JoinJourney.snap(app, "S1-A-rules-after")
         }
 
-        recorder.step("S1.11", "close details and see the new name") {
+        recorder.step("S1.10", "close details and see the new name") {
             app.buttons["cabal-details-done"].tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: 10),
-                "S1.11: the hero does not read \(name): \(app.element("cabal-header-name").label)"
+                "S1.10: the hero does not read \(name): \(app.element("cabal-header-name").label)"
             )
         }
     }

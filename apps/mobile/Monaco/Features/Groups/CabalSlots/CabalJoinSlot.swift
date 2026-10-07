@@ -84,7 +84,10 @@ struct CabalJoinSection: View {
                     CabalPendingRequestRow(
                         request: request,
                         isDeciding: model.deciding.contains(request.id),
-                        decide: { approve in Task { await model.decide(request, approve: approve) } }
+                        offersVote: model.picksVoters,
+                        decide: { approve, canVote in
+                            Task { await model.decide(request, approve: approve, canVote: canVote) }
+                        }
                     )
                 }
             }
@@ -99,10 +102,17 @@ struct CabalJoinSection: View {
     }
 }
 
+enum CabalJoinCopy {
+    static let canVote = "Can vote"
+}
+
 private struct CabalPendingRequestRow: View {
     let request: CabalPendingRequest
     let isDeciding: Bool
-    let decide: (Bool) -> Void
+    let offersVote: Bool
+    let decide: (Bool, Bool) -> Void
+
+    @State private var canVote = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
@@ -125,6 +135,14 @@ private struct CabalPendingRequestRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("cabal-join-request-row")
+            if offersVote {
+                Toggle(CabalJoinCopy.canVote, isOn: $canVote)
+                    .font(MonacoTheme.Typo.rowTitle)
+                    .tint(MonacoTheme.brandFill)
+                    .frame(minHeight: 44)
+                    .disabled(isDeciding)
+                    .accessibilityIdentifier("cabal-join-can-vote")
+            }
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: MonacoTheme.Space.sm) { buttons }
                 VStack(spacing: MonacoTheme.Space.s) { buttons }
@@ -137,11 +155,11 @@ private struct CabalPendingRequestRow: View {
 
     @ViewBuilder
     private var buttons: some View {
-        Button("Approve") { decide(true) }
+        Button("Approve") { decide(true, offersVote && canVote) }
             .buttonStyle(.monacoPrimary)
             .accessibilityLabel("Approve \(request.name)")
             .accessibilityIdentifier("cabal-join-approve")
-        Button("Deny") { decide(false) }
+        Button("Deny") { decide(false, false) }
             .buttonStyle(.monacoSecondary)
             .accessibilityLabel("Deny \(request.name)")
             .accessibilityIdentifier("cabal-join-deny")

@@ -40,7 +40,7 @@ struct CabalRulesCopyTests {
         #expect(CabalJoinMode.open.rawValue == "open")
         #expect(CabalJoinMode.request.rawValue == "request")
         #expect(CabalVoterMode.everyone.rawValue == "all")
-        #expect(CabalVoterMode.justMe.rawValue == "list")
+        #expect(CabalVoterMode.picked.rawValue == "list")
         #expect(CabalThreshold.majority.rawValue == "majority")
         #expect(CabalThreshold.unanimous.rawValue == "unanimous")
         #expect(CabalProposalExpiry.oneDay.rawValue == 86_400)

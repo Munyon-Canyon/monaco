@@ -13,10 +13,10 @@ extension CabalEditModelTests {
         ])
         await model.load()
 
-        let outcome = await model.saveVoters(.list([Self.jordanID]))
+        let outcome = await saveVoters(model, .list([Self.jordanID]))
 
         XCTAssertEqual(outcome, .saved)
-        XCTAssertEqual(model.voterChoice, .list([Self.creatorID, Self.jordanID]))
+        XCTAssertEqual(model.settings?.voters, .list([Self.creatorID, Self.jordanID]))
         let sent = await transport.sent
         XCTAssertEqual(sent.map(\.method), [.get, .patch])
         let keyHeader = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
@@ -35,8 +35,8 @@ extension CabalEditModelTests {
         ])
         await model.load()
 
-        let first = await model.saveVoters(.list([Self.jordanID]))
-        let second = await model.saveVoters(.list([Self.jordanID]))
+        let first = await saveVoters(model, .list([Self.jordanID]))
+        let second = await saveVoters(model, .list([Self.jordanID]))
 
         XCTAssertEqual(first, .failed("You're offline. Try again."))
         XCTAssertEqual(second, .saved)
@@ -53,7 +53,7 @@ extension CabalEditModelTests {
         ])
         await model.load()
 
-        let sameList = await model.saveVoters(.list([Self.jordanID]))
+        let sameList = await saveVoters(model, .list([Self.jordanID]))
 
         XCTAssertEqual(sameList, .unchanged)
         let count = await transport.sent.count
@@ -64,7 +64,7 @@ extension CabalEditModelTests {
         let (model, transport, _) = make([.json(.ok, Self.cabal(name: "QA pot", me: Self.creator, voters: nil))])
         await model.load()
 
-        let outcome = await model.saveVoters(.everyone)
+        let outcome = await saveVoters(model, .everyone)
 
         XCTAssertEqual(outcome, .unchanged)
         let count = await transport.sent.count
@@ -86,7 +86,7 @@ extension CabalEditModelTests {
         ])
         await model.load()
 
-        let outcome = await model.saveVoters(.list([Self.jordanID]))
+        let outcome = await saveVoters(model, .list([Self.jordanID]))
 
         XCTAssertEqual(outcome, .failed("Someone you picked isn't in the cabal anymore."))
         let sent = await transport.sent
@@ -118,12 +118,12 @@ extension CabalEditModelTests {
         await model.load()
         let members = try XCTUnwrap(model.cabal?.members)
 
-        let outcome = await model.saveVoters(.list([members[1].userId]))
+        let outcome = await saveVoters(model, .list([members[1].userId]))
 
         XCTAssertEqual(outcome, .saved)
         XCTAssertEqual(model.cabal?.rules.voterMode, "list")
         XCTAssertEqual(model.cabal?.members.map(\.canVote), [true, true, false])
-        XCTAssertEqual(model.voterChoice, .list([members[0].userId, members[1].userId]))
+        XCTAssertEqual(model.settings?.voters, .list([members[0].userId, members[1].userId]))
     }
 
     func testAHiddenSheetWaitsUntilItIsVisibleToReadAgain() async {
@@ -168,24 +168,33 @@ extension CabalEditModelTests {
         XCTAssertNil(model.cabal?.inviteCode)
     }
 
-    func testAFormSaveAfterAVoterSaveLeavesTheVotersAlone() async throws {
+    func testOneSaveCarriesTheVotersAndTheThresholdInOnePatch() async throws {
         let (model, transport, _) = make([
             .json(.ok, Self.cabal(name: "QA pot", me: Self.creator, voters: nil)),
             .json(.ok, Self.cabal(name: "QA pot", me: Self.creator, voters: [Self.creatorID, Self.jordanID])),
-            .json(.ok, Self.cabal(name: "QA pot 2", me: Self.creator, voters: [Self.creatorID, Self.jordanID])),
         ])
         await model.load()
-        var openedBeforeTheVoterSave = try XCTUnwrap(model.settings)
-        _ = await model.saveVoters(.list([Self.jordanID]))
-        openedBeforeTheVoterSave.name = "QA pot 2"
+        var edited = try XCTUnwrap(model.settings)
+        edited.voters = .list([Self.jordanID])
+        edited.threshold = "majority"
 
-        let outcome = await model.save(openedBeforeTheVoterSave)
+        let outcome = await model.save(edited)
 
         XCTAssertEqual(outcome, .saved)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.method), [.get, .patch])
         let bodies = await transport.sentBodies
         let body = try XCTUnwrap(bodies.last ?? nil)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
-        XCTAssertEqual(json, ["name": "QA pot 2"])
-        XCTAssertEqual(model.voterChoice, .list([Self.creatorID, Self.jordanID]))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? NSDictionary)
+        XCTAssertEqual(
+            json,
+            ["voter_mode": "list", "voter_ids": [Self.creatorID, Self.jordanID], "threshold": "majority"]
+        )
+    }
+
+    private func saveVoters(_ model: CabalEditModel, _ choice: CabalVoterChoice) async -> CabalEditModel.SaveOutcome {
+        guard var edited = model.settings else { return .unchanged }
+        edited.voters = choice
+        return await model.save(edited)
     }
 }

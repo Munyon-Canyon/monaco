@@ -42,7 +42,7 @@ public struct CabalRulesSummary: Equatable, Sendable {
         switch CabalVoterMode(rawValue: cabal.rules.voterMode) {
         case .everyone: return "Every member"
         case nil: return cabal.rules.voterMode
-        case .justMe:
+        case .picked:
             let voting = cabal.members.filter(\.canVote)
             let creatorID = cabal.creator.userId
             let creatorFirst = voting.filter { $0.userId == creatorID } + voting.filter { $0.userId != creatorID }

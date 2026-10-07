@@ -24,21 +24,21 @@ public enum CabalJoinMode: String, CaseIterable, Identifiable, Sendable {
 
 public enum CabalVoterMode: String, CaseIterable, Identifiable, Sendable {
     case everyone = "all"
-    case justMe = "list"
+    case picked = "list"
 
     public var id: String { rawValue }
 
     public var label: String {
         switch self {
         case .everyone: "Everyone"
-        case .justMe: "Just me"
+        case .picked: "People I pick"
         }
     }
 
     public var caption: String {
         switch self {
         case .everyone: "Every member votes on each proposal."
-        case .justMe: "Only you vote on proposals."
+        case .picked: "Only the people you pick vote."
         }
     }
 }
