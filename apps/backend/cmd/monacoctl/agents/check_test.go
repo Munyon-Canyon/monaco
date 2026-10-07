@@ -164,6 +164,15 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 	return code, stdout.String(), stderr.String()
 }
 
+func (h *checkHarness) mergeBase(t *testing.T, ref string) string {
+	t.Helper()
+	out, err := Exec(context.Background(), h.dir, "", "git", "merge-base", "HEAD", ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func (h *checkHarness) loadOr(def float64) float64 { return cmp.Or(h.load, def) }
 
 func (h *checkHarness) base(t *testing.T, files map[string]string) {
@@ -341,7 +350,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	if code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
-	pr := ".: env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	pr := ".: env BASE_SHA=" + h.mergeBase(t, "origin/fb") + " HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	goTest := h.goTest(
 		t,
 		strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
@@ -374,7 +383,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"scripts: go test -short -count=1 -run ^(TestReadsFoo)$ ./ci",
 		".: python3 -m unittest scripts/test_new.py scripts/test_tool.py",
 		"packages/mobile-core: swift format lint --strict --recursive --parallel ../../apps/mobile .",
-		"packages/mobile-core: swiftlint-ratchet.sh --base origin/fb",
+		"packages/mobile-core: swiftlint-ratchet.sh --base " + h.mergeBase(t, "origin/fb"),
 		"packages/mobile-core: mobile-core-test.sh",
 		".: python3 scripts/qa/journey.py check",
 		".: python3 scripts/qa/test_journey.py",
@@ -500,7 +509,7 @@ func TestCheck_aMissingPinnedToolIsTheFirstRowAndStopsTheRun(t *testing.T) {
 				t.Fatal(err)
 			}
 			code, stdout, stderr := h.check(t)
-			want := "(base origin/fb, parent origin/fb)\n" +
+			want := "(base origin/fb, parent " + h.mergeBase(t, "origin/fb") + ")\n" +
 				"  tools           fail  .bin/" + tool + " missing; run scripts/install-" + tool + ".sh\n" +
 				"log: "
 			if code != 1 || !strings.Contains(stdout, want) || !strings.Contains(stderr, "tools failed; see the log") {
@@ -712,12 +721,12 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 	})
 	h.replies = []reply{{prefix: "gt parent", out: "parent\n"}}
 	code, stdout, stderr := h.check(t)
-	if code != 0 || !strings.Contains(stdout, "(base origin/fb, parent parent)\n") ||
+	if code != 0 || !strings.Contains(stdout, "(base origin/fb, parent "+h.mergeBase(t, "parent")+")\n") ||
 		!strings.Contains(stdout, "  mkdocs          skip  no .venv/bin/mkdocs here or in the main checkout") {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 	spec := filepath.Join(h.stateDir(t, "openapi"), h.head(t)[:12]+".yaml")
-	if size := ".: env BASE_SHA=parent HEAD_SHA=" + h.head(
+	if size := ".: env BASE_SHA=" + h.mergeBase(t, "parent") + " HEAD_SHA=" + h.head(
 		t,
 	) + " PR_LABELS=[] python3 scripts/check-pr-size.py"; !slices.Contains(
 		h.calls,
@@ -745,7 +754,7 @@ func TestCheck_pathRowsRunTheCIStepsForTheirPathsAgainstTheStackParent(t *testin
 	if code, stdout, stderr := h.check(
 		t,
 	); code != 0 ||
-		!strings.Contains(stdout, "(base origin/fb, parent origin/fb)") {
+		!strings.Contains(stdout, "(base origin/fb, parent "+h.mergeBase(t, "origin/fb")+")") {
 		t.Fatalf("mkdocs installed: %d %q %q", code, stdout, stderr)
 	}
 	for _, c := range []string{
@@ -764,7 +773,7 @@ func TestCheck_prRowsStopAnOversizedDiffAndCountGateWarnings(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{"README.md": "hi\n"})
-	pr := "env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	pr := "env BASE_SHA=" + h.mergeBase(t, "origin/fb") + " HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	h.replies = []reply{{
 		prefix: pr + "check-gate-changes.py",
 		out:    "::warning file=a_test.go,line=3::test-skip\n::warning file=b,line=1::gate-file\n",
@@ -776,7 +785,7 @@ func TestCheck_prRowsStopAnOversizedDiffAndCountGateWarnings(t *testing.T) {
 	}
 
 	h.commit(t, map[string]string{"README.md": "hi again\n"})
-	pr = "env BASE_SHA=origin/fb HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
+	pr = "env BASE_SHA=" + h.mergeBase(t, "origin/fb") + " HEAD_SHA=" + h.head(t) + " PR_LABELS=[] python3 scripts/"
 	h.calls, h.replies = nil, []reply{{
 		prefix: pr + "check-pr-size.py", out: "1204 changed lines counted (limit 1000).",
 		err: errors.New("exit status 1"),
@@ -793,7 +802,8 @@ func TestCheck_theOpenAPIRowSkipsOasdiffWhenTheParentHasNoSpec(t *testing.T) {
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
 	h.replies = []reply{{prefix: "gt parent", out: "fb\n"}}
-	if code, stdout, stderr := h.check(t); code != 0 || !strings.Contains(stdout, "parent origin/fb)") ||
+	code, stdout, stderr := h.check(t)
+	if code != 0 || !strings.Contains(stdout, "parent "+h.mergeBase(t, "origin/fb")+")") ||
 		!slices.Contains(h.calls, ".: oasdiff-breaking-test.sh") ||
 		slices.ContainsFunc(h.calls, func(c string) bool { return strings.HasPrefix(c, ".: oasdiff-breaking.sh") }) {
 		t.Fatalf("no parent spec: %d %q %q %v", code, stdout, stderr, h.calls)
@@ -1324,7 +1334,7 @@ func TestCheck_aRestackThatLeavesTheDiffUnchangedCarriesTheStage0Pass(t *testing
 
 	h.calls = nil
 	code, stdout, stderr := h.check(t)
-	want := "stage 0 carried from tree " + oldTree[:12] + " (same diff against origin/fb)\n"
+	want := "stage 0 carried from tree " + oldTree[:12] + " (same diff against " + h.mergeBase(t, "origin/fb") + ")\n"
 	if code != 0 || stdout != want || h.ranRows() {
 		t.Fatalf("carry: %d %q %q calls %v", code, stdout, stderr, h.calls)
 	}
@@ -1379,7 +1389,7 @@ func TestCheck_aRestackThatOnlyRegeneratesFilesCarriesStage0(t *testing.T) {
 	h.commit(t, map[string]string{gen: "v2\n", sqlc: "v2\n"})
 	h.calls = nil
 	code, stdout, stderr := h.check(t)
-	want := "stage 0 carried from tree " + oldTree[:12] + " (same diff against origin/fb)\n" +
+	want := "stage 0 carried from tree " + oldTree[:12] + " (same diff against " + h.mergeBase(t, "origin/fb") + ")\n" +
 		"carry key ignored 2 generated files: " + gen + ", " + sqlc + "\n"
 	if code != 0 || stdout != want || h.ranRows() {
 		t.Fatalf("generated-only change: %d %q %q calls %v", code, stdout, stderr, h.calls)
@@ -1709,14 +1719,14 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 		"apps/backend/internal/modules/system/app.go": "package system\n",
 	})
 	h.commit(t, map[string]string{"packages/flows/app/00.tsv": "id\tscreen\tstatus\tdoc\n"})
-	h.replies = []reply{{prefix: "flows --affected --base origin/fb", out: "00\n"}}
+	h.replies = []reply{{prefix: "flows --affected --base " + h.mergeBase(t, "origin/fb"), out: "00\n"}}
 	code, stdout, stderr := h.check(t)
 	results := filepath.Join(h.stateDir(t, "flows"), h.head(t)[:12]+".json")
 	want := []string{
-		"apps/backend: flows --affected --base origin/fb",
+		"apps/backend: flows --affected --base " + h.mergeBase(t, "origin/fb"),
 		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
 			"^TestFlow(00)_ " + results + " ./internal/modules/system/... ./internal/modules/identity/...",
-		"apps/backend: flows check --affected --base origin/fb --from " + results,
+		"apps/backend: flows check --affected --base " + h.mergeBase(t, "origin/fb") + " --from " + results,
 		"apps/backend: mobile-core-test.sh --filter (F|Flow)(00)[^a-z0-9]",
 	}
 	if code != 0 || !strings.Contains(stdout, "  flows  ") {
@@ -1742,8 +1752,8 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	); !slices.Equal(
 		got,
 		[]string{
-			"apps/backend: flows --affected --base origin/fb",
-			"apps/backend: flows check --affected --base origin/fb",
+			"apps/backend: flows --affected --base " + h.mergeBase(t, "origin/fb"),
+			"apps/backend: flows check --affected --base " + h.mergeBase(t, "origin/fb"),
 		},
 	) {
 		t.Fatalf("no affected flows runs only the structure check: %q", got)
@@ -1844,5 +1854,41 @@ func TestCheck_goTestWritesNoProfileWhenNoSourceChanged(t *testing.T) {
 		if strings.Contains(c, "go test") && strings.Contains(c, "-cover") {
 			t.Fatalf("go test instruments with no changed source: %s", c)
 		}
+	}
+}
+
+func TestCheck_aBaseThatAdvancedPastTheBranchPointIsNotTheParentTheRowsCompareAgainst(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{openAPISpec: "openapi: 3.1.0\n"})
+	branchPoint := h.head(t)
+	h.onPRBranch(t, map[string]string{openAPISpec: "openapi: 3.1.1\n"})
+	h.moveBase(t, map[string]string{openAPISpec: "openapi: 9.9.9\n"})
+	if tip := h.mergeBase(t, "fb"); tip != branchPoint {
+		t.Fatalf("setup: merge base %s, want branch point %s", tip, branchPoint)
+	}
+	code, stdout, stderr := h.check(t)
+	if code != 0 || !strings.Contains(stdout, "parent "+branchPoint+")") {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	legacy := ".: env BASE_SHA=" + branchPoint + " HEAD_SHA=" + h.head(t) +
+		" PR_LABELS=[] python3 scripts/check-legacy-growth.py"
+	if !slices.Contains(h.calls, legacy) {
+		t.Fatalf("legacy growth must see the merge base, want %q in\n%s", legacy, strings.Join(h.calls, "\n"))
+	}
+	spec := filepath.Join(h.stateDir(t, "openapi"), h.head(t)[:12]+".yaml")
+	if b, err := os.ReadFile(spec); err != nil || string(b) != "openapi: 3.1.0\n" {
+		t.Fatalf("the openapi row diffs against the spec at the branch point, got %q %v", b, err)
+	}
+}
+
+func TestCheck_aFailingMergeBaseFallsBackToTheChosenParent(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"README.md": "hi\n"})
+	h.replies = []reply{{prefix: "git merge-base", err: errors.New("no merge base")}}
+	code, stdout, stderr := h.check(t)
+	if code != 0 || !strings.Contains(stdout, "(base origin/fb, parent origin/fb)") {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 }
