@@ -345,7 +345,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	goTest := h.goTest(
 		t,
 		strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
-		"./internal/x",
+		"./internal/x,./cmd/api",
 		"./internal/x",
 		"./internal/t",
 		"./cmd/api",
@@ -1806,7 +1806,7 @@ func TestCheck_theFlowsRowReportsWhatItCannotRead(t *testing.T) {
 	}
 }
 
-func TestCheck_coverpkgListsOnlyPackagesWithChangedSources(t *testing.T) {
+func TestCheck_coverpkgInstrumentsEveryTestedPackage(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.base(t, map[string]string{
@@ -1823,7 +1823,7 @@ func TestCheck_coverpkgListsOnlyPackagesWithChangedSources(t *testing.T) {
 	if code, stdout, stderr := h.check(t); code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
-	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)), "./internal/a",
+	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)), "./internal/a,./internal/b",
 		"./internal/a", "./internal/b", "./internal/c")[0]
 	if !slices.Contains(h.calls, want) {
 		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
