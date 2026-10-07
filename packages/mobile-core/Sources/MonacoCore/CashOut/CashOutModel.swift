@@ -13,6 +13,8 @@ public enum CashOutSubmitResult: Equatable, Sendable {
 public final class CashOutModel {
     public static let pauseHint = "pause_changed"
     public static let inProgress = "A cash out is already running for this cabal."
+    public static let sliceChanged = "Your slice changed. Check the amount and try again."
+    public static let invalidRequest = "Couldn't cash out. Try again."
 
     public private(set) var state: LoadState<CashOutPreview> = .idle
     public private(set) var isSubmitting = false
@@ -89,8 +91,12 @@ public final class CashOutModel {
             return (preview?.pause ?? CabalPause(cause: .ops)).message
         case .cashOutInProgress:
             return Self.inProgress
-        case .priceUnavailable, .invalidInput, .insufficientShares, .privyUnavailable, .rPCUnavailable, .saleShort,
-            .ok, .interrupted, nil:
+        case .potValueChanged, .insufficientShares, .priceUnavailable:
+            await load()
+            return Self.sliceChanged
+        case .invalidInput:
+            return Self.invalidRequest
+        case .privyUnavailable, .rPCUnavailable, .saleShort, .ok, .interrupted, nil:
             return ToastCopy.message(for: error)
         }
     }

@@ -3,6 +3,7 @@ insufficient_funds
 insufficient_shares
 ledger_unbalanced
 payout_failed
+pot_value_changed
 pot_value_zero
 price_unavailable
 sale_short

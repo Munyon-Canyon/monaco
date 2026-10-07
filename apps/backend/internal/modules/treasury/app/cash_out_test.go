@@ -20,8 +20,8 @@ func TestCashOutAmount(t *testing.T) {
 		{CashOut{PayoutMicros: micros(99_999)}, shares(100), shares(100), errs.CodeInvalidInput},
 		{CashOut{PayoutMicros: micros(2_000_000)}, shares(100), shares(100), errs.CodeInsufficientShares},
 		{CashOut{PayoutMicros: micros(100_000)}, shares(1), shares(0), errs.CodeInvalidInput},
-		{CashOut{All: true}, shares(1), shares(1_000_000), errs.CodeInvalidInput},
-		{CashOut{All: true}, shares(0), shares(100), errs.CodeInvalidInput},
+		{CashOut{All: true}, shares(1), shares(1_000_000), errs.CodePotValueChanged},
+		{CashOut{All: true}, shares(0), shares(100), errs.CodePotValueChanged},
 	} {
 		if _, _, err := cashOutAmount(tt.cmd, tt.member, tt.total, micros(1_000_000)); errs.CodeOf(err) != tt.code {
 			t.Fatalf("code = %q, want %q", errs.CodeOf(err), tt.code)

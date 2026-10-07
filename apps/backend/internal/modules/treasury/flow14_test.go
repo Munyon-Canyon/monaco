@@ -92,6 +92,11 @@ func TestFlow14_CashOut_InsufficientShares(t *testing.T) {
 	flows.F14CashOutInsufficientShares(flow14(t))
 }
 
+func TestFlow14_CashOut_PotValueChanged(t *testing.T) {
+	t.Parallel()
+	flows.F14CashOutPotValueChanged(flow14(t))
+}
+
 func TestFlow14_CashOut_CashOutInProgress(t *testing.T) {
 	t.Parallel()
 	flows.F14CashOutCashOutInProgress(flow14(t))

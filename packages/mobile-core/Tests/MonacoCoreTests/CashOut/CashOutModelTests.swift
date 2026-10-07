@@ -109,9 +109,26 @@ final class CashOutModelTests: XCTestCase {
         XCTAssertEqual(result, .refused("A cash out is already running for this cabal."))
     }
 
-    func testPriceUnavailableShowsTheServerMessage() async throws {
-        let result = try await refusal(.priceUnavailable, "Prices are catching up. Try again in a moment.")
-        XCTAssertEqual(result, .refused("Prices are catching up. Try again in a moment."))
+    func testAMovedSliceReloadsThePreviewAndShowsTheProductCopy() async throws {
+        for code in [Components.Schemas.ErrorCode.potValueChanged, .insufficientShares, .priceUnavailable] {
+            let transport = StubTransport(scripted: [
+                try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
+                try problem(code, status: 409, "server copy"),
+                try Self.json(.ok, Components.Schemas.CashOutPreview.sampleNoStake),
+            ])
+            let model = makeModel(transport)
+            await model.load()
+
+            let result = await model.submit(enteredMicros: 1_000_000)
+
+            XCTAssertEqual(result, .refused("Your slice changed. Check the amount and try again."), "\(code)")
+            XCTAssertEqual(model.preview?.hasStake, false, "\(code)")
+        }
+    }
+
+    func testInvalidInputShowsTheProductCopyWithoutReloading() async throws {
+        let result = try await refusal(.invalidInput, "The request is not valid.")
+        XCTAssertEqual(result, .refused("Couldn't cash out. Try again."))
     }
 
     func testAPausedPreviewSubmitsNothing() async throws {

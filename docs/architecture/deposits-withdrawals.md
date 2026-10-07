@@ -148,6 +148,8 @@ Behavior unchanged for the user. Both are rebuilt in Rollout step 5. A banned or
 
 [Flow 14](backend-platform.md#flows), `treasury` module: `CashOut` burns the member's share units, sells holdings if the treasury is short on USDC, and pays USDC to the member wallet, where it is platform balance again. Events `cashout.started`, then `cashout.completed`, `cashout.partial` or `cashout.failed`. Cash out is refused with `CabalPaused` while the cabal is paused, but not because the member is banned. The route is `POST /v1/cabals/{id}/cashouts` with an `Idempotency-Key` ([`cabal` naming](backend-platform.md#decided)).
 
+Flow 14 start errors: `invalid_input` means a malformed request (both `all` and `usdc_micros`, `all: false`, or an amount under the minimum payout). `pot_value_changed` (409, retryable) means the pot moved since the preview: in-flight cash-out reservations exceed the live pot, or the whole stake no longer clears the minimum payout. The app reloads the preview and asks the member to check the amount. `insufficient_shares`, `price_unavailable` and `cash_out_in_progress` are unchanged.
+
 ### Withdraw
 
 [Flow 15](backend-platform.md#flows), `funding` module: `Withdraw` sends platform balance to any Solana address the user pastes, from `POST /v1/me/withdrawals` with an `Idempotency-Key`. Events `withdrawal.submitted`, then `withdrawal.confirmed` or `withdrawal.failed`. These replace `withdrawal.sent` in [event-bus.md](event-bus.md#who-publishes-who-subscribes). `treasury` consumes `withdrawal.confirmed` and writes the `user_txns` withdrawal entry.

@@ -212,8 +212,22 @@ func F14CashOutOK(s *scenario.Scenario) {
 
 func F14CashOutInvalidInput(s *scenario.Scenario) {
 	s.Given(f14Staked("invalid")...).
-		When(scenario.Post(cashOutsPath, cashOutOf("99999"))).
+		When(scenario.Post(cashOutsPath, `{"all":true,"usdc_micros":"1000000"}`)).
 		Then(append(cashOutRefused(errs.CodeInvalidInput), sharesHeld("2000000"))...)
+}
+
+func F14CashOutPotValueChanged(s *scenario.Scenario) {
+	s.Given(append(f14Staked("potmoved"), func(s *scenario.Scenario) {
+		now := time.Now().UTC()
+		if _, err := s.DB().Exec(s.Context(), `INSERT INTO cash_out_jobs
+			(id, cabal_id, user_id, share_units, payout_micros, slice_micros, status, created_at, updated_at)
+			VALUES (gen_random_uuid(), $1, gen_random_uuid(), 1, $2, $2, 'started', $3, $3)`,
+			s.Recall("cabal"), f14Stake+1, now); err != nil {
+			s.Fatalf("flows: reserve another member's cash out: %v", err)
+		}
+	})...).
+		When(scenario.Post(cashOutsPath, cashOutOf("1000000"))).
+		Then(append(cashOutRefused(errs.CodePotValueChanged), sharesHeld("2000000"))...)
 }
 
 func F14CashOutInsufficientShares(s *scenario.Scenario) {
