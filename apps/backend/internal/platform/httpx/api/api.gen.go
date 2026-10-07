@@ -37,6 +37,7 @@ const (
 	CabalPaused ErrorCode = "cabal_paused"
 	CabalStillPaused ErrorCode = "cabal_still_paused"
 	CalendarExpired ErrorCode = "calendar_expired"
+	CannotBlockSelf ErrorCode = "cannot_block_self"
 	CannotFollowSelf ErrorCode = "cannot_follow_self"
 	CannotRevokeAccess ErrorCode = "cannot_revoke_access"
 	CashOutInProgress ErrorCode = "cash_out_in_progress"
@@ -62,6 +63,7 @@ const (
 	Faultpoint ErrorCode = "faultpoint"
 	FeedItemNotFound ErrorCode = "feed_item_not_found"
 	FeedItemPending ErrorCode = "feed_item_pending"
+	FollowBlocked ErrorCode = "follow_blocked"
 	Forbidden ErrorCode = "forbidden"
 	FundExpired ErrorCode = "fund_expired"
 	FundNotSent ErrorCode = "fund_not_sent"
@@ -124,6 +126,7 @@ const (
 	ReferralSelf ErrorCode = "referral_self"
 	ReferralWindowClosed ErrorCode = "referral_window_closed"
 	RelayerUnderfunded ErrorCode = "relayer_underfunded"
+	ReportTargetNotFound ErrorCode = "report_target_not_found"
 	RequestNotNeeded ErrorCode = "request_not_needed"
 	RequestPending ErrorCode = "request_pending"
 	RpcUnavailable ErrorCode = "rpc_unavailable"
@@ -209,6 +212,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case CalendarExpired:
 		return true
+	case CannotBlockSelf:
+		return true
 	case CannotFollowSelf:
 		return true
 	case CannotRevokeAccess:
@@ -258,6 +263,8 @@ func (e ErrorCode) Valid() bool {
 	case FeedItemNotFound:
 		return true
 	case FeedItemPending:
+		return true
+	case FollowBlocked:
 		return true
 	case Forbidden:
 		return true
@@ -382,6 +389,8 @@ func (e ErrorCode) Valid() bool {
 	case ReferralWindowClosed:
 		return true
 	case RelayerUnderfunded:
+		return true
+	case ReportTargetNotFound:
 		return true
 	case RequestNotNeeded:
 		return true

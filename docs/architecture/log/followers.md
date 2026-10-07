@@ -8,3 +8,4 @@ Dated record of changes to [followers.md](../followers.md). Add one line per cha
 - 2026-09-26: Outbox rows replaced by `events` rows delivered over the NATS event bus ([event-bus.md](../event-bus.md)).
 - 2026-09-26: Initial decision. Single `follows` table, soft unfollow, denormalized counts on users.
 - 2026-10-02: Decided: `social` has no `follow.*` consumer for the MVP. The feed reads `follows` directly, so the flow 20 consumers are `notify` and `analytics`.
+- 2026-10-07: Added [Blocks and reports](../followers.md#blocks-and-reports) for App Store guideline 1.2. `user_blocks` and `reports` belong to `social`, flow 20a. A block removes the follow both ways, refuses new follows in either direction and hides the blocked user's chat and comments from the blocker in SQL; unblock hard-deletes the row and `block.removed` is the record. A report dedupes per open target; resolving waits for #708.

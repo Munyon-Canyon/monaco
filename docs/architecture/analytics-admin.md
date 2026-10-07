@@ -153,7 +153,7 @@ The `admin` module lands in [Rollout](backend-platform.md#rollout) step 6. The t
 - Dashboards: the business metrics above.
 - Lookups: user (profile, `auth_state` history, cabals, balances, recent actions), cabal (members, pot, holdings, proposals, pause state, external deposits), proposal (votes, comments, linked transaction), transaction (signature, explorer link, status history).
 - Queues: external deposits pending bounce, stuck transactions, unpublished `events` rows older than 30 s, and dead letters (flow 27). `bus.Dispatch` writes a termed message and its error `code` to the `DEADLETTER` stream, and the `admin` module records each one in its `dead_letters` table with a resolve state (default 2026-09-27), so the queue outlives the stream's 30-day `MaxAge` ([NATS hosting and budget](backend-platform.md#nats-hosting-and-budget)). The redrive button runs the same path as `monacoctl deadletter retry`, back through `bus.Dispatch`, so `event_deliveries` still dedupes, and marks the row resolved when the redriven message is acked.
-- User-facing reporting of comments, proposals and users, and its moderation queue, is deferred past launch (default 2026-09-27).
+- User-facing reporting of messages, comments, users and cabals is `POST /v1/reports` and the moderation queue is `GET /v1/admin/reports` ([followers.md](followers.md#blocks-and-reports)); resolving a report waits for the admin panel (#708).
 
 ### Build
 

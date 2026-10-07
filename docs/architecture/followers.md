@@ -62,7 +62,46 @@ Defaults 2026-09-27:
 
 - **Users only.** There are no cabal follows in MVP. If they come, they get a separate `cabal_follows` table with the same shape, not a polymorphic column here.
 - **No private accounts.** Follows are instant; there are no follow requests.
-- **Blocking ships with comment moderation** ([feed.md](feed.md#comments)). A block removes the follow both ways and hides the blocked user's content. It is built in the same wave as reporting and admin removal, not before.
+- **Blocking and reporting ship together** ([Blocks and reports](#blocks-and-reports)). A block removes the follow both ways and hides the blocked user's content.
+
+## Blocks and reports
+
+App Store guideline 1.2 requires an app with user content to let people report objectionable content and block abusive users. Monaco has user content in chat, comments, display names and profile photos, and review rejects a build without both, so they ship now. The `social` module owns them, flow 20a, because it owns follows, chat and comments.
+
+```sql
+CREATE TABLE user_blocks (
+  id         uuid PRIMARY KEY,                        -- UUIDv7, the aggregate id of block.* events
+  blocker_id uuid NOT NULL,
+  blocked_id uuid NOT NULL,
+  created_at timestamptz NOT NULL,
+  UNIQUE (blocker_id, blocked_id),
+  CHECK (blocker_id <> blocked_id)
+);
+CREATE INDEX user_blocks_blocked_idx ON user_blocks (blocked_id);
+
+CREATE TABLE reports (
+  id          uuid PRIMARY KEY,
+  reporter_id uuid NOT NULL,
+  kind        text NOT NULL CHECK (kind IN ('message', 'comment', 'user', 'cabal')),
+  target_id   uuid NOT NULL,
+  reason      text NOT NULL CHECK (reason IN ('spam', 'abuse', 'other')),
+  note        text CHECK (char_length(note) <= 500),
+  status      text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+  created_at  timestamptz NOT NULL
+);
+CREATE UNIQUE INDEX reports_open_once_idx ON reports (reporter_id, kind, target_id) WHERE status = 'open';
+CREATE INDEX reports_open_idx ON reports (created_at, id) WHERE status = 'open';
+```
+
+Rules:
+
+- **Block** `POST /v1/users/{id}/block` runs `BlockUser` in one `uow.Do`. It removes the follow both ways, appending `follow.removed` for each live row, then appends `block.created`. A repeat appends nothing. A banned or suspended user can be blocked; an unknown or deleted one answers `UserNotFound`, and blocking yourself answers `CannotBlockSelf`.
+- **Unblock** `DELETE /v1/users/{id}/block` hard-deletes the row and appends `block.removed`, which keeps the history. A block is not user content, like `chat_seen`. No follow is restored.
+- **Follow** refuses a pair that has a block in either direction with `FollowBlocked` (403).
+- **Hiding** is a predicate in the module's own SQL, so pages and cursors stay exact: the blocker no longer sees the blocked user's chat messages or comments, and a third member still does. `comment_count` and `reply_count` keep counting hidden rows. The feed, mentions, follower lists and leaderboards are unchanged.
+- **Profile** `GET /v1/users/{id}` carries `blocked_by_me`. It says nothing about whether the viewed user blocked the viewer.
+- **Report** `POST /v1/reports` takes a `kind` (message, comment, user or cabal), a `target_id`, a `reason` and an optional note of at most 500 characters. A target that is missing answers `ReportTargetNotFound`. A repeat on the same open target returns the same id and appends nothing. `report.created` carries no note text.
+- **Queue** `GET /v1/admin/reports` lists reports oldest first for a `moderator` admin. Resolving a report is not built; it waits for the admin panel (#708).
 
 ## Notifications
 

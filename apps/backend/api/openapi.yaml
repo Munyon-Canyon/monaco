@@ -4360,6 +4360,7 @@ components:
         - cabal_paused
         - cabal_still_paused
         - calendar_expired
+        - cannot_block_self
         - cannot_follow_self
         - cannot_revoke_access
         - cash_out_in_progress
@@ -4385,6 +4386,7 @@ components:
         - faultpoint
         - feed_item_not_found
         - feed_item_pending
+        - follow_blocked
         - forbidden
         - fund_expired
         - fund_not_sent
@@ -4447,6 +4449,7 @@ components:
         - referral_self
         - referral_window_closed
         - relayer_underfunded
+        - report_target_not_found
         - request_not_needed
         - request_pending
         - rpc_unavailable
