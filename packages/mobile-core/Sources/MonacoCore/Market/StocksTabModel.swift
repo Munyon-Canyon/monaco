@@ -5,12 +5,18 @@ import Observation
 @Observable
 @MainActor
 public final class StocksTabModel {
-    public enum Browse: Equatable, Sendable { case popular, preIpo }
-    public enum Section: Equatable, Sendable {
-        case popular, preIpo, all, search
+    public enum Browse: CaseIterable, Hashable, Sendable {
+        case all, popular, preIpo
 
-        fileprivate static let loaded: [Self] = [.popular, .preIpo, .all]
+        public var title: String {
+            switch self {
+            case .all: "All"
+            case .popular: "Popular"
+            case .preIpo: "Pre-IPO"
+            }
+        }
     }
+    public enum Section: Equatable, Sendable { case popular, preIpo, all, search }
     public enum Phase: Equatable, Sendable {
         case idle, loading, loaded
         case failed(APIError)
@@ -31,13 +37,11 @@ public final class StocksTabModel {
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
     public private(set) var isLoadingMore = false
-    public private(set) var browse: Browse = .popular
+    public private(set) var browse: Browse = .all
     public var rows: [MarketAsset] { isSearching ? search.rows : self[browsedSection].rows }
     public var phase: Phase { isSearching ? search.phase : self[browsedSection].phase }
-    public var nextCursor: String? { all.nextCursor }
+    public var nextCursor: String? { self[isSearching ? .search : browsedSection].nextCursor }
     public var hasMore: Bool { nextCursor != nil }
-    public var displayedHasMore: Bool { self[isSearching ? .search : browsedSection].nextCursor != nil }
-    public var held: [MarketAsset] { [] }
     public var isSearching: Bool { !Self.trimmed(query).isEmpty }
     public var loadMoreFailed: Bool { false }
     public var refreshFailed: Bool { lastError != nil }
@@ -62,17 +66,13 @@ public final class StocksTabModel {
         let issued = generation
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
-        if isSearching {
-            await replace(.search, issued: issued)
-            return
-        }
-        for section in Section.loaded { await replace(section, issued: issued) }
+        await replace(isSearching ? .search : browsedSection, issued: issued)
     }
     public func show(_ next: Browse) async {
         searchTask?.cancel()
         searchTask = nil
         browse = next
-        query = ""
+        if isSearching { search = .init(phase: .loading) }
         await load()
     }
     public func setQuery(_ text: String) {
@@ -98,10 +98,6 @@ public final class StocksTabModel {
         }
     }
     public func loadMore() async {
-        guard !isSearching else { return }
-        await loadMore(.all)
-    }
-    public func loadMoreDisplayed() async {
         await loadMore(isSearching ? .search : browsedSection)
     }
     private func loadMore(_ section: Section) async {
@@ -129,11 +125,7 @@ public final class StocksTabModel {
         let issued = generation
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
-        if isSearching {
-            await refresh(.search, issued: issued)
-            return
-        }
-        for section in Section.loaded { await refresh(section, issued: issued) }
+        await refresh(isSearching ? .search : browsedSection, issued: issued)
     }
     private func replace(_ section: Section?, issued: Int) async {
         guard issued == generation else { return }
@@ -165,13 +157,11 @@ public final class StocksTabModel {
     }
     private func page(_ section: Section?, cursor: String?) async throws -> MarketAssetPage {
         let searchQuery = section == .search ? Self.trimmed(query) : nil
-        let filter: Operations.GetAssets.Input.Query.FilterPayload? =
-            switch section {
+        let filter: Operations.GetAssets.Input.Query.FilterPayload =
+            switch browse {
+            case .all: .all
             case .popular: .popular
             case .preIpo: .preIpo
-            case .all: .all
-            case .search: nil
-            case nil: nil
             }
         let list = try await api.read { client in
             try await client.getAssets(
@@ -185,6 +175,7 @@ public final class StocksTabModel {
     }
     private var browsedSection: Section {
         switch browse {
+        case .all: .all
         case .popular: .popular
         case .preIpo: .preIpo
         }

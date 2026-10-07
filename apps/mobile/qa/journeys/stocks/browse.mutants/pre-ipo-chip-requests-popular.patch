@@ -1,0 +1,19 @@
+journey: stocks/browse
+expect-fail: S1
+
+The Pre-IPO chip requests filter=popular. S1.4 expects Journey Private and not Journey Alpha under Pre-IPO, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift b/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift
+index 3216cfc6e..fd537b4f4 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Market/StocksTabModel.swift
+@@ -161,7 +161,7 @@ public final class StocksTabModel {
+             switch browse {
+             case .all: .all
+             case .popular: .popular
+-            case .preIpo: .preIpo
++            case .preIpo: .popular
+             }
+         let list = try await api.read { client in
+             try await client.getAssets(

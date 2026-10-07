@@ -9,13 +9,7 @@ final class StocksTabRefreshTests: XCTestCase {
     func testPriceHintsAndResyncRefreshButOtherGlobalHintsDoNot() async {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbols: ["AAPLx"], price: "100000000", change: "1000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["SPACEx"], price: "100000000", change: "1000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["AAPLx"], price: "100000000", change: "1000", cursor: nil)),
             .json(.ok, Self.page(symbols: ["AAPLx"], price: "200000000", change: "2000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["SPACEx"], price: "200000000", change: "2000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["AAPLx"], price: "200000000", change: "2000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["AAPLx"], price: "300000000", change: "3000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["SPACEx"], price: "300000000", change: "3000", cursor: nil)),
             .json(.ok, Self.page(symbols: ["AAPLx"], price: "300000000", change: "3000", cursor: nil)),
         ])
         let hints = FakeHintStream()
@@ -31,31 +25,27 @@ final class StocksTabRefreshTests: XCTestCase {
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.global, what: "prices_updated", id: "1"))
-        let priceRefreshed = await waitUntil { await transport.sent.count == 6 }
+        let priceRefreshed = await waitUntil { await transport.sent.count == 2 }
         let priceRequests = await transport.sent.count
         XCTAssertTrue(priceRefreshed)
-        XCTAssertEqual(priceRequests, 6)
+        XCTAssertEqual(priceRequests, 2)
 
         await hints.send(.resync)
-        let resynced = await waitUntil { await transport.sent.count == 9 }
+        let resynced = await waitUntil { await transport.sent.count == 3 }
         let resyncRequests = await transport.sent.count
         XCTAssertTrue(resynced)
-        XCTAssertEqual(resyncRequests, 9)
+        XCTAssertEqual(resyncRequests, 3)
 
         await hints.send(.changed(.global, what: "other", id: "2"))
         for _ in 0..<10 { await Task.yield() }
         let otherRequests = await transport.sent.count
-        XCTAssertEqual(otherRequests, 9)
+        XCTAssertEqual(otherRequests, 3)
     }
 
     func testPriceRefreshPreventsPaginationUntilItsPagesFinish() async {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbols: ["AAPLx"], price: "100000000", change: "1000", cursor: "page-2")),
-            .json(.ok, Self.page(symbols: ["SPACEx"], price: "100000000", change: "1000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["AAPLx"], price: "100000000", change: "1000", cursor: "page-2")),
             .gate,
-            .json(.ok, Self.page(symbols: ["SPACEx"], price: "200000000", change: "2000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["AAPLx"], price: "200000000", change: "2000", cursor: "page-2")),
         ])
         let hints = FakeHintStream()
         let model = StocksTabModel(
@@ -69,11 +59,11 @@ final class StocksTabRefreshTests: XCTestCase {
         _ = await waitUntil { await hints.subscriberCount == 1 }
 
         await hints.send(.changed(.global, what: "prices_updated", id: "1"))
-        let refreshStarted = await waitUntil { await transport.sent.count == 4 }
+        let refreshStarted = await waitUntil { await transport.sent.count == 2 }
         XCTAssertTrue(refreshStarted)
         await model.loadMore()
         let requestsDuringRefresh = await transport.sent.count
-        XCTAssertEqual(requestsDuringRefresh, 4)
+        XCTAssertEqual(requestsDuringRefresh, 2)
 
         await transport.releaseGate(
             .json(.ok, Self.page(symbols: ["AAPLx"], price: "200000000", change: "2000", cursor: "page-2")))
@@ -86,12 +76,8 @@ final class StocksTabRefreshTests: XCTestCase {
     func testPriceHintsRefreshEveryLoadedPagePastTwentyRows() async throws {
         let firstPage = (1...20).map { "S\($0)x" }
         let transport = StubTransport(scripted: [
-            .json(.ok, Self.page(symbols: ["AAPLx"], price: "100000000", change: "1000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["SPACEx"], price: "100000000", change: "1000", cursor: nil)),
             .json(.ok, Self.page(symbols: firstPage, price: "100000000", change: "1000", cursor: "page-2")),
             .json(.ok, Self.page(symbols: ["LASTx"], price: "100000000", change: "1000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["AAPLx"], price: "200000000", change: "2000", cursor: nil)),
-            .json(.ok, Self.page(symbols: ["SPACEx"], price: "200000000", change: "2000", cursor: nil)),
             .json(.ok, Self.page(symbols: firstPage, price: "200000000", change: "2000", cursor: "page-2")),
             .json(.ok, Self.page(symbols: ["LASTx"], price: "200000000", change: "2000", cursor: nil)),
         ])
@@ -123,7 +109,7 @@ final class StocksTabRefreshTests: XCTestCase {
         XCTAssertEqual(laterPage.changeBasisPoints, 2000)
         XCTAssertEqual(laterPage.sparkline?.heights.last, 1)
         let requests = await transport.sent.count
-        XCTAssertEqual(requests, 8)
+        XCTAssertEqual(requests, 4)
     }
 
     private func waitUntil(_ predicate: @escaping () async -> Bool) async -> Bool {

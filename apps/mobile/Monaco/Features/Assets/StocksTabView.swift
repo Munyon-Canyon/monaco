@@ -31,7 +31,7 @@ struct StocksTabView: View {
 
     private func start() async {
         let model = preparedModel()
-        if model.popular.rows.isEmpty && model.preIpo.rows.isEmpty && model.all.rows.isEmpty { await model.load() }
+        if model.rows.isEmpty { await model.load() }
         await model.observe()
     }
 
@@ -61,6 +61,12 @@ private struct StocksTabScreen: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             MonacoSearchField(placeholder: "Search Apple, Tesla, NVDA…", text: $query)
                 .padding(.horizontal, MonacoTheme.Space.m)
+            MonacoChipBar(
+                items: MonacoCore.StocksTabModel.Browse.allCases, selected: model.browse, title: \.title,
+                identifierPrefix: "stocks-chip"
+            ) { browse in
+                Task { await model.show(browse) }
+            }
             ScrollView { content }
                 .refreshable { await model.load() }
                 .accessibilityIdentifier(model.isSearching ? "assets-grid-search" : "assets-grid")
@@ -73,58 +79,27 @@ private struct StocksTabScreen: View {
     }
 
     @ViewBuilder private var content: some View {
-        if model.isSearching {
-            search
-        } else if hasRows || hasPendingSections {
-            section("Popular", state: model.popular)
-            section("Pre-IPO", state: model.preIpo)
-            section("All stocks", state: model.all, loadsMore: true)
-        } else if hasFailure {
-            EmptyState(title: "Couldn't load stocks.", actionTitle: "Try again") { Task { await model.load() } }
-                .accessibilityIdentifier("assets-failed")
+        if !model.rows.isEmpty {
+            rows(model.rows, loadsMore: model.hasMore)
         } else {
-            EmptyState(title: "No stocks to show")
-        }
-    }
-
-    private var sections: [MonacoCore.StocksTabModel.SectionState] { [model.popular, model.preIpo, model.all] }
-    private var hasRows: Bool { sections.contains { !$0.rows.isEmpty } }
-    private var hasPendingSections: Bool { sections.contains { $0.phase == .idle || $0.phase == .loading } }
-    private var hasFailure: Bool { sections.contains { if case .failed = $0.phase { true } else { false } } }
-
-    @ViewBuilder private var search: some View {
-        if !model.search.rows.isEmpty {
-            rows(model.search.rows, loadsMore: model.displayedHasMore)
-        } else {
-            switch model.search.phase {
-            case .loading:
+            switch model.phase {
+            case .idle, .loading:
                 BoardRowSkeleton()
             case .failed:
                 EmptyState(title: "Couldn't load stocks.", actionTitle: "Try again") { Task { await model.load() } }
-            default:
-                Text("No stocks match “\(query)”")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, MonacoTheme.Space.xl)
-                    .accessibilityIdentifier("assets-search-empty")
+                    .accessibilityIdentifier("assets-failed")
+            case .loaded:
+                if model.isSearching {
+                    Text("No stocks match “\(query)”")
+                        .font(MonacoTheme.Typo.body)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, MonacoTheme.Space.xl)
+                        .accessibilityIdentifier("assets-search-empty")
+                } else {
+                    EmptyState(title: "No stocks to show")
+                }
             }
-        }
-    }
-
-    @ViewBuilder private func section(
-        _ title: String, state: MonacoCore.StocksTabModel.SectionState, loadsMore: Bool = false
-    )
-        -> some View
-    {
-        if !state.rows.isEmpty {
-            MonacoSectionHeader(title).padding(.horizontal, MonacoTheme.Space.m)
-            rows(state.rows, loadsMore: loadsMore)
-        } else if state.phase == .loading {
-            MonacoSectionHeader(title).padding(.horizontal, MonacoTheme.Space.m)
-            BoardRowSkeleton()
-        } else {
-            EmptyView()
         }
     }
 
@@ -141,9 +116,7 @@ private struct StocksTabScreen: View {
                     .accessibilityIdentifier("assets-row-\(asset.symbol)")
                     .onAppear {
                         guard loadsMore, asset.id == assets.last?.id else { return }
-                        Task {
-                            if model.isSearching { await model.loadMoreDisplayed() } else { await model.loadMore() }
-                        }
+                        Task { await model.loadMore() }
                     }
                 }
             }
@@ -243,20 +216,28 @@ private struct StocksSectionsSampleView: View {
     private let popular = MarketMapping.asset(.googl)
     private let preIpo = MarketMapping.asset(.spaceX)
     private let all = MarketMapping.asset(.unpriced)
+    @State private var browse = MonacoCore.StocksTabModel.Browse.all
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                MonacoSectionHeader("Popular").padding(.horizontal, MonacoTheme.Space.m)
-                sampleRows([popular])
-                MonacoSectionHeader("Pre-IPO").padding(.horizontal, MonacoTheme.Space.m)
-                sampleRows([preIpo])
-                MonacoSectionHeader("All stocks").padding(.horizontal, MonacoTheme.Space.m)
-                sampleRows([popular, all])
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                MonacoChipBar(
+                    items: MonacoCore.StocksTabModel.Browse.allCases, selected: browse, title: \.title,
+                    identifierPrefix: "stocks-chip"
+                ) { browse = $0 }
+                ScrollView { sampleRows(rowsForBrowse) }
             }
             .navigationTitle(StocksTab.title)
             .navigationBarTitleDisplayMode(.large)
             .monacoCanvas()
+        }
+    }
+
+    private var rowsForBrowse: [MarketAsset] {
+        switch browse {
+        case .all: [popular, preIpo, all]
+        case .popular: [popular]
+        case .preIpo: [preIpo]
         }
     }
 

@@ -21,7 +21,7 @@ struct StocksTabLoadTests {
         let window = try Self.window(hosting: StocksTabView(makeModel: { _ in model }))
         defer { window.isHidden = true }
 
-        await Self.until { model.popular.phase != .idle && model.popular.phase != .loading }
+        await Self.until { model.all.phase != .idle && model.all.phase != .loading }
 
         let paths = await transport.sent.map { URLComponents(string: $0.path ?? "")?.path }
         #expect(paths.first == "/v1/assets")
