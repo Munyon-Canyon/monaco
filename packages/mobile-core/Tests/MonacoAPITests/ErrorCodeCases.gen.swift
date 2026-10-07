@@ -49,6 +49,7 @@ extension Components.Schemas.ErrorCode {
         case .contactHashesInvalid: true
         case .dbSchemaBehind: true
         case .dbUnavailable: true
+        case .deadLetterNotOpen: true
         case .decodeFailed: true
         case .displayNameInvalid: true
         case .dust: true

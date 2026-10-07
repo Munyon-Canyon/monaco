@@ -3528,6 +3528,7 @@ components:
         - contact_hashes_invalid
         - db_schema_behind
         - db_unavailable
+        - dead_letter_not_open
         - decode_failed
         - display_name_invalid
         - dust

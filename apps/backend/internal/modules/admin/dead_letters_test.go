@@ -84,10 +84,15 @@ func (f *letterFixture) put(t *testing.T, letter bus.DeadLetter) {
 
 func (f *letterFixture) termLetter(event uuid.UUID, code string) bus.DeadLetter {
 	return bus.DeadLetter{
-		Consumer: "analytics", Handler: "analytics.posthog.follow.created", Subject: "events.follow.created",
-		MsgID: event.String(), Delivery: 1, Code: code, Error: "posthog.Capture: " + code,
-		Headers: map[string][]string{"Nats-Msg-Id": {event.String()}},
-		Data:    json.RawMessage(`{"follower_id":"x"}`),
+		Consumer: "analytics",
+		Handler:  "analytics.posthog.follow.created",
+		Subject:  f.bus.Conn.Subject("events.follow.created"),
+		MsgID:    event.String(),
+		Delivery: 1,
+		Code:     code,
+		Error:    "posthog.Capture: " + code,
+		Headers:  map[string][]string{"Nats-Msg-Id": {event.String()}},
+		Data:     json.RawMessage(`{"follower_id":"x"}`),
 	}
 }
 

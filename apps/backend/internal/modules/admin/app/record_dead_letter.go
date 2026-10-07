@@ -24,6 +24,8 @@ import (
 const (
 	DeadLettersDurable = "admin_deadletters"
 	deadLettersBatch   = 100
+	statusOpen         = "open"
+	statusRedriven     = "redriven"
 	statusResolved     = "resolved"
 )
 
