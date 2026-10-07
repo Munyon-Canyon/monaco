@@ -120,6 +120,17 @@ func blocker(stack []stackPR) string {
 }
 
 func (env *Env) landArmed(ctx context.Context, r Record, reran map[int64]int) []string {
+	fresh, err := env.localRecord(r.Ticket)
+	if err != nil {
+		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", r.Armed.Top), err)}
+	}
+	if fresh.Armed == nil || !fresh.Armed.At.Equal(r.Armed.At) {
+		return nil
+	}
+	return env.landFresh(ctx, fresh, reran)
+}
+
+func (env *Env) landFresh(ctx context.Context, r Record, reran map[int64]int) []string {
 	top := r.Armed.Top
 	var out strings.Builder
 	stack, dir, err := env.stackOf(ctx, r, top, &out)

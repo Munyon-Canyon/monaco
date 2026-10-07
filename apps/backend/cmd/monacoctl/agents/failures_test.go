@@ -299,12 +299,12 @@ func TestWatch_readsEveryCheckAndTheNewestRunOfEach(t *testing.T) {
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":{"repository":{`+
 		`"c0":`+rollup(ciOK("SUCCESS", 3), `{"name":"ci / Flake","conclusion":"SUCCESS","completedAt":"2026-09-29T11:03:00Z"}`)+
 		`,"c1":`+rollup(ciOK("FAILURE", 3), lintJob)+`}}}`)
-	failed, _, err := f.Env(t).failures(context.Background(), nil)
+	failed, err := f.failures(t)
 	if err != nil || len(failed) != 1 || failed[0].PR != 6 || failed[0].Job.DatabaseID != 12 {
 		t.Fatalf("%+v %v", failed, err)
 	}
 	f.hub.onQuery(`c1: object(oid:\"h6\")`, `{"data":null,"errors":[{"message":"rate limited"}]}`)
-	if _, _, err := f.Env(t).failures(context.Background(), nil); cliText(err) != "graphql: rate limited" {
+	if _, err := f.failures(t); cliText(err) != "graphql: rate limited" {
 		t.Fatal(err)
 	}
 }
@@ -316,6 +316,16 @@ func failureData(nodes ...string) string {
 func draftData(drafts []string, nodes ...string) string {
 	return `{"data":{"repository":{"pullRequests":{"nodes":[` + strings.Join(nodes, ",") + `]},` +
 		`"drafts":{"nodes":[` + strings.Join(drafts, ",") + `]}}}}`
+}
+
+func (f *fixture) failures(t *testing.T) ([]failure, error) {
+	t.Helper()
+	env := f.Env(t)
+	data, err := env.watchData(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return env.failures(context.Background(), nil, data)
 }
 
 func (f *fixture) noFailures() { f.hub.on(graphqlRoute, failureData()) }
@@ -641,8 +651,9 @@ func TestWatch_failuresSurfaceStateQueryAndRecordErrors(t *testing.T) {
 	env := f.Env(t)
 	state := env.statePath("watch", lastRunState)
 	writeFile(t, state, "yesterday\n")
+	f.noFailures()
 	read := func() error {
-		_, _, err := env.failures(context.Background(), nil)
+		_, err := f.failures(t)
 		return err
 	}
 	if err := read(); err == nil || !strings.Contains(err.Error(), "parse watch") {

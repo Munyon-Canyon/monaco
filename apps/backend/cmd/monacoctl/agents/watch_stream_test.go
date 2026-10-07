@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1010,6 +1011,57 @@ func TestWatch_flagsAGreenTopOfAnOwnedStackThatIsNotArmedOnEveryPass(t *testing.
 	_, stdout, _ := f.agents(t, "watch", "--once")
 	if !strings.Contains(stdout, want+"\n") {
 		t.Fatalf("once:\n%s", stdout)
+	}
+}
+
+func TestWatchStream_readsOwnerRecordsAfterTheGitHubData(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	rec := Record{Ticket: 1955, Branch: "b1957", Worktree: "/w/1955", State: Exited}
+	f.owner(t, rec)
+	f.hub.on(graphqlRoute, failureData(
+		watchNode(1957, "fb", rollup(greenOK), ""),
+		watchNode(1958, "b1957", rollup(greenOK), ""),
+	))
+	var once sync.Once
+	f.hub.hook = func(_, path, _ string, _ int) {
+		if path != "/graphql" {
+			return
+		}
+		once.Do(func() {
+			rec.Armed = &Arm{Top: 1958, PRs: []int{1957, 1958}, At: f.now}
+			if err := f.Env(t).saveRecord(rec); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	out := streamRounds(t, f, 1, func(int) {})
+	if strings.Contains(out, "green but not armed") {
+		t.Fatalf("stale record judged against newer PR state:\n%s", out)
+	}
+}
+
+func TestLandArmed_ignoresAStaleArmedCopyOfAQueuedRecord(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	setRuns(f, "b2-oid", Run{ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "success", Attempt: 1})
+	stale := f.owned(t)
+	queued := stale
+	queued.Armed = nil
+	queued.Queued = &Queue{Top: 2, PRs: []int{1, 2}, At: f.now}
+	if err := f.Env(t).saveRecord(queued); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.Env(t).landArmed(t.Context(), stale, map[int64]int{}); len(got) != 0 {
+		t.Fatalf("lines %q", got)
+	}
+	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 {
+		t.Fatalf("labels %v", calls)
+	}
+	if r := f.owned(t); r.Armed != nil || r.Queued == nil || !r.Queued.At.Equal(f.now) {
+		t.Fatalf("record rewritten: queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
 
