@@ -98,3 +98,4 @@ None.
 - A dev user linking a phone. The dev sign-in opens a backend session but no Privy session, and Privy refuses a link without one ("Missing auth token."). So C links the number in S4 and a dev user links X in S5.
 - The busy labels "Saving…", "Linking…" and "Connecting…". The local backend answers before a poll sees them. `OnboardingFlowTests` covers the activity states.
 - A wrong code. `OnboardingFlowTests` covers the inline error.
+- An SMS sign-up (#3458). `GET /v1/me` returns `login_provider` `sms`, so the phone step shows a spinner (`onboarding-phone-confirming`) instead of the number field, stores the sign-in number with no second text, and goes on to X and then Find friends. If another user holds that number, the number form shows as in S2. Driving it needs a fresh Privy SMS user on every run. `OnboardingSignInPhoneTests` and `FirstRunGateTests` cover the routing and the no-second-text rule.

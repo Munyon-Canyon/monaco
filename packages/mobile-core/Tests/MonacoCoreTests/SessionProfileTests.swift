@@ -14,6 +14,7 @@ final class SessionProfileTests: XCTestCase {
             photoUrl: "https://cdn.example.com/photos/kai.jpg",
             authState: .onboardingCompleted,
             accountStatus: .active,
+            loginProvider: .email,
             memberWalletAddress: "wallet-1",
             phoneLinked: true,
             xUsername: "kaicenat",
@@ -29,6 +30,7 @@ final class SessionProfileTests: XCTestCase {
         XCTAssertEqual(profile.photoURL, URL(string: "https://cdn.example.com/photos/kai.jpg"))
         XCTAssertEqual(profile.authState, .onboardingCompleted)
         XCTAssertEqual(profile.accountStatus, .active)
+        XCTAssertEqual(profile.loginProvider, .email)
         XCTAssertEqual(profile.memberWalletAddress, "wallet-1")
         XCTAssertTrue(profile.phoneLinked)
         XCTAssertEqual(profile.xUsername, "kaicenat")
@@ -38,12 +40,16 @@ final class SessionProfileTests: XCTestCase {
 
     func testMappingCoversEveryNamedState() {
         let createdAt = Date(timeIntervalSince1970: 1_759_233_600)
-        func me(auth: Components.Schemas.AuthState, status: Components.Schemas.AccountStatus) -> Components.Schemas.Me {
+        func me(
+            auth: Components.Schemas.AuthState, status: Components.Schemas.AccountStatus,
+            provider: Components.Schemas.LoginProvider = .sms
+        ) -> Components.Schemas.Me {
             Components.Schemas.Me(
                 id: "01890a5d-ac96-774b-bcce-b302099a8058",
                 displayName: "",
                 authState: auth,
                 accountStatus: status,
+                loginProvider: provider,
                 memberWalletAddress: "wallet-1",
                 phoneLinked: false,
                 createdAt: createdAt
@@ -55,6 +61,10 @@ final class SessionProfileTests: XCTestCase {
         XCTAssertEqual(SessionProfile(me(auth: .awaitingSocials, status: .banned)).authState, .awaitingSocials)
         XCTAssertEqual(SessionProfile(me(auth: .created, status: .suspended)).accountStatus, .suspended)
         XCTAssertEqual(SessionProfile(me(auth: .created, status: .banned)).accountStatus, .banned)
+        XCTAssertEqual(SessionProfile(me(auth: .created, status: .active)).loginProvider, .sms)
+        XCTAssertEqual(SessionProfile(me(auth: .created, status: .active, provider: .email)).loginProvider, .email)
+        XCTAssertEqual(SessionProfile(me(auth: .created, status: .active, provider: .apple)).loginProvider, .apple)
+        XCTAssertEqual(SessionProfile(me(auth: .created, status: .active, provider: .google)).loginProvider, .google)
     }
 
     func testNullHandleOmitsTheUnsetFields() throws {
@@ -69,6 +79,17 @@ final class SessionProfileTests: XCTestCase {
         XCTAssertNil(profile.xUsername)
         XCTAssertNil(profile.handleChangeableAt)
         XCTAssertEqual(profile.userID, "01890a5d-ac96-774b-bcce-b302099a8058")
+    }
+
+    func testLoginProviderDecodesFromTheWire() throws {
+        for (wire, want) in [
+            ("email", SessionProfile.LoginProvider.email), ("sms", .sms), ("apple", .apple),
+            ("google", .google), ("passkey", .unknown("passkey")),
+        ] {
+            let json = Self.minimumJSON.replacingOccurrences(
+                of: "\"phone_linked\":false", with: "\"phone_linked\":false,\"login_provider\":\"\(wire)\"")
+            XCTAssertEqual(try SessionProfile(json: Data(json.utf8)).loginProvider, want)
+        }
     }
 
     func testUnknownStatesDegrade() throws {

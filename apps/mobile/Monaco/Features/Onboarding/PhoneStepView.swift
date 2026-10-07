@@ -9,6 +9,7 @@ enum LinkStepMode {
 
 struct PhoneStepView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(AppSessionStore.self) private var session
 
     var mode = LinkStepMode.onboarding
     var onContinue: () -> Void = {}
@@ -18,6 +19,8 @@ struct PhoneStepView: View {
     var body: some View {
         PhoneStepForm(
             mode: mode,
+            confirmsSignInPhone: mode == .onboarding && session.profile?.authState == .created
+                && session.profile?.loginProvider == .sms,
             model: PhoneLinkModel(
                 linking: linking ?? environment.linking,
                 onboarding: onboarding ?? OnboardingAPI(api: environment.api),
@@ -34,6 +37,7 @@ private struct PhoneStepForm: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let mode: LinkStepMode
+    let confirmsSignInPhone: Bool
     let onContinue: () -> Void
     let onSignOut: () async -> Void
 
@@ -47,10 +51,12 @@ private struct PhoneStepForm: View {
     }
 
     init(
-        mode: LinkStepMode, model: @autoclosure () -> PhoneLinkModel, onContinue: @escaping () -> Void,
+        mode: LinkStepMode, confirmsSignInPhone: Bool, model: @autoclosure () -> PhoneLinkModel,
+        onContinue: @escaping () -> Void,
         onSignOut: @escaping () async -> Void
     ) {
         self.mode = mode
+        self.confirmsSignInPhone = confirmsSignInPhone
         self.onContinue = onContinue
         self.onSignOut = onSignOut
         _model = State(wrappedValue: model())
@@ -63,7 +69,25 @@ private struct PhoneStepForm: View {
         return false
     }
 
+    private var isConfirming: Bool { confirmsSignInPhone && !model.signInPhoneUnavailable }
+
     var body: some View {
+        if isConfirming {
+            confirmingBody
+        } else {
+            formBody
+        }
+    }
+
+    private var confirmingBody: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .monacoCanvas()
+            .accessibilityIdentifier("onboarding-phone-confirming")
+            .task { handle(await model.confirmSignInPhone()) }
+    }
+
+    private var formBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -89,7 +113,7 @@ private struct PhoneStepForm: View {
                     numberField
                 }
 
-                captionLine
+                LinkCaptionLine(caption: model.caption, identifier: "phone-step-caption")
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.xl)
@@ -133,26 +157,6 @@ private struct PhoneStepForm: View {
         .authTextFieldStyle(isFocused: focused == .number, isInvalid: model.linkedElsewhere)
         .disabled(model.isBusy)
         .accessibilityIdentifier("phone-step-number-field")
-    }
-
-    @ViewBuilder
-    private var captionLine: some View {
-        switch model.caption {
-        case .error(let text):
-            Text(text)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.loss)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("phone-step-caption")
-        case .note(let text):
-            Text(text)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("phone-step-caption")
-        case nil:
-            EmptyView()
-        }
     }
 
     private var actions: some View {
@@ -296,6 +300,30 @@ private struct PhoneStepForm: View {
                 toasts.show(success: LinkCopy.phoneAdded)
                 dismiss()
             }
+        }
+    }
+}
+
+struct LinkCaptionLine: View {
+    let caption: LinkStepCaption?
+    let identifier: String
+
+    var body: some View {
+        switch caption {
+        case .error(let text):
+            Text(text)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.loss)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(identifier)
+        case .note(let text):
+            Text(text)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(identifier)
+        case nil:
+            EmptyView()
         }
     }
 }

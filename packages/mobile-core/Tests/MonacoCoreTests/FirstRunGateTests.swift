@@ -14,14 +14,28 @@ final class FirstRunGateTests: XCTestCase {
     private static let cursors: [OnboardingCursor] = [.start, .socials, .finished]
 
     private func me(
-        handle: String?, authState: AuthState, accountStatus: AccountStatus, phoneLinked: Bool = false
+        handle: String?, authState: AuthState, accountStatus: AccountStatus, phoneLinked: Bool = false,
+        loginProvider: SessionProfile.LoginProvider = .email
     ) -> SessionProfile {
         SessionProfile(
             userID: "user-1", handle: handle, displayName: "", photoURL: nil,
-            authState: authState, accountStatus: accountStatus, memberWalletAddress: "wallet-1",
+            authState: authState, accountStatus: accountStatus, loginProvider: loginProvider,
+            memberWalletAddress: "wallet-1",
             phoneLinked: phoneLinked, xUsername: nil, handleChangeableAt: nil,
             createdAt: Date()
         )
+    }
+
+    func testASmsSignUpStillRoutesThroughThePhoneStepThenXThenFindFriends() {
+        let created = me(handle: "ana", authState: .created, accountStatus: .active, loginProvider: .sms)
+        XCTAssertEqual(FirstRunGate.destination(for: created, onboardingCursor: .start), .phone)
+        let stored = me(
+            handle: "ana", authState: .awaitingSocials, accountStatus: .active, phoneLinked: true, loginProvider: .sms)
+        XCTAssertEqual(FirstRunGate.destination(for: stored, onboardingCursor: .start.advanced(past: .phone)), .socials)
+        XCTAssertEqual(
+            FirstRunGate.destination(
+                for: stored, onboardingCursor: .finished, contactsPromptSeen: false),
+            .findFriends)
     }
 
     private func route(

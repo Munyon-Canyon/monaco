@@ -2,6 +2,7 @@ import Foundation
 
 public enum LinkError: Error, Equatable, Sendable {
     case alreadyLinkedElsewhere
+    case alreadyHasPhone
     case invalidCode
     case cancelled
     case network
