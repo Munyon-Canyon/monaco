@@ -390,6 +390,9 @@ func (s *server) dropOwned(ctx context.Context, q execer, name string) error {
 }
 
 func (s *server) releaseDB(ctx context.Context, name string, failed bool) (bool, error) {
+	if !s.keepOnFail {
+		return false, s.dropOwned(ctx, s.admin, name)
+	}
 	over, err := s.diskOver(ctx)
 	if err != nil {
 		return false, err
@@ -400,7 +403,7 @@ func (s *server) releaseDB(ctx context.Context, name string, failed bool) (bool,
 		}
 		return false, s.dropOwned(ctx, s.admin, name)
 	}
-	if failed && s.keepOnFail && s.kept.Add(1) <= keepFailed {
+	if failed && s.kept.Add(1) <= keepFailed {
 		return true, nil
 	}
 	return false, s.dropOwned(ctx, s.admin, name)
