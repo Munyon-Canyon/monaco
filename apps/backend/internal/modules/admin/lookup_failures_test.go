@@ -14,8 +14,10 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -29,6 +31,8 @@ type stubPorts struct {
 	fail    string
 	wallet  error
 	payload string
+	found   bool
+	swapErr error
 	cabal   cabalport.CabalView
 }
 
@@ -122,6 +126,37 @@ func (s stubPorts) Recent(context.Context, string, string, int) ([]sqlc.AdminAct
 	return nil, s.err("Recent")
 }
 
+func (s stubPorts) TxnByID(context.Context, uuid.UUID) (treasuryport.Txn, bool, error) {
+	return s.txn(), s.found, s.err("TxnByID")
+}
+
+func (s stubPorts) TxnBySignature(context.Context, chain.Signature) (treasuryport.Txn, bool, error) {
+	return s.txn(), s.found, s.err("TxnBySignature")
+}
+
+func (s stubPorts) txn() treasuryport.Txn {
+	swap := ids.SwapIDFrom(s.g.NewV7())
+	return treasuryport.Txn{TxnHeader: treasuryport.TxnHeader{SwapID: &swap}}
+}
+
+func (s stubPorts) Swap(context.Context, ids.SwapID) (trading.SwapView, error) {
+	if s.swapErr != nil {
+		return trading.SwapView{}, s.swapErr
+	}
+	return trading.SwapView{ID: ids.SwapIDFrom(s.g.NewV7())}, s.err("Swap")
+}
+
+func (s stubPorts) SwapBySignature(context.Context, chain.Signature) (trading.SwapView, error) {
+	if s.swapErr != nil {
+		return trading.SwapView{}, s.swapErr
+	}
+	return trading.SwapView{ID: ids.SwapIDFrom(s.g.NewV7())}, s.err("SwapBySignature")
+}
+
+func (s stubPorts) ExecuteRequestID(context.Context, ids.SwapID) (string, error) {
+	return "req", s.err("ExecuteRequestID")
+}
+
 func newStub(opts ...func(*stubPorts)) stubPorts {
 	s := stubPorts{g: testkit.NewIDs(71)}
 	for _, opt := range opts {
@@ -196,6 +231,65 @@ func TestCabalLookup_PassesEveryPortFailureOn(t *testing.T) {
 		if _, err := cabalLookup(newStub(failing(method))).ByID(t.Context(), id); !isPortDown(err) {
 			t.Errorf("ByID with %s down = %v", method, err)
 		}
+	}
+}
+
+func txnLookup(s stubPorts) app.TxnLookup {
+	return app.TxnLookup{Ledger: s, Swaps: s, Requests: s, Events: s}
+}
+
+func TestTxnLookup_PassesEveryPortFailureOn(t *testing.T) {
+	t.Parallel()
+	found := func(s *stubPorts) { s.found = true }
+	for _, method := range []string{"TxnByID", "Swap", "ExecuteRequestID", "EventsByAggregate"} {
+		if _, err := txnLookup(newStub(found, failing(method))).ByID(t.Context(), uuid.UUID{}); !isPortDown(err) {
+			t.Errorf("ByID with %s down = %v", method, err)
+		}
+	}
+	for _, method := range []string{"TxnBySignature", "Swap", "ExecuteRequestID", "EventsByAggregate"} {
+		if _, err := txnLookup(newStub(found, failing(method))).BySignature(t.Context(), "sig"); !isPortDown(err) {
+			t.Errorf("BySignature with %s down = %v", method, err)
+		}
+	}
+	for _, method := range []string{"Swap", "ExecuteRequestID", "EventsByAggregate"} {
+		if _, err := txnLookup(newStub(failing(method))).ByID(t.Context(), uuid.UUID{}); !isPortDown(err) {
+			t.Errorf("swap-only ByID with %s down = %v", method, err)
+		}
+	}
+	if _, err := txnLookup(newStub(failing("SwapBySignature"))).BySignature(t.Context(), "sig"); !isPortDown(err) {
+		t.Errorf("BySignature with SwapBySignature down = %v", err)
+	}
+}
+
+func TestTxnLookup_AMissingSwapIsAbsentFromALedgerLookupButNotFoundOnItsOwn(t *testing.T) {
+	t.Parallel()
+	gone := errs.New(errs.CodeSwapNotFound, "test")
+	withLedger := newStub(func(s *stubPorts) { s.found, s.swapErr = true, gone })
+	view, err := txnLookup(withLedger).ByID(t.Context(), uuid.UUID{})
+	if err != nil || view.Ledger == nil || view.Swap != nil {
+		t.Fatalf("ByID = %+v, %v", view, err)
+	}
+	alone := newStub(func(s *stubPorts) { s.swapErr = gone })
+	if _, err := txnLookup(alone).ByID(t.Context(), uuid.UUID{}); errs.CodeOf(err) != errs.CodeTxnNotFound {
+		t.Fatalf("ByID = %v, want txn_not_found", err)
+	}
+	if _, err := txnLookup(alone).BySignature(t.Context(), "sig"); errs.CodeOf(err) != errs.CodeTxnNotFound {
+		t.Fatalf("BySignature = %v, want txn_not_found", err)
+	}
+}
+
+func TestTxnView_SignaturePrefersTheLedgerThenTheSwap(t *testing.T) {
+	t.Parallel()
+	swap := &app.SwapDetail{TxSignature: "swap-sig"}
+	if got := (app.TxnView{Swap: swap}).Signature(); got != "swap-sig" {
+		t.Fatalf("Signature = %q", got)
+	}
+	ledger := &app.LedgerTxn{TxnHeader: app.TxnHeader{TxSignature: "ledger-sig"}}
+	if got := (app.TxnView{Ledger: ledger, Swap: swap}).Signature(); got != "ledger-sig" {
+		t.Fatalf("Signature = %q", got)
+	}
+	if got := (app.TxnView{Ledger: &app.LedgerTxn{}}).Signature(); got != "" {
+		t.Fatalf("Signature = %q", got)
 	}
 }
 

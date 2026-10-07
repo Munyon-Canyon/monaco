@@ -501,6 +501,64 @@ type AdminHolding struct {
 	Units string `json:"units"`
 }
 
+// AdminLedgerTxn One ledger transaction with its entries.
+//
+// Examples: {"cabal_id":"019cc330-2222-7000-8000-000000000001","created_at":"2026-10-06T12:00:00Z","entries":[],"id":"019cc330-3333-7000-8000-000000000001","kind":"swap","scope":"cabal","status":"settled","swap_id":"019cc330-4444-7000-8000-000000000001","transfer_id":null,"tx_signature":null,"user_id":null}
+type AdminLedgerTxn struct {
+	// CabalId The cabal the transaction touches. Null for a deposit or withdrawal.
+	//
+	// Examples: 019cc330-2222-7000-8000-000000000001
+	CabalId *openapi_types.UUID `json:"cabal_id"`
+
+	// CreatedAt When the ledger recorded it.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Entries The entries of the transaction, in order.
+	Entries []AdminTxnEntry `json:"entries"`
+
+	// Id The transaction id.
+	//
+	// Examples: 019cc330-3333-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind The kind: deposit, withdrawal, fund, cash_out or swap.
+	//
+	// Examples: swap
+	Kind string `json:"kind"`
+
+	// Scope Which ledger the transaction sits in.
+	//
+	// Examples: user
+	Scope AdminTxnScope `json:"scope"`
+
+	// Status The status: pending, settled or failed.
+	//
+	// Examples: settled
+	Status string `json:"status"`
+
+	// SwapId The swap a cabal-scope swap transaction records. Null otherwise.
+	//
+	// Examples: 019cc330-4444-7000-8000-000000000001
+	SwapId *openapi_types.UUID `json:"swap_id"`
+
+	// TransferId The fund or withdrawal transfer that links a user and a cabal transaction.
+	//
+	// Examples: null
+	TransferId *openapi_types.UUID `json:"transfer_id"`
+
+	// TxSignature The Solana signature. Null until the transaction has one.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
+
+	// UserId The user of a user-scope transaction. Null in the cabal scope.
+	//
+	// Examples: null
+	UserId *openapi_types.UUID `json:"user_id"`
+}
+
 // AdminMe An active administrator and their role.
 //
 // Examples: {"role":"operator","user_id":"019cc330-1111-7000-8000-000000000001"}
@@ -536,10 +594,108 @@ type AdminSharePosition struct {
 	ShareUnits string `json:"share_units"`
 }
 
+// AdminSwap One swap with the history of its trade events.
+//
+// Examples: {"created_at":"2026-10-06T12:00:00Z","execute_request_id":"req-1","failure_code":null,"id":"019cc330-4444-7000-8000-000000000001","status":"submitted","status_history":[],"tx_signature":null}
+type AdminSwap struct {
+	// CreatedAt When the swap was created.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// ExecuteRequestId The Jupiter execute request id. Null until the swap is submitted.
+	//
+	// Examples: req-1
+	ExecuteRequestId *string `json:"execute_request_id"`
+
+	// FailureCode Why the swap failed. Null unless it failed.
+	//
+	// Examples: null
+	FailureCode *string `json:"failure_code"`
+
+	// Id The swap id.
+	//
+	// Examples: 019cc330-4444-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// Status The status: created, submitted, confirmed or failed.
+	//
+	// Examples: submitted
+	Status string `json:"status"`
+
+	// StatusHistory The trade events of the swap, oldest first.
+	StatusHistory []AdminSwapEvent `json:"status_history"`
+
+	// TxSignature The Solana signature. Null until the swap is submitted.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
+}
+
+// AdminSwapEvent One trade event of a swap.
+//
+// Examples: {"at":"2026-10-06T12:00:00Z","type":"trade.submitted"}
+type AdminSwapEvent struct {
+	// At When the event was recorded.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	At time.Time `json:"at"`
+
+	// Type The event type: trade.submitted, trade.confirmed or trade.failed.
+	//
+	// Examples: trade.submitted
+	Type string `json:"type"`
+}
+
 // AdminTargetType The kind of thing the action changed.
 //
 // Examples: system_ping
 type AdminTargetType string
+
+// AdminTxn One transaction as an operator sees it. At least one of `ledger` and `swap` is present. `explorer_url` is present when a signature is known.
+//
+// Examples: {"explorer_url":"https://solscan.io/tx/5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"}
+type AdminTxn struct {
+	// ExplorerUrl The Solscan page of the signature on mainnet.
+	//
+	// Examples: https://solscan.io/tx/5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW
+	ExplorerUrl *string `json:"explorer_url,omitempty"`
+
+	// Ledger One ledger transaction with its entries.
+	//
+	// Examples: {"cabal_id":"019cc330-2222-7000-8000-000000000001","created_at":"2026-10-06T12:00:00Z","entries":[],"id":"019cc330-3333-7000-8000-000000000001","kind":"swap","scope":"cabal","status":"settled","swap_id":"019cc330-4444-7000-8000-000000000001","transfer_id":null,"tx_signature":null,"user_id":null}
+	Ledger *AdminLedgerTxn `json:"ledger,omitempty"`
+
+	// Swap One swap with the history of its trade events.
+	//
+	// Examples: {"created_at":"2026-10-06T12:00:00Z","execute_request_id":"req-1","failure_code":null,"id":"019cc330-4444-7000-8000-000000000001","status":"submitted","status_history":[],"tx_signature":null}
+	Swap *AdminSwap `json:"swap,omitempty"`
+}
+
+// AdminTxnEntry One signed line of a ledger transaction.
+//
+// Examples: {"account":"wallet","amount":"-10000000","asset":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","seq":0}
+type AdminTxnEntry struct {
+	// Account The account the entry moves, such as wallet or treasury.
+	//
+	// Examples: wallet
+	Account string `json:"account"`
+
+	// Amount The signed amount in base units as a decimal integer.
+	//
+	// Examples: -10000000
+	Amount string `json:"amount"`
+
+	// Asset The asset moved: a mint address or a shares asset.
+	//
+	// Examples: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+	Asset string `json:"asset"`
+
+	// Seq The position of the entry in the transaction.
+	//
+	// Examples: 0
+	Seq int32 `json:"seq"`
+}
 
 // AdminTxnHeader The header of one ledger transaction, without its entries.
 //
@@ -810,6 +966,12 @@ type RedriveDeadLetterParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// FindAdminTxnParams defines parameters for FindAdminTxn.
+type FindAdminTxnParams struct {
+	// Signature The Solana transaction signature.
+	Signature string `form:"signature" json:"signature"`
+}
+
 // FindAdminUserParams defines parameters for FindAdminUser.
 type FindAdminUserParams struct {
 	// Handle The handle of the user, without the at sign.
@@ -845,6 +1007,12 @@ type ServerInterface interface {
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(w http.ResponseWriter, r *http.Request)
+	// FindAdminTxn Look up a transaction by signature.
+	// (GET /v1/admin/txns)
+	FindAdminTxn(w http.ResponseWriter, r *http.Request, params FindAdminTxnParams)
+	// GetAdminTxn Look up a transaction by id.
+	// (GET /v1/admin/txns/{id})
+	GetAdminTxn(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// FindAdminUser Look up a user by handle.
 	// (GET /v1/admin/users)
 	FindAdminUser(w http.ResponseWriter, r *http.Request, params FindAdminUserParams)
@@ -1194,6 +1362,65 @@ func (siw *ServerInterfaceWrapper) GetAdminMe(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// FindAdminTxn operation middleware
+func (siw *ServerInterfaceWrapper) FindAdminTxn(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params FindAdminTxnParams
+
+	// ------------- Required query parameter "signature" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "signature", r.URL.Query(), &params.Signature, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "signature"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "signature", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FindAdminTxn(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminTxn operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminTxn(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminTxn(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // FindAdminUser operation middleware
 func (siw *ServerInterfaceWrapper) FindAdminUser(w http.ResponseWriter, r *http.Request) {
 
@@ -1380,6 +1607,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/discard", wrapper.DiscardDeadLetter)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/redrive", wrapper.RedriveDeadLetter)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/me", wrapper.GetAdminMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/txns", wrapper.FindAdminTxn)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/txns/{id}", wrapper.GetAdminTxn)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/users", wrapper.FindAdminUser)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/users/{id}", wrapper.GetAdminUser)
 
@@ -1649,6 +1878,84 @@ func (response GetAdminMedefaultApplicationProblemPlusJSONResponse) VisitGetAdmi
 	return err
 }
 
+type FindAdminTxnRequestObject struct {
+	Params FindAdminTxnParams
+}
+
+type FindAdminTxnResponseObject interface {
+	VisitFindAdminTxnResponse(w http.ResponseWriter) error
+}
+
+type FindAdminTxn200JSONResponse AdminTxn
+
+func (response FindAdminTxn200JSONResponse) VisitFindAdminTxnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FindAdminTxndefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response FindAdminTxndefaultApplicationProblemPlusJSONResponse) VisitFindAdminTxnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTxnRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminTxnResponseObject interface {
+	VisitGetAdminTxnResponse(w http.ResponseWriter) error
+}
+
+type GetAdminTxn200JSONResponse AdminTxn
+
+func (response GetAdminTxn200JSONResponse) VisitGetAdminTxnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminTxndefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminTxndefaultApplicationProblemPlusJSONResponse) VisitGetAdminTxnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type FindAdminUserRequestObject struct {
 	Params FindAdminUserParams
 }
@@ -1750,6 +2057,12 @@ type StrictServerInterface interface {
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(ctx context.Context, request GetAdminMeRequestObject) (GetAdminMeResponseObject, error)
+	// FindAdminTxn Look up a transaction by signature.
+	// (GET /v1/admin/txns)
+	FindAdminTxn(ctx context.Context, request FindAdminTxnRequestObject) (FindAdminTxnResponseObject, error)
+	// GetAdminTxn Look up a transaction by id.
+	// (GET /v1/admin/txns/{id})
+	GetAdminTxn(ctx context.Context, request GetAdminTxnRequestObject) (GetAdminTxnResponseObject, error)
 	// FindAdminUser Look up a user by handle.
 	// (GET /v1/admin/users)
 	FindAdminUser(ctx context.Context, request FindAdminUserRequestObject) (FindAdminUserResponseObject, error)
@@ -1984,6 +2297,58 @@ func (sh *strictHandler) GetAdminMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminMeResponseObject); ok {
 		if err := validResponse.VisitGetAdminMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FindAdminTxn operation middleware
+func (sh *strictHandler) FindAdminTxn(w http.ResponseWriter, r *http.Request, params FindAdminTxnParams) {
+	var request FindAdminTxnRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FindAdminTxn(ctx, request.(FindAdminTxnRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FindAdminTxn")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FindAdminTxnResponseObject); ok {
+		if err := validResponse.VisitFindAdminTxnResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminTxn operation middleware
+func (sh *strictHandler) GetAdminTxn(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminTxnRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminTxn(ctx, request.(GetAdminTxnRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminTxn")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminTxnResponseObject); ok {
+		if err := validResponse.VisitGetAdminTxnResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

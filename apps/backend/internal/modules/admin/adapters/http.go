@@ -23,6 +23,7 @@ type HTTP struct {
 	Pool    *pgxpool.Pool
 	Users   app.UserLookup
 	Cabals  app.CabalLookup
+	Txns    app.TxnLookup
 	Redrive *app.RedriveDeadLetterHandler
 	Discard *app.DiscardDeadLetterHandler
 }

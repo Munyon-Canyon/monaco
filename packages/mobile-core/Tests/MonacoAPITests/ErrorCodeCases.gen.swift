@@ -129,6 +129,7 @@ extension Components.Schemas.ErrorCode {
         case .swapNotRetryable: true
         case .swapNotStuck: true
         case .tooManyContactHashes: true
+        case .txnNotFound: true
         case .unauthorized: true
         case .unknownAsset: true
         case .upstreamTimeout: true
