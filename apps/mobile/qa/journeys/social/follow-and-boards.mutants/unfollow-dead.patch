@@ -1,0 +1,18 @@
+journey: social/follow-and-boards
+expect-fail: S5
+
+"Following" does nothing when tapped. S5.1 waits for "Follow" again, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+--- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+@@ -144,7 +144,7 @@
+         let following = model.followedByMe
+         Group {
+             if following {
+-                Button("Following") { Task { await model.unfollow(userID: model.userID) } }
++                Button("Following") {}
+                     .buttonStyle(.monacoSecondary)
+                     .accessibilityIdentifier("user-profile-follow")
+             } else {

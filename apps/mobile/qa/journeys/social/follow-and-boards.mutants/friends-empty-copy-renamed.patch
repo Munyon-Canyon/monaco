@@ -1,0 +1,18 @@
+journey: social/follow-and-boards
+expect-fail: S2
+
+The empty Friends board says "No friends yet" instead of "Follow people to see how they do.". S2.1 reads the exact copy, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
+--- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
+@@ -69,7 +69,7 @@
+                 .accessibilityIdentifier("home-leaderboard-empty")
+         case .friends:
+             EmptyState(
+-                title: "Follow people to see how they do.", actionTitle: "Find friends",
++                title: "No friends yet", actionTitle: "Find friends",
+                 actionIdentifier: "home-leaderboard-find-friends"
+             ) {
+                 environment.navigator.open(FriendsRoute(), in: .home)

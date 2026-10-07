@@ -68,9 +68,13 @@ private struct HomePeopleBoard: View {
             EmptyState(title: "No investors yet", message: "Fund a cabal to get on the board.")
                 .accessibilityIdentifier("home-leaderboard-empty")
         case .friends:
-            EmptyState(title: "Follow people to see how they do.", actionTitle: "Find friends") {
+            EmptyState(
+                title: "Follow people to see how they do.", actionTitle: "Find friends",
+                actionIdentifier: "home-leaderboard-find-friends"
+            ) {
                 environment.navigator.open(FriendsRoute(), in: .home)
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("home-leaderboard-friends-empty")
         }
     }

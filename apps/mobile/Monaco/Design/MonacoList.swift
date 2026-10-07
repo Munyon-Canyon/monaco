@@ -345,15 +345,20 @@ struct EmptyState: View {
     private let title: String
     private let message: String?
     private let actionTitle: String?
+    private let actionIdentifier: String?
     private let action: (() -> Void)?
 
     /// About 60 characters of `callout`.
     private static let readableWidth: CGFloat = 480
 
-    init(title: String, message: String? = nil, actionTitle: String? = nil, action: (() -> Void)? = nil) {
+    init(
+        title: String, message: String? = nil, actionTitle: String? = nil, actionIdentifier: String? = nil,
+        action: (() -> Void)? = nil
+    ) {
         self.title = title
         self.message = message
         self.actionTitle = actionTitle
+        self.actionIdentifier = actionIdentifier
         self.action = action
     }
 
@@ -373,9 +378,14 @@ struct EmptyState: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let actionTitle, let action {
-                Button(actionTitle, action: action)
+                let button = Button(actionTitle, action: action)
                     .buttonStyle(.monacoSecondary)
                     .padding(.top, MonacoTheme.Space.s)
+                if let actionIdentifier {
+                    button.accessibilityIdentifier(actionIdentifier)
+                } else {
+                    button
+                }
             }
         }
         .frame(maxWidth: Self.readableWidth)

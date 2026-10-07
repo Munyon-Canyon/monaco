@@ -202,6 +202,7 @@ private struct FollowListPersonRow: View {
             row(stacked: false)
             row(stacked: true)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("follow-list-row-\(user.id)")
     }
 
@@ -224,6 +225,7 @@ private struct FollowListPersonRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("follow-list-open-\(user.id)")
 
         return Group {
             if stacked {
@@ -256,10 +258,12 @@ private struct FollowListPersonRow: View {
             Button("Following", action: toggle)
                 .buttonStyle(.monacoSecondary)
                 .disabled(isToggling)
+                .accessibilityIdentifier("follow-list-follow-\(user.id)")
         } else {
             Button("Follow", action: toggle)
                 .buttonStyle(.monacoPrimary)
                 .disabled(isToggling)
+                .accessibilityIdentifier("follow-list-follow-\(user.id)")
         }
     }
 }

@@ -1,0 +1,18 @@
+journey: social/follow-and-boards
+expect-fail: S3
+
+"Follow" does nothing when tapped. S3.2 waits for "Following", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+--- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+@@ -148,7 +148,7 @@
+                     .buttonStyle(.monacoSecondary)
+                     .accessibilityIdentifier("user-profile-follow")
+             } else {
+-                Button("Follow") { Task { await model.follow(userID: model.userID) } }
++                Button("Follow") {}
+                     .buttonStyle(.monacoPrimary)
+                     .accessibilityIdentifier("user-profile-follow")
+             }
