@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -401,9 +402,10 @@ func TestDBKeepsItsDatabaseHeldUntilItsOwnDropReturns(t *testing.T) {
 	shared := current.Load()
 	tmpl := shared.templateFor(t)
 	s := &server{
-		admin:     shared.admin,
-		names:     map[string]*queryCounter{},
-		runPrefix: "t_own_" + strings.ToLower(rand.Text()[:8]) + "_",
+		admin:      shared.admin,
+		names:      map[string]*queryCounter{},
+		runPrefix:  "t_own_" + strings.ToLower(rand.Text()[:8]) + "_",
+		keepOnFail: true,
 	}
 	s.templateOnce.Do(func() { s.template = tmpl })
 	var name string
@@ -496,11 +498,33 @@ func TestReleaseDBDropsAPassingTest(t *testing.T) {
 	}
 }
 
+func TestReleaseDBNeverMeasuresDiskWithoutKeepFailed(t *testing.T) {
+	t.Parallel()
+	prefix := "t_noprobe_" + strings.ToLower(rand.Text()[:8]) + "_"
+	var probes atomic.Int32
+	s := &server{admin: current.Load().admin, runPrefix: prefix, disk: func(context.Context) (int64, int64, error) {
+		probes.Add(1)
+		return 1, 100, nil
+	}}
+	for _, failed := range []bool{false, true} {
+		name := fmt.Sprintf("%sdb_%v", prefix, failed)
+		createOwned(t, s, name)
+		kept, err := s.releaseDB(context.Background(), name, failed)
+		if err != nil || kept || exists(t, s, name) {
+			t.Fatalf("releaseDB(failed=%v) kept %v, %v; exists %v, want a drop", failed, kept, err, exists(t, s, name))
+		}
+	}
+	if n := probes.Load(); n != 0 {
+		t.Fatalf("releaseDB measured disk %d times without MONACO_TEST_KEEP_FAILED, want 0: "+
+			"every probe sums pg_database_size over every database in the container", n)
+	}
+}
+
 func TestReleaseDBDropsWhenDiskPassesHalf(t *testing.T) {
 	t.Parallel()
 	admin := current.Load().admin
 	prefix := "t_full_" + strings.ToLower(rand.Text()[:8]) + "_"
-	s := &server{admin: admin, runPrefix: prefix, disk: func(context.Context) (int64, int64, error) {
+	s := &server{admin: admin, runPrefix: prefix, keepOnFail: true, disk: func(context.Context) (int64, int64, error) {
 		return 80, 100, nil
 	}}
 	ctx := context.Background()
