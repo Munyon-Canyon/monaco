@@ -53,6 +53,7 @@ type checkRow struct {
 
 const (
 	xcodeKind     = "xcode"
+	lockHoldVar   = "MONACO_LOCK_HOLD="
 	xcodeLockWait = 90 * time.Minute
 	lockWaitedDir = "xcode-lock"
 )
@@ -455,7 +456,7 @@ func (env *Env) xcodeRow(changed []string) (checkRow, bool) {
 	locked := []string{
 		"env",
 		"MONACO_LOCK_WAITED=" + waited,
-		"MONACO_LOCK_HOLD=" + seconds(env.Config.Budget["xcode"]),
+		lockHoldVar + seconds(env.Config.Budget[xcodeKind]),
 		"MONACO_XCODE_LOCK_TIMEOUT=" + seconds(xcodeLockWait),
 		"bash", "-c",
 	}
@@ -979,16 +980,16 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 }
 
 func (r *checkRun) rowBudget(ctx context.Context, row checkRow) (context.Context, context.CancelFunc, scaledBudget) {
-	budget := r.env.Config.Budget[row.kind]
+	sb := r.env.scaleBudget(ctx, r.env.Config.Budget[row.kind])
 	if row.kind == packageKind {
-		return ctx, func() {}, r.env.scaleBudget(ctx, budget)
+		return ctx, func() {}, sb
 	}
-	limit := budget
+	limit := sb.limit
 	if row.lockWaited != "" {
 		limit += xcodeLockWait * time.Duration(len(row.cmds))
 	}
 	ctx, cancel := context.WithTimeout(ctx, limit)
-	return ctx, cancel, scaledBudget{base: budget, limit: budget, factor: 1}
+	return ctx, cancel, sb
 }
 
 func failRow(stdout io.Writer, row checkRow, cmd []string, text string, err error) error {
@@ -1065,6 +1066,9 @@ func withTimeout(cmd []string, d time.Duration) []string {
 	out := slices.Clone(cmd)
 	if i := slices.Index(out, "-timeout"); i >= 0 && i+1 < len(out) {
 		out[i+1] = d.String()
+	}
+	if i := slices.IndexFunc(out, func(a string) bool { return strings.HasPrefix(a, lockHoldVar) }); i >= 0 {
+		out[i] = lockHoldVar + seconds(d)
 	}
 	return out
 }

@@ -1584,6 +1584,40 @@ func TestCheck_theScaledBudgetIsCappedAtFourTimesTheBase(t *testing.T) {
 	}
 }
 
+func TestCheck_aNonPackageRowGetsTheLoadScaledBudgetUpToFourTimesTheBase(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.load, h.cores = 32, 8
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 100 * time.Second}}
+	code, stdout, stderr := h.check(t)
+	want := "journeys        ok    102.0s  budget 2m0s (base 30s, x4.0 for load1 32.0 over 8 cores)"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("a journeys row within its scaled budget passes: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "b\n"})
+	h.load = 64
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 130 * time.Second}}
+	code, stdout, stderr = h.check(t)
+	want = "journeys row over the 2m0s (base 30s, x4.0 for load1 64.0 over 8 cores) journeys budget after 130s"
+	if code != 1 || !strings.Contains(stderr, want) || !strings.Contains(stdout, "journeys        over budget") {
+		t.Fatalf("a journeys row past 4x its base fails: %d %q %q", code, stdout, stderr)
+	}
+
+	h.goos = "darwin"
+	h.lookPath = func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
+	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
+	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"})
+	h.replies = nil
+	h.xcodeBuild = func(context.Context, string) error { return nil }
+	if code, stdout, stderr = h.check(t); code != 0 ||
+		!slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, " MONACO_LOCK_HOLD=1200 ") }) {
+		t.Fatalf("the xcode lock's hold cap scales with the xcode budget: %d %q %q\n%s",
+			code, stdout, stderr, strings.Join(h.calls, "\n"))
+	}
+}
+
 func TestCheck_aPackageSlowAloneStillFailsUnderLoadNamingBothBudgets(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
