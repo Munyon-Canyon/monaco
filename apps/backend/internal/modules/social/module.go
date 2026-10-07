@@ -157,6 +157,7 @@ func (m *Module) Consumers() []bus.Consumer {
 	feed := adapters.Feed{
 		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, IDs: m.deps.IDs, UoW: m.deps.UoW,
 	}
+	referrals := adapters.ReferralFollows{Users: m.users, IDs: m.deps.IDs}
 	return []bus.Consumer{
 		{
 			Durable: "social_feed",
@@ -182,6 +183,12 @@ func (m *Module) Consumers() []bus.Consumer {
 		{
 			Durable:  "social_chat_seen_cleanup",
 			Handlers: []bus.HandlerSpec{bus.Handle("social.chat_seen_cleanup", adapters.ChatSeenCleanup{}.Handle)},
+		},
+		{
+			Durable: "social_referral_follows",
+			Handlers: []bus.HandlerSpec{
+				bus.HandleFetched("social.referral_follows", referrals.Fetch, referrals.Apply),
+			},
 		},
 	}
 }
