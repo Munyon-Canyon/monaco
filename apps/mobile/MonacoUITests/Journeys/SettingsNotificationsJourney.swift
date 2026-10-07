@@ -2,7 +2,7 @@ import XCTest
 
 enum SettingsNotificationsJourney {
     static let id = "settings/notifications"
-    static let version = 2
+    static let version = 3
 
     static let title = "Know when your cabal votes and trades"
     static let body = "We'll tell you when a vote opens, passes, or a trade fills."

@@ -1,7 +1,7 @@
 ---
 id: cabals/pause
 title: A paused cabal
-version: 1
+version: 2
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/cabals/pause.setup.sh` ran right before the scenario. It marks A as done with onboarding and sets A's display name. For S1, A creates the open cabal `QA paused {QA.run}` through the API and the setup pauses it with `monacoctl ops pause --note "QA {QA.run}"`. For S2, A creates the open cabal `QA running {QA.run}` and nothing pauses it. Once a flow seeds the external-deposit pause, S1 seeds it with `qa_flow_seed` instead |
+| P3 | `apps/mobile/qa/journeys/cabals/pause.setup.sh` ran right before the scenario. It marks A as done with onboarding and sets A's display name. For S1, A creates the cabal `QA paused {QA.run}` through the API and the setup pauses it with `monacoctl ops pause --note "QA {QA.run}"`. For S2, A creates the cabal `QA running {QA.run}` and nothing pauses it. Once a flow seeds the external-deposit pause, S1 seeds it with `qa_flow_seed` instead |
 
 ## Scenarios
 

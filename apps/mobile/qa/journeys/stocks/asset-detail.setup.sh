@@ -17,6 +17,6 @@ qa_sql -v did="$did" >/dev/null \
 have="$(qa_sql -v did="$did" <<<"SELECT count(*) FROM cabal_members m JOIN users u ON u.id = m.user_id WHERE u.privy_user_id = :'did' AND m.can_vote")"
 for ((n = have + 1; n <= 2; n++)); do
   qa_api A POST /v1/cabals \
-    "{\"name\":\"QA stocks $run $n\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+    "{\"name\":\"QA stocks $run $n\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
 done
 echo "seeded: A votes in $(( have > 2 ? have : 2 )) cabals"

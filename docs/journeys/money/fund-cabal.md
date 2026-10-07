@@ -1,7 +1,7 @@
 ---
 id: money/fund-cabal
 title: Fund this cabal
-version: 1
+version: 2
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -26,7 +26,7 @@ The format of this doc is in [App journeys](../README.md).
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
 | P3 | The runner sent A 2 USDC on Solana from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet, per `funds`, so A's account balance is more than $1 and less than $100 |
-| P4 | `apps/mobile/qa/journeys/money/fund-cabal.setup.sh` ran right before the scenario. Through `scripts/qa/seed.sh` it marks A as done with onboarding, and A creates the open cabal `QA fund {QA.run}` through the API |
+| P4 | `apps/mobile/qa/journeys/money/fund-cabal.setup.sh` ran right before the scenario. Through `scripts/qa/seed.sh` it marks A as done with onboarding, and A creates the cabal `QA fund {QA.run}` through the API |
 
 ## Scenarios
 

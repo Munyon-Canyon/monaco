@@ -21,7 +21,7 @@ case "$scenario" in
   S1 | S2)
     ready_actor A
     qa_api A POST /v1/cabals \
-      "{\"name\":\"QA comments $run\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+      "{\"name\":\"QA comments $run\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
     echo "seeded: A created 'QA comments $run'; no proposal seeded until #612"
     ;;
   *)

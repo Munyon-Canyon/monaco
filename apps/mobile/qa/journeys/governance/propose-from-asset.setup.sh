@@ -17,5 +17,5 @@ did="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 qa_sql -v did="$did" >/dev/null \
   <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
 qa_api A POST /v1/cabals \
-  "{\"name\":\"QA asset $run\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
-echo "seeded: A created the open cabal 'QA asset $run'"
+  "{\"name\":\"QA asset $run\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+echo "seeded: A created the cabal 'QA asset $run'"

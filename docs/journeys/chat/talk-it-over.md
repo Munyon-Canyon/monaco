@@ -1,7 +1,7 @@
 ---
 id: chat/talk-it-over
 title: Talk it over
-version: 1
+version: 2
 milestone: M19
 requires: [auth/sign-in]
 actors: [A, B]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and B have signed in once (`auth/sign-in`), and their `privy_user_id` values are in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/chat/talk-it-over.setup.sh` ran right before S1. It marks A and B as done with onboarding, sets their display names, has A create the open cabal `QA {QA.run}` with the default rules and B join it through the API. The cabal is new each run, so its chat starts empty |
+| P3 | `apps/mobile/qa/journeys/chat/talk-it-over.setup.sh` ran right before S1. It marks A and B as done with onboarding, sets their display names, has A create the cabal `QA {QA.run}` with the default rules and B join it through the API. The cabal is new each run, so its chat starts empty |
 
 ## Scenarios
 

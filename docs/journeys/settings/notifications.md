@@ -1,7 +1,7 @@
 ---
 id: settings/notifications
 title: Turn on notifications
-version: 2
+version: 3
 milestone: M9
 requires: [auth/sign-in]
 actors: [B]
@@ -21,7 +21,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
 | P2 | `scripts/qa/journey.py` reinstalls the app before every run, so notification permission starts undecided and the pre-prompt has not been shown |
-| P3 | Before S2, `apps/mobile/qa/journeys/settings/notifications.setup.sh` declines every pending invite to B, makes a dev host create an open cabal named `QA push {QA.run}`, and invites B by handle. It hands the test the cabal's name as `cabalName` |
+| P3 | Before S2, `apps/mobile/qa/journeys/settings/notifications.setup.sh` declines every pending invite to B, makes a dev host create a cabal named `QA push {QA.run}`, and invites B by handle. It hands the test the cabal's name as `cabalName` |
 | P4 | The scenarios run in order in one run: S2 answers the permission alert, and S3 starts from that answer |
 | P5 | The test answers the iOS permission alert through springboard (`com.apple.springboard`), tapping "Allow". It taps no coordinates |
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario. It completes actor B's onboarding, and before S2 it clears
-# B's pending invites and has a dev host invite B to a new open cabal (P3), handing the test its name.
+# B's pending invites and has a dev host invite B to a new cabal (P3), handing the test its name.
 set -euo pipefail
 
 scenario="${1:?usage: notifications.setup.sh <scenario>}"
@@ -67,7 +67,7 @@ host="$(dev_token new)"
 call PATCH /v1/me "$host" '{"display_name":"QA push host"}' >/dev/null || fail "could not name the dev host"
 name="QA push $run"
 cabal="$(call POST /v1/cabals "$host" \
-  "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+  "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
   python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')" || fail "could not create '$name'"
 call POST "/v1/cabals/$cabal/invites" "$host" "{\"handle\":\"$handle\"}" >/dev/null || fail "could not invite @$handle"
 hand_off cabalName "$name"

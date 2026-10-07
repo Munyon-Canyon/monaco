@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 2
+version: 3
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/asset-detail.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.setup.sh`, which upserts the catalogue rows of [stocks/browse](browse.md) (P3 there), among them `JRNYQx`, a second `pre_ipo` listing of "Journey Private" from issuer `tessera`, with the same `company_key` as `JRNYPx`. Each row gets two `price_points` samples, stamped twelve hours ago and now. No step taps to create them |
 | P3 | `JRNYAx` is `issuer_tradable`, so its Propose buy is enabled |
 | P4 | S4 needs a cabal of A's that holds `JRNYAx`. A treasury position comes only from a confirmed trade, and the trade path is #2136's, so the setup script seeds no holding and S4 runs against a member with none |
-| P5 | S1 needs A in at least two cabals so Propose buy opens the cabal picker. The S1 setup counts the cabals A votes in and has A create open cabals `QA stocks {QA.run} <n>` through the API for the shortfall (cabal creation is rate limited, and earlier runs leave cabals), and marks A done with onboarding |
+| P5 | S1 needs A in at least two cabals so Propose buy opens the cabal picker. The S1 setup counts the cabals A votes in and has A create cabals `QA stocks {QA.run} <n>` through the API for the shortfall (cabal creation is rate limited, and earlier runs leave cabals), and marks A done with onboarding |
 | P6 | The run never calls the live Jupiter API. The steps read only what `GET /v1/assets/{symbol}` and its chart serve from the seeded rows |
 
 ## Scenarios

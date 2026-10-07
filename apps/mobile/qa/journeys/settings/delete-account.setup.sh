@@ -78,7 +78,7 @@ hand_off "devUser$scenario" "$user_id"
 if [[ "$scenario" == S3 ]]; then
   cabal_name="QA delete pot $run"
   cabal_id="$(call POST /v1/cabals \
-    "{\"name\":\"$cabal_name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$cabal_name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')" || fail "could not create '$cabal_name'"
   hand_off cabalID "$cabal_id"
   hand_off cabalName "$cabal_name"

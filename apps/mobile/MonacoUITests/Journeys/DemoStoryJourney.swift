@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 1
+    static let version = 2
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10

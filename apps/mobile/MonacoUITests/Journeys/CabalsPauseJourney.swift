@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPauseJourney {
     static let id = "cabals/pause"
-    static let version = 1
+    static let version = 2
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)

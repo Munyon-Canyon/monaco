@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 4
+version: 5
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Cabals tab | | The toolbar "+" (`cabals-new-button`) shows within 15 s. Old app: the Cabals tab "+" in `CabalsTabView` |
 | S1.2 | tap | `cabals-new-button` | | The New cabal sheet shows `new-cabal-create-row` ("Start a cabal" / "Name it and set the rules") and `new-cabal-join-row` ("Join with an invite code" / "Paste the code a friend sent you") within 10 s. Old app: the same two rows in `CabalsTabView`'s "New cabal" sheet |
-| S1.3 | tap | `new-cabal-create-row` | | "Start a cabal" shows `create-group-name` within 10 s, with "The rules": `create-rule-join` ("Who can join"), `create-rule-voters` ("Who votes"), `create-rule-threshold` ("To pass") and `create-rule-expiry` ("Votes stay open"); `create-rule-expiry` starts on "1 week". Old app: `CreateGroupView` |
+| S1.3 | tap | `new-cabal-create-row` | | "Start a cabal" shows `create-group-name` within 10 s, with "The rules": `create-rule-voters` ("Who votes"), `create-rule-threshold` ("To pass") and `create-rule-expiry` ("Votes stay open"); `create-rule-expiry` starts on "1 week". Old app: `CreateGroupView` |
 
 ### S2 Create a cabal
 
@@ -42,7 +42,7 @@ Starts on the form (S1).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S2.1 | type | `create-group-name` | `QA pot <run>`, where `<run>` makes the name unique to the run | `create-group-submit` ("Create cabal") is enabled. Old app: the "Cabal name" field in `CreateGroupView` |
-| S2.2 | tap | "I approve" in `create-rule-join`, "Just me" in `create-rule-voters`, "Everyone agrees" in `create-rule-threshold`, "1 hour" in `create-rule-expiry` | | Each choice is selected. Old app: the four segmented rules in `CreateGroupView` |
+| S2.2 | tap | "Just me" in `create-rule-voters`, "Everyone agrees" in `create-rule-threshold`, "1 hour" in `create-rule-expiry` | | Each choice is selected. Old app: the four segmented rules in `CreateGroupView` |
 | S2.3 | tap twice | `create-group-submit` | | The cabal screen shows within 20 s: `cabal-header-name` is the typed name, and the form is gone. The second tap proves "Creating…" holds off a duplicate. Old app: Create pushed `GroupDetailView` |
 | S2.4 | wait | the toast | | "Cabal created." shows within 5 s of S2.3. Old app: the same toast over `GroupDetailView` |
 | S2.5 | wait | `cabal-member-count` | | Reads "1 member", the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
@@ -59,17 +59,17 @@ Starts on the form (S1).
 
 ### S4 A friend joins with the invite code
 
-A creates an open cabal, B joins it with the code, and A finds B on the member board.
+A creates a cabal, B asks to join with the code, A approves, and A finds B on the member board.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S4.1 | A | tap | the Cabals tab, `cabals-new-button`, then `new-cabal-create-row` | | "Start a cabal" shows `create-group-name` within 10 s. Old app: Cabals "+", then "Start a cabal" pushed `CreateGroupView` |
-| S4.2 | A | type, tap, then tap | `create-group-name`, "Anyone" in `create-rule-join`, then `create-group-submit` | `QA duo {QA.run}` | "Anyone" is selected. `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 10 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
+| S4.2 | A | type, tap, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 10 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
 | S4.3 | A | tap | `cabal-details-button` | | `cabal-invite-card` ("Invite code") shows within 10 s, and `cabal-invite-code` is 10 characters. The test hands the code to B. Old app: "i" opened `GroupDetailsSheet` with the code |
-| S4.4 | B | tap | the Cabals tab, `cabals-new-button`, then `new-cabal-join-row` | | "Join a cabal" shows `join-group-id` within 10 s. Old app: Cabals "+", then "Join with an invite code" pushed `JoinGroupView` |
-| S4.5 | B | tap | `join-group-paste` | the code from S4.3, on B's clipboard | `join-group-name` reads `QA duo {QA.run}` and `join-group-submit` reads "Join cabal" within 10 s. Old app: Paste in `JoinGroupView`'s code field |
-| S4.6 | B | tap | `join-group-submit` | | The toast "You're in." shows within 10 s, and `cabal-member-count` reads "2 members" within 15 s. Old app: Join in `JoinGroupView` pushed `GroupDetailView` with the same toast |
-| S4.7 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA duo {QA.run}` | `cabal-member-count` reads "2 members" within 15 s, and a `cabal-member-<id>` row on the "Leaderboard" (`CabalMemberBoardSlot`) names B within 15 s. Old app: `GroupDetailView`'s `MemberBoardSection` |
+| S4.4 | B | tap | the Cabals tab, `cabals-new-button`, then `new-cabal-join-row` | | "Ask to join" shows `join-group-id` within 10 s. Old app: Cabals "+", then "Join with an invite code" pushed `JoinGroupView` |
+| S4.5 | B | tap | `join-group-paste` | the code from S4.3, on B's clipboard | `join-group-name` reads `QA duo {QA.run}` and `join-group-submit` reads "Ask to join" within 10 s. Old app: Paste in `JoinGroupView`'s code field |
+| S4.6 | B | tap | `join-group-submit` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and `cabal-join-requested` reads "Request sent" within 15 s. B is not a member yet. Old app: Join in `JoinGroupView` pushed `GroupDetailView` with the same toast |
+| S4.7 | A | tap, type, tap, then tap | the Cabals tab, `cabals-search-field`, the `cabals-search-result-<id>`, then `cabal-join-approve` | `QA duo {QA.run}` | `cabal-member-count` reads "2 members" within 15 s, and a `cabal-member-<id>` row on the "Leaderboard" (`CabalMemberBoardSlot`) names B within 15 s. Old app: `GroupDetailView`'s `MemberBoardSection` |
 
 ## Ground truth
 

@@ -24,7 +24,7 @@ ready_a() {
 
 create_cabal() {
   qa_api A POST /v1/cabals \
-    "{\"name\":\"$1\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$1\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     field id
 }
 
@@ -35,7 +35,7 @@ case "$scenario" in
     if [[ "$(qa_sql -v name="$name" <<<"SELECT count(*) FROM cabals WHERE name = :'name'")" == 0 ]]; then
       create_cabal "$name" >/dev/null
     fi
-    echo "seeded: A created the open cabal '$name'"
+    echo "seeded: A created the cabal '$name'"
     ;;
   *)
     echo "no setup for scenario $scenario" >&2

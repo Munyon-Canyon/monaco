@@ -24,7 +24,7 @@ ready_a() {
 
 create_cabal() {
   qa_api A POST /v1/cabals \
-    "{\"name\":\"$1\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$1\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     field id
 }
 
@@ -59,7 +59,7 @@ SQL
     ;;
   S2)
     create_cabal "QA activity $run" >/dev/null
-    echo "seeded: A created the open cabal 'QA activity $run'; the fund route (#608, #651) does not exist yet"
+    echo "seeded: A created the cabal 'QA activity $run'; the fund route (#608, #651) does not exist yet"
     ;;
   S3)
     echo "nothing to seed for S3: the withdraw route (#652) does not exist yet"

@@ -1,7 +1,7 @@
 ---
 id: feed/browse
 title: Browse the feed
-version: 2
+version: 3
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and B have signed in once (`auth/sign-in`), and their `privy_user_id` values are in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/feed/browse.setup.sh` ran right before the scenario. It seeds the shape of the testkit scenario `feed-two-cabals` through the API with the QA accounts: B creates the open cabal `QA feed {QA.run}` and A joins it, and A creates the open cabal `QA own {QA.run}`. A unfollows B, so A follows nobody the run seeded. The testkit file itself names fixed user ids, so the setup does not replay it |
+| P3 | `apps/mobile/qa/journeys/feed/browse.setup.sh` ran right before the scenario. It seeds the shape of the testkit scenario `feed-two-cabals` through the API with the QA accounts: B creates the cabal `QA feed {QA.run}` and A joins it, and A creates the cabal `QA own {QA.run}`. A unfollows B, so A follows nobody the run seeded. The testkit file itself names fixed user ids, so the setup does not replay it |
 
 ## Scenarios
 

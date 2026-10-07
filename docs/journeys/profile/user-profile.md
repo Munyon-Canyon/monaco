@@ -1,7 +1,7 @@
 ---
 id: profile/user-profile
 title: Another member's profile
-version: 1
+version: 2
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]
@@ -21,7 +21,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | Before each scenario, `apps/mobile/qa/journeys/profile/user-profile.setup.sh` marks A and B as done with onboarding and sets B's display name to "Bartholomez" |
-| P3 | The setup script has A create the open cabal `QA profile {QA.run}` and B join it through the API, unless both already are members. It hands the test `cabalID`, `cabalName`, `meID` (A's user id) and `memberID` (B's user id) |
+| P3 | The setup script has A create the cabal `QA profile {QA.run}` and B join it through the API, unless both already are members. It hands the test `cabalID`, `cabalName`, `meID` (A's user id) and `memberID` (B's user id) |
 | P4 | Before S2, the setup script ends any follow of B by A through `DELETE /v1/users/{id}/follow`, and hands the truth check `followRowsBefore`, the count of A-to-B rows in `follows` |
 
 ## Scenarios

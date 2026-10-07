@@ -11,8 +11,8 @@ case "$scenario" in
   S1)
     name="QA cash out $run"
     qa_api A POST /v1/cabals \
-      "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
-    echo "seeded: A created the open cabal '$name'"
+      "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+    echo "seeded: A created the cabal '$name'"
     ;;
   S2)
     echo "S2 starts from A's funded account balance; nothing to seed"

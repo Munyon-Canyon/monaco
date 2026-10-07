@@ -1,7 +1,7 @@
 ---
 id: governance/comments
 title: Comment on a proposal
-version: 1
+version: 2
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/governance/comments.setup.sh` ran right before the scenario. It marks A as done with onboarding, sets A's display name, and creates the open cabal `QA comments {QA.run}` as A. It cannot seed the open proposal the scenarios start from: creating one needs a live Jupiter quote, and no flow or testkit scenario seeds one as the QA accounts. Once #612 or #711 lands a seed path, the setup seeds the proposal and its feed item there |
+| P3 | `apps/mobile/qa/journeys/governance/comments.setup.sh` ran right before the scenario. It marks A as done with onboarding, sets A's display name, and creates the cabal `QA comments {QA.run}` as A. It cannot seed the open proposal the scenarios start from: creating one needs a live Jupiter quote, and no flow or testkit scenario seeds one as the QA accounts. Once #612 or #711 lands a seed path, the setup seeds the proposal and its feed item there |
 
 ## Scenarios
 

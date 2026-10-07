@@ -33,10 +33,10 @@ case "$scenario" in
     ready_actor A
     name="QA home $run"
     cabal="$(qa_api A POST /v1/cabals \
-      "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+      "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
       python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
     hand_off cabalID "$cabal" cabalName "$name"
-    echo "seeded: A created the open cabal '$name'"
+    echo "seeded: A created the cabal '$name'"
     ;;
   S2)
     ready_actor C

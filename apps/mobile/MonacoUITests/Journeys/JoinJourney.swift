@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
 
@@ -165,7 +165,7 @@ enum JoinJourney {
                 app.textFields["join-group-id"].waitForExistence(timeout: 10),
                 "S1.7: the code field did not show within 10 s"
             )
-            XCTAssertTrue(app.navigationBars["Join a cabal"].exists, "S1.7: the screen is not titled Join a cabal")
+            XCTAssertTrue(app.navigationBars["Ask to join"].exists, "S1.7: the screen is not titled Ask to join")
         }
 
         recorder.step("S1.8", "paste the code") {
@@ -176,8 +176,8 @@ enum JoinJourney {
                 "S1.8: the preview does not name \(name) within 10 s"
             )
             XCTAssertTrue(
-                waitForLabel(app.buttons["join-group-submit"], containing: "Request to join", timeout: 10),
-                "S1.8: the button does not read Request to join: \(app.buttons["join-group-submit"].label)"
+                waitForLabel(app.buttons["join-group-submit"], containing: "Ask to join", timeout: 10),
+                "S1.8: the button does not read Ask to join: \(app.buttons["join-group-submit"].label)"
             )
         }
 
@@ -237,27 +237,6 @@ enum JoinJourney {
             XCTAssertFalse(app.buttons["cabal-join-requested"].exists, "S1.12: still reads Request sent")
             XCTAssertFalse(app.buttons["cabal-join-button"].exists, "S1.12: still offers to join")
             snap(app, "S1-B-member")
-        }
-
-        recorder.step("S1.13", "find the open cabal by name") {
-            openBySearch(app, openCabal(run: run), step: "S1.13")
-            XCTAssertTrue(
-                waitForLabel(app.buttons["cabal-join-button"], containing: "Join cabal", timeout: screenTimeout),
-                "S1.13: no Join cabal on the open cabal within \(Int(screenTimeout)) s"
-            )
-        }
-
-        recorder.step("S1.14", "join it") {
-            app.buttons["cabal-join-button"].tap()
-            waitForToast(app, "You're in.", step: "S1.14")
-            XCTAssertTrue(
-                waitForLabel(app.element("cabal-member-count"), containing: "2 members", timeout: screenTimeout),
-                "S1.14: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
-            )
-            XCTAssertTrue(
-                app.element("cabal-action-fund").waitForExistence(timeout: screenTimeout),
-                "S1.14: no member actions on the cabal within \(Int(screenTimeout)) s"
-            )
         }
     }
 }

@@ -72,6 +72,13 @@ field() {
   python3 -c 'import json,sys; v=json.load(sys.stdin).get(sys.argv[1]); print("" if v is None else v)' "$1"
 }
 
+admit() {
+  local joiner="$1" creator="$2" cabal="$3" request
+  request="$(call POST "/v1/cabals/$cabal/access-requests" "$joiner" 2>/dev/null | field id)" || return 0
+  [[ -n "$request" ]] || return 0
+  call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$creator" '{"decision":"approve"}' >/dev/null
+}
+
 create_cabal() {
   local bearer="$1" name="$2" mode="$3"
   call POST /v1/cabals "$bearer" \
@@ -107,14 +114,15 @@ case "$scenario" in
   S1 | S3)
     name="QA leave $run"
     [[ "$scenario" == S3 ]] && name="QA sell $run"
-    cabal="$(create_cabal "$(host)" "$name" open)"
-    call POST "/v1/cabals/$cabal/members" "$token_b" >/dev/null
-    echo "seeded: QA host created the open cabal '$name' and B joined it"
+    host_token="$(host)"
+    cabal="$(create_cabal "$host_token" "$name" request)"
+    admit "$token_b" "$host_token" "$cabal"
+    echo "seeded: QA host created the cabal '$name' and B joined it"
     ;;
   S2)
-    cabal="$(create_cabal "$token_a" "QA stay $run" open)"
-    call POST "/v1/cabals/$cabal/members" "$token_b" >/dev/null
-    echo "seeded: A created the open cabal 'QA stay $run' and B joined it"
+    cabal="$(create_cabal "$token_a" "QA stay $run" request)"
+    admit "$token_b" "$token_a" "$cabal"
+    echo "seeded: A created the cabal 'QA stay $run' and B joined it"
     ;;
   *)
     echo "no setup for scenario $scenario" >&2

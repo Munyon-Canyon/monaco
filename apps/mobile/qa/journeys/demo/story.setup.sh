@@ -21,11 +21,11 @@ story_cabal() {
   id="$(qa_sql -v name="$name" <<<"SELECT id FROM cabals WHERE name = :'name'")"
   if [[ -z "$id" ]]; then
     id="$(qa_api A POST /v1/cabals \
-      "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+      "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
       python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
   fi
-  qa_api B POST "/v1/cabals/$id/members" >/dev/null
-  echo "seeded: A created the open cabal '$name' and B joined it"
+  qa_admit B A "$id"
+  echo "seeded: A created the cabal '$name' and B joined it"
 }
 
 ready_actor A

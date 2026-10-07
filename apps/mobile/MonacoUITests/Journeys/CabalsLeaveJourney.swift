@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsLeaveJourney {
     static let id = "cabals/leave"
-    static let version = 1
+    static let version = 2
 
     static let screenTimeout: TimeInterval = 15
 

@@ -121,6 +121,5 @@ fi
 create_cabal "$token_a" "QA pot $run" request >/dev/null
 host_token="$(token new)"
 call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
-create_cabal "$host_token" "QA open $run" open >/dev/null
 
-echo "seeded: A created the request cabal 'QA pot $run', a new user created the open cabal 'QA open $run', closed $closed pending requests"
+echo "seeded: A created the request cabal 'QA pot $run', closed $closed pending requests"

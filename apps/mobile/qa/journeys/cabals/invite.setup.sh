@@ -115,7 +115,7 @@ decline_all "$token_b"
 if [[ "$scenario" == S2 ]]; then
   name="QA share $run"
   call POST /v1/cabals "$token_a" \
-    "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+    "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
   echo "seeded: A created $name"
   exit 0
 fi
@@ -124,7 +124,7 @@ host_token="$(token new)"
 call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
 name="QA pot $(date +%H%M%S)"
 cabal="$(call POST /v1/cabals "$host_token" \
-  "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+  "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
   field id)"
 call POST "/v1/cabals/$cabal/invites" "$host_token" "{\"handle\":\"$handle_a\"}" >/dev/null
 

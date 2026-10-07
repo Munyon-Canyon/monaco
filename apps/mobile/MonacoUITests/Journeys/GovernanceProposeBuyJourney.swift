@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10

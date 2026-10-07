@@ -145,6 +145,16 @@ qa_api() {
   rm -f "$out"
 }
 
+# qa_admit <joiner> <creator> <cabal>: every cabal is request-to-join, so the joiner asks
+# and the creator approves. A joiner who is already in, or already asked, is left alone.
+qa_admit() {
+  local joiner="$1" creator="$2" cabal="$3" request
+  request="$(qa_api "$joiner" POST "/v1/cabals/$cabal/access-requests" 2>/dev/null |
+    python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))' 2>/dev/null)" || return 0
+  [[ -n "$request" ]] || return 0
+  qa_api "$creator" POST "/v1/cabals/$cabal/access-requests/$request/decision" '{"decision":"approve"}' >/dev/null
+}
+
 qa_flow_seed() {
   _qa_monacoctl flows seed "$1" "$2"
 }

@@ -1,7 +1,7 @@
 ---
 id: home/dashboard
 title: The Home dashboard
-version: 1
+version: 2
 milestone: M16
 requires: [auth/sign-in]
 actors: [A, C]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and C have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, A creates the open cabal `QA home {QA.run}` through the API, and the setup hands its id to the test. For S2, C leaves every cabal C belongs to through the API, so C has none |
+| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, A creates the cabal `QA home {QA.run}` through the API, and the setup hands its id to the test. For S2, C leaves every cabal C belongs to through the API, so C has none |
 
 ## Scenarios
 

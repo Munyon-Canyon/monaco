@@ -89,6 +89,13 @@ print("" if value is None else value)
 ' "$1"
 }
 
+admit() {
+  local joiner="$1" creator="$2" cabal="$3" request
+  request="$(call POST "/v1/cabals/$cabal/access-requests" "$joiner" 2>/dev/null | field id)" || return 0
+  [[ -n "$request" ]] || return 0
+  call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$creator" '{"decision":"approve"}' >/dev/null
+}
+
 ready_actor() {
   local actor="$1" bearer="$2" name
   sql -v did="$(column "$actor" privy_user_id)" >/dev/null \
@@ -191,10 +198,10 @@ fi
 host_id="$(call GET /v1/me "$host_token" | field id)"
 cabal_name="QA vote $run $scenario"
 cabal_id="$(call POST /v1/cabals "$host_token" \
-  "{\"name\":\"$cabal_name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+  "{\"name\":\"$cabal_name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
   field id)"
-call POST "/v1/cabals/$cabal_id/members" "$token_a" >/dev/null
-call POST "/v1/cabals/$cabal_id/members" "$token_b" >/dev/null
+admit "$token_a" "$host_token" "$cabal_id"
+admit "$token_b" "$host_token" "$cabal_id"
 
 proposal_id="$(open_proposal "$cabal_id" "$host_id" "QA vote $run" open '0 seconds' '86400 seconds')"
 [[ -n "$proposal_id" ]] || fail "no TSLAx row in assets, so no proposal was written"

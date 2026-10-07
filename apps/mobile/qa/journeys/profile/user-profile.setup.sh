@@ -36,11 +36,11 @@ name="QA profile $run"
 cabal="$(qa_sql -v name="$name" <<<"SELECT id FROM cabals WHERE name = :'name' LIMIT 1")"
 if [[ -z "$cabal" ]]; then
   cabal="$(qa_api A POST /v1/cabals \
-    "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')"
 fi
 if [[ "$(qa_sql -v c="$cabal" -v u="$member" <<<"SELECT count(*) FROM cabal_members WHERE cabal_id = :'c' AND user_id = :'u'")" == 0 ]]; then
-  qa_api B POST "/v1/cabals/$cabal/members" >/dev/null
+  qa_admit B A "$cabal"
 fi
 hand_off cabalID "$cabal"
 hand_off cabalName "$name"

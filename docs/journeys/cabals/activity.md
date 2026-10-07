@@ -1,7 +1,7 @@
 ---
 id: cabals/activity
 title: Cabal activity
-version: 2
+version: 3
 milestone: M14
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/cabals/activity.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. A creates the open cabal `QA activity {QA.run}` through the API. The setup then writes six `cabal_activity` rows in SQL, oldest first: four confirmed "Money added" rows of $5.00, one confirmed buy of Apple (`AAPLx`) for $25.00 with a transaction signature, and one failed buy of Apple for $10.00. S2 reuses the cabal S1 seeded in the same run. The setup hands the two buy ids to the test as `confirmed_trade` and `failed_trade` |
+| P3 | `apps/mobile/qa/journeys/cabals/activity.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. A creates the cabal `QA activity {QA.run}` through the API. The setup then writes six `cabal_activity` rows in SQL, oldest first: four confirmed "Money added" rows of $5.00, one confirmed buy of Apple (`AAPLx`) for $25.00 with a transaction signature, and one failed buy of Apple for $10.00. S2 reuses the cabal S1 seeded in the same run. The setup hands the two buy ids to the test as `confirmed_trade` and `failed_trade` |
 
 The rows come from SQL because no route writes `cabal_activity` without a real swap. Flow 11 (Execute trade) is `planned` and has no seeder in `internal/testkit/flows/`, and the testkit scenario `cabal-with-confirmed-trade` has fixed ids, so it cannot seed a per-run cabal on the dev database. The setup copies that scenario's trade: the `AAPLx` mint, $25.00 in.
 

@@ -1,7 +1,7 @@
 ---
 id: cabals/browse
 title: Browse and search cabals
-version: 2
+version: 3
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsBrowseJourney.swift, apps/mo
 
 # Browse and search cabals
 
-A member opens the Cabals tab, sees their cabals as cards, opens one, then searches by name and joins an open cabal and asks to join a request cabal from the search rows. The tab's return chart and Top cabals board are checked in their own scenarios, since both wait on backend routes. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
+A member opens the Cabals tab, sees their cabals as cards, opens one, then searches by name and asks to join a cabal from the search rows. The tab's return chart and Top cabals board are checked in their own scenarios, since both wait on backend routes. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
 
 Old app (`c838bd24`): the Cabals tab (`Groups/CabalsTabView.swift`): "Your cabals" cards (`CabalsStripSection.swift`) -> cabal; "Find a cabal by name" -> results (`CabalsSearchResultsSection.swift`) -> Join or Request; "Top cabals" (`CabalsLeaderboardSection.swift`); the return chart (`CabalsPnLChartSection.swift`). Spec: the Cabals tab, `CabalsListSlot`, `CabalsJoinSlot`, `CabalsValueChartSlot` and `CabalsBoardSlot` in [screens.md](../../screens.md#cabals-tab).
 
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and its `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/cabals/browse.setup.sh` ran right before the scenario. It marks A as done with onboarding. A creates `QA mine {QA.run}`. A new dev user "QA host" creates the open cabal `QA open {QA.run}` and the request cabal `QA ask {QA.run}` |
+| P3 | `apps/mobile/qa/journeys/cabals/browse.setup.sh` ran right before the scenario. It marks A as done with onboarding. A creates `QA mine {QA.run}`. A new dev user "QA host" creates the cabal `QA ask {QA.run}` |
 
 ## Scenarios
 
@@ -33,10 +33,8 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Cabals tab | | `cabals-search-field` reads "Find a cabal by name", `cabals-list` has the header "Your cabals" with a `cabals-list-card-<id>` naming `QA mine {QA.run}` within 15 s |
 | S1.2 | A | tap | the `cabals-list-card-<id>` for `QA mine {QA.run}` | | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
-| S1.3 | A | tap, then type | the Cabals tab, then `cabals-search-field` | `QA open {QA.run}` | One `cabals-search-result-<id>` names `QA open {QA.run}` with "1 member · Open", and its `cabals-search-enter-<id>` is labelled "Join QA open {QA.run}" within 10 s |
-| S1.4 | A | tap | the `cabals-search-enter-<id>` | | The toast "You're in." shows within 10 s |
-| S1.5 | A | wait for the toast to close, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member · By request", and its `cabals-search-enter-<id>` is labelled "Ask to join QA ask {QA.run}" within 10 s |
-| S1.6 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request sent" |
+| S1.3 | A | wait for the toast to close, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member · By request", and its `cabals-search-enter-<id>` is labelled "Ask to join QA ask {QA.run}" within 10 s |
+| S1.4 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request sent" |
 
 ### S2 Your cabals' return
 
@@ -52,7 +50,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Ground truth
 
-`apps/mobile/qa/journeys/cabals/browse.truth.sh` reads the run's cabals. After S1, A is a member of `QA open {QA.run}` and has a pending request on `QA ask {QA.run}`.
+`apps/mobile/qa/journeys/cabals/browse.truth.sh` reads the run's cabals. After S1, A has a pending request on `QA ask {QA.run}`.
 
 ## Known failures on staging
 

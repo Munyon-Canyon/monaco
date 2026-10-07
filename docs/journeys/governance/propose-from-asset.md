@@ -1,7 +1,7 @@
 ---
 id: governance/propose-from-asset
 title: Propose a buy from a stock
-version: 1
+version: 2
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend`, and the asset catalogue lists GOOGL |
-| P3 | `apps/mobile/qa/journeys/governance/propose-from-asset.setup.sh` ran right before the scenario. It marks A as done with onboarding, and A creates the open cabal `QA asset {QA.run}` through the API. A votes in earlier runs' cabals too, so the picker always shows |
+| P3 | `apps/mobile/qa/journeys/governance/propose-from-asset.setup.sh` ran right before the scenario. It marks A as done with onboarding, and A creates the cabal `QA asset {QA.run}` through the API. A votes in earlier runs' cabals too, so the picker always shows |
 
 ## Scenarios
 
