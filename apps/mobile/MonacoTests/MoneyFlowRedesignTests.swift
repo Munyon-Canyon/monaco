@@ -206,27 +206,6 @@ struct WithdrawFormTests {
     }
 }
 
-/// The deposit address card's three states, from the balance read that carries the address.
-@MainActor
-struct DepositAddressCardContentTests {
-    @Test func aLoadInFlightWinsThenAnAddressThenWhatWentWrong() {
-        #expect(DepositAddressCard.Content.resolve(.idle) == .loading)
-        #expect(DepositAddressCard.Content.resolve(.loading) == .loading)
-        #expect(
-            DepositAddressCard.Content.resolve(.loaded(Fixture.balance(248_500_000)))
-                == .ready(ownAddress))
-        #expect(
-            DepositAddressCard.Content.resolve(.failed(.transport(URLError(.notConnectedToInternet))))
-                == .unavailable("Couldn't load your deposit address."))
-    }
-
-    @Test func anAddressThatCannotTakeMoneyIsNeverOffered() {
-        #expect(
-            DepositAddressCard.Content.resolve(.loaded(Fixture.balance(248_500_000, depositAddress: "")))
-                == .unavailable("Couldn't load your deposit address."))
-    }
-}
-
 /// Preset chips take two rows only at the accessibility sizes, each chip exactly once.
 @MainActor
 struct AmountEntryPresetRowTests {

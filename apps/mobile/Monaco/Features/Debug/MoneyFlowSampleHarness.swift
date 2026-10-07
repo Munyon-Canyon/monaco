@@ -60,7 +60,10 @@ struct MoneyFlowSampleHarness: View {
     private var root: some View {
         switch scenario {
         case .addMoney, .addMoneyLoading, .addMoneyFailed:
-            DepositContent(state: MoneyFlowSampleData.depositState(for: scenario), onCopy: { _ in }, onRetry: {})
+            DepositContent(
+                address: MoneyFlowSampleData.depositAddress,
+                state: MoneyFlowSampleData.depositState(for: scenario),
+                onCopy: { _ in }, onRetryAddress: {}, onRetryBalance: {})
         case .fundCabal, .fundCabalFunding, .fundCabalEmpty, .fundCabalLoading:
             FundCabalContent(
                 state: MoneyFlowSampleData.fundState(for: scenario),
