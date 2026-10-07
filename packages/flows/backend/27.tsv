@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+27	Dead letters	admin	poller:admin.deadletters;POST /v1/admin/dead-letters/{id}/redrive;POST /v1/admin/dead-letters/{id}/discard	RecordDeadLetter;RedriveDeadLetter;DiscardDeadLetter			ok;DeadLetterNotOpen;NotFound;AdminForbidden	built	docs/architecture/analytics-admin.md#views

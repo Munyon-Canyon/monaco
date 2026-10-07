@@ -779,6 +779,83 @@ func TestGlobal_expectsOneDeadLetterAndOneTermLinePerAlertingConsumerOutcome(t *
 	}
 }
 
+func postHogTermLine(outcome string) string {
+	return `{"msg":"bus.dispatched","subject":"verify.events.follow.created","outcome":"` + outcome +
+		`","code":"post_hog_rejected"}`
+}
+
+func TestGlobal_expectsTheLettersAScriptDeclaresAndOneTermLinePerInternalCodeOfThem(t *testing.T) {
+	t.Parallel()
+	unit := func(command string, script flows.Script) Unit {
+		return Unit{
+			Flow:    tools.Flow{ID: "27", Trigger: "poller:admin.deadletters", Commands: []string{command}},
+			Command: command, Outcome: "ok", Script: script,
+		}
+	}
+	record := unit("RecordDeadLetter", flows.F27RecordDeadLetterOK)
+	redrive := unit("RedriveDeadLetter", flows.F27RedriveDeadLetterOK)
+	undeclared := unit("RedriveDeadLetter", flows.F27RedriveDeadLetterNotFound)
+	term, acked := postHogTermLine("term"), postHogTermLine("ack")
+	handlerLine := `{"msg":"analytics.capture_failed","event":"follow_created","code":"post_hog_rejected"}`
+	for _, tc := range []struct {
+		name    string
+		units   []Unit
+		letters uint64
+		lines   []string
+		want    []string
+	}{
+		{"one declared letter and its term", []Unit{record}, 1, []string{term}, nil},
+		{"a declared letter and a marker", []Unit{redrive}, 2, []string{term}, nil},
+		{"the declared letter missing", []Unit{record}, 0, []string{term}, []string{"0 dead letters in", ", want 1"}},
+		{"the marker missing", []Unit{redrive}, 1, []string{term}, []string{"1 dead letters in", ", want 2"}},
+		{"a second term line", []Unit{record}, 1, []string{term, term}, []string{"error: " + term}},
+		{"a dispatch that did not term", []Unit{record}, 1, []string{acked}, []string{"error: " + acked}},
+		{
+			"a script that declares no letters",
+			[]Unit{undeclared},
+			1,
+			[]string{term},
+			[]string{"1 dead letters in", ", want 0", "error: " + term},
+		},
+		{"the handler's own line with the declared code", []Unit{record}, 1, []string{term, handlerLine}, nil},
+		{
+			"the same line when nothing declares the code",
+			[]Unit{undeclared},
+			0,
+			[]string{handlerLine},
+			[]string{"error: " + handlerLine},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			letters, failures := globalFailures(t, tc.units, tc.letters, tc.lines...)
+			if letters != tc.letters || (len(tc.want) == 0) != (failures == "") {
+				t.Fatalf("dead letters = %d, failures = %q, want %d and %q", letters, failures, tc.letters, tc.want)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(failures, want) {
+					t.Errorf("failures = %q, want one containing %q", failures, want)
+				}
+			}
+		})
+	}
+}
+
+func TestReport_expectedLettersCountsEachFlowsDeclaredLettersOnly(t *testing.T) {
+	t.Parallel()
+	flow27 := tools.Flow{ID: "27", Trigger: "poller:admin.deadletters", Commands: []string{"RedriveDeadLetter"}}
+	flow90 := tools.Flow{ID: "90", Trigger: "POST /v1/ping", Commands: []string{"Ping"}}
+	rep := &report{units: []Unit{
+		{Flow: flow27, Command: "RedriveDeadLetter", Outcome: "ok", Script: flows.F27RedriveDeadLetterOK},
+		{Flow: flow27, Command: "RedriveDeadLetter", Outcome: "NotFound", Script: flows.F27RedriveDeadLetterNotFound},
+		{Flow: flow90, Command: "Ping", Outcome: "ok"},
+	}}
+	if all, own, other := rep.expectedLetters(""), rep.expectedLetters("27"), rep.expectedLetters("90"); all != 2 ||
+		own != 2 || other != 0 {
+		t.Fatalf("expected letters = %d overall, %d for flow 27, %d for flow 90, want 2, 2 and 0", all, own, other)
+	}
+}
+
 func TestWithDeadline_firesItsCauseOnTheClockAndCancelsTwiceSafely(t *testing.T) {
 	t.Parallel()
 	clk := fakeClock()

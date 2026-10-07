@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 	tools "github.com/monaco/monaco/apps/backend/internal/tools/flows"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
@@ -419,9 +420,13 @@ func termOf(u Unit) (string, errs.Code, bool) {
 func (rep *report) expectedLetters(flow string) uint64 {
 	var n uint64
 	for _, u := range rep.units {
-		if _, _, ok := termOf(u); ok && (flow == "" || u.Flow.ID == flow) {
+		if flow != "" && u.Flow.ID != flow {
+			continue
+		}
+		if _, _, ok := termOf(u); ok {
 			n++
 		}
+		n += uint64(len(flows.LettersOf(u.Script)))
 	}
 	return n
 }
@@ -439,11 +444,34 @@ func (d *driver) expectedTerms(units []Unit) map[termKey]uint64 {
 		if trigger, code, ok := termOf(u); ok {
 			terms[termKey{d.env.Subject(events.Type(trigger).Subject()), string(code)}]++
 		}
+		for _, l := range internalLetters(u) {
+			terms[termKey{d.env.Subject(l.Subject.Subject()), string(l.Code)}]++
+		}
 	}
 	return terms
 }
 
-func (d *driver) internalErrorLines(terms map[termKey]uint64) []error {
+func internalLetters(u Unit) []flows.Letter {
+	var out []flows.Letter
+	for _, l := range flows.LettersOf(u.Script) {
+		if slices.Contains(errs.All(), l.Code) && errs.KindOf(l.Code) == errs.KindInternal {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func declaredCodes(units []Unit) map[string]bool {
+	declared := map[string]bool{}
+	for _, u := range units {
+		for _, l := range internalLetters(u) {
+			declared[string(l.Code)] = true
+		}
+	}
+	return declared
+}
+
+func (d *driver) internalErrorLines(terms map[termKey]uint64, declared map[string]bool) []error {
 	var failures []error
 	internal := map[string]bool{}
 	for _, c := range errs.All() {
@@ -463,9 +491,12 @@ func (d *driver) internalErrorLines(terms map[termKey]uint64) []error {
 			continue
 		}
 		key := termKey{fields.Subject, fmt.Sprint(fields.Code)}
-		term := fields.Msg == observability.BusDispatched.Name && fields.Outcome == string(bus.OutcomeTerm)
-		if term && terms[key] > 0 {
+		dispatched := fields.Msg == observability.BusDispatched.Name
+		if dispatched && fields.Outcome == string(bus.OutcomeTerm) && terms[key] > 0 {
 			terms[key]--
+			continue
+		}
+		if !dispatched && declared[key.code] {
 			continue
 		}
 		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%s logged an internal error: %s",
@@ -475,7 +506,7 @@ func (d *driver) internalErrorLines(terms map[termKey]uint64) []error {
 }
 
 func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) []error {
-	terms, want := d.expectedTerms(rep.units), rep.expectedLetters("")
+	terms, want, declared := d.expectedTerms(rep.units), rep.expectedLetters(""), declaredCodes(rep.units)
 	var failures []error
 	stream, err := d.env.JS.Stream(ctx, d.env.DeadLetter)
 	if err != nil {
@@ -484,7 +515,7 @@ func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) 
 		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%d dead letters in %s, want %d", rep.deadLetters,
 			d.env.DeadLetter, want)})
 	}
-	failures = append(failures, d.internalErrorLines(terms)...)
+	failures = append(failures, d.internalErrorLines(terms, declared)...)
 	for _, l := range ledger {
 		if err := l.Check(ctx, d.env.Pool); err != nil {
 			failures = append(failures, &InvariantError{Msg: "ledger " + l.Name + ": " + err.Error()})

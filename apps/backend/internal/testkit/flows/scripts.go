@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -24,14 +26,36 @@ func Env() map[string][]string {
 	return env
 }
 
+type Letter struct {
+	Subject events.Type
+	Code    errs.Code
+}
+
 func Alone(s Script) bool {
 	alone := false
 	each("AloneF", func(_ string, out any) {
 		for _, a := range out.([]Script) {
-			alone = alone || reflect.ValueOf(a).Pointer() == reflect.ValueOf(s).Pointer()
+			alone = alone || sameScript(a, s)
 		}
 	})
 	return alone
+}
+
+func LettersOf(s Script) []Letter {
+	var letters []Letter
+	scripts := Scripts()
+	each("Letters", func(_ string, out any) {
+		for name, declared := range out.(map[string][]Letter) {
+			if sameScript(scripts[name], s) {
+				letters = append(letters, declared...)
+			}
+		}
+	})
+	return letters
+}
+
+func sameScript(a, b Script) bool {
+	return a != nil && b != nil && reflect.ValueOf(a).Pointer() == reflect.ValueOf(b).Pointer()
 }
 
 func each(prefix string, yield func(suffix string, out any)) {
