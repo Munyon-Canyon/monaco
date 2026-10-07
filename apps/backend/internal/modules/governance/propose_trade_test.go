@@ -286,3 +286,18 @@ func TestProposeTrade_rejectsMalformedThresholdAfterOpening(t *testing.T) {
 		t.Fatalf("Handle err = %v, want decode_failed", err)
 	}
 }
+
+func TestProposeTrade_nonVoterIsRefused(t *testing.T) {
+	t.Parallel()
+	h := newProposeHarness(t)
+	h.w.rows = h.w.rows[:0]
+	h.w.join(h.w.members[0], false)
+	h.w.join(h.w.members[1], true)
+	hints := &createdHints{guard: h.guard}
+	if _, err := h.proposeWithHints(h.d.ids, buyAAPLFor(1), hints); errs.CodeOf(err) != errs.CodeNotAVoter {
+		t.Fatalf("propose err = %v, want %s", err, errs.CodeNotAVoter)
+	}
+	if len(hints.created) != 0 {
+		t.Errorf("created hints = %q, want none", hints.created)
+	}
+}
