@@ -199,7 +199,20 @@ public struct PendingVote: Identifiable, Equatable, Sendable {
     }
 }
 
-public enum ProposalFilter: String, Sendable { case open, closed, all }
+public enum ProposalFilter: String, Sendable {
+    case open, passed, executed, failed, closed, all
+
+    func includes(_ status: ProposalStatus) -> Bool {
+        switch self {
+        case .all: true
+        case .open: status == .open
+        case .closed: status != .open
+        case .passed: status == .passed
+        case .executed: status == .executed
+        case .failed: [.failed, .expired, .executionBlocked].contains(status)
+        }
+    }
+}
 
 public struct ProposalsRepository: Sendable {
     let api: APIClient
@@ -216,7 +229,7 @@ public struct ProposalsRepository: Sendable {
                 path: .init(id: cabalID),
                 query: .init(filter: .init(rawValue: filter.rawValue), cursor: cursor)
             ).ok.body.json
-            return (response.proposals.map { ProposalSummary($0, canVote: $0.status == .open) }, response.nextCursor)
+            return (response.proposals.map { ProposalSummary($0) }, response.nextCursor)
         }
     }
 

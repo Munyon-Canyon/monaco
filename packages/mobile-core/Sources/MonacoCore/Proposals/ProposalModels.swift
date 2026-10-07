@@ -5,18 +5,25 @@ import Observation
 @MainActor
 public final class ProposalListModel {
     public let pager: CursorPager<ProposalSummary>
+    public let filter: ProposalFilter
     private let hints: any HintSource
     private let refresher: HintRefresher
 
     public init(cabalID: String, filter: ProposalFilter, repository: ProposalsRepository, hints: any HintSource) {
         self.hints = hints
+        self.filter = filter
         pager = CursorPager { try await repository.list(cabalID: cabalID, filter: filter, cursor: $0) }
         let hook = ProposalReloadHook()
         refresher = HintRefresher { await hook.run?() }
-        hook.run = { [weak pager] in await pager?.refreshFirstPage() }
+        hook.run = { [weak self] in await self?.refresh() }
     }
 
     public func load() async { await pager.loadFirst() }
+
+    public func refresh() async {
+        await pager.refreshFirstPage()
+        pager.remove { !filter.includes($0.status) }
+    }
     public func observe(cabalID: String) async {
         await refresher.observe([
             hints.hints(matching: .cabal(id: cabalID, what: "proposal_created")),
@@ -32,6 +39,62 @@ public final class ProposalListModel {
     }
 
     public var trading: [ProposalSummary] { pager.items.filter(\.isTradeInProgress) }
+
+    public func cabalSection(votedThisSession: Set<String>) -> CabalProposalsSection? {
+        let needs = needsVote(votedThisSession: votedThisSession)
+        let needsIDs = Set(needs.map(\.id))
+        let voted = pager.items.filter { $0.status == .open && $0.myBallot != nil && !needsIDs.contains($0.id) }
+        let proposals = needs + voted
+        guard !proposals.isEmpty else { return nil }
+        return CabalProposalsSection(
+            title: needs.isEmpty ? "Proposals" : "Needs your vote", count: needs.isEmpty ? nil : needs.count,
+            proposals: proposals)
+    }
+}
+
+public struct CabalProposalsSection: Equatable, Sendable {
+    public let title: String
+    public let count: Int?
+    public let proposals: [ProposalSummary]
+}
+
+public enum ProposalSegment: String, CaseIterable, Identifiable, Sendable {
+    case open, passed, executed, failed
+
+    public var id: String { rawValue }
+    public var title: String { rawValue.capitalized }
+    public var filter: ProposalFilter { ProposalFilter(rawValue: rawValue) ?? .all }
+    public var emptyTitle: String { "No \(rawValue) proposals yet" }
+}
+
+@Observable
+@MainActor
+public final class ProposalSegmentsModel {
+    public var selected: ProposalSegment = .open
+    private var models: [ProposalSegment: ProposalListModel] = [:]
+    private let cabalID: String
+    private let repository: ProposalsRepository
+    private let hints: any HintSource
+
+    public init(cabalID: String, repository: ProposalsRepository, hints: any HintSource) {
+        self.cabalID = cabalID
+        self.repository = repository
+        self.hints = hints
+    }
+
+    public func model(for segment: ProposalSegment) -> ProposalListModel {
+        if let existing = models[segment] { return existing }
+        let created = ProposalListModel(
+            cabalID: cabalID, filter: segment.filter, repository: repository, hints: hints)
+        models[segment] = created
+        return created
+    }
+
+    public var loaded: [ProposalListModel] { ProposalSegment.allCases.compactMap { models[$0] } }
+
+    public func refreshLoaded() async {
+        for model in loaded { await model.pager.loadFirst() }
+    }
 }
 
 extension ProposalSummary {
@@ -211,4 +274,26 @@ public final class PendingVotesModel {
 @MainActor
 private final class ProposalReloadHook {
     var run: (@MainActor () async -> Void)?
+}
+
+@Observable
+@MainActor
+public final class ProposalCardContext {
+    public private(set) var members: [ProposalMember] = []
+    public private(set) var assets: [String: ProposalAsset] = [:]
+    private let cabalID: String
+    private let repository: ProposalsRepository
+
+    public init(cabalID: String, repository: ProposalsRepository) {
+        self.cabalID = cabalID
+        self.repository = repository
+    }
+
+    public func load(for proposals: [ProposalSummary]) async {
+        guard !proposals.isEmpty else { return }
+        if members.isEmpty { members = (try? await repository.members(cabalID: cabalID)) ?? [] }
+        for symbol in Set(proposals.map(\.symbol)).subtracting(assets.keys).sorted() {
+            if let asset = try? await repository.asset(symbol: symbol) { assets[symbol] = asset }
+        }
+    }
 }

@@ -39,7 +39,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
             ))
         let result = try await repository(transport).list(cabalID: "c", filter: .open, cursor: nil)
         XCTAssertEqual(result.items.map(\.id), ["p"])
-        XCTAssertEqual(result.items.map(\.canVote), [true])
+        XCTAssertEqual(result.items.map(\.canVote), [false])
         XCTAssertEqual(result.nextCursor, "next")
         let path = await transport.sent.first?.path
         XCTAssertTrue(path?.contains("filter=open") ?? false)
