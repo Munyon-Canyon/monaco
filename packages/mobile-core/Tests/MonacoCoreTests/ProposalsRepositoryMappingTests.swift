@@ -182,11 +182,11 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         let model = ProposalDetailModel(id: "p", cabalID: "c", repository: repository(transport), hints: hints)
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await eventArrives(within: 30) { await hints.waitForSubscribers(1) }
         XCTAssertTrue(subscribed)
         model.setVisible(true)
         await hints.send(.changed(.cabal("c"), what: "proposal_updated", id: "1"))
-        let refreshed = await waitUntil { await transport.sent.count == 1 }
+        let refreshed = await eventArrives(within: 30) { await transport.waitForRequest() }
         XCTAssertTrue(refreshed)
     }
 
