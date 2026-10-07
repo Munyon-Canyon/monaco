@@ -211,6 +211,18 @@ func TestCheckQueue_cancellingTheWaitReturnsAndALostTicketFails(t *testing.T) {
 	}
 }
 
+func TestCheckQueue_standingFailsWhenTheQueueDirectoryIsAFile(t *testing.T) {
+	t.Parallel()
+	h := newQueueHarness(t, 1)
+	if err := os.RemoveAll(h.q.dir); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, h.q.dir, "not a directory")
+	if _, _, err := h.q.standing("ticket"); err == nil || !strings.Contains(err.Error(), "read the stage 0 queue") {
+		t.Fatalf("a queue path that is a file: %v", err)
+	}
+}
+
 func TestCheckQueue_pidAliveSeesThisProcessAndNotAnExitedOne(t *testing.T) {
 	t.Parallel()
 	if !pidAlive(os.Getpid()) {

@@ -65,10 +65,10 @@ func (q *checkQueue) drop(name string) {
 	_ = os.Remove(filepath.Join(q.dir, name))
 }
 
-func (q *checkQueue) standing(name string) (position, total int, err error) {
+func (q *checkQueue) live() ([]string, error) {
 	entries, err := os.ReadDir(q.dir)
-	if err != nil {
-		return 0, 0, fmt.Errorf("read the stage 0 queue: %w", err)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("read the stage 0 queue: %w", err)
 	}
 	var live []string
 	for _, e := range entries {
@@ -80,6 +80,14 @@ func (q *checkQueue) standing(name string) (position, total int, err error) {
 		live = append(live, e.Name())
 	}
 	slices.Sort(live)
+	return live, nil
+}
+
+func (q *checkQueue) standing(name string) (position, total int, err error) {
+	live, err := q.live()
+	if err != nil {
+		return 0, 0, err
+	}
 	at := slices.Index(live, name)
 	if at < 0 {
 		return 0, 0, errTicketLost

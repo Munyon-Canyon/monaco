@@ -60,8 +60,8 @@ shared = [
 ]
 
 [dispatch]
-# dispatch refuses while the 1-minute load average is above this. --urgent bypasses it.
-max_load = 12
+# dispatch refuses while the stage 0 queue holds more live tickets than max_queue x [check] slots. --urgent bypasses it.
+max_queue = 3
 
 [check]
 # The most `agents check` runs that execute rows at once on this machine; later runs queue in arrival order.

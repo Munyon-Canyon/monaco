@@ -40,8 +40,8 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 	}
 	if env.localConfig != "" {
 		_, _ = fmt.Fprintf(stdout,
-			"local config: %s (lanes=%d, check.slots=%d, dispatch.max_load=%d, tracking=%d, milestone=%s)\n",
-			env.localConfig, env.Config.Lanes, env.Config.Slots, env.Config.MaxLoad,
+			"local config: %s (lanes=%d, check.slots=%d, dispatch.max_queue=%d, tracking=%d, milestone=%s)\n",
+			env.localConfig, env.Config.Lanes, env.Config.Slots, env.Config.MaxQueue,
 			env.Config.Tracking, env.Config.Milestone)
 	}
 	if _, err := env.Run(ctx, env.Work, "", "git", "fetch", "origin", env.Config.FeatureBranch); err != nil {
@@ -152,11 +152,11 @@ type gate struct {
 func (env *Env) gates(ctx context.Context, in dispatchIn, stdout io.Writer) error {
 	if in.urgent {
 		if in.dry {
-			_, _ = io.WriteString(stdout, "dry-run: load gate and queue breaker bypassed by --urgent\n")
+			_, _ = io.WriteString(stdout, "dry-run: backlog gate and queue breaker bypassed by --urgent\n")
 		}
 		return nil
 	}
-	for _, g := range []gate{{"load", env.loadGate}, {"queue", env.queueGate}} {
+	for _, g := range []gate{{"backlog", env.backlogGate}, {"queue", env.queueGate}} {
 		ok, err := g.run(ctx)
 		switch {
 		case err == nil && in.dry:
@@ -170,20 +170,18 @@ func (env *Env) gates(ctx context.Context, in dispatchIn, stdout io.Writer) erro
 	return nil
 }
 
-func (env *Env) loadGate(ctx context.Context) (string, error) {
-	load := env.Load
-	if load == nil {
-		load = loadAverage
-	}
-	v, err := load(ctx, env.GOOS)
+func (env *Env) backlogGate(_ context.Context) (string, error) {
+	live, err := env.checkQueue().live()
 	if err != nil {
 		return "", err
 	}
-	if v > float64(env.Config.MaxLoad) {
+	limit := env.Config.MaxQueue * env.Config.Slots
+	if len(live) > limit {
 		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", fmt.Sprintf(
-			"load1 %.1f is over max_load %d; wait or dispatch with --urgent", v, env.Config.MaxLoad))
+			"stage 0 queue holds %d live tickets, over the limit of %d (max_queue %d x %d slots); "+
+				"wait or dispatch with --urgent", len(live), limit, env.Config.MaxQueue, env.Config.Slots))
 	}
-	return fmt.Sprintf("load1 %.1f, max_load %d", v, env.Config.MaxLoad), nil
+	return fmt.Sprintf("%d live tickets, limit %d", len(live), limit), nil
 }
 
 func (env *Env) queueGate(ctx context.Context) (string, error) {

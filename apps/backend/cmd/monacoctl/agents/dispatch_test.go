@@ -164,18 +164,37 @@ func numberedDraft(n int, at time.Time, jobs ...string) string {
 		`"updatedAt":%q,"commits":{"nodes":[{"commit":%s}]}}`, n, n, at.Format(time.RFC3339), rollup(jobs...))
 }
 
-func TestDispatch_refusesAboveMaxLoadAndUrgentDispatches(t *testing.T) {
-	t.Parallel()
-	f := prepBranch(t)
+func (f *fixture) stageZeroTickets(t *testing.T, live int) {
+	t.Helper()
+	dir := filepath.Join(f.Env(t).Common, ".monaco", "check-queue")
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(dir, "0-dead"), "/work\n")
+	for i := 1; i <= live; i++ {
+		writeFile(t, filepath.Join(dir, fmt.Sprintf("%d-%d", i, os.Getpid())), "/work\n")
+	}
+	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath), "[check]\nslots = 4\n")
+}
+
+func (f *fixture) dispatchableTicket(t *testing.T) {
+	t.Helper()
 	f.batch(t, 12)
-	f.load = 20
 	f.hub.on(get("/issues/12"), Issue{Body: "no blockers"})
 	f.hub.on(list("/pulls?state=open"), []PR{})
 	f.ownerComments(12)
 	f.hub.on("POST /repos/o/r/issues/7/comments", "{}")
 	f.ps()
+}
+
+func TestDispatch_refusesAboveTheBacklogLimitAndUrgentDispatches(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.dispatchableTicket(t)
+	f.stageZeroTickets(t, 13)
 	code, _, stderr := f.agents(t, "dispatch", "12", "--model", "opus")
-	if code != 1 || !strings.Contains(stderr, "load1 20.0 is over max_load 12; wait or dispatch with --urgent") {
+	if code != 1 || !strings.Contains(stderr, "stage 0 queue holds 13 live tickets, over the limit of 12 "+
+		"(max_queue 3 x 4 slots); wait or dispatch with --urgent") {
 		t.Fatalf("refuse: %d %q", code, stderr)
 	}
 	if _, err := os.Stat(f.Env(t).recordPath(12)); !os.IsNotExist(err) {
@@ -187,6 +206,39 @@ func TestDispatch_refusesAboveMaxLoadAndUrgentDispatches(t *testing.T) {
 	}
 	if rec, err := f.Env(t).localRecord(12); err != nil || rec.State != Running {
 		t.Fatalf("rec=%+v err=%v", rec, err)
+	}
+}
+
+func TestDispatch_proceedsAtTheBacklogLimit(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.dispatchableTicket(t)
+	f.stageZeroTickets(t, 12)
+	code, _, stderr := f.agents(t, "dispatch", "12", "--model", "opus")
+	if code != 0 {
+		t.Fatalf("dispatch: %d %q", code, stderr)
+	}
+	if rec, err := f.Env(t).localRecord(12); err != nil || rec.State != Running {
+		t.Fatalf("rec=%+v err=%v", rec, err)
+	}
+}
+
+func TestBacklogGate_countsOnlyLiveTicketsAndPassesWithoutAQueueDirectory(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	if msg, err := env.backlogGate(t.Context()); err != nil || !strings.HasPrefix(msg, "0 live tickets") {
+		t.Fatalf("no directory: %q %v", msg, err)
+	}
+	f.stageZeroTickets(t, 6)
+	env.Config.Slots, env.Config.MaxQueue = 2, 3
+	if msg, err := env.backlogGate(t.Context()); err != nil || msg != "6 live tickets, limit 6" {
+		t.Fatalf("dead ticket counted: %q %v", msg, err)
+	}
+	env.Config.MaxQueue = 2
+	_, err := env.backlogGate(t.Context())
+	if err == nil || !strings.Contains(cliText(err), "6 live tickets, over the limit of 4") {
+		t.Fatalf("limit not scaled by max_queue: %v", err)
 	}
 }
 
@@ -257,28 +309,29 @@ func TestDispatch_dryRunPrintsBothGateResultsAndChangesNothing(t *testing.T) {
 	f.ownerComments(12)
 	f.ps()
 	recent := f.now.Add(-time.Minute)
-	f.load = 3
+	f.stageZeroTickets(t, 2)
 	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
 	if code != 0 || stderr != "" ||
-		!strings.Contains(stdout, "dry-run: load gate would pass: load1 3.0, max_load 12\n") ||
+		!strings.Contains(stdout, "dry-run: backlog gate would pass: 2 live tickets, limit 12\n") ||
 		!strings.Contains(stdout, "dry-run: queue gate would pass: no job failed in two queue drafts "+
 			"in the last 60 minutes\n") {
 		t.Fatalf("pass: %d %q %q", code, stdout, stderr)
 	}
-	f.load = 20
+	f.stageZeroTickets(t, 13)
 	f.hub.on(graphqlRoute, draftData([]string{numberedDraft(3, recent, flakeJob), numberedDraft(4, recent, flakeJob)}))
 	code, stdout, stderr = f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
 	if code != 0 || stderr != "" ||
 		!strings.Contains(
 			stdout,
-			"dry-run: load gate would refuse: load1 20.0 is over max_load 12; wait or dispatch with --urgent\n",
+			"dry-run: backlog gate would refuse: stage 0 queue holds 13 live tickets, over the limit of 12 "+
+				"(max_queue 3 x 4 slots); wait or dispatch with --urgent\n",
 		) ||
 		!strings.Contains(stdout, "dry-run: queue gate would refuse: queue is failing on ci / Flake (drafts #3, #4); "+
 			"fix the pipeline first, or dispatch the fix with --urgent\n") {
 		t.Fatalf("refuse: %d %q %q", code, stdout, stderr)
 	}
 	code, stdout, _ = f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run", "--urgent")
-	if code != 0 || !strings.Contains(stdout, "dry-run: load gate and queue breaker bypassed by --urgent\n") {
+	if code != 0 || !strings.Contains(stdout, "dry-run: backlog gate and queue breaker bypassed by --urgent\n") {
 		t.Fatalf("urgent: %d %q", code, stdout)
 	}
 	if _, err := os.Stat(f.Env(t).recordPath(12)); !os.IsNotExist(err) {
@@ -289,28 +342,20 @@ func TestDispatch_dryRunPrintsBothGateResultsAndChangesNothing(t *testing.T) {
 	}
 }
 
-func TestGates_surfaceALoadReadFailure(t *testing.T) {
+func TestGates_surfaceAQueueReadFailure(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	f.hub.on(graphqlRoute, failureData())
 	env := f.Env(t)
-	env.Load = func(context.Context, string) (float64, error) { return 0, errors.New("no load") }
-	if err := env.gates(
-		t.Context(),
-		dispatchIn{},
-		io.Discard,
-	); err == nil ||
-		!strings.Contains(err.Error(), "no load") {
+	writeFile(t, filepath.Join(env.Common, ".monaco", "check-queue"), "not a directory")
+	if err := env.gates(t.Context(), dispatchIn{}, io.Discard); err == nil ||
+		!strings.Contains(err.Error(), "read the stage 0 queue") {
 		t.Fatalf("got %v", err)
 	}
 	var out strings.Builder
 	if err := env.gates(t.Context(), dispatchIn{dry: true}, &out); err != nil ||
-		!strings.Contains(out.String(), "dry-run: load gate would refuse: ") {
+		!strings.Contains(out.String(), "dry-run: backlog gate would refuse: ") {
 		t.Fatalf("dry: %v %q", err, out.String())
-	}
-	env.Load, env.Config.MaxLoad = nil, 1000000
-	if _, err := env.loadGate(t.Context()); err != nil {
-		t.Fatalf("host load: %v", err)
 	}
 }
 
@@ -329,7 +374,7 @@ func TestDispatch_dryRunNamesTheLocalConfigOnlyWhenItExists(t *testing.T) {
 	writeFile(t, local, "lanes = 6\ntracking = 512\n[check]\nslots = 4\n")
 	code, stdout, stderr = f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
 	want := filepath.Join(".git", localConfigPath) +
-		" (lanes=6, check.slots=4, dispatch.max_load=12, tracking=512, milestone=ms)\n"
+		" (lanes=6, check.slots=4, dispatch.max_queue=3, tracking=512, milestone=ms)\n"
 	if code != 0 || strings.Count(stdout, "local config: ") != 1 || !strings.Contains(stdout, want) {
 		t.Fatalf("with a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}

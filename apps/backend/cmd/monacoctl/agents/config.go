@@ -33,7 +33,8 @@ const (
 	checkPrefix     = "check."
 	batchPrefix     = "batch."
 	defaultSlots    = 2
-	defaultLoad     = 12
+	defaultQueue    = 3
+	retiredMaxLoad  = "dispatch.max_load"
 	dispatchSection = "[dispatch]"
 	dispatchPrefix  = "dispatch."
 	watchSection    = "[watch]"
@@ -63,15 +64,16 @@ type Config struct {
 	QueueLabel           string
 	QueueConcurrency     int
 	Slots                int
-	MaxLoad              int
+	MaxQueue             int
 	StuckAfter           time.Duration
 	Budget               map[string]time.Duration
 	Shared               []string
 	Unknown              []string
+	Deprecated           []string
 }
 
 func parseConfig(r io.Reader) (Config, error) {
-	c := Config{Budget: defaultBudget(), Slots: defaultSlots, MaxLoad: defaultLoad, StuckAfter: defaultStuck}
+	c := Config{Budget: defaultBudget(), Slots: defaultSlots, MaxQueue: defaultQueue, StuckAfter: defaultStuck}
 	section := ""
 	seen := map[string]bool{}
 	strs := map[string]*string{
@@ -80,9 +82,10 @@ func parseConfig(r io.Reader) (Config, error) {
 	}
 	ints := map[string]*int{
 		"tracking": &c.Tracking, "lanes": &c.Lanes, "batch.size": &c.Batch,
-		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad,
+		"verifier_installation": &c.VerifierInstallation, "check.slots": &c.Slots, "dispatch.max_queue": &c.MaxQueue,
 		"queue_concurrency": &c.QueueConcurrency,
 	}
+	ints[retiredMaxLoad] = new(int)
 	lists := map[string]*[]string{"batch.shared": &c.Shared}
 	durs := map[string]*time.Duration{"watch.stuck_after": &c.StuckAfter}
 	lines, err := logicalLines(r, configPath)
@@ -100,6 +103,9 @@ func parseConfig(r io.Reader) (Config, error) {
 		if err != nil {
 			return Config{}, configLineErr(configPath, l.n, err)
 		}
+	}
+	if seen[retiredMaxLoad] {
+		c.Deprecated = append(c.Deprecated, configPath)
 	}
 	for _, key := range []string{
 		"repo", "feature_branch", "tracking", "lanes", "batch.size", "verifier_app", "verifier_installation",
@@ -126,16 +132,21 @@ func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 	section := ""
 	strs := map[string]*string{"milestone": &c.Milestone}
 	ints := map[string]*int{
-		"lanes": &c.Lanes, "check.slots": &c.Slots, "dispatch.max_load": &c.MaxLoad, "tracking": &c.Tracking,
+		"lanes": &c.Lanes, "check.slots": &c.Slots, "dispatch.max_queue": &c.MaxQueue, "tracking": &c.Tracking,
 	}
+	ints[retiredMaxLoad] = new(int)
 	lines, err := logicalLines(r, localConfigPath)
 	if err != nil {
 		return Config{}, err
 	}
+	seen := map[string]bool{}
 	for _, l := range lines {
-		if err := applyConfigLine(nil, &section, map[string]bool{}, strs, ints, nil, nil, l.text); err != nil {
+		if err := applyConfigLine(nil, &section, seen, strs, ints, nil, nil, l.text); err != nil {
 			return Config{}, configLineErr(localConfigPath, l.n, err)
 		}
+	}
+	if seen[retiredMaxLoad] {
+		c.Deprecated = append(c.Deprecated, localConfigPath)
 	}
 	if c.Lanes < 1 {
 		return Config{}, detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
@@ -160,9 +171,9 @@ func checkCapacity(path string, c Config) error {
 		return detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
 			fmt.Sprintf("%s: check.slots: want at least 1, got %d", path, c.Slots))
 	}
-	if c.MaxLoad <= 0 {
+	if c.MaxQueue < 1 {
 		return detailErr(errs.CodeDecodeFailed, "monacoctl.agents.config",
-			fmt.Sprintf("%s: dispatch.max_load: want above 0, got %d", path, c.MaxLoad))
+			fmt.Sprintf("%s: dispatch.max_queue: want at least 1, got %d", path, c.MaxQueue))
 	}
 	return nil
 }

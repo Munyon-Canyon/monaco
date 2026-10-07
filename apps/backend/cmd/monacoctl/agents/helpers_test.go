@@ -155,7 +155,6 @@ type fixture struct {
 	repo     string
 	lookup   []byte
 	whoami   error
-	load     float64
 	lookPath func(string) (string, error)
 	onWait   func(n int)
 }
@@ -273,7 +272,7 @@ func absentCaffeinate(string) (string, error) { return "", exec.ErrNotFound }
 func (f *fixture) clock(env *Env) {
 	env.Now = func() time.Time { return f.now }
 	env.After = f.after
-	env.Load = func(context.Context, string) (float64, error) { return f.load, nil }
+	env.Load = func(context.Context, string) (float64, error) { return 0, nil }
 	env.Start = func(string, ...string) error { return nil }
 	env.LookPath = f.lookPath
 	if env.LookPath == nil {
