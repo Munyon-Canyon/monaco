@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strconv"
 	"time"
 
@@ -88,6 +89,21 @@ func (h *ProposeTradeHandler) Handle(ctx context.Context, cmd ProposeTrade) (ids
 	return opened.Draft.ID, nil
 }
 
+func (h *ProposeTradeHandler) proposerVoters(ctx context.Context, cmd ProposeTrade) ([]ids.UserID, error) {
+	const op = "governance.ProposeTrade"
+	voters, err := h.ports.Cabals.VoterSet(ctx, cmd.CabalID)
+	if err != nil {
+		return nil, err
+	}
+	if len(voters) == 0 {
+		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("field", "voters"))
+	}
+	if !slices.Contains(voters, cmd.ProposerID) {
+		return nil, errs.New(errs.CodeNotAVoter, op)
+	}
+	return voters, nil
+}
+
 func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (OpenedProposal, error) {
 	const op = "governance.ProposeTrade"
 	if err := member(ctx, h.ports.Cabals, cmd.CabalID, cmd.ProposerID); err != nil {
@@ -97,12 +113,9 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err != nil {
 		return OpenedProposal{}, err
 	}
-	voters, err := h.ports.Cabals.VoterSet(ctx, cmd.CabalID)
+	voters, err := h.proposerVoters(ctx, cmd)
 	if err != nil {
 		return OpenedProposal{}, err
-	}
-	if len(voters) == 0 {
-		return OpenedProposal{}, errs.New(errs.CodeInvalidInput, op, slog.String("field", "voters"))
 	}
 	asset, quote, err := h.assess(ctx, cmd)
 	if err != nil {

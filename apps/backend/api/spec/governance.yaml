@@ -58,7 +58,8 @@ paths:
       x-idempotent: true
       summary: Propose a trade for the cabal to vote on.
       description: >-
-        Checks that the caller is a member, that the asset is in the catalog and Jupiter can route
+        Checks that the caller is a member and is in the cabal's voter set (a non-voter gets
+        `not_a_voter`), that the asset is in the catalog and Jupiter can route
         it, and that a buy fits the pot or a sell fits the cabal's holding. These checks are advisory:
         the trade engine repeats them at execution. The voter set is copied from the cabal and never
         changes after. The proposer casts no ballot of their own. A replay with the same
