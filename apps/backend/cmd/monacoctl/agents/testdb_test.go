@@ -144,3 +144,17 @@ func connect(t *testing.T, url string) *pgx.Conn {
 	t.Cleanup(func() { _ = conn.Close(context.Background()) })
 	return conn
 }
+
+func TestTestEnv_runsTenChaosSeedsUnlessTheEnvironmentSaysOtherwise(t *testing.T) {
+	t.Setenv("CHAOS_SEEDS", "")
+	got := testDB{slot: 2}.testEnv()
+	want := []string{"env", "TEST_DATABASE_URL=" + testDB{slot: 2}.url(), "CHAOS_SEEDS=10"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("testEnv = %q, want %q", got, want)
+	}
+	t.Setenv("CHAOS_SEEDS", "50")
+	got = testDB{}.testEnv()
+	if slices.ContainsFunc(got, func(s string) bool { return strings.HasPrefix(s, "CHAOS_SEEDS=") }) {
+		t.Fatalf("testEnv = %q, want the caller's CHAOS_SEEDS left alone", got)
+	}
+}

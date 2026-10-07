@@ -22,7 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
 
-var testDBEnvRE = regexp.MustCompile(`^env TEST_DATABASE_URL=\S+ `)
+var testDBEnvRE = regexp.MustCompile(`^env TEST_DATABASE_URL=\S+ (CHAOS_SEEDS=\d+ )?`)
 
 const dropDeadClones = `.: docker exec monaco-postgres-test sh -c psql -U "$POSTGRES_USER" -Atc "` + dropDeadRunClones +
 	`" | psql -U "$POSTGRES_USER" -q`
@@ -200,11 +200,11 @@ func (h *checkHarness) goTest(t *testing.T, p, cover string, pkgs ...string) []s
 	t.Helper()
 	profile := h.profile(t)
 	return []string{
-		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " go test -tags faultpoints -short -count=1 -timeout 20s -p " + p + " -json -coverpkg=" + cover +
-			" -coverprofile=" + profile + " " + strings.Join(
-			pkgs,
-			" ",
-		),
+		"apps/backend: " + strings.Join(testDB{}.testEnv(), " ") +
+			" go test -tags faultpoints -short -count=1 -timeout 20s -p " + p +
+			" -json -coverpkg=" + cover +
+			" -coverprofile=" + profile +
+			" " + strings.Join(pkgs, " "),
 		"apps/backend: coverage --profile " + profile,
 	}
 }
@@ -1794,7 +1794,8 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 	results := filepath.Join(h.stateDir(t, "flows"), h.head(t)[:12]+".json")
 	want := []string{
 		"apps/backend: flows --affected --base " + h.mergeBase(t, "origin/fb"),
-		"apps/backend: env TEST_DATABASE_URL=" + testDB{}.url() + " bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
+		"apps/backend: " + strings.Join(testDB{}.testEnv(), " ") +
+			" bash -c go test -tags faultpoints -json -run \"$1\" \"${@:3}\" > \"$2\" || true flows " +
 			"^TestFlow(00)_ " + results + " ./internal/modules/system/... ./internal/modules/identity/...",
 		"apps/backend: flows check --affected --base " + h.mergeBase(t, "origin/fb") + " --from " + results,
 		"apps/backend: mobile-core-test.sh --filter (F|Flow)(00)[^a-z0-9]",
