@@ -95,9 +95,11 @@ func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []
 		_, _ = fmt.Fprintf(stdout, "not landing #%d; waiting on %s\n", top, strings.Join(waiting, ", "))
 		return nil
 	}
-	rec.Armed = &Arm{Top: top, PRs: numbers(stack), At: env.Now()}
-	rec.Changed = env.Now()
-	if err := env.storeRecord(ctx, rec); err != nil {
+	err := env.updateRecord(ctx, rec.Ticket, func(r *Record) {
+		r.Armed = &Arm{Top: top, PRs: numbers(stack), At: env.Now()}
+		r.Changed = env.Now()
+	})
+	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "armed #%d; agents watch lands it once stage 1 passes (waiting on %s)\n",
@@ -178,9 +180,11 @@ func (env *Env) landFresh(ctx context.Context, r Record, reran map[int64]int) []
 
 func (env *Env) disarm(ctx context.Context, r Record, why string) []string {
 	top := r.Armed.Top
-	r.Armed = nil
-	r.Changed = env.Now()
-	if err := env.storeRecord(ctx, r); err != nil {
+	err := env.updateRecord(ctx, r.Ticket, func(r *Record) {
+		r.Armed = nil
+		r.Changed = env.Now()
+	})
+	if err != nil {
 		return []string{watchErr(fmt.Sprintf("disarm #%d: ", top), err)}
 	}
 	return []string{fmt.Sprintf("armed stack #%d disarmed: %s", top, why)}
@@ -359,11 +363,13 @@ func (env *Env) queue(ctx context.Context, rec Record, dir string, stack []stack
 			return landFailed(err)
 		}
 	}
-	rec.Queued = &Queue{Top: top, PRs: nums, At: env.Now()}
-	rec.Armed = nil
-	rec.Settled = nil
-	rec.Changed = env.Now()
-	if err := env.storeRecord(ctx, rec); err != nil {
+	err := env.updateRecord(ctx, rec.Ticket, func(r *Record) {
+		r.Queued = &Queue{Top: top, PRs: nums, At: env.Now()}
+		r.Armed = nil
+		r.Settled = nil
+		r.Changed = env.Now()
+	})
+	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "queued %s\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n",
@@ -581,10 +587,12 @@ func (env *Env) conclude(ctx context.Context, rec Record, outcome Outcome, detai
 }
 
 func (env *Env) unmark(ctx context.Context, rec Record) error {
-	rec.Queued = nil
-	rec.Armed = nil
-	rec.Changed = env.Now()
-	return env.storeRecord(ctx, rec)
+	return env.updateRecord(ctx, rec.Ticket, func(r *Record) {
+		r.Queued = nil
+		r.Armed = nil
+		r.Settled = rec.Settled
+		r.Changed = env.Now()
+	})
 }
 
 func (env *Env) justUnlabeled(p stackPR) bool {

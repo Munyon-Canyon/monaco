@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -337,5 +338,52 @@ func TestRecords_aWriteKeepsKeysThisBuildDoesNotKnow(t *testing.T) {
 	if string(got["future"]) != `{"top":2,"note":"from a newer monacoctl"}` || got["queued"] != nil ||
 		string(got["worktree"]) != `"/w/40"` {
 		t.Fatalf("record:\n%s", b)
+	}
+}
+
+func TestRecords_concurrentUpdatesUnderTheRecordLockLoseNothing(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	f.owner(t, Record{Ticket: 40, State: Running})
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			if err := env.updateRecord(t.Context(), 40, func(r *Record) { r.Model += "x" }); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if r, err := env.localRecord(40); err != nil || r.Model != "xxxxxxxx" {
+		t.Fatalf("model %q err %v", r.Model, err)
+	}
+}
+
+func TestRecords_aFailingUpdateLeavesTheRecordAlone(t *testing.T) {
+	t.Parallel()
+	env := newFixture(t).Env(t)
+	if _, err := env.withRecordLock(40, func(r Record) (Record, error) { return r, nil }); err == nil {
+		t.Fatal("updated a record that does not exist")
+	}
+	if err := env.saveRecord(Record{Ticket: 41}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.withRecordLock(40, func(r Record) (Record, error) { return r, nil }); err == nil {
+		t.Fatal("updated a record that does not exist in a records directory that does")
+	}
+	if err := env.saveRecord(Record{Ticket: 40, State: Running}); err != nil {
+		t.Fatal(err)
+	}
+	wantErr := errors.New("stop")
+	_, err := env.withRecordLock(40, func(r Record) (Record, error) {
+		r.State = Done
+		return r, wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("err %v", err)
+	}
+	if r, err := env.localRecord(40); err != nil || r.State != Running {
+		t.Fatalf("%+v %v", r, err)
 	}
 }

@@ -108,8 +108,11 @@ func (env *Env) recordBranch(ctx context.Context, ticket int, branch string) err
 		return err
 	}
 	if r.Branch == "" {
-		r.Branch = branch
-		if err := env.saveRecord(r); err != nil {
+		r, err = env.withRecordLock(ticket, func(r Record) (Record, error) {
+			r.Branch = branch
+			return r, nil
+		})
+		if err != nil {
 			return err
 		}
 	}

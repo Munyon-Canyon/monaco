@@ -124,6 +124,34 @@ func jsonKeepingUnknownKeys(path string, r Record) []byte {
 	return data
 }
 
+func (env *Env) withRecordLock(ticket int, apply func(Record) (Record, error)) (Record, error) {
+	f, err := lockWait(env.recordPath(ticket) + ".lock")
+	if err != nil {
+		return Record{}, err
+	}
+	defer unlock(f)
+	cur, err := env.localRecord(ticket)
+	if err != nil {
+		return Record{}, err
+	}
+	next, err := apply(cur)
+	if err != nil {
+		return Record{}, err
+	}
+	return next, env.saveRecord(next)
+}
+
+func (env *Env) updateRecord(ctx context.Context, ticket int, apply func(*Record)) error {
+	r, err := env.withRecordLock(ticket, func(r Record) (Record, error) {
+		apply(&r)
+		return r, nil
+	})
+	if err != nil {
+		return err
+	}
+	return env.publishRecord(ctx, r)
+}
+
 func (env *Env) saveRecord(r Record) error {
 	path := env.recordPath(r.Ticket)
 	data := jsonKeepingUnknownKeys(path, r)

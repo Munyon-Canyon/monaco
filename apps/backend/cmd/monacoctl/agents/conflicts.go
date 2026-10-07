@@ -117,9 +117,12 @@ func setAgent(ctx context.Context, env *Env, args []string) error {
 	if err != nil {
 		return err
 	}
-	r.AgentID = args[1]
-	r.Changed = env.Now()
-	return env.saveRecord(r)
+	_, err = env.withRecordLock(r.Ticket, func(r Record) (Record, error) {
+		r.AgentID = args[1]
+		r.Changed = env.Now()
+		return r, nil
+	})
+	return err
 }
 
 func doneCmd(ctx context.Context, env *Env, args []string, _ io.Writer) error {
@@ -148,15 +151,20 @@ func setState(ctx context.Context, env *Env, args []string, state State, use str
 	if err != nil {
 		return err
 	}
-	r, err := env.record(ctx, n)
+	if _, err := env.record(ctx, n); err != nil {
+		return err
+	}
+	r, err := env.withRecordLock(n, func(r Record) (Record, error) {
+		if top, held := r.heldTop(); held && state == Exited {
+			return r, detailErr(errs.CodeInvalidInput, "monacoctl.agents.exited", fmt.Sprintf(
+				"#%d still holds stack #%d in the merge queue; run monacoctl agents dequeue %d first", n, top, top))
+		}
+		r.State = state
+		r.Changed = env.Now()
+		return r, nil
+	})
 	if err != nil {
 		return err
 	}
-	if top, held := r.heldTop(); held && state == Exited {
-		return detailErr(errs.CodeInvalidInput, "monacoctl.agents.exited", fmt.Sprintf(
-			"#%d still holds stack #%d in the merge queue; run monacoctl agents dequeue %d first", n, top, top))
-	}
-	r.State = state
-	r.Changed = env.Now()
-	return env.storeRecord(ctx, r)
+	return env.publishRecord(ctx, r)
 }
