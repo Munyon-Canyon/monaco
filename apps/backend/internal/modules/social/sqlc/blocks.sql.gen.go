@@ -55,3 +55,50 @@ func (q *Queries) InsertUserBlock(ctx context.Context, arg InsertUserBlockParams
 	err := row.Scan(&id)
 	return id, err
 }
+
+const isBlockedEitherWay = `-- name: IsBlockedEitherWay :one
+SELECT EXISTS (
+  SELECT 1 FROM user_blocks
+  WHERE (blocker_id = $1::uuid AND blocked_id = $2::uuid)
+     OR (blocker_id = $2::uuid AND blocked_id = $1::uuid)
+)
+`
+
+type IsBlockedEitherWayParams struct {
+	UserA uuid.UUID
+	UserB uuid.UUID
+}
+
+func (q *Queries) IsBlockedEitherWay(ctx context.Context, arg IsBlockedEitherWayParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isBlockedEitherWay, arg.UserA, arg.UserB)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const listUserBlocks = `-- name: ListUserBlocks :many
+SELECT blocked_id FROM user_blocks
+WHERE blocker_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT 500
+`
+
+func (q *Queries) ListUserBlocks(ctx context.Context, blockerID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUserBlocks, blockerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var blocked_id uuid.UUID
+		if err := rows.Scan(&blocked_id); err != nil {
+			return nil, err
+		}
+		items = append(items, blocked_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -134,6 +134,25 @@ func (e DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType) Valid() bool {
 	}
 }
 
+// BlockedUser A user the caller blocks.
+type BlockedUser struct {
+	// DisplayName Examples: Maya Angelou
+	DisplayName string `json:"display_name"`
+
+	// Handle Examples: maya
+	Handle string `json:"handle"`
+
+	// PhotoUrl Examples: https://img.example/maya.png
+	PhotoUrl *string            `json:"photo_url"`
+	UserId   openapi_types.UUID `json:"user_id"`
+}
+
+// BlockedUsers The users the caller blocks, newest block first.
+type BlockedUsers struct {
+	// Users Examples: []
+	Users []BlockedUser `json:"users"`
+}
+
 // ChatAuthor The author of a chat message. A deleted account has a null handle and an empty name.
 type ChatAuthor struct {
 	// DisplayName Empty when the user has none.
@@ -940,6 +959,9 @@ type ServerInterface interface {
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostFeedCommentParams)
+	// GetMeBlocks List the users the caller blocks.
+	// (GET /v1/me/blocks)
+	GetMeBlocks(w http.ResponseWriter, r *http.Request)
 	// PostMeContactsMatch Match address-book hashes to people on Monaco.
 	// (POST /v1/me/contacts/match)
 	PostMeContactsMatch(w http.ResponseWriter, r *http.Request, params PostMeContactsMatchParams)
@@ -1710,6 +1732,20 @@ func (siw *ServerInterfaceWrapper) PostFeedComment(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PostFeedComment(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMeBlocks operation middleware
+func (siw *ServerInterfaceWrapper) GetMeBlocks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMeBlocks(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2543,6 +2579,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}", wrapper.GetFeedItem)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.GetFeedComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/feed/{id}/comments", wrapper.PostFeedComment)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/blocks", wrapper.GetMeBlocks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/contacts/match", wrapper.PostMeContactsMatch)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/contacts/matches", wrapper.GetMeContactsMatches)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/feed-mutes", wrapper.GetMeFeedMutes)
@@ -2981,6 +3018,44 @@ type PostFeedCommentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PostFeedCommentdefaultApplicationProblemPlusJSONResponse) VisitPostFeedCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeBlocksRequestObject struct {
+}
+
+type GetMeBlocksResponseObject interface {
+	VisitGetMeBlocksResponse(w http.ResponseWriter) error
+}
+
+type GetMeBlocks200JSONResponse BlockedUsers
+
+func (response GetMeBlocks200JSONResponse) VisitGetMeBlocksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeBlocksdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMeBlocksdefaultApplicationProblemPlusJSONResponse) VisitGetMeBlocksResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -3562,6 +3637,9 @@ type StrictServerInterface interface {
 	// PostFeedComment Comment on a feed item.
 	// (POST /v1/feed/{id}/comments)
 	PostFeedComment(ctx context.Context, request PostFeedCommentRequestObject) (PostFeedCommentResponseObject, error)
+	// GetMeBlocks List the users the caller blocks.
+	// (GET /v1/me/blocks)
+	GetMeBlocks(ctx context.Context, request GetMeBlocksRequestObject) (GetMeBlocksResponseObject, error)
 	// PostMeContactsMatch Match address-book hashes to people on Monaco.
 	// (POST /v1/me/contacts/match)
 	PostMeContactsMatch(ctx context.Context, request PostMeContactsMatchRequestObject) (PostMeContactsMatchResponseObject, error)
@@ -3950,6 +4028,30 @@ func (sh *strictHandler) PostFeedComment(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostFeedCommentResponseObject); ok {
 		if err := validResponse.VisitPostFeedCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMeBlocks operation middleware
+func (sh *strictHandler) GetMeBlocks(w http.ResponseWriter, r *http.Request) {
+	var request GetMeBlocksRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMeBlocks(ctx, request.(GetMeBlocksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMeBlocks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMeBlocksResponseObject); ok {
+		if err := validResponse.VisitGetMeBlocksResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

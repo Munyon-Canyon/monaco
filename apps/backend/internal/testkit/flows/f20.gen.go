@@ -8,6 +8,7 @@ func (defined) ScriptsF20() map[string]Script {
 		"F20FollowCannotFollowSelf":  F20FollowCannotFollowSelf,
 		"F20FollowUserNotFound":      F20FollowUserNotFound,
 		"F20FollowUserBanned":        F20FollowUserBanned,
+		"F20FollowFollowBlocked":     F20FollowFollowBlocked,
 		"F20FollowUnauthorized":      F20FollowUnauthorized,
 		"F20FollowCrashBeforeCommit": F20FollowCrashBeforeCommit,
 		"F20UnfollowOK":              F20UnfollowOK,

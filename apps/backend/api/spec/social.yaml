@@ -750,6 +750,26 @@ paths:
         "204": {description: The caller does not block the user.}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/blocks:
+    get:
+      operationId: getMeBlocks
+      tags: [social]
+      summary: List the users the caller blocks.
+      description: >-
+        Newest block first, at most 500. Banned and deleted users stay in the list so they can be
+        unblocked. A deleted user carries an empty handle, display name and photo.
+      responses:
+        "200":
+          description: The blocked users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockedUsers"
+              example:
+                users:
+                  - {user_id: "7f0c2f6e-4c1b-4a8e-9a53-2d6f0b1c9e11", handle: maya, display_name: Maya Angelou, photo_url: null}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     ChatCabalId:
@@ -765,6 +785,27 @@ components:
       description: The message id.
       schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
   schemas:
+    BlockedUser:
+      type: object
+      description: A user the caller blocks.
+      additionalProperties: false
+      required: [user_id, handle, display_name, photo_url]
+      properties:
+        user_id: {type: string, format: uuid}
+        handle: {type: string, examples: [maya]}
+        display_name: {type: string, examples: [Maya Angelou]}
+        photo_url: {type: [string, "null"], examples: ["https://img.example/maya.png"]}
+    BlockedUsers:
+      type: object
+      description: The users the caller blocks, newest block first.
+      additionalProperties: false
+      required: [users]
+      properties:
+        users:
+          type: array
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/BlockedUser"
     ContactMatchRequest:
       type: object
       description: Lowercase SHA-256 hex hashes of E.164 phone numbers.
