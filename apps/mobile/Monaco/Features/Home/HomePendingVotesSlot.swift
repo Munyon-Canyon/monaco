@@ -22,24 +22,39 @@ struct HomePendingVotes: View {
     var body: some View {
         VStack(spacing: 0) {
             if let model, !model.votes.isEmpty {
+                let needsVote = model.needsVote
+                let inProgress = model.inProgress
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    HStack {
-                        MonacoSectionHeader("Needs your vote", count: model.votes.count)
-                        Spacer()
-                        NavigationLink("See all", value: AnyAppRoute(PendingVotesRoute()))
+                    if !needsVote.isEmpty {
+                        section("Needs your vote", needsVote, showsSeeAll: true, model: model)
                     }
-                    ForEach(model.votes.prefix(3)) { vote in
-                        if let detail = model.details[vote.id], let voting {
-                            ProposalVoteCard(
-                                proposal: detail.summary, voting: voting,
-                                paused: model.pausedCabals.contains(detail.summary.cabalID),
-                                onVoted: { await model.load(keeping: voting.votedIDs) })
-                        }
+                    if !inProgress.isEmpty {
+                        section("In progress", inProgress, showsSeeAll: needsVote.isEmpty, model: model)
                     }
                 }
             }
         }
         .task { await preparedModel().load() }
+    }
+
+    @ViewBuilder private func section(
+        _ title: String, _ votes: [PendingVote], showsSeeAll: Bool, model: PendingVotesModel
+    ) -> some View {
+        HStack {
+            MonacoSectionHeader(title, count: votes.count)
+            Spacer()
+            if showsSeeAll {
+                NavigationLink("See all", value: AnyAppRoute(PendingVotesRoute()))
+            }
+        }
+        ForEach(votes.prefix(3)) { vote in
+            if let detail = model.details[vote.id], let voting {
+                ProposalVoteCard(
+                    proposal: detail.summary, voting: voting,
+                    paused: model.pausedCabals.contains(detail.summary.cabalID),
+                    onVoted: { await model.load(keeping: voting.votedIDs) })
+            }
+        }
     }
 
     private func preparedModel() -> PendingVotesModel {

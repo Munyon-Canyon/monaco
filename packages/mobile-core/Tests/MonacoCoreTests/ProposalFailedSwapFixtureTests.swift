@@ -13,6 +13,7 @@ final class ProposalFailedSwapFixtureTests: XCTestCase {
             XCTAssertEqual(detail.summary.swap?.retryable, retryable)
             XCTAssertEqual(detail.summary.swap?.failureMessage, "The trade did not go through.")
             XCTAssertEqual(detail.voters.map(\.ballot), ["yes", "yes", nil])
+            XCTAssertFalse(detail.summary.isTradeInProgress, "a failed trade is final: it leaves In progress")
         }
     }
 }

@@ -53,23 +53,37 @@ struct CabalProposals: View {
 
     @ViewBuilder private func content(_ model: ProposalListModel) -> some View {
         let needsVote = model.needsVote(votedThisSession: voting?.votedIDs ?? [])
-        if !model.pager.items.contains(where: { $0.status == .open || $0.status == .passed }) {
+        let inProgress = model.trading
+        if needsVote.isEmpty && inProgress.isEmpty {
             EmptyState(title: "No open votes", message: "Propose the first buy.")
             if !model.pager.items.isEmpty {
                 NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
             }
         } else {
-            HStack {
-                MonacoSectionHeader("Needs your vote", count: needsVote.count)
-                Spacer()
+            if !needsVote.isEmpty {
+                section("Needs your vote", needsVote, showsSeeAll: true, model: model)
+            }
+            if !inProgress.isEmpty {
+                section("In progress", inProgress, showsSeeAll: needsVote.isEmpty, model: model)
+            }
+        }
+    }
+
+    @ViewBuilder private func section(
+        _ title: String, _ proposals: [ProposalSummary], showsSeeAll: Bool, model: ProposalListModel
+    ) -> some View {
+        HStack {
+            MonacoSectionHeader(title, count: proposals.count)
+            Spacer()
+            if showsSeeAll {
                 NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
             }
-            ForEach(needsVote + model.trading) { proposal in
-                if let voting {
-                    ProposalVoteCard(
-                        proposal: proposal, voting: voting, paused: pause?.isPaused == true,
-                        onVoted: { await model.pager.refreshFirstPage() })
-                }
+        }
+        ForEach(proposals) { proposal in
+            if let voting {
+                ProposalVoteCard(
+                    proposal: proposal, voting: voting, paused: pause?.isPaused == true,
+                    onVoted: { await model.pager.refreshFirstPage() })
             }
         }
     }
