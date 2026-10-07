@@ -23,22 +23,22 @@ import (
 
 // Defines values for AdminAccountStatus.
 const (
-	Active    AdminAccountStatus = "active"
-	Banned    AdminAccountStatus = "banned"
-	Deleted   AdminAccountStatus = "deleted"
-	Suspended AdminAccountStatus = "suspended"
+	AdminAccountStatusActive    AdminAccountStatus = "active"
+	AdminAccountStatusBanned    AdminAccountStatus = "banned"
+	AdminAccountStatusDeleted   AdminAccountStatus = "deleted"
+	AdminAccountStatusSuspended AdminAccountStatus = "suspended"
 )
 
 // Valid indicates whether the value is a known member of the AdminAccountStatus enum.
 func (e AdminAccountStatus) Valid() bool {
 	switch e {
-	case Active:
+	case AdminAccountStatusActive:
 		return true
-	case Banned:
+	case AdminAccountStatusBanned:
 		return true
-	case Deleted:
+	case AdminAccountStatusDeleted:
 		return true
-	case Suspended:
+	case AdminAccountStatusSuspended:
 		return true
 	default:
 		return false
@@ -111,6 +111,24 @@ func (e AdminAuthState) Valid() bool {
 	case CREATED:
 		return true
 	case ONBOARDINGCOMPLETED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminCabalStatus.
+const (
+	AdminCabalStatusActive AdminCabalStatus = "active"
+	AdminCabalStatusBanned AdminCabalStatus = "banned"
+)
+
+// Valid indicates whether the value is a known member of the AdminCabalStatus enum.
+func (e AdminCabalStatus) Valid() bool {
+	switch e {
+	case AdminCabalStatusActive:
+		return true
+	case AdminCabalStatusBanned:
 		return true
 	default:
 		return false
@@ -321,6 +339,98 @@ type AdminAuthTransition struct {
 	To string `json:"to"`
 }
 
+// AdminCabal One cabal as an operator sees them.
+//
+// Examples: {"created_at":"2026-10-06T12:00:00Z","creator_id":"019cc330-1111-7000-8000-000000000001","id":"019cc330-2222-7000-8000-000000000001","member_count":1,"members":[],"name":"Tech bros","positions":[],"recent_admin_actions":[],"recent_txns":[],"rules":{"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"},"status":"active","treasury_address":"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin"}
+type AdminCabal struct {
+	// CreatedAt When the cabal was created.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// CreatorId The user who created the cabal.
+	//
+	// Examples: 019cc330-1111-7000-8000-000000000001
+	CreatorId openapi_types.UUID `json:"creator_id"`
+
+	// Id The cabal id.
+	//
+	// Examples: 019cc330-2222-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// MemberCount How many members the cabal has.
+	//
+	// Examples: 1
+	MemberCount int64 `json:"member_count"`
+
+	// Members Every member, oldest first.
+	Members []AdminCabalMember `json:"members"`
+
+	// Name The cabal name.
+	//
+	// Examples: Tech bros
+	Name string `json:"name"`
+
+	// Positions The tokens the treasury holds, USDC included. A mint the catalog does not list has a null symbol.
+	Positions []AdminHolding `json:"positions"`
+
+	// RecentAdminActions The 20 newest admin actions on the cabal, newest first.
+	RecentAdminActions []AdminActionRecord `json:"recent_admin_actions"`
+
+	// RecentTxns The 20 newest ledger transactions of the cabal, newest first.
+	RecentTxns []AdminTxnHeader `json:"recent_txns"`
+
+	// Rules The rules the cabal runs on.
+	//
+	// Examples: {"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
+	Rules AdminCabalRules `json:"rules"`
+
+	// Status Whether the cabal may trade.
+	//
+	// Examples: active
+	Status AdminCabalStatus `json:"status"`
+
+	// TreasuryAddress The Solana address of the cabal treasury.
+	//
+	// Examples: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
+	TreasuryAddress string `json:"treasury_address"`
+}
+
+// AdminCabalMember One member of a cabal with the shares they hold.
+//
+// Examples: {"can_vote":true,"handle":"devadmin","joined_at":"2026-10-06T12:00:00Z","role":"creator","share_units":"25000000","user_id":"019cc330-1111-7000-8000-000000000001"}
+type AdminCabalMember struct {
+	// CanVote Whether the member votes on proposals.
+	//
+	// Examples: true
+	CanVote bool `json:"can_vote"`
+
+	// Handle The handle. Null before the user picks one.
+	//
+	// Examples: devadmin
+	Handle *string `json:"handle"`
+
+	// JoinedAt When the member joined.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	JoinedAt time.Time `json:"joined_at"`
+
+	// Role The role: creator or member.
+	//
+	// Examples: creator
+	Role string `json:"role"`
+
+	// ShareUnits The share units as a decimal integer. Zero for a member without a stake.
+	//
+	// Examples: 25000000
+	ShareUnits string `json:"share_units"`
+
+	// UserId The user id.
+	//
+	// Examples: 019cc330-1111-7000-8000-000000000001
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
 // AdminCabalRef A cabal named by id.
 //
 // Examples: {"id":"019cc330-2222-7000-8000-000000000001","name":"Tech bros"}
@@ -334,6 +444,61 @@ type AdminCabalRef struct {
 	//
 	// Examples: Tech bros
 	Name string `json:"name"`
+}
+
+// AdminCabalRules The rules the cabal runs on.
+//
+// Examples: {"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
+type AdminCabalRules struct {
+	// JoinMode How people join: open or request.
+	//
+	// Examples: open
+	JoinMode string `json:"join_mode"`
+
+	// ProposalExpirySeconds How long a proposal stays open.
+	//
+	// Examples: 86400
+	ProposalExpirySeconds int64 `json:"proposal_expiry_seconds"`
+
+	// SlippageBps The slippage the cabal accepts, in basis points.
+	//
+	// Examples: 100
+	SlippageBps int32 `json:"slippage_bps"`
+
+	// Threshold What passes a proposal: majority or unanimous.
+	//
+	// Examples: majority
+	Threshold string `json:"threshold"`
+
+	// VoterMode Who votes: all or list.
+	//
+	// Examples: all
+	VoterMode string `json:"voter_mode"`
+}
+
+// AdminCabalStatus Whether the cabal may trade.
+//
+// Examples: active
+type AdminCabalStatus string
+
+// AdminHolding One token the cabal treasury holds.
+//
+// Examples: {"mint":"XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp","symbol":"AAPLx","units":"300000000"}
+type AdminHolding struct {
+	// Mint The token mint address.
+	//
+	// Examples: XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp
+	Mint string `json:"mint"`
+
+	// Symbol The catalog symbol. Null for a mint the catalog does not list.
+	//
+	// Examples: AAPLx
+	Symbol *string `json:"symbol"`
+
+	// Units The base units held, as a decimal integer.
+	//
+	// Examples: 300000000
+	Units string `json:"units"`
 }
 
 // AdminMe An active administrator and their role.
@@ -665,6 +830,9 @@ type ServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(w http.ResponseWriter, r *http.Request)
+	// GetAdminCabal Look up a cabal by id.
+	// (GET /v1/admin/cabals/{id})
+	GetAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// GetDeadLetters List dead letters.
 	// (GET /v1/admin/dead-letters)
 	GetDeadLetters(w http.ResponseWriter, r *http.Request, params GetDeadLettersParams)
@@ -797,6 +965,32 @@ func (siw *ServerInterfaceWrapper) GetAdmins(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdmins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminCabal operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminCabal(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1181,6 +1375,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/actions", wrapper.GetAdminActions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/admins", wrapper.GetAdmins)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/cabals/{id}", wrapper.GetAdminCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dead-letters", wrapper.GetDeadLetters)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/discard", wrapper.DiscardDeadLetter)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/redrive", wrapper.RedriveDeadLetter)
@@ -1257,6 +1452,45 @@ type GetAdminsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAdminsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCabalRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminCabalResponseObject interface {
+	VisitGetAdminCabalResponse(w http.ResponseWriter) error
+}
+
+type GetAdminCabal200JSONResponse AdminCabal
+
+func (response GetAdminCabal200JSONResponse) VisitGetAdminCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminCabaldefaultApplicationProblemPlusJSONResponse) VisitGetAdminCabalResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1501,6 +1735,9 @@ type StrictServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(ctx context.Context, request GetAdminsRequestObject) (GetAdminsResponseObject, error)
+	// GetAdminCabal Look up a cabal by id.
+	// (GET /v1/admin/cabals/{id})
+	GetAdminCabal(ctx context.Context, request GetAdminCabalRequestObject) (GetAdminCabalResponseObject, error)
 	// GetDeadLetters List dead letters.
 	// (GET /v1/admin/dead-letters)
 	GetDeadLetters(ctx context.Context, request GetDeadLettersRequestObject) (GetDeadLettersResponseObject, error)
@@ -1603,6 +1840,32 @@ func (sh *strictHandler) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminsResponseObject); ok {
 		if err := validResponse.VisitGetAdminsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminCabal operation middleware
+func (sh *strictHandler) GetAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminCabalRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminCabal(ctx, request.(GetAdminCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminCabalResponseObject); ok {
+		if err := validResponse.VisitGetAdminCabalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
