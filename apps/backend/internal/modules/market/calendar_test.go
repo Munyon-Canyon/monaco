@@ -237,6 +237,27 @@ func TestSession_EarlyClose(t *testing.T) {
 	})
 }
 
+func TestSession_LastSessionOpenIsTheOpenOfTheSessionThatLastClosed(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct{ at, wantClose, wantOpen string }{
+		"weekend after a regular Friday":         {"2026-09-27 12:00", "2026-09-25 16:00", "2026-09-25 09:30"},
+		"after hours on the same day":            {"2026-09-28 16:30", "2026-09-28 16:00", "2026-09-28 09:30"},
+		"pre-market, the previous day's session": {"2026-09-29 08:00", "2026-09-28 16:00", "2026-09-28 09:30"},
+		"weekend after an early close":           {"2026-11-28 12:00", "2026-11-27 13:00", "2026-11-27 09:30"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := equitySession(t, easternTime(t, tt.at))
+			if !got.LastClose.Equal(easternTime(t, tt.wantClose)) ||
+				!got.LastSessionOpen.Equal(easternTime(t, tt.wantOpen)) {
+				t.Fatalf("at %s: last close %s, last open %s, want %s and %s",
+					tt.at, got.LastClose, got.LastSessionOpen, tt.wantClose, tt.wantOpen)
+			}
+		})
+	}
+}
+
 func TestSession_LastCloseOnMonday(t *testing.T) {
 	t.Parallel()
 	fridayClose := func(state, next domain.State, nextAt string) wallExpectation {

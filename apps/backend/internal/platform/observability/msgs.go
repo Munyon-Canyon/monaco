@@ -38,6 +38,10 @@ func Degraded(ctx context.Context, m Msg, attrs ...slog.Attr) {
 	emit.Log(ctx, slog.LevelWarn, m.Name, attrs)
 }
 
+func Alert(ctx context.Context, m Msg, attrs ...slog.Attr) {
+	emit.Log(ctx, slog.LevelError, m.Name, attrs)
+}
+
 func WriteCatalog(w io.Writer) error {
 	msgs := slices.SortedFunc(slices.Values(registry), func(a, b Msg) int { return strings.Compare(a.Name, b.Name) })
 	var b strings.Builder

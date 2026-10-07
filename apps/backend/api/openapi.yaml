@@ -3585,6 +3585,7 @@ components:
         - proposal_closed
         - proposal_not_found
         - proposal_still_open
+        - ranking_close_sample_missing
         - ranking_runs_stalled
         - rate_limited
         - reason_required
