@@ -254,3 +254,36 @@ func TestSwiftlintRatchet_aNewFileCountsFromZero(t *testing.T) {
 		t.Fatalf("a new file has no base copy to lint, calls=%q", calls)
 	}
 }
+
+func TestSwiftlintRatchet_anExplicitBaseThatAdvancedPastTheBranchPointIgnoresFilesTheBranchNeverTouched(t *testing.T) {
+	const b = "packages/mobile-core/Sources/B.swift"
+	r := newRatchetRepo(t)
+	git(t, r.dir, "checkout", "-q", "-b", "feature")
+	r.edit(t, b, "let c = [3].first!\nlet f = 6\n")
+	git(t, r.dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "branch work")
+	git(t, r.dir, "checkout", "-q", "--detach", "origin/staging")
+	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n")
+	git(t, r.dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "staging drops the comment")
+	git(t, r.dir, "update-ref", "refs/remotes/origin/staging", "HEAD")
+	git(t, r.dir, "checkout", "-q", "feature")
+	r.headFinds(t)
+	code, out := r.run(t, nil, "--base", "origin/staging")
+	if code != 0 || strings.Contains(out, "grew") {
+		t.Fatalf("expected a pass, code=%d out=%s", code, out)
+	}
+	for _, call := range r.lintCalls(t) {
+		if strings.Contains(call, aSwift) {
+			t.Fatalf("staging changed %s after the branch point; the branch never touched it, call=%s", aSwift, call)
+		}
+	}
+}
+
+func TestSwiftlintRatchet_aBaseWithNoMergeBaseFailsClearly(t *testing.T) {
+	r := newRatchetRepo(t)
+	git(t, r.dir, "checkout", "-q", "--orphan", "island")
+	git(t, r.dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "island")
+	code, out := r.run(t, nil, "--base", "origin/staging")
+	if code != 64 || !strings.Contains(out, "no merge base") {
+		t.Fatalf("expected exit 64 naming the missing merge base, code=%d out=%s", code, out)
+	}
+}
