@@ -2,6 +2,8 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { renderReferralPage, handleReferral, lookupReferrer, normalizeCode, otherHost } from "../lib/referral.js";
 import { onRequest as cloudflare } from "../functions/r/[code].js";
+import vercel from "../api/r/[code].js";
+import { readFileSync } from "node:fs";
 
 const STORE = "https://testflight.apple.com/join/example";
 const kai = { user_id: "01890a5d-ac96-774b-bcce-b302099a8058", display_name: "Kai", photo_url: "https://img.example/kai.png", handle: "kaicenat" };
@@ -187,4 +189,63 @@ test("the Cloudflare adapter serves the page with its headers and asks the edge 
 test("the Cloudflare adapter takes the first value of a catch-all code", async () => {
   const res = await cloudflare({ request: new Request("https://www.monacolabs.xyz/r/k7m4qx2p"), params: { code: ["k7m4qx2p"] }, env });
   assert.match(await res.text(), /href="https:\/\/monacolabs\.xyz\/r\/k7m4qx2p">Open in Monaco/);
+});
+
+// Both hosts are live, so the Vercel adapter must give the same page as the Cloudflare one.
+function vercelReq(code, host) {
+  const headers = {};
+  const res = {
+    code: 0, body: "",
+    setHeader(k, v) { headers[k.toLowerCase()] = v; },
+    status(c) { this.code = c; return this; },
+    send(b) { this.body = b; return this; },
+  };
+  return { req: { query: { code }, headers: { host } }, res, headers };
+}
+
+test("both adapters return identical bodies and status for the same input", async () => {
+  for (const [code, host] of [["K7M4QX2P", "monacolabs.xyz"], ["k7m4qx2p", "www.monacolabs.xyz"], ["no!", "monacolabs.xyz"]]) {
+    process.env.MONACO_API_URL = env.MONACO_API_URL;
+    process.env.APP_STORE_URL = env.APP_STORE_URL;
+    const cf = await cloudflare({ request: new Request(`https://${host}/r/${code}`), params: { code }, env });
+    const v = vercelReq(code, host);
+    await vercel(v.req, v.res);
+    assert.equal(v.res.code, cf.status);
+    assert.equal(v.res.body, await cf.text());
+    assert.equal(v.headers["cache-control"], cf.headers.get("cache-control"));
+    assert.equal(v.headers["content-type"], cf.headers.get("content-type"));
+  }
+});
+
+test("the Vercel adapter reads the host a proxy forwarded and caches only a good answer", async () => {
+  const ok = vercelReq("k7m4qx2p", "ignored.test");
+  ok.req.headers["x-forwarded-host"] = "www.monacolabs.xyz";
+  await vercel(ok.req, ok.res);
+  assert.match(ok.res.body, /href="https:\/\/monacolabs\.xyz\/r\/k7m4qx2p">Open in Monaco/);
+  assert.equal(ok.headers["cdn-cache-control"], "max-age=300");
+
+  globalThis.fetch = fakeFetch({ throws: true });
+  const bad = vercelReq("k7m4qx2p", "monacolabs.xyz");
+  await vercel(bad.req, bad.res);
+  assert.equal(bad.headers["cache-control"], "no-store");
+  assert.equal(bad.headers["cdn-cache-control"], undefined);
+});
+
+// The AASA and its headers, read from the files the hosts serve.
+const here = (p) => new URL(p, import.meta.url);
+
+test("the AASA parses and lists /r/* for the app", () => {
+  const aasa = JSON.parse(readFileSync(here("../public/.well-known/apple-app-site-association"), "utf8"));
+  const [detail] = aasa.applinks.details;
+  assert.deepEqual(detail.appIDs, ["JSF53DFS29.com.monaco.app"]);
+  assert.deepEqual(detail.components, [{ "/": "/r/*" }]);
+});
+
+test("both hosts serve the AASA as application/json and Vercel rewrites /r/:code", () => {
+  const vj = JSON.parse(readFileSync(here("../vercel.json"), "utf8"));
+  const rule = vj.headers.find((h) => h.source === "/.well-known/apple-app-site-association");
+  assert.deepEqual(rule.headers, [{ key: "Content-Type", value: "application/json" }]);
+  assert.deepEqual(vj.rewrites, [{ source: "/r/:code", destination: "/api/r/:code" }]);
+  assert.match(readFileSync(here("../public/_headers"), "utf8"),
+    /^\/\.well-known\/apple-app-site-association\n  Content-Type: application\/json$/m);
 });
