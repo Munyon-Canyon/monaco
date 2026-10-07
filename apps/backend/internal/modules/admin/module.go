@@ -18,7 +18,13 @@ func New(deps module.Deps) *Module { return &Module{deps: deps} }
 
 func (*Module) Name() string { return "admin" }
 
-func (m *Module) Mount(mount api.Mount) { adminapi.Mount(adapters.HTTP{Pool: m.deps.Pool}, mount) }
+func (m *Module) Mount(mount api.Mount) {
+	adminapi.Mount(adapters.HTTP{
+		Pool:    m.deps.Pool,
+		Redrive: app.NewRedriveDeadLetterHandler(m.deps.UoW, m.deps.Pool, m.deps.Bus, m.deps.Clock),
+		Discard: app.NewDiscardDeadLetterHandler(m.deps.UoW, m.deps.Clock),
+	}, mount)
+}
 
 func (*Module) Consumers() []bus.Consumer {
 	return []bus.Consumer{

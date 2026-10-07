@@ -35,6 +35,16 @@ GROUP BY consumer;
 -- name: GetDeadLetter :one
 SELECT id, stream_seq, occurrences, status, letter FROM dead_letters WHERE id = sqlc.arg(id);
 
+-- name: ListDeadLetters :many
+SELECT id, stream_seq, consumer, handler, subject, event_id, code, error, occurrences, status, first_seen_at,
+  last_seen_at, redriven_at, resolved_at, resolved_by, resolve_reason
+FROM dead_letters
+WHERE status = sqlc.arg(status)::text
+  AND (sqlc.narg(consumer)::text IS NULL OR consumer = sqlc.narg(consumer)::text)
+  AND (sqlc.narg(cursor)::uuid IS NULL OR id < sqlc.narg(cursor)::uuid)
+ORDER BY id DESC
+LIMIT sqlc.arg(row_limit)::bigint;
+
 -- name: MarkRedriven :execrows
 UPDATE dead_letters
 SET status = 'redriven', redriven_at = sqlc.arg(redriven_at)::timestamptz, resolved_by = sqlc.arg(admin_id)::uuid,

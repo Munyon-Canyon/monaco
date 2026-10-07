@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countLiveDeadLetters = `-- name: CountLiveDeadLetters :many
@@ -78,6 +79,85 @@ func (q *Queries) GetDeadLetter(ctx context.Context, id uuid.UUID) (GetDeadLette
 		&i.Letter,
 	)
 	return i, err
+}
+
+const listDeadLetters = `-- name: ListDeadLetters :many
+SELECT id, stream_seq, consumer, handler, subject, event_id, code, error, occurrences, status, first_seen_at,
+  last_seen_at, redriven_at, resolved_at, resolved_by, resolve_reason
+FROM dead_letters
+WHERE status = $1::text
+  AND ($2::text IS NULL OR consumer = $2::text)
+  AND ($3::uuid IS NULL OR id < $3::uuid)
+ORDER BY id DESC
+LIMIT $4::bigint
+`
+
+type ListDeadLettersParams struct {
+	Status   string
+	Consumer pgtype.Text
+	Cursor   pgtype.UUID
+	RowLimit int64
+}
+
+type ListDeadLettersRow struct {
+	ID            uuid.UUID
+	StreamSeq     int64
+	Consumer      string
+	Handler       string
+	Subject       string
+	EventID       pgtype.UUID
+	Code          string
+	Error         string
+	Occurrences   int32
+	Status        string
+	FirstSeenAt   time.Time
+	LastSeenAt    time.Time
+	RedrivenAt    pgtype.Timestamptz
+	ResolvedAt    pgtype.Timestamptz
+	ResolvedBy    pgtype.UUID
+	ResolveReason pgtype.Text
+}
+
+func (q *Queries) ListDeadLetters(ctx context.Context, arg ListDeadLettersParams) ([]ListDeadLettersRow, error) {
+	rows, err := q.db.Query(ctx, listDeadLetters,
+		arg.Status,
+		arg.Consumer,
+		arg.Cursor,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeadLettersRow
+	for rows.Next() {
+		var i ListDeadLettersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StreamSeq,
+			&i.Consumer,
+			&i.Handler,
+			&i.Subject,
+			&i.EventID,
+			&i.Code,
+			&i.Error,
+			&i.Occurrences,
+			&i.Status,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.RedrivenAt,
+			&i.ResolvedAt,
+			&i.ResolvedBy,
+			&i.ResolveReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markDiscarded = `-- name: MarkDiscarded :execrows

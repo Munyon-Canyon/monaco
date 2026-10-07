@@ -36,6 +36,12 @@ func adminHandler(t *testing.T) http.Handler {
 
 func adminHandlerOn(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	t.Helper()
+	return adminHandlerWith(t, module.Deps{Pool: pool})
+}
+
+func adminHandlerWith(t *testing.T, deps module.Deps) http.Handler {
+	t.Helper()
+	pool := deps.Pool
 	clk := testkit.NewClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	v := verifier(func(_ context.Context, raw string) (auth.Actor, error) {
 		switch raw {
@@ -55,7 +61,7 @@ func adminHandlerOn(t *testing.T, pool *pgxpool.Pool) http.Handler {
 		Idempotency:   db.NewIdempotencyStore(pool, clk),
 		Verifier:      v,
 		AdminVerifier: v,
-	}, admin.New(module.Deps{Pool: pool}).Mount, openapi.Spec)
+	}, admin.New(deps).Mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

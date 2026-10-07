@@ -123,6 +123,30 @@ func (e AdminTargetType) Valid() bool {
 	}
 }
 
+// Defines values for DeadLetterStatus.
+const (
+	Discarded DeadLetterStatus = "discarded"
+	Open      DeadLetterStatus = "open"
+	Redriven  DeadLetterStatus = "redriven"
+	Resolved  DeadLetterStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the DeadLetterStatus enum.
+func (e DeadLetterStatus) Valid() bool {
+	switch e {
+	case Discarded:
+		return true
+	case Open:
+		return true
+	case Redriven:
+		return true
+	case Resolved:
+		return true
+	default:
+		return false
+	}
+}
+
 // AdminActionKind What the administrator did.
 //
 // Examples: ping_flag
@@ -229,6 +253,109 @@ type Admins struct {
 	Admins []AdminMe `json:"admins"`
 }
 
+// DeadLetter One dead letter, without its stored message body.
+//
+// Examples: {"code":"posthog_rejected","consumer":"analytics","error":"posthog.Capture: posthog_rejected","event_id":"01890a5d-ac96-774b-bcce-b302099a8057","first_seen_at":"2026-10-06T12:00:00Z","handler":"analytics.posthog.follow.created","id":"01890a5d-ac96-774b-bcce-b302099a805a","last_seen_at":"2026-10-06T12:00:00Z","occurrences":1,"redriven_at":null,"resolve_reason":null,"resolved_at":null,"resolved_by":null,"status":"open","stream_seq":12,"subject":"events.follow.created"}
+type DeadLetter struct {
+	// Code The error code of the failure, or `max_deliveries`.
+	//
+	// Examples: posthog_rejected
+	Code string `json:"code"`
+
+	// Consumer The durable consumer that gave up on the message.
+	//
+	// Examples: analytics
+	Consumer string `json:"consumer"`
+
+	// Error The error text of the failure.
+	//
+	// Examples: posthog.Capture: posthog_rejected
+	Error string `json:"error"`
+
+	// EventId The id of the event. Null when the original event has left the stream.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	EventId *openapi_types.UUID `json:"event_id"`
+
+	// FirstSeenAt When the sink first recorded the letter.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	FirstSeenAt time.Time `json:"first_seen_at"`
+
+	// Handler The handler that failed. Empty for a max-deliveries letter.
+	//
+	// Examples: analytics.posthog.follow.created
+	Handler string `json:"handler"`
+
+	// Id The dead letter id. Ids sort by time, so a later letter has a greater id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a805a
+	Id openapi_types.UUID `json:"id"`
+
+	// LastSeenAt When the sink last recorded the letter.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	LastSeenAt time.Time `json:"last_seen_at"`
+
+	// Occurrences How many times the message ended in a dead letter, counting redrives that failed again.
+	//
+	// Examples: 1
+	Occurrences int32 `json:"occurrences"`
+
+	// RedrivenAt When an administrator last redrove the letter. Null if none did.
+	//
+	// Examples: null
+	RedrivenAt *time.Time `json:"redriven_at"`
+
+	// ResolveReason The reason that administrator gave. Null if none did.
+	//
+	// Examples: null
+	ResolveReason *string `json:"resolve_reason"`
+
+	// ResolvedAt When the letter was resolved or discarded. Null while it is open or redriven.
+	//
+	// Examples: null
+	ResolvedAt *time.Time `json:"resolved_at"`
+
+	// ResolvedBy The administrator who last redrove or discarded the letter. Null if none did.
+	//
+	// Examples: null
+	ResolvedBy *openapi_types.UUID `json:"resolved_by"`
+
+	// Status Where a dead letter stands in the queue.
+	//
+	// Examples: open
+	Status DeadLetterStatus `json:"status"`
+
+	// StreamSeq The sequence of the letter in the dead-letter stream, or of the latest one for a reopened row.
+	//
+	// Examples: 12
+	StreamSeq int64 `json:"stream_seq"`
+
+	// Subject The subject of the message. Empty when the original event has left the stream.
+	//
+	// Examples: events.follow.created
+	Subject string `json:"subject"`
+}
+
+// DeadLetterStatus Where a dead letter stands in the queue.
+//
+// Examples: open
+type DeadLetterStatus string
+
+// DeadLetters One page of dead letters, newest first.
+//
+// Examples: {"items":[],"next_cursor":null}
+type DeadLetters struct {
+	// Items The letters on this page.
+	Items []DeadLetter `json:"items"`
+
+	// NextCursor Pass it as `cursor` to read the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *openapi_types.UUID `json:"next_cursor"`
+}
+
 // GetAdminActionsParams defines parameters for GetAdminActions.
 type GetAdminActionsParams struct {
 	// AdminId Only actions taken by this administrator.
@@ -250,6 +377,39 @@ type GetAdminActionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetDeadLettersParams defines parameters for GetDeadLetters.
+type GetDeadLettersParams struct {
+	// Status Only letters in this state. Defaults to `open`.
+	Status *DeadLetterStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Consumer Only letters of this consumer.
+	Consumer *string `form:"consumer,omitempty" json:"consumer,omitempty"`
+
+	// Cursor The `next_cursor` of the previous page. Absent reads the first page.
+	Cursor *openapi_types.UUID `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 200.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// DiscardDeadLetterParams defines parameters for DiscardDeadLetter.
+type DiscardDeadLetterParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// RedriveDeadLetterParams defines parameters for RedriveDeadLetter.
+type RedriveDeadLetterParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// DiscardDeadLetterJSONRequestBody defines body for DiscardDeadLetter for application/json ContentType.
+type DiscardDeadLetterJSONRequestBody = externalRef0.ReasonBody
+
+// RedriveDeadLetterJSONRequestBody defines body for RedriveDeadLetter for application/json ContentType.
+type RedriveDeadLetterJSONRequestBody = externalRef0.ReasonBody
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetAdminActions List admin actions.
@@ -258,6 +418,15 @@ type ServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(w http.ResponseWriter, r *http.Request)
+	// GetDeadLetters List dead letters.
+	// (GET /v1/admin/dead-letters)
+	GetDeadLetters(w http.ResponseWriter, r *http.Request, params GetDeadLettersParams)
+	// DiscardDeadLetter Discard a dead letter.
+	// (POST /v1/admin/dead-letters/{id}/discard)
+	DiscardDeadLetter(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DiscardDeadLetterParams)
+	// RedriveDeadLetter Redrive a dead letter.
+	// (POST /v1/admin/dead-letters/{id}/redrive)
+	RedriveDeadLetter(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RedriveDeadLetterParams)
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(w http.ResponseWriter, r *http.Request)
@@ -375,6 +544,186 @@ func (siw *ServerInterfaceWrapper) GetAdmins(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdmins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetDeadLetters operation middleware
+func (siw *ServerInterfaceWrapper) GetDeadLetters(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDeadLettersParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "consumer" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "consumer", r.URL.Query(), &params.Consumer, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "consumer"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "consumer", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDeadLetters(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiscardDeadLetter operation middleware
+func (siw *ServerInterfaceWrapper) DiscardDeadLetter(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DiscardDeadLetterParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscardDeadLetter(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RedriveDeadLetter operation middleware
+func (siw *ServerInterfaceWrapper) RedriveDeadLetter(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RedriveDeadLetterParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RedriveDeadLetter(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -520,6 +869,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/actions", wrapper.GetAdminActions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/admins", wrapper.GetAdmins)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dead-letters", wrapper.GetDeadLetters)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/discard", wrapper.DiscardDeadLetter)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/redrive", wrapper.RedriveDeadLetter)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/me", wrapper.GetAdminMe)
 
 	return m
@@ -602,6 +954,115 @@ func (response GetAdminsdefaultApplicationProblemPlusJSONResponse) VisitGetAdmin
 	return err
 }
 
+type GetDeadLettersRequestObject struct {
+	Params GetDeadLettersParams
+}
+
+type GetDeadLettersResponseObject interface {
+	VisitGetDeadLettersResponse(w http.ResponseWriter) error
+}
+
+type GetDeadLetters200JSONResponse DeadLetters
+
+func (response GetDeadLetters200JSONResponse) VisitGetDeadLettersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDeadLettersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetDeadLettersdefaultApplicationProblemPlusJSONResponse) VisitGetDeadLettersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardDeadLetterRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params DiscardDeadLetterParams
+	Body   *DiscardDeadLetterJSONRequestBody
+}
+
+type DiscardDeadLetterResponseObject interface {
+	VisitDiscardDeadLetterResponse(w http.ResponseWriter) error
+}
+
+type DiscardDeadLetter204Response struct {
+}
+
+func (response DiscardDeadLetter204Response) VisitDiscardDeadLetterResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DiscardDeadLetterdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DiscardDeadLetterdefaultApplicationProblemPlusJSONResponse) VisitDiscardDeadLetterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RedriveDeadLetterRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RedriveDeadLetterParams
+	Body   *RedriveDeadLetterJSONRequestBody
+}
+
+type RedriveDeadLetterResponseObject interface {
+	VisitRedriveDeadLetterResponse(w http.ResponseWriter) error
+}
+
+type RedriveDeadLetter204Response struct {
+}
+
+func (response RedriveDeadLetter204Response) VisitRedriveDeadLetterResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RedriveDeadLetterdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response RedriveDeadLetterdefaultApplicationProblemPlusJSONResponse) VisitRedriveDeadLetterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminMeRequestObject struct {
 }
 
@@ -648,6 +1109,15 @@ type StrictServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(ctx context.Context, request GetAdminsRequestObject) (GetAdminsResponseObject, error)
+	// GetDeadLetters List dead letters.
+	// (GET /v1/admin/dead-letters)
+	GetDeadLetters(ctx context.Context, request GetDeadLettersRequestObject) (GetDeadLettersResponseObject, error)
+	// DiscardDeadLetter Discard a dead letter.
+	// (POST /v1/admin/dead-letters/{id}/discard)
+	DiscardDeadLetter(ctx context.Context, request DiscardDeadLetterRequestObject) (DiscardDeadLetterResponseObject, error)
+	// RedriveDeadLetter Redrive a dead letter.
+	// (POST /v1/admin/dead-letters/{id}/redrive)
+	RedriveDeadLetter(ctx context.Context, request RedriveDeadLetterRequestObject) (RedriveDeadLetterResponseObject, error)
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(ctx context.Context, request GetAdminMeRequestObject) (GetAdminMeResponseObject, error)
@@ -735,6 +1205,100 @@ func (sh *strictHandler) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminsResponseObject); ok {
 		if err := validResponse.VisitGetAdminsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetDeadLetters operation middleware
+func (sh *strictHandler) GetDeadLetters(w http.ResponseWriter, r *http.Request, params GetDeadLettersParams) {
+	var request GetDeadLettersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDeadLetters(ctx, request.(GetDeadLettersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDeadLetters")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDeadLettersResponseObject); ok {
+		if err := validResponse.VisitGetDeadLettersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DiscardDeadLetter operation middleware
+func (sh *strictHandler) DiscardDeadLetter(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DiscardDeadLetterParams) {
+	var request DiscardDeadLetterRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body DiscardDeadLetterJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiscardDeadLetter(ctx, request.(DiscardDeadLetterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiscardDeadLetter")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiscardDeadLetterResponseObject); ok {
+		if err := validResponse.VisitDiscardDeadLetterResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RedriveDeadLetter operation middleware
+func (sh *strictHandler) RedriveDeadLetter(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RedriveDeadLetterParams) {
+	var request RedriveDeadLetterRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RedriveDeadLetterJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RedriveDeadLetter(ctx, request.(RedriveDeadLetterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RedriveDeadLetter")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RedriveDeadLetterResponseObject); ok {
+		if err := validResponse.VisitRedriveDeadLetterResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
