@@ -1,7 +1,7 @@
 journey: governance/propose-buy
 expect-fail: S2
 
-A passed buy that is waiting on the trade engine shows the chip "Passed" instead of "Buying". S2.4 checks the "Buying" chip, so it must fail.
+A passed buy that is waiting on the trade engine shows the chip "Passed" instead of "Buying". S2.4 checks that the card chip `proposal-status-chip` reads "Buying", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift
