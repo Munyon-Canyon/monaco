@@ -1,4 +1,51 @@
 paths:
+  /v1/admin/actions:
+    get:
+      operationId: getAdminActions
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List admin actions.
+      description: >-
+        Returns the audit trail of admin actions, newest first. Every filter is optional and the filters
+        combine with AND. `next_cursor` is the id of the last action on the page when the page holds `limit`
+        actions, and null otherwise. Send it back as `cursor` to read the next page.
+      parameters:
+        - name: admin_id
+          in: query
+          required: false
+          description: Only actions taken by this administrator.
+          schema: {type: string, format: uuid, examples: ["019cc330-1111-7000-8000-000000000001"]}
+        - name: target_type
+          in: query
+          required: false
+          description: Only actions on this kind of target.
+          schema: {$ref: "#/components/schemas/AdminTargetType"}
+        - name: target_id
+          in: query
+          required: false
+          description: Only actions on the target with this id. Pair it with `target_type`.
+          schema: {type: string, maxLength: 64, examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+        - name: action
+          in: query
+          required: false
+          description: Only actions of this kind.
+          schema: {$ref: "#/components/schemas/AdminActionKind"}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page. Absent reads the first page.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50 and cannot exceed 200.
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: One page of admin actions, newest first.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminActions"}}}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/admin/me:
     get:
       operationId: getAdminMe
@@ -61,3 +108,102 @@ components:
       description: The administrator's access level.
       enum: [viewer, moderator, operator]
       examples: [operator]
+    AdminActionKind:
+      type: string
+      description: What the administrator did.
+      enum:
+        - ops_pause
+        - ops_resume
+        - global_pause
+        - global_resume
+        - proposal_void
+        - user_ban
+        - user_unban
+        - comment_remove
+        - handle_revoke
+        - handle_reassign
+        - cabal_ban
+        - ping_flag
+      examples: [ping_flag]
+    AdminTargetType:
+      type: string
+      description: The kind of thing the action changed.
+      enum: [cabal, proposal, user, comment, handle, system_ping, global]
+      examples: [system_ping]
+    AdminActionRecord:
+      type: object
+      description: One audited admin action.
+      examples:
+        - id: 01890a5d-ac96-774b-bcce-b302099a805a
+          admin_id: 01890a5d-ac96-774b-bcce-b302099a8059
+          action: ping_flag
+          target_type: system_ping
+          target_id: 01890a5d-ac96-774b-bcce-b302099a8057
+          reason: spam
+          before: {flagged_at: null}
+          after: {flagged_at: "2026-10-06T12:00:00Z"}
+          approved_by: null
+          created_at: "2026-10-06T12:00:00Z"
+      additionalProperties: false
+      required: [id, admin_id, action, target_type, target_id, reason, before, after, approved_by, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The action id. Ids sort by time, so a later action has a greater id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a805a]
+        admin_id:
+          type: string
+          format: uuid
+          description: The administrator who took the action.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8059]
+        action: {$ref: "#/components/schemas/AdminActionKind"}
+        target_type: {$ref: "#/components/schemas/AdminTargetType"}
+        target_id:
+          type: string
+          description: The id of the target. Its format depends on `target_type`.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        reason:
+          type: string
+          description: The reason the administrator gave.
+          examples: [spam]
+        before:
+          type: [object, "null"]
+          x-go-type: rawjson.RawMessage
+          x-go-type-import: {name: rawjson, path: encoding/json}
+          description: The fields the action changed, as they were before. A JSON object, or null when nothing existed.
+          examples: [{flagged_at: null}]
+        after:
+          type: [object, "null"]
+          x-go-type: rawjson.RawMessage
+          x-go-type-import: {name: rawjson, path: encoding/json}
+          description: The fields the action changed, as they are now. A JSON object, or null.
+          examples: [{flagged_at: "2026-10-06T12:00:00Z"}]
+        approved_by:
+          type: [string, "null"]
+          format: uuid
+          description: The second administrator who approved the action. Null unless the action needs approval.
+          examples: [null]
+        created_at:
+          type: string
+          format: date-time
+          description: When the audit consumer recorded the action.
+          examples: ["2026-10-06T12:00:00Z"]
+    AdminActions:
+      type: object
+      description: One page of admin actions, newest first.
+      examples:
+        - items: []
+          next_cursor: null
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The actions on this page.
+          items: {$ref: "#/components/schemas/AdminActionRecord"}
+        next_cursor:
+          type: [string, "null"]
+          format: uuid
+          description: Pass it as `cursor` to read the next page. Null on the last page.
+          examples: [null]

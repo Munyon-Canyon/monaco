@@ -18,7 +18,9 @@ func (*Module) Name() string { return "admin" }
 func (m *Module) Mount(mount api.Mount) { adminapi.Mount(adapters.HTTP{Pool: m.deps.Pool}, mount) }
 
 func (*Module) Consumers() []bus.Consumer {
-	return []bus.Consumer{}
+	return []bus.Consumer{
+		{Durable: "admin", Handlers: []bus.HandlerSpec{bus.Handle("admin.audit", adapters.Audit{}.Handle)}},
+	}
 }
 
 func (*Module) Pollers() []poller.Poller { return nil }

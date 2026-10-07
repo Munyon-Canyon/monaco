@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
@@ -30,7 +31,11 @@ func (v verifier) Verify(ctx context.Context, raw string) (auth.Actor, error) { 
 
 func adminHandler(t *testing.T) http.Handler {
 	t.Helper()
-	pool := testkit.DB(t)
+	return adminHandlerOn(t, testkit.DB(t))
+}
+
+func adminHandlerOn(t *testing.T, pool *pgxpool.Pool) http.Handler {
+	t.Helper()
 	clk := testkit.NewClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	v := verifier(func(_ context.Context, raw string) (auth.Actor, error) {
 		switch raw {

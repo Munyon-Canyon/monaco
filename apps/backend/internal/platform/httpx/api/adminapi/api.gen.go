@@ -9,12 +9,65 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
+
+	rawjson "encoding/json"
 
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// Defines values for AdminActionKind.
+const (
+	CabalBan       AdminActionKind = "cabal_ban"
+	CommentRemove  AdminActionKind = "comment_remove"
+	GlobalPause    AdminActionKind = "global_pause"
+	GlobalResume   AdminActionKind = "global_resume"
+	HandleReassign AdminActionKind = "handle_reassign"
+	HandleRevoke   AdminActionKind = "handle_revoke"
+	OpsPause       AdminActionKind = "ops_pause"
+	OpsResume      AdminActionKind = "ops_resume"
+	PingFlag       AdminActionKind = "ping_flag"
+	ProposalVoid   AdminActionKind = "proposal_void"
+	UserBan        AdminActionKind = "user_ban"
+	UserUnban      AdminActionKind = "user_unban"
+)
+
+// Valid indicates whether the value is a known member of the AdminActionKind enum.
+func (e AdminActionKind) Valid() bool {
+	switch e {
+	case CabalBan:
+		return true
+	case CommentRemove:
+		return true
+	case GlobalPause:
+		return true
+	case GlobalResume:
+		return true
+	case HandleReassign:
+		return true
+	case HandleRevoke:
+		return true
+	case OpsPause:
+		return true
+	case OpsResume:
+		return true
+	case PingFlag:
+		return true
+	case ProposalVoid:
+		return true
+	case UserBan:
+		return true
+	case UserUnban:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for AdminRole.
 const (
@@ -37,6 +90,112 @@ func (e AdminRole) Valid() bool {
 	}
 }
 
+// Defines values for AdminTargetType.
+const (
+	Cabal      AdminTargetType = "cabal"
+	Comment    AdminTargetType = "comment"
+	Global     AdminTargetType = "global"
+	Handle     AdminTargetType = "handle"
+	Proposal   AdminTargetType = "proposal"
+	SystemPing AdminTargetType = "system_ping"
+	User       AdminTargetType = "user"
+)
+
+// Valid indicates whether the value is a known member of the AdminTargetType enum.
+func (e AdminTargetType) Valid() bool {
+	switch e {
+	case Cabal:
+		return true
+	case Comment:
+		return true
+	case Global:
+		return true
+	case Handle:
+		return true
+	case Proposal:
+		return true
+	case SystemPing:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
+// AdminActionKind What the administrator did.
+//
+// Examples: ping_flag
+type AdminActionKind string
+
+// AdminActionRecord One audited admin action.
+//
+// Examples: {"action":"ping_flag","admin_id":"01890a5d-ac96-774b-bcce-b302099a8059","after":{"flagged_at":"2026-10-06T12:00:00Z"},"approved_by":null,"before":{"flagged_at":null},"created_at":"2026-10-06T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a805a","reason":"spam","target_id":"01890a5d-ac96-774b-bcce-b302099a8057","target_type":"system_ping"}
+type AdminActionRecord struct {
+	// Action What the administrator did.
+	//
+	// Examples: ping_flag
+	Action AdminActionKind `json:"action"`
+
+	// AdminId The administrator who took the action.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	AdminId openapi_types.UUID `json:"admin_id"`
+
+	// After The fields the action changed, as they are now. A JSON object, or null.
+	//
+	// Examples: {"flagged_at":"2026-10-06T12:00:00Z"}
+	After *rawjson.RawMessage `json:"after"`
+
+	// ApprovedBy The second administrator who approved the action. Null unless the action needs approval.
+	//
+	// Examples: null
+	ApprovedBy *openapi_types.UUID `json:"approved_by"`
+
+	// Before The fields the action changed, as they were before. A JSON object, or null when nothing existed.
+	//
+	// Examples: {"flagged_at":null}
+	Before *rawjson.RawMessage `json:"before"`
+
+	// CreatedAt When the audit consumer recorded the action.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id The action id. Ids sort by time, so a later action has a greater id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a805a
+	Id openapi_types.UUID `json:"id"`
+
+	// Reason The reason the administrator gave.
+	//
+	// Examples: spam
+	Reason string `json:"reason"`
+
+	// TargetId The id of the target. Its format depends on `target_type`.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	TargetId string `json:"target_id"`
+
+	// TargetType The kind of thing the action changed.
+	//
+	// Examples: system_ping
+	TargetType AdminTargetType `json:"target_type"`
+}
+
+// AdminActions One page of admin actions, newest first.
+//
+// Examples: {"items":[],"next_cursor":null}
+type AdminActions struct {
+	// Items The actions on this page.
+	Items []AdminActionRecord `json:"items"`
+
+	// NextCursor Pass it as `cursor` to read the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *openapi_types.UUID `json:"next_cursor"`
+}
+
 // AdminMe An active administrator and their role.
 //
 // Examples: {"role":"operator","user_id":"019cc330-1111-7000-8000-000000000001"}
@@ -57,6 +216,11 @@ type AdminMe struct {
 // Examples: operator
 type AdminRole string
 
+// AdminTargetType The kind of thing the action changed.
+//
+// Examples: system_ping
+type AdminTargetType string
+
 // Admins The active administrator list.
 //
 // Examples: {"admins":[{"role":"operator","user_id":"019cc330-1111-7000-8000-000000000001"}]}
@@ -65,8 +229,32 @@ type Admins struct {
 	Admins []AdminMe `json:"admins"`
 }
 
+// GetAdminActionsParams defines parameters for GetAdminActions.
+type GetAdminActionsParams struct {
+	// AdminId Only actions taken by this administrator.
+	AdminId *openapi_types.UUID `form:"admin_id,omitempty" json:"admin_id,omitempty"`
+
+	// TargetType Only actions on this kind of target.
+	TargetType *AdminTargetType `form:"target_type,omitempty" json:"target_type,omitempty"`
+
+	// TargetId Only actions on the target with this id. Pair it with `target_type`.
+	TargetId *string `form:"target_id,omitempty" json:"target_id,omitempty"`
+
+	// Action Only actions of this kind.
+	Action *AdminActionKind `form:"action,omitempty" json:"action,omitempty"`
+
+	// Cursor The `next_cursor` of the previous page. Absent reads the first page.
+	Cursor *openapi_types.UUID `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 200.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdminActions List admin actions.
+	// (GET /v1/admin/actions)
+	GetAdminActions(w http.ResponseWriter, r *http.Request, params GetAdminActionsParams)
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(w http.ResponseWriter, r *http.Request)
@@ -83,6 +271,104 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminActions operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminActions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminActionsParams
+
+	// ------------- Optional query parameter "admin_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "admin_id", r.URL.Query(), &params.AdminId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "admin_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "admin_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "target_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "target_type", r.URL.Query(), &params.TargetType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "target_type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "target_type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "target_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "target_id", r.URL.Query(), &params.TargetId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "target_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "target_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", r.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "action"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminActions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAdmins operation middleware
 func (siw *ServerInterfaceWrapper) GetAdmins(w http.ResponseWriter, r *http.Request) {
@@ -232,10 +518,50 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/actions", wrapper.GetAdminActions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/admins", wrapper.GetAdmins)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/me", wrapper.GetAdminMe)
 
 	return m
+}
+
+type GetAdminActionsRequestObject struct {
+	Params GetAdminActionsParams
+}
+
+type GetAdminActionsResponseObject interface {
+	VisitGetAdminActionsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminActions200JSONResponse AdminActions
+
+func (response GetAdminActions200JSONResponse) VisitGetAdminActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminActionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminActionsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminActionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetAdminsRequestObject struct {
@@ -316,6 +642,9 @@ func (response GetAdminMedefaultApplicationProblemPlusJSONResponse) VisitGetAdmi
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdminActions List admin actions.
+	// (GET /v1/admin/actions)
+	GetAdminActions(ctx context.Context, request GetAdminActionsRequestObject) (GetAdminActionsResponseObject, error)
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(ctx context.Context, request GetAdminsRequestObject) (GetAdminsResponseObject, error)
@@ -361,6 +690,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminActions operation middleware
+func (sh *strictHandler) GetAdminActions(w http.ResponseWriter, r *http.Request, params GetAdminActionsParams) {
+	var request GetAdminActionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminActions(ctx, request.(GetAdminActionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminActions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminActionsResponseObject); ok {
+		if err := validResponse.VisitGetAdminActionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAdmins operation middleware

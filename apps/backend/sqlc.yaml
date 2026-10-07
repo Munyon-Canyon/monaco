@@ -16,6 +16,7 @@ sql:
           - db_type: timestamptz
             go_type: time.Time
   # BEGIN GENERATED modules
+  - {engine: postgresql, schema: migrations, queries: queries/admin, gen: {go: {<<: *common, package: sqlc, out: internal/modules/admin/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
   - {engine: postgresql, schema: migrations, queries: queries/agents, gen: {go: {<<: *common, package: sqlc, out: internal/modules/agents/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
   - {engine: postgresql, schema: migrations, queries: queries/analytics, gen: {go: {<<: *common, package: sqlc, out: internal/modules/analytics/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
   - {engine: postgresql, schema: migrations, queries: queries/cabal, gen: {go: {<<: *common, package: sqlc, out: internal/modules/cabal/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
