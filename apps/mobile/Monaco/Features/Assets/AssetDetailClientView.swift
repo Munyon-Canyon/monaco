@@ -67,7 +67,6 @@ struct AssetDetailClientView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                 hero(detail, model: model)
                 chart(detail, model: model)
-                if model.isShortHistory { shortHistory }
                 Text(detail.attribution)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
@@ -117,9 +116,6 @@ struct AssetDetailClientView: View {
                 MarketSessionChip(session: session)
                     .accessibilityIdentifier("asset-detail-session")
             }
-            Text("Trading 24/7 on Solana")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
         }
         .padding(.horizontal, MonacoTheme.Space.m)
     }
@@ -197,17 +193,6 @@ struct AssetDetailClientView: View {
     private func chartTone(_ chart: AssetChartSeries) -> Color {
         guard let basisPoints = model?.rangeChange?.basisPoints else { return MonacoTheme.muted }
         return basisPoints > 0 ? MonacoTheme.profitVivid : basisPoints < 0 ? MonacoTheme.lossVivid : MonacoTheme.muted
-    }
-
-    private var shortHistory: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            Text("Price history builds up over time.").font(MonacoTheme.Typo.bodyStrong)
-            Text("The curve draws as the token trades.")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-        }
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .accessibilityIdentifier("asset-detail-short-history")
     }
 
     @ViewBuilder
