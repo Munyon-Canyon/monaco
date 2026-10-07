@@ -59,7 +59,7 @@ func F18SamplePricesOK(s *scenario.Scenario) {
 			Times: priceRepeats, Reset: true,
 		}),
 		scenario.SubscribeCore(string(events.TypePriceTick)),
-		scenario.AwaitTick(pricePoller),
+		scenario.AwaitTickPastTimeouts(pricePoller),
 		capturePriceBucket(spaceXMint, &sampled),
 		expectMovedTick(scanned, &reference, &sampled),
 		expectPriceTick(3),
@@ -79,7 +79,7 @@ func F18SamplePricesJupiterUnavailable(s *scenario.Scenario) {
 		}),
 	).When(
 		scenario.AwaitTick(pricePoller),
-		scenario.AwaitTick(pricePoller),
+		scenario.AwaitTickPastTimeouts(pricePoller),
 		scenario.ExpectTickFailed(pricePoller, string(errs.CodeJupiterUnavailable)),
 		expectPricePointsAt(bucket,
 			storedPrice{marketfake.AAPLx().Mint.String(), aaplMicros},
