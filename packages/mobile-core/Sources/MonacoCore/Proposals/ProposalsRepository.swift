@@ -147,6 +147,16 @@ public struct ProposalTally: Equatable, Sendable {
     }
 }
 
+public struct ProposalVoteResult: Equatable, Sendable {
+    public let status: ProposalStatus
+    public let tally: ProposalTally
+
+    init(_ value: Components.Schemas.VoteResult) {
+        status = ProposalStatus(value.status)
+        tally = ProposalTally(value.tally)
+    }
+}
+
 public struct ProposalVoter: Equatable, Sendable, Identifiable {
     public let id: String
     public let ballot: String?
@@ -265,14 +275,16 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
-    public func vote(id: String, choice: String, submission: IdempotentSubmission) async throws {
+    @discardableResult
+    public func vote(id: String, choice: String, submission: IdempotentSubmission) async throws -> ProposalVoteResult {
         let body = Components.Schemas.CastVoteRequest(choice: .init(rawValue: choice) ?? .yes)
-        try await api.submit(submission, payload: body, operation: "postProposalVote") { client, key in
-            _ = try await client.postProposalVote(
-                path: .init(id: id),
-                headers: .init(idempotencyKey: key),
-                body: .json(body)
-            ).ok.body.json
+        return try await api.submit(submission, payload: body, operation: "postProposalVote") { client, key in
+            ProposalVoteResult(
+                try await client.postProposalVote(
+                    path: .init(id: id),
+                    headers: .init(idempotencyKey: key),
+                    body: .json(body)
+                ).ok.body.json)
         }
     }
 

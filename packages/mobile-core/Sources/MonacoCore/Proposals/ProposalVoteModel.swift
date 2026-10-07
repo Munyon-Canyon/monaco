@@ -6,6 +6,7 @@ import Observation
 public final class ProposalVoteModel {
     public private(set) var ballots: [String: String] = [:]
     public private(set) var errorMessage: String?
+    private var confirmedTallies: [String: ProposalTally] = [:]
     private let repository: ProposalsRepository
     private var submissions: [String: IdempotentSubmission] = [:]
 
@@ -17,6 +18,9 @@ public final class ProposalVoteModel {
 
     public func applying(_ summary: ProposalSummary) -> ProposalSummary {
         guard let choice = ballots[summary.id], choice != summary.myBallot else { return summary }
+        if let confirmed = confirmedTallies[summary.id] {
+            return ProposalSummary(summary, ballot: choice, tally: confirmed)
+        }
         var yes = summary.tally.yes
         var no = summary.tally.no
         if summary.myBallot == "yes" { yes -= 1 }
@@ -28,12 +32,14 @@ public final class ProposalVoteModel {
 
     public func vote(_ choice: String, on summary: ProposalSummary) async -> Bool {
         let previous = ballots[summary.id]
+        confirmedTallies[summary.id] = nil
         ballots[summary.id] = choice
         errorMessage = nil
         let submission = submissions[summary.id] ?? IdempotentSubmission()
         submissions[summary.id] = submission
         do {
-            try await repository.vote(id: summary.id, choice: choice, submission: submission)
+            let result = try await repository.vote(id: summary.id, choice: choice, submission: submission)
+            if result.status == .open { confirmedTallies[summary.id] = result.tally }
             return true
         } catch {
             ballots[summary.id] = previous

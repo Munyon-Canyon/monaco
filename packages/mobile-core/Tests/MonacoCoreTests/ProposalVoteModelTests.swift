@@ -39,7 +39,12 @@ final class ProposalVoteModelTests: XCTestCase {
     }
 
     func testChangingABallotMovesTheCountAndOnlyOnce() async {
-        let model = model(StubTransport(.json(.ok, voted)))
+        let model = model(
+            StubTransport(
+                .json(
+                    .ok,
+                    #"{"proposal_id":"proposal-1","status":"open","tally":{"yes":0,"no":1,"voters":3,"needed":2},"my_ballot":"no"}"#
+                )))
         let proposal = summary(ballot: .yes)
         _ = await model.vote("no", on: proposal)
         let shown = model.applying(

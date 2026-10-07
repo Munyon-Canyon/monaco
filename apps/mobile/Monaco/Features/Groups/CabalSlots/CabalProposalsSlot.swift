@@ -12,6 +12,7 @@ enum CabalProposalsSlot: CabalSection {
 struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
     @State private var model: ProposalListModel?
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
@@ -57,7 +58,8 @@ struct CabalProposals: View {
         let votedThisSession = voting?.votedIDs ?? []
         let section = model.cabalSection(votedThisSession: votedThisSession)
         let inProgress = model.trading
-        if section == nil && inProgress.isEmpty {
+        let recent = model.recentOutcomes(now: .now)
+        if section == nil && inProgress.isEmpty && recent.isEmpty {
             EmptyState(title: "No open votes", message: "Propose the first buy.")
             if !model.pager.items.isEmpty {
                 NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
@@ -69,6 +71,11 @@ struct CabalProposals: View {
             if !inProgress.isEmpty {
                 self.section(
                     "In progress", inProgress, count: inProgress.count, showsSeeAll: section == nil, model: model)
+            }
+            if !recent.isEmpty {
+                self.section(
+                    "Recently closed", recent, count: nil, showsSeeAll: section == nil && inProgress.isEmpty,
+                    model: model)
             }
         }
     }
@@ -106,6 +113,15 @@ struct CabalProposals: View {
         voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
         context = ProposalCardContext(cabalID: cabalID, repository: ProposalsRepository(api: environment.api))
         let created = makeModel(environment, cabalID)
+        created.onOutcome = { [weak context, toasts] outcome in
+            let asset = context?.assets[outcome.proposal.symbol]
+            let message = outcome.toast(asset: asset)
+            if outcome.proposal.status == .executed {
+                toasts.show(success: message)
+            } else {
+                toasts.current = MonacoToast(message: message)
+            }
+        }
         model = created
         return created
     }

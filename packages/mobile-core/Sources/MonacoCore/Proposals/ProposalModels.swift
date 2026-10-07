@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 import Observation
 
@@ -6,6 +7,7 @@ import Observation
 public final class ProposalListModel {
     public let pager: CursorPager<ProposalSummary>
     public let filter: ProposalFilter
+    public var onOutcome: (@MainActor (ProposalOutcome) -> Void)?
     private let hints: any HintSource
     private let refresher: HintRefresher
 
@@ -21,13 +23,18 @@ public final class ProposalListModel {
     public func load() async { await pager.loadFirst() }
 
     public func refresh() async {
+        let before = Dictionary(pager.items.map { ($0.id, $0.status) }, uniquingKeysWith: { first, _ in first })
         await pager.refreshFirstPage()
         pager.remove { !filter.includes($0.status) }
+        for proposal in pager.items {
+            if let outcome = ProposalOutcome(from: before[proposal.id], to: proposal) { onOutcome?(outcome) }
+        }
     }
     public func observe(cabalID: String) async {
         await refresher.observe([
             hints.hints(matching: .cabal(id: cabalID, what: "proposal_created")),
             hints.hints(matching: .cabal(id: cabalID, what: "proposal_updated")),
+            hints.hints(matching: .cabal(id: cabalID, what: "swap_updated")),
         ])
     }
     public func setVisible(_ visible: Bool) { refresher.setVisible(visible) }
@@ -39,6 +46,10 @@ public final class ProposalListModel {
     }
 
     public var trading: [ProposalSummary] { pager.items.filter(\.isTradeInProgress) }
+
+    public func recentOutcomes(now: Date) -> [ProposalSummary] {
+        pager.items.filter { $0.isRecentOutcome(now: now) }
+    }
 
     public func cabalSection(votedThisSession: Set<String>) -> CabalProposalsSection? {
         let needs = needsVote(votedThisSession: votedThisSession)
@@ -199,7 +210,10 @@ public final class ProposalDetailModel {
 
     public func observe() async {
         let cabalID = value?.summary.cabalID ?? cabalID
-        await refresher.observe(hints.hints(matching: .cabal(id: cabalID, what: "proposal_updated")))
+        await refresher.observe([
+            hints.hints(matching: .cabal(id: cabalID, what: "proposal_updated")),
+            hints.hints(matching: .cabal(id: cabalID, what: "swap_updated")),
+        ])
     }
     public func setVisible(_ visible: Bool) { refresher.setVisible(visible) }
 }

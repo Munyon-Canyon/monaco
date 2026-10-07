@@ -35,6 +35,32 @@ struct CabalProposalsRefreshTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func aSwapUpdatedHintRefreshesTheCabalProposals() async throws {
+        let passed = Self.proposalJSON(status: "passed")
+        let transport = StubTransport(scripted: [
+            .json(.ok, #"{"proposals":[\#(passed)],"next_cursor":null}"#),
+            .json(.ok, #"{"proposals":[\#(Self.proposalJSON(status: "executed"))],"next_cursor":null}"#),
+        ])
+        let hints = EmittingHintSource()
+        let model = ProposalListModel(
+            cabalID: "cabal-1", filter: .all,
+            repository: ProposalsRepository(
+                api: APIClient(
+                    serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)),
+            hints: hints)
+        let window = try ProposalTestWindow.hosting(CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in model }))
+        defer { window.isHidden = true }
+
+        await ProposalTestWindow.until { model.pager.phase == .exhausted && hints.subscribers > 0 }
+        model.setVisible(true)
+        hints.send(.changed(.cabal("cabal-1"), what: "swap_updated", id: "1"))
+        await ProposalTestWindow.until { model.pager.items.first?.status == .executed }
+
+        #expect(await listRequests(transport) == 2)
+        #expect(model.pager.items.first?.status == .executed)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func aVoteThatClosesAProposalMovesItFromOpenToExecuted() async throws {
         let open = Self.proposalJSON(status: "open")
         let executed = Self.proposalJSON(status: "executed")
