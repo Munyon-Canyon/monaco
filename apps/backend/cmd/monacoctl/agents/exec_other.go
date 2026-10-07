@@ -21,3 +21,5 @@ func tryLock(name string) (*os.File, bool, error) {
 	}
 	return f, true, nil
 }
+
+func unlock(f *os.File) { _ = f.Close() }
