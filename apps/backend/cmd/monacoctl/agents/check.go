@@ -337,14 +337,20 @@ func swiftChanged(changed []string) bool {
 }
 
 func (env *Env) swiftRow(parent string) checkRow {
+	waited := env.statePath(lockWaitedDir, strconv.Itoa(os.Getpid())+".swift.waited")
 	return checkRow{
 		label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
 		cmds: [][]string{
 			{"swift", "format", "lint", "--strict", "--recursive", "--parallel", "../../apps/mobile", "."},
 			{"../../scripts/swiftlint-ratchet.sh", "--base", parent},
-			{"../../scripts/mobile-core-test.sh"},
+			lockWaitedCmd(waited, "../../scripts/mobile-core-test.sh"),
 		},
+		lockWaited: waited,
 	}
+}
+
+func lockWaitedCmd(waited string, cmd ...string) []string {
+	return append([]string{"env", "MONACO_LOCK_WAITED=" + waited}, cmd...)
 }
 
 func (env *Env) flowFile(file string) bool {
@@ -407,15 +413,13 @@ func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool, d
 		append(check, "--from", results),
 	}
 	if swift {
-		row.cmds = append(row.cmds, []string{
-			filepath.Join(
-				env.Work,
-				"scripts",
-				"mobile-core-test.sh",
-			),
+		row.lockWaited = env.statePath(lockWaitedDir, strconv.Itoa(os.Getpid())+".flows.waited")
+		row.cmds = append(row.cmds, lockWaitedCmd(
+			row.lockWaited,
+			filepath.Join(env.Work, "scripts", "mobile-core-test.sh"),
 			"--filter",
-			"(F|Flow)(" + alternatives + ")[^a-z0-9]",
-		})
+			"(F|Flow)("+alternatives+")[^a-z0-9]",
+		))
 	}
 	return row, nil
 }

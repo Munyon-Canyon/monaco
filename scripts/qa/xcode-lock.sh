@@ -10,8 +10,9 @@
 #   scripts/qa/xcode-lock.sh xcodebuild -project ... test         # no class: same as `xcode`
 #
 # Each class has N slots, sized from physical RAM unless set: `xcode` one per 16 GB,
-# `swiftpm` one per 8 GB, at least 1. A 16 GB Mac runs one xcodebuild at a time; a 64 GB
-# Mac runs four, so agents in separate worktrees build at once. The classes are
+# `swiftpm` one per 8 GB of RAM or 8 CPUs, whichever gives fewer (each swift build uses
+# every core), at least 1. A 16 GB Mac runs one xcodebuild at a time; a 64 GB Mac runs four,
+# so agents in separate worktrees build at once. The classes are
 # independent: `xcode` and `swiftpm` holders run together. Go, lint and shell steps need
 # no lock.
 #
@@ -32,13 +33,14 @@
 # Environment:
 #   MONACO_XCODE_SLOTS         `xcode` slots (default: the number in the clone's
 #                              .git/.monaco/xcode-slots, else max(1, RAM GB / 16))
-#   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, RAM GB / 8))
+#   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, min(RAM GB / 8, CPUs / 8)))
 #   MONACO_XCODE_LOCK_DIR      `xcode` lock dir (default /private/tmp/monaco-xcodebuild.lock)
 #   MONACO_SWIFTPM_LOCK_DIR    `swiftpm` lock dir (default /private/tmp/monaco-swiftpm.lock)
 #   MONACO_XCODE_LOCK_TIMEOUT  seconds a waiter waits before exit 75 (default 5400)
 #   MONACO_LOCK_HOLD           seconds the command may run before it is stopped and the
 #                              script exits 124 (default 1800)
 #   MONACO_LOCK_POLL           seconds between checks while waiting (default 2)
+#   MONACO_LOCK_NICE           niceness the held command runs at (default 15)
 #   MONACO_LOCK_WAITED         file to append the whole seconds spent waiting to, once the
 #                              lock is taken (`monacoctl agents check` keeps the wait out of
 #                              its budget this way)
@@ -55,6 +57,7 @@ if [[ $# -eq 0 ]]; then
 fi
 
 ram_gb=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 0) / 1073741824 ))
+cpus="$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 0)"
 case "$class" in
   xcode)
     base_dir="${MONACO_XCODE_LOCK_DIR:-/private/tmp/monaco-xcodebuild.lock}"
@@ -64,7 +67,9 @@ case "$class" in
     ;;
   swiftpm)
     base_dir="${MONACO_SWIFTPM_LOCK_DIR:-/private/tmp/monaco-swiftpm.lock}"
-    slots="${MONACO_SWIFTPM_SLOTS:-$((ram_gb / 8))}"
+    by_ram=$((ram_gb / 8))
+    by_cpu=$((cpus / 8))
+    slots="${MONACO_SWIFTPM_SLOTS:-$((by_ram < by_cpu ? by_ram : by_cpu))}"
     ;;
 esac
 if ! [[ "$slots" =~ ^[0-9]+$ ]] || (( slots < 1 )); then
@@ -333,7 +338,9 @@ printf '%s\n' "$PWD" > "$lock_dir/cwd"
 echo "$$" > "$lock_dir/pid"
 
 rc=0
-run_capped "$hold_cap" "$@" || rc=$?
+# One cold build fans out to every core and starved stage 0's Go rows past their budgets
+# (load 207 on 2026-10-07), so held builds yield the CPU. nice execs the command, so signals still reach it.
+run_capped "$hold_cap" nice -n "${MONACO_LOCK_NICE:-15}" "$@" || rc=$?
 if [[ -n "$sig_name" ]]; then
   # The command is gone; leave with the signal's code, not the command's.
   release

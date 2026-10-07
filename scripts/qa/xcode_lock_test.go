@@ -441,7 +441,7 @@ func (e *lockEnv) withoutTimeout() {
 	if err := os.Mkdir(bin, 0o755); err != nil {
 		e.t.Fatal(err)
 	}
-	for _, tool := range []string{"bash", "env", "sh", "sleep", "cat", "mkdir", "rm", "ls", "sort", "date", "pkill", "head", "awk", "touch", "true", "python3"} {
+	for _, tool := range []string{"bash", "env", "sh", "sleep", "cat", "mkdir", "rm", "ls", "sort", "date", "pkill", "head", "awk", "touch", "true", "python3", "nice"} {
 		path, err := exec.LookPath(tool)
 		if err != nil {
 			e.t.Fatalf("tool %s needed for the PATH without timeout: %v", tool, err)

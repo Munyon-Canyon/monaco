@@ -20,6 +20,12 @@ if [[ "${1:-}" == --update-floor ]]; then
   (($# == 0)) || { echo "--update-floor takes no other arguments" >&2; exit 2; }
 fi
 
+if [[ "$(uname -s)" == Darwin && -z "${GITHUB_ACTIONS:-}" && "${MONACO_SWIFTPM_LOCKED:-}" != 1 ]]; then
+  # Concurrent cold swift builds use every core each and overload the machine, so queue for a swiftpm slot.
+  if [[ "$update" == true ]]; then set -- --update-floor; fi
+  MONACO_SWIFTPM_LOCKED=1 exec "$root/scripts/qa/xcode-lock.sh" swiftpm "$0" "$@"
+fi
+
 if [[ "$(uname -s)" == Darwin ]]; then
   platform=darwin
   llvm_cov=(xcrun llvm-cov)

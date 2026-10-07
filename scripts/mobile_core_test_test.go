@@ -58,7 +58,7 @@ func runMobileCoreTestWith(t *testing.T, floor string, args ...string) mobileCor
 
 	cmd := exec.Command("bash", append([]string{"scripts/mobile-core-test.sh"}, args...)...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "PATH="+bin+":/usr/bin:/bin", "STUB_ARGS="+argsFile)
+	cmd.Env = append(os.Environ(), "PATH="+bin+":/usr/bin:/bin", "STUB_ARGS="+argsFile, "MONACO_SWIFTPM_LOCKED=1")
 	out, err := cmd.CombinedOutput()
 	return mobileCoreRun{dir: dir, args: argsFile, out: string(out), err: err}
 }
