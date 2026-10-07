@@ -5046,6 +5046,11 @@ components:
         user's X username.
       examples: [reserved]
       enum: [taken, reserved, invalid, too_soon]
+    LoginProvider:
+      type: string
+      description: The method a user signed up with.
+      examples: [sms]
+      enum: [sms, email, apple, google]
     Me:
       type: object
       description: >-
@@ -5057,6 +5062,7 @@ components:
           display_name: Kai Cenat
           auth_state: ONBOARDING_COMPLETED
           account_status: active
+          login_provider: sms
           member_wallet_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf
           phone_linked: true
           x_username: kaicenat
@@ -5068,6 +5074,7 @@ components:
         - display_name
         - auth_state
         - account_status
+        - login_provider
         - member_wallet_address
         - phone_linked
         - created_at
@@ -5099,6 +5106,10 @@ components:
           $ref: "#/components/schemas/AccountStatus"
           description: The user's standing.
           examples: [active]
+        login_provider:
+          $ref: "#/components/schemas/LoginProvider"
+          description: How the user signed up. The app skips the phone number entry for `sms`.
+          examples: [sms]
         member_wallet_address:
           type: string
           description: The Solana address of the user's member wallet. Deposits go here.

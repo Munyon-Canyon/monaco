@@ -240,6 +240,7 @@ func wireMe(m app.Me) api.Me {
 	return api.Me{
 		Id: m.ID.UUID(), Handle: present(m.Handle), DisplayName: m.DisplayName, PhotoUrl: present(m.PhotoURL),
 		AuthState: api.AuthState(m.AuthState), AccountStatus: api.AccountStatus(m.AccountStatus),
+		LoginProvider:       api.LoginProvider(m.LoginProvider),
 		MemberWalletAddress: string(m.MemberWalletAddress), PhoneLinked: m.PhoneLinked,
 		XUsername: present(m.XUsername), HandleChangeableAt: m.HandleChangeableAt, CreatedAt: m.CreatedAt,
 	}
