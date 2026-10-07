@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+20a	Block and report	social	POST /v1/users/{id}/block;DELETE /v1/users/{id}/block	BlockUser;UnblockUser	block.created;block.removed;follow.removed		ok;CannotBlockSelf;UserNotFound;Unauthorized;crash:before-commit	built	docs/architecture/followers.md#blocks-and-reports

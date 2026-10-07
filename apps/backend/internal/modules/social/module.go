@@ -134,7 +134,11 @@ func (m *Module) http() adapters.HTTP {
 		Follow: app.NewFollowHandler(app.FollowDeps{
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
-		Unfollow:      app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
+		Unfollow: app.NewUnfollowHandler(m.deps.UoW, m.deps.Clock),
+		Block: app.NewBlockUserHandler(app.BlockUserDeps{
+			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
+		}),
+		Unblock:       app.NewUnblockUserHandler(m.deps.UoW, m.deps.Clock),
 		Mute:          app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
 		Unmute:        app.NewUnmuteHandler(m.deps.UoW),
 		PostChat:      app.NewPostChatMessageHandler(chat),

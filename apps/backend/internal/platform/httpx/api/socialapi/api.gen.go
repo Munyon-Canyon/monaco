@@ -845,6 +845,18 @@ type CreateRealtimeTokenParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteUserBlockParams defines parameters for DeleteUserBlock.
+type DeleteUserBlockParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PostUserBlockParams defines parameters for PostUserBlock.
+type PostUserBlockParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteUserFollowParams defines parameters for DeleteUserFollow.
 type DeleteUserFollowParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -952,6 +964,12 @@ type ServerInterface interface {
 	// CreateRealtimeToken Get a token request for live chat updates.
 	// (POST /v1/realtime/token)
 	CreateRealtimeToken(w http.ResponseWriter, r *http.Request, params CreateRealtimeTokenParams)
+	// DeleteUserBlock Unblock a user.
+	// (DELETE /v1/users/{id}/block)
+	DeleteUserBlock(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params DeleteUserBlockParams)
+	// PostUserBlock Block a user.
+	// (POST /v1/users/{id}/block)
+	PostUserBlock(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params PostUserBlockParams)
 	// DeleteUserFollow Unfollow a user.
 	// (DELETE /v1/users/{id}/follow)
 	DeleteUserFollow(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params DeleteUserFollowParams)
@@ -2068,6 +2086,114 @@ func (siw *ServerInterfaceWrapper) CreateRealtimeToken(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteUserBlock operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUserBlock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteUserBlockParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteUserBlock(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostUserBlock operation middleware
+func (siw *ServerInterfaceWrapper) PostUserBlock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostUserBlockParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostUserBlock(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteUserFollow operation middleware
 func (siw *ServerInterfaceWrapper) DeleteUserFollow(w http.ResponseWriter, r *http.Request) {
 
@@ -2425,6 +2551,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}/comments", wrapper.GetProposalComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/comments", wrapper.PostProposalComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/realtime/token", wrapper.CreateRealtimeToken)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/block", wrapper.DeleteUserBlock)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/block", wrapper.PostUserBlock)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.PostUserFollow)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/followers", wrapper.GetUserFollowers)
@@ -3170,6 +3298,74 @@ func (response CreateRealtimeTokendefaultApplicationProblemPlusJSONResponse) Vis
 	return err
 }
 
+type DeleteUserBlockRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params DeleteUserBlockParams
+}
+
+type DeleteUserBlockResponseObject interface {
+	VisitDeleteUserBlockResponse(w http.ResponseWriter) error
+}
+
+type DeleteUserBlock204Response struct {
+}
+
+func (response DeleteUserBlock204Response) VisitDeleteUserBlockResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteUserBlockdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteUserBlockdefaultApplicationProblemPlusJSONResponse) VisitDeleteUserBlockResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostUserBlockRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params PostUserBlockParams
+}
+
+type PostUserBlockResponseObject interface {
+	VisitPostUserBlockResponse(w http.ResponseWriter) error
+}
+
+type PostUserBlock204Response struct {
+}
+
+func (response PostUserBlock204Response) VisitPostUserBlockResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type PostUserBlockdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostUserBlockdefaultApplicationProblemPlusJSONResponse) VisitPostUserBlockResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteUserFollowRequestObject struct {
 	Id     externalRef0.UserId `json:"id"`
 	Params DeleteUserFollowParams
@@ -3390,6 +3586,12 @@ type StrictServerInterface interface {
 	// CreateRealtimeToken Get a token request for live chat updates.
 	// (POST /v1/realtime/token)
 	CreateRealtimeToken(ctx context.Context, request CreateRealtimeTokenRequestObject) (CreateRealtimeTokenResponseObject, error)
+	// DeleteUserBlock Unblock a user.
+	// (DELETE /v1/users/{id}/block)
+	DeleteUserBlock(ctx context.Context, request DeleteUserBlockRequestObject) (DeleteUserBlockResponseObject, error)
+	// PostUserBlock Block a user.
+	// (POST /v1/users/{id}/block)
+	PostUserBlock(ctx context.Context, request PostUserBlockRequestObject) (PostUserBlockResponseObject, error)
 	// DeleteUserFollow Unfollow a user.
 	// (DELETE /v1/users/{id}/follow)
 	DeleteUserFollow(ctx context.Context, request DeleteUserFollowRequestObject) (DeleteUserFollowResponseObject, error)
@@ -3979,6 +4181,60 @@ func (sh *strictHandler) CreateRealtimeToken(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateRealtimeTokenResponseObject); ok {
 		if err := validResponse.VisitCreateRealtimeTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteUserBlock operation middleware
+func (sh *strictHandler) DeleteUserBlock(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params DeleteUserBlockParams) {
+	var request DeleteUserBlockRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteUserBlock(ctx, request.(DeleteUserBlockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteUserBlock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteUserBlockResponseObject); ok {
+		if err := validResponse.VisitDeleteUserBlockResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostUserBlock operation middleware
+func (sh *strictHandler) PostUserBlock(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params PostUserBlockParams) {
+	var request PostUserBlockRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostUserBlock(ctx, request.(PostUserBlockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostUserBlock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostUserBlockResponseObject); ok {
+		if err := validResponse.VisitPostUserBlockResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
