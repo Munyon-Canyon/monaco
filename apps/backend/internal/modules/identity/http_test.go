@@ -756,6 +756,12 @@ func (openPing) GetSystemPing(context.Context, systemapi.GetSystemPingRequestObj
 	return systemapi.GetSystemPing200JSONResponse{}, nil
 }
 
+func (openPing) FlagSystemPing(context.Context, systemapi.FlagSystemPingRequestObject) (
+	systemapi.FlagSystemPingResponseObject, error,
+) {
+	return systemapi.FlagSystemPing204Response{}, nil
+}
+
 func TestAccountStanding_changesTheNextResponseWithoutARestart(t *testing.T) {
 	t.Parallel()
 	f := newPortFixture(t)

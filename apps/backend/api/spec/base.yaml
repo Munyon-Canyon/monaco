@@ -129,3 +129,19 @@ components:
           type: boolean
           description: True when the same request may succeed if sent again later.
           examples: [false]
+    ReasonBody:
+      type: object
+      description: The reason an administrator gives for an action.
+      examples:
+        - reason: spam
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: >-
+            Free text. The server trims it and requires 3 to 500 characters, otherwise it answers
+            reason_required.
+          minLength: 1
+          maxLength: 500
+          examples: [spam]

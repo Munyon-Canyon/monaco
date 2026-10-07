@@ -43,17 +43,29 @@ type PingRequest struct {
 	Note string `json:"note"`
 }
 
+// FlagSystemPingParams defines parameters for FlagSystemPing.
+type FlagSystemPingParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostSystemPingParams defines parameters for PostSystemPing.
 type PostSystemPingParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// FlagSystemPingJSONRequestBody defines body for FlagSystemPing for application/json ContentType.
+type FlagSystemPingJSONRequestBody = externalRef0.ReasonBody
+
 // PostSystemPingJSONRequestBody defines body for PostSystemPing for application/json ContentType.
 type PostSystemPingJSONRequestBody = PingRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// FlagSystemPing Flag a ping as an administrator.
+	// (POST /v1/admin/system/pings/{id}/flag)
+	FlagSystemPing(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FlagSystemPingParams)
 	// PostSystemPing Record a ping for the caller.
 	// (POST /v1/system/pings)
 	PostSystemPing(w http.ResponseWriter, r *http.Request, params PostSystemPingParams)
@@ -70,6 +82,60 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// FlagSystemPing operation middleware
+func (siw *ServerInterfaceWrapper) FlagSystemPing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params FlagSystemPingParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FlagSystemPing(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // PostSystemPing operation middleware
 func (siw *ServerInterfaceWrapper) PostSystemPing(w http.ResponseWriter, r *http.Request) {
@@ -262,10 +328,46 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/system/pings/{id}/flag", wrapper.FlagSystemPing)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/system/pings", wrapper.PostSystemPing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/system/pings/{id}", wrapper.GetSystemPing)
 
 	return m
+}
+
+type FlagSystemPingRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params FlagSystemPingParams
+	Body   *FlagSystemPingJSONRequestBody
+}
+
+type FlagSystemPingResponseObject interface {
+	VisitFlagSystemPingResponse(w http.ResponseWriter) error
+}
+
+type FlagSystemPing204Response struct {
+}
+
+func (response FlagSystemPing204Response) VisitFlagSystemPingResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type FlagSystemPingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response FlagSystemPingdefaultApplicationProblemPlusJSONResponse) VisitFlagSystemPingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type PostSystemPingRequestObject struct {
@@ -349,6 +451,9 @@ func (response GetSystemPingdefaultApplicationProblemPlusJSONResponse) VisitGetS
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// FlagSystemPing Flag a ping as an administrator.
+	// (POST /v1/admin/system/pings/{id}/flag)
+	FlagSystemPing(ctx context.Context, request FlagSystemPingRequestObject) (FlagSystemPingResponseObject, error)
 	// PostSystemPing Record a ping for the caller.
 	// (POST /v1/system/pings)
 	PostSystemPing(ctx context.Context, request PostSystemPingRequestObject) (PostSystemPingResponseObject, error)
@@ -394,6 +499,40 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// FlagSystemPing operation middleware
+func (sh *strictHandler) FlagSystemPing(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params FlagSystemPingParams) {
+	var request FlagSystemPingRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body FlagSystemPingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FlagSystemPing(ctx, request.(FlagSystemPingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FlagSystemPing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FlagSystemPingResponseObject); ok {
+		if err := validResponse.VisitFlagSystemPingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // PostSystemPing operation middleware

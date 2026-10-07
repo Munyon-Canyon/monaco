@@ -19,7 +19,12 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 func (*Module) Name() string { return "system" }
 
 func (m *Module) Mount(r api.Mount) {
-	systemapi.Mount(adapters.HTTP{Record: app.NewRecordPingHandler(m.deps.UoW), Reads: m.deps.Pool, IDs: m.deps.IDs}, r)
+	systemapi.Mount(adapters.HTTP{
+		Record: app.NewRecordPingHandler(m.deps.UoW),
+		Flag:   app.NewFlagPingHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock),
+		Reads:  m.deps.Pool,
+		IDs:    m.deps.IDs,
+	}, r)
 }
 
 func (m *Module) Consumers() []bus.Consumer {

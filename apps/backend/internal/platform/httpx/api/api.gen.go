@@ -23,6 +23,7 @@ const (
 	AgentNotFound ErrorCode = "agent_not_found"
 	AgentPaused ErrorCode = "agent_paused"
 	AgentWrongStatus ErrorCode = "agent_wrong_status"
+	AlreadyFlagged ErrorCode = "already_flagged"
 	AlreadyMember ErrorCode = "already_member"
 	AnalyticsPii ErrorCode = "analytics_pii"
 	ApnsAuthFailed ErrorCode = "apns_auth_failed"
@@ -174,6 +175,8 @@ func (e ErrorCode) Valid() bool {
 	case AgentPaused:
 		return true
 	case AgentWrongStatus:
+		return true
+	case AlreadyFlagged:
 		return true
 	case AlreadyMember:
 		return true
@@ -478,6 +481,16 @@ type Problem struct {
 
 // ProblemType Always about:blank. The code field carries the problem type.
 type ProblemType string
+
+// ReasonBody The reason an administrator gives for an action.
+//
+// Examples: {"reason":"spam"}
+type ReasonBody struct {
+	// Reason Free text. The server trims it and requires 3 to 500 characters, otherwise it answers reason_required.
+	//
+	// Examples: spam
+	Reason string `json:"reason"`
+}
 
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string
