@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
@@ -35,12 +36,16 @@ type reconcileChain struct {
 	sigsErr    error
 	down       map[chain.SolanaAddress]error
 	hang       map[chain.SolanaAddress]bool
+	entered    chan struct{}
 }
 
 func (c *reconcileChain) TokenBalance(
 	ctx context.Context, owner chain.SolanaAddress, mint chain.Mint,
 ) (money.BaseUnits, error) {
 	if c.hang[owner] {
+		if c.entered != nil {
+			c.entered <- struct{}{}
+		}
 		<-ctx.Done()
 		return money.BaseUnits{}, errs.Wrap(ctx.Err(), errs.CodeUpstreamTimeout, "test.hang")
 	}
@@ -372,14 +377,39 @@ func TestTreasuryReconcile_CabalsCutOffByTheTickBudgetGoLastNextTick(t *testing.
 	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
 	env.landed(treasury, stray)
 	env.onChain(treasury, env.usdc, 5_000_000)
+	env.chain.entered = make(chan struct{}, 32)
 	reconcile := app.NewTreasuryReconcilePoller(env.deps)
 	ctx := observability.WithActor(t.Context(), "system:poller.funding.treasury-reconcile")
+	tick := func(expireWhen func()) (poller.Report, error) {
+		type result struct {
+			report poller.Report
+			err    error
+		}
+		done := make(chan result, 1)
+		var running errgroup.Group
+		running.Go(func() error {
+			report, err := reconcile.Tick(ctx)
+			done <- result{report, err}
+			return nil
+		})
+		expireWhen()
+		env.clock.Advance(env.deps.Interval)
+		_ = running.Wait()
+		r := <-done
+		return r.report, r.err
+	}
 
-	first, err := reconcile.Tick(ctx)
+	first, err := tick(func() {
+		for range 8 {
+			<-env.chain.entered
+		}
+	})
 	if err != nil || first.Changed != 0 || attr(first, "unreached") != 11 || attr(first, "failed") != 0 {
 		t.Fatalf("first tick = %+v, %v, want every cabal unreached behind the slow ones", first, err)
 	}
-	second, err := reconcile.Tick(ctx)
+	second, err := tick(func() {
+		testkit.Eventually(t, func() bool { return env.cursor(t) == string(stray) }, 30*time.Second)
+	})
 
 	if err != nil || second.Changed != 1 || env.cursor(t) != string(stray) {
 		t.Fatalf("second tick = %+v, %v, want the cabal the first tick never started reconciled", second, err)

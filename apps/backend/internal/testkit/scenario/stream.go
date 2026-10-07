@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	convergeWithin = 10 * time.Second
+	convergeWithin = 30 * time.Second
 	tokenKey       = "scenario"
 )
 

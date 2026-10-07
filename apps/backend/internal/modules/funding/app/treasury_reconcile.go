@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
@@ -182,7 +183,21 @@ func (p *TreasuryReconcilePoller) budgeted(ctx context.Context) (context.Context
 	if p.d.Interval <= 0 {
 		return context.WithCancel(ctx)
 	}
-	return context.WithTimeout(ctx, p.d.Interval*reconcileBudgetPercent/100)
+	work, cancel := context.WithCancel(ctx)
+	expired := p.d.Clock.After(p.d.Interval * reconcileBudgetPercent / 100)
+	var watch errgroup.Group
+	watch.Go(func() error {
+		select {
+		case <-expired:
+			cancel()
+		case <-work.Done():
+		}
+		return nil
+	})
+	return work, func() {
+		cancel()
+		_ = watch.Wait()
+	}
 }
 
 func (p *TreasuryReconcilePoller) reconcile(ctx context.Context, w cabalport.TreasuryWallet) (bool, int, error) {
