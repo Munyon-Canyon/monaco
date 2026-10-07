@@ -65,6 +65,7 @@ type (
 	MemberFlow        = port.MemberFlow
 	SignatureOwner    = port.SignatureOwner
 	WalletLedger      = port.WalletLedger
+	LedgerReader      = port.LedgerReader
 )
 
 func New(d module.Deps) *Module {
@@ -254,6 +255,8 @@ func (m *Module) transfers() (*relayer.Transfers, error) {
 func (m *Module) Queries() port.Queries {
 	return m.reads()
 }
+
+func (m *Module) Ledger() *app.LedgerReads { return app.NewLedgerReads(m.deps.Pool) }
 
 func (m *Module) HeldMints(ctx context.Context) ([]chain.SolanaAddress, error) {
 	return adapters.NewHeldMints(m.deps.Pool).HeldMints(ctx)

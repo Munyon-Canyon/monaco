@@ -5,6 +5,13 @@
     "PotValue one and three holdings": 1,
     "CabalContributionHistory": 1,
     "UserStakeHistory": 1,
-    "MemberFlowsBetween": 1
+    "MemberFlowsBetween": 1,
+    "LedgerReads UserTxns": 1,
+    "LedgerReads CabalTxns": 1,
+    "LedgerReads TxnByID": 1,
+    "LedgerReads TxnBySignature": 1,
+    "LedgerReads UserShares": 1,
+    "LedgerReads CabalShares": 1,
+    "LedgerReads CabalHoldings": 1
   }
 }
