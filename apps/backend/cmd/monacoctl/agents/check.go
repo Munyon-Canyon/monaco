@@ -105,16 +105,15 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 		if carried, err := env.carry(patchID, tree, head, base, parent, generated, stdout); carried || err != nil {
 			return err
 		}
-		ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-		defer stop()
-		leave, err := env.takeSlot(ctx, stdout)
-		if err != nil {
-			return err
-		}
-		defer leave()
-		return env.runStage0(ctx, leave, base, parent, head, tree, patchID, stdout)
 	}
-	return env.runStage0(ctx, func() {}, base, parent, head, tree, patchID, stdout)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	leave, err := env.takeSlot(ctx, stdout)
+	if err != nil {
+		return err
+	}
+	defer leave()
+	return env.runStage0(ctx, leave, base, parent, head, tree, patchID, stdout)
 }
 
 func (env *Env) runStage0(

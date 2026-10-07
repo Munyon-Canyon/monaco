@@ -244,20 +244,29 @@ func TestCheck_takesATicketForTheRunAndRemovesItAfterwards(t *testing.T) {
 	}
 }
 
-func TestCheck_aFreshRunTakesNoTicketAndWaitsForNoSlot(t *testing.T) {
+func TestCheck_aFreshRunTakesATicketAndRemovesItAfterwards(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{"x.sh": "echo\n"})
-	env := h.Env(t)
-	queue := filepath.Join(env.Common, ".monaco", "check-queue")
-	for _, pid := range []int{os.Getpid(), os.Getppid()} {
-		if err := os.MkdirAll(queue, 0o750); err != nil {
-			t.Fatal(err)
-		}
-		writeFile(t, filepath.Join(queue, "1-"+strconv.Itoa(pid)), "/other\n")
+	if code, _, stderr := h.check(t); code != 0 {
+		t.Fatalf("first: %d %q", code, stderr)
 	}
-	if code, stdout, stderr := h.check(t, "--fresh"); code != 0 || strings.Contains(stdout, "waiting") {
-		t.Fatalf("--fresh waited: %d %q %q", code, stdout, stderr)
+	queue := filepath.Join(h.Env(t).Common, ".monaco", "check-queue")
+	if err := os.RemoveAll(queue); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, queue, "not a directory\n")
+	if code, _, stderr := h.check(t, "--fresh"); code != 1 || !strings.Contains(stderr, "take a stage 0 ticket") {
+		t.Fatalf("--fresh skipped the stage 0 queue: %d %q", code, stderr)
+	}
+	if err := os.Remove(queue); err != nil {
+		t.Fatal(err)
+	}
+	if code, stdout, stderr := h.check(t, "--fresh"); code != 0 || !strings.Contains(stdout, "passed") {
+		t.Fatalf("--fresh: %d %q %q", code, stdout, stderr)
+	}
+	if left, err := os.ReadDir(queue); err != nil || len(left) != 0 {
+		t.Fatalf("--fresh left a ticket or took none: %v %v", left, err)
 	}
 }
 
