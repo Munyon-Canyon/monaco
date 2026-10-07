@@ -24,7 +24,7 @@ HEREDOC_SUBST_RE = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)(\w+)\1[ \t]*\n(.*?
 HEREDOC_OP_RE = re.compile(r"<<(-?)[ \t]*(['\"]?)([^\s'\";&|<>()]+)\2")
 WRAPPERS = {"nohup", "command", "exec", "time", "builtin"}
 SHELL_KEYWORDS = {"do", "then", "else", "elif", "if", "while", "until", "!", "{"}
-SHELLS = {"bash", "sh", "zsh"}
+SHELLS = {"bash", "sh", "zsh", "dash"}
 LOOP_RE = re.compile(r"(^|[\s;&|(])(while|until|for)\s")
 SLEEP_RE = re.compile(r"(\d+(?:\.\d*)?|\.\d+)([smhd]?)")
 SLEEP_UNITS = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -188,6 +188,13 @@ def parse(src: str, cwd: str) -> list[Invocation]:
             continue
         if head in SHELLS and "-c" in argv[1:-1]:
             inner = parse(argv[argv.index("-c") + 1], cwd)
+            for inv in inner:
+                inv.under_timeout = inv.under_timeout or under_timeout
+                inv.in_loop = inv.in_loop or in_loop
+            parsed.extend(inner)
+            continue
+        if head in SHELLS and stdin is not None and all(a.startswith("-") for a in argv[1:]):
+            inner = parse(stdin, cwd)
             for inv in inner:
                 inv.under_timeout = inv.under_timeout or under_timeout
                 inv.in_loop = inv.in_loop or in_loop
@@ -540,14 +547,61 @@ def owner_checkout(cwd: str) -> bool:
     return os.path.isdir(os.path.join(cwd, ".git"))
 
 
+REBASE_CONTROL_FLAGS = {"--continue", "--abort", "--skip", "--quit"}
+REBASE_PLAIN_FLAGS = {"--autostash", "--no-autostash", "-q", "--quiet"}
+
+
+def remote_names(cwd: str) -> set[str]:
+    try:
+        out = run(["git", "remote"], cwd)
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    return set(out.stdout.split()) if out.returncode == 0 else set()
+
+
+def remote_ref(ref: str, remotes: set[str]) -> bool:
+    remote, _, name = ref.partition("/")
+    return remote in remotes and bool(name) and not name.startswith("-")
+
+
+def rebase_onto_remote_only(git: Git) -> bool:
+    upstream: list[str] = []
+    onto: list[str] = []
+    args = iter(git.args)
+    for a in args:
+        if a == "--onto":
+            onto.append(next(args, ""))
+        elif a.startswith("--onto="):
+            onto.append(a.split("=", 1)[1])
+        elif a.startswith("-"):
+            if a not in REBASE_PLAIN_FLAGS:
+                return False
+        else:
+            upstream.append(a)
+    if len(upstream) != 1:
+        return False
+    remotes = remote_names(git.cwd)
+    return all(remote_ref(r, remotes) for r in upstream + onto)
+
+
 def rule_raw_history(inv: Invocation) -> str | None:
     git = as_git(inv)
     if git is None or git.sub not in {"rebase", "merge"}:
         return None
     if not owner_checkout(git.cwd):
         return None
-    return ("raw git rebase and git merge are blocked in a checkout. "
-            "Update with gt sync --no-interactive --no-restack, then gt restack.")
+    if git.sub == "rebase" and len(git.args) == 1 and git.args[0] in REBASE_CONTROL_FLAGS:
+        return None
+    if git.sub == "merge" and git.args == ["--abort"]:
+        return None
+    if git.sub == "rebase" and rebase_onto_remote_only(git):
+        return None
+    return ("this git rebase or git merge is blocked in a checkout. Allowed: git rebase --continue, --abort, "
+            "--skip and --quit, git merge --abort, and a non-interactive git rebase [--onto <ref>] <upstream> where "
+            "every ref is a remote-tracking ref such as origin/staging (catch up to the trunk without gt sync). "
+            "Graphite owns stacking between local branches, so rebasing onto a local branch, interactive rebase, "
+            "--root and every other git merge stay blocked: update with gt sync --no-interactive --no-restack, "
+            "then gt restack.")
 
 
 def rule_sync_restacks(inv: Invocation) -> str | None:

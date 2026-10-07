@@ -336,6 +336,26 @@ func TestAgentGuard_ignoresCommandTextInsideHeredocBodiesAndComments(t *testing.
 	assertBlocked(t, guard(t, work, "cat > b <<EOF\nx\nEOF\ngit push origin main"), "push after a heredoc", "'main' is not allowed")
 }
 
+func TestAgentGuard_runsRulesOverShellHeredocsAndDashC(t *testing.T) {
+	t.Setenv("PYENV_VERSION", "system")
+	worktree := filepath.Join(t.TempDir(), ".worktrees", "lane")
+	for cmd, want := range map[string]string{
+		"bash <<'EOF'\ngit rebase main\nEOF":                "gt restack",
+		"sh <<EOF\npkill -f foo\nEOF":                       "reaches every lane's processes",
+		"env -i /bin/bash -e <<'EOF'\ngit rebase main\nEOF": "gt restack",
+		"bash -c 'killall go'":                              "reaches every lane's processes",
+	} {
+		assertBlocked(t, guard(t, worktree, cmd), cmd, want)
+	}
+	for _, cmd := range []string{
+		"cat > f <<EOF\ngit rebase main\nEOF",
+		"python3 - <<'EOF'\nprint(\"pkill\")\nEOF",
+		"bash <<'EOF'\ngit status\nEOF",
+	} {
+		assertAllowed(t, guard(t, worktree, cmd), cmd)
+	}
+}
+
 func commitFile(t *testing.T, dir, name, subject string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(subject), 0o644); err != nil {
@@ -370,6 +390,32 @@ func TestAgentGuard_blocksRawRebaseAndMergeInAWorktreeAndAtTheRoot(t *testing.T)
 	assertAllowed(t, guard(t, root, "gt restack"), "gt restack")
 	elsewhere := t.TempDir()
 	assertAllowed(t, guard(t, elsewhere, "git rebase origin/main"), "git rebase origin/main")
+}
+
+func TestAgentGuard_allowsRebaseControlAndRemoteOnlyRebase(t *testing.T) {
+	t.Setenv("PYENV_VERSION", "system")
+	work, _ := pushRepo(t)
+	git(t, work, "remote", "add", "upstream", work)
+	allowed := []string{
+		"git rebase --continue", "git rebase --abort", "git rebase --skip", "git rebase --quit", "git merge --abort",
+		"git rebase origin/staging", "git rebase upstream/main", "git rebase --autostash origin/staging",
+		"git rebase --onto origin/staging origin/old", "git rebase --onto=origin/staging origin/old",
+		"git -C " + work + " rebase origin/staging",
+	}
+	for _, cmd := range allowed {
+		assertAllowed(t, guard(t, work, cmd), cmd)
+	}
+	blocked := []string{
+		"git rebase -i origin/staging", "git rebase --interactive origin/staging", "git rebase origin/staging -i",
+		"git rebase staging", "git rebase main", "git rebase", "git rebase --root", "git rebase --root origin/staging",
+		"git rebase origin/staging ticket", "git rebase --onto staging origin/old", "git rebase --onto origin/staging old",
+		"git rebase nope/staging", "git rebase origin/", "git rebase --exec true origin/staging",
+		"git rebase --continue origin/staging", "git merge origin/staging", "git merge", "git merge --continue",
+		"git merge --abort --no-edit",
+	}
+	for _, cmd := range blocked {
+		assertBlocked(t, guard(t, work, cmd), cmd, "remote-tracking ref")
+	}
 }
 
 func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
