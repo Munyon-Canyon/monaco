@@ -1178,16 +1178,29 @@ class BusApply(unittest.TestCase):
 
 
 def _gone(probe, wait=5.0, every=0.05):
-    """Polls probe until it raises ProcessLookupError; SIGKILL delivery and reaping lag the kill under load."""
+    """Polls probe until the process is gone (ESRCH, or EPERM once macOS hands the pgid to another user)."""
     deadline = time.monotonic() + wait
     while True:
         try:
             probe()
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             return True
         if time.monotonic() >= deadline:
             return False
         time.sleep(every)
+
+
+class Gone(unittest.TestCase):
+    def test_a_group_that_answers_eperm_is_gone(self):
+        eperm = PermissionError(1, "Operation not permitted")
+        with unittest.mock.patch.object(os, "killpg", side_effect=eperm):
+            self.assertTrue(_gone(lambda: os.killpg(12345, 0)))
+
+    def test_a_live_group_is_not_gone(self):
+        p = subprocess.Popen(["sleep", "30"], start_new_session=True)
+        self.addCleanup(p.wait)
+        self.addCleanup(p.kill)
+        self.assertFalse(_gone(lambda: os.killpg(p.pid, 0), wait=0.2))
 
 
 class Budget(Output):
