@@ -13,7 +13,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-const EventIDHeader = "Monaco-Event-Id"
+const (
+	EventIDHeader  = "Monaco-Event-Id"
+	RedrivenHeader = "Monaco-Redriven"
+	ResolvedCode   = "ok"
+)
 
 func EventIDOf(h nats.Header) string {
 	if id := h.Get(EventIDHeader); id != "" {
@@ -47,6 +51,9 @@ func readDeadLetters(ctx context.Context, s messageGetter, first, last uint64) (
 		}
 		var letter DeadLetter
 		_ = json.Unmarshal(raw.Data, &letter)
+		if letter.Code == ResolvedCode {
+			continue
+		}
 		letter.Seq = seq
 		out = append(out, letter)
 	}
@@ -142,6 +149,9 @@ func answered(err error) error {
 func (c *Conn) Redeliver(ctx context.Context, letter DeadLetter, suffix string) error {
 	const op = "bus.Redeliver"
 	attrs := []slog.Attr{slog.Uint64("seq", letter.Seq)}
+	if letter.Code == ResolvedCode {
+		return errs.New(errs.CodeNotFound, op, attrs...)
+	}
 	msg := &nats.Msg{Subject: letter.Subject, Data: letter.Data, Header: letter.Headers}
 	if letter.Advisory != nil {
 		var advisory struct {
@@ -161,6 +171,7 @@ func (c *Conn) Redeliver(ctx context.Context, letter DeadLetter, suffix string) 
 	}
 	header.Del(jetstream.MsgIDHeader)
 	header.Set(EventIDHeader, id)
+	header.Set(RedrivenHeader, letter.Consumer)
 	msg.Header = header
 	if _, err := c.js.PublishMsg(ctx, msg, jetstream.WithMsgID(id+"/"+suffix)); err != nil {
 		return errs.Wrap(err, publishCode(err), op, attrs...)

@@ -141,6 +141,14 @@ func (w *echoWorker) letters(t *testing.T, n int) []string {
 	return lines
 }
 
+func (w *echoWorker) assertNoMarkerListed(t *testing.T) {
+	t.Helper()
+	code, stdout, _ := runOps(w.env, "deadletter", "list")
+	if code != 0 || strings.Count(stdout, "\n") != 1 || strings.Contains(stdout, "\tok\t") {
+		t.Fatalf("deadletter list after two acked retries = %q, want the one letter and no resolution marker", stdout)
+	}
+}
+
 func TestDeadletterRetry_convergesOnceTheHandlerIsFixedAndARepeatIsANoOp(t *testing.T) {
 	t.Parallel()
 	w := startEcho(t, errs.CodeInvalidInput)
@@ -161,6 +169,7 @@ func TestDeadletterRetry_convergesOnceTheHandlerIsFixedAndARepeatIsANoOp(t *test
 	}
 	barrier := w.ping(t)
 	testkit.Eventually(t, func() bool { return w.echoed(t, barrier) }, converge)
+	w.assertNoMarkerListed(t)
 	var deliveries int
 	if err := w.pool.QueryRow(t.Context(), `SELECT count(*) FROM event_deliveries`).Scan(&deliveries); err != nil {
 		t.Fatal(err)
