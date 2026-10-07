@@ -44,15 +44,15 @@ func TestLoad_refusesAFundPageURLThatCannotTakeTheTokenQuery(t *testing.T) {
 
 func TestWebAllowedOrigins_isTheSetListElseTheSiteAddingLocalhostOutsideDeploys(t *testing.T) {
 	t.Parallel()
-	site, local := config.DeployedWebOrigin, config.LocalWebOrigin
+	site, www, local := config.DeployedWebOrigin, config.DeployedWebOriginWWW, config.LocalWebOrigin
 	tests := []struct {
 		env, set string
 		want     []string
 	}{
-		{"local", "", []string{site, local}},
-		{"test", "", []string{site, local}},
-		{"staging", "", []string{site}},
-		{"production", "", []string{site}},
+		{"local", "", []string{site, www, local}},
+		{"test", "", []string{site, www, local}},
+		{"staging", "", []string{site, www}},
+		{"production", "", []string{site, www}},
 		{"production", "https://a.example,https://b.example", []string{"https://a.example", "https://b.example"}},
 	}
 	for _, tt := range tests {

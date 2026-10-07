@@ -11,10 +11,11 @@ type Web struct {
 }
 
 const (
-	DeployedFundPageURL = "https://monacolabs.xyz/fund"
-	LocalFundPageURL    = "http://localhost:5173/fund"
-	DeployedWebOrigin   = "https://monacolabs.xyz"
-	LocalWebOrigin      = "http://localhost:5173"
+	DeployedFundPageURL  = "https://monacolabs.xyz/fund"
+	LocalFundPageURL     = "http://localhost:5173/fund"
+	DeployedWebOrigin    = "https://monacolabs.xyz"
+	DeployedWebOriginWWW = "https://www.monacolabs.xyz"
+	LocalWebOrigin       = "http://localhost:5173"
 )
 
 func (c Config) FundPageURL() string {
@@ -33,9 +34,9 @@ func (c Config) WebAllowedOrigins() []string {
 	case c.Web.AllowedOrigins != "":
 		return strings.Split(c.Web.AllowedOrigins, ",")
 	case c.Env.Deployed():
-		return []string{DeployedWebOrigin}
+		return []string{DeployedWebOrigin, DeployedWebOriginWWW}
 	default:
-		return []string{DeployedWebOrigin, LocalWebOrigin}
+		return []string{DeployedWebOrigin, DeployedWebOriginWWW, LocalWebOrigin}
 	}
 }
 
