@@ -13,4 +13,11 @@ final class TokenQuantityFormatterTests: XCTestCase {
         XCTAssertEqual(
             TokenQuantityFormatter.label(quantity: Decimal(string: "0.00001")!, kind: .stock), "< 0.0001 shares")
     }
+
+    func testLabelFromAtomics_trimsFractionAndSaysOneShare() {
+        XCTAssertEqual(
+            TokenQuantityFormatter.label(fromAtomics: "21610000", decimals: 8, kind: .stock), "0.2161 shares")
+        XCTAssertEqual(
+            TokenQuantityFormatter.label(fromAtomics: "100000000", decimals: 8, kind: .stock), "1 share")
+    }
 }
