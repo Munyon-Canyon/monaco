@@ -35,7 +35,7 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 		observability.Degraded(ctx, observability.MarketReconcileSkippedNoKey)
 		return poller.Report{}, nil
 	}
-	assets, err := r.catalog.ListAll(ctx)
+	assets, err := r.catalog.ListPriceable(ctx)
 	if err != nil {
 		return poller.Report{}, err
 	}

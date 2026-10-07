@@ -419,6 +419,8 @@ func TestBackfill_AMintAddedByTheCatalogPollerIsBackfilledOnTheNextTick(t *testi
 	p.serve(nil, listed(aapl))
 	rig := newRig(t, p)
 	rig.tick(t)
+	rig.exec(t, `UPDATE assets SET chain_checked_at = now()`)
+	rig.tick(t)
 
 	history := &marketfake.PriceHistoryFake{}
 	backfill := app.NewBackfill(db.New(rig.pool, rig.ids, rig.clock), rig.pool, rig.clock, history)
@@ -461,15 +463,21 @@ func TestBackfill_runRequeuesDoneMintsAndDrainsThem(t *testing.T) {
 	}
 }
 
-func TestBackfill_runAllTakesEveryCatalogMint(t *testing.T) {
+func TestBackfill_runAllTakesEveryListedMint(t *testing.T) {
 	t.Parallel()
-	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
+	jpst.IssuerTradable = false
 	r := newBackfillRig(t)
-	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla)
+	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla, jpst)
 	r.putChart(aapl.Mint)
 	res, err := r.poller.RunAll(r.ctx(t))
 	if err != nil || res != (app.BackfillResult{Mints: 2, Calls: 6, Rows: 4}) {
-		t.Fatalf("RunAll = %+v, %v, want 2 mints, 6 calls and 4 rows", res, err)
+		t.Fatalf("RunAll = %+v, %v, want 2 listed mints, 6 calls and 4 rows", res, err)
+	}
+	for _, c := range r.history.Calls() {
+		if c.Mint == jpst.Mint {
+			t.Fatalf("calls = %v, want none for the unlisted mint", r.history.Calls())
+		}
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -550,5 +558,65 @@ func TestBackfill_theDailyNowPointNeverReplacesAFinerBucket(t *testing.T) {
 	}
 	if got := r.points(t, aapl); len(got) != 1 || got[r.day] != "105000000/coingecko" {
 		t.Fatalf("points = %v, want the 5 minute 105 in the midnight bucket all three windows share", got)
+	}
+}
+
+func TestBackfill_popularMintsGoBeforeOthers(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
+	aapl.PopularRank, tsla.PopularRank, jpst.PopularRank = 0, 2, 1
+	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla, jpst)
+	r.pend(t, aapl.Mint, tsla.Mint, jpst.Mint)
+	other, err := market.ParseMint("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.exec(t, `INSERT INTO price_backfills (mint, requested_at) VALUES ($1, $2)`,
+		other.String(), r.clock.Now().Add(-time.Hour))
+
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	var order []market.Mint
+	for _, c := range r.history.Calls() {
+		if c.Days == 1 {
+			order = append(order, c.Mint)
+		}
+	}
+	if want := []market.Mint{jpst.Mint, tsla.Mint, other, aapl.Mint}; !slices.Equal(order, want) {
+		t.Fatalf("backfill order = %v, want rank 1, rank 2, then the unranked by request time (%v)", order, want)
+	}
+}
+
+func TestBackfill_theCatalogPollerQueuesOnlyListedMints(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	tsla := marketfake.TSLAx()
+	tsla.IssuerTradable = false
+	p := &provider{issuer: domain.IssuerXStocks}
+	p.serve(nil, listed(aapl), listed(tsla))
+	rig := newRig(t, p)
+	rig.tick(t)
+	rig.exec(t, `UPDATE assets SET chain_checked_at = now()`)
+	rig.tick(t)
+	var queued []string
+	rows, err := rig.pool.Query(t.Context(), `SELECT mint FROM price_backfills`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m string
+		if err := rows.Scan(&m); err != nil {
+			t.Fatal(err)
+		}
+		queued = append(queued, m)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(queued, []string{aapl.Mint.String()}) {
+		t.Fatalf("queued = %v, want only the listed, chain-checked mint", queued)
 	}
 }
