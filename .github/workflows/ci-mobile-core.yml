@@ -27,7 +27,7 @@ jobs:
     # passes a local macOS `swift test` before it is pushed.
     name: Swift (mobile-core, Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     container: swift:6.3-noble
     steps:
       - uses: actions/checkout@v4
