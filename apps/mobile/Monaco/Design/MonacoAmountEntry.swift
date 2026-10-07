@@ -23,6 +23,7 @@ struct AmountEntry: View {
     private let overLimitHelper: String
     private let problem: String?
     private let showsKeyboardDoneButton: Bool
+    private let onPreset: (AmountPreset) -> Void
 
     @FocusState private var focused: Bool
     @State private var hasRaisedKeyboard = false
@@ -44,7 +45,8 @@ struct AmountEntry: View {
         helper: String? = nil,
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
-        showsKeyboardDoneButton: Bool = false
+        showsKeyboardDoneButton: Bool = false,
+        onPreset: @escaping (AmountPreset) -> Void = { _ in }
     ) {
         _amountText = amountText
         self.max = max
@@ -53,6 +55,7 @@ struct AmountEntry: View {
         self.overLimitHelper = overLimitHelper
         self.problem = problem
         self.showsKeyboardDoneButton = showsKeyboardDoneButton
+        self.onPreset = onPreset
     }
 
     private var value: Decimal? {
@@ -193,6 +196,7 @@ struct AmountEntry: View {
             guard let target else { return }
             Haptics.selection()
             amountText = AmountEntryText.plain(target)
+            onPreset(preset)
         } label: {
             Text(label(for: preset))
                 .font(MonacoTheme.Typo.dataCaption)
