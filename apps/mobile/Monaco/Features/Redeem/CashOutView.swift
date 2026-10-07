@@ -57,7 +57,7 @@ struct CashOutContent: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.vertical, MonacoTheme.Space.xl)
         }
-        .scrollDismissesKeyboard(.never)
+        .scrollDismissesKeyboard(.interactively)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
             if runningJob == nil, let preview = model?.preview, canEnterAmount(preview) {
@@ -136,8 +136,7 @@ struct CashOutContent: View {
                 ],
                 helper: CashOutAmountRule.helper(for: verdict, sliceMicros: preview.sliceMicros),
                 overLimitHelper: "More than your slice",
-                problem: CashOutAmountRule.problem(for: verdict),
-                showsKeyboardDoneButton: true
+                problem: CashOutAmountRule.problem(for: verdict)
             )
             .accessibilityIdentifier("cash-out-amount")
             AmountEntryNote(CashOutAmountRule.explainer(for: verdict))

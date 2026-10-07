@@ -205,6 +205,7 @@ struct FundCabalContent: View {
                 .padding(.top, MonacoTheme.Space.xl)
                 .padding(.bottom, MonacoTheme.Space.xl)
         }
+        .scrollDismissesKeyboard(.interactively)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
             if stage.showsAmountEntry {
@@ -262,8 +263,7 @@ struct FundCabalContent: View {
                 max: form.maxDollars,
                 presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
                 helper: form.availability,
-                problem: form.problem,
-                showsKeyboardDoneButton: true
+                problem: form.problem
             )
             AmountEntryNote(FundCabalForm.note(into: cabalName))
             Text(FundCabalForm.treasuryNote)

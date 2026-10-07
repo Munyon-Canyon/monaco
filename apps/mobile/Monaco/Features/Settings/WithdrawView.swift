@@ -211,7 +211,6 @@ struct WithdrawContent: View {
                         presets: [.fraction(1, label: "Max")],
                         helper: form.balanceHelper,
                         problem: form.problem,
-                        showsKeyboardDoneButton: true,
                         onPreset: { _ in onMax() }
                     )
                     .padding(.horizontal, MonacoTheme.Space.gutter)
