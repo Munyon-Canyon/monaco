@@ -32,7 +32,8 @@
 #
 # Environment:
 #   MONACO_XCODE_SLOTS         `xcode` slots (default: the number in the clone's
-#                              .git/.monaco/xcode-slots, else max(1, RAM GB / 16))
+#                              .git/.monaco/xcode-slots, reread on every wait poll,
+#                              else max(1, RAM GB / 16))
 #   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, min(RAM GB / 8, CPUs / 8)))
 #   MONACO_XCODE_LOCK_DIR      `xcode` lock dir (default /private/tmp/monaco-xcodebuild.lock)
 #   MONACO_SWIFTPM_LOCK_DIR    `swiftpm` lock dir (default /private/tmp/monaco-swiftpm.lock)
@@ -62,19 +63,31 @@ case "$class" in
   xcode)
     base_dir="${MONACO_XCODE_LOCK_DIR:-/private/tmp/monaco-xcodebuild.lock}"
     slots_file="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)/.monaco/xcode-slots"
-    machine_slots="$(cat "$slots_file" 2>/dev/null || true)"
-    slots="${MONACO_XCODE_SLOTS:-${machine_slots:-$((ram_gb / 16))}}"
     ;;
   swiftpm)
     base_dir="${MONACO_SWIFTPM_LOCK_DIR:-/private/tmp/monaco-swiftpm.lock}"
-    by_ram=$((ram_gb / 8))
-    by_cpu=$((cpus / 8))
-    slots="${MONACO_SWIFTPM_SLOTS:-$((by_ram < by_cpu ? by_ram : by_cpu))}"
     ;;
 esac
-if ! [[ "$slots" =~ ^[0-9]+$ ]] || (( slots < 1 )); then
-  slots=1
-fi
+
+# Sets $slots. The wait loop calls it on every poll, so a slot count raised or lowered in
+# xcode-slots applies to callers already queued.
+read_slots() {
+  local machine_slots by_ram by_cpu
+  case "$class" in
+    xcode)
+      machine_slots="$(cat "$slots_file" 2>/dev/null || true)"
+      slots="${MONACO_XCODE_SLOTS:-${machine_slots:-$((ram_gb / 16))}}"
+      ;;
+    swiftpm)
+      by_ram=$((ram_gb / 8))
+      by_cpu=$((cpus / 8))
+      slots="${MONACO_SWIFTPM_SLOTS:-$((by_ram < by_cpu ? by_ram : by_cpu))}"
+      ;;
+  esac
+  if ! [[ "$slots" =~ ^[0-9]+$ ]] || (( slots < 1 )); then
+    slots=1
+  fi
+}
 queue_dir="$base_dir.queue"
 lock_dir=""     # the slot this process holds, once it holds one
 wait_limit="${MONACO_XCODE_LOCK_TIMEOUT:-5400}"
@@ -281,6 +294,7 @@ ticket="$(now_ns).$$"
 
 next_log=0
 while true; do
+  read_slots
   tickets="$(live_tickets)"
   position="$(awk -v t="$ticket" '$0 == t { print NR }' <<< "$tickets")"
   free=0
