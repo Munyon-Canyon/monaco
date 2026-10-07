@@ -127,30 +127,38 @@ func (w SnapshotWriter) persistQueries(
 }
 
 type snapshotQueries interface {
-	InsertCabalValueSnapshot(context.Context, sqlc.InsertCabalValueSnapshotParams) error
+	InsertCabalValueSnapshots(context.Context, []byte) error
 	InsertLeaderboardRun(context.Context, sqlc.InsertLeaderboardRunParams) error
 }
 
+type snapshotRow struct {
+	CabalID           uuid.UUID `json:"cabal_id"`
+	At                time.Time `json:"at"`
+	ValueMicros       int64     `json:"value_micros"`
+	NavPerShareMicros int64     `json:"nav_per_share_micros"`
+	TotalShares       int64     `json:"total_shares"`
+}
+
 func (w SnapshotWriter) snapshots(ctx context.Context, q snapshotQueries, valuation Valuation) error {
-	for _, cabal := range valuation.Cabals {
+	if len(valuation.Cabals) == 0 {
+		return nil
+	}
+	rows := make([]snapshotRow, len(valuation.Cabals))
+	for i, cabal := range valuation.Cabals {
 		amounts, err := int64s(cabal)
 		if err != nil {
 			return err
 		}
-		if err := q.InsertCabalValueSnapshot(
-			ctx,
-			sqlc.InsertCabalValueSnapshotParams{
-				CabalID:           cabal.CabalID.UUID(),
-				At:                valuation.AsOf,
-				ValueMicros:       amounts[0],
-				NavPerShareMicros: amounts[1],
-				TotalShares:       amounts[2],
-			},
-		); err != nil {
-			return err
+		rows[i] = snapshotRow{
+			CabalID: cabal.CabalID.UUID(), At: valuation.AsOf,
+			ValueMicros: amounts[0], NavPerShareMicros: amounts[1], TotalShares: amounts[2],
 		}
 	}
-	return nil
+	encoded, err := json.Marshal(rows)
+	if err != nil {
+		return errs.New(errs.CodeInvalidInput, "ranking.SnapshotWriter.Write")
+	}
+	return q.InsertCabalValueSnapshots(ctx, encoded)
 }
 
 func (w SnapshotWriter) run(

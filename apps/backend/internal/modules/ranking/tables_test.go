@@ -102,11 +102,9 @@ func assertReplacedRankingEntries(t *testing.T, db *pgxpool.Pool, cabal ids.Caba
 
 func insertCabalValue(t *testing.T, q *sqlc.Queries, cabal ids.CabalID, now time.Time) {
 	t.Helper()
-	if err := q.InsertCabalValueSnapshot(t.Context(), sqlc.InsertCabalValueSnapshotParams{
+	insertSnapshotRows(t, q, snapshotInput{
 		CabalID: cabal.UUID(), At: now, ValueMicros: 200, NavPerShareMicros: 2, TotalShares: 100,
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 func insertLeaderboardRun(t *testing.T, q *sqlc.Queries, run uuid.UUID, now time.Time) {

@@ -78,7 +78,7 @@ func (h health) poller(p poller.Poller) string {
 	if last.IsZero() {
 		return checkNoTick
 	}
-	if age := h.clock.Now().Sub(last); age >= staleTicks*p.Interval() {
+	if age := h.clock.Now().Sub(last); age >= staleTicks*poller.TickBudget(p) {
 		return "stale: last tick " + age.Round(time.Second).String() + " ago"
 	}
 	return checkOK

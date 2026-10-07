@@ -3585,6 +3585,7 @@ components:
         - proposal_closed
         - proposal_not_found
         - proposal_still_open
+        - ranking_runs_stalled
         - rate_limited
         - reason_required
         - referral_already_attached

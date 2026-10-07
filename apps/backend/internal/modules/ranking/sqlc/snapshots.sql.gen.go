@@ -12,27 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
-const insertCabalValueSnapshot = `-- name: InsertCabalValueSnapshot :exec
+const insertCabalValueSnapshots = `-- name: InsertCabalValueSnapshots :exec
 INSERT INTO cabal_value_snapshots (cabal_id, at, value_micros, nav_per_share_micros, total_shares)
-VALUES ($1, $2, $3, $4, $5)
+SELECT cabal_id, at, value_micros, nav_per_share_micros, total_shares
+FROM jsonb_to_recordset($1::jsonb) AS rows(
+  cabal_id uuid, at timestamptz, value_micros bigint, nav_per_share_micros bigint, total_shares bigint
+)
 `
 
-type InsertCabalValueSnapshotParams struct {
-	CabalID           uuid.UUID
-	At                time.Time
-	ValueMicros       int64
-	NavPerShareMicros int64
-	TotalShares       int64
-}
-
-func (q *Queries) InsertCabalValueSnapshot(ctx context.Context, arg InsertCabalValueSnapshotParams) error {
-	_, err := q.db.Exec(ctx, insertCabalValueSnapshot,
-		arg.CabalID,
-		arg.At,
-		arg.ValueMicros,
-		arg.NavPerShareMicros,
-		arg.TotalShares,
-	)
+func (q *Queries) InsertCabalValueSnapshots(ctx context.Context, rows []byte) error {
+	_, err := q.db.Exec(ctx, insertCabalValueSnapshots, rows)
 	return err
 }
 

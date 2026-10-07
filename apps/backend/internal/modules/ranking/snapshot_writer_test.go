@@ -1,9 +1,11 @@
 package ranking_test
 
 import (
+	"maps"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/app"
@@ -57,6 +59,47 @@ func TestSnapshotWriterWritesTheRunAndSnapshot(t *testing.T) {
 	}
 	if rows != 1 || excluded != 1 {
 		t.Fatalf("run = (%d, %d)", rows, excluded)
+	}
+}
+
+func TestSnapshotWriterWritesOneSnapshotPerCabalInOneStatement(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	valuation := app.Valuation{AsOf: now, PricesAsOf: now, Entries: []app.Entry{entry(now, 1, 1)}}
+	want := map[uuid.UUID]int64{}
+	for i := range 3 {
+		id := ids.CabalIDFrom(ids.Real{}.NewV7())
+		valuation.Cabals = append(valuation.Cabals, app.CabalValue{
+			CabalID: id, Value: money.MicrosFromUint64(uint64(100 + i)),
+			NavPerShare: money.MicrosFromUint64(2), TotalShares: money.SharesUnitsFromUint64(50),
+		})
+		want[id.UUID()] = int64(100 + i)
+	}
+	if _, err := newWriter(pool, now).Write(
+		observability.WithActor(t.Context(), "system:ranking.valuation"), valuation, now, now.Add(time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pool.Query(t.Context(), `SELECT cabal_id, value_micros FROM cabal_value_snapshots WHERE at = $1`, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := map[uuid.UUID]int64{}
+	for rows.Next() {
+		var id uuid.UUID
+		var value int64
+		if err := rows.Scan(&id, &value); err != nil {
+			t.Fatal(err)
+		}
+		got[id] = value
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !maps.Equal(got, want) {
+		t.Fatalf("snapshots = %v, want %v", got, want)
 	}
 }
 
@@ -222,6 +265,30 @@ func assertRefusedKeepingOldRows(t *testing.T, valuation app.Valuation, now time
 	} {
 		if n := count(t, pool, query); n != want {
 			t.Fatalf("%s = %d, want %d", query, n, want)
+		}
+	}
+}
+
+func BenchmarkWriteValuation_500Cabals(b *testing.B) {
+	pool := testkit.DB(b)
+	start := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	valuation := app.Valuation{PricesAsOf: start, Entries: make([]app.Entry, 0, 500)}
+	for i := range 500 {
+		valuation.Cabals = append(valuation.Cabals, app.CabalValue{
+			CabalID: ids.CabalIDFrom(ids.Real{}.NewV7()), Value: money.MicrosFromUint64(1_000_000),
+			NavPerShare: money.MicrosFromUint64(1_000_000), TotalShares: money.SharesUnitsFromUint64(1),
+		})
+		valuation.Entries = append(valuation.Entries, entry(start, i+1, 1_000_000))
+	}
+	writer := newWriter(pool, start)
+	ctx := observability.WithActor(b.Context(), "system:ranking.valuation")
+	var n int
+	b.ResetTimer()
+	for b.Loop() {
+		n++
+		valuation.AsOf = start.Add(time.Duration(n) * time.Minute)
+		if _, err := writer.Write(ctx, valuation, valuation.AsOf, valuation.AsOf.Add(time.Second)); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

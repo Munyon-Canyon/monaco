@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -185,6 +186,135 @@ func TestRunner_tickThatOutlivesItsIntervalIsCutOffAndCounted(t *testing.T) {
 	}
 	if got := h.errorCount(t, "test.slow", "upstream_timeout"); got != 1 {
 		t.Fatalf("poller_errors_total{upstream_timeout} = %d, want 1", got)
+	}
+}
+
+type deadlinePoller struct {
+	fakePoller
+	interval time.Duration
+	seen     chan time.Duration
+}
+
+func (p *deadlinePoller) Interval() time.Duration { return p.interval }
+
+func (p *deadlinePoller) Tick(ctx context.Context) (poller.Report, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return poller.Report{}, errs.New(errs.CodeInternal, "test.deadline")
+	}
+	p.seen <- deadline.Sub(clock.Real{}.Now())
+	return poller.Report{}, nil
+}
+
+type budgetedPoller struct {
+	deadlinePoller
+	budget time.Duration
+}
+
+func (p *budgetedPoller) TickBudget() time.Duration { return p.budget }
+
+func TestRunner_tickGetsItsBudgetWhenThePollerHasOneAndItsIntervalOtherwise(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		p          poller.Poller
+		seen       chan time.Duration
+		low, limit time.Duration
+	}{
+		"interval": {
+			p:     &deadlinePoller{fakePoller: fakePoller{name: "test.interval"}, interval: 2 * time.Hour},
+			low:   90 * time.Minute,
+			limit: 2 * time.Hour,
+		},
+		"budget": {
+			p: &budgetedPoller{
+				deadlinePoller: deadlinePoller{fakePoller: fakePoller{name: "test.budget"}, interval: 20 * time.Millisecond},
+				budget:         3 * time.Hour,
+			},
+			low:   150 * time.Minute,
+			limit: 3 * time.Hour,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			seen := make(chan time.Duration, 8)
+			switch p := tc.p.(type) {
+			case *deadlinePoller:
+				p.seen = seen
+			case *budgetedPoller:
+				p.seen = seen
+			}
+			h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+			h.start(t, tc.p)
+			select {
+			case left := <-seen:
+				if left <= tc.low || left > tc.limit {
+					t.Fatalf("tick deadline in %v, want within (%v, %v]", left, tc.low, tc.limit)
+				}
+			case <-time.After(30 * time.Second):
+				t.Fatal("no tick within 30s")
+			}
+		})
+	}
+}
+
+func TestRunner_budgetedTickIsCutOffAtItsBudgetNotItsInterval(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	p := &budgetedBlockingPoller{
+		blockingPoller: blockingPoller{fakePoller: fakePoller{name: "test.budget.slow"}, interval: time.Hour},
+		budget:         20 * time.Millisecond,
+	}
+	out, _ := h.start(t, p)
+	if failed := out.expect(t, "poller.tick.failed"); failed["code"] != "upstream_timeout" {
+		t.Fatalf("failed line = %v, want the tick cut off at its budget", failed)
+	}
+}
+
+type budgetedBlockingPoller struct {
+	blockingPoller
+	budget time.Duration
+}
+
+func (p *budgetedBlockingPoller) TickBudget() time.Duration { return p.budget }
+
+type stalledPoller struct{ fakePoller }
+
+func (*stalledPoller) Interval() time.Duration { return time.Hour }
+
+func (*stalledPoller) Tick(ctx context.Context) (poller.Report, error) {
+	<-ctx.Done()
+	return poller.Report{}, errs.Wrap(
+		errs.Wrap(context.Cause(ctx), errs.CodeInternal, "test.inner"), errs.CodeRankingRunsStalled, "test.stalled",
+	)
+}
+
+func (*stalledPoller) TickBudget() time.Duration { return 20 * time.Millisecond }
+
+func TestRunner_aTimedOutTickKeepsRankingRunsStalled(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	out, _ := h.start(t, &stalledPoller{fakePoller{name: "test.stalled"}})
+	if failed := out.expect(t, "poller.tick.failed"); failed["code"] != string(errs.CodeRankingRunsStalled) ||
+		failed["alert"] != true {
+		t.Fatalf("failed line = %v, want ranking_runs_stalled with alert", failed)
+	}
+}
+
+type decodeFailedPoller struct{ fakePoller }
+
+func (*decodeFailedPoller) Interval() time.Duration { return 20 * time.Millisecond }
+
+func (*decodeFailedPoller) Tick(ctx context.Context) (poller.Report, error) {
+	<-ctx.Done()
+	return poller.Report{}, errs.Wrap(context.Cause(ctx), errs.CodeDecodeFailed, "test.decode")
+}
+
+func TestRunner_aTimedOutTickStillBecomesAnUpstreamTimeoutForAnotherInternalKindCode(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	out, _ := h.start(t, &decodeFailedPoller{fakePoller{name: "test.decode"}})
+	if failed := out.expect(t, "poller.tick.failed"); failed["code"] != "upstream_timeout" {
+		t.Fatalf("failed line = %v, want decode_failed wrapping a deadline rewritten to upstream_timeout", failed)
 	}
 }
 

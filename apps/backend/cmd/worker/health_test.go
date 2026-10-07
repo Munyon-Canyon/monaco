@@ -25,6 +25,12 @@ func (testPoller) Interval() time.Duration { return time.Minute }
 
 func (testPoller) Tick(context.Context) (poller.Report, error) { return poller.Report{}, nil }
 
+type budgetedPoller struct{ testPoller }
+
+func (budgetedPoller) Interval() time.Duration { return time.Second }
+
+func (budgetedPoller) TickBudget() time.Duration { return 90 * time.Second }
+
 func get(h health) (int, []string) {
 	rec := httptest.NewRecorder()
 	h.mux().ServeHTTP(rec, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil))
@@ -70,5 +76,19 @@ func TestHealth_oneFailingCheckAloneMakesTheWorkerUnhealthy(t *testing.T) {
 	}
 	if code, lines := get(h); code != http.StatusServiceUnavailable || lines[0] != "nats disconnected" {
 		t.Fatalf("worker with NATS down = %d %q, want 503 naming nats", code, lines)
+	}
+}
+
+func TestHealth_aBudgetedPollerIsStaleOnlyAfterThreeTickBudgets(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	h := health{
+		connected: func() bool { return true }, pool: testkit.DB(t), clock: testkit.NewClock(now),
+		pollers: []poller.Poller{budgetedPoller{"a.long"}, budgetedPoller{"b.dead"}},
+		ticks:   ticks{"a.long": now.Add(-89 * time.Second), "b.dead": now.Add(-270 * time.Second)},
+	}
+	want := []string{"nats ok", "db ok", "poller:a.long ok", "poller:b.dead stale: last tick 4m30s ago"}
+	if code, lines := get(h); code != http.StatusServiceUnavailable || !slices.Equal(lines, want) {
+		t.Fatalf("worker with a long tick = %d %q, want 503 %q", code, lines, want)
 	}
 }
