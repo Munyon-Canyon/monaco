@@ -213,6 +213,23 @@ func TestNotify_NewFollower_ReachesOnlyTheFolloweeThroughTheModule(t *testing.T)
 	r.wantRecorded(t, d, 1)
 }
 
+func TestNewFollower_aReferralFollowPushesNobody(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	followee, follower := r.follower(t, "ada", "Ada"), r.follower(t, "bea", "Bea")
+	r.device(t, followee, token('a'))
+	d, e := r.followed(t, followee, follower)
+	e.Source = "referral"
+
+	wantVerdict(t, r.handleFollow(t, d, e), "", errs.VerdictAck)
+
+	r.wantRows(t, map[string]int{})
+	if sent := r.sender.Sent(); len(sent) != 0 {
+		t.Fatalf("sent %+v for a referral follow, want no push", sent)
+	}
+	r.wantRecorded(t, d, 1)
+}
+
 func followerCard(id ids.UserID, name, handle string, deleted bool) map[ids.UserID]identity.UserCard {
 	return map[ids.UserID]identity.UserCard{id: {ID: id, DisplayName: name, Handle: handle, Deleted: deleted}}
 }
