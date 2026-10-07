@@ -106,6 +106,7 @@ extension Components.Schemas.ErrorCode {
         case .proposalClosed: true
         case .proposalNotFound: true
         case .proposalStillOpen: true
+        case .rankingCloseSampleMissing: true
         case .rankingRunsStalled: true
         case .rateLimited: true
         case .reasonRequired: true

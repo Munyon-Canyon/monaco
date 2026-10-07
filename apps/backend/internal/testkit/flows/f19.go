@@ -208,13 +208,13 @@ func makePricesStale(mint chain.SolanaAddress, now time.Time) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
 		aged := 6 * time.Minute
-		if session := rankedSession(s, now); !session.Continuous && session.State != domain.StateOpen {
+		if session := rankedSession(s, now); !session.Continuous {
 			var newest time.Time
 			if err := s.DB().QueryRow(s.Context(),
 				`SELECT max(ts) FROM price_points WHERE mint = $1`, string(mint)).Scan(&newest); err != nil {
 				s.Fatalf("flows: read the newest price: %v", err)
 			}
-			aged = max(aged, newest.Sub(session.LastClose)+6*time.Minute)
+			aged = max(aged, newest.Sub(session.LastSessionOpen)+time.Minute)
 		}
 		if _, err := s.DB().Exec(s.Context(),
 			`UPDATE price_points SET ts = ts - $2 * interval '1 microsecond' WHERE mint = $1`,

@@ -155,6 +155,7 @@ func (r RunValuation) value(ctx context.Context, data readData, at time.Time) (V
 	if err != nil {
 		return Valuation{}, err
 	}
+	logMissingCloseSamples(ctx, byMint, idsForPrices, sessions, latest, atTime, at)
 	values, flagged, err := r.values(ctx, inputs, byMint, latest, atTime, sessions, data.stakes, at)
 	if err != nil {
 		return Valuation{}, err
@@ -198,6 +199,53 @@ func pricingInstant(session market.SessionInfo, at time.Time) time.Time {
 		return at
 	}
 	return session.LastClose
+}
+
+func logMissingCloseSamples(
+	ctx context.Context,
+	byMint map[string]market.Asset,
+	assetIDs []market.AssetID,
+	sessions map[market.AssetID]market.SessionInfo,
+	latest, atTime map[market.AssetID]market.Price,
+	at time.Time,
+) {
+	symbols := make(map[market.AssetID]string, len(byMint))
+	for _, asset := range byMint {
+		symbols[asset.ID] = asset.Symbol
+	}
+	for _, assetID := range assetIDs {
+		session := sessions[assetID]
+		_, _, fellBack := domain.PriceForBoard(
+			boardSession(session),
+			sample(latest, assetID),
+			sample(atTime, assetID),
+			at,
+		)
+		if !fellBack {
+			continue
+		}
+		observability.Alert(
+			ctx,
+			observability.RankingCloseSampleMissing,
+			slog.String("asset", symbols[assetID]),
+			slog.Time("close_at", session.LastClose),
+			slog.Time(
+				"sample_at",
+				atTime[assetID].ObservedAt,
+			),
+			slog.String("code", string(errs.CodeRankingCloseSampleMissing)),
+			slog.Bool("alert", errs.Alert(errs.CodeRankingCloseSampleMissing)),
+		)
+	}
+}
+
+func boardSession(session market.SessionInfo) domain.Session {
+	return domain.Session{
+		Open:            string(session.State) == "open",
+		Continuous:      session.Continuous,
+		LastClose:       session.LastClose,
+		LastSessionOpen: session.LastSessionOpen,
+	}
 }
 
 func logSkipped(ctx context.Context) func(ids.CabalID) {
@@ -512,12 +560,8 @@ func (r RunValuation) cabalNAV(
 			)
 		}
 		session := sessions[asset.ID]
-		price, priceFlags := domain.PriceForBoard(
-			domain.Session{
-				Open:       string(session.State) == "open",
-				Continuous: session.Continuous,
-				LastClose:  session.LastClose,
-			},
+		price, priceFlags, _ := domain.PriceForBoard(
+			boardSession(session),
 			sample(latest, asset.ID),
 			sample(atTime, asset.ID),
 			at,

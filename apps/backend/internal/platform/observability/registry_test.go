@@ -125,7 +125,7 @@ func (s fileScope) isHelper(fun ast.Expr) bool {
 }
 
 func isObservabilityHelper(name string) bool {
-	return name == "Info" || name == "Debug" || name == "Degraded"
+	return name == "Info" || name == "Debug" || name == "Degraded" || name == "Alert"
 }
 
 func isWarnOrError(name string) bool { return name == "Warn" || name == "Error" }

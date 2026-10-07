@@ -8,5 +8,6 @@ func init() {
 		RankingRangeStartSkipped,
 		RankingCabalExcluded,
 		RankingRunCompleted,
+		RankingCloseSampleMissing,
 	)
 }

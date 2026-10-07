@@ -18,14 +18,15 @@ const (
 )
 
 type SessionInfo struct {
-	State          State
-	Continuous     bool
-	Holiday        string
-	EarlyClose     bool
-	NextState      State
-	NextTransition time.Time
-	LastClose      time.Time
-	TradingDay     Date
+	State           State
+	Continuous      bool
+	Holiday         string
+	EarlyClose      bool
+	NextState       State
+	NextTransition  time.Time
+	LastClose       time.Time
+	LastSessionOpen time.Time
+	TradingDay      Date
 }
 
 func Session(kind Kind, at time.Time) (SessionInfo, error) {
@@ -94,6 +95,11 @@ func (s schedule) closeAt() (time.Duration, bool) {
 	return s.windows[i].from, true
 }
 
+func (s schedule) openAt() time.Duration {
+	i := slices.IndexFunc(s.windows, func(w window) bool { return w.state == StateOpen })
+	return s.windows[max(i, 0)].from
+}
+
 type transition struct {
 	state State
 	at    time.Time
@@ -129,18 +135,19 @@ func (c calendar) session(at time.Time) (SessionInfo, error) {
 	if err != nil {
 		return SessionInfo{}, err
 	}
-	lastClose, err := c.lastClose(date, today, offset)
+	lastClose, lastOpen, err := c.lastClose(date, today, offset)
 	if err != nil {
 		return SessionInfo{}, err
 	}
 	return SessionInfo{
-		State:          today.stateAt(offset),
-		Holiday:        today.holiday,
-		EarlyClose:     today.early,
-		NextState:      next.state,
-		NextTransition: next.at,
-		LastClose:      lastClose,
-		TradingDay:     date,
+		State:           today.stateAt(offset),
+		Holiday:         today.holiday,
+		EarlyClose:      today.early,
+		NextState:       next.state,
+		NextTransition:  next.at,
+		LastClose:       lastClose,
+		LastSessionOpen: lastOpen,
+		TradingDay:      date,
 	}, nil
 }
 
@@ -159,17 +166,17 @@ func (c calendar) nextTransition(date Date, today schedule, offset time.Duration
 	}
 }
 
-func (c calendar) lastClose(date Date, today schedule, offset time.Duration) (time.Time, error) {
+func (c calendar) lastClose(date Date, today schedule, offset time.Duration) (closed, opened time.Time, err error) {
 	if from, ok := today.closeAt(); ok && offset >= from {
-		return date.atExchange(from), nil
+		return date.atExchange(from), date.atExchange(today.openAt()), nil
 	}
 	for previous := date.addDays(-1); ; previous = previous.addDays(-1) {
 		day, err := c.on(previous)
 		if err != nil {
-			return time.Time{}, err
+			return time.Time{}, time.Time{}, err
 		}
 		if from, ok := day.closeAt(); ok {
-			return previous.atExchange(from), nil
+			return previous.atExchange(from), previous.atExchange(day.openAt()), nil
 		}
 	}
 }
