@@ -1,6 +1,7 @@
 package testkit
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,6 +89,103 @@ func TestReadBaselineFillsMissingSections(t *testing.T) {
 	compareBaseline(rec, path, true, "queries", "q", 2)
 	compareBaseline(rec, path, true, "allocs", "a", 1)
 	if rec.fatal != "" {
+		t.Fatalf("fatal = %q", rec.fatal)
+	}
+}
+
+func TestCompareBaselineChecksBufferCounts(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "perf", "baseline.json")
+	compareBaseline(&recordingT{}, path, true, "buffers", "search", 558)
+	data, err := os.ReadFile(path)
+	want := "{\n  \"allocs\": {},\n  \"queries\": {},\n  \"buffers\": {\n    \"search\": 558\n  }\n}\n"
+	if err != nil || string(data) != want {
+		t.Fatalf("baseline file = %q, %v; want %q", data, err, want)
+	}
+	for _, tc := range []struct {
+		got           int64
+		fatal, logged string
+	}{
+		{558, "", ""},
+		{559, `testkit: buffers for "search" = 559, baseline 558. An increase needs ` + path + " updated in the same PR (-testkit.perf-update)", ""},
+		{12, "", `testkit: buffers for "search" = 12, below the baseline 558; lower it with -testkit.perf-update`},
+	} {
+		rec := &recordingT{}
+		compareBaseline(rec, path, false, "buffers", "search", tc.got)
+		if rec.fatal != tc.fatal || rec.logged != tc.logged {
+			t.Fatalf("buffers %d: fatal=%q logged=%q", tc.got, rec.fatal, rec.logged)
+		}
+	}
+	rec := &recordingT{}
+	compareBaseline(rec, path, false, "buffers", "unknown", 1)
+	if !strings.Contains(rec.fatal, `no buffers baseline for "unknown"`) {
+		t.Fatalf("fatal = %q", rec.fatal)
+	}
+}
+
+func TestReadBaselineLeavesTheBuffersKeyOutWhenEmpty(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "baseline.json")
+	compareBaseline(&recordingT{}, path, true, "queries", "q", 2)
+	data, err := os.ReadFile(path)
+	if err != nil || strings.Contains(string(data), "buffers") {
+		t.Fatalf("baseline file = %q, %v; want no buffers key", data, err)
+	}
+}
+
+func TestParsePlanReadsTheRootAndItsChildren(t *testing.T) {
+	t.Parallel()
+	raw := []byte(`[{"Plan": {"Node Type": "Limit", "Shared Hit Blocks": 7, "Shared Read Blocks": 3, "Plans": [
+		{"Node Type": "Index Scan", "Relation Name": "cabals", "Index Name": "cabals_pkey"}]}}]`)
+	p, err := parsePlan(raw)
+	if err != nil || p.Buffers() != 10 || !p.Uses("cabals_pkey") || p.Uses("x") || p.SeqScans("cabals") {
+		t.Fatalf("parsePlan = %+v, %v", p, err)
+	}
+	seq, err := parsePlan([]byte(`[{"Plan": {"Node Type": "Seq Scan", "Relation Name": "cabals"}}]`))
+	if err != nil || !seq.SeqScans("cabals") || seq.SeqScans("users") {
+		t.Fatalf("parsePlan = %+v, %v", seq, err)
+	}
+}
+
+func TestParsePlanRejectsOutputThatIsNotOnePlan(t *testing.T) {
+	t.Parallel()
+	for raw, want := range map[string]string{
+		"{":  "parse EXPLAIN output",
+		"[]": "EXPLAIN returned a number of plans other than 1: 0",
+	} {
+		if _, err := parsePlan([]byte(raw)); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("parsePlan(%s) = %v, want %q", raw, err, want)
+		}
+	}
+}
+
+func TestExplainReportsAStatementPostgresRejects(t *testing.T) {
+	t.Parallel()
+	pool := DB(t)
+	rec := &recordingT{}
+	explain(context.Background(), rec, pool, `SELECT * FROM no_such_table`, nil)
+	if !strings.Contains(rec.fatal, "testkit.Plan:") || !strings.Contains(rec.fatal, "no_such_table") {
+		t.Fatalf("fatal = %q", rec.fatal)
+	}
+}
+
+func TestExplainRefusesAStatementThatWrites(t *testing.T) {
+	t.Parallel()
+	pool := DB(t)
+	rec := &recordingT{}
+	explain(context.Background(), rec, pool, `CREATE TABLE plan_written (id int)`, nil)
+	if rec.fatal == "" {
+		t.Fatal("explain accepted a write")
+	}
+}
+
+func TestExplainReportsAClosedPool(t *testing.T) {
+	t.Parallel()
+	pool := DB(t)
+	pool.Close()
+	rec := &recordingT{}
+	explain(context.Background(), rec, pool, `SELECT 1`, nil)
+	if !strings.HasPrefix(rec.fatal, "testkit.Plan:") {
 		t.Fatalf("fatal = %q", rec.fatal)
 	}
 }

@@ -1,0 +1,7 @@
+{
+  "allocs": {},
+  "queries": {},
+  "buffers": {
+    "plan primary key lookup": 3
+  }
+}

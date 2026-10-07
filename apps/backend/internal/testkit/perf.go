@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -22,6 +23,8 @@ const (
 	AllocsTestName = "TestAllocs"
 	allocRuns      = 100
 )
+
+var errPlanCount = errors.New("EXPLAIN returned a number of plans other than 1")
 
 var (
 	perfUpdate = flag.Bool("testkit.perf-update", false, "rewrite "+BaselineFile+" with the measured counts")
@@ -31,6 +34,42 @@ var (
 type baseline struct {
 	Allocs  map[string]int64 `json:"allocs"`
 	Queries map[string]int64 `json:"queries"`
+	Buffers map[string]int64 `json:"buffers,omitempty"`
+}
+
+type PlanNode struct {
+	NodeType     string     `json:"Node Type"`
+	RelationName string     `json:"Relation Name"`
+	IndexName    string     `json:"Index Name"`
+	SharedHit    int64      `json:"Shared Hit Blocks"`
+	SharedRead   int64      `json:"Shared Read Blocks"`
+	Plans        []PlanNode `json:"Plans"`
+}
+
+func (p PlanNode) Buffers() int64 { return p.SharedHit + p.SharedRead }
+
+func (p PlanNode) Uses(index string) bool {
+	if p.IndexName == index {
+		return true
+	}
+	for _, child := range p.Plans {
+		if child.Uses(index) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p PlanNode) SeqScans(table string) bool {
+	if p.NodeType == "Seq Scan" && p.RelationName == table {
+		return true
+	}
+	for _, child := range p.Plans {
+		if child.SeqScans(table) {
+			return true
+		}
+	}
+	return false
 }
 
 type queryCounter struct {
@@ -73,6 +112,49 @@ func AssertQueries(t *testing.T, name string, fn func()) {
 	compareBaseline(t, BaselineFile, *perfUpdate, "queries", name, c.n.Load()-before)
 }
 
+func Plan(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) PlanNode {
+	t.Helper()
+	return explain(t.Context(), t, pool, sql, args)
+}
+
+func AssertBuffers(t *testing.T, name string, got int64) {
+	t.Helper()
+	compareBaseline(t, BaselineFile, *perfUpdate, "buffers", name, got)
+}
+
+func explain(ctx context.Context, t perfT, pool *pgxpool.Pool, sql string, args []any) PlanNode {
+	t.Helper()
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		t.Fatalf("testkit.Plan: %v", err)
+		return PlanNode{}
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var out []byte
+	if err := tx.QueryRow(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+sql, args...).Scan(&out); err != nil {
+		t.Fatalf("testkit.Plan: %v", err)
+		return PlanNode{}
+	}
+	plan, err := parsePlan(out)
+	if err != nil {
+		t.Fatalf("testkit.Plan: %v", err)
+	}
+	return plan
+}
+
+func parsePlan(raw []byte) (PlanNode, error) {
+	var doc []struct {
+		Plan PlanNode `json:"Plan"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return PlanNode{}, fmt.Errorf("parse EXPLAIN output: %w", err)
+	}
+	if len(doc) != 1 {
+		return PlanNode{}, fmt.Errorf("%w: %d", errPlanCount, len(doc))
+	}
+	return doc[0].Plan, nil
+}
+
 type perfT interface {
 	Helper()
 	Fatalf(format string, args ...any)
@@ -89,8 +171,11 @@ func compareBaseline(t perfT, path string, update bool, kind, name string, got i
 		return
 	}
 	counts := b.Allocs
-	if kind == "queries" {
+	switch kind {
+	case "queries":
 		counts = b.Queries
+	case "buffers":
+		counts = b.Buffers
 	}
 	want, ok := counts[name]
 	switch {
@@ -128,7 +213,7 @@ func compareBaseline(t perfT, path string, update bool, kind, name string, got i
 }
 
 func readBaseline(path string) (baseline, error) {
-	b := baseline{Allocs: map[string]int64{}, Queries: map[string]int64{}}
+	b := baseline{Allocs: map[string]int64{}, Queries: map[string]int64{}, Buffers: map[string]int64{}}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return b, nil
@@ -144,6 +229,9 @@ func readBaseline(path string) (baseline, error) {
 	}
 	if b.Queries == nil {
 		b.Queries = map[string]int64{}
+	}
+	if b.Buffers == nil {
+		b.Buffers = map[string]int64{}
 	}
 	return b, nil
 }
