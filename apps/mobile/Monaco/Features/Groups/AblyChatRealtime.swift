@@ -33,43 +33,62 @@ final class AblyChatRealtime: ChatRealtimeLink {
 }
 
 private final class AblyChatConnection {
-    private struct Subscription {
-        let id: UUID
+    private final class CabalChannel {
         let channel: ARTRealtimeChannel
-        let messages: ARTEventListener?
-        let states: ARTEventListener
-        let continuation: AsyncStream<ChatRealtimeEvent>.Continuation
+        var messages: ARTEventListener?
+        var states: ARTEventListener?
+        var subscribers: [UUID: AsyncStream<ChatRealtimeEvent>.Continuation] = [:]
+
+        init(channel: ARTRealtimeChannel) {
+            self.channel = channel
+        }
+
+        func yield(_ event: ChatRealtimeEvent) {
+            for continuation in subscribers.values { continuation.yield(event) }
+        }
     }
 
     private let api: APIClient
     private var realtime: ARTRealtime?
-    private var subscriptions: [String: Subscription] = [:]
+    private var channels: [String: CabalChannel] = [:]
 
     nonisolated init(api: APIClient) {
         self.api = api
     }
 
     func subscribe(_ cabalId: String, id: UUID, into continuation: AsyncStream<ChatRealtimeEvent>.Continuation) {
-        unsubscribe(cabalId, only: nil)
-        let realtime = connectedRealtime()
-        let channel = realtime.channels.get("cabal:\(cabalId)")
-        let states = channel.on(Self.stateHandler(continuation))
-        let messages = channel.subscribe(Self.messageHandler(continuation))
-        subscriptions[cabalId] = Subscription(
-            id: id, channel: channel, messages: messages, states: states, continuation: continuation)
+        if let existing = channels[cabalId] {
+            existing.subscribers[id] = continuation
+            if existing.channel.state == .attached { continuation.yield(.attached(resumed: false)) }
+            return
+        }
+        let cabal = CabalChannel(channel: connectedRealtime().channels.get("cabal:\(cabalId)"))
+        cabal.subscribers[id] = continuation
+        cabal.states = cabal.channel.on(Self.stateHandler { [weak cabal] event in cabal?.yield(event) })
+        cabal.messages = cabal.channel.subscribe(Self.messageHandler { [weak cabal] event in cabal?.yield(event) })
+        channels[cabalId] = cabal
     }
 
     func unsubscribe(_ cabalId: String, only id: UUID?) {
-        guard let subscription = subscriptions[cabalId], id == nil || subscription.id == id else { return }
-        subscriptions[cabalId] = nil
-        if let messages = subscription.messages { subscription.channel.unsubscribe(messages) }
-        subscription.channel.off(subscription.states)
-        subscription.channel.detach()
-        subscription.continuation.finish()
+        guard let cabal = channels[cabalId] else { return }
+        var finished: [AsyncStream<ChatRealtimeEvent>.Continuation] = []
+        if let id {
+            if let continuation = cabal.subscribers.removeValue(forKey: id) { finished = [continuation] }
+        } else {
+            finished = Array(cabal.subscribers.values)
+            cabal.subscribers = [:]
+        }
+        if cabal.subscribers.isEmpty {
+            channels[cabalId] = nil
+            if let messages = cabal.messages { cabal.channel.unsubscribe(messages) }
+            if let states = cabal.states { cabal.channel.off(states) }
+            cabal.channel.detach()
+        }
+        for continuation in finished { continuation.finish() }
     }
 
     func closeAll() {
-        for cabalId in Array(subscriptions.keys) { unsubscribe(cabalId, only: nil) }
+        for cabalId in Array(channels.keys) { unsubscribe(cabalId, only: nil) }
         realtime?.close()
         realtime = nil
     }
@@ -102,25 +121,25 @@ private final class AblyChatConnection {
     }
 
     private nonisolated static func messageHandler(
-        _ continuation: AsyncStream<ChatRealtimeEvent>.Continuation
+        _ emit: @escaping (ChatRealtimeEvent) -> Void
     ) -> ARTMessageCallback {
         { message in
             guard let name = message.name, let data = payload(message.data),
                 let event = ChatEventDecoder.decode(name: name, data: data)
             else { return }
-            continuation.yield(event)
+            emit(event)
         }
     }
 
     private nonisolated static func stateHandler(
-        _ continuation: AsyncStream<ChatRealtimeEvent>.Continuation
+        _ emit: @escaping (ChatRealtimeEvent) -> Void
     ) -> (ARTChannelStateChange) -> Void {
         { change in
             switch change.current {
             case .attached:
-                continuation.yield(.attached(resumed: change.resumed))
+                emit(.attached(resumed: change.resumed))
             case .detached, .suspended, .failed:
-                continuation.yield(.detached)
+                emit(.detached)
             default:
                 return
             }

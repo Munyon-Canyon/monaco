@@ -29,6 +29,7 @@ final class FakeChatRealtime: ChatRealtime {
             $0.continuation = continuation
         }
         if attaches { continuation.yield(.attached(resumed: true)) }
+        continuation.onTermination = { [weak self] _ in self?.detach(cabalId: cabalId) }
         return stream
     }
 

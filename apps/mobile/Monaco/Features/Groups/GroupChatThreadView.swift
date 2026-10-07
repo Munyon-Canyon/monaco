@@ -49,8 +49,8 @@ struct GroupChatThreadView: View {
             .onScrollGeometryChange(for: ChatScrollTracker.Position.self, of: Self.position) { _, updated in
                 tracker.positionChanged(updated)
             }
-            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentSize.height }) { _, _ in
-                guard tracker.isFollowingThread else { return }
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentSize.height }) { old, new in
+                guard new > old, tracker.isFollowingThread else { return }
                 proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
             }
             .onScrollPhaseChange { _, phase in track(phase) }

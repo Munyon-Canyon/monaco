@@ -45,6 +45,14 @@ final class ChatScrollTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.isFollowingThread)
     }
 
+    func testTheViewersOwnMessageWhileFollowingNeedsNoExtraScroll() {
+        var tracker = ChatScrollTracker()
+
+        XCTAssertFalse(tracker.arrived(arrival(mine: true)))
+        XCTAssertEqual(tracker.unreadCount, 0)
+        XCTAssertTrue(tracker.isFollowingThread)
+    }
+
     func testReachingTheEndHandsTheThreadBack() {
         var tracker = scrolledUp()
         _ = tracker.arrived(arrival())
