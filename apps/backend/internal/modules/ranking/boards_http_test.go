@@ -3,8 +3,6 @@ package ranking_test
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"slices"
 	"testing"
 	"time"
 
@@ -14,7 +12,6 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
-	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -30,20 +27,20 @@ type boardRow struct {
 	handle  *string
 }
 
-func seedBoard(t *testing.T, pool *pgxpool.Pool, at time.Time, rows []boardRow) uuid.UUID {
-	t.Helper()
+func seedBoard(tb testing.TB, pool *pgxpool.Pool, at time.Time, rows []boardRow) uuid.UUID {
+	tb.Helper()
 	run := ids.Real{}.NewV7()
-	seedBoardRun(t, pool, at, run, rows)
+	seedBoardRun(tb, pool, at, run, rows)
 	return run
 }
 
-func seedBoardRun(t *testing.T, pool *pgxpool.Pool, at time.Time, run uuid.UUID, rows []boardRow) {
-	t.Helper()
+func seedBoardRun(tb testing.TB, pool *pgxpool.Pool, at time.Time, run uuid.UUID, rows []boardRow) {
+	tb.Helper()
 	q := sqlc.New(pool)
-	if err := q.InsertLeaderboardRun(t.Context(), sqlc.InsertLeaderboardRunParams{
+	if err := q.InsertLeaderboardRun(tb.Context(), sqlc.InsertLeaderboardRunParams{
 		RunID: run, AsOf: at, PricesAsOf: at, StartedAt: at, FinishedAt: at,
 	}); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	wire := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {
@@ -57,10 +54,10 @@ func seedBoardRun(t *testing.T, pool *pgxpool.Pool, at time.Time, run uuid.UUID,
 	}
 	raw, err := json.Marshal(wire)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
-	if err := q.InsertLeaderboardEntries(t.Context(), raw); err != nil {
-		t.Fatal(err)
+	if err := q.InsertLeaderboardEntries(tb.Context(), raw); err != nil {
+		tb.Fatal(err)
 	}
 }
 
@@ -270,33 +267,28 @@ func TestBoards_ConcurrentMissesRunOnePageQuery(t *testing.T) {
 	})
 }
 
-func TestBoards_PeopleP95(t *testing.T) {
+const boardPageSQL = `SELECT board, range, rank, subject_id, subject_name, subject_handle, subject_picture_url,
+  subject_created_at, value_micros, pnl_micros, return_bps, prices_as_of, computed_at, flags
+FROM leaderboard_entries
+WHERE board = $1 AND range = $2 AND rank > $3
+ORDER BY rank
+LIMIT $4`
+
+func TestBoards_peoplePageUsesThePrimaryKeyOnTenThousandRows(t *testing.T) {
+	t.Parallel()
 	s := newServer(t)
-	rows := boardRows("people", 10000)
-	seedBoard(t, s.pool, s.clock.Now().UTC(), rows)
-	viewer := ids.UserIDFrom(rows[9999].subject)
-	timedHandlerOnly := func(i int) time.Duration {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-			"/v1/leaderboards/people?limit=20&cursor="+domain.EncodeCursor(i%100*20), nil)
-		req.Header.Set("Authorization", "Bearer "+s.verifier.Mint(viewer.String(), s.clock.Now().Add(time.Hour)))
-		rec := httptest.NewRecorder()
-		start := clock.Real{}.Now()
-		s.bare.ServeHTTP(rec, req)
-		d := clock.Real{}.Now().Sub(start)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("GET = %d %s", rec.Code, rec.Body)
-		}
-		return d
+	seedBoard(t, s.pool, s.clock.Now().UTC(), boardRows("people", 10000))
+	vacuumBoard(t, s.pool)
+	p := testkit.Plan(t, s.pool, boardPageSQL, "people", "ALL", int32(1000), int32(21))
+	if !p.Uses("leaderboard_entries_pkey") || p.SeqScans("leaderboard_entries") {
+		t.Fatalf("plan = %+v, want leaderboard_entries_pkey and no sequential scan of leaderboard_entries", p)
 	}
-	for i := range 20 {
-		timedHandlerOnly(i)
-	}
-	took := make([]time.Duration, 0, 200)
-	for i := range 200 {
-		took = append(took, timedHandlerOnly(i))
-	}
-	slices.Sort(took)
-	if p95 := took[189]; p95 >= 50*time.Millisecond {
-		t.Fatalf("p95 = %s over 200 requests on 10000 rows, want under 50ms", p95)
+	testkit.AssertBuffers(t, "people board page 10k", p.Buffers())
+}
+
+func vacuumBoard(tb testing.TB, pool *pgxpool.Pool) {
+	tb.Helper()
+	if _, err := pool.Exec(tb.Context(), `VACUUM (ANALYZE) leaderboard_entries`); err != nil {
+		tb.Fatal(err)
 	}
 }

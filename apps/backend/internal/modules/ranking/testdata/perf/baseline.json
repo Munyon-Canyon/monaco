@@ -13,5 +13,8 @@
     "value history hit": 1,
     "value history miss": 4,
     "value history other range miss": 4
+  },
+  "buffers": {
+    "people board page 10k": 3
   }
 }
