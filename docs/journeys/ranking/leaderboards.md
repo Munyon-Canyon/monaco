@@ -13,7 +13,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/RankingLeaderboardsJourney.swift, 
 
 Monaco ranks people and cabals by return. Home has "Top investors" across everyone, each cabal has a "Leaderboard" of its members, and the Cabals tab has "Top cabals". A row opens that person's profile. The copy is in [screens.md](../../screens.md#home) (Home slot 6), `CabalMemberBoardSlot` on the [cabal screen](../../screens.md#cabal-screen-cabalroute) and `CabalsBoardSlot` on the [Cabals tab](../../screens.md#cabals-tab).
 
-Old app (`c838bd24`): `Home/HomeLeaderboardSection.swift` (Top investors, "Everyone" / "Friends", range chips), a row opening `UserProfileGroupsView` with the cabals you share, the member board on `GroupDetailView` opening a profile, and Top cabals on the Cabals tab.
+Old app (`c838bd24`): `Home/HomeLeaderboardSection.swift` (Top investors, "Everyone" / "Friends", range chips), a row opening the profile with the cabals you share (now `UserProfileRoute`), the member board on `GroupDetailView` opening a profile, and Top cabals on the Cabals tab.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -34,7 +34,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.1 | A | tap, then scroll | the Home tab, then "Top investors" | | The header "Top investors" shows within 15 s (screens.md `HomePeopleBoardSlot`: ""Top investors""; old app: `HomeLeaderboardSection` header) |
 | S1.2 | A | read | the range chips | | The chips "1H", "1D", "1W", "1M" and "All" show within 10 s (screens.md `HomePeopleBoardSlot`: "chips 1H 1D 1W 1M All (default All)"; old app: `HomeLeaderboardSection` range chips) |
 | S1.3 | A | read | the board segment | | "Everyone" and "Friends" show within 10 s (screens.md `HomePeopleBoardSlot`: "the "Everyone" / "Friends" segment (Friends after #658)"; old app: `HomeLeaderboardSection` Everyone / Friends) |
-| S1.4 | A | tap | `home-leaderboard-row-<B id>` | | A ranked row for B shows; tapping it opens B's profile with `user-profile-group-<cabal id>` for `QA ranks {QA.run}` within 15 s (screens.md `HomePeopleBoardSlot`: "ranked rows (crown for first, then numbers, avatar, name, return over gain or loss)"; old app: `HomeLeaderboardSection` row opens `UserProfileGroupsView`) |
+| S1.4 | A | tap | `home-leaderboard-row-<B id>` | | A ranked row for B shows; tapping it opens B's profile with `user-profile-group-<cabal id>` for `QA ranks {QA.run}` within 15 s (screens.md `HomePeopleBoardSlot`: "ranked rows (crown for first, then numbers, avatar, name, return over gain or loss)"; old app: `HomeLeaderboardSection` row opens the profile, now `UserProfileRoute`) |
 
 ### S2 A cabal's member board
 
