@@ -10,6 +10,10 @@
 /assets/*
   Cache-Control: public, max-age=86400
 
+# iOS fetches this file with no extension and needs it served as JSON (Universal Links for /r/*).
+/.well-known/apple-app-site-association
+  Content-Type: application/json
+
 # The fund page. Its full Content-Security-Policy is a meta tag written at build time (see
 # csp.ts), because the API origin differs per deploy; this header adds frame-ancestors, which a
 # meta tag cannot set. The page carries a one-time token, so nothing caches it.

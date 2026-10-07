@@ -1,23 +1,26 @@
 # monacolabs.xyz
 
-Waitlist landing page, plus two serverless functions. Vite builds the site into `dist/`.
+Waitlist landing page, the `/r/<code>` invite page, and serverless functions. Vite builds the site into `dist/`.
 
 | Path | What it is |
 |---|---|
 | `index.html` | The waitlist page. The build copies it to `dist/` unchanged |
 | `vite.config.ts` | The build: one HTML input per page, hashed bundles under `/_app/` |
 | `lib/waitlist.js` | Signup and health logic, tested in `test/` |
-| `functions/api/waitlist.js`, `functions/api/health.js` | Cloudflare Pages adapters |
-| `api/waitlist.js`, `api/health.js` | Vercel adapters |
+| `lib/referral.js` | The `/r/<code>` invite page: lookup and HTML, tested in `test/referral.test.js` |
+| `functions/api/waitlist.js`, `functions/api/health.js`, `functions/r/[code].js` | Cloudflare Pages adapters |
+| `api/waitlist.js`, `api/health.js`, `api/r/[code].js` | Vercel adapters. `vercel.json` rewrites `/r/:code` to `/api/r/:code` |
+| `public/.well-known/apple-app-site-association` | Lists `/r/*` for the iOS app's Universal Links. Served as `application/json` by `public/_headers` and `vercel.json` |
 | `public/_headers`, `wrangler.toml` | Cloudflare config |
 | `vercel.json` | Vercel config |
 | `fund/index.html`, `src/fund/` | The card deposit page at `/fund`. Logic in `src/fund/lib.ts`, tested with Vitest |
 | `csp.ts` | The fund page's Content-Security-Policy, written into its HTML at build time |
 | `public/assets/video-poster.png` | Poster for the demo video slot |
 
-`api/` and `functions/` are two thin adapters over the same two functions in
+`api/` and `functions/` are two thin adapters over the same functions in
 `lib/waitlist.js` — `handleSignup()` and `checkHealth()`, both returning
-`{ status, body }`. Both hosts are live on purpose so the domain can move without
+`{ status, body }` — and `lib/referral.js`, whose `handleReferral()` returns
+`{ status, headers, body }`. Both hosts are live on purpose so the domain can move without
 downtime. Once `monacolabs.xyz` points at Cloudflare, delete `api/`, `vercel.json`
 and the `dev` script.
 
@@ -61,6 +64,9 @@ does not depend on dashboard state.
 | `SUPABASE_URL` | `https://<ref>.supabase.co` for the Monaco project |
 | `SUPABASE_ANON_KEY` | The project's anon (publishable) key. Never the service role key |
 | `IP_HASH_SALT` | Any long random string. IPs are stored only as salted hashes |
+| `MONACO_API_URL` | The API base URL the invite page looks referrers up on and posts taps to. The deployed web origins in the API's CORS list must include the page's host, `www` too |
+| `APP_STORE_URL` | Where "Get Monaco" goes: the App Store listing once it exists, the TestFlight public link until then. Unset, the button goes to `/` |
+| `POSTHOG_KEY` | Optional. The PostHog project key. The invite page sends `referral_page_viewed` and `referral_get_tapped` only when it is set |
 | `ALLOWED_ORIGINS` | Optional. Defaults to monacolabs.xyz and trymonaco.xyz (with and without `www`). Set it to the preview URL on Preview |
 
 The fund page also needs three build-time variables (see `.env.example`). Vite inlines them, so
@@ -82,6 +88,15 @@ Set all of them on both Production and Preview, then:
 
 Notes:
 
+- The invite page's lookup, `GET /v1/referrals/{code}`, is rate limited per IP (60 a minute), so
+  the adapters go through a cache: the Cloudflare adapter asks Cloudflare's edge cache to keep the
+  lookup for five minutes, and the Vercel adapter lets Vercel's CDN keep the rendered page for the
+  same time. A lookup that fails renders the generic page with `Cache-Control: no-store`.
+- `/.well-known/apple-app-site-association` has to be served as `application/json` with no
+  redirect, on `monacolabs.xyz` and on `www.monacolabs.xyz`. The appID `JSF53DFS29.com.monaco.app`
+  is the `DEVELOPMENT_TEAM` plus the bundle id in `apps/mobile`; it must match the team of the
+  Apple account the app ships under. Apple fetches the file through its CDN, so check
+  `https://app-site-association.cdn-apple.com/a/v1/monacolabs.xyz` after a deploy.
 - `public/_headers` replaces `vercel.json`'s headers. Keep the two in sync while both hosts
   are live.
 - `cleanUrls` needs no config: Pages serves `/foo` for `foo.html` and redirects
