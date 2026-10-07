@@ -97,3 +97,64 @@ func TestTrading_failAndFailOnce(t *testing.T) {
 		t.Fatalf("HasLiveSwap after Fail(nil) err = %v", err)
 	}
 }
+
+func TestTrading_listsUnfinishedSwapsOlderThanTheCutoff(t *testing.T) {
+	t.Parallel()
+	g := testkit.NewIDs(10)
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	now := clk.Now()
+	old := trading.SwapView{
+		ID:        ids.SwapIDFrom(g.NewV7()),
+		Status:    domain.StatusSubmitted,
+		CreatedAt: now.Add(-time.Hour),
+	}
+	older := trading.SwapView{
+		ID:        ids.SwapIDFrom(g.NewV7()),
+		Status:    domain.StatusCreated,
+		CreatedAt: now.Add(-2 * time.Hour),
+	}
+	fresh := trading.SwapView{ID: ids.SwapIDFrom(g.NewV7()), Status: domain.StatusCreated, CreatedAt: now}
+	done := trading.SwapView{
+		ID:        ids.SwapIDFrom(g.NewV7()),
+		Status:    domain.StatusConfirmed,
+		CreatedAt: now.Add(-time.Hour),
+	}
+	f := fakes.NewTrading(old, older, fresh, done).At(clk)
+	ctx := t.Context()
+	got, err := f.Stuck(ctx, time.Minute, 10)
+	if err != nil || len(got) != 2 || got[0] != older || got[1] != old {
+		t.Fatalf("Stuck = %+v, %v", got, err)
+	}
+	if got, err = f.Stuck(ctx, time.Minute, 1); err != nil || len(got) != 1 || got[0] != older {
+		t.Fatalf("Stuck limit 1 = %+v, %v", got, err)
+	}
+	if n, err := f.CountStuck(ctx, time.Minute); err != nil || n != 2 {
+		t.Fatalf("CountStuck = %d, %v", n, err)
+	}
+}
+
+func TestTrading_executeRequestIDAndStuckFailures(t *testing.T) {
+	t.Parallel()
+	g := testkit.NewIDs(11)
+	old := trading.SwapView{
+		ID:        ids.SwapIDFrom(g.NewV7()),
+		Status:    domain.StatusSubmitted,
+		CreatedAt: time.Date(2026, 3, 1, 11, 0, 0, 0, time.UTC),
+	}
+	f := fakes.NewTrading(old)
+	ctx := t.Context()
+	if id, err := f.ExecuteRequestID(ctx, old.ID); err != nil || id != "request-"+old.ID.UUID().String() {
+		t.Fatalf("ExecuteRequestID = %q, %v", id, err)
+	}
+	if _, err := f.ExecuteRequestID(ctx, ids.SwapIDFrom(g.NewV7())); errs.CodeOf(err) != errs.CodeSwapNotFound {
+		t.Fatalf("ExecuteRequestID of an unknown swap err = %v, want swap_not_found", err)
+	}
+	down := errs.New(errs.CodeDBUnavailable, "test")
+	f.Fail(down)
+	if _, err := f.Stuck(ctx, time.Minute, 1); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("Stuck after Fail err = %v", err)
+	}
+	if _, err := f.CountStuck(ctx, time.Minute); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("CountStuck after Fail err = %v", err)
+	}
+}
