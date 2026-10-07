@@ -91,11 +91,16 @@ struct DepositAddressView: View {
 
     var body: some View {
         DepositContent(
+            address: environment.sessionStore.profile?.memberWalletAddress,
             state: model?.state ?? .loading,
             onCopy: copyAddress,
-            onRetry: { Task { await model?.load() } }
+            onRetryAddress: { Task { await environment.sessionStore.reloadProfile(auth: environment.auth) } },
+            onRetryBalance: { Task { await model?.load() } }
         )
-        .refreshable { await model?.load() }
+        .refreshable {
+            await environment.sessionStore.reloadProfile(auth: environment.auth)
+            await model?.load()
+        }
         .task {
             let model = preparedModel()
             await model.load()
@@ -128,9 +133,11 @@ struct DepositAddressView: View {
 }
 
 struct DepositContent: View {
+    let address: String?
     let state: LoadState<AccountBalance>
     let onCopy: (String) -> Void
-    let onRetry: () -> Void
+    let onRetryAddress: () -> Void
+    let onRetryBalance: () -> Void
 
     static let steps = [
         "Send USDC to the address above from an exchange or another app.",
@@ -141,11 +148,14 @@ struct DepositContent: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                DepositAddressCard(content: .resolve(state), onCopy: onCopy, onRetry: onRetry)
+                DepositAddressCard(content: .resolve(address: address), onCopy: onCopy, onRetry: onRetryAddress)
                     .padding(.horizontal, MonacoTheme.Space.m)
 
                 MonacoGroupedList {
                     PlatformBalanceCard(state: state, valueIdentifier: "deposit-screen-balance-value")
+                    if case .failed = state {
+                        balanceFailure
+                    }
                 }
 
                 howItWorks
@@ -156,6 +166,21 @@ struct DepositContent: View {
         .monacoCanvas()
         .navigationTitle("Add money")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var balanceFailure: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            Text("Couldn't load your balance.")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+            Button("Try again", action: onRetryBalance)
+                .buttonStyle(.monacoSecondary)
+                .monacoFullWidthButtons()
+                .accessibilityIdentifier("deposit-balance-retry")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.vertical, MonacoTheme.Space.s)
     }
 
     private var howItWorks: some View {
@@ -193,15 +218,8 @@ struct DepositAddressCard: View {
 
         static let loadFailure = "Couldn't load your deposit address."
 
-        static func resolve(_ state: LoadState<AccountBalance>) -> Content {
-            switch state {
-            case .idle, .loading:
-                .loading
-            case .loaded(let balance):
-                DepositAddress.usable(balance.depositAddress).map(Content.ready) ?? .unavailable(loadFailure)
-            case .failed:
-                .unavailable(loadFailure)
-            }
+        static func resolve(address: String?) -> Content {
+            DepositAddress.usable(address).map(Content.ready) ?? .unavailable(loadFailure)
         }
     }
 
