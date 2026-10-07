@@ -19,7 +19,7 @@ struct HandleStepView: View {
     var body: some View {
         HandleStepForm(
             mode: mode, sessions: sessions ?? SessionAPI(api: environment.api), initialDraft: draft,
-            continuesWhenAvailable: continuesWhenAvailable, onContinue: onContinue,
+            continuesWhenAvailable: continuesWhenAvailable, referrals: environment.referrals, onContinue: onContinue,
             onSignOut: { await environment.signOut() })
     }
 }
@@ -32,6 +32,7 @@ private struct HandleStepForm: View {
     let mode: HandleStepView.Mode
     let sessions: SessionAPI
     let continuesWhenAvailable: Bool
+    let referrals: ReferralAttacher
     let onContinue: () -> Void
     let onSignOut: () async -> Void
 
@@ -41,15 +42,18 @@ private struct HandleStepForm: View {
     @State private var status = HandleStatus.idle
     @State private var isSaving = false
     @State private var submissions: [String: IdempotentSubmission] = [:]
+    @State private var offersReferralEntry = false
+    @State private var isEnteringReferral = false
     @FocusState private var isFocused: Bool
 
     init(
         mode: HandleStepView.Mode, sessions: SessionAPI, initialDraft: String, continuesWhenAvailable: Bool,
-        onContinue: @escaping () -> Void, onSignOut: @escaping () async -> Void
+        referrals: ReferralAttacher, onContinue: @escaping () -> Void, onSignOut: @escaping () async -> Void
     ) {
         self.mode = mode
         self.sessions = sessions
         self.continuesWhenAvailable = continuesWhenAvailable
+        self.referrals = referrals
         self.onContinue = onContinue
         self.onSignOut = onSignOut
         _checker = State(initialValue: HandleAvailabilityChecker(sessions: sessions, clock: ContinuousClock()))
@@ -117,7 +121,21 @@ private struct HandleStepForm: View {
         .onAppear {
             if mode == .edit, draft.isEmpty, let handle = profile?.handle { draft = handle }
             if !isLocked { isFocused = true }
+            refreshReferralEntry()
         }
+        .sheet(isPresented: $isEnteringReferral) {
+            if let userID = profile?.userID {
+                ReferralCodeSheet(attacher: referrals, userID: userID, onAttached: refreshReferralEntry)
+            }
+        }
+    }
+
+    private func refreshReferralEntry() {
+        guard mode == .onboarding, let userID = profile?.userID else {
+            offersReferralEntry = false
+            return
+        }
+        offersReferralEntry = referrals.offersManualEntry(userID: userID)
     }
 
     private var field: some View {
@@ -216,6 +234,20 @@ private struct HandleStepForm: View {
             .disabled(claimable == nil)
             .accessibilityValue(claimable == nil && !isSaving ? "Unavailable" : "")
             .accessibilityIdentifier("onboarding-handle-step-continue")
+
+            if offersReferralEntry {
+                Button {
+                    isEnteringReferral = true
+                } label: {
+                    Text("Have a referral code?")
+                        .font(MonacoTheme.Typo.calloutStrong)
+                        .foregroundStyle(MonacoTheme.brand)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("onboarding-handle-step-referral")
+            }
 
             if mode == .onboarding {
                 Button {

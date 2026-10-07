@@ -24,7 +24,7 @@ struct AuthGateView: View {
                         )
                         .accessibilityIdentifier("sessionRestoreFailedView")
                     } else {
-                        LoginView(auth: auth)
+                        InviteGatedLoginView(auth: auth)
                     }
                 } else {
                     missingLoginMethodsView
@@ -37,6 +37,7 @@ struct AuthGateView: View {
         .tint(MonacoTheme.accent)
         .foregroundStyle(MonacoTheme.primaryText)
         .task {
+            _ = LaunchRecord.isFirstLaunch
             await auth.restoreSessionIfNeeded()
         }
         .onChange(of: scenePhase) { _, newPhase in
