@@ -7,19 +7,20 @@ import UIKit
 @testable import Monaco
 
 @MainActor
+@Suite(.serialized, .timeLimit(.minutes(1)))
 struct AssetDetailCopyOnceTests {
     private static let solanaLine = "Trading 24/7 on Solana"
     private static let historyLine = "Price history builds up over time."
 
-    @Test func closedMarketWithOnePricePointShowsEachLineOnce() throws {
-        let labels = try Self.screenLabels(session: .closed, points: 1)
+    @Test func closedMarketWithOnePricePointShowsEachLineOnce() async throws {
+        let labels = try await Self.screenLabels(session: .closed, points: 1)
 
         #expect(Self.count(of: Self.solanaLine, in: labels) == 1)
         #expect(Self.count(of: Self.historyLine, in: labels) == 1)
     }
 
-    @Test func openMarketHasNoSolanaLine() throws {
-        let labels = try Self.screenLabels(session: .open, points: 2)
+    @Test func openMarketHasNoSolanaLine() async throws {
+        let labels = try await Self.screenLabels(session: .open, points: 2)
 
         #expect(Self.count(of: Self.solanaLine, in: labels) == 0)
     }
@@ -28,7 +29,7 @@ struct AssetDetailCopyOnceTests {
         labels.reduce(0) { $0 + $1.components(separatedBy: text).count - 1 }
     }
 
-    private static func screenLabels(session: Components.Schemas.MarketSession, points: Int) throws -> [String] {
+    private static func screenLabels(session: Components.Schemas.MarketSession, points: Int) async throws -> [String] {
         var detail = Components.Schemas.AssetDetail.googl
         detail.session = session
         let series = AssetChartSeries(
@@ -45,7 +46,8 @@ struct AssetDetailCopyOnceTests {
         let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
         let environment = AppEnvironment(
             auth: auth, hints: FakeHintSource(), isAuthenticated: { true }, endAuthSession: {})
-        enableAccessibilityTree()
+        setAccessibilityAutomation(true)
+        defer { setAccessibilityAutomation(false) }
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 390, height: 1600)
         window.rootViewController = UIHostingController(
@@ -56,18 +58,30 @@ struct AssetDetailCopyOnceTests {
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         window.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-        let labels = accessibilityLabels(of: window)
-        try #require(!labels.isEmpty, "the accessibility tree is empty")
+        var labels: [String] = []
+        var settled = false
+        while !settled {
+            try Task.checkCancellation()
+            await nextRunLoopTurn()
+            let next = accessibilityLabels(of: window)
+            settled = next == labels && next.contains { $0.contains(detail.attribution) }
+            labels = next
+        }
         return labels
     }
 
-    private static func enableAccessibilityTree() {
+    private static func nextRunLoopTurn() async {
+        await withCheckedContinuation { continuation in
+            RunLoop.main.perform { continuation.resume() }
+        }
+    }
+
+    private static func setAccessibilityAutomation(_ enabled: Bool) {
         typealias SetAutomation = @convention(c) (Bool) -> Void
         guard let handle = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW),
             let symbol = dlsym(handle, "_AXSSetAutomationEnabled")
         else { return }
-        unsafeBitCast(symbol, to: SetAutomation.self)(true)
+        unsafeBitCast(symbol, to: SetAutomation.self)(enabled)
     }
 
     private static func accessibilityLabels(of root: NSObject) -> [String] {
