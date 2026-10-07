@@ -710,15 +710,11 @@ func coverageFiles(backend string, changed []string) map[string]bool {
 }
 
 func coverFlags(backend string, pkgs []string, covered map[string]bool, profile string) []string {
-	dirs := map[string]bool{}
-	for rel := range covered {
-		dirs["./"+path.Dir(rel)] = true
-	}
-	judged := slices.DeleteFunc(buildable(backend, pkgs), func(pkg string) bool { return !dirs[pkg] })
-	if len(judged) == 0 {
+	tested := buildable(backend, pkgs)
+	if len(covered) == 0 || len(tested) == 0 {
 		return nil
 	}
-	return []string{"-coverpkg=" + strings.Join(judged, ","), "-coverprofile=" + profile}
+	return []string{"-coverpkg=" + strings.Join(tested, ","), "-coverprofile=" + profile}
 }
 
 func coverageRow(backend, self, profile string, only map[string]bool) checkRow {
