@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"testing/synctest"
@@ -286,19 +287,39 @@ func TestScript_hangThenCancelReturnsPromptlyWithoutLeaks(t *testing.T) {
 	})
 }
 
-func TestScript_hangOverRealHTTPReleasesWhenTheClientTimesOut(t *testing.T) {
+func TestScript_hangOverRealHTTPReleasesWhenTheClientGivesUp(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(fakes.New())
-	t.Cleanup(srv.Close)
-	impatient := httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(50*time.Millisecond))
-	patient := httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(time.Minute))
-	script(t.Context(), t, patient, fakes.Step{Route: "/ably/_health", Action: fakes.ActionHang})
+	ctx, giveUp := context.WithCancel(t.Context())
+	defer giveUp()
+	released := make(chan struct{})
+	var hung atomic.Bool
+	fake := fakes.New()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && hung.CompareAndSwap(false, true) {
+			giveUp()
+			defer close(released)
+		}
+		fake.ServeHTTP(w, r)
+	}))
+	t.Cleanup(func() {
+		if !t.Failed() {
+			srv.Close()
+		}
+	})
+	c := httpclient.New("fakes", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(time.Minute))
+	script(t.Context(), t, c, fakes.Step{Route: "/ably/_health", Action: fakes.ActionHang})
 
-	_, err := call(t.Context(), t, impatient, http.MethodGet, "/ably/_health", "")
-	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
-		t.Fatalf("err = %v, want upstream_timeout", err)
+	if _, err := call(ctx, t, c, http.MethodGet, "/ably/_health", ""); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
 	}
-	if got := mustCall(t.Context(), t, patient, http.MethodGet, "/ably/_health", ""); got.status != http.StatusOK {
+	ceiling, stop := context.WithTimeout(t.Context(), 30*time.Second)
+	defer stop()
+	select {
+	case <-released:
+	case <-ceiling.Done():
+		t.Fatal("hang not released after the client gave up within 30s")
+	}
+	if got := mustCall(t.Context(), t, c, http.MethodGet, "/ably/_health", ""); got.status != http.StatusOK {
 		t.Fatalf("after the hang = %d, want the fixture again", got.status)
 	}
 }
