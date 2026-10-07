@@ -152,6 +152,17 @@ func (q *Queries) GetChatMessage(ctx context.Context, arg GetChatMessageParams) 
 	return i, err
 }
 
+const getChatMessageByID = `-- name: GetChatMessageByID :one
+SELECT id FROM cabal_messages WHERE id = $1
+`
+
+func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getChatMessageByID, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const insertChatMessage = `-- name: InsertChatMessage :one
 INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel)
 VALUES (

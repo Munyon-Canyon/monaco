@@ -149,3 +149,69 @@ func F20aUnblockUserOK(s *scenario.Scenario) {
 			blockHolds(),
 		)
 }
+
+const reportsPath = "/v1/reports"
+
+func reportBob() scenario.Step {
+	return func(s *scenario.Scenario) {
+		s.Helper()
+		reportUserID(s.Recall("bob"))(s)
+	}
+}
+
+func reportUserID(id string) scenario.Step {
+	return scenario.Post(reportsPath, `{"kind":"user","target_id":"`+id+`","reason":"spam"}`)
+}
+
+func openReports(want int) scenario.Step {
+	return func(s *scenario.Scenario) {
+		s.Helper()
+		var got int
+		if err := s.DB().QueryRow(s.Context(),
+			`SELECT count(*) FROM reports WHERE reporter_id = $1::uuid AND status = 'open'`, s.Recall("alice")).
+			Scan(&got); err != nil {
+			s.Fatalf("flows: count open reports: %v", err)
+		}
+		if got != want {
+			s.Fatalf("flows: %d open reports, want %d", got, want)
+		}
+	}
+}
+
+func F20aCreateReportOK(s *scenario.Scenario) {
+	s.Given(followUsers(), scenario.AsUser("alice")).
+		When(
+			reportBob(),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.Remember("id", "report"),
+			scenario.Replay(),
+			reportBob(),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.ExpectRemembered("id", "report"),
+		).
+		Then(
+			openReports(1),
+			scenario.ExpectEvents(events.TypeReportCreated, 1),
+			scenario.EventuallyPublished(events.TypeReportCreated, 1),
+		)
+}
+
+func F20aCreateReportReportTargetNotFound(s *scenario.Scenario) {
+	s.Given(followUsers(), scenario.AsUser("alice")).
+		When(reportUserID(ids.Real{}.NewV7().String())).
+		Then(
+			scenario.ExpectProblem(errs.CodeReportTargetNotFound),
+			openReports(0),
+			scenario.ExpectEvents(events.TypeReportCreated, 0),
+		)
+}
+
+func F20aCreateReportRateLimited(s *scenario.Scenario) {
+	steps := make([]scenario.Step, 0, 40)
+	for range 20 {
+		steps = append(steps, reportBob(), scenario.ExpectStatus(http.StatusCreated))
+	}
+	s.Given(followUsers(), scenario.AsUser("alice")).
+		When(steps...).
+		Then(reportBob(), scenario.ExpectProblem(errs.CodeRateLimited))
+}

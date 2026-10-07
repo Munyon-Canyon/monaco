@@ -31,3 +31,18 @@ func TestFlow20a_UnblockUser_OK(t *testing.T) {
 	t.Parallel()
 	flows.F20aUnblockUserOK(scenario.New(t, withSocial()))
 }
+
+func TestFlow20a_CreateReport_OK(t *testing.T) {
+	t.Parallel()
+	flows.F20aCreateReportOK(scenario.New(t, withSocial()))
+}
+
+func TestFlow20a_CreateReport_ReportTargetNotFound(t *testing.T) {
+	t.Parallel()
+	flows.F20aCreateReportReportTargetNotFound(scenario.New(t, withSocial()))
+}
+
+func TestFlow20a_CreateReport_RateLimited(t *testing.T) {
+	t.Parallel()
+	flows.F20aCreateReportRateLimited(scenario.New(t, withSocial()))
+}
