@@ -183,6 +183,27 @@ struct WithdrawFormTests {
             WithdrawForm(amountText: "", destinationAddress: "", balance: Fixture.balance(248_500_000)).balanceHelper
                 == "$248.50 available")
     }
+
+    @Test func theHelperRoundsDownSoItNeverPromisesMoreThanMaxFills() {
+        #expect(
+            WithdrawForm(amountText: "", destinationAddress: "", balance: Fixture.balance(2_998_175)).balanceHelper
+                == "$2.99 available")
+    }
+
+    @Test func maxSendsTheWholeBalanceSubCentRemainderIncluded() {
+        var amount = WithdrawAmount()
+        amount.edit(to: "2.99")
+        amount.tapMax()
+        #expect(amount.micros(availableMicros: 2_998_175) == 2_998_175)
+    }
+
+    @Test func editingAfterMaxSendsWhatWasTyped() {
+        var amount = WithdrawAmount()
+        amount.edit(to: "2.99")
+        amount.tapMax()
+        amount.edit(to: "1")
+        #expect(amount.micros(availableMicros: 2_998_175) == 1_000_000)
+    }
 }
 
 /// The deposit address card's three states, from the balance read that carries the address.

@@ -9,7 +9,7 @@ struct WithdrawView: View {
     @State private var balanceSource: BalanceSource?
     @State private var withdrawing: Withdrawing?
     @State private var destinationAddress = ""
-    @State private var amountText = ""
+    @State private var amount = WithdrawAmount()
     @State private var refusedAddress: String?
     @State private var showConfirm = false
 
@@ -17,11 +17,16 @@ struct WithdrawView: View {
         destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var amountText: Binding<String> {
+        Binding(get: { amount.text }, set: { amount.edit(to: $0) })
+    }
+
     var body: some View {
         WithdrawContent(
             state: balanceSource?.state ?? .loading,
-            amountText: $amountText,
+            amountText: amountText,
             destinationAddress: $destinationAddress,
+            onMax: { amount.tapMax() },
             refusedAddress: refusedAddress,
             onContinue: { showConfirm = true },
             onRetry: { Task { await balanceSource?.load() } }
@@ -34,7 +39,7 @@ struct WithdrawView: View {
         .navigationDestination(isPresented: $showConfirm) {
             WithdrawConfirmView(
                 destinationAddress: trimmedAddress,
-                amountText: amountText,
+                amountText: amount.text,
                 isSubmitting: withdrawing?.isSubmitting ?? false,
                 onWithdraw: { Task { await withdraw() } }
             )
@@ -54,7 +59,9 @@ struct WithdrawView: View {
     }
 
     private func withdraw() async {
-        guard let withdrawing, let micros = AmountEntryText.micros(amountText), micros > 0 else { return }
+        guard let withdrawing, let micros = amount.micros(availableMicros: balanceSource?.balance?.availableMicros),
+            micros > 0
+        else { return }
         switch await withdrawing.submit(micros: micros, toAddress: trimmedAddress) {
         case .accepted:
             if let line = withdrawing.progress.toast { toasts.show(success: line) }
@@ -81,6 +88,26 @@ struct WithdrawView: View {
         guard case .confirmed(let withdrawal) = progress else { return MonacoToast(message: line) }
         let link = withdrawal.solscanURL.map { MonacoToastLink(title: "View on Solscan", url: $0) }
         return MonacoToast(message: line, isSuccess: true, link: link)
+    }
+}
+
+struct WithdrawAmount: Equatable {
+    private(set) var text = ""
+    private(set) var withdrawAll = false
+
+    mutating func edit(to newText: String) {
+        guard newText != text else { return }
+        text = newText
+        withdrawAll = false
+    }
+
+    mutating func tapMax() {
+        withdrawAll = true
+    }
+
+    func micros(availableMicros: Int64?) -> Int64? {
+        if withdrawAll, let availableMicros { return availableMicros }
+        return AmountEntryText.micros(text)
     }
 }
 
@@ -132,7 +159,7 @@ struct WithdrawForm: Equatable {
 
     var balanceHelper: String {
         guard let availableMicros else { return "" }
-        return "\(UsdAmountFormatter.format(micros: availableMicros)) available"
+        return "\(UsdAmountFormatter.format(micros: availableMicros - availableMicros % 10_000)) available"
     }
 
     /// Under the address field: what kind of address, and that it is final.
@@ -147,6 +174,7 @@ struct WithdrawContent: View {
     let state: LoadState<AccountBalance>
     @Binding var amountText: String
     @Binding var destinationAddress: String
+    var onMax: () -> Void = {}
     var refusedAddress: String?
     let onContinue: () -> Void
     let onRetry: () -> Void
@@ -183,7 +211,8 @@ struct WithdrawContent: View {
                         presets: [.fraction(1, label: "Max")],
                         helper: form.balanceHelper,
                         problem: form.problem,
-                        showsKeyboardDoneButton: true
+                        showsKeyboardDoneButton: true,
+                        onPreset: { _ in onMax() }
                     )
                     .padding(.horizontal, MonacoTheme.Space.gutter)
 
