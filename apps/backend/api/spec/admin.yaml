@@ -72,6 +72,103 @@ paths:
           description: Current administrators.
           content: {application/json: {schema: {$ref: "#/components/schemas/Admins"}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/dead-letters:
+    get:
+      operationId: getDeadLetters
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List dead letters.
+      description: >-
+        Returns the dead-letter queue, newest first. `status` defaults to `open`. `next_cursor` is the id of
+        the last letter on the page when the page holds `limit` letters, and null otherwise. Send it back as
+        `cursor` to read the next page. The stored message body is never returned.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Only letters in this state. Defaults to `open`.
+          schema: {$ref: "#/components/schemas/DeadLetterStatus"}
+        - name: consumer
+          in: query
+          required: false
+          description: Only letters of this consumer.
+          schema: {type: string, maxLength: 64, examples: [analytics]}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page. Absent reads the first page.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50 and cannot exceed 200.
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: One page of dead letters, newest first.
+          content: {application/json: {schema: {$ref: "#/components/schemas/DeadLetters"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/dead-letters/{id}/redrive:
+    post:
+      operationId: redriveDeadLetter
+      tags: [admin]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Redrive a dead letter.
+      description: >-
+        Republishes the message that ended in the dead letter and marks the row `redriven`, then answers 204.
+        The row turns `resolved` when the redriven message is acked, and `open` again when it fails again.
+        A letter that is already resolved or discarded answers dead_letter_not_open, an unknown letter answers
+        not_found, and so does a max-deliveries letter whose original event has left the stream.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the dead letter.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+      requestBody:
+        description: Why the administrator redrives the letter.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: posthog fixed}
+      responses:
+        "204": {description: The message was republished.}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/dead-letters/{id}/discard:
+    post:
+      operationId: discardDeadLetter
+      tags: [admin]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Discard a dead letter.
+      description: >-
+        Marks the row `discarded` without republishing anything, then answers 204. A letter that is already
+        resolved or discarded answers dead_letter_not_open, and an unknown letter answers not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the dead letter.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+      requestBody:
+        description: Why the administrator discards the letter.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: duplicate of a fixed bug}
+      responses:
+        "204": {description: The dead letter is discarded.}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   schemas:
     AdminMe:
@@ -202,6 +299,138 @@ components:
           type: array
           description: The actions on this page.
           items: {$ref: "#/components/schemas/AdminActionRecord"}
+        next_cursor:
+          type: [string, "null"]
+          format: uuid
+          description: Pass it as `cursor` to read the next page. Null on the last page.
+          examples: [null]
+    DeadLetterStatus:
+      type: string
+      description: Where a dead letter stands in the queue.
+      enum: [open, redriven, resolved, discarded]
+      examples: [open]
+    DeadLetter:
+      type: object
+      description: One dead letter, without its stored message body.
+      examples:
+        - id: 01890a5d-ac96-774b-bcce-b302099a805a
+          stream_seq: 12
+          consumer: analytics
+          handler: analytics.posthog.follow.created
+          subject: events.follow.created
+          event_id: 01890a5d-ac96-774b-bcce-b302099a8057
+          code: posthog_rejected
+          error: "posthog.Capture: posthog_rejected"
+          occurrences: 1
+          status: open
+          first_seen_at: "2026-10-06T12:00:00Z"
+          last_seen_at: "2026-10-06T12:00:00Z"
+          redriven_at: null
+          resolved_at: null
+          resolved_by: null
+          resolve_reason: null
+      additionalProperties: false
+      required:
+        - id
+        - stream_seq
+        - consumer
+        - handler
+        - subject
+        - event_id
+        - code
+        - error
+        - occurrences
+        - status
+        - first_seen_at
+        - last_seen_at
+        - redriven_at
+        - resolved_at
+        - resolved_by
+        - resolve_reason
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The dead letter id. Ids sort by time, so a later letter has a greater id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a805a]
+        stream_seq:
+          type: integer
+          format: int64
+          description: The sequence of the letter in the dead-letter stream, or of the latest one for a reopened row.
+          examples: [12]
+        consumer:
+          type: string
+          description: The durable consumer that gave up on the message.
+          examples: [analytics]
+        handler:
+          type: string
+          description: The handler that failed. Empty for a max-deliveries letter.
+          examples: [analytics.posthog.follow.created]
+        subject:
+          type: string
+          description: The subject of the message. Empty when the original event has left the stream.
+          examples: [events.follow.created]
+        event_id:
+          type: [string, "null"]
+          format: uuid
+          description: The id of the event. Null when the original event has left the stream.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        code:
+          type: string
+          description: The error code of the failure, or `max_deliveries`.
+          examples: [posthog_rejected]
+        error:
+          type: string
+          description: The error text of the failure.
+          examples: ["posthog.Capture: posthog_rejected"]
+        occurrences:
+          type: integer
+          format: int32
+          description: How many times the message ended in a dead letter, counting redrives that failed again.
+          examples: [1]
+        status: {$ref: "#/components/schemas/DeadLetterStatus"}
+        first_seen_at:
+          type: string
+          format: date-time
+          description: When the sink first recorded the letter.
+          examples: ["2026-10-06T12:00:00Z"]
+        last_seen_at:
+          type: string
+          format: date-time
+          description: When the sink last recorded the letter.
+          examples: ["2026-10-06T12:00:00Z"]
+        redriven_at:
+          type: [string, "null"]
+          format: date-time
+          description: When an administrator last redrove the letter. Null if none did.
+          examples: [null]
+        resolved_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the letter was resolved or discarded. Null while it is open or redriven.
+          examples: [null]
+        resolved_by:
+          type: [string, "null"]
+          format: uuid
+          description: The administrator who last redrove or discarded the letter. Null if none did.
+          examples: [null]
+        resolve_reason:
+          type: [string, "null"]
+          description: The reason that administrator gave. Null if none did.
+          examples: [null]
+    DeadLetters:
+      type: object
+      description: One page of dead letters, newest first.
+      examples:
+        - items: []
+          next_cursor: null
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The letters on this page.
+          items: {$ref: "#/components/schemas/DeadLetter"}
         next_cursor:
           type: [string, "null"]
           format: uuid

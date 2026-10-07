@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
@@ -18,7 +19,11 @@ import (
 
 const defaultActionsPage = 50
 
-type HTTP struct{ Pool *pgxpool.Pool }
+type HTTP struct {
+	Pool    *pgxpool.Pool
+	Redrive *app.RedriveDeadLetterHandler
+	Discard *app.DiscardDeadLetterHandler
+}
 
 var _ api.StrictServerInterface = HTTP{}
 
