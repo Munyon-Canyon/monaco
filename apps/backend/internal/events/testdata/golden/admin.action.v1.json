@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "action_id": "01890a5d-ac96-774b-bcce-b302099a805a",
+  "admin_id": "01890a5d-ac96-774b-bcce-b302099a8059",
+  "action": "ping_flag",
+  "target_type": "system_ping",
+  "target_id": "01890a5d-ac96-774b-bcce-b302099a8057",
+  "reason": "spam",
+  "before": {
+    "flagged_at": null
+  },
+  "after": {
+    "flagged_at": "2026-10-06T12:00:00Z"
+  },
+  "approved_by": null
+}
