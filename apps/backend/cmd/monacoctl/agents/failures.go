@@ -403,7 +403,6 @@ func restackReason(prs []watchPR, top watchPR) string {
 	for _, head := range chainDown(prs, top) {
 		i := slices.IndexFunc(prs, func(q watchPR) bool { return q.HeadRefName == head })
 		switch {
-		case i < 0:
 		case strings.HasPrefix(prs[i].BaseRefName, "graphite-base/"):
 			return fmt.Sprintf("#%d sits on %s", prs[i].Number, prs[i].BaseRefName)
 		case prs[i].Mergeable == conflicting:
