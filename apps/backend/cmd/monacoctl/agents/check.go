@@ -271,7 +271,11 @@ func (env *Env) stackParent(ctx context.Context, base string) string {
 	out, err := env.Run(ctx, env.Work, "", "gt", "parent", "--no-interactive")
 	parent, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
 	if err != nil || parent == "" || parent == env.Config.FeatureBranch {
-		return base
+		parent = base
+	}
+	mb, err := env.Run(ctx, env.Work, "", "git", "merge-base", "HEAD", parent)
+	if sha := strings.TrimSpace(string(mb)); err == nil && sha != "" {
+		return sha
 	}
 	return parent
 }

@@ -37,6 +37,10 @@ base="$(git rev-parse --verify --quiet "$base^{commit}")" || {
   echo "swiftlint-ratchet: base revision does not resolve" >&2
   exit 64
 }
+base="$(git merge-base HEAD "$base")" || {
+  echo "swiftlint-ratchet: no merge base between HEAD and $base" >&2
+  exit 64
+}
 
 work="$(mktemp -d)"
 mkdir -p .build
