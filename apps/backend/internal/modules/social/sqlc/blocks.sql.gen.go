@@ -56,6 +56,25 @@ func (q *Queries) InsertUserBlock(ctx context.Context, arg InsertUserBlockParams
 	return id, err
 }
 
+const isBlocked = `-- name: IsBlocked :one
+SELECT EXISTS (
+  SELECT 1 FROM user_blocks
+  WHERE blocker_id = $1::uuid AND blocked_id = $2::uuid
+)
+`
+
+type IsBlockedParams struct {
+	Blocker uuid.UUID
+	Blocked uuid.UUID
+}
+
+func (q *Queries) IsBlocked(ctx context.Context, arg IsBlockedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isBlocked, arg.Blocker, arg.Blocked)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const isBlockedEitherWay = `-- name: IsBlockedEitherWay :one
 SELECT EXISTS (
   SELECT 1 FROM user_blocks

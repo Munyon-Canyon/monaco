@@ -31,8 +31,9 @@ paths:
       summary: Read a user's public profile.
       description: >-
         Returns the user's handle, display name and photo with their follower and following counts, and
-        whether the caller follows them. The counts are of live follows and include members who were
-        banned or deleted after following. An unknown, banned or deleted user is user_not_found.
+        whether the caller follows and blocks them. The counts are of live follows and include members
+        who were banned or deleted after following. blocked_by_me says nothing about whether they block
+        the caller. An unknown, banned or deleted user is user_not_found.
       parameters:
         - $ref: "#/components/parameters/UserId"
       responses:
@@ -49,6 +50,7 @@ paths:
                 follower_count: 12
                 following_count: 7
                 followed_by_me: true
+                blocked_by_me: false
         default: {$ref: "#/components/responses/Problem"}
   /v1/auth/session:
     post:
@@ -374,7 +376,7 @@ components:
     PublicProfile:
       type: object
       description: A user's public profile with their follow counts.
-      required: [id, handle, display_name, photo_url, follower_count, following_count, followed_by_me]
+      required: [id, handle, display_name, photo_url, follower_count, following_count, followed_by_me, blocked_by_me]
       properties:
         id: {type: string, format: uuid, description: "The user's id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         handle: {type: string, description: "The user's handle.", examples: [maya]}
@@ -383,6 +385,7 @@ components:
         follower_count: {type: integer, minimum: 0, description: "How many users follow them.", examples: [12]}
         following_count: {type: integer, minimum: 0, description: "How many users they follow.", examples: [7]}
         followed_by_me: {type: boolean, description: "Whether the caller follows them. False for the caller's own profile.", examples: [true]}
+        blocked_by_me: {type: boolean, description: "Whether the caller blocks them. False for the caller's own profile. It says nothing about whether they block the caller.", examples: [false]}
     AccountStatus:
       type: string
       description: >-

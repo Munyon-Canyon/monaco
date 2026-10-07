@@ -21,3 +21,9 @@ SELECT EXISTS (
   WHERE (blocker_id = sqlc.arg(user_a)::uuid AND blocked_id = sqlc.arg(user_b)::uuid)
      OR (blocker_id = sqlc.arg(user_b)::uuid AND blocked_id = sqlc.arg(user_a)::uuid)
 );
+
+-- name: IsBlocked :one
+SELECT EXISTS (
+  SELECT 1 FROM user_blocks
+  WHERE blocker_id = sqlc.arg(blocker)::uuid AND blocked_id = sqlc.arg(blocked)::uuid
+);

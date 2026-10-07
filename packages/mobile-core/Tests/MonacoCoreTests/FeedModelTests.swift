@@ -153,7 +153,7 @@ final class FeedModelTests: XCTestCase {
     private static func profile(followingCount: Int) -> String {
         """
         {"id":"\(viewerID)","handle":"maya","display_name":"Maya","photo_url":null,\
-        "follower_count":0,"following_count":\(followingCount),"followed_by_me":false}
+        "follower_count":0,"following_count":\(followingCount),"followed_by_me":false,"blocked_by_me":false}
         """
     }
 

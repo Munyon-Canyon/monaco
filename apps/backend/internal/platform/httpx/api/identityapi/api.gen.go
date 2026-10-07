@@ -247,6 +247,11 @@ type Me struct {
 
 // PublicProfile A user's public profile with their follow counts.
 type PublicProfile struct {
+	// BlockedByMe Whether the caller blocks them. False for the caller's own profile. It says nothing about whether they block the caller.
+	//
+	// Examples: false
+	BlockedByMe bool `json:"blocked_by_me"`
+
 	// DisplayName The user's display name.
 	//
 	// Examples: Maya Angelou

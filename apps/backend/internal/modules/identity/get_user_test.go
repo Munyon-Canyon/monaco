@@ -21,12 +21,23 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-type stubFollows struct{ countsErr, followedErr error }
+type stubFollows struct{ countsErr, followedErr, blockedErr error }
 
 func (s stubFollows) Counts(context.Context, ids.UserID) (int, int, error) { return 0, 0, s.countsErr }
 
 func (s stubFollows) FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {
 	return false, s.followedErr
+}
+
+func (s stubFollows) BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {
+	return false, s.blockedErr
+}
+
+func (f portFixture) block(t *testing.T, blocker, blocked ids.UserID) {
+	t.Helper()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO user_blocks (id, blocker_id, blocked_id, created_at)
+		VALUES ($1, $2, $3, $4)`, f.ids.NewV7(), blocker.UUID(), blocked.UUID(), f.now)
+	portOK(t, err)
 }
 
 func (f portFixture) follow(t *testing.T, follower, followee ids.UserID) {
@@ -52,22 +63,36 @@ func TestGetUser_SocialFields(t *testing.T) {
 	if other.Handle != "bob" || other.DisplayName != "Bob" || other.PhotoUrl == nil {
 		t.Fatalf("other profile = %#v", other)
 	}
-	if got := socialFields(other); got != (fields{2, 1, true}) {
+	if got := socialFields(other); got != (fields{2, 1, true, false}) {
 		t.Fatalf("other social fields = %+v", got)
 	}
 	self := getUser(t, routes, alice.ID, alice.ID)
-	if got := socialFields(self); got != (fields{1, 1, false}) || self.PhotoUrl != nil {
+	if got := socialFields(self); got != (fields{1, 1, false, false}) || self.PhotoUrl != nil {
 		t.Fatalf("self social fields = %+v, photo = %v", got, self.PhotoUrl)
+	}
+	f.block(t, alice.ID, bob.ID)
+	if blocked := getUser(t, routes, alice.ID, bob.ID); !blocked.BlockedByMe {
+		t.Fatalf("after the block, blocked_by_me = %v, want true", blocked.BlockedByMe)
+	}
+	if theirs := getUser(t, routes, bob.ID, alice.ID); theirs.BlockedByMe {
+		t.Fatalf("for the blocked user, blocked_by_me = %v, want false", theirs.BlockedByMe)
+	}
+	if _, err := f.pool.Exec(t.Context(), `DELETE FROM user_blocks`); err != nil {
+		t.Fatal(err)
+	}
+	if unblocked := getUser(t, routes, alice.ID, bob.ID); unblocked.BlockedByMe {
+		t.Fatalf("after the unblock, blocked_by_me = %v, want false", unblocked.BlockedByMe)
 	}
 }
 
 type fields struct {
 	followers, following int
 	followedByMe         bool
+	blockedByMe          bool
 }
 
 func socialFields(p api.GetUser200JSONResponse) fields {
-	return fields{p.FollowerCount, p.FollowingCount, p.FollowedByMe}
+	return fields{p.FollowerCount, p.FollowingCount, p.FollowedByMe, p.BlockedByMe}
 }
 
 func getUser(t *testing.T, routes adapters.HTTP, viewer, id ids.UserID) api.GetUser200JSONResponse {
@@ -109,7 +134,7 @@ func TestGetUser_failures(t *testing.T) {
 	}
 	for name, follows := range map[string]app.FollowCounts{
 		"unwired": app.UnwiredFollowCounts{}, "counts": stubFollows{countsErr: down},
-		"followed": stubFollows{followedErr: down},
+		"followed": stubFollows{followedErr: down}, "blocked": stubFollows{blockedErr: down},
 	} {
 		routes := adapters.HTTP{Cards: cards, Follows: follows}
 		if _, err := routes.GetUser(asUser(t, viewer), api.GetUserRequestObject{Id: target.UUID()}); err == nil {
@@ -124,6 +149,11 @@ func TestGetUser_failures(t *testing.T) {
 		err,
 	) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("unwired followed = %v, want upstream_unavailable", err)
+	}
+	if _, err := (app.UnwiredFollowCounts{}).BlockedByMe(t.Context(), viewer, target); errs.CodeOf(
+		err,
+	) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired blocked = %v, want upstream_unavailable", err)
 	}
 	cards.Fail("UsersByID", down)
 	routes := adapters.HTTP{Cards: cards, Follows: stubFollows{}}
