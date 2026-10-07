@@ -800,3 +800,60 @@ func TestXcodeLockReadsTheCloneSlotsFile(t *testing.T) {
 		}
 	}
 }
+
+// A caller already queued rereads xcode-slots on every poll, so raising the count lets it
+// take the new slot beside the holder instead of waiting for the holder to finish.
+func TestXcodeLockTakesASlotAddedWhileQueued(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	repo := filepath.Join(e.dir, "repo")
+	if out, err := exec.Command("git", "init", "-q", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	slotsFile := filepath.Join(repo, ".git", ".monaco", "xcode-slots")
+	if err := os.MkdirAll(filepath.Dir(slotsFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(slotsFile, []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unset := []string{"MONACO_XCODE_SLOTS="}
+	aIn, bIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in")
+	aRelease, bRelease := filepath.Join(e.dir, "a.release"), filepath.Join(e.dir, "b.release")
+
+	a := e.start(repo, unset, append([]string{"xcode"}, holdUntil(aIn, aRelease)...)...)
+	await(t, "the first holder to run", func() bool { return exists(aIn) }, a)
+	b := e.start(repo, append(unset, "MONACO_XCODE_LOCK_TIMEOUT=10"),
+		append([]string{"xcode"}, holdUntil(bIn, bRelease)...)...)
+	// Registered after both starts so it runs before their kills: a held sh keeps stderr
+	// open and Wait would block.
+	t.Cleanup(func() {
+		_ = os.WriteFile(aRelease, nil, 0o644)
+		_ = os.WriteFile(bRelease, nil, 0o644)
+	})
+	await(t, "the second caller to queue", func() bool {
+		return strings.Contains(b.stderr.String(), "queue position 1 behind ")
+	}, a, b)
+	if exists(bIn) {
+		t.Fatalf("second caller ran with one slot held")
+	}
+
+	if err := os.WriteFile(slotsFile, []byte("2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	await(t, "the queued caller to take the new slot", func() bool { return exists(bIn) }, a, b)
+	if !exists(e.xcodeLock() + ".2") {
+		t.Fatalf("the queued caller is not in slot 2")
+	}
+	for _, c := range []struct {
+		release string
+		call    *call
+	}{{bRelease, b}, {aRelease, a}} {
+		if err := os.WriteFile(c.release, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if code := c.call.wait(t); code != 0 {
+			t.Fatalf("holder exit %d:\n%s", code, c.call.stderr.String())
+		}
+	}
+}

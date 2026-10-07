@@ -237,26 +237,9 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		return nil, fmt.Errorf("find the repository: %w", err)
 	}
 	top, common, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
-	f, err := os.Open(filepath.Join(top, configPath))
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-	cfg, err := parseConfig(f)
+	cfg, local, err := readConfig(top, common)
 	if err != nil {
 		return nil, err
-	}
-	local := filepath.Join(common, localConfigPath)
-	switch lf, err := os.Open(local); {
-	case errors.Is(err, fs.ErrNotExist):
-		local = ""
-	case err != nil:
-		return nil, fmt.Errorf("read local config: %w", err)
-	default:
-		defer func() { _ = lf.Close() }()
-		if cfg, err = applyLocalConfig(cfg, lf); err != nil {
-			return nil, err
-		}
 	}
 	api := cmp.Or(lookup(environ, "MONACO_GITHUB_API"), defaultAPI)
 	token := func(ctx context.Context) (string, error) {
@@ -277,6 +260,29 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		Actions: lookup(environ, "GITHUB_ACTIONS") == "true", GOOS: runtime.GOOS,
 		LookPath: exec.LookPath, featureNote: note, localConfig: local,
 	}, nil
+}
+
+func readConfig(top, common string) (Config, string, error) {
+	f, err := os.Open(filepath.Join(top, configPath))
+	if err != nil {
+		return Config{}, "", fmt.Errorf("read config: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	cfg, err := parseConfig(f)
+	if err != nil {
+		return Config{}, "", err
+	}
+	local := filepath.Join(common, localConfigPath)
+	switch lf, err := os.Open(local); {
+	case errors.Is(err, fs.ErrNotExist):
+		return cfg, "", nil
+	case err != nil:
+		return Config{}, "", fmt.Errorf("read local config: %w", err)
+	default:
+		defer func() { _ = lf.Close() }()
+		cfg, err = applyLocalConfig(cfg, lf)
+		return cfg, local, err
+	}
 }
 
 func lookup(environ []string, key string) string {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -23,7 +22,7 @@ var errTicketLost = errors.New("the stage 0 ticket was removed while waiting")
 
 type checkQueue struct {
 	dir   string
-	slots int
+	slots func() int
 	alive func(pid int) bool
 	after func(time.Duration) <-chan time.Time
 	now   func() time.Time
@@ -31,9 +30,17 @@ type checkQueue struct {
 
 func (env *Env) checkQueue() *checkQueue {
 	return &checkQueue{
-		dir: filepath.Join(env.Common, ".monaco", "check-queue"), slots: env.Config.Slots,
+		dir: filepath.Join(env.Common, ".monaco", "check-queue"), slots: env.slots,
 		alive: pidAlive, after: env.After, now: env.Now,
 	}
+}
+
+func (env *Env) slots() int {
+	cfg, _, err := readConfig(env.Work, env.Common)
+	if err != nil {
+		return env.Config.Slots
+	}
+	return cfg.Slots
 }
 
 func pidAlive(pid int) bool {
@@ -87,7 +94,7 @@ func (q *checkQueue) await(ctx context.Context, name string, stdout io.Writer) e
 		if err != nil {
 			return err
 		}
-		if position <= q.slots {
+		if position <= q.slots() {
 			return nil
 		}
 		if position != last {
@@ -102,21 +109,15 @@ func (q *checkQueue) await(ctx context.Context, name string, stdout io.Writer) e
 	}
 }
 
-func (env *Env) takeSlot(ctx context.Context, stdout io.Writer) (context.Context, func(), error) {
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+func (env *Env) takeSlot(ctx context.Context, stdout io.Writer) (func(), error) {
 	q := env.checkQueue()
 	name, err := q.take(env.Work, os.Getpid())
 	if err != nil {
-		stop()
-		return ctx, func() {}, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", err.Error())
-	}
-	release := func() {
-		q.drop(name)
-		stop()
+		return nil, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", err.Error())
 	}
 	if err := q.await(ctx, name, stdout); err != nil {
-		release()
-		return ctx, func() {}, err
+		q.drop(name)
+		return nil, err
 	}
-	return ctx, release, nil
+	return func() { q.drop(name) }, nil
 }

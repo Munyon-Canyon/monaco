@@ -54,7 +54,7 @@ func newQueueHarness(t *testing.T, slots int) *queueHarness {
 	t.Helper()
 	h := &queueHarness{dead: map[int]bool{}, clock: time.Unix(1_800_000_000, 0)}
 	h.q = &checkQueue{
-		dir: filepath.Join(t.TempDir(), "check-queue"), slots: slots,
+		dir: filepath.Join(t.TempDir(), "check-queue"), slots: func() int { return slots },
 		alive: func(pid int) bool { return !h.dead[pid] },
 		after: func(time.Duration) <-chan time.Time { return nil },
 		now: func() time.Time {
@@ -120,6 +120,49 @@ func TestCheckQueue_aCheckRunsOnlyWhenItIsAmongTheFirstSlotsLiveTickets(t *testi
 	}
 	if want := "waiting for a stage 0 slot: position 4 of 4\nwaiting for a stage 0 slot: position 3 of 3\n"; laterWaiting.out.String() != want {
 		t.Fatalf("later printed %q, want %q", laterWaiting.out, want)
+	}
+}
+
+func TestCheckQueue_aWaitingCheckTakesASlotAddedToTheLocalConfigMidWait(t *testing.T) {
+	t.Parallel()
+	f := newFixtureFrom(t, rootedRepo)
+	env := f.Env(t)
+	if env.Config.Slots != 2 {
+		t.Fatalf("the fixture starts at %d slots, want 2", env.Config.Slots)
+	}
+	h := newQueueHarness(t, 0)
+	q := env.checkQueue()
+	q.dir, q.alive, q.now = h.q.dir, h.q.alive, h.q.now
+	h.q = q
+	h.take(t, 101)
+	h.take(t, 102)
+	third := h.take(t, 103)
+	local := filepath.Join(env.Common, localConfigPath)
+	writeFile(t, local, "[check]\nslots = 0\n")
+	w := h.wait(context.Background(), third)
+	w.spin(4)
+	select {
+	case got := <-w.done:
+		t.Fatalf("an unreadable local config dropped the startup slot count: %v", got.err)
+	default:
+	}
+	writeFile(t, local, "[check]\nslots = 3\n")
+	for polls := 0; ; polls++ {
+		select {
+		case got := <-w.done:
+			if got.err != nil {
+				t.Fatalf("the third check runs once check.slots rises to 3: %v", got.err)
+			}
+		case w.tick <- time.Time{}:
+			if polls == 1 {
+				t.Fatal("the third check still waits after check.slots rose to 3")
+			}
+			continue
+		}
+		break
+	}
+	if want := "waiting for a stage 0 slot: position 3 of 3\n"; w.out.String() != want {
+		t.Fatalf("printed %q, want %q", w.out, want)
 	}
 }
 
@@ -201,20 +244,29 @@ func TestCheck_takesATicketForTheRunAndRemovesItAfterwards(t *testing.T) {
 	}
 }
 
-func TestCheck_aFreshRunTakesNoTicketAndWaitsForNoSlot(t *testing.T) {
+func TestCheck_aFreshRunTakesATicketAndRemovesItAfterwards(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{"x.sh": "echo\n"})
-	env := h.Env(t)
-	queue := filepath.Join(env.Common, ".monaco", "check-queue")
-	for _, pid := range []int{os.Getpid(), os.Getppid()} {
-		if err := os.MkdirAll(queue, 0o750); err != nil {
-			t.Fatal(err)
-		}
-		writeFile(t, filepath.Join(queue, "1-"+strconv.Itoa(pid)), "/other\n")
+	if code, _, stderr := h.check(t); code != 0 {
+		t.Fatalf("first: %d %q", code, stderr)
 	}
-	if code, stdout, stderr := h.check(t, "--fresh"); code != 0 || strings.Contains(stdout, "waiting") {
-		t.Fatalf("--fresh waited: %d %q %q", code, stdout, stderr)
+	queue := filepath.Join(h.Env(t).Common, ".monaco", "check-queue")
+	if err := os.RemoveAll(queue); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, queue, "not a directory\n")
+	if code, _, stderr := h.check(t, "--fresh"); code != 1 || !strings.Contains(stderr, "take a stage 0 ticket") {
+		t.Fatalf("--fresh skipped the stage 0 queue: %d %q", code, stderr)
+	}
+	if err := os.Remove(queue); err != nil {
+		t.Fatal(err)
+	}
+	if code, stdout, stderr := h.check(t, "--fresh"); code != 0 || !strings.Contains(stdout, "passed") {
+		t.Fatalf("--fresh: %d %q %q", code, stdout, stderr)
+	}
+	if left, err := os.ReadDir(queue); err != nil || len(left) != 0 {
+		t.Fatalf("--fresh left a ticket or took none: %v %v", left, err)
 	}
 }
 
@@ -245,7 +297,7 @@ func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testin
 	h := newCheckHarness(t)
 	env := h.Env(t)
 	writeFile(t, filepath.Join(env.Common, ".monaco"), "not a directory\n")
-	if _, _, err := env.takeSlot(context.Background(), &bytes.Buffer{}); err == nil ||
+	if _, err := env.takeSlot(context.Background(), &bytes.Buffer{}); err == nil ||
 		!strings.Contains(cliText(err), "take a stage 0 ticket") {
 		t.Fatalf("an unwritable queue fails the check: %v", err)
 	}
@@ -263,7 +315,7 @@ func TestTakeSlot_failsWhenTheQueueCannotBeWrittenOrTheWaitIsCancelled(t *testin
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var out bytes.Buffer
-	if _, _, err := env.takeSlot(ctx, &out); !errors.Is(err, context.Canceled) ||
+	if _, err := env.takeSlot(ctx, &out); !errors.Is(err, context.Canceled) ||
 		!strings.Contains(out.String(), "position 3 of 3") {
 		t.Fatalf("a cancelled wait: %v %q", err, out.String())
 	}
