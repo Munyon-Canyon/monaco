@@ -27,10 +27,9 @@ func newCast(t *testing.T) cast {
 	return cast{creator: user(), member: user(), outsider: user(), applicant: user(), inviter: user(), invitee: user()}
 }
 
-func (c cast) cabal(t *testing.T, join string) domain.Cabal {
+func (c cast) cabal(t *testing.T) domain.Cabal {
 	t.Helper()
 	a := baseRules()
-	a.join = join
 	rules, err := a.build()
 	if err != nil {
 		t.Fatal(err)
@@ -70,33 +69,21 @@ func runPermissionCases(t *testing.T, cases []permissionCase, check func(domain.
 	}
 }
 
-func TestCanInvite_anyMemberInAnOpenCabalAndOnlyTheCreatorInARequestCabal(t *testing.T) {
+func TestCanInvite_onlyTheCreatorInvites(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
-	runPermissionCases(t, []permissionCase{
-		{"the creator", member(c.creator), ""},
-		{"a member", member(c.member), ""},
-		{"a non-member", nobody(c.outsider), errs.CodeNotCabalMember},
-		{"a creator who is no longer a member", nobody(c.creator), errs.CodeNotCabalMember},
-	}, func(a domain.Actor) error { return domain.CanInvite(a, c.cabal(t, "open")) })
 	runPermissionCases(t, []permissionCase{
 		{"the creator", member(c.creator), ""},
 		{"a member", member(c.member), errs.CodeNotCabalCreator},
 		{"a non-member", nobody(c.outsider), errs.CodeNotCabalMember},
 		{"a creator who is no longer a member", nobody(c.creator), errs.CodeNotCabalMember},
-	}, func(a domain.Actor) error { return domain.CanInvite(a, c.cabal(t, "request")) })
-	wantCode(
-		t,
-		"a cabal with no join mode",
-		domain.CanInvite(member(c.creator), domain.Cabal{CreatorID: c.creator}),
-		errs.CodeInternal,
-	)
+	}, func(a domain.Actor) error { return domain.CanInvite(a, c.cabal(t)) })
 }
 
 func TestCanDecide_theCreatorDecidesRequestsAndTheInviteeDecidesTheirInvite(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
-	cabal := c.cabal(t, "request")
+	cabal := c.cabal(t)
 	runPermissionCases(t, []permissionCase{
 		{"the creator", member(c.creator), ""},
 		{"a member", member(c.member), errs.CodeNotCabalCreator},
@@ -116,7 +103,7 @@ func TestCanDecide_theCreatorDecidesRequestsAndTheInviteeDecidesTheirInvite(t *t
 func TestCanRevoke_theRequesterWithdrawsAndTheInviterOrCreatorRevokes(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
-	cabal := c.cabal(t, "open")
+	cabal := c.cabal(t)
 	runPermissionCases(t, []permissionCase{
 		{"the requester", nobody(c.applicant), ""},
 		{"the creator", member(c.creator), errs.CodeCannotRevokeAccess},
@@ -136,7 +123,7 @@ func TestCanRevoke_theRequesterWithdrawsAndTheInviterOrCreatorRevokes(t *testing
 func TestCabalRoleOf_theCreatorOfRecordIsTheCreatorAndEveryoneElseIsAMember(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
-	cabal := c.cabal(t, "open")
+	cabal := c.cabal(t)
 	for _, tt := range []struct {
 		name string
 		user ids.UserID
@@ -167,24 +154,20 @@ func TestCabalRoleOf_aReturningCreatorVotesInAListCabal(t *testing.T) {
 	}
 }
 
-func TestCanJoin_refusesABannedCabalThenAMemberThenARequestCabal(t *testing.T) {
+func TestCanJoin_refusesABannedCabalThenAMemberThenEveryoneElse(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
-	open, request := c.cabal(t, "open"), c.cabal(t, "request")
-	banned := open
+	request := c.cabal(t)
+	banned := request
 	banned.Banned = true
 	for _, tt := range []struct {
 		name  string
 		cabal domain.Cabal
 		cases []permissionCase
 	}{
-		{"open", open, []permissionCase{
-			{"outsider joins", nobody(c.outsider), ""},
-			{"member", member(c.member), errs.CodeAlreadyMember},
-		}},
 		{"request", request, []permissionCase{
 			{"outsider must ask", nobody(c.outsider), errs.CodeJoinNeedsRequest},
-			{"member before mode", member(c.member), errs.CodeAlreadyMember},
+			{"member before the request rule", member(c.member), errs.CodeAlreadyMember},
 		}},
 		{"banned", banned, []permissionCase{
 			{"outsider", nobody(c.outsider), errs.CodeCabalBanned},
@@ -198,10 +181,10 @@ func TestCanJoin_refusesABannedCabalThenAMemberThenARequestCabal(t *testing.T) {
 	}
 }
 
-func TestCanRequest_refusesABannedCabalThenAMemberThenAnOpenCabal(t *testing.T) {
+func TestCanRequest_refusesABannedCabalThenAMember(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
-	open, request := c.cabal(t, "open"), c.cabal(t, "request")
+	request := c.cabal(t)
 	banned := request
 	banned.Banned = true
 	for _, tt := range []struct {
@@ -212,10 +195,6 @@ func TestCanRequest_refusesABannedCabalThenAMemberThenAnOpenCabal(t *testing.T) 
 		{"request", request, []permissionCase{
 			{"outsider asks", nobody(c.outsider), ""},
 			{"member", member(c.member), errs.CodeAlreadyMember},
-		}},
-		{"open", open, []permissionCase{
-			{"outsider joins instead", nobody(c.outsider), errs.CodeRequestNotNeeded},
-			{"member before mode", member(c.member), errs.CodeAlreadyMember},
 		}},
 		{"banned", banned, []permissionCase{
 			{"outsider", nobody(c.outsider), errs.CodeCabalBanned},
@@ -233,7 +212,7 @@ func TestCanAdmit_refusesABannedCabalAndAnExpiredInvite(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
 	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
-	active := c.cabal(t, "request")
+	active := c.cabal(t)
 	banned := active
 	banned.Banned = true
 	fresh, stale := c.invite(), c.invite()

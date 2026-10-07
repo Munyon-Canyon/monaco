@@ -7,11 +7,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-func TestFlow03_JoinCabal_OK(t *testing.T) {
-	t.Parallel()
-	flows.F03JoinCabalOK(cabalScenario(t, scenario.WithPostHog(t)))
-}
-
 func TestFlow03_JoinCabal_Unauthorized(t *testing.T) {
 	t.Parallel()
 	flows.F03JoinCabalUnauthorized(cabalScenario(t))
@@ -62,11 +57,6 @@ func TestFlow03_RequestAccess_AlreadyMember(t *testing.T) {
 	flows.F03RequestAccessAlreadyMember(cabalScenario(t))
 }
 
-func TestFlow03_RequestAccess_RequestNotNeeded(t *testing.T) {
-	t.Parallel()
-	flows.F03RequestAccessRequestNotNeeded(cabalScenario(t))
-}
-
 func TestFlow03_RequestAccess_RequestPending(t *testing.T) {
 	t.Parallel()
 	flows.F03RequestAccessRequestPending(cabalScenario(t))
@@ -74,7 +64,7 @@ func TestFlow03_RequestAccess_RequestPending(t *testing.T) {
 
 func TestFlow03_DecideAccess_OK(t *testing.T) {
 	t.Parallel()
-	flows.F03DecideAccessOK(cabalScenario(t))
+	flows.F03DecideAccessOK(cabalScenario(t, scenario.WithPostHog(t)))
 }
 
 func TestFlow03_DecideAccess_InvalidInput(t *testing.T) {

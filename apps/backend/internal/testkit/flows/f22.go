@@ -27,15 +27,12 @@ func chatMemberOf(script string) string { return "did:privy:qa-f22-" + script + 
 func chatOutsiderOf(script string) string { return "did:privy:qa-f22-" + script + "-outsider" }
 
 func chatCabal(script string) []scenario.Step {
-	return []scenario.Step{
+	return slices.Concat([]scenario.Step{
 		scenario.SignIn(chatCreatorOf(script)),
-		scenario.Post(cabalsPath, cabalOf("open", "all")),
+		scenario.Post(cabalsPath, cabalOf("all")),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "cabal"),
-		scenario.SignIn(chatMemberOf(script)),
-		scenario.Post(membersPath, ""),
-		scenario.ExpectStatus(http.StatusOK),
-	}
+	}, admitted(chatMemberOf(script), chatCreatorOf(script)))
 }
 
 func chatThread(script string) []scenario.Step {

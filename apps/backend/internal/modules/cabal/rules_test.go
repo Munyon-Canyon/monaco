@@ -16,7 +16,7 @@ type rulesArgs struct {
 	expiry, bps             int32
 }
 
-func baseRules() rulesArgs { return rulesArgs{"open", "all", "majority", 86400, 100} }
+func baseRules() rulesArgs { return rulesArgs{"request", "all", "majority", 86400, 100} }
 
 func (a rulesArgs) build() (domain.Rules, error) {
 	return domain.NewRules(a.join, a.voters, a.threshold, a.expiry, a.bps)
@@ -83,7 +83,7 @@ func TestNewRules_refusesEachBadValueAndNamesTheField(t *testing.T) {
 	}{
 		{"empty join mode", with(func(a *rulesArgs) { a.join = "" }), "join_mode"},
 		{"unknown join mode", with(func(a *rulesArgs) { a.join = "invite_only" }), "join_mode"},
-		{"join mode in the wrong case", with(func(a *rulesArgs) { a.join = "Open" }), "join_mode"},
+		{"join mode in the wrong case", with(func(a *rulesArgs) { a.join = "Request" }), "join_mode"},
 		{"unknown voter mode", with(func(a *rulesArgs) { a.voters = "some" }), "voter_mode"},
 		{"unknown threshold", with(func(a *rulesArgs) { a.threshold = "plurality" }), "threshold"},
 		{"zero expiry", with(func(a *rulesArgs) { a.expiry = 0 }), "proposal_expiry_seconds"},
@@ -105,7 +105,7 @@ func TestNewRules_refusesEachBadValueAndNamesTheField(t *testing.T) {
 
 func wantBadFields(a rulesArgs) string {
 	var bad []string
-	if !slices.Contains([]string{"open", "request"}, a.join) {
+	if !slices.Contains([]string{"request"}, a.join) {
 		bad = append(bad, "join_mode")
 	}
 	if !slices.Contains([]string{"all", "list"}, a.voters) {
@@ -127,7 +127,7 @@ func TestNewRules_acceptsExactlyTheAllowedValues(t *testing.T) {
 	t.Parallel()
 	rapid.Check(t, func(t *rapid.T) {
 		a := rulesArgs{
-			join:   rapid.OneOf(rapid.SampledFrom([]string{"open", "request"}), rapid.String()).Draw(t, "join"),
+			join:   rapid.OneOf(rapid.SampledFrom([]string{"request"}), rapid.String()).Draw(t, "join"),
 			voters: rapid.OneOf(rapid.SampledFrom([]string{"all", "list"}), rapid.String()).Draw(t, "voters"),
 			threshold: rapid.OneOf(rapid.SampledFrom([]string{"majority", "unanimous"}), rapid.String()).
 				Draw(t, "threshold"),

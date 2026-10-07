@@ -48,7 +48,7 @@ type SeededCabal struct {
 
 func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 	t.Helper()
-	spec := cabalSpec{members: 1, joinMode: "open", voterMode: "all"}
+	spec := cabalSpec{members: 1, joinMode: "request", voterMode: "all"}
 	for _, opt := range opts {
 		opt(&spec)
 	}

@@ -111,7 +111,7 @@ func TestCabalsSchema_slippageAndStatusHaveDefaults(t *testing.T) {
 	id := newID()
 	if err := run(t, pool, `INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold,
 		proposal_expiry_seconds, invite_code, created_at, updated_at)
-		VALUES ($1, 'defaults', $2, 'open', 'all', 'majority', 3600, 'ABCDEFGHJK', now(), now())`,
+		VALUES ($1, 'defaults', $2, 'request', 'all', 'majority', 3600, 'ABCDEFGHJK', now(), now())`,
 		id, creator.ID.UUID()); err != nil {
 		t.Fatalf("insert: %v", err)
 	}

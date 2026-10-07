@@ -48,13 +48,7 @@ func CanInvite(actor Actor, cabal Cabal) error {
 	if !actor.Member {
 		return errs.New(errs.CodeNotCabalMember, op)
 	}
-	switch cabal.Rules.JoinMode() {
-	case JoinOpen:
-		return nil
-	case JoinRequest:
-		return require(cabal.IsCreator(actor.UserID), errs.CodeNotCabalCreator, op)
-	}
-	return errs.New(errs.CodeInternal, op, slog.String("join_mode", string(cabal.Rules.JoinMode())))
+	return require(cabal.IsCreator(actor.UserID), errs.CodeNotCabalCreator, op)
 }
 
 func CanInviteUser(inviter, invitee Actor, cabal Cabal) error {
@@ -78,10 +72,8 @@ func CanJoin(actor Actor, cabal Cabal) error {
 		return errs.New(errs.CodeCabalBanned, op)
 	case actor.Member:
 		return errs.New(errs.CodeAlreadyMember, op)
-	case cabal.Rules.JoinMode() == JoinRequest:
-		return errs.New(errs.CodeJoinNeedsRequest, op)
 	}
-	return nil
+	return errs.New(errs.CodeJoinNeedsRequest, op)
 }
 
 func CanRequest(actor Actor, cabal Cabal) error {
@@ -91,8 +83,6 @@ func CanRequest(actor Actor, cabal Cabal) error {
 		return errs.New(errs.CodeCabalBanned, op)
 	case actor.Member:
 		return errs.New(errs.CodeAlreadyMember, op)
-	case cabal.Rules.JoinMode() != JoinRequest:
-		return errs.New(errs.CodeRequestNotNeeded, op)
 	}
 	return nil
 }

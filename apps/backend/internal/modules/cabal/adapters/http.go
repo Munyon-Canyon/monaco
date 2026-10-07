@@ -335,15 +335,7 @@ func (h HTTP) PostCabalMember(
 	if err != nil {
 		return nil, err
 	}
-	cabalID := ids.CabalIDFrom(req.Id)
-	if err := h.Join.Handle(ctx, app.JoinCabal{ActorID: user, CabalID: cabalID}); err != nil {
-		return nil, err
-	}
-	view, err := app.GetCabal(ctx, h.DB, h.Users, cabalID, user)
-	if err != nil {
-		return nil, err
-	}
-	return api.PostCabalMember200JSONResponse(wireCabal(view)), nil
+	return nil, h.Join.Handle(ctx, app.JoinCabal{ActorID: user, CabalID: ids.CabalIDFrom(req.Id)})
 }
 
 func (h HTTP) DeleteCabalMemberMe(
@@ -374,8 +366,8 @@ func (h HTTP) GetCabalByCode(
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	return api.GetCabalByCode200JSONResponse(api.CabalPreview{
-		Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl), JoinMode: row.JoinMode,
-		MemberCount: row.MemberCount,
+		Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl),
+		JoinMode: row.JoinMode, MemberCount: row.MemberCount,
 	}), nil
 }
 

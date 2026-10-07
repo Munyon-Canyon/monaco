@@ -28,7 +28,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CabalSearchPage"
-              example: {items: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3, join_mode: open, is_member: false, my_access_request_status: null}], next_cursor: null}
+              example: {items: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, member_count: 3, join_mode: request, is_member: false, my_access_request_status: null}], next_cursor: null}
         default:
           $ref: "#/components/responses/Problem"
     post:
@@ -53,7 +53,7 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateCabalRequest"
-            example: {name: Kai, join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400}
+            example: {name: Kai, join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400}
       responses:
         "201":
           description: The cabal, as its creator sees it.
@@ -61,7 +61,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}:
@@ -83,7 +83,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: null, my_access_request: null, invite_code: null, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
     patch:
@@ -118,7 +118,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Work pot, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 50}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Work pot, picture_url: null, status: active, rules: {join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 50}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/picture:
@@ -156,7 +156,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: "https://example.supabase.co/storage/v1/object/public/avatars/cabals/01890a5d-ac96-774b-bcce-b302099a8058/01890a5d-ac96-774b-bcce-b302099a8059.png", status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: "https://example.supabase.co/storage/v1/object/public/avatars/cabals/01890a5d-ac96-774b-bcce-b302099a8058/01890a5d-ac96-774b-bcce-b302099a8059.png", status: active, rules: {join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -180,7 +180,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 1, members: [], me: {role: creator, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members:
@@ -188,11 +188,10 @@ paths:
       operationId: postCabalMember
       tags: [cabal]
       x-idempotent: true
-      summary: Join an open cabal.
+      summary: Join a cabal without a request.
       description: >-
-        Adds the caller as a member of an open cabal. The caller can vote when the cabal's voter_mode is all.
-        A request cabal refuses with join_needs_request, so the app files an access request instead.
-        A replay returns the first response.
+        Always refuses with join_needs_request, because every cabal is joined by an approved access
+        request or an accepted invite. A replay returns the first response.
       parameters:
         - name: id
           in: path
@@ -207,7 +206,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cabal"
-              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, members: [], me: {role: member, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
+              example: {id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Kai, picture_url: null, status: active, rules: {join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}, creator: {user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}, member_count: 2, members: [], me: {role: member, can_vote: true}, my_access_request: null, invite_code: ABCD2345, treasury_address: Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/members/me:
@@ -263,10 +262,9 @@ paths:
       operationId: postCabalAccessRequest
       tags: [cabal]
       x-idempotent: true
-      summary: Ask to join a request cabal.
+      summary: Ask to join a cabal.
       description: >-
-        Files a pending request that the creator approves or denies. An open cabal refuses with
-        request_not_needed, so the app joins it instead. A replay returns the first response.
+        Files a pending request that the creator approves or denies. A replay returns the first response.
       parameters:
         - name: id
           in: path
@@ -394,7 +392,7 @@ paths:
           burst: 20
       summary: Invite a user to a cabal by handle.
       description: >-
-        Any member invites in an open cabal; only the creator invites in a request cabal. The invite
+        Only the creator invites. The invite
         stays pending for 7 days, and the invitee accepts or declines it through the decision route.
         A user with a pending request or invite is refused with request_pending. A replay returns the
         first response.
@@ -488,7 +486,7 @@ components:
       required: [name, join_mode, voter_mode, threshold, proposal_expiry_seconds]
       properties:
         name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Kai]}
-        join_mode: {type: string, description: "`open` or `request`.", examples: [open]}
+        join_mode: {type: string, description: "Always `request`: people join by an approved request or an accepted invite.", examples: [request]}
         voter_mode: {type: string, description: "all, or list starting with the creator.", examples: [all]}
         threshold: {type: string, description: "`majority` or `unanimous`.", examples: [majority]}
         proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [86400]}
@@ -499,7 +497,7 @@ components:
       additionalProperties: false
       properties:
         name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Work pot]}
-        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
+        join_mode: {type: string, description: "Always `request`: people join by an approved request or an accepted invite.", examples: [request]}
         voter_mode: {type: string, description: "`all` or `list`.", examples: [list]}
         voter_ids:
           type: array
@@ -520,7 +518,7 @@ components:
         name: {type: string, examples: [Kai]}
         picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
         status: {type: string, description: "`active` or `banned`.", examples: [active]}
-        rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}]}
+        rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}]}
         creator: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
         member_count: {type: integer, format: int32, examples: [1]}
         members: {type: array, items: {$ref: "#/components/schemas/CabalMember"}, examples: [[]]}
@@ -609,7 +607,7 @@ components:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         name: {type: string, examples: [Friends]}
         picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
-        join_mode: {type: string, description: "`open` or `request`.", examples: [request]}
+        join_mode: {type: string, description: "Always `request`: people join by an approved request or an accepted invite.", examples: [request]}
         member_count: {type: integer, format: int32, examples: [3]}
     CabalSearchPage:
       type: object
@@ -632,7 +630,7 @@ components:
         name: {type: string}
         picture_url: {type: [string, "null"]}
         member_count: {type: integer, format: int32}
-        join_mode: {type: string, examples: [open]}
+        join_mode: {type: string, examples: [request]}
         is_member: {type: boolean}
         my_access_request_status: {type: [string, "null"], examples: [pending, null]}
     MyCabal:
@@ -656,7 +654,7 @@ components:
       additionalProperties: false
       required: [join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps]
       properties:
-        join_mode: {type: string, examples: [open]}
+        join_mode: {type: string, examples: [request]}
         voter_mode: {type: string, examples: [all]}
         threshold: {type: string, examples: [majority]}
         proposal_expiry_seconds: {type: integer, format: int32, examples: [86400]}

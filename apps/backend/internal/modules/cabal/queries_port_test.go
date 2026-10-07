@@ -30,7 +30,7 @@ func seedManyCabals(t *testing.T, pool *pgxpool.Pool, creator ids.UserID, n int)
 	now := clock.Real{}.Now().UTC()
 	if _, err := pool.Exec(t.Context(), `INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold,
 		proposal_expiry_seconds, invite_code, created_at, updated_at)
-		SELECT id, 'Bulk pot', $2, 'open', 'all', 'majority', 86400, code, $3, $3
+		SELECT id, 'Bulk pot', $2, 'request', 'all', 'majority', 86400, code, $3, $3
 		FROM unnest($1::uuid[], $4::text[]) AS c (id, code)`, raw, creator.UUID(), now, codes); err != nil {
 		t.Fatalf("insert cabals: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 	}
 	if err := pool.QueryRow(ctx, `INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold,
 		proposal_expiry_seconds, invite_code, created_at, updated_at)
-		VALUES (gen_random_uuid(), 'V4 pot', $1, 'open', 'all', 'majority', 86400, 'V400000000', $2, $2)
+		VALUES (gen_random_uuid(), 'V4 pot', $1, 'request', 'all', 'majority', 86400, 'V400000000', $2, $2)
 		RETURNING id`, w.users[0].UUID(), now).Scan(&v4Cabal); err != nil {
 		t.Fatal(err)
 	}
