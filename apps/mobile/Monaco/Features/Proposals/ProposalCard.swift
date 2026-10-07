@@ -190,15 +190,12 @@ struct ProposalCard: View {
         return minutes < 60 ? "\(minutes)m" : "\(minutes / 60)h"
     }
 
-    private var shareLabel: String {
+    private var shareLabel: String { Self.shareLabel(summary: summary, asset: asset) }
+
+    static func shareLabel(summary: ProposalSummary, asset: ProposalAsset?) -> String {
         guard let amount = summary.tokenAmount else { return "0 shares" }
-        guard asset?.kind != .preIpo else { return "\(amount) tokens" }
-        let decimals = asset?.decimals ?? AssetCatalogDefaults.decimals
-        let digits = String(amount)
-        let padded = String(repeating: "0", count: max(0, decimals + 1 - digits.count)) + digits
-        let split = padded.index(padded.endIndex, offsetBy: -decimals)
-        let whole = String(padded[..<split])
-        let fraction = String(padded[split...]).prefix(4).reversed().drop(while: { $0 == "0" }).reversed()
-        return fraction.isEmpty ? "\(whole) shares" : "\(whole).\(fraction) shares"
+        return TokenQuantityFormatter.label(
+            fromAtomics: String(amount), decimals: asset?.decimals ?? AssetCatalogDefaults.decimals,
+            kind: asset?.kind ?? .stock)
     }
 }
