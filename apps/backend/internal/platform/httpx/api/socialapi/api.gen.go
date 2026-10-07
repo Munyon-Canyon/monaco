@@ -20,6 +20,69 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AdminReportKind.
+const (
+	AdminReportKindCabal   AdminReportKind = "cabal"
+	AdminReportKindComment AdminReportKind = "comment"
+	AdminReportKindMessage AdminReportKind = "message"
+	AdminReportKindUser    AdminReportKind = "user"
+)
+
+// Valid indicates whether the value is a known member of the AdminReportKind enum.
+func (e AdminReportKind) Valid() bool {
+	switch e {
+	case AdminReportKindCabal:
+		return true
+	case AdminReportKindComment:
+		return true
+	case AdminReportKindMessage:
+		return true
+	case AdminReportKindUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminReportReason.
+const (
+	AdminReportReasonAbuse AdminReportReason = "abuse"
+	AdminReportReasonOther AdminReportReason = "other"
+	AdminReportReasonSpam  AdminReportReason = "spam"
+)
+
+// Valid indicates whether the value is a known member of the AdminReportReason enum.
+func (e AdminReportReason) Valid() bool {
+	switch e {
+	case AdminReportReasonAbuse:
+		return true
+	case AdminReportReasonOther:
+		return true
+	case AdminReportReasonSpam:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminReportStatus.
+const (
+	AdminReportStatusOpen     AdminReportStatus = "open"
+	AdminReportStatusResolved AdminReportStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the AdminReportStatus enum.
+func (e AdminReportStatus) Valid() bool {
+	switch e {
+	case AdminReportStatusOpen:
+		return true
+	case AdminReportStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedMuteRequestTargetType.
 const (
 	FeedMuteRequestTargetTypeAsset FeedMuteRequestTargetType = "asset"
@@ -73,19 +136,37 @@ func (e ReportRequestKind) Valid() bool {
 
 // Defines values for ReportRequestReason.
 const (
-	Abuse ReportRequestReason = "abuse"
-	Other ReportRequestReason = "other"
-	Spam  ReportRequestReason = "spam"
+	ReportRequestReasonAbuse ReportRequestReason = "abuse"
+	ReportRequestReasonOther ReportRequestReason = "other"
+	ReportRequestReasonSpam  ReportRequestReason = "spam"
 )
 
 // Valid indicates whether the value is a known member of the ReportRequestReason enum.
 func (e ReportRequestReason) Valid() bool {
 	switch e {
-	case Abuse:
+	case ReportRequestReasonAbuse:
 		return true
-	case Other:
+	case ReportRequestReasonOther:
 		return true
-	case Spam:
+	case ReportRequestReasonSpam:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetAdminReportsParamsStatus.
+const (
+	GetAdminReportsParamsStatusOpen     GetAdminReportsParamsStatus = "open"
+	GetAdminReportsParamsStatusResolved GetAdminReportsParamsStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminReportsParamsStatus enum.
+func (e GetAdminReportsParamsStatus) Valid() bool {
+	switch e {
+	case GetAdminReportsParamsStatusOpen:
+		return true
+	case GetAdminReportsParamsStatusResolved:
 		return true
 	default:
 		return false
@@ -177,6 +258,55 @@ func (e DeleteMeFeedMutesTargetTypeTargetIDParamsTargetType) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// AdminReport One report in the moderation queue.
+type AdminReport struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Kind Examples: user
+	Kind AdminReportKind `json:"kind"`
+
+	// Note Examples: null
+	Note *string `json:"note"`
+
+	// Reason Examples: spam
+	Reason AdminReportReason `json:"reason"`
+
+	// Reporter Who filed the report. The handle is empty for a deleted account.
+	Reporter AdminReporter `json:"reporter"`
+
+	// Status Examples: open
+	Status   AdminReportStatus  `json:"status"`
+	TargetId openapi_types.UUID `json:"target_id"`
+}
+
+// AdminReportKind Examples: user
+type AdminReportKind string
+
+// AdminReportReason Examples: spam
+type AdminReportReason string
+
+// AdminReportStatus Examples: open
+type AdminReportStatus string
+
+// AdminReporter Who filed the report. The handle is empty for a deleted account.
+type AdminReporter struct {
+	// Handle Examples: maya
+	Handle string             `json:"handle"`
+	UserId openapi_types.UUID `json:"user_id"`
+}
+
+// AdminReports One page of reports, oldest first.
+type AdminReports struct {
+	// Items Examples: []
+	Items []AdminReport `json:"items"`
+
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
 }
 
 // BlockedUser A user the caller blocks.
@@ -767,6 +897,21 @@ type ChatCabalId = openapi_types.UUID
 // ChatMessageId Examples: 01920000-0000-7000-8000-000000000007
 type ChatMessageId = openapi_types.UUID
 
+// GetAdminReportsParams defines parameters for GetAdminReports.
+type GetAdminReportsParams struct {
+	// Status Which reports to list. Defaults to open.
+	Status *GetAdminReportsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Cursor The `next_cursor` of the previous page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit The page size, 50 by default.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetAdminReportsParamsStatus defines parameters for GetAdminReports.
+type GetAdminReportsParamsStatus string
+
 // GetChatSeenByParams defines parameters for GetChatSeenBy.
 type GetChatSeenByParams struct {
 	// MessageId The message to read the seen list of.
@@ -1009,6 +1154,9 @@ type PostUserFollowJSONRequestBody = FollowRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdminReports List reports for moderators.
+	// (GET /v1/admin/reports)
+	GetAdminReports(w http.ResponseWriter, r *http.Request, params GetAdminReportsParams)
 	// GetChatSeenBy List who has seen a chat message.
 	// (GET /v1/cabals/{id}/chat/seen)
 	GetChatSeenBy(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatSeenByParams)
@@ -1100,6 +1248,65 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminReports operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminReports(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminReportsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminReports(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetChatSeenBy operation middleware
 func (siw *ServerInterfaceWrapper) GetChatSeenBy(w http.ResponseWriter, r *http.Request) {
@@ -2699,6 +2906,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/reports", wrapper.GetAdminReports)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.GetChatSeenBy)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.MarkChatSeen)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
@@ -2728,6 +2936,45 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
+}
+
+type GetAdminReportsRequestObject struct {
+	Params GetAdminReportsParams
+}
+
+type GetAdminReportsResponseObject interface {
+	VisitGetAdminReportsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminReports200JSONResponse AdminReports
+
+func (response GetAdminReports200JSONResponse) VisitGetAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminReportsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminReportsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetChatSeenByRequestObject struct {
@@ -3776,6 +4023,9 @@ func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdminReports List reports for moderators.
+	// (GET /v1/admin/reports)
+	GetAdminReports(ctx context.Context, request GetAdminReportsRequestObject) (GetAdminReportsResponseObject, error)
 	// GetChatSeenBy List who has seen a chat message.
 	// (GET /v1/cabals/{id}/chat/seen)
 	GetChatSeenBy(ctx context.Context, request GetChatSeenByRequestObject) (GetChatSeenByResponseObject, error)
@@ -3896,6 +4146,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminReports operation middleware
+func (sh *strictHandler) GetAdminReports(w http.ResponseWriter, r *http.Request, params GetAdminReportsParams) {
+	var request GetAdminReportsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminReports(ctx, request.(GetAdminReportsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminReports")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminReportsResponseObject); ok {
+		if err := validResponse.VisitGetAdminReportsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetChatSeenBy operation middleware

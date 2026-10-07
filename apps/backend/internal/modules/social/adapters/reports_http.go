@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 )
 
@@ -31,4 +32,43 @@ func (h HTTP) PostReport(
 		return nil, err
 	}
 	return api.PostReport201JSONResponse(api.ReportCreated{Id: id}), nil
+}
+
+func (h HTTP) GetAdminReports(
+	ctx context.Context, req api.GetAdminReportsRequestObject,
+) (api.GetAdminReportsResponseObject, error) {
+	if actor, ok := auth.ActorFrom(ctx); !ok || actor.Kind != auth.ActorAdmin {
+		return nil, errs.New(errs.CodeAdminForbidden, "social.GetAdminReports")
+	}
+	q := app.ReportsQuery{Status: "open", Limit: app.ReportsPageDefault}
+	if req.Params.Status != nil {
+		q.Status = string(*req.Params.Status)
+	}
+	if req.Params.Limit != nil {
+		q.Limit = *req.Params.Limit
+	}
+	if req.Params.Cursor != nil {
+		after, err := domain.ParseKeyset(*req.Params.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		q.After = &after
+	}
+	page, err := app.ListReports(ctx, h.Reads, h.Users, q)
+	if err != nil {
+		return nil, err
+	}
+	body := api.AdminReports{Items: make([]api.AdminReport, len(page.Items))}
+	for i, r := range page.Items {
+		body.Items[i] = api.AdminReport{
+			Id: r.ID, Reporter: api.AdminReporter{UserId: r.Reporter.UUID(), Handle: r.Handle},
+			Kind: api.AdminReportKind(r.Kind), TargetId: r.TargetID, Reason: api.AdminReportReason(r.Reason),
+			Note: r.Note, Status: api.AdminReportStatus(r.Status), CreatedAt: r.CreatedAt,
+		}
+	}
+	if page.Next != nil {
+		next := page.Next.Encode()
+		body.NextCursor = &next
+	}
+	return api.GetAdminReports200JSONResponse(body), nil
 }

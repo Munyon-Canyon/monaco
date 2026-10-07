@@ -36,3 +36,14 @@ type FeedComment struct {
 	DeletedAt       pgtype.Timestamptz
 	DeletedBy       pgtype.UUID
 }
+
+type Report struct {
+	ID         uuid.UUID
+	ReporterID uuid.UUID
+	Kind       string
+	TargetID   uuid.UUID
+	Reason     string
+	Note       pgtype.Text
+	Status     string
+	CreatedAt  time.Time
+}

@@ -44,6 +44,60 @@ func (q *Queries) InsertReport(ctx context.Context, arg InsertReportParams) (uui
 	return id, err
 }
 
+const listReports = `-- name: ListReports :many
+SELECT id, reporter_id, kind, target_id, reason, note, status, created_at FROM reports
+WHERE status = $1::text
+  AND (
+    NOT $2::boolean
+    OR (created_at, id) > ($3::timestamptz, $4::uuid)
+  )
+ORDER BY created_at, id
+LIMIT $5::int
+`
+
+type ListReportsParams struct {
+	Status    string
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
+func (q *Queries) ListReports(ctx context.Context, arg ListReportsParams) ([]Report, error) {
+	rows, err := q.db.Query(ctx, listReports,
+		arg.Status,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Report
+	for rows.Next() {
+		var i Report
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReporterID,
+			&i.Kind,
+			&i.TargetID,
+			&i.Reason,
+			&i.Note,
+			&i.Status,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const openReportID = `-- name: OpenReportID :one
 SELECT id FROM reports
 WHERE reporter_id = $1 AND kind = $2 AND target_id = $3 AND status = 'open'
