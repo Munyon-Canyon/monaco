@@ -12,6 +12,7 @@ import (
 const (
 	newFollowerDailyCap = 3
 	unnamedFollower     = "Someone"
+	referralFollow      = "referral"
 )
 
 type NewFollower struct{ Users Users }
@@ -21,6 +22,9 @@ func (NewFollower) Name() string { return "new_follower" }
 func (NewFollower) DailyCap() int { return newFollowerDailyCap }
 
 func (NewFollower) Recipients(_ context.Context, e events.FollowCreated) ([]ids.UserID, error) {
+	if e.Source == referralFollow {
+		return nil, nil
+	}
 	return []ids.UserID{ids.UserIDFrom(e.FolloweeID)}, nil
 }
 
