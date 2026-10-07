@@ -28,7 +28,7 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 	if err != nil {
 		return out, advise(&out, err)
 	}
-	fundsErr := funds(ctx, h.ports.Treasury, req.CabalID, asset, req.Trade, pot)
+	fundsErr := funds(ctx, h.ports, req.CabalID, asset, req.Trade, pot)
 	quote, routeErr := route(ctx, h.ports.Routes, asset, req.Trade)
 	if routeErr == nil {
 		out.QuoteOut = quote.OutAmount.Uint64()
