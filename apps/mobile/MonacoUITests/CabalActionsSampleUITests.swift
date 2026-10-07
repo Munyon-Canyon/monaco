@@ -59,7 +59,7 @@ nonisolated final class CabalActionsSampleUITests: XCTestCase {
         let propose = element(app, "cabal-action-propose")
         XCTAssertTrue(propose.waitForExistence(timeout: 15), "a non-voting member sees the action row")
         XCTAssertFalse(propose.isEnabled, "Propose is disabled")
-        XCTAssertTrue(element(app, "cabal-action-fund").isEnabled, "Add money stays enabled")
+        XCTAssertTrue(element(app, "cabal-action-fund").isEnabled, "Fund stays enabled")
         let caption = element(app, "cabal-action-propose-caption")
         XCTAssertTrue(caption.exists, "the caption explains why")
         XCTAssertEqual(caption.label, "Only voters can propose")

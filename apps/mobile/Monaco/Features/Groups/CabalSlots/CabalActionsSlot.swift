@@ -84,7 +84,7 @@ struct CabalActionsRow: View {
     private func buttons(cabalID: String, canPropose: Bool) -> some View {
         VStack(spacing: MonacoTheme.Space.s) {
             HStack(alignment: .top, spacing: 0) {
-                action("Add money", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
+                action("Fund", "plus", id: "cabal-action-fund", FundRoute(cabalID: cabalID))
                 action("Propose", "arrow.up.right", id: "cabal-action-propose", ProposeRoute(cabalID: cabalID))
                     .disabled(!canPropose)
                 action("Cash out", "arrow.down.left", id: "cabal-action-cash-out", CashOutRoute(cabalID: cabalID))
