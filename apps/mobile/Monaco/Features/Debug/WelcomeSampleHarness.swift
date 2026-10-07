@@ -154,8 +154,8 @@ private struct EmptyStateSamples: View {
                         MonacoGroupedList {
                             EmptyState(
                                 title: "Nothing bought yet",
-                                message: "Add money, then propose the first buy.",
-                                actionTitle: "Add money"
+                                message: "Fund, then propose the first buy.",
+                                actionTitle: "Fund"
                             ) {}
                         }
                     }

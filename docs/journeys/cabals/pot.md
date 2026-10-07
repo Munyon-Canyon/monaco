@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The cabal pot
-version: 1
+version: 2
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}`, and the hero shows "In the pot" within 15 s (screens.md `CabalPotSlot`: "In the pot") |
 | S1.2 | A | wait | `cabal-pot-value` | | Reads "$0.00" within 10 s (screens.md `CabalPotSlot`: pot value from `GET /v1/cabals/{id}/pot`; old app: `PotSectionView` pot value) |
-| S1.3 | A | wait | `cabal-slice-value` | | Under the hairline, "Your slice" over "$0.00" with "Add money to get a slice" within 10 s (screens.md `CabalSliceSlot`: No stake: "$0.00" with "Add money to get a slice") |
+| S1.3 | A | wait | `cabal-slice-value` | | Under the hairline, "Your slice" over "$0.00" with "Fund to get a slice" within 10 s (screens.md `CabalSliceSlot`: No stake: "$0.00" with "Fund to get a slice") |
 
 ### S2 Holdings
 
@@ -41,7 +41,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
 | S2.2 | A | scroll to | "Holdings" | | The section header "Holdings" shows within 10 s (screens.md `CabalHoldingsSlot`: "Holdings") |
-| S2.3 | A | wait | `cabal-holdings-empty` | | Reads "Add money, then propose the first buy." within 10 s (screens.md `CabalHoldingsSlot`: Zero pot; old app: `pot-empty` "Add money, then propose the first buy.") |
+| S2.3 | A | wait | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s (screens.md `CabalHoldingsSlot`: Zero pot; old app: `pot-empty` "Add money, then propose the first buy.") |
 | S2.4 | A | tap | `cabal-holdings-cash` | | The asset screen for "Cash" shows within 10 s (screens.md: "Rows open `AssetRoute`"; old app: `pot-row-USDC`) |
 
 ## Ground truth

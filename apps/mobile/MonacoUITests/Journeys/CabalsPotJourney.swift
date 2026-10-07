@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 1
+    static let version = 2
 
     static let screenTimeout: TimeInterval = 15
 
@@ -36,7 +36,7 @@ enum CabalsPotJourney {
                 "S1.3: no slice value of $0.00 within 10 s (known failure, #2136 #2137)"
             )
             XCTAssertTrue(app.staticTexts["Your slice"].exists, "S1.3: no Your slice header")
-            XCTAssertTrue(app.staticTexts["Add money to get a slice"].exists, "S1.3: no Add money to get a slice")
+            XCTAssertTrue(app.staticTexts["Fund to get a slice"].exists, "S1.3: no Fund to get a slice")
         }
     }
 
@@ -55,7 +55,7 @@ enum CabalsPotJourney {
             let empty = app.element("cabal-holdings-empty")
             app.scrollIntoReach(empty)
             XCTAssertTrue(
-                JoinJourney.waitForLabel(empty, containing: "Add money, then propose the first buy.", timeout: 10),
+                JoinJourney.waitForLabel(empty, containing: "Fund, then propose the first buy.", timeout: 10),
                 "S2.3: no zero-pot holdings copy within 10 s (known failure, #2136 #2137)"
             )
         }
