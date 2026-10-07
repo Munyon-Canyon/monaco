@@ -15,6 +15,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -41,6 +44,18 @@ func adminHandlerOn(t *testing.T, pool *pgxpool.Pool) http.Handler {
 
 func adminHandlerWith(t *testing.T, deps module.Deps) http.Handler {
 	t.Helper()
+	return adminHandlerFor(t, deps, admin.New(deps))
+}
+
+func wiredAdminHandler(t *testing.T, deps module.Deps) http.Handler {
+	t.Helper()
+	a := admin.New(deps)
+	module.NewSet(identity.New(deps), cabal.New(deps), treasury.New(deps), a)
+	return adminHandlerFor(t, deps, a)
+}
+
+func adminHandlerFor(t *testing.T, deps module.Deps, a *admin.Module) http.Handler {
+	t.Helper()
 	pool := deps.Pool
 	clk := testkit.NewClock(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	v := verifier(func(_ context.Context, raw string) (auth.Actor, error) {
@@ -61,7 +76,7 @@ func adminHandlerWith(t *testing.T, deps module.Deps) http.Handler {
 		Idempotency:   db.NewIdempotencyStore(pool, clk),
 		Verifier:      v,
 		AdminVerifier: v,
-	}, admin.New(deps).Mount, openapi.Spec)
+	}, a.Mount, openapi.Spec)
 	if err != nil {
 		t.Fatal(err)
 	}

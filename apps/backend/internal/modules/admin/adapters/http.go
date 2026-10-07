@@ -21,6 +21,7 @@ const defaultActionsPage = 50
 
 type HTTP struct {
 	Pool    *pgxpool.Pool
+	Users   app.UserLookup
 	Redrive *app.RedriveDeadLetterHandler
 	Discard *app.DiscardDeadLetterHandler
 }

@@ -21,6 +21,30 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AdminAccountStatus.
+const (
+	Active    AdminAccountStatus = "active"
+	Banned    AdminAccountStatus = "banned"
+	Deleted   AdminAccountStatus = "deleted"
+	Suspended AdminAccountStatus = "suspended"
+)
+
+// Valid indicates whether the value is a known member of the AdminAccountStatus enum.
+func (e AdminAccountStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Banned:
+		return true
+	case Deleted:
+		return true
+	case Suspended:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminActionKind.
 const (
 	CabalBan       AdminActionKind = "cabal_ban"
@@ -69,6 +93,30 @@ func (e AdminActionKind) Valid() bool {
 	}
 }
 
+// Defines values for AdminAuthState.
+const (
+	AWAITINGPHONE       AdminAuthState = "AWAITING_PHONE"
+	AWAITINGSOCIALS     AdminAuthState = "AWAITING_SOCIALS"
+	CREATED             AdminAuthState = "CREATED"
+	ONBOARDINGCOMPLETED AdminAuthState = "ONBOARDING_COMPLETED"
+)
+
+// Valid indicates whether the value is a known member of the AdminAuthState enum.
+func (e AdminAuthState) Valid() bool {
+	switch e {
+	case AWAITINGPHONE:
+		return true
+	case AWAITINGSOCIALS:
+		return true
+	case CREATED:
+		return true
+	case ONBOARDINGCOMPLETED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminRole.
 const (
 	Moderator AdminRole = "moderator"
@@ -92,31 +140,49 @@ func (e AdminRole) Valid() bool {
 
 // Defines values for AdminTargetType.
 const (
-	Cabal      AdminTargetType = "cabal"
-	Comment    AdminTargetType = "comment"
-	Global     AdminTargetType = "global"
-	Handle     AdminTargetType = "handle"
-	Proposal   AdminTargetType = "proposal"
-	SystemPing AdminTargetType = "system_ping"
-	User       AdminTargetType = "user"
+	AdminTargetTypeCabal      AdminTargetType = "cabal"
+	AdminTargetTypeComment    AdminTargetType = "comment"
+	AdminTargetTypeGlobal     AdminTargetType = "global"
+	AdminTargetTypeHandle     AdminTargetType = "handle"
+	AdminTargetTypeProposal   AdminTargetType = "proposal"
+	AdminTargetTypeSystemPing AdminTargetType = "system_ping"
+	AdminTargetTypeUser       AdminTargetType = "user"
 )
 
 // Valid indicates whether the value is a known member of the AdminTargetType enum.
 func (e AdminTargetType) Valid() bool {
 	switch e {
-	case Cabal:
+	case AdminTargetTypeCabal:
 		return true
-	case Comment:
+	case AdminTargetTypeComment:
 		return true
-	case Global:
+	case AdminTargetTypeGlobal:
 		return true
-	case Handle:
+	case AdminTargetTypeHandle:
 		return true
-	case Proposal:
+	case AdminTargetTypeProposal:
 		return true
-	case SystemPing:
+	case AdminTargetTypeSystemPing:
 		return true
-	case User:
+	case AdminTargetTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminTxnScope.
+const (
+	AdminTxnScopeCabal AdminTxnScope = "cabal"
+	AdminTxnScopeUser  AdminTxnScope = "user"
+)
+
+// Valid indicates whether the value is a known member of the AdminTxnScope enum.
+func (e AdminTxnScope) Valid() bool {
+	switch e {
+	case AdminTxnScopeCabal:
+		return true
+	case AdminTxnScopeUser:
 		return true
 	default:
 		return false
@@ -146,6 +212,11 @@ func (e DeadLetterStatus) Valid() bool {
 		return false
 	}
 }
+
+// AdminAccountStatus Whether the account may be used.
+//
+// Examples: active
+type AdminAccountStatus string
 
 // AdminActionKind What the administrator did.
 //
@@ -220,6 +291,51 @@ type AdminActions struct {
 	NextCursor *openapi_types.UUID `json:"next_cursor"`
 }
 
+// AdminAuthState Where the user stands in onboarding.
+//
+// Examples: ONBOARDING_COMPLETED
+type AdminAuthState string
+
+// AdminAuthTransition One change of auth state, read from a user.auth_state_changed event.
+//
+// Examples: {"at":"2026-10-06T12:00:00Z","cause":"otp_sent","from":"CREATED","to":"AWAITING_PHONE"}
+type AdminAuthTransition struct {
+	// At When the user moved.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	At time.Time `json:"at"`
+
+	// Cause What moved the user.
+	//
+	// Examples: otp_sent
+	Cause string `json:"cause"`
+
+	// From The state the user left.
+	//
+	// Examples: CREATED
+	From string `json:"from"`
+
+	// To The state the user entered.
+	//
+	// Examples: AWAITING_PHONE
+	To string `json:"to"`
+}
+
+// AdminCabalRef A cabal named by id.
+//
+// Examples: {"id":"019cc330-2222-7000-8000-000000000001","name":"Tech bros"}
+type AdminCabalRef struct {
+	// Id The cabal id.
+	//
+	// Examples: 019cc330-2222-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// Name The cabal name.
+	//
+	// Examples: Tech bros
+	Name string `json:"name"`
+}
+
 // AdminMe An active administrator and their role.
 //
 // Examples: {"role":"operator","user_id":"019cc330-1111-7000-8000-000000000001"}
@@ -240,10 +356,135 @@ type AdminMe struct {
 // Examples: operator
 type AdminRole string
 
+// AdminSharePosition The share units a user holds in one cabal.
+//
+// Examples: {"cabal_id":"019cc330-2222-7000-8000-000000000001","share_units":"25000000"}
+type AdminSharePosition struct {
+	// CabalId The cabal id.
+	//
+	// Examples: 019cc330-2222-7000-8000-000000000001
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// ShareUnits The share units as a decimal integer.
+	//
+	// Examples: 25000000
+	ShareUnits string `json:"share_units"`
+}
+
 // AdminTargetType The kind of thing the action changed.
 //
 // Examples: system_ping
 type AdminTargetType string
+
+// AdminTxnHeader The header of one ledger transaction, without its entries.
+//
+// Examples: {"cabal_id":"019cc330-2222-7000-8000-000000000001","created_at":"2026-10-06T12:00:00Z","id":"019cc330-3333-7000-8000-000000000001","kind":"fund","scope":"user","status":"settled","tx_signature":null}
+type AdminTxnHeader struct {
+	// CabalId The cabal the transaction touches. Null for a deposit or withdrawal.
+	//
+	// Examples: 019cc330-2222-7000-8000-000000000001
+	CabalId *openapi_types.UUID `json:"cabal_id"`
+
+	// CreatedAt When the ledger recorded it.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id The transaction id.
+	//
+	// Examples: 019cc330-3333-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind The kind: deposit, withdrawal, fund, cash_out or swap.
+	//
+	// Examples: fund
+	Kind string `json:"kind"`
+
+	// Scope Which ledger the transaction sits in.
+	//
+	// Examples: user
+	Scope AdminTxnScope `json:"scope"`
+
+	// Status The status: pending, settled or failed.
+	//
+	// Examples: settled
+	Status string `json:"status"`
+
+	// TxSignature The Solana signature. Null until the transaction has one.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
+}
+
+// AdminTxnScope Which ledger the transaction sits in.
+//
+// Examples: user
+type AdminTxnScope string
+
+// AdminUser One user as an operator sees them. It carries no email, phone number or X handle.
+//
+// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","auth_state_history":[],"cabals":[],"created_at":"2026-10-06T12:00:00Z","first_deposit_at":null,"handle":"devadmin","id":"019cc330-1111-7000-8000-000000000001","phone_verified":true,"positions":[],"recent_admin_actions":[],"recent_txns":[],"wallet":"9xQe…VFin","x_linked":false}
+type AdminUser struct {
+	// AccountStatus Whether the account may be used.
+	//
+	// Examples: active
+	AccountStatus AdminAccountStatus `json:"account_status"`
+
+	// AuthState Where the user stands in onboarding.
+	//
+	// Examples: ONBOARDING_COMPLETED
+	AuthState AdminAuthState `json:"auth_state"`
+
+	// AuthStateHistory Every auth state change, oldest first.
+	AuthStateHistory []AdminAuthTransition `json:"auth_state_history"`
+
+	// Cabals The cabals the user belongs to.
+	Cabals []AdminCabalRef `json:"cabals"`
+
+	// CreatedAt When the user signed up.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// FirstDepositAt When the first deposit arrived. Null if none did.
+	//
+	// Examples: null
+	FirstDepositAt *time.Time `json:"first_deposit_at"`
+
+	// Handle The handle. Null before the user picks one.
+	//
+	// Examples: devadmin
+	Handle *string `json:"handle"`
+
+	// Id The user id.
+	//
+	// Examples: 019cc330-1111-7000-8000-000000000001
+	Id openapi_types.UUID `json:"id"`
+
+	// PhoneVerified Whether the user verified a phone number.
+	//
+	// Examples: true
+	PhoneVerified bool `json:"phone_verified"`
+
+	// Positions The cabals where the user holds shares.
+	Positions []AdminSharePosition `json:"positions"`
+
+	// RecentAdminActions The 20 newest admin actions on the user, newest first.
+	RecentAdminActions []AdminActionRecord `json:"recent_admin_actions"`
+
+	// RecentTxns The 20 newest ledger transactions of the user, newest first.
+	RecentTxns []AdminTxnHeader `json:"recent_txns"`
+
+	// Wallet The wallet address as its first four and last four characters. Null when the user has no wallet.
+	//
+	// Examples: 9xQe…VFin
+	Wallet *string `json:"wallet"`
+
+	// XLinked Whether the user linked an X account.
+	//
+	// Examples: false
+	XLinked bool `json:"x_linked"`
+}
 
 // Admins The active administrator list.
 //
@@ -404,6 +645,12 @@ type RedriveDeadLetterParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// FindAdminUserParams defines parameters for FindAdminUser.
+type FindAdminUserParams struct {
+	// Handle The handle of the user, without the at sign.
+	Handle string `form:"handle" json:"handle"`
+}
+
 // DiscardDeadLetterJSONRequestBody defines body for DiscardDeadLetter for application/json ContentType.
 type DiscardDeadLetterJSONRequestBody = externalRef0.ReasonBody
 
@@ -430,6 +677,12 @@ type ServerInterface interface {
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(w http.ResponseWriter, r *http.Request)
+	// FindAdminUser Look up a user by handle.
+	// (GET /v1/admin/users)
+	FindAdminUser(w http.ResponseWriter, r *http.Request, params FindAdminUserParams)
+	// GetAdminUser Look up a user by id.
+	// (GET /v1/admin/users/{id})
+	GetAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -747,6 +1000,65 @@ func (siw *ServerInterfaceWrapper) GetAdminMe(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// FindAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) FindAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params FindAdminUserParams
+
+	// ------------- Required query parameter "handle" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "handle", r.URL.Query(), &params.Handle, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "handle"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "handle", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FindAdminUser(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminUser operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminUser(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -873,6 +1185,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/discard", wrapper.DiscardDeadLetter)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/redrive", wrapper.RedriveDeadLetter)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/me", wrapper.GetAdminMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/users", wrapper.FindAdminUser)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/users/{id}", wrapper.GetAdminUser)
 
 	return m
 }
@@ -1101,6 +1415,84 @@ func (response GetAdminMedefaultApplicationProblemPlusJSONResponse) VisitGetAdmi
 	return err
 }
 
+type FindAdminUserRequestObject struct {
+	Params FindAdminUserParams
+}
+
+type FindAdminUserResponseObject interface {
+	VisitFindAdminUserResponse(w http.ResponseWriter) error
+}
+
+type FindAdminUser200JSONResponse AdminUser
+
+func (response FindAdminUser200JSONResponse) VisitFindAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FindAdminUserdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response FindAdminUserdefaultApplicationProblemPlusJSONResponse) VisitFindAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminUserResponseObject interface {
+	VisitGetAdminUserResponse(w http.ResponseWriter) error
+}
+
+type GetAdminUser200JSONResponse AdminUser
+
+func (response GetAdminUser200JSONResponse) VisitGetAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminUserdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminUserdefaultApplicationProblemPlusJSONResponse) VisitGetAdminUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetAdminActions List admin actions.
@@ -1121,6 +1513,12 @@ type StrictServerInterface interface {
 	// GetAdminMe Read the active administrator role.
 	// (GET /v1/admin/me)
 	GetAdminMe(ctx context.Context, request GetAdminMeRequestObject) (GetAdminMeResponseObject, error)
+	// FindAdminUser Look up a user by handle.
+	// (GET /v1/admin/users)
+	FindAdminUser(ctx context.Context, request FindAdminUserRequestObject) (FindAdminUserResponseObject, error)
+	// GetAdminUser Look up a user by id.
+	// (GET /v1/admin/users/{id})
+	GetAdminUser(ctx context.Context, request GetAdminUserRequestObject) (GetAdminUserResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1323,6 +1721,58 @@ func (sh *strictHandler) GetAdminMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminMeResponseObject); ok {
 		if err := validResponse.VisitGetAdminMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FindAdminUser operation middleware
+func (sh *strictHandler) FindAdminUser(w http.ResponseWriter, r *http.Request, params FindAdminUserParams) {
+	var request FindAdminUserRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FindAdminUser(ctx, request.(FindAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FindAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FindAdminUserResponseObject); ok {
+		if err := validResponse.VisitFindAdminUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminUser operation middleware
+func (sh *strictHandler) GetAdminUser(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminUserRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminUser(ctx, request.(GetAdminUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminUserResponseObject); ok {
+		if err := validResponse.VisitGetAdminUserResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
