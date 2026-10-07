@@ -31,7 +31,11 @@ public final class ProposalListModel {
         }
     }
 
-    public var trading: [ProposalSummary] { pager.items.filter { $0.status == .passed } }
+    public var trading: [ProposalSummary] { pager.items.filter(\.isTradeInProgress) }
+}
+
+extension ProposalSummary {
+    public var isTradeInProgress: Bool { status == .passed && swap?.status != "failed" }
 }
 
 @Observable
@@ -147,6 +151,9 @@ public final class PendingVotesModel {
     private let hints: any HintSource
     private let refresher: HintRefresher
 
+    public var needsVote: [PendingVote] { votes.filter { details[$0.id]?.summary.isTradeInProgress != true } }
+    public var inProgress: [PendingVote] { votes.filter { details[$0.id]?.summary.isTradeInProgress == true } }
+
     public init(repository: ProposalsRepository, hints: any HintSource) {
         self.repository = repository
         self.hints = hints
@@ -162,11 +169,8 @@ public final class PendingVotesModel {
             let departed = votes.filter { !pendingIDs.contains($0.id) }
             let fetched = await details(for: departed + pending)
             let kept = departed.filter {
-                switch fetched[$0.id]?.summary.status {
-                case .passed: true
-                case .open: voted.contains($0.id)
-                default: false
-                }
+                guard let summary = fetched[$0.id]?.summary else { return false }
+                return summary.isTradeInProgress || (summary.status == .open && voted.contains($0.id))
             }
             votes = kept + pending
             details = fetched.filter { entry in votes.contains { $0.id == entry.key } }
