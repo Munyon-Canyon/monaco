@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -81,4 +82,18 @@ type EventHistory interface {
 
 type ActionLog interface {
 	Recent(ctx context.Context, targetType, targetID string, limit int) ([]sqlc.AdminAction, error)
+}
+
+type StuckSwaps interface {
+	Stuck(ctx context.Context, olderThan time.Duration, limit int) ([]trading.SwapView, error)
+	CountStuck(ctx context.Context, olderThan time.Duration) (int, error)
+}
+
+type EventQueue interface {
+	Unpublished(ctx context.Context, olderThan time.Duration, limit int) ([]bus.StaleEvent, error)
+	CountUnpublished(ctx context.Context, olderThan time.Duration) (int, error)
+}
+
+type DeadLetterCounter interface {
+	CountOpen(ctx context.Context) (int, error)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -290,6 +291,60 @@ func TestTxnView_SignaturePrefersTheLedgerThenTheSwap(t *testing.T) {
 	}
 	if got := (app.TxnView{Ledger: &app.LedgerTxn{}}).Signature(); got != "" {
 		t.Fatalf("Signature = %q", got)
+	}
+}
+
+func (s stubPorts) Stuck(context.Context, time.Duration, int) ([]trading.SwapView, error) {
+	return []trading.SwapView{{}}, s.err("Stuck")
+}
+
+func (s stubPorts) CountStuck(context.Context, time.Duration) (int, error) {
+	return 1, s.err("CountStuck")
+}
+
+func (s stubPorts) Unpublished(context.Context, time.Duration, int) ([]bus.StaleEvent, error) {
+	return []bus.StaleEvent{{}}, s.err("Unpublished")
+}
+
+func (s stubPorts) CountUnpublished(context.Context, time.Duration) (int, error) {
+	return 1, s.err("CountUnpublished")
+}
+
+func (s stubPorts) CountOpen(context.Context) (int, error) { return 1, s.err("CountOpen") }
+
+func queues(s stubPorts) app.Queues {
+	return app.Queues{Swaps: s, Events: s, Letters: s, Clock: testkit.NewClock(time.Unix(0, 0))}
+}
+
+func TestQueues_PassEveryPortFailureOn(t *testing.T) {
+	t.Parallel()
+	for _, method := range []string{"CountStuck", "CountUnpublished", "CountOpen"} {
+		if _, err := queues(newStub(failing(method))).Counts(t.Context()); !isPortDown(err) {
+			t.Errorf("Counts with %s down = %v", method, err)
+		}
+	}
+	if _, err := queues(newStub(failing("Stuck"))).StuckTxns(t.Context(), time.Minute, 1); !isPortDown(err) {
+		t.Errorf("StuckTxns = %v", err)
+	}
+	if _, err := queues(newStub(failing("Unpublished"))).UnpublishedEvents(t.Context(), time.Minute, 1); !isPortDown(
+		err,
+	) {
+		t.Errorf("UnpublishedEvents = %v", err)
+	}
+}
+
+func TestParseOlderThan_DefaultsWhenEmptyAndRefusesAnythingOutOfRange(t *testing.T) {
+	t.Parallel()
+	if got, err := app.ParseOlderThan("", time.Minute); err != nil || got != time.Minute {
+		t.Fatalf("ParseOlderThan(empty) = %v, %v", got, err)
+	}
+	if got, err := app.ParseOlderThan("90s", time.Minute); err != nil || got != 90*time.Second {
+		t.Fatalf("ParseOlderThan(90s) = %v, %v", got, err)
+	}
+	for _, raw := range []string{"soon", "0s", "-1m", "24h1s"} {
+		if _, err := app.ParseOlderThan(raw, time.Minute); errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Errorf("ParseOlderThan(%q) = %v", raw, err)
+		}
 	}
 }
 

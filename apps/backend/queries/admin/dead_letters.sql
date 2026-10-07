@@ -56,3 +56,6 @@ UPDATE dead_letters
 SET status = 'discarded', resolved_at = sqlc.arg(resolved_at)::timestamptz, resolved_by = sqlc.arg(admin_id)::uuid,
   resolve_reason = sqlc.arg(reason)::text
 WHERE id = sqlc.arg(id) AND status IN ('open', 'redriven');
+
+-- name: CountOpenDeadLetters :one
+SELECT count(*)::bigint FROM dead_letters WHERE status = 'open';
