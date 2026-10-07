@@ -60,6 +60,8 @@ type checkHarness struct {
 	cores       int
 	actions     bool
 	xcodeBuild  func(ctx context.Context, waited string) error
+	swiftWaited []string
+	swiftRun    func(waited string)
 }
 
 func newCheckHarness(t *testing.T) *checkHarness {
@@ -77,6 +79,15 @@ func newCheckHarness(t *testing.T) *checkHarness {
 }
 
 func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+	if name == "env" && len(args) > 1 && strings.HasPrefix(args[0], "MONACO_LOCK_WAITED=") &&
+		strings.HasSuffix(args[1], "mobile-core-test.sh") {
+		waited := strings.TrimPrefix(args[0], "MONACO_LOCK_WAITED=")
+		h.swiftWaited = append(h.swiftWaited, waited)
+		if h.swiftRun != nil {
+			h.swiftRun(waited)
+		}
+		name, args = args[1], args[2:]
+	}
 	line := strings.TrimSpace(filepath.Base(name) + " " + strings.Join(args, " "))
 	if self, _ := os.Executable(); name == self {
 		line = strings.Join(args, " ")
@@ -385,7 +396,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	}
 	log, err := os.ReadFile(filepath.Join(h.stateDir(t, "logs"), "check-"+tree[:12]+".log"))
 	if err != nil || !strings.Contains(string(log), "=== RUN   TestX\nok  \tx\t1.5s\n") ||
-		!strings.Contains(string(log), "&& ../../scripts/mobile-core-test.sh)") {
+		!strings.Contains(string(log), ".swift.waited ../../scripts/mobile-core-test.sh)") {
 		t.Fatalf("log: %q %v", log, err)
 	}
 
@@ -1062,6 +1073,37 @@ func TestCheck_theXcodeBudgetStartsWhenTheLockIsTaken(t *testing.T) {
 	}
 }
 
+func TestCheck_theSwiftRowDoesNotChargeLockWaitToItsBudget(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"packages/mobile-core/Sources/A/a.swift": "let a = 1\n"})
+	h.replies = []reply{
+		{prefix: "swift format", took: 0},
+		{prefix: "swiftlint-ratchet.sh", took: 0},
+		{prefix: "mobile-core-test.sh", took: 200 * time.Second},
+	}
+	h.swiftRun = func(waited string) {
+		if err := os.WriteFile(waited, []byte("100\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	code, stdout, stderr := h.check(t)
+	if code != 0 || len(h.swiftWaited) != 1 ||
+		!strings.Contains(stdout, "swift test      ok    100.0s  waited 1m40s for swift test lock") {
+		t.Fatalf("100 s of a 200 s run behind the lock passes the 150 s budget: %d %q %q %v",
+			code, stdout, stderr, h.swiftWaited)
+	}
+
+	h.commit(t, map[string]string{"packages/mobile-core/Sources/A/a.swift": "let a = 2\n"})
+	h.swiftWaited = nil
+	h.replies[2].took = 260 * time.Second
+	code, stdout, stderr = h.check(t)
+	if code != 1 || !strings.Contains(stdout, "swift test      over budget") ||
+		!strings.Contains(stderr, "waited 1m40s for swift test lock, not counted") {
+		t.Fatalf("160 s of work after the lock is taken fails: %d %q %q", code, stdout, stderr)
+	}
+}
+
 func TestCheck_theOpenAPISpecAloneRunsTheSwiftRow(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
@@ -1684,6 +1726,9 @@ func TestCheck_aFlowChangeRunsTheFlowsRowForTheAffectedFlowsOnly(t *testing.T) {
 		if !slices.Contains(h.calls, c) {
 			t.Errorf("missing %q in\n%s", c, strings.Join(h.calls, "\n"))
 		}
+	}
+	if !slices.ContainsFunc(h.swiftWaited, func(f string) bool { return strings.HasSuffix(f, ".flows.waited") }) {
+		t.Errorf("the flows swift command carries MONACO_LOCK_WAITED: %v", h.swiftWaited)
 	}
 
 	h.commit(t, map[string]string{"apps/backend/internal/testkit/flows/f01.go": "package flows\n"})
