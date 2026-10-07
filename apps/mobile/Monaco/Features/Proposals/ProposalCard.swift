@@ -6,6 +6,7 @@ struct ProposalCard: View {
     let asset: ProposalAsset?
     let members: [ProposalMember]
     private let paused: Bool
+    private let showsThesis: Bool
     private let openRoute: AnyAppRoute?
     private let vote: (String) -> Void
 
@@ -13,6 +14,7 @@ struct ProposalCard: View {
 
     init(
         proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
+        showsThesis: Bool = true,
         openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
@@ -20,12 +22,14 @@ struct ProposalCard: View {
         self.asset = asset
         self.members = members
         self.paused = paused
+        self.showsThesis = showsThesis
         self.openRoute = openRoute
         self.vote = vote
     }
 
     init(
         proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
+        showsThesis: Bool = true,
         openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
@@ -33,6 +37,7 @@ struct ProposalCard: View {
         self.asset = asset
         self.members = members
         self.paused = paused
+        self.showsThesis = showsThesis
         self.openRoute = openRoute
         self.vote = vote
     }
@@ -47,7 +52,7 @@ struct ProposalCard: View {
             header
             amount
             proposer
-            if let thesis = summary.thesis, !thesis.isEmpty {
+            if showsThesis, let thesis = summary.thesis, !thesis.isEmpty {
                 Text(thesis)
                     .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.muted)

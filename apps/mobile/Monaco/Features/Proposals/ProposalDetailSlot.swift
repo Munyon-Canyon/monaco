@@ -32,7 +32,8 @@ struct ProposalDetailSlotView: View {
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
                         ProposalCard(
                             proposal: detail.summary, asset: model?.asset, members: model?.members ?? [],
-                            paused: pause?.isPaused == true
+                            paused: pause?.isPaused == true,
+                            showsThesis: false
                         ) {
                             choice in
                             Task {
@@ -53,7 +54,8 @@ struct ProposalDetailSlotView: View {
                         expected(detail)
                         status(detail)
                     }
-                    .padding(MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.vertical, MonacoTheme.Space.m)
                 }
             } else if model?.errorMessage != nil {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
@@ -134,10 +136,8 @@ struct ProposalDetailSlotView: View {
 
     @ViewBuilder private func reason(_ detail: ProposalDetail) -> some View {
         if let thesis = detail.summary.thesis, !thesis.isEmpty {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                MonacoSectionHeader(detail.summary.kind == "sell" ? "Why sell" : "Why buy")
-                Text("“\(thesis)” ").font(MonacoTheme.Typo.callout)
-            }
+            ProposalReasonSection(title: detail.summary.kind == "sell" ? "Why sell" : "Why buy", text: thesis)
+                .padding(.horizontal, -MonacoTheme.Space.gutter)
         }
     }
 

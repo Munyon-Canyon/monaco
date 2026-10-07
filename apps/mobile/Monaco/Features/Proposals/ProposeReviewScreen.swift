@@ -45,12 +45,15 @@ struct ProposeReviewScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                 Text(model.title).font(MonacoTheme.Typo.rowTitle)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
                         HStack(alignment: .firstTextBaseline) {
-                            Text(row.label).foregroundStyle(MonacoTheme.muted)
+                            Text(row.label).font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.muted)
                             Spacer()
-                            Text(row.value).multilineTextAlignment(.trailing)
+                            Text(row.value).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.ink)
+                                .multilineTextAlignment(.trailing)
                         }
                         .padding(MonacoTheme.Space.m)
                         .overlay(alignment: .bottom) { if index < model.rows.count - 1 { MonacoRule() } }
@@ -58,8 +61,7 @@ struct ProposeReviewScreen: View {
                     }
                 }
                 if let reason = model.reason {
-                    MonacoSectionHeader(model.reasonTitle)
-                    Text(reason).padding(.horizontal, MonacoTheme.Space.m)
+                    ProposalReasonSection(title: model.reasonTitle, text: reason)
                 }
             }
             .padding(.vertical, MonacoTheme.Space.m)
