@@ -95,7 +95,7 @@ Large title "Cabals". Toolbar "+" opens the **New cabal sheet** (#606): two rows
 | 4 | `CabalsValueChartSlot` | #660 | "Your cabals' return", one line per cabal in its tint, chips 1D 1W 1M All. Hidden when the viewer has no cabal |
 | 5 | `CabalsBoardSlot` | #699 | "Top cabals" / "Ranked by return across everyone on Monaco". Rows: rank, tile, name, return over pot value. Empty: "No cabal has put money in yet" / "The first one to fund takes the top spot." |
 
-**Start a cabal** (#606). Title "Start a cabal". Name field with "Pick a name your friends will recognize." Then "The rules", each a title, a one-line description that changes with the choice, and a segmented control: "Who can join" ("Anyone" / "I approve"), "Who votes" ("Everyone" / "Just me"), "To pass" ("Majority" / "Everyone agrees"), "Votes stay open" ("1 hour" / "1 day" / "1 week", with "1 week" preselected; the three `proposal_expiry_seconds` values in [cabals.md](architecture/cabals.md#rules)). Primary "Create cabal", "Creating…" while it runs, then push `CabalRoute` with the toast "Cabal created."
+**Start a cabal** (#606). Title "Start a cabal". Name field with "Pick a name your friends will recognize." Then "The rules", each a title, a one-line description that changes with the choice, and a segmented control: "Who can join" ("Anyone" / "I approve"), "Who votes" ("Everyone" / "People I pick", the creator is the only voter until they pick more in Cabal settings), "To pass" ("Majority" / "Everyone agrees"), "Votes stay open" ("1 hour" / "1 day" / "1 week", with "1 week" preselected; the three `proposal_expiry_seconds` values in [cabals.md](architecture/cabals.md#rules)). Primary "Create cabal", "Creating…" while it runs, then push `CabalRoute` with the toast "Cabal created."
 
 **Join a cabal** (`JoinRoute`, #646). Title "Join a cabal". A mono field "Invite code" with an ink paste button at its right edge, the helper "Paste the invite code your friend shared.", primary "Join cabal" (or "Request to join" for a request cabal). Success pushes `CabalRoute` with "You're in." or "Request sent. You'll be in once the creator says yes."
 
@@ -110,7 +110,7 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | 3 | `CabalValueChartSlot` | #660 | yes | yes | Hero, ink: the pot's value curve from `GET /v1/cabals/{id}/value-history`, chips 1D 1W 1M All (default 1M). Short history: a hairline with "Not enough history for the last month yet" |
 | 4 | `CabalSliceSlot` | #2137 | yes | hidden | Hero, ink, under a hairline: "Your slice", its value, and on the right "38% of the pot" over your gain or loss. No stake: "$0.00" with "Add money to get a slice" |
 | 5 | `CabalPauseSlot` | #657 | yes | yes | A warning row when the cabal is paused, with the reason and "Funding and cash outs resume after…". Hidden otherwise |
-| 6 | `CabalJoinSlot` | #646 | creator only | yes | Non-member: primary "Join cabal", "Request to join", or "Request sent" with "Cancel request". Creator: "2 people want to join" with Approve and Deny per row. Hidden otherwise |
+| 6 | `CabalJoinSlot` | #646 | creator only | yes | Non-member: primary "Join cabal", "Request to join", or "Request sent" with "Cancel request". Creator: "2 people want to join" with Approve and Deny per row, plus a "Can vote" switch (off by default) on each row when the cabal picks its voters; approving with it on adds the member to the voters in the same tap. Hidden otherwise |
 | 7 | `CabalActionsSlot` | #2134 | yes | hidden | Four round ink buttons, equal width: "Fund" (`plus`, `FundRoute`), "Propose" (`arrow.up.right`, `ProposeRoute(cabalID:)`, #613), "Cash out" (`arrow.down.left`, `CashOutRoute`), "Chat" (`bubble.left`, `ChatRoute`, with an unread dot from #704). Propose is disabled with the caption "Only voters can propose" when `me.can_vote` is false. While the cabal is paused the buttons stay enabled, and Fund and Cash out show the pause on their own screens (#651, #657) |
 | 8 | `CabalProposalsSlot` | #612 | yes | yes, read-only | "Needs your vote" with a count badge and "See all" (the full open and closed list). Open proposal cards, newest first. Passed proposals whose trade has not finished sit under "In progress" until the trade is bought, sold or failed. Each section is hidden when empty. Empty for a member: "No open votes" / "Propose the first buy." |
 | 9 | `CabalHoldingsSlot` | #2137 | yes | yes | "Holdings": an allocation bar with a legend ("● GOOGL 25%  Cash 75%"), then one row per holding (logo, ticker, "0.73 shares · $341.58", value over its gain or loss) and a "Cash" row. Rows open `AssetRoute`. Empty pot: the Cash row and "Nothing bought yet. Propose the first buy." Zero pot: "Add money, then propose the first buy." |
@@ -124,7 +124,7 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | --- | --- | --- | --- |
 | 1 | `CabalInviteCodeSlot` | #646 | Card "Invite code", the code in mono, "Friends paste this code to join the cabal.", primary "Copy code" (turns into "Copied") and secondary "Share" |
 | 2 | `CabalInviteMemberSlot` | #696 | Row "Invite someone" that pushes the invite-by-handle screen |
-| 3 | `CabalRulesSlot` | #2135 | "Rules", read-only for everyone: the cabal name, who can join, who votes (with the voter names when it is a list), what passes, how long votes stay open. The creator's rows, including Name, open "Cabal settings" (#647) |
+| 3 | `CabalRulesSlot` | #2135 | "Rules", read-only for everyone: the cabal name, who can join, who votes (with the voter names when it is a list), what passes, how long votes stay open. The creator's rows, including Name, open "Cabal settings" (#647), where "Who votes" is a rule like the others: "Everyone" / "People I pick" with the member checklist beneath, saved by the one Save in one PATCH |
 | 4 | `CabalTreasurySlot` | #651 | "Cabal treasury", the warning "Cabal treasury. Do not send funds here. Transfers are returned.", the address, and "View on Solscan". No copy button |
 | 5 | `CabalLeaveSlot` | #697 | Destructive "Leave cabal" with the confirm dialog |
 
@@ -210,7 +210,7 @@ The slot tables above name each owner. Screens and controls added by this map:
 | Ticket | Builds |
 | --- | --- |
 | #2134 | The slots and routes above that do not exist yet, the live `CabalActionsSlot`, the Home avatar button |
-| #2135 | `CabalRulesSlot` and the voter picker in the cabal editor |
+| #2135 | `CabalRulesSlot` and the voter picker in the cabal editor (inline on Cabal settings since #3463) |
 | #2136 | `GET /v1/cabals/{id}/pot` |
 | #2137 | `CabalPotSlot`, `CabalSliceSlot`, `CabalHoldingsSlot` |
 | #2138 | Account activity |

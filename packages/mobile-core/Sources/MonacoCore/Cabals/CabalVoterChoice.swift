@@ -6,7 +6,7 @@ public enum CabalVoterChoice: Equatable, Sendable {
     case list(Set<String>)
 
     public init(_ cabal: Components.Schemas.Cabal) {
-        if cabal.rules.voterMode == CabalVoterMode.justMe.rawValue {
+        if cabal.rules.voterMode == CabalVoterMode.picked.rawValue {
             self = .list(Set(cabal.members.filter(\.canVote).map(\.userId)))
         } else {
             self = .everyone
@@ -19,7 +19,7 @@ public enum CabalVoterChoice: Equatable, Sendable {
             return .init(voterMode: CabalVoterMode.everyone.rawValue)
         case .list(let ids):
             let others = ids.subtracting([creatorID]).sorted()
-            return .init(voterMode: CabalVoterMode.justMe.rawValue, voterIds: [creatorID] + others)
+            return .init(voterMode: CabalVoterMode.picked.rawValue, voterIds: [creatorID] + others)
         }
     }
 }

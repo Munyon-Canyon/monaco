@@ -1,7 +1,7 @@
 ---
 id: cabals/edit-rules
 title: Edit a cabal's rules and name
-version: 2
+version: 3
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -11,9 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsEditRulesJourney.swift, apps
 
 # Edit a cabal's rules and name
 
-The creator opens a cabal's details, opens Cabal settings from a Rules row, renames the cabal, changes what passes and how long votes stay open, and saves. Then the creator picks who votes. The details sheet reads the new rules back. The rules are [Cabals](../../architecture/cabals.md#rules).
+The creator opens a cabal's details, opens Cabal settings from a Rules row, renames the cabal, changes what passes and how long votes stay open, and saves. In the same editor the creator picks who votes, and one Save sends it all. The details sheet reads the new rules back. The rules are [Cabals](../../architecture/cabals.md#rules).
 
-Old app (`c838bd24`): Cabal -> i -> Rules -> the editor (voter picker `CabalVotersView`) -> Save; the name and picture in the same editor (`GroupDetailsSheet.swift`, `CabalPictureEditor.swift`). Spec: `CabalRulesSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
+Old app (`c838bd24`): Cabal -> i -> Rules -> the editor -> Save; the name and picture in the same editor (`GroupDetailsSheet.swift`, `CabalPictureEditor.swift`). Spec: `CabalRulesSlot` in [screens.md](../../screens.md#cabal-screen-cabalroute).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -36,12 +36,11 @@ The format of this doc is in [App journeys](../README.md).
 | S1.3 | A | tap | `cabal-rules-threshold` | | The "Cabal settings" screen shows `edit-cabal-name` holding `QA rules {QA.run}` and `edit-cabal-rules-footer` reading "Rule changes apply to new proposals. Open votes keep their rules." within 10 s |
 | S1.4 | A | clear, then type | `edit-cabal-name` | `QA renamed {QA.run}` | `edit-cabal-save` "Save" is enabled |
 | S1.5 | A | tap, then tap | "Everyone agrees" in `edit-rule-threshold`, then "1 week" in `edit-rule-expiry` | | `edit-rule-threshold` reads "Passes only if every voter says yes." and `edit-rule-expiry` reads "A vote that hasn't passed closes after 1 week." |
-| S1.6 | A | tap | `edit-cabal-save` | | The toast "Cabal updated." shows within 10 s |
-| S1.7 | A | tap | `edit-cabal-voters` | | The "Who votes" screen shows `voters-everyone` "Everyone" selected and `voters-pick` "Pick voters" within 10 s |
-| S1.8 | A | tap, then tap | `voters-pick`, then `voters-member-<member-id>` | | `voters-member-<member-id>` names B and is selected, and `voters-save` "Save" is enabled |
-| S1.9 | A | tap | `voters-save` | | The toast "Voters updated." shows within 10 s |
-| S1.10 | A | tap back twice | the navigation bar's back button | | The details sheet shows `cabal-rules-threshold` "Everyone agrees", `cabal-rules-expiry` "1 week" and `cabal-rules-voters` naming A and B within 10 s |
-| S1.11 | A | tap | `cabal-details-done` | | `cabal-header-name` reads `QA renamed {QA.run}` within 10 s |
+| S1.6 | A | tap | "People I pick" in `edit-rule-voters` | | `edit-rule-voters` first showed "Everyone" selected, and now `edit-cabal-voters` lists the members within 10 s |
+| S1.7 | A | tap | `voters-member-<member-id>` | | The row names B and is selected |
+| S1.8 | A | tap | `edit-cabal-save` | | The toast "Cabal updated." shows within 10 s. One Save sends the name, threshold, expiry and voters in one PATCH |
+| S1.9 | A | tap back | the navigation bar's back button | | The details sheet shows `cabal-rules-threshold` "Everyone agrees", `cabal-rules-expiry` "1 week" and `cabal-rules-voters` naming A and B within 10 s |
+| S1.10 | A | tap | `cabal-details-done` | | `cabal-header-name` reads `QA renamed {QA.run}` within 10 s |
 
 ## Ground truth
 

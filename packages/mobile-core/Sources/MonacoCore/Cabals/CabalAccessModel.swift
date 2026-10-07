@@ -37,11 +37,13 @@ public enum CabalAccessStanding: Equatable, Sendable {
 public final class CabalAccessModel {
     public static let approvedToast = "Approved."
     public static let deniedToast = "Denied."
+    public static let approvedWithoutVoteToast = "Approved. Add them as a voter in Cabal settings."
 
     public private(set) var standing: CabalAccessStanding = .hidden
     public private(set) var isBusy = false
     public private(set) var deciding: Set<String> = []
     public private(set) var toast: CabalInviteToast?
+    public private(set) var picksVoters = false
     public private(set) var membershipChanges = 0
 
     public let cabalID: String
@@ -51,6 +53,7 @@ public final class CabalAccessModel {
     private let entry = IdempotentSubmission()
     private let cancellation = IdempotentSubmission()
     private var decisions: [String: IdempotentSubmission] = [:]
+    private var grants: [String: IdempotentSubmission] = [:]
     private var generation = 0
     private var toastSerial = 0
 
@@ -76,6 +79,7 @@ public final class CabalAccessModel {
             let next = try await standing(for: cabal)
             guard mine == generation else { return }
             standing = next
+            picksVoters = cabal.rules.voterMode == CabalVoterMode.picked.rawValue
         } catch {
             return
         }
@@ -141,7 +145,7 @@ public final class CabalAccessModel {
         await load()
     }
 
-    public func decide(_ request: CabalPendingRequest, approve: Bool) async {
+    public func decide(_ request: CabalPendingRequest, approve: Bool, canVote: Bool = false) async {
         guard !deciding.contains(request.id) else { return }
         deciding.insert(request.id)
         defer { deciding.remove(request.id) }
@@ -151,8 +155,12 @@ public final class CabalAccessModel {
             try await api.decideAccessRequest(
                 cabalID: cabalID, requestID: request.id, approve: approve, submission: submission)
             drop(request)
-            show(approve ? Self.approvedToast : Self.deniedToast, success: true)
             if approve { membershipChanges += 1 }
+            if approve, canVote, picksVoters, !(await grantVote(to: request)) {
+                show(Self.approvedWithoutVoteToast, success: false)
+            } else {
+                show(approve ? Self.approvedToast : Self.deniedToast, success: true)
+            }
         } catch {
             let failure = APIError(error)
             if APIClient.flow03Outcome(failure) == .accessRequestNotPending {
@@ -161,6 +169,30 @@ public final class CabalAccessModel {
             show(ToastCopy.message(for: failure), success: false)
         }
         await load()
+    }
+
+    private func grantVote(to request: CabalPendingRequest) async -> Bool {
+        let submission = grants[request.id] ?? IdempotentSubmission()
+        grants[request.id] = submission
+        let cabalID = cabalID
+        do {
+            let cabal = try await api.read { client in
+                try await client.getCabal(path: .init(id: cabalID)).ok.body.json
+            }
+            guard case .list(var voters) = CabalVoterChoice(cabal) else { return true }
+            voters.insert(request.userID)
+            let body = CabalVoterChoice.list(voters).patch(creatorID: cabal.creator.userId)
+            _ = try await api.submit(submission, payload: body, operation: "patchCabal") { client, key in
+                try await client.patchCabal(
+                    path: .init(id: cabalID),
+                    headers: .init(idempotencyKey: key),
+                    body: .json(body)
+                ).ok.body.json
+            }
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func drop(_ request: CabalPendingRequest) {

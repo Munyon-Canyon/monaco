@@ -9,14 +9,14 @@ struct EditCabalCopyTests {
         #expect(MainFlowCopyAudit.stringsAreClean(EditCabalCopy.auditedStrings))
         #expect(EditCabalCopy.rulesFooter == "Rule changes apply to new proposals. Open votes keep their rules.")
         #expect(EditCabalCopy.saved == "Cabal updated.")
-        #expect(EditCabalCopy.votersRow == "Voters")
+        #expect(EditCabalCopy.votersHeader == "Voters")
+        #expect(EditCabalCopy.alwaysVotes == "Always votes")
         #expect(EditCabalCopy.screenTitle == "Cabal settings")
     }
 
-    @Test func theVoterPickerSpeaksTheProductLanguage() {
-        #expect(MainFlowCopyAudit.stringsAreClean(CabalVotersCopy.auditedStrings))
-        #expect(CabalVotersCopy.saved == "Voters updated.")
-        #expect(CabalVotersCopy.alwaysVotes == "Always votes")
+    @Test func theApproveRowVoteToggleSpeaksTheProductLanguage() {
+        #expect(MainFlowCopyAudit.stringsAreClean([CabalJoinCopy.canVote]))
+        #expect(CabalJoinCopy.canVote == "Can vote")
     }
 
     @Test func theRulesSectionSpeaksTheProductLanguage() {

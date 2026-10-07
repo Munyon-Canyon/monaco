@@ -43,7 +43,7 @@ final class CreateCabalFormTests: XCTestCase {
     }
 
     func testTheRequestLeavesSlippageToTheServer() throws {
-        let sent = try body(CreateCabalForm(name: "Pot", joinMode: .request, voterMode: .justMe))
+        let sent = try body(CreateCabalForm(name: "Pot", joinMode: .request, voterMode: .picked))
         XCTAssertNil(sent["slippage_bps"])
     }
 
@@ -86,7 +86,7 @@ final class CreateCabalFormTests: XCTestCase {
 
     func testThePickersKeepTheirLabels() {
         XCTAssertEqual(CabalJoinMode.allCases.map(\.label), ["Anyone", "I approve"])
-        XCTAssertEqual(CabalVoterMode.allCases.map(\.label), ["Everyone", "Just me"])
+        XCTAssertEqual(CabalVoterMode.allCases.map(\.label), ["Everyone", "People I pick"])
         XCTAssertEqual(CabalThreshold.allCases.map(\.label), ["Majority", "Everyone agrees"])
         XCTAssertEqual(CabalProposalExpiry.allCases.map(\.label), ["1 hour", "1 day", "1 week"])
     }
@@ -116,11 +116,11 @@ final class CreateCabalFormTests: XCTestCase {
 
     func testTheInputCarriesEveryRule() {
         let form = CreateCabalForm(
-            name: "QA pot", joinMode: .request, voterMode: .justMe, threshold: .unanimous, expiry: .oneHour)
+            name: "QA pot", joinMode: .request, voterMode: .picked, threshold: .unanimous, expiry: .oneHour)
         XCTAssertEqual(
             form.input,
             CreateCabalInput(
-                name: "QA pot", joinMode: .request, voterMode: .justMe, threshold: .unanimous,
+                name: "QA pot", joinMode: .request, voterMode: .picked, threshold: .unanimous,
                 proposalExpirySeconds: 3600))
     }
 

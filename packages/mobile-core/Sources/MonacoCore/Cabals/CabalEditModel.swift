@@ -21,7 +21,6 @@ public final class CabalEditModel {
     private let hints: any HintSource
     private let refresher: HintRefresher
     private let submission = IdempotentSubmission()
-    private let voterSubmission = IdempotentSubmission()
     private var generation = 0
 
     public init(cabalID: String, api: APIClient, hints: any HintSource) {
@@ -48,13 +47,9 @@ public final class CabalEditModel {
         cabal.map(CabalSettings.init)
     }
 
-    public var voterChoice: CabalVoterChoice? {
-        cabal.map(CabalVoterChoice.init)
-    }
-
     public func patch(for edited: CabalSettings) -> Components.Schemas.UpdateCabalRequest? {
         guard let cabal else { return nil }
-        return CabalRulesDiff.patch(from: CabalSettings(cabal), to: edited)
+        return CabalRulesDiff.patch(from: CabalSettings(cabal), to: edited, creatorID: cabal.creator.userId)
     }
 
     public func load() async {
@@ -108,32 +103,8 @@ public final class CabalEditModel {
             state = .loaded(saved)
             return .saved
         } catch {
-            return .failed(ToastCopy.message(for: APIError(error)))
-        }
-    }
-
-    public func saveVoters(_ choice: CabalVoterChoice) async -> SaveOutcome {
-        guard !isSaving, let cabal else { return .unchanged }
-        let creatorID = cabal.creator.userId
-        let body = choice.patch(creatorID: creatorID)
-        guard body != CabalVoterChoice(cabal).patch(creatorID: creatorID) else { return .unchanged }
-        isSaving = true
-        defer { isSaving = false }
-        let cabalID = cabalID
-        do {
-            let saved = try await api.submit(voterSubmission, payload: body, operation: "patchCabal") { client, key in
-                try await client.patchCabal(
-                    path: .init(id: cabalID),
-                    headers: .init(idempotencyKey: key),
-                    body: .json(body)
-                ).ok.body.json
-            }
-            generation += 1
-            state = .loaded(saved)
-            return .saved
-        } catch {
             let error = APIError(error)
-            if case .problem(let problem) = error, problem.code == .known(.invalidInput) {
+            if body.voterIds != nil, case .problem(let problem) = error, problem.code == .known(.invalidInput) {
                 await load()
                 return .failed("Someone you picked isn't in the cabal anymore.")
             }
