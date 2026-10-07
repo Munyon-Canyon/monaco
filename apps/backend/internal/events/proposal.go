@@ -19,6 +19,7 @@ const (
 	TypeProposalVoided           Type = "proposal.voided"
 	TypeProposalExecuted         Type = "proposal.executed"
 	TypeProposalExecutionBlocked Type = "proposal.execution_blocked"
+	TypeProposalReopened         Type = "proposal.reopened"
 )
 
 const proposalAggregate = "proposal"
@@ -139,3 +140,16 @@ func (ProposalExecutionBlocked) Type() Type { return TypeProposalExecutionBlocke
 func (ProposalExecutionBlocked) AggregateType() string { return proposalAggregate }
 
 func (e ProposalExecutionBlocked) AggregateID() uuid.UUID { return e.ProposalID }
+
+type ProposalReopened struct {
+	V          int       `json:"v"`
+	ProposalID uuid.UUID `json:"proposal_id"`
+	CabalID    uuid.UUID `json:"cabal_id"`
+	SwapID     uuid.UUID `json:"swap_id"`
+}
+
+func (ProposalReopened) Type() Type { return TypeProposalReopened }
+
+func (ProposalReopened) AggregateType() string { return proposalAggregate }
+
+func (e ProposalReopened) AggregateID() uuid.UUID { return e.ProposalID }

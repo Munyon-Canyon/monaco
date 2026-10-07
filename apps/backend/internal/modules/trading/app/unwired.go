@@ -7,7 +7,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
-	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -42,8 +41,8 @@ func (UnwiredPauses) IsPaused(context.Context, ids.CabalID) (fundingport.Pause, 
 	return fundingport.Pause{}, unwired("Pauses.IsPaused")
 }
 
-func (UnwiredProposals) Status(context.Context, ids.ProposalID) (governanceport.Status, error) {
-	return "", unwired("Proposals.Status")
+func (UnwiredProposals) Retryable(context.Context, ids.ProposalID) (bool, error) {
+	return false, unwired("Proposals.Retryable")
 }
 
 type UnwiredPositions struct{}

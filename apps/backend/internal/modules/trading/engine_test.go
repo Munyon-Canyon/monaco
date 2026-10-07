@@ -211,7 +211,7 @@ func TestTradeEngine_VoidedAfterClaim_SourceCancelled(t *testing.T) {
 func TestTradeEngine_RecheckReadFailureFailsTheRowAndNaksForAFreshClaim(t *testing.T) {
 	t.Parallel()
 	b := newEngineBus(t)
-	b.proposals.FailOnce("Status", errs.New(errs.CodeUpstreamUnavailable, "governance.Status"))
+	b.proposals.FailOnce("Retryable", errs.New(errs.CodeUpstreamUnavailable, "governance.Retryable"))
 	cmd := b.buy()
 	msg := b.message(t, cmd, "")
 

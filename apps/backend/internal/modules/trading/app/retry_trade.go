@@ -8,7 +8,6 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -68,13 +67,13 @@ func (h *RetryTradeHandler) check(ctx context.Context, cmd RetryTrade) (events.T
 		return events.TradeRetryRequested{}, errs.New(errs.CodeSwapNotRetryable, op,
 			slog.String("source_kind", row.SourceKind), slog.Bool("retryable", row.Retryable))
 	}
-	status, err := h.proposals.Status(ctx, ids.ProposalIDFrom(row.SourceID))
+	retryable, err := h.proposals.Retryable(ctx, ids.ProposalIDFrom(row.SourceID))
 	switch {
 	case err != nil:
 		return events.TradeRetryRequested{}, err
-	case status != governanceport.StatusPassed:
+	case !retryable:
 		return events.TradeRetryRequested{}, errs.New(errs.CodeSwapNotRetryable, op,
-			slog.String("proposal_status", string(status)))
+			slog.Bool("proposal_retryable", false))
 	}
 	in, inErr := domain.ParseAmount(row.InAmount)
 	quote, quoteErr := domain.ParseAmount(row.QuoteOutAmount.Int64)

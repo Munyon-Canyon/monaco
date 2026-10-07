@@ -7,7 +7,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
-	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
@@ -151,8 +150,7 @@ func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w ca
 		InMint:         h.d.USDC, OutMint: token, InAmount: cmd.amount(), QuoteOutAmount: cmd.QuoteOutAmount,
 		SourceBatchSize: 1,
 		StillWanted: func(ctx context.Context) (bool, error) {
-			status, err := h.d.Ports.Proposals.Status(ctx, cmd.ProposalID)
-			return status == governanceport.StatusPassed, err
+			return h.d.Ports.Proposals.Retryable(ctx, cmd.ProposalID)
 		},
 	}
 	if cmd.Action == domain.ActionSell {

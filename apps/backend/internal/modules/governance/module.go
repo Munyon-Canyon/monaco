@@ -103,6 +103,8 @@ func (m *Module) Consumers() []bus.Consumer {
 			Handlers: []bus.HandlerSpec{
 				bus.Handle("governance.trade_outcome.confirmed", outcomes.Confirmed),
 				bus.Handle("governance.trade_outcome.blocked", outcomes.Blocked),
+				bus.Handle("governance.trade_outcome.failed", outcomes.Failed),
+				bus.Handle("governance.trade_outcome.retried", outcomes.Retried),
 			},
 		},
 	}

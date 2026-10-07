@@ -5,7 +5,6 @@ import (
 
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
-	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
@@ -30,7 +29,7 @@ type Pauses interface {
 }
 
 type Proposals interface {
-	Status(ctx context.Context, id ids.ProposalID) (governanceport.Status, error)
+	Retryable(ctx context.Context, id ids.ProposalID) (bool, error)
 }
 
 type Balances interface {

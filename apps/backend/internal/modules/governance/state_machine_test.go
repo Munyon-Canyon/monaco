@@ -21,6 +21,9 @@ func wantNext() map[domain.Status]map[domain.Event]domain.Status {
 			domain.EventBlock:   domain.StatusExecutionBlocked,
 			domain.EventVoid:    domain.StatusVoided,
 		},
+		domain.StatusExecutionBlocked: {
+			domain.EventReopen: domain.StatusPassed,
+		},
 	}
 }
 
@@ -41,8 +44,8 @@ func TestNext_everyStatusAndEventPair(t *testing.T) {
 			}
 		}
 	}
-	if pairs != 8*7 {
-		t.Fatalf("checked %d pairs, want every one of 8 statuses by 7 events", pairs)
+	if pairs != 8*8 {
+		t.Fatalf("checked %d pairs, want every one of 8 statuses by 8 events", pairs)
 	}
 }
 

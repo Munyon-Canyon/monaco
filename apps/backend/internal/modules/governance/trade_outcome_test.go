@@ -164,12 +164,157 @@ func TestTradeOutcome_Blocked_MarksExecutionBlocked(t *testing.T) {
 	}
 }
 
+func (d outcomeDB) failed(proposal uuid.UUID, kind string) events.TradeFailed {
+	return events.TradeFailed{
+		V: 1, SwapID: d.ids.NewV7(), CabalID: d.ids.NewV7(), Source: events.TradeSource{Kind: kind, ID: proposal},
+		SourceBatchSize: 1, Action: "sell", Symbol: "AAPLx", InAmount: 25_000_000, FailureCode: "jupiter_failed",
+	}
+}
+
+func TestTradeOutcome_Failed_MarksExecutionBlockedWithSwapFailed(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.proposal(t, "passed")
+	ev := d.failed(p, "proposal")
+	if got := d.deliver(t, d.publish(t, ev)); got != bus.OutcomeAck {
+		t.Fatalf("trade.failed for a passed proposal = %s, want ack", got)
+	}
+	d.wantRow(t, p, "execution_blocked", string(errs.CodeSwapFailed))
+	raw := d.payloads(t, p, events.TypeProposalExecutionBlocked)
+	var got events.ProposalExecutionBlocked
+	if len(raw) != 1 || json.Unmarshal(raw[0], &got) != nil {
+		t.Fatalf("proposal.execution_blocked payloads = %s, want one", raw)
+	}
+	want := events.ProposalExecutionBlocked{V: 1, ProposalID: p, CabalID: ev.CabalID, Code: errs.CodeSwapFailed}
+	if got != want {
+		t.Fatalf("proposal.execution_blocked = %+v, want %+v", got, want)
+	}
+}
+
+func (d outcomeDB) retried(proposal uuid.UUID, kind string) events.TradeRetryRequested {
+	return events.TradeRetryRequested{
+		V: 1, SwapID: d.ids.NewV7(), CabalID: d.ids.NewV7(), Source: events.TradeSource{Kind: kind, ID: proposal},
+		Action: "sell", Symbol: "AAPLx", InAmount: 25_000_000, RequestedBy: d.ids.NewV7(),
+	}
+}
+
+func (d outcomeDB) block(t *testing.T, proposal uuid.UUID, reason string) {
+	t.Helper()
+	_, err := d.pool.Exec(t.Context(),
+		`UPDATE proposals SET status = 'execution_blocked', status_reason = $2 WHERE id = $1`, proposal, reason)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTradeOutcome_FailedThenRetriedThenConfirmed_ExecutesTheProposal(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.proposal(t, "passed")
+	steps := []struct {
+		ev         events.Event
+		status     string
+		wantReason string
+	}{
+		{d.failed(p, "proposal"), "execution_blocked", string(errs.CodeSwapFailed)},
+		{d.retried(p, "proposal"), "passed", ""},
+		{d.confirmed(p, "proposal"), "executed", ""},
+	}
+	for _, step := range steps {
+		if got := d.deliver(t, d.publish(t, step.ev)); got != bus.OutcomeAck {
+			t.Fatalf("%s = %s, want ack", step.ev.Type(), got)
+		}
+		d.wantRow(t, p, step.status, step.wantReason)
+	}
+	raw := d.payloads(t, p, events.TypeProposalReopened)
+	var got events.ProposalReopened
+	if len(raw) != 1 || json.Unmarshal(raw[0], &got) != nil || got.ProposalID != p {
+		t.Fatalf("proposal.reopened payloads = %s, want one for %s", raw, p)
+	}
+}
+
+func TestTradeOutcome_Retried_ReopensOnlyAProposalBlockedBySwapFailure(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	blockedOther := d.proposal(t, "passed")
+	d.block(t, blockedOther, string(errs.CodeNoRoute))
+	for name, tc := range map[string]struct {
+		proposal uuid.UUID
+		kind     string
+		status   string
+		reason   string
+	}{
+		"passed":           {d.proposal(t, "passed"), "proposal", "passed", ""},
+		"executed":         {d.proposal(t, "executed"), "proposal", "executed", ""},
+		"blocked by other": {blockedOther, "proposal", "execution_blocked", string(errs.CodeNoRoute)},
+		"cashout source":   {d.proposal(t, "passed"), "cashout", "passed", ""},
+	} {
+		if got := d.deliver(t, d.publish(t, d.retried(tc.proposal, tc.kind))); got != bus.OutcomeAck {
+			t.Errorf("%s: trade.retry_requested = %s, want ack", name, got)
+		}
+		d.wantRow(t, tc.proposal, tc.status, tc.reason)
+		if n := len(d.payloads(t, tc.proposal, events.TypeProposalReopened)); n != 0 {
+			t.Errorf("%s: %d proposal.reopened events, want 0", name, n)
+		}
+	}
+}
+
+func TestTradeOutcome_BeforeTheReopenLands_SettlesFromSwapFailure(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	confirmed := d.proposal(t, "passed")
+	refused := d.proposal(t, "passed")
+	again := d.proposal(t, "passed")
+	for _, p := range []uuid.UUID{confirmed, refused, again} {
+		d.block(t, p, string(errs.CodeSwapFailed))
+	}
+	for _, step := range []struct {
+		proposal uuid.UUID
+		ev       events.Event
+		status   string
+		reason   string
+	}{
+		{confirmed, d.confirmed(confirmed, "proposal"), "executed", ""},
+		{refused, d.blocked(refused, "proposal", errs.CodeNoRoute), "execution_blocked", string(errs.CodeNoRoute)},
+		{again, d.failed(again, "proposal"), "execution_blocked", string(errs.CodeSwapFailed)},
+	} {
+		if got := d.deliver(t, d.publish(t, step.ev)); got != bus.OutcomeAck {
+			t.Errorf("%s on a swap_failed proposal = %s, want ack", step.ev.Type(), got)
+		}
+		d.wantRow(t, step.proposal, step.status, step.reason)
+	}
+	if n := d.outcomes(t, again); n != 0 {
+		t.Errorf("a second trade.failed left %d outcome events, want 0", n)
+	}
+	if got := d.deliver(t, d.publish(t, d.retried(refused, "proposal"))); got != bus.OutcomeAck {
+		t.Fatalf("late trade.retry_requested = %s, want ack", got)
+	}
+	d.wantRow(t, refused, "execution_blocked", string(errs.CodeNoRoute))
+}
+
+func TestTradeOutcome_Retried_DuplicateReopensOnce(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.proposal(t, "passed")
+	d.block(t, p, string(errs.CodeSwapFailed))
+	m := d.publish(t, d.retried(p, "proposal"))
+	for range 2 {
+		if got := d.deliver(t, m); got != bus.OutcomeAck {
+			t.Fatalf("delivery = %s, want ack", got)
+		}
+	}
+	if n := len(d.payloads(t, p, events.TypeProposalReopened)); n != 1 {
+		t.Fatalf("%d proposal.reopened events after two deliveries, want 1", n)
+	}
+}
+
 func TestTradeOutcome_Duplicate_OneEvent(t *testing.T) {
 	t.Parallel()
 	d := newOutcomeDB(t)
 	for name, outcome := range map[string]func(uuid.UUID) events.Event{
 		"confirmed": func(p uuid.UUID) events.Event { return d.confirmed(p, "proposal") },
 		"blocked":   func(p uuid.UUID) events.Event { return d.blocked(p, "proposal", errs.CodeSlippageExceeded) },
+		"failed":    func(p uuid.UUID) events.Event { return d.failed(p, "proposal") },
 	} {
 		p := d.proposal(t, "passed")
 		m := d.publish(t, outcome(p))
@@ -189,7 +334,9 @@ func TestTradeOutcome_Voided_AcksSilently(t *testing.T) {
 	t.Parallel()
 	d := newOutcomeDB(t)
 	p := d.proposal(t, "voided")
-	for _, ev := range []events.Event{d.confirmed(p, "proposal"), d.blocked(p, "proposal", errs.CodeNoRoute)} {
+	for _, ev := range []events.Event{
+		d.confirmed(p, "proposal"), d.blocked(p, "proposal", errs.CodeNoRoute), d.failed(p, "proposal"),
+	} {
 		if got := d.deliver(t, d.publish(t, ev)); got != bus.OutcomeAck {
 			t.Errorf("%s for a voided proposal = %s, want ack", ev.Type(), got)
 		}
@@ -205,7 +352,9 @@ func TestTradeOutcome_CashoutSource_Ignored(t *testing.T) {
 	d := newOutcomeDB(t)
 	p := d.proposal(t, "passed")
 	for _, kind := range []string{"cashout", "agent_intent"} {
-		for _, ev := range []events.Event{d.confirmed(p, kind), d.blocked(p, kind, errs.CodeNoRoute)} {
+		for _, ev := range []events.Event{
+			d.confirmed(p, kind), d.blocked(p, kind, errs.CodeNoRoute), d.failed(p, kind),
+		} {
 			if got := d.deliver(t, d.publish(t, ev)); got != bus.OutcomeAck {
 				t.Errorf("%s from a %s = %s, want ack", ev.Type(), kind, got)
 			}
@@ -249,7 +398,9 @@ func TestTradeOutcome_TermsWhatItCannotApply(t *testing.T) {
 	for name, ev := range map[string]events.Event{
 		"an unknown proposal":                    d.confirmed(d.ids.NewV7(), "proposal"),
 		"a blocked trade on executed":            d.blocked(executed, "proposal", errs.CodeNoRoute),
+		"a failed swap on executed":              d.failed(executed, "proposal"),
 		"an update the database refuses":         d.blocked(failing, "proposal", errs.CodeNoRoute),
+		"a failed swap the database refuses":     d.failed(failing, "proposal"),
 		"a confirmed trade on a closed proposal": d.confirmed(d.proposal(t, "expired"), "proposal"),
 	} {
 		if got := d.deliver(t, d.publish(t, ev)); got != bus.OutcomeTerm {
@@ -258,4 +409,47 @@ func TestTradeOutcome_TermsWhatItCannotApply(t *testing.T) {
 	}
 	d.wantRow(t, executed, "executed", "")
 	d.wantRow(t, failing, "passed", "")
+}
+
+func TestTradeOutcome_TermsWhenAStoreWriteFails(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	reopen := d.proposal(t, "passed")
+	appendFails := d.proposal(t, "passed")
+	fallback := d.proposal(t, "passed")
+	for _, p := range []uuid.UUID{reopen, appendFails, fallback} {
+		d.block(t, p, string(errs.CodeSwapFailed))
+	}
+	for _, ddl := range []string{
+		`ALTER TABLE proposals ADD CONSTRAINT never_executed CHECK (status <> 'executed') NOT VALID`,
+		`ALTER TABLE events ADD CONSTRAINT never_reopened CHECK (type <> 'proposal.reopened') NOT VALID`,
+	} {
+		if _, err := d.pool.Exec(t.Context(), ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := d.deliver(t, d.publish(t, d.confirmed(fallback, "proposal"))); got != bus.OutcomeTerm {
+		t.Errorf("trade.confirmed the database refuses = %s, want term", got)
+	}
+	d.wantRow(t, fallback, "execution_blocked", string(errs.CodeSwapFailed))
+	if got := d.deliver(t, d.publish(t, d.retried(appendFails, "proposal"))); got != bus.OutcomeTerm {
+		t.Errorf("trade.retry_requested whose event the database refuses = %s, want term", got)
+	}
+	d.wantRow(t, appendFails, "execution_blocked", string(errs.CodeSwapFailed))
+}
+
+func TestTradeOutcome_TermsWhenTheReopenIsRefused(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.proposal(t, "passed")
+	d.block(t, p, string(errs.CodeSwapFailed))
+	_, err := d.pool.Exec(t.Context(),
+		`ALTER TABLE proposals ADD CONSTRAINT never_passed CHECK (status <> 'passed') NOT VALID`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.deliver(t, d.publish(t, d.retried(p, "proposal"))); got != bus.OutcomeTerm {
+		t.Errorf("trade.retry_requested the database refuses = %s, want term", got)
+	}
+	d.wantRow(t, p, "execution_blocked", string(errs.CodeSwapFailed))
 }

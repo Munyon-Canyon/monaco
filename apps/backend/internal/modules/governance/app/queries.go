@@ -33,6 +33,18 @@ func (s Queries) Status(ctx context.Context, id ids.ProposalID) (domain.Status, 
 	return status, nil
 }
 
+func (s Queries) Retryable(ctx context.Context, id ids.ProposalID) (bool, error) {
+	const op = "governance.Retryable"
+	ok, err := s.q.RetryableByID(ctx, id.UUID())
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return false, errs.New(errs.CodeProposalNotFound, op)
+	case err != nil:
+		return false, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return ok, nil
+}
+
 func (s Queries) Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, error) {
 	const op = "governance.Proposer"
 	raw, err := s.q.ProposerOfProposal(ctx, id.UUID())

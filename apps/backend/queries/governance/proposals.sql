@@ -54,6 +54,22 @@ SET status = @to_status::text,
   updated_at = @at::timestamptz
 WHERE id = @id AND status = @from_status::text;
 
+-- name: TransitionAfterSwapFailure :execrows
+UPDATE proposals
+SET status = @to_status::text,
+  status_reason = CASE WHEN @to_status::text = 'execution_blocked' THEN sqlc.narg(reason)::text END,
+  updated_at = @at::timestamptz
+WHERE id = @id AND status = 'execution_blocked' AND status_reason = 'swap_failed';
+
+-- name: Reopen :execrows
+UPDATE proposals
+SET status = 'passed', status_reason = NULL, updated_at = @at::timestamptz
+WHERE id = @id AND status = 'execution_blocked' AND status_reason = 'swap_failed';
+
+-- name: RetryableByID :one
+SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
+FROM proposals WHERE id = @id;
+
 -- name: StatusByID :one
 SELECT status FROM proposals WHERE id = @id;
 

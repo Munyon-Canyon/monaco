@@ -66,15 +66,29 @@ type proposalsFake struct {
 	testkit.Faults
 	mu     sync.Mutex
 	status governance.Status
+	reason string
 }
 
-func (p *proposalsFake) Status(context.Context, ids.ProposalID) (governance.Status, error) {
-	if err := p.Check("Status"); err != nil {
-		return "", err
+func (p *proposalsFake) Retryable(context.Context, ids.ProposalID) (bool, error) {
+	if err := p.Check("Retryable"); err != nil {
+		return false, err
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	return p.status == governance.StatusPassed ||
+		p.status == governance.Status("execution_blocked") && p.reason == "swap_failed", nil
+}
+
+func (p *proposalsFake) Status(context.Context, ids.ProposalID) (governance.Status, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.status, nil
+}
+
+func (p *proposalsFake) block(reason string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.status, p.reason = governance.Status("execution_blocked"), reason
 }
 
 func (p *proposalsFake) Proposer(context.Context, ids.ProposalID) (ids.UserID, error) {

@@ -44,10 +44,11 @@ const (
 	EventVoid     Event = "void"
 	EventExecute  Event = "execute"
 	EventBlock    Event = "block"
+	EventReopen   Event = "reopen"
 )
 
 func Events() []Event {
-	return []Event{EventPass, EventFail, EventExpire, EventWithdraw, EventVoid, EventExecute, EventBlock}
+	return []Event{EventPass, EventFail, EventExpire, EventWithdraw, EventVoid, EventExecute, EventBlock, EventReopen}
 }
 
 func transitions() map[Status]map[Event]Status {
@@ -63,6 +64,9 @@ func transitions() map[Status]map[Event]Status {
 			EventExecute: StatusExecuted,
 			EventBlock:   StatusExecutionBlocked,
 			EventVoid:    StatusVoided,
+		},
+		StatusExecutionBlocked: {
+			EventReopen: StatusPassed,
 		},
 	}
 }
