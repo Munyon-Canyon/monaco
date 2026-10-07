@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -121,5 +122,17 @@ func TestDrain_reportsAFetchThatFailedAndABatchThatEndedWithAnError(t *testing.T
 	n, err = drain(t.Context(), fetching(batch, nil), 10, noop)
 	if n != 1 || errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("drain = %d, %v, want 1 message and upstream_unavailable", n, err)
+	}
+}
+
+func TestDeadLetterEventID_prefersTheRedriveHeaderOverTheStreamMessageID(t *testing.T) {
+	t.Parallel()
+	letter := DeadLetter{Headers: nats.Header{jetstream.MsgIDHeader: []string{"event/redrive-1"}}}
+	if got := letter.EventID(); got != "event/redrive-1" {
+		t.Fatalf("EventID = %q, want the message id when nothing else names the event", got)
+	}
+	letter.Headers.Set(EventIDHeader, "event")
+	if got := letter.EventID(); got != "event" {
+		t.Fatalf("EventID = %q, want the Monaco-Event-Id header", got)
 	}
 }

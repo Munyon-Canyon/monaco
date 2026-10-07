@@ -15,7 +15,7 @@ import (
 
 const EventIDHeader = "Monaco-Event-Id"
 
-func eventIDOf(h nats.Header) string {
+func EventIDOf(h nats.Header) string {
 	if id := h.Get(EventIDHeader); id != "" {
 		return id
 	}
@@ -154,7 +154,7 @@ func (c *Conn) Redeliver(ctx context.Context, letter DeadLetter, suffix string) 
 		}
 		msg = event
 	}
-	id := eventIDOf(msg.Header)
+	id := EventIDOf(msg.Header)
 	header := nats.Header{}
 	for k, v := range msg.Header {
 		header[k] = v

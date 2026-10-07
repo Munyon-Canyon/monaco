@@ -60,7 +60,12 @@ type Config struct {
 	Supabase   Supabase
 	Web        Web
 	Trade      Trade
+	Admin      Admin
 	Faultpoint string
+}
+
+type Admin struct {
+	DeadLettersInterval time.Duration
 }
 
 type TradeEngine string
@@ -331,7 +336,14 @@ func (f field) secret() field {
 
 func fields() []field {
 	return slices.Concat(
-		platformFields(), marketFields(), fundingFields(), webFields(), tradeFields(), ablyFields(), agentsFields(),
+		platformFields(),
+		marketFields(),
+		fundingFields(),
+		webFields(),
+		tradeFields(),
+		adminFields(),
+		ablyFields(),
+		agentsFields(),
 	)
 }
 
@@ -450,6 +462,13 @@ func fundingFields() []field {
 			func(c *Config) *time.Duration { return &c.Funding.BounceSweepInterval }),
 		duration("FUNDING_BOUNCE_SWEEP_AGE", 2*time.Minute,
 			func(c *Config) *time.Duration { return &c.Funding.BounceSweepAge }),
+	}
+}
+
+func adminFields() []field {
+	return []field{
+		duration("ADMIN_DEADLETTERS_INTERVAL", 10*time.Second,
+			func(c *Config) *time.Duration { return &c.Admin.DeadLettersInterval }),
 	}
 }
 

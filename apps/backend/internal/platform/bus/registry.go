@@ -201,7 +201,7 @@ type Registry struct {
 }
 
 type consumerGauges struct {
-	pending, ackPending, deadLetters metric.Int64ObservableGauge
+	pending, ackPending metric.Int64ObservableGauge
 }
 
 type RegistryOption func(*Registry)
@@ -232,7 +232,6 @@ func NewRegistry(
 	}{
 		{&r.gauges.pending, "monaco_bus_consumer_pending", "{message}", "Messages not yet delivered to the consumer."},
 		{&r.gauges.ackPending, "monaco_bus_consumer_ack_pending", "{message}", "Messages delivered and not yet acked."},
-		{&r.gauges.deadLetters, "monaco_dead_letters", "{message}", "Messages in DEADLETTER per consumer."},
 	} {
 		*g.dst, err = conn.meter.Int64ObservableGauge(g.name, metric.WithUnit(g.unit), metric.WithDescription(g.desc))
 		if err != nil {
@@ -332,7 +331,7 @@ func (r *Registry) Start(ctx context.Context) (func(), error) {
 	}
 	reg, err := r.conn.meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
 		return r.observe(ctx, o, started)
-	}, r.gauges.pending, r.gauges.ackPending, r.gauges.deadLetters)
+	}, r.gauges.pending, r.gauges.ackPending)
 	if err != nil {
 		stop()
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
@@ -351,19 +350,6 @@ func (r *Registry) observe(ctx context.Context, o metric.Observer, started map[s
 		set := metric.WithAttributes(attribute.String("consumer", durable))
 		o.ObserveInt64(r.gauges.pending, int64(min(info.NumPending, math.MaxInt64)), set)
 		o.ObserveInt64(r.gauges.ackPending, int64(info.NumAckPending), set)
-	}
-	var info *jetstream.StreamInfo
-	dead, err := r.conn.js.Stream(ctx, r.conn.ns.stream(StreamDeadLetter))
-	if err == nil {
-		info, err = dead.Info(ctx, jetstream.WithSubjectFilter(r.conn.ns.subject("deadletter.>")))
-	}
-	if err != nil {
-		return errs.Wrap(err, errs.CodeUpstreamUnavailable, op)
-	}
-	for subject, n := range info.State.Subjects {
-		consumer := subject[strings.LastIndex(subject, ".")+1:]
-		o.ObserveInt64(r.gauges.deadLetters, int64(min(n, math.MaxInt64)),
-			metric.WithAttributes(attribute.String("consumer", consumer)))
 	}
 	return nil
 }
