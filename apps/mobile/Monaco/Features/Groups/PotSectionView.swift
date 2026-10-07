@@ -38,8 +38,8 @@ struct PotSectionView: View {
             if stocks.isEmpty && !hasCash {
                 EmptyState(
                     title: "Nothing bought yet",
-                    message: "Add money, then propose the first buy.",
-                    actionTitle: "Add money",
+                    message: "Fund, then propose the first buy.",
+                    actionTitle: "Fund",
                     action: onAddMoney
                 )
                 .accessibilityIdentifier("pot-empty")

@@ -77,7 +77,7 @@ struct CabalSliceBand: View {
     private func share(_ slice: CabalPotSummary.Slice, alignment: HorizontalAlignment) -> some View {
         switch slice {
         case .none:
-            Text("Add money to get a slice")
+            Text("Fund to get a slice")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.onHeroMuted)
                 .accessibilityIdentifier("cabal-slice-none")

@@ -67,7 +67,7 @@ struct CabalHoldingsSection: View {
     private func loaded(_ summary: CabalPotSummary) -> some View {
         switch summary.state {
         case .zero:
-            note("Add money, then propose the first buy.", id: "cabal-holdings-empty")
+            note("Fund, then propose the first buy.", id: "cabal-holdings-empty")
         case .cashOnly:
             MonacoGroupedList { cashRow(summary.cash) }
             note("Nothing bought yet. Propose the first buy.", id: "cabal-holdings-nothing-bought")

@@ -153,7 +153,7 @@ enum GroupHeroMath {
     /// "57% of the pot", or a nudge when the member hasn't put money in yet.
     static func sliceCaption(_ slice: MemberSliceDTO) -> String {
         guard let fraction = Double(slice.slicePercent), fraction > 0 else {
-            return "Add money to get a slice"
+            return "Fund to get a slice"
         }
         let percent = fraction * 100
         let label =
