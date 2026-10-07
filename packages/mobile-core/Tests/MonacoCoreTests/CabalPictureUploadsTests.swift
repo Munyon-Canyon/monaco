@@ -92,7 +92,7 @@ final class CabalPictureUploadsTests: XCTestCase {
 
     private static func cabal(picture: String) -> String {
         ##"{"id":"\##(cabalID)","name":"QA pot","picture_url":\##(picture),"status":"active","##
-            + ##""rules":{"join_mode":"open","voter_mode":"all","threshold":"majority","##
+            + ##""rules":{"join_mode":"request","voter_mode":"all","threshold":"majority","##
             + ##""proposal_expiry_seconds":86400,"slippage_bps":100},"##
             + ##""creator":{"user_id":"\##(cabalID)","handle":"kai","display_name":"Kai","photo_url":null},"##
             + ##""member_count":1,"members":[],"me":{"role":"creator","can_vote":true},"my_access_request":null,"##

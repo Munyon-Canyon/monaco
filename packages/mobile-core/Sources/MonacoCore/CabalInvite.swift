@@ -21,37 +21,22 @@ public enum CabalInvite {
 }
 
 public struct CabalInviteStanding: Hashable, Sendable {
-    public enum JoinMode: Hashable, Sendable {
-        case open
-        case request
-    }
-
     public enum Role: Hashable, Sendable {
         case creator
         case member
     }
 
-    public let joinMode: JoinMode
     public let role: Role?
 
-    public init(joinMode: JoinMode, role: Role?) {
-        self.joinMode = joinMode
+    public init(role: Role?) {
         self.role = role
     }
 
     public init(_ cabal: Components.Schemas.Cabal) {
-        joinMode = cabal.rules.joinMode == "open" ? .open : .request
         role = cabal.me.map { $0.role == "creator" ? .creator : .member }
     }
 
-    public var canInvite: Bool {
-        switch (joinMode, role) {
-        case (_, nil): false
-        case (.open, .some): true
-        case (.request, .creator): true
-        case (.request, .member): false
-        }
-    }
+    public var canInvite: Bool { role == .creator }
 
     public func canRevoke(invitedBy inviterID: String, viewerID: String?) -> Bool {
         guard canInvite else { return false }

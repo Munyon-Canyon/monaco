@@ -3,20 +3,17 @@ import MonacoAPI
 
 public struct CabalSettings: Equatable, Sendable {
     public var name: String
-    public var joinMode: String
     public var threshold: String
     public var proposalExpirySeconds: Int32
     public var voters: CabalVoterChoice
 
     public init(
         name: String,
-        joinMode: String,
         threshold: String,
         proposalExpirySeconds: Int32,
         voters: CabalVoterChoice = .everyone
     ) {
         self.name = name
-        self.joinMode = joinMode
         self.threshold = threshold
         self.proposalExpirySeconds = proposalExpirySeconds
         self.voters = voters
@@ -25,7 +22,6 @@ public struct CabalSettings: Equatable, Sendable {
     public init(_ cabal: Components.Schemas.Cabal) {
         self.init(
             name: cabal.name,
-            joinMode: cabal.rules.joinMode,
             threshold: cabal.rules.threshold,
             proposalExpirySeconds: cabal.rules.proposalExpirySeconds,
             voters: CabalVoterChoice(cabal)
@@ -43,9 +39,6 @@ public enum CabalRulesDiff {
         let name = edited.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if name != current.name {
             body.name = name
-        }
-        if edited.joinMode != current.joinMode {
-            body.joinMode = edited.joinMode
         }
         if edited.threshold != current.threshold {
             body.threshold = edited.threshold

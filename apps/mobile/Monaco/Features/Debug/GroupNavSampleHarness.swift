@@ -290,7 +290,7 @@ struct GroupNavSampleHarness: View {
                 replaceTop(with: .cabal(id: created.id, name: created.name, isNew: true))
             }
         case .joinCode:
-            JoinCabalView(model: .preview(joinMode: "open"))
+            JoinCabalView(model: .preview())
         case .cabal(let id, let name, let isNew):
             GroupDetailView(
                 auth: auth,

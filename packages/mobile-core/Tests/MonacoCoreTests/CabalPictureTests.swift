@@ -58,7 +58,7 @@ final class CabalPictureTests: XCTestCase {
             {
               "groupId": "g1", "name": "Weekend investors", "memberCount": 4,
               "potValueUsd": "623.01", "percentReturn": "0.12", "dollarPnl": "+48.20",
-              "isJoined": true, "joinMode": "open",
+              "isJoined": true, "joinMode": "request",
               "pictureUrl": "https://cdn.test/groups/g1/abc.jpg"
             }
             """#

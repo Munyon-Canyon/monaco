@@ -3,7 +3,7 @@ import MonacoCore
 import SwiftUI
 
 enum JoinCabalCopy {
-    static let title = "Join a cabal"
+    static let title = "Ask to join"
     static let codeLabel = "Invite code"
 }
 
@@ -44,7 +44,7 @@ struct JoinCabalView: View {
             navigator.cabalsPath.removeLast()
         }
         navigator.open(CabalRoute(id: joined.cabalID), in: .cabals)
-        if joined.toast == CabalEntry.joinedToast {
+        if joined.toast == CabalEntry.requestedToast {
             Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
         }
     }
@@ -182,11 +182,10 @@ final class JoinCabalSampleHarnessEntry: SampleHarnessEntry {
 
     @MainActor
     override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
-        guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
-        let mode = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "request"
+        guard arguments.contains(launchArgument) else { return nil }
         return AnyView(
             NavigationStack {
-                JoinCabalView(model: .preview(joinMode: mode))
+                JoinCabalView(model: .preview())
             }
         )
     }

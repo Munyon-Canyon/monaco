@@ -106,12 +106,12 @@ final class CabalEditModelTests: XCTestCase {
         ])
         await model.load()
         var edited = try XCTUnwrap(model.settings)
-        edited.joinMode = "request"
+        edited.threshold = "majority"
 
         let outcome = await model.save(edited)
 
         XCTAssertEqual(outcome, .failed("Only the cabal's creator can change it."))
-        XCTAssertEqual(model.cabal?.rules.joinMode, "open")
+        XCTAssertEqual(model.cabal?.rules.threshold, "unanimous")
     }
 
     func testAnUpdatedHintForThisCabalReadsItAgain() async {
@@ -206,7 +206,7 @@ final class CabalEditModelTests: XCTestCase {
 
     static func cabal(name: String, me: String) -> String {
         ##"{"id":"\##(cabalID)","name":"\##(name)","picture_url":null,"status":"active","##
-            + ##""rules":{"join_mode":"open","voter_mode":"all","threshold":"unanimous","##
+            + ##""rules":{"join_mode":"request","voter_mode":"all","threshold":"unanimous","##
             + ##""proposal_expiry_seconds":86400,"slippage_bps":100},"##
             + ##""creator":{"user_id":"\##(creatorID)","handle":"kai","display_name":"Kai","photo_url":null},"##
             + ##""member_count":2,"members":[],"me":\##(me),"my_access_request":null,"##

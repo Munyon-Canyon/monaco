@@ -157,7 +157,6 @@ private actor CabalPreviewTransport: ClientTransport {
 
     private func apply(_ change: Components.Schemas.UpdateCabalRequest) {
         if let name = change.name { cabal.name = name }
-        if let joinMode = change.joinMode { cabal.rules.joinMode = joinMode }
         if let voterMode = change.voterMode {
             cabal.rules.voterMode = voterMode
             let voters = Set(change.voterIds ?? [])

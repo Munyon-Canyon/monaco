@@ -29,7 +29,7 @@ final class InviteMemberModelTests: XCTestCase {
         XCTAssertEqual(rows.map(\.invitee), ["@qa_b", "Cay"])
         XCTAssertEqual(rows.map(\.invitedBy), ["Invited by you", "Invited by Kai"])
         XCTAssertEqual(rows.map(\.expiry), ["Expires in 7 days", "Expires today"])
-        XCTAssertEqual(rows.map(\.canRevoke), [true, false])
+        XCTAssertEqual(rows.map(\.canRevoke), [true, true])
         let paths = await transport.sent.map { $0.path ?? "" }
         XCTAssertEqual(paths, ["/v1/cabals/\(Self.cabalID)/invites?status=pending"])
     }
@@ -41,7 +41,7 @@ final class InviteMemberModelTests: XCTestCase {
                 Self.invites([
                     Self.invite(id: "r2", handle: "cay", inviterID: Self.otherID, inviterName: "Kai", days: 3)
                 ])))
-        let model = makeModel(transport, standing: CabalInviteStanding(joinMode: .request, role: .creator))
+        let model = makeModel(transport, standing: CabalInviteStanding(role: .creator))
         await model.load()
         guard case .loaded(let rows) = model.state else {
             return XCTFail("expected rows, got \(model.state)")
@@ -162,7 +162,7 @@ final class InviteMemberModelTests: XCTestCase {
         let transport = StubTransport(.json(.ok, Self.cabal(joinMode: "request", role: "member")))
         let access = CabalInviteAccessModel(cabalID: Self.cabalID, api: api(transport))
         await access.load()
-        XCTAssertEqual(access.standing, CabalInviteStanding(joinMode: .request, role: .member))
+        XCTAssertEqual(access.standing, CabalInviteStanding(role: .member))
         XCTAssertFalse(access.canInvite)
     }
 
@@ -179,7 +179,7 @@ final class InviteMemberModelTests: XCTestCase {
     private func makeModel(
         _ transport: StubTransport,
         hints: FakeHintStream = FakeHintStream(),
-        standing: CabalInviteStanding = CabalInviteStanding(joinMode: .open, role: .member)
+        standing: CabalInviteStanding = CabalInviteStanding(role: .creator)
     ) -> InviteMemberModel {
         InviteMemberModel(
             cabalID: Self.cabalID, standing: standing, viewerID: Self.viewerID,

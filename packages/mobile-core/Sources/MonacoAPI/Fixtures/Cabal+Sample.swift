@@ -13,7 +13,7 @@ extension Components.Schemas.Cabal {
             pictureUrl: nil,
             status: "active",
             rules: .init(
-                joinMode: "open", voterMode: "all", threshold: "unanimous", proposalExpirySeconds: 86_400,
+                joinMode: "request", voterMode: "all", threshold: "unanimous", proposalExpirySeconds: 86_400,
                 slippageBps: 100),
             creator: .init(userId: creatorID, handle: "kai", displayName: "Kai", photoUrl: nil),
             memberCount: 2,

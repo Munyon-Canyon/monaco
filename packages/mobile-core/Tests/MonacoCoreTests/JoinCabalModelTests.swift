@@ -38,16 +38,9 @@ final class JoinCabalModelTests: XCTestCase {
         model.code = " abcd2345xy "
         await model.lookUp()
         XCTAssertEqual(model.preview?.name, "QA pot")
-        XCTAssertEqual(model.actionTitle, "Request to join")
+        XCTAssertEqual(model.actionTitle, "Ask to join")
         let paths = await transport.sent.map { $0.path ?? "" }
         XCTAssertEqual(paths, ["/v1/invite-codes/ABCD2345XY"])
-    }
-
-    func testAnOpenCabalOffersJoin() async throws {
-        let model = makeModel(StubTransport(.json(.ok, try Self.preview("open"))))
-        model.code = "ABCD2345XY"
-        await model.lookUp()
-        XCTAssertEqual(model.actionTitle, "Join cabal")
     }
 
     func testAnUnknownCodeSaysSoUnderTheField() async {
@@ -67,23 +60,7 @@ final class JoinCabalModelTests: XCTestCase {
         XCTAssertTrue(model.canSubmit)
     }
 
-    func testJoiningAnOpenCabalOpensItWithYoureIn() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, try Self.preview("open")),
-            .json(.ok, try Self.cabal()),
-        ])
-        let model = makeModel(transport)
-        model.code = "ABCD2345XY"
-        await model.lookUp()
-        let joined = await model.submit()
-        XCTAssertEqual(joined, JoinedCabal(cabalID: cabalID, toast: "You're in."))
-        let sent = await transport.sent
-        XCTAssertEqual(sent.map(\.method), [.get, .post])
-        XCTAssertEqual(sent[1].path, "/v1/cabals/\(cabalID)/members")
-        XCTAssertNotNil(sent[1].headerFields[try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))])
-    }
-
-    func testRequestingARequestCabalOpensItWithRequestSent() async throws {
+    func testAValidCodeFilesAPendingRequestAndDoesNotJoin() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.preview("request")),
             .json(.created, #"{"id":"r","direction":"request","status":"pending"}"#),
@@ -98,11 +75,13 @@ final class JoinCabalModelTests: XCTestCase {
             sent.map { $0.path ?? "" },
             ["/v1/invite-codes/ABCD2345XY", "/v1/cabals/\(cabalID)/access-requests"]
         )
+        XCTAssertNotNil(sent[1].headerFields[try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))])
+        XCTAssertFalse(CabalEntry.requested.isMember)
     }
 
     func testAlreadyAMemberOpensTheCabalWithoutAToast() async throws {
         let transport = StubTransport(scripted: [
-            .json(.ok, try Self.preview("open")),
+            .json(.ok, try Self.preview("request")),
             Self.problem(409, "already_member", "You're already in this cabal."),
         ])
         let model = makeModel(transport)
@@ -124,23 +103,9 @@ final class JoinCabalModelTests: XCTestCase {
         XCTAssertFalse(model.canSubmit)
     }
 
-    func testACabalThatTurnedToRequestFilesARequest() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, try Self.preview("open")),
-            Self.problem(409, "join_needs_request", "Ask to join."),
-            .json(.created, #"{"id":"r","direction":"request","status":"pending"}"#),
-        ])
-        let model = makeModel(transport)
-        model.code = "ABCD2345XY"
-        let joined = await model.submit()
-        XCTAssertEqual(joined?.toast, CabalEntry.requestedToast)
-        let paths = await transport.sent.map { $0.path ?? "" }
-        XCTAssertEqual(paths.last, "/v1/cabals/\(cabalID)/access-requests")
-    }
-
     func testAnyOtherRefusalToastsTheServerMessage() async throws {
         let transport = StubTransport(scripted: [
-            .json(.ok, try Self.preview("open")),
+            .json(.ok, try Self.preview("request")),
             Self.problem(409, "cabal_banned", "This cabal was banned."),
         ])
         let model = makeModel(transport)
@@ -152,9 +117,9 @@ final class JoinCabalModelTests: XCTestCase {
 
     func testARetryAfterADroppedConnectionReusesTheKey() async throws {
         let transport = StubTransport(scripted: [
-            .json(.ok, try Self.preview("open")),
+            .json(.ok, try Self.preview("request")),
             .failure(URLError(.networkConnectionLost)),
-            .json(.ok, try Self.cabal()),
+            .json(.created, #"{"id":"r","direction":"request","status":"pending"}"#),
         ])
         let model = makeModel(transport)
         model.code = "ABCD2345XY"

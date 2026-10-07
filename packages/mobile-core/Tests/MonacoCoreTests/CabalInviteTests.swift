@@ -48,49 +48,33 @@ final class CabalInviteTests: XCTestCase {
         XCTAssertEqual(CabalInvite.expiryText(expiresAt: now - hour, now: now), "Expires today")
     }
 
-    func testEveryMemberOfAnOpenCabalCanInvite() {
-        XCTAssertTrue(CabalInviteStanding(joinMode: .open, role: .member).canInvite)
-        XCTAssertTrue(CabalInviteStanding(joinMode: .open, role: .creator).canInvite)
-    }
-
-    func testOnlyTheCreatorOfARequestCabalCanInvite() {
-        XCTAssertTrue(CabalInviteStanding(joinMode: .request, role: .creator).canInvite)
-        XCTAssertFalse(CabalInviteStanding(joinMode: .request, role: .member).canInvite)
+    func testOnlyTheCreatorCanInvite() {
+        XCTAssertTrue(CabalInviteStanding(role: .creator).canInvite)
+        XCTAssertFalse(CabalInviteStanding(role: .member).canInvite)
     }
 
     func testANonMemberCannotInvite() {
-        XCTAssertFalse(CabalInviteStanding(joinMode: .open, role: nil).canInvite)
-        XCTAssertFalse(CabalInviteStanding(joinMode: .request, role: nil).canInvite)
+        XCTAssertFalse(CabalInviteStanding(role: nil).canInvite)
     }
 
     func testTheInviterAndTheCreatorCanRevoke() {
-        let member = CabalInviteStanding(joinMode: .open, role: .member)
-        XCTAssertTrue(member.canRevoke(invitedBy: "viewer", viewerID: "viewer"))
-        XCTAssertFalse(member.canRevoke(invitedBy: "someone-else", viewerID: "viewer"))
-        XCTAssertFalse(member.canRevoke(invitedBy: "viewer", viewerID: nil))
-        let creator = CabalInviteStanding(joinMode: .request, role: .creator)
+        let creator = CabalInviteStanding(role: .creator)
+        XCTAssertTrue(creator.canRevoke(invitedBy: "viewer", viewerID: "viewer"))
         XCTAssertTrue(creator.canRevoke(invitedBy: "someone-else", viewerID: "viewer"))
+        XCTAssertFalse(CabalInviteStanding(role: .member).canRevoke(invitedBy: "viewer", viewerID: "viewer"))
     }
 
     func testStandingReadsTheCabal() throws {
-        let requestMember = try decodeCabal(joinMode: "request", me: #"{"role":"member","can_vote":true}"#)
-        XCTAssertEqual(CabalInviteStanding(requestMember), CabalInviteStanding(joinMode: .request, role: .member))
-        XCTAssertFalse(CabalInviteStanding(requestMember).canInvite)
+        let member = try decodeCabal(joinMode: "request", me: #"{"role":"member","can_vote":true}"#)
+        XCTAssertEqual(CabalInviteStanding(member), CabalInviteStanding(role: .member))
+        XCTAssertFalse(CabalInviteStanding(member).canInvite)
 
-        let requestCreator = try decodeCabal(joinMode: "request", me: #"{"role":"creator","can_vote":true}"#)
-        XCTAssertTrue(CabalInviteStanding(requestCreator).canInvite)
+        let creator = try decodeCabal(joinMode: "request", me: #"{"role":"creator","can_vote":true}"#)
+        XCTAssertTrue(CabalInviteStanding(creator).canInvite)
 
-        let openMember = try decodeCabal(joinMode: "open", me: #"{"role":"member","can_vote":false}"#)
-        XCTAssertTrue(CabalInviteStanding(openMember).canInvite)
-
-        let outsider = try decodeCabal(joinMode: "open", me: "null")
+        let outsider = try decodeCabal(joinMode: "request", me: "null")
         XCTAssertEqual(CabalInviteStanding(outsider).role, nil)
         XCTAssertFalse(CabalInviteStanding(outsider).canInvite)
-    }
-
-    func testAnUnknownJoinModeOnlyLetsTheCreatorInvite() throws {
-        let cabal = try decodeCabal(joinMode: "waitlist", me: #"{"role":"member","can_vote":true}"#)
-        XCTAssertFalse(CabalInviteStanding(cabal).canInvite)
     }
 
     private func decodeCabal(joinMode: String, me: String) throws -> Components.Schemas.Cabal {

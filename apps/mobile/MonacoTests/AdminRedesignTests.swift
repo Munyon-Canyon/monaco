@@ -9,23 +9,13 @@ import Testing
 @MainActor
 struct CabalRulesCopyTests {
     @Test func everyChoiceSaysWhatItMeansAndEachSaysSomethingDifferent() {
-        let joinCaptions = CabalJoinMode.allCases.map { $0.caption }
         let voterCaptions = CabalVoterMode.allCases.map { $0.caption }
         let thresholdCaptions = CabalThreshold.allCases.map { $0.caption }
         let expiryCaptions = CabalProposalExpiry.allCases.map { $0.caption }
 
-        for captions in [joinCaptions, voterCaptions, thresholdCaptions, expiryCaptions] {
+        for captions in [voterCaptions, thresholdCaptions, expiryCaptions] {
             #expect(captions.allSatisfy { !$0.isEmpty })
             #expect(Set(captions).count == captions.count, "two choices of one rule read the same: \(captions)")
-        }
-    }
-
-    /// The app has no invite links. What a member shares is the invite code, so the join rule
-    /// must not promise a link that does not exist.
-    @Test func joiningNeverPromisesALink() {
-        for mode in CabalJoinMode.allCases {
-            #expect(!mode.label.lowercased().contains("link"))
-            #expect(!mode.caption.lowercased().contains("link"))
         }
     }
 
@@ -37,8 +27,6 @@ struct CabalRulesCopyTests {
 
     /// The server still gets the values it validates; only the words changed.
     @Test func theRulesStillSendTheServersValues() {
-        #expect(CabalJoinMode.open.rawValue == "open")
-        #expect(CabalJoinMode.request.rawValue == "request")
         #expect(CabalVoterMode.everyone.rawValue == "all")
         #expect(CabalVoterMode.picked.rawValue == "list")
         #expect(CabalThreshold.majority.rawValue == "majority")
@@ -97,7 +85,6 @@ struct AdminCopyAuditTests {
             JoinCabalModel.helper,
             JoinCabalModel.notFoundMessage,
             JoinCabalModel.malformedMessage,
-            CabalEntry.joinedToast,
             CabalEntry.requestedToast,
         ]
 

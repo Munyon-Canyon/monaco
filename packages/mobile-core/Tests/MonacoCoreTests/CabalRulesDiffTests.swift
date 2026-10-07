@@ -6,7 +6,6 @@ final class CabalRulesDiffTests: XCTestCase {
     private let creatorID = "01890a5d-ac96-774b-bcce-b302099a8058"
     private let current = CabalSettings(
         name: "QA pot",
-        joinMode: "open",
         threshold: "unanimous",
         proposalExpirySeconds: 86_400
     )
@@ -32,10 +31,6 @@ final class CabalRulesDiffTests: XCTestCase {
         XCTAssertTrue(patch { $0.name = " QA pot  " }.isEmpty)
     }
 
-    func testAJoinModeChangeSendsOnlyTheJoinMode() {
-        XCTAssertEqual(patch { $0.joinMode = "request" }, .init(joinMode: "request"))
-    }
-
     func testAThresholdChangeSendsOnlyTheThreshold() {
         XCTAssertEqual(patch { $0.threshold = "majority" }, .init(threshold: "majority"))
     }
@@ -52,7 +47,7 @@ final class CabalRulesDiffTests: XCTestCase {
 
     func testBackToEveryoneSendsOnlyTheMode() {
         let picked = CabalSettings(
-            name: "QA pot", joinMode: "open", threshold: "unanimous", proposalExpirySeconds: 86_400,
+            name: "QA pot", threshold: "unanimous", proposalExpirySeconds: 86_400,
             voters: .list([creatorID, "a"]))
 
         XCTAssertEqual(
@@ -61,7 +56,7 @@ final class CabalRulesDiffTests: XCTestCase {
 
     func testTheCreatorAloneIsTheSameVoterSetWhetherOrNotItIsNamed() {
         let named = CabalSettings(
-            name: "QA pot", joinMode: "open", threshold: "unanimous", proposalExpirySeconds: 86_400,
+            name: "QA pot", threshold: "unanimous", proposalExpirySeconds: 86_400,
             voters: .list([creatorID]))
         var bare = named
         bare.voters = .list([])
@@ -91,7 +86,7 @@ final class CabalRulesDiffTests: XCTestCase {
         XCTAssertEqual(
             CabalSettings(cabal),
             CabalSettings(
-                name: "QA pot", joinMode: "request", threshold: "majority", proposalExpirySeconds: 3600,
+                name: "QA pot", threshold: "majority", proposalExpirySeconds: 3600,
                 voters: .list([])
             )
         )

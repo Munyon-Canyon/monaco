@@ -7,7 +7,7 @@ final class NullableReferenceDecodingTests: XCTestCase {
 
     private func cabal(me: String, accessRequest: String) -> String {
         ##"{"id":"\##(cabalID)","name":"Kai","picture_url":null,"status":"active","##
-            + ##""rules":{"join_mode":"open","voter_mode":"all","threshold":"majority","##
+            + ##""rules":{"join_mode":"request","voter_mode":"all","threshold":"majority","##
             + ##""proposal_expiry_seconds":86400,"slippage_bps":100},"##
             + ##""creator":{"user_id":"\##(cabalID)","handle":"kai","display_name":"Kai","photo_url":null},"##
             + ##""member_count":1,"members":[],"me":\##(me),"my_access_request":\##(accessRequest),"##

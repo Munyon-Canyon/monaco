@@ -41,7 +41,7 @@ struct CabalsSearchSection: View {
         .onChange(of: model?.toast) { _, toast in
             guard let toast else { return }
             toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
-            if toast.message == CabalEntry.joinedToast {
+            if toast.message == CabalEntry.requestedToast {
                 Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
             }
         }
@@ -178,8 +178,6 @@ private struct CabalSearchRowView: View {
     @ViewBuilder
     private var trailing: some View {
         switch row.action {
-        case .join:
-            rowButton("Join", label: "Join \(row.name)")
         case .request:
             rowButton("Request", label: "Ask to join \(row.name)")
         case .requested:

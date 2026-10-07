@@ -28,9 +28,9 @@ final class CabalSearchModelTests: XCTestCase {
         guard case .rows(let rows) = model.state else { return XCTFail("expected rows, got \(model.state)") }
         XCTAssertEqual(
             rows.map(\.detail),
-            ["3 members · Open", "1 member · By request", "5 members · By request", "2 members · Open"]
+            ["3 members · By request", "1 member · By request", "5 members · By request", "2 members · By request"]
         )
-        XCTAssertEqual(rows.map(\.action), [.join, .request, .requested, .member])
+        XCTAssertEqual(rows.map(\.action), [.request, .request, .requested, .member])
         let sent = await transport.sent
         let query = URLComponents(string: sent.first?.path ?? "")?.queryItems ?? []
         XCTAssertEqual(URLComponents(string: sent.first?.path ?? "")?.path, "/v1/cabals")
@@ -79,24 +79,6 @@ final class CabalSearchModelTests: XCTestCase {
         XCTAssertTrue(paths.last?.contains("cursor=c2") ?? false)
     }
 
-    func testJoiningAnOpenRowOpensItWithYoureIn() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, try Self.page(samples)),
-            .json(.ok, try Self.cabal()),
-        ])
-        let model = makeModel(transport)
-        model.query = "week"
-        await model.search()
-        let row = try XCTUnwrap(rows(model).first)
-        let opened = await model.enter(row)
-        XCTAssertEqual(opened, row.id)
-        XCTAssertEqual(model.toast?.message, "You're in.")
-        XCTAssertEqual(rows(model).first?.action, .member)
-        let sent = await transport.sent
-        XCTAssertEqual(sent.last?.path, "/v1/cabals/\(row.id)/members")
-        XCTAssertNotNil(sent.last?.headerFields[try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))])
-    }
-
     func testRequestingARowShowsRequestSent() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.page(samples)),
@@ -110,6 +92,8 @@ final class CabalSearchModelTests: XCTestCase {
         XCTAssertNil(opened)
         XCTAssertEqual(model.toast?.message, "Request sent. You'll be in once the creator says yes.")
         XCTAssertEqual(rows(model)[1].action, .requested)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.last?.path, "/v1/cabals/\(row.id)/access-requests")
     }
 
     func testARowAlreadyRequestedOrJoinedSendsNothing() async throws {
@@ -137,7 +121,7 @@ final class CabalSearchModelTests: XCTestCase {
         XCTAssertNil(opened)
         XCTAssertEqual(model.toast?.message, "This cabal was banned.")
         XCTAssertEqual(model.toast?.isSuccess, false)
-        XCTAssertEqual(rows(model)[0].action, .join)
+        XCTAssertEqual(rows(model)[0].action, .request)
     }
 
     func testAnApprovalRefreshesTheResults() async throws {

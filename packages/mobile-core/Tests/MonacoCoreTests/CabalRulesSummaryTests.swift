@@ -25,17 +25,12 @@ final class CabalRulesSummaryTests: XCTestCase {
     func testTheRowsComeInOrderWithTheirTitles() {
         let rows = summary { _ in }.rows
 
-        XCTAssertEqual(rows.map(\.title), ["Name", "Who can join", "Who votes", "To pass", "Votes stay open"])
-        XCTAssertEqual(rows.map(\.value), [cabalName, "Anyone", "Every member", "Everyone agrees", "1 day"])
+        XCTAssertEqual(rows.map(\.title), ["Name", "Who votes", "To pass", "Votes stay open"])
+        XCTAssertEqual(rows.map(\.value), [cabalName, "Every member", "Everyone agrees", "1 day"])
     }
 
     func testTheNameRowShowsTheCabalName() {
         XCTAssertEqual(summary { $0.name = "Lunch club" }.name.value, "Lunch club")
-    }
-
-    func testJoinModes() {
-        XCTAssertEqual(summary { $0.rules.joinMode = "open" }.join.value, "Anyone")
-        XCTAssertEqual(summary { $0.rules.joinMode = "request" }.join.value, "The creator approves")
     }
 
     func testThresholds() {
@@ -93,12 +88,11 @@ final class CabalRulesSummaryTests: XCTestCase {
 
     func testUnknownServerValuesShowAsSent() {
         let rows = summary {
-            $0.rules.joinMode = "invite_only"
             $0.rules.voterMode = "council"
             $0.rules.threshold = "two_thirds"
             $0.rules.proposalExpirySeconds = 7200
         }.rows
 
-        XCTAssertEqual(rows.dropFirst().map(\.value), ["invite_only", "council", "two_thirds", "7200"])
+        XCTAssertEqual(rows.dropFirst().map(\.value), ["council", "two_thirds", "7200"])
     }
 }
