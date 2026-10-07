@@ -44,3 +44,8 @@ func tryLock(name string) (*os.File, bool, error) {
 	}
 	return f, true, nil
 }
+
+func unlock(f *os.File) {
+	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	_ = f.Close()
+}

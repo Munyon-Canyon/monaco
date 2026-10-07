@@ -16,7 +16,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -1109,10 +1108,7 @@ func TestCheck_theXcodeRowRunsLastAndOutsideTheStage0SlotAndTestDatabase(t *test
 			during = append(during,
 				fmt.Sprintf("a second check stands at %d of %d with 1 slot: %v", position, total, err))
 		}
-		syscall.ForkLock.Lock()
-		busy, err := busySlots(filepath.Join(env.Common, ".monaco", "test-db"))
-		syscall.ForkLock.Unlock()
-		if err != nil || busy != 0 {
+		if busy, err := busySlots(filepath.Join(env.Common, ".monaco", "test-db")); err != nil || busy != 0 {
 			during = append(during, fmt.Sprintf("%d test database slots held: %v", busy, err))
 		}
 		return nil

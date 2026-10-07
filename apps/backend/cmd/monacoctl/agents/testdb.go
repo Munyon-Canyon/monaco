@@ -74,7 +74,7 @@ func (env *Env) takeTestDB() (testDB, func(), error) {
 		if !ok {
 			continue
 		}
-		release := func() { _ = held.Close() }
+		release := func() { unlock(held) }
 		busy, err := busySlots(dir)
 		if err != nil {
 			release()
@@ -100,7 +100,7 @@ func busySlots(dir string) (int, error) {
 			busy++
 			continue
 		}
-		_ = f.Close()
+		unlock(f)
 	}
 	return busy, nil
 }
