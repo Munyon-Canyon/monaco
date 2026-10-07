@@ -238,6 +238,21 @@ extension XCUIApplication {
         back.tap()
     }
 
+    func dismissKeyboard() {
+        guard keyboards.firstMatch.exists else { return }
+        for key in ["Return", "return", "Search", "Done"] {
+            let button = keyboards.buttons[key].firstMatch
+            if button.exists {
+                button.tap()
+                break
+            }
+        }
+        if keyboards.firstMatch.exists {
+            coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        }
+        _ = keyboards.firstMatch.waitForNonExistence(timeout: 3)
+    }
+
     func popToRoot(maxDepth: Int = 8) {
         for _ in 0..<maxDepth {
             let back = navigationBars.buttons["BackButton"].firstMatch
