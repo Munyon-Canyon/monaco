@@ -9,10 +9,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/referrals/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/referralsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
+	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
 type Module struct {
@@ -68,4 +70,8 @@ func (*Module) Pollers() []poller.Poller { return nil }
 
 func (m *Module) Resolver() app.Resolver {
 	return app.Resolver{Reads: m.deps.Pool, Users: identity.New(m.deps).Queries()}
+}
+
+func LedgerCheck(config.Config) replay.LedgerCheck {
+	return replay.LedgerCheck{Name: "referrals", Check: adapters.CheckReferrals}
 }

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -336,13 +338,17 @@ func EventuallyEvent(typ events.Type) Step {
 }
 
 func EventuallyCabalEvent(cabalID ids.CabalID, typ events.Type) Step {
+	return EventuallyAggregateEvent(cabalID.UUID(), "cabal "+cabalID.String(), typ)
+}
+
+func EventuallyAggregateEvent(aggregateID uuid.UUID, what string, typ events.Type) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
 		var appended []string
-		await(s.t, "a "+string(typ)+" event for cabal "+cabalID.String(), func() (bool, <-chan struct{}) {
+		await(s.t, "a "+string(typ)+" event for "+what, func() (bool, <-chan struct{}) {
 			rows, err := s.app.pool.Query(s.t.Context(),
 				`SELECT id::text FROM events WHERE type = $1 AND aggregate_id = $2 ORDER BY id`,
-				string(typ), cabalID.UUID())
+				string(typ), aggregateID)
 			if appended = scanIDs(s.t, typ, rows, err); len(appended) > 0 {
 				return true, nil
 			}
