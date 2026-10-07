@@ -275,3 +275,23 @@ func TestReferralFollows_aDatabaseFailureIsInternal(t *testing.T) {
 	}
 	wantCode(t, f.deliver(t, f.attributed(f.alice, f.bob)), errs.CodeInternal)
 }
+
+func TestReferralFollows_aTransientDatabaseFailureNaksInsteadOfTerming(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	e := f.attributed(f.alice, f.bob)
+	ctx, cancel := context.WithCancel(observability.WithActor(t.Context(), "system:social.referral_follows"))
+	defer cancel()
+	h := f.referralFollows()
+	err := db.New(f.pool, f.gen, f.clock).Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		cancel()
+		return h.Apply(ctx, tx, e, true, f.now)
+	})
+	wantCode(t, err, errs.CodeDBUnavailable)
+	if errs.VerdictFor(errs.CodeOf(err)) != errs.VerdictNak {
+		t.Fatalf("verdict for %v = term, want nak", err)
+	}
+	if got := f.followRows(t.Context(), t); len(got) != 0 {
+		t.Fatalf("follows = %+v after a rolled back delivery, want none", got)
+	}
+}

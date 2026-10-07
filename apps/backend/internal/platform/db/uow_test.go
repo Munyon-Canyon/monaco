@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -319,6 +321,56 @@ func TestDo_commitOutlivesACancelThatArrivesDuringCommit(t *testing.T) {
 	}
 	if !committed || err != nil {
 		t.Fatalf("Do = %v, committed=%v; want the commit to finish under its own context", err, committed)
+	}
+}
+
+func TestDo_reclassifiesAnAppInternalWrapOfATransientFailureAsDBUnavailable(t *testing.T) {
+	t.Parallel()
+	causes := map[string]error{
+		"connection exception":              &pgconn.PgError{Code: "08006"},
+		"network error":                     &net.OpError{Op: "read", Err: io.EOF},
+		"deadline":                          context.DeadlineExceeded,
+		"cancelled tick inside an app wrap": context.Canceled,
+	}
+	for name, cause := range causes {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			err := h.uow.Do(h.ctx(t, "user:u1"), func(context.Context, db.Tx) error {
+				return errs.Wrap(cause, errs.CodeInternal, "app.Op")
+			})
+			if errs.CodeOf(err) != errs.CodeDBUnavailable || !errors.Is(err, cause) ||
+				errs.VerdictFor(errs.CodeOf(err)) != errs.VerdictNak {
+				t.Fatalf("Do = %v, want db_unavailable (nak) wrapping the cause", err)
+			}
+		})
+	}
+}
+
+func TestDo_leavesAnAppInternalWrapOfANonTransientFailureInternal(t *testing.T) {
+	t.Parallel()
+	for name, code := range map[string]string{"unique violation": "23505", "missing table": "42P01"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			cause := &pgconn.PgError{Code: code}
+			err := h.uow.Do(h.ctx(t, "user:u1"), func(context.Context, db.Tx) error {
+				return errs.Wrap(cause, errs.CodeInternal, "app.Op")
+			})
+			if errs.CodeOf(err) != errs.CodeInternal || !errors.Is(err, cause) {
+				t.Fatalf("Do = %v, want internal wrapping the cause", err)
+			}
+		})
+	}
+}
+
+func TestDo_leavesAnErrorCodedOtherThanInternalUntouched(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	cause := errs.Wrap(context.DeadlineExceeded, errs.CodeNotFound, "app.Op")
+	err := h.uow.Do(h.ctx(t, "user:u1"), func(context.Context, db.Tx) error { return cause })
+	if errs.CodeOf(err) != errs.CodeNotFound || !errors.Is(err, cause) {
+		t.Fatalf("Do = %v, want not_found untouched", err)
 	}
 }
 

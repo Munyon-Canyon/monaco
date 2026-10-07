@@ -225,6 +225,7 @@ type Error struct {
 - `Kind` decides the HTTP status, the bus verdict (ack, nak with delay, term) and whether to alert. Nothing else reads `Kind`; the `codes` table is the only map.
 - Domain returns `errs.New(CodeInsufficientFunds, op, attrs...)`. Adapters wrap upstream failures with `errs.Wrap(err, CodeJupiterUnavailable, op, attrs...)`. Sentinel `var ErrX = errors.New(...)` is banned (`forbidigo` on `errors\.New` outside `errs`), so an error without a code cannot exist.
 - `errors.Is` and `errors.As` are the only comparisons (`errorlint`). `errs.CodeOf(err)` returns `CodeInternal` for any non-`*errs.Error`, which is the fallback that makes a missed wrap visible as a 500 and an alert, not a silent 200.
+- `UnitOfWork.Do` reclassifies an app `internal` wrap of a transient database error as `db_unavailable`.
 
 ### Surfacing
 

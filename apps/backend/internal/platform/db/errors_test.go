@@ -29,6 +29,28 @@ func TestClassify_mapsEachFailureToOneCode(t *testing.T) {
 		"caller gone":           {context.Canceled, errs.CodeDBUnavailable},
 		"deadline":              {context.DeadlineExceeded, errs.CodeDBUnavailable},
 		"already coded":         {errs.New(errs.CodeNotFound, "x"), errs.CodeNotFound},
+
+		"internal wrapping a connection exception": {internal(&pgconn.PgError{Code: "08006"}), errs.CodeDBUnavailable},
+		"internal wrapping a serialization failure": {
+			internal(&pgconn.PgError{Code: "40001"}), errs.CodeDBUnavailable,
+		},
+		"internal wrapping a network error": {
+			internal(&net.OpError{Op: "read", Err: io.EOF}), errs.CodeDBUnavailable,
+		},
+		"internal wrapping safe to retry":    {internal(beforeSendError{}), errs.CodeDBUnavailable},
+		"internal wrapping a deadline":       {internal(context.DeadlineExceeded), errs.CodeDBUnavailable},
+		"internal wrapping a cancelled tick": {internal(context.Canceled), errs.CodeDBUnavailable},
+		"internal wrapping a unique violation": {
+			internal(&pgconn.PgError{Code: "23505"}), errs.CodeInternal,
+		},
+		"internal wrapping a missing table": {internal(&pgconn.PgError{Code: "42P01"}), errs.CodeInternal},
+		"internal wrapping a plain error":   {internal(io.ErrUnexpectedEOF), errs.CodeInternal},
+		"not found wrapping a deadline": {
+			errs.Wrap(context.DeadlineExceeded, errs.CodeNotFound, "x"), errs.CodeNotFound,
+		},
+		"unavailable wrapping a unique violation": {
+			errs.Wrap(&pgconn.PgError{Code: "23505"}, errs.CodeDBUnavailable, "x"), errs.CodeDBUnavailable,
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -40,6 +62,8 @@ func TestClassify_mapsEachFailureToOneCode(t *testing.T) {
 		})
 	}
 }
+
+func internal(cause error) error { return errs.Wrap(cause, errs.CodeInternal, "app.op") }
 
 type beforeSendError struct{}
 
