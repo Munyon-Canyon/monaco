@@ -92,6 +92,21 @@ You can fund a group from **personal Phantom** (iOS app or browser extension). T
 5. Open a cabal and **fund** it with an amount. The backend sweeps exactly that amount into the treasury, then credits share units once Solana confirms. Watch API logs or the cabal screen.
 6. Member wallet and treasury do not need SOL (the relayer pays fees).
 
+### Card and Apple Pay (local)
+
+**Add money** → **Pay with card or Apple Pay** opens the fund page. Locally that is `http://localhost:5173/fund`, and `just run` does not serve it. Start it first, or the button opens a page that does not load.
+
+1. In a second terminal, start the fund page with Vite on port 5173. Use `PRIVY_APP_ID` from `just show-env`:
+
+   ```bash
+   cd apps/web && npm ci && VITE_MONACO_API_URL=http://localhost:8080 VITE_PRIVY_APP_ID=<PRIVY_APP_ID> VITE_PRIVY_ENV=sandbox npx vite --port 5173
+   ```
+
+2. `just run`.
+3. Tap **Add money** → **Pay with card or Apple Pay**.
+
+`curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/fund` prints `200` when the page is up. The fund page and its variables are in [apps/web/README.md](apps/web/README.md#fund-page-against-a-local-backend).
+
 To get QA cash back out: **Cash out** of the cabal (USDC returns to the account balance), then withdraw it to your Phantom address (the **Cash out** button on the account balance card on Home or Profile). Phantom cannot spend Privy wallets. Agent-driven deposit and refund: [Agent QA: Phantom MCP](#agent-qa-phantom-mcp). The full flows are in [architecture.md](docs/architecture.md#flows).
 
 ## Commands
