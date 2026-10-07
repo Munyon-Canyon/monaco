@@ -15,6 +15,11 @@ if [ "$2" = --show-codecov-path ]; then echo "$bin/codecov/MonacoCore.json"; exi
 mkdir -p "$bin/codecov" "$bin/Dir.xctest/Contents/MacOS"
 : > "$bin/Dir.xctest/Contents/MacOS/Dir"
 : > "$bin/File.xctest"
+if [ -n "$STUB_TEST_SECS" ]; then
+printf "Test Case 'A.testSlow' started at 2026-10-02 12:00:00.000\n"
+printf "Test Case 'A.testSlow' passed (%s seconds)\n" "$STUB_TEST_SECS"
+exit 0
+fi
 printf "Test Case '-[A.B testOne]' started.\n"
 printf "Test Case '-[A.B testOne]' pa"
 printf "warning: '--build-system native' has been deprecated\n" >&2
@@ -41,7 +46,33 @@ func runMobileCoreTest(t *testing.T, floor string) mobileCoreRun {
 	return runMobileCoreTestWith(t, floor)
 }
 
+// mobileCoreLoad is the stubbed machine: the load1 and core count the script reads through
+// sysctl (Darwin) or cat (Linux).
+type mobileCoreLoad struct{ load1, cores string }
+
+var mobileCoreIdleMachine = mobileCoreLoad{load1: "0.50", cores: "8"}
+
+const mobileCoreFakeSysctl = `#!/bin/sh
+case "$2" in
+vm.loadavg) echo "{ $STUB_LOAD 1.00 1.00 }" ;;
+hw.ncpu) echo "$STUB_CORES" ;;
+*) exit 1 ;;
+esac
+`
+
+const mobileCoreFakeCat = `#!/bin/sh
+if [ "$1" = /proc/loadavg ]; then echo "$STUB_LOAD 1.00 1.00 1/100 1234"; exit 0; fi
+if [ "$1" = /proc/cpuinfo ]; then i=0; while [ "$i" -lt "$STUB_CORES" ]; do echo "processor : $i"; i=$((i+1)); done; exit 0; fi
+exec /bin/cat "$@"
+`
+
 func runMobileCoreTestWith(t *testing.T, floor string, args ...string) mobileCoreRun {
+	t.Helper()
+	return runMobileCoreTestLoaded(t, floor, mobileCoreIdleMachine, nil, args...)
+}
+
+// runMobileCoreTestLoaded drops GITHUB_ACTIONS from the inherited env; extra may set it back.
+func runMobileCoreTestLoaded(t *testing.T, floor string, m mobileCoreLoad, extra []string, args ...string) mobileCoreRun {
 	t.Helper()
 	root := repoRoot(t)
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -54,11 +85,20 @@ func runMobileCoreTestWith(t *testing.T, floor string, args ...string) mobileCor
 	writeRatchetFile(t, filepath.Join(bin, "swift"), mobileCoreFakeSwift)
 	writeRatchetFile(t, filepath.Join(bin, "xcrun"), mobileCoreFakeLLVMCov)
 	writeRatchetFile(t, filepath.Join(bin, "llvm-cov"), mobileCoreFakeLLVMCov)
+	writeRatchetFile(t, filepath.Join(bin, "sysctl"), mobileCoreFakeSysctl)
+	writeRatchetFile(t, filepath.Join(bin, "cat"), mobileCoreFakeCat)
 	argsFile := filepath.Join(t.TempDir(), "args")
 
 	cmd := exec.Command("bash", append([]string{"scripts/mobile-core-test.sh"}, args...)...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "PATH="+bin+":/usr/bin:/bin", "STUB_ARGS="+argsFile, "MONACO_SWIFTPM_LOCKED=1")
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "GITHUB_ACTIONS=") {
+			cmd.Env = append(cmd.Env, kv)
+		}
+	}
+	cmd.Env = append(cmd.Env, "PATH="+bin+":/usr/bin:/bin", "STUB_ARGS="+argsFile, "MONACO_SWIFTPM_LOCKED=1",
+		"STUB_LOAD="+m.load1, "STUB_CORES="+m.cores)
+	cmd.Env = append(cmd.Env, extra...)
 	out, err := cmd.CombinedOutput()
 	return mobileCoreRun{dir: dir, args: argsFile, out: string(out), err: err}
 }
@@ -175,5 +215,55 @@ func TestMobileCoreTest_stderrWrittenMidLineLeavesTheTimingsParseable(t *testing
 		debug + "/codecov/default.profdata -ignore-filename-regex=(\\.build|Tests)/"
 	if strings.TrimSpace(string(got)) != want {
 		t.Fatalf("llvm-cov args\n got %q\nwant %q", strings.TrimSpace(string(got)), want)
+	}
+}
+
+func slowTestRun(t *testing.T, secs string, m mobileCoreLoad, gha bool) mobileCoreRun {
+	t.Helper()
+	extra := []string{"STUB_TEST_SECS=" + secs}
+	if gha {
+		extra = append(extra, "GITHUB_ACTIONS=true")
+	}
+	return runMobileCoreTestLoaded(t, "darwin 90.50\nlinux 90.50\n", m, extra)
+}
+
+func TestMobileCoreTest_loadScalesThePerTestBudgetUpToFourTimes(t *testing.T) {
+	for _, load1 := range []string{"32.00", "80.00"} {
+		m := mobileCoreLoad{load1: load1, cores: "8"}
+		line := "per-test budget: 8 s (2 s x 4.0, load " + load1[:len(load1)-1] + " on 8 cores)"
+		if run := slowTestRun(t, "7.000", m, false); run.err != nil || !strings.Contains(run.out, line) {
+			t.Fatalf("load %s: a 7 s test under the 8 s budget: %v\n%s", load1, run.err, run.out)
+		}
+		run := slowTestRun(t, "9.000", m, false)
+		if run.err == nil || !strings.Contains(run.out, "slow test: A.testSlow 9.000s (budget 8 s)") {
+			t.Fatalf("load %s: a 9 s test passed an 8 s budget: %v\n%s", load1, run.err, run.out)
+		}
+	}
+}
+
+func TestMobileCoreTest_anIdleMachineKeepsTheTwoSecondBudget(t *testing.T) {
+	run := slowTestRun(t, "2.500", mobileCoreIdleMachine, false)
+	if run.err == nil || !strings.Contains(run.out, "slow test: A.testSlow 2.500s (budget 2 s)") {
+		t.Fatalf("a 2.5 s test passed an idle machine: %v\n%s", run.err, run.out)
+	}
+	if want := "per-test budget: 2 s (2 s x 1.0, load 0.5 on 8 cores)"; !strings.Contains(run.out, want) {
+		t.Fatalf("missing %q in:\n%s", want, run.out)
+	}
+}
+
+func TestMobileCoreTest_githubActionsNeverScalesTheBudget(t *testing.T) {
+	run := slowTestRun(t, "2.500", mobileCoreLoad{load1: "80.00", cores: "8"}, true)
+	if run.err == nil || !strings.Contains(run.out, "slow test: A.testSlow 2.500s (budget 2 s)") {
+		t.Fatalf("a 2.5 s test passed under GITHUB_ACTIONS at high load: %v\n%s", run.err, run.out)
+	}
+	if want := "per-test budget: 2 s (2 s x 1.0, no load applied)"; !strings.Contains(run.out, want) {
+		t.Fatalf("missing %q in:\n%s", want, run.out)
+	}
+}
+
+func TestMobileCoreTest_unreadableLoadFallsBackToFactorOne(t *testing.T) {
+	run := slowTestRun(t, "2.500", mobileCoreLoad{load1: "garbage", cores: "8"}, false)
+	if run.err == nil || !strings.Contains(run.out, "per-test budget: 2 s (2 s x 1.0, no load applied)") {
+		t.Fatalf("an unreadable load did not fall back to factor 1: %v\n%s", run.err, run.out)
 	}
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The one entry point for mobile-core's tests: just test mobile and ci-mobile-core.yml call it,
 # and monacoctl agents check will from #965 PR 4. Runs swift test with warnings as errors and coverage,
-# then holds every single test to a 2 s budget and line coverage of Sources/ to this
+# then holds every single test to a 2 s budget (scaled by machine load outside CI, see below) and line coverage of Sources/ to this
 # platform's row in coverage-floor.txt. Extra arguments go to swift test and skip both
 # checks, because a partial run cannot be judged. Coverage below the floor fails. Coverage more than 0.5 above it
 # never fails and never edits the file: the run prints "coverage rose" (ci-mobile-core.yml turns it into a warning).
@@ -46,7 +46,34 @@ swift test --force-resolved-versions -Xswiftc -warnings-as-errors --enable-code-
 ((status == 0)) || exit "$status"
 (($# == 0)) || exit 0
 
-budget=2
+# Machine load scales the 2 s base: a loaded Mac makes every test slower, so the budget grows by
+# max(1, load1/cores), capped at 4, read the way monacoctl agents check reads it for stage 0's row budgets
+# (sysctl vm.loadavg on macOS, /proc/loadavg on Linux). CI (GITHUB_ACTIONS) never scales, and an unreadable
+# load means factor 1.
+base=2
+load=""
+cores=""
+if [[ -z "${GITHUB_ACTIONS:-}" ]]; then
+  if [[ "$(uname -s)" == Darwin ]]; then
+    load="$(sysctl -n vm.loadavg 2>/dev/null || true)"
+    cores="$(sysctl -n hw.ncpu 2>/dev/null || true)"
+  else
+    load="$(cat /proc/loadavg 2>/dev/null || true)"
+    cores="$(cat /proc/cpuinfo 2>/dev/null | awk '/^processor/ { n++ } END { print n }' || true)"
+  fi
+fi
+read -r budget factor load cores <<<"$(awk -v bs="$base" -v la="$load" -v nc="$cores" 'BEGIN {
+  gsub(/[{}]/, "", la); split(la, f, " "); l = f[1]; c = nc + 0
+  if (l !~ /^[0-9]+(\.[0-9]+)?$/ || c < 1) { printf "%s 1.0 - -\n", bs; exit }
+  x = l / c; if (x < 1) x = 1; if (x > 4) x = 4
+  printf "%g %.1f %.1f %d\n", bs * x, x, l, c
+}' || true)" || true
+if ! [[ "$budget" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then budget=$base factor=1.0 load=-; fi
+if [[ "$load" == - ]]; then
+  echo "per-test budget: $budget s ($base s x 1.0, no load applied)"
+else
+  echo "per-test budget: $budget s ($base s x $factor, load $load on $cores cores)"
+fi
 # XCTest starts a case as "Test Case '...' started at ..." on Linux and
 # "Test Case '...' started." on macOS (only suite lines say "started at" there).
 # It ends a line with "(<n> seconds)" and macOS adds a period. swift-testing ends with
