@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -683,23 +682,7 @@ func TestMyCabals_reportsAnUnavailableRead(t *testing.T) {
 	}
 }
 
-func TestSearchCabals_threeCharacterQueryIsUnderAHundredMillisecondsP95(t *testing.T) {
-	t.Parallel()
-	f := newCreate(t)
-	seedSearchPerfCabals(t, f)
-	conn, err := f.pool.Acquire(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Release()
-	durations := make([]time.Duration, 60)
-	for i := range durations {
-		var plan []struct {
-			ExecutionTime json.RawMessage `json:"Execution Time"`
-		}
-		row := conn.QueryRow(
-			t.Context(),
-			`EXPLAIN (ANALYZE, FORMAT JSON) SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
+const searchPlanQuery = `SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
   (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,
   EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = $1) AS is_member,
   r.status AS my_access_request_status
@@ -718,27 +701,14 @@ WHERE c.status <> 'banned'
     )
   )
 ORDER BY member_count DESC, c.created_at DESC, c.id DESC
-			LIMIT $6::int`,
-			f.user.ID.UUID(), "abc", nil, nil, nil, int32(21),
-		)
-		if err := row.Scan(&plan); err != nil {
-			t.Fatal(err)
-		}
-		if len(plan) != 1 {
-			t.Fatalf("EXPLAIN plan = %#v", plan)
-		}
-		duration, err := time.ParseDuration(string(plan[0].ExecutionTime) + "ms")
-		if err != nil {
-			t.Fatal(err)
-		}
-		durations[i] = duration
-	}
-	slices.Sort(durations)
-	p95 := durations[56]
-	t.Logf("search p95 = %s", p95)
-	if p95 >= 100*time.Millisecond {
-		t.Fatalf("search p95 = %s, want under 100ms", p95)
-	}
+			LIMIT $6::int`
+
+func TestSearchCabals_threeCharacterQueryUsesTheTrigramIndexWithinABlockBudget(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	seedSearchPerfCabals(t, f)
+	testkit.AssertPlanWork(t, f.pool, "search", "cabals_name_trgm_idx", 1100,
+		searchPlanQuery, f.user.ID.UUID(), "abc", nil, nil, nil, int32(21))
 }
 
 func seedSearchPerfCabals(t *testing.T, f createFixture) {
