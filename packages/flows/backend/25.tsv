@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-25	Referrals	referrals	POST /v1/me/referral	AttachReferral	referral.attributed;referral.qualified	analytics	ok;ReferralCodeUnknown;ReferralSelf;ReferralAlreadyAttached;ReferralWindowClosed;Unauthorized;RateLimited;crash:before-commit	built	docs/architecture/referrals.md#attaching-a-referral
+25	Referrals	referrals	POST /v1/me/referral	AttachReferral	referral.attributed;referral.qualified	social.referral_follows;analytics	ok;ReferralCodeUnknown;ReferralSelf;ReferralAlreadyAttached;ReferralWindowClosed;Unauthorized;RateLimited;crash:before-commit	built	docs/architecture/referrals.md#attaching-a-referral
