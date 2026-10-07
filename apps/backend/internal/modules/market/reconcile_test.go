@@ -36,21 +36,22 @@ func (r *reconcileRig) tick(t *testing.T) (poller.Report, error) {
 	return r.reconcile.Tick(r.ctx(t))
 }
 
-func TestReconcile_OneDaysTwoCallPerCatalogMint(t *testing.T) {
+func TestReconcile_OneDaysTwoCallPerListedMint(t *testing.T) {
 	t.Parallel()
 	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	tsla.IssuerTradable = false
 	r := newReconcileRig(t, aapl, tsla)
 	r.history.Put(aapl.Mint, 2,
 		sample(r.day.Add(5*time.Hour+4*time.Minute+9*time.Second), 105_000_000),
 		sample(r.day.Add(6*time.Hour+33*time.Minute), 106_000_000))
 
 	report, err := r.tick(t)
-	if err != nil || report.Scanned != 2 || report.Changed != 2 {
-		t.Fatalf("tick = %+v, %v, want 2 mints scanned and 2 rows", report, err)
+	if err != nil || report.Scanned != 1 || report.Changed != 2 {
+		t.Fatalf("tick = %+v, %v, want 1 mint scanned and 2 rows", report, err)
 	}
 	calls := r.history.Calls()
-	if len(calls) != 2 || calls[0].Days != 2 || calls[1].Days != 2 {
-		t.Fatalf("calls = %v, want one days=2 call per mint", calls)
+	if len(calls) != 1 || calls[0].Mint != aapl.Mint || calls[0].Days != 2 {
+		t.Fatalf("calls = %v, want one days=2 call, for the listed mint only", calls)
 	}
 	got := r.points(t, aapl.Mint)
 	if len(got) != 2 || got[r.day.Add(5*time.Hour)] != "105000000/coingecko" ||

@@ -48,15 +48,17 @@ func TestBackfillPrices_mintDrainsOneMintAndPrintsTheCounts(t *testing.T) {
 	}
 }
 
-func TestBackfillPrices_allDrainsTheWholeCatalog(t *testing.T) {
+func TestBackfillPrices_allDrainsEveryListedMint(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	_, err := pool.Exec(t.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
-		issuer_tradable, company_key, first_seen_at, updated_at)
+		issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at)
 		VALUES ('01920000-0000-7000-8000-000000000001', 'AAPLx', 'XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp', 8,
-		'xstocks', 'equity', 'Apple xStock', true, 'apple', now(), now()),
+		'xstocks', 'equity', 'Apple xStock', true, 'apple', now(), now(), now()),
 		('01920000-0000-7000-8000-000000000002', 'TSLAx', 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB', 8,
-		'xstocks', 'equity', 'Tesla xStock', true, 'tesla', now(), now())`)
+		'xstocks', 'equity', 'Tesla xStock', true, 'tesla', now(), now(), now()),
+		('01920000-0000-7000-8000-000000000003', 'JPSTx', 'XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq', 8,
+		'xstocks', 'equity', 'JPMorgan xStock', false, 'jpm', now(), now(), now())`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +68,7 @@ func TestBackfillPrices_allDrainsTheWholeCatalog(t *testing.T) {
 		t.Fatalf("backfill prices --all = %d, stdout %q, stderr %q, want %q", code, stdout, stderr, want)
 	}
 	if got := len(history.Calls()); got != 6 {
-		t.Fatalf("%d calls, want 3 per catalog mint", got)
+		t.Fatalf("%d calls, want 3 per listed mint, none for the unlisted one", got)
 	}
 }
 

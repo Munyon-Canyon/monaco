@@ -82,7 +82,7 @@ func (b *Backfill) Run(ctx context.Context, mints []string) (BackfillResult, err
 }
 
 func (b *Backfill) RunAll(ctx context.Context) (BackfillResult, error) {
-	assets, err := NewCatalog(b.reads).ListAll(ctx)
+	assets, err := NewCatalog(b.reads).ListPriceable(ctx)
 	if err != nil {
 		return BackfillResult{}, err
 	}

@@ -53,8 +53,10 @@ func (q *Queries) FinishBackfill(ctx context.Context, arg FinishBackfillParams) 
 
 const insertPendingBackfills = `-- name: InsertPendingBackfills :execrows
 INSERT INTO price_backfills (mint, requested_at)
-SELECT u.mint, $1::timestamptz
-FROM unnest($2::text[]) AS u (mint)
+SELECT a.mint, $1::timestamptz
+FROM assets AS a
+WHERE a.mint = ANY ($2::text[])
+  AND a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
 ON CONFLICT (mint) DO NOTHING
 `
 
@@ -72,15 +74,16 @@ func (q *Queries) InsertPendingBackfills(ctx context.Context, arg InsertPendingB
 }
 
 const pendingBackfills = `-- name: PendingBackfills :many
-SELECT mint
-FROM price_backfills
-WHERE done_at IS NULL
+SELECT b.mint
+FROM price_backfills AS b
+LEFT JOIN assets AS a ON a.mint = b.mint
+WHERE b.done_at IS NULL
   AND (
-    last_attempt_at IS NULL
-    OR last_attempt_at + LEAST(interval '5 minutes' * power(2, LEAST(attempts, 12)), interval '24 hours')
+    b.last_attempt_at IS NULL
+    OR b.last_attempt_at + LEAST(interval '5 minutes' * power(2, LEAST(b.attempts, 12)), interval '24 hours')
       <= $1::timestamptz
   )
-ORDER BY last_code IS NOT NULL, requested_at, mint
+ORDER BY b.last_code IS NOT NULL, a.popular_rank NULLS LAST, b.requested_at, b.mint
 LIMIT $2::integer
 `
 
