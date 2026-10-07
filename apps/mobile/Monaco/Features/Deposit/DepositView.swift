@@ -252,6 +252,9 @@ struct DepositAddressCard: View {
 
     private func ready(_ address: String) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            DepositQRCode(address: address, onCopy: onCopy)
+                .frame(maxWidth: .infinity)
+
             MonacoWalletAddressText(address: address)
                 .accessibilityIdentifier(addressIdentifier)
                 .onTapGesture {
@@ -266,11 +269,18 @@ struct DepositAddressCard: View {
                 .monacoFullWidthButtons()
                 .accessibilityIdentifier(copyIdentifier)
 
-                Text(Self.networkNote)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: MonacoTheme.Space.s) {
+                    Image("SolanaMark")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20)
+                        .accessibilityHidden(true)
+                    Text(Self.networkNote)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .multilineTextAlignment(.leading)
+                }
+                .frame(maxWidth: .infinity)
             }
         }
     }
