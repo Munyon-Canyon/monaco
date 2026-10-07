@@ -37,6 +37,20 @@ cd apps/web && npx vercel dev                   # Vercel
 npx wrangler pages dev --binding SUPABASE_URL=… SUPABASE_ANON_KEY=… IP_HASH_SALT=local ALLOWED_ORIGINS=http://127.0.0.1:8788
 ```
 
+### Fund page against a local backend
+
+The backend sends the app to `http://localhost:5173/fund` outside staging and production, unless `FUND_PAGE_URL` is set. `just run` does not start that page. Start it with Vite:
+
+```bash
+cd apps/web && npm ci && VITE_MONACO_API_URL=http://localhost:8080 VITE_PRIVY_APP_ID=<PRIVY_APP_ID from just show-env> VITE_PRIVY_ENV=sandbox npx vite --port 5173
+```
+
+Or copy `.env.example` to `.env.local` and fill in `VITE_PRIVY_APP_ID`. Vite reads it on start.
+
+Without the page, **Pay with card or Apple Pay** opens a URL nothing serves.
+
+CORS needs no setup. `WEB_ALLOWED_ORIGINS` already allows `http://localhost:5173` outside staging and production. If you set it yourself, include that origin.
+
 ## Deploy to Cloudflare Pages
 
 Apply the waitlist migrations (`apps/web/migrations/000026`–`000029`, in order) to the hosted
