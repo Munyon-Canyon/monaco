@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose a buy and vote it through
-version: 3
+version: 4
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -49,7 +49,7 @@ With two voters and "Majority", a buy needs both yes votes.
 | S2.1 | B | tap | the Home tab | | "Needs your vote" shows a `proposal-card-<id>` for GOOGL that reads "Closes in", `Journey buy {QA.run}` and "0 of 2 voted · 2 yes to pass" within 10 s |
 | S2.2 | B | tap | "Yes" on the card | | The toast "Vote in" shows. The card reads "✓ You voted yes" and "1 of 2 voted · 2 yes to pass" within 10 s |
 | S2.3 | A | tap, then tap | the Home tab, then the header of the `proposal-card-<id>` (its `proposal-closes-in` row) | | The Proposal screen shows "Votes", "Proposed by" with A's name and "<B's name> voted yes" within 15 s. A taps "Yes" on the card and the toast "Vote in" shows |
-| S2.4 | A | wait | `proposal-tracker` | | The Status tracker reads "Buying, step 2 of 3" and the chip "Buying" shows within 10 s. The stub never confirms the trade, so the journey does not wait for "Done" or "Bought" |
+| S2.4 | A | wait | `proposal-tracker` | | The Status tracker reads "Buying, step 2 of 3" and the `proposal-status-chip` on the proposal's card reads "Buying" within 10 s. The stub never confirms the trade, so the journey does not wait for "Done" or "Bought" |
 
 ## Ground truth
 

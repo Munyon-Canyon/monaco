@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -232,9 +232,10 @@ enum GovernanceProposeBuyJourney {
                 JoinJourney.waitForLabel(tracker, containing: "Buying", timeout: checkTimeout),
                 "S2.4: the Status tracker does not read Buying within \(Int(checkTimeout)) s: \(tracker.label)"
             )
+            let chip = app.element("proposal-status-chip")
             XCTAssertTrue(
-                app.staticTexts["Buying"].firstMatch.waitForExistence(timeout: checkTimeout),
-                "S2.4: no \"Buying\" chip within \(Int(checkTimeout)) s"
+                JoinJourney.waitForLabel(chip, containing: "Buying", timeout: checkTimeout),
+                "S2.4: the proposal card chip does not read Buying within \(Int(checkTimeout)) s: \(chip.label)"
             )
         }
     }

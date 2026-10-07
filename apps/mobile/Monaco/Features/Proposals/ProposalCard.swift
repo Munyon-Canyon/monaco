@@ -111,6 +111,7 @@ struct ProposalCard: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(Capsule().fill(MonacoTheme.surfaceSunken))
+                    .accessibilityIdentifier("proposal-status-chip")
             }
         }
         .contentShape(Rectangle())
