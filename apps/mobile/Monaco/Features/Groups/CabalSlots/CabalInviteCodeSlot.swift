@@ -59,7 +59,7 @@ struct CabalInviteCodeCard: View {
                     .accessibilityIdentifier("cabal-invite-code")
             }
             Text(CabalDetailsCopy.inviteHint)
-                .font(MonacoTheme.Typo.caption)
+                .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
             let actions =
