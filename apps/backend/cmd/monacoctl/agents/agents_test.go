@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"net/http/httptrace"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -92,6 +94,41 @@ func TestMain_configErrorsNameTheFileAndLine(t *testing.T) {
 	if code != 0 || stderr != "monacoctl agents: warning: unknown key \"batch.colour\" in .monaco/agents.toml "+
 		"(newer config, or a typo)\n" {
 		t.Fatalf("an unknown key: code=%d stderr=%q", code, stderr)
+	}
+}
+
+func TestGitHub_clientOwnsItsTransport(t *testing.T) {
+	t.Parallel()
+	tr := newGitHubClient().Transport
+	if tr == nil || tr == http.DefaultTransport {
+		t.Fatalf("Transport = %v, want one the client owns", tr)
+	}
+}
+
+func TestGitHub_keptAliveConnectionSurvivesAnotherServerClosing(t *testing.T) {
+	t.Parallel()
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+	t.Cleanup(api.Close)
+	client := newGitHubClient()
+	reused := false
+	get := func() {
+		trace := &httptrace.ClientTrace{GotConn: func(i httptrace.GotConnInfo) { reused = i.Reused }}
+		ctx := httptrace.WithClientTrace(t.Context(), trace)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.URL, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+	}
+	get()
+	httptest.NewServer(http.NotFoundHandler()).Close()
+	get()
+	if !reused {
+		t.Fatal("closing another httptest.Server dropped the client's kept-alive connection")
 	}
 }
 
