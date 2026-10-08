@@ -202,6 +202,7 @@ struct ChatThreadList: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.bottom, 12)
             }
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await refresh() }
             .onChange(of: rows.last?.id) { _, _ in

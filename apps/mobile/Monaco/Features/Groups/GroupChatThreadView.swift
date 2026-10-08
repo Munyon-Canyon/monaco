@@ -44,6 +44,7 @@ struct GroupChatThreadView: View {
                 .padding(.bottom, 12)
             }
             .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await refresh() }
             .onScrollGeometryChange(for: ChatScrollTracker.Position.self, of: Self.position) { _, updated in
