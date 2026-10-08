@@ -30,16 +30,15 @@ struct MonacoSegmented<T: Hashable>: View {
                 } label: {
                     Text(label(option))
                         .font(MonacoTheme.Typo.calloutStrong)
-
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                        .foregroundStyle(isSelected ? MonacoTheme.primaryButtonLabel : MonacoTheme.muted)
-                        .padding(.horizontal, 12)
+                        .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.ink)
+                        .padding(.horizontal, MonacoTheme.Space.m)
                         .frame(maxWidth: .infinity, minHeight: 36)
                         .background {
                             if isSelected {
                                 Capsule()
-                                    .fill(MonacoTheme.primaryButtonFill)
+                                    .fill(MonacoTheme.brandFill)
                                     .matchedGeometryEffect(id: "thumb", in: thumb)
                             }
                         }

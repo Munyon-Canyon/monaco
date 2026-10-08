@@ -27,14 +27,10 @@ private struct HomePeopleBoard: View {
                 onSelect: { loader.select(range: $0) }
             )
             .padding(.horizontal, MonacoTheme.Space.m)
-            Picker(
-                "Board",
+            MonacoSegmented(
+                [LeaderboardFilter.everyone, .friends],
                 selection: Binding(get: { loader.filter }, set: { loader.select(filter: $0) })
-            ) {
-                Text("Everyone").tag(LeaderboardFilter.everyone)
-                Text("Friends").tag(LeaderboardFilter.friends)
-            }
-            .pickerStyle(.segmented)
+            ) { $0 == .everyone ? "Everyone" : "Friends" }
             .padding(.horizontal, MonacoTheme.Space.m)
             .accessibilityIdentifier("home-leaderboard-filter")
             LeaderboardBoardList(
