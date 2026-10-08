@@ -18,5 +18,6 @@ private struct HomeTabRoot: View {
         HomeScreen()
             .environment(refresh)
             .refreshable { await refresh.run() }
+            .monacoFrameStats("Home")
     }
 }

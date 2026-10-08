@@ -37,6 +37,14 @@ enum CabalsTabSampleData {
         return scenario
     }
 
+    static var script: SampleAPIScript {
+        switch scenario {
+        case .normal: SampleAPIScript()
+        case .cabalsUnavailable: SampleAPIScript(mode: .empty)
+        case .cabalsLoading: SampleAPIScript(mode: .hang)
+        }
+    }
+
     static let createdCabalID = "5b1f0c9e-0007-4c55-9a51-000000000007"
 
     /// A stubbed create that always succeeds.
@@ -54,27 +62,13 @@ enum CabalsTabSampleData {
     }
 }
 
-/// Root view for `-MonacoCabalsTabSample`: the Cabals tab on sample data.
 struct CabalsTabSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
-    @State private var session: AppSessionStore = {
-        let session = AppSessionStore()
-        session.isLoading = CabalsTabSampleData.scenario == .cabalsLoading
-        return session
-    }()
 
     var body: some View {
-        TabView {
-            NavigationStack {
-                CabalsTabView(auth: auth, actions: CabalsTabSampleData.Actions())
-            }
-            .tabItem {
-                Label("Cabals", systemImage: "person.3")
-                    .accessibilityIdentifier("tab-cabals")
-            }
-        }
-        .tint(MonacoTheme.ink)
-        .environment(session)
+        SampleAppFrame(
+            auth: auth, tab: .cabals,
+            session: CabalsTabSampleData.scenario == .cabalsLoading ? SampleAppFrame.loading : SampleAppFrame.signedIn)
     }
 }
 
@@ -82,6 +76,7 @@ final class CabalsTabSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard CabalsTabSampleData.matches(arguments) else { return nil }
+        SampleAPIProtocol.install(CabalsTabSampleData.script)
         return AnyView(CabalsTabSampleHarness(auth: auth))
     }
 }

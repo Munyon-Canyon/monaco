@@ -8,7 +8,7 @@ enum ChatThreadSampleQA {
         arguments.contains("-MonacoChatThreadSampleQA")
     }
 
-    @MainActor static func rootView() -> some View {
+    @MainActor static func screen() -> some View {
         ChatThreadSampleHost(session: ChatSession.sample(ChatSampleScenario(threaded: true)) { Date() })
     }
 }
@@ -16,20 +16,18 @@ enum ChatThreadSampleQA {
 private struct ChatThreadSampleHost: View {
     let session: ChatSession
 
-    @State private var path: [String] = []
+    @State private var openedThread: String?
 
     var body: some View {
-        NavigationStack(path: $path) {
-            GroupChatScreen(
-                cabalID: ChatSession.sampleCabalID,
-                session: session,
-                cabal: .sample(role: "member"),
-                openProfile: { _ in },
-                openThread: { path.append($0) }
-            )
-            .navigationDestination(for: String.self) { parentID in
-                ChatThreadSampleScreen(session: session, parentID: parentID)
-            }
+        GroupChatScreen(
+            cabalID: ChatSession.sampleCabalID,
+            session: session,
+            cabal: .sample(role: "member"),
+            openProfile: { _ in },
+            openThread: { openedThread = $0 }
+        )
+        .navigationDestination(item: $openedThread) { parentID in
+            ChatThreadSampleScreen(session: session, parentID: parentID)
         }
     }
 }
@@ -48,9 +46,10 @@ private struct ChatThreadSampleScreen: View {
 
 final class ChatThreadSampleQAEntry: SampleHarnessEntry {
     @MainActor
-    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard ChatThreadSampleQA.matches(arguments) else { return nil }
-        return AnyView(ChatThreadSampleQA.rootView())
+        let route = SampleScreenRoute(screen: .chatThread, arguments: arguments)
+        return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [route]))
     }
 }
 #endif

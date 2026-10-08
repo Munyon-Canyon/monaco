@@ -8,7 +8,7 @@ enum ChatSampleQA {
         arguments.contains("-MonacoChatSampleQA")
     }
 
-    @MainActor static func rootView(arguments: [String]) -> some View {
+    @MainActor static func screen(arguments: [String]) -> some View {
         let scenario = ChatSampleScenario(
             startEmpty: arguments.contains("-MonacoChatSampleEmpty"),
             failSends: arguments.contains("-MonacoChatSampleOffline"),
@@ -18,18 +18,19 @@ enum ChatSampleQA {
             failFirstSend: arguments.contains("-MonacoChatSampleFlaky"),
             closedOnSend: arguments.contains("-MonacoChatSampleClosedOnSend")
         )
-        return NavigationStack {
-            OpensOnceActive {
-                ChatSampleHost(session: ChatSession.sample(scenario) { Date() })
-            }
+        return OpensOnceActive {
+            ChatSampleHost(scenario: scenario)
         }
     }
 }
 
 private struct ChatSampleHost: View {
-    let session: ChatSession
-
+    @State private var session: ChatSession
     @State private var openedProfile: String?
+
+    init(scenario: ChatSampleScenario) {
+        _session = State(initialValue: ChatSession.sample(scenario) { Date() })
+    }
 
     var body: some View {
         GroupChatScreen(
@@ -71,9 +72,10 @@ private struct OpensOnceActive<Content: View>: View {
 
 final class ChatSampleQAEntry: SampleHarnessEntry {
     @MainActor
-    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard ChatSampleQA.matches(arguments) else { return nil }
-        return AnyView(ChatSampleQA.rootView(arguments: arguments))
+        return AnyView(
+            SampleAppFrame(auth: auth, tab: .cabals, routes: [SampleScreenRoute(screen: .chat, arguments: arguments)]))
     }
 }
 #endif
