@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 6
+    static let version = 7
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -156,13 +156,22 @@ enum SignInJourney {
     static func signOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let signOut = app.buttons["profileSignOutButton"]
 
-        recorder.step("S3.1", "open Profile") {
+        recorder.step("S3.1", "open Settings") {
             app.waitForToastGone()
+            app.dismissPushPrePromptIfShown()
             app.popToRoot()
             app.dismissKeyboard()
             app.tab("Profile").tap()
+            if !app.element("profile-header").waitForExistence(timeout: 5) {
+                app.tab("Profile").tap()
+            }
+            let settings = app.element("profile-settings-row")
+            app.scrollIntoReach(settings, maxSwipes: 30)
+            XCTAssertTrue(settings.waitForExistence(timeout: 15), "S3.1: no Settings row on Profile")
+            settings.tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "S3.1: Settings did not open")
             app.scrollIntoReach(signOut)
-            XCTAssertTrue(signOut.waitForExistence(timeout: 15), "S3.1: no Sign out button on Profile")
+            XCTAssertTrue(signOut.waitForExistence(timeout: 15), "S3.1: no Sign out row in Settings")
         }
 
         let confirm = app.buttons["profile-sign-out-confirm"].firstMatch

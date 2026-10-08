@@ -142,10 +142,12 @@ nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
 
     @MainActor
     func testSignOutAsksBeforeItSignsOut() throws {
-        let app = launchApp("cabals")
+        let app = XCUIApplication()
+        app.launchArguments = ["-settingsHarness", "on"]
+        app.launch()
 
         let signOut = app.buttons["profileSignOutButton"]
-        XCTAssertTrue(signOut.waitForExistence(timeout: 10), "Sign out should be on the profile")
+        XCTAssertTrue(signOut.waitForExistence(timeout: 10), "Sign out should be in Settings")
         signOut.tap()
 
         let confirm = anyElement(app, "profile-sign-out-confirm")
@@ -155,7 +157,7 @@ nonisolated final class ProfileNameSaveSampleUITests: XCTestCase {
         )
         attachScreenshot(app, name: "02-sign-out-confirm")
 
-        // The point is that it asked rather than signing out: the profile is still there
+        // The point is that it asked rather than signing out: Settings is still there
         // behind the dialog, and nothing has happened yet.
         XCTAssertTrue(signOut.exists, "the member is still signed in while the dialog is up")
     }

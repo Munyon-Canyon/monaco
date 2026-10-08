@@ -65,7 +65,8 @@ Profile ┬─ Followers / Following ──▶ FollowListRoute
                                              ├─ Withdraw ──▶ WithdrawRoute
                                              ├─ Blocked people
                                              ├─ Advanced
-                                             └─ Delete account ──▶ DeleteAccountRoute
+                                             ├─ Delete account ──▶ DeleteAccountRoute
+                                             └─ Sign out
 ```
 
 #2134 adds the slots and route stubs this page names that do not exist yet: `HomeCabalsSlot`, `CabalSliceSlot`, `CabalValueChartSlot`, `CabalActionsSlot`, `CabalHoldingsSlot`, `CabalAgentSlot`, `CabalRulesSlot`, `ProfileStatsSlot`, `ProfileCabalsSlot`, and the routes `JoinRoute()`, `FundRoute(cabalID:)`, `ChatRoute(cabalID:)`, `SettingsRoute()`, `AccountActivityRoute()`, `AgentRoute(cabalID:)`, `ProposeFromAssetRoute(symbol:kind:)`. It removes the `CabalCashOutSlot`, `CabalChatSlot` and `ProfileDeleteAccountSlot` stubs, whose jobs move to the action row and Settings.
@@ -110,7 +111,7 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 | 3 | `CabalValueChartSlot` | #660 | yes | yes | Hero, ink: the pot's value curve from `GET /v1/cabals/{id}/value-history`, chips 1D 1W 1M All (default 1M). Short history: a hairline with "Not enough history for the last month yet" |
 | 4 | `CabalSliceSlot` | #2137 | yes | hidden | Hero, ink, under a hairline: "Your slice", its value, and on the right "38% of the pot" over your gain or loss. No stake: "$0.00" with "Fund to get a slice" |
 | 5 | `CabalPauseSlot` | #657 | yes | yes | A warning row when the cabal is paused, with the reason and "Funding and cash outs resume after…". Hidden otherwise |
-| 6 | `CabalJoinSlot` | #646 | creator only | yes | Non-member: "Request to join", or "Request sent" with "Cancel request". Creator: "2 people want to join" with Approve and Deny per row, plus a "Can vote" switch (off by default) on each row when the cabal picks its voters; approving with it on adds the member to the voters in the same tap. Hidden otherwise |
+| 6 | `CabalJoinSlot` | #646 | creator only | yes | Non-member: "Request to join", or "Request sent" as a warning status row with a text "Cancel request" beneath it, never a disabled primary. Creator: "2 people want to join" with Approve and Deny per row, plus a "Can vote" switch (off by default) on each row when the cabal picks its voters; approving with it on adds the member to the voters in the same tap. Hidden otherwise |
 | 7 | `CabalActionsSlot` | #2134 | yes | hidden | Four round ink buttons, equal width: "Fund" (`plus`, `FundRoute`), "Propose" (`arrow.up.right`, `ProposeRoute(cabalID:)`, #613), "Cash out" (`arrow.down.left`, `CashOutRoute`), "Chat" (`bubble.left`, `ChatRoute`, with an unread dot from #704). Propose is disabled with the caption "Only voters can propose" when `me.can_vote` is false. While the cabal is paused the buttons stay enabled, and Fund and Cash out show the pause on their own screens (#651, #657) |
 | 8 | `CabalProposalsSlot` | #612 | yes | yes, read-only | "Needs your vote" with a count badge and "See all" (the full open and closed list). Open proposal cards, newest first. Passed proposals whose trade has not finished sit under "In progress" until the trade is bought, sold or failed. Each section is hidden when empty. Empty for a member: "No open votes" / "Propose the first buy." |
 | 9 | `CabalHoldingsSlot` | #2137 | yes | yes | "Holdings": an allocation bar with a legend ("● GOOGL 25%  Cash 75%"), then one row per holding (logo, ticker, "0.73 shares · $341.58", value over its gain or loss) and a "Cash" row. Rows open `AssetRoute`. Empty pot: the Cash row and "Nothing bought yet. Propose the first buy." Zero pot: "Fund, then propose the first buy." |
@@ -197,9 +198,8 @@ Pull to refresh, like Home.
 | 6 | `ProfileInviteSlot` | #682 | Row "Invite friends" |
 | 7 | `ProfileFindFriendsSlot` | #663 | Row "Find friends" (contacts, plus search by name or handle from #2142) |
 | 8 | `ProfileSettingsSlot` | #2139 | Row "Settings" |
-|  | Sign out | shell | Destructive "Sign out" with the confirm "Sign out of Monaco?" / "Your money stays where it is. You'll need a new code to sign back in." |
 
-**Settings** (`SettingsRoute`, #2139). Title "Settings". Rows: "Notifications" (On or Off; while permission is undecided a tap asks for it, otherwise it opens iOS notification settings, #2143), "Activity" (`AccountActivityRoute`), "Withdraw" (`WithdrawRoute`), "Blocked people" (#2145), "Advanced" / "Block explorers", "Terms" and "Privacy" (open in Safari), and destructive "Delete account" (`DeleteAccountRoute`, #695). Footer: app version.
+**Settings** (`SettingsRoute`, #2139). Title "Settings". Rows: "Notifications" (On or Off; while permission is undecided a tap asks for it, otherwise it opens iOS notification settings, #2143), "Activity" (`AccountActivityRoute`), "Withdraw" (`WithdrawRoute`), "Blocked people" (#2145), "Advanced" / "Block explorers", "Terms" and "Privacy" (open in Safari), and destructive "Delete account" (`DeleteAccountRoute`, #695). Last, in its own group, a destructive "Sign out" row with the confirm "Sign out of Monaco?" / "Your money stays where it is. You'll need a new code to sign back in." Footer: app version.
 
 **User profile** (`UserProfileRoute`). Header (#620): avatar, name, "@handle", follower counts, "Follow" or "Following", and a "…" menu with "Report" and "Block" (#2145). Hidden on your own profile: the Follow button and the menu. Then "Cabals you share" (#660): rows with pot figures. Empty: "No cabals in common" / "You and Maya aren't in a cabal together yet." A banned or deleted user: "This account isn't available."
 

@@ -169,13 +169,18 @@ struct SubmitLabel: View {
 /// Buttons inside get the full width; put one primary, or a primary and a secondary side by side.
 struct BottomCTA<Content: View>: View {
     private let content: Content
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        layout {
             content
         }
         .monacoFullWidthButtons()

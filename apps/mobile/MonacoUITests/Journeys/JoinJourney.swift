@@ -189,7 +189,7 @@ enum JoinJourney {
                 "S1.9: the cabal screen for \(name) did not show"
             )
             XCTAssertTrue(
-                waitForLabel(app.buttons["cabal-join-requested"], containing: "Request sent", timeout: screenTimeout),
+                waitForLabel(app.element("cabal-join-requested"), containing: "Request sent", timeout: screenTimeout),
                 "S1.9: no Request sent on the cabal screen"
             )
             XCTAssertTrue(app.buttons["cabal-join-cancel"].exists, "S1.9: no Cancel request")
@@ -234,7 +234,7 @@ enum JoinJourney {
                 app.element("cabal-action-fund").waitForExistence(timeout: screenTimeout),
                 "S1.12: no member actions on the cabal within \(Int(screenTimeout)) s"
             )
-            XCTAssertFalse(app.buttons["cabal-join-requested"].exists, "S1.12: still reads Request sent")
+            XCTAssertFalse(app.element("cabal-join-requested").exists, "S1.12: still reads Request sent")
             XCTAssertFalse(app.buttons["cabal-join-button"].exists, "S1.12: still offers to join")
             snap(app, "S1-B-member")
         }

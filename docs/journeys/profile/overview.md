@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 2
+version: 3
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -69,8 +69,8 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap, then scroll to and tap | the Profile tab, then `profileSignOutButton` | | Within 5 s the confirm shows "Sign out of Monaco?" and "Your money stays where it is. You'll need a new code to sign back in." | `profile-sign-out`, with "Sign out of Monaco?" |
-| S5.2 | tap | outside the dialog | | The confirm closes within 5 s, and `profile-header` still shows. On iOS 27 the confirm is a popover with no Cancel button | "Cancel" |
+| S5.1 | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `profileSignOutButton` in Settings | | Within 5 s the confirm shows "Sign out of Monaco?" and "Your money stays where it is. You'll need a new code to sign back in." | `profile-sign-out`, with "Sign out of Monaco?" |
+| S5.2 | tap | outside the dialog | | The confirm closes within 5 s, and the "Settings" screen still shows. On iOS 27 the confirm is a popover with no Cancel button | "Cancel" |
 | S5.3 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | The login form shows within 15 s, and the tab bar does not | `profile-sign-out-confirm` |
 
 ### S6 Totals and pot values

@@ -306,6 +306,9 @@ nonisolated final class MonacoUITests: XCTestCase {
 
         tabButton(app, "Profile").tap()
         attachScreenshot(app, name: "issue-207-profile")
+        let settings = app.buttons["profile-settings-row"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
         let signOut = app.buttons["profileSignOutButton"]
         XCTAssertTrue(signOut.waitForExistence(timeout: 10))
         signOut.tap()

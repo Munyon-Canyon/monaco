@@ -23,7 +23,10 @@ struct ContactsExplainerView: View {
     }
 
     private var actions: some View {
-        VStack(spacing: MonacoTheme.Space.s) {
+        BottomCTA {
+            Button("Not now", action: skip)
+                .buttonStyle(.monacoSecondary)
+                .accessibilityIdentifier("friends-not-now")
             if model.access == .denied {
                 Button("Open Settings", action: openSettings)
                     .buttonStyle(.monacoPrimary)
@@ -33,13 +36,7 @@ struct ContactsExplainerView: View {
                     .buttonStyle(.monacoPrimary)
                     .accessibilityIdentifier("friends-find")
             }
-            Button("Not now", action: skip)
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("friends-not-now")
         }
-        .monacoFullWidthButtons()
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.m)
     }
 
     private func skip() {

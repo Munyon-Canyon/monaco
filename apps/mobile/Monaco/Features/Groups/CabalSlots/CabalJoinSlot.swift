@@ -52,8 +52,10 @@ struct CabalJoinSection: View {
         case .hidden:
             EmptyView()
         case .join:
-            Button(model.isBusy ? "Sending…" : "Request to join") {
+            Button {
                 Task { await model.enter() }
+            } label: {
+                SubmitLabel(isWorking: model.isBusy, idle: "Request to join", working: "Sending…")
             }
             .buttonStyle(.monacoPrimary)
             .monacoFullWidthButtons()
@@ -61,20 +63,27 @@ struct CabalJoinSection: View {
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier("cabal-join-button")
         case .requested:
-            VStack(spacing: MonacoTheme.Space.s) {
-                Button("Request sent") {}
-                    .buttonStyle(.monacoPrimary)
-                    .disabled(true)
-                    .accessibilityIdentifier("cabal-join-requested")
-                Button("Cancel request") {
-                    Task { await model.cancelRequest() }
-                }
-                .buttonStyle(.monacoSecondary)
-                .disabled(model.isBusy)
-                .accessibilityIdentifier("cabal-join-cancel")
+            MonacoGroupedList {
+                MonacoRow(
+                    title: "Request sent",
+                    isLast: true,
+                    leading: {
+                        Image(systemName: "clock")
+                            .font(.title3)
+                            .foregroundStyle(MonacoTheme.warning)
+                            .accessibilityHidden(true)
+                    }
+                )
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("cabal-join-requested")
             }
-            .monacoFullWidthButtons()
+            Button("Cancel request") {
+                Task { await model.cancelRequest() }
+            }
+            .buttonStyle(.monacoText)
+            .disabled(model.isBusy)
             .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityIdentifier("cabal-join-cancel")
         case .pending(let requests):
             MonacoSectionHeader(CabalAccessStanding.heading(count: requests.count))
                 .padding(.horizontal, MonacoTheme.Space.gutter)

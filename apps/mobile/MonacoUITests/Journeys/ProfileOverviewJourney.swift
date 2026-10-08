@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 2
+    static let version = 3
 
     static let notYet = "Not available yet"
     static let signOutTitle = "Sign out of Monaco?"
@@ -153,6 +153,10 @@ enum ProfileOverviewJourney {
 
         recorder.step("S5.1", "ask to sign out") {
             openProfile(app, step: "S5.1")
+            let settings = app.element("profile-settings-row")
+            app.scrollIntoReach(settings, maxSwipes: 30)
+            settings.tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "S5.1: Settings did not open")
             app.scrollIntoReach(button)
             button.tap()
             XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S5.1: Sign out did not ask to confirm")
@@ -164,7 +168,7 @@ enum ProfileOverviewJourney {
             app.dismissConfirmDialog(title: signOutTitle)
             XCTAssertTrue(confirm.waitForNonExistence(timeout: 5), "S5.2: a tap outside did not close the confirm")
             XCTAssertTrue(
-                app.element("profile-header").exists, "S5.2: the Profile header is gone after the confirm closed")
+                app.navigationBars["Settings"].exists, "S5.2: Settings is gone after the confirm closed")
         }
 
         recorder.step("S5.3", "sign out") {
