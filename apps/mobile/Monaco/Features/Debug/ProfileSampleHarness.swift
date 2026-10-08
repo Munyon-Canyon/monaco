@@ -36,34 +36,12 @@ enum ProfileSampleScenario: String, CaseIterable {
 struct ProfileSampleHarness: View {
     let scenario: ProfileSampleScenario
     @ObservedObject var auth: PrivyAuthService
-    @State private var environment: AppEnvironment
-    @State private var refresh = ScreenRefresh()
-
-    init(scenario: ProfileSampleScenario, auth: PrivyAuthService) {
-        self.scenario = scenario
-        self.auth = auth
-        let environment = AppEnvironment(
-            auth: auth,
-            hints: SilentHints(),
-            sessionStore: AppSessionStore(),
-            isAuthenticated: { true },
-            endAuthSession: {}
-        )
-        Self.fill(environment.sessionStore, for: scenario)
-        _environment = State(initialValue: environment)
-    }
+    @State private var store = AppSessionStore()
 
     var body: some View {
-        NavigationStack {
-            ProfileScreen()
-                .refreshable { await refresh.run() }
-                .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
-        }
-        .defaultScrollAnchor(scenario == .cabals || scenario == .empty ? .bottom : .top)
-        .environment(environment)
-        .environment(environment.sessionStore)
-        .environment(refresh)
-        .environment(\.profileHeaderPresets, presets)
+        SampleAppFrame(auth: auth, tab: .profile, store: store) { Self.fill($0, for: scenario) }
+            .defaultScrollAnchor(scenario == .cabals || scenario == .empty ? .bottom : .top)
+            .environment(\.profileHeaderPresets, presets)
     }
 
     private var presets: ProfileHeaderPresets {
@@ -76,7 +54,7 @@ struct ProfileSampleHarness: View {
     }
 
     private var saveNameOverride: (any DisplayNameSaving)? {
-        scenario == .saveSuccess ? AcceptingNameStore(session: environment.sessionStore) : nil
+        scenario == .saveSuccess ? AcceptingNameStore(session: store) : nil
     }
 
     private static func nameDraft(for scenario: ProfileSampleScenario) -> String? {
@@ -125,43 +103,9 @@ struct ProfileSampleHarness: View {
         return profile
     }
 
-    /// Writes a generated landscape to tmp so AsyncImage loads it from a file URL.
-    /// A generated portrait written to a temp file, so avatars show a photo without the network.
     static func samplePhotoURL() -> URL? {
-        let size = CGSize(width: 256, height: 256)
-        let image = UIGraphicsImageRenderer(size: size).image { context in
-            let cg = context.cgContext
-            let sky =
-                [
-                    UIColor(red: 0.98, green: 0.72, blue: 0.45, alpha: 1).cgColor,
-                    UIColor(red: 0.85, green: 0.42, blue: 0.38, alpha: 1).cgColor,
-                ] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: sky, locations: [0, 1]) {
-                cg.drawLinearGradient(
-                    gradient, start: .zero, end: CGPoint(x: 0, y: 170), options: [.drawsAfterEndLocation])
-            }
-            UIColor(red: 1.0, green: 0.93, blue: 0.7, alpha: 1).setFill()
-            cg.fillEllipse(in: CGRect(x: 150, y: 70, width: 64, height: 64))
-            UIColor(red: 0.29, green: 0.36, blue: 0.33, alpha: 1).setFill()
-            cg.fillEllipse(in: CGRect(x: -60, y: 150, width: 260, height: 200))
-            UIColor(red: 0.18, green: 0.25, blue: 0.23, alpha: 1).setFill()
-            cg.fillEllipse(in: CGRect(x: 90, y: 175, width: 240, height: 180))
-        }
-        guard let data = image.pngData() else { return nil }
-        let url = FileManager.default.temporaryDirectory.appending(path: "monaco-sample-avatar.png")
-        do {
-            try data.write(to: url, options: .atomic)
-            return url
-        } catch {
-            return nil
-        }
+        SampleImage.flat(.plum, name: "avatar")
     }
-}
-
-private nonisolated struct SilentHints: HintConnecting {
-    func hints(matching _: HintFilter) -> AsyncStream<Hint> { AsyncStream { $0.finish() } }
-    func start() async {}
-    func stop() async {}
 }
 
 /// A store that accepts the save, standing in for the profile endpoint. Writes the name back
@@ -184,6 +128,7 @@ final class ProfileSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
+        SampleAPIProtocol.install(SampleAPIScript(mode: scenario == .empty ? .empty : .populated))
         return AnyView(ProfileSampleHarness(scenario: scenario, auth: auth))
     }
 }

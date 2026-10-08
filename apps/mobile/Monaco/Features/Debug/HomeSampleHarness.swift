@@ -18,42 +18,30 @@ enum HomeSampleScenario: String, CaseIterable {
     }
 }
 
+extension HomeSampleScenario {
+    var script: SampleAPIScript {
+        switch self {
+        case .populated: SampleAPIScript()
+        case .empty: SampleAPIScript(mode: .empty)
+        case .loading: SampleAPIScript(mode: .hang)
+        }
+    }
+}
+
 struct HomeSampleHarness: View {
     let scenario: HomeSampleScenario
     @ObservedObject var auth: PrivyAuthService
-    @State private var session: AppSessionStore
-    @State private var selectedTab: MainTab = .home
-
-    init(scenario: HomeSampleScenario, auth: PrivyAuthService) {
-        self.scenario = scenario
-        self.auth = auth
-        _session = State(initialValue: Self.makeSession(for: scenario))
-    }
 
     var body: some View {
-        NavigationStack {
-            HomeView(auth: auth, selectedTab: $selectedTab)
-        }
-        .environment(session)
+        SampleAppFrame(auth: auth, tab: .home, session: session)
     }
 
-    private static func makeSession(for scenario: HomeSampleScenario) -> AppSessionStore {
-        let session = AppSessionStore()
-        session.isLoading = false
-
+    private func session(_ store: AppSessionStore) {
         if scenario == .loading {
-            session.isLoading = true
-            return session
+            SampleAppFrame.loading(store)
+        } else {
+            SampleAppFrame.signedIn(store)
         }
-
-        session.profile = ProfileSampleHarness.sampleProfile(
-            userID: "sample-user",
-            displayName: "Logan Norman",
-            photoURL: scenario == .empty ? nil : ProfileSampleHarness.samplePhotoURL()
-        )
-
-        session.hasLoaded = true
-        return session
     }
 }
 
@@ -61,6 +49,7 @@ final class HomeSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = HomeSampleScenario.matching(arguments) else { return nil }
+        SampleAPIProtocol.install(scenario.script)
         return AnyView(HomeSampleHarness(scenario: scenario, auth: auth))
     }
 }

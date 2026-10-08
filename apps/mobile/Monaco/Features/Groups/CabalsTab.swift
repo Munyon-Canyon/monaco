@@ -38,5 +38,8 @@ private struct CabalsTabRoot: View {
                 }
             }
             .newCabalSheet(isPresented: $showsNewCabal)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("cabals-root")
+            .monacoFrameStats("Cabals")
     }
 }
