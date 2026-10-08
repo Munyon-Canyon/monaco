@@ -90,7 +90,7 @@ Thin pre-IPO tokens can print a noisy spot. The sampler stores the raw sample; s
 
 ### Writer 2: CoinGecko backfill and reconcile
 
-**Backfill** runs once per mint, triggered when a mint first becomes listed (chain checked and tradable) and by a `monacoctl` backfill subcommand for the initial load (`monacoctl` is the RFC's ops CLI for backfills; [Repository layout](backend-platform.md#repository-layout)). Three calls per mint:
+**Backfill** runs once per mint, and only for mints someone is likely to chart. A hot listed mint is queued by the 5-minute `market.backfill` tick when it has no `price_backfills` row. Hot is the set `SamplePrices` prices every tick: mints a treasury holds, mints an open proposal names, and every asset with a popular rank. Any other listed mint is queued the first time someone opens its chart. The chart read inserts the row behind the chart cache's miss path and never resets an existing row, and the next `market.backfill` tick drains it within 5 minutes. The catalog poller queues nothing. A `monacoctl` backfill subcommand covers the initial load and single mints (`monacoctl` is the RFC's ops CLI for backfills; [Repository layout](backend-platform.md#repository-layout)). Three calls per mint:
 
 | Call | Granularity | Fills |
 | --- | --- | --- |
@@ -98,9 +98,9 @@ Thin pre-IPO tokens can print a noisy spot. The sampler stores the raw sample; s
 | `days=90` | hourly | 1W, 1M, 3M |
 | `days=1` | 5-min | 1D, until the sampler has run for a day |
 
-The queue is ordered by `popular_rank` (unranked last), then request time, so popular stocks have a chart first; mints whose last attempt failed wait behind fresh ones. Only listed mints (the same set the sampler prices) are queued, so unlisted catalog rows cost nothing.
+The queue is ordered by `popular_rank` (unranked last), then request time, so popular stocks have a chart first; mints whose last attempt failed wait behind fresh ones. Only listed mints (chain checked and tradable) are queued, so unlisted catalog rows cost nothing, and a listed mint nobody holds, proposes or charts costs nothing either.
 
-After a deploy that ships this scope, run `monacoctl backfill prices --all` once. It queues and drains every listed mint (three calls each, once) so no popular stock waits on the 10-mints-per-5-minutes queue.
+After a deploy that ships this scope, run `monacoctl backfill prices --all` once. It queues and drains only the hot listed mints, about 25 mints at three calls each, so about 75 calls. No popular or held stock then waits on the 10-mints-per-5-minutes queue. The `prune_pending_backfills` migration deletes the pending rows the old catalog poller queued for every listed mint, so the worker does not spend about 3,900 calls draining them. Rows already done stay, so those charts are not queued again. `monacoctl backfill prices --mint <mint>` still backfills any one listed mint.
 
 **Reconcile** runs nightly. One `days=2` hourly call fills any hole the sampler left (deploys, outages), for every hot mint plus a rotating slot of 150 listed, non-hot mints (`reconcileColdPerTick`). Hot is what `SamplePrices` prices every tick: mints a treasury holds or an open proposal names, and every asset with a popular rank. The slot is the same mint-ordered rotation `SamplePrices` uses for its cold mints, stepped once a night, so 1,300 listed mints are all reconciled within 9 nights. Listed means `Asset.Tradable()`; unlisted rows are reconciled only when hot.
 
@@ -131,7 +131,7 @@ A monthly `market` poller, under the same advisory-lock rule, thins old rows: 2-
 | Vendor | Calls | Per month |
 | --- | --- | --- |
 | Jupiter Price v3 | Hot mints plus 100 cold, so 3 to 4 calls per 120 s tick (50 mints a call), about 2 a minute | ~90k. The free tier allows 60 requests a minute in a 60-second sliding window, and Price, Swap and Token calls share one bucket ([Jupiter rate limits](https://developers.jup.ag/docs/portal/rate-limits), read 2026-09-27; the [pricing page](https://developers.jup.ag/pricing) states 1 request a second). The poller uses about 2 of the 60 and leaves 58 a minute for quotes and token lookups. No monthly cap is published for the free tier. |
-| CoinGecko Demo | 3 per newly listed mint once, 1 per hot mint nightly, 1 per slot mint nightly | About 5.4k a month at 1,300 listed mints, under the 10k Demo cap and the 8k target. See the table below. |
+| CoinGecko Demo | 3 per hot or first-charted mint once, 1 per hot mint nightly, 1 per slot mint nightly | About 5.6k a month at 1,300 listed mints, under the 10k Demo cap and the 8k target. See the table below. |
 
 CoinGecko, at 1,300 listed mints and 30 nights a month:
 
@@ -139,14 +139,14 @@ CoinGecko, at 1,300 listed mints and 30 nights a month:
 | --- | --- | --- |
 | Hot reconcile | about 25 hot mints (17 popular plus held or proposed) x 30 nights | 750 |
 | Slot reconcile | 150 slot mints x 30 nights | 4,500 |
-| New-mint backfills | about 50 new mints a month x 3 calls | 150 |
-| **Total** | | **5,400** |
+| Chart-open backfills | about 100 distinct non-hot charts opened for the first time a month x 3 calls (an assumption, not a measurement) | 300 |
+| **Total** | | **5,550** |
 
-The total leaves 4,600 credits under the cap. It stays under the 8,000 target until hot reaches about 100 mints (100 x 30 + 4,500 + 150 = 7,650). Raise or lower `reconcileColdPerTick` against this table: each slot mint costs 30 credits a month.
+The total leaves 4,450 credits under the cap. It stays under the 8,000 target until hot reaches about 100 mints (100 x 30 + 4,500 + 300 = 7,800). Backfills for mints that turn hot during the month are a few calls each and sit inside the chart-open row. Raise or lower `reconcileColdPerTick` against this table: each slot mint costs 30 credits a month.
 
-The one-time post-deploy `monacoctl backfill prices --all` costs about 3 x listed credits once (3,900 at 1,300 listed). Run it early in a month and not alongside a month of full reconcile, since 3,900 plus 5,400 is 9,300, close to the cap.
+The one-time post-deploy `monacoctl backfill prices --all` costs about 3 x hot credits once, about 75 at 25 hot mints. It fits in any month, since 75 plus 5,550 is 5,625.
 
-User traffic contributes zero to either row.
+User traffic adds nothing to the Jupiter row. It adds to the CoinGecko row only through chart-open backfills, once per mint.
 
 ## Alternatives considered
 
