@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedBrowseJourney {
     static let id = "feed/browse"
-    static let version = 2
+    static let version = 3
     static let searchPlaceholder = "Search the feed"
     static let chips = ["All", "Proposals", "Trades", "Price moves", "Cabals"]
 

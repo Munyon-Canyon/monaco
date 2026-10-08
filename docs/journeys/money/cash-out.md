@@ -1,7 +1,7 @@
 ---
 id: money/cash-out
 title: Cash out
-version: 1
+version: 2
 milestone: M15
 requires: [auth/sign-in]
 actors: [A]
@@ -26,7 +26,7 @@ The format of this doc is in [App journeys](../README.md).
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
 | P3 | Whoever runs the journey sent A 2 USDC from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet, as [Journeys that move money](../README.md#journeys-that-move-money) says, and set `MONACO_QA_REFUND_ADDRESS` |
-| P4 | `apps/mobile/qa/journeys/money/cash-out.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. For S1, A creates the open cabal `QA cash out {QA.run}` through the API. No route funds a cabal on staging (#651), so A has no slice in it yet |
+| P4 | `apps/mobile/qa/journeys/money/cash-out.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. For S1, A creates the cabal `QA cash out {QA.run}` through the API. No route funds a cabal on staging (#651), so A has no slice in it yet |
 
 ## Scenarios
 

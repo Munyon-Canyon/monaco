@@ -1,7 +1,7 @@
 ---
 id: cabals/leave
 title: Leave a cabal
-version: 1
+version: 2
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/cabals/leave.setup.sh` ran right before the scenario. It marks A and B as done with onboarding and sets their display names. For S1, a new dev user "QA host" creates the open cabal `QA leave {QA.run}`, and for S3 the open cabal `QA sell {QA.run}`. B joins each through the API. For S2, A creates the open cabal `QA stay {QA.run}` and B joins it through the API. No one has a stake: the journey moves no money |
+| P3 | `apps/mobile/qa/journeys/cabals/leave.setup.sh` ran right before the scenario. It marks A and B as done with onboarding and sets their display names. For S1, a new dev user "QA host" creates the cabal `QA leave {QA.run}`, and for S3 the cabal `QA sell {QA.run}`. B joins each through the API. For S2, A creates the cabal `QA stay {QA.run}` and B joins it through the API. No one has a stake: the journey moves no money |
 
 ## Scenarios
 

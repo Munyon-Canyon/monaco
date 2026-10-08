@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# journey.py runs this before S1 of docs/journeys/governance/withdraw.md. A creates an open cabal, B
+# journey.py runs this before S1 of docs/journeys/governance/withdraw.md. A creates a cabal, B
 # joins it, and A has one open buy proposal. The proposal rows are written the way
 # governance.ProposeTrade writes them, because the propose route needs a Jupiter route and pot funds.
 set -euo pipefail
@@ -83,6 +83,13 @@ for key in sys.argv[1].split("."):
     value = value.get(key) if isinstance(value, dict) else None
 print("" if value is None else value)
 ' "$1"
+}
+
+admit() {
+  local joiner="$1" creator="$2" cabal="$3" request
+  request="$(call POST "/v1/cabals/$cabal/access-requests" "$joiner" 2>/dev/null | field id)" || return 0
+  [[ -n "$request" ]] || return 0
+  call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$creator" '{"decision":"approve"}' >/dev/null
 }
 
 ready_actor() {
@@ -177,9 +184,9 @@ closed="$(expire_open_proposals "$id_a" "$id_b")"
 
 cabal_name="QA withdraw $run"
 cabal_id="$(call POST /v1/cabals "$token_a" \
-  "{\"name\":\"$cabal_name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+  "{\"name\":\"$cabal_name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
   field id)"
-call POST "/v1/cabals/$cabal_id/members" "$token_b" >/dev/null
+admit "$token_b" "$token_a" "$cabal_id"
 
 proposal_id="$(open_proposal "$cabal_id" "$id_a" "QA withdraw $run" open '0 seconds' '86400 seconds')"
 [[ -n "$proposal_id" ]] || fail "no TSLAx row in assets, so no proposal was written"

@@ -1,7 +1,7 @@
 ---
 id: governance/vote
 title: Vote on a proposal
-version: 1
+version: 2
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend`, which also builds `bin/monacoctl` |
-| P3 | `apps/mobile/qa/journeys/governance/vote.setup.sh` ran right before the scenario. It marks A and B as done with onboarding and sets their display names to the `name` column of `accounts.tsv`. It closes every open proposal A or B can vote on. A new dev user, "QA host", creates the open cabal `QA vote {QA.run} <scenario>`, A and B join it, and QA host proposes a $5.00 buy with the reason `QA vote {QA.run}`. For S3 it also adds a closed proposal with the reason `QA closed {QA.run}`. It hands the test `cabalName`, `proposalID` and, for S3, `closedProposalID` |
+| P3 | `apps/mobile/qa/journeys/governance/vote.setup.sh` ran right before the scenario. It marks A and B as done with onboarding and sets their display names to the `name` column of `accounts.tsv`. It closes every open proposal A or B can vote on. A new dev user, "QA host", creates the cabal `QA vote {QA.run} <scenario>`, A and B join it, and QA host proposes a $5.00 buy with the reason `QA vote {QA.run}`. For S3 it also adds a closed proposal with the reason `QA closed {QA.run}`. It hands the test `cabalName`, `proposalID` and, for S3, `closedProposalID` |
 
 The setup seeds the proposal, so this journey does not depend on the propose screens (#613).
 

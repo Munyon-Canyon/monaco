@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 3
+    static let version = 4
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -40,7 +40,6 @@ enum CabalsEditRulesJourney {
             app.scrollIntoReach(app.element("cabal-rules"))
             XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S1.2: no Rules within 10 s")
             assertRule(app, "name", reads: seededName(run: run), step: "S1.2")
-            assertRule(app, "join", reads: "Anyone", step: "S1.2")
             assertRule(app, "voters", reads: "Every member", step: "S1.2")
             assertRule(app, "threshold", reads: "Majority", step: "S1.2")
             assertRule(app, "expiry", reads: "1 day", step: "S1.2")

@@ -22,10 +22,10 @@ case "$scenario" in
     name="QA slice $run"
     if [[ "$(qa_sql -v name="$name" <<<"SELECT count(*) FROM cabals WHERE name = :'name'")" == 0 ]]; then
       qa_api A POST /v1/cabals \
-        "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" \
+        "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" \
         >/dev/null
     fi
-    echo "seeded: A created the open cabal '$name' with an empty pot"
+    echo "seeded: A created the cabal '$name' with an empty pot"
     ;;
   *)
     echo "no setup for scenario $scenario" >&2

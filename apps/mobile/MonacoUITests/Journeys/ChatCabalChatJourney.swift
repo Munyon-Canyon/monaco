@@ -2,7 +2,7 @@ import XCTest
 
 enum ChatCabalChatJourney {
     static let id = "chat/cabal-chat"
-    static let version = 2
+    static let version = 3
     static let emptyCopy = "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
 
     static func recorder() -> JourneyRecorder {

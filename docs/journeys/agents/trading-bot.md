@@ -1,7 +1,7 @@
 ---
 id: agents/trading-bot
 title: A cabal's trading bot
-version: 1
+version: 2
 milestone: M23
 requires: [auth/sign-in]
 actors: [A]
@@ -20,7 +20,7 @@ The format of this doc is in [App journeys](../README.md). This is post-MVP: eve
 | Id | What must be true |
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
-| P2 | Before each scenario, `apps/mobile/qa/journeys/agents/trading-bot.setup.sh` marks A as done with onboarding, sets A's display name, and has A create the open cabal `QA bot {QA.run}` through the API, so A is its creator and a voter |
+| P2 | Before each scenario, `apps/mobile/qa/journeys/agents/trading-bot.setup.sh` marks A as done with onboarding, sets A's display name, and has A create the cabal `QA bot {QA.run}` through the API, so A is its creator and a voter |
 | P3 | For S1, the cabal needs a trading bot with a $200.00 budget. No route or flow creates one yet (#691). Once #691 adds one, the setup seeds it with `qa_flow_seed` and this doc moves to version 2 |
 
 ## Scenarios

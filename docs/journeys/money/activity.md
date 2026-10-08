@@ -1,7 +1,7 @@
 ---
 id: money/activity
 title: Account activity
-version: 1
+version: 2
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/money/activity.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. It marks A as done with onboarding. For S1 it writes a settled $1.23 deposit for A to `user_txns` with SQL, because only a real USDC transfer reaches the deposit poller, and hands its id to the test as `deposit-txn`. For S2, A creates the open cabal `QA activity {QA.run}` through the API. The journey moves no money |
+| P3 | `apps/mobile/qa/journeys/money/activity.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. It marks A as done with onboarding. For S1 it writes a settled $1.23 deposit for A to `user_txns` with SQL, because only a real USDC transfer reaches the deposit poller, and hands its id to the test as `deposit-txn`. For S2, A creates the cabal `QA activity {QA.run}` through the API. The journey moves no money |
 
 ## Scenarios
 

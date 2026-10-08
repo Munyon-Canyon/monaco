@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 4
+    static let version = 5
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -43,7 +43,7 @@ enum CreateCabalJourney {
                 app.textFields["create-group-name"].waitForExistence(timeout: formTimeout),
                 "S1.3: the name field did not show within \(Int(formTimeout)) s"
             )
-            for rule in ["create-rule-join", "create-rule-voters", "create-rule-threshold", "create-rule-expiry"] {
+            for rule in ["create-rule-voters", "create-rule-threshold", "create-rule-expiry"] {
                 XCTAssertTrue(app.element(rule).exists, "S1.3: the form has no \(rule)")
             }
             let week = app.element("create-rule-expiry").buttons["1 week"]
@@ -61,9 +61,9 @@ enum CreateCabalJourney {
             XCTAssertTrue(submit.isEnabled, "S2.1: Create cabal stayed disabled for '\(name)'")
         }
 
-        recorder.step("S2.2", "pick I approve, Just me, Everyone agrees and 1 hour") {
+        recorder.step("S2.2", "pick Just me, Everyone agrees and 1 hour") {
             for (rule, label) in [
-                ("create-rule-join", "I approve"), ("create-rule-voters", "Just me"),
+                ("create-rule-voters", "Just me"),
                 ("create-rule-threshold", "Everyone agrees"), ("create-rule-expiry", "1 hour"),
             ] {
                 let choice = app.element(rule).buttons[label]
@@ -167,15 +167,10 @@ enum CreateCabalJourney {
             )
         }
 
-        recorder.step("S4.2", "name it, let anyone join, and create it") {
+        recorder.step("S4.2", "name it and create it") {
             let field = app.textFields["create-group-name"]
             field.tap()
             field.typeText(name + "\n")
-            let anyone = app.element("create-rule-join").buttons["Anyone"]
-            app.scrollIntoReach(anyone)
-            XCTAssertTrue(anyone.exists, "S4.2: no Anyone in create-rule-join")
-            anyone.tap()
-            XCTAssertTrue(anyone.isSelected, "S4.2: Anyone is not selected in create-rule-join")
             app.scrollIntoReach(submit)
             submit.tap()
             XCTAssertTrue(
@@ -223,18 +218,18 @@ enum CreateCabalJourney {
             )
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
-                    app.buttons["join-group-submit"], containing: "Join cabal", timeout: formTimeout),
-                "S4.5: the button does not read Join cabal: \(app.buttons["join-group-submit"].label)"
+                    app.buttons["join-group-submit"], containing: "Ask to join", timeout: formTimeout),
+                "S4.5: the button does not read Ask to join: \(app.buttons["join-group-submit"].label)"
             )
         }
 
-        recorder.step("S4.6", "join") {
+        recorder.step("S4.6", "ask to join") {
             app.buttons["join-group-submit"].tap()
-            JoinJourney.waitForToast(app, "You're in.", step: "S4.6")
+            JoinJourney.waitForToast(
+                app, "Request sent. You'll be in once the creator says yes.", step: "S4.6")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),
-                "S4.6: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+                app.buttons["cabal-join-requested"].waitForExistence(timeout: listTimeout),
+                "S4.6: the cabal does not read Request sent for the user who asked"
             )
         }
     }
@@ -242,8 +237,12 @@ enum CreateCabalJourney {
     static func creatorSeesTheFriend(_ app: XCUIApplication, run: String, friend: String, recorder: JourneyRecorder) {
         let name = duoCabal(run: run)
 
-        recorder.step("S4.7", "open the cabal and find the friend on the member board") {
+        recorder.step("S4.7", "approve the friend and find them on the member board") {
             JoinJourney.openBySearch(app, name, step: "S4.7")
+            XCTAssertTrue(
+                app.buttons["cabal-join-approve"].firstMatch.waitForExistence(timeout: listTimeout),
+                "S4.7: no request to approve")
+            app.buttons["cabal-join-approve"].firstMatch.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),

@@ -1,7 +1,7 @@
 ---
 id: cabals/invite
 title: Invite a member
-version: 3
+version: 4
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -25,7 +25,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend`, which also builds `bin/monacoctl` |
-| P3 | `apps/mobile/qa/journeys/cabals/invite.setup.sh` ran right before the scenario. `scripts/qa/journey.py run` runs it. It marks A and B as done with onboarding, gives them a display name and a handle (B is `@qa_b`), declines every invite waiting on A or B, and has a new dev user create the open cabal `QA pot <time>` and invite A. For S2 it instead has A create the open cabal `QA share {QA.run}` |
+| P3 | `apps/mobile/qa/journeys/cabals/invite.setup.sh` ran right before the scenario. `scripts/qa/journey.py run` runs it. It marks A and B as done with onboarding, gives them a display name and a handle (B is `@qa_b`), declines every invite waiting on A or B, and has a new dev user create the cabal `QA pot <time>` and invite A. For S2 it instead has A create the cabal `QA share {QA.run}` |
 
 The setup runs before every scenario, because S1 uses up the invite it makes. It creates the cabal through the API, so this journey does not depend on `cabals/create-cabal`.
 

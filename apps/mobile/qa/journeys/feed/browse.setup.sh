@@ -18,7 +18,7 @@ ready_actor() {
 
 create_cabal() {
   qa_api "$1" POST /v1/cabals \
-    "{\"name\":\"$2\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$2\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'
 }
 
@@ -29,7 +29,7 @@ case "$scenario" in
     ready_actor B
     qa_api A DELETE "/v1/users/$(qa_user_id B)/follow" >/dev/null
     cabal="$(create_cabal B "QA feed $run")"
-    qa_api A POST "/v1/cabals/$cabal/members" >/dev/null
+    qa_admit A B "$cabal"
     create_cabal A "QA own $run" >/dev/null
     echo "seeded: B created 'QA feed $run' and A joined it, A created 'QA own $run', A follows nobody seeded"
     ;;

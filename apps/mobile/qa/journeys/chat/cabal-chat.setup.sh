@@ -21,9 +21,9 @@ case "$scenario" in
     ready_actor A
     ready_actor B
     cabal="$(qa_api A POST /v1/cabals \
-      "{\"name\":\"QA chat $run\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+      "{\"name\":\"QA chat $run\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
       python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
-    qa_api B POST "/v1/cabals/$cabal/members" >/dev/null
+    qa_admit B A "$cabal"
     echo "seeded: A created 'QA chat $run' and B joined it"
     ;;
   *)

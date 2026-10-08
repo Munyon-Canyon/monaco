@@ -32,10 +32,10 @@ name="QA ranks $run"
 cabal="$(qa_sql -v name="$name" <<<"SELECT id FROM cabals WHERE name = :'name' LIMIT 1")"
 if [[ -z "$cabal" ]]; then
   cabal="$(qa_api A POST /v1/cabals \
-    "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
-  qa_api B POST "/v1/cabals/$cabal/members" >/dev/null
-  qa_api C POST "/v1/cabals/$cabal/members" >/dev/null
+  qa_admit B A "$cabal"
+  qa_admit C A "$cabal"
 fi
 
 python3 - "$handoff" "$cabal" "$name" "$(qa_user_id B)" "$(_qa_account B name)" <<'PY'
@@ -45,4 +45,4 @@ values = json.loads(path.read_text()) if path.exists() and path.read_text().stri
 values.update(cabalID=sys.argv[2], cabalName=sys.argv[3], memberID=sys.argv[4], memberName=sys.argv[5])
 path.write_text(json.dumps(values))
 PY
-echo "seeded: A created the open cabal '$name', B and C joined it"
+echo "seeded: A created the cabal '$name', B and C joined it"

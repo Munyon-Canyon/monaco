@@ -1,7 +1,7 @@
 ---
 id: ranking/leaderboards
 title: The leaderboards
-version: 1
+version: 2
 milestone: M16
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A, B and C have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv`. Only A drives the app |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before the scenario. It marks A, B and C as done with onboarding and sets their display names. A creates the open cabal `QA ranks {QA.run}` and B and C join it through the API, the same shape as testkit `cabal-with-members` (one creator, two open joiners). The setup hands the cabal id, B's user id and B's display name to the test |
+| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before the scenario. It marks A, B and C as done with onboarding and sets their display names. A creates the cabal `QA ranks {QA.run}` and B and C join it through the API, the same shape as testkit `cabal-with-members` (one creator, two open joiners). The setup hands the cabal id, B's user id and B's display name to the test |
 
 ## Scenarios
 

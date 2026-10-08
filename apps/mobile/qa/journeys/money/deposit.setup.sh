@@ -23,7 +23,7 @@ ready_a() {
 
 create_cabal() {
   qa_api A POST /v1/cabals \
-    "{\"name\":\"$1\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$1\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     field id
 }
 

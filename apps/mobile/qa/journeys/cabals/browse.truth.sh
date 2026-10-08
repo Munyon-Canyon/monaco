@@ -22,15 +22,8 @@ check() {
   fi
 }
 
-member() {
-  sql <<<"SELECT count(*) FROM cabal_members m JOIN cabals c ON c.id = m.cabal_id JOIN users u ON u.id = m.user_id
-    WHERE c.name = '$1' AND u.privy_user_id = :'$2'"
-}
-
-
 pending="$(sql <<<"SELECT count(*) FROM cabal_access_requests r JOIN cabals c ON c.id = r.cabal_id
   JOIN users u ON u.id = r.user_id WHERE c.name = 'QA ask $run' AND u.privy_user_id = :'a' AND r.status = 'pending'")"
-check "A joined QA open $run" "$(member "QA open $run" a)" 1
 check "A asked to join QA ask $run" "$pending" 1
 
 exit "$fail"

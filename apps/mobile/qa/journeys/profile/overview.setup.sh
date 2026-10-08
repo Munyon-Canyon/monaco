@@ -48,7 +48,7 @@ if [[ -z "$cabal_id" ]]; then
     fail "monacoctl dev token for actor A failed: $(grep -v 'injected env' "$log")"
   cabal_id="$(curl -fsS -X POST "$api/v1/cabals" -H "Authorization: Bearer $token" \
     -H 'Content-Type: application/json' -H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')" \
-    -d "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    -d "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')" || fail "could not create '$name' as actor A"
 fi
 hand_off cabalID "$cabal_id"

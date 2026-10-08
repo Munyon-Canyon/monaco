@@ -1,7 +1,7 @@
 ---
 id: cabals/approve-request
 title: Ask to join, cancel, and the creator's answer
-version: 1
+version: 2
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]

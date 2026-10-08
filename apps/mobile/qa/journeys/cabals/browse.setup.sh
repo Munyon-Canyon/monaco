@@ -102,11 +102,10 @@ host() {
 
 case "$scenario" in
   S1)
-    create_cabal "$token_a" "QA mine $run" open >/dev/null
+    create_cabal "$token_a" "QA mine $run" request >/dev/null
     seller="$(host)"
-    create_cabal "$seller" "QA open $run" open >/dev/null
     create_cabal "$seller" "QA ask $run" request >/dev/null
-    echo "seeded: A created 'QA mine $run', QA host created 'QA open $run' and 'QA ask $run'"
+    echo "seeded: A created 'QA mine $run', QA host created 'QA ask $run'"
     ;;
   S2 | S3)
     echo "nothing to seed for $scenario"

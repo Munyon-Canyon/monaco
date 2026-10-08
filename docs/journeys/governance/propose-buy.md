@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose a buy and vote it through
-version: 4
+version: 5
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -25,7 +25,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). The backend runs with `TRADE_ENGINE=stub`: `scripts/qa/journey.py run` starts it that way unless `TRADE_ENGINE` is set, and the config refuses `stub` outside local dev |
-| P3 | `apps/mobile/qa/journeys/governance/propose-buy.setup.sh` ran before S1. It marks A and B as done with onboarding, sets their display names to the `name` column of `accounts.tsv` and expires every open proposal either can vote on. It runs `monacoctl dev seed-scenario cabal-with-funded-pot` for A and B: the open cabal `QA <run>` that A created and B joined, with the ledger crediting A $2.00 and B $1.00. It hands the test `cabalName`. S2 continues from S1's proposal, so its setup changes nothing |
+| P3 | `apps/mobile/qa/journeys/governance/propose-buy.setup.sh` ran before S1. It marks A and B as done with onboarding, sets their display names to the `name` column of `accounts.tsv` and expires every open proposal either can vote on. It runs `monacoctl dev seed-scenario cabal-with-funded-pot` for A and B: the cabal `QA <run>` that A created and B joined, with the ledger crediting A $2.00 and B $1.00. It hands the test `cabalName`. S2 continues from S1's proposal, so its setup changes nothing |
 
 With two voters and "Majority", a buy needs both yes votes.
 

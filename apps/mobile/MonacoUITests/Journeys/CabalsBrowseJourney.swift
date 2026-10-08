@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
 
@@ -11,7 +11,6 @@ enum CabalsBrowseJourney {
     }
 
     static func mine(run: String) -> String { "QA mine \(run)" }
-    static func open(run: String) -> String { "QA open \(run)" }
     static func ask(run: String) -> String { "QA ask \(run)" }
 
     static func enterButton(_ app: XCUIApplication, label: String) -> XCUIElement {
@@ -53,37 +52,22 @@ enum CabalsBrowseJourney {
             )
         }
 
-        recorder.step("S1.3", "search for the open cabal") {
+        recorder.step("S1.3", "search for the request cabal") {
             app.tab("Cabals").tap()
-            JoinJourney.search(app, for: open(run: run), step: "S1.3")
-            assertResult(app, named: open(run: run), reads: "1 member · Open", step: "S1.3")
-            XCTAssertTrue(
-                enterButton(app, label: "Join \(open(run: run))").waitForExistence(timeout: 10),
-                "S1.3: no Join on the open cabal's row"
-            )
-        }
-
-        recorder.step("S1.4", "join from the row") {
-            enterButton(app, label: "Join \(open(run: run))").tap()
-            JoinJourney.waitForToast(app, "You're in.", step: "S1.4")
-        }
-
-        recorder.step("S1.5", "search for the request cabal") {
-            app.tab("Cabals").tap()
-            JoinJourney.search(app, for: ask(run: run), step: "S1.5")
-            assertResult(app, named: ask(run: run), reads: "1 member · By request", step: "S1.5")
+            JoinJourney.search(app, for: ask(run: run), step: "S1.3")
+            assertResult(app, named: ask(run: run), reads: "1 member · By request", step: "S1.3")
             XCTAssertTrue(
                 enterButton(app, label: "Ask to join \(ask(run: run))").waitForExistence(timeout: 10),
-                "S1.5: no Request on the request cabal's row"
+                "S1.3: no Request on the request cabal's row"
             )
         }
 
-        recorder.step("S1.6", "ask from the row") {
+        recorder.step("S1.4", "ask from the row") {
             enterButton(app, label: "Ask to join \(ask(run: run))").tap()
-            JoinJourney.waitForToast(app, "Request sent. You'll be in once the creator says yes.", step: "S1.6")
+            JoinJourney.waitForToast(app, "Request sent. You'll be in once the creator says yes.", step: "S1.4")
             XCTAssertTrue(
                 app.element("cabals-search-requested").waitForExistence(timeout: 10),
-                "S1.6: the row does not read Request sent"
+                "S1.4: the row does not read Request sent"
             )
         }
     }

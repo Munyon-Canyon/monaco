@@ -2,7 +2,7 @@ import XCTest
 
 enum RankingLeaderboardsJourney {
     static let id = "ranking/leaderboards"
-    static let version = 1
+    static let version = 2
 
     struct Seed {
         let cabalID: String

@@ -22,9 +22,9 @@ case "$scenario" in
     ready_actor B
     qa_sql -v did="$(_qa_account A privy_user_id)" >/dev/null <<<"DELETE FROM rate_limit_buckets WHERE key = 'op:postCabal:actor:user:' || (SELECT id FROM users WHERE privy_user_id = :'did')"
     created="$(qa_api A POST /v1/cabals \
-      "{\"name\":\"QA $run\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}")"
+      "{\"name\":\"QA $run\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}")"
     cabal="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$created")"
-    qa_api B POST "/v1/cabals/$cabal/members" >/dev/null
+    qa_admit B A "$cabal"
     echo "seeded: A created 'QA $run' and B joined it"
     ;;
   S2 | S3 | S4 | S5)

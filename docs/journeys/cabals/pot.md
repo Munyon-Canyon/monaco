@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The cabal pot
-version: 2
+version: 3
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/cabals/pot.setup.sh` ran right before the scenario. It marks A as done with onboarding and sets A's display name, then A creates the open cabal `QA slice {QA.run}` through the API. Nobody adds money: the pot is $0.00 and the journey moves no money |
+| P3 | `apps/mobile/qa/journeys/cabals/pot.setup.sh` ran right before the scenario. It marks A as done with onboarding and sets A's display name, then A creates the cabal `QA slice {QA.run}` through the API. Nobody adds money: the pot is $0.00 and the journey moves no money |
 
 ## Scenarios
 

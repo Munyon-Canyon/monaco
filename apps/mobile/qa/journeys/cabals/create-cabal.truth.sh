@@ -90,10 +90,10 @@ print(rows[0]["id"])
   get "/v1/cabals/$duo_id" | python3 -c '
 import json, sys
 cabal = json.load(sys.stdin)
-if cabal["rules"]["join_mode"] != "open":
-    sys.exit("%s: join_mode is %s, want open" % (cabal["name"], cabal["rules"]["join_mode"]))
+if cabal["rules"]["join_mode"] != "request":
+    sys.exit("%s: join_mode is %s, want request" % (cabal["name"], cabal["rules"]["join_mode"]))
 if cabal["member_count"] != 2:
     sys.exit("%s: %d members, want 2" % (cabal["name"], cabal["member_count"]))
-print("%s: open, two members" % cabal["name"])
+print("%s: request, two members" % cabal["name"])
 '
 fi

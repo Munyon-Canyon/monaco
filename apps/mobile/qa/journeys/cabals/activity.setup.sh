@@ -20,7 +20,7 @@ name="QA activity $run"
 cabal="$(qa_sql -v name="$name" <<<"SELECT id FROM cabals WHERE name = :'name'")"
 if [[ -z "$cabal" ]]; then
   cabal="$(qa_api A POST /v1/cabals \
-    "{\"name\":\"$name\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+    "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
     python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
   # No route writes cabal_activity without a real swap (flow 11 has no seeder), so the rows are SQL.
   qa_sql -v cabal="$cabal" -v actor="$(qa_user_id A)" -v apple="XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp" >/dev/null <<'SQL'

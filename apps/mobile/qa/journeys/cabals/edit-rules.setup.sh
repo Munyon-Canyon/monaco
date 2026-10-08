@@ -73,6 +73,13 @@ field() {
   python3 -c 'import json,sys; v=json.load(sys.stdin).get(sys.argv[1]); print("" if v is None else v)' "$1"
 }
 
+admit() {
+  local joiner="$1" creator="$2" cabal="$3" request
+  request="$(call POST "/v1/cabals/$cabal/access-requests" "$joiner" 2>/dev/null | field id)" || return 0
+  [[ -n "$request" ]] || return 0
+  call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$creator" '{"decision":"approve"}' >/dev/null
+}
+
 create_cabal() {
   local bearer="$1" name="$2" mode="$3"
   call POST /v1/cabals "$bearer" \
@@ -105,8 +112,8 @@ fi
 
 case "$scenario" in
   S1)
-    cabal="$(create_cabal "$token_a" "QA rules $run" open)"
-    call POST "/v1/cabals/$cabal/members" "$token_b" >/dev/null
+    cabal="$(create_cabal "$token_a" "QA rules $run" request)"
+    admit "$token_b" "$token_a" "$cabal"
     python3 - "$handoff" "$id_b" <<'PY'
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
@@ -114,7 +121,7 @@ values = json.loads(path.read_text()) if path.exists() and path.read_text().stri
 values["member-id"] = sys.argv[2]
 path.write_text(json.dumps(values))
 PY
-    echo "seeded: A created the open cabal 'QA rules $run', B joined it, member-id is B"
+    echo "seeded: A created the cabal 'QA rules $run', B joined it, member-id is B"
     ;;
   *)
     echo "no setup for scenario $scenario" >&2

@@ -15,7 +15,7 @@ qa_api A PATCH /v1/me "{\"display_name\":\"$(_qa_account A name)\"}" >/dev/null
 case "$scenario" in
   S1 | S2)
     qa_api A POST /v1/cabals \
-      "{\"name\":\"QA bot $run\",\"join_mode\":\"open\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
+      "{\"name\":\"QA bot $run\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
     echo "seeded: A created 'QA bot $run' (no bot: nothing seeds one until #691)"
     ;;
   *)
