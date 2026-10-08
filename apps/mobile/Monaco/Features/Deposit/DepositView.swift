@@ -42,9 +42,7 @@ struct DepositChooser: View {
             MonacoGroupedList {
                 Button(action: onCard) {
                     MonacoRow(title: "Card", subtitle: "Pay with card or Apple Pay", chevron: !creating) {
-                        Image(systemName: "creditcard")
-                            .font(.title3)
-                            .foregroundStyle(MonacoTheme.ink)
+                        SunkenGlyphMark(systemImage: "creditcard")
                     } trailing: {
                         if creating {
                             ProgressView()
@@ -53,7 +51,7 @@ struct DepositChooser: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.monacoRow)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Card")
                 .accessibilityHint("Pay with card or Apple Pay")
@@ -62,13 +60,13 @@ struct DepositChooser: View {
 
                 NavigationLink(value: AnyAppRoute(DepositAddressRoute())) {
                     MonacoRow(title: "Crypto", subtitle: "Send USDC on Solana", chevron: true, isLast: true) {
-                        StockMark(symbol: "USDC", size: 40)
+                        StockMark(symbol: "USDC")
                     } trailing: {
                         EmptyView()
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.monacoRow)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Crypto")
                 .accessibilityHint("Send USDC on Solana")

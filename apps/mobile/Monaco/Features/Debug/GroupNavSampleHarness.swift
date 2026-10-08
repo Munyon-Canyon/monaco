@@ -144,7 +144,7 @@ struct GroupNavSampleHarness: View {
             title: sample.name, subtitle: CabalPositionRowFigures.potSubtitle(potValueUsd: sample.resolvedPotTotalUsd),
             isLast: true
         ) {
-            CabalMark(groupId: sample.id, name: sample.name, size: 40)
+            CabalMark(groupId: sample.id, name: sample.name)
         }
     }
 
@@ -188,7 +188,7 @@ struct GroupNavSampleHarness: View {
                     MonacoRow(
                         title: "Start a cabal", subtitle: "Name it and set the rules", chevron: true, isLast: true
                     ) {
-                        SunkenGlyphMark(systemImage: "plus", size: 40)
+                        SunkenGlyphMark(systemImage: "plus")
                     }
                 }
                 .buttonStyle(.monacoRow)

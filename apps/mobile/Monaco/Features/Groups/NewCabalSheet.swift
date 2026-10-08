@@ -58,7 +58,7 @@ struct NewCabalSheet: View {
                             subtitle: "Name it and set the rules",
                             chevron: true
                         ) {
-                            SunkenGlyphMark(systemImage: "plus", size: 40)
+                            SunkenGlyphMark(systemImage: "plus")
                         }
                     }
                     .buttonStyle(.monacoRow)
@@ -71,7 +71,7 @@ struct NewCabalSheet: View {
                             chevron: true,
                             isLast: true
                         ) {
-                            SunkenGlyphMark(systemImage: "person.badge.plus", size: 40)
+                            SunkenGlyphMark(systemImage: "person.badge.plus")
                         }
                     }
                     .buttonStyle(.monacoRow)

@@ -145,7 +145,7 @@ struct DeleteAccountContent: View {
                     NavigationLink(value: AnyAppRoute(WithdrawRoute())) {
                         MonacoRow(
                             title: AccountCopy.accountBalance, chevron: true, isLast: true,
-                            leading: { StockMark(systemImage: "arrow.down.left", size: 40) },
+                            leading: { StockMark(systemImage: "arrow.down.left") },
                             trailing: {
                                 Text(amount)
                                     .font(MonacoTheme.Typo.moneyRow)

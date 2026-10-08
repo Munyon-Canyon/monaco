@@ -23,7 +23,7 @@ struct CabalPortfolioRow: View {
     var body: some View {
         NavigationLink(value: AnyAppRoute(CabalRoute(id: id))) {
             MonacoRow(title: name, subtitle: subtitle, isLast: isLast) {
-                CabalMark(groupId: id, name: name, size: 40, pictureUrl: pictureURL)
+                CabalMark(groupId: id, name: name, pictureUrl: pictureURL)
             } trailing: {
                 VStack(alignment: .trailing, spacing: 2) {
                     MoneyText(micros: valueMicros, style: .row)

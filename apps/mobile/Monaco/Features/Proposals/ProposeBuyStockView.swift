@@ -89,7 +89,9 @@ struct ProposeBuyStockView: View {
                             Button {
                                 ProposeBuyStockSelection.select(asset, pick: { picked = $0 })
                             } label: {
-                                ProposeBuyStockRow(asset: asset, isLast: index == model.rows.count - 1)
+                                ProposeStockRow(
+                                    stock: ProposeStock(listing: asset), logoURL: asset.logoURL,
+                                    isLast: index == model.rows.count - 1)
                             }
                             .buttonStyle(.monacoRow)
                             .disabled(!asset.isTradable)
@@ -113,36 +115,18 @@ enum ProposeBuyStockSelection {
     }
 }
 
-private struct ProposeBuyStockRow: View {
-    let asset: MarketAsset
-    let isLast: Bool
+extension ProposeStock {
+    fileprivate init(listing asset: MarketAsset) {
+        self.init(
+            symbol: asset.symbol, name: asset.name, priceMicros: asset.priceMicros,
+            change24h: asset.changeBasisPoints.map(Self.ratio(basisPoints:)),
+            isTradable: asset.isTradable, assetKind: asset.kind)
+    }
 
-    var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            StockMark(
-                symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, size: 46, logoURL: asset.logoURL
-            )
-            .frame(width: 46, height: 46)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(asset.ticker).font(MonacoTheme.Typo.ticker)
-                Text(asset.isTradable ? asset.name : "\(asset.name) · Can't buy right now")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let price = asset.priceMicros {
-                VStack(alignment: .trailing, spacing: 3) {
-                    MoneyText(micros: price, style: .row, voice: .market)
-                    Text(asset.changeText).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
-                }
-            }
-        }
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .padding(.vertical, MonacoTheme.Space.s)
-        .frame(minHeight: 64)
-        .contentShape(Rectangle())
-        .opacity(asset.isTradable ? 1 : 0.45)
-        .overlay(alignment: .bottom) { if !isLast { MonacoRule().padding(.leading, 70) } }
-        .accessibilityElement(children: .combine)
+    private static func ratio(basisPoints: Int64) -> String {
+        let magnitude = basisPoints.magnitude
+        let fraction = String(magnitude % 10_000)
+        let padded = String(repeating: "0", count: 4 - fraction.count) + fraction
+        return "\(basisPoints < 0 ? "-" : "")\(magnitude / 10_000).\(padded)"
     }
 }

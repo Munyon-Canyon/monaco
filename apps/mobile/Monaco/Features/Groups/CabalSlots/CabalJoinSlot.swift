@@ -124,7 +124,7 @@ private struct CabalPendingRequestRow: View {
                     ))
             ) {
                 HStack(spacing: MonacoTheme.Space.sm) {
-                    MonacoAvatar(photoURL: request.photoURL, displayName: request.name, size: 40, seed: request.userID)
+                    MonacoAvatar(photoURL: request.photoURL, displayName: request.name, seed: request.userID)
                     Text(request.name)
                         .font(MonacoTheme.Typo.rowTitle)
                         .foregroundStyle(MonacoTheme.ink)

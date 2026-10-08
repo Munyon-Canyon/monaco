@@ -52,7 +52,7 @@ private struct PeopleSearchRow: View {
             subtitle: "@\(user.handle)",
             chevron: true,
             isLast: isLast,
-            leading: { MonacoAvatar(photoURL: user.photoUrl, displayName: name, size: 40, seed: user.userId) }
+            leading: { MonacoAvatar(photoURL: user.photoUrl, displayName: name, seed: user.userId) }
         )
     }
 }

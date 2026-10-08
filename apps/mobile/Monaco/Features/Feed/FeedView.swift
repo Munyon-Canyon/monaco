@@ -141,24 +141,28 @@ private struct FeedScreen: View {
 
     private var cells: some View {
         let items = model.items
-        return LazyVStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                FeedItemCell(item: item)
-                    .contextMenu {
-                        ForEach(model.muteOptions(for: item)) { option in
-                            Button(option.menuTitle) { mute(option) }
+        return MonacoGroupedList {
+            LazyVStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    FeedItemCell(item: item)
+                        .contextMenu {
+                            ForEach(model.muteOptions(for: item)) { option in
+                                Button(option.menuTitle) { mute(option) }
+                            }
                         }
-                    }
-                    .overlay(alignment: .bottom) {
-                        if index < items.count - 1 { MonacoRule().padding(.leading, MonacoTheme.Space.m) }
-                    }
-                    .onAppear {
-                        guard index >= items.count - 5 else { return }
-                        Task { await model.loadMore() }
-                    }
-            }
-            if model.isLoadingMore {
-                BoardRowSkeleton(rows: 1)
+                        .overlay(alignment: .bottom) {
+                            if index < items.count - 1 {
+                                MonacoRule().padding(.leading, FeedItemCell.separatorLeadingInset(for: item))
+                            }
+                        }
+                        .onAppear {
+                            guard index >= items.count - 5 else { return }
+                            Task { await model.loadMore() }
+                        }
+                }
+                if model.isLoadingMore {
+                    BoardRowSkeleton(rows: 1)
+                }
             }
         }
     }

@@ -23,7 +23,7 @@ struct ProposeStockRow: View {
         content
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, 8)
-            .frame(minHeight: 64)
+            .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
                 if !isLast {

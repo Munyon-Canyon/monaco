@@ -43,7 +43,7 @@ struct CabalVoterChecklist: View {
                 title: member.shownName, subtitle: subtitle, isLast: isLast,
                 leading: {
                     MonacoAvatar(
-                        photoURL: member.photoUrl, displayName: member.shownName, size: 40, seed: member.userId)
+                        photoURL: member.photoUrl, displayName: member.shownName, seed: member.userId)
                 },
                 trailing: {
                     if isPicked {

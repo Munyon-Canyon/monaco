@@ -124,6 +124,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     private let subtitleColor: Color
     private let chevron: Bool
     private let isLast: Bool
+    private let trailingIsInteractive: Bool
     private let leading: Leading
     private let trailing: Trailing
 
@@ -137,6 +138,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         subtitleColor: Color = MonacoTheme.muted,
         chevron: Bool = false,
         isLast: Bool = false,
+        trailingIsInteractive: Bool = false,
         @ViewBuilder leading: () -> Leading,
         @ViewBuilder trailing: () -> Trailing
     ) {
@@ -147,6 +149,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         self.subtitleColor = subtitleColor
         self.chevron = chevron
         self.isLast = isLast
+        self.trailingIsInteractive = trailingIsInteractive
         self.leading = leading()
         self.trailing = trailing()
     }
@@ -163,29 +166,10 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     }
 
     private var labels: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(titleFont)
-                .foregroundStyle(titleColor)
-                .lineLimit(layout.titleLineLimit)
-                .truncationMode(.tail)
-            if let subtitle, !subtitle.isEmpty {
-
-                Text(subtitle)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(subtitleColor)
-                    .lineLimit(layout.subtitleLineLimit)
-                    .truncationMode(.tail)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var chevronGlyph: some View {
-        Image(systemName: "chevron.right")
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(MonacoTheme.tertiaryText)
-            .accessibilityHidden(true)
+        MonacoRowLabels(
+            title: title, titleFont: titleFont, titleColor: titleColor, subtitle: subtitle,
+            subtitleColor: subtitleColor, layout: layout
+        ) {}
     }
 
     /// Mark, then title over subtitle, then the figures. At accessibility text sizes the figures
@@ -196,9 +180,9 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     HStack(spacing: MonacoTheme.Space.sm) {
                         leading
-                            .frame(width: 44, height: 44)
+                            .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
                         labels
-                        if chevron { chevronGlyph }
+                        if chevron { MonacoRowChevron() }
                     }
                     // Chevron-only rows have no second line to drop below the labels; an empty
                     // column would still spend the stack's spacing.
@@ -212,7 +196,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
             } else {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     leading
-                        .frame(width: 44, height: 44)
+                        .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
                     // The labels keep a floor and truncate; the figures take what is left and
                     // shrink through MoneyText's minimumScaleFactor before they ever truncate.
                     labels
@@ -221,7 +205,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
                         trailing
                     }
                     .layoutPriority(1)
-                    if chevron { chevronGlyph }
+                    if chevron { MonacoRowChevron() }
                 }
             }
         }
@@ -231,7 +215,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
         content
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, 8)
-            .frame(minHeight: 60)
+            .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
                 if !isLast {
@@ -241,7 +225,45 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
                         .padding(.leading, layout.separatorLeadingInset)
                 }
             }
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: trailingIsInteractive ? .contain : .combine)
+    }
+}
+
+struct MonacoRowLabels<Extra: View>: View {
+    let title: String
+    var titleFont: Font = MonacoTheme.Typo.rowTitle
+    var titleColor: Color = MonacoTheme.ink
+    var subtitle: String?
+    var subtitleColor: Color = MonacoTheme.muted
+    let layout: MonacoRowLayout
+    @ViewBuilder var extra: Extra
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(titleFont)
+                .foregroundStyle(titleColor)
+                .lineLimit(layout.titleLineLimit)
+                .truncationMode(.tail)
+            extra
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(subtitleColor)
+                    .lineLimit(layout.subtitleLineLimit)
+                    .truncationMode(.tail)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct MonacoRowChevron: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(MonacoTheme.tertiaryText)
+            .accessibilityHidden(true)
     }
 }
 
@@ -278,6 +300,8 @@ struct MonacoRowLayout: Equatable {
 
     /// The mark size `separatorLeadingInset` is tuned for: `MonacoRow` draws a 44pt one.
     static let baseMarkSize: CGFloat = 44
+
+    static let minHeight: CGFloat = 60
 
     /// The separator lines up under the labels in the inline layout, and runs the full width
     /// of a stacked row, where the figures sit below the mark.

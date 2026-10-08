@@ -37,7 +37,7 @@ private struct CabalMemberBoard: View {
                                 ))
                         ) {
                             BoardRow(row: row, isLast: isLast) {
-                                MonacoAvatar(photoURL: row.pictureURL, displayName: row.name, size: 40, seed: row.id)
+                                MonacoAvatar(photoURL: row.pictureURL, displayName: row.name, seed: row.id)
                             }
                         }
                         .buttonStyle(.monacoRow)

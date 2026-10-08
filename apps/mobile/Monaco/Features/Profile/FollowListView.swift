@@ -197,72 +197,20 @@ private struct FollowListPersonRow: View {
     }
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            row(stacked: false)
-            row(stacked: true)
+        NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: user.id, preview: preview))) {
+            MonacoRow(title: name, subtitle: "@\(user.handle)", isLast: isLast, trailingIsInteractive: true) {
+                MonacoAvatar(photoURL: user.photoURL, displayName: name, seed: user.id)
+            } trailing: {
+                if !isViewer {
+                    FollowToggle(
+                        isFollowing: user.followedByMe, isBusy: isToggling, action: toggle,
+                        identifier: "follow-list-follow-\(user.id)")
+                }
+            }
         }
+        .buttonStyle(.monacoRow)
+        .accessibilityIdentifier("follow-list-open-\(user.id)")
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("follow-list-row-\(user.id)")
-    }
-
-    private func row(stacked: Bool) -> some View {
-        let identity = NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: user.id, preview: preview))) {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                MonacoAvatar(photoURL: user.photoURL, displayName: name, size: 40, seed: user.id)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
-                        .font(MonacoTheme.Typo.rowTitle)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .lineLimit(stacked ? 2 : 1)
-                    Text("@\(user.handle)")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("follow-list-open-\(user.id)")
-
-        return Group {
-            if stacked {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    identity
-                    if !isViewer { follow }
-                }
-            } else {
-                HStack(spacing: MonacoTheme.Space.s) {
-                    identity
-                    if !isViewer { follow }
-                }
-            }
-        }
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .padding(.vertical, 8)
-        .frame(minHeight: 60, alignment: .leading)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                Rectangle()
-                    .fill(MonacoTheme.hairline)
-                    .frame(height: 1)
-                    .padding(.leading, MonacoTheme.Space.m + 40 + MonacoTheme.Space.sm)
-            }
-        }
-    }
-
-    @ViewBuilder private var follow: some View {
-        if user.followedByMe {
-            Button("Following", action: toggle)
-                .buttonStyle(.monacoSecondary)
-                .disabled(isToggling)
-                .accessibilityIdentifier("follow-list-follow-\(user.id)")
-        } else {
-            Button("Follow", action: toggle)
-                .buttonStyle(.monacoPrimary)
-                .disabled(isToggling)
-                .accessibilityIdentifier("follow-list-follow-\(user.id)")
-        }
     }
 }

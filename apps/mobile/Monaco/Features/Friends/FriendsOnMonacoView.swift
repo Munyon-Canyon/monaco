@@ -105,42 +105,23 @@ private struct FriendMatchRow: View {
     private var name: String { friend.displayName.isEmpty ? friend.handle : friend.displayName }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            NavigationLink(
-                value: AnyAppRoute(
-                    UserProfileRoute(
-                        userID: friend.id,
-                        preview: UserPreview(displayName: name, handle: friend.handle, photoURL: friend.photoURL)
-                    ))
-            ) {
-                MonacoRow(
-                    title: name,
-                    subtitle: "@\(friend.handle)",
-                    isLast: isLast,
-                    leading: {
-                        MonacoAvatar(photoURL: friend.photoURL, displayName: name, size: 40, seed: friend.id)
-                    }
-                )
+        NavigationLink(
+            value: AnyAppRoute(
+                UserProfileRoute(
+                    userID: friend.id,
+                    preview: UserPreview(displayName: name, handle: friend.handle, photoURL: friend.photoURL)
+                ))
+        ) {
+            MonacoRow(title: name, subtitle: "@\(friend.handle)", isLast: isLast, trailingIsInteractive: true) {
+                MonacoAvatar(photoURL: friend.photoURL, displayName: name, seed: friend.id)
+            } trailing: {
+                FollowToggle(
+                    isFollowing: friend.followedByMe, isBusy: isToggling,
+                    action: friend.followedByMe ? nil : follow,
+                    identifier: "friends-follow-\(friend.handle)")
             }
-            .buttonStyle(.monacoRow)
-            .accessibilityIdentifier("friends-row-\(friend.handle)")
-            followButton
-                .padding(.trailing, MonacoTheme.Space.m)
         }
-    }
-
-    @ViewBuilder
-    private var followButton: some View {
-        if friend.followedByMe {
-            Button("Following", action: follow)
-                .buttonStyle(.monacoSecondary)
-                .disabled(true)
-                .accessibilityIdentifier("friends-follow-\(friend.handle)")
-        } else {
-            Button("Follow", action: follow)
-                .buttonStyle(.monacoPrimary)
-                .disabled(isToggling)
-                .accessibilityIdentifier("friends-follow-\(friend.handle)")
-        }
+        .buttonStyle(.monacoRow)
+        .accessibilityIdentifier("friends-row-\(friend.handle)")
     }
 }
