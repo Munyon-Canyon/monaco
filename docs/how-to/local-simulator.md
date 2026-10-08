@@ -49,6 +49,16 @@ stock fallback.
 - **Build cache.** `scripts/ios-build` and `scripts/ios-sim` build into the
   checkout's `.build/DerivedData`, the cache `monacoctl agents check` uses, and
   `ios-sim` installs the app built there.
+- **Shared compilation cache.** Every build entry point (`scripts/ios-build`,
+  `scripts/ios-sim`, `scripts/qa/journey.py` and the stage 0 xcode row of
+  `monacoctl agents check`) takes its cache settings from
+  `scripts/xcode-cache-args.sh`, so a new worktree's first build reuses what another
+  worktree compiled. The compilation cache lives in `<primary>/.build/CompilationCache`
+  and the resolved Swift packages in `<primary>/.build/SourcePackages/<hash of
+  Package.resolved>`; both are under the gitignored `.build/`. Prefix mapping makes
+  the worktree and DerivedData paths identical in every cache key. Clear the cache with
+  `rm -rf <primary>/.build/CompilationCache`. No size limit is set;
+  `COMPILATION_CACHE_LIMIT_SIZE` is the knob.
 - **Build slots.** `scripts/qa/xcode-lock.sh` runs one xcodebuild per 16 GB of RAM
   at once and one `swift test` per 8 GB. A 16 GB Mac still builds one at a time; a
   64 GB Mac builds four. A lane holds one xcodebuild slot at a time (`MONACO_LANE`,

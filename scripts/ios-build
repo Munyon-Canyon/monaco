@@ -16,10 +16,14 @@ udid="$(./scripts/resolve-ios-sim.sh)"
 # the team's own certificate, which not every contributor's machine has; "-" self-signs
 # locally without one. -skipPackagePluginValidation runs MonacoAPI's OpenAPI generator
 # without the one-time "Trust & Enable" click Xcode asks for per machine.
+cache_args=()
+while IFS= read -r a; do cache_args+=("$a"); done < <(./scripts/xcode-cache-args.sh)
+
 ./scripts/qa/xcode-lock.sh xcode xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
   -destination "platform=iOS Simulator,id=${udid}" \
   -configuration Debug \
   -derivedDataPath "$(git rev-parse --show-toplevel)/.build/DerivedData" \
   -skipPackagePluginValidation \
+  "${cache_args[@]}" \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
   build

@@ -969,7 +969,7 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 		t.Fatalf("darwin app change: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
 	}
 	if !strings.Contains(build, "ensure-ios-privy-config.sh placeholder") ||
-		!strings.Contains(build, "-onlyUsePackageVersionsFromResolvedFile") {
+		!strings.Contains(build, "scripts/xcode-cache-args.sh") || !strings.Contains(build, `"${cache_args[@]}"`) {
 		t.Fatalf("build script: %s", build)
 	}
 	if !slices.Contains(h.calls, ".: install-xcsift.sh") {

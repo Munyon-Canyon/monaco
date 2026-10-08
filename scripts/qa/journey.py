@@ -798,16 +798,22 @@ def reset_journey_simulator(udid, explicit, fresh):
     print("reset app on simulator %s" % udid)
 
 
+def cache_args():
+    """Shared compilation cache and SourcePackages settings (scripts/xcode-cache-args.sh)."""
+    out = sh(["scripts/xcode-cache-args.sh", str(DERIVED)], stdout=subprocess.PIPE, check=True).stdout
+    return out.splitlines()
+
+
 def xcodebuild(sim, *extra):
     return [
         "scripts/qa/xcode-lock.sh", "xcode", "xcodebuild",
         "-project", "apps/mobile/Monaco.xcodeproj", "-scheme", "Monaco", "-configuration", "Debug",
         "-destination", "platform=iOS Simulator,id=%s" % sim,
-        "-derivedDataPath", str(DERIVED), "-onlyUsePackageVersionsFromResolvedFile",
+        "-derivedDataPath", str(DERIVED),
         "-skipMacroValidation", "-skipPackagePluginValidation",
         # Ad-hoc signed: an unsigned build drops the Privy session (docs/how-to/local-simulator.md).
         "CODE_SIGN_IDENTITY=-", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGNING_ALLOWED=YES",
-    ] + list(extra)
+    ] + cache_args() + list(extra)
 
 
 APP_SOURCES = ("apps/mobile", "packages/mobile-core")
