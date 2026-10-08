@@ -269,6 +269,21 @@ extension StocksTabModelTests {
         XCTAssertTrue(targets[2].contains("q=open") && targets[2].contains("filter=pre_ipo"), targets[2])
         XCTAssertTrue(targets[3].contains("q=open") && targets[3].contains("filter=popular"), targets[3])
     }
+    func testLoadPopularAsksForTheRankedListAndKeepsTheChip() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.page(symbol: "NVDAx", name: "NVIDIA xStock", kind: "equity")),
+            .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),
+        ])
+        let model = makeModel(transport)
+        await model.loadPopular()
+        await model.load()
+        XCTAssertEqual(model.browse, .all)
+        XCTAssertEqual(model.popular.rows.map(\.ticker), ["NVDA"])
+        XCTAssertEqual(model.rows.map(\.ticker), ["AAPL"])
+        let targets = await targets(transport)
+        XCTAssertTrue(targets[0].contains("filter=popular"), targets.description)
+        XCTAssertTrue(targets[1].contains("filter=all"), targets.description)
+    }
     func testStaleBrowseReplacementDoesNotBlockSearchPagination() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.page(symbol: "AAPLx", name: "Apple xStock", kind: "equity")),

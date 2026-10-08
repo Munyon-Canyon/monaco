@@ -38,6 +38,10 @@ struct ProposeBuyStockView: View {
             let model = preparedModel()
             if model.rows.isEmpty { await model.load() }
         }
+        .task {
+            let model = preparedModel()
+            if model.popular.rows.isEmpty { await model.loadPopular() }
+        }
         .onChange(of: query) { _, query in model?.setQuery(query) }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-buy-stock")
@@ -79,25 +83,38 @@ struct ProposeBuyStockView: View {
         default:
             if model.rows.isEmpty, !trimmedQuery.isEmpty {
                 EmptyState(title: "No stocks match “\(trimmedQuery)”")
-            } else {
+            } else if trimmedQuery.isEmpty {
+                let popular = model.popular.rows
+                let ranked = Set(popular.map(\.symbol))
+                let rest = model.rows.filter { !ranked.contains($0.symbol) }
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                    if trimmedQuery.isEmpty {
-                        MonacoSectionHeader("Popular").padding(.horizontal, MonacoTheme.Space.gutter)
+                    if !popular.isEmpty { stocks(popular, under: "Popular") }
+                    if !rest.isEmpty { stocks(rest, under: "All stocks") }
+                }
+            } else {
+                stocks(model.rows)
+            }
+        }
+    }
+
+    private func stocks(_ assets: [MarketAsset], under title: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            if let title {
+                MonacoSectionHeader(title).padding(.horizontal, MonacoTheme.Space.gutter)
+            }
+            MonacoGroupedList {
+                ForEach(Array(assets.enumerated()), id: \.element.id) { index, asset in
+                    Button {
+                        ProposeBuyStockSelection.select(asset, pick: { picked = $0 })
+                    } label: {
+                        ProposeStockRow(
+                            stock: ProposeStock(listing: asset), logoURL: asset.logoURL,
+                            isLast: index == assets.count - 1)
                     }
-                    MonacoGroupedList {
-                        ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, asset in
-                            Button {
-                                ProposeBuyStockSelection.select(asset, pick: { picked = $0 })
-                            } label: {
-                                ProposeStockRow(
-                                    stock: ProposeStock(listing: asset), logoURL: asset.logoURL,
-                                    isLast: index == model.rows.count - 1)
-                            }
-                            .buttonStyle(.monacoRow)
-                            .disabled(!asset.isTradable)
-                            .accessibilityIdentifier("propose-buy-stock-\(asset.symbol)")
-                        }
-                    }
+                    .buttonStyle(.monacoRow)
+                    .disabled(!asset.isTradable)
+                    .accessibilityActivationPoint(.center)
+                    .accessibilityIdentifier("propose-buy-stock-\(asset.symbol)")
                 }
             }
         }
