@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -116,6 +117,8 @@ func (m *Module) Pollers() []poller.Poller {
 }
 
 func (m *Module) Queries() port.Queries { return app.NewQueries(m.deps.Pool) }
+
+func (*Module) DashboardOn(db dbsqlc.DBTX) app.Dashboard { return app.NewDashboard(db) }
 
 func (m *Module) Voters() port.Voters { return app.NewQueries(m.deps.Pool) }
 
