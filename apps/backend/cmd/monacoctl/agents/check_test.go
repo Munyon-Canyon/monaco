@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -56,6 +57,9 @@ type checkHarness struct {
 	lookPath    func(string) (string, error)
 	budget      map[string]time.Duration
 	load        float64
+	loads       []float64
+	loadMu      sync.Mutex
+	loadTick    func() (<-chan time.Time, func())
 	cores       int
 	actions     bool
 	xcodeBuild  func(ctx context.Context, waited string) error
@@ -154,6 +158,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 			env.Actions = h.actions
 			env.Load = func(context.Context, string) (float64, error) { return h.loadOr(41.5), nil }
 			env.Cores = func() int { return cmp.Or(h.cores, 64) }
+			env.LoadTick = h.loadTick
 			env.LookPath = h.lookPath
 			if env.LookPath == nil {
 				env.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
@@ -172,7 +177,19 @@ func (h *checkHarness) mergeBase(t *testing.T, ref string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func (h *checkHarness) loadOr(def float64) float64 { return cmp.Or(h.load, def) }
+func (h *checkHarness) loadOr(def float64) float64 {
+	h.loadMu.Lock()
+	defer h.loadMu.Unlock()
+	if len(h.loads) > 1 {
+		v := h.loads[0]
+		h.loads = h.loads[1:]
+		return v
+	}
+	if len(h.loads) == 1 {
+		return h.loads[0]
+	}
+	return cmp.Or(h.load, def)
+}
 
 func (h *checkHarness) base(t *testing.T, files map[string]string) {
 	t.Helper()
@@ -200,7 +217,7 @@ func (h *checkHarness) goTest(t *testing.T, p, cover string, pkgs ...string) []s
 	profile := h.profile(t)
 	return []string{
 		"apps/backend: " + strings.Join(testDB{}.testEnv(), " ") +
-			" go test -tags faultpoints -short -count=1 -timeout 20s -p " + p +
+			" go test -tags faultpoints -short -count=1 -timeout 1m20s -p " + p +
 			" -json -coverpkg=" + cover +
 			" -coverprofile=" + profile +
 			" " + strings.Join(pkgs, " "),
@@ -928,8 +945,8 @@ func TestLookPath_usesTheProcessPathWhenUnset(t *testing.T) {
 func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	t.Parallel()
 	found := func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
-	build := " MONACO_LOCK_HOLD=300 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " + xcodeScript("build-for-testing")
-	testCmd := " MONACO_LOCK_HOLD=300 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " +
+	build := " MONACO_LOCK_HOLD=1200 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " + xcodeScript("build-for-testing")
+	testCmd := " MONACO_LOCK_HOLD=1200 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " +
 		xcodeScript("-only-testing:MonacoTests test-without-building")
 	ran := func(h *checkHarness, cmd string) bool {
 		return slices.ContainsFunc(h.calls, func(c string) bool {
@@ -1545,7 +1562,7 @@ func TestCheck_aPackageWithinTheLoadScaledBudgetPasses(t *testing.T) {
 	if code != 0 || !strings.Contains(stdout, want) {
 		t.Fatalf("a package within the scaled budget passes and says why: %d %q %q", code, stdout, stderr)
 	}
-	if !slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, " -timeout 40s ") }) {
+	if !slices.ContainsFunc(h.calls, func(c string) bool { return strings.Contains(c, " -timeout 1m20s ") }) {
 		t.Fatalf("go test gets the scaled timeout: %v", h.calls)
 	}
 }
@@ -1601,6 +1618,74 @@ func TestCheck_aNonPackageRowGetsTheLoadScaledBudgetUpToFourTimesTheBase(t *test
 		t.Fatalf("the xcode lock's hold cap scales with the xcode budget: %d %q %q\n%s",
 			code, stdout, stderr, strings.Join(h.calls, "\n"))
 	}
+}
+
+func TestCheck_aRowIsJudgedByTheHighestLoadSeenDuringIt(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.cores = 8
+	h.loads = []float64{8, 24}
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 80 * time.Second}}
+	code, stdout, stderr := h.check(t)
+	want := "journeys        ok    82.0s  budget 1m30s (base 30s, x3.0 for load1 24.0 over 8 cores)"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("a row that starts at 1x and ends at 3x passes within 3x: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "b\n"})
+	h.loads = []float64{8, 64}
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 130 * time.Second}}
+	code, stdout, stderr = h.check(t)
+	want = "journeys row over the 2m0s (base 30s, x4.0 for load1 64.0 over 8 cores) journeys budget after 130s"
+	if code != 1 || !strings.Contains(stderr, want) || !strings.Contains(stdout, "journeys        over budget") {
+		t.Fatalf("a row past 4x its base fails whatever the start load: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_aFailedRowUnderLoadNamesTheHighestLoadSample(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.cores = 8
+	h.loads = []float64{8, 24}
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: time.Second, err: errors.New("boom")}}
+	code, stdout, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stdout, "(highest load1 24.0)") {
+		t.Fatalf("a failed scaled row prints the highest load: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_aLoadSampledMidRowRaisesItsBudget(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"packages/mobile-core/Sources/A/a.swift": "let a = 1\n"})
+	h.cores = 8
+	h.loads = []float64{8}
+	ticks := make(chan time.Time)
+	h.loadTick = func() (<-chan time.Time, func()) { return ticks, func() {} }
+	h.replies = []reply{
+		{prefix: "swift format", took: 0},
+		{prefix: "swiftlint-ratchet.sh", took: 0},
+		{prefix: "mobile-core-test.sh", took: 200 * time.Second},
+	}
+	h.swiftRun = func(string) {
+		h.setLoads(24)
+		ticks <- time.Time{}
+		ticks <- time.Time{}
+		h.setLoads(8)
+	}
+	code, stdout, stderr := h.check(t)
+	want := "swift test      ok    200.0s  budget 7m30s (base 2m30s, x3.0 for load1 24.0 over 8 cores)"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("a spike seen only by the minute sample raises the budget: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func (h *checkHarness) setLoads(v float64) {
+	h.loadMu.Lock()
+	defer h.loadMu.Unlock()
+	h.loads = []float64{v}
 }
 
 func TestCheck_aPackageSlowAloneStillFailsUnderLoadNamingBothBudgets(t *testing.T) {
