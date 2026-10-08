@@ -69,6 +69,9 @@ struct CabalPotBand: View {
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
                 .accessibilityIdentifier("cabal-pot-value")
             AllTimeChip(allTime: summary.allTime)
+            if summary.state != .zero {
+                CabalInkCaption("\(summary.invested) in stocks · \(summary.cash) cash", id: "cabal-pot-split")
+            }
         }
     }
 }
