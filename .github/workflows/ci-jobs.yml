@@ -677,12 +677,45 @@ jobs:
         working-directory: apps/web
         run: npm ci && npm test && npm run build
 
-  flake:
-    name: Flake (changed tests, count 20)
+  # Lists the packages with changed backend tests, so `flake` can run one shard per package.
+  flake-plan:
+    name: Flake plan
     needs: plan
     if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The merge-base with trunk, so a stacked PR reruns the changed tests of the whole stack.
+      - name: Resolve the base commit
+        env:
+          FEATURE_BRANCH: ${{ vars.FEATURE_BRANCH || 'main' }}
+        run: |
+          base="$(scripts/ci/fetch-base.sh)"
+          echo "BASE_COMMIT=${base}" >> "$GITHUB_ENV"
+
+      - name: List the packages with changed tests
+        id: list
+        run: |
+          packages="$(scripts/ci/flake-tests.sh --base "$BASE_COMMIT" --list-packages | python3 -c 'import json, sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()], separators=(",", ":")))')"
+          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+
+  flake:
+    name: Flake (changed tests, count 20) ${{ matrix.package }}
+    needs: [plan, flake-plan]
+    if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true') && needs.flake-plan.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        package: ${{ fromJSON(needs.flake-plan.outputs.packages) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -708,8 +741,10 @@ jobs:
           version: ${{ steps.golangci.outputs.version }}
           install-only: true
 
-      - name: Rerun the changed test files on this host's Postgres
-        run: scripts/ci/flake-tests.sh --base "$BASE_COMMIT"
+      - name: Rerun the package's changed test files on this host's Postgres
+        env:
+          FLAKE_PACKAGE: ${{ matrix.package }}
+        run: scripts/ci/flake-tests.sh --base "$BASE_COMMIT" --package "$FLAKE_PACKAGE"
 
   flake-swift:
     name: Flake (changed Swift tests, count 10)
@@ -749,7 +784,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake, flake-swift]
+    needs: [plan, lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift]
     runs-on: ubuntu-latest
     timeout-minutes: ${{ inputs.stage == 'queue' && 6 || 2 }}
     permissions:
@@ -761,7 +796,7 @@ jobs:
         if: inputs.stage != 'queue'
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake, flake-swift
+          allowed-skips: lint, backend, backend-report, e2e, ready, vuln, scripts, journeys, mobile-core, ios, mobile-integration, flake-plan, flake, flake-swift
 
       - uses: actions/checkout@v4
         if: inputs.stage == 'queue'

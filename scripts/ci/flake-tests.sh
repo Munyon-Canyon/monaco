@@ -2,12 +2,16 @@
 set -euo pipefail
 
 print_only=0
+list_packages=0
+only_package=""
 root=""
 base=""
 files=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --print) print_only=1; shift ;;
+    --list-packages) list_packages=1; shift ;;
+    --package) only_package="$2"; shift 2 ;;
     --root) root="$2"; shift 2 ;;
     --base) base="$2"; shift 2 ;;
     --) shift; files+=("$@"); break ;;
@@ -27,11 +31,18 @@ if [[ ${#files[@]} -eq 0 && -n "$base" ]]; then
 fi
 
 if [[ ${#files[@]} -eq 0 ]]; then
+  if [[ -n "$only_package" ]]; then
+    echo "flake-tests.sh: no changed tests in $only_package" >&2
+    exit 1
+  fi
   exit 0
 fi
 
-cmds="$(python3 - "${files[@]}" <<'PY'
+cmds="$(LIST_PACKAGES="$list_packages" ONLY_PACKAGE="$only_package" python3 - "${files[@]}" <<'PY'
 import os, re, sys
+
+list_packages = os.environ["LIST_PACKAGES"] == "1"
+only_package = os.environ["ONLY_PACKAGE"]
 
 groups = {}
 order = []
@@ -49,9 +60,15 @@ for f in sys.argv[1:]:
         groups[spec] = []
         order.append(spec)
     groups[spec].extend(names)
+if only_package and only_package not in groups:
+    sys.exit(f"flake-tests.sh: no changed tests in {only_package}")
 for spec in order:
     names = groups[spec]
-    if names:
+    if list_packages:
+        print(spec)
+    elif only_package and spec != only_package:
+        continue
+    elif names:
         alt = "|".join(dict.fromkeys(names))
         print(f"go test -tags faultpoints -short -count=20 -cpu=1,2 -run '^({alt})$' {spec}")
     else:
@@ -62,7 +79,7 @@ PY
 if [[ -z "$cmds" ]]; then
   exit 0
 fi
-if [[ "$print_only" -eq 1 ]]; then
+if [[ "$print_only" -eq 1 || "$list_packages" -eq 1 ]]; then
   printf '%s\n' "$cmds"
   exit 0
 fi
