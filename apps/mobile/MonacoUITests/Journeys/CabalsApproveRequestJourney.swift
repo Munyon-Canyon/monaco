@@ -16,7 +16,7 @@ enum CabalsApproveRequestJourney {
     static func memberAsksAndCancels(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = askCabal(run: run)
         let join = app.buttons["cabal-join-button"]
-        let requested = app.buttons["cabal-join-requested"]
+        let requested = app.element("cabal-join-requested")
 
         recorder.step("S1.1", "open the request cabal as a non-member") {
             JoinJourney.openBySearch(app, name, step: "S1.1")

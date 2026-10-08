@@ -228,7 +228,7 @@ enum CreateCabalJourney {
             JoinJourney.waitForToast(
                 app, "Request sent. You'll be in once the creator says yes.", step: "S4.6")
             XCTAssertTrue(
-                app.buttons["cabal-join-requested"].waitForExistence(timeout: listTimeout),
+                app.element("cabal-join-requested").waitForExistence(timeout: listTimeout),
                 "S4.6: the cabal does not read Request sent for the user who asked"
             )
         }

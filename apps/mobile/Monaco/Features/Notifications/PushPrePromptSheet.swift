@@ -20,26 +20,26 @@ struct PushPrePromptSheet: View {
                     .font(MonacoTheme.Typo.body)
                     .foregroundStyle(MonacoTheme.muted)
                     .multilineTextAlignment(.center)
-                VStack(spacing: MonacoTheme.Space.s) {
-                    Button {
-                        Task { await prompt.turnOn() }
-                    } label: {
-                        Text("Turn on notifications").lineLimit(2).multilineTextAlignment(.center)
-                    }
-                    .buttonStyle(.monacoPrimary)
-                    .accessibilityIdentifier("push-pre-prompt-turn-on")
-                    Button("Not now", action: prompt.notNow)
-                        .buttonStyle(.monacoSecondary)
-                        .accessibilityIdentifier("push-pre-prompt-not-now")
-                }
-                .monacoFullWidthButtons()
-                .padding(.top, MonacoTheme.Space.s)
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.xl)
             .padding(.bottom, MonacoTheme.Space.l)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .safeAreaInset(edge: .bottom) {
+            BottomCTA {
+                Button("Not now", action: prompt.notNow)
+                    .buttonStyle(.monacoSecondary)
+                    .accessibilityIdentifier("push-pre-prompt-not-now")
+                Button {
+                    Task { await prompt.turnOn() }
+                } label: {
+                    Text("Turn on notifications").lineLimit(2).multilineTextAlignment(.center)
+                }
+                .buttonStyle(.monacoPrimary)
+                .accessibilityIdentifier("push-pre-prompt-turn-on")
+            }
+        }
         .monacoCanvas()
         .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium])
         .presentationDragIndicator(.visible)

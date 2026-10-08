@@ -46,6 +46,10 @@ enum SettingsRow: CaseIterable, Identifiable {
 }
 
 enum SettingsCopy {
+    static let signOut = "Sign out"
+    static let signOutTitle = "Sign out of Monaco?"
+    static let signOutMessage = "Your money stays where it is. You'll need a new code to sign back in."
+
     static func version(info: [String: Any]) -> String {
         let release = info["CFBundleShortVersionString"] as? String ?? ""
         let build = info["CFBundleVersion"] as? String ?? ""
@@ -57,20 +61,24 @@ struct SettingsView: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        SettingsList(authorization: LiveNotificationAuthorizing(), register: environment.registerForPush) { route in
-            environment.navigator.open(route, in: environment.navigator.selectedTab)
-        }
+        SettingsList(
+            authorization: LiveNotificationAuthorizing(), register: environment.registerForPush,
+            signOut: { await environment.signOut() },
+            open: { route in environment.navigator.open(route, in: environment.navigator.selectedTab) })
     }
 }
 
 struct SettingsList: View {
     let authorization: any NotificationAuthorizing
     let register: () -> Void
+    var signOut: () async -> Void = {}
     let open: (any AppRoute) -> Void
 
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @State private var status: PushAuthorization?
+    @State private var confirmSignOut = false
+    @State private var isSigningOut = false
 
     var body: some View {
         ScrollView {
@@ -82,6 +90,7 @@ struct SettingsList: View {
                             .accessibilityIdentifier(row.identifier)
                     }
                 }
+                signOutGroup
                 Text(SettingsCopy.version(info: Bundle.main.infoDictionary ?? [:]))
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
@@ -98,6 +107,39 @@ struct SettingsList: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await readNotifications() }
+        }
+    }
+
+    private var signOutGroup: some View {
+        MonacoGroupedList {
+            Button {
+                confirmSignOut = true
+            } label: {
+                MonacoRow(
+                    title: SettingsCopy.signOut,
+                    titleColor: MonacoTheme.destructive,
+                    chevron: false,
+                    isLast: true,
+                    leading: { StockMark(systemImage: "rectangle.portrait.and.arrow.right") }
+                )
+            }
+            .buttonStyle(.monacoRow)
+            .disabled(isSigningOut)
+            .accessibilityIdentifier("profileSignOutButton")
+        }
+        .confirmationDialog(SettingsCopy.signOutTitle, isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(SettingsCopy.signOut, role: .destructive) {
+                guard !isSigningOut else { return }
+                isSigningOut = true
+                Task {
+                    await signOut()
+                    isSigningOut = false
+                }
+            }
+            .accessibilityIdentifier("profile-sign-out-confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(SettingsCopy.signOutMessage)
         }
     }
 

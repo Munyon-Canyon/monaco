@@ -26,9 +26,9 @@ nonisolated final class ProfileShellTests: XCTestCase {
 
     @MainActor
     func testSignOutDialogCopy() {
-        XCTAssertEqual(ProfileScreen.signOutTitle, "Sign out of Monaco?")
+        XCTAssertEqual(SettingsCopy.signOutTitle, "Sign out of Monaco?")
         XCTAssertEqual(
-            ProfileScreen.signOutMessage,
+            SettingsCopy.signOutMessage,
             "Your money stays where it is. You'll need a new code to sign back in."
         )
     }

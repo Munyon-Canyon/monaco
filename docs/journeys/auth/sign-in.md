@@ -1,7 +1,7 @@
 ---
 id: auth/sign-in
 title: Sign in
-version: 6
+version: 7
 milestone: M9
 requires: []
 actors: [A]
@@ -19,7 +19,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Id | What must be true |
 | --- | --- |
-| P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first: with S3 from the tab bar, or with `onboarding-handle-step-sign-out` or `onboarding-phone-step-sign-out` from a first-run step |
+| P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first: with S3 from the tab bar (Profile, then Settings), or with `onboarding-handle-step-sign-out` or `onboarding-phone-step-sign-out` from a first-run step |
 | P2 | Actors A to C use the Privy test logins in `apps/mobile/qa/journeys/accounts.tsv` |
 | P3 | The simulator can reach `auth.privy.io`. The dev database is migrated (`just migrate db`). `journey.py` starts the local backend, which answers `GET http://127.0.0.1:8080/healthz` |
 | P4 | Actor A's `users` row has a handle and an `auth_state` past `CREATED`, so the first-run gate opens the tab bar and not the handle or phone step. On a fresh dev database, sign in once, then run `update users set handle = 'qa_alfred', auth_state = 'ONBOARDING_COMPLETED' where privy_user_id = '<A.privy_user_id>'` |
@@ -54,7 +54,7 @@ Starts signed in (S1).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S3.1 | tap | the Profile tab | | `profileSignOutButton` shows within 15 s |
+| S3.1 | tap, then tap | the Profile tab, then `profile-settings-row` | | The "Settings" screen shows within 10 s, and `profileSignOutButton` shows within 15 s, the last row of Settings. The push pre-prompt (`push-pre-prompt`) is answered "Not now" first when it shows, and the Profile tab is tapped a second time when `profile-header` has not shown within 5 s |
 | S3.2 | tap | `profileSignOutButton` | | The dialog "Sign out of Monaco?" shows within 5 s |
 | S3.3 | tap | `profile-sign-out-confirm` | | The login form shows within 30 s and the tab bar is gone |
 | S3.4 | relaunch | the app | | The login form shows within 30 s |

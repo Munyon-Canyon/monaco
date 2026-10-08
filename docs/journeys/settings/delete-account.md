@@ -1,7 +1,7 @@
 ---
 id: settings/delete-account
 title: Delete your account
-version: 5
+version: 6
 milestone: M9
 requires: []
 actors: [C]
@@ -32,7 +32,7 @@ Starts with a new dev user (P1, P2).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | launch, sign out when signed in, then tap | the app, `profileSignOutButton` and `profile-sign-out-confirm` when C is signed in, then `devSignInButton` | | The tab bar shows on Home within 30 s | None, new in spec |
+| S1.1 | launch, sign out when signed in, then tap | the app, `profile-settings-row`, `profileSignOutButton` and `profile-sign-out-confirm` when C is signed in, then `devSignInButton` | | The tab bar shows on Home within 30 s | None, new in spec |
 | S1.2 | tap, then tap | the Profile tab, then `profile-settings-row` | | The "Settings" screen shows within 10 s, and `settings-delete-account` reads "Delete account" | None, new in spec |
 | S1.3 | tap | `settings-delete-account` | | Within 10 s, the "Delete account" screen shows, and `delete-account-explainer` reads "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. Your transaction history stays, because cabal records need it. This can't be undone." | None, new in spec |
 | S1.4 | wait | `delete-account-step-cash-out`, `delete-account-step-withdraw` | | Within 15 s, "Cash out of every cabal" reads "Done" and "No cabal holds money of yours.", and "Withdraw your balance" reads "Done" and "$0.00" | None, new in spec |
