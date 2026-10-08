@@ -13,7 +13,7 @@ struct ProposeSellView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                MonacoSectionHeader("What the cabal owns").padding(.horizontal, MonacoTheme.Space.m)
+                MonacoSectionHeader("What the cabal owns").padding(.horizontal, MonacoTheme.Space.gutter)
                 content
             }
             .padding(.vertical, MonacoTheme.Space.s)

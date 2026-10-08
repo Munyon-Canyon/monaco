@@ -71,16 +71,16 @@ struct ProposeAddAgentView: View {
                     )
                 }
                 .padding(.top, MonacoTheme.Space.l)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
 
                 MonacoTextField(ProposeFlowCopy.botNamePlaceholder, text: $name)
                     .accessibilityIdentifier("add-agent-name-field")
                     .padding(.top, MonacoTheme.Space.xl)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
 
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     MonacoSectionHeader(ProposeScreenCopy.botRulesTitle)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                     MonacoGroupedList {
                         BotTermRow(systemImage: "arrow.up.arrow.down", text: ProposeScreenCopy.botTrades)
                         // The key handoff, in the words the passed proposal and the bot's screen use.
@@ -92,7 +92,7 @@ struct ProposeAddAgentView: View {
 
                 if let errorMessage {
                     ReceiptError(message: errorMessage)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                         .padding(.top, MonacoTheme.Space.l)
                 }
             }
@@ -161,7 +161,7 @@ private struct BotTermRow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: 56)
         .overlay(alignment: .bottom) {
@@ -231,7 +231,7 @@ struct ProposeAgentLifecycleView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.l)
             .padding(.bottom, MonacoTheme.Space.l)
         }

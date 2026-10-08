@@ -120,7 +120,7 @@ private struct AccountActivityRowView: View {
 
     var body: some View {
         content
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.s)
             .frame(minHeight: 60)
             .contentShape(Rectangle())

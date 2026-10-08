@@ -35,7 +35,7 @@ struct CabalLeaveSection: View {
 
     var body: some View {
         content
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .task {
                 let model = model ?? makeModel(environment, cabalID)
                 self.model = model

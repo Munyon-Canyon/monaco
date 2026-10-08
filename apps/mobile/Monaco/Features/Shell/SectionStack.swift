@@ -15,7 +15,7 @@ struct SectionStack<Context>: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: MonacoTheme.Space.gutter) {
+                VStack(spacing: MonacoTheme.Space.l) {
                     ForEach(Array(Self.live(sections).enumerated()), id: \.offset) { _, section in
                         AnyView(section.body(for: context))
                     }

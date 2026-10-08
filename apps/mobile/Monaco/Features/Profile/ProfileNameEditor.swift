@@ -85,7 +85,7 @@ struct ProfileNameEditor: View {
                 .accessibilityIdentifier("profile-name-save")
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.s)
         .onAppear {
             if draft.isEmpty {

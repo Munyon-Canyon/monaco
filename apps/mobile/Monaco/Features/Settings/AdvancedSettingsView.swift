@@ -6,7 +6,7 @@ struct AdvancedSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Block explorers")
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     ForEach(SettingsAdvancedLinks.explorerLinks) { link in
                         Link(destination: link.url) {
@@ -30,7 +30,7 @@ struct AdvancedSettingsView: View {
                 Text("Opens in Safari. Monaco never asks you to sign anything there.")
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
             }
             .padding(.vertical, MonacoTheme.Space.m)
         }

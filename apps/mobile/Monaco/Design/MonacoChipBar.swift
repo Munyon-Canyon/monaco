@@ -24,7 +24,7 @@ struct MonacoChipBar<Item: Hashable>: View {
                     .accessibilityIdentifier("\(identifierPrefix)-\(title(item))")
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
         }
     }
 }

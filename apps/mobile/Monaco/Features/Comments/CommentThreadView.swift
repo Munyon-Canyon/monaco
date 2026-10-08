@@ -10,7 +10,7 @@ struct CommentThreadView: View {
             Text(CommentsCopy.title)
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.ink)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityAddTraits(.isHeader)
             content
         }
@@ -40,7 +40,7 @@ struct CommentThreadView: View {
                     .buttonStyle(.monacoSecondary)
                     .accessibilityIdentifier("comment-thread-retry")
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier("comment-thread-error")
         case .loaded:
             loaded

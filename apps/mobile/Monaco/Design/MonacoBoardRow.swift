@@ -59,7 +59,7 @@ struct BoardRow<Leading: View>: View {
                 }
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, 8)
         .frame(minHeight: MonacoRowLayout.minHeight)
         .background(row.isViewer ? MonacoTheme.brandWash : Color.clear)
@@ -165,7 +165,7 @@ struct BoardRowSkeleton: View {
                         SkeletonBlock(width: 40, height: 11)
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.vertical, 8)
                 .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {

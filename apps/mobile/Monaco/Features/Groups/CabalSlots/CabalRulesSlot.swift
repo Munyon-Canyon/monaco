@@ -57,7 +57,7 @@ struct CabalRulesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader(CabalRulesSlotCopy.header)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             content
         }
         .accessibilityElement(children: .contain)
@@ -135,14 +135,14 @@ private struct CabalRuleSummaryRow: View {
                     .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: 60)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if !isLast {
                 MonacoRule()
-                    .padding(.leading, MonacoTheme.Space.m)
+                    .padding(.leading, MonacoTheme.Space.gutter)
             }
         }
         .accessibilityElement(children: .combine)

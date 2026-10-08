@@ -16,7 +16,7 @@ struct AccountTxnReceiptSheet: View {
                         .foregroundStyle(MonacoTheme.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(MoneyStyle.large.minimumScaleFactor)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("account-txn-receipt-amount")
                     MonacoGroupedList {
                         ReceiptLine(label: "Status", value: .words(row.status.receiptLabel))
@@ -71,7 +71,7 @@ struct AccountTxnReceiptSheet: View {
                     .foregroundStyle(MonacoTheme.tertiaryText)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .frame(minHeight: 52)
             .contentShape(Rectangle())
         }

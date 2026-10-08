@@ -44,7 +44,7 @@ Type (Avenir Next unless stated; every role scales with Dynamic Type):
 
 Radius: card 16 · sheet 24 · tile 16 (marks, scales with size) · field 12 · bubble 18 · buttons and pills are capsules.
 
-Spacing: 4 · 8 · 12 · 16 · 24 · 32; gutter 20. Rows are 60pt with a 44pt mark; rules inset to the text.
+Spacing: 4 · 8 · 12 · 16 · 24 · 32; gutter 20. Rows are 60pt with a 44pt mark; rules inset to the text. Every screen edge inset is `Space.gutter`; `Space.m` is never a side inset.
 
 Motion: 150–250ms state changes; the chart draw-on; the price flash; the numeric roll. Nothing loops except the live dot and skeletons. Reduce Motion turns all of it off.
 

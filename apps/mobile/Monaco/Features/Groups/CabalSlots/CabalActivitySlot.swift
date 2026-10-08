@@ -69,7 +69,7 @@ struct CabalActivitySection: View {
         if model?.phase != .hidden {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 header
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 CabalActivityContent(model: model, rows: model?.firstFive ?? [], skeletonRows: 3)
             }
             .accessibilityElement(children: .contain)
@@ -191,7 +191,7 @@ private struct CabalActivityRowView: View {
                 .foregroundStyle(MonacoTheme.tertiaryText)
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.s)
         .frame(minHeight: MonacoRowLayout.minHeight)
         .contentShape(Rectangle())

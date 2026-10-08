@@ -23,7 +23,7 @@ struct WithdrawConfirmView: View {
                         MoneyText(decimalString: amountText, style: .large)
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityElement(children: .combine)
 
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
@@ -36,7 +36,7 @@ struct WithdrawConfirmView: View {
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                 }
             }
             .padding(.top, MonacoTheme.Space.m)

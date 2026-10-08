@@ -16,7 +16,7 @@ struct AgentSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader(TradingBotCopy.sectionTitle)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
 
             MonacoGroupedList {
                 NavigationLink {

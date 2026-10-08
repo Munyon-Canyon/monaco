@@ -33,7 +33,7 @@ struct ProfileScreen: View {
             }
             .buttonStyle(.monacoDestructive)
             .monacoFullWidthButtons()
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.bottom, MonacoTheme.Space.m)
             .disabled(isSigningOut)
             .accessibilityIdentifier("profileSignOutButton")

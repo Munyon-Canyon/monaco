@@ -38,7 +38,7 @@ struct GroupDetailsSheet: View {
     private func treasurySection(_ address: String) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader(CabalTreasurySlotCopy.header)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             CabalTreasuryCard(address: address)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
         }

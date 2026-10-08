@@ -21,17 +21,17 @@ private struct HomePeopleBoard: View {
                 MonacoSectionHeader("Top investors")
                 LeaderboardFreshnessText(loader: loader, identifier: "home-leaderboard-freshness")
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRangeChips(
                 ranges: LeaderboardRange.allCases, selection: loader.range, identifierPrefix: "home-leaderboard",
                 onSelect: { loader.select(range: $0) }
             )
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoSegmented(
                 [LeaderboardFilter.everyone, .friends],
                 selection: Binding(get: { loader.filter }, set: { loader.select(filter: $0) })
             ) { $0 == .everyone ? "Everyone" : "Friends" }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier("home-leaderboard-filter")
             LeaderboardBoardList(
                 loader: loader, skeletonRows: 5, failureThing: "investors",

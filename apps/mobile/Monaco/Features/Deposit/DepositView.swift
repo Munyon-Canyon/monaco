@@ -147,7 +147,7 @@ struct DepositContent: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
                 DepositAddressCard(content: .resolve(address: address), onCopy: onCopy, onRetry: onRetryAddress)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
 
                 MonacoGroupedList {
                     PlatformBalanceCard(state: state, valueIdentifier: "deposit-screen-balance-value")
@@ -173,7 +173,7 @@ struct DepositContent: View {
     private var howItWorks: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("How it works")
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
 
             MonacoGroupedList {
                 ForEach(Array(Self.steps.enumerated()), id: \.offset) { index, step in
@@ -182,13 +182,13 @@ struct DepositContent: View {
                         .foregroundStyle(MonacoTheme.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                         .padding(.vertical, MonacoTheme.Space.sm)
                         .frame(minHeight: 52)
                         .overlay(alignment: .bottom) {
                             if index < Self.steps.count - 1 {
                                 MonacoRule()
-                                    .padding(.leading, MonacoTheme.Space.m)
+                                    .padding(.leading, MonacoTheme.Space.gutter)
                             }
                         }
                 }

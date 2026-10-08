@@ -27,7 +27,7 @@ struct ChatMentionPicker: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }

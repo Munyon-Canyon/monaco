@@ -18,7 +18,8 @@ private struct PendingVotesScreen: View {
                     section("In progress", model.inProgress, model: model)
                 }
             }
-            .padding(MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.m)
         }
         .navigationTitle("Needs your vote")
         .task { await preparedModel().load() }

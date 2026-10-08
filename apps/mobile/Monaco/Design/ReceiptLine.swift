@@ -34,7 +34,7 @@ struct ReceiptLine: View {
                 }
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: MonacoRowLayout.minHeight)
         .overlay(alignment: .bottom) {

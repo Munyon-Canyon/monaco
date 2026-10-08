@@ -57,7 +57,7 @@ struct ProposeBuyStockView: View {
     private func content(_ model: MonacoCore.StocksTabModel) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             MonacoSearchField(placeholder: "Search Apple, Tesla, NVDA…", text: $query)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             ScrollView { results(model) }
         }
         .padding(.vertical, MonacoTheme.Space.s)
@@ -82,7 +82,7 @@ struct ProposeBuyStockView: View {
             } else {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                     if trimmedQuery.isEmpty {
-                        MonacoSectionHeader("Popular").padding(.horizontal, MonacoTheme.Space.m)
+                        MonacoSectionHeader("Popular").padding(.horizontal, MonacoTheme.Space.gutter)
                     }
                     MonacoGroupedList {
                         ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, asset in

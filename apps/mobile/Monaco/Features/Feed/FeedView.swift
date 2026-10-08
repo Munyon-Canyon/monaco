@@ -72,14 +72,14 @@ private struct FeedScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 MonacoSearchField(placeholder: "Search the feed", text: $search)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoChipBar(
                     items: FeedChip.allCases, selected: model.query.chip, title: \.title, identifierPrefix: "feed-chip"
                 ) { chip in
                     Task { await model.select(chip) }
                 }
                 MonacoSegmented(FeedScope.allCases, selection: scope, label: \.title)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .accessibilityIdentifier("feed-scope")
                 content
             }

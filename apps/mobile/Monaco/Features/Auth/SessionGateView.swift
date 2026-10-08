@@ -227,13 +227,13 @@ struct HomeShapedSkeleton: View {
                     .frame(height: 60)
                 SkeletonBlock(width: 120, height: 26, radius: 13)
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
 
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 SkeletonBlock(height: 92, radius: 0)
                 SkeletonBlock(width: 72, height: 12)
                     .frame(height: 16)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
             }
         }
     }
@@ -248,7 +248,7 @@ struct HomeShapedSkeleton: View {
                 Spacer(minLength: MonacoTheme.Space.sm)
                 SkeletonBlock(width: 76, height: 14)
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.s)
             .frame(minHeight: 60)
 
@@ -269,7 +269,7 @@ struct HomeShapedSkeleton: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             SkeletonBlock(width: 128, height: 18)
                 .frame(height: 27)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
 
             MonacoGroupedList {
                 ForEach(0..<3, id: \.self) { index in
@@ -285,7 +285,7 @@ struct HomeShapedSkeleton: View {
                             SkeletonBlock(width: 40, height: 12)
                         }
                     }
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.vertical, MonacoTheme.Space.s)
                     .frame(minHeight: 60)
                     .overlay(alignment: .bottom) {

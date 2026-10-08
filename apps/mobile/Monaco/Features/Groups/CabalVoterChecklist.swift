@@ -15,7 +15,7 @@ struct CabalVoterChecklist: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader(EditCabalCopy.votersHeader)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoGroupedList {
                 ForEach(cabal.members, id: \.userId) { member in
                     memberRow(member, isLast: member.userId == cabal.members.last?.userId)

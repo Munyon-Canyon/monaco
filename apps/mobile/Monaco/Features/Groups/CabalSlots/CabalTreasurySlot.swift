@@ -50,7 +50,7 @@ struct CabalTreasuryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader(CabalTreasurySlotCopy.header)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             content
         }
         .accessibilityElement(children: .contain)

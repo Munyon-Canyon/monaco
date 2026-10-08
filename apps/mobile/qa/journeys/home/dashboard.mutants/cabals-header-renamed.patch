@@ -5,7 +5,7 @@ Home names its cabal list "My cabals". S1.3 reads "Your cabals", so it must fail
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift b/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
-index 9676855c5..b7f12cb5e 100644
+index c624a03e5..07af98797 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
 @@ -18,7 +18,7 @@ private struct HomeCabals: View {
@@ -14,6 +14,6 @@ index 9676855c5..b7f12cb5e 100644
          VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
 -            MonacoSectionHeader("Your cabals")
 +            MonacoSectionHeader("My cabals")
-                 .padding(.horizontal, MonacoTheme.Space.m)
+                 .padding(.horizontal, MonacoTheme.Space.gutter)
              content
          }

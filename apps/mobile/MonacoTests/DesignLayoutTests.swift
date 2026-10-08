@@ -10,7 +10,7 @@ struct MonacoRowLayoutTests {
             let layout = MonacoRowLayout(dynamicTypeSize: size)
             #expect(layout.isStacked == false)
             #expect(layout.titleLineLimit == 1)
-            #expect(layout.separatorLeadingInset == 72)
+            #expect(layout.separatorLeadingInset == 76)
         }
     }
 

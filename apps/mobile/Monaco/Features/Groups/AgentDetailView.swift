@@ -40,7 +40,7 @@ struct AgentDetailView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                     header
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                     // A removed bot's budget is history, not something it can still spend.
                     if !status.isRemoved {
                         budget
@@ -101,7 +101,7 @@ struct AgentDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 budgetFigure
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.s)
             .frame(minHeight: 60)
             .accessibilityElement(children: .combine)
@@ -140,7 +140,7 @@ struct AgentDetailView: View {
                     .accessibilityIdentifier("agent-key-missing")
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("agent-detail-key-section")
     }

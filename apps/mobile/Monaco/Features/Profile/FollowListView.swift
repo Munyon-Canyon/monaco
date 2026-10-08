@@ -95,7 +95,7 @@ struct FollowListView: View {
                     Button("Try again") { Task { await retry() } }
                         .buttonStyle(.monacoSecondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("follow-list-page-retry")
                 }
             }

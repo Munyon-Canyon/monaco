@@ -95,11 +95,11 @@ struct StockRowLayoutTests {
     }
 
     /// A holding row's rule starts under its text, as `MonacoRow`'s separator does: the
-    /// section already insets its content by the page's 16pt, so the rule adds the mark
+    /// section already insets its content by the side gutter, so the rule adds the mark
     /// and its gap and nothing else.
     @Test func aRuleAfterAMarkStartsWhereTheTextDoes() {
         let rowText = MonacoRowLayout(dynamicTypeSize: .large).separatorLeadingInset(markSize: 40)
-        #expect(MonacoTheme.Space.m + AssetCardDivider.inset(afterMark: 40) == rowText)
+        #expect(MonacoTheme.Space.gutter + AssetCardDivider.inset(afterMark: 40) == rowText)
     }
 }
 

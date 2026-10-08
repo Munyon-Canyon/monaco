@@ -23,12 +23,12 @@ private struct CabalsBoard: View {
                     .foregroundStyle(MonacoTheme.muted)
                 LeaderboardFreshnessText(loader: loader, identifier: "cabals-board-freshness")
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRangeChips(
                 ranges: LeaderboardRange.allCases, selection: loader.range, identifierPrefix: "cabals-board",
                 onSelect: { loader.select(range: $0) }
             )
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             LeaderboardBoardList(
                 loader: loader, skeletonRows: 5, failureThing: "cabals", identifier: "cabals-board-list",
                 empty: {

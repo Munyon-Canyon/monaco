@@ -163,7 +163,7 @@ private struct InviteCodeLinkRow: View {
             InviteLinkText(url: url, font: MonacoTheme.Typo.dataCaption, color: MonacoTheme.muted)
                 .accessibilityIdentifier("invite-code-link")
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .combine)
     }
 }
