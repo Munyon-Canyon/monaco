@@ -1,13 +1,3 @@
-//
-//  CabalsTabSampleUITests.swift
-//  MonacoUITests
-//
-//  QA coverage for the Cabals tab against the debug sample data harness
-//  (launch argument -MonacoCabalsTabSample). No sign-in and no backend are
-//  needed: the app boots straight into the Cabals tab with fixed sample
-//  cabals so this suite (and the screenshots it attaches) stay reproducible.
-//
-
 import XCTest
 
 nonisolated final class CabalsTabSampleUITests: XCTestCase {
@@ -34,11 +24,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         add(attachment)
     }
 
-    /// Looks up an accessibility identifier regardless of the underlying
-    /// element type (VStack/HStack/NavigationLink-backed rows don't always
-    /// surface as the same XCUIElementType), mirroring the
-    /// `identifier BEGINSWITH` pattern already used for cabal rows elsewhere
-    /// in this UI test target.
     @MainActor
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
@@ -52,10 +37,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         return app.frame.contains(CGPoint(x: frame.midX, y: frame.midY))
     }
 
-    /// Brings `element` somewhere it can actually be tapped, and reports whether
-    /// it got there. A `Form` is lazy: a row below the fold is not in the
-    /// accessibility tree at all, so existence has to be re-checked after each
-    /// scroll rather than waited on up front. The keyboard counts as fold.
     @MainActor
     @discardableResult
     private func scrollUntilHittable(_ app: XCUIApplication, _ element: XCUIElement, attempts: Int = 8) -> Bool {
@@ -66,116 +47,94 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         return isOnGlass(app, element) && element.isHittable
     }
 
-    /// The "New cabal" card sits after every joined cabal in a horizontal strip,
-    /// so on a phone it always starts off-screen.
+    private let qaPotID = "01890a5d-ac96-774b-bcce-b302099a8060"
+
     @MainActor
-    private func newCabalStripCard(_ app: XCUIApplication) -> XCUIElement {
-        let strip = anyElement(app, "cabals-strip")
-        XCTAssertTrue(strip.waitForExistence(timeout: 10), "cabals strip should exist")
-        let newCard = anyElement(app, "cabals-strip-new")
-        var tries = 0
-        while tries < 6, !isOnGlass(app, newCard) {
-            strip.swipeLeft()
-            tries += 1
+    @discardableResult
+    private func reveal(_ app: XCUIApplication, _ identifier: String, attempts: Int = 6) -> XCUIElement {
+        let element = anyElement(app, identifier)
+        for _ in 0..<attempts {
+            if element.exists, isOnGlass(app, element) { return element }
+            app.swipeUp()
         }
-        return newCard
+        return element
     }
 
-    // MARK: - (a) Overview
-
     @MainActor
-    func testOverviewShowsChartStripAndLeaderboard() throws {
+    func testOverviewShowsYourCabalsChartAndBoard() throws {
         let app = launchApp()
 
         let root = anyElement(app, "cabals-root")
         XCTAssertTrue(root.waitForExistence(timeout: 10), "cabals-root should exist after launch")
 
-        let pnlSection = anyElement(app, "cabals-pnl-section")
-        XCTAssertTrue(pnlSection.waitForExistence(timeout: 10), "P&L section should exist")
-        XCTAssertTrue(anyElement(app, "cabals-pnl-chart").waitForExistence(timeout: 10), "P&L chart should render")
-        XCTAssertTrue(anyElement(app, "cabals-pnl-range-1M").exists, "range chips should exist")
-
-        // Three joined cabals have P&L history in the sample data.
-        for index in 1...3 {
-            let groupId = String(format: "5b1f0c9e-%04d-4c55-9a51-%012d", index, index)
-            XCTAssertTrue(
-                anyElement(app, "cabals-pnl-legend-\(groupId)").waitForExistence(timeout: 5),
-                "missing legend row for \(groupId)"
-            )
-        }
-
-        let strip = anyElement(app, "cabals-strip")
-        XCTAssertTrue(strip.waitForExistence(timeout: 5), "cabals strip should exist")
+        XCTAssertTrue(anyElement(app, "cabals-list").waitForExistence(timeout: 10), "your cabals list should exist")
         XCTAssertTrue(
-            anyElement(app, "cabals-strip-card-5b1f0c9e-0001-4c55-9a51-000000000001").waitForExistence(timeout: 5),
-            "Weekend investors strip card should exist"
+            anyElement(app, "cabals-list-card-\(qaPotID)").waitForExistence(timeout: 5),
+            "the QA pot card should exist in your cabals"
         )
+        XCTAssertTrue(anyElement(app, "cabals-list-new").exists, "the New cabal card should sit after the cabals")
 
-        let leaderboard = anyElement(app, "cabals-leaderboard")
-        XCTAssertTrue(leaderboard.waitForExistence(timeout: 5), "leaderboard should exist")
+        XCTAssertTrue(
+            reveal(app, "cabals-value-chart").waitForExistence(timeout: 10), "the value chart section should exist")
+        XCTAssertTrue(
+            reveal(app, "cabals-value-chart-lines").waitForExistence(timeout: 10), "the value chart should render")
+        XCTAssertTrue(anyElement(app, "cabals-value-chart-range-1M").exists, "range chips should exist")
+
+        XCTAssertTrue(reveal(app, "cabals-board").waitForExistence(timeout: 10), "the board should exist")
 
         attachScreenshot(app, name: "01-overview")
     }
 
-    // MARK: - (b) Leaderboard, scrolled
-
     @MainActor
-    func testLeaderboardShowsRankedRows() throws {
+    func testBoardShowsRankedRows() throws {
         let app = launchApp()
 
-        let leaderboard = anyElement(app, "cabals-leaderboard")
-        XCTAssertTrue(leaderboard.waitForExistence(timeout: 10), "leaderboard should exist")
+        let board = reveal(app, "cabals-board")
+        XCTAssertTrue(board.waitForExistence(timeout: 10), "the board should exist")
+        XCTAssertTrue(reveal(app, "cabals-board-list").waitForExistence(timeout: 10), "the board list should load")
 
-        app.swipeUp()
-        app.swipeUp()
-
-        XCTAssertTrue(leaderboard.waitForExistence(timeout: 5), "leaderboard should still exist after scrolling")
-
-        // All six sample cabals carry a percent return, so all six are ranked.
-        let groupIds = (1...6).map { String(format: "5b1f0c9e-%04d-4c55-9a51-%012d", $0, $0) }
-        var visibleRows = 0
-        for groupId in groupIds where anyElement(app, "cabals-leaderboard-row-\(groupId)").exists {
-            visibleRows += 1
+        for rank in 1...3 {
+            XCTAssertTrue(
+                reveal(app, "cabals-board-row-user-\(rank)").waitForExistence(timeout: 5),
+                "board row \(rank) should be visible after scrolling"
+            )
         }
-        XCTAssertGreaterThan(visibleRows, 0, "expected at least one ranked leaderboard row visible after scrolling")
+        XCTAssertFalse(anyElement(app, "cabals-board-empty").exists, "a ranked board is not empty")
 
-        attachScreenshot(app, name: "02-leaderboard")
+        attachScreenshot(app, name: "02-board")
     }
-
-    // MARK: - (g) A thin range keeps the chart section and its picker (#294)
 
     @MainActor
     func testPickingADayWithThinHistoryKeepsTheRangePicker() throws {
         let app = launchApp()
 
-        let pnlSection = anyElement(app, "cabals-pnl-section")
-        XCTAssertTrue(pnlSection.waitForExistence(timeout: 10), "P&L section should exist on the default range")
+        let chart = reveal(app, "cabals-value-chart")
+        XCTAssertTrue(chart.waitForExistence(timeout: 10), "the value chart should exist on the default range")
+        XCTAssertTrue(
+            reveal(app, "cabals-value-chart-lines").waitForExistence(timeout: 10),
+            "the default range should draw the chart"
+        )
 
-        // The sample cabals have no points inside a single day, so 1D is the
-        // sparse range. Before this fix, tapping it deleted the whole section —
-        // picker included — with no way back.
-        let oneDay = anyElement(app, "cabals-pnl-range-1D")
+        let oneDay = reveal(app, "cabals-value-chart-range-1D")
         XCTAssertTrue(oneDay.waitForExistence(timeout: 5), "1D chip should exist")
         oneDay.tap()
 
         XCTAssertTrue(
-            anyElement(app, "cabals-pnl-sparse").waitForExistence(timeout: 5),
+            anyElement(app, "cabals-value-chart-short").waitForExistence(timeout: 5),
             "a range with thin history should say so inside the card"
         )
-        XCTAssertTrue(pnlSection.exists, "the P&L section should survive a sparse range")
+        XCTAssertTrue(chart.exists, "the value chart section should survive a thin range")
 
-        let oneMonth = anyElement(app, "cabals-pnl-range-1M")
+        let oneMonth = anyElement(app, "cabals-value-chart-range-1M")
         XCTAssertTrue(oneMonth.exists, "the range picker should still be on screen")
         oneMonth.tap()
         XCTAssertTrue(
-            anyElement(app, "cabals-pnl-chart").waitForExistence(timeout: 5),
+            anyElement(app, "cabals-value-chart-lines").waitForExistence(timeout: 5),
             "switching back to 1M should draw the chart again"
         )
 
-        attachScreenshot(app, name: "06-pnl-sparse-range")
+        attachScreenshot(app, name: "06-value-chart-thin-range")
     }
-
-    // MARK: - (h) Cabals that have not loaded are not "no cabals" (#295)
 
     @MainActor
     func testUnloadedCabalsDoNotClaimTheMemberHasNone() throws {
@@ -184,40 +143,49 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         let root = anyElement(app, "cabals-root")
         XCTAssertTrue(root.waitForExistence(timeout: 10), "cabals-root should exist after launch")
 
-        // The read finished without a list and nothing else is in flight: the
-        // failed branch. The strip must offer a retry, not tell a funded member
-        // they have no cabals and nudge them to create one.
         XCTAssertTrue(
-            anyElement(app, "cabals-strip-error").waitForExistence(timeout: 10),
-            "an unloaded cabals list should offer a retry"
+            anyElement(app, "cabals-list-failed").waitForExistence(timeout: 10),
+            "an unloaded cabals list should say it failed"
         )
+        XCTAssertTrue(app.buttons["cabals-list-retry"].exists, "an unloaded cabals list should offer a retry")
         XCTAssertFalse(
-            anyElement(app, "cabals-strip-empty").exists,
+            anyElement(app, "cabals-list-empty").exists,
             "an unloaded cabals list must not claim 'No cabals yet'"
         )
+
+        XCTAssertTrue(
+            reveal(app, "cabals-value-chart-error").waitForExistence(timeout: 10),
+            "an unloaded value chart should offer a retry"
+        )
+        XCTAssertTrue(
+            reveal(app, "cabals-board-list-error").waitForExistence(timeout: 10),
+            "an unloaded board should offer a retry"
+        )
+        XCTAssertFalse(anyElement(app, "cabals-board-empty").exists, "an unloaded board must not claim to be empty")
 
         attachScreenshot(app, name: "07-cabals-unavailable")
     }
 
-    // MARK: - (i) Board rank reaches VoiceOver (#332)
-
     @MainActor
-    func testLeaderboardRowAnnouncesItsRank() throws {
+    func testBoardRowAnnouncesItsRank() throws {
         let app = launchApp()
 
-        XCTAssertTrue(anyElement(app, "cabals-leaderboard").waitForExistence(timeout: 10), "leaderboard should exist")
-        app.swipeUp()
-        app.swipeUp()
+        XCTAssertTrue(reveal(app, "cabals-board").waitForExistence(timeout: 10), "the board should exist")
 
-        let topRow = anyElement(app, "cabals-leaderboard-row-5b1f0c9e-0004-4c55-9a51-000000000004")
+        let topRow = reveal(app, "cabals-board-row-user-1")
         XCTAssertTrue(topRow.waitForExistence(timeout: 10), "the top board row should exist")
         XCTAssertTrue(
             topRow.label.hasPrefix("First,"),
             "the rank is the point of this board; rank 1 is spoken as First, got: \(topRow.label)"
         )
-    }
 
-    // MARK: - (j) A list still loading is not a list that failed (#295)
+        let secondRow = reveal(app, "cabals-board-row-user-2")
+        XCTAssertTrue(secondRow.waitForExistence(timeout: 5), "the second board row should exist")
+        XCTAssertTrue(
+            secondRow.label.hasPrefix("Rank 2,"),
+            "every other row speaks its rank too, got: \(secondRow.label)"
+        )
+    }
 
     @MainActor
     func testACabalsListStillLoadingShowsPlaceholdersNotAnError() throws {
@@ -226,57 +194,63 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         let root = anyElement(app, "cabals-root")
         XCTAssertTrue(root.waitForExistence(timeout: 10), "cabals-root should exist after launch")
 
-        // The shell's first load is still running, so the strip has nothing to
-        // say yet. It must not claim a failure before an attempt has finished.
         XCTAssertTrue(
-            anyElement(app, "cabals-strip-loading").waitForExistence(timeout: 10),
+            anyElement(app, "cabals-list-loading").waitForExistence(timeout: 10),
             "a cabals list that has not arrived yet should show placeholder cards"
         )
-        XCTAssertFalse(anyElement(app, "cabals-strip-error").exists, "nothing has failed yet")
-        XCTAssertFalse(anyElement(app, "cabals-strip-empty").exists, "the list is unknown, not empty")
+        XCTAssertFalse(anyElement(app, "cabals-list-failed").exists, "nothing has failed yet")
+        XCTAssertFalse(anyElement(app, "cabals-list-empty").exists, "the list is unknown, not empty")
+
+        XCTAssertTrue(
+            reveal(app, "cabals-value-chart-loading").waitForExistence(timeout: 10),
+            "a value chart that has not arrived yet should show a placeholder"
+        )
+        XCTAssertTrue(
+            reveal(app, "cabals-board-list-loading").waitForExistence(timeout: 10),
+            "a board that has not arrived yet should show placeholder rows"
+        )
+        XCTAssertFalse(anyElement(app, "cabals-value-chart-error").exists, "the chart has not failed yet")
+        XCTAssertFalse(anyElement(app, "cabals-board-list-error").exists, "the board has not failed yet")
+        XCTAssertFalse(anyElement(app, "cabals-board-empty").exists, "the board is unknown, not empty")
 
         attachScreenshot(app, name: "08-cabals-loading")
     }
-
-    // MARK: - (k) Creating replaces the form with the new cabal (#292, #317)
 
     @MainActor
     func testCreatingACabalReplacesTheFormWithTheNewCabal() throws {
         let app = launchApp()
 
-        let newCard = newCabalStripCard(app)
-        XCTAssertTrue(newCard.isHittable, "the New cabal strip card should be reachable")
+        let newCard = anyElement(app, "cabals-list-new")
+        XCTAssertTrue(newCard.waitForExistence(timeout: 10), "the New cabal card should exist")
+        XCTAssertTrue(newCard.isHittable, "the New cabal card should be reachable")
         newCard.tap()
 
+        let startRow = anyElement(app, "new-cabal-create-row")
+        XCTAssertTrue(startRow.waitForExistence(timeout: 8), "the New cabal sheet should offer to start a cabal")
+        startRow.tap()
+
         let nameField = app.textFields["create-group-name"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 8), "the New cabal form should be pushed")
+        XCTAssertTrue(nameField.waitForExistence(timeout: 10), "the Start a cabal form should be pushed")
         nameField.tap()
-        // The trailing newline resigns the keyboard so the button below is free.
         nameField.typeText("Lunch money\n")
 
-        // The submit button sits below four sections of inline pickers.
         let submit = app.buttons["create-group-submit"]
         XCTAssertTrue(
             scrollUntilHittable(app, submit),
-            "Create cabal button should be reachable on the New cabal form"
+            "Create cabal button should be reachable on the Start a cabal form"
         )
         submit.tap()
 
-        // The whole point of #292: the form is *replaced*, not covered. A second
-        // tap on a form still sitting underneath is a second cabal and a second
-        // treasury.
-        XCTAssertTrue(
-            app.navigationBars["Lunch money"].waitForExistence(timeout: 10),
-            "the new cabal should be the top screen"
-        )
+        let header = anyElement(app, "cabal-header-name")
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "the new cabal should be the top screen")
+        XCTAssertEqual(header.label, "Lunch money", "the top screen should be the cabal just created")
         XCTAssertFalse(
             app.textFields["create-group-name"].exists,
-            "the New cabal form must be gone, not underneath the cabal"
+            "the Start a cabal form must be gone, not underneath the cabal"
         )
 
         attachScreenshot(app, name: "09-created-cabal")
 
-        // Back lands on the tab, not on a filled-in form.
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(
             anyElement(app, "cabals-root").waitForExistence(timeout: 8),
@@ -284,25 +258,24 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         )
         XCTAssertFalse(
             app.textFields["create-group-name"].exists,
-            "Back must not land on an armed New cabal form"
+            "Back must not land on an armed Start a cabal form"
         )
     }
 
-    // MARK: - (m) Strip card pushes detail
-
     @MainActor
-    func testWeekendInvestorsStripCardPushesDetail() throws {
+    func testQAPotCardPushesDetail() throws {
         let app = launchApp()
 
-        let card = anyElement(app, "cabals-strip-card-5b1f0c9e-0001-4c55-9a51-000000000001")
-        XCTAssertTrue(card.waitForExistence(timeout: 10), "Weekend investors strip card should exist")
+        let card = anyElement(app, "cabals-list-card-\(qaPotID)")
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "the QA pot card should exist")
         card.tap()
 
-        // No backend is wired up for the sample harness, so the detail screen
-        // will show a load error; only navigation itself is asserted here.
         XCTAssertTrue(
             app.navigationBars.buttons.element(boundBy: 0).waitForExistence(timeout: 8),
-            "tapping the strip card should push a detail screen with a back button"
+            "tapping the card should push a detail screen with a back button"
         )
+        let header = anyElement(app, "cabal-header-name")
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "the detail screen should show the cabal it opened")
+        XCTAssertEqual(header.label, "QA pot", "the detail screen should be the card's cabal")
     }
 }
