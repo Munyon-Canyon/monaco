@@ -163,9 +163,7 @@ func (h *WithdrawHandler) submit(ctx context.Context, cmd Withdraw, signed relay
 
 func (h *WithdrawHandler) afterCommit(tx db.Tx, cmd Withdraw, from, to domain.WithdrawalStatus) {
 	tx.AfterCommit(func(ctx context.Context) {
-		if to != domain.WithdrawalSubmitted {
-			h.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(cmd.UserID), nil)
-		}
+		h.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(cmd.UserID), nil)
 		observability.Info(ctx, observability.FundingWithdrawalMoved,
 			slog.String("withdrawal_id", cmd.ID.String()), slog.String("user_id", cmd.UserID.String()),
 			slog.String("amount_micros", cmd.Request.Amount.String()),

@@ -154,6 +154,8 @@ Flow 14 start errors: `invalid_input` means a malformed request (both `all` and 
 
 [Flow 15](backend-platform.md#flows), `funding` module: `Withdraw` sends platform balance to any Solana address the user pastes, from `POST /v1/me/withdrawals` with an `Idempotency-Key`. Events `withdrawal.submitted`, then `withdrawal.confirmed` or `withdrawal.failed`. These replace `withdrawal.sent` in [event-bus.md](event-bus.md#who-publishes-who-subscribes). `treasury` consumes `withdrawal.confirmed` and writes the `user_txns` withdrawal entry.
 
+Each move of a withdrawal (created, submitted, failed) publishes the user's `balance_changed` hint after commit, so Home drops the amount the moment the withdrawal is submitted. Fund-to-cabal ([flow 7](backend-platform.md#flows), `treasury` module) does the same at submit, from the transaction that appends `cabal.fund_submitted`, and again when the transfer settles.
+
 No fiat off-ramp in MVP: withdrawals are crypto only. Privy's on-ramp docs cover funding only, and a provider off-ramp is a separate decision after MVP.
 
 ### Balance
