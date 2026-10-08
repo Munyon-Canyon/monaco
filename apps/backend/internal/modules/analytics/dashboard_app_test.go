@@ -49,7 +49,9 @@ func (f valuationFake) LatestCabalValues(context.Context) ([]rankingport.CabalVa
 func fakeMoney(l ledgerFake, v valuationFake) app.Money {
 	return app.Money{
 		Read: func(ctx context.Context, fn func(context.Context, dbsqlc.DBTX) error) error { return fn(ctx, nil) },
-		Bind: func(dbsqlc.DBTX) app.MoneySources { return app.MoneySources{Ledger: l, Valuations: v} },
+		Bind: func(dbsqlc.DBTX) app.MoneySources {
+			return app.MoneySources{Ledger: l, Valuations: v, Events: countFake{}}
+		},
 	}
 }
 
@@ -183,5 +185,20 @@ func TestGovernance_Dashboard_Failures(t *testing.T) {
 				t.Fatalf("Dashboard() = %+v, want an error", got)
 			}
 		})
+	}
+}
+
+func TestMoney_Dashboard_FailsWhenTheOnrampCountFails(t *testing.T) {
+	t.Parallel()
+	dash := fakeMoney(ledgerFake{}, valuationFake{})
+	dash.Bind = func(dbsqlc.DBTX) app.MoneySources {
+		return app.MoneySources{
+			Ledger:     ledgerFake{},
+			Valuations: valuationFake{},
+			Events:     countFake{err: errs.New(errs.CodeInternal, "test")},
+		}
+	}
+	if got, err := dash.Dashboard(t.Context(), app.Window{}); err == nil {
+		t.Fatalf("Dashboard() = %+v, want an error", got)
 	}
 }

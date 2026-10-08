@@ -136,7 +136,9 @@ func (m *Module) money() app.Money {
 	return app.Money{
 		Read: adapters.ReadOnly(m.deps.Pool, dashboardTimeout),
 		Bind: func(db dbsqlc.DBTX) app.MoneySources {
-			return app.MoneySources{Ledger: ledger.DashboardOn(db), Valuations: ranking.QueriesOn(db)}
+			return app.MoneySources{
+				Ledger: ledger.DashboardOn(db), Valuations: ranking.QueriesOn(db), Events: bus.NewEventCounts(db),
+			}
 		},
 	}
 }

@@ -270,7 +270,7 @@ type MoneyBucket struct {
 
 // MoneyDashboard Money moving through the platform and the total value it holds.
 //
-// Examples: {"as_of":"2026-09-30T23:55:00Z","bucket":"day","buckets":[],"from":"2026-09-01T00:00:00Z","platform_balance_micros":"20000000","pot_micros":"80000000","to":"2026-10-01T00:00:00Z","total_value_held_micros":"100000000"}
+// Examples: {"as_of":"2026-09-30T23:55:00Z","bucket":"day","buckets":[],"from":"2026-09-01T00:00:00Z","platform_balance_micros":"20000000","pot_micros":"80000000","series":[],"to":"2026-10-01T00:00:00Z","total_value_held_micros":"100000000"}
 type MoneyDashboard struct {
 	// AsOf When the latest valuation run priced the pots. Null before the first run.
 	//
@@ -299,6 +299,9 @@ type MoneyDashboard struct {
 	//
 	// Examples: 25000000
 	PotMicros DashboardMicros `json:"pot_micros"`
+
+	// Series Card onramp status changes per bucket and status, oldest first.
+	Series []DashboardPoint `json:"series"`
 
 	// To The end of the range, exclusive.
 	//

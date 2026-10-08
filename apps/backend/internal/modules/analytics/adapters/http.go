@@ -47,7 +47,7 @@ func (h HTTP) GetMoneyDashboard(
 	return api.GetMoneyDashboard200JSONResponse{
 		From: window.From, To: window.To, Bucket: api.DashboardBucket(window.Size), AsOf: view.AsOf,
 		PotMicros: view.Pots.String(), PlatformBalanceMicros: view.Platform.String(),
-		TotalValueHeldMicros: view.Total.String(), Buckets: buckets,
+		TotalValueHeldMicros: view.Total.String(), Buckets: buckets, Series: dashboardPoints(view.Series),
 	}, nil
 }
 

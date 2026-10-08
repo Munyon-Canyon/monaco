@@ -413,7 +413,8 @@ paths:
         Returns USDC moving through the platform per day or week, read from the ledger on the primary database
         in a read-only transaction with a 5 second statement timeout. A bucket holds the settled deposits, funds
         into cabals, cash-outs and withdrawals as a count and USDC micros, and the settled swap volume bought and
-        sold. Buckets with no activity are omitted. `total_value_held_micros` is the latest value of every cabal pot
+        sold. `series` holds the `onramp_status_changes` events per status, whose `completed` group is the card deposits.
+        Buckets with no activity are omitted. `total_value_held_micros` is the latest value of every cabal pot
         plus the platform balance of every member wallet, and `as_of` is when the latest valuation run priced the pots,
         null before the first run. `to` is exclusive and the range cannot exceed 400 days. A longer range, a `to`
         not after `from` or an unknown bucket is invalid_input. A read over the timeout is dashboard_timeout.
@@ -4453,8 +4454,9 @@ components:
           platform_balance_micros: "20000000"
           total_value_held_micros: "100000000"
           buckets: []
+          series: []
       additionalProperties: false
-      required: [from, to, bucket, as_of, pot_micros, platform_balance_micros, total_value_held_micros, buckets]
+      required: [from, to, bucket, as_of, pot_micros, platform_balance_micros, total_value_held_micros, buckets, series]
       properties:
         from: {type: string, format: date-time, description: The start of the range., examples: ["2026-09-01T00:00:00Z"]}
         to: {type: string, format: date-time, description: "The end of the range, exclusive.", examples: ["2026-10-01T00:00:00Z"]}
@@ -4467,6 +4469,10 @@ components:
           type: array
           description: The buckets with activity, oldest first.
           items: {$ref: "#/components/schemas/MoneyBucket"}
+        series:
+          type: array
+          description: Card onramp status changes per bucket and status, oldest first.
+          items: {$ref: "#/components/schemas/DashboardPoint"}
     SafetyDashboard:
       type: object
       description: Pauses, outside deposits, bans and administrator actions.

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
@@ -23,6 +25,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
+
+const meterName = "github.com/monaco/monaco/apps/backend/internal/modules/governance"
 
 type (
 	Status     = domain.Status
@@ -113,6 +117,7 @@ func (m *Module) Consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	hints := adapters.Hints{Publish: m.deps.Bus}
+	app.ObserveOpenProposals(otel.GetMeterProvider().Meter(meterName), app.NewDashboard(m.deps.Pool))
 	return []poller.Poller{app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock, hints)}
 }
 
