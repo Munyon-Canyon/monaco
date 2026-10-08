@@ -143,11 +143,32 @@ extension ButtonStyle where Self == MonacoTextButtonStyle {
     static var monacoText: MonacoTextButtonStyle { MonacoTextButtonStyle() }
 }
 
+struct SubmitLabel: View {
+    let isWorking: Bool
+    let idle: String
+    let working: String
+
+    init(isWorking: Bool, idle: String, working: String) {
+        self.isWorking = isWorking
+        self.idle = idle
+        self.working = working
+    }
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            if isWorking {
+                ProgressView().tint(MonacoTheme.primaryButtonLabel)
+            }
+            Text(isWorking ? working : idle)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 /// Pinned action bar. Use inside `.safeAreaInset(edge: .bottom) { BottomCTA { … } }` so it rides above the keyboard.
 /// Buttons inside get the full width; put one primary, or a primary and a secondary side by side.
 struct BottomCTA<Content: View>: View {
     private let content: Content
-    @Environment(\.colorScheme) private var colorScheme
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
@@ -164,7 +185,6 @@ struct BottomCTA<Content: View>: View {
         .background {
             MonacoTheme.canvas
                 .ignoresSafeArea(edges: .bottom)
-                .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.08), radius: 16, y: -2)
         }
         .overlay(alignment: .top) {
             Rectangle()

@@ -76,15 +76,7 @@ struct CreateGroupView: View {
                 Button {
                     Task { await create() }
                 } label: {
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        if isCreating {
-                            ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                            Text(CabalRulesCopy.creating)
-                        } else {
-                            Text(CabalRulesCopy.create)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
+                    SubmitLabel(isWorking: isCreating, idle: CabalRulesCopy.create, working: CabalRulesCopy.creating)
                 }
                 .buttonStyle(.monacoPrimary)
                 .disabled(isCreating || form.input == nil || actions == nil)

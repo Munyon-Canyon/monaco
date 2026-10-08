@@ -101,12 +101,7 @@ private struct InviteMemberContent: View {
             .onTapGesture { fieldFocused = true }
 
             Button(action: send) {
-                if model.isSending {
-                    ProgressView()
-                        .tint(MonacoTheme.primaryButtonLabel)
-                } else {
-                    Text("Send")
-                }
+                SubmitLabel(isWorking: model.isSending, idle: "Send", working: "Sending\u{2026}")
             }
             .buttonStyle(.monacoPrimary)
             .disabled(!model.canSend)

@@ -33,7 +33,6 @@ struct MonacoToastBanner: View {
     var link: MonacoToastLink?
     var action: MonacoToastAction?
 
-    @Environment(\.colorScheme) private var colorScheme
     @ScaledMetric(relativeTo: .subheadline) private var glyphSize: CGFloat = 17
 
     var body: some View {
@@ -75,7 +74,6 @@ struct MonacoToastBanner: View {
                 .fill(MonacoTheme.toastFill)
                 .overlay { shape.strokeBorder(MonacoTheme.toastStroke, lineWidth: 1) }
         }
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.08), radius: 16, y: 6)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: link == nil && action == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
