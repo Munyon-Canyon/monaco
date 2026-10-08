@@ -113,7 +113,7 @@ struct CabalInkBand<Content: View>: View {
         .padding(.bottom, MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            MonacoTheme.heroInk.padding(.top, -MonacoTheme.Space.gutter)
+            MonacoTheme.heroInk.padding(.top, -SectionStackMetrics.spacing)
         }
     }
 }

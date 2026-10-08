@@ -4,6 +4,10 @@ extension EnvironmentValues {
     @Entry var sectionScrollProxy: ScrollViewProxy? = nil
 }
 
+enum SectionStackMetrics {
+    static let spacing = MonacoTheme.Space.l
+}
+
 struct SectionStack<Context>: View {
     let context: Context
     let sections: [any ScreenSection<Context>.Type]
@@ -15,7 +19,7 @@ struct SectionStack<Context>: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: MonacoTheme.Space.l) {
+                VStack(spacing: SectionStackMetrics.spacing) {
                     ForEach(Array(Self.live(sections).enumerated()), id: \.offset) { _, section in
                         AnyView(section.body(for: context))
                     }
