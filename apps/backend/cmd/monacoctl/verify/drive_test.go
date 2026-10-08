@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/system"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -241,16 +242,24 @@ func driveConfig(budget Budget) (Config, *bytes.Buffer) {
 	return Config{Budget: budget, Stdout: &out, Stderr: &out}, &out
 }
 
+const eventStep = 250 * time.Microsecond
+
+func onEventClock(run func(clk clock.Clock)) {
+	clk := fakeClock()
+	advancing(clk, eventStep, func() { run(clk) })
+}
+
 func verifyFlow00(t *testing.T, env Env) {
 	t.Helper()
 	cfg, out := driveConfig(testBudget())
-	if err := verifyUnits(
-		t.Context(),
-		cfg,
-		env,
-		newReport(t.Context(), Target{}, flow00(t, Target{Flow: "00"})),
-		parallelFlows,
-	); err != nil {
+	ctx, cancel := context.WithTimeout(t.Context(), hangCeiling)
+	defer cancel()
+	var err error
+	onEventClock(func(clk clock.Clock) {
+		cfg.Clock = clk
+		err = verifyUnits(ctx, cfg, env, newReport(ctx, Target{}, flow00(t, Target{Flow: "00"})), parallelFlows)
+	})
+	if err != nil {
 		t.Fatalf("verifyUnits: %v\n%s", err, out)
 	}
 	for _, want := range []string{"PASS flow 00 ok (seed ", "PASS flow 00 InvalidInput", "PASS flow 00 Unauthorized"} {

@@ -182,28 +182,28 @@ func fakeEnviron(mode string) []string {
 	}
 }
 
-func fakeBinaries(t *testing.T) Binaries {
-	t.Helper()
+func fakeBinaries(tb testing.TB) Binaries {
+	tb.Helper()
 	exe, err := os.Executable()
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	return Binaries{API: exe, Worker: exe, Fakes: exe}
 }
 
-func testPostgres(t *testing.T) PostgresFunc {
-	t.Helper()
-	url := testkit.DB(t).Config().ConnString()
+func testPostgres(tb testing.TB) PostgresFunc {
+	tb.Helper()
+	url := testkit.DB(tb).Config().ConnString()
 	return func(context.Context, string) (string, func(context.Context) error, error) {
 		return url, func(context.Context) error { return nil }, nil
 	}
 }
 
-func backendDir(t *testing.T) string {
-	t.Helper()
+func backendDir(tb testing.TB) string {
+	tb.Helper()
 	dir, err := filepath.Abs("../../..")
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	return dir
 }
@@ -219,16 +219,16 @@ func testBudget() Budget {
 	return b
 }
 
-func testOptions(t *testing.T, mode string) Options {
-	t.Helper()
-	dir := backendDir(t)
+func testOptions(tb testing.TB, mode string) Options {
+	tb.Helper()
+	dir := backendDir(tb)
 	return Options{
 		Dir:       dir,
 		Atlas:     "true",
 		Environ:   fakeEnviron(mode),
-		Bins:      fakeBinaries(t),
+		Bins:      fakeBinaries(tb),
 		Budget:    testBudget(),
-		Postgres:  testPostgres(t),
+		Postgres:  testPostgres(tb),
 		PollEvery: 5 * time.Millisecond,
 	}
 }
