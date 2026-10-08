@@ -1,7 +1,7 @@
 ---
 id: profile/find-friends
 title: Find friends
-version: 1
+version: 2
 milestone: M22
 requires: [auth/sign-in]
 actors: [A]
@@ -37,39 +37,33 @@ Starts signed in (auth/sign-in).
 
 ### S2 Search by handle and follow
 
-Starts signed in (auth/sign-in). Fails on staging until the search lands (Known failures).
+Starts signed in (auth/sign-in), with Contacts access not determined, so the explainer shows under the search field.
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | tap, scroll to, then tap | the Profile tab, `profile-find-friends`, then `friends-search-field` | | The search field is enabled within 10 s | The search field on Find friends |
-| S2.2 | type | `friends-search-field` | `{memberHandle}` | `friends-result-{memberID}` shows within 15 s, reading "Bartholomez" and "@" with the handle | Search results by handle |
-| S2.3 | tap | `friends-result-follow-{memberID}` | | Within 10 s it reads "Following" | "Follow" on a result row |
+| S2.1 | tap, scroll to, then tap | the Profile tab, `profile-find-friends`, then `friends-search-field` | | The search field is enabled within 10 s, above the contacts explainer | The search field on Find friends |
+| S2.2 | type | `friends-search-field` | `{memberHandle}` | `friends-search-{memberHandle}` shows within 15 s, reading "Bartholomez" and "@" with the handle | Search results by handle |
+| S2.3 | tap | `friends-search-follow-{memberID}` | | Within 10 s it reads "Following" | "Follow" on a result row |
 
 ### S3 Search by name
 
-Starts signed in (auth/sign-in). Fails on staging until the search lands (Known failures).
+Starts on Find friends, where S2 left off, with Contacts access not determined.
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | tap, scroll to, then tap | the Profile tab, `profile-find-friends`, then `friends-search-field` | | The search field is enabled within 10 s | The search field on Find friends |
-| S3.2 | type | `friends-search-field` | `Bartholomez` | `friends-result-{memberID}` shows within 15 s, reading "Bartholomez" | Search results by name |
+| S3.1 | tap, tap, scroll to, then tap | the back button on "Friends on Monaco", the Profile tab, `profile-find-friends`, then `friends-search-field` | | `profile-header` shows within 10 s. Then the search field is enabled within 10 s, above the contacts explainer | The search field on Find friends |
+| S3.2 | type | `friends-search-field` | `Bartholomez` | `friends-search-{memberHandle}` shows within 15 s, reading "Bartholomez" | Search results by name |
 
 ## Ground truth
 
-S2 follows B from a search result. `apps/mobile/qa/journeys/profile/find-friends.truth.sh` checks through `apps/mobile/qa/journeys/psql.sh` that any live A-to-B row in `follows` was created after `seededAt`, so the run wrote it. Until #2142 lands, S2 stops at S2.1 and A does not follow B, which the check reports and passes.
+S2 follows B from a search result. `apps/mobile/qa/journeys/profile/find-friends.truth.sh` checks through `apps/mobile/qa/journeys/psql.sh` that any live A-to-B row in `follows` was created after `seededAt`, so the run wrote it.
 
 ## Known failures on staging
 
-| Step | What fails | Blocked by |
-| --- | --- | --- |
-| S2.1 | "Friends on Monaco" has no search field, only the contacts explainer and a disabled "Find friends" under "Finding friends opens soon.". `GET /v1/users` is live: this is a UI gap | #2142 |
-| S2.2 | No search results, for the same reason | #2142 |
-| S2.3 | No result row to follow, for the same reason | #2142 |
-| S3.1 | No search field | #2142 |
-| S3.2 | No search results | #2142 |
+None known.
 
 ## Not covered
 
 - The contacts match itself: the enabled "Find friends" button on the explainer, the contacts permission and the matched list. Contacts is a later M22 ticket, and the simulator's address book is not a fixed state.
-- `friends-search-field`, `friends-result-{userID}` and `friends-result-follow-{userID}` do not exist in `ContactsExplainerView.swift` yet. They are the identifiers #2142 should add. If it picks other names, this doc and its steps bump to version 2.
-- Searching for yourself, and a search with no match. #2142 sets their copy.
+- Search with Contacts access denied or granted. `friends-search-field` sits above the explainer and the matches alike, but the simulator's permission is not a fixed state.
+- Searching for yourself, and a search with no match.

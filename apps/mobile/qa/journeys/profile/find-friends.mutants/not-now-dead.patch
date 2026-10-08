@@ -7,9 +7,9 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
 --- a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
 +++ b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
-@@ -24,7 +24,7 @@
+@@ -22,7 +22,7 @@
  
-     private var actions: some View {
+     var body: some View {
          BottomCTA {
 -            Button("Not now", action: skip)
 +            Button("Not now") {}

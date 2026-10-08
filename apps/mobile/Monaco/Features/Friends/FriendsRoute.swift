@@ -10,33 +10,88 @@ nonisolated struct FriendsRoute: AppRoute {
 struct FriendsScreen: View {
     var onSkip: (() -> Void)?
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: FriendsOnMonacoModel?
+    @State private var search: PeopleSearchModel?
 
     var body: some View {
         Group {
-            if let model {
-                if model.access == .granted {
-                    FriendsOnMonacoView(model: model, onDone: onSkip)
-                } else {
-                    ContactsExplainerView(model: model, onSkip: onSkip)
-                }
+            if let model, let search {
+                content(model: model, search: search)
             } else {
                 Color.clear
             }
         }
+        .monacoCanvas()
+        .navigationTitle("Friends on Monaco")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { done }
         .task {
             guard model == nil else { return }
-            model = FriendsOnMonacoModel(
+            let model = FriendsOnMonacoModel(
                 api: environment.api,
                 contacts: DeviceContactsSource(),
                 defaultRegion: Locale.current.region?.identifier ?? "US"
             )
+            self.model = model
+            search = PeopleSearchModel(api: environment.api, clock: ContinuousClock())
+            await model.loadIfGranted()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, let model else { return }
             Task { await model.refreshAndLoad() }
         }
+        .onChange(of: search?.toast) { _, toast in
+            guard let toast else { return }
+            toasts.current = MonacoToast(message: toast.message, isSuccess: false)
+        }
+        .onChange(of: model?.toastTick) { _, _ in
+            guard let message = model?.toast else { return }
+            toasts.current = MonacoToast(message: message, isSuccess: false)
+        }
+    }
+
+    private func content(model: FriendsOnMonacoModel, search: PeopleSearchModel) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                PeopleSearchField(model: search)
+                if search.isSearching {
+                    PeopleSearchResults(model: search)
+                } else if model.access == .granted {
+                    FriendsOnMonacoView(model: model)
+                } else {
+                    ContactsExplainerView()
+                }
+            }
+            .padding(.vertical, MonacoTheme.Space.m)
+        }
+        .safeAreaInset(edge: .bottom) {
+            if model.access != .granted {
+                ContactsActions(model: model, onSkip: onSkip)
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var done: some ToolbarContent {
+        if let onSkip, model?.access == .granted {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done", action: onSkip)
+                    .accessibilityIdentifier("friends-done")
+            }
+        }
+    }
+}
+
+private struct PeopleSearchField: View {
+    @Bindable var model: PeopleSearchModel
+
+    var body: some View {
+        MonacoSearchField(placeholder: "Search by name or @handle", text: $model.query)
+            .textInputAutocapitalization(.never)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityIdentifier("friends-search-field")
     }
 }
 

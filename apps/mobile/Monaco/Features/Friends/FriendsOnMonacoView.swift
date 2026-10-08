@@ -2,56 +2,9 @@ import MonacoCore
 import SwiftUI
 
 struct FriendsOnMonacoView: View {
-    @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
     @Bindable var model: FriendsOnMonacoModel
-    var onDone: (() -> Void)?
-    @State private var search: PeopleSearchModel?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                if let search {
-                    PeopleSearchField(model: search)
-                    if search.isSearching {
-                        PeopleSearchResults(model: search)
-                    } else {
-                        matches
-                    }
-                }
-            }
-            .padding(.vertical, MonacoTheme.Space.m)
-        }
-        .monacoCanvas()
-        .navigationTitle("Friends on Monaco")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { done }
-        .task {
-            if search == nil { search = PeopleSearchModel(api: environment.api, clock: ContinuousClock()) }
-            await model.loadIfGranted()
-        }
-        .onChange(of: search?.toast) { _, toast in
-            guard let toast else { return }
-            toasts.current = MonacoToast(message: toast.message, isSuccess: false)
-        }
-        .onChange(of: model.toastTick) { _, _ in
-            guard let message = model.toast else { return }
-            toasts.current = MonacoToast(message: message, isSuccess: false)
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var done: some ToolbarContent {
-        if let onDone {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Done", action: onDone)
-                    .accessibilityIdentifier("friends-done")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var matches: some View {
         switch model.phase {
         case .idle, .checking:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -82,17 +35,6 @@ struct FriendsOnMonacoView: View {
                 }
             }
         }
-    }
-}
-
-private struct PeopleSearchField: View {
-    @Bindable var model: PeopleSearchModel
-
-    var body: some View {
-        MonacoSearchField(placeholder: "Search by name or @handle", text: $model.query)
-            .textInputAutocapitalization(.never)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .accessibilityIdentifier("friends-search-field")
     }
 }
 
