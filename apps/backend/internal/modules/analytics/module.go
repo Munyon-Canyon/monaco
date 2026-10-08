@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -92,7 +93,7 @@ func registerProposalExports(r *Registry, proposers app.ProposerReader) {
 func (*Module) Name() string { return "analytics" }
 
 func (m *Module) Mount(r api.Mount) {
-	analyticsapi.Mount(adapters.HTTP{Money: m.money(), Governance: m.governance()}, r)
+	analyticsapi.Mount(adapters.HTTP{Money: m.money(), Governance: m.governance(), Social: m.social()}, r)
 }
 
 func (m *Module) governance() app.Governance {
@@ -100,6 +101,18 @@ func (m *Module) governance() app.Governance {
 	return app.Governance{
 		Read: adapters.ReadOnly(m.deps.Pool, dashboardTimeout),
 		Bind: func(db dbsqlc.DBTX) governanceport.Dashboard { return proposals.DashboardOn(db) },
+	}
+}
+
+func (m *Module) social() app.Social {
+	users, cabals := identity.New(m.deps), cabal.New(m.deps)
+	return app.Social{
+		Read: adapters.ReadOnly(m.deps.Pool, dashboardTimeout),
+		Bind: func(db dbsqlc.DBTX) app.SocialSources {
+			return app.SocialSources{
+				Events: bus.NewEventCounts(db), Cabals: cabals.DashboardOn(db), Users: users.DashboardOn(db),
+			}
+		},
 	}
 }
 
