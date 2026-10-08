@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 5
+version: 6
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -42,9 +42,9 @@ Starts on the form (S1).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S2.1 | type | `create-group-name` | `QA pot <run>`, where `<run>` makes the name unique to the run | `create-group-submit` ("Create cabal") is enabled. Old app: the "Cabal name" field in `CreateGroupView` |
-| S2.2 | tap | "Just me" in `create-rule-voters`, "Everyone agrees" in `create-rule-threshold`, "1 hour" in `create-rule-expiry` | | Each choice is selected. Old app: the four segmented rules in `CreateGroupView` |
+| S2.2 | tap | "People I pick" in `create-rule-voters`, "Everyone agrees" in `create-rule-threshold`, "1 hour" in `create-rule-expiry` | | Each choice is selected. Old app: the four segmented rules in `CreateGroupView` |
 | S2.3 | tap twice | `create-group-submit` | | The cabal screen shows within 20 s: `cabal-header-name` is the typed name, and the form is gone. The second tap proves "Creating…" holds off a duplicate. Old app: Create pushed `GroupDetailView` |
-| S2.4 | wait | the toast | | "Cabal created." shows within 5 s of S2.3. Old app: the same toast over `GroupDetailView` |
+| S2.4 | wait | the toast | | "Cabal created." shows within 20 s of the S2.3 tap, read while the cabal screen loads because the toast stays up 2.5 s. Old app: the same toast over `GroupDetailView` |
 | S2.5 | wait | `cabal-member-count` | | Reads "1 member", the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
 | S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-list` ("Your cabals") within 10 s, exactly one card in it is named the typed name, and the dashed `cabals-list-new` ("+ New cabal") card is there. Old app: Back to `CabalsTabView`'s cabals strip |
 
@@ -64,7 +64,7 @@ A creates a cabal, B asks to join with the code, A approves, and A finds B on th
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S4.1 | A | tap | the Cabals tab, `cabals-new-button`, then `new-cabal-create-row` | | "Start a cabal" shows `create-group-name` within 10 s. Old app: Cabals "+", then "Start a cabal" pushed `CreateGroupView` |
-| S4.2 | A | type, tap, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 10 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
+| S4.2 | A | type, tap, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 20 s of the tap, read first because it stays up 2.5 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
 | S4.3 | A | tap | `cabal-details-button` | | `cabal-invite-card` ("Invite code") shows within 10 s, and `cabal-invite-code` is 10 characters. The test hands the code to B. Old app: "i" opened `GroupDetailsSheet` with the code |
 | S4.4 | B | tap | the Cabals tab, `cabals-new-button`, then `new-cabal-join-row` | | "Ask to join" shows `join-group-id` within 10 s. Old app: Cabals "+", then "Join with an invite code" pushed `JoinGroupView` |
 | S4.5 | B | tap | `join-group-paste` | the code from S4.3, on B's clipboard | `join-group-name` reads `QA duo {QA.run}` and `join-group-submit` reads "Ask to join" within 10 s. Old app: Paste in `JoinGroupView`'s code field |
@@ -77,7 +77,10 @@ After S2, `apps/mobile/qa/journeys/cabals/create-cabal.truth.sh` reads `GET /v1/
 
 ## Known failures on staging
 
-None known. Every step's route, `POST /v1/cabals`, is live.
+Every step's route, `POST /v1/cabals`, is live. Two steps are unstable on the dev stack:
+
+- S2.6: actor A is in about 216 dev cabals, so the dashed "+ New cabal" card is past the 20-swipe limit of the list.
+- S2.3: creating a cabal depends on Privy treasury creation and public mainnet RPC, so the cabal screen can take longer than 20 s.
 
 ## Not covered
 

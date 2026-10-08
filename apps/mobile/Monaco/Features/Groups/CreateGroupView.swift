@@ -90,10 +90,16 @@ struct CreateGroupView: View {
 
     private var nameField: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoTextField(CabalRulesCopy.namePlaceholder, text: $form.name)
-                .submitLabel(.done)
-                .disabled(isCreating)
-                .accessibilityIdentifier("create-group-name")
+            MonacoTextField(
+                CabalRulesCopy.namePlaceholder,
+                text: $form.name,
+                isInvalid: nameProblemMessage != nil,
+                isOutlined: true,
+                errorMessage: nameProblemMessage
+            )
+            .submitLabel(.done)
+            .disabled(isCreating)
+            .accessibilityIdentifier("create-group-name")
             if let problem = nameProblemMessage {
                 Text(problem)
                     .font(MonacoTheme.Typo.caption)

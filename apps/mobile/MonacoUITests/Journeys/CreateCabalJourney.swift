@@ -3,12 +3,11 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 5
+    static let version = 6
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
     private static let createdTimeout: TimeInterval = 20
-    private static let toastTimeout: TimeInterval = 5
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -61,9 +60,9 @@ enum CreateCabalJourney {
             XCTAssertTrue(submit.isEnabled, "S2.1: Create cabal stayed disabled for '\(name)'")
         }
 
-        recorder.step("S2.2", "pick Just me, Everyone agrees and 1 hour") {
+        recorder.step("S2.2", "pick People I pick, Everyone agrees and 1 hour") {
             for (rule, label) in [
-                ("create-rule-voters", "Just me"),
+                ("create-rule-voters", "People I pick"),
                 ("create-rule-threshold", "Everyone agrees"), ("create-rule-expiry", "1 hour"),
             ] {
                 let choice = app.element(rule).buttons[label]
@@ -77,6 +76,8 @@ enum CreateCabalJourney {
             }
         }
 
+        var createdToastLabel = ""
+
         recorder.step("S2.3", "double-tap Create cabal and land on the cabal") {
             app.scrollIntoReach(submit)
             let frame = submit.frame
@@ -84,6 +85,10 @@ enum CreateCabalJourney {
                 .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
             submit.tap()
             spot.tap()
+            let toast = app.element("monaco-toast-banner")
+            if toast.waitForExistence(timeout: createdTimeout) {
+                createdToastLabel = toast.label
+            }
             let hero = app.element("cabal-header-name")
             XCTAssertTrue(
                 hero.waitForExistence(timeout: createdTimeout),
@@ -94,9 +99,8 @@ enum CreateCabalJourney {
         }
 
         recorder.step("S2.4", "see the Cabal created toast") {
-            let toast = app.element("monaco-toast-banner")
-            XCTAssertTrue(toast.waitForExistence(timeout: toastTimeout), "S2.4: no toast within \(Int(toastTimeout)) s")
-            XCTAssertTrue(toast.label.contains("Cabal created."), "S2.4: the toast reads '\(toast.label)'")
+            XCTAssertFalse(createdToastLabel.isEmpty, "S2.4: no toast within \(Int(createdTimeout)) s of Create cabal")
+            XCTAssertTrue(createdToastLabel.contains("Cabal created."), "S2.4: the toast reads '\(createdToastLabel)'")
         }
 
         recorder.step("S2.5", "see one member") {
@@ -174,10 +178,13 @@ enum CreateCabalJourney {
             app.scrollIntoReach(submit)
             submit.tap()
             XCTAssertTrue(
+                app.staticTexts["Cabal created."].firstMatch.waitForExistence(timeout: createdTimeout),
+                "S4.2: the toast \"Cabal created.\" did not show within \(Int(createdTimeout)) s"
+            )
+            XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: createdTimeout),
                 "S4.2: the cabal screen for \(name) did not show within \(Int(createdTimeout)) s"
             )
-            JoinJourney.waitForToast(app, "Cabal created.", step: "S4.2")
         }
 
         var code = ""
