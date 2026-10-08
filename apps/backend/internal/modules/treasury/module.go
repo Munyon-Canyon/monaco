@@ -23,6 +23,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -256,6 +257,10 @@ func (m *Module) transfers() (*relayer.Transfers, error) {
 
 func (m *Module) Queries() port.Queries {
 	return m.reads()
+}
+
+func (m *Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard {
+	return adapters.NewDashboard(db, chain.SolanaAddress(m.deps.Config.Solana.USDCMint))
 }
 
 func (m *Module) Ledger() *app.LedgerReads { return app.NewLedgerReads(m.deps.Pool) }
