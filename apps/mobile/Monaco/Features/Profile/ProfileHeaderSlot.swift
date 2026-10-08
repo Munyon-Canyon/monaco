@@ -108,8 +108,9 @@ struct ProfileHeader: View {
                 Text(displayName)
                     .font(MonacoTheme.Typo.display)
                     .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.center)
                     .accessibilityIdentifier("profile-display-name")
 
                 Button {
@@ -127,8 +128,10 @@ struct ProfileHeader: View {
             if let handle = session.profile?.handle {
                 NavigationLink(value: AnyAppRoute(HandleEditRoute())) {
                     Text("@\(handle)")
-                        .font(MonacoTheme.Typo.bodyStrong)
-                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .font(MonacoTheme.Typo.rowTitle)
+                        .foregroundStyle(MonacoTheme.brand)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
@@ -137,10 +140,12 @@ struct ProfileHeader: View {
             }
 
             Text(memberSince)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
+                .font(MonacoTheme.Typo.callout)
+                .foregroundStyle(MonacoTheme.tertiaryText)
+                .multilineTextAlignment(.center)
                 .accessibilityIdentifier("profile-member-since")
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profile-header")
