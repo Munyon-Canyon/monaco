@@ -51,3 +51,14 @@ LIMIT @row_limit::bigint;
 SELECT count(*)::bigint
 FROM events
 WHERE published_at IS NULL AND created_at < @cutoff::timestamptz;
+
+-- name: CountEvents :many
+SELECT (date_trunc(@bucket::text, created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::timestamptz AS bucket_start,
+  type,
+  coalesce(CASE WHEN @group_by::text = '' THEN '' ELSE payload ->> @group_by::text END, '')::text AS group_value,
+  count(*)::bigint AS events
+FROM events
+WHERE type = ANY(@types::text[]) AND created_at >= @from_at::timestamptz AND created_at < @to_at::timestamptz
+  AND (@present::text = '' OR payload ->> @present::text IS NOT NULL)
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3;

@@ -45,3 +45,9 @@ JOIN users u ON u.id = w.user_id
 WHERE w.user_id > sqlc.arg(after)::uuid AND u.deleted_at IS NULL
 ORDER BY w.user_id
 LIMIT sqlc.arg(page_size)::bigint;
+
+-- name: UserStatusCounts :many
+SELECT auth_state, account_status, count(*)::bigint AS users
+FROM users
+GROUP BY auth_state, account_status
+ORDER BY auth_state, account_status;

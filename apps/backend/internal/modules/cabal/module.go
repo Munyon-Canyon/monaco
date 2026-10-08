@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -92,6 +93,8 @@ func (m *Module) Pollers() []poller.Poller {
 }
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
+
+func (*Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard { return adapters.NewDashboard(db) }
 
 func (m *Module) CreateCabalHandler() *app.CreateCabalHandler {
 	wallets := m.wallets
