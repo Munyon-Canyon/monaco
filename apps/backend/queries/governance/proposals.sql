@@ -129,7 +129,11 @@ WHERE p.id = @id
 FOR UPDATE OF p;
 
 -- name: Void :one
+WITH prior AS (
+  SELECT p.id, p.status FROM proposals AS p WHERE p.id = @id FOR UPDATE OF p
+)
 UPDATE proposals
 SET status = @to_status::text, void_reason = @reason::text, updated_at = @at::timestamptz
-WHERE id = @id AND status = ANY(@from_statuses::text[])
-RETURNING cabal_id;
+FROM prior
+WHERE proposals.id = prior.id AND prior.status = ANY(@from_statuses::text[])
+RETURNING proposals.cabal_id, prior.status AS from_status;

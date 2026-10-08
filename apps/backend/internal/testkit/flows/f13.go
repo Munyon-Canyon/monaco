@@ -98,6 +98,59 @@ func F13WithdrawProposalCrashAfterPublish(s *scenario.Scenario) {
 		)
 }
 
+const adminVoidBody = `{"reason":"spam proposal"}`
+
+func asModerator() []scenario.Step {
+	return []scenario.Step{scenario.SeededAdmin("mod", "moderator"), scenario.AsUser("mod")}
+}
+
+func voidPath(p openProposal) string { return "/v1/admin/proposals/" + p.id.String() + "/void" }
+
+func F13VoidProposalOK(s *scenario.Scenario) {
+	p := seedOpenProposal(s, 3)
+	s.Given(append([]scenario.Step{scenario.AsSeededUser("alice", p.voters[0])}, asModerator()...)...).
+		When(
+			scenario.Post(voidPath(p), adminVoidBody),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("id", p.id.String()),
+			scenario.ExpectJSON("status", "voided"),
+			scenario.ExpectJSON("void_reason", "spam proposal"),
+			scenario.Replay(),
+		).
+		Then(
+			scenario.ExpectEvents(events.TypeProposalVoided, 1),
+			scenario.ExpectAdminAction(events.AdminActionProposalVoid, p.id.String()),
+			scenario.AsUser("alice"),
+			scenario.EventuallyCabalHint(p.cabalID, "proposal_updated"),
+		)
+}
+
+func F13VoidProposalLiveSwapExists(s *scenario.Scenario) {
+	p := seedOpenProposal(s, 1)
+	s.Given(asModerator()...).
+		When(
+			liveSwap(p),
+			scenario.Post(voidPath(p), adminVoidBody),
+		).
+		Then(
+			scenario.ExpectProblem(errs.CodeLiveSwapExists),
+			scenario.ExpectEvents(events.TypeProposalVoided, 0),
+			scenario.ExpectEvents(events.TypeAdminAction, 0),
+			voidedEvents(p, 0),
+		)
+}
+
+func F13VoidProposalAdminForbidden(s *scenario.Scenario) {
+	p := seedOpenProposal(s, 1)
+	s.Given(scenario.SeededAdmin("viewer", "viewer"), scenario.AsUser("viewer")).
+		When(scenario.Post(voidPath(p), adminVoidBody)).
+		Then(
+			scenario.ExpectProblem(errs.CodeAdminForbidden),
+			scenario.ExpectEvents(events.TypeProposalVoided, 0),
+			scenario.ExpectEvents(events.TypeAdminAction, 0),
+		)
+}
+
 const voidReason = "test void"
 
 func voidFromOps(p openProposal, want errs.Code) scenario.Step {

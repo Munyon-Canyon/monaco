@@ -465,31 +465,40 @@ func (q *Queries) UpsertBallot(ctx context.Context, arg UpsertBallotParams) erro
 }
 
 const void = `-- name: Void :one
+WITH prior AS (
+  SELECT p.id, p.status FROM proposals AS p WHERE p.id = $5 FOR UPDATE OF p
+)
 UPDATE proposals
 SET status = $1::text, void_reason = $2::text, updated_at = $3::timestamptz
-WHERE id = $4 AND status = ANY($5::text[])
-RETURNING cabal_id
+FROM prior
+WHERE proposals.id = prior.id AND prior.status = ANY($4::text[])
+RETURNING proposals.cabal_id, prior.status AS from_status
 `
 
 type VoidParams struct {
 	ToStatus     string
 	Reason       string
 	At           time.Time
-	ID           uuid.UUID
 	FromStatuses []string
+	ID           uuid.UUID
 }
 
-func (q *Queries) Void(ctx context.Context, arg VoidParams) (uuid.UUID, error) {
+type VoidRow struct {
+	CabalID    uuid.UUID
+	FromStatus string
+}
+
+func (q *Queries) Void(ctx context.Context, arg VoidParams) (VoidRow, error) {
 	row := q.db.QueryRow(ctx, void,
 		arg.ToStatus,
 		arg.Reason,
 		arg.At,
-		arg.ID,
 		arg.FromStatuses,
+		arg.ID,
 	)
-	var cabal_id uuid.UUID
-	err := row.Scan(&cabal_id)
-	return cabal_id, err
+	var i VoidRow
+	err := row.Scan(&i.CabalID, &i.FromStatus)
+	return i, err
 }
 
 const votersOfProposal = `-- name: VotersOfProposal :many

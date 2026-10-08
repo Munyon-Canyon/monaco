@@ -1,2 +1,2 @@
 id	flow	module	trigger	command	events	consumers	outcomes	status	doc
-13	Withdraw proposal	governance	DELETE /v1/proposals/{id}	WithdrawProposal	proposal.withdrawn	social.feed.proposal_withdrawn	ok;Unauthorized;ProposalNotFound;NotProposer;ProposalClosed;WithdrawNotAllowed;crash:after-publish	verified	docs/architecture/proposals.md#crud-surface
+13	Withdraw proposal	governance	DELETE /v1/proposals/{id};POST /v1/admin/proposals/{id}/void	WithdrawProposal;VoidProposal	proposal.withdrawn;proposal.voided;admin.action	social.feed.proposal_withdrawn	ok;Unauthorized;ProposalNotFound;NotProposer;ProposalClosed;WithdrawNotAllowed;LiveSwapExists;AdminForbidden;crash:after-publish	verified	docs/architecture/proposals.md#crud-surface
