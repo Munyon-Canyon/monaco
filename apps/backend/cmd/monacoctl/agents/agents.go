@@ -250,7 +250,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		got, err := run(ctx, dir, "", "gh", "auth", "token")
 		return strings.TrimSpace(string(got)), err
 	}
-	gh := &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: &http.Client{Timeout: 30 * time.Second}}
+	gh := &GitHub{API: api, Repo: cfg.Repo, Token: token, HTTP: newGitHubClient()}
 	note := ""
 	if cfg.FeatureBranch, note, err = resolveFeatureBranch(ctx, run, gh, environ, top, cfg); err != nil {
 		return nil, err
@@ -261,6 +261,10 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		Actions: lookup(environ, "GITHUB_ACTIONS") == "true", GOOS: runtime.GOOS,
 		LookPath: exec.LookPath, featureNote: note, localConfig: local,
 	}, nil
+}
+
+func newGitHubClient() *http.Client {
+	return &http.Client{Timeout: 30 * time.Second, Transport: http.DefaultTransport.(*http.Transport).Clone()}
 }
 
 func readConfig(top, common string) (Config, string, error) {
