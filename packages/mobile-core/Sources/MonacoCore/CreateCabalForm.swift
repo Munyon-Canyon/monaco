@@ -129,6 +129,7 @@ public struct CreateCabalInput: Equatable, Sendable {
 
 public struct CreateCabalForm: Equatable, Sendable {
     public static let nameLength = 3...40
+    public static let defaultExpiry: CabalProposalExpiry = .oneWeek
 
     public enum NameProblem: Equatable, Sendable {
         case empty
@@ -157,7 +158,7 @@ public struct CreateCabalForm: Equatable, Sendable {
         joinPolicy: CabalJoinPolicy = .open,
         voterMode: CabalVoterMode = .everyone,
         threshold: CabalThreshold = .majority,
-        expiry: CabalProposalExpiry = .oneWeek
+        expiry: CabalProposalExpiry = CreateCabalForm.defaultExpiry
     ) {
         self.name = name
         self.joinPolicy = joinPolicy

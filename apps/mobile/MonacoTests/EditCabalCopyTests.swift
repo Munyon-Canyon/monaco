@@ -14,6 +14,13 @@ struct EditCabalCopyTests {
         #expect(EditCabalCopy.screenTitle == "Cabal settings")
     }
 
+    @Test func saveStaysOffForNamesTheServerRefuses() {
+        #expect(CreateCabalForm(name: "ab").nameProblem != nil)
+        #expect(CreateCabalForm(name: String(repeating: "a", count: 41)).nameProblem != nil)
+        #expect(CreateCabalForm(name: "abc").nameProblem == nil)
+        #expect(CreateCabalForm(name: String(repeating: "a", count: 40)).nameProblem == nil)
+    }
+
     @Test func theApproveRowVoteToggleSpeaksTheProductLanguage() {
         #expect(MainFlowCopyAudit.stringsAreClean([CabalJoinCopy.canVote]))
         #expect(CabalJoinCopy.canVote == "Can vote")

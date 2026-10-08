@@ -32,29 +32,34 @@ struct CabalVoterChecklist: View {
         let subtitle = [member.handle.map { "@\($0)" }, isCreator ? EditCabalCopy.alwaysVotes : nil]
             .compactMap { $0 }
             .joined(separator: " · ")
-        return Button {
-            guard !isCreator else { return }
-            Haptics.selection()
-            var ids = picked
-            if isPicked { ids.remove(member.userId) } else { ids.insert(member.userId) }
-            voters = .list(ids)
-        } label: {
-            MonacoRow(
-                title: member.shownName, subtitle: subtitle, isLast: isLast,
-                leading: {
-                    MonacoAvatar(
-                        photoURL: member.photoUrl, displayName: member.shownName, seed: member.userId)
-                },
-                trailing: {
-                    if isPicked {
-                        Image(systemName: "checkmark")
-                            .font(MonacoTheme.Typo.calloutStrong)
-                            .foregroundStyle(isCreator ? MonacoTheme.muted : MonacoTheme.brandFill)
-                    }
+        let row = MonacoRow(
+            title: member.shownName, subtitle: subtitle, isLast: isLast,
+            leading: {
+                MonacoAvatar(
+                    photoURL: member.photoUrl, displayName: member.shownName, seed: member.userId)
+            },
+            trailing: {
+                Image(systemName: isPicked ? "checkmark.circle.fill" : "circle")
+                    .font(MonacoTheme.Typo.calloutStrong)
+                    .foregroundStyle(
+                        isCreator ? MonacoTheme.muted : isPicked ? MonacoTheme.brandFill : MonacoTheme.tertiaryText)
+            }
+        )
+        return Group {
+            if isCreator {
+                row
+            } else {
+                Button {
+                    Haptics.selection()
+                    var ids = picked
+                    if isPicked { ids.remove(member.userId) } else { ids.insert(member.userId) }
+                    voters = .list(ids)
+                } label: {
+                    row
                 }
-            )
+                .buttonStyle(MonacoRowButtonStyle())
+            }
         }
-        .buttonStyle(MonacoRowButtonStyle())
         .accessibilityAddTraits(isPicked ? [.isSelected] : [])
         .accessibilityIdentifier("voters-member-\(member.userId)")
     }

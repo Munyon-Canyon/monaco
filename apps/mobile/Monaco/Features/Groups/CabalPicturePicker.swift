@@ -25,7 +25,21 @@ struct CabalPicturePicker: View {
     var body: some View {
         Group {
             if canEdit {
-                editableMark
+                VStack(spacing: MonacoTheme.Space.s) {
+                    editableMark
+                    if editor.pictureUrl != nil {
+                        Button {
+                            Task { await remove() }
+                        } label: {
+                            Text("Remove picture")
+                                .font(MonacoTheme.Typo.calloutStrong)
+                                .foregroundStyle(MonacoTheme.loss)
+                                .frame(minHeight: 44)
+                        }
+                        .disabled(editor.isWorking)
+                        .accessibilityIdentifier("cabal-picture-remove-button")
+                    }
+                }
             } else {
                 CabalMark(
                     groupId: groupId,

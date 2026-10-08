@@ -42,6 +42,11 @@ final class CreateCabalFormTests: XCTestCase {
         XCTAssertEqual(wire, ["majority", "unanimous"])
     }
 
+    func testTheFormDefaultsToTheSharedExpiry() {
+        XCTAssertEqual(CreateCabalForm.defaultExpiry, .oneWeek)
+        XCTAssertEqual(CreateCabalForm().expiry, CreateCabalForm.defaultExpiry)
+    }
+
     func testEveryExpiryReachesTheWire() throws {
         let wire = try CabalProposalExpiry.allCases.map { expiry in
             try body(CreateCabalForm(name: "Pot", expiry: expiry))["proposal_expiry_seconds"] as? Int
