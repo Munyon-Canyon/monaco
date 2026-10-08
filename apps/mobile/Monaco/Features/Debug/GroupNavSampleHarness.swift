@@ -9,7 +9,6 @@ enum GroupNavSampleEntry: String, CaseIterable {
     case create
     case start
     case newCabal
-    case joinCode
 
     static let launchArgument = "-MonacoGroupNavSample"
 
@@ -32,7 +31,6 @@ extension GroupNavSampleEntry {
         case .root, .list: [cabal]
         case .create: [CreateCabalRoute(), cabal]
         case .start: [CreateCabalRoute()]
-        case .joinCode: [JoinRoute()]
         case .newCabal: []
         }
     }
@@ -45,7 +43,7 @@ struct GroupNavSampleHarness: View {
     var body: some View {
         SampleAppFrame(
             auth: auth, tab: entry.tab, routes: entry.routes,
-            sheet: entry == .newCabal ? { AnyView(NewCabalSheet(onCreate: {}, onJoin: {})) } : nil)
+            sheet: entry == .newCabal ? { AnyView(NewCabalSheet(onCreate: {})) } : nil)
     }
 }
 

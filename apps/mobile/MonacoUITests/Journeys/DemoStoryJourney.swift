@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10
@@ -50,9 +50,9 @@ enum DemoStoryJourney {
             app.staticTexts[text].waitForExistence(timeout: formTimeout), "\(step): '\(text)' did not show within 10 s")
     }
 
-    static func startAndShareTheCode(
+    static func startTheCabal(
         _ app: XCUIApplication, as account: JourneyAccount, run: String, recorder: JourneyRecorder
-    ) throws -> String {
+    ) throws {
         recorder.step("S1.1", "sign in and land on Home") {
             XCTAssertTrue(app.tab("Home").waitForExistence(timeout: 30), "S1.1: the tab bar did not show within 30 s")
             app.tab("Home").tap()
@@ -66,24 +66,16 @@ enum DemoStoryJourney {
             )
         }
 
-        var code = ""
         try recorder.step("S1.3", "start a cabal and set the rules") {
-            code = try CreateCabalJourney.creatorStartsAnOpenCabal(
+            try CreateCabalJourney.creatorStartsAnOpenCabal(
                 app, run: run, recorder: CreateCabalJourney.recorder())
         }
-
-        recorder.step("S1.4", "the invite code is ready to copy") {
-            XCTAssertTrue(app.element("cabal-invite-card").exists, "S1.4: no invite card")
-            XCTAssertEqual(app.staticTexts["cabal-invite-code"].label.count, 10, "S1.4: the code is not 10 characters")
-            XCTAssertTrue(app.buttons["cabal-invite-copy"].exists, "S1.4: no Copy code button")
-        }
-        return code
     }
 
-    static func friendJoins(_ app: XCUIApplication, run: String, code: String, recorder: JourneyRecorder) {
-        recorder.step("S1.5", "paste the code and join") {
-            CreateCabalJourney.friendJoinsWithTheCode(
-                app, run: run, code: code, recorder: CreateCabalJourney.recorder())
+    static func friendRequestsToJoin(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+        recorder.step("S1.4", "find the cabal and request to join") {
+            CreateCabalJourney.friendRequestsToJoin(
+                app, run: run, recorder: CreateCabalJourney.recorder())
         }
     }
 

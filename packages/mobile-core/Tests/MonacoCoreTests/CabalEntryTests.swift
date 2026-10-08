@@ -74,15 +74,6 @@ final class CabalEntryTests: XCTestCase {
         XCTAssertFalse(CabalEntry.requestPending.isMember)
     }
 
-    func testTheJoinPreviewAsksToJoinFromTheFixtures() async {
-        let model = JoinCabalModel.preview()
-        model.code = "ABCD2345XY"
-        await model.lookUp()
-        XCTAssertEqual(model.actionTitle, "Ask to join")
-        let joined = await model.submit()
-        XCTAssertEqual(joined?.toast, CabalEntry.requestedToast)
-    }
-
     private func api(_ transport: StubTransport) -> APIClient {
         APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
     }

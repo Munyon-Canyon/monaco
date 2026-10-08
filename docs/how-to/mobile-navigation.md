@@ -210,8 +210,7 @@ struct CabalScreen: View {
 | | `CabalAgentSlot` | #691 |
 | | `CabalMemberBoardSlot` | #699 |
 | | `CabalActivitySlot` | #654 |
-| `CabalScreen` details sheet, "Cabal details" (toolbar `info.circle` button, hidden while no details slot is live) | `CabalInviteCodeSlot` | #646 |
-| | `CabalInviteMemberSlot` | #696 |
+| `CabalScreen` details sheet, "Cabal details" (toolbar `info.circle` button, hidden while no details slot is live) | `CabalInviteMemberSlot` | #696 |
 | | `CabalRulesSlot` | #2135 |
 | | `CabalTreasurySlot` | #651 |
 | | `CabalLeaveSlot` | #697 |
@@ -241,7 +240,6 @@ exists, are declared ahead of time so an opener never waits on the screen's buil
 | `CashOutRoute(cabalID:)` | `Features/Redeem/CashOutRoute.swift` | #657 | #697, #2134 |
 | `HandleEditRoute()` | `Features/Onboarding/HandleEditRoute.swift` | #693 | #644 |
 | `DeleteAccountRoute()` | `Features/Settings/DeleteAccountRoute.swift` | #695 | #643, #695 |
-| `JoinRoute()` | `Features/Groups/JoinRoute.swift` | #646 | #606 |
 | `FundRoute(cabalID:)` | `Features/Deposit/FundRoute.swift` | #651 | #2134 |
 | `ChatRoute(cabalID:)` | `Features/Groups/ChatRoute.swift` | #676 | #2134 |
 | `SettingsRoute()` | `Features/Settings/SettingsRoute.swift` | #2139 | #2139 |

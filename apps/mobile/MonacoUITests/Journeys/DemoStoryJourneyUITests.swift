@@ -14,11 +14,11 @@ nonisolated final class DemoStoryJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             let account = try session.act(as: "A")
-            let code = try DemoStoryJourney.startAndShareTheCode(app, as: account, run: run, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-A-invite-code")
+            try DemoStoryJourney.startTheCabal(app, as: account, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-created")
 
             try session.act(as: "B")
-            DemoStoryJourney.friendJoins(app, run: run, code: code, recorder: recorder)
+            DemoStoryJourney.friendRequestsToJoin(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-joined")
         }
 

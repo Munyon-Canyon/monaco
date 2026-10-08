@@ -24,10 +24,6 @@ private struct NewCabalSheetPresenter: ViewModifier {
                     onCreate: {
                         routeAfterDismiss = CreateCabalRoute()
                         isPresented = false
-                    },
-                    onJoin: {
-                        routeAfterDismiss = JoinRoute()
-                        isPresented = false
                     }
                 )
             }
@@ -37,7 +33,6 @@ private struct NewCabalSheetPresenter: ViewModifier {
 
 struct NewCabalSheet: View {
     let onCreate: () -> Void
-    let onJoin: () -> Void
 
     @State private var contentHeight: CGFloat = 0
 
@@ -56,26 +51,14 @@ struct NewCabalSheet: View {
                         MonacoRow(
                             title: "Start a cabal",
                             subtitle: "Name it and set the rules",
-                            chevron: true
+                            chevron: true,
+                            isLast: true
                         ) {
                             SunkenGlyphMark(systemImage: "plus")
                         }
                     }
                     .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("new-cabal-create-row")
-
-                    Button(action: onJoin) {
-                        MonacoRow(
-                            title: "Join with an invite code",
-                            subtitle: "Paste the code a friend sent you",
-                            chevron: true,
-                            isLast: true
-                        ) {
-                            SunkenGlyphMark(systemImage: "person.badge.plus")
-                        }
-                    }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("new-cabal-join-row")
                 }
             }
             .padding(.bottom, MonacoTheme.Space.xl)
