@@ -45,12 +45,13 @@ struct LeaderboardHost<Content: View>: View {
 struct LeaderboardFreshnessText: View {
     let loader: LeaderboardLoader
     let identifier: String
+    var font = MonacoTheme.Typo.caption
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             if let text = loader.freshness(now: context.date) {
                 Text(text)
-                    .font(MonacoTheme.Typo.caption)
+                    .font(font)
                     .foregroundStyle(MonacoTheme.muted)
                     .accessibilityIdentifier(identifier)
             }

@@ -76,7 +76,7 @@ private struct CabalsValueChart: View {
             MonacoRule()
                 .padding(.vertical, MonacoTheme.Space.m)
             Text(model.range.shortHistoryLine)
-                .font(MonacoTheme.Typo.caption)
+                .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.muted)
                 .accessibilityIdentifier("cabals-value-chart-short")
         }

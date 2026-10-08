@@ -19,9 +19,10 @@ private struct CabalsBoard: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 MonacoSectionHeader("Top cabals")
                 Text("Ranked by return across everyone on Monaco")
-                    .font(MonacoTheme.Typo.caption)
+                    .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.muted)
-                LeaderboardFreshnessText(loader: loader, identifier: "cabals-board-freshness")
+                LeaderboardFreshnessText(
+                    loader: loader, identifier: "cabals-board-freshness", font: MonacoTheme.Typo.callout)
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRangeChips(
