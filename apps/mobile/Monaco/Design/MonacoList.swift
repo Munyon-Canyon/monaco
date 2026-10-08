@@ -415,9 +415,9 @@ struct MonacoRowSkeleton: View {
 
 /// Empty state without an icon: one title, one muted line, an optional secondary action.
 ///
-/// Centred, 24pt all round, and nothing behind it, so it reads the same between a section's
-/// rules as under a bare header: the padding is the room the rules need, not a card. Neither
-/// line truncates, and past a readable measure (iPad, landscape) the lines stop getting longer.
+/// Centred, 24pt all round (32 on top when `isOnlyContent`, to clear the nav bar), nothing behind
+/// it: the padding is the room a section's rules need, not a card. Neither line truncates, and
+/// past a readable measure (iPad, landscape) the lines stop getting longer.
 ///
 /// No accessibility container on purpose: call sites put their identifier on this view and UI
 /// tests find the retry button by it, which only works while the identifier reaches the button.
@@ -427,14 +427,16 @@ struct EmptyState: View {
     private let actionTitle: String?
     private let actionIdentifier: String?
     private let action: (() -> Void)?
+    private let isOnlyContent: Bool
 
     /// About 60 characters of `callout`.
     private static let readableWidth: CGFloat = 480
 
     init(
         title: String, message: String? = nil, actionTitle: String? = nil, actionIdentifier: String? = nil,
-        action: (() -> Void)? = nil
+        isOnlyContent: Bool = false, action: (() -> Void)? = nil
     ) {
+        self.isOnlyContent = isOnlyContent
         self.title = title
         self.message = message
         self.actionTitle = actionTitle
@@ -445,7 +447,7 @@ struct EmptyState: View {
     var body: some View {
         VStack(spacing: MonacoTheme.Space.s) {
             Text(title)
-                .font(MonacoTheme.Typo.bodyStrong)
+                .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -471,7 +473,8 @@ struct EmptyState: View {
         .frame(maxWidth: Self.readableWidth)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, MonacoTheme.Space.l)
-        .padding(.vertical, MonacoTheme.Space.l)
+        .padding(.top, isOnlyContent ? MonacoTheme.Space.xl : MonacoTheme.Space.l)
+        .padding(.bottom, MonacoTheme.Space.l)
     }
 }
 
