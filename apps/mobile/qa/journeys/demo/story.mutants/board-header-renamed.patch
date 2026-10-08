@@ -5,7 +5,7 @@ The Home board is headed "Leaders". S8.1 scrolls to "Top investors", so it must 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-index fce1ebbcb..a7a10e1ab 100644
+index a79a7c246..ec0e7b44a 100644
 --- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
 @@ -18,7 +18,7 @@ private struct HomePeopleBoard: View {
@@ -16,4 +16,4 @@ index fce1ebbcb..a7a10e1ab 100644
 +                MonacoSectionHeader("Leaders")
                  LeaderboardFreshnessText(loader: loader, identifier: "home-leaderboard-freshness")
              }
-             .padding(.horizontal, MonacoTheme.Space.m)
+             .padding(.horizontal, MonacoTheme.Space.gutter)

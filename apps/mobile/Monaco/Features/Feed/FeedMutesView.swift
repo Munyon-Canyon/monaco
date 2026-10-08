@@ -73,7 +73,7 @@ struct FeedMutesList: View {
                 ForEach(Array(mutes.enumerated()), id: \.element.id) { index, mute in
                     row(mute)
                         .overlay(alignment: .bottom) {
-                            if index < mutes.count - 1 { MonacoRule().padding(.leading, MonacoTheme.Space.m) }
+                            if index < mutes.count - 1 { MonacoRule().padding(.leading, MonacoTheme.Space.gutter) }
                         }
                 }
             }
@@ -95,7 +95,7 @@ struct FeedMutesList: View {
             .buttonStyle(.monacoSecondary)
             .accessibilityIdentifier("feed-unmute-\(mute.id)")
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.sm)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-muted-row-\(mute.id)")

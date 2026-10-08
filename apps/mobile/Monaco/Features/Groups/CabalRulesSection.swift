@@ -10,7 +10,7 @@ struct CabalRulesSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader(CabalRulesCopy.sectionTitle)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
 
             MonacoGroupedList {
                 CabalRuleRow(

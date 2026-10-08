@@ -156,7 +156,7 @@ struct GroupNavSampleHarness: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Your cabals")
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     NavigationLink {
                         cabalScreen
@@ -222,7 +222,7 @@ struct GroupNavSampleHarness: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Your cabals")
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     NavigationLink(value: GroupNavSampleScreen.cabal(id: sample.id, name: sample.name, isNew: false)) {
                         sampleRow

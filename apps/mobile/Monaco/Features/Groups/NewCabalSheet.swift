@@ -47,7 +47,7 @@ struct NewCabalSheet: View {
                 Text("New cabal")
                     .font(MonacoTheme.Typo.title)
                     .foregroundStyle(MonacoTheme.ink)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.top, MonacoTheme.Space.l)
                     .accessibilityAddTraits(.isHeader)
 

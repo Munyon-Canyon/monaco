@@ -50,7 +50,7 @@ struct FacePickerSheet: View {
                 .monacoFullWidthButtons()
                 .accessibilityIdentifier("face-choose-photo")
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.bottom, MonacoTheme.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self) {

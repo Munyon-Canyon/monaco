@@ -60,7 +60,7 @@ private struct StocksTabScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             MonacoSearchField(placeholder: "Search Apple, Tesla, NVDA…", text: $query)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoChipBar(
                 items: MonacoCore.StocksTabModel.Browse.allCases, selected: model.browse, title: \.title,
                 identifierPrefix: "stocks-chip"
@@ -131,7 +131,7 @@ private struct StocksAssetRow: View {
             wide
             stacked
         }
-        .padding(.horizontal, MonacoTheme.Space.m).padding(.vertical, MonacoTheme.Space.s).frame(
+        .padding(.horizontal, MonacoTheme.Space.gutter).padding(.vertical, MonacoTheme.Space.s).frame(
             minHeight: MonacoRowLayout.minHeight
         )
         .overlay(alignment: .bottom) {

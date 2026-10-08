@@ -86,7 +86,7 @@ struct ProfileStatsBand: View {
                 .padding(.vertical, MonacoTheme.Space.m)
             MonacoRule()
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     private func preparedModel() -> PortfolioModel {

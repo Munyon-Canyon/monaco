@@ -121,7 +121,7 @@ struct ChatThreadScreen: View {
                     .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.ink)
                     .tint(MonacoTheme.accent)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.vertical, MonacoTheme.Space.s)
                     .accessibilityIdentifier("chat-thread-also-in-channel")
                 ChatComposerBar(focus: $composerFocused, placeholder: ChatThreadCopy.composerPlaceholder) { body in

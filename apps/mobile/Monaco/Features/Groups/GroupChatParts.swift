@@ -80,7 +80,7 @@ struct ChatSkeleton: View {
             }
             if !bottomAligned { Spacer(minLength: 0) }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
@@ -141,7 +141,7 @@ struct ChatComposerBar: View {
                     .accessibilityIdentifier("chat-char-count")
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.s)
         .background(MonacoTheme.background)
         .overlay(alignment: .top) { MonacoRule() }

@@ -50,7 +50,7 @@ struct DeleteAccountContent: View {
                     .font(MonacoTheme.Typo.body)
                     .foregroundStyle(MonacoTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .accessibilityIdentifier("delete-account-explainer")
                 checklist
             }
@@ -178,7 +178,7 @@ private struct ChecklistStep<Content: View>: View {
                     .font(MonacoTheme.Typo.section)
                     .foregroundStyle(stepColor)
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             content
@@ -210,7 +210,7 @@ private struct DoneLine: View {
                 .foregroundStyle(MonacoTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .combine)
     }
 }

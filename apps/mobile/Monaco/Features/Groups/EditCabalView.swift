@@ -46,7 +46,7 @@ struct EditCabalView: View {
                 )
                 .frame(maxWidth: .infinity)
                 nameField
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     CabalRulesSection(
                         voterSet: voterSet,
@@ -58,7 +58,7 @@ struct EditCabalView: View {
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("edit-cabal-rules-footer")
                 }
                 .disabled(model.isSaving)

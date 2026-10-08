@@ -292,6 +292,7 @@ enum RepoRules {
         ),
         DesignScaleRules.spacing,
         roundedBorderField,
+        gutter,
         RepoRule(
             name: "flow-switch",
             roots: productCode,
@@ -714,5 +715,23 @@ extension RepoRules {
         message: "A text field draws with monacoFieldChrome, not the system rounded box.",
         failing: [".textFieldStyle(.roundedBorder)"],
         passing: [".monacoFieldChrome(isFocused: focused)", ".textFieldStyle(.plain)"]
+    )
+
+    static let gutter = RepoRule(
+        name: "gutter",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"\.padding\(\.horizontal, MonacoTheme\.Space\.m\)"#,
+        message:
+            "Every screen edge inset is MonacoTheme.Space.gutter; Space.m is never a side inset. Inner spacing in a card, bubble or pill goes in the allow list.",
+        failing: [
+            ".padding(.horizontal, MonacoTheme.Space.m)",
+            "MonacoSectionHeader(\"Cabals\").padding(.horizontal, MonacoTheme.Space.m)",
+        ],
+        passing: [
+            ".padding(.horizontal, MonacoTheme.Space.gutter)",
+            ".padding(.vertical, MonacoTheme.Space.m)",
+            ".padding(.horizontal, MonacoTheme.Space.sm)",
+        ],
+        applies: { path, _ in path.hasPrefix("apps/mobile/Monaco/Features/") }
     )
 }

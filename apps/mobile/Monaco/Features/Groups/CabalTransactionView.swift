@@ -42,7 +42,7 @@ struct CabalTransactionView: View {
                     SkeletonBlock(width: 180, height: 20)
                     SkeletonBlock(width: 140, height: 36)
                 }
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoRowSkeleton(rows: 4, markShape: .tile)
             }
             .accessibilityElement(children: .ignore)
@@ -83,7 +83,7 @@ struct CabalTransactionView: View {
                         .accessibilityIdentifier("cabal-txn-amount")
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoGroupedList {
                 ReceiptLine(label: "Status", value: .words(swap?.statusLabel ?? row.status.receiptLabel))
                     .accessibilityIdentifier("cabal-txn-status")
@@ -123,7 +123,7 @@ struct CabalTransactionView: View {
                     }
                 }
                 .buttonStyle(.monacoPrimary)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("cabal-txn-retry")
             }
         }
@@ -141,7 +141,7 @@ struct CabalTransactionView: View {
                     .foregroundStyle(MonacoTheme.tertiaryText)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .frame(minHeight: 52)
             .contentShape(Rectangle())
         }

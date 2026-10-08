@@ -40,6 +40,7 @@ struct CabalProposals: View {
                 }
             }
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .task { await preparedModel().load() }
         .task(id: model?.pager.items.map(\.id)) { await context?.load(for: model?.pager.items ?? []) }
         .task { await preparedModel().observe(cabalID: cabalID) }
@@ -149,7 +150,7 @@ private struct CabalAllProposals: View {
         VStack(spacing: MonacoTheme.Space.s) {
             if let segments, let voting, let context {
                 MonacoSegmented(ProposalSegment.allCases, selection: Bindable(segments).selected) { $0.title }
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 CabalProposalSegmentList(
                     segment: segments.selected, model: segments.model(for: segments.selected), voting: voting,
                     context: context, cabalID: cabalID, onVoted: { await segments.refreshLoaded() }
@@ -203,7 +204,8 @@ private struct CabalProposalSegmentList: View {
                     }
                 }
             }
-            .padding(MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.m)
         }
         .task { await model.load() }
         .task { await model.observe(cabalID: cabalID) }

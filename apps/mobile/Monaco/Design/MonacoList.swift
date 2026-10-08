@@ -213,7 +213,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
 
     var body: some View {
         content
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, 8)
             .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
@@ -314,8 +314,8 @@ struct MonacoRowLayout: Equatable {
     /// 68pt while its separator started at 72pt. Four points, and exactly the four
     /// points that show when the Stocks list sits next to the cabal list.
     func separatorLeadingInset(markSize: CGFloat) -> CGFloat {
-        guard !isStacked else { return MonacoTheme.Space.m }
-        return MonacoTheme.Space.m + markSize + MonacoTheme.Space.sm
+        guard !isStacked else { return MonacoTheme.Space.gutter }
+        return MonacoTheme.Space.gutter + markSize + MonacoTheme.Space.sm
     }
 }
 
@@ -372,7 +372,7 @@ struct MonacoRowSkeleton: View {
 
     private var ruleInset: CGFloat {
         let layout = MonacoRowLayout(dynamicTypeSize: dynamicTypeSize)
-        guard markShape != .none else { return MonacoTheme.Space.m }
+        guard markShape != .none else { return MonacoTheme.Space.gutter }
         return layout.separatorLeadingInset
     }
 
@@ -390,7 +390,7 @@ struct MonacoRowSkeleton: View {
                         SkeletonBlock(width: 56, height: 14)
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.vertical, 8)
                 .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {
@@ -509,7 +509,7 @@ struct MonacoErrorRow: View {
                 .contentShape(Rectangle())
                 .accessibilityIdentifier(retryIdentifier)
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, 8)
         .frame(minHeight: MonacoRowLayout.minHeight)
         .overlay(alignment: .top) { if !onHero { MonacoRule() } }

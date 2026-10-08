@@ -114,7 +114,7 @@ struct CommentComposer: View {
                     .accessibilityIdentifier("comment-composer-too-long")
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.s)
         .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))
         .overlay(alignment: .top) {

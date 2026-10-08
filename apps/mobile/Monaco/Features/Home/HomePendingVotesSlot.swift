@@ -32,6 +32,7 @@ struct HomePendingVotes: View {
                         section("In progress", inProgress, showsSeeAll: needsVote.isEmpty, model: model)
                     }
                 }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             }
         }
         .task { await preparedModel().load() }

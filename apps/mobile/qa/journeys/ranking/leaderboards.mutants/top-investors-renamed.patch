@@ -5,7 +5,7 @@ Home names the people board "Top people". S1.1 reads "Top investors", so it must
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
-index fce1ebbcb..f8b07dca6 100644
+index a79a7c246..3ba76b3f0 100644
 --- a/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomePeopleBoardSlot.swift
 @@ -18,7 +18,7 @@ private struct HomePeopleBoard: View {
@@ -16,4 +16,4 @@ index fce1ebbcb..f8b07dca6 100644
 +                MonacoSectionHeader("Top people")
                  LeaderboardFreshnessText(loader: loader, identifier: "home-leaderboard-freshness")
              }
-             .padding(.horizontal, MonacoTheme.Space.m)
+             .padding(.horizontal, MonacoTheme.Space.gutter)

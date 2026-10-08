@@ -13,7 +13,7 @@ struct BlockedPeopleView: View {
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.vertical, MonacoTheme.Space.m)
                 .accessibilityIdentifier("blocked-people-coming")
         }

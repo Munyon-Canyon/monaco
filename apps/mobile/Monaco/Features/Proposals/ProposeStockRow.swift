@@ -21,7 +21,7 @@ struct ProposeStockRow: View {
 
     var body: some View {
         content
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, 8)
             .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
@@ -129,7 +129,7 @@ struct ProposeStockSkeleton: View {
                         SkeletonBlock(width: 52, height: 20, radius: 10)
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .frame(minHeight: 64)
                 .overlay(alignment: .bottom) {
                     if index < rows - 1 {

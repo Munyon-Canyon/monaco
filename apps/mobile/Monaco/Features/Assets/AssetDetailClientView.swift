@@ -52,7 +52,7 @@ struct AssetDetailClientView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                 AssetDetailHeroSkeleton()
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 SkeletonBlock(width: nil, height: 200, radius: 0)
             }
             .padding(.vertical, MonacoTheme.Space.m)
@@ -69,7 +69,7 @@ struct AssetDetailClientView: View {
                 Text(detail.attribution)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 otherListings(detail.otherListings)
             }
             .padding(.vertical, MonacoTheme.Space.m)
@@ -130,7 +130,7 @@ struct AssetDetailClientView: View {
                     .accessibilityIdentifier("asset-detail-session")
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     private func scrubHeader(_ model: AssetDetailClientModel) -> AssetScrubHeader? {
@@ -147,7 +147,7 @@ struct AssetDetailClientView: View {
             )
             .accessibilityIdentifier("asset-chart-ranges")
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     @ViewBuilder
@@ -222,7 +222,7 @@ struct AssetDetailClientView: View {
                     }
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("asset-other-listings")
         }

@@ -57,7 +57,7 @@ private struct MyCabalsContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Your cabals")
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             content
         }
         .accessibilityElement(children: .contain)
@@ -98,7 +98,7 @@ private struct MyCabalsContent: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("cabals-list-new")
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.xs)
         }
     }
@@ -111,7 +111,7 @@ private struct MyCabalsContent: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement()
         .accessibilityLabel("Loading your cabals")
         .accessibilityIdentifier("cabals-list-loading")

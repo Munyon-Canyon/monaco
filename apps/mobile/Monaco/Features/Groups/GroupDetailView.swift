@@ -268,7 +268,7 @@ struct GroupDetailContent: View {
                         onPictureResult: onToast
                     )
                     GroupActionRow(onRoute: onRoute, onPropose: onPropose)
-                        .padding(.horizontal, MonacoTheme.Space.m)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -339,7 +339,7 @@ struct GroupDetailSkeleton: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
 
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 SkeletonBlock(width: 120, height: 22)
@@ -347,7 +347,7 @@ struct GroupDetailSkeleton: View {
                     SkeletonBlock(height: 60, radius: 0)
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
         }
         .padding(.top, 8)
         .accessibilityElement(children: .ignore)

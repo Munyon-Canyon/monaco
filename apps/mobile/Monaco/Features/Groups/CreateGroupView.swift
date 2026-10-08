@@ -55,7 +55,7 @@ struct CreateGroupView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
                 nameField
-                    .padding(.horizontal, MonacoTheme.Space.m)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 CabalRulesSection(
                     voterSet: $form.voterMode,
                     threshold: $form.threshold,

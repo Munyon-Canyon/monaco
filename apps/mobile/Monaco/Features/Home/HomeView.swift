@@ -97,7 +97,7 @@ struct HomeView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.xl)
         }
         .scrollBounceBehavior(.always)

@@ -64,9 +64,9 @@ private struct InviteMemberContent: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                 form
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 pending
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.m)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -126,10 +126,12 @@ private struct InviteMemberContent: View {
         case .loaded(let invites):
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Pending invites", count: invites.count)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 if invites.isEmpty {
                     Text("No pending invites.")
                         .font(MonacoTheme.Typo.callout)
                         .foregroundStyle(MonacoTheme.muted)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("invite-member-pending-empty")
                 } else {
                     MonacoGroupedList {
@@ -190,7 +192,7 @@ private struct PendingInviteRow: View {
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
                 .disabled(isRevoking)
-                .padding(.trailing, MonacoTheme.Space.m)
+                .padding(.trailing, MonacoTheme.Space.gutter)
                 .accessibilityLabel("Revoke the invite to \(invite.invitee)")
                 .accessibilityIdentifier("invite-member-revoke-button")
             }

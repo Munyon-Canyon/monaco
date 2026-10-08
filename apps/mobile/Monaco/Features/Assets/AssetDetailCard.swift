@@ -11,7 +11,7 @@ import SwiftUI
 /// The rule runs edge to edge, the way the curve above it does and the way a ruled list's
 /// outer rules do everywhere else in the app: it is where one section of the ledger ends
 /// and the next begins. Everything under it — the title, the figures, the rows — keeps the
-/// page's 16pt inset, and the rules *between* rows (`AssetCardDivider`) start where a row's
+/// side gutter, and the rules *between* rows (`AssetCardDivider`) start where a row's
 /// text starts.
 ///
 /// The identifier lands on the section's *title*, never on the stack.
@@ -38,7 +38,7 @@ struct AssetDetailCard<Content: View>: View {
                 content
             }
             .padding(.top, MonacoTheme.Space.m)
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -82,9 +82,9 @@ struct AssetCardDivider: View {
     var body: some View {
         MonacoRule()
             .padding(.leading, leading)
-            // The section insets its content by `Space.m`; the rule carries on to the edge
+            // The section insets its content by `Space.gutter`; the rule carries on to the edge
             // rather than stopping short of it, as a list's separators do.
-            .padding(.trailing, -MonacoTheme.Space.m)
+            .padding(.trailing, -MonacoTheme.Space.gutter)
     }
 }
 
@@ -110,7 +110,7 @@ struct AssetDetailSectionSkeleton: View {
                 }
             }
             .padding(.top, MonacoTheme.Space.m)
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityHidden(true)
