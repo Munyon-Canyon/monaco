@@ -58,18 +58,22 @@ enum MonacoAppearance {
         navigationBar.prefersLargeTitles = true
 
         // Tab bar: opaque surface, hairline top edge.
-        let tabBar = UITabBarAppearance()
-        tabBar.configureWithOpaqueBackground()
-        tabBar.backgroundColor = surface
-        tabBar.shadowColor = hairline
         let brand = UIColor(MonacoTheme.brand)
         let tabItem = UITabBarItemAppearance()
         let tabFont = UIFont(name: "AvenirNext-DemiBold", size: 10) ?? .systemFont(ofSize: 10, weight: .semibold)
         tabItem.normal.iconColor = muted
         tabItem.normal.titleTextAttributes = [.foregroundColor: muted, .font: tabFont]
-        tabItem.selected.iconColor = brand
-        tabItem.selected.titleTextAttributes = [.foregroundColor: brand, .font: tabFont]
+        tabItem.selected.iconColor = primaryText
+        tabItem.selected.titleTextAttributes = [.foregroundColor: primaryText, .font: tabFont]
 
+        let tabBar = UITabBarAppearance()
+        if #available(iOS 26, *) {
+            tabBar.configureWithDefaultBackground()
+        } else {
+            tabBar.configureWithOpaqueBackground()
+            tabBar.backgroundColor = surface
+            tabBar.shadowColor = hairline
+        }
         tabBar.stackedLayoutAppearance = tabItem
         tabBar.inlineLayoutAppearance = tabItem
         tabBar.compactInlineLayoutAppearance = tabItem
