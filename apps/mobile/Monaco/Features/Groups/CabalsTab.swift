@@ -20,8 +20,7 @@ private struct CabalsTabRoot: View {
         CabalsTabScreen()
             .environment(refresh)
             .refreshable { await refresh.run() }
-            .navigationTitle(CabalsTab.title)
-            .navigationBarTitleDisplayMode(.large)
+            .monacoTopLevelHeader(title: CabalsTab.title)
             .toolbar {
                 if !accountRestricted {
                     ToolbarItem(placement: .topBarTrailing) {

@@ -120,6 +120,12 @@ extension View {
             }
     }
 
+    func monacoTopLevelHeader(title: String) -> some View {
+        navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
+    }
+
     /// Toolbar / nav bar SF Symbol — ink tint, readable weight.
     func monacoToolbarIcon() -> some View {
         font(MonacoTheme.Typo.bodyStrong)

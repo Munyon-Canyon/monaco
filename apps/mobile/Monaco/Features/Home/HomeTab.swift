@@ -18,6 +18,7 @@ private struct HomeTabRoot: View {
         HomeScreen()
             .environment(refresh)
             .refreshable { await refresh.run() }
+            .monacoTopLevelHeader(title: HomeTab.title)
             .monacoFrameStats("Home")
     }
 }
