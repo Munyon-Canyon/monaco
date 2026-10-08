@@ -10,17 +10,6 @@ final class CabalEntryTests: XCTestCase {
     private let cabalID = "01890a5d-ac96-774b-bcce-b302099a8060"
     private let requestID = "01890a5d-ac96-774b-bcce-b302099a8059"
 
-    func testARequestCabalThatTurnedOpenJoinsInstead() async throws {
-        let transport = StubTransport(scripted: [
-            Self.problem(409, "request_not_needed", "Just join."),
-            .json(.ok, try Self.cabal()),
-        ])
-        let entry = await api(transport).enterCabal(cabalID, mode: .request, submission: IdempotentSubmission())
-        XCTAssertEqual(entry, .joined)
-        let paths = await transport.sent.map { $0.path ?? "" }
-        XCTAssertEqual(paths, ["/v1/cabals/\(cabalID)/access-requests", "/v1/cabals/\(cabalID)/members"])
-    }
-
     func testAModeThatFlipsTwiceStopsAtTheRefusal() async throws {
         let transport = StubTransport(scripted: [
             Self.problem(409, "join_needs_request", "Ask to join."),

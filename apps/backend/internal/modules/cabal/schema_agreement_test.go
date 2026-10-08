@@ -20,7 +20,7 @@ func TestSchemaAndDomainAgreeOnEveryValueOfTheStringRules(t *testing.T) {
 	}{
 		{
 			"join_mode",
-			[]string{string(domain.JoinOpen), string(domain.JoinRequest), "", "invite_only", "Open"},
+			[]string{string(domain.JoinRequest), "", "open", "invite_only", "Request"},
 			func(a *rulesArgs, v string) { a.join = v },
 		},
 		{

@@ -55,7 +55,7 @@ func (f accessFixture) user(t *testing.T) ids.UserID {
 }
 
 func (f accessFixture) join(ctx context.Context, user ids.UserID, c ids.CabalID) error {
-	return app.NewJoinCabalHandler(f.uow, f.clock).Handle(as(ctx, user), app.JoinCabal{ActorID: user, CabalID: c})
+	return app.NewJoinCabalHandler(f.uow).Handle(as(ctx, user), app.JoinCabal{ActorID: user, CabalID: c})
 }
 
 func (f accessFixture) exec(t *testing.T, statement string, args ...any) {
@@ -127,41 +127,26 @@ func wantErr(t *testing.T, err error, code errs.Code) {
 	}
 }
 
-func TestJoinCabal_addsAVotingMemberToAnOpenCabalAndAppendsTheJoin(t *testing.T) {
+func TestJoinCabal_neverAddsAnOutsiderWhoeverVotes(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool)
-	joiner := f.user(t)
-	if err := f.join(t.Context(), joiner, c.ID); err != nil {
-		t.Fatal(err)
+	for _, voters := range []string{"all", "list"} {
+		c := testkit.NewCabal(t, f.pool, testkit.WithVoterMode(voters))
+		joiner := f.user(t)
+		wantErr(t, f.join(t.Context(), joiner, c.ID), errs.CodeJoinNeedsRequest)
+		if m, ok := f.membership(t, c.ID, joiner); ok {
+			t.Fatalf("a %s cabal admitted %+v without a request", voters, m)
+		}
 	}
-	if m, ok := f.membership(t, c.ID, joiner); !ok || m != (membership{"member", true}) {
-		t.Fatalf("membership = %+v, %v; want a voting member", m, ok)
-	}
-	want := events.CabalMemberJoined{V: 1, CabalID: c.ID.UUID(), UserID: joiner.UUID(), Role: "member", Via: "open"}
-	if joins := f.joins(t); len(joins) != 1 || joins[0] != want {
-		t.Fatalf("member_joined events = %+v, want %+v", joins, want)
-	}
-}
-
-func TestJoinCabal_addsANonVotingMemberWhenTheCabalVotesByList(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool, testkit.WithVoterMode("list"))
-	joiner := f.user(t)
-	if err := f.join(t.Context(), joiner, c.ID); err != nil {
-		t.Fatal(err)
-	}
-	if m, ok := f.membership(t, c.ID, joiner); !ok || m != (membership{"member", false}) {
-		t.Fatalf("membership = %+v, %v; want a member without a vote", m, ok)
+	if joins := f.joins(t); len(joins) != 0 {
+		t.Fatalf("member_joined events = %+v, want none", joins)
 	}
 }
 
 func TestJoinCabal_refusesWithoutWritingAnything(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
-	open := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
-	request := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"), testkit.WithMembers(2))
+	request := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
 	banned := testkit.NewCabal(t, f.pool)
 	f.exec(t, `UPDATE cabals SET status = 'banned' WHERE id = $1`, banned.ID.UUID())
 	outsider := f.user(t)
@@ -173,9 +158,8 @@ func TestJoinCabal_refusesWithoutWritingAnything(t *testing.T) {
 	}{
 		{"an unknown cabal", outsider, ids.CabalIDFrom(ids.Real{}.NewV7()), errs.CodeCabalNotFound},
 		{"a banned cabal", outsider, banned.ID, errs.CodeCabalBanned},
-		{"a member of an open cabal", open.Members[1].ID, open.ID, errs.CodeAlreadyMember},
-		{"a member of a request cabal", request.Members[1].ID, request.ID, errs.CodeAlreadyMember},
-		{"an outsider of a request cabal", outsider, request.ID, errs.CodeJoinNeedsRequest},
+		{"a member", request.Members[1].ID, request.ID, errs.CodeAlreadyMember},
+		{"an outsider", outsider, request.ID, errs.CodeJoinNeedsRequest},
 	} {
 		if err := f.join(t.Context(), tt.user, tt.cabal); errs.CodeOf(err) != tt.want {
 			t.Errorf("%s: err = %v, want %s", tt.name, err, tt.want)
@@ -232,25 +216,6 @@ func (f accessFixture) waitForALockWaiter(t *testing.T) {
 	}, 10*time.Second)
 }
 
-func TestJoinCabal_reportsAJoinThatLostTheRaceToAConcurrentInsertAsAlreadyMember(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool)
-	joiner := f.user(t)
-	commit := f.holdWrite(t, `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
-		VALUES ($1, $2, 'member', true, now())`, c.ID.UUID(), joiner.UUID())
-	done := make(chan error, 1)
-	var joining sync.WaitGroup
-	t.Cleanup(joining.Wait)
-	joining.Go(func() { done <- f.join(t.Context(), joiner, c.ID) })
-	f.waitForALockWaiter(t)
-	commit()
-	wantErr(t, <-done, errs.CodeAlreadyMember)
-	if joins := f.joins(t); len(joins) != 0 {
-		t.Fatalf("member_joined events = %+v, want none from the losing join", joins)
-	}
-}
-
 func TestJoinCabal_wrapsStoreFailuresAsInternal(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -260,7 +225,6 @@ func TestJoinCabal_wrapsStoreFailuresAsInternal(t *testing.T) {
 		{"the cabal lock", `ALTER TABLE cabal_members RENAME TO members_gone`},
 		{"stored rules the domain refuses", `ALTER TABLE cabals DROP CONSTRAINT cabals_join_mode_check;
 			UPDATE cabals SET join_mode = 'secret'`},
-		{"the member insert", `ALTER TABLE cabal_members ADD CONSTRAINT no_members CHECK (role <> 'member')`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -278,7 +242,7 @@ func (f accessFixture) routes(users app.UserCards) adapters.HTTP {
 		users = f.users
 	}
 	return adapters.HTTP{
-		Join:    app.NewJoinCabalHandler(f.uow, f.clock),
+		Join:    app.NewJoinCabalHandler(f.uow),
 		Request: app.NewRequestAccessHandler(f.uow, f.ids, f.clock),
 		Revoke:  app.NewRevokeAccessHandler(f.uow, f.clock),
 		Decide:  app.NewDecideAccessHandler(f.uow, f.clock),
@@ -289,28 +253,10 @@ func (f accessFixture) routes(users app.UserCards) adapters.HTTP {
 	}
 }
 
-func TestPostCabalMember_returnsTheCabalAsItsNewMemberSeesIt(t *testing.T) {
+func TestPostCabalMember_alwaysRefuses(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool, testkit.WithVoterMode("list"))
-	joiner := f.user(t)
-	req := api.PostCabalMemberRequestObject{Id: c.ID.UUID()}
-	res, err := f.routes(nil).PostCabalMember(as(t.Context(), joiner), req)
-	got, ok := res.(api.PostCabalMember200JSONResponse)
-	if err != nil || !ok {
-		t.Fatalf("PostCabalMember = %T, %v", res, err)
-	}
-	if got.Id != c.ID.UUID() || got.MemberCount != 2 || got.Me == nil || got.Me.Role != "member" || got.Me.CanVote ||
-		got.InviteCode == nil || *got.InviteCode != c.InviteCode {
-		t.Fatalf("cabal = %+v, me %+v; want the member view with the invite code", got, got.Me)
-	}
-}
-
-func TestPostCabalMember_refusesWithTheCommandOrReadError(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	request := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"))
-	open := testkit.NewCabal(t, f.pool)
+	request := testkit.NewCabal(t, f.pool)
 	joiner := f.user(t)
 	for _, tt := range []struct {
 		name     string
@@ -319,9 +265,8 @@ func TestPostCabalMember_refusesWithTheCommandOrReadError(t *testing.T) {
 		cabal    ids.CabalID
 		want     errs.Code
 	}{
-		{"no caller", false, f.routes(nil), open.ID, errs.CodeUnauthorized},
-		{"a request cabal", true, f.routes(nil), request.ID, errs.CodeJoinNeedsRequest},
-		{"the read after the join", true, f.routes(failCards{}), open.ID, errs.CodeInternal},
+		{"no caller", false, f.routes(nil), request.ID, errs.CodeUnauthorized},
+		{"an outsider", true, f.routes(nil), request.ID, errs.CodeJoinNeedsRequest},
 	} {
 		ctx := t.Context()
 		if tt.signedIn {

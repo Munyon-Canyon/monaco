@@ -94,7 +94,7 @@ func insertMember(
 
 func newCabalParams(creatorID uuid.UUID, inviteCode string, now time.Time) sqlc.InsertCabalParams {
 	return sqlc.InsertCabalParams{
-		ID: newID(), Name: "Friends pot", CreatorID: creatorID, JoinMode: "open", VoterMode: "all",
+		ID: newID(), Name: "Friends pot", CreatorID: creatorID, JoinMode: "request", VoterMode: "all",
 		Threshold: "majority", ProposalExpirySeconds: 86400, SlippageBps: 100, InviteCode: inviteCode, Now: now,
 	}
 }
@@ -200,7 +200,7 @@ func TestCabalQueries_updateRewritesTheEditableFieldsAndBumpsUpdatedAt(t *testin
 		t.Fatalf("after the update %+v, want only the editable fields changed: %+v", after, before)
 	}
 	n, err = f.q.UpdateCabal(t.Context(), sqlc.UpdateCabalParams{
-		ID: newID(), Name: "Ghost", JoinMode: "open", VoterMode: "all", Threshold: "majority",
+		ID: newID(), Name: "Ghost", JoinMode: "request", VoterMode: "all", Threshold: "majority",
 		ProposalExpirySeconds: 3600, SlippageBps: 100, Now: f.clock.Now(),
 	})
 	wantRows(t, "UpdateCabal on an unknown id", n, 0, err)

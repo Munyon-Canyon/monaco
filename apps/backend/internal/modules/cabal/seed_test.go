@@ -38,14 +38,14 @@ func assertSeededCreatorJoined(t *testing.T, event any) {
 	}
 }
 
-func TestSeed_cabalWithMembersReplaysAnOpenCabalWithThreeMembers(t *testing.T) {
+func TestSeed_cabalWithMembersReplaysARequestCabalWithThreeMembers(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	m := cabal.New(module.Deps{Pool: pool, Bus: testkit.NATS(t).Conn, Clock: clock.Real{}})
 	seeded := testkit.Seed(t, pool, "cabal-with-members", m.Consumers()...)
 	created, ok := seeded[0].Event.(events.CabalCreated)
-	if len(seeded) != 4 || !ok || created.JoinMode != "open" {
-		t.Fatalf("seeded %+v, want an open cabal.created and three joins", seeded)
+	if len(seeded) != 4 || !ok || created.JoinMode != "request" {
+		t.Fatalf("seeded %+v, want a request cabal.created and three joins", seeded)
 	}
 	vias := make([]string, 0, 3)
 	for _, s := range seeded[1:] {

@@ -56,6 +56,45 @@ func TestDecideAccess_approvingARequestAddsTheMemberInTheSameTransaction(t *test
 	}
 }
 
+func TestDecideAccess_reportsAnApprovalThatLostTheRaceToAConcurrentInsertAsAlreadyMember(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool)
+	asker := f.user(t)
+	id := f.filed(t, asker, c.ID)
+	commit := f.holdWrite(t, `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
+		VALUES ($1, $2, 'member', true, now())`, c.ID.UUID(), asker.UUID())
+	done := make(chan error, 1)
+	var deciding sync.WaitGroup
+	t.Cleanup(deciding.Wait)
+	deciding.Go(func() {
+		_, err := f.decide(t.Context(), c.Creator.ID, c.ID, id, app.Approve)
+		done <- err
+	})
+	f.waitForALockWaiter(t)
+	commit()
+	wantErr(t, <-done, errs.CodeAlreadyMember)
+	if row := f.accessRow(t, id); row.status != "pending" {
+		t.Fatalf("request status = %s, want the losing approval rolled back", row.status)
+	}
+	if joins := f.joins(t); len(joins) != 0 {
+		t.Fatalf("member_joined events = %+v, want none from the losing approval", joins)
+	}
+}
+
+func TestDecideAccess_wrapsAMemberInsertFailureAsInternalAndKeepsTheRequestPending(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool)
+	id := f.filed(t, f.user(t), c.ID)
+	f.exec(t, `ALTER TABLE cabal_members ADD CONSTRAINT no_members CHECK (role <> 'member')`)
+	_, err := f.decide(t.Context(), c.Creator.ID, c.ID, id, app.Approve)
+	wantErr(t, err, errs.CodeInternal)
+	if row := f.accessRow(t, id); row.status != "pending" {
+		t.Fatalf("request status = %s, want the failed approval rolled back", row.status)
+	}
+}
+
 func TestDecideAccess_approvingInAListVotingCabalAddsAMemberWhoCannotVote(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
@@ -120,9 +159,8 @@ func TestDecideAccess_refusesWithoutDecidingAnything(t *testing.T) {
 	pending := f.filed(t, asker, c.ID)
 	invite := f.invite(t, c.ID, invitee, c.Creator.ID)
 	joined := f.invite(t, open.ID, joiner, open.Creator.ID)
-	if err := f.join(t.Context(), joiner, open.ID); err != nil {
-		t.Fatal(err)
-	}
+	f.exec(t, `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
+		VALUES ($1, $2, 'member', true, now())`, open.ID.UUID(), joiner.UUID())
 	settled := f.filed(t, done, c.ID)
 	if _, err := f.decide(t.Context(), c.Creator.ID, c.ID, settled, app.Deny); err != nil {
 		t.Fatal(err)

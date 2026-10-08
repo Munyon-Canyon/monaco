@@ -53,7 +53,7 @@ func TestHints_convergesUnderChaos(t *testing.T) {
 		}
 		return events.CabalCreated{
 			V: 1, CabalID: id, CreatorID: user, Name: "Friends pot",
-			JoinMode: "open", VoterMode: "all", Threshold: "majority",
+			JoinMode: "request", VoterMode: "all", Threshold: "majority",
 			ProposalExpirySeconds: domain.ExpiryDay, SlippageBps: domain.DefaultSlippageBps,
 			TreasuryAddress: "Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf",
 		}

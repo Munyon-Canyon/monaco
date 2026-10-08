@@ -38,7 +38,7 @@ func memberRows(t *testing.T, pool *pgxpool.Pool, c testkit.SeededCabal) []membe
 	return out
 }
 
-func TestNewCabal_defaultsToAnOpenCabalOfAllVotersWithOnlyItsCreator(t *testing.T) {
+func TestNewCabal_defaultsToARequestCabalOfAllVotersWithOnlyItsCreator(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	c := testkit.NewCabal(t, pool)
@@ -47,8 +47,8 @@ func TestNewCabal_defaultsToAnOpenCabalOfAllVotersWithOnlyItsCreator(t *testing.
 		c.ID.UUID()).Scan(&joinMode, &voterMode, &threshold); err != nil {
 		t.Fatal(err)
 	}
-	if joinMode != "open" || voterMode != "all" || threshold != "majority" {
-		t.Fatalf("cabal = %s %s %s, want open all majority", joinMode, voterMode, threshold)
+	if joinMode != "request" || voterMode != "all" || threshold != "majority" {
+		t.Fatalf("cabal = %s %s %s, want request all majority", joinMode, voterMode, threshold)
 	}
 	want := []memberRow{{c.Creator.ID.String(), "creator", true}}
 	if got := memberRows(t, pool, c); !slices.Equal(got, want) || len(c.Members) != 1 || c.Members[0] != c.Creator {

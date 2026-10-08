@@ -10,16 +10,11 @@ import (
 type JoinMode string
 
 const (
-	JoinOpen    JoinMode = "open"
 	JoinRequest JoinMode = "request"
 )
 
 func (m JoinMode) valid() bool {
-	switch m {
-	case JoinOpen, JoinRequest:
-		return true
-	}
-	return false
+	return m == JoinRequest
 }
 
 type VoterMode string

@@ -112,15 +112,20 @@ func TestLeaveCabal_Ok_ChatSeenCleared(t *testing.T) {
 	s := chatScenario(t)
 	s.Given(
 		scenario.SignIn(founder),
-		scenario.Post(cabals, `{"name":"Friends pot","join_mode":"open","voter_mode":"all","threshold":"majority",`+
+		scenario.Post(cabals, `{"name":"Friends pot","join_mode":"request","voter_mode":"all","threshold":"majority",`+
 			`"proposal_expiry_seconds":86400}`),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "cabal"),
 		scenario.Post(seen, ""),
 		scenario.ExpectStatus(http.StatusOK),
 		scenario.SignIn(leaver),
-		scenario.Post(cabals+"/{cabal}/members", ""),
+		scenario.Post(cabals+"/{cabal}/access-requests", ""),
+		scenario.ExpectStatus(http.StatusCreated),
+		scenario.Remember("id", "request"),
+		scenario.SignIn(founder),
+		scenario.Post(cabals+"/{cabal}/access-requests/{request}/decision", `{"decision":"approve"}`),
 		scenario.ExpectStatus(http.StatusOK),
+		scenario.SignIn(leaver),
 		scenario.Post(seen, ""),
 		scenario.ExpectStatus(http.StatusOK),
 		scenario.Eventually("both watermarks stored", seenRows(2)),

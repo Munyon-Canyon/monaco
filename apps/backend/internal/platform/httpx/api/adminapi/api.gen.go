@@ -341,7 +341,7 @@ type AdminAuthTransition struct {
 
 // AdminCabal One cabal as an operator sees them.
 //
-// Examples: {"created_at":"2026-10-06T12:00:00Z","creator_id":"019cc330-1111-7000-8000-000000000001","id":"019cc330-2222-7000-8000-000000000001","member_count":1,"members":[],"name":"Tech bros","positions":[],"recent_admin_actions":[],"recent_txns":[],"rules":{"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"},"status":"active","treasury_address":"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin"}
+// Examples: {"created_at":"2026-10-06T12:00:00Z","creator_id":"019cc330-1111-7000-8000-000000000001","id":"019cc330-2222-7000-8000-000000000001","member_count":1,"members":[],"name":"Tech bros","positions":[],"recent_admin_actions":[],"recent_txns":[],"rules":{"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"},"status":"active","treasury_address":"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin"}
 type AdminCabal struct {
 	// CreatedAt When the cabal was created.
 	//
@@ -382,7 +382,7 @@ type AdminCabal struct {
 
 	// Rules The rules the cabal runs on.
 	//
-	// Examples: {"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
+	// Examples: {"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
 	Rules AdminCabalRules `json:"rules"`
 
 	// Status Whether the cabal may trade.
@@ -448,11 +448,11 @@ type AdminCabalRef struct {
 
 // AdminCabalRules The rules the cabal runs on.
 //
-// Examples: {"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
+// Examples: {"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
 type AdminCabalRules struct {
-	// JoinMode How people join: open or request.
+	// JoinMode Always `request`.
 	//
-	// Examples: open
+	// Examples: request
 	JoinMode string `json:"join_mode"`
 
 	// ProposalExpirySeconds How long a proposal stays open.

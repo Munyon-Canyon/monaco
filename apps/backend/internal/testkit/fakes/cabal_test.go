@@ -42,7 +42,7 @@ func newCabalWorld(t *testing.T) cabalWorld {
 		return fakes.CabalSeed{
 			View: cabal.View{ID: id, Name: name, CreatorID: w.creator, Status: status, CreatedAt: w.joined},
 			Rules: cabal.Rules{
-				JoinMode: cabal.JoinOpen, VoterMode: cabal.VotersList, Threshold: cabal.ThresholdMajority,
+				JoinMode: cabal.JoinRequest, VoterMode: cabal.VotersList, Threshold: cabal.ThresholdMajority,
 				ProposalExpiry: time.Hour, SlippageBps: bps,
 			},
 			Wallet: cabal.TreasuryWallet{

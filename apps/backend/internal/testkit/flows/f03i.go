@@ -28,12 +28,12 @@ func named(sub, handle string) []scenario.Step {
 	}
 }
 
-func inviting(script, join string) []scenario.Step {
-	return append(named(inviteeOf(script), handleOf(script)), opened(script, join, "all")...)
+func inviting(script string) []scenario.Step {
+	return append(named(inviteeOf(script), handleOf(script)), opened(script, "all")...)
 }
 
 func invited(script string) []scenario.Step {
-	return append(inviting(script, "request"),
+	return append(inviting(script),
 		scenario.Post(invitesPath, inviteBody(script)),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "request"),
@@ -41,7 +41,7 @@ func invited(script string) []scenario.Step {
 }
 
 func F03InviteMemberOK(s *scenario.Scenario) {
-	s.Given(inviting("inv-ok", "request")...).
+	s.Given(inviting("inv-ok")...).
 		When(
 			scenario.Post(invitesPath, inviteBody("inv-ok")),
 			scenario.ExpectStatus(http.StatusCreated),
@@ -82,38 +82,39 @@ func F03InviteMemberCabalNotFound(s *scenario.Scenario) {
 }
 
 func F03InviteMemberUserNotFound(s *scenario.Scenario) {
-	s.Given(opened("inv-nobody", "open", "all")...).
+	s.Given(opened("inv-nobody", "all")...).
 		When(scenario.Post(invitesPath, inviteBody("inv-nobody"))).
 		Then(refused(errs.CodeUserNotFound, events.TypeCabalAccessRequested, 0)...)
 }
 
 func F03InviteMemberNotCabalMember(s *scenario.Scenario) {
-	s.Given(inviting("inv-outsider", "open")...).
+	s.Given(inviting("inv-outsider")...).
 		When(scenario.SignIn(outsiderOf("inv-outsider")), scenario.Post(invitesPath, inviteBody("inv-outsider"))).
 		Then(refused(errs.CodeNotCabalMember, events.TypeCabalAccessRequested, 0)...)
 }
 
 func F03InviteMemberNotCabalCreator(s *scenario.Scenario) {
-	s.Given(append(inviting("inv-member", "open"),
+	s.Given(append(inviting("inv-member"),
 		scenario.SignIn(outsiderOf("inv-member")),
-		scenario.Post(membersPath, ""),
-		scenario.ExpectStatus(http.StatusOK),
+		scenario.Post(requestsPath, ""),
+		scenario.ExpectStatus(http.StatusCreated),
+		scenario.Remember("id", "request"),
 		scenario.SignIn(creatorOf("inv-member")),
-		scenario.Patch(cabalsPath+"/{cabal}", `{"join_mode":"request"}`),
+		scenario.Post(decisionPath, approveBody),
 		scenario.ExpectStatus(http.StatusOK),
 	)...).
 		When(scenario.SignIn(outsiderOf("inv-member")), scenario.Post(invitesPath, inviteBody("inv-member"))).
-		Then(refused(errs.CodeNotCabalCreator, events.TypeCabalAccessRequested, 0)...)
+		Then(refused(errs.CodeNotCabalCreator, events.TypeCabalAccessRequested, 1)...)
 }
 
 func F03InviteMemberCabalBanned(s *scenario.Scenario) {
-	s.Given(append(inviting("inv-banned", "open"), banned())...).
+	s.Given(append(inviting("inv-banned"), banned())...).
 		When(scenario.Post(invitesPath, inviteBody("inv-banned"))).
 		Then(refused(errs.CodeCabalBanned, events.TypeCabalAccessRequested, 0)...)
 }
 
 func F03InviteMemberAlreadyMember(s *scenario.Scenario) {
-	s.Given(append(opened("inv-self", "open", "all"),
+	s.Given(append(opened("inv-self", "all"),
 		scenario.Put(setHandlePath, `{"handle":"`+handleOf("inv-self")+`"}`),
 		scenario.ExpectStatus(http.StatusOK),
 	)...).
@@ -122,7 +123,7 @@ func F03InviteMemberAlreadyMember(s *scenario.Scenario) {
 }
 
 func F03InviteMemberRequestPending(s *scenario.Scenario) {
-	s.Given(append(inviting("inv-asked", "request"),
+	s.Given(append(inviting("inv-asked"),
 		scenario.SignIn(inviteeOf("inv-asked")),
 		scenario.Post(requestsPath, ""),
 		scenario.ExpectStatus(http.StatusCreated),

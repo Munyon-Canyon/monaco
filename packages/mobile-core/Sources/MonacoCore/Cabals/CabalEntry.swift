@@ -60,8 +60,6 @@ extension APIClient {
             case .requestPending: return .requestPending
             case .joinNeedsRequest where mode == .open && retriesOtherMode:
                 return await enterCabal(cabalID, mode: .request, submission: submission, retriesOtherMode: false)
-            case .requestNotNeeded where mode == .request && retriesOtherMode:
-                return await enterCabal(cabalID, mode: .open, submission: submission, retriesOtherMode: false)
             default: return .refused(failure)
             }
         }
