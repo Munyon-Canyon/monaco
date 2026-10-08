@@ -4,8 +4,21 @@ import MonacoCore
 import XCTest
 
 final class CreateCabalFormTests: XCTestCase {
-    func testTheCreateRequestAlwaysAsksForRequestJoining() throws {
+    func testTheCreateRequestDefaultsToApprovalJoining() throws {
         XCTAssertEqual(try body(CreateCabalForm(name: "Pot"))["join_mode"] as? String, "request")
+    }
+
+    func testTheChosenJoinPolicyReachesTheWire() throws {
+        let wire = try CabalJoinPolicy.allCases.map {
+            try body(CreateCabalForm(name: "Pot", joinPolicy: $0))["join_mode"] as? String
+        }
+        XCTAssertEqual(wire, ["open", "request"])
+    }
+
+    func testTheJoinPolicyIsWordedForThePicker() {
+        XCTAssertEqual(CabalJoinPolicy.allCases.map(\.label), ["Open", "Approval required"])
+        XCTAssertEqual(CabalJoinPolicy.open.caption, "Anyone can join right away.")
+        XCTAssertEqual(CabalJoinPolicy.request.caption, "You approve each request.")
     }
 
     func testEveryVoterModeReachesTheWireAndJustMeSendsNoIds() throws {

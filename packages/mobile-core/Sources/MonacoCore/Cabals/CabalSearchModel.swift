@@ -17,13 +17,15 @@ public struct CabalSearchRow: Identifiable, Equatable, Sendable {
     public let name: String
     public let pictureURL: String?
     public let detail: String
+    public let joinPolicy: CabalJoinPolicy
     public var action: Action
 
     init(_ item: Components.Schemas.CabalSearchItem) {
         id = item.id
         name = item.name
         pictureURL = item.pictureUrl
-        detail = "\(CabalCopy.memberCount(item.memberCount)) · By request"
+        joinPolicy = CabalJoinPolicy(wire: item.joinMode)
+        detail = "\(CabalCopy.memberCount(item.memberCount)) · \(joinPolicy.label)"
         action = Self.action(item)
     }
 
@@ -144,7 +146,11 @@ public final class CabalSearchModel {
         defer { entering.remove(row.id) }
         let submission = submissions[row.id] ?? IdempotentSubmission()
         submissions[row.id] = submission
-        switch await api.enterCabal(row.id, submission: submission) {
+        switch await api.enterCabal(row.id, policy: row.joinPolicy, submission: submission) {
+        case .joined:
+            entered[row.id] = .member
+            show(CabalEntry.joinedToast, success: true)
+            return row.id
         case .alreadyMember:
             entered[row.id] = .member
             return row.id

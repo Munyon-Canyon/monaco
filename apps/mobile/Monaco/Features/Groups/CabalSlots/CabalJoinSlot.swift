@@ -37,7 +37,7 @@ struct CabalJoinSection: View {
         .onChange(of: model?.toast) { _, toast in
             guard let toast else { return }
             toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
-            if toast.message == CabalEntry.requestedToast {
+            if toast.message == CabalEntry.requestedToast || toast.message == CabalEntry.joinedToast {
                 Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
             }
         }
@@ -52,16 +52,25 @@ struct CabalJoinSection: View {
         case .hidden:
             EmptyView()
         case .join:
-            Button {
-                Task { await model.enter() }
-            } label: {
-                SubmitLabel(isWorking: model.isBusy, idle: "Request to join", working: "Sending…")
+            policyNote(model.joinPolicy)
+            enterButton(model, idle: model.joinPolicy == .open ? "Join" : "Request to join")
+        case .declined:
+            MonacoGroupedList {
+                MonacoRow(
+                    title: CabalJoinCopy.declined,
+                    subtitle: model.joinPolicy.prospectNote,
+                    isLast: true,
+                    leading: {
+                        Image(systemName: "xmark.circle")
+                            .font(.title3)
+                            .foregroundStyle(MonacoTheme.muted)
+                            .accessibilityHidden(true)
+                    }
+                )
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("cabal-join-declined")
             }
-            .buttonStyle(.monacoPrimary)
-            .monacoFullWidthButtons()
-            .disabled(model.isBusy)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .accessibilityIdentifier("cabal-join-button")
+            enterButton(model, idle: model.joinPolicy == .open ? "Join" : CabalJoinCopy.askAgain)
         case .requested:
             MonacoGroupedList {
                 MonacoRow(
@@ -103,6 +112,29 @@ struct CabalJoinSection: View {
         }
     }
 
+    private func policyNote(_ policy: CabalJoinPolicy) -> some View {
+        Text(policy.prospectNote)
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityIdentifier("cabal-join-policy")
+    }
+
+    private func enterButton(_ model: CabalAccessModel, idle: String) -> some View {
+        Button {
+            Task { await model.enter() }
+        } label: {
+            SubmitLabel(
+                isWorking: model.isBusy, idle: idle, working: model.joinPolicy == .open ? "Joining…" : "Sending…")
+        }
+        .buttonStyle(.monacoPrimary)
+        .monacoFullWidthButtons()
+        .disabled(model.isBusy)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityIdentifier("cabal-join-button")
+    }
+
     private func start() async {
         let model = self.model ?? CabalAccessModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
         self.model = model
@@ -113,6 +145,8 @@ struct CabalJoinSection: View {
 
 enum CabalJoinCopy {
     static let canVote = "Can vote"
+    static let declined = "Request declined"
+    static let askAgain = "Ask again"
 }
 
 private struct CabalPendingRequestRow: View {

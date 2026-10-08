@@ -2,6 +2,7 @@ import MonacoCore
 import SwiftUI
 
 struct CabalRulesSection: View {
+    @Binding var joinPolicy: CabalJoinPolicy
     @Binding var voterSet: CabalVoterMode
     @Binding var threshold: CabalThreshold
     @Binding var voteExpiry: CabalProposalExpiry
@@ -13,6 +14,14 @@ struct CabalRulesSection: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
 
             MonacoGroupedList {
+                CabalRuleRow(
+                    title: CabalRulesCopy.joinTitle,
+                    options: CabalJoinPolicy.allCases,
+                    selection: $joinPolicy,
+                    label: { $0.label },
+                    caption: { $0.caption },
+                    identifier: "\(identifierPrefix)-join"
+                )
                 CabalRuleRow(
                     title: CabalRulesCopy.votersTitle,
                     options: CabalVoterMode.allCases,

@@ -7,7 +7,7 @@ import Testing
 struct EditCabalCopyTests {
     @Test func theEditScreenSpeaksTheProductLanguage() {
         #expect(MainFlowCopyAudit.stringsAreClean(EditCabalCopy.auditedStrings))
-        #expect(EditCabalCopy.rulesFooter == "Rule changes apply to new proposals. Open votes keep their rules.")
+        #expect(EditCabalCopy.rulesFooter == "Vote rules apply to new proposals. Who can join applies right away.")
         #expect(EditCabalCopy.saved == "Cabal updated.")
         #expect(EditCabalCopy.votersHeader == "Voters")
         #expect(EditCabalCopy.alwaysVotes == "Always votes")

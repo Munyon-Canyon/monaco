@@ -31,6 +31,11 @@ final class CabalRulesDiffTests: XCTestCase {
         XCTAssertTrue(patch { $0.name = " QA pot  " }.isEmpty)
     }
 
+    func testAJoinPolicyChangeSendsOnlyTheJoinMode() {
+        XCTAssertEqual(patch { $0.joinPolicy = .open }, .init(joinMode: "open"))
+        XCTAssertTrue(patch { $0.joinPolicy = .request }.isEmpty)
+    }
+
     func testAThresholdChangeSendsOnlyTheThreshold() {
         XCTAssertEqual(patch { $0.threshold = "majority" }, .init(threshold: "majority"))
     }

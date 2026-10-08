@@ -25,12 +25,17 @@ final class CabalRulesSummaryTests: XCTestCase {
     func testTheRowsComeInOrderWithTheirTitles() {
         let rows = summary { _ in }.rows
 
-        XCTAssertEqual(rows.map(\.title), ["Name", "Who votes", "To pass", "Votes stay open"])
-        XCTAssertEqual(rows.map(\.value), [cabalName, "Every member", "Everyone agrees", "1 day"])
+        XCTAssertEqual(rows.map(\.title), ["Name", "Who can join", "Who votes", "To pass", "Votes stay open"])
+        XCTAssertEqual(rows.map(\.value), [cabalName, "Approval required", "Every member", "Everyone agrees", "1 day"])
     }
 
     func testTheNameRowShowsTheCabalName() {
         XCTAssertEqual(summary { $0.name = "Lunch club" }.name.value, "Lunch club")
+    }
+
+    func testTheJoinRowNamesThePolicy() {
+        XCTAssertEqual(summary { $0.rules.joinMode = "open" }.join.value, "Open")
+        XCTAssertEqual(summary { $0.rules.joinMode = "request" }.join.value, "Approval required")
     }
 
     func testThresholds() {
@@ -93,6 +98,6 @@ final class CabalRulesSummaryTests: XCTestCase {
             $0.rules.proposalExpirySeconds = 7200
         }.rows
 
-        XCTAssertEqual(rows.dropFirst().map(\.value), ["council", "two_thirds", "7200"])
+        XCTAssertEqual(rows.dropFirst(2).map(\.value), ["council", "two_thirds", "7200"])
     }
 }

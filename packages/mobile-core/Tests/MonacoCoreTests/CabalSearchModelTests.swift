@@ -28,7 +28,10 @@ final class CabalSearchModelTests: XCTestCase {
         guard case .rows(let rows) = model.state else { return XCTFail("expected rows, got \(model.state)") }
         XCTAssertEqual(
             rows.map(\.detail),
-            ["3 members · By request", "1 member · By request", "5 members · By request", "2 members · By request"]
+            [
+                "3 members · Approval required", "1 member · Approval required",
+                "5 members · Approval required", "2 members · Approval required",
+            ]
         )
         XCTAssertEqual(rows.map(\.action), [.request, .request, .requested, .member])
         let sent = await transport.sent
