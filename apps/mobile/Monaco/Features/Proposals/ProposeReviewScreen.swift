@@ -44,9 +44,7 @@ struct ProposeReviewScreen: View {
     private func content(_ model: MonacoCore.ProposeReviewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                Text(model.title).font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                ProposeReviewHeader(model: model)
                 MonacoGroupedList {
                     ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
                         ReceiptLine(
@@ -60,11 +58,22 @@ struct ProposeReviewScreen: View {
             .padding(.vertical, MonacoTheme.Space.m)
         }
         .safeAreaInset(edge: .bottom) {
-            BottomCTA {
-                Button(model.sendTitle) { Task { await send(model) } }
-                    .buttonStyle(.monacoPrimary)
-                    .disabled(model.isSending)
-                    .accessibilityIdentifier("propose-review-send")
+            VStack(spacing: 0) {
+                Text(model.voteCaption)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, MonacoTheme.Space.sm)
+                    .background(MonacoTheme.canvas)
+                    .accessibilityIdentifier("propose-review-vote-caption")
+                BottomCTA {
+                    Button(model.sendTitle) { Task { await send(model) } }
+                        .buttonStyle(.monacoPrimary)
+                        .disabled(model.isSending)
+                        .accessibilityIdentifier("propose-review-send")
+                }
             }
         }
     }
@@ -93,6 +102,41 @@ struct ProposeReviewScreen: View {
         } else if let message = model.errorMessage {
             toasts.current = MonacoToast(message: message)
         }
+    }
+}
+
+private struct ProposeReviewHeader: View {
+    let model: MonacoCore.ProposeReviewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            Text(model.operation)
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(model.isSell ? MonacoTheme.lossOnWash : MonacoTheme.profitOnWash)
+                .padding(.horizontal, MonacoTheme.Space.sm)
+                .padding(.vertical, MonacoTheme.Space.xs)
+                .background(
+                    model.isSell ? MonacoTheme.lossWash : MonacoTheme.profitWash, in: Capsule())
+            Text(model.heroAmount)
+                .moneyFont(.hero)
+                .foregroundStyle(MonacoTheme.ink)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            Text("of \(model.assetName)")
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.ink)
+                .lineLimit(2)
+            Text(model.destination)
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.title + " " + model.destination)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("propose-review-header")
     }
 }
 
