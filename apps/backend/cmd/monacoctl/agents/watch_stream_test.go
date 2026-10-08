@@ -1324,3 +1324,56 @@ func TestWatchStream_flagsAStackWaitingOnGraphitePastStuckAfterWithNoLiveDraftOn
 		})
 	}
 }
+
+const droppedLine = "#7 dropped from the Graphite merge queue"
+
+func droppedPR(f *fixture, head string) string {
+	node := watchNode(7, "fb", rollup(greenOK), dropped(f.now.Add(time.Minute)))
+	return strings.Replace(node, `"headRefOid":"sha7"`, `"headRefOid":"`+head+`"`, 1)
+}
+
+func TestWatchStream_aDropOnAnArmedStackPrintsNothing(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40", Armed: Arms{{Top: 7, PRs: []int{7}}}})
+	f.hub.on(graphqlRoute, failureData(droppedPR(f, "sha7")))
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(2*time.Minute + takenFor)
+	if got := strings.Join(s.next(t.Context()), "\n"); strings.Contains(got, droppedLine) {
+		t.Fatalf("stream:\n%s", got)
+	}
+}
+
+func TestWatchStream_aDropIsPrintedOnceAcrossARoundWhoseGitHubCallsFail(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	f.hub.on(graphqlRoute, failureData(droppedPR(f, "sha7")))
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(2*time.Minute + takenFor)
+	first := strings.Join(s.next(t.Context()), "\n")
+	f.hub.status[graphqlRoute] = http.StatusBadGateway
+	failed := strings.Join(s.next(t.Context()), "\n")
+	delete(f.hub.status, graphqlRoute)
+	last := strings.Join(s.next(t.Context()), "\n")
+	if !strings.Contains(first, droppedLine) || !strings.Contains(failed, "watch error: ") ||
+		strings.Contains(failed+last, droppedLine) {
+		t.Fatalf("first:\n%s\nfailed:\n%s\nlast:\n%s", first, failed, last)
+	}
+}
+
+func TestWatchStream_aDropAfterANewHeadIsPrintedAgain(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: "/w/40"})
+	f.hub.on(graphqlRoute, failureData(droppedPR(f, "sha7")))
+	repushed := failureData(droppedPR(f, "sha7b"))
+	s := newStream(f.Env(t))
+	f.now = f.now.Add(2*time.Minute + takenFor)
+	first := strings.Join(s.next(t.Context()), "\n")
+	f.hub.on(graphqlRoute, repushed)
+	second := strings.Join(s.next(t.Context()), "\n")
+	if !strings.Contains(first, droppedLine) || !strings.Contains(second, droppedLine) {
+		t.Fatalf("first:\n%s\nsecond:\n%s", first, second)
+	}
+}
