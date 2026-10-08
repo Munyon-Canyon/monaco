@@ -67,6 +67,26 @@ struct CabalMarkInitialsTests {
 
 struct AmountEntryTextTests {
     @Test(arguments: [
+        (AmountKey.digit(5), "", "5"),
+        (.digit(2), "5", "52"),
+        (.dot, "", "0."),
+        (.dot, "12", "12."),
+        (.dot, "1.2", "1.2"),
+        (.digit(9), "1.25", "1.25"),
+        (.digit(5), "1.2", "1.25"),
+        (.delete, "52", "5"),
+        (.delete, "5", ""),
+        (.delete, "", ""),
+        (.delete, "0.", "0"),
+        (.digit(5), "0", "5"),
+        (.digit(0), "0", "0"),
+        (.digit(1), "123456789012", "123456789012"),
+    ])
+    func applyingKey(key: AmountKey, text: String, expected: String) {
+        #expect(AmountEntryText.applying(key, to: text) == expected)
+    }
+
+    @Test(arguments: [
         ("50", "50"),
         ("050", "50"),
         ("0", "0"),
