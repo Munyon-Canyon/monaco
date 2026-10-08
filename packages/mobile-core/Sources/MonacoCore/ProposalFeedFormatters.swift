@@ -27,7 +27,10 @@ public enum ProposalTimeFormatter {
     /// Time left on an open vote, e.g. "Closes in 2d", "Closes in 20h", "Closes in 12m".
     /// Nil when the timestamp is unreadable.
     public static func closesLabel(expiresAt raw: String, now: Date = Date()) -> String? {
-        guard let expiry = parse(raw) else { return nil }
+        parse(raw).map { closesLabel(expiry: $0, now: now) }
+    }
+
+    public static func closesLabel(expiry: Date, now: Date) -> String {
         let remaining = Int(expiry.timeIntervalSince(now))
         if remaining <= 0 { return "Voting closed" }
         let days = remaining / 86_400

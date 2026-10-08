@@ -7,7 +7,13 @@ final class ProposalCardCopyTests: XCTestCase {
         XCTAssertEqual(ProposalCardCopy.closes(at: now.addingTimeInterval(23 * 3600), now: now), "Closes in 23h")
         XCTAssertEqual(ProposalCardCopy.closes(at: now.addingTimeInterval(59 * 60), now: now), "Closes in 59m")
         XCTAssertEqual(ProposalCardCopy.closes(at: now.addingTimeInterval(60), now: now), "Closes in 1m")
-        XCTAssertEqual(ProposalCardCopy.closes(at: now.addingTimeInterval(-60), now: now), "Closes in 1m")
+        XCTAssertEqual(ProposalCardCopy.closes(at: now.addingTimeInterval(-60), now: now), "Voting closed")
+    }
+
+    func testClosesInDaysFromTwoDaysOut() {
+        let now = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(ProposalCardCopy.closes(at: now.addingTimeInterval(167 * 3600), now: now), "Closes in 6d")
+        XCTAssertEqual(ProposalCardCopy.closes(at: now.addingTimeInterval(47 * 3600), now: now), "Closes in 47h")
     }
 
     func testVoteCopy() {

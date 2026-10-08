@@ -49,7 +49,7 @@ struct ProposalCard: View {
 
     private var isSell: Bool { summary.kind == "sell" }
     private var voter: ProposalMember? { members.first { $0.id == summary.proposerID } }
-    private var canVote: Bool { summary.status == .open && summary.canVote }
+    private var canVote: Bool { summary.status == .open && summary.canVote && summary.expiresAt > .now }
     private var ballot: String? { summary.myBallot }
 
     var body: some View {

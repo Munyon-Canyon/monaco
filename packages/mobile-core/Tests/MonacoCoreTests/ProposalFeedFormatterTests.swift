@@ -21,6 +21,16 @@ final class ProposalFeedFormatterTests: XCTestCase {
         XCTAssertEqual(ProposalTimeFormatter.closesLabel(expiresAt: "2026-09-18T12:00:20Z", now: now), "Closes in 1m")
     }
 
+    func testClosesLabel_fromADate() {
+        let label = { (seconds: TimeInterval) in
+            ProposalTimeFormatter.closesLabel(expiry: self.now.addingTimeInterval(seconds), now: self.now)
+        }
+        XCTAssertEqual(label(3 * 86_400), "Closes in 3d")
+        XCTAssertEqual(label(5 * 3600), "Closes in 5h")
+        XCTAssertEqual(label(30), "Closes in 1m")
+        XCTAssertEqual(label(0), "Voting closed")
+    }
+
     func testClosesSoon_onlyInTheLastHour() {
         XCTAssertTrue(ProposalTimeFormatter.closesSoon(expiresAt: "2026-09-18T12:40:00Z", now: now))
         XCTAssertFalse(ProposalTimeFormatter.closesSoon(expiresAt: "2026-09-18T13:00:01Z", now: now))
