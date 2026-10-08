@@ -70,6 +70,28 @@ paths:
           description: The social dashboard.
           content: {application/json: {schema: {$ref: "#/components/schemas/SocialDashboard"}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/dashboards/safety:
+    get:
+      operationId: getSafetyDashboard
+      tags: [analytics]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
+      summary: Read the safety dashboard.
+      description: >-
+        Returns the safety signals, read in a read-only transaction with a 5 second statement timeout. `series` is
+        long-format and time-bucketed, one row per bucket, metric and group with events in it: `cabals_paused`
+        grouped by pause reason, `external_deposits_detected`, `external_deposits_bounced` and `admin_actions`
+        grouped by action. Buckets with no events are omitted. `banned_users` and `banned_cabals` are the banned
+        accounts now. `to` is exclusive and the range cannot exceed 400 days.
+      parameters:
+        - $ref: "#/components/parameters/DashboardFrom"
+        - $ref: "#/components/parameters/DashboardTo"
+        - $ref: "#/components/parameters/DashboardBucket"
+      responses:
+        "200":
+          description: The safety dashboard.
+          content: {application/json: {schema: {$ref: "#/components/schemas/SafetyDashboard"}}}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   parameters:
     DashboardFrom:
@@ -300,6 +322,28 @@ components:
           type: array
           description: Users by auth state and account status.
           items: {$ref: "#/components/schemas/UserStateCount"}
+        series:
+          type: array
+          description: Events per bucket, metric and group, oldest first.
+          items: {$ref: "#/components/schemas/DashboardPoint"}
+    SafetyDashboard:
+      type: object
+      description: Pauses, outside deposits, bans and administrator actions.
+      examples:
+        - from: "2026-09-01T00:00:00Z"
+          to: "2026-10-01T00:00:00Z"
+          bucket: day
+          banned_users: 2
+          banned_cabals: 1
+          series: []
+      additionalProperties: false
+      required: [from, to, bucket, banned_users, banned_cabals, series]
+      properties:
+        from: {type: string, format: date-time, description: The start of the range., examples: ["2026-09-01T00:00:00Z"]}
+        to: {type: string, format: date-time, description: "The end of the range, exclusive.", examples: ["2026-10-01T00:00:00Z"]}
+        bucket: {$ref: "#/components/schemas/DashboardBucket"}
+        banned_users: {type: integer, format: int64, description: Users whose account is banned now., examples: [2]}
+        banned_cabals: {type: integer, format: int64, description: Cabals that are banned now., examples: [1]}
         series:
           type: array
           description: Events per bucket, metric and group, oldest first.

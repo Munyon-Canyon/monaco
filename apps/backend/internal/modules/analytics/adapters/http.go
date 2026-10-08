@@ -12,6 +12,7 @@ type HTTP struct {
 	Money      app.Money
 	Governance app.Governance
 	Social     app.Social
+	Safety     app.Safety
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -116,5 +117,22 @@ func (h HTTP) GetSocialDashboard(
 			MembersP90: view.Cabals.MembersP90, MembersMax: view.Cabals.MembersMax,
 		},
 		UserStates: states, Series: dashboardPoints(view.Series),
+	}, nil
+}
+
+func (h HTTP) GetSafetyDashboard(
+	ctx context.Context, req api.GetSafetyDashboardRequestObject,
+) (api.GetSafetyDashboardResponseObject, error) {
+	window, err := app.ParseWindow(req.Params.From, req.Params.To, string(req.Params.Bucket))
+	if err != nil {
+		return nil, err
+	}
+	view, err := h.Safety.Dashboard(ctx, window)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetSafetyDashboard200JSONResponse{
+		From: window.From, To: window.To, Bucket: api.DashboardBucket(window.Size), BannedUsers: view.BannedUsers,
+		BannedCabals: view.BannedCabals, Series: dashboardPoints(view.Series),
 	}, nil
 }

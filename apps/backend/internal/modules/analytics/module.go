@@ -93,7 +93,10 @@ func registerProposalExports(r *Registry, proposers app.ProposerReader) {
 func (*Module) Name() string { return "analytics" }
 
 func (m *Module) Mount(r api.Mount) {
-	analyticsapi.Mount(adapters.HTTP{Money: m.money(), Governance: m.governance(), Social: m.social()}, r)
+	analyticsapi.Mount(
+		adapters.HTTP{Money: m.money(), Governance: m.governance(), Social: m.social(), Safety: m.safety()},
+		r,
+	)
 }
 
 func (m *Module) governance() app.Governance {
@@ -110,6 +113,18 @@ func (m *Module) social() app.Social {
 		Read: adapters.ReadOnly(m.deps.Pool, dashboardTimeout),
 		Bind: func(db dbsqlc.DBTX) app.SocialSources {
 			return app.SocialSources{
+				Events: bus.NewEventCounts(db), Cabals: cabals.DashboardOn(db), Users: users.DashboardOn(db),
+			}
+		},
+	}
+}
+
+func (m *Module) safety() app.Safety {
+	users, cabals := identity.New(m.deps), cabal.New(m.deps)
+	return app.Safety{
+		Read: adapters.ReadOnly(m.deps.Pool, dashboardTimeout),
+		Bind: func(db dbsqlc.DBTX) app.SafetySources {
+			return app.SafetySources{
 				Events: bus.NewEventCounts(db), Cabals: cabals.DashboardOn(db), Users: users.DashboardOn(db),
 			}
 		},
