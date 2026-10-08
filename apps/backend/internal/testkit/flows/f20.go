@@ -103,6 +103,19 @@ func F20FollowUserBanned(s *scenario.Scenario) {
 		Then(scenario.ExpectProblem(errs.CodeUserBanned), scenario.ExpectEvents(events.TypeFollowCreated, 0))
 }
 
+func F20FollowFollowBlocked(s *scenario.Scenario) {
+	s.Given(followUsers(), scenario.AsUser("alice")).
+		When(
+			scenario.Post(blockPath("{bob}"), ``),
+			scenario.ExpectStatus(http.StatusNoContent),
+			scenario.Post(followPath("{bob}"), `{}`),
+			scenario.ExpectProblem(errs.CodeFollowBlocked),
+			scenario.AsUser("bob"),
+			scenario.Post(followPath("{alice}"), `{}`),
+		).
+		Then(scenario.ExpectProblem(errs.CodeFollowBlocked), scenario.ExpectEvents(events.TypeFollowCreated, 0))
+}
+
 func F20FollowUnauthorized(s *scenario.Scenario) {
 	s.Given(followUsers(), scenario.Anonymous()).
 		When(scenario.Post(followPath("{bob}"), `{}`)).

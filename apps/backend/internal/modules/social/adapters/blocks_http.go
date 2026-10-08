@@ -41,3 +41,27 @@ func (h HTTP) DeleteUserBlock(
 	}
 	return api.DeleteUserBlock204Response{}, nil
 }
+
+func (h HTTP) GetMeBlocks(
+	ctx context.Context, _ api.GetMeBlocksRequestObject,
+) (api.GetMeBlocksResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	blocked, err := app.ListBlocks(ctx, h.Reads, h.Users, me)
+	if err != nil {
+		return nil, err
+	}
+	body := api.BlockedUsers{Users: make([]api.BlockedUser, len(blocked))}
+	for i, b := range blocked {
+		user := api.BlockedUser{UserId: b.ID.UUID()}
+		if !b.Card.Deleted {
+			user.Handle, user.DisplayName, user.PhotoUrl = b.Card.Handle, b.Card.DisplayName, optionalWireText(
+				b.Card.PhotoURL,
+			)
+		}
+		body.Users[i] = user
+	}
+	return api.GetMeBlocks200JSONResponse(body), nil
+}

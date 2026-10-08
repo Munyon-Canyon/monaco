@@ -33,6 +33,11 @@ func TestFlow20_Follow_UserBanned(t *testing.T) {
 	flows.F20FollowUserBanned(scenario.New(t, withSocial()))
 }
 
+func TestFlow20_Follow_FollowBlocked(t *testing.T) {
+	t.Parallel()
+	flows.F20FollowFollowBlocked(scenario.New(t, withSocial()))
+}
+
 func TestFlow20_Follow_Unauthorized(t *testing.T) {
 	t.Parallel()
 	flows.F20FollowUnauthorized(scenario.New(t, withSocial()))

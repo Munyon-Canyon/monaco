@@ -43,6 +43,15 @@ func (h *FollowHandler) Handle(ctx context.Context, cmd Follow) error {
 		return err
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		blocked, err := sqlc.New(tx.Queries()).IsBlockedEitherWay(ctx, sqlc.IsBlockedEitherWayParams{
+			UserA: cmd.Follower.UUID(), UserB: cmd.Followee.UUID(),
+		})
+		if err != nil {
+			return errs.Wrap(err, errs.CodeInternal, "social.Follow")
+		}
+		if blocked {
+			return errs.New(errs.CodeFollowBlocked, "social.Follow")
+		}
 		return CreateFollow(ctx, tx, h.d.IDs, h.d.Clock.Now().UTC(), cmd)
 	})
 }

@@ -288,3 +288,35 @@ func TestUnfollow_failsAndRollsBackWhenTheEventCannotBeAppended(t *testing.T) {
 		t.Fatalf("live follows = %d, want the update rolled back", live)
 	}
 }
+
+func TestFollow_refusesAPairBlockedInEitherDirection(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	if err := f.block(t, f.alice, f.bob); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, f.follows(t, domain.SourceProfile), errs.CodeFollowBlocked)
+	back := app.Follow{Follower: f.bob, Followee: f.alice, Source: domain.SourceProfile}
+	wantCode(t, f.follow.Handle(f.ctx(t), back), errs.CodeFollowBlocked)
+	if _, total := f.rows(t); total != 0 {
+		t.Fatalf("follows = %d, want 0", total)
+	}
+	if n := f.eventCount(t, events.TypeFollowCreated); n != 0 {
+		t.Fatalf("follow.created events = %d, want 0", n)
+	}
+	if err := f.unblock(t, f.alice, f.bob); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.follows(t, domain.SourceProfile); err != nil {
+		t.Fatalf("follow after the unblock: %v", err)
+	}
+}
+
+func TestFollow_failsWithInternalWhenTheBlockCheckFails(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	if _, err := f.pool.Exec(t.Context(), `DROP TABLE user_blocks CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, f.follows(t, domain.SourceProfile), errs.CodeInternal)
+}
