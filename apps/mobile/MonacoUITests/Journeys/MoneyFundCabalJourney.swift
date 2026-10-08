@@ -37,6 +37,17 @@ enum MoneyFundCabalJourney {
         field.typeText(amount)
     }
 
+    static func typeKeypadAmount(_ app: XCUIApplication, _ amount: String) {
+        let delete = app.element("amount-keypad-delete")
+        XCTAssertTrue(delete.waitForExistence(timeout: 10), "no amount keypad")
+        let current = app.element("amount-entry-field").value as? String ?? ""
+        for _ in 0..<current.filter({ $0.isNumber || $0 == "." }).count { delete.tap() }
+        for character in amount {
+            let id = character == "." ? "amount-keypad-dot" : "amount-keypad-\(character)"
+            app.element(id).tap()
+        }
+    }
+
     static func pickAmount(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = cabal(run: run)
 

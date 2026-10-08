@@ -8,6 +8,11 @@ enum AmountPreset: Equatable {
     case fraction(Double, label: String)
 }
 
+enum AmountEntryInput: Equatable {
+    case systemKeyboard
+    case keypad
+}
+
 /// Big centred dollar figure over the system decimal pad, preset chips and one helper line.
 /// `amountText` holds a plain decimal string ("50", "12.5"); the view keeps it to digits,
 /// one ".", and two decimals.
@@ -15,8 +20,11 @@ enum AmountPreset: Equatable {
 /// The figure is the member's own money, so it sets in Avenir Next (`moneyFont(.hero)`); the
 /// presets are a strip of choices, so they set in the market's voice at the size of Home's
 /// range chips. A screen that says what the money will do puts an `AmountEntryNote` under it.
-struct AmountEntry: View {
+struct AmountEntry<Accessory: View>: View {
     @Binding private var amountText: String
+    private let input: AmountEntryInput
+    private let showsKeypad: Bool
+    private let accessory: Accessory
     private let max: Decimal?
     private let presets: [AmountPreset]
     private let helper: String?
@@ -39,9 +47,15 @@ struct AmountEntry: View {
         helper: String? = nil,
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
-        onPreset: @escaping (AmountPreset) -> Void = { _ in }
+        input: AmountEntryInput = .systemKeyboard,
+        showsKeypad: Bool = true,
+        onPreset: @escaping (AmountPreset) -> Void = { _ in },
+        @ViewBuilder accessory: () -> Accessory
     ) {
         _amountText = amountText
+        self.input = input
+        self.showsKeypad = showsKeypad
+        self.accessory = accessory()
         self.max = max
         self.presets = presets
         self.helper = helper
@@ -49,6 +63,8 @@ struct AmountEntry: View {
         self.problem = problem
         self.onPreset = onPreset
     }
+
+    private var usesKeypad: Bool { input == .keypad }
 
     private var value: Decimal? {
         AmountEntryText.decimal(amountText)
@@ -60,7 +76,7 @@ struct AmountEntry: View {
     }
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.l) {
+        VStack(spacing: usesKeypad ? MonacoTheme.Space.m : MonacoTheme.Space.l) {
             figure
             if !presets.isEmpty {
                 presetRow
@@ -74,14 +90,19 @@ struct AmountEntry: View {
                     .animation(reduceMotion ? nil : .snappy, value: helperLine)
                     .accessibilityIdentifier("amount-entry-helper")
             }
+            accessory
+            if usesKeypad, showsKeypad {
+                AmountKeypad(amountText: $amountText)
+            }
         }
         .frame(maxWidth: .infinity)
         .task {
+            guard !usesKeypad else { return }
             // Let the push transition settle before the keyboard rises. This is the view's own
             // task, so it is cancelled with the screen: a keyboard never arrives after the member
             // has left, and coming back from a pushed screen does not raise it a second time.
             guard !hasRaisedKeyboard else { return }
-            try? await Task.sleep(for: AmountEntry.keyboardRevealDelay)
+            try? await Task.sleep(for: keyboardRevealDelay)
             guard !Task.isCancelled else { return }
             hasRaisedKeyboard = true
             focused = true
@@ -93,7 +114,7 @@ struct AmountEntry: View {
     }
 
     /// Long enough for a push transition to settle before the keyboard rises over it.
-    private static let keyboardRevealDelay: Duration = .milliseconds(350)
+    private var keyboardRevealDelay: Duration { .milliseconds(350) }
 
     private var hasProblem: Bool {
         problem != nil || isOverLimit
@@ -111,7 +132,32 @@ struct AmountEntry: View {
         return isOverLimit ? overLimitHelper : helper
     }
 
+    @ViewBuilder
     private var figure: some View {
+        if usesKeypad {
+            keypadFigure
+        } else {
+            fieldFigure
+        }
+    }
+
+    private var keypadFigure: some View {
+        Text(AmountEntryText.display(amountText))
+            .moneyFont(.hero)
+            .foregroundStyle(figureColor)
+            .lineLimit(1)
+            .minimumScaleFactor(0.4)
+            .contentTransition(reduceMotion ? .identity : .numericText())
+            .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: amountText)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+            .frame(maxWidth: .infinity, minHeight: 72)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Amount")
+            .accessibilityValue(AmountEntryText.display(amountText))
+            .accessibilityIdentifier("amount-entry-field")
+    }
+
+    private var fieldFigure: some View {
         ZStack {
             HStack(alignment: .center, spacing: 2) {
                 // `moneyFont` scales inside the view tree, so the cap below reaches the figure;
@@ -206,6 +252,26 @@ struct AmountEntry: View {
     }
 }
 
+extension AmountEntry where Accessory == EmptyView {
+    init(
+        amountText: Binding<String>,
+        max: Decimal? = nil,
+        presets: [AmountPreset] = [],
+        helper: String? = nil,
+        overLimitHelper: String = "More than you have",
+        problem: String? = nil,
+        input: AmountEntryInput = .systemKeyboard,
+        showsKeypad: Bool = true,
+        onPreset: @escaping (AmountPreset) -> Void = { _ in }
+    ) {
+        self.init(
+            amountText: amountText, max: max, presets: presets, helper: helper,
+            overLimitHelper: overLimitHelper, problem: problem, input: input,
+            showsKeypad: showsKeypad, onPreset: onPreset
+        ) { EmptyView() }
+    }
+}
+
 /// Steady ink caret after the figure while the field has focus. It grows with the figure,
 /// and stops where the figure's own text-size cap stops it.
 private struct AmountCaret: View {
@@ -263,9 +329,26 @@ struct AmountEntrySkeleton: View {
     }
 }
 
+enum AmountKey: Hashable {
+    case digit(Int)
+    case dot
+    case delete
+}
+
 /// Pure text handling for `AmountEntry`, kept separate so it is easy to reason about.
 enum AmountEntryText {
     private static let posix = Locale(identifier: "en_US_POSIX")
+
+    static func applying(_ key: AmountKey, to text: String) -> String {
+        switch key {
+        case .digit(let digit):
+            return sanitize(text + String(digit))
+        case .dot:
+            return sanitize(text + ".")
+        case .delete:
+            return String(text.dropLast())
+        }
+    }
 
     /// Digits and one ".", at most two decimals, no leading zeros ("007" → "7", "." → "0.").
     static func sanitize(_ raw: String) -> String {

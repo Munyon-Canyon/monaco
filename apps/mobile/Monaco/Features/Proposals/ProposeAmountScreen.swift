@@ -22,31 +22,28 @@ struct ProposeAmountScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    operationLabel
+                    MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
+                }
                 AmountEntry(
                     amountText: $amountText, max: max, presets: presets, helper: model.helperText,
-                    overLimitHelper: "More than the cabal holds"
-                )
-                .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
-                if !showsReason {
-                    Button("Add a reason") { showsReason = true }.buttonStyle(.monacoSecondary)
-                        .accessibilityIdentifier("propose-amount-add-reason")
-                } else {
-                    reasonField
-                    if ProposeReasonRules.showsCounter(for: model.thesis) {
-                        Text("\(model.thesis.count)/\(ProposeReasonRules.thesisLimit)")
-                            .font(MonacoTheme.Typo.caption)
-                            .foregroundStyle(MonacoTheme.muted)
-                    }
+                    overLimitHelper: "More than the cabal holds", input: .keypad,
+                    showsKeypad: !reasonFocused
+                ) {
+                    reasonSection
                 }
+                .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
                 if let message = model.message(assetName: stock.name) {
                     Text(message).foregroundStyle(MonacoTheme.loss)
                 }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.m)
+            .padding(.top, MonacoTheme.Space.s)
+            .padding(.bottom, MonacoTheme.Space.s)
         }
+        .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .task {
             guard !model.trade.isSell,
@@ -72,6 +69,34 @@ struct ProposeAmountScreen: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("propose-amount-screen")
+    }
+
+    private var operationLabel: some View {
+        let isSell = model.trade.isSell
+        return Text(isSell ? "Sell" : "Buy")
+            .font(MonacoTheme.Typo.captionStrong)
+            .foregroundStyle(isSell ? MonacoTheme.lossOnWash : MonacoTheme.profitOnWash)
+            .padding(.horizontal, MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.xs)
+            .background(isSell ? MonacoTheme.lossWash : MonacoTheme.profitWash, in: Capsule())
+            .accessibilityIdentifier("propose-amount-operation")
+    }
+
+    @ViewBuilder
+    private var reasonSection: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            if !showsReason {
+                Button("Add a reason") { showsReason = true }.buttonStyle(.monacoSecondary)
+                    .accessibilityIdentifier("propose-amount-add-reason")
+            } else {
+                reasonField
+                if ProposeReasonRules.showsCounter(for: model.thesis) {
+                    Text("\(model.thesis.count)/\(ProposeReasonRules.thesisLimit)")
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                }
+            }
+        }
     }
 
     private var reasonField: some View {
