@@ -10,25 +10,36 @@ struct AssetDetailBuyCTATests {
         #expect(AssetDetailBuyCTA.title(tradable: false) == "Can't buy right now")
     }
 
-    @Test func tradableAssetsOpenTheBuyProposalInStocks() {
+    @Test func tradableAssetsOpenTheBuyProposalInTheHostTab() {
         var opened: (route: ProposeFromAssetRoute, tab: MainTab)?
 
-        AssetDetailBuyCTA.open(symbol: "AAPLx", kind: .buy) { route, tab in
+        AssetDetailBuyCTA.open(symbol: "AAPLx", kind: .buy, tab: .cabals) { route, tab in
             opened = (route, tab)
         }
 
         #expect(opened?.route == ProposeFromAssetRoute(symbol: "AAPLx", kind: .buy))
-        #expect(opened?.tab == .stocks)
+        #expect(opened?.tab == .cabals)
     }
 
-    @Test func proposeSellOpensTheSellRouteInStocks() {
+    @Test func proposeSellOpensTheSellRouteInTheHostTab() {
         var opened: (route: ProposeFromAssetRoute, tab: MainTab)?
 
-        AssetDetailBuyCTA.open(symbol: "GOOGLx", kind: .sell) { route, tab in
+        AssetDetailBuyCTA.open(symbol: "GOOGLx", kind: .sell, tab: .home) { route, tab in
             opened = (route, tab)
         }
 
         #expect(opened?.route == ProposeFromAssetRoute(symbol: "GOOGLx", kind: .sell))
+        #expect(opened?.tab == .home)
+    }
+
+    @Test func proposeFromTheStocksTabStaysInStocks() {
+        var opened: (route: ProposeFromAssetRoute, tab: MainTab)?
+
+        AssetDetailBuyCTA.open(symbol: "AAPLx", kind: .buy, tab: .stocks) { route, tab in
+            opened = (route, tab)
+        }
+
+        #expect(opened?.route == ProposeFromAssetRoute(symbol: "AAPLx", kind: .buy))
         #expect(opened?.tab == .stocks)
     }
 
