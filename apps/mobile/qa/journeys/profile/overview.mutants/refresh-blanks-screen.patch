@@ -7,7 +7,7 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileTab.swift b/apps/mobile/Monaco/Features/Profile/ProfileTab.swift
 --- a/apps/mobile/Monaco/Features/Profile/ProfileTab.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileTab.swift
-@@ -13,10 +13,14 @@
+@@ -13,11 +13,15 @@ enum ProfileTab: TabContent {
  
  private struct ProfileTabRoot: View {
      @State private var refresh = ScreenRefresh()
@@ -22,5 +22,6 @@ diff --git a/apps/mobile/Monaco/Features/Profile/ProfileTab.swift b/apps/mobile/
 +                await refresh.run()
 +                refreshed = true
 +            }
+             .monacoTopLevelHeader(title: ProfileTab.title)
      }
  }

@@ -18,5 +18,6 @@ private struct ProfileTabRoot: View {
         ProfileScreen()
             .environment(refresh)
             .refreshable { await refresh.run() }
+            .monacoTopLevelHeader(title: ProfileTab.title)
     }
 }

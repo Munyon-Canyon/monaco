@@ -17,8 +17,7 @@ struct StocksTabView: View {
             Color.clear
             if let model { StocksTabScreen(model: model, open: open) }
         }
-        .navigationTitle(StocksTab.title)
-        .navigationBarTitleDisplayMode(.large)
+        .monacoTopLevelHeader(title: StocksTab.title)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("assets-root")
         .task { await start() }
@@ -224,8 +223,7 @@ private struct StocksSectionsSampleView: View {
                 ) { browse = $0 }
                 ScrollView { sampleRows(rowsForBrowse) }
             }
-            .navigationTitle(StocksTab.title)
-            .navigationBarTitleDisplayMode(.large)
+            .monacoTopLevelHeader(title: StocksTab.title)
             .monacoCanvas()
         }
     }

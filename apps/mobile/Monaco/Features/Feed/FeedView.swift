@@ -18,8 +18,7 @@ struct FeedView: View {
                 FeedScreen(model: model)
             }
         }
-        .navigationTitle(FeedTab.title)
-        .navigationBarTitleDisplayMode(.large)
+        .monacoTopLevelHeader(title: FeedTab.title)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

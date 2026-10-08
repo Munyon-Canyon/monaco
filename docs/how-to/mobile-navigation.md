@@ -108,6 +108,8 @@ enum FeedTab: TabContent {
 `Shell/MainTabView.swift` loops over `MainTab.allCases` and never names a feature view type. A
 tab lights up by replacing its `root()` body in its own file.
 
+Every tab root applies `.monacoTopLevelHeader(title:)` (`Design/MonacoAppearance.swift`): an inline title on an always-visible navigation bar, so the header never collapses or vanishes at scroll top. The global appearance uses large titles and a transparent bar at scroll edge, which hid the header on tabs that had no title; the modifier forces the opaque standard bar (#3762). Put page controls in `.toolbar`; do not set the title mode per screen.
+
 ## Add a section slot
 
 What each slot shows, in which order, and who builds it is in the [screen map](../screens.md). This
