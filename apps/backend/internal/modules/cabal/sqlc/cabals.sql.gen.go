@@ -71,6 +71,23 @@ func (q *Queries) AllCabals(ctx context.Context) ([]AllCabalsRow, error) {
 	return items, nil
 }
 
+const banCabal = `-- name: BanCabal :execrows
+UPDATE cabals SET status = 'banned', updated_at = $1 WHERE id = $2 AND status = 'active'
+`
+
+type BanCabalParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) BanCabal(ctx context.Context, arg BanCabalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, banCabal, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const cabalCounts = `-- name: CabalCounts :one
 WITH sizes AS (
   SELECT c.status, count(m.user_id) AS members

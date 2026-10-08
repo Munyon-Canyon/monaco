@@ -12,6 +12,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	cabal "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
@@ -52,8 +53,22 @@ func (d voteDB) openUnder(t *testing.T, voters int, rule string) (sqlc.InsertPro
 	return p, set
 }
 
+type cabalStatus struct {
+	app.Cabals
+	status cabal.Status
+	err    error
+}
+
+func (c cabalStatus) Status(context.Context, ids.CabalID) (cabal.Status, error) {
+	return c.status, c.err
+}
+
 func (d voteDB) handler() *app.CastVoteHandler {
-	return app.NewCastVoteHandler(d.uow, d.clk, app.NoHints{})
+	return d.handlerFor(cabalStatus{status: cabal.StatusActive})
+}
+
+func (d voteDB) handlerFor(cabals app.Cabals) *app.CastVoteHandler {
+	return app.NewCastVoteHandler(d.uow, cabals, d.clk, app.NoHints{})
 }
 
 func (voteDB) cast(
@@ -351,5 +366,32 @@ func TestCastVote_ConcurrentDecidingVotes(t *testing.T) {
 	}
 	if b := d.ballots(t, p.ID); len(b) != 11 {
 		t.Fatalf("%d ballots stored, want the 11 cast before the decision", len(b))
+	}
+}
+
+func TestCastVote_BannedCabalRefusesTheBallot(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	p, voters := d.open(t, 3)
+	ctx := t.Context()
+	_, err := d.cast(ctx, d.handlerFor(cabalStatus{status: cabal.StatusBanned}), p.ID, voters[0], domain.ChoiceYes)
+	if errs.CodeOf(err) != errs.CodeCabalBanned {
+		t.Fatalf("vote in a banned cabal = %v, want cabal_banned", err)
+	}
+	failing := cabalStatus{err: errs.New(errs.CodeInternal, "test")}
+	if _, err := d.cast(
+		ctx,
+		d.handlerFor(failing),
+		p.ID,
+		voters[0],
+		domain.ChoiceYes,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeInternal {
+		t.Fatalf("vote with the status read failing = %v, want internal", err)
+	}
+	var ballots int
+	if err := d.pool.QueryRow(ctx, `SELECT count(*) FROM votes`).Scan(&ballots); err != nil || ballots != 0 {
+		t.Fatalf("ballots = %d, %v, want none cast", ballots, err)
 	}
 }

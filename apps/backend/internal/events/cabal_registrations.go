@@ -8,5 +8,6 @@ func cabalRegistrations() []Registration {
 		Register[CabalAccessDecided](TypeCabalAccessDecided, 1),
 		Register[CabalMemberLeft](TypeCabalMemberLeft, 1),
 		Register[CabalUpdated](TypeCabalUpdated, 1),
+		Register[CabalBanned](TypeCabalBanned, 1),
 	}
 }
