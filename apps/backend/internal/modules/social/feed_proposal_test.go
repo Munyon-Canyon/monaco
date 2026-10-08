@@ -91,6 +91,14 @@ func (r proposalRig) passed(t *testing.T) error {
 	})
 }
 
+func (r proposalRig) expired(t *testing.T) error {
+	t.Helper()
+	return r.deliver(t, func(ctx context.Context, tx db.Tx) error {
+		e := events.ProposalExpired{V: 1, ProposalID: r.proposal, CabalID: r.cabal}
+		return r.feed.ProposalExpired(ctx, tx, e, r.clock.Now())
+	})
+}
+
 func (r proposalRig) tradeFailed(t *testing.T, kind string) error {
 	t.Helper()
 	return r.deliver(t, func(ctx context.Context, tx db.Tx) error {
@@ -422,5 +430,38 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'price_move'`).Scan(&title)
 	if err != nil || title != "AAPLx is up 10% today" {
 		t.Fatalf("price move item = %q, %v", title, err)
+	}
+}
+
+func TestFeedProposal_anExpiryAfterTheOpenEndsExpired(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	if err := r.create(t); err != nil {
+		t.Fatal(err)
+	}
+	r.clock.Advance(time.Minute)
+	if err := r.expired(t); err != nil {
+		t.Fatal(err)
+	}
+	row := r.row(t)
+	if row.Status != "expired" || row.Payload["status"] != "expired" {
+		t.Fatalf("row = %+v, want expired", row)
+	}
+}
+
+func TestFeedProposal_anExpiryBeforeTheCreateNaksThenConverges(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	if got := errs.CodeOf(r.expired(t)); got != errs.CodeFeedItemPending {
+		t.Fatalf("expiry before create = %s, want %s", got, errs.CodeFeedItemPending)
+	}
+	if err := r.create(t); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.expired(t); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.row(t).Status; got != "expired" {
+		t.Fatalf("status = %s, want expired", got)
 	}
 }
