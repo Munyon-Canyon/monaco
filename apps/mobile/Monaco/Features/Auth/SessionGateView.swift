@@ -160,13 +160,9 @@ struct SessionFailureView: View {
                 Task { await onSignOut() }
             } label: {
                 Text("Sign out")
-                    .font(MonacoTheme.Typo.calloutStrong)
-                    .foregroundStyle(MonacoTheme.brand)
-                    .frame(minHeight: 44)
                     .padding(.horizontal, MonacoTheme.Space.m)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.monacoText)
             .padding(.top, MonacoTheme.Space.s)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)

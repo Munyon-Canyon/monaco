@@ -15,7 +15,7 @@ struct OTPCodeField: View {
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.disabledLabel)
         )
-        .font(MonacoTheme.Typo.data)
+        .font(MonacoTheme.Typo.ticker)
         .tracking(code.isEmpty ? 0 : OTPCode.tracking)
         .keyboardType(.numberPad)
         .textContentType(.oneTimeCode)

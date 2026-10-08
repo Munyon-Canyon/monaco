@@ -7,44 +7,47 @@ struct RestrictedAccountView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            VStack(spacing: MonacoTheme.Space.m) {
-                Spacer()
-                Text(OnboardingCopy.restrictedTitle)
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                Text(OnboardingCopy.restrictedBody)
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button {
-                    path.append(AnyAppRoute(WithdrawRoute()))
-                } label: {
-                    Text(OnboardingCopy.withdraw).frame(maxWidth: .infinity)
+            ScrollView {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    Text(OnboardingCopy.restrictedTitle)
+                        .font(MonacoTheme.Typo.display)
+                        .foregroundStyle(MonacoTheme.ink)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(OnboardingCopy.restrictedBody)
+                        .font(MonacoTheme.Typo.callout)
+                        .foregroundStyle(MonacoTheme.secondaryText)
                 }
-                .buttonStyle(.monacoPrimary)
-                .accessibilityIdentifier("restricted-withdraw")
-                Button {
-                    path.append(AnyAppRoute(RestrictedCabalsRoute()))
-                } label: {
-                    Text(OnboardingCopy.cashOut).frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("restricted-cash-out")
-                textLink(OnboardingCopy.deleteAccount, identifier: "restricted-delete-account") {
-                    path.append(AnyAppRoute(DeleteAccountRoute()))
-                }
-                textLink(OnboardingCopy.signOut, identifier: "restricted-sign-out") {
-                    Task { await environment.signOut() }
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.top, MonacoTheme.Space.xl)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .safeAreaInset(edge: .bottom) {
+                BottomCTA {
+                    VStack(spacing: MonacoTheme.Space.xs) {
+                        Button {
+                            path.append(AnyAppRoute(WithdrawRoute()))
+                        } label: {
+                            Text(OnboardingCopy.withdraw).frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.monacoPrimary)
+                        .accessibilityIdentifier("restricted-withdraw")
+                        Button {
+                            path.append(AnyAppRoute(RestrictedCabalsRoute()))
+                        } label: {
+                            Text(OnboardingCopy.cashOut).frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.monacoSecondary)
+                        .accessibilityIdentifier("restricted-cash-out")
+                        textLink(OnboardingCopy.deleteAccount, identifier: "restricted-delete-account") {
+                            path.append(AnyAppRoute(DeleteAccountRoute()))
+                        }
+                        textLink(OnboardingCopy.signOut, identifier: "restricted-sign-out") {
+                            Task { await environment.signOut() }
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.bottom, MonacoTheme.Space.m)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .monacoCanvas()
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("restrictedAccountView")
@@ -55,12 +58,8 @@ struct RestrictedAccountView: View {
     private func textLink(_ title: String, identifier: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(MonacoTheme.Typo.calloutStrong)
-                .foregroundStyle(MonacoTheme.brand)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.monacoText)
         .accessibilityIdentifier(identifier)
     }
 }

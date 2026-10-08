@@ -126,6 +126,23 @@ extension ButtonStyle where Self == MonacoDestructiveButtonStyle {
     static var monacoDestructive: MonacoDestructiveButtonStyle { MonacoDestructiveButtonStyle() }
 }
 
+struct MonacoTextButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        configuration.label
+            .font(MonacoTheme.Typo.calloutStrong)
+            .foregroundStyle(isEnabled ? MonacoTheme.brand : MonacoTheme.disabledLabel)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+extension ButtonStyle where Self == MonacoTextButtonStyle {
+    static var monacoText: MonacoTextButtonStyle { MonacoTextButtonStyle() }
+}
+
 /// Pinned action bar. Use inside `.safeAreaInset(edge: .bottom) { BottomCTA { … } }` so it rides above the keyboard.
 /// Buttons inside get the full width; put one primary, or a primary and a secondary side by side.
 struct BottomCTA<Content: View>: View {

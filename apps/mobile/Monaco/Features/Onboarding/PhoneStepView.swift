@@ -91,8 +91,8 @@ private struct PhoneStepForm: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     Text(LinkCopy.phoneTitle)
-                        .font(MonacoTheme.Typo.title)
-                        .foregroundStyle(MonacoTheme.primaryText)
+                        .font(MonacoTheme.Typo.display)
+                        .foregroundStyle(MonacoTheme.ink)
                         .accessibilityAddTraits(.isHeader)
                     subtext
                 }
@@ -231,11 +231,8 @@ private struct PhoneStepForm: View {
     private func textAction(_ title: String, identifier: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(MonacoTheme.Typo.calloutStrong)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(LinkTextActionStyle())
+        .buttonStyle(.monacoText)
         .accessibilityIdentifier(identifier)
     }
 
@@ -256,11 +253,8 @@ private struct PhoneStepForm: View {
                 Task { await skip() }
             } label: {
                 Text(title)
-                    .font(MonacoTheme.Typo.calloutStrong)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(LinkTextActionStyle())
+            .buttonStyle(.monacoText)
             .disabled(model.isBusy)
             .accessibilityIdentifier("phone-step-skip")
         }
@@ -327,16 +321,6 @@ struct LinkCaptionLine: View {
     }
 }
 
-struct LinkTextActionStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
-        configuration.label
-            .foregroundStyle(isEnabled ? MonacoTheme.brand : MonacoTheme.muted)
-            .opacity(configuration.isPressed ? 0.6 : 1)
-    }
-}
-
 private struct PhoneConfirmingSkeleton<Subtext: View>: View {
     let subtext: Subtext
 
@@ -344,8 +328,8 @@ private struct PhoneConfirmingSkeleton<Subtext: View>: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 Text(LinkCopy.phoneTitle)
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.primaryText)
+                    .font(MonacoTheme.Typo.display)
+                    .foregroundStyle(MonacoTheme.ink)
                 subtext
             }
             .fixedSize(horizontal: false, vertical: true)
