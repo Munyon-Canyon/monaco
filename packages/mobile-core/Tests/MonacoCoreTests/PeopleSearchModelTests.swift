@@ -141,6 +141,68 @@ final class PeopleSearchModelTests: XCTestCase {
         XCTAssertFalse(model.isSearching)
     }
 
+    func testFollowFlipsTheRowAndKeepsTheServerAnswer() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.result(samples)), .json(.ok, #"{"following":true}"#),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        try await load(model, clock: clock)
+        let target = samples[1].userId
+        await model.toggleFollow(target)
+        guard case .loaded(let users) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(users.map(\.followedByMe), [true, true, false])
+        XCTAssertFalse(model.isToggling(target))
+        let sent = await transport.sent
+        XCTAssertEqual(sent.last?.path, "/v1/users/\(target)/follow")
+        XCTAssertEqual(sent.last?.method, .post)
+    }
+
+    func testUnfollowSendsADeleteAndClearsTheRow() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.result(samples)), .json(.ok, #"{"following":false}"#),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        try await load(model, clock: clock)
+        await model.toggleFollow(samples[0].userId)
+        guard case .loaded(let users) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(users.map(\.followedByMe), [false, false, false])
+        let sent = await transport.sent
+        XCTAssertEqual(sent.last?.method, .delete)
+    }
+
+    func testAFailedFollowRollsTheRowBackAndToasts() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.result(samples)), .failure(URLError(.notConnectedToInternet)),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        try await load(model, clock: clock)
+        await model.toggleFollow(samples[2].userId)
+        XCTAssertEqual(model.state, .loaded(samples))
+        XCTAssertEqual(model.toast?.message, "You're offline. Try again.")
+        XCTAssertFalse(model.isToggling(samples[2].userId))
+    }
+
+    func testTogglingAnUnknownRowSendsNothing() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, try Self.result(samples))])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        try await load(model, clock: clock)
+        await model.toggleFollow("01890a5d-ac96-774b-bcce-b302099a80ff")
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 1)
+    }
+
+    private func load(_ model: PeopleSearchModel, clock: TestClock) async throws {
+        model.query = "ma"
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: PeopleSearchModel.debounce)
+        let loaded = await waitUntil { model.state == .loaded(self.samples) }
+        XCTAssertTrue(loaded)
+    }
+
     private func makeModel(_ transport: StubTransport, clock: TestClock) -> PeopleSearchModel {
         PeopleSearchModel(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),

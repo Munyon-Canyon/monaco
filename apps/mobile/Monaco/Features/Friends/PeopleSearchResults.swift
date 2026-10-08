@@ -21,7 +21,14 @@ struct PeopleSearchResults: View {
                     Button {
                         open(user)
                     } label: {
-                        PeopleSearchRow(user: user, isLast: index == users.count - 1)
+                        PeopleSearchRow(
+                            user: user,
+                            isViewer: user.userId == environment.viewer?.userID,
+                            isLast: index == users.count - 1,
+                            isToggling: model.isToggling(user.userId)
+                        ) {
+                            Task { await model.toggleFollow(user.userId) }
+                        }
                     }
                     .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("friends-search-\(user.handle)")
@@ -42,7 +49,10 @@ struct PeopleSearchResults: View {
 
 private struct PeopleSearchRow: View {
     let user: Components.Schemas.UserSummary
+    let isViewer: Bool
     let isLast: Bool
+    let isToggling: Bool
+    let toggle: () -> Void
 
     private var name: String { user.displayName.isEmpty ? user.handle : user.displayName }
 
@@ -50,9 +60,16 @@ private struct PeopleSearchRow: View {
         MonacoRow(
             title: name,
             subtitle: "@\(user.handle)",
-            chevron: true,
             isLast: isLast,
-            leading: { MonacoAvatar(photoURL: user.photoUrl, displayName: name, seed: user.userId) }
+            trailingIsInteractive: true,
+            leading: { MonacoAvatar(photoURL: user.photoUrl, displayName: name, seed: user.userId) },
+            trailing: {
+                if !isViewer {
+                    FollowToggle(
+                        isFollowing: user.followedByMe, isBusy: isToggling, action: toggle,
+                        identifier: "friends-search-follow-\(user.userId)")
+                }
+            }
         )
     }
 }

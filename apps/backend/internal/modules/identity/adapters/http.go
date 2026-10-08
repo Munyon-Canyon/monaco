@@ -161,17 +161,18 @@ func (h HTTP) SearchUsers(
 	if err != nil {
 		return nil, err
 	}
-	users, err := app.SearchUsers(ctx, h.Reads, user, req.Params.Query)
+	users, err := app.SearchUsers(ctx, h.Reads, h.Follows, user, req.Params.Query)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]api.UserSummary, len(users))
 	for i, found := range users {
 		out[i] = api.UserSummary{
-			UserId:      found.ID.UUID(),
-			Handle:      found.Handle,
-			DisplayName: found.DisplayName,
-			PhotoUrl:    present(found.PhotoURL),
+			UserId:       found.ID.UUID(),
+			Handle:       found.Handle,
+			DisplayName:  found.DisplayName,
+			PhotoUrl:     present(found.PhotoURL),
+			FollowedByMe: found.FollowedByMe,
 		}
 	}
 	return api.SearchUsers200JSONResponse{Users: out}, nil

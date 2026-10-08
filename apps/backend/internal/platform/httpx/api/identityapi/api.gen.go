@@ -315,16 +315,21 @@ type UpdateProfileRequest struct {
 
 // UserSearchResult The people matching a search, with handle-prefix matches first.
 type UserSearchResult struct {
-	// Users Examples: [{"display_name":"Maya Angelou","handle":"maya","photo_url":"https://img.example/maya.png","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}]
+	// Users Examples: [{"display_name":"Maya Angelou","followed_by_me":false,"handle":"maya","photo_url":"https://img.example/maya.png","user_id":"01890a5d-ac96-774b-bcce-b302099a8058"}]
 	Users []UserSummary `json:"users"`
 }
 
 // UserSummary A searchable person's public profile summary.
 type UserSummary struct {
-	DisplayName string             `json:"display_name"`
-	Handle      string             `json:"handle"`
-	PhotoUrl    *string            `json:"photo_url,omitempty"`
-	UserId      openapi_types.UUID `json:"user_id"`
+	DisplayName string `json:"display_name"`
+
+	// FollowedByMe Whether the caller follows them. The caller never appears in their own results.
+	//
+	// Examples: false
+	FollowedByMe bool               `json:"followed_by_me"`
+	Handle       string             `json:"handle"`
+	PhotoUrl     *string            `json:"photo_url,omitempty"`
+	UserId       openapi_types.UUID `json:"user_id"`
 }
 
 // PostAuthSessionParams defines parameters for PostAuthSession.

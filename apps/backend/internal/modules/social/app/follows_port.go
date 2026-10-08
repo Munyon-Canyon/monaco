@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -11,6 +13,7 @@ import (
 type FollowsPort interface {
 	Counts(ctx context.Context, user ids.UserID) (followers, following int, err error)
 	FollowedByMe(ctx context.Context, viewer, user ids.UserID) (bool, error)
+	FollowedAmong(ctx context.Context, viewer ids.UserID, users []ids.UserID) (map[ids.UserID]bool, error)
 	FollowingIDs(ctx context.Context, user ids.UserID) ([]ids.UserID, error)
 }
 
@@ -36,6 +39,27 @@ func (f Follows) FollowedByMe(ctx context.Context, viewer, user ids.UserID) (boo
 	})
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	return followed, nil
+}
+
+func (f Follows) FollowedAmong(
+	ctx context.Context, viewer ids.UserID, users []ids.UserID,
+) (map[ids.UserID]bool, error) {
+	const op = "social.FollowsPort.FollowedAmong"
+	raw := make([]uuid.UUID, len(users))
+	for i, user := range users {
+		raw[i] = user.UUID()
+	}
+	rows, err := sqlc.New(f.db).FollowedAmong(ctx, sqlc.FollowedAmongParams{
+		FollowerID: viewer.UUID(), FolloweeIds: raw,
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	followed := make(map[ids.UserID]bool, len(rows))
+	for _, id := range rows {
+		followed[ids.UserIDFrom(id)] = true
 	}
 	return followed, nil
 }

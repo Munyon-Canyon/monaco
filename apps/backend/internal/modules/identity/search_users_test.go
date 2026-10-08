@@ -6,7 +6,14 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
+
+func (f portFixture) socialModule() *social.Module {
+	return social.New(module.Deps{Pool: f.pool})
+}
 
 func TestSearchUsers_HandlePrefixFirst(t *testing.T) {
 	t.Parallel()
@@ -19,7 +26,7 @@ func TestSearchUsers_HandlePrefixFirst(t *testing.T) {
 			handle: "other" + strings.Repeat("a", i%10) + string(rune('a'+i%26)), name: "Ma result",
 		})
 	}
-	users, err := app.SearchUsers(t.Context(), f.pool, caller.ID, "ma")
+	users, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, "ma")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +46,7 @@ func TestSearchUsers_Excludes(t *testing.T) {
 	f.seed(t, portSeed{handle: "deleted", name: "Maya", status: "deleted"})
 	f.seed(t, portSeed{name: "Maya"})
 	visible := f.seed(t, portSeed{handle: "visible", name: "Maya"})
-	users, err := app.SearchUsers(t.Context(), f.pool, caller.ID, "maya")
+	users, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, "maya")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,11 +62,11 @@ func TestSearchUsers_AtAndCase(t *testing.T) {
 	maya := f.seed(t, portSeed{handle: "maya"})
 	percent := f.seed(t, portSeed{handle: "pct_user", name: "100%match"})
 	underscore := f.seed(t, portSeed{handle: "under_user", name: "under_score"})
-	upper, err := app.SearchUsers(t.Context(), f.pool, caller.ID, "@MAYA")
+	upper, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, "@MAYA")
 	if err != nil {
 		t.Fatal(err)
 	}
-	lower, err := app.SearchUsers(t.Context(), f.pool, caller.ID, "maya")
+	lower, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, "maya")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +77,7 @@ func TestSearchUsers_AtAndCase(t *testing.T) {
 		query string
 		want  string
 	}{{"%m", percent.ID.String()}, {"_s", underscore.ID.String()}} {
-		users, err := app.SearchUsers(t.Context(), f.pool, caller.ID, tc.query)
+		users, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, tc.query)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,11 +87,20 @@ func TestSearchUsers_AtAndCase(t *testing.T) {
 	}
 }
 
+func TestSearchUsers_FollowFailureFails(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	caller := f.seed(t, portSeed{handle: "caller"})
+	f.seed(t, portSeed{handle: "maya"})
+	_, err := app.SearchUsers(t.Context(), f.pool, app.UnwiredFollowCounts{}, caller.ID, "maya")
+	wantCode(t, err, errs.CodeUpstreamUnavailable)
+}
+
 func TestSearchUsers_TooShort(t *testing.T) {
 	t.Parallel()
 	f := newPortFixture(t)
 	for _, query := range []string{"a", "@a", strings.Repeat("a", 51)} {
-		_, err := app.SearchUsers(t.Context(), f.pool, f.newID(t), query)
+		_, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), f.newID(t), query)
 		wantCode(t, err, errs.CodeInvalidInput)
 	}
 }
@@ -120,5 +136,29 @@ WHERE handle LIKE 'ma%' ESCAPE '!'`)
 	plan := strings.Join(lines, "\n")
 	if !strings.Contains(plan, "users_handle_pattern_idx") {
 		t.Fatalf("EXPLAIN plan = %q", plan)
+	}
+}
+
+func TestSearchUsers_FollowedByMe(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	caller := f.seed(t, portSeed{handle: "maycaller"})
+	followed := f.seed(t, portSeed{handle: "mayfollowed"})
+	other := f.seed(t, portSeed{handle: "mayother"})
+	f.follow(t, caller.ID, followed.ID)
+	f.follow(t, other.ID, caller.ID)
+	users, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, "may")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[ids.UserID]bool{}
+	for _, user := range users {
+		got[user.ID] = user.FollowedByMe
+	}
+	if len(got) != 2 || !got[followed.ID] || got[other.ID] {
+		t.Fatalf("followed_by_me = %v, want %s true and %s false", got, followed.ID, other.ID)
+	}
+	if _, found := got[caller.ID]; found {
+		t.Fatalf("caller %s appears in their own results", caller.ID)
 	}
 }

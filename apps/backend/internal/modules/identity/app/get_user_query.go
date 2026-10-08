@@ -11,6 +11,7 @@ import (
 type FollowCounts = interface {
 	Counts(context.Context, ids.UserID) (int, int, error)
 	FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
+	FollowedAmong(context.Context, ids.UserID, []ids.UserID) (map[ids.UserID]bool, error)
 	BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
 }
 
@@ -28,6 +29,10 @@ func (UnwiredFollowCounts) Counts(context.Context, ids.UserID) (int, int, error)
 
 func (UnwiredFollowCounts) FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {
 	return false, errs.New(errs.CodeUpstreamUnavailable, "identity.UnwiredFollowCounts.FollowedByMe")
+}
+
+func (UnwiredFollowCounts) FollowedAmong(context.Context, ids.UserID, []ids.UserID) (map[ids.UserID]bool, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "identity.UnwiredFollowCounts.FollowedAmong")
 }
 
 func (UnwiredFollowCounts) BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {

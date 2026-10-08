@@ -10,21 +10,26 @@ import (
 )
 
 type SearchUser struct {
-	ID          ids.UserID
-	Handle      string
-	DisplayName string
-	PhotoURL    string
+	ID           ids.UserID
+	Handle       string
+	DisplayName  string
+	PhotoURL     string
+	FollowedByMe bool
 }
 
 type searchUsersReader interface {
 	SearchUsers(context.Context, sqlc.SearchUsersParams) ([]sqlc.SearchUsersRow, error)
 }
 
-func SearchUsers(ctx context.Context, q sqlc.DBTX, caller ids.UserID, raw string) ([]SearchUser, error) {
-	return searchUsers(ctx, sqlc.New(q), caller, raw)
+func SearchUsers(
+	ctx context.Context, q sqlc.DBTX, follows FollowCounts, caller ids.UserID, raw string,
+) ([]SearchUser, error) {
+	return searchUsers(ctx, sqlc.New(q), follows, caller, raw)
 }
 
-func searchUsers(ctx context.Context, reader searchUsersReader, caller ids.UserID, raw string) ([]SearchUser, error) {
+func searchUsers(
+	ctx context.Context, reader searchUsersReader, follows FollowCounts, caller ids.UserID, raw string,
+) ([]SearchUser, error) {
 	query, err := searchQuery(raw)
 	if err != nil {
 		return nil, err
@@ -43,6 +48,20 @@ func searchUsers(ctx context.Context, reader searchUsersReader, caller ids.UserI
 			DisplayName: row.DisplayName,
 			PhotoURL:    row.PhotoUrl.String,
 		})
+	}
+	if len(users) == 0 {
+		return users, nil
+	}
+	found := make([]ids.UserID, len(users))
+	for i, user := range users {
+		found[i] = user.ID
+	}
+	followed, err := follows.FollowedAmong(ctx, caller, found)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "identity.SearchUsers")
+	}
+	for i := range users {
+		users[i].FollowedByMe = followed[users[i].ID]
 	}
 	return users, nil
 }

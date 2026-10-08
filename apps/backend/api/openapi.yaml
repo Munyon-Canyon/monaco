@@ -1843,6 +1843,7 @@ paths:
                     handle: maya
                     display_name: Maya Angelou
                     photo_url: https://img.example/maya.png
+                    followed_by_me: false
         default: {$ref: "#/components/responses/Problem"}
   /v1/users/{id}:
     get:
@@ -5885,17 +5886,18 @@ components:
         users:
           type: array
           examples:
-            - [{user_id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: maya, display_name: Maya Angelou, photo_url: https://img.example/maya.png}]
+            - [{user_id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: maya, display_name: Maya Angelou, photo_url: https://img.example/maya.png, followed_by_me: false}]
           items: {$ref: "#/components/schemas/UserSummary"}
     UserSummary:
       type: object
       description: A searchable person's public profile summary.
-      required: [user_id, handle, display_name]
+      required: [user_id, handle, display_name, followed_by_me]
       properties:
         user_id: {type: string, format: uuid}
         handle: {type: string}
         display_name: {type: string}
         photo_url: {type: [string, "null"]}
+        followed_by_me: {type: boolean, description: "Whether the caller follows them. The caller never appears in their own results.", examples: [false]}
   # api/spec/market.yaml
     AssetChart:
       type: object

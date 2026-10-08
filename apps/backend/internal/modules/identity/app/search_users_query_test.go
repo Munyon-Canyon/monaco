@@ -19,8 +19,24 @@ func (failingSearchReader) SearchUsers(
 
 func TestSearchUsers_wrapsReadFailure(t *testing.T) {
 	t.Parallel()
-	_, err := searchUsers(t.Context(), failingSearchReader{}, ids.UserID{}, "maya")
+	_, err := searchUsers(t.Context(), failingSearchReader{}, UnwiredFollowCounts{}, ids.UserID{}, "maya")
 	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("code = %s, want %s", errs.CodeOf(err), errs.CodeInternal)
+	}
+}
+
+type emptySearchReader struct{}
+
+func (emptySearchReader) SearchUsers(
+	context.Context, sqlc.SearchUsersParams,
+) ([]sqlc.SearchUsersRow, error) {
+	return nil, nil
+}
+
+func TestSearchUsers_emptyPageSkipsTheFollowsPort(t *testing.T) {
+	t.Parallel()
+	users, err := searchUsers(t.Context(), emptySearchReader{}, UnwiredFollowCounts{}, ids.UserID{}, "maya")
+	if err != nil || len(users) != 0 {
+		t.Fatalf("users = %v, err = %v, want none and nil", users, err)
 	}
 }

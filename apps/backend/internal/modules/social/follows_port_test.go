@@ -77,6 +77,28 @@ func TestFollowsPort_FollowedByMeAndFollowingIDs(t *testing.T) {
 	}
 }
 
+func TestFollowsPort_FollowedAmong(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	port := f.port()
+	if err := f.follows(t, domain.SourceProfile); err != nil {
+		t.Fatal(err)
+	}
+	got, err := port.FollowedAmong(t.Context(), f.alice, []ids.UserID{f.bob, f.banned})
+	if err != nil || len(got) != 1 || !got[f.bob] || got[f.banned] {
+		t.Fatalf("followed among = %v, err = %v, want only bob", got, err)
+	}
+	if err := f.unfollows(t); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := port.FollowedAmong(t.Context(), f.alice, []ids.UserID{f.bob}); err != nil || len(got) != 0 {
+		t.Fatalf("followed among after unfollow = %v, err = %v", got, err)
+	}
+	if got, err := port.FollowedAmong(t.Context(), f.alice, nil); err != nil || len(got) != 0 {
+		t.Fatalf("followed among empty = %v, err = %v", got, err)
+	}
+}
+
 func TestFollowsPort_failures(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -88,6 +110,9 @@ func TestFollowsPort_failures(t *testing.T) {
 	}
 	if _, err := port.FollowedByMe(ctx, f.alice, f.bob); err == nil {
 		t.Fatal("followed lookup on a cancelled context succeeded")
+	}
+	if _, err := port.FollowedAmong(ctx, f.alice, []ids.UserID{f.bob}); err == nil {
+		t.Fatal("followed among on a cancelled context succeeded")
 	}
 	if _, err := port.FollowingIDs(ctx, f.alice); err == nil {
 		t.Fatal("following ids on a cancelled context succeeded")
