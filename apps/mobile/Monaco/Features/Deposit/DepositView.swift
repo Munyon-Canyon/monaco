@@ -137,26 +137,38 @@ struct DepositContent: View {
     let onRetryAddress: () -> Void
     let onRetryBalance: () -> Void
 
+    enum Section: Hashable { case balance, address, howItWorks }
+    static let order: [Section] = [.balance, .address, .howItWorks]
+
     static let steps = [
-        "Send USDC to the address above from an exchange or another app.",
-        "Your account balance updates a few seconds after it arrives.",
-        "Fund a cabal to move it into the pot and grow your slice.",
+        "Send USDC on Solana",
+        "It lands in your balance",
+        "Fund a cabal",
     ]
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                DepositAddressCard(content: .resolve(address: address), onCopy: onCopy, onRetry: onRetryAddress)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-
-                MonacoGroupedList {
-                    PlatformBalanceCard(state: state, valueIdentifier: "deposit-screen-balance-value")
-                    if case .failed = state {
-                        balanceFailure
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+                ForEach(Self.order, id: \.self) { section in
+                    switch section {
+                    case .balance:
+                        MonacoGroupedList {
+                            PlatformBalanceCard(state: state, valueIdentifier: "deposit-screen-balance-value")
+                            if case .failed = state {
+                                balanceFailure
+                            }
+                        }
+                    case .address:
+                        DepositAddressCard(
+                            content: .resolve(address: address), onCopy: onCopy, onRetry: onRetryAddress
+                        )
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                    case .howItWorks:
+                        howItWorks
                     }
                 }
-
-                howItWorks
             }
             .padding(.top, MonacoTheme.Space.m)
             .padding(.bottom, MonacoTheme.Space.xl)
@@ -173,27 +185,42 @@ struct DepositContent: View {
     private var howItWorks: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("How it works")
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-
-            MonacoGroupedList {
+            let layout =
+                dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.s))
+            layout {
                 ForEach(Array(Self.steps.enumerated()), id: \.offset) { index, step in
-                    Text(step)
-                        .font(MonacoTheme.Typo.callout)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                        .padding(.vertical, MonacoTheme.Space.sm)
-                        .frame(minHeight: 52)
-                        .overlay(alignment: .bottom) {
-                            if index < Self.steps.count - 1 {
-                                MonacoRule()
-                                    .padding(.leading, MonacoTheme.Space.gutter)
-                            }
-                        }
+                    stepView(number: index + 1, label: step)
                 }
             }
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("deposit-how-it-works")
+    }
+
+    private func stepView(number: Int, label: String) -> some View {
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let inner =
+            (stacked
+                ? AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
+                : AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs)))
+        return inner {
+            Text("\(number)")
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.ink)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(MonacoTheme.muted.opacity(0.15)))
+                .accessibilityHidden(true)
+            Text(label)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(number): \(label)")
     }
 }
 

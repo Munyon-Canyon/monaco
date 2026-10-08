@@ -1,6 +1,7 @@
 import CoreImage
 import Foundation
 import MonacoAPI
+import MonacoCore
 import Testing
 
 @testable import Monaco
@@ -58,5 +59,30 @@ extension DepositAddressTests {
         )
         let messages = detector.features(in: padded).compactMap { ($0 as? CIQRCodeFeature)?.messageString }
         #expect(messages == [address])
+    }
+}
+
+struct DepositContentLayoutTests {
+    private func balance(_ micros: Int64) -> AccountBalance {
+        AccountBalance(
+            availableMicros: micros, onChainMicros: micros, inFlightMicros: 0, depositAddress: "x", asOf: Date())
+    }
+
+    @Test func theBalanceComesBeforeTheAddressAndTheStepper() {
+        #expect(DepositContent.order == [.balance, .address, .howItWorks])
+    }
+
+    @Test func theStepperIsThreeShortSteps() {
+        #expect(DepositContent.steps == ["Send USDC on Solana", "It lands in your balance", "Fund a cabal"])
+    }
+
+    @Test func aCreditedDepositChangesTheShownBalance() {
+        let before = PlatformBalanceCard(state: .loaded(balance(1_230_000))).display
+        let after = PlatformBalanceCard(state: .loaded(balance(6_230_000))).display
+        #expect(before == .amount(1_230_000))
+        #expect(after == .amount(6_230_000))
+        #expect(
+            BalanceChange.detect(previous: balance(1_230_000), current: balance(6_230_000))
+                == .deposited(5_000_000))
     }
 }
