@@ -76,8 +76,10 @@ struct EditCabalView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
-                Button(model.isSaving ? EditCabalCopy.saving : EditCabalCopy.save) {
+                Button {
                     Task { await save() }
+                } label: {
+                    SubmitLabel(isWorking: model.isSaving, idle: EditCabalCopy.save, working: EditCabalCopy.saving)
                 }
                 .buttonStyle(.monacoPrimary)
                 .disabled(!canSave)

@@ -77,8 +77,10 @@ private struct JoinCabalForm: View {
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
-                Button(model.actionTitle) {
+                Button {
                     Task { await join() }
+                } label: {
+                    SubmitLabel(isWorking: model.isSubmitting, idle: model.actionTitle, working: model.actionTitle)
                 }
                 .buttonStyle(.monacoPrimary)
                 .disabled(!model.canSubmit)
