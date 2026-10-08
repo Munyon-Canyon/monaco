@@ -56,7 +56,7 @@ struct FollowListView: View {
     @ViewBuilder private var content: some View {
         switch phase {
         case .loading:
-            BoardRowSkeleton(rows: 3)
+            MonacoRowSkeleton(rows: 3, markShape: .circle)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading \(title)")
                 .accessibilityIdentifier("follow-list-loading")
@@ -100,7 +100,7 @@ struct FollowListView: View {
                 }
             }
             if loadingMore {
-                BoardRowSkeleton(rows: 1)
+                MonacoRowSkeleton(rows: 1, markShape: .circle)
             }
         }
     }

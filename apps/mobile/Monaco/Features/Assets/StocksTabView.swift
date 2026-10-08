@@ -84,7 +84,7 @@ private struct StocksTabScreen: View {
         } else {
             switch model.phase {
             case .idle, .loading:
-                BoardRowSkeleton()
+                StockRowSkeleton()
             case .failed:
                 MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
             case .loaded:

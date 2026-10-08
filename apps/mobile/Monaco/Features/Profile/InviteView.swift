@@ -84,7 +84,7 @@ struct InviteContent: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .idle, .loading, .pending:
-            BoardRowSkeleton(rows: 2)
+            SkeletonBlock(height: 120, radius: MonacoTheme.Radius.card)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading your invite link")
         case .failed:

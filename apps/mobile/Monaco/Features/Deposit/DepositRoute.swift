@@ -35,8 +35,10 @@ struct DepositCompleteView: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
-        ProgressView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        AmountEntrySkeleton()
+            .padding(.top, MonacoTheme.Space.xl)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .monacoCanvas()
             .task {
                 environment.navigator.homePath.removeAll()

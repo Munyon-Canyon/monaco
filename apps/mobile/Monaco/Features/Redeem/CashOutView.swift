@@ -72,7 +72,7 @@ struct CashOutContent: View {
     @ViewBuilder private var content: some View {
         if let runningJob, let progress = runningJob.progress {
             VStack(spacing: MonacoTheme.Space.m) {
-                ProgressView()
+                AmountEntrySkeleton()
                 Text(progress)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.ink)

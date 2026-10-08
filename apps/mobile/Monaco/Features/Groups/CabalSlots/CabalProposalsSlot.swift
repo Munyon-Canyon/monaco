@@ -32,7 +32,7 @@ struct CabalProposals: View {
             if let model {
                 switch model.pager.phase {
                 case .loadingFirst where model.pager.items.isEmpty:
-                    SkeletonBlock(width: 280, height: 160, radius: MonacoTheme.Radius.card)
+                    ProposalCardSkeleton()
                 case .failed where model.pager.items.isEmpty:
                     MonacoErrorRow(thing: "votes", identifier: "cabal-votes-error") { Task { await model.load() } }
                 default:
@@ -184,7 +184,7 @@ private struct CabalProposalSegmentList: View {
                 if model.pager.items.isEmpty {
                     switch model.pager.phase {
                     case .idle, .loadingFirst:
-                        SkeletonBlock(width: 280, height: 160, radius: MonacoTheme.Radius.card)
+                        ProposalCardSkeleton()
                     case .failed:
                         MonacoErrorRow(thing: "proposals", identifier: "cabal-proposals-error") {
                             Task { await model.load() }
@@ -209,5 +209,33 @@ private struct CabalProposalSegmentList: View {
         .task { await model.observe(cabalID: cabalID) }
         .task(id: model.pager.items.map(\.id)) { await context.load(for: model.pager.items) }
         .onScreenVisibilityChange { model.setVisible($0) }
+    }
+}
+
+private struct ProposalCardSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                SkeletonBlock(
+                    width: 36, height: 36, radius: 36 * MonacoTheme.Radius.tile / MonacoRowLayout.baseMarkSize)
+                VStack(alignment: .leading, spacing: 6) {
+                    SkeletonBlock(width: 120, height: 14)
+                    SkeletonBlock(width: 64, height: 11)
+                }
+            }
+            SkeletonBlock(width: 140, height: 28)
+            SkeletonBlock(width: 160, height: 12)
+            HStack(spacing: MonacoTheme.Space.s) {
+                SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
+                SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
+            }
+        }
+        .padding(MonacoTheme.Space.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay {
+            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
+        }
+        .accessibilityHidden(true)
     }
 }

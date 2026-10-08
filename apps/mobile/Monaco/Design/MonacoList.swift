@@ -357,6 +357,62 @@ extension ButtonStyle where Self == MonacoRowButtonStyle {
     static var monacoRow: MonacoRowButtonStyle { MonacoRowButtonStyle() }
 }
 
+struct MonacoRowSkeleton: View {
+    enum MarkShape {
+        case tile
+        case circle
+        case none
+    }
+
+    var rows: Int = 3
+    var markShape: MarkShape = .tile
+    var hasTrailing: Bool = true
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var ruleInset: CGFloat {
+        let layout = MonacoRowLayout(dynamicTypeSize: dynamicTypeSize)
+        guard markShape != .none else { return MonacoTheme.Space.m }
+        return layout.separatorLeadingInset
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<rows, id: \.self) { index in
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    mark
+                    VStack(alignment: .leading, spacing: 6) {
+                        SkeletonBlock(width: 132, height: 14)
+                        SkeletonBlock(width: 72, height: 11)
+                    }
+                    Spacer(minLength: MonacoTheme.Space.s)
+                    if hasTrailing {
+                        SkeletonBlock(width: 56, height: 14)
+                    }
+                }
+                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.vertical, 8)
+                .frame(minHeight: MonacoRowLayout.minHeight)
+                .overlay(alignment: .bottom) {
+                    if index < rows - 1 { MonacoRule().padding(.leading, ruleInset) }
+                }
+            }
+        }
+        .overlay(alignment: .top) { MonacoRule() }
+        .overlay(alignment: .bottom) { MonacoRule() }
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var mark: some View {
+        let size = MonacoRowLayout.baseMarkSize
+        switch markShape {
+        case .tile: SkeletonBlock(width: size, height: size, radius: MonacoTheme.Radius.tile)
+        case .circle: SkeletonBlock(width: size, height: size, radius: size / 2)
+        case .none: EmptyView()
+        }
+    }
+}
+
 /// Empty state without an icon: one title, one muted line, an optional secondary action.
 ///
 /// Centred, 24pt all round, and nothing behind it, so it reads the same between a section's
@@ -455,7 +511,7 @@ struct MonacoErrorRow: View {
         }
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, 8)
-        .frame(minHeight: 60)
+        .frame(minHeight: MonacoRowLayout.minHeight)
         .overlay(alignment: .top) { if !onHero { MonacoRule() } }
         .overlay(alignment: .bottom) { if !onHero { MonacoRule() } }
         .accessibilityElement(children: .contain)

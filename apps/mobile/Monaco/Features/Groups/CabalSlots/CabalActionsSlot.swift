@@ -69,7 +69,7 @@ struct CabalActionsRow: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                BoardRowSkeleton(rows: 3)
+                MonacoRowSkeleton(rows: 3, markShape: .tile)
             }
             .accessibilityHidden(true)
         case .hidden, .failed:

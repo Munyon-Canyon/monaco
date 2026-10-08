@@ -272,6 +272,8 @@ struct DepositAddressCard: View {
 
     private var loading: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            SkeletonBlock(width: 200, height: 200, radius: MonacoTheme.Radius.card)
+                .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 SkeletonBlock(height: 16)
                 SkeletonBlock(width: 120, height: 16)

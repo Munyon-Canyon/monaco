@@ -36,9 +36,16 @@ struct ReferralDestination: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .monacoCanvas()
         default:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .monacoCanvas()
+            VStack(spacing: MonacoTheme.Space.sm) {
+                SkeletonBlock(width: 88, height: 88, radius: 44)
+                SkeletonBlock(width: 160, height: 20)
+                SkeletonBlock(width: 96, height: 14)
+            }
+            .padding(.top, MonacoTheme.Space.xl)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .monacoCanvas()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading")
         }
     }
 

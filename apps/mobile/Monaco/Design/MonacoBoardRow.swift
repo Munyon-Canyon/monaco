@@ -142,17 +142,19 @@ struct BoardRow<Leading: View>: View {
     }
 }
 
-/// Placeholder rows in the shape of `BoardRow`: a rank slot, a 40pt face, a name and a figure,
-/// ruled top and bottom like the list they stand in for.
 struct BoardRowSkeleton: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var rows: Int = 3
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0..<rows, id: \.self) { index in
                 HStack(spacing: MonacoTheme.Space.sm) {
-                    SkeletonBlock(width: 18, height: 12)
-                    SkeletonBlock(width: 40, height: 40, radius: 20)
+                    SkeletonBlock(width: 18, height: 12).frame(width: boardRankColumnWidth)
+                    SkeletonBlock(
+                        width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize,
+                        radius: MonacoRowLayout.baseMarkSize / 2)
                     VStack(alignment: .leading, spacing: 6) {
                         SkeletonBlock(width: 132, height: 14)
                         SkeletonBlock(width: 72, height: 11)
@@ -164,10 +166,15 @@ struct BoardRowSkeleton: View {
                     }
                 }
                 .padding(.horizontal, MonacoTheme.Space.m)
-                .padding(.vertical, MonacoTheme.Space.sm)
+                .padding(.vertical, 8)
+                .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {
                     if index < rows - 1 {
-                        MonacoRule().padding(.leading, MonacoTheme.Space.m)
+                        MonacoRule().padding(
+                            .leading,
+                            MonacoRowLayout(dynamicTypeSize: dynamicTypeSize)
+                                .separatorLeadingInset(markSize: MonacoRowLayout.baseMarkSize)
+                                + boardRankColumnWidth + MonacoTheme.Space.sm)
                     }
                 }
             }

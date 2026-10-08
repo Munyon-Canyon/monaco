@@ -141,3 +141,44 @@ enum StockListRow {
     /// row is the wrong way round — the row grows by a line instead.
     static let subtitleLineLimit = 2
 }
+
+struct StockRowSkeleton: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var rows: Int = 6
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<rows, id: \.self) { index in
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    SkeletonBlock(
+                        width: StockListRow.markSize, height: StockListRow.markSize,
+                        radius: StockListRow.markSize / 2)
+                    VStack(alignment: .leading, spacing: 6) {
+                        SkeletonBlock(width: 120, height: 14)
+                        SkeletonBlock(width: 48, height: 11)
+                    }
+                    Spacer(minLength: MonacoTheme.Space.s)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        SkeletonBlock(width: 64, height: 14)
+                        SkeletonBlock(width: 56, height: 22, radius: 11)
+                    }
+                }
+                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.vertical, 8)
+                .frame(minHeight: MonacoRowLayout.minHeight)
+                .overlay(alignment: .bottom) {
+                    if index < rows - 1 {
+                        MonacoRule().padding(
+                            .leading,
+                            MonacoRowLayout(dynamicTypeSize: dynamicTypeSize)
+                                .separatorLeadingInset(markSize: StockListRow.markSize))
+                    }
+                }
+            }
+        }
+        .overlay(alignment: .top) { MonacoRule() }
+        .overlay(alignment: .bottom) { MonacoRule() }
+        .accessibilityHidden(true)
+    }
+}

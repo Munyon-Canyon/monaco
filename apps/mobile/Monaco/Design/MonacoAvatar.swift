@@ -31,11 +31,7 @@ struct MonacoAvatar: View {
                 } else if didFail {
                     placeholder
                 } else {
-                    placeholder.overlay {
-                        ProgressView()
-                            .controlSize(size >= 64 ? .regular : .mini)
-                            .tint(MonacoTheme.muted)
-                    }
+                    placeholder
                 }
             } else {
                 placeholder

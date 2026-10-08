@@ -57,7 +57,7 @@ struct FeedMutesList: View {
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .loading:
-            BoardRowSkeleton(rows: 3)
+            MonacoRowSkeleton(rows: 3, markShape: .circle)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading your mutes")
                 .accessibilityIdentifier("feed-muted-loading")

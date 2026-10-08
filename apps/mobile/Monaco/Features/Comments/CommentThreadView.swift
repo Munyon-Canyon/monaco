@@ -22,7 +22,7 @@ struct CommentThreadView: View {
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .loading:
-            BoardRowSkeleton(rows: 3)
+            MonacoRowSkeleton(rows: 3, markShape: .circle)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading comments")
                 .accessibilityIdentifier("comment-thread-loading")
@@ -64,7 +64,7 @@ struct CommentThreadView: View {
                 }
             }
             if model.isLoadingMore {
-                BoardRowSkeleton(rows: 1)
+                MonacoRowSkeleton(rows: 1, markShape: .circle)
             }
         }
     }

@@ -101,7 +101,7 @@ struct CabalActivityContent: View {
     var body: some View {
         switch model?.phase ?? .loading {
         case .loading:
-            BoardRowSkeleton(rows: skeletonRows)
+            MonacoRowSkeleton(rows: skeletonRows, markShape: .tile)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(CabalActivityCopy.loading)
                 .accessibilityIdentifier("cabal-activity-loading")
@@ -141,7 +141,7 @@ struct CabalActivityContent: View {
                 }
             }
             if loadingMore {
-                BoardRowSkeleton(rows: 1)
+                MonacoRowSkeleton(rows: 1, markShape: .tile)
             }
         }
     }
