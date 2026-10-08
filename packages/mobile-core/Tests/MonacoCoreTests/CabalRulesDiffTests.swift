@@ -36,6 +36,15 @@ final class CabalRulesDiffTests: XCTestCase {
         XCTAssertTrue(patch { $0.joinPolicy = .request }.isEmpty)
     }
 
+    func testSwitchingAnOpenCabalToApprovalSendsRequest() {
+        var open = current
+        open.joinPolicy = .open
+        var edited = open
+        edited.joinPolicy = .request
+        XCTAssertEqual(
+            CabalRulesDiff.patch(from: open, to: edited, creatorID: creatorID), .init(joinMode: "request"))
+    }
+
     func testAThresholdChangeSendsOnlyTheThreshold() {
         XCTAssertEqual(patch { $0.threshold = "majority" }, .init(threshold: "majority"))
     }

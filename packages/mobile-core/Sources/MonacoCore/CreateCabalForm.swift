@@ -104,7 +104,7 @@ public struct CreateCabalInput: Equatable, Sendable {
 
     public init(
         name: String,
-        joinPolicy: CabalJoinPolicy = .request,
+        joinPolicy: CabalJoinPolicy = .open,
         voterMode: CabalVoterMode,
         threshold: CabalThreshold,
         proposalExpirySeconds: Int32
@@ -154,7 +154,7 @@ public struct CreateCabalForm: Equatable, Sendable {
 
     public init(
         name: String = "",
-        joinPolicy: CabalJoinPolicy = .request,
+        joinPolicy: CabalJoinPolicy = .open,
         voterMode: CabalVoterMode = .everyone,
         threshold: CabalThreshold = .majority,
         expiry: CabalProposalExpiry = .oneWeek
