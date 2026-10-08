@@ -63,9 +63,9 @@ private struct CabalValueChart: View {
 
     @ViewBuilder private func loaded(_ model: ValueChartModel) -> some View {
         if let curve = model.curve, curve.hasEnoughHistory {
-            CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) }, onInk: true)
+            CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) })
             CurveScrubChart(
-                curve: curve, range: model.range, onInk: true, selection: $selection,
+                curve: curve, range: model.range, selection: $selection,
                 identifier: "cabal-value-chart")
         } else {
             CabalInkCaption(model.range.shortHistoryLine, id: "cabal-value-chart-short")

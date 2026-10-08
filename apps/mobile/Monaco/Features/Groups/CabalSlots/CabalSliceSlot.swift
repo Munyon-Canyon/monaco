@@ -90,7 +90,7 @@ struct CabalSliceBand: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(MonacoTheme.onHeroMuted)
                     .accessibilityIdentifier("cabal-slice-share")
-                PnLText(dollarPnl: gain, style: .caption, onInk: true)
+                PnLText(dollarPnl: gain, style: .caption)
                     .accessibilityIdentifier("cabal-slice-gain")
             }
         }

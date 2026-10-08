@@ -124,8 +124,6 @@ private struct StocksTabScreen: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .overlay(alignment: .top) { MonacoRule() }
-            .overlay(alignment: .bottom) { MonacoRule() }
         }
     }
 }
@@ -133,63 +131,17 @@ private struct StocksTabScreen: View {
 private struct StocksAssetRow: View {
     let asset: MarketAsset
     var isLast = false
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize { stacked } else { wide }
-        }
-        .padding(.horizontal, StockListRow.horizontalPadding).padding(.vertical, MonacoTheme.Space.s).frame(
-            minHeight: MonacoRowLayout.minHeight
-        )
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                MonacoRule().padding(.leading, StockListRow.textLeading)
-            }
-        }
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-
-    private var wide: some View {
-        HStack(spacing: StockListRow.markGap) {
-            mark
-            names
-            Spacer(minLength: MonacoTheme.Space.s)
-            figures
-        }
-    }
-
-    private var stacked: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            HStack(spacing: StockListRow.markGap) {
-                mark
-                names
-            }
-            figures.frame(maxWidth: .infinity, alignment: .trailing)
-        }
-    }
-
-    private var mark: some View {
-        StockMark(
-            symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, size: StockListRow.markSize,
-            logoURL: asset.logoURL
-        )
-        .frame(width: StockListRow.markSize, height: StockListRow.markSize)
-    }
-
-    private var names: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            Text(asset.ticker).font(MonacoTheme.Typo.bodyStrong)
-            Text(AssetDisplayName.format(catalogName: asset.name, kind: asset.kind))
-                .font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted).lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var figures: some View {
-        VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
-            HStack(spacing: 4) {
+        MarketStockRow(
+            name: AssetDisplayName.format(catalogName: asset.name, kind: asset.kind),
+            subtitle: asset.ticker,
+            mark: StockMark(
+                symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, logoURL: asset.logoURL),
+            isAvailable: asset.isTradable,
+            isLast: isLast
+        ) {
+            HStack(spacing: MonacoTheme.Space.xs) {
                 if !asset.session.isRegularSession {
                     Image(systemName: "moon.fill").font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.warning).accessibilityLabel("Market closed")
@@ -197,13 +149,13 @@ private struct StocksAssetRow: View {
                 if let micros = asset.priceMicros {
                     MoneyText(micros: micros, style: .row)
                 } else {
-                    Text("—").font(MonacoTheme.Typo.bodyStrong).foregroundStyle(MonacoTheme.muted)
+                    Text("—").font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.muted)
                 }
             }
             if let basisPoints = asset.changeBasisPoints {
                 PercentText(basisPoints: basisPoints, style: .caption)
             } else {
-                Text("—").font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
+                Text("—").font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.muted)
             }
         }
     }

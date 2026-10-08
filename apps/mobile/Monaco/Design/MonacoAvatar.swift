@@ -1,14 +1,12 @@
 import MonacoCore
 import SwiftUI
 
-/// Circular profile photo with an initials placeholder. Used on Profile
-/// and board rows.
+/// A member's photo, else their initials in white on a tint picked from their id (the name
+/// when the screen has no id), so a renamed member keeps their colour.
 struct MonacoAvatar: View {
     let photoURL: String?
     let displayName: String
-    var size: CGFloat = 44
-    /// What picks the member's animal when there is no photo: their id where the screen has
-    /// one, so a renamed member keeps their face; the name otherwise.
+    var size: CGFloat = 40
     var seed: String? = nil
 
     private var resolvedURL: URL? {
@@ -39,9 +37,6 @@ struct MonacoAvatar: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .overlay {
-            Circle().strokeBorder(MonacoTheme.hairline, lineWidth: 1)
-        }
         .accessibilityHidden(true)
         .task(id: resolvedURL) {
             await loadPhoto()
@@ -65,19 +60,17 @@ struct MonacoAvatar: View {
         }
     }
 
-    /// One of the pixel animals, on its own wash. Initials used to sit here; a row of grey
-    /// circles with letters in them read as an org chart, and a member without a photo is
-    /// most of a new cabal.
     private var placeholder: some View {
-        Image(animal.imageName)
-            .resizable()
-            .interpolation(.none)
-            .scaledToFill()
-    }
-
-    private var animal: PixelAnimal {
-        let key = (seed ?? "").isEmpty ? displayName : seed!
-        return PixelAnimal.forSeed(key)
+        let key = (seed ?? "").isEmpty ? displayName : seed ?? ""
+        return Circle()
+            .fill(MonacoTheme.CabalTint.forGroupId(key).fill)
+            .overlay {
+                Text(CabalMark.initials(for: displayName))
+                    .font(.system(size: size * 0.4, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
     }
 }
 

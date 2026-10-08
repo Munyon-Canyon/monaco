@@ -5,104 +5,22 @@ struct ProposeStockRow: View {
     var logoURL: URL?
     var isLast = false
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var titleWidthFloor = MonacoRowLayout.baseMinimumTitleWidth
-
     static let markSize: CGFloat = StockListRow.markSize
 
-    private var layout: MonacoRowLayout {
-        MonacoRowLayout(dynamicTypeSize: dynamicTypeSize, scaledTitleWidthFloor: titleWidthFloor)
-    }
-
-    private var caption: String? {
-        if !stock.isTradable { return "\(stock.name) · Can't buy right now" }
-        return stock.name == stock.ticker ? nil : stock.name
-    }
-
     var body: some View {
-        content
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, 8)
-            .frame(minHeight: MonacoRowLayout.minHeight)
-            .contentShape(Rectangle())
-            .overlay(alignment: .bottom) {
-                if !isLast {
-                    MonacoRule()
-                        .padding(.leading, layout.separatorLeadingInset(markSize: Self.markSize))
+        MarketStockRow(
+            name: stock.name,
+            subtitle: stock.name == stock.ticker ? nil : stock.ticker,
+            mark: StockMark(
+                symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, logoURL: logoURL),
+            isAvailable: stock.isTradable,
+            isLast: isLast
+        ) {
+            if let micros = stock.priceMicros {
+                MoneyText(micros: micros, style: .row)
+                if stock.isTradable, stock.change24h != nil {
+                    DayChangePill(change24h: stock.change24h, priceUsdcMicros: micros)
                 }
-            }
-            .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        if layout.isStacked {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                HStack(spacing: MonacoTheme.Space.sm) {
-                    mark
-                    labels
-                }
-                if hasFigures {
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        figures
-                    }
-                }
-            }
-        } else {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                mark
-                labels.frame(minWidth: layout.minimumTitleWidth, alignment: .leading)
-                if hasFigures {
-                    VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
-                        figures
-                    }
-                    .layoutPriority(1)
-                }
-            }
-        }
-    }
-
-    private var mark: some View {
-        StockMark(
-            symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize,
-            logoURL: logoURL
-        )
-        .frame(width: Self.markSize, height: Self.markSize)
-        .opacity(stock.isTradable ? 1 : 0.45)
-    }
-
-    private var labels: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            Text(stock.ticker)
-                .font(MonacoTheme.Typo.ticker)
-                .foregroundStyle(stock.isTradable ? MonacoTheme.ink : MonacoTheme.disabledLabel)
-                .lineLimit(layout.titleLineLimit)
-                .truncationMode(.tail)
-            if let caption {
-                Text(caption)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .lineLimit(layout.subtitleLineLimit)
-                    .truncationMode(.tail)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var hasFigures: Bool {
-        stock.priceMicros != nil
-    }
-
-    @ViewBuilder
-    private var figures: some View {
-        if let micros = stock.priceMicros {
-            MoneyText(
-                micros: micros,
-                style: .row,
-                color: stock.isTradable ? MonacoTheme.ink : MonacoTheme.disabledLabel
-            )
-            if stock.isTradable, stock.change24h != nil {
-                DayChangePill(change24h: stock.change24h, priceUsdcMicros: micros)
             }
         }
     }

@@ -103,7 +103,6 @@ private struct CabalHero: View {
                     groupId: cabal.id,
                     name: cabal.name,
                     size: 48,
-                    onInk: true,
                     pictureUrl: cabal.pictureUrl,
                     accessibilityLabel: cabal.pictureUrl == nil ? nil : "\(cabal.name) picture"
                 )
@@ -164,7 +163,6 @@ private struct CreatorPictureTile: View {
             name: cabal.name,
             canEdit: true,
             size: 48,
-            onInk: true,
             onResult: onResult,
             editor: editor
         )

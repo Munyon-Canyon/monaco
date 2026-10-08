@@ -14,7 +14,6 @@ struct CabalPicturePicker: View {
     /// Only the creator is offered the controls. The server checks again anyway.
     let canEdit: Bool
     var size: CGFloat = 36
-    var onInk: Bool = false
     /// Reports results so the host screen can toast them.
     var onResult: (MonacoToast) -> Void = { _ in }
 
@@ -45,7 +44,6 @@ struct CabalPicturePicker: View {
                     groupId: groupId,
                     name: name,
                     size: size,
-                    onInk: onInk,
                     pictureUrl: editor.pictureUrl,
                     accessibilityLabel: readOnlyAccessibilityLabel
                 )
@@ -65,13 +63,11 @@ struct CabalPicturePicker: View {
         let groupId = groupId
         let name = name
         let size = size
-        let onInk = onInk
         return PhotosPicker(selection: $selection, matching: .images, photoLibrary: .shared()) {
             CabalPictureLabel(
                 groupId: groupId,
                 name: name,
                 size: size,
-                onInk: onInk,
                 pictureUrl: pictureUrl,
                 isWorking: isWorking
             )
@@ -156,7 +152,6 @@ private struct CabalPictureLabel: View {
     let groupId: String
     let name: String
     let size: CGFloat
-    let onInk: Bool
     let pictureUrl: String?
     let isWorking: Bool
 
@@ -164,14 +159,12 @@ private struct CabalPictureLabel: View {
         groupId: String,
         name: String,
         size: CGFloat,
-        onInk: Bool,
         pictureUrl: String?,
         isWorking: Bool
     ) {
         self.groupId = groupId
         self.name = name
         self.size = size
-        self.onInk = onInk
         self.pictureUrl = pictureUrl
         self.isWorking = isWorking
     }
@@ -182,13 +175,12 @@ private struct CabalPictureLabel: View {
                 groupId: groupId,
                 name: name,
                 size: size,
-                onInk: onInk,
                 pictureUrl: pictureUrl
             )
             .overlay {
                 if isWorking {
                     // The mark's own corner, so the veil covers the tile and nothing else.
-                    RoundedRectangle(cornerRadius: size * MonacoTheme.Radius.tile / 44, style: .continuous)
+                    RoundedRectangle(cornerRadius: size * MonacoTheme.Radius.tile / 40, style: .continuous)
                         .fill(MonacoTheme.canvas.opacity(0.6))
                     ProgressView()
                         .controlSize(size >= 64 ? .regular : .mini)
@@ -199,16 +191,15 @@ private struct CabalPictureLabel: View {
         }
     }
 
-    /// The camera on the mark's corner. On the hero's ink it is paper with an ink glyph: in the
-    /// brand fill it was ink on ink, and only its ring showed. Off the hero it is the brand fill.
+    /// The camera on the mark's corner, in the brand fill.
     private var cameraBadge: some View {
         let diameter = max(18, size * 0.44)
         return Image(systemName: "camera.fill")
             .font(.system(size: max(9, size * 0.22), weight: .semibold))
-            .foregroundStyle(onInk ? MonacoTheme.heroInk : MonacoTheme.primaryButtonLabel)
+            .foregroundStyle(MonacoTheme.primaryButtonLabel)
             .frame(width: diameter, height: diameter)
-            .background(onInk ? MonacoTheme.onHero : MonacoTheme.primaryButtonFill, in: Circle())
-            .overlay { Circle().strokeBorder(onInk ? MonacoTheme.heroInk : MonacoTheme.canvas, lineWidth: 1.5) }
+            .background(MonacoTheme.primaryButtonFill, in: Circle())
+            .overlay { Circle().strokeBorder(MonacoTheme.canvas, lineWidth: 1.5) }
             .offset(x: 5, y: 5)
     }
 }

@@ -204,19 +204,11 @@ private struct GalleryMoneyPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    Text("Your money in cabals")
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                    MoneyText(ticking, style: .hero)
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        PnLBadge(dollarPnl: "+48.20", percentReturn: "0.096")
-                        Text("all time")
-                            .font(MonacoTheme.Typo.caption)
-                            .foregroundStyle(MonacoTheme.muted)
-                    }
-                }
-                .accessibilityElement(children: .combine)
+                MoneyHero(
+                    label: "In cabals", value: UsdAmountFormatter.format(decimal: ticking), dollarChange: "+48.20",
+                    percentChange: "0.096")
+                MoneyHero(label: "Pot", value: "$0.00")
+                MoneyHero(label: "Amount", value: "$50", alignment: .center)
 
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     MonacoSectionHeader("Hero")

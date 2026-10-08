@@ -124,28 +124,23 @@ struct MoneyText: View {
 struct PnLText: View {
     private let dollarPnl: String
     private let style: MoneyStyle
-    private let onInk: Bool
 
-    /// `onInk` switches to the saturated pair for figures on a deep ink hero card.
-    init(dollarPnl: String, style: MoneyStyle, onInk: Bool = false) {
+    init(dollarPnl: String, style: MoneyStyle) {
         self.dollarPnl = dollarPnl
         self.style = style
-        self.onInk = onInk
     }
 
-    init(signedMicros: Int64, style: MoneyStyle, onInk: Bool = false) {
+    init(signedMicros: Int64, style: MoneyStyle) {
         self.dollarPnl = UsdAmountFormatter.format(signedMicros: signedMicros)
         self.style = style
-        self.onInk = onInk
     }
 
     var body: some View {
-        let tone = PnLTone(dollarPnl: dollarPnl)
-        return MoneyFigure(
+        MoneyFigure(
             text: SignedUsdFormatter.format(dollarPnl),
             value: SignedUsdFormatter.parse(dollarPnl).map { ($0 as NSDecimalNumber).doubleValue },
             style: style,
-            color: onInk ? tone.inkCardColor : tone.color
+            color: PnLTone(dollarPnl: dollarPnl).color
         )
         .accessibilityLabel(PnLSpeech.dollars(dollarPnl))
     }
@@ -177,58 +172,80 @@ struct PercentText: View {
     }
 }
 
-/// Capsule on the profit/loss wash: "▲ $48.20 · 9.6%". Dollars only when the percent is missing.
+/// A gain or a loss as coloured text, never a capsule: "+$48.20 (+9.6%)". Dollars only when the
+/// percent is missing.
 struct PnLBadge: View {
     private let dollarPnl: String
     private let percentReturn: String?
     private let style: MoneyStyle
-    private let onInk: Bool
 
-    /// `onInk` switches to the vivid pair and a wash that reads on a deep ink hero card.
-    init(dollarPnl: String, percentReturn: String?, style: MoneyStyle = .caption, onInk: Bool = false) {
+    init(dollarPnl: String, percentReturn: String?, style: MoneyStyle = .caption) {
         self.dollarPnl = dollarPnl
         self.percentReturn = percentReturn
         self.style = style
-        self.onInk = onInk
     }
 
-    init(signedMicros: Int64, basisPoints: Int64, style: MoneyStyle = .caption, onInk: Bool = false) {
+    init(signedMicros: Int64, basisPoints: Int64, style: MoneyStyle = .caption) {
         self.dollarPnl = UsdAmountFormatter.format(signedMicros: signedMicros)
         self.percentReturn = PercentFormatter.format(basisPoints: basisPoints, signed: true)
         self.style = style
-        self.onInk = onInk
     }
 
-    private var tone: PnLTone { PnLTone(dollarPnl: dollarPnl) }
-
-    private var label: String {
+    static func label(dollarPnl: String, percentReturn: String?) -> String {
         let dollars = SignedUsdFormatter.format(dollarPnl)
-        let magnitude = dollars.drop(while: { $0 == "+" || $0 == "\u{2212}" })
-        var parts = [String(magnitude)]
         let percent = PercentReturnFormatter.format(percentReturn)
-        if percent != "—" {
-            parts.append(String(percent.drop(while: { $0 == "+" || $0 == "\u{2212}" })))
-        }
-        let body = parts.joined(separator: " · ")
-        switch tone {
-        case .profit: return "▲ " + body
-        case .loss: return "▼ " + body
-        case .flat: return body
-        }
+        return percent == "—" ? dollars : "\(dollars) (\(percent))"
     }
 
     var body: some View {
-        Text(label)
-            .moneyFont(style, weight: .semibold)
-            .foregroundStyle(onInk ? tone.inkCardColor : tone.washColor)
+        Text(Self.label(dollarPnl: dollarPnl, percentReturn: percentReturn))
+            .moneyFont(style)
+            .foregroundStyle(PnLTone(dollarPnl: dollarPnl).color)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .padding(.horizontal, style == .caption ? MonacoTheme.Space.s : MonacoTheme.Space.sm)
-            .padding(.vertical, MonacoTheme.Space.xs)
-            .background(Capsule().fill(onInk ? tone.inkCardWash : tone.wash))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Profit and loss")
             .accessibilityValue(PnLSpeech.badge(dollarPnl: dollarPnl, percentReturn: percentReturn))
+    }
+}
+
+/// "In cabals" / "$1,248.50" / "+$48.20 (+9.6%) All time"; a missing change reads "$0.00 (0.0%)".
+struct MoneyHero: View {
+    let label: String
+    let value: String
+    var dollarChange: String?
+    var percentChange: String?
+    var period = "All time"
+    var alignment: HorizontalAlignment = .leading
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var change: String {
+        guard let dollarChange else { return "$0.00 (0.0%)" }
+        return PnLBadge.label(dollarPnl: dollarChange, percentReturn: percentChange)
+    }
+
+    var body: some View {
+        VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
+            Text(label)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+            Text(value)
+                .moneyFont(.hero)
+                .foregroundStyle(MonacoTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+                .contentTransition(reduceMotion ? .identity : .numericText())
+                .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: value)
+                .modifier(HeroTypeCap(isHero: true))
+            (Text(change).foregroundStyle(PnLTone(dollarPnl: dollarChange ?? "0").color)
+                + Text(" \(period)").foregroundStyle(MonacoTheme.secondaryText))
+                .moneyFont(.caption)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+        .accessibilityElement(children: .combine)
     }
 }
 

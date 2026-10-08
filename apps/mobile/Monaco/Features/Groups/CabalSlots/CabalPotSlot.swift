@@ -80,26 +80,12 @@ struct CabalPotBand: View {
 private struct AllTimeChip: View {
     let allTime: String
 
-    private var tone: PnLTone { PnLTone(dollarPnl: allTime) }
-
-    private var label: String {
-        let magnitude = allTime.drop(while: { $0 == "+" || $0 == "\u{2212}" })
-        return switch tone {
-        case .profit: "▲ \(magnitude) · all time"
-        case .loss: "▼ \(magnitude) · all time"
-        case .flat: "\(magnitude) · all time"
-        }
-    }
-
     var body: some View {
-        Text(label)
-            .moneyFont(.caption, weight: .semibold)
-            .foregroundStyle(tone.inkCardColor)
+        (Text(allTime).foregroundStyle(PnLTone(dollarPnl: allTime).color)
+            + Text(" All time").foregroundStyle(MonacoTheme.secondaryText))
+            .moneyFont(.caption)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, MonacoTheme.Space.sm)
-            .padding(.vertical, MonacoTheme.Space.xs)
-            .background(Capsule().fill(tone.inkCardWash))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("All-time gain")
             .accessibilityValue(allTime)

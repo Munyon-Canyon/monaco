@@ -22,7 +22,7 @@ struct MonacoScrubChart: View {
 
     /// Ascending by date.
     let points: [Point]
-    /// Gain/loss colour for the line and the area under it.
+    /// Gain/loss colour for the line.
     var tint: Color
     /// Where the dashed rule goes — the previous session's close. Nil draws no rule.
     var baseline: Double?
@@ -50,7 +50,6 @@ struct MonacoScrubChart: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scrubSelectionPersists) private var selectionPersists
     @State private var drawProgress: CGFloat = 0
-    @State private var areaOpacity: Double = 0
     @State private var dotOpacity: Double = 0
     /// Whether this view has ever played its draw-on. It is per-view state, so it
     /// survives a push and a pop: coming back from a cancelled propose flow must not
@@ -83,6 +82,7 @@ struct MonacoScrubChart: View {
     var body: some View {
         chart
             .frame(height: height)
+            .monacoBleed()
             .onChange(of: drawOnKey) { _, _ in replayDrawOn() }
             .onAppear { if !hasDrawn { replayDrawOn() } }
             // A tick per sample the finger crosses, which is what makes a drag feel
@@ -112,40 +112,30 @@ struct MonacoScrubChart: View {
             if let baseline {
                 RuleMark(y: .value("Previous close", baseline))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 5]))
-                    .foregroundStyle(MonacoTheme.muted.opacity(0.55))
+                    .foregroundStyle(MonacoTheme.tertiaryText)
             }
             // By index, not by date: two samples at one instant would be two marks
             // with one identity. `AssetChartSeries` already collapses repeats, and
             // this keeps the component honest for any other series passed to it.
             ForEach(points.indices, id: \.self) { index in
-                AreaMark(
-                    x: .value("Time", points[index].date),
-                    yStart: .value("Floor", domain.lowerBound),
-                    yEnd: .value("Price", points[index].value)
-                )
-                .foregroundStyle(areaGradient)
-                .opacity(areaOpacity)
-                // Monotone, not Catmull-Rom: a sparse series must not draw peaks the
-                // data never had.
-                .interpolationMethod(.monotone)
-
                 LineMark(
                     x: .value("Time", points[index].date),
                     y: .value("Price", points[index].value)
                 )
                 .foregroundStyle(tint)
-                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                // Monotone, not Catmull-Rom: a sparse series must not draw peaks the data never had.
                 .interpolationMethod(.monotone)
             }
             if let selectedPoint {
                 RuleMark(x: .value("Time", selectedPoint.date))
                     .lineStyle(StrokeStyle(lineWidth: 1))
-                    .foregroundStyle(MonacoTheme.ink.opacity(0.35))
+                    .foregroundStyle(MonacoTheme.secondaryText)
                 PointMark(
                     x: .value("Time", selectedPoint.date),
                     y: .value("Price", selectedPoint.value)
                 )
-                .symbolSize(120)
+                .symbolSize(36)
                 .foregroundStyle(tint)
             }
         }
@@ -218,19 +208,9 @@ struct MonacoScrubChart: View {
             }
     }
 
-    private var areaGradient: LinearGradient {
-        LinearGradient(
-            colors: [tint.opacity(0.26), tint.opacity(0)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
     // MARK: - Motion
 
-    /// The curve is revealed left to right. A mask rather than a `trim`, because the
-    /// area fill under the line has to be revealed with it — trimming a filled shape
-    /// leaves the fill behind and the line drawing over nothing.
+    /// The curve is revealed left to right by a mask, which also carries the scrub marks.
     private var drawOnMask: some View {
         GeometryReader { geometry in
             Rectangle()
@@ -244,24 +224,20 @@ struct MonacoScrubChart: View {
         // selection does, so the sample being read would vanish mid-read.
         guard !reduceMotion, selection == nil else {
             drawProgress = 1
-            areaOpacity = 1
             dotOpacity = 1
             return
         }
         drawProgress = 0
-        areaOpacity = 0
         dotOpacity = 0
-        withAnimation(.easeOut(duration: 0.45)) { drawProgress = 1 }
-        // The wash follows the line rather than racing it.
-        withAnimation(.easeOut(duration: 0.4).delay(0.1)) { areaOpacity = 1 }
-        // And the dot arrives with the end of the line. It cannot be read off
+        withAnimation(.easeOut(duration: 0.6)) { drawProgress = 1 }
+        // The dot arrives with the end of the line. It cannot be read off
         // `drawProgress`: that is set to its target synchronously inside
         // `withAnimation`, so a body reading it sees 1 immediately and the dot pops
         // in at the *start* of the wipe.
-        withAnimation(.easeOut(duration: 0.15).delay(0.45)) { dotOpacity = 1 }
+        withAnimation(.easeOut(duration: 0.15).delay(0.6)) { dotOpacity = 1 }
     }
 
-    /// The dot at the end of the line, with a slow halo while the price behind it is
+    /// The dot at the end of the line, pulsing while the price behind it is
     /// still moving. Static under Reduce Motion, and absent when nothing is live —
     /// the pulse is a claim that the number is current, so it must not be decoration.
     @ViewBuilder
@@ -273,14 +249,19 @@ struct MonacoScrubChart: View {
         {
             let plot = geometry[plotAnchor]
             ZStack {
-                Circle()
-                    .fill(tint.opacity(0.28))
-                    .frame(width: 20, height: 20)
-                    .opacityLoop(to: 0.15, halfPeriod: 1.6, active: isLive && !reduceMotion)
-                    .opacity(isLive ? 1 : 0)
+                if isLive && !reduceMotion {
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 6, height: 6)
+                        .phaseAnimator([false, true]) { halo, expanded in
+                            halo.scaleEffect(expanded ? 1.6 : 1).opacity(expanded ? 0 : 1)
+                        } animation: { expanded in
+                            expanded ? .easeOut(duration: 1.5) : nil
+                        }
+                }
                 Circle()
                     .fill(tint)
-                    .frame(width: 7, height: 7)
+                    .frame(width: 6, height: 6)
             }
             .position(x: plot.minX + x, y: plot.minY + y)
             .opacity(dotOpacity)

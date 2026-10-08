@@ -105,11 +105,8 @@ private struct HomePortfolioHero: View {
     @ViewBuilder private func chip(_ summary: PortfolioSummary) -> some View {
         if summary.isEmpty {
             Text("\(summary.chip) · all time")
-                .moneyFont(.caption, weight: .semibold)
-                .foregroundStyle(MonacoTheme.muted)
-                .padding(.horizontal, MonacoTheme.Space.s)
-                .padding(.vertical, MonacoTheme.Space.xs)
-                .background(Capsule().fill(MonacoTheme.surfaceSunken))
+                .moneyFont(.caption)
+                .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("home-portfolio-chip")
         } else {
             HStack(spacing: MonacoTheme.Space.s) {

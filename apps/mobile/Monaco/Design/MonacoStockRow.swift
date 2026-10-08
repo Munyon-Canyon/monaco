@@ -56,8 +56,8 @@ extension PnLTone {
     }
 }
 
-/// The filled capsule on the right of a market row: "+1.24%", or "+$2.84" once
-/// tapped. Tapping toggles every pill in the app.
+/// The day change under a price, as coloured text: "+1.24%", or "+$2.84" once tapped. Tapping
+/// toggles every one in the app.
 struct DayChangePill: View {
     let change24h: String?
     let priceUsdcMicros: Int64?
@@ -82,28 +82,20 @@ struct DayChangePill: View {
 
     private var isReadable: Bool { percentText != "—" }
 
-    /// How far the hit area reaches past the drawn capsule on each side.
-    ///
-    /// The capsule is about 22pt tall, which is the right size to read and the
-    /// wrong size to hit — under the HIG's 44pt minimum, and the UI test that opens
-    /// a stock had to aim a quarter of the way into the row to miss it. The padding
-    /// is applied for hit testing and then taken straight back off, so the target
-    /// grows without the row growing with it.
-    private static let tapTargetPadding: CGFloat = 11
+    /// The text is about 20pt tall; the hit area reaches 12pt past it on each side to make 44,
+    /// and the padding is taken straight back off so the row does not grow.
+    private static let tapTargetPadding = MonacoTheme.Space.sm
 
     var body: some View {
         Text(label)
-            .moneyFont(style, weight: .semibold)
-            .foregroundStyle(isReadable ? tone.washColor : MonacoTheme.muted)
+            .moneyFont(style)
+            .foregroundStyle(isReadable ? tone.color : MonacoTheme.muted)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .padding(.horizontal, style == .caption ? MonacoTheme.Space.s : MonacoTheme.Space.sm)
-            .padding(.vertical, MonacoTheme.Space.xs)
-            .background(Capsule().fill(isReadable ? tone.wash : MonacoTheme.surfaceSunken))
             .padding(DayChangePill.tapTargetPadding)
             .contentShape(Rectangle())
             // A plain tap gesture inside a row-sized Button is swallowed by the row.
-            // A high-priority one is not, which is what lets the pill be its own
+            // A high-priority one is not, which is what lets the change be its own
             // control without the row being taken apart into two hit areas.
             .highPriorityGesture(TapGesture().onEnded { toggle() })
             .padding(-DayChangePill.tapTargetPadding)
@@ -127,6 +119,26 @@ enum DayChangeSpeech {
             let dollars = DayChangeFigures.dollarDelta(change24h: change24h, priceUsdcMicros: priceUsdcMicros)
         else { return percent }
         return PnLSpeech.dollars(dollars)
+    }
+}
+
+/// A stock in a list: logo, company name over ticker, a figure over its change, no chevron. One the
+/// member cannot buy sits at 45% and says so.
+struct MarketStockRow<Figures: View>: View {
+    let name: String
+    let subtitle: String?
+    let mark: StockMark
+    var isAvailable = true
+    var isLast = false
+    @ViewBuilder let figures: Figures
+
+    var body: some View {
+        MonacoRow(title: name, subtitle: isAvailable ? subtitle : "Can't buy right now", isLast: isLast) {
+            mark
+        } trailing: {
+            figures
+        }
+        .opacity(isAvailable ? 1 : 0.45)
     }
 }
 
@@ -167,11 +179,11 @@ struct StockRowSkeleton: View {
                     Spacer(minLength: MonacoTheme.Space.s)
                     VStack(alignment: .trailing, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 64, height: 14)
-                        SkeletonBlock(width: 56, height: 22, radius: 11)
+                        SkeletonBlock(width: 48, height: 11)
                     }
                 }
                 .padding(.horizontal, StockListRow.horizontalPadding)
-                .padding(.vertical, 8)
+                .padding(.vertical, MonacoTheme.Space.sm)
                 .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {
                     if index < rows - 1 {
@@ -183,8 +195,6 @@ struct StockRowSkeleton: View {
                 }
             }
         }
-        .overlay(alignment: .top) { MonacoRule() }
-        .overlay(alignment: .bottom) { MonacoRule() }
         .accessibilityHidden(true)
     }
 }

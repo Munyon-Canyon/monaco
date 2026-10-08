@@ -125,6 +125,10 @@ extension View {
             .toolbarBackground(.visible, for: .navigationBar)
     }
 
+    func monacoBleed() -> some View {
+        padding(.horizontal, -MonacoTheme.Space.gutter)
+    }
+
     /// Toolbar / nav bar SF Symbol: 17pt semibold, ink, monochrome.
     func monacoToolbarIcon() -> some View {
         font(MonacoTheme.Typo.headline)
