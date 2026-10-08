@@ -104,7 +104,7 @@ struct ChatThreadScreen: View {
         } else if let loadingParent {
             VStack(alignment: .leading, spacing: 0) {
                 ChatThreadParent(parent: loadingParent, openProfile: openProfile)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 ChatSkeleton(bottomAligned: false)
             }
         } else {
@@ -199,7 +199,7 @@ struct ChatThreadList: View {
                     }
                     Color.clear.frame(height: 1).id(Self.bottomAnchor)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.bottom, 12)
             }
             .scrollDismissesKeyboard(.interactively)

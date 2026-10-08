@@ -44,7 +44,8 @@ struct ProposeAmountScreen: View {
                     Text(message).foregroundStyle(MonacoTheme.loss)
                 }
             }
-            .padding(MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.m)
         }
         .monacoCanvas()
         .navigationTitle("Amount")

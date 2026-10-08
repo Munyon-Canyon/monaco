@@ -166,7 +166,7 @@ private struct BotTermRow: View {
         .frame(minHeight: 56)
         .overlay(alignment: .bottom) {
             if !isLast {
-                MonacoRule().padding(.leading, MonacoTheme.Space.m + ProposeGlyph.noteSize + MonacoTheme.Space.sm)
+                MonacoRule().padding(.leading, MonacoTheme.Space.gutter + ProposeGlyph.noteSize + MonacoTheme.Space.sm)
             }
         }
         .accessibilityElement(children: .combine)

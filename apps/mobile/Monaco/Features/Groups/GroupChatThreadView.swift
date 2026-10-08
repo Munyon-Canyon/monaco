@@ -40,7 +40,7 @@ struct GroupChatThreadView: View {
                     }
                     Color.clear.frame(height: 1).id(Self.bottomAnchor)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.bottom, 12)
             }
             .defaultScrollAnchor(.bottom, for: .initialOffset)
