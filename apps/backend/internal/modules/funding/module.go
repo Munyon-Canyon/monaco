@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
@@ -53,7 +54,17 @@ func (m *Module) Mount(r api.Mount) {
 		Reads:       m.deps.Pool,
 		IDs:         m.deps.IDs,
 		Withdrawals: app.NewWithdrawHandler(m.withdrawDeps(wallets)),
+		Pause:       app.NewPauseCabalHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.deps.Bus),
+		Resume:      app.NewResumeCabalHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
+		Cabals:      cabalExists{cabal.New(m.deps).Queries()},
 	}, r)
+}
+
+type cabalExists struct{ cabals cabalport.ViewReader }
+
+func (c cabalExists) Exists(ctx context.Context, id ids.CabalID) error {
+	_, err := c.cabals.Cabal(ctx, id)
+	return err
 }
 
 func (m *Module) Wire(set module.Set) {

@@ -2,11 +2,13 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
@@ -16,10 +18,11 @@ import (
 )
 
 type PauseCabal struct {
-	CabalID *ids.CabalID
-	Reason  domain.PauseReason
-	Note    string
-	Actor   *ids.UserID
+	CabalID     *ids.CabalID
+	Reason      domain.PauseReason
+	Note        string
+	Actor       *ids.UserID
+	AdminAction *events.AdminAction
 }
 
 type PauseCabalHandler struct {
@@ -36,7 +39,7 @@ func NewPauseCabalHandler(uow *db.UnitOfWork, g ids.Generator, c clock.Clock, hi
 func (h *PauseCabalHandler) Handle(ctx context.Context, cmd PauseCabal) (uuid.UUID, error) {
 	p := newPause{
 		id: h.ids.NewV7(), scope: pauseScope{cabal: cmd.CabalID}, reason: cmd.Reason, note: cmd.Note,
-		actor: cmd.Actor, at: h.clock.Now(),
+		actor: cmd.Actor, at: h.clock.Now(), admin: cmd.AdminAction,
 	}
 	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		return writePause(ctx, tx, p, h.hints)
@@ -52,6 +55,7 @@ type newPause struct {
 	actor           *ids.UserID
 	externalDeposit uuid.UUID
 	at              time.Time
+	admin           *events.AdminAction
 }
 
 func writePause(ctx context.Context, tx db.Tx, p newPause, hints HintPublisher) error {
@@ -59,6 +63,9 @@ func writePause(ctx context.Context, tx db.Tx, p newPause, hints HintPublisher) 
 	before, err := lockScope(ctx, q, p.scope)
 	if err != nil {
 		return err
+	}
+	if p.admin != nil && slices.Contains(before, string(domain.PauseReasonOps)) {
+		return errs.New(errs.CodeAlreadyPaused, "funding.PauseCabal.Handle", slog.String("scope", p.scope.key()))
 	}
 	if err := q.InsertPause(ctx, sqlc.InsertPauseParams{
 		ID: p.id, CabalID: p.scope.row(), Reason: string(p.reason), Note: p.note,
@@ -75,6 +82,12 @@ func writePause(ctx context.Context, tx db.Tx, p newPause, hints HintPublisher) 
 			return err
 		}
 	}
-	afterCommitPauseChanged(tx, p.scope, before, append(slices.Clone(before), string(p.reason)), hints)
+	after := append(slices.Clone(before), string(p.reason))
+	if p.admin != nil {
+		if err := appendAdminAction(ctx, tx, *p.admin, before, after); err != nil {
+			return err
+		}
+	}
+	afterCommitPauseChanged(tx, p.scope, before, after, hints)
 	return nil
 }

@@ -17,6 +17,10 @@ import (
 
 var _ api.StrictServerInterface = HTTP{}
 
+type CabalExists interface {
+	Exists(ctx context.Context, id ids.CabalID) error
+}
+
 type HTTP struct {
 	Balances    port.DisplayBalances
 	Wallets     app.MemberWallets
@@ -24,6 +28,9 @@ type HTTP struct {
 	Exchange    *app.ExchangeOnrampTokenHandler
 	Report      *app.ReportOnrampStatusHandler
 	Withdrawals *app.WithdrawHandler
+	Pause       *app.PauseCabalHandler
+	Resume      *app.ResumeCabalHandler
+	Cabals      CabalExists
 	Reads       sqlc.DBTX
 	IDs         ids.Generator
 }

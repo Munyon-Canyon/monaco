@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -18,8 +19,9 @@ import (
 )
 
 type ResumeCabal struct {
-	CabalID *ids.CabalID
-	Actor   *ids.UserID
+	CabalID     *ids.CabalID
+	Actor       *ids.UserID
+	AdminAction *events.AdminAction
 }
 
 type ResumeCabalHandler struct {
@@ -51,9 +53,15 @@ func (h *ResumeCabalHandler) Handle(ctx context.Context, cmd ResumeCabal) error 
 			return r == string(domain.PauseReasonOps)
 		})
 		if resolved == 0 {
+			if cmd.AdminAction != nil {
+				return errs.New(errs.CodeNoOpsPause, "funding.ResumeCabal.Handle", slog.String("scope", s.key()))
+			}
 			return nil
 		}
-		return settleResolved(ctx, tx, s, before, remaining, h.hints)
+		if err := settleResolved(ctx, tx, s, before, remaining, h.hints); err != nil || cmd.AdminAction == nil {
+			return err
+		}
+		return appendAdminAction(ctx, tx, *cmd.AdminAction, before, remaining)
 	})
 	if err != nil {
 		return err

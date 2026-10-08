@@ -25,6 +25,7 @@ const (
 	AgentWrongStatus ErrorCode = "agent_wrong_status"
 	AlreadyFlagged ErrorCode = "already_flagged"
 	AlreadyMember ErrorCode = "already_member"
+	AlreadyPaused ErrorCode = "already_paused"
 	AnalyticsPii ErrorCode = "analytics_pii"
 	ApnsAuthFailed ErrorCode = "apns_auth_failed"
 	ApnsUnavailable ErrorCode = "apns_unavailable"
@@ -92,6 +93,7 @@ const (
 	LedgerUnbalanced ErrorCode = "ledger_unbalanced"
 	LiveSwapExists ErrorCode = "live_swap_exists"
 	LoginMethodNotAllowed ErrorCode = "login_method_not_allowed"
+	NoOpsPause ErrorCode = "no_ops_pause"
 	NoRealtimeChannels ErrorCode = "no_realtime_channels"
 	NoRoute ErrorCode = "no_route"
 	NotAVoter ErrorCode = "not_a_voter"
@@ -188,6 +190,8 @@ func (e ErrorCode) Valid() bool {
 	case AlreadyFlagged:
 		return true
 	case AlreadyMember:
+		return true
+	case AlreadyPaused:
 		return true
 	case AnalyticsPii:
 		return true
@@ -322,6 +326,8 @@ func (e ErrorCode) Valid() bool {
 	case LiveSwapExists:
 		return true
 	case LoginMethodNotAllowed:
+		return true
+	case NoOpsPause:
 		return true
 	case NoRealtimeChannels:
 		return true
