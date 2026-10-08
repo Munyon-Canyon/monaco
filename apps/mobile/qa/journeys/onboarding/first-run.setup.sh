@@ -120,7 +120,7 @@ set_up_after_first_run() {
 }
 
 set_up_dev_user() {
-  local token user_id log updated unset_qa=()
+  local token user_id log updated unset_qa=(-u MONACO_API_BASE_URL)
   [[ -x bin/monacoctl ]] || fail "bin/monacoctl is missing: run just build backend"
   log="$(mktemp)"
   trap 'rm -f "$log"' RETURN

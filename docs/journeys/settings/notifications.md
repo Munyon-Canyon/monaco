@@ -1,7 +1,7 @@
 ---
 id: settings/notifications
 title: Turn on notifications
-version: 3
+version: 4
 milestone: M9
 requires: [auth/sign-in]
 actors: [B]

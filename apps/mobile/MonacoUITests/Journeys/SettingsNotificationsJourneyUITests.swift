@@ -7,7 +7,7 @@ nonisolated final class SettingsNotificationsJourneyUITests: XCTestCase {
 
     @MainActor
     func testJourney() throws {
-        let session = try JourneySession()
+        let session = try JourneySession(actors: ["B"])
         let app = session.app
         let recorder = SettingsNotificationsJourney.recorder()
 

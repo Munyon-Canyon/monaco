@@ -1,10 +1,10 @@
 ---
 id: onboarding/first-run
 title: First run
-version: 1
+version: 2
 milestone: M9
 requires: [auth/sign-in]
-actors: [C]
+actors: [C, B]
 flows: [01a, 01b, 01c, 01d]
 xcuitest: [apps/mobile/MonacoUITests/Journeys/FirstRunJourney.swift, apps/mobile/MonacoUITests/Journeys/FirstRunJourneyUITests.swift]
 ---
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | P2 | Before S1, `apps/mobile/qa/journeys/onboarding/first-run.setup.sh` makes C a new member: C's `users` row gets `handle = null`, `auth_state = 'CREATED'`, no handle-change time and no phone. A first run has no row yet, and signing in makes one |
 | P3 | Before S1, the setup script frees `{L.phone}`, the Privy test number kept for linking. When C's Privy user holds it, the script unlinks it through the Privy API. When a user whose handle starts with `dev_` holds it, the script deletes that Privy user. Any other holder stops the run. It also clears the phone on the `users` row that held it |
 | P4 | Before S1, the setup script hands the test actor A's handle as `takenHandle`, a handle that is always taken |
-| P5 | Actor B has signed in by text at least once, so `{B.phone}` belongs to B's Privy user |
+| P5 | Actor B has signed in by text at least once, so `{B.phone}` belongs to B's Privy user. B is a helper whose number S2 borrows, not a second device |
 | P6 | Before S2, S3 and S4, the setup script puts C where S1 leaves it: handle `qa_cayman`, `AWAITING_PHONE`, no phone, and `{L.phone}` free. So each scenario also runs alone once S1 has run one time. The test signs C in by email when the app is signed out |
 | P7 | Before S5, the setup script makes a new dev user with `bin/monacoctl dev token --user new` and moves it to `AWAITING_SOCIALS`, the state it reaches after linking a phone. It hands the test the dev token as `devToken` and the user id as `devUserID`. A dev user has no Privy session in the app, so it cannot link a phone (Not covered) |
 
@@ -70,7 +70,7 @@ Starts from S1 (P6), with `{L.phone}` free (P3).
 | --- | --- | --- | --- | --- | --- |
 | S4.1 | tap, then tap | the Home tab, then `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number" | None, new in spec (#694) |
 | S4.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{L.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s | None, new in spec (#694) |
-| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
+| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", the Find friends step shows and `friends-not-now` skips it, and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
 
 ### S5 Link X as a new dev user
 
