@@ -268,3 +268,36 @@ func (q *Queries) UserIDsByXUserIDs(ctx context.Context, xUserIds []string) ([]U
 	}
 	return items, nil
 }
+
+const userStatusCounts = `-- name: UserStatusCounts :many
+SELECT auth_state, account_status, count(*)::bigint AS users
+FROM users
+GROUP BY auth_state, account_status
+ORDER BY auth_state, account_status
+`
+
+type UserStatusCountsRow struct {
+	AuthState     string
+	AccountStatus string
+	Users         int64
+}
+
+func (q *Queries) UserStatusCounts(ctx context.Context) ([]UserStatusCountsRow, error) {
+	rows, err := q.db.Query(ctx, userStatusCounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserStatusCountsRow
+	for rows.Next() {
+		var i UserStatusCountsRow
+		if err := rows.Scan(&i.AuthState, &i.AccountStatus, &i.Users); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

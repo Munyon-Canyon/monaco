@@ -93,3 +93,17 @@ WHERE id = sqlc.arg(id);
 -- name: SetCabalPicture :execrows
 UPDATE cabals SET picture_url = NULLIF(sqlc.arg(picture_url)::text, ''), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);
+
+-- name: CabalCounts :one
+WITH sizes AS (
+  SELECT c.status, count(m.user_id) AS members
+  FROM cabals c
+  LEFT JOIN cabal_members m ON m.cabal_id = c.id
+  GROUP BY c.id, c.status
+)
+SELECT count(*)::bigint AS cabals,
+  (count(*) FILTER (WHERE status = 'banned'))::bigint AS banned,
+  coalesce(percentile_disc(0.5) WITHIN GROUP (ORDER BY members), 0)::bigint AS members_p50,
+  coalesce(percentile_disc(0.9) WITHIN GROUP (ORDER BY members), 0)::bigint AS members_p90,
+  coalesce(max(members), 0)::bigint AS members_max
+FROM sizes;

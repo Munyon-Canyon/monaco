@@ -73,6 +73,42 @@ func (q *Queries) AllCabals(ctx context.Context) ([]AllCabalsRow, error) {
 	return items, nil
 }
 
+const cabalCounts = `-- name: CabalCounts :one
+WITH sizes AS (
+  SELECT c.status, count(m.user_id) AS members
+  FROM cabals c
+  LEFT JOIN cabal_members m ON m.cabal_id = c.id
+  GROUP BY c.id, c.status
+)
+SELECT count(*)::bigint AS cabals,
+  (count(*) FILTER (WHERE status = 'banned'))::bigint AS banned,
+  coalesce(percentile_disc(0.5) WITHIN GROUP (ORDER BY members), 0)::bigint AS members_p50,
+  coalesce(percentile_disc(0.9) WITHIN GROUP (ORDER BY members), 0)::bigint AS members_p90,
+  coalesce(max(members), 0)::bigint AS members_max
+FROM sizes
+`
+
+type CabalCountsRow struct {
+	Cabals     int64
+	Banned     int64
+	MembersP50 int64
+	MembersP90 int64
+	MembersMax int64
+}
+
+func (q *Queries) CabalCounts(ctx context.Context) (CabalCountsRow, error) {
+	row := q.db.QueryRow(ctx, cabalCounts)
+	var i CabalCountsRow
+	err := row.Scan(
+		&i.Cabals,
+		&i.Banned,
+		&i.MembersP50,
+		&i.MembersP90,
+		&i.MembersMax,
+	)
+	return i, err
+}
+
 const findCabal = `-- name: FindCabal :one
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
   c.proposal_expiry_seconds, c.slippage_bps, c.invite_code, c.status, c.created_at, c.updated_at,

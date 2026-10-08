@@ -63,6 +63,66 @@ func (q *Queries) Backlog(ctx context.Context, now time.Time) (BacklogRow, error
 	return i, err
 }
 
+const countEvents = `-- name: CountEvents :many
+SELECT (date_trunc($1::text, created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::timestamptz AS bucket_start,
+  type,
+  coalesce(CASE WHEN $2::text = '' THEN '' ELSE payload ->> $2::text END, '')::text AS group_value,
+  count(*)::bigint AS events
+FROM events
+WHERE type = ANY($3::text[]) AND created_at >= $4::timestamptz AND created_at < $5::timestamptz
+  AND ($6::text = '' OR payload ->> $6::text IS NOT NULL)
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3
+`
+
+type CountEventsParams struct {
+	Bucket  string
+	GroupBy string
+	Types   []string
+	FromAt  time.Time
+	ToAt    time.Time
+	Present string
+}
+
+type CountEventsRow struct {
+	BucketStart time.Time
+	Type        string
+	GroupValue  string
+	Events      int64
+}
+
+func (q *Queries) CountEvents(ctx context.Context, arg CountEventsParams) ([]CountEventsRow, error) {
+	rows, err := q.db.Query(ctx, countEvents,
+		arg.Bucket,
+		arg.GroupBy,
+		arg.Types,
+		arg.FromAt,
+		arg.ToAt,
+		arg.Present,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountEventsRow
+	for rows.Next() {
+		var i CountEventsRow
+		if err := rows.Scan(
+			&i.BucketStart,
+			&i.Type,
+			&i.GroupValue,
+			&i.Events,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countStaleUnpublished = `-- name: CountStaleUnpublished :one
 SELECT count(*)::bigint
 FROM events
