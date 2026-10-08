@@ -16,6 +16,7 @@ import (
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -128,7 +129,9 @@ func (m *Module) valuation() adapters.ValuationPoller {
 
 type Port = port.Queries
 
-func (m *Module) Queries() port.Queries { return adapters.Latest{DB: m.deps.Pool} }
+func (m *Module) Queries() port.Queries { return QueriesOn(m.deps.Pool) }
+
+func QueriesOn(db dbsqlc.DBTX) port.Queries { return adapters.Latest{DB: db} }
 
 type marketPort struct {
 	catalog  market.Catalog
