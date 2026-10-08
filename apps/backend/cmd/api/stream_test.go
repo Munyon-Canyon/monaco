@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -21,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/sse"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -37,6 +37,21 @@ func freeAddr(t *testing.T) string {
 	return addr
 }
 
+func awaitListening(t *testing.T, logs *testkit.Logs, stopped <-chan error) {
+	t.Helper()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for !hasLine(logs, observability.BootListening.Name) {
+		select {
+		case err := <-stopped:
+			t.Fatalf("run returned before it listened: %v", err)
+		case <-t.Context().Done():
+			t.Fatal("test ended before run listened")
+		case <-tick.C:
+		}
+	}
+}
+
 func openStream(ctx context.Context, t *testing.T, url, token string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -44,14 +59,6 @@ func openStream(ctx context.Context, t *testing.T, url, token string) *http.Resp
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	testkit.Eventually(t, func() bool {
-		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", req.URL.Host)
-		if err != nil {
-			return false
-		}
-		_ = conn.Close()
-		return true
-	}, 10*time.Second)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
@@ -83,13 +90,15 @@ func TestRun_streamsHintsFromNATSAndShutsDownWithAStreamOpen(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	stopped := make(chan error, 1)
+	logs := &testkit.Logs{}
 	go func() {
-		stopped <- run(ctx, io.Discard, []string{
+		stopped <- run(ctx, logs, []string{
 			"MONACO_ENV=test", "DATABASE_URL=" + dsn, "NATS_URL=" + url,
 			"MONACO_DEV_TOKEN_KEY=" + key, privyKeyEnv, "MONACO_HTTP_ADDR=" + addr, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0",
 			"MONACO_TIMEOUT_SHUTDOWN=5s",
 		}, openapi.Spec, noop.NewMeterProvider())
 	}()
+	awaitListening(t, logs, stopped)
 	streamCtx, stopStream := context.WithTimeout(t.Context(), 10*time.Second)
 	defer stopStream()
 	resp := openStream(streamCtx, t, "http://"+addr+"/v1/stream",
