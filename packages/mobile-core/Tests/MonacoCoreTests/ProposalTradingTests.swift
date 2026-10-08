@@ -35,10 +35,22 @@ final class ProposalTradingTests: XCTestCase {
     }
 
     func testTheTrackerReadsTheStepForAnAssistiveTechnology() {
-        XCTAssertEqual(ProposalStepper.trading.trackerLabel(isSell: false), "Buying, step 2 of 3")
-        XCTAssertEqual(ProposalStepper.voting.trackerLabel(isSell: true), "Voting, step 1 of 3")
-        XCTAssertEqual(ProposalStepper.done.trackerLabel(isSell: true), "Done, step 3 of 3")
-        XCTAssertEqual(ProposalStepper.failed("Couldn't buy").trackerLabel(isSell: false), "Couldn't buy")
+        func label(_ status: ProposalStatus, isSell: Bool, swapFailed: Bool = false) -> String {
+            ProposalStepper.make(
+                status: status, isSell: isSell, swapFailed: swapFailed, expiresAt: Date(timeIntervalSince1970: 0),
+                failureMessage: "Price moved too far"
+            ).accessibilityLabel
+        }
+        XCTAssertEqual(
+            label(.passed, isSell: false),
+            "Voting, step 1 of 3, done. Buying, step 2 of 3, in progress. Bought, step 3 of 3, to do")
+        XCTAssertTrue(label(.open, isSell: true).hasPrefix("Voting, step 1 of 3, in progress, Closes "))
+        XCTAssertEqual(
+            label(.executed, isSell: true),
+            "Voting, step 1 of 3, done. Selling, step 2 of 3, done. Sold, step 3 of 3, done")
+        XCTAssertEqual(
+            label(.passed, isSell: false, swapFailed: true),
+            "Voting, step 1 of 2, done. Buying, step 2 of 2, failed, Price moved too far")
     }
 
     @MainActor
