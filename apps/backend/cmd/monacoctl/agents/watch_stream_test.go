@@ -1466,3 +1466,18 @@ func TestTraceWatch_reportsEachCommandAndRequestWithItsCountAndThePassTotal(t *t
 		t.Fatal("transport error swallowed")
 	}
 }
+
+func TestRereadRecords_keepsTheFirstReadWhenTheRecordsCannotBeReadAgain(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 1, State: Exited})
+	env := f.Env(t)
+	before, err := env.records()
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, env.recordPath(2), "{")
+	if got := env.rereadRecords(before, make([][]string, len(before))); len(got) != 1 || got[0].Ticket != 1 {
+		t.Fatalf("records %+v", got)
+	}
+}

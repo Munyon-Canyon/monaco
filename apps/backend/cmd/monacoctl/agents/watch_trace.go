@@ -60,13 +60,7 @@ func (env *Env) traceWatch(stderr io.Writer, on bool) func() {
 		t.add(key, time.Since(begin))
 		return out, err
 	}
-	if c := env.GitHub.HTTP; c != nil {
-		base := c.Transport
-		if base == nil {
-			base = http.DefaultTransport
-		}
-		c.Transport = tracingTransport{base: base, t: t}
-	}
+	env.GitHub.HTTP.Transport = tracingTransport{base: env.GitHub.HTTP.Transport, t: t}
 	return func() {
 		keys := make([]string, 0, len(t.stats))
 		for k := range t.stats {
