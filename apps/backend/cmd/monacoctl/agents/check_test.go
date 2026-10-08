@@ -1083,9 +1083,9 @@ func TestCheck_theXcodeRowRunsLastAndOutsideTheStage0SlotAndTestDatabase(t *test
 			return err
 		}
 		defer q.drop(second)
-		if position, total, err := q.standing(second); err != nil || position > q.slots() {
+		if got, err := q.standing(second); err != nil || !got.run {
 			during = append(during,
-				fmt.Sprintf("a second check stands at %d of %d with 1 slot: %v", position, total, err))
+				fmt.Sprintf("a second check stands at %d of %d with 1 slot: %v", got.position, got.total, err))
 		}
 		if busy, err := busySlots(filepath.Join(env.Common, ".monaco", "test-db")); err != nil || busy != 0 {
 			during = append(during, fmt.Sprintf("%d test database slots held: %v", busy, err))

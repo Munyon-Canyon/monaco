@@ -16,7 +16,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-const slotPoll = 2 * time.Second
+const (
+	slotPoll     = 2 * time.Second
+	admittedLine = "run"
+)
 
 var errTicketLost = errors.New("the stage 0 ticket was removed while waiting")
 
@@ -61,53 +64,140 @@ func (q *checkQueue) take(worktree string, pid int) (string, error) {
 	return name, nil
 }
 
+func (q *checkQueue) admit(name string) error {
+	f, err := os.OpenFile(filepath.Join(q.dir, name), os.O_APPEND|os.O_WRONLY, 0o600)
+	if err == nil {
+		_, err = f.WriteString(admittedLine + "\n")
+		err = errors.Join(err, f.Close())
+	}
+	if err != nil {
+		return fmt.Errorf("record the stage 0 admission: %w", err)
+	}
+	return nil
+}
+
 func (q *checkQueue) drop(name string) {
 	_ = os.Remove(filepath.Join(q.dir, name))
 }
 
-func (q *checkQueue) live() ([]string, error) {
+type queueStanding struct {
+	position, total int
+	run             bool
+	laneBusy        bool
+}
+
+type queueTicket struct {
+	name, lane string
+	admitted   bool
+}
+
+func (q *checkQueue) live() ([]queueTicket, error) {
 	entries, err := os.ReadDir(q.dir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read the stage 0 queue: %w", err)
 	}
-	var live []string
+	var live []queueTicket
 	for _, e := range entries {
 		_, pidText, _ := strings.Cut(e.Name(), "-")
 		if pid, err := strconv.Atoi(pidText); err != nil || !q.alive(pid) {
 			q.drop(e.Name())
 			continue
 		}
-		live = append(live, e.Name())
+		content, err := os.ReadFile(filepath.Join(q.dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		worktree, rest, _ := strings.Cut(string(content), "\n")
+		live = append(live, queueTicket{
+			name: e.Name(), lane: lane(worktree),
+			admitted: strings.Contains("\n"+rest, "\n"+admittedLine+"\n"),
+		})
 	}
-	slices.Sort(live)
+	slices.SortFunc(live, func(a, b queueTicket) int { return strings.Compare(a.name, b.name) })
 	return live, nil
 }
 
-func (q *checkQueue) standing(name string) (position, total int, err error) {
+func (q *checkQueue) standing(name string) (queueStanding, error) {
 	live, err := q.live()
 	if err != nil {
-		return 0, 0, err
+		return queueStanding{}, err
 	}
-	at := slices.Index(live, name)
+	at := slices.IndexFunc(live, func(t queueTicket) bool { return t.name == name })
 	if at < 0 {
-		return 0, 0, errTicketLost
+		return queueStanding{}, errTicketLost
 	}
-	return at + 1, len(live), nil
+	got := queueStanding{position: at + 1, total: len(live)}
+	got.run = live[at].admitted || slices.Contains(admissions(live, q.slots()), name)
+	got.laneBusy = !got.run && slices.ContainsFunc(live, func(t queueTicket) bool {
+		return t.admitted && t.lane == live[at].lane
+	})
+	return got, nil
+}
+
+func admissions(live []queueTicket, slots int) []string {
+	running, busyLanes := 0, map[string]bool{}
+	var waiting, admit []string
+	lanes := map[string]string{}
+	for _, t := range live {
+		lanes[t.name] = t.lane
+		if t.admitted {
+			running++
+			busyLanes[t.lane] = true
+		} else {
+			waiting = append(waiting, t.name)
+		}
+	}
+	var blocked []string
+	for _, name := range waiting {
+		if running < slots && !busyLanes[lanes[name]] {
+			running++
+			busyLanes[lanes[name]] = true
+			admit = append(admit, name)
+		} else {
+			blocked = append(blocked, name)
+		}
+	}
+	for _, name := range blocked {
+		if running < slots {
+			running++
+			admit = append(admit, name)
+		}
+	}
+	return admit
+}
+
+func lane(worktree string) string {
+	if filepath.Base(filepath.Dir(worktree)) != ".worktrees" {
+		return worktree
+	}
+	base := filepath.Base(worktree)
+	end := strings.IndexFunc(base, func(r rune) bool { return r < '0' || r > '9' })
+	if end < 0 {
+		end = len(base)
+	}
+	if end == 0 {
+		return worktree
+	}
+	return base[:end]
 }
 
 func (q *checkQueue) await(ctx context.Context, name string, stdout io.Writer) error {
-	last := 0
+	last := ""
 	for {
-		position, total, err := q.standing(name)
+		got, err := q.standing(name)
 		if err != nil {
 			return err
 		}
-		if position <= q.slots() {
-			return nil
+		if got.run {
+			return q.admit(name)
 		}
-		if position != last {
-			_, _ = fmt.Fprintf(stdout, "waiting for a stage 0 slot: position %d of %d\n", position, total)
-			last = position
+		line := fmt.Sprintf("waiting for a stage 0 slot: position %d of %d", got.position, got.total)
+		if got.laneBusy {
+			line += "; this lane already runs a check"
+		}
+		if line != last {
+			_, _ = fmt.Fprintln(stdout, line)
+			last = line
 		}
 		select {
 		case <-ctx.Done():
