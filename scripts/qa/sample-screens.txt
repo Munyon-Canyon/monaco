@@ -134,7 +134,7 @@ asset-cabals-failed-center    -MonacoAssetDetailSample cabalsFailed -MonacoAsset
 asset-not-routable-bottom     -MonacoAssetDetailSample notRoutable -MonacoAssetDetailScroll bottom
 stocks-tab-full-bottom        -MonacoStocksTabSample full -MonacoStocksTabScroll bottom
 
-# Screens around the cabal screen: start, join, the New cabal sheet, and the trading bot.
+# Screens around the cabal screen: start, join, and the New cabal sheet.
 group-nav-start               -MonacoGroupNavSample start
 group-nav-new-cabal           -MonacoGroupNavSample newCabal
 group-nav-join-code           -MonacoGroupNavSample joinCode
@@ -188,6 +188,12 @@ propose-pick-cabal            -MonacoProposalFeedSample -MonacoProposeSample -Mo
 propose-pick-cabal-sell       -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSamplePickCabalSell
 propose-buy-large-text        -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleBuy -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 propose-review-large-text     -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleReview -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+
+chat-thread-toggle            -MonacoChatThreadSampleQA
+proposal-detail-retryable     -MonacoProposalDetailSample failedRetryable
+proposal-detail-final-failure -MonacoProposalDetailSample failedFinal
+propose-amount-sample         -MonacoProposeAmountSample
+stocks-sections               -MonacoStocksSectionsSample
 
 # BEGIN generated flow scenarios
 # cmd/gen flows writes this block from packages/flows/backend and packages/flows/app. Never edit it.
