@@ -264,13 +264,13 @@ func TestVerify_aPollerFlowPassesOnATickAndNamesThePollerWhenNoneComes(t *testin
 		over   bool
 		clock  bool
 	}{
-		{"ticks", 20 * time.Millisecond, DefaultBudget(), nil, "", false, false},
+		{"ticks", 20 * time.Millisecond, testBudget(), nil, "", false, false},
 		{
 			"no tick in the budget", time.Hour, short, nil, "scenario: a tick of poller fixture.prices after the step " +
 				"started did not happen: over budget: flow 95 ok flow took longer than 300ms", true, true,
 		},
 		{
-			"script never waits", time.Hour, failingConverge(DefaultBudget()), func(s *scenario.Scenario) { s.When() },
+			"script never waits", time.Hour, failingConverge(testBudget()), func(s *scenario.Scenario) { s.When() },
 			"flow 95 ok invariant: no poller.tick for fixture.prices after the script started", false, false,
 		},
 	} {
@@ -320,7 +320,7 @@ func TestVerify_aPollerCodeOutcomePassesOnlyOnALineCarryingThatCode(t *testing.T
 			tickAsTheWorker(t, env, fixturePoller{every: 20 * time.Millisecond, err: tc.err})
 			u := fixtureUnit(t, "95", tc.outcome)
 			u.Script = awaitPrices
-			budget := DefaultBudget()
+			budget := testBudget()
 			if tc.want != "" {
 				budget = failingConverge(budget)
 			}
