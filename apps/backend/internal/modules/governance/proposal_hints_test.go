@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	cabal "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
@@ -57,7 +58,7 @@ func TestProposalHints_CastVoteAndWithdrawPublishAfterCommit(t *testing.T) {
 	d := newVoteDB(t)
 	hints := &proposalHints{}
 	voteProposal, voters := d.open(t, 1)
-	vote := app.NewCastVoteHandler(d.uow, d.clk, hints)
+	vote := app.NewCastVoteHandler(d.uow, cabalStatus{status: cabal.StatusActive}, d.clk, hints)
 	d.mustCast(t, vote, voteProposal.ID, voters[0], domain.ChoiceYes)
 	withdrawProposal, proposer := d.buy(d.ids.NewV7()), d.ids.NewV7()
 	withdrawProposal.ProposerID = proposer
@@ -79,7 +80,7 @@ func TestProposalHints_RefusalsPublishNothing(t *testing.T) {
 	d := newVoteDB(t)
 	hints := &proposalHints{}
 	p, voters := d.open(t, 1)
-	vote := app.NewCastVoteHandler(d.uow, d.clk, hints)
+	vote := app.NewCastVoteHandler(d.uow, cabalStatus{status: cabal.StatusActive}, d.clk, hints)
 	if _, err := d.cast(t.Context(), vote, p.ID, d.ids.NewV7(), domain.ChoiceYes); err == nil {
 		t.Fatal("non-voter ballot = nil")
 	}
@@ -110,7 +111,7 @@ func TestProposalHints_PublishFailure_CommandSucceeds(t *testing.T) {
 	d := newVoteDB(t)
 	drops := &proposalHints{}
 	p, voters := d.open(t, 1)
-	vote := app.NewCastVoteHandler(d.uow, d.clk, drops)
+	vote := app.NewCastVoteHandler(d.uow, cabalStatus{status: cabal.StatusActive}, d.clk, drops)
 	d.mustCast(t, vote, p.ID, voters[0], domain.ChoiceYes)
 	proposer := d.ids.NewV7()
 	withdrawn := d.buy(proposer)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const decideApproval = `-- name: DecideApproval :execrows
@@ -135,4 +136,52 @@ func (q *Queries) InsertApproval(ctx context.Context, arg InsertApprovalParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const listApprovals = `-- name: ListApprovals :many
+SELECT id, action, target_id, requested_by, reason, status, decided_by, decided_reason, created_at, decided_at,
+  expires_at
+FROM admin_approvals
+WHERE status = $1
+  AND ($2::uuid IS NULL OR id < $2::uuid)
+ORDER BY id DESC
+LIMIT $3::bigint
+`
+
+type ListApprovalsParams struct {
+	Status   string
+	Cursor   pgtype.UUID
+	RowLimit int64
+}
+
+func (q *Queries) ListApprovals(ctx context.Context, arg ListApprovalsParams) ([]AdminApproval, error) {
+	rows, err := q.db.Query(ctx, listApprovals, arg.Status, arg.Cursor, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AdminApproval
+	for rows.Next() {
+		var i AdminApproval
+		if err := rows.Scan(
+			&i.ID,
+			&i.Action,
+			&i.TargetID,
+			&i.RequestedBy,
+			&i.Reason,
+			&i.Status,
+			&i.DecidedBy,
+			&i.DecidedReason,
+			&i.CreatedAt,
+			&i.DecidedAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -37,13 +37,14 @@ type CastVoteResult struct {
 }
 
 type CastVoteHandler struct {
-	uow   *db.UnitOfWork
-	clock clock.Clock
-	hints Hints
+	uow    *db.UnitOfWork
+	cabals Cabals
+	clock  clock.Clock
+	hints  Hints
 }
 
-func NewCastVoteHandler(uow *db.UnitOfWork, c clock.Clock, hints Hints) *CastVoteHandler {
-	return &CastVoteHandler{uow: uow, clock: c, hints: hints}
+func NewCastVoteHandler(uow *db.UnitOfWork, cabals Cabals, c clock.Clock, hints Hints) *CastVoteHandler {
+	return &CastVoteHandler{uow: uow, cabals: cabals, clock: c, hints: hints}
 }
 
 func (h *CastVoteHandler) Handle(ctx context.Context, cmd CastVote) (CastVoteResult, error) {
@@ -76,6 +77,9 @@ func (h *CastVoteHandler) vote(
 		return CastVoteResult{}, errs.New(errs.CodeNotAVoter, op)
 	}
 	*cabal = p.CabalID
+	if err := notBanned(ctx, h.cabals, ids.CabalIDFrom(p.CabalID), op); err != nil {
+		return CastVoteResult{}, err
+	}
 	rule := domain.ThresholdRule(p.Threshold)
 	now := h.clock.Now()
 	n, err := q.CastBallot(ctx, sqlc.CastBallotParams{

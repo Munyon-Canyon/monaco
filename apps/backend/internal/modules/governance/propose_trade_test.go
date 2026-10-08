@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
@@ -248,6 +249,14 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 			func(w *tradeWorld) { w.cabals.current.Load().Fail("IsMember", failed) },
 			sellAAPL(1), errs.CodeUpstreamUnavailable,
 		},
+		"status unknown": {
+			func(w *tradeWorld) { w.cabals.current.Load().Fail("Status", failed) },
+			sellAAPL(1), errs.CodeUpstreamUnavailable,
+		},
+		"banned": {func(w *tradeWorld) {
+			w.seed.View.Status = cabal.StatusBanned
+			w.cabals.current.Store(fakes.NewCabal([]fakes.CabalSeed{w.seed}, w.rows))
+		}, sellAAPL(1), errs.CodeCabalBanned},
 		"rules unknown": {
 			func(w *tradeWorld) { w.cabals.current.Load().Fail("Rules", failed) },
 			sellAAPL(1), errs.CodeUpstreamUnavailable,

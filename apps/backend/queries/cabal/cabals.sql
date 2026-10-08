@@ -99,3 +99,6 @@ SELECT count(*)::bigint AS cabals,
   coalesce(percentile_disc(0.9) WITHIN GROUP (ORDER BY members), 0)::bigint AS members_p90,
   coalesce(max(members), 0)::bigint AS members_max
 FROM sizes;
+
+-- name: BanCabal :execrows
+UPDATE cabals SET status = 'banned', updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status = 'active';

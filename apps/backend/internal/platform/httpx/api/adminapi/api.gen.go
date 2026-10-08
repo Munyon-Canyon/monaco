@@ -454,6 +454,19 @@ type AdminApprovalAction string
 // Examples: pending
 type AdminApprovalStatus string
 
+// AdminApprovals One page of approval requests, newest first.
+//
+// Examples: {"items":[],"next_cursor":null}
+type AdminApprovals struct {
+	// Items The requests on this page.
+	Items []AdminApproval `json:"items"`
+
+	// NextCursor Pass it as `cursor` to read the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *openapi_types.UUID `json:"next_cursor"`
+}
+
 // AdminAuthState Where the user stands in onboarding.
 //
 // Examples: ONBOARDING_COMPLETED
@@ -1265,6 +1278,18 @@ type GetAdminActionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetAdminApprovalsParams defines parameters for GetAdminApprovals.
+type GetAdminApprovalsParams struct {
+	// Status Only requests in this state. Defaults to `pending`.
+	Status *AdminApprovalStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Cursor The `next_cursor` of the previous page. Absent reads the first page.
+	Cursor *openapi_types.UUID `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 200.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ApproveAdminApprovalParams defines parameters for ApproveAdminApproval.
 type ApproveAdminApprovalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1363,6 +1388,9 @@ type ServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(w http.ResponseWriter, r *http.Request)
+	// GetAdminApprovals List approval requests.
+	// (GET /v1/admin/approvals)
+	GetAdminApprovals(w http.ResponseWriter, r *http.Request, params GetAdminApprovalsParams)
 	// ApproveAdminApproval Approve a request.
 	// (POST /v1/admin/approvals/{id}/approve)
 	ApproveAdminApproval(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveAdminApprovalParams)
@@ -1522,6 +1550,65 @@ func (siw *ServerInterfaceWrapper) GetAdmins(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdmins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminApprovals operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminApprovals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminApprovalsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminApprovals(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2259,6 +2346,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/actions", wrapper.GetAdminActions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/admins", wrapper.GetAdmins)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/approvals", wrapper.GetAdminApprovals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/approvals/{id}/approve", wrapper.ApproveAdminApproval)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/approvals/{id}/reject", wrapper.RejectAdminApproval)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/cabals/{id}", wrapper.GetAdminCabal)
@@ -2344,6 +2432,45 @@ type GetAdminsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAdminsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminApprovalsRequestObject struct {
+	Params GetAdminApprovalsParams
+}
+
+type GetAdminApprovalsResponseObject interface {
+	VisitGetAdminApprovalsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminApprovals200JSONResponse AdminApprovals
+
+func (response GetAdminApprovals200JSONResponse) VisitGetAdminApprovalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminApprovalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminApprovalsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminApprovalsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2944,6 +3071,9 @@ type StrictServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(ctx context.Context, request GetAdminsRequestObject) (GetAdminsResponseObject, error)
+	// GetAdminApprovals List approval requests.
+	// (GET /v1/admin/approvals)
+	GetAdminApprovals(ctx context.Context, request GetAdminApprovalsRequestObject) (GetAdminApprovalsResponseObject, error)
 	// ApproveAdminApproval Approve a request.
 	// (POST /v1/admin/approvals/{id}/approve)
 	ApproveAdminApproval(ctx context.Context, request ApproveAdminApprovalRequestObject) (ApproveAdminApprovalResponseObject, error)
@@ -3073,6 +3203,32 @@ func (sh *strictHandler) GetAdmins(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminsResponseObject); ok {
 		if err := validResponse.VisitGetAdminsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminApprovals operation middleware
+func (sh *strictHandler) GetAdminApprovals(w http.ResponseWriter, r *http.Request, params GetAdminApprovalsParams) {
+	var request GetAdminApprovalsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminApprovals(ctx, request.(GetAdminApprovalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminApprovals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminApprovalsResponseObject); ok {
+		if err := validResponse.VisitGetAdminApprovalsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -242,7 +242,10 @@ func (h *ExecuteTradeHandler) paused(ctx context.Context, cmd ExecuteTrade, _ *S
 	if err != nil {
 		return refusal{}, err
 	}
-	if status == cabalport.StatusBanned || pause.Paused {
+	switch {
+	case status == cabalport.StatusBanned:
+		return refusal{code: errs.CodeCabalBanned}, nil
+	case pause.Paused:
 		return refusal{code: errs.CodeCabalPaused}, nil
 	}
 	return refusal{}, nil

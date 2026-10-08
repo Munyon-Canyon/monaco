@@ -40,6 +40,10 @@ func (c *liveCabals) TreasuryWallet(ctx context.Context, id ids.CabalID) (cabal.
 	return c.current.Load().TreasuryWallet(ctx, id)
 }
 
+func (c *liveCabals) Status(ctx context.Context, id ids.CabalID) (cabal.Status, error) {
+	return c.current.Load().Status(ctx, id)
+}
+
 func (c *liveCabals) VoterSet(ctx context.Context, id ids.CabalID) ([]ids.UserID, error) {
 	return c.current.Load().VoterSet(ctx, id)
 }

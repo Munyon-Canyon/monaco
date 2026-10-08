@@ -219,7 +219,7 @@ func TestFundCabal_refusals(t *testing.T) {
 		want   errs.Code
 	}{
 		{"not a member", 5_000_000, func(s *fundStubs) { s.member = false }, errs.CodeNotCabalMember},
-		{"banned", 5_000_000, func(s *fundStubs) { s.status = cabalport.StatusBanned }, errs.CodeCabalPaused},
+		{"banned", 5_000_000, func(s *fundStubs) { s.status = cabalport.StatusBanned }, errs.CodeCabalBanned},
 		{"paused", 5_000_000, func(s *fundStubs) { s.paused = true }, errs.CodeCabalPaused},
 		{"over balance", 100_000_001, func(*fundStubs) {}, errs.CodeInsufficientFunds},
 		{"pot has shares but no value", 5_000_000, func(s *fundStubs) {
