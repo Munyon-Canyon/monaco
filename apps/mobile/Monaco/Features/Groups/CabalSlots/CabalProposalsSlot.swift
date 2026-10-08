@@ -148,11 +148,8 @@ private struct CabalAllProposals: View {
     var body: some View {
         VStack(spacing: MonacoTheme.Space.s) {
             if let segments, let voting, let context {
-                Picker("Status", selection: Bindable(segments).selected) {
-                    ForEach(ProposalSegment.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, MonacoTheme.Space.m)
+                MonacoSegmented(ProposalSegment.allCases, selection: Bindable(segments).selected) { $0.title }
+                    .padding(.horizontal, MonacoTheme.Space.m)
                 CabalProposalSegmentList(
                     segment: segments.selected, model: segments.model(for: segments.selected), voting: voting,
                     context: context, cabalID: cabalID, onVoted: { await segments.refreshLoaded() }

@@ -123,29 +123,14 @@ struct AssetDetailClientView: View {
     private func chart(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             chartContent(detail, model: model)
-            ScrollView(.horizontal) {
-                HStack(spacing: MonacoTheme.Space.s) {
-                    ForEach(AssetChartRange.allCases, id: \.self) { range in
-                        rangeButton(range, model: model)
-                    }
-                }
-            }
-            .scrollIndicators(.hidden)
+            MonacoRangeChips(
+                ranges: AssetChartRange.allCases, selection: model.selectedRange, identifierPrefix: "asset-range",
+                label: { $0.label },
+                onSelect: { range in Task { await model.loadChart(range: range) } }
+            )
             .accessibilityIdentifier("asset-chart-ranges")
         }
         .padding(.horizontal, MonacoTheme.Space.m)
-    }
-
-    @ViewBuilder
-    private func rangeButton(_ range: AssetChartRange, model: AssetDetailClientModel) -> some View {
-        if model.selectedRange == range {
-            Button(range.label) { Task { await model.loadChart(range: range) } }
-                .buttonStyle(.monacoPrimary)
-                .accessibilityAddTraits(.isSelected)
-        } else {
-            Button(range.label) { Task { await model.loadChart(range: range) } }
-                .buttonStyle(.monacoSecondary)
-        }
     }
 
     @ViewBuilder

@@ -168,7 +168,7 @@ struct AmountEntry: View {
         }
     }
 
-    /// Drawn 34pt tall like Home's range chips and padded out to a 44pt target. The label is
+    /// Drawn with the shared chip label, a disabled chip (Max before there is a balance) greys its label. The label is
     /// what UI tests and VoiceOver find the chip by ("$50", "Max"), so it stays the bare amount.
     private func presetChip(_ preset: AmountPreset) -> some View {
         let target = amount(for: preset)
@@ -179,27 +179,11 @@ struct AmountEntry: View {
             amountText = AmountEntryText.plain(target)
             onPreset(preset)
         } label: {
-            Text(label(for: preset))
-                .font(MonacoTheme.Typo.dataCaption)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .foregroundStyle(chipLabelColor(selected: selected, enabled: target != nil))
-                .padding(.horizontal, 14)
-                .frame(minWidth: 56, minHeight: 34)
-                .background(Capsule().fill(selected ? MonacoTheme.primaryButtonFill : MonacoTheme.surfaceSunken))
-                .padding(.vertical, 5)
-                .contentShape(Rectangle())
+            Text(label(for: preset)).monacoChipLabel(isSelected: selected)
         }
         .buttonStyle(.plain)
         .disabled(target == nil)
         .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    /// A chip with nothing to fill in (Max before there is a balance) keeps its shape and
-    /// greys its label, the way a disabled button does.
-    private func chipLabelColor(selected: Bool, enabled: Bool) -> Color {
-        if !enabled { return MonacoTheme.disabledLabel }
-        return selected ? MonacoTheme.primaryButtonLabel : MonacoTheme.ink
     }
 
     private func amount(for preset: AmountPreset) -> Decimal? {

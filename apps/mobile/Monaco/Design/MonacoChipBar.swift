@@ -17,16 +17,7 @@ struct MonacoChipBar<Item: Hashable>: View {
                         Haptics.selection()
                         select(item)
                     } label: {
-                        Text(title(item))
-                            .font(MonacoTheme.Typo.calloutStrong)
-                            .foregroundStyle(isSelected ? MonacoTheme.primaryButtonLabel : MonacoTheme.ink)
-                            .padding(.horizontal, MonacoTheme.Space.m)
-                            .frame(minHeight: 36)
-                            .background(
-                                isSelected ? MonacoTheme.primaryButtonFill : MonacoTheme.surfaceSunken, in: Capsule()
-                            )
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
+                        Text(title(item)).monacoChipLabel(isSelected: isSelected)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? [.isSelected] : [])
