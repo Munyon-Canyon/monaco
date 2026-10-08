@@ -48,6 +48,12 @@ struct ProposeAmountScreen: View {
             .padding(.vertical, MonacoTheme.Space.m)
         }
         .monacoCanvas()
+        .task {
+            guard !model.trade.isSell,
+                let asset = try? await ProposalsRepository(api: environment.api).asset(symbol: stock.symbol)
+            else { return }
+            model.resolveAsset(kind: asset.kind, decimals: asset.decimals)
+        }
         .navigationTitle("Amount")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {

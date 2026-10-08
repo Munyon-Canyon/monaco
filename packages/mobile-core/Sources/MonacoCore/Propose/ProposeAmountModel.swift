@@ -7,7 +7,7 @@ public final class ProposeAmountModel {
     public private(set) var preview: ProposePreview?
     public private(set) var isLoading = false
     public private(set) var thesis = ""
-    public let trade: ProposeTrade
+    public private(set) var trade: ProposeTrade
 
     private let service: ProposeService
     private let cabalID: String
@@ -41,6 +41,11 @@ public final class ProposeAmountModel {
     }
 
     public func setThesis(_ text: String) { thesis = ProposeReasonRules.limited(text) }
+
+    public func resolveAsset(kind: AssetKind, decimals: Int) {
+        guard case .buy(let symbol, _, _) = trade else { return }
+        trade = .buy(symbol: symbol, kind: kind, tokenDecimals: decimals)
+    }
 
     public func setAmount(micros: Int64) {
         amountMicros = max(0, micros)
