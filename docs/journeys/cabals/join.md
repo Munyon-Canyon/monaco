@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 3
+version: 4
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -11,9 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/JoinJourney.swift, apps/mobile/Mon
 
 # Join a cabal
 
-The creator of a request cabal copies its invite code. Another member enters the code, asks to join, and the creator approves. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
+Another member finds a request cabal by search, asks to join, and the creator approves. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
 
-The copy is [Join a cabal](../../screens.md#cabals-tab) and the [Cabal screen](../../screens.md#cabal-screen-cabalroute) in `screens.md`. The old app (`c838bd24`) took the same path: Cabals "+" (`Groups/CabalsTabView.swift`), "Join with an invite code", `Groups/JoinGroupView.swift`, paste the code, Join, then the cabal. Each Expect cell ends with the old-app tap it matches.
+The copy is [Join a cabal](../../screens.md#cabals-tab) and the [Cabal screen](../../screens.md#cabal-screen-cabalroute) in `screens.md`. Each Expect cell ends with the old-app tap it matches where the old app had one.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -29,22 +29,19 @@ The setup creates both cabals through the API, so this journey does not depend o
 
 ## Scenarios
 
-### S1 Join by code with approval
+### S1 Request to join with approval
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, then type | the Cabals tab, then `cabals-search-field` | `QA pot {QA.run}` | One `cabals-search-result-<id>` names `QA pot {QA.run}` within 10 s. Old app: the "Find a cabal by name" search in `CabalsTabView` |
 | S1.2 | A | tap | the `cabals-search-result-<id>` | | `cabal-header-name` reads `QA pot {QA.run}` and `cabal-member-count` reads "1 member" within 15 s. Old app: a search result pushed `GroupDetailView` |
-| S1.3 | A | tap | `cabal-details-button` | | `cabal-invite-card` shows within 10 s. `cabal-invite-code` is 10 characters, `cabal-invite-copy` reads "Copy code" and `cabal-invite-share` reads "Share". The test hands the code to B. screens.md: `CabalInviteCodeSlot`'s "Invite code" card. Old app: "i" opened `GroupDetailsSheet` with the code, "Copy code" and "Share" |
-| S1.4 | A | tap | `cabal-invite-copy` | | `cabal-invite-copy` reads "Copied" within 2 s. Old app: "Copy code" turned into "Copied" in `GroupDetailsSheet` |
-| S1.5 | A | tap | `cabal-details-done` | | `cabal-details-button` shows within 10 s, and there is no `cabal-join-requests-heading`. Old app: "Done" closed `GroupDetailsSheet` |
-| S1.6 | B | tap, then type | the Cabals tab, then `cabals-search-field` | `zzqq` | `cabals-search-empty` reads "No cabal called “zzqq”" within 10 s. Old app: the same empty search line in `CabalsTabView` |
-| S1.7 | B | clear, then tap | `cabals-search-field`, then `cabals-new-button`, then `new-cabal-join-row` | | The "Ask to join" screen shows `join-group-id` within 10 s. screens.md: `JoinRoute`, "Ask to join". Old app: "Join with an invite code" in the New cabal sheet pushed `JoinGroupView` |
-| S1.8 | B | tap | `join-group-paste` | the code from S1.3, on B's clipboard | `join-group-name` reads `QA pot {QA.run}` and `join-group-submit` reads "Ask to join" within 10 s. Old app: the system Paste button in `JoinGroupView`'s `InviteCodeField`, then the cabal preview |
-| S1.9 | B | tap | `join-group-submit` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-header-name` reads `QA pot {QA.run}`, and `cabal-join-requested` reads "Request sent" next to `cabal-join-cancel` within 15 s. Old app: `JoinGroupView` pushed `GroupDetailView` with the same toast |
-| S1.10 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-join-requests-heading` reads "1 person wants to join" within 2 s of `cabal-header-name` showing, with one `cabal-join-request-row` naming B. screens.md: `CabalJoinSlot`, "2 people want to join" with Approve and Deny. Old app: the join requests on `GroupDetailView` |
-| S1.11 | A | tap | `cabal-join-approve` | | The toast "Approved." shows within 10 s. `cabal-join-requests-heading` is gone, and `cabal-member-count` reads "2 members" within 10 s. Old app: Approve on `GroupDetailView` toasted "<name> is in"; staging toasts "Approved." |
-| S1.12 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-action-fund` shows within 15 s, and there is no `cabal-join-requested` or `cabal-join-button`. screens.md: `CabalActionsSlot` for a member. Old app: `GroupDetailView`'s member action row |
+| S1.3 | A | none | | | There is no `cabal-join-requests-heading`. A new request cabal has no pending requests |
+| S1.4 | B | tap, then type | the Cabals tab, then `cabals-search-field` | `zzqq` | `cabals-search-empty` reads "No cabal called “zzqq”" within 10 s. Old app: the same empty search line in `CabalsTabView` |
+| S1.5 | B | clear, type, then tap | `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-header-name` reads `QA pot {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
+| S1.6 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request sent" next to `cabal-join-cancel` within 15 s |
+| S1.7 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-join-requests-heading` reads "1 person wants to join" within 2 s of `cabal-header-name` showing, with one `cabal-join-request-row` naming B. screens.md: `CabalJoinSlot`, "2 people want to join" with Approve and Deny. Old app: the join requests on `GroupDetailView` |
+| S1.8 | A | tap | `cabal-join-approve` | | The toast "Approved." shows within 10 s. `cabal-join-requests-heading` is gone, and `cabal-member-count` reads "2 members" within 10 s. Old app: Approve on `GroupDetailView` toasted "<name> is in"; staging toasts "Approved." |
+| S1.9 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA pot {QA.run}` | `cabal-action-fund` shows within 15 s, and there is no `cabal-join-requested` or `cabal-join-button`. screens.md: `CabalActionsSlot` for a member. Old app: `GroupDetailView`'s member action row |
 
 ## Ground truth
 
@@ -56,7 +53,5 @@ None known.
 
 ## Not covered
 
-- B pasting the code A copied. Each actor has a simulator of its own, and simulators do not share a clipboard, so S1.8 puts the code on B's clipboard before tapping Paste.
-- A seeing B's request arrive on a screen already open, and B's screen turning into a member's without a relaunch. The test signs each actor in again when the actor changes, so S1.10 and S1.12 load the cabal fresh. `CabalAccessModelTests` covers the hint that refreshes an open screen.
+- A seeing B's request arrive on a screen already open, and B's screen turning into a member's without a relaunch. The test signs each actor in again when the actor changes, so S1.7 and S1.9 load the cabal fresh. `CabalAccessModelTests` covers the hint that refreshes an open screen.
 - Deny and Cancel request. `CabalAccessModelTests` covers both on the host.
-- Share. It opens the system share sheet, which the journey does not drive.

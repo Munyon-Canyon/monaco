@@ -169,7 +169,7 @@ final class CabalModelTests: XCTestCase {
             "rules":{"join_mode":"request","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400,"slippage_bps":100},\
             "creator":{"user_id":"01890a5d-ac96-774b-bcce-b302099a8070","handle":"kai0","display_name":"Kai 0","photo_url":null},\
             "member_count":\(members),"members":[\(people)],"me":{"role":"creator","can_vote":true},\
-            "my_access_request":null,"invite_code":"ABCD2345","treasury_address":"treasury-1"}
+            "my_access_request":null,"invite_code":null,"treasury_address":"treasury-1"}
             """
     }
 }

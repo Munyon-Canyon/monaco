@@ -14,11 +14,11 @@ nonisolated final class JoinJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "A")
-            let code = JoinJourney.creatorCopiesCode(app, run: run, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-A-code-copied")
+            JoinJourney.creatorOpensCabal(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-opened")
 
             let member = try session.act(as: "B")
-            JoinJourney.memberRequestsByCode(app, run: run, code: code, recorder: recorder)
+            JoinJourney.memberRequests(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-requested")
 
             try session.act(as: "A")

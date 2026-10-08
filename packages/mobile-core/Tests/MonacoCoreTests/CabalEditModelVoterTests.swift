@@ -160,12 +160,11 @@ extension CabalEditModelTests {
         XCTAssertEqual(model.settings, edited)
     }
 
-    func testTheSampleForANonMemberHasNoMembershipOrInviteCode() async {
+    func testTheSampleForANonMemberHasNoMembership() async {
         let model = CabalEditModel.preview(.sample(role: nil))
         await model.load()
 
         XCTAssertFalse(model.isCreator)
-        XCTAssertNil(model.cabal?.inviteCode)
     }
 
     func testOneSaveCarriesTheVotersAndTheThresholdInOnePatch() async throws {

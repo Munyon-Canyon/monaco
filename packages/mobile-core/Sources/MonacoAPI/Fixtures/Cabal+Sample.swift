@@ -20,7 +20,7 @@ extension Components.Schemas.Cabal {
             members: [],
             me: role.map { .init(role: $0, canVote: canVote) },
             myAccessRequest: nil,
-            inviteCode: role == nil ? nil : "ABCD2345",
+            inviteCode: nil,
             treasuryAddress: "treasury-1"
         )
     }

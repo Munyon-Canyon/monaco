@@ -2,12 +2,10 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 4
+    static let version = 5
 
     static let cabalName = "QA pot"
     static let inviteeHandle = "qa_b"
-
-    static func shareCabal(run: String) -> String { "QA share \(run)" }
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -162,45 +160,6 @@ enum InviteJourney {
             XCTAssertTrue(
                 waitForCount(inviteRows(app), 0, timeout: 10),
                 "S1.10: the declined invite is still on the Cabals tab"
-            )
-        }
-    }
-
-    static func copyAndShareTheCode(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        let name = shareCabal(run: run)
-        let copy = app.buttons["cabal-invite-copy"]
-        let share = app.buttons["cabal-invite-share"]
-
-        recorder.step("S2.1", "open the cabal by name") {
-            JoinJourney.openBySearch(app, name, step: "S2.1")
-        }
-
-        recorder.step("S2.2", "open details and read the invite card") {
-            app.buttons["cabal-details-button"].tap()
-            XCTAssertTrue(
-                app.element("cabal-invite-card").waitForExistence(timeout: 10),
-                "S2.2: no invite card in the details within 10 s"
-            )
-            let code = app.staticTexts["cabal-invite-code"].label
-            XCTAssertEqual(code.count, 10, "S2.2: the invite code '\(code)' is not 10 characters")
-            XCTAssertEqual(copy.label, "Copy code", "S2.2: the copy button's label")
-            XCTAssertEqual(share.label, "Share", "S2.2: the share button's label")
-        }
-
-        recorder.step("S2.3", "copy the code") {
-            copy.tap()
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(copy, containing: "Copied", timeout: 2),
-                "S2.3: the copy button did not read Copied within 2 s"
-            )
-        }
-
-        recorder.step("S2.4", "open the share sheet and close it") {
-            share.tap()
-            XCTAssertTrue(app.dismissShareSheet(), "S2.4: the share sheet did not open within 5 s")
-            XCTAssertTrue(
-                app.element("cabal-invite-card").waitForExistence(timeout: 5),
-                "S2.4: the invite card did not come back after the share sheet closed"
             )
         }
     }
