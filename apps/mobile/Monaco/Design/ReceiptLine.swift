@@ -40,7 +40,7 @@ struct ReceiptLine: View {
         .overlay(alignment: .bottom) {
             if !isLast {
                 MonacoRule()
-                    .padding(.leading, MonacoTheme.Space.m)
+                    .padding(.leading, MonacoTheme.Space.gutter)
             }
         }
         .accessibilityElement(children: .combine)

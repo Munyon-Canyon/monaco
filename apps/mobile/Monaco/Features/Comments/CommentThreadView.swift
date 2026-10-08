@@ -75,7 +75,7 @@ enum CommentThreadLayout {
     static let indentWidth: CGFloat = 28
 
     static func avatarLeading(level: Int) -> CGFloat {
-        MonacoTheme.Space.m + CGFloat(max(level, 0)) * indentWidth
+        MonacoTheme.Space.gutter + CGFloat(max(level, 0)) * indentWidth
     }
 
     static func textLeading(level: Int) -> CGFloat {
@@ -143,7 +143,7 @@ struct CommentRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.leading, CommentThreadLayout.avatarLeading(level: level))
-        .padding(.trailing, MonacoTheme.Space.m)
+        .padding(.trailing, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.sm)
         .padding(.bottom, MonacoTheme.Space.sm)
         .frame(maxWidth: .infinity, alignment: .leading)

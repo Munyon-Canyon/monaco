@@ -18,10 +18,12 @@ struct CommentThreadLayoutTests {
     }
 
     @Test func eachLevelStepsInByOneIndent() {
-        #expect(CommentThreadLayout.avatarLeading(level: 0) == MonacoTheme.Space.m)
-        #expect(CommentThreadLayout.avatarLeading(level: 1) == MonacoTheme.Space.m + CommentThreadLayout.indentWidth)
+        #expect(CommentThreadLayout.avatarLeading(level: 0) == MonacoTheme.Space.gutter)
         #expect(
-            CommentThreadLayout.textLeading(level: 0) == MonacoTheme.Space.m + CommentThreadLayout.avatarSize
+            CommentThreadLayout.avatarLeading(level: 1)
+                == MonacoTheme.Space.gutter + CommentThreadLayout.indentWidth)
+        #expect(
+            CommentThreadLayout.textLeading(level: 0) == MonacoTheme.Space.gutter + CommentThreadLayout.avatarSize
                 + MonacoTheme.Space.sm)
     }
 

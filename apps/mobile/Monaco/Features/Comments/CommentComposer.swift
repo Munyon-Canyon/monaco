@@ -19,7 +19,8 @@ struct CommentComposerBar: View {
                 .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.vertical, MonacoTheme.Space.m)
                 .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))
                 .overlay(alignment: .top) { MonacoRule() }
                 .accessibilityIdentifier("comment-members-only")

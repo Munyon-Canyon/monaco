@@ -42,8 +42,8 @@ struct HomeBalanceRowSection: View {
                     valueIdentifier: balanceIdentifier)
             }
             actions
-                .padding(.leading, MonacoTheme.Space.m + 44 + MonacoTheme.Space.sm)
-                .padding(.trailing, MonacoTheme.Space.m)
+                .padding(.leading, MonacoTheme.Space.gutter + 44 + MonacoTheme.Space.sm)
+                .padding(.trailing, MonacoTheme.Space.gutter)
                 .padding(.bottom, MonacoTheme.Space.xs)
         }
         .task {

@@ -201,7 +201,7 @@ struct SessionGateSkeleton: View {
 /// to Home.
 struct HomeShapedSkeleton: View {
     /// Where a row's rule starts: under the text, past the 44pt mark (see `MonacoRow`).
-    private static let rowRuleInset = MonacoTheme.Space.m + 44 + MonacoTheme.Space.sm
+    private static let rowRuleInset = MonacoTheme.Space.gutter + 44 + MonacoTheme.Space.sm
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
