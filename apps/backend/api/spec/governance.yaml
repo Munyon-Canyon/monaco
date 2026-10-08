@@ -285,8 +285,197 @@ paths:
               schema: {$ref: "#/components/schemas/VoidedProposal"}
               example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, status: voided, void_reason: spam proposal}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/proposals/{id}:
+    get:
+      operationId: getAdminProposal
+      tags: [governance]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Look up one proposal.
+      description: >-
+        Returns the proposal with every member of its frozen voter set, their ballots and cast times, the
+        statuses it went through from its `proposal.*` events, its latest linked trade, and the 20 newest
+        admin actions on it. The proposer shows as an id and a handle only. An unknown proposal answers
+        proposal_not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of the proposal.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+      responses:
+        "200":
+          description: The proposal.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminProposal"}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/cabals/{id}/proposals:
+    get:
+      operationId: getAdminCabalProposals
+      tags: [governance]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List a cabal's proposals.
+      description: >-
+        Returns one page of the cabal's proposals, newest first, with the same items and filters as the
+        member list. `status` keeps proposals still taking ballots (`open`), those with a given status
+        (`passed`, `executed`, `failed`), or every status but `open` (`closed`). No ballot or permission
+        belongs to the caller, so `my_ballot` is null and `can_vote` is false. An unknown cabal answers
+        cabal_not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The id of the cabal.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        - name: status
+          in: query
+          required: false
+          description: Which proposals to return.
+          schema: {type: string, enum: [open, passed, executed, failed, closed, all], default: all, examples: [open]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 20 and cannot exceed 50.
+          schema: {type: integer, minimum: 1, maximum: 50, default: 20, examples: [20]}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 512, examples: ["MTc3MjM2NjQwMDAwMDAwMAAwMTg5MGE1ZC1hYzk2LTc3NGItYmNjZS1iMzAyMDk5YTgwNTc"]}
+      responses:
+        "200":
+          description: One page of the cabal's proposals.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ProposalList"}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   schemas:
+    AdminProposer:
+      type: object
+      description: The member who proposed it. Nothing else about them is shown.
+      additionalProperties: false
+      required: [id, handle]
+      properties:
+        id: {type: string, format: uuid, description: The member., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        handle: {type: string, description: Their handle., examples: [alice]}
+    AdminStatusChange:
+      type: object
+      description: One status the proposal entered, read from its `proposal.*` events.
+      additionalProperties: false
+      required: [status, at, actor_type]
+      properties:
+        status: {$ref: "#/components/schemas/ProposalStatus"}
+        at: {type: string, format: date-time, description: When the event was recorded., examples: ["2026-10-03T15:00:00Z"]}
+        actor_type:
+          type: string
+          description: Who caused it, as the event records it.
+          enum: [user, agent, admin, system, service]
+          examples: [user]
+    AdminProposalAction:
+      type: object
+      description: One admin action taken on the proposal.
+      additionalProperties: false
+      required: [id, admin_id, action, reason, created_at]
+      properties:
+        id: {type: string, format: uuid, description: The action id., examples: [01890a5d-ac96-774b-bcce-b302099a805a]}
+        admin_id: {type: string, format: uuid, description: The administrator who took it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
+        action: {type: string, description: The kind of action., examples: [proposal_void]}
+        reason: {type: string, description: The reason the administrator gave., examples: [spam proposal]}
+        created_at: {type: string, format: date-time, description: When it was audited., examples: ["2026-10-03T16:00:00Z"]}
+    AdminProposal:
+      type: object
+      description: One proposal as the admin panel shows it.
+      additionalProperties: false
+      required:
+        - id
+        - cabal_id
+        - proposer
+        - kind
+        - symbol
+        - usdc_micros
+        - token_amount
+        - quote_out_amount
+        - thesis
+        - status
+        - status_reason
+        - expires_at
+        - created_at
+        - tally
+        - voters
+        - swap
+        - status_history
+        - recent_admin_actions
+      properties:
+        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
+        proposer: {$ref: "#/components/schemas/AdminProposer"}
+        kind: {$ref: "#/components/schemas/ProposalKind"}
+        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        usdc_micros:
+          type: [integer, "null"]
+          format: int64
+          description: USDC a buy spends, in micros. Null for a sell.
+          examples: [25000000]
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: Token base units a sell spends. Null for a buy.
+          examples: [null]
+        quote_out_amount:
+          type: integer
+          format: int64
+          description: The quoted output, in the output asset's base units, when the proposal opened.
+          examples: [105000000]
+        thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
+        status: {$ref: "#/components/schemas/ProposalStatus"}
+        status_reason:
+          type: [string, "null"]
+          description: The error code that blocked execution. Null unless `status` is `execution_blocked`.
+          examples: [null]
+        expires_at: {type: string, format: date-time, description: When voting closes., examples: ["2026-10-04T15:00:00Z"]}
+        created_at: {type: string, format: date-time, description: When the proposal opened., examples: ["2026-10-03T15:00:00Z"]}
+        tally: {$ref: "#/components/schemas/Tally"}
+        voters:
+          type: array
+          description: Every member of the frozen voter set, ordered by user id.
+          examples: [[]]
+          items: {$ref: "#/components/schemas/ProposalVoter"}
+        swap:
+          type: [object, "null"]
+          description: The latest trade linked to the proposal. Null when none exists.
+          examples: [null]
+          x-go-type-name: AdminProposalSwap
+          additionalProperties: false
+          required: [swap_id, status, failure_code, tx_signature]
+          properties:
+            swap_id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8060]}
+            status:
+              type: string
+              description: Where the trade is.
+              enum: [created, submitted, confirmed, failed]
+              examples: [confirmed]
+            failure_code:
+              type: [string, "null"]
+              description: Why the trade failed. Null unless `status` is `failed`.
+              examples: [null]
+            tx_signature:
+              type: [string, "null"]
+              description: The Solana transaction signature. Null before the trade is submitted.
+              examples: [null]
+        status_history:
+          type: array
+          description: The statuses the proposal entered, oldest first. The list holds at most 50 events, the oldest 50, so a proposal with more would lose its newest statuses.
+          examples: [[]]
+          items: {$ref: "#/components/schemas/AdminStatusChange"}
+        recent_admin_actions:
+          type: array
+          maxItems: 20
+          description: The 20 newest admin actions on the proposal, newest first.
+          examples: [[]]
+          items: {$ref: "#/components/schemas/AdminProposalAction"}
     VoidedProposal:
       type: object
       description: A proposal after a moderator voided it.

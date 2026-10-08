@@ -6,11 +6,13 @@ import (
 
 	"go.opentelemetry.io/otel"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
@@ -61,6 +63,7 @@ func (*Module) Name() string { return "governance" }
 func (m *Module) Mount(r api.Mount) {
 	ports := m.tradePorts()
 	hints := adapters.Hints{Publish: m.deps.Bus}
+	reads := app.NewProposalReads(m.deps.Pool, trading.New(m.deps).Queries())
 	governanceapi.Mount(adapters.HTTP{
 		Propose:  app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints),
 		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Clock, hints),
@@ -68,7 +71,11 @@ func (m *Module) Mount(r api.Mount) {
 		Void: app.NewVoidProposalHandler(
 			m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
 		),
-		Reads: app.NewProposalReads(m.deps.Pool, trading.New(m.deps).Queries()),
+		Reads: reads,
+		Admin: app.NewAdminReads(
+			reads, bus.NewEventLog(m.deps.Pool, m.deps.Clock), identity.New(m.deps).Queries(),
+			cabal.New(m.deps).Queries(), admin.New(m.deps).Actions(),
+		),
 	}, r)
 }
 

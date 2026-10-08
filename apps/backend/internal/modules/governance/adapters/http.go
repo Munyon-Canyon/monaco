@@ -19,6 +19,7 @@ type HTTP struct {
 	Vote     *app.CastVoteHandler
 	Withdraw *app.WithdrawProposalHandler
 	Void     *app.VoidProposalHandler
+	Admin    *app.AdminReads
 	Reads    *app.ProposalReads
 }
 
