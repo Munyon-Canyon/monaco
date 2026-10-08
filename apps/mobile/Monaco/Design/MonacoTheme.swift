@@ -39,9 +39,6 @@ enum MonacoTheme {
 
     static let canvas = background
 
-    /// Kept for source compatibility. The gradient wash is gone; this is the flat canvas.
-    static let canvasWash = canvas
-
     /// White cards on the cream canvas (the site's `bg-2`); lifted forest-black panels in dark.
     static let surface = Color.adaptive(light: 0xFFFFFF, dark: 0x13211B)
 
@@ -127,9 +124,6 @@ enum MonacoTheme {
     /// same value in both schemes. In dark it is the one fully saturated forest panel in the app,
     /// lifted off the near-neutral canvas by chroma rather than by lightness.
     static let heroInk = Color(hex: 0x0F291C)
-
-    /// Very subtle top-left radial highlight on the hero card. No purple, no glass.
-    static let heroInkHighlight = Color(hex: 0x2E6B4B, alpha: 0.55)
 
     /// Primary text on a hero card.
     static let onHero = Color.white
@@ -412,8 +406,6 @@ enum MonacoTheme {
         static let chip: CGFloat = 12
         static let card: CGFloat = 16
         static let sheet: CGFloat = 24
-        static let pill: CGFloat = 28
-        static let hero: CGFloat = 24
         /// `CabalMark` / `StockMark` at 44pt; marks scale this proportionally.
         static let tile: CGFloat = 16
         static let field: CGFloat = 12
@@ -429,14 +421,6 @@ enum MonacoTheme {
         static let xl: CGFloat = 32
         /// Screen side padding.
         static let gutter: CGFloat = 20
-    }
-
-    /// Existing call sites. New code uses `Typo`.
-    enum TypeRole {
-        static let display = Typo.display
-        static let title = Typo.title
-        static let body = Typo.body
-        static let caption = Typo.caption
     }
 }
 

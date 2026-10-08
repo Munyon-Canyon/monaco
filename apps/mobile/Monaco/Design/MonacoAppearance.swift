@@ -81,7 +81,6 @@ enum MonacoAppearance {
         // Legacy Form / List screens until they migrate to MonacoGroupedList.
         UITableView.appearance().backgroundColor = .clear
         UITableView.appearance().separatorColor = hairline
-        UITableViewCell.appearance().backgroundColor = surface
 
         // No global UITextField / UISegmentedControl appearance: it leaked into Privy's sheets.
         // Use MonacoTextField and MonacoSegmented instead.
@@ -121,34 +120,6 @@ extension View {
             }
     }
 
-    /// The premium "money" card: deep ink in both schemes, with a very subtle top-left
-    /// radial highlight. Everything inside draws in `onHero` / `onHeroMuted`.
-    func monacoHeroCard(padding: CGFloat = 24) -> some View {
-        self
-            .padding(padding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(MonacoHeroCardBackground())
-    }
-
-    /// Inset grouped list on the app canvas — hides default scroll chrome.
-    func monacoInsetList() -> some View {
-        listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Color.clear)
-    }
-
-    /// High-contrast segmented control strip for board tabs.
-    func monacoSegmentedBoardPicker() -> some View {
-        padding(.horizontal, MonacoTheme.Space.m)
-            .padding(.vertical, 12)
-            .background(MonacoTheme.surface)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(MonacoTheme.hairline)
-                    .frame(height: 1)
-            }
-    }
-
     /// Toolbar / nav bar SF Symbol — ink tint, readable weight.
     func monacoToolbarIcon() -> some View {
         font(MonacoTheme.Typo.bodyStrong)
@@ -166,12 +137,6 @@ extension View {
             .listRowSeparatorTint(MonacoTheme.border)
     }
 
-    /// Footnote / hint copy inside forms.
-    func monacoSecondaryCaption() -> some View {
-        font(MonacoTheme.TypeRole.caption)
-            .foregroundStyle(MonacoTheme.secondaryText)
-    }
-
     /// Text field inside a Form section — ink text + accent caret.
     func monacoFormTextField() -> some View {
         foregroundStyle(MonacoTheme.primaryText)
@@ -186,69 +151,4 @@ extension View {
             .listRowBackground(Color.clear)
     }
 
-    /// Secondary action button row inside a Form.
-    func monacoFormSecondaryAction() -> some View {
-        buttonStyle(.monacoSecondary)
-            .frame(maxWidth: .infinity)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            .listRowBackground(Color.clear)
-    }
-
-    /// Destructive action button row inside a Form (e.g. sign out).
-    func monacoFormDestructiveAction() -> some View {
-        buttonStyle(.monacoDestructive)
-            .frame(maxWidth: .infinity)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            .listRowBackground(Color.clear)
-    }
-}
-
-/// Empty list placeholder with bordered surface card.
-@available(*, deprecated, message: "Use EmptyState (no icon).")
-struct MonacoEmptyStateCard: View {
-    let message: String
-    let systemImage: String
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.title2)
-                .foregroundStyle(MonacoTheme.accent)
-                .symbolRenderingMode(.hierarchical)
-            Text(message)
-                .font(MonacoTheme.TypeRole.body)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .monacoSurfaceCard()
-        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-    }
-}
-
-/// Deep ink money card. One flat ink base plus a soft off-centre highlight — no glass, no glow.
-struct MonacoHeroCardBackground: View {
-    var radius: CGFloat = MonacoTheme.Radius.hero
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(MonacoTheme.heroInk)
-            .overlay {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(
-                        RadialGradient(
-                            colors: [MonacoTheme.heroInkHighlight, .clear],
-                            center: UnitPoint(x: 0.08, y: -0.05),
-                            startRadius: 0,
-                            endRadius: 340
-                        )
-                    )
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 1)
-            }
-    }
 }
