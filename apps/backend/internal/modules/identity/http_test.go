@@ -26,6 +26,7 @@ import (
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -100,6 +101,7 @@ func newHTTPFixtureIn(t *testing.T, routerEnv, moduleEnv config.Env, extra ...id
 			identity.WithPrivy(fakeUsers, fakeWallets),
 			identity.WithHints(hints),
 			identity.WithPhotoStore(photos),
+			identity.WithFollowCounts(social.New(module.Deps{Pool: f.pool}).FollowCounts()),
 		}, extra...)...,
 	).Mount
 	h, err := httpx.HandlerFor(httpx.Deps{

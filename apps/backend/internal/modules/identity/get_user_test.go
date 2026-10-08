@@ -29,6 +29,10 @@ func (s stubFollows) FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool
 	return false, s.followedErr
 }
 
+func (s stubFollows) FollowedAmong(context.Context, ids.UserID, []ids.UserID) (map[ids.UserID]bool, error) {
+	return nil, s.followedErr
+}
+
 func (s stubFollows) BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {
 	return false, s.blockedErr
 }

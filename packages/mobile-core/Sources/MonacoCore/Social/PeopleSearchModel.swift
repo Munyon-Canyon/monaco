@@ -23,6 +23,7 @@ public final class PeopleSearchModel {
     public private(set) var toast: PeopleSearchToast?
 
     private let api: APIClient
+    private var toggling: Set<String> = []
     private let clock: any Clock<Duration>
     private var generation = 0
     private var task: Task<Void, Never>?
@@ -38,6 +39,58 @@ public final class PeopleSearchModel {
 
     public func retry() {
         schedule(after: nil)
+    }
+
+    public func isToggling(_ userID: String) -> Bool {
+        toggling.contains(userID)
+    }
+
+    public func toggleFollow(_ userID: String) async {
+        guard !toggling.contains(userID), let previous = followedByMe(userID) else { return }
+        toggling.insert(userID)
+        defer { toggling.remove(userID) }
+        set(userID, following: !previous)
+        do {
+            let state = try await sendFollow(userID, following: !previous)
+            set(userID, following: state.following)
+        } catch {
+            set(userID, following: previous)
+            toast = PeopleSearchToast(
+                serial: (toast?.serial ?? 0) + 1, message: ToastCopy.message(for: APIError(error)))
+        }
+    }
+
+    private func followedByMe(_ userID: String) -> Bool? {
+        guard case .loaded(let users) = state else { return nil }
+        return users.first { $0.userId == userID }?.followedByMe
+    }
+
+    private func set(_ userID: String, following: Bool) {
+        guard case .loaded(var users) = state, let index = users.firstIndex(where: { $0.userId == userID }) else {
+            return
+        }
+        users[index].followedByMe = following
+        state = .loaded(users)
+    }
+
+    private func sendFollow(_ userID: String, following: Bool) async throws -> Components.Schemas.FollowState {
+        let submission = IdempotentSubmission()
+        let call = FollowCall(userID: userID, following: following)
+        if following {
+            return try await api.submit(submission, payload: call, operation: "postUserFollow") { client, key in
+                try await client.postUserFollow(
+                    path: .init(id: userID),
+                    headers: .init(idempotencyKey: key),
+                    body: .json(.init(source: "profile"))
+                ).ok.body.json
+            }
+        }
+        return try await api.submit(submission, payload: call, operation: "deleteUserFollow") { client, key in
+            try await client.deleteUserFollow(
+                path: .init(id: userID),
+                headers: .init(idempotencyKey: key)
+            ).ok.body.json
+        }
     }
 
     private func schedule(after delay: Duration?) {
@@ -84,6 +137,11 @@ public final class PeopleSearchModel {
     private var hasRows: Bool {
         if case .loaded(let users) = state { return !users.isEmpty }
         return false
+    }
+
+    private struct FollowCall: Encodable, Sendable {
+        var userID: String
+        var following: Bool
     }
 
     private static func normalize(_ text: String) -> String {
