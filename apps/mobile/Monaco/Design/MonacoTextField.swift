@@ -79,7 +79,7 @@ struct MonacoTextField: View {
         .monacoFieldChrome(isFocused: focused)
         // The whole 56pt is the target, not just the line of text in the middle of it.
         .contentShape(Rectangle())
-        .onTapGesture { focused = true }
+        .simultaneousGesture(TapGesture().onEnded { focused = true })
         .accessibilityLabel(placeholder)
     }
 
