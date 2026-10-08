@@ -30,11 +30,8 @@ final class ProposalCardCopyTests: XCTestCase {
             ProposalCardCopy.pausedCaption, "Trading is paused. If this passes, it won't buy until trading resumes.")
     }
 
-    func testProposedByLineAndAge() {
+    func testAge() {
         let now = Date(timeIntervalSince1970: 100_000)
-        XCTAssertEqual(
-            ProposalCardCopy.proposedBy("Jordan", since: now.addingTimeInterval(-33 * 60), now: now),
-            "Proposed by Jordan · 33m")
         XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(-3 * 3600), now: now), "3h")
         XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(-50 * 3600), now: now), "2d")
         XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(60), now: now), "0m")

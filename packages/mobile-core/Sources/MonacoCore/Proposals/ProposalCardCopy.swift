@@ -34,10 +34,6 @@ public enum ProposalCardCopy {
         return "\(minutes / 1440)d"
     }
 
-    public static func proposedBy(_ name: String, since created: Date, now: Date) -> String {
-        "Proposed by \(name) · \(age(since: created, now: now))"
-    }
-
     public static func expected(
         isSell: Bool, quoteOut: Int64, usdcMicros: Int64?, decimals: Int, kind: AssetKind
     ) -> String? {
