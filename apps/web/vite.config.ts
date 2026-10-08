@@ -21,8 +21,23 @@ function fundPolicy(apiURL: string): Plugin {
   };
 }
 
+// vercel.json rewrites /fund to the fund page, but Vite's dev server serves fund/index.html only at /fund/
+// and falls back to the waitlist for /fund. The backend links to /fund, so dev rewrites it, query intact.
+function fundDevRewrite(): Plugin {
+  return {
+    name: "fund-dev-rewrite",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        if (req.url === "/fund" || req.url?.startsWith("/fund?")) req.url = `/fund/${req.url.slice("/fund".length)}`;
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), fundPolicy(loadEnv(mode, import.meta.dirname).VITE_MONACO_API_URL || "http://localhost:8080")],
+  plugins: [react(), fundDevRewrite(), fundPolicy(loadEnv(mode, import.meta.dirname).VITE_MONACO_API_URL || "http://localhost:8080")],
   // node --test runs test/*.test.js; Vitest takes only the fund page's TypeScript tests.
   test: { include: ["src/**/*.test.ts"] },
   build: {
