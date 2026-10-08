@@ -129,7 +129,18 @@ func (s CashOutSales) settle(
 	}); err != nil {
 		return err
 	}
-	if err := s.apply(ctx, tx, cabal, ids.UserIDFrom(job.UserID), jobID, units, to, settled, at); err != nil {
+	if err := s.apply(
+		ctx,
+		tx,
+		cabal,
+		ids.UserIDFrom(job.UserID),
+		jobID,
+		units,
+		to,
+		settled,
+		job.Cause,
+		at,
+	); err != nil {
 		return err
 	}
 	tx.AfterCommit(func(ctx context.Context) {
@@ -143,12 +154,12 @@ func (s CashOutSales) settle(
 
 func (s CashOutSales) apply(
 	ctx context.Context, tx db.Tx, cabal ids.CabalID, user ids.UserID, job uuid.UUID, units money.SharesUnits,
-	to domain.CashOutStatus, settled domain.SaleSettlement, at time.Time,
+	to domain.CashOutStatus, settled domain.SaleSettlement, cause string, at time.Time,
 ) error {
 	if err := s.giveBack(ctx, tx, cabal, user, settled, at); err != nil || to != domain.CashOutFailed {
 		return err
 	}
-	return s.fail(ctx, tx, cabal, user, job, units)
+	return s.fail(ctx, tx, cabal, user, job, units, cause)
 }
 
 func sale(
@@ -185,9 +196,10 @@ func (s CashOutSales) giveBack(
 
 func (CashOutSales) fail(
 	ctx context.Context, tx db.Tx, cabal ids.CabalID, user ids.UserID, job uuid.UUID, units money.SharesUnits,
+	cause string,
 ) error {
 	return tx.Events.Append(ctx, events.CashOutFailed{
 		V: 1, JobID: job, CabalID: cabal.UUID(), UserID: user.UUID(), ShareUnits: units.Uint64(),
-		Code: string(errs.CodeSaleShort),
+		Code: string(errs.CodeSaleShort), Cause: cause,
 	})
 }

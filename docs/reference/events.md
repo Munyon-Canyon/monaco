@@ -367,6 +367,17 @@ Subject `events.cabal.updated`, version 1.
 | `actor_id` | `uuid.UUID` |
 | `changes` | `events.CabalChanges` |
 
+## `cabal.wound_down`
+
+Subject `events.cabal.wound_down`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `cabal_id` | `uuid.UUID` |
+| `members_paid` | `int64` |
+| `usdc_returned_micros` | `money.Micros` |
+
 ## `cashout.completed`
 
 Subject `events.cashout.completed`, version 1.
@@ -380,6 +391,7 @@ Subject `events.cashout.completed`, version 1.
 | `share_units` | `uint64` |
 | `payout_micros` | `money.Micros` |
 | `signature` | `chain.Signature` |
+| `cause` | `string` |
 
 ## `cashout.failed`
 
@@ -393,6 +405,7 @@ Subject `events.cashout.failed`, version 1.
 | `user_id` | `uuid.UUID` |
 | `share_units` | `uint64` |
 | `code` | `string` |
+| `cause` | `string` |
 
 ## `cashout.partial`
 
@@ -408,6 +421,7 @@ Subject `events.cashout.partial`, version 1.
 | `share_units_returned` | `uint64` |
 | `payout_micros` | `money.Micros` |
 | `signature` | `chain.Signature` |
+| `cause` | `string` |
 
 ## `cashout.started`
 
@@ -422,6 +436,7 @@ Subject `events.cashout.started`, version 1.
 | `share_units` | `uint64` |
 | `payout_micros` | `money.Micros` |
 | `sell_usdc_micros` | `money.Micros` |
+| `cause` | `string` |
 
 ## `chat.message_posted`
 

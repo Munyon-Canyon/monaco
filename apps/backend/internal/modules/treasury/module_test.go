@@ -33,7 +33,14 @@ func TestModule_pollsFundsAndSweepsCashOuts(t *testing.T) {
 	for _, p := range pollers {
 		names = append(names, p.Name())
 	}
-	if want := []string{"treasury.fund-transfers", "treasury.cashout-sweeper"}; !slices.Equal(names, want) {
+	if want := []string{
+		"treasury.fund-transfers",
+		"treasury.cashout-sweeper",
+		"treasury.winddown",
+	}; !slices.Equal(
+		names,
+		want,
+	) {
 		t.Fatalf("pollers = %v, want %v", names, want)
 	}
 }
@@ -64,6 +71,7 @@ func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 		"treasury_cashout treasury.cashout.confirmed " + string(events.TypeTradeConfirmed),
 		"treasury_cashout treasury.cashout.failed " + string(events.TypeTradeFailed),
 		"treasury_cashout treasury.cashout.blocked " + string(events.TypeTradeBlocked),
+		"treasury_winddown treasury.winddown " + string(events.TypeCabalBanned),
 		"treasury_cashout_payout treasury.cashout_payout " + string(events.TypeCashOutStarted),
 		"treasury_user_ledger treasury.user_ledger " + string(events.TypeDepositCredited),
 		"treasury_user_ledger treasury.withdrawal_ledger " + string(events.TypeWithdrawalConfirmed),
