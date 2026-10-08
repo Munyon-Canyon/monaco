@@ -54,42 +54,44 @@ struct InvitePasteView: View {
     let onSkip: () -> Void
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.l) {
-            Spacer()
-            VStack(spacing: MonacoTheme.Space.s) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 Text("Were you invited?")
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.primaryText)
+                    .font(MonacoTheme.Typo.display)
+                    .foregroundStyle(MonacoTheme.ink)
                     .accessibilityAddTraits(.isHeader)
                 Text("Paste your invite link to join from your friend's invite.")
                     .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.secondaryText)
             }
-            .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-
-            PasteButton(payloadType: URL.self) { urls in
-                guard let url = urls.first else { return }
-                Task { @MainActor in onPaste(url) }
-            }
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
-            .accessibilityLabel("Paste invite")
-            .accessibilityIdentifier("invite-paste-button")
-
-            Button(action: onSkip) {
-                Text("Skip")
-                    .font(MonacoTheme.Typo.calloutStrong)
-                    .foregroundStyle(MonacoTheme.brand)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("invite-skip-button")
-            Spacer()
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.top, MonacoTheme.Space.xl)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom) {
+            BottomCTA {
+                VStack(spacing: MonacoTheme.Space.xs) {
+                    PasteButton(payloadType: URL.self) { urls in
+                        guard let url = urls.first else { return }
+                        Task { @MainActor in onPaste(url) }
+                    }
+                    .tint(MonacoTheme.heroInk)
+                    .labelStyle(.titleOnly)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .accessibilityLabel("Paste invite")
+                    .accessibilityIdentifier("invite-paste-button")
+
+                    Button(action: onSkip) {
+                        Text("Skip")
+                    }
+                    .buttonStyle(.monacoText)
+                    .accessibilityIdentifier("invite-skip-button")
+                }
+            }
+        }
+        .monacoCanvas()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("invite-paste-screen")
     }

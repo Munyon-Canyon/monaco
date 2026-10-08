@@ -303,12 +303,8 @@ struct OTPLoginForm: View {
     private func textAction(_ title: String, identifier: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(MonacoTheme.Typo.calloutStrong)
-                .foregroundStyle(auth.flow.isBusy ? MonacoTheme.muted : MonacoTheme.brand)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.monacoText)
         .disabled(auth.flow.isBusy)
         .accessibilityIdentifier(identifier)
     }

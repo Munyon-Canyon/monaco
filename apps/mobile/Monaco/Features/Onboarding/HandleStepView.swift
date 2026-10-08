@@ -83,8 +83,8 @@ private struct HandleStepForm: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     Text(OnboardingCopy.handleTitle)
-                        .font(MonacoTheme.Typo.title)
-                        .foregroundStyle(MonacoTheme.primaryText)
+                        .font(MonacoTheme.Typo.display)
+                        .foregroundStyle(MonacoTheme.ink)
                         .accessibilityAddTraits(.isHeader)
                     Text(subtext)
                         .font(MonacoTheme.Typo.callout)
@@ -186,9 +186,7 @@ private struct HandleStepForm: View {
             case .failed:
                 Text(HandleCopy.checkFailed).foregroundStyle(MonacoTheme.loss)
                 Button(HandleCopy.tryAgain) { Task { await checker.retry() } }
-                    .font(MonacoTheme.Typo.captionStrong)
-                    .foregroundStyle(MonacoTheme.brand)
-                    .frame(minHeight: 44)
+                    .buttonStyle(.monacoText)
                     .accessibilityIdentifier("handle-step-try-again")
             }
         }
@@ -240,12 +238,8 @@ private struct HandleStepForm: View {
                     isEnteringReferral = true
                 } label: {
                     Text("Have a referral code?")
-                        .font(MonacoTheme.Typo.calloutStrong)
-                        .foregroundStyle(MonacoTheme.brand)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.monacoText)
                 .accessibilityIdentifier("onboarding-handle-step-referral")
             }
 
@@ -254,12 +248,8 @@ private struct HandleStepForm: View {
                     Task { await onSignOut() }
                 } label: {
                     Text(OnboardingCopy.signOut)
-                        .font(MonacoTheme.Typo.calloutStrong)
-                        .foregroundStyle(MonacoTheme.brand)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.monacoText)
                 .accessibilityIdentifier("onboarding-handle-step-sign-out")
             }
         }

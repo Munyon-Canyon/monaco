@@ -44,8 +44,8 @@ private struct SocialsStepForm: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     Text(LinkCopy.xTitle)
-                        .font(MonacoTheme.Typo.title)
-                        .foregroundStyle(MonacoTheme.primaryText)
+                        .font(MonacoTheme.Typo.display)
+                        .foregroundStyle(MonacoTheme.ink)
                         .accessibilityAddTraits(.isHeader)
                     Text(LinkCopy.xSubtext)
                         .font(MonacoTheme.Typo.callout)
@@ -97,11 +97,8 @@ private struct SocialsStepForm: View {
                     Task { await onSignOut() }
                 } label: {
                     Text(OnboardingCopy.signOut)
-                        .font(MonacoTheme.Typo.calloutStrong)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(LinkTextActionStyle())
+                .buttonStyle(.monacoText)
                 .disabled(model.isBusy)
                 .accessibilityIdentifier("onboarding-socials-step-sign-out")
             }
@@ -128,11 +125,8 @@ private struct SocialsStepForm: View {
                 Task { await skip() }
             } label: {
                 Text(title)
-                    .font(MonacoTheme.Typo.calloutStrong)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(LinkTextActionStyle())
+            .buttonStyle(.monacoText)
             .disabled(model.isBusy)
             .accessibilityIdentifier("socials-step-skip")
         }
