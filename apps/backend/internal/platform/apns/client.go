@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/net/http2"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -131,8 +130,7 @@ func reachableSafely(u *url.URL) bool {
 func (c *Client) newEndpoint(env Environment, auth *token.Token, host string, plain bool) *endpoint {
 	client := apns2.NewTokenClient(auth)
 	client.Host = host
-	client.HTTPClient.Transport.(*http2.Transport).DialTLSContext = c.dialTLS
-	rt := client.HTTPClient.Transport
+	var rt http.RoundTripper = c.h2Transport()
 	if plain {
 		client.HTTPClient = &http.Client{}
 		rt = http.DefaultTransport
@@ -155,6 +153,23 @@ func (c *Client) newEndpoint(env Environment, auth *token.Token, host string, pl
 		return errors.Is(err, c.callerGone) || excluded != nil && excluded(err)
 	}
 	return &endpoint{client: client, breaker: gobreaker.NewTwoStepCircuitBreaker[struct{}](settings)}
+}
+
+func h2Only() *http.Protocols {
+	p := new(http.Protocols)
+	p.SetHTTP2(true)
+	return p
+}
+
+func (c *Client) h2Transport() *http.Transport {
+	return &http.Transport{
+		Protocols: h2Only(),
+		HTTP2:     &http.HTTP2Config{SendPingTimeout: apns2.ReadIdleTimeout},
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, _, _ := net.SplitHostPort(addr)
+			return c.dialTLS(ctx, network, addr, &tls.Config{ServerName: host, NextProtos: []string{"h2"}})
+		},
+	}
 }
 
 func dialTLS(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
