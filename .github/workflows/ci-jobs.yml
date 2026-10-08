@@ -682,7 +682,7 @@ jobs:
     needs: plan
     if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.backend-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:

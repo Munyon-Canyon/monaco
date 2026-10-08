@@ -2,6 +2,8 @@
 
 Dated record of changes to [ci.md](../ci.md). Add one line per change, newest last.
 
+- 2026-10-07: The `Flake (changed tests, count 20)` job in `ci-jobs.yml` gets 40 minutes instead of 20. A stack that touches tests in many packages (lane 3462's, 2026-10-07) had the job cancelled at its timeout while still rerunning tests, and a cancelled required job costs a full stage 1 rerun. A job timeout guards against a hang, not slow code, so it is not a test gate. Sharding the reruns by package count is the next step if 40 minutes is not enough.
+
 - 2026-10-07: The `Swift (mobile-core, Linux)` job in `ci-mobile-core.yml` gets 20 minutes instead of 10. On 2026-10-07 the job was cancelled at its timeout while still compiling, on #3565 (run 37677353608) and #3621 (run 37689940995), with a cold or stale `.build` cache, and each cancellation cost a full stage 1 rerun. A job timeout guards against a hang, not slow code, so it is not a test gate.
 
 - 2026-10-07: Stage 0 sets `CHAOS_SEEDS=10` for the `go test -short` and `flows` rows unless the caller set it. At 18:12 the test Postgres containers used about 2250% of 18 cores after #3629 had landed. Slots 3 and 5 each held 23 databases and 12 to 16 connections running `testkit.ConsumerSuite`'s table snapshot query, with 152k requested checkpoints on one container, from the eleven `convergesUnderChaos` suites cloning and snapshotting a database per seed, 50 seeds each, about 550 clones per check. CI stage 1 keeps 50 seeds on the top PR before anything lands, and the nightly runs 5000, so a seed-dependent defect still fails before `staging` moves.
