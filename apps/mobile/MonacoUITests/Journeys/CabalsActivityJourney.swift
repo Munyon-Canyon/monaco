@@ -50,7 +50,7 @@ enum CabalsActivityJourney {
             let seeAll = app.buttons["cabal-activity-see-all"]
             app.scrollIntoReach(seeAll)
             XCTAssertTrue(seeAll.isHittable, "S1.3: See all is not tappable")
-            seeAll.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
+            seeAll.tap()
             XCTAssertTrue(
                 app.navigationBars["Activity"].waitForExistence(timeout: 10), "S1.3: no Activity screen within 10 s")
             let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-activity-row-'"))

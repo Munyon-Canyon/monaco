@@ -7,11 +7,8 @@ struct CommentThreadView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            Text(CommentsCopy.title)
-                .font(MonacoTheme.Typo.section)
-                .foregroundStyle(MonacoTheme.ink)
+            MonacoSectionHeader(CommentsCopy.title, count: model.rows.count)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-                .accessibilityAddTraits(.isHeader)
             content
         }
         .accessibilityElement(children: .contain)

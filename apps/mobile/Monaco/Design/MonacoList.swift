@@ -14,11 +14,16 @@ struct MonacoSectionHeader: View {
 
     /// A count beside the title — "Needs your vote" with a `2` — for a section that is an errand.
     private var count: Int?
+    private var actionIdentifier: String?
 
-    init(_ title: String, count: Int? = nil, trailing: String? = nil, action: (() -> Void)? = nil) {
+    init(
+        _ title: String, count: Int? = nil, trailing: String? = nil, actionIdentifier: String? = nil,
+        action: (() -> Void)? = nil
+    ) {
         self.title = title
         self.count = count
         self.trailing = trailing
+        self.actionIdentifier = actionIdentifier
         self.action = action
     }
 
@@ -51,6 +56,7 @@ struct MonacoSectionHeader: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier(actionIdentifier ?? "")
                 } else {
                     Text(trailing)
                         .font(MonacoTheme.Typo.callout)

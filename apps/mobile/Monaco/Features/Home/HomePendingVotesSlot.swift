@@ -41,12 +41,8 @@ struct HomePendingVotes: View {
     @ViewBuilder private func section(
         _ title: String, _ votes: [PendingVote], showsSeeAll: Bool, model: PendingVotesModel
     ) -> some View {
-        HStack {
-            MonacoSectionHeader(title, count: votes.count)
-            Spacer()
-            if showsSeeAll {
-                NavigationLink("See all", value: AnyAppRoute(PendingVotesRoute()))
-            }
+        MonacoSectionHeader(title, count: votes.count, trailing: showsSeeAll ? "See all" : nil) {
+            environment.navigator.open(PendingVotesRoute(), in: .home)
         }
         ForEach(votes.prefix(3)) { vote in
             if let detail = model.details[vote.id], let voting {
