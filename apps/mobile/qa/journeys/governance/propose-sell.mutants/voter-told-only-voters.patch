@@ -5,15 +5,15 @@ A voter sees "Only voters can propose". S1.1 checks the caption is absent, so it
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-index adde7c05c..2db966e1f 100644
+index 8c490f04d..da4cfc7d0 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
-@@ -98,7 +98,7 @@ struct CabalActionsRow: View {
+@@ -92,7 +92,7 @@ struct CabalActionsRow: View {
                      "Chat", "bubble.left", id: "cabal-action-chat", ChatRoute(cabalID: cabalID),
                      unread: model?.hasUnreadChat == true)
              }
 -            if !canPropose {
 +            if true {
                  Text("Only voters can propose")
-                     .font(MonacoTheme.Typo.caption)
+                     .font(MonacoTheme.Typo.callout)
                      .foregroundStyle(MonacoTheme.muted)

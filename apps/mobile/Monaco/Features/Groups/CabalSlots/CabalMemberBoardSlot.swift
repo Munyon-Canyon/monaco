@@ -20,7 +20,8 @@ private struct CabalMemberBoard: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     MonacoSectionHeader("Leaderboard")
-                    LeaderboardFreshnessText(loader: loader, identifier: "cabal-member-board-freshness")
+                    LeaderboardFreshnessText(
+                        loader: loader, identifier: "cabal-member-board-freshness", font: MonacoTheme.Typo.callout)
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 LeaderboardBoardList(

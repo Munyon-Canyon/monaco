@@ -105,7 +105,7 @@ struct CabalHoldingsSection: View {
 
     private func note(_ text: String, id: String) -> some View {
         Text(text)
-            .font(MonacoTheme.Typo.caption)
+            .font(MonacoTheme.Typo.callout)
             .foregroundStyle(MonacoTheme.muted)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier(id)

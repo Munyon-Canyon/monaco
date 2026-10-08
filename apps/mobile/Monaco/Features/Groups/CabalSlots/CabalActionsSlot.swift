@@ -94,7 +94,7 @@ struct CabalActionsRow: View {
             }
             if !canPropose {
                 Text("Only voters can propose")
-                    .font(MonacoTheme.Typo.caption)
+                    .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.muted)
                     .accessibilityIdentifier("cabal-action-propose-caption")
             }
