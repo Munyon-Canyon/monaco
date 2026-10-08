@@ -6,7 +6,15 @@ SELECT
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = @caller_id
 WHERE p.cabal_id = @cabal_id
-  AND (@filter::text = 'all' OR (p.status = 'open') = (@filter::text = 'open'))
+  AND CASE @filter::text
+    WHEN 'all' THEN true
+    WHEN 'open' THEN p.status = 'open'
+    WHEN 'closed' THEN p.status <> 'open'
+    WHEN 'passed' THEN p.status = 'passed'
+    WHEN 'executed' THEN p.status = 'executed'
+    WHEN 'failed' THEN p.status IN ('failed', 'expired', 'execution_blocked')
+    ELSE false
+  END
   AND (NOT @has_cursor::bool OR (p.created_at, p.id) < (@cursor_created_at::timestamptz, @cursor_id::uuid))
 ORDER BY p.created_at DESC, p.id DESC
 LIMIT @row_limit;

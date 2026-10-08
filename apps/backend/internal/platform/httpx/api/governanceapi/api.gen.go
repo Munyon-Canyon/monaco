@@ -117,9 +117,12 @@ func (e ProposalStatus) Valid() bool {
 
 // Defines values for GetCabalProposalsParamsFilter.
 const (
-	GetCabalProposalsParamsFilterAll    GetCabalProposalsParamsFilter = "all"
-	GetCabalProposalsParamsFilterClosed GetCabalProposalsParamsFilter = "closed"
-	GetCabalProposalsParamsFilterOpen   GetCabalProposalsParamsFilter = "open"
+	GetCabalProposalsParamsFilterAll      GetCabalProposalsParamsFilter = "all"
+	GetCabalProposalsParamsFilterClosed   GetCabalProposalsParamsFilter = "closed"
+	GetCabalProposalsParamsFilterExecuted GetCabalProposalsParamsFilter = "executed"
+	GetCabalProposalsParamsFilterFailed   GetCabalProposalsParamsFilter = "failed"
+	GetCabalProposalsParamsFilterOpen     GetCabalProposalsParamsFilter = "open"
+	GetCabalProposalsParamsFilterPassed   GetCabalProposalsParamsFilter = "passed"
 )
 
 // Valid indicates whether the value is a known member of the GetCabalProposalsParamsFilter enum.
@@ -129,7 +132,13 @@ func (e GetCabalProposalsParamsFilter) Valid() bool {
 		return true
 	case GetCabalProposalsParamsFilterClosed:
 		return true
+	case GetCabalProposalsParamsFilterExecuted:
+		return true
+	case GetCabalProposalsParamsFilterFailed:
+		return true
 	case GetCabalProposalsParamsFilterOpen:
+		return true
+	case GetCabalProposalsParamsFilterPassed:
 		return true
 	default:
 		return false

@@ -1039,7 +1039,8 @@ paths:
       description: >-
         Returns one page of the cabal's proposals, newest first. Every cabal is public, so any
         signed-in user can read them. A non-member sees the same items with `my_ballot` null.
-        `open` keeps proposals still taking ballots, and `closed` keeps every other status.
+        `open` keeps proposals still taking ballots, `passed` and `executed` keep those statuses,
+        `failed` keeps `failed`, `expired` and `execution_blocked`, and `closed` keeps every status but `open`.
       parameters:
         - name: id
           in: path
@@ -1054,7 +1055,7 @@ paths:
           description: Which proposals to return.
           schema:
             type: string
-            enum: [open, closed, all]
+            enum: [open, passed, executed, failed, closed, all]
             default: all
             examples: [open]
         - name: limit
