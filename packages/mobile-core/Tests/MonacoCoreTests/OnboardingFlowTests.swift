@@ -229,6 +229,21 @@ final class OnboardingFlowTests: XCTestCase {
         XCTAssertEqual(model.caption, .error(LinkCopy.xLinkedElsewhere))
     }
 
+    func testXLoginDisallowedByPrivyHidesConnectAndSkipStillWorks() async {
+        let transport = StubTransport(.json(.ok, Self.me(authState: "AWAITING_SOCIALS", phoneLinked: true)))
+        let model = XLinkModel(
+            linking: FakeAccountLinking(linkXError: .unavailable), onboarding: Self.onboarding(transport),
+            clock: TestClock())
+
+        let result = await model.connect()
+
+        XCTAssertEqual(result, .stay)
+        XCTAssertEqual(model.caption, .error(LinkCopy.xUnavailable))
+        XCTAssertTrue(model.connectHidden)
+        let skipped = await model.skip()
+        XCTAssertNotNil(skipped.finishedProfile)
+    }
+
     func testSkippingXSendsTheSocialsStep() async throws {
         let transport = StubTransport(.json(.ok, Self.me(authState: "AWAITING_SOCIALS", phoneLinked: true)))
         let model = XLinkModel(
