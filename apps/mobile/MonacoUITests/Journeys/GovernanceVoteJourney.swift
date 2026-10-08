@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceVoteJourney {
     static let id = "governance/vote"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -98,8 +98,8 @@ enum GovernanceVoteJourney {
             tapHeaderToOpenProposal(target)
             waitForProposalScreen(app, step: "S1.2")
             XCTAssertTrue(
-                waitForText(app, "“QA vote \(run)”", timeout: checkTimeout),
-                "S1.2: the reason does not read “QA vote \(run)”")
+                waitForText(app, "QA vote \(run)", timeout: checkTimeout),
+                "S1.2: the reason does not read QA vote \(run)")
         }
 
         recorder.step("S1.3", "vote yes") {
@@ -131,8 +131,17 @@ enum GovernanceVoteJourney {
             openHomeCard(app, proposalID, step: "S1.6")
             tapHeaderToOpenProposal(target)
             XCTAssertTrue(
-                waitForText(app, "\(voter) voted yes", timeout: screenTimeout),
-                "S1.6: the Proposal screen does not read \"\(voter) voted yes\" within \(Int(screenTimeout)) s")
+                waitForText(app, "1 yes · 0 no · 2 not voted", timeout: screenTimeout),
+                "S1.6: the Proposal screen does not read \"1 yes · 0 no · 2 not voted\"")
+            let seeAll = app.buttons["See all"].firstMatch
+            XCTAssertTrue(
+                seeAll.waitForExistence(timeout: screenTimeout), "S1.6: the Proposal screen shows no \"See all\"")
+            seeAll.tap()
+            XCTAssertTrue(
+                waitForText(app, voter, timeout: screenTimeout)
+                    && waitForText(app, "Voted yes", timeout: screenTimeout),
+                "S1.6: the Votes list does not show \"\(voter)\" with \"Voted yes\"")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
         }
 
         recorder.step("S1.7", "B's yes makes the majority and closes the vote") {
@@ -201,16 +210,19 @@ enum GovernanceVoteJourney {
             openCabal(app, cabalName: cabalName, proposalID: proposalID, step: "S3.1")
         }
 
-        recorder.step("S3.2", "See all lists the open and the closed proposal") {
+        recorder.step("S3.2", "See all lists the open proposal and, under Failed, the closed one") {
             app.buttons["See all"].tap()
             XCTAssertTrue(
                 app.navigationBars["Proposals"].waitForExistence(timeout: screenTimeout),
                 "S3.2: See all did not open the Proposals list within \(Int(screenTimeout)) s")
+            XCTAssertTrue(
+                card(app, proposalID).waitForExistence(timeout: screenTimeout),
+                "S3.2: the open proposal-card-\(proposalID) is not in the Open list")
+            app.buttons["Failed"].tap()
             let closed = card(app, closedProposalID)
             XCTAssertTrue(
                 closed.waitForExistence(timeout: screenTimeout),
-                "S3.2: the closed proposal-card-\(closedProposalID) did not show within \(Int(screenTimeout)) s")
-            XCTAssertTrue(card(app, proposalID).exists, "S3.2: the open proposal-card-\(proposalID) is not in See all")
+                "S3.2: the closed proposal-card-\(closedProposalID) did not show under Failed")
             expectText(closed, "Expired", step: "S3.2")
             XCTAssertFalse(closed.buttons["Yes"].exists, "S3.2: the closed card shows \"Yes\"")
             XCTAssertFalse(closed.buttons["No"].exists, "S3.2: the closed card shows \"No\"")
