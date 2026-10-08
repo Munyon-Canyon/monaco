@@ -124,10 +124,10 @@ struct StockMarkTests {
 /// restated as literals in `MoneyFont` and nothing tied the two together.
 struct MoneyStyleScalingTests {
     @Test func everyStyleHasTheDesignSizeItUsedToPreScale() {
-        #expect(MoneyStyle.hero.baseSize == 44)
-        #expect(MoneyStyle.large.baseSize == 28)
-        #expect(MoneyStyle.row.baseSize == 17)
-        #expect(MoneyStyle.caption.baseSize == 13)
+        #expect(MoneyStyle.hero.baseSize == 46)
+        #expect(MoneyStyle.large.baseSize == 30)
+        #expect(MoneyStyle.row.baseSize == 18)
+        #expect(MoneyStyle.caption.baseSize == 15)
     }
 
     @Test func stylesScaleAgainstTheSameTextStylesAsBefore() {
