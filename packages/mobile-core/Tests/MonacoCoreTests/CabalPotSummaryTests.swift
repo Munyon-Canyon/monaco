@@ -100,3 +100,23 @@ final class CabalPotSummaryTests: XCTestCase {
             costBasisMicros: 10_000_000 - pnlMicros, pnlMicros: pnlMicros)
     }
 }
+
+extension CabalPotSummaryTests {
+    func testEverySegmentHasOneSwatchInHoldingsOrderWithCashLast() {
+        let legend = CabalPotSummary(Components.Schemas.CabalPot.sampleInvested).legend
+
+        XCTAssertEqual(legend.map(\.swatch), [.stock(step: 0), .cash])
+        XCTAssertEqual(CabalPotSummary.Swatch.forStock(at: 7), .stock(step: CabalPotSummary.Swatch.steps - 1))
+        XCTAssertEqual(CabalPotSummary.Swatch.forStock(at: -1), .stock(step: 0))
+    }
+
+    func testALogoIsAttachedBySymbolAndAMissingOneLeavesTheTileFallback() throws {
+        let summary = CabalPotSummary(Components.Schemas.CabalPot.sampleInvested)
+        XCTAssertNil(summary.holdings.first?.logoURL)
+
+        let url = try XCTUnwrap(URL(string: "https://cdn.example.com/GOOGLx.png"))
+        XCTAssertEqual(summary.withLogos(["GOOGLx": url]).holdings.first?.logoURL, url)
+        XCTAssertNil(summary.withLogos(["AAPLx": url]).holdings.first?.logoURL)
+        XCTAssertEqual(summary.withLogos([:]).holdings, summary.holdings)
+    }
+}

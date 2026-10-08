@@ -86,7 +86,7 @@ struct PotMixBar: View {
 
     /// The cabal's tint, stepping down the ladder one holding at a time; cash is the paper.
     private func color(for segment: Segment) -> Color {
-        if segment.isCash { return MonacoTheme.surfaceSunken }
+        if segment.isCash { return MonacoTheme.cashFill }
         let index = segments.firstIndex(of: segment) ?? 0
         let opacities: [Double] = [1, 0.7, 0.5, 0.36, 0.26]
         return tint.fill.opacity(opacities[min(index, opacities.count - 1)])

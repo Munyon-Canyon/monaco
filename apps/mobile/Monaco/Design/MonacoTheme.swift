@@ -48,6 +48,8 @@ enum MonacoTheme {
     /// Field fill, segmented track, skeleton base, idle chip fill.
     static let surfaceSunken = Color.adaptive(light: 0xF1ECE2, dark: 0x1D2E26)
 
+    static let cashFill = Color.adaptive(light: 0x76837B, dark: 0x7A8B80)
+
     /// The site's ink, verbatim, for page text. In dark, the logo's cream.
     static let primaryText = Color.adaptive(light: 0x0F291C, dark: 0xF3EEE5)
 

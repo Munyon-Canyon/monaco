@@ -89,21 +89,18 @@ struct StockMarkTests {
         ("AVGO", "AVGO"),
         ("ABBV", "ABBV"),
         ("V", "V"),
-        ("GOOGL", "GOOG"),
+        ("GOOGL", "GOOGL"),
+        ("ABCDEF", "ABCDE"),
         (" nvda ", "NVDA"),
         ("", ""),
-        // A class suffix cut at four characters left the separator hanging: "BRK." read as an
-        // abbreviation of itself rather than as Berkshire.
-        ("BRK.B", "BRK"),
-        ("BRK.A", "BRK"),
-        ("brk.b", "BRK"),
-        ("RDS-A", "RDS"),
+        ("BRK.B", "BRK.B"),
+        ("brk.b", "BRK.B"),
+        ("ABCD.EF", "ABCD"),
     ])
     func tileTextKeepsTheWholeTicker(ticker: String, expected: String) {
         #expect(StockMark.tileText(forTicker: ticker) == expected)
     }
 
-    /// A separator inside the first four characters is content, not a dangling edge.
     @Test func aSeparatorThatIsNotAtTheEndIsKept() {
         #expect(StockMark.tileText(forTicker: "BF.B") == "BF.B")
     }

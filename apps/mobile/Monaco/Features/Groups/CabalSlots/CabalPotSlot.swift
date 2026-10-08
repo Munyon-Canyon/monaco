@@ -14,6 +14,7 @@ enum CabalPotSlot: CabalSection {
 
 struct CabalPotModelHost<Content: View>: View {
     let cabalID: String
+    var showsLogos = false
     @ViewBuilder let content: (CabalPotModel?) -> Content
 
     @Environment(AppEnvironment.self) private var environment
@@ -32,7 +33,9 @@ struct CabalPotModelHost<Content: View>: View {
     }
 
     private func makeModel() -> CabalPotModel {
-        CabalPotModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        CabalPotModel(
+            cabalID: cabalID, api: environment.api, hints: environment.hints,
+            logoStore: showsLogos ? environment.assetLogos : nil)
     }
 }
 
