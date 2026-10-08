@@ -50,10 +50,9 @@ struct ProfileCabals: View {
                 .accessibilityLabel("Loading your cabals")
                 .accessibilityIdentifier("profile-cabals-loading")
         case .failed:
-            EmptyState(title: "Couldn't load your cabals.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "your cabals", identifier: "profile-cabals-retry") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("profile-cabals-retry")
         case .loaded(let summary) where summary.isEmpty:
             EmptyState(
                 title: "No cabals yet", message: "Start a cabal or join one from the Cabals tab.", actionTitle: nil

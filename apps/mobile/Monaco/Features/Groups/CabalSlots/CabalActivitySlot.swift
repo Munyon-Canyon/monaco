@@ -15,8 +15,7 @@ enum CabalActivityCopy {
     static let seeAll = "See all"
     static let emptyTitle = "Nothing yet"
     static let emptyMessage = "Money added and trades show up here."
-    static let failed = "Couldn't load activity."
-    static let retry = "Try again"
+    static let failedThing = "activity"
     static let loading = "Loading activity"
     static let retrySwap = "Retry"
 }
@@ -110,10 +109,9 @@ struct CabalActivityContent: View {
             EmptyState(title: CabalActivityCopy.emptyTitle, message: CabalActivityCopy.emptyMessage)
                 .accessibilityIdentifier("cabal-activity-empty")
         case .failed:
-            EmptyState(title: CabalActivityCopy.failed, actionTitle: CabalActivityCopy.retry) {
+            MonacoErrorRow(thing: CabalActivityCopy.failedThing, identifier: "cabal-activity-error") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("cabal-activity-error")
         case .loaded:
             list
         case .hidden:

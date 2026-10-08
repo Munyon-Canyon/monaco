@@ -73,7 +73,7 @@ struct ProposeBuyStockView: View {
         case .loading where model.rows.isEmpty:
             ProposeStockSkeleton(rows: 5)
         case .failed where model.rows.isEmpty:
-            EmptyState(title: "Couldn't load stocks.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "stocks", identifier: "propose-buy-stock-error") {
                 Task { await model.load() }
             }
         default:

@@ -5,15 +5,15 @@ A search with no match reads "No results". S2.2 expects "No stocks match “<q>�
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-index d06cb63b7..c9119020e 100644
+index e8d2d0ab0..8142dba64 100644
 --- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 +++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-@@ -90,7 +90,7 @@ private struct StocksTabScreen: View {
-                     .accessibilityIdentifier("assets-failed")
+@@ -89,7 +89,7 @@ private struct StocksTabScreen: View {
+                 MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
              case .loaded:
                  if model.isSearching {
--                    Text("No stocks match “\(query)”")
-+                    Text("No results")
-                         .font(MonacoTheme.Typo.body)
-                         .foregroundStyle(MonacoTheme.muted)
-                         .frame(maxWidth: .infinity)
+-                    EmptyState(title: "No stocks match “\(query)”")
++                    EmptyState(title: "No results")
+                         .accessibilityIdentifier("assets-search-empty")
+                 } else {
+                     EmptyState(title: "No stocks to show")

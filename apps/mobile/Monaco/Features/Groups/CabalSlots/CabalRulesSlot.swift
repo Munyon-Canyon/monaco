@@ -12,11 +12,10 @@ enum CabalRulesSlot: CabalSection {
 
 enum CabalRulesSlotCopy {
     static let header = "Rules"
-    static let failed = "Couldn't load the rules."
-    static let retry = "Try again"
+    static let failedThing = "the rules"
     static let loading = "Loading the rules"
 
-    static var auditedStrings: [String] { [header, failed, retry, loading] }
+    static var auditedStrings: [String] { [header, loading] }
 }
 
 private struct CabalRulesLive: View {
@@ -77,10 +76,9 @@ struct CabalRulesView: View {
                 .accessibilityLabel(CabalRulesSlotCopy.loading)
                 .accessibilityIdentifier("cabal-rules-loading")
         case .failed:
-            EmptyState(title: CabalRulesSlotCopy.failed, actionTitle: CabalRulesSlotCopy.retry) {
+            MonacoErrorRow(thing: CabalRulesSlotCopy.failedThing, identifier: "cabal-rules-failed") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("cabal-rules-failed")
         case .loaded(let cabal):
             if let model {
                 rows(CabalRulesSummary(cabal), cabal: cabal, model: model)

@@ -41,7 +41,7 @@ struct ProposeSellView: View {
         case .idle, .loading:
             ProposeStockSkeleton(rows: 3)
         case .failed:
-            EmptyState(title: "Couldn't load holdings.", actionTitle: "Try again") { Task { await pot?.load() } }
+            MonacoErrorRow(thing: "holdings", identifier: "propose-sell-error") { Task { await pot?.load() } }
         case .loaded(let summary):
             if summary.sellable.isEmpty {
                 EmptyState(title: "Nothing to sell yet")

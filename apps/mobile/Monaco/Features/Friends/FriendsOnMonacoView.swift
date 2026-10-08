@@ -63,10 +63,9 @@ struct FriendsOnMonacoView: View {
             }
             .accessibilityIdentifier("friends-checking")
         case .failed:
-            EmptyState(title: "Couldn't load your friends.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "your friends", identifier: "friends-try-again") {
                 Task { await model.retry() }
             }
-            .accessibilityIdentifier("friends-try-again")
         case .empty:
             EmptyState(title: "None of your contacts are on Monaco yet")
                 .accessibilityIdentifier("friends-empty")

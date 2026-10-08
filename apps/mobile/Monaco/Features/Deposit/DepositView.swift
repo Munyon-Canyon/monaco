@@ -169,18 +169,7 @@ struct DepositContent: View {
     }
 
     private var balanceFailure: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            Text("Couldn't load your balance.")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-            Button("Try again", action: onRetryBalance)
-                .buttonStyle(.monacoSecondary)
-                .monacoFullWidthButtons()
-                .accessibilityIdentifier("deposit-balance-retry")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .padding(.vertical, MonacoTheme.Space.s)
+        MonacoErrorRow(thing: "your balance", identifier: "deposit-balance-error", retry: onRetryBalance)
     }
 
     private var howItWorks: some View {
@@ -214,12 +203,10 @@ struct DepositAddressCard: View {
     enum Content: Equatable {
         case loading
         case ready(String)
-        case unavailable(String)
-
-        static let loadFailure = "Couldn't load your deposit address."
+        case unavailable
 
         static func resolve(address: String?) -> Content {
-            DepositAddress.usable(address).map(Content.ready) ?? .unavailable(loadFailure)
+            DepositAddress.usable(address).map(Content.ready) ?? .unavailable
         }
     }
 
@@ -227,7 +214,7 @@ struct DepositAddressCard: View {
     var addressIdentifier = "deposit-address-value"
     var copyIdentifier = "deposit-address-copy-button"
     let onCopy: (String) -> Void
-    var onRetry: (() -> Void)?
+    let onRetry: () -> Void
 
     static let networkNote = "Only send USDC on Solana to this address."
 
@@ -242,8 +229,8 @@ struct DepositAddressCard: View {
                 loading
             case .ready(let address):
                 ready(address)
-            case .unavailable(let message):
-                unavailable(message)
+            case .unavailable:
+                unavailable
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -298,18 +285,7 @@ struct DepositAddressCard: View {
         .accessibilityIdentifier("deposit-address-loading")
     }
 
-    private func unavailable(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            Text(message)
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            if let onRetry {
-                Button("Try again", action: onRetry)
-                    .buttonStyle(.monacoSecondary)
-                    .monacoFullWidthButtons()
-                    .accessibilityIdentifier("deposit-address-retry")
-            }
-        }
+    private var unavailable: some View {
+        MonacoErrorRow(thing: "your deposit address", identifier: "deposit-address-error", retry: onRetry)
     }
 }

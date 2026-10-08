@@ -30,7 +30,7 @@ private struct CabalsBoard: View {
             )
             .padding(.horizontal, MonacoTheme.Space.m)
             LeaderboardBoardList(
-                loader: loader, skeletonRows: 5, failureText: "Couldn't load cabals.", identifier: "cabals-board-list",
+                loader: loader, skeletonRows: 5, failureThing: "cabals", identifier: "cabals-board-list",
                 empty: {
                     EmptyState(
                         title: "No cabal has put money in yet", message: "The first one to fund takes the top spot."

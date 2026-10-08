@@ -37,10 +37,9 @@ struct AssetDetailClientView: View {
             case .idle, .loading:
                 loading
             case .failed:
-                EmptyState(title: "Couldn't load this stock.", actionTitle: "Try again") {
+                MonacoErrorRow(thing: "this stock", identifier: "asset-detail-failed") {
                     Task { await model.load() }
                 }
-                .accessibilityIdentifier("asset-detail-failed")
             case .loaded:
                 if let detail = model.detail { loaded(detail, model: model) }
             }
@@ -155,10 +154,9 @@ struct AssetDetailClientView: View {
             SkeletonBlock(width: nil, height: 200, radius: 0)
                 .accessibilityIdentifier("asset-detail-chart-loading")
         case .failed:
-            EmptyState(title: "Couldn't load price history.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "price history", identifier: "asset-detail-chart-failed") {
                 Task { await model.loadChart(range: model.selectedRange) }
             }
-            .accessibilityIdentifier("asset-detail-chart-failed")
         case .loaded:
             if let chart = model.chart, chart.points.count >= 2 {
                 scrubChart(chart, isMarketLive: detail.session == .open)

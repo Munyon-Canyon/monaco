@@ -241,8 +241,7 @@ struct FundCabalContent: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("fund-cabal-loading")
         case .failed:
-            EmptyState(title: "Couldn't load your balance.", actionTitle: "Try again", action: onRetry)
-                .accessibilityIdentifier("fund-cabal-balance-error")
+            MonacoErrorRow(thing: "your balance", identifier: "fund-cabal-balance-error", retry: onRetry)
         case .needsMoney:
             EmptyState(
                 title: "Add money first",

@@ -29,7 +29,7 @@ struct DepositAddressCardTests {
     }
 
     @Test func anEmptyProfileAddressIsUnavailable() {
-        let unavailable = DepositAddressCard.Content.unavailable("Couldn't load your deposit address.")
+        let unavailable = DepositAddressCard.Content.unavailable
         #expect(DepositAddressCard.Content.resolve(address: "") == unavailable)
         #expect(DepositAddressCard.Content.resolve(address: nil) == unavailable)
         #expect(DepositAddressCard.Content.resolve(address: "FAKE_WALLET_123") == unavailable)

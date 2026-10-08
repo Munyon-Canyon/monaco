@@ -53,10 +53,9 @@ private struct UserProfileSharedCabals: View {
                 .accessibilityLabel("Loading shared cabals")
                 .accessibilityIdentifier("user-profile-shared-loading")
         case .failed:
-            EmptyState(title: "Couldn't load shared cabals.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "shared cabals", identifier: "user-profile-shared-retry") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("user-profile-shared-retry")
         case .loaded(let summary) where summary.isEmpty:
             EmptyState(
                 title: "No cabals in common",

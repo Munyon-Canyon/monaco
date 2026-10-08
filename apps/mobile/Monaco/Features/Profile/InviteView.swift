@@ -18,8 +18,6 @@ enum InviteCopy {
     static let copied = "Link copied."
     static let codeLinkLabel = "This link works too"
     static let deposit = "Deposit"
-    static let loadFailed = "Couldn't load your invite link."
-    static let retry = "Retry"
 }
 
 struct InviteView: View {
@@ -90,8 +88,7 @@ struct InviteContent: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading your invite link")
         case .failed:
-            EmptyState(title: InviteCopy.loadFailed, actionTitle: InviteCopy.retry, action: retry)
-                .accessibilityIdentifier("invite-error")
+            MonacoErrorRow(thing: "your invite link", identifier: "invite-error", retry: retry)
         case .loaded(let links):
             InviteLinkCard(url: links.shareURL) {
                 toasts.current = MonacoToast(message: InviteCopy.copied, isSuccess: true)

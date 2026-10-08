@@ -76,20 +76,9 @@ struct HomeBalanceRowSection: View {
     }
 
     private func retryRow(_ model: BalanceSource) -> some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            Text("Couldn't load your balance.")
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: MonacoTheme.Space.s)
-            Button("Try again") {
-                Task { await model.load() }
-            }
-            .buttonStyle(.monacoSecondary)
-            .accessibilityIdentifier("\(identifierPrefix)-balance-retry")
+        MonacoErrorRow(thing: "your balance", identifier: "\(identifierPrefix)-balance-error") {
+            Task { await model.load() }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .padding(.vertical, MonacoTheme.Space.sm)
     }
 
     @ViewBuilder

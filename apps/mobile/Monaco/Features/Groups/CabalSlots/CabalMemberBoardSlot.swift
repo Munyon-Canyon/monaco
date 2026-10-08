@@ -24,7 +24,7 @@ private struct CabalMemberBoard: View {
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 LeaderboardBoardList(
-                    loader: loader, skeletonRows: 3, failureText: "Couldn't load the leaderboard.",
+                    loader: loader, skeletonRows: 3, failureThing: "the leaderboard",
                     identifier: "cabal-member-board", showsEmpty: false,
                     empty: { EmptyView() },
                     rowContent: { row, isLast in

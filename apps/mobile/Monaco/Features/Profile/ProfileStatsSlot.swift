@@ -43,10 +43,9 @@ struct ProfileStatsBand: View {
         case .idle, .loading:
             skeleton
         case .failed:
-            EmptyState(title: "Couldn't load your stats.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "your stats", identifier: "profile-stats-retry") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("profile-stats-retry")
         case .loaded(let summary):
             band(summary.stats)
         }

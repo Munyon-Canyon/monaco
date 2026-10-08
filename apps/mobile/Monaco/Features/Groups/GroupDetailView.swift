@@ -35,8 +35,6 @@ struct GroupDetailView: View {
     @Environment(AppEnvironment.self) private var environment: AppEnvironment?
 
     @State private var groupView: GroupViewDTO?
-    /// One idempotency key holder per transaction being retried; retries of different rows overlap.
-    @State private var errorMessage: String?
     @State private var toast: MonacoToast?
     @State private var isLoading: Bool
     /// The blocking first load has run at least once; re-appearing is the poll loop's job.
@@ -143,44 +141,20 @@ struct GroupDetailView: View {
                 onToast: { toast = $0 },
                 onHeroScrolledAway: { heroScrolledAway = $0 }
             )
-        } else if let errorMessage {
-
-            statusCard {
-                Text(errorMessage)
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-                Button("Try again") {
-                    Task { await refreshGate.runNow { try? await refresh(.initial) } }
-                }
-                .buttonStyle(.monacoSecondary)
-            }
-            .accessibilityIdentifier("group-detail-error")
         } else if isLoading {
             GroupDetailSkeleton()
         } else {
-            statusCard {
-                Text("Couldn't load this cabal. Pull down to try again")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-                Button("Try again") {
-                    Task { await refreshGate.runNow { try? await refresh(.initial) } }
-                }
-                .buttonStyle(.monacoSecondary)
-            }
+            errorState
         }
     }
 
     /// Scrollable so pull-to-refresh works from the error state too.
-    private func statusCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private var errorState: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                content()
+            MonacoErrorRow(thing: "this cabal", identifier: "group-detail-error") {
+                Task { await refreshGate.runNow { try? await refresh(.initial) } }
             }
-            .padding(24)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 48)
+            .padding(.top, MonacoTheme.Space.xl)
         }
     }
 
@@ -215,15 +189,11 @@ struct GroupDetailView: View {
         guard let token = auth.accessToken else {
             if mode != .quiet {
                 isLoading = false
-                errorMessage = "Sign in again to see this cabal."
             }
             return
         }
         if mode == .initial {
             isLoading = true
-        }
-        if mode != .quiet {
-            errorMessage = nil
         }
         defer {
             if mode == .initial {
@@ -244,14 +214,11 @@ struct GroupDetailView: View {
 
         if let loadedView {
             QuietUpdate.apply(loadedView, over: groupView) { groupView = $0 }
-            if errorMessage != nil { errorMessage = nil }
         }
 
         guard let viewFailure, !viewFailure.isRequestCancellation else { return }
         if mode == .quiet { throw viewFailure }
-        if groupView == nil {
-            errorMessage = "Couldn't load this cabal. Pull down to try again"
-        } else if mode == .userInitiated {
+        if groupView != nil, mode == .userInitiated {
             toast = MonacoToast(message: "Couldn't refresh this cabal. Try again")
         }
     }

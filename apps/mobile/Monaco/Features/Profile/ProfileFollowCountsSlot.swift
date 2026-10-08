@@ -53,18 +53,9 @@ private struct ProfileFollowCountLinks: View {
                 .accessibilityLabel("Loading followers")
                 .accessibilityIdentifier("profile-follow-counts-loading")
         case .failed, .unavailable:
-            HStack(spacing: MonacoTheme.Space.s) {
-                Text("Couldn't load your followers.")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                Button("Try again") { Task { await model?.load() } }
-                    .buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("profile-follow-counts-retry")
+            MonacoErrorRow(thing: "your followers", identifier: "profile-follow-counts-error") {
+                Task { await model?.load() }
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
-            .accessibilityIdentifier("profile-follow-counts-error")
         case .loaded:
             HStack(spacing: 0) {
                 link("\(model?.followerCount ?? 0) Followers", .followers, id: "profile-followers")

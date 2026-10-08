@@ -5,11 +5,11 @@ expect-fail: S1
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-index 0f107bc6..9ee63504 100644
+index 885e30fb6..9c32c1687 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-@@ -59,7 +59,7 @@ private struct ProfileFollowCountLinks: View {
-             .accessibilityIdentifier("profile-follow-counts-error")
+@@ -58,7 +58,7 @@ private struct ProfileFollowCountLinks: View {
+             }
          case .loaded:
              HStack(spacing: 0) {
 -                link("\(model?.followerCount ?? 0) Followers", .followers, id: "profile-followers")

@@ -74,11 +74,9 @@ private struct FeedItemDetailContent: View {
         if let item = model.item {
             FeedItemCell(item: item, opensComments: false)
         } else if model.itemError != nil {
-            Text("Couldn't load this post.")
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.muted)
-                .padding(.horizontal, MonacoTheme.Space.m)
-                .accessibilityIdentifier("feed-item-detail-error")
+            MonacoErrorRow(thing: "this post", identifier: "feed-item-detail-error") {
+                Task { await model.load() }
+            }
         } else {
             BoardRowSkeleton(rows: 1)
         }

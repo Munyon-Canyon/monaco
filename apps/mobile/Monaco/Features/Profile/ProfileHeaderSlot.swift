@@ -93,20 +93,9 @@ struct ProfileHeader: View {
     }
 
     private var loadFailure: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            Text("Couldn't load your profile.")
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.secondaryText)
-            Spacer(minLength: 0)
-            Button("Try again") {
-                Task { await session.reloadProfile(auth: auth) }
-            }
-            .buttonStyle(.monacoSecondary)
-            .accessibilityIdentifier("profile-header-retry")
+        MonacoErrorRow(thing: "your profile", identifier: "profile-header-error") {
+            Task { await session.reloadProfile(auth: auth) }
         }
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("profile-header-error")
     }
 
     private var identity: some View {

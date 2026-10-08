@@ -28,7 +28,7 @@ struct ProposeReviewScreen: View {
             if let model {
                 content(model)
             } else if cabalFailed {
-                EmptyState(title: "Couldn't load this cabal.", actionTitle: "Try again") { Task { await load() } }
+                MonacoErrorRow(thing: "this cabal", identifier: "propose-review-error") { Task { await load() } }
             } else {
                 ProgressView()
             }

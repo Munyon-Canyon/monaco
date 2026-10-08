@@ -65,19 +65,9 @@ struct FeedMutesList: View {
             EmptyState(title: "Nothing muted")
                 .accessibilityIdentifier("feed-muted-empty")
         case .failed:
-            HStack(spacing: MonacoTheme.Space.sm) {
-                Text("Couldn't load your mutes.")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: MonacoTheme.Space.s)
-                Button("Try again") { Task { await model.load() } }
-                    .buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("feed-muted-retry")
+            MonacoErrorRow(thing: "your mutes", identifier: "feed-muted-error") {
+                Task { await model.load() }
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
-            .padding(.vertical, MonacoTheme.Space.sm)
-            .accessibilityIdentifier("feed-muted-error")
         case .loaded(let mutes):
             LazyVStack(spacing: 0) {
                 ForEach(Array(mutes.enumerated()), id: \.element.id) { index, mute in

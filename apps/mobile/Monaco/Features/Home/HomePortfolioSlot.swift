@@ -61,13 +61,9 @@ private struct HomePortfolioHero: View {
         case .failed:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 title
-                Text("Couldn't load your money in cabals.")
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.onHeroMuted)
-                    .accessibilityIdentifier("home-portfolio-failed")
-                Button("Try again") { retry() }
-                    .buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("home-portfolio-retry")
+                MonacoErrorRow(thing: "your money in cabals", identifier: "home-portfolio-failed", onHero: true) {
+                    retry()
+                }
             }
         case .loaded(let summary):
             title
@@ -138,13 +134,9 @@ private struct HomePortfolioHero: View {
                     .accessibilityIdentifier("home-portfolio-chart-loading")
                 rangeChips(chart)
             case .failed:
-                Text("Couldn't load the chart.")
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.onHeroMuted)
-                    .accessibilityIdentifier("home-portfolio-chart-failed")
-                Button("Try again") { Task { await chart.load() } }
-                    .buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("home-portfolio-chart-retry")
+                MonacoErrorRow(thing: "the chart", identifier: "home-portfolio-chart-failed", onHero: true) {
+                    Task { await chart.load() }
+                }
             case .loaded:
                 if let curve = chart.curve, curve.hasEnoughHistory {
                     CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) }, onInk: true)

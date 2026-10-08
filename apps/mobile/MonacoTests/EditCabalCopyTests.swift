@@ -21,6 +21,6 @@ struct EditCabalCopyTests {
 
     @Test func theRulesSectionSpeaksTheProductLanguage() {
         #expect(MainFlowCopyAudit.stringsAreClean(CabalRulesSlotCopy.auditedStrings))
-        #expect(CabalRulesSlotCopy.failed == "Couldn't load the rules.")
+        #expect(CabalRulesSlotCopy.failedThing == "the rules")
     }
 }

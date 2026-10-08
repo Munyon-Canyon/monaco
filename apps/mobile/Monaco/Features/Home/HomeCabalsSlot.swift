@@ -46,10 +46,9 @@ private struct HomeCabals: View {
                 .accessibilityLabel("Loading your cabals")
                 .accessibilityIdentifier("home-cabals-loading")
         case .failed:
-            EmptyState(title: "Couldn't load your cabals.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "your cabals", identifier: "home-cabals-retry") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("home-cabals-retry")
         case .loaded(let summary) where summary.isEmpty:
             EmptyState(
                 title: "No cabals yet",

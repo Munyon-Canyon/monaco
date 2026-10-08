@@ -69,10 +69,9 @@ private struct MyCabalsContent: View {
         case .idle, .loading:
             placeholders
         case .failed:
-            EmptyState(title: "Couldn't load your cabals.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "your cabals", identifier: "cabals-list-failed") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("cabals-list-failed")
         case .loaded(let cabals) where cabals.isEmpty:
             EmptyState(title: "No cabals yet", message: "Search above or start one with the + button.")
                 .accessibilityIdentifier("cabals-list-empty")
