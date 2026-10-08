@@ -3088,8 +3088,10 @@ paths:
       summary: Read one trade.
       description: >-
         Returns a swap with its asset, amounts, status and, for a failed swap, why it failed. Only
-        members of the swap's cabal can read it; anyone else gets `not_cabal_member`. The asset name and
-        decimals come from the catalog, and raw mints are never returned. `retryable` is true only for
+        members of the swap's cabal can read it, except a confirmed proposal trade, which any signed-in
+        user can read because the Feed publishes it; anyone else gets `not_cabal_member`. The asset name
+        and decimals come from the catalog, and raw mints are never returned. `retryable` is always false
+        for a non-member; otherwise it is true only for
         the latest swap of a proposal when that swap failed.
       parameters:
         - name: id

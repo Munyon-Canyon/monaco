@@ -9,6 +9,8 @@ struct CabalTransactionView: View {
         case loading
         case found(ActivityRow)
         case missing
+        case forbidden
+        case failed
     }
 
     @Environment(AppEnvironment.self) private var environment
@@ -47,6 +49,12 @@ struct CabalTransactionView: View {
             .accessibilityLabel("Loading this transaction")
             .accessibilityIdentifier("cabal-txn-loading")
         case .missing:
+            EmptyState(title: "This transaction doesn't exist.")
+                .accessibilityIdentifier("cabal-txn-missing")
+        case .forbidden:
+            EmptyState(title: "Only members of this cabal can see this transaction.")
+                .accessibilityIdentifier("cabal-txn-forbidden")
+        case .failed:
             MonacoErrorRow(thing: "this transaction", identifier: "cabal-txn-error") {
                 Task { await resolve() }
             }
@@ -148,9 +156,15 @@ struct CabalTransactionView: View {
             ?? CabalActivityModel(
                 cabalID: cabalID, api: environment.api, hints: environment.hints, clock: Date.init)
         self.model = model
-        let row = await model.find(id: transactionID)
-        if let row, row.kind.isSwap { await model.loadSwap(id: row.id) }
+        let lookup = await model.lookup(id: transactionID)
+        if case .found(let row) = lookup, row.kind.isSwap { await model.loadSwap(id: row.id) }
         guard !Task.isCancelled else { return }
-        resolution = row.map(Resolution.found) ?? .missing
+        resolution =
+            switch lookup {
+            case .found(let row): .found(row)
+            case .notFound: .missing
+            case .forbidden: .forbidden
+            case .failed: .failed
+            }
     }
 }

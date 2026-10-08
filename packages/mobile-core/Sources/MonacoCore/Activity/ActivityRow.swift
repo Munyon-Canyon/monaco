@@ -69,6 +69,34 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         self.solscanURL = activity.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
     }
 
+    public init(_ swap: Components.Schemas.SwapDetail, now: Date, timeZone: TimeZone = .current) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let at = swap.confirmedAt ?? swap.createdAt
+        let sameYear = calendar.component(.year, from: at) == calendar.component(.year, from: now)
+        let headline = Self.headline(swap.action == .buy ? .buy : .sell, assetName: swap.assetName)
+        self.id = swap.id
+        self.kind = swap.action == .buy ? .buy : .sell
+        self.symbol = swap.symbol
+        self.glyph = headline.glyph
+        self.title = headline.title
+        self.status =
+            switch swap.status {
+            case .created, .submitted: .pending
+            case .confirmed: .confirmed
+            case .failed: .failed
+            }
+        self.offersRetry = false
+        self.age = Self.string(at, sameYear ? "MMM d, h:mm a" : "MMM d, yyyy", calendar)
+        self.fullDate = Self.string(at, "MMM d, yyyy 'at' h:mm a", calendar)
+        self.amount = swap.usdcMicros.map { UsdAmountFormatter.format(micros: $0) }
+        self.assetLine = "\(swap.assetName) · \(AssetSymbolFormatter.display(swap.symbol))"
+        self.actorName = nil
+        self.actorID = nil
+        self.actorHandle = nil
+        self.solscanURL = swap.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
+    }
+
     private static func headline(
         _ kind: Components.Schemas.CabalActivity.KindPayload, assetName: String?
     ) -> (title: String, glyph: String) {

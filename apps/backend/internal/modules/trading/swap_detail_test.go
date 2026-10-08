@@ -13,6 +13,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/tradingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -114,6 +115,43 @@ func TestGetSwap_refusals(t *testing.T) {
 		"no token":     {swap: s.failed.ID, want: http.StatusUnauthorized},
 		"unknown swap": {swap: s.ids.NewV7(), token: s.token(), want: http.StatusNotFound},
 		"not a member": {swap: s.failed.ID, token: stranger, want: http.StatusForbidden},
+	}
+	for name, tc := range cases {
+		if rec := s.get(t, tc.swap, tc.token); rec.Code != tc.want {
+			t.Errorf("%s: status = %d %s, want %d", name, rec.Code, rec.Body, tc.want)
+		}
+	}
+}
+
+func TestGetSwap_nonMemberReadsOnlyAConfirmedProposalTrade(t *testing.T) {
+	t.Parallel()
+	s := newRetryServer(t)
+	stranger := s.verifier.Mint(s.ids.NewV7().String(), s.clock.Now().Add(time.Hour))
+	created := func(kind string) sqlc.InsertCreatedParams {
+		row := s.created(s.ids.NewV7(), usdcMint)
+		row.SourceKind, row.CabalID = kind, s.failed.CabalID
+		s.insert(t, row)
+		return row
+	}
+	confirmed := func(kind string) uuid.UUID {
+		row := created(kind)
+		s.submit(t, row.ID, "req-"+row.ID.String(), "sig-"+row.ID.String())
+		s.confirm(t, row.ID)
+		return row.ID
+	}
+	pending, cashout, proposal := created("proposal").ID, confirmed("cashout"), confirmed("proposal")
+	cases := map[string]struct {
+		swap  uuid.UUID
+		token string
+		want  int
+	}{
+		"member reads a failed swap":             {swap: s.failed.ID, token: s.token(), want: http.StatusOK},
+		"member reads a confirmed cashout":       {swap: cashout, token: s.token(), want: http.StatusOK},
+		"stranger reads a confirmed proposal":    {swap: proposal, token: stranger, want: http.StatusOK},
+		"stranger refused a pending proposal":    {swap: pending, token: stranger, want: http.StatusForbidden},
+		"stranger refused a failed proposal":     {swap: s.failed.ID, token: stranger, want: http.StatusForbidden},
+		"stranger refused a confirmed cashout":   {swap: cashout, token: stranger, want: http.StatusForbidden},
+		"stranger gets not found for unknown id": {swap: s.ids.NewV7(), token: stranger, want: http.StatusNotFound},
 	}
 	for name, tc := range cases {
 		if rec := s.get(t, tc.swap, tc.token); rec.Code != tc.want {
