@@ -51,7 +51,11 @@ stock fallback.
   `ios-sim` installs the app built there.
 - **Build slots.** `scripts/qa/xcode-lock.sh` runs one xcodebuild per 16 GB of RAM
   at once and one `swift test` per 8 GB. A 16 GB Mac still builds one at a time; a
-  64 GB Mac builds four. Waiters queue in arrival order. See
+  64 GB Mac builds four. A lane holds one xcodebuild slot at a time (`MONACO_LANE`,
+  else the herdr workspace, else the worktree), so several worktrees of one lane
+  build one after another while other lanes use the free slots. Waiters queue in
+  arrival order. Each xcodebuild run appends a row (lane, HEAD, action, wait, exit
+  code, run time) to `.git/.monaco/xcode-builds.tsv` in the clone. See
   [Build slots](overnight-qa.md#build-slots). Two builds never share one
   `-derivedDataPath`, which fails with `database is locked`: the second waits for
   the first, and for any xcodebuild still building there outside the lock.

@@ -21,8 +21,22 @@
 # `<lockdir>.queue/<epoch-ns>.<pid>` and takes a slot only while its ticket's position
 # among the live tickets is no greater than the number of free slots, so no later caller
 # passes an earlier one. A ticket or a slot whose pid is gone is stale (`kill -0`) and is
-# pruned or taken over (by the oldest waiter only). The holder records `pid` and `cwd` in
-# its slot, and a waiter logs its queue position and every holder's pid and cwd every 60 s.
+# pruned or taken over (by the oldest waiter only). The holder records `lane`, `cwd` and `pid`
+# in its slot, and a waiter logs its queue position and every holder's pid and cwd every 60 s.
+#
+# `xcode` gives each lane at most one slot, so one lane with several worktrees cannot take
+# the machine's builds from the others. The lane is $MONACO_LANE, else $HERDR_WORKSPACE_ID,
+# else the git top level (a plain terminal or cloud agent is a lane per worktree). A waiter
+# writes its lane into its ticket. It counts only the live tickets ahead of it that are
+# eligible: the first ticket of each lane whose lane holds no live slot. A lane-blocked
+# waiter at the head therefore never keeps another lane from a free slot. The held command
+# runs with MONACO_XCODE_LOCK_HELD=<slot dir>; a nested `xcode` call that sees it set while
+# that slot's pid is alive runs its command at once, so a wrapped script that calls the
+# wrapper again cannot deadlock on its own lane.
+#
+# Each `xcode` run appends a row to `<git common dir>/.monaco/xcode-builds.tsv` when the
+# command exits: start (UTC), lane, cwd, HEAD, a short hash of `git status --porcelain`, the
+# xcodebuild action, seconds waited, exit code, seconds run. A logging failure changes nothing.
 #
 # Two xcodebuilds on one `-derivedDataPath` fail with "unable to attach DB: database is
 # locked", whatever the slot count. So a command that names `-derivedDataPath <dir>` first
@@ -35,6 +49,8 @@
 #                              .git/.monaco/xcode-slots, reread on every wait poll,
 #                              else max(1, RAM GB / 16))
 #   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, min(RAM GB / 8, CPUs / 8)))
+#   MONACO_LANE                lane of this caller (default $HERDR_WORKSPACE_ID, else the git
+#                              top level, else $PWD)
 #   MONACO_XCODE_LOCK_DIR      `xcode` lock dir (default /private/tmp/monaco-xcodebuild.lock)
 #   MONACO_SWIFTPM_LOCK_DIR    `swiftpm` lock dir (default /private/tmp/monaco-swiftpm.lock)
 #   MONACO_XCODE_LOCK_TIMEOUT  seconds a waiter waits before exit 75 (default 5400)
@@ -89,6 +105,18 @@ read_slots() {
   fi
 }
 queue_dir="$base_dir.queue"
+lane=""
+if [[ "$class" == xcode ]]; then
+  lane="${MONACO_LANE:-${HERDR_WORKSPACE_ID:-$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)}}"
+  # A nested call from the held command runs at once: its lane already holds the slot.
+  held_dir="${MONACO_XCODE_LOCK_HELD:-}"
+  if [[ -n "$held_dir" ]]; then
+    held_pid="$(cat "$held_dir/pid" 2>/dev/null || true)"
+    if [[ -n "$held_pid" ]] && kill -0 "$held_pid" 2>/dev/null; then
+      exec "$@"
+    fi
+  fi
+fi
 lock_dir=""     # the slot this process holds, once it holds one
 wait_limit="${MONACO_XCODE_LOCK_TIMEOUT:-5400}"
 hold_cap="${MONACO_LOCK_HOLD:-1800}"
@@ -174,6 +202,53 @@ live_tickets() {
       rm -f "$queue_dir/$t"
     fi
   done
+}
+
+# Prints this ticket's position among the eligible live tickets, or nothing when it is not
+# eligible. $1 is the live tickets, oldest first; $2 the lanes of the live slots, one per
+# line. A ticket is eligible when its lane holds no live slot and no earlier ticket has
+# the lane. A ticket with no lane (the swiftpm class) is always eligible.
+queue_position() {
+  local t tlane n=0 seen
+  seen=$'\n'"$2"
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    tlane="$(cat "$queue_dir/$t" 2>/dev/null || true)"
+    if [[ -n "$tlane" && "$seen" == *$'\n'"$tlane"$'\n'* ]]; then
+      [[ "$t" == "$ticket" ]] && return 0
+      continue
+    fi
+    n=$((n + 1))
+    if [[ -n "$tlane" ]]; then
+      seen="$seen$tlane"$'\n'
+    fi
+    if [[ "$t" == "$ticket" ]]; then
+      echo "$n"
+      return 0
+    fi
+  done <<< "$1"
+}
+
+# A short hash of the working tree state, for the build log.
+tree_hash() {
+  git status --porcelain 2>/dev/null | shasum 2>/dev/null | cut -c1-8
+}
+
+# Append one row to the build log. Never fails the caller.
+log_build() {
+  [[ "$class" == xcode ]] || return 0
+  (
+    set +e
+    common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+    [[ -n "$common" ]] || exit 0
+    log="$common/.monaco/xcode-builds.tsv"
+    mkdir -p "$common/.monaco"
+    if [[ ! -e "$log" ]]; then
+      ( set -C; printf 'start\tlane\tcwd\thead\tstatus\taction\twaited_s\texit\trun_s\n' > "$log" ) 2>/dev/null
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$run_start_iso" "$lane" "$PWD" "$run_head" "$run_status" "$run_action" "$run_waited" "$1" "$((SECONDS - run_began))" >> "$log"
+  ) >/dev/null 2>&1 || true
 }
 
 # Run the command under the hold cap. `timeout` is GNU coreutils; a Mac has it only as
@@ -290,7 +365,9 @@ fi
 
 mkdir -p "$queue_dir"
 ticket="$(now_ns).$$"
-: > "$queue_dir/$ticket"
+# Write the lane before the ticket appears, so no reader sees an empty ticket.
+if [[ -n "$lane" ]]; then printf '%s\n' "$lane" > "$queue_dir.new.$$"; else : > "$queue_dir.new.$$"; fi
+mv "$queue_dir.new.$$" "$queue_dir/$ticket"
 
 next_log=0
 while true; do
@@ -299,6 +376,9 @@ while true; do
   position="$(awk -v t="$ticket" '$0 == t { print NR }' <<< "$tickets")"
   free=0
   holders=""
+  held=""
+  stale_dirs=()
+  stale_owners=()
   k=0
   while (( k < slots )); do
     k=$((k + 1))
@@ -308,14 +388,24 @@ while true; do
       continue
     fi
     owner="$(cat "$dir/pid" 2>/dev/null || true)"
-    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null && [[ "$position" == 1 ]]; then
-      say "taking over stale lock from pid $owner"
-      rm -rf "$dir"
-      free=$((free + 1))
+    holders="${holders:+$holders, }pid ${owner:-unknown} ($(cat "$dir/cwd" 2>/dev/null || echo unknown))"
+    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
+      stale_dirs+=("$dir")
+      stale_owners+=("$owner")
       continue
     fi
-    holders="${holders:+$holders, }pid ${owner:-unknown} ($(cat "$dir/cwd" 2>/dev/null || echo unknown))"
+    held="$held$(cat "$dir/lane" 2>/dev/null || true)"$'\n'
   done
+  position="$(queue_position "$tickets" "$held")"
+  if [[ "$position" == 1 ]]; then
+    i=0
+    while (( i < ${#stale_dirs[@]} )); do
+      say "taking over stale lock from pid ${stale_owners[$i]}"
+      rm -rf "${stale_dirs[$i]}"
+      free=$((free + 1))
+      i=$((i + 1))
+    done
+  fi
   if [[ -n "$position" ]] && (( position <= free )); then
     k=0
     while (( k < slots )); do
@@ -342,14 +432,34 @@ while true; do
   sleep "$poll"
 done
 
+run_waited=0
+if (( contended )); then run_waited=$((SECONDS - start)); fi
+# lane and cwd first: a waiter treats a lock with no pid yet as live, never as stale. The
+# ticket goes last, so a lane-mate never sees the slot without its lane or the ticket.
+printf '%s\n' "$lane" > "$lock_dir/lane"
+printf '%s\n' "$PWD" > "$lock_dir/cwd"
+echo "$$" > "$lock_dir/pid"
 rm -f "$queue_dir/$ticket"
 ticket=""
 if [[ -n "${MONACO_LOCK_WAITED:-}" ]]; then
-  echo "$(( contended ? SECONDS - start : 0 ))" >> "$MONACO_LOCK_WAITED"
+  echo "$run_waited" >> "$MONACO_LOCK_WAITED"
 fi
-# cwd first: a waiter treats a lock with no pid yet as live, never as stale.
-printf '%s\n' "$PWD" > "$lock_dir/cwd"
-echo "$$" > "$lock_dir/pid"
+
+run_began=$SECONDS
+run_start_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ || true)"
+run_head="$(git rev-parse HEAD 2>/dev/null || true)"
+run_head="${run_head:--}"
+run_status="$(tree_hash || true)"
+run_status="${run_status:--}"
+run_action=other
+for arg in "$@"; do
+  case "$arg" in
+    build | build-for-testing | test | test-without-building | archive | clean) run_action="$arg" ;;
+  esac
+done
+if [[ "$class" == xcode ]]; then
+  export MONACO_XCODE_LOCK_HELD="$lock_dir"
+fi
 
 rc=0
 # One cold build fans out to every core and starved stage 0's Go rows past their budgets
@@ -357,11 +467,13 @@ rc=0
 run_capped "$hold_cap" nice -n "${MONACO_LOCK_NICE:-15}" "$@" || rc=$?
 if [[ -n "$sig_name" ]]; then
   # The command is gone; leave with the signal's code, not the command's.
+  log_build "$sig_rc"
   release
   exit "$sig_rc"
 fi
 if (( rc == 124 )); then
   say "command exceeded the ${hold_cap}s hold cap"
 fi
+log_build "$rc"
 release
 exit "$rc"

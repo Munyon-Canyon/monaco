@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -24,6 +25,8 @@ type lockEnv struct {
 	// pgroup starts each call in its own process group, so a test can signal the group the
 	// way a terminal's Ctrl-C does.
 	pgroup bool
+	// calls numbers the callers, so each gets its own lane unless a test names one.
+	calls atomic.Int32
 }
 
 func newLockEnv(t *testing.T) *lockEnv {
@@ -84,6 +87,7 @@ func (e *lockEnv) start(workdir string, extraEnv []string, args ...string) *call
 		"MONACO_LOCK_POLL=0.1",
 		"MONACO_XCODE_SLOTS=1",
 		"MONACO_SWIFTPM_SLOTS=1",
+		"MONACO_LANE=lane"+strconv.Itoa(int(e.calls.Add(1))),
 	)
 	cmd.Env = append(cmd.Env, e.extra...)
 	cmd.Env = append(cmd.Env, extraEnv...)
@@ -441,7 +445,7 @@ func (e *lockEnv) withoutTimeout() {
 	if err := os.Mkdir(bin, 0o755); err != nil {
 		e.t.Fatal(err)
 	}
-	for _, tool := range []string{"bash", "env", "sh", "sleep", "cat", "mkdir", "rm", "ls", "sort", "date", "pkill", "head", "awk", "touch", "true", "python3", "nice"} {
+	for _, tool := range []string{"bash", "env", "sh", "sleep", "cat", "mkdir", "rm", "ls", "sort", "date", "pkill", "head", "awk", "touch", "true", "python3", "nice", "mv"} {
 		path, err := exec.LookPath(tool)
 		if err != nil {
 			e.t.Fatalf("tool %s needed for the PATH without timeout: %v", tool, err)
@@ -855,5 +859,142 @@ func TestXcodeLockTakesASlotAddedWhileQueued(t *testing.T) {
 		if code := c.call.wait(t); code != 0 {
 			t.Fatalf("holder exit %d:\n%s", code, c.call.stderr.String())
 		}
+	}
+}
+
+// laneEnv names a caller's lane and gives the class two slots.
+func laneEnv(lane string) []string {
+	return []string{"MONACO_LANE=" + lane, "MONACO_XCODE_SLOTS=2"}
+}
+
+func release(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, p := range paths {
+		if err := os.WriteFile(p, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// Two slots are free, yet two callers of one lane run one after the other.
+func TestXcodeLockLaneHoldsOneSlot(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	aIn, bIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in")
+	aRel, bRel := filepath.Join(e.dir, "a.rel"), filepath.Join(e.dir, "b.rel")
+
+	a := e.start(e.dir, laneEnv("a"), append([]string{"xcode"}, holdUntil(aIn, aRel)...)...)
+	await(t, "a to run", func() bool { return exists(aIn) }, a)
+	b := e.start(e.dir, laneEnv("a"), append([]string{"xcode"}, holdUntil(bIn, bRel)...)...)
+	// Registered after the starts, so it runs before their kills; a held sh keeps stderr open.
+	t.Cleanup(func() { release(t, aRel, bRel) })
+	await(t, "b to queue", func() bool { return strings.Contains(b.stderr.String(), "queue position ") }, a, b)
+	time.Sleep(500 * time.Millisecond)
+	if exists(bIn) || exists(e.xcodeLock()+".2") {
+		t.Fatalf("a second caller of lane a ran beside the first")
+	}
+	release(t, aRel)
+	if code := a.wait(t); code != 0 {
+		t.Fatalf("a exit %d", code)
+	}
+	await(t, "b to run after a", func() bool { return exists(bIn) }, b)
+	release(t, bRel)
+	if code := b.wait(t); code != 0 {
+		t.Fatalf("b exit %d:\n%s", code, b.stderr.String())
+	}
+}
+
+// A lane-blocked waiter at the head of the queue does not keep another lane from a free slot.
+func TestXcodeLockBlockedLaneDoesNotBlockTheQueue(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	aIn, a2In, bIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "a2.in"), filepath.Join(e.dir, "b.in")
+	aRel, a2Rel := filepath.Join(e.dir, "a.rel"), filepath.Join(e.dir, "a2.rel")
+
+	a := e.start(e.dir, laneEnv("a"), append([]string{"xcode"}, holdUntil(aIn, aRel)...)...)
+	await(t, "a to run", func() bool { return exists(aIn) }, a)
+	a2 := e.start(e.dir, laneEnv("a"), append([]string{"xcode"}, holdUntil(a2In, a2Rel)...)...)
+	t.Cleanup(func() { release(t, aRel, a2Rel) })
+	await(t, "a2 to queue", func() bool { return strings.Contains(a2.stderr.String(), "queue position ") }, a, a2)
+
+	b := e.start(e.dir, laneEnv("b"), "xcode", "touch", bIn)
+	await(t, "b to run behind the blocked head", func() bool { return exists(bIn) }, a, a2, b)
+	if code := b.wait(t); code != 0 {
+		t.Fatalf("b exit %d:\n%s", code, b.stderr.String())
+	}
+	if exists(a2In) {
+		t.Fatalf("a2 ran while lane a held a slot")
+	}
+}
+
+// Different lanes run together up to the slot count.
+func TestXcodeLockDifferentLanesRunTogether(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	aIn, bIn := filepath.Join(e.dir, "a.in"), filepath.Join(e.dir, "b.in")
+	aRel, bRel := filepath.Join(e.dir, "a.rel"), filepath.Join(e.dir, "b.rel")
+
+	a := e.start(e.dir, laneEnv("a"), append([]string{"xcode"}, holdUntil(aIn, aRel)...)...)
+	b := e.start(e.dir, laneEnv("b"), append([]string{"xcode"}, holdUntil(bIn, bRel)...)...)
+	t.Cleanup(func() { release(t, aRel, bRel) })
+	await(t, "both lanes to run", func() bool { return exists(aIn) && exists(bIn) }, a, b)
+	release(t, aRel, bRel)
+	if a.wait(t) != 0 || b.wait(t) != 0 {
+		t.Fatalf("a lane exited non-zero")
+	}
+}
+
+// A wrapped script that calls the wrapper again runs at once instead of queuing behind itself.
+func TestXcodeLockNestedCallRunsAtOnce(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	out := filepath.Join(e.dir, "nested.out")
+	c := e.start(e.dir, laneEnv("a"), "xcode", "sh", "-c", `"$1" xcode touch "$2"`, "sh", e.script, out)
+	if code := c.wait(t); code != 0 || !exists(out) {
+		t.Fatalf("nested call exit %d, ran %v:\n%s", code, exists(out), c.stderr.String())
+	}
+}
+
+// Each xcode run appends a row with its lane, HEAD and exit code, and the wrapper exits with
+// the command's code.
+func TestXcodeLockLogsEachBuild(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	repo := filepath.Join(e.dir, "repo")
+	for _, args := range [][]string{
+		{"init", "-q", repo},
+		{"-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	head, err := exec.Command("git", "-C", repo, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok := e.start(repo, laneEnv("lg"), "xcode", "true", "test")
+	if code := ok.wait(t); code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	bad := e.start(repo, laneEnv("lg"), "xcode", "sh", "-c", "exit 7")
+	if code := bad.wait(t); code != 7 {
+		t.Fatalf("wrapper exit %d, want 7", code)
+	}
+	raw, err := os.ReadFile(filepath.Join(repo, ".git", ".monaco", "xcode-builds.tsv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 3 || !strings.HasPrefix(lines[0], "start\tlane\t") {
+		t.Fatalf("log is not header plus two rows:\n%s", raw)
+	}
+	f := strings.Split(lines[1], "\t")
+	if len(f) != 9 || f[1] != "lg" || f[3] != strings.TrimSpace(string(head)) || f[5] != "test" || f[7] != "0" {
+		t.Fatalf("first row wrong: %q", lines[1])
+	}
+	f = strings.Split(lines[2], "\t")
+	if len(f) != 9 || f[5] != "other" || f[7] != "7" {
+		t.Fatalf("second row wrong: %q", lines[2])
 	}
 }
