@@ -95,16 +95,34 @@ private struct HandleStepForm: View {
 
                 field
                 statusLine
+                if offersReferralEntry {
+                    Button {
+                        isEnteringReferral = true
+                    } label: {
+                        Text("Have a referral code?")
+                    }
+                    .buttonStyle(.monacoText)
+                    .accessibilityIdentifier("onboarding-handle-step-referral")
+                }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom) { actions }
+        .safeAreaInset(edge: .bottom) { BottomCTA { continueButton } }
         .monacoCanvas()
         .navigationTitle(mode == .edit ? "Handle" : "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            FirstRunToolbar(
+                signOut: mode == .onboarding
+                    ? FirstRunAction(
+                        title: OnboardingCopy.signOut, identifier: "onboarding-handle-step-sign-out",
+                        isDisabled: isSaving
+                    ) { Task { await onSignOut() } } : nil,
+                skip: nil)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-handle-step")
         .task { for await next in checker.statuses { status = next } }
@@ -213,49 +231,16 @@ private struct HandleStepForm: View {
         }
     }
 
-    private var actions: some View {
-        VStack(spacing: MonacoTheme.Space.xs) {
-            Button {
-                Task { await save() }
-            } label: {
-                HStack(spacing: MonacoTheme.Space.s) {
-                    if isSaving {
-                        ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                        Text(HandleCopy.saving)
-                    } else {
-                        Text(OnboardingCopy.continueLabel)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.monacoPrimary)
-            .disabled(claimable == nil)
-            .accessibilityValue(claimable == nil && !isSaving ? "Unavailable" : "")
-            .accessibilityIdentifier("onboarding-handle-step-continue")
-
-            if offersReferralEntry {
-                Button {
-                    isEnteringReferral = true
-                } label: {
-                    Text("Have a referral code?")
-                }
-                .buttonStyle(.monacoText)
-                .accessibilityIdentifier("onboarding-handle-step-referral")
-            }
-
-            if mode == .onboarding {
-                Button {
-                    Task { await onSignOut() }
-                } label: {
-                    Text(OnboardingCopy.signOut)
-                }
-                .buttonStyle(.monacoText)
-                .accessibilityIdentifier("onboarding-handle-step-sign-out")
-            }
+    private var continueButton: some View {
+        Button {
+            Task { await save() }
+        } label: {
+            SubmitLabel(isWorking: isSaving, idle: OnboardingCopy.continueLabel, working: HandleCopy.saving)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.s)
-        .background(MonacoTheme.canvas)
+        .buttonStyle(.monacoPrimary)
+        .disabled(claimable == nil)
+        .accessibilityValue(claimable == nil && !isSaving ? "Unavailable" : "")
+        .accessibilityIdentifier("onboarding-handle-step-continue")
     }
 
     private func save() async {

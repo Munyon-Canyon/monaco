@@ -1,4 +1,3 @@
-import AuthenticationServices
 import MonacoCore
 import SwiftUI
 
@@ -130,10 +129,8 @@ struct LoginView: View {
             Button {
                 Task { await auth.loginWithApple() }
             } label: {
-                SignInWithAppleButton(.signIn, onRequest: { _ in }, onCompletion: { _ in })
-                    .signInWithAppleButtonStyle(.black)
+                AppleSignInCapsule()
                     .frame(height: MonacoButtonMetrics.minimumHeight)
-                    .clipShape(Capsule())
                     .allowsHitTesting(false)
                     .contentShape(Capsule())
             }
