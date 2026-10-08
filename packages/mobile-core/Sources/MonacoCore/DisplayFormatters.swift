@@ -106,7 +106,7 @@ public enum AssetSymbolFormatter {
         if kind == .preIpo { return formatted }
         guard formatted.count >= 2, formatted.count <= 7, formatted.last == "x" else { return formatted }
         let body = formatted.dropLast()
-        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ.")
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.")
         guard body.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return formatted }
         return String(body)
     }
