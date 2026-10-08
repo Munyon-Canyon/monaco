@@ -49,8 +49,14 @@ type stream struct {
 	blocks   map[string]string
 	seenOpen map[int]bool
 	reported map[int]bool
+	told     map[dropKey]bool
 	reran    map[int64]int
 	waits    map[int]*graphiteWait
+}
+
+type dropKey struct {
+	pr   int
+	head string
 }
 
 type graphiteWait struct {
@@ -61,7 +67,8 @@ type graphiteWait struct {
 func newStream(env *Env) *stream {
 	return &stream{
 		env: env, since: env.Now(), prev: map[string]bool{}, ejected: map[int]bool{}, blocks: map[string]string{},
-		seenOpen: map[int]bool{}, reported: map[int]bool{}, reran: map[int64]int{}, waits: map[int]*graphiteWait{},
+		seenOpen: map[int]bool{}, reported: map[int]bool{}, told: map[dropKey]bool{},
+		reran: map[int64]int{}, waits: map[int]*graphiteWait{},
 	}
 }
 
@@ -108,7 +115,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	if dataErr != nil {
 		items = append(items, watchErr("", dataErr))
 	}
-	var queued []int
+	var queued, armed []int
 	for _, r := range rs {
 		if line, stale := r.staleLine(); stale {
 			items = append(items, line)
@@ -118,6 +125,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 			items = append(items, s.stack(ctx, r, q, data.drafts)...)
 		}
 		for _, a := range r.Armed {
+			armed = append(armed, a.PRs...)
 			items = append(items, env.landArmed(ctx, r, a, s.reran)...)
 		}
 		if r.Settled != nil && r.Settled.At.After(s.since) {
@@ -126,7 +134,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	}
 	items = append(items, s.draftLines(data.drafts, queued)...)
 	every := append(stuckOnGraphiteBase(data.prs, rs, env.Config.QueueLabel), env.silentStalls(ctx, data.prs, rs)...)
-	return append(items, s.failures(ctx, data, queued)...), every
+	return append(items, s.failures(ctx, data, slices.Concat(queued, armed))...), every
 }
 
 func (s *stream) stack(ctx context.Context, r Record, q Queue, drafts []queueDraft) []string {
@@ -284,7 +292,7 @@ func finished(x gqlContext) (string, bool) {
 	}
 }
 
-func (s *stream) failures(ctx context.Context, data watchData, queued []int) []string {
+func (s *stream) failures(ctx context.Context, data watchData, held []int) []string {
 	env := s.env
 	labeled := map[int]bool{}
 	for _, p := range data.prs {
@@ -299,8 +307,12 @@ func (s *stream) failures(ctx context.Context, data watchData, queued []int) []s
 	}
 	queue.landed = landed
 	for _, f := range failures(data.prs, queue, env.Config.FeatureBranch, s.since) {
-		if f.Why == droppedWhy && (trunkUnread || labeled[f.PR] || s.reported[f.PR] || slices.Contains(queued, f.PR)) {
-			continue
+		if f.Why == droppedWhy {
+			key := dropKey{f.PR, f.Head}
+			if trunkUnread || labeled[f.PR] || s.reported[f.PR] || s.told[key] || slices.Contains(held, f.PR) {
+				continue
+			}
+			s.told[key] = true
 		}
 		items = append(items, s.block(ctx, f))
 	}
