@@ -123,8 +123,9 @@ struct PassedProposalBuyingTests {
 
     @Test
     func theStatusTrackerReadsBuyingAtStepTwo() {
-        let state = ProposalStepper.state(status: .passed, isSell: false)
-        #expect(state.trackerLabel(isSell: false) == "Buying, step 2 of 3")
+        let stepper = ProposalStepper.make(status: .passed, isSell: false, expiresAt: .now)
+        #expect(stepper.steps.map(\.mark) == [.done, .active, .pending])
+        #expect(stepper.accessibilityLabel.contains("Buying, step 2 of 3, in progress"))
     }
 
     private static let pending =

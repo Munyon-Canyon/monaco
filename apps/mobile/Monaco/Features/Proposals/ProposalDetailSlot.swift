@@ -175,24 +175,15 @@ struct ProposalDetailSlotView: View {
 
     private func status(_ detail: ProposalDetail) -> some View {
         let summary = detail.summary
-        let failedSwap = summary.swap?.status == "failed"
-        let state = ProposalStepper.state(
-            status: summary.status, isSell: summary.kind == "sell", swapFailed: failedSwap)
+        let stepper = ProposalStepper.make(
+            status: summary.status, isSell: summary.kind == "sell", swapFailed: summary.swap?.status == "failed",
+            expiresAt: summary.expiresAt, failureMessage: summary.swap?.failureMessage,
+            statusMessage: summary.statusMessage)
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Status")
-            HStack(spacing: MonacoTheme.Space.s) {
-                step(
-                    "Voting", active: state == .voting,
-                    stamp: summary.createdAt.formatted(date: .abbreviated, time: .shortened))
-                step(summary.kind == "sell" ? "Selling" : "Buying", active: state == .trading)
-                step(state.finalStepTitle, active: state.isFinalStepReached)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(state.trackerLabel(isSell: summary.kind == "sell"))
-            .accessibilityIdentifier("proposal-tracker")
-            if case .failed(let title) = state {
-                Text(summary.swap?.failureMessage ?? summary.statusMessage ?? title).foregroundStyle(MonacoTheme.loss)
-            }
+            MonacoRule()
+            ProposalStepperView(stepper: stepper)
+            MonacoRule()
             if model?.retryableSwapID != nil {
                 Button("Retry") {
                     Task {
@@ -214,14 +205,6 @@ struct ProposalDetailSlotView: View {
                 }
             }
             if showBurst { ProposalCoinBurst() }
-        }
-    }
-
-    private func step(_ title: String, active: Bool, stamp: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(active ? MonacoTheme.Typo.calloutStrong : MonacoTheme.Typo.callout).foregroundStyle(
-                active ? MonacoTheme.ink : MonacoTheme.muted)
-            if let stamp { Text(stamp).font(MonacoTheme.Typo.micro).foregroundStyle(MonacoTheme.muted) }
         }
     }
 
