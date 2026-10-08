@@ -62,7 +62,7 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
 }
 
 public enum ProposeTrade: Equatable, Hashable, Sendable {
-    case buy(symbol: String, kind: AssetKind, tokenDecimals: Int)
+    case buy(symbol: String, kind: AssetKind, tokenDecimals: Int?)
     case sell(ProposeHolding)
 
     public var isSell: Bool {

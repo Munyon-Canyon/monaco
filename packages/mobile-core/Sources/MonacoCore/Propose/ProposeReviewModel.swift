@@ -106,7 +106,8 @@ public final class ProposeReviewModel {
     }
 
     private var quantity: Decimal? {
-        guard case .buy(_, _, let tokenDecimals) = trade, let out = preview.quoteOutAmount, out > 0 else { return nil }
+        guard case .buy(_, _, let tokenDecimals) = trade, let tokenDecimals, let out = preview.quoteOutAmount, out > 0
+        else { return nil }
         return TokenQuantityFormatter.quantity(fromAtomics: String(out), decimals: tokenDecimals)
     }
 

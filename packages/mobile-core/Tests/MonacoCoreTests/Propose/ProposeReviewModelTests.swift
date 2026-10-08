@@ -27,6 +27,24 @@ final class ProposeReviewModelTests: XCTestCase {
         XCTAssertNil(model.reason)
     }
 
+    func testNineDecimalPreIpoBuyCountsOneToken() {
+        let model = makeModel(kind: .preIpo, service: ReviewService(), quoteOut: 1_000_000_000, tokenDecimals: 9)
+
+        XCTAssertEqual(model.rows[0], .init(label: "Cabal gets", value: "about 1 token"))
+        XCTAssertEqual(model.rows[1], .init(label: "Price", value: "about $250.00 a token"))
+    }
+
+    func testUnknownDecimalsLeaveOutCountAndPrice() {
+        let model = makeModel(kind: .preIpo, service: ReviewService(), tokenDecimals: nil)
+
+        XCTAssertEqual(
+            model.rows,
+            [
+                .init(label: "Pot", value: "50% of $500.00"),
+                .init(label: "Who votes", value: "All 3 members"),
+            ])
+    }
+
     func testSendReturnsTheProposalAndNamesTheCabal() async {
         let service = ReviewService()
         let model = makeModel(kind: .stock, service: service)
@@ -87,15 +105,16 @@ final class ProposeReviewModelTests: XCTestCase {
             trade: .sell(holding))
     }
 
-    private func makeModel(kind: AssetKind, service: ReviewService, thesis: String = "Earnings next week.")
-        -> ProposeReviewModel
-    {
+    private func makeModel(
+        kind: AssetKind, service: ReviewService, thesis: String = "Earnings next week.",
+        quoteOut: Int64 = 73_000_000, tokenDecimals: Int? = 8
+    ) -> ProposeReviewModel {
         let preview = ProposePreview(
-            .init(quoteOutAmount: 73_000_000, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
+            .init(quoteOutAmount: quoteOut, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
         return ProposeReviewModel(
             service: service, cabalID: "cabal", cabal: .init(name: "Sunday Investors", voters: "All 3 members"),
             draft: .buy(symbol: "GOOGL", usdcMicros: 250_000_000, thesis: thesis), preview: preview,
-            trade: .buy(symbol: "GOOGL", kind: kind, tokenDecimals: 8))
+            trade: .buy(symbol: "GOOGL", kind: kind, tokenDecimals: tokenDecimals))
     }
 }
 

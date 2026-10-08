@@ -73,6 +73,21 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertEqual(amounts.first, 120_345_678)
     }
 
+    func testResolveAssetFixesABuyAndLeavesASellAlone() {
+        let buy = ProposeAmountModel(
+            service: PreviewService(), cabalID: "cabal",
+            trade: .buy(symbol: "SPACEX", kind: .stock, tokenDecimals: nil),
+            clock: TestClock())
+        buy.resolveAsset(kind: .preIpo, decimals: 9)
+        XCTAssertEqual(buy.trade, .buy(symbol: "SPACEX", kind: .preIpo, tokenDecimals: 9))
+
+        let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678)
+        let sell = ProposeAmountModel(
+            service: PreviewService(), cabalID: "cabal", trade: .sell(apple), clock: TestClock())
+        sell.resolveAsset(kind: .preIpo, decimals: 9)
+        XCTAssertEqual(sell.trade, .sell(apple))
+    }
+
     private static let buy = ProposeTrade.buy(symbol: "GOOGLx", kind: .stock, tokenDecimals: 8)
 
     private func settle() async {
