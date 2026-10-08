@@ -446,8 +446,8 @@ func TestModule_pollsDeadLettersOnTheConfiguredInterval(t *testing.T) {
 		Clock:  f.clock, IDs: f.ids, Pool: f.pool, UoW: f.uow, Bus: f.bus.Conn,
 	})
 	pollers := m.Pollers()
-	if m.Name() != "admin" || len(pollers) != 1 || pollers[0].Name() != "admin.deadletters" ||
-		pollers[0].Interval() != 7*time.Second {
-		t.Fatalf("pollers = %v, want admin.deadletters every 7s", pollers)
+	if m.Name() != "admin" || len(pollers) != 2 || pollers[0].Name() != "admin.deadletters" ||
+		pollers[0].Interval() != 7*time.Second || pollers[1].Name() != "admin.approvals_expire" {
+		t.Fatalf("pollers = %v, want admin.deadletters every 7s and admin.approvals_expire", pollers)
 	}
 }

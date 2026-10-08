@@ -29,11 +29,15 @@ const (
 	AnalyticsPii ErrorCode = "analytics_pii"
 	ApnsAuthFailed ErrorCode = "apns_auth_failed"
 	ApnsUnavailable ErrorCode = "apns_unavailable"
+	ApprovalAlreadyPending ErrorCode = "approval_already_pending"
+	ApprovalExpired ErrorCode = "approval_expired"
+	ApprovalNotPending ErrorCode = "approval_not_pending"
 	AssetNotFound ErrorCode = "asset_not_found"
 	AssetUntradable ErrorCode = "asset_untradable"
 	AuthStateTransition ErrorCode = "auth_state_transition"
 	BounceFailed ErrorCode = "bounce_failed"
 	CabalBanned ErrorCode = "cabal_banned"
+	CabalNotActive ErrorCode = "cabal_not_active"
 	CabalNotFound ErrorCode = "cabal_not_found"
 	CabalPaused ErrorCode = "cabal_paused"
 	CabalSharesShort ErrorCode = "cabal_shares_short"
@@ -137,6 +141,7 @@ const (
 	RequestPending ErrorCode = "request_pending"
 	RpcUnavailable ErrorCode = "rpc_unavailable"
 	SaleShort ErrorCode = "sale_short"
+	SameApprover ErrorCode = "same_approver"
 	SessionRequired ErrorCode = "session_required"
 	SlippageExceeded ErrorCode = "slippage_exceeded"
 	StorageUnavailable ErrorCode = "storage_unavailable"
@@ -203,6 +208,12 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case ApnsUnavailable:
 		return true
+	case ApprovalAlreadyPending:
+		return true
+	case ApprovalExpired:
+		return true
+	case ApprovalNotPending:
+		return true
 	case AssetNotFound:
 		return true
 	case AssetUntradable:
@@ -212,6 +223,8 @@ func (e ErrorCode) Valid() bool {
 	case BounceFailed:
 		return true
 	case CabalBanned:
+		return true
+	case CabalNotActive:
 		return true
 	case CabalNotFound:
 		return true
@@ -418,6 +431,8 @@ func (e ErrorCode) Valid() bool {
 	case RpcUnavailable:
 		return true
 	case SaleShort:
+		return true
+	case SameApprover:
 		return true
 	case SessionRequired:
 		return true

@@ -23,11 +23,15 @@ extension Components.Schemas.ErrorCode {
         case .analyticsPii: true
         case .apnsAuthFailed: true
         case .apnsUnavailable: true
+        case .approvalAlreadyPending: true
+        case .approvalExpired: true
+        case .approvalNotPending: true
         case .assetNotFound: true
         case .assetUntradable: true
         case .authStateTransition: true
         case .bounceFailed: true
         case .cabalBanned: true
+        case .cabalNotActive: true
         case .cabalNotFound: true
         case .cabalPaused: true
         case .cabalSharesShort: true
@@ -131,6 +135,7 @@ extension Components.Schemas.ErrorCode {
         case .requestPending: true
         case .rpcUnavailable: true
         case .saleShort: true
+        case .sameApprover: true
         case .sessionRequired: true
         case .slippageExceeded: true
         case .storageUnavailable: true
