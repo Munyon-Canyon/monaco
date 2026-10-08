@@ -5,15 +5,15 @@ Typing more than the balance shows no problem. S1.4 waits for "Not enough in you
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift b/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
-index 63be888e..82179ed6 100644
+index 8ab60060b..09cb8c30e 100644
 --- a/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
 +++ b/apps/mobile/Monaco/Features/Deposit/FundCabalView.swift
-@@ -115,7 +115,7 @@ struct FundCabalForm: Equatable {
- 
-     /// Replaces the helper, in red, while the amount typed is more than the balance holds.
+@@ -158,7 +158,7 @@ struct FundCabalForm: Equatable {
+     /// Replaces the helper, in red, while the amount typed is over the balance or under the minimum.
      var problem: String? {
--        guard let availableMicros, let micros = AmountEntryText.micros(amountText), micros > availableMicros else {
-+        guard let availableMicros, let micros = AmountEntryText.micros(amountText), micros > availableMicros, false else {
-             return nil
-         }
-         return Self.overBalance
+         guard let micros = AmountEntryText.micros(amountText) else { return nil }
+-        if let availableMicros, micros > availableMicros { return Self.overBalance }
++        if let availableMicros, micros > availableMicros, false { return Self.overBalance }
+         if micros > 0, micros < Self.minimumMicros { return Self.belowMinimum }
+         return nil
+     }
