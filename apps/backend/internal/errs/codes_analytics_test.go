@@ -30,3 +30,11 @@ func TestAnalyticsCodesReadTheirRows(t *testing.T) {
 		})
 	}
 }
+
+func TestDashboardTimeoutCodeReadsItsRow(t *testing.T) {
+	t.Parallel()
+	want := reading{"dashboard_timeout", KindUnavailable, true, false, VerdictNak}
+	if got := read(CodeDashboardTimeout); got != want {
+		t.Errorf("read(%s) = %+v, want %+v", CodeDashboardTimeout, got, want)
+	}
+}

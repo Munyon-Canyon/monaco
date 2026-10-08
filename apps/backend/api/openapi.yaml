@@ -4376,6 +4376,7 @@ components:
         - comment_parent_mismatch
         - conservation_broken
         - contact_hashes_invalid
+        - dashboard_timeout
         - db_schema_behind
         - db_unavailable
         - dead_letter_not_open
