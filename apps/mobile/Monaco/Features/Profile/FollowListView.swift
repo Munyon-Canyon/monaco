@@ -75,7 +75,7 @@ struct FollowListView: View {
     private var list: some View {
         let rows = people
         let loadingMore = isLoadingMore
-        return MonacoGroupedList(rules: loadingMore ? .top : .both) {
+        return MonacoGroupedList {
             LazyVStack(spacing: 0) {
                 ForEach(rows) { user in
                     FollowListPersonRow(

@@ -150,7 +150,7 @@ private struct MyCabalCard: View {
                 Spacer(minLength: 0)
                 if let unread = CabalCopy.unreadBadge(cabal.unreadCount) {
                     Text(unread)
-                        .font(MonacoTheme.Typo.caption.weight(.semibold).monospacedDigit())
+                        .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
                         .foregroundStyle(MonacoTheme.onDestructive)
                         .padding(.horizontal, MonacoTheme.Space.s)
                         .frame(minWidth: 22, minHeight: 22)
@@ -160,7 +160,7 @@ private struct MyCabalCard: View {
                 }
                 if let requests = CabalCopy.requestBadge(cabal) {
                     Text("\(requests)")
-                        .font(MonacoTheme.Typo.caption.weight(.semibold).monospacedDigit())
+                        .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
                         .foregroundStyle(MonacoTheme.onBrand)
                         .padding(.horizontal, MonacoTheme.Space.s)
                         .frame(minWidth: 22, minHeight: 22)

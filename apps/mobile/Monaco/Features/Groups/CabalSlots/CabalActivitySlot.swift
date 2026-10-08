@@ -146,7 +146,7 @@ struct CabalActivityContent: View {
 
     private var list: some View {
         let loadingMore = model?.isLoadingMore == true
-        return MonacoGroupedList(rules: loadingMore ? .top : .both) {
+        return MonacoGroupedList {
             LazyVStack(spacing: 0) {
                 ForEach(rows) { row in
                     receiptLink(row) {

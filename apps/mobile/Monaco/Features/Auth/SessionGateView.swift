@@ -223,7 +223,7 @@ struct HomeShapedSkeleton: View {
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.s)
-            .frame(minHeight: 60)
+            .frame(minHeight: MonacoRowLayout.minHeight)
 
             HStack(spacing: MonacoTheme.Space.l) {
                 SkeletonBlock(width: 88, height: 12)
@@ -260,7 +260,7 @@ struct HomeShapedSkeleton: View {
                     }
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.vertical, MonacoTheme.Space.s)
-                    .frame(minHeight: 60)
+                    .frame(minHeight: MonacoRowLayout.minHeight)
                     .overlay(alignment: .bottom) {
                         if index < 2 {
                             MonacoRule()

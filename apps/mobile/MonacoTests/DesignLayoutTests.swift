@@ -11,7 +11,7 @@ struct MonacoRowLayoutTests {
             let layout = MonacoRowLayout(dynamicTypeSize: size)
             #expect(layout.isStacked == false)
             #expect(layout.titleLineLimit == 1)
-            #expect(layout.separatorLeadingInset == 72)
+            #expect(layout.separatorLeadingInset == 68)
         }
     }
 
@@ -155,6 +155,6 @@ struct SectionStackLayoutTests {
                 Color.red.frame(height: 10)
             })
         let size = host.sizeThatFits(in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude))
-        #expect(size.height == 44)
+        #expect(size.height == 20 + SectionStackMetrics.spacing)
     }
 }

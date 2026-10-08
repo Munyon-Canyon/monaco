@@ -129,7 +129,7 @@ struct ProposeStockSkeleton: View {
                     }
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-                .frame(minHeight: 64)
+                .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {
                     if index < rows - 1 {
                         MonacoRule().padding(.leading, StockListRow.textLeading)

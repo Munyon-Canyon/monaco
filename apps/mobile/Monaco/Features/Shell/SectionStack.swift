@@ -5,7 +5,7 @@ extension EnvironmentValues {
 }
 
 enum SectionStackMetrics {
-    static let spacing = MonacoTheme.Space.l
+    static let spacing = MonacoTheme.Space.xl
 }
 
 struct SectionStack<Context>: View {
@@ -25,6 +25,7 @@ struct SectionStack<Context>: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .environment(\.sectionScrollProxy, proxy)
             .monacoCanvas()
         }

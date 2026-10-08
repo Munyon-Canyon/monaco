@@ -78,17 +78,17 @@ private struct CabalHero: View {
         switch model?.state ?? .loading {
         case .idle, .loading:
             HStack(spacing: MonacoTheme.Space.sm) {
-                SkeletonBlock(width: 48, height: 48, radius: MonacoTheme.Radius.card, onInk: true)
+                SkeletonBlock(width: 48, height: 48, radius: MonacoTheme.Radius.card)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    SkeletonBlock(width: 160, height: 22, onInk: true)
-                    SkeletonBlock(width: 96, height: 14, onInk: true)
+                    SkeletonBlock(width: 160, height: 22)
+                    SkeletonBlock(width: 96, height: 14)
                 }
             }
             .accessibilityElement()
             .accessibilityLabel("Loading this cabal")
             .accessibilityIdentifier("cabal-header-loading")
         case .failed:
-            MonacoErrorRow(thing: "this cabal", identifier: "cabal-header-failed", onHero: true, retry: retry)
+            MonacoErrorRow(thing: "this cabal", identifier: "cabal-header-failed", retry: retry)
         case .loaded(let cabal):
             identity(cabal)
         }

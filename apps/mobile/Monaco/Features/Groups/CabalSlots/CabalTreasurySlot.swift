@@ -93,7 +93,7 @@ struct CabalTreasuryCard: View {
                 .accessibilityIdentifier("cabal-treasury-address")
             if let url = CabalTreasurySlot.solscanURL(for: address) {
                 Link(CabalTreasurySlotCopy.solscan, destination: url)
-                    .font(MonacoTheme.Typo.callout.weight(.semibold))
+                    .font(MonacoTheme.Typo.subheadStrong)
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("cabal-treasury-solscan")
             }
