@@ -582,3 +582,66 @@ func TestNewServer_takesTimeoutsFromConfig(t *testing.T) {
 		t.Fatalf("server = %+v", srv)
 	}
 }
+
+func TestProblem_clientHangUpIs499InfoNotAnAlert(t *testing.T) {
+	t.Parallel()
+	canceledInternal := errs.Wrap(context.Canceled, errs.CodeInternal, "ranking.Boards.LatestRun")
+	for _, tc := range []struct {
+		name      string
+		err       error
+		cancelled bool
+		status    int
+		code      api.ErrorCode
+		level     string
+		alert     bool
+	}{
+		{"cancelled internal", canceledInternal, true, 499, "client_closed", "INFO", false},
+		{
+			"cancelled db", errs.Wrap(context.Canceled, errs.CodeDBUnavailable, "db.Query"),
+			true, 499, "client_closed", "INFO", false,
+		},
+		{"live context", canceledInternal, false, 500, "internal", "ERROR", true},
+		{
+			"deadline stays a fault", errs.Wrap(context.DeadlineExceeded, errs.CodeInternal, "ranking.Boards.LatestRun"),
+			false, 500, "internal", "ERROR", true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			handler := mustHandler(
+				t,
+				h.deps,
+				healthz{fn: func(context.Context) (platformapi.GetHealthzResponseObject, error) {
+					return nil, tc.err
+				}},
+			)
+			req := httptest.NewRequestWithContext(clientContext(t, tc.cancelled), http.MethodGet, "/healthz", nil)
+			rec := httptest.NewRecorder()
+			testkit.HTTP(t, handler).ServeHTTP(rec, req)
+			p := decodeProblem(t, rec)
+			if rec.Code != tc.status || p.Status != tc.status || p.Code != tc.code {
+				t.Fatalf("got %d %+v, want %d %s", rec.Code, p, tc.status, tc.code)
+			}
+			lines := h.logs.lines(t)
+			problems := linesNamed(lines, "http.problem")
+			if len(problems) != 1 || problems[0]["level"] != tc.level || problems[0]["alert"] != tc.alert ||
+				problems[0]["status"] != float64(tc.status) {
+				t.Fatalf("problem lines = %v, want one %s alert=%v status %d", problems, tc.level, tc.alert, tc.status)
+			}
+			if tc.cancelled && len(levelLines(lines, "ERROR")) != 0 {
+				t.Fatalf("error-level lines for a client hang-up: %v", levelLines(lines, "ERROR"))
+			}
+		})
+	}
+}
+
+func clientContext(t *testing.T, gone bool) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	if gone {
+		cancel()
+	}
+	return ctx
+}

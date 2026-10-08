@@ -318,7 +318,7 @@ func TestAssets_reportsABrokenCatalog(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	rec := s.getCtx(ctx, t, "/v1/assets", s.token)
-	if rec.Code != http.StatusInternalServerError || problemCode(t, rec) != apibase.Internal {
+	if rec.Code != 499 || problemCode(t, rec) != apibase.ClientClosed {
 		t.Fatalf("cancelled = %d %s", rec.Code, rec.Body)
 	}
 	if _, err := s.pool.Exec(t.Context(),
