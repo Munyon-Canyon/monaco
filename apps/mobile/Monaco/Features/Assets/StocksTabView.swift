@@ -195,7 +195,7 @@ private struct StocksAssetRow: View {
                         .foregroundStyle(MonacoTheme.warning).accessibilityLabel("Market closed")
                 }
                 if let micros = asset.priceMicros {
-                    MoneyText(micros: micros, style: .row, voice: .market)
+                    MoneyText(micros: micros, style: .row)
                 } else {
                     Text("—").font(MonacoTheme.Typo.bodyStrong).foregroundStyle(MonacoTheme.muted)
                 }

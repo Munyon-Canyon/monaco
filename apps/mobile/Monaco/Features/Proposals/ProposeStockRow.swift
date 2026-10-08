@@ -99,8 +99,7 @@ struct ProposeStockRow: View {
             MoneyText(
                 micros: micros,
                 style: .row,
-                color: stock.isTradable ? MonacoTheme.ink : MonacoTheme.disabledLabel,
-                voice: .market
+                color: stock.isTradable ? MonacoTheme.ink : MonacoTheme.disabledLabel
             )
             if stock.isTradable, stock.change24h != nil {
                 DayChangePill(change24h: stock.change24h, priceUsdcMicros: micros)

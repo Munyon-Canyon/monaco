@@ -79,7 +79,7 @@ struct CabalMark: View {
 
     private var initialsLabel: some View {
         Text(initials)
-            .font(.custom("AvenirNext-DemiBold", fixedSize: size * (initials.count > 1 ? 0.36 : 0.42)))
+            .font(.system(size: size * (initials.count > 1 ? 0.36 : 0.42), weight: .semibold))
             .foregroundStyle(onInk ? MonacoTheme.heroInk : tint.onFill)
             .lineLimit(1)
             .minimumScaleFactor(0.5)

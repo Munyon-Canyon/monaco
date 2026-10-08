@@ -13,11 +13,8 @@ import UIKit
 /// and mark pairs the design system defines roles for; a screen that invents a new combination out
 /// of existing tokens is not caught until its pair is added here.
 ///
-/// The old "known gap on purpose" note is gone with the blue brand. It said `brand` as *text* was
-/// 4.09:1 on `surfaceSunken` in dark and that nothing drew it there. Both halves were wrong by the
-/// time the forest palette landed: `MonacoSectionHeader` and the balance
-/// retry button both draw `brand` as a label, sometimes inside a sunken card. The pair
-/// is in the table now, and the forest `brand` clears AA on all three surfaces in both schemes.
+/// Every text pair is measured on all three surfaces (`canvas`, `surface`, `surfaceSunken`), not
+/// only on the canvas: a proposal card is sunken, and its caption and figures have to clear AA there.
 enum WCAGContrast {
     struct RGBA {
         var red: Double
@@ -228,8 +225,8 @@ struct MonacoContrastTests {
     ///
     /// The toast glyphs are held to 4.5 rather than 3 even though they are graphical. They are the
     /// only thing distinguishing a failure toast from a success one for a member who does not read
-    /// the copy, they sit over money screens, and they have the headroom — the nearest is 6.2:1.
-    /// At a 3:1 bar a retune could halve their contrast and still pass.
+    /// the copy, and they sit over money screens. The nearest is 4.5:1, the error glyph on the
+    /// light panel in dark mode. At a 3:1 bar a retune could take a third off that and still pass.
     private static var glyphPairs: [Pair] {
         var pairs: [Pair] = [
             Pair("toastSuccessGlyph", MonacoTheme.toastSuccessGlyph, on: [MonacoTheme.toastFill], minimum: 4.5),
@@ -238,7 +235,7 @@ struct MonacoContrastTests {
         for tint in MonacoTheme.CabalTint.allCases {
             // Bold tile initials, 15pt and up: the large-text bar, not the body one.
             pairs.append(Pair("\(tint) onFill", tint.onFill, on: [tint.fill], minimum: 3))
-            // The same mark on a deep ink hero card.
+            // The retired on-ink tint, which is now the stroke on the canvas the hero aliases.
             pairs.append(Pair("\(tint) onInk", tint.onInk, on: [MonacoTheme.heroInk], minimum: 3))
         }
         return pairs
@@ -283,30 +280,35 @@ struct MonacoContrastTests {
 
     /// The rule the whole palette is built around: **green means "this went up"**.
     ///
-    /// The brand is a forest and `profit` is a green, so they share a hue — 4° to 8° apart, which
-    /// is nothing. Hue cannot separate them and this test does not pretend it can. What separates
-    /// them is that the brand reads as *ink* and profit reads as *colour*: profit is markedly
-    /// lighter and at least twice the chroma, in both schemes.
+    /// The brand is a forest and `profit` is a green, so they share a hue. Hue cannot separate
+    /// them and this test does not pretend it can. What separates them is that the brand reads as
+    /// *ink* and profit reads as *colour*: profit sits further from the text's lightness and
+    /// carries more chroma, in both schemes.
     ///
     /// Measured today, with the floors this asserts in brackets:
     ///
-    /// | scheme | pair             | ΔL* (≥0.09) | chroma ratio (≥1.9) | ΔE OKLab (≥0.13) |
-    /// |--------|------------------|-------------|---------------------|------------------|
-    /// | light  | brand vs profit  | 0.136       | 2.16                | 0.152            |
-    /// | light  | fill  vs profit  | 0.253       | 3.06                | 0.267            |
-    /// | dark   | brand vs profit  | 0.111       | 2.91                | 0.157            |
-    /// | dark   | fill  vs profit  | 0.170       | 7.72                | 0.224            |
+    /// | scheme | pair             | ΔL*           | chroma ratio  | ΔE OKLab      |
+    /// |--------|------------------|---------------|---------------|---------------|
+    /// | light  | brand vs profit  | 0.104 (≥0.03) | 1.65 (≥1.6)   | 0.116 (≥0.10) |
+    /// | light  | fill  vs profit  | 0.269 (≥0.09) | 3.16 (≥1.9)   | 0.283 (≥0.13) |
+    /// | dark   | brand vs profit  | 0.037 (≥0.03) | 2.39 (≥1.6)   | 0.110 (≥0.10) |
+    /// | dark   | fill  vs profit  | 0.168 (≥0.09) | 26.8 (≥1.9)   | 0.240 (≥0.13) |
     ///
-    /// For scale: a just-noticeable difference in OKLab is about 0.02, so the closest of these is
-    /// seven JNDs apart. The old electric-blue brand managed 0.307 / 0.337 by going to a different
-    /// hue entirely; a same-hue palette cannot match that, and these floors are where a retune
-    /// would start making a primary button look like a gain.
+    /// For scale: a just-noticeable difference in OKLab is about 0.02, so the closest pair is five
+    /// JNDs apart. The fill keeps the floors it always had. The text `brand` gets lower ones: the
+    /// redesign lifts it to a mint in dark (11:1 on the canvas) and only ever sets it as a text
+    /// link, never as a figure, so a link sits nearer profit than the fill does. These floors are
+    /// where a retune would start making a link look like a gain.
     @Test func brandAndProfitCannotBeConfused() {
         for scheme in [UIUserInterfaceStyle.light, .dark] {
             let name = scheme == .light ? "light" : "dark"
             let profit = OKLCh.value(MonacoTheme.profit, scheme)
             let text = OKLCh.value(MonacoTheme.primaryText, scheme)
-            for (label, token) in [("brand", MonacoTheme.brand), ("brandFill", MonacoTheme.brandFill)] {
+            let floors = [
+                ("brand", MonacoTheme.brand, (lightness: 0.03, chroma: 1.6, delta: 0.10)),
+                ("brandFill", MonacoTheme.brandFill, (lightness: 0.09, chroma: 1.9, delta: 0.13)),
+            ]
+            for (label, token, floor) in floors {
                 let brand = OKLCh.value(token, scheme)
                 let deltaLightness = abs(profit.lightness - brand.lightness)
                 // Which side the brand sits on flips with the scheme — it is ink on cream in light
@@ -318,15 +320,16 @@ struct MonacoContrastTests {
                     "\(label) in \(name) is further from primaryText than profit is: it reads as money"
                 )
                 #expect(
-                    deltaLightness >= 0.09,
-                    "\(label) vs profit in \(name): ΔL* is \(deltaLightness), under 0.09"
+                    deltaLightness >= floor.lightness,
+                    "\(label) vs profit in \(name): ΔL* is \(deltaLightness), under \(floor.lightness)"
                 )
                 #expect(
-                    profit.chroma / brand.chroma >= 1.9,
+                    profit.chroma / brand.chroma >= floor.chroma,
                     "\(label) vs profit in \(name): profit is only \(profit.chroma / brand.chroma)× its chroma"
                 )
                 let delta = OKLCh.distance(token, MonacoTheme.profit, scheme)
-                #expect(delta >= 0.13, "\(label) vs profit in \(name): ΔE OKLab is \(delta), under 0.13")
+                #expect(
+                    delta >= floor.delta, "\(label) vs profit in \(name): ΔE OKLab is \(delta), under \(floor.delta)")
             }
             // And the two money colours from each other. Here hue *is* the separator — and it has
             // to stay one, because red/green is the pair a member reads fastest and the pair a
@@ -337,11 +340,10 @@ struct MonacoContrastTests {
             #expect(min(hueGap, 360 - hueGap) >= 90, "profit and loss in \(name) are \(hueGap)° apart")
             let moneyDelta = OKLCh.distance(MonacoTheme.profit, MonacoTheme.loss, scheme)
             #expect(moneyDelta >= 0.2, "profit vs loss in \(name): ΔE OKLab is \(moneyDelta)")
-            // A gain badge must not look like a selected chip either. `brandWash` and `profitWash`
-            // land within a few points of each other over cream (`#DCDDD5` against `#D5E1D5`), so
-            // the text on them is what carries the difference and it is the text that is pinned.
+            // The "You" tag must not look like a gain either. The P&L washes are clear now, so the
+            // pair is `brand` against bare `profit`, held to the text brand's floor.
             let onWash = OKLCh.distance(MonacoTheme.brandOnWash, MonacoTheme.profitOnWash, scheme)
-            #expect(onWash >= 0.13, "brandOnWash vs profitOnWash in \(name): ΔE OKLab is \(onWash)")
+            #expect(onWash >= 0.10, "brandOnWash vs profitOnWash in \(name): ΔE OKLab is \(onWash)")
         }
     }
 
@@ -416,23 +418,26 @@ struct MonacoContrastTests {
         }
     }
 
-    /// The toast panel is dark in both schemes, so its glyphs are fixed colours. Aliasing them to
-    /// the scheme-adaptive `profitVivid` / `lossVivid` — whose documented job is chart strokes on
-    /// paper — is the `primaryButtonFill = brandFill` pattern from #309: the alias looks harmless
-    /// until the borrowed token is retuned for the background it was actually written for.
+    /// The toast panel inverts the scheme (dark in light, light in dark), so its glyphs have to
+    /// invert with it: a glyph tuned for one panel and left on the other drops to 1.6:1. Aliasing
+    /// them to a paper token is the `primaryButtonFill = brandFill` pattern from #309, so the
+    /// glyphs are their own tokens and this pins that they flip exactly when the panel does.
     /// Caught structurally, because a ratio check passes right up until the day it does not.
-    @Test func toastGlyphsDoNotFollowTheScheme() {
+    @Test func toastGlyphsFlipWithTheToastPanel() {
+        func flips(_ color: Color) -> Bool {
+            let light = WCAGContrast.resolve(color, .light)
+            let dark = WCAGContrast.resolve(color, .dark)
+            return abs(light.red - dark.red) > 0.001
+                || abs(light.green - dark.green) > 0.001
+                || abs(light.blue - dark.blue) > 0.001
+        }
         for (name, glyph) in [
             ("toastSuccessGlyph", MonacoTheme.toastSuccessGlyph),
             ("toastErrorGlyph", MonacoTheme.toastErrorGlyph),
         ] {
-            let light = WCAGContrast.resolve(glyph, .light)
-            let dark = WCAGContrast.resolve(glyph, .dark)
             #expect(
-                abs(light.red - dark.red) < 0.001
-                    && abs(light.green - dark.green) < 0.001
-                    && abs(light.blue - dark.blue) < 0.001,
-                "\(name) resolves differently per scheme: it is following a paper token again"
+                flips(glyph) == flips(MonacoTheme.toastFill),
+                "\(name) and toastFill disagree on whether the toast changes with the scheme"
             )
         }
     }

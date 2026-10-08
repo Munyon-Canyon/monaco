@@ -135,7 +135,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     private let trailing: Trailing
 
     /// `titleFont` is the brand's row title unless the row is a stock, whose label is its ticker
-    /// and sets in the market's voice (`MonacoTheme.Typo.ticker`).
+    /// and sets in `MonacoTheme.Typo.ticker`.
     init(
         title: String,
         titleFont: Font = MonacoTheme.Typo.rowTitle,
