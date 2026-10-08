@@ -4,11 +4,11 @@ The business dashboards are Grafana over `GET /v1/admin/dashboards/*`. Retool ke
 
 ## Service tokens for Grafana
 
-Grafana cannot do an interactive Privy login, and a person's Privy token expires within hours and carries that person's role. Grafana uses a service token instead. A service token is viewer only:
+Grafana cannot do an interactive Privy login, and a person's Privy token expires within hours and carries that person's role. Grafana uses a service token instead. A service token reads the dashboards and nothing else:
 
-- It works on `GET` operations whose `x-admin-role` is `viewer`. Every other route answers 403 `admin_forbidden`, including every `POST`, `PATCH` and `DELETE` and every route that needs `moderator` or `operator`.
+- It works only on `GET` operations under `/v1/admin/dashboards/` whose `x-admin-role` is `viewer`. Every other route answers 403 `admin_forbidden`, including the user, transaction and cabal lookups, `/v1/admin/actions`, `/v1/admin/me`, every `POST`, `PATCH` and `DELETE` and every route that needs `moderator` or `operator`. A leaked token therefore exposes the dashboard aggregates, not user or transaction rows.
 - An unknown or revoked token answers 401.
-- It acts as `service:<name>`. Requests log the name in `admin.request`, never the token. A service token cannot change anything, so it never appears in `admin.action`.
+- It acts as `service:<name>`. Requests log the name in `admin.request` and as `actor` on the access line, never the token. A service token cannot change anything, so it never appears in `admin.action`.
 
 Privy tokens are unchanged.
 
