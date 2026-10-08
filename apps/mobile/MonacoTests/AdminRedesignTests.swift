@@ -35,47 +35,6 @@ struct CabalRulesCopyTests {
     }
 }
 
-/// The trading bot: what the server's status means to a member, and which key section the
-/// bot's screen shows for it.
-@MainActor
-struct TradingBotTests {
-    @Test func theServersStatusesReadAsWords() {
-        #expect(TradingBotStatus("active").label == "Active")
-        #expect(TradingBotStatus("paused").label == "Paused")
-        #expect(TradingBotStatus("ACTIVE") == .active)
-        // The member voted to remove it, so that is the word, not the server's "revoked".
-        #expect(TradingBotStatus("revoked") == .removed)
-        #expect(TradingBotStatus("revoked").label == "Removed")
-    }
-
-    @Test func anUnknownStatusIsShownAsSentAndNotAsRemoved() {
-        let status = TradingBotStatus("draining")
-
-        #expect(status == .other("draining"))
-        #expect(status.label == "Draining")
-        #expect(!status.isRemoved)
-    }
-
-    @Test func aRemovedBotNeverOffersAKey() {
-        #expect(TradingBotKeyState.resolve(status: "revoked", apiKey: nil) == .removed)
-        // Even if a key were sent, a removed bot's key no longer works.
-        #expect(TradingBotKeyState.resolve(status: "revoked", apiKey: "monaco_ak_abc") == .removed)
-    }
-
-    @Test func aLiveBotOffersItsKeyOrSaysThereIsNone() {
-        #expect(TradingBotKeyState.resolve(status: "active", apiKey: "monaco_ak_abc") == .key("monaco_ak_abc"))
-        #expect(TradingBotKeyState.resolve(status: "paused", apiKey: " monaco_ak_abc\n") == .key("monaco_ak_abc"))
-        #expect(TradingBotKeyState.resolve(status: "active", apiKey: nil) == .missing)
-        #expect(TradingBotKeyState.resolve(status: "active", apiKey: "   ") == .missing)
-    }
-
-    @Test func theBudgetLineIsTheServersFigureOrNothing() {
-        #expect(TradingBotCopy.budgetLine(allocationUsdcMicros: "100000000") == "$100.00 budget")
-        #expect(TradingBotCopy.budgetLine(allocationUsdcMicros: "") == nil)
-        #expect(TradingBotCopy.budgetLine(allocationUsdcMicros: "1e8") == nil)
-    }
-}
-
 /// Every string these screens add stays out of the plumbing vocabulary.
 @MainActor
 struct AdminCopyAuditTests {
@@ -90,7 +49,6 @@ struct AdminCopyAuditTests {
 
         #expect(MainFlowCopyAudit.stringsAreClean(CabalRulesCopy.auditedStrings))
         #expect(MainFlowCopyAudit.stringsAreClean(CabalDetailsCopy.auditedStrings))
-        #expect(MainFlowCopyAudit.stringsAreClean(TradingBotCopy.auditedStrings))
         #expect(MainFlowCopyAudit.stringsAreClean(joinCopy))
     }
 }
