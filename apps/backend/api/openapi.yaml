@@ -426,6 +426,30 @@ paths:
           description: The money dashboard.
           content: {application/json: {schema: {$ref: "#/components/schemas/MoneyDashboard"}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/dashboards/social:
+    get:
+      operationId: getSocialDashboard
+      tags: [analytics]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
+      summary: Read the social dashboard.
+      description: >-
+        Returns the size and activity of the social graph, read in a read-only transaction with a 5 second statement
+        timeout. `series` is long-format and time-bucketed, one row per bucket, metric and group with events in it:
+        `users_created`, `follows_created` grouped by source, `follows_removed`, `comments_created` and
+        `replies_created`. Buckets with no events are omitted. `cabals` is the cabal count and how many members the
+        median, the 90th percentile and the largest cabal have. `user_states` counts users by auth state and account
+        status, and `users_total` sums them, deleted accounts included. `to` is exclusive and the range cannot
+        exceed 400 days.
+      parameters:
+        - $ref: "#/components/parameters/DashboardFrom"
+        - $ref: "#/components/parameters/DashboardTo"
+        - $ref: "#/components/parameters/DashboardBucket"
+      responses:
+        "200":
+          description: The social dashboard.
+          content: {application/json: {schema: {$ref: "#/components/schemas/SocialDashboard"}}}
+        default: {$ref: "#/components/responses/Problem"}
   # api/spec/cabal.yaml
   /v1/cabals:
     get:
@@ -4253,11 +4277,43 @@ components:
       description: The size of one bucket.
       enum: [day, week]
       examples: [day]
+    DashboardCabals:
+      type: object
+      description: How many cabals exist and how large they are.
+      examples:
+        - total: 12
+          banned: 1
+          members_p50: 4
+          members_p90: 9
+          members_max: 15
+      additionalProperties: false
+      required: [total, banned, members_p50, members_p90, members_max]
+      properties:
+        total: {type: integer, format: int64, description: "Cabals, banned ones included.", examples: [12]}
+        banned: {type: integer, format: int64, description: Banned cabals., examples: [1]}
+        members_p50: {type: integer, format: int64, description: Members of the median cabal., examples: [4]}
+        members_p90: {type: integer, format: int64, description: Members of the cabal at the 90th percentile., examples: [9]}
+        members_max: {type: integer, format: int64, description: Members of the largest cabal., examples: [15]}
     DashboardMicros:
       type: string
       description: A USDC amount in micros as a decimal string.
       pattern: "^(0|[1-9][0-9]*)$"
       examples: ["25000000"]
+    DashboardPoint:
+      type: object
+      description: The number of events of one metric and group in one bucket.
+      examples:
+        - bucket_start: "2026-09-01T00:00:00Z"
+          metric: follows_created
+          group: contacts
+          count: 4
+      additionalProperties: false
+      required: [bucket_start, metric, group, count]
+      properties:
+        bucket_start: {type: string, format: date-time, description: The start of the bucket in UTC., examples: ["2026-09-01T00:00:00Z"]}
+        metric: {type: string, description: What was counted., examples: [follows_created]}
+        group: {type: string, description: "The value the metric is grouped by, empty when the metric has no grouping.", examples: [contacts]}
+        count: {type: integer, format: int64, description: Events in the bucket., examples: [4]}
     GovernanceBucket:
       type: object
       description: The proposal events of one bucket.
@@ -4389,6 +4445,46 @@ components:
           type: array
           description: The buckets with activity, oldest first.
           items: {$ref: "#/components/schemas/MoneyBucket"}
+    SocialDashboard:
+      type: object
+      description: The size and activity of the social graph.
+      examples:
+        - from: "2026-09-01T00:00:00Z"
+          to: "2026-10-01T00:00:00Z"
+          bucket: day
+          users_total: 130
+          cabals: {total: 12, banned: 1, members_p50: 4, members_p90: 9, members_max: 15}
+          user_states: []
+          series: []
+      additionalProperties: false
+      required: [from, to, bucket, users_total, cabals, user_states, series]
+      properties:
+        from: {type: string, format: date-time, description: The start of the range., examples: ["2026-09-01T00:00:00Z"]}
+        to: {type: string, format: date-time, description: "The end of the range, exclusive.", examples: ["2026-10-01T00:00:00Z"]}
+        bucket: {$ref: "#/components/schemas/DashboardBucket"}
+        users_total: {type: integer, format: int64, description: "Users in every state, deleted accounts included.", examples: [130]}
+        cabals: {$ref: "#/components/schemas/DashboardCabals"}
+        user_states:
+          type: array
+          description: Users by auth state and account status.
+          items: {$ref: "#/components/schemas/UserStateCount"}
+        series:
+          type: array
+          description: Events per bucket, metric and group, oldest first.
+          items: {$ref: "#/components/schemas/DashboardPoint"}
+    UserStateCount:
+      type: object
+      description: The users in one auth state and account status.
+      examples:
+        - auth_state: ONBOARDING_COMPLETED
+          account_status: active
+          users: 120
+      additionalProperties: false
+      required: [auth_state, account_status, users]
+      properties:
+        auth_state: {type: string, description: The auth state., examples: [ONBOARDING_COMPLETED]}
+        account_status: {type: string, description: The account status., examples: [active]}
+        users: {type: integer, format: int64, description: Users in this state., examples: [120]}
   # api/spec/base.yaml
     Problem:
       type: object

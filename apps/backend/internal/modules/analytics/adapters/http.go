@@ -11,6 +11,7 @@ import (
 type HTTP struct {
 	Money      app.Money
 	Governance app.Governance
+	Social     app.Social
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -82,5 +83,38 @@ func (h HTTP) GetGovernanceDashboard(
 	return api.GetGovernanceDashboard200JSONResponse{
 		From: window.From, To: window.To, Bucket: api.DashboardBucket(window.Size), OpenProposals: view.Open,
 		PassedInRange: view.Passed.Passed, MedianSecondsToPass: median, Buckets: buckets, Participation: rows,
+	}, nil
+}
+
+func dashboardPoints(series []app.SeriesPoint) []api.DashboardPoint {
+	out := make([]api.DashboardPoint, len(series))
+	for i, p := range series {
+		out[i] = api.DashboardPoint{BucketStart: p.Start, Metric: p.Metric, Group: p.Group, Count: p.Count}
+	}
+	return out
+}
+
+func (h HTTP) GetSocialDashboard(
+	ctx context.Context, req api.GetSocialDashboardRequestObject,
+) (api.GetSocialDashboardResponseObject, error) {
+	window, err := app.ParseWindow(req.Params.From, req.Params.To, string(req.Params.Bucket))
+	if err != nil {
+		return nil, err
+	}
+	view, err := h.Social.Dashboard(ctx, window)
+	if err != nil {
+		return nil, err
+	}
+	states := make([]api.UserStateCount, len(view.States))
+	for i, s := range view.States {
+		states[i] = api.UserStateCount{AuthState: s.AuthState, AccountStatus: s.AccountStatus, Users: s.Users}
+	}
+	return api.GetSocialDashboard200JSONResponse{
+		From: window.From, To: window.To, Bucket: api.DashboardBucket(window.Size), UsersTotal: view.Users,
+		Cabals: api.DashboardCabals{
+			Total: view.Cabals.Cabals, Banned: view.Cabals.Banned, MembersP50: view.Cabals.MembersP50,
+			MembersP90: view.Cabals.MembersP90, MembersMax: view.Cabals.MembersMax,
+		},
+		UserStates: states, Series: dashboardPoints(view.Series),
 	}, nil
 }

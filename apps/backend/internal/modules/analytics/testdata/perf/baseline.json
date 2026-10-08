@@ -2,6 +2,7 @@
   "allocs": {},
   "queries": {
     "analytics GetGovernanceDashboard": 7,
-    "analytics GetMoneyDashboard": 7
+    "analytics GetMoneyDashboard": 7,
+    "analytics GetSocialDashboard": 10
   }
 }

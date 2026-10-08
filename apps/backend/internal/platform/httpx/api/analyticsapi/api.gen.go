@@ -42,10 +42,65 @@ func (e DashboardBucket) Valid() bool {
 // Examples: day
 type DashboardBucket string
 
+// DashboardCabals How many cabals exist and how large they are.
+//
+// Examples: {"banned":1,"members_max":15,"members_p50":4,"members_p90":9,"total":12}
+type DashboardCabals struct {
+	// Banned Banned cabals.
+	//
+	// Examples: 1
+	Banned int64 `json:"banned"`
+
+	// MembersMax Members of the largest cabal.
+	//
+	// Examples: 15
+	MembersMax int64 `json:"members_max"`
+
+	// MembersP50 Members of the median cabal.
+	//
+	// Examples: 4
+	MembersP50 int64 `json:"members_p50"`
+
+	// MembersP90 Members of the cabal at the 90th percentile.
+	//
+	// Examples: 9
+	MembersP90 int64 `json:"members_p90"`
+
+	// Total Cabals, banned ones included.
+	//
+	// Examples: 12
+	Total int64 `json:"total"`
+}
+
 // DashboardMicros A USDC amount in micros as a decimal string.
 //
 // Examples: 25000000
 type DashboardMicros = string
+
+// DashboardPoint The number of events of one metric and group in one bucket.
+//
+// Examples: {"bucket_start":"2026-09-01T00:00:00Z","count":4,"group":"contacts","metric":"follows_created"}
+type DashboardPoint struct {
+	// BucketStart The start of the bucket in UTC.
+	//
+	// Examples: 2026-09-01T00:00:00Z
+	BucketStart time.Time `json:"bucket_start"`
+
+	// Count Events in the bucket.
+	//
+	// Examples: 4
+	Count int64 `json:"count"`
+
+	// Group The value the metric is grouped by, empty when the metric has no grouping.
+	//
+	// Examples: contacts
+	Group string `json:"group"`
+
+	// Metric What was counted.
+	//
+	// Examples: follows_created
+	Metric string `json:"metric"`
+}
 
 // GovernanceBucket The proposal events of one bucket.
 //
@@ -256,6 +311,62 @@ type MoneyDashboard struct {
 	TotalValueHeldMicros DashboardMicros `json:"total_value_held_micros"`
 }
 
+// SocialDashboard The size and activity of the social graph.
+//
+// Examples: {"bucket":"day","cabals":{"banned":1,"members_max":15,"members_p50":4,"members_p90":9,"total":12},"from":"2026-09-01T00:00:00Z","series":[],"to":"2026-10-01T00:00:00Z","user_states":[],"users_total":130}
+type SocialDashboard struct {
+	// Bucket The size of one bucket.
+	//
+	// Examples: day
+	Bucket DashboardBucket `json:"bucket"`
+
+	// Cabals How many cabals exist and how large they are.
+	//
+	// Examples: {"banned":1,"members_max":15,"members_p50":4,"members_p90":9,"total":12}
+	Cabals DashboardCabals `json:"cabals"`
+
+	// From The start of the range.
+	//
+	// Examples: 2026-09-01T00:00:00Z
+	From time.Time `json:"from"`
+
+	// Series Events per bucket, metric and group, oldest first.
+	Series []DashboardPoint `json:"series"`
+
+	// To The end of the range, exclusive.
+	//
+	// Examples: 2026-10-01T00:00:00Z
+	To time.Time `json:"to"`
+
+	// UserStates Users by auth state and account status.
+	UserStates []UserStateCount `json:"user_states"`
+
+	// UsersTotal Users in every state, deleted accounts included.
+	//
+	// Examples: 130
+	UsersTotal int64 `json:"users_total"`
+}
+
+// UserStateCount The users in one auth state and account status.
+//
+// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","users":120}
+type UserStateCount struct {
+	// AccountStatus The account status.
+	//
+	// Examples: active
+	AccountStatus string `json:"account_status"`
+
+	// AuthState The auth state.
+	//
+	// Examples: ONBOARDING_COMPLETED
+	AuthState string `json:"auth_state"`
+
+	// Users Users in this state.
+	//
+	// Examples: 120
+	Users int64 `json:"users"`
+}
+
 // DashboardFrom Examples: 2026-09-01
 type DashboardFrom = string
 
@@ -286,6 +397,18 @@ type GetMoneyDashboardParams struct {
 	Bucket DashboardBucket `form:"bucket" json:"bucket"`
 }
 
+// GetSocialDashboardParams defines parameters for GetSocialDashboard.
+type GetSocialDashboardParams struct {
+	// From The start of the range, inclusive, as a date such as 2026-09-01 or an RFC 3339 time. Dates are UTC.
+	From DashboardFrom `form:"from" json:"from"`
+
+	// To The end of the range, exclusive, as a date or an RFC 3339 time. It cannot be more than 400 days after `from`.
+	To DashboardTo `form:"to" json:"to"`
+
+	// Bucket The bucket size. A week starts on Monday, UTC.
+	Bucket DashboardBucket `form:"bucket" json:"bucket"`
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// GetGovernanceDashboard Read the governance dashboard.
@@ -294,6 +417,9 @@ type ServerInterface interface {
 	// GetMoneyDashboard Read the money dashboard.
 	// (GET /v1/admin/dashboards/money)
 	GetMoneyDashboard(w http.ResponseWriter, r *http.Request, params GetMoneyDashboardParams)
+	// GetSocialDashboard Read the social dashboard.
+	// (GET /v1/admin/dashboards/social)
+	GetSocialDashboard(w http.ResponseWriter, r *http.Request, params GetSocialDashboardParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -414,6 +540,65 @@ func (siw *ServerInterfaceWrapper) GetMoneyDashboard(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMoneyDashboard(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSocialDashboard operation middleware
+func (siw *ServerInterfaceWrapper) GetSocialDashboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSocialDashboardParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "bucket" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "bucket", r.URL.Query(), &params.Bucket, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "bucket"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bucket", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSocialDashboard(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -545,6 +730,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dashboards/governance", wrapper.GetGovernanceDashboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dashboards/money", wrapper.GetMoneyDashboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dashboards/social", wrapper.GetSocialDashboard)
 
 	return m
 }
@@ -627,6 +813,45 @@ func (response GetMoneyDashboarddefaultApplicationProblemPlusJSONResponse) Visit
 	return err
 }
 
+type GetSocialDashboardRequestObject struct {
+	Params GetSocialDashboardParams
+}
+
+type GetSocialDashboardResponseObject interface {
+	VisitGetSocialDashboardResponse(w http.ResponseWriter) error
+}
+
+type GetSocialDashboard200JSONResponse SocialDashboard
+
+func (response GetSocialDashboard200JSONResponse) VisitGetSocialDashboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSocialDashboarddefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetSocialDashboarddefaultApplicationProblemPlusJSONResponse) VisitGetSocialDashboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetGovernanceDashboard Read the governance dashboard.
@@ -635,6 +860,9 @@ type StrictServerInterface interface {
 	// GetMoneyDashboard Read the money dashboard.
 	// (GET /v1/admin/dashboards/money)
 	GetMoneyDashboard(ctx context.Context, request GetMoneyDashboardRequestObject) (GetMoneyDashboardResponseObject, error)
+	// GetSocialDashboard Read the social dashboard.
+	// (GET /v1/admin/dashboards/social)
+	GetSocialDashboard(ctx context.Context, request GetSocialDashboardRequestObject) (GetSocialDashboardResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -721,6 +949,32 @@ func (sh *strictHandler) GetMoneyDashboard(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMoneyDashboardResponseObject); ok {
 		if err := validResponse.VisitGetMoneyDashboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSocialDashboard operation middleware
+func (sh *strictHandler) GetSocialDashboard(w http.ResponseWriter, r *http.Request, params GetSocialDashboardParams) {
+	var request GetSocialDashboardRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSocialDashboard(ctx, request.(GetSocialDashboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSocialDashboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSocialDashboardResponseObject); ok {
+		if err := validResponse.VisitGetSocialDashboardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
