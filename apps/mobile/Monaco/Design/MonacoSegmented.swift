@@ -34,11 +34,12 @@ struct MonacoSegmented<T: Hashable>: View {
                         .minimumScaleFactor(0.8)
                         .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.ink)
                         .padding(.horizontal, MonacoTheme.Space.m)
-                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .background {
                             if isSelected {
                                 Capsule()
                                     .fill(MonacoTheme.brandFill)
+                                    .padding(MonacoTheme.Space.xs)
                                     .matchedGeometryEffect(id: "thumb", in: thumb)
                             }
                         }
@@ -48,7 +49,6 @@ struct MonacoSegmented<T: Hashable>: View {
                 .accessibilityAddTraits(isSelected ? [.isSelected] : [])
             }
         }
-        .padding(4)
         .frame(minHeight: 44)
         .background(Capsule().fill(MonacoTheme.surfaceSunken))
     }

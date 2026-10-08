@@ -1,4 +1,5 @@
 #if DEBUG
+import MonacoCore
 import SwiftUI
 
 /// Every design primitive on one screen, for review and acceptance screenshots.
@@ -299,21 +300,31 @@ private struct GalleryControlsPage: View {
                     MonacoSearchField(placeholder: "Search Apple, Tesla, NVDA…", text: .constant(""))
                 }
 
+                MonacoRangeChips(
+                    ranges: [LeaderboardRange.oneDay, .oneWeek, .oneMonth, .all], selection: .oneWeek,
+                    identifierPrefix: "gallery-range", onSelect: { _ in })
+
                 HStack(spacing: MonacoTheme.Space.sm) {
-                    CircleAction("Add money", systemImage: "plus") {}
-                    CircleAction("Propose", systemImage: "arrow.up.right") {}
-                    CircleAction("Cash out", systemImage: "arrow.down.left") {}
-                    CircleAction("Chat", systemImage: "bubble.left") {}
+                    Button("Accept") {}.buttonStyle(.monacoCompactProminent)
+                    Button("Follow") {}.buttonStyle(.monacoCompact)
+                    Button("See all") {}.buttonStyle(.monacoText)
                 }
-                .frame(maxWidth: .infinity)
 
                 VStack(spacing: MonacoTheme.Space.sm) {
                     Button("Add money") {}.buttonStyle(.monacoPrimary)
                     Button("Cash out") {}.buttonStyle(.monacoSecondary)
                     Button("Leave cabal") {}.buttonStyle(.monacoDestructive)
+                    Button {
+                    } label: {
+                        SubmitLabel(isWorking: true, idle: "Add money", working: "Adding…")
+                    }
+                    .buttonStyle(.monacoPrimary).disabled(true)
                     Button("Disabled") {}.buttonStyle(.monacoPrimary).disabled(true)
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        Button("Fund") {}.buttonStyle(.monacoPrimary)
+                        Button("Propose") {}.buttonStyle(.monacoSecondary)
+                    }
                 }
-                .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.bottom, MonacoTheme.Space.xl)

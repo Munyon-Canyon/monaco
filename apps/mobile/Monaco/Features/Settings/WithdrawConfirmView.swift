@@ -46,15 +46,7 @@ struct WithdrawConfirmView: View {
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
                 Button(action: onWithdraw) {
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        if isSubmitting {
-                            ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                            Text("Withdrawing…")
-                        } else {
-                            Text("Withdraw")
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
+                    SubmitLabel(isWorking: isSubmitting, idle: "Withdraw", working: "Withdrawing…")
                 }
                 .buttonStyle(.monacoPrimary)
                 .disabled(isSubmitting)

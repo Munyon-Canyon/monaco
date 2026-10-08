@@ -14,11 +14,10 @@ private struct MonacoPressEffect: ViewModifier {
 }
 
 private struct MonacoButtonFullWidthKey: EnvironmentKey {
-    static let defaultValue = false
+    static let defaultValue = true
 }
 
 extension EnvironmentValues {
-    /// When true, Monaco button styles stretch their capsule to the available width.
     var monacoButtonFullWidth: Bool {
         get { self[MonacoButtonFullWidthKey.self] }
         set { self[MonacoButtonFullWidthKey.self] = newValue }
@@ -26,7 +25,7 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// Stretches `.monacoPrimary` / `.monacoSecondary` / `.monacoDestructive` capsules to full width.
+    /// `false` sizes `.monacoPrimary` / `.monacoSecondary` / `.monacoDestructive` to their label.
     func monacoFullWidthButtons(_ enabled: Bool = true) -> some View {
         environment(\.monacoButtonFullWidth, enabled)
     }
@@ -35,82 +34,78 @@ extension View {
 /// Shared button geometry. `MonacoToastPlacement` sizes its inset against this, so the bar height
 /// and the toast's idea of the bar height cannot drift apart.
 enum MonacoButtonMetrics {
-    /// Tap-target floor for every Monaco button capsule.
-    static let minimumHeight: CGFloat = 50
+    static let minimumHeight: CGFloat = 56
+
+    static let compactHeight: CGFloat = 36
+
+    /// A disabled button is the same fill at under half its strength, its label at 90%.
+    static let disabledFillOpacity = 0.45
 }
 
-private struct MonacoButtonLabel: ViewModifier {
+private struct MonacoButtonChrome: ViewModifier {
+    let fill: Color
+    let label: Color
+    let isPressed: Bool
+    var isCompact = false
+
+    @Environment(\.isEnabled) private var isEnabled
     @Environment(\.monacoButtonFullWidth) private var fullWidth
 
     func body(content: Content) -> some View {
         content
-            .font(MonacoTheme.Typo.button)
-
+            .font(isCompact ? MonacoTheme.Typo.subheadStrong : MonacoTheme.Typo.headline)
             .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .padding(.horizontal, 20)
-            .frame(maxWidth: fullWidth ? .infinity : nil, minHeight: MonacoButtonMetrics.minimumHeight)
-    }
-}
-
-extension View {
-    fileprivate func monacoButtonLabel() -> some View {
-        modifier(MonacoButtonLabel())
+            .minimumScaleFactor(0.9)
+            .foregroundStyle(label.opacity(isEnabled ? 1 : 0.9))
+            .padding(.horizontal, isCompact ? MonacoTheme.Space.m : MonacoTheme.Space.l)
+            .frame(
+                maxWidth: fullWidth && !isCompact ? .infinity : nil,
+                minHeight: isCompact ? MonacoButtonMetrics.compactHeight : MonacoButtonMetrics.minimumHeight
+            )
+            .background(Capsule().fill(fill.opacity(isEnabled ? 1 : MonacoButtonMetrics.disabledFillOpacity)))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .modifier(MonacoPressEffect(isPressed: isPressed))
+            .sensoryFeedback(.impact(weight: .light), trigger: isPressed) { _, pressed in pressed }
     }
 }
 
 struct MonacoPrimaryButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    /// A disabled primary button is the same ink at under half its strength, not a sunken grey
-    /// capsule: that fill is also the text field's, and "Send code" under an empty phone field
-    /// read as a second field.
-    static let disabledFillOpacity = 0.45
-
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .monacoButtonLabel()
-            .foregroundStyle(MonacoTheme.primaryButtonLabel.opacity(isEnabled ? 1 : 0.9))
-            .background(
-                Capsule()
-                    .fill(MonacoTheme.primaryButtonFill.opacity(isEnabled ? 1 : Self.disabledFillOpacity))
-            )
-            .contentShape(Capsule())
-            .modifier(MonacoPressEffect(isPressed: configuration.isPressed))
+        configuration.label.modifier(
+            MonacoButtonChrome(
+                fill: MonacoTheme.primaryButtonFill, label: MonacoTheme.primaryButtonLabel,
+                isPressed: configuration.isPressed))
     }
 }
 
 struct MonacoSecondaryButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .monacoButtonLabel()
-            .foregroundStyle(isEnabled ? MonacoTheme.secondaryButtonLabel : MonacoTheme.disabledLabel)
-            .background(Capsule().fill(MonacoTheme.secondaryButtonFill))
-            .overlay {
-                Capsule()
-                    .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
-            }
-            .contentShape(Capsule())
-            .modifier(MonacoPressEffect(isPressed: configuration.isPressed))
+        configuration.label.modifier(
+            MonacoButtonChrome(
+                fill: MonacoTheme.secondaryButtonFill, label: MonacoTheme.secondaryButtonLabel,
+                isPressed: configuration.isPressed))
     }
 }
 
 struct MonacoDestructiveButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.modifier(
+            MonacoButtonChrome(
+                fill: MonacoTheme.surfaceSunken, label: MonacoTheme.destructive, isPressed: configuration.isPressed))
+    }
+}
+
+/// Content width, 36pt visible on a 44pt target; the prominent one is a row's single compact primary.
+struct MonacoCompactButtonStyle: ButtonStyle {
+    var isProminent = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .monacoButtonLabel()
-            .foregroundStyle(isEnabled ? MonacoTheme.destructive : MonacoTheme.disabledLabel)
-            .background(Capsule().fill(MonacoTheme.surface))
-            .overlay {
-                Capsule()
-                    .strokeBorder(isEnabled ? MonacoTheme.destructive.opacity(0.5) : MonacoTheme.hairline, lineWidth: 1)
-            }
-            .contentShape(Capsule())
-            .modifier(MonacoPressEffect(isPressed: configuration.isPressed))
+        configuration.label.modifier(
+            MonacoButtonChrome(
+                fill: isProminent ? MonacoTheme.primaryButtonFill : MonacoTheme.secondaryButtonFill,
+                label: isProminent ? MonacoTheme.primaryButtonLabel : MonacoTheme.secondaryButtonLabel,
+                isPressed: configuration.isPressed, isCompact: true))
     }
 }
 
@@ -126,12 +121,17 @@ extension ButtonStyle where Self == MonacoDestructiveButtonStyle {
     static var monacoDestructive: MonacoDestructiveButtonStyle { MonacoDestructiveButtonStyle() }
 }
 
+extension ButtonStyle where Self == MonacoCompactButtonStyle {
+    static var monacoCompact: MonacoCompactButtonStyle { MonacoCompactButtonStyle() }
+    static var monacoCompactProminent: MonacoCompactButtonStyle { MonacoCompactButtonStyle(isProminent: true) }
+}
+
 struct MonacoTextButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: ButtonStyleConfiguration) -> some View {
         configuration.label
-            .font(MonacoTheme.Typo.calloutStrong)
+            .font(MonacoTheme.Typo.subheadStrong)
             .foregroundStyle(isEnabled ? MonacoTheme.brand : MonacoTheme.disabledLabel)
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
@@ -166,10 +166,11 @@ struct SubmitLabel: View {
 }
 
 /// Pinned action bar. Use inside `.safeAreaInset(edge: .bottom) { BottomCTA { … } }` so it rides above the keyboard.
-/// Buttons inside get the full width; put one primary, or a primary and a secondary side by side.
+/// One primary, or a primary and a secondary side by side; they stack at accessibility sizes.
 struct BottomCTA<Content: View>: View {
     private let content: Content
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.displayScale) private var displayScale
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
@@ -187,14 +188,11 @@ struct BottomCTA<Content: View>: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.sm)
         .padding(.bottom, MonacoTheme.Space.s)
-        .background {
-            MonacoTheme.canvas
-                .ignoresSafeArea(edges: .bottom)
-        }
+        .background { MonacoTheme.canvas.ignoresSafeArea(edges: .bottom) }
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(MonacoTheme.hairline)
-                .frame(height: 1)
+                .frame(height: 1 / displayScale)
         }
     }
 }
