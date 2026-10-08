@@ -31,6 +31,7 @@ type stackGH struct {
 	fail  string
 	raw   string
 	gtLog string
+	onTop string
 	git   map[string]error
 	repo  bool
 
@@ -134,6 +135,9 @@ var (
 )
 
 func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+	if name == "git" && args[0] == "rev-parse" && args[1] == "--abbrev-ref" {
+		return []byte(s.checkedOut() + "\n"), nil
+	}
 	if name == "git" && s.gitOut != nil {
 		line := strings.Join(args, " ")
 		s.mu.Lock()
@@ -185,6 +189,23 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 		s.prs[n].Labels.Nodes = nil
 	}
 	return nil, nil
+}
+
+func (s *stackGH) checkedOut() string {
+	if s.onTop != "" {
+		return s.onTop
+	}
+	bases := map[string]bool{}
+	for _, p := range s.prs {
+		bases[p.Base] = true
+	}
+	var top *stackPR
+	for _, p := range s.prs {
+		if !bases[p.Head] && p.Base != "main" && (top == nil || p.Number > top.Number) {
+			top = p
+		}
+	}
+	return top.Head
 }
 
 func labeled(p *stackPR, label string) *stackPR {
@@ -274,6 +295,7 @@ func TestLandStack_labelsEveryPRAndKeepsTheirBases(t *testing.T) {
 		green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"),
 		green(t, 7, "other", "fb"), green(t, 8, "above-other", "other"),
 	)
+	s.onTop = "b3"
 	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
 	if code != 0 ||
@@ -930,13 +952,48 @@ func TestLandStack_readsTheStackFromGraphite(t *testing.T) {
 				green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "fb"), green(t, 7, "b7", "fb"),
 				stackOf(t, 9, "fb", "main", "SUCCESS", ""),
 			)
-			s.gtLog, s.fail = tc.gtLog, tc.fail
+			s.gtLog, s.fail, s.onTop = tc.gtLog, tc.fail, "b3"
 			f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done})
 			want := strings.ReplaceAll(tc.out, "/w/40", f.dir)
 			if code, stdout, stderr := f.agents(t, "land-stack", "3"); code != 0 || stdout != want {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 		})
+	}
+}
+
+func TestLandStack_landsTheGitHubBaseChainWhenNoCheckoutHasTheBranch(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 3, "b3", "fb"), green(t, 7, "b7", "fb"))
+	s.gtLog, s.onTop = "◯  fb\n◯  b1\n◯  b7\n◉  b3\n", "fb"
+	f.owner(t, Record{Ticket: 40, Worktree: "/elsewhere/.worktrees/603", State: Done})
+	root := filepath.Dir(f.Env(t).Common)
+	gone := "record 40's worktree /elsewhere/.worktrees/603 is not on this machine; using " + root + "\n"
+	code, stdout, stderr := f.agents(t, "land-stack", "3")
+	if code != 0 || stdout != gone+"no checkout of b3; landing the GitHub base chain\n"+
+		"queued #3\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\nqueued together: #3\n" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, []string{"POST /repos/o/r/issues/3/labels"}) {
+		t.Fatalf("labels %v", got)
+	}
+}
+
+func TestLandStack_readsGraphiteInTheWorktreeThatHasTheBranch(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 3, "b3", "fb"), green(t, 7, "b7", "fb"))
+	s.gtLog = "◯  fb\n◯  b1\n◉  b3\n"
+	f.owner(t, Record{Ticket: 40, Worktree: "/elsewhere/.worktrees/603", State: Done})
+	root := filepath.Dir(f.Env(t).Common)
+	want := filepath.Join(root, ".worktrees", "b3")
+	git(t, f.dir, "worktree", "add", "-q", "-b", "b3", want)
+	s.onTop = "b3"
+	code, stdout, stderr := f.agents(t, "land-stack", "3")
+	if code != 0 || !strings.Contains(stdout, "using "+want+"\n") ||
+		!strings.Contains(stdout, "queued #1 #3\n") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 }
 

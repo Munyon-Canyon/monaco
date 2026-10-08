@@ -274,6 +274,11 @@ func (env *Env) graphiteStack(
 	open, walked []stackPR,
 	stdout io.Writer,
 ) []stackPR {
+	top := walked[len(walked)-1]
+	if !env.onBranch(ctx, worktree, top.Head) {
+		_, _ = fmt.Fprintf(stdout, "no checkout of %s; landing the GitHub base chain\n", top.Head)
+		return walked
+	}
 	out, err := env.Run(ctx, worktree, "", "gt", "log", "short", "--stack", "--reverse", "--no-interactive")
 	if err != nil {
 		_, _ = fmt.Fprintf(stdout, "gt log in %s failed (%v); landing the GitHub base chain\n", worktree, err)
@@ -283,7 +288,6 @@ func (env *Env) graphiteStack(
 	for _, p := range open {
 		byHead[p.Head] = p
 	}
-	top := walked[len(walked)-1].Number
 	trunk := env.Config.FeatureBranch
 	prev := trunk
 	var stack []stackPR
@@ -292,7 +296,7 @@ func (env *Env) graphiteStack(
 			stack = append(stack, p)
 			prev = p.Head
 		}
-		if len(stack) > 0 && stack[len(stack)-1].Number == top {
+		if len(stack) > 0 && stack[len(stack)-1].Number == top.Number {
 			if len(stack) > len(walked) {
 				return stack
 			}
@@ -300,6 +304,11 @@ func (env *Env) graphiteStack(
 		}
 	}
 	return walked
+}
+
+func (env *Env) onBranch(ctx context.Context, dir, branch string) bool {
+	out, err := env.Run(ctx, dir, "", "git", "rev-parse", "--abbrev-ref", "HEAD")
+	return err == nil && strings.TrimSpace(string(out)) == branch
 }
 
 func prOn(line string, byHead map[string]stackPR) (stackPR, bool) {
