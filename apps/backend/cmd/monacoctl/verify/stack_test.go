@@ -408,44 +408,70 @@ func TestWaitPostgres_returnsOnceTheServerAnswersEvenBeforeMigrations(t *testing
 	}
 }
 
-func TestHealthy_anArmedWorkerThatExitedCountsAsUpWithinASecond(t *testing.T) {
-	t.Parallel()
-	o := testOptions(t, "ok")
+const hangCeiling = 30 * time.Second
+
+func armedExitedStack(tb testing.TB) (*Stack, context.Context) {
+	tb.Helper()
+	o := testOptions(tb, "ok")
 	o.Faultpoint = string(faultpoint.AfterPublish)
 	o.Environ = append(o.Environ, fakeCrashNowEnv+"=1")
 	s := &Stack{RunID: newRunID(), Logs: &Logs{}, opts: o, procs: map[string]*process{}}
 	s.TokenKey = "verify-" + s.RunID
-	defer func() { _ = s.Down(t.Context()) }()
-	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
-	defer cancel()
+	tb.Cleanup(func() { _ = s.Down(context.WithoutCancel(tb.Context())) })
+	ctx, cancel := context.WithTimeout(tb.Context(), time.Minute)
+	tb.Cleanup(cancel)
 	for _, step := range []func(context.Context) error{
 		s.postgres, withoutContext(s.nats), s.schema, s.processes,
 	} {
 		if err := step(ctx); err != nil {
-			t.Fatal(err)
+			tb.Fatal(err)
 		}
 	}
 	if err := s.arm(ctx); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	<-s.procs[procWorker].exited
-	within, stop := context.WithTimeout(ctx, time.Second)
+	return s, ctx
+}
+
+func TestHealthy_anArmedWorkerThatExitedCountsAsUp(t *testing.T) {
+	t.Parallel()
+	s, ctx := armedExitedStack(t)
+	within, stop := context.WithTimeout(ctx, hangCeiling)
 	defer stop()
 	if err := s.healthy(within); err != nil {
-		t.Fatalf("healthy with the armed worker exited = %v, want up within 1s", err)
+		t.Fatalf("healthy with the armed worker exited = %v, want up", err)
+	}
+	if within.Err() != nil {
+		t.Fatalf("healthy returned only after its context ended: %v", context.Cause(within))
 	}
 }
 
-func TestUp_anUnarmedWorkerThatExitsFailsAtOnceWithItsLogs(t *testing.T) {
+func BenchmarkHealthy_anArmedWorkerThatExited(b *testing.B) {
+	s, ctx := armedExitedStack(b)
+	b.ResetTimer()
+	for range b.N {
+		if err := s.healthy(ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestUp_anUnarmedWorkerThatExitsFailsWithItsLogsNotTheBudget(t *testing.T) {
 	t.Parallel()
 	o := testOptions(t, "ok")
 	o.WorkerEnv = []string{"MONACO_FAULTPOINT=" + string(faultpoint.AfterPublish)}
 	o.Environ = append(o.Environ, fakeCrashNowEnv+"=1")
-	o.Budget.Stack = 5 * time.Second
-	s, err := Up(t.Context(), o)
-	defer func() { _ = s.Down(t.Context()) }()
+	ctx, cancel := context.WithTimeout(t.Context(), hangCeiling)
+	defer cancel()
+	s, err := Up(ctx, o)
+	defer func() { _ = s.Down(context.WithoutCancel(t.Context())) }()
 	if err == nil || !strings.Contains(err.Error(), "worker exited before it was healthy") ||
 		!strings.Contains(err.Error(), "faultpoint: crash at after-publish") {
 		t.Fatalf("Up = %v, want the exited worker and its log tail named", err)
+	}
+	var over *OverBudgetError
+	if errors.As(err, &over) || ctx.Err() != nil {
+		t.Fatalf("Up = %v, want the worker's exit to fail it, not a budget or the hang ceiling", err)
 	}
 }

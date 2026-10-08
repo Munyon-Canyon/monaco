@@ -351,6 +351,22 @@ func handles(name string, err error) bus.HandlerSpec {
 	return bus.Handle(name, func(context.Context, db.Tx, events.SystemPinged, time.Time) error { return err })
 }
 
+func runUnitOnEvents(t *testing.T, env Env, u Unit) *Result {
+	t.Helper()
+	d, err := newDriver(env, testBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), hangCeiling)
+	defer cancel()
+	var res *Result
+	onEventClock(func(clk clock.Clock) {
+		d.clock = clk
+		res = d.run(ctx, u)
+	})
+	return res
+}
+
 func TestVerify_aConsumerFlowPassesOnItsDispatchAndFailsWhenTheHandlerNeverRuns(t *testing.T) {
 	t.Parallel()
 	pings := func(d module.Deps) module.Module { return system.New(d) }
@@ -385,12 +401,12 @@ func TestVerify_aConsumerFlowPassesOnItsDispatchAndFailsWhenTheHandlerNeverRuns(
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			env := servedEnvWith(t, tc.mods...)
-			budget := DefaultBudget()
-			if tc.want != "" {
-				budget = failingConverge(budget)
-			}
 			u := fixtureUnit(t, "96", tc.outcome)
-			if res := runUnit(t, env, budget, u, false); res.Failure != tc.want {
+			run := func() *Result { return runUnitOnEvents(t, env, u) }
+			if tc.want != "" {
+				run = func() *Result { return runUnit(t, env, failingConverge(testBudget()), u, false) }
+			}
+			if res := run(); res.Failure != tc.want {
 				t.Fatalf("flow 96 %s failure = %q, want %q", tc.outcome, res.Failure, tc.want)
 			}
 		})

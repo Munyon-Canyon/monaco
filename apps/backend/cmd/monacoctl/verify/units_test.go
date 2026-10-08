@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go/jetstream"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -131,7 +132,13 @@ func servedDriver(t *testing.T) (*driver, *Result) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res := d.run(t.Context(), flow00(t, Target{Flow: "00", Outcome: "ok"})[0])
+	ctx, cancel := context.WithTimeout(t.Context(), hangCeiling)
+	defer cancel()
+	var res *Result
+	onEventClock(func(clk clock.Clock) {
+		d.clock = clk
+		res = d.run(ctx, flow00(t, Target{Flow: "00", Outcome: "ok"})[0])
+	})
 	if !res.Pass() || len(res.Events) != 1 {
 		t.Fatalf("flow 00 ok = %+v", res)
 	}
