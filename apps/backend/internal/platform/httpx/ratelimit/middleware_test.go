@@ -2,6 +2,7 @@ package ratelimit_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -63,8 +64,13 @@ type call struct {
 
 func (h harness) do(t *testing.T, c call) *httptest.ResponseRecorder {
 	t.Helper()
+	return h.doIn(t.Context(), t, c)
+}
+
+func (h harness) doIn(ctx context.Context, t *testing.T, c call) *httptest.ResponseRecorder {
+	t.Helper()
 	logger := slog.New(slog.NewJSONHandler(h.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	req := httptest.NewRequestWithContext(observability.WithLogger(t.Context(), logger),
+	req := httptest.NewRequestWithContext(observability.WithLogger(ctx, logger),
 		cmpOr(c.method, http.MethodPost), cmpOr(c.path, "/v1/things"), nil)
 	req.RemoteAddr = cmpOr(c.remote, "192.0.2.1:4711")
 	for _, f := range c.forwarded {
@@ -288,5 +294,21 @@ func TestNew_failsWhenACounterCannotBeCreated(t *testing.T) {
 		if l != nil || errs.CodeOf(err) != errs.CodeInternal {
 			t.Fatalf("New with %s failing = %v, %v, want internal", name, l, err)
 		}
+	}
+}
+
+func TestMiddleware_ClientHangUpDuringTheStoreCallIsNotAStoreFailure(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), "{actor: {rate: 1, per: 1m, burst: 1}, ip: {rate: 1, per: 1m, burst: 1}}", false)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if got := h.doIn(ctx, t, call{actor: "u1"}).Code; got != http.StatusNoContent {
+		t.Fatalf("call with the client gone = %d, want 204", got)
+	}
+	if lines := h.lines(t, "ratelimit.store_failed"); len(lines) != 0 {
+		t.Fatalf("store_failed lines = %v, want none", lines)
+	}
+	if got := h.counter(t, "monaco_ratelimit_errors_total"); got != 0 {
+		t.Fatalf("monaco_ratelimit_errors_total = %d, want 0", got)
 	}
 }

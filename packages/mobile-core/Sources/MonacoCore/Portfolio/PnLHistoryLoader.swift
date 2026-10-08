@@ -16,8 +16,12 @@ public actor PnLHistoryLoader {
         case failed(APIError)
     }
 
+    static let maxInFlight = 4
+    static let maxRetryAfter = 5
+
     private let api: APIClient
     private let hints: any HintSource
+    private let sleep: @Sendable (Duration) async throws -> Void
     private var cache: [Key: ValueCurve] = [:]
     private var visible: [Key] = []
     private var generation = 0
@@ -25,9 +29,14 @@ public actor PnLHistoryLoader {
     private var policy = HintRefreshPolicy()
     private var onUpdate: (@Sendable (Update) async -> Void)?
 
-    public init(api: APIClient, hints: any HintSource) {
+    public init(
+        api: APIClient,
+        hints: any HintSource,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.api = api
         self.hints = hints
+        self.sleep = sleep
     }
 
     public var visibleRange: LeaderboardRange? { visible.first?.range }
@@ -110,20 +119,58 @@ public actor PnLHistoryLoader {
         let missing = force ? keys : keys.filter { cache[$0] == nil }
         if !missing.isEmpty {
             let api = api
-            let fetched = try await withThrowingTaskGroup(of: (Key, ValueCurve).self) { group in
-                for key in missing {
-                    group.addTask { (key, try await Self.read(key, api: api)) }
+            let sleep = sleep
+            let results = await withTaskGroup(of: (Key, Result<ValueCurve, any Error>).self) { group in
+                var pending = missing[...]
+                func addNext() {
+                    guard let key = pending.popFirst() else { return }
+                    group.addTask {
+                        do {
+                            return (key, .success(try await Self.read(key, api: api, sleep: sleep)))
+                        } catch {
+                            return (key, .failure(error))
+                        }
+                    }
                 }
-                var all: [(Key, ValueCurve)] = []
-                for try await pair in group { all.append(pair) }
+                for _ in 0..<Self.maxInFlight { addNext() }
+                var all: [(Key, Result<ValueCurve, any Error>)] = []
+                while let result = await group.next() {
+                    all.append(result)
+                    addNext()
+                }
                 return all
             }
-            for (key, curve) in fetched { cache[key] = curve }
+            var firstFailure: (any Error)?
+            var fetched = 0
+            for (key, result) in results {
+                switch result {
+                case .success(let curve):
+                    cache[key] = curve
+                    fetched += 1
+                case .failure(let error):
+                    firstFailure = firstFailure ?? error
+                }
+            }
+            if fetched == 0, let firstFailure { throw firstFailure }
         }
         guard issued == generation else { return nil }
         var curves: [Subject: ValueCurve] = [:]
         for key in keys { curves[key.subject] = cache[key] }
         return curves
+    }
+
+    private nonisolated static func read(
+        _ key: Key,
+        api: APIClient,
+        sleep: @Sendable (Duration) async throws -> Void
+    ) async throws -> ValueCurve {
+        do {
+            return try await read(key, api: api)
+        } catch APIError.problem(let problem) where problem.status == 429 {
+            let seconds = min(max(problem.retryAfterSeconds ?? 1, 1), maxRetryAfter)
+            try await sleep(.seconds(seconds))
+            return try await read(key, api: api)
+        }
     }
 
     private nonisolated static func read(_ key: Key, api: APIClient) async throws -> ValueCurve {

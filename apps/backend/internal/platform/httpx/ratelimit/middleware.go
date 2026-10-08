@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -81,6 +82,9 @@ func clientIP(r *http.Request, trustProxyHeaders bool) string {
 }
 
 func (l *Limiter) failOpen(ctx context.Context, operation string, s scope, err error) {
+	if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		return
+	}
 	l.storeErrors.Add(ctx, 1)
 	boundary.Warn(ctx, observability.RateLimitStoreFailed, slog.String("operation", operation),
 		slog.String("scope", string(s)), slog.String("code", string(errs.CodeOf(err))), slog.Any("err", err))
