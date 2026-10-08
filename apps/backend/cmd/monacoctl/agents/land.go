@@ -133,10 +133,10 @@ func (env *Env) landEachArmed(ctx context.Context, rs []Record, reran map[int64]
 	return out
 }
 
-func (env *Env) rereadRecords(before []Record, landed [][]string) ([]Record, error) {
+func (env *Env) rereadRecords(before []Record, landed [][]string) []Record {
 	rs, err := env.records()
 	if err != nil {
-		return nil, err
+		return before
 	}
 	for i, r := range before {
 		if len(landed[i]) == 0 {
@@ -146,7 +146,7 @@ func (env *Env) rereadRecords(before []Record, landed [][]string) ([]Record, err
 			rs[j] = r
 		}
 	}
-	return rs, nil
+	return rs
 }
 
 func (env *Env) landArmed(ctx context.Context, r Record, a Arm, reran map[int64]int) []string {

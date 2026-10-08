@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -44,8 +43,8 @@ func (tt tracingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (env *Env) traceWatch(stderr io.Writer) func() {
-	if os.Getenv("MONACO_WATCH_TRACE") != "1" {
+func (env *Env) traceWatch(stderr io.Writer, on bool) func() {
+	if !on {
 		return func() {}
 	}
 	t := &watchTrace{stats: map[string]traceEntry{}}

@@ -27,7 +27,7 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if !once {
 		return env.watchStream(ctx, every, stdout)
 	}
-	defer env.traceWatch(os.Stderr)()
+	defer env.traceWatch(os.Stderr, os.Getenv("MONACO_WATCH_TRACE") == "1")()
 	rs, err := env.records()
 	if err != nil {
 		return err
@@ -37,9 +37,7 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	if rs, err = env.rereadRecords(rs, landed); err != nil {
-		return err
-	}
+	rs = env.rereadRecords(rs, landed)
 	if err := env.unqueueEjected(ctx, rs, stdout); err != nil {
 		return err
 	}
