@@ -46,15 +46,14 @@ struct CabalActionsRow: View {
     let model: CabalActionsModel?
     let open: (any AppRoute) -> Void
 
-    @State private var toast: MonacoToast?
+    @Environment(ToastCenter.self) private var toasts
 
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .monacoToast($toast)
             .onChange(of: model?.toast) { _, message in
                 guard let model, let message else { return }
-                toast = MonacoToast(message: message)
+                toasts.current = MonacoToast(message: message)
                 model.dismissToast()
             }
     }

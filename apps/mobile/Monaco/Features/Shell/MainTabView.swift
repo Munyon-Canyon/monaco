@@ -1,7 +1,6 @@
 import MonacoCore
 import SwiftUI
 
-/// The five product tabs. Account actions (withdraw, advanced, sign out) live on Profile.
 /// Post-auth frame. Tab chrome only — screens live in their feature folders.
 struct MainTabView: View {
     @Environment(AppEnvironment.self) private var environment
@@ -10,15 +9,20 @@ struct MainTabView: View {
     var body: some View {
         @Bindable var navigator = environment.navigator
         @Bindable var pushPrePrompt = environment.pushPrePrompt
-        TabView(selection: $navigator.selectedTab) {
+        TabView(selection: Binding(get: { navigator.selectedTab }, set: { navigator.select($0) })) {
             ForEach(MainTab.allCases) { tab in
                 NavigationStack(path: navigator.binding(for: tab)) {
                     tab.root
+                        .monacoCanvas()
                         .navigationDestination(for: AnyAppRoute.self) { route in
                             route.destination()
+                                .monacoCanvas()
+                                .navigationBarTitleDisplayMode(.inline)
+                                .toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
+                                .toolbarBackground(.visible, for: .navigationBar)
                         }
                 }
-                .monacoToastCenter(toasts)
+                .monacoToastCenter(toasts, isEnabled: tab == navigator.selectedTab)
                 .tabItem {
                     Label(tab.title, systemImage: tab.systemImage)
                         .accessibilityIdentifier(tab.accessibilityIdentifier)

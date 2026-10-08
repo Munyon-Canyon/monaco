@@ -35,7 +35,7 @@ struct LoginView: View {
     private let initialCode: String
 
     @State private var selectedMethod: LoginMethod
-    @State private var toast: MonacoToast?
+    @Environment(ToastCenter.self) private var toasts
 
     init(
         auth: PrivyAuthService,
@@ -70,10 +70,9 @@ struct LoginView: View {
         .onChange(of: selectedMethod) { _, _ in
             auth.resetLoginFlow()
         }
-        .monacoToast($toast)
         .onChange(of: auth.flow.toastMessage) { _, message in
             guard let message else { return }
-            toast = MonacoToast(message: message)
+            toasts.current = MonacoToast(message: message)
         }
     }
 

@@ -7,7 +7,8 @@ import UIKit
 struct SampleAppFrame: View {
     @ObservedObject var auth: PrivyAuthService
     let sheet: (() -> AnyView)?
-    @State private var environment: AppEnvironment
+    private let makeEnvironment: @MainActor () -> AppEnvironment
+    @State private var environment = SampleEnvironment()
     @State private var showsSheet: Bool
 
     init(
@@ -15,27 +16,30 @@ struct SampleAppFrame: View {
         tab: MainTab = .home,
         routes: [any AppRoute] = [],
         store: AppSessionStore = AppSessionStore(),
-        session: @MainActor (AppSessionStore) -> Void = SampleAppFrame.signedIn,
+        session: @escaping @MainActor (AppSessionStore) -> Void = SampleAppFrame.signedIn,
         sheet: (() -> AnyView)? = nil
     ) {
         self.auth = auth
         self.sheet = sheet
-        session(store)
-        let environment = AppEnvironment(
-            auth: auth,
-            tokens: SessionTokens(privyToken: { "sample-token" }, refresh: { _ in nil }),
-            hints: SampleSilentHints(),
-            sessionStore: store,
-            isAuthenticated: { true },
-            endAuthSession: {}
-        )
-        environment.navigator.selectedTab = tab
-        for route in routes { environment.navigator.open(route, in: tab) }
-        _environment = State(initialValue: environment)
+        makeEnvironment = {
+            session(store)
+            let environment = AppEnvironment(
+                auth: auth,
+                tokens: SessionTokens(privyToken: { "sample-token" }, refresh: { _ in nil }),
+                hints: SampleSilentHints(),
+                sessionStore: store,
+                isAuthenticated: { true },
+                endAuthSession: {}
+            )
+            environment.navigator.selectedTab = tab
+            for route in routes { environment.navigator.open(route, in: tab) }
+            return environment
+        }
         _showsSheet = State(initialValue: sheet != nil)
     }
 
     var body: some View {
+        let environment = environment.value(makeEnvironment)
         MainTabView()
             .environment(environment)
             .environment(environment.sessionStore)
@@ -54,6 +58,18 @@ struct SampleAppFrame: View {
 
     @MainActor static func loading(_ store: AppSessionStore) {
         store.isLoading = true
+    }
+}
+
+@MainActor
+final class SampleEnvironment {
+    private var built: AppEnvironment?
+
+    func value(_ make: () -> AppEnvironment) -> AppEnvironment {
+        if let built { return built }
+        let made = make()
+        built = made
+        return made
     }
 }
 

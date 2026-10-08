@@ -42,14 +42,29 @@ final class AppNavigator {
     }
 
     func openTransaction(cabalID: String, transactionID: String, in tab: MainTab) {
+        open(
+            chain: [CabalRoute(id: cabalID), TransactionRoute(cabalID: cabalID, transactionID: transactionID)], in: tab)
+    }
+
+    func open(chain: [any AppRoute], in tab: MainTab) {
+        guard let first = chain.first else { return }
+        selectedTab = tab
         let path = binding(for: tab)
-        if let cabal = path.wrappedValue.lastIndex(of: AnyAppRoute(CabalRoute(id: cabalID))) {
-            path.wrappedValue.removeSubrange((cabal + 1)...)
-            selectedTab = tab
+        var rest = chain.dropFirst().map { AnyAppRoute($0) }
+        if let open = path.wrappedValue.lastIndex(of: AnyAppRoute(first)) {
+            path.wrappedValue.removeSubrange((open + 1)...)
         } else {
-            open(CabalRoute(id: cabalID), in: tab)
+            rest.insert(AnyAppRoute(first), at: 0)
         }
-        open(TransactionRoute(cabalID: cabalID, transactionID: transactionID), in: tab)
+        path.wrappedValue.append(contentsOf: rest)
+    }
+
+    func select(_ tab: MainTab) {
+        if tab == selectedTab {
+            binding(for: tab).wrappedValue = []
+        } else {
+            selectedTab = tab
+        }
     }
 
     func closeProposeFlow() {

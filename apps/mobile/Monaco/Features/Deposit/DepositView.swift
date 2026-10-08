@@ -21,10 +21,6 @@ struct DepositView: View {
         ) { page in
             SafariView(url: page.url)
                 .ignoresSafeArea()
-                .onOpenURL { url in
-                    guard case .depositComplete(let id) = DeepLink.parse(url) else { return }
-                    Task { await deposit.redirected(sessionID: id) }
-                }
         }
         .onChange(of: deposit.messageTick) { _, _ in
             guard let message = deposit.message else { return }

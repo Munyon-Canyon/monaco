@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class ToastCenter {
     var current: MonacoToast?
+    var bottomCTAs = 0
 
     func show(_ error: APIError) {
         current = MonacoToast(message: ToastCopy.message(for: error))
@@ -43,7 +44,7 @@ private struct ToastCenterHost: ViewModifier {
                 get: { isEnabled ? center.current : nil },
                 set: { center.current = $0 }
             ),
-            placement: placement
+            placement: center.bottomCTAs > 0 ? .aboveBottomCTA : placement
         )
     }
 }

@@ -122,6 +122,7 @@ extension View {
     func monacoTopLevelHeader(title: String) -> some View {
         navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
     }
 

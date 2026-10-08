@@ -327,6 +327,7 @@ enum MonacoTheme {
         static let tile: CGFloat = 12
         static let field: CGFloat = 12
         static let bubble: CGFloat = 18
+        static let toast: CGFloat = 14
     }
 
     enum Space {

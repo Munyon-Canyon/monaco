@@ -13,7 +13,7 @@ struct GroupChatScreen: View {
 
     @State private var seenTarget: SeenTarget?
     @State private var chat: ChatSession.State?
-    @State private var toast: MonacoToast?
+    @Environment(ToastCenter.self) private var toasts
     @State private var messageToDelete: String?
     @FocusState private var composerFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
@@ -48,7 +48,6 @@ struct GroupChatScreen: View {
             }
         }
         .chatDeleteConfirmation(messageID: $messageToDelete) { id in delete(id) }
-        .monacoToast($toast)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat-view")
     }
@@ -134,13 +133,13 @@ struct GroupChatScreen: View {
     private func delete(_ id: String) {
         Task {
             let failure = await session?.delete(messageId: id)
-            toast = MonacoToast(message: failure.map(ToastCopy.message(for:)) ?? GroupChatCopy.deleted)
+            toasts.current = MonacoToast(message: failure.map(ToastCopy.message(for:)) ?? GroupChatCopy.deleted)
         }
     }
 
     private func show(_ notice: ChatSession.Notice?) {
         guard let notice else { return }
-        toast = MonacoToast(message: ToastCopy.message(for: notice.error))
+        toasts.current = MonacoToast(message: ToastCopy.message(for: notice.error))
     }
 }
 
