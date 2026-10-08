@@ -27,20 +27,20 @@ type boardRow struct {
 	handle  *string
 }
 
-func seedBoard(t *testing.T, pool *pgxpool.Pool, at time.Time, rows []boardRow) uuid.UUID {
-	t.Helper()
+func seedBoard(tb testing.TB, pool *pgxpool.Pool, at time.Time, rows []boardRow) uuid.UUID {
+	tb.Helper()
 	run := ids.Real{}.NewV7()
-	seedBoardRun(t, pool, at, run, rows)
+	seedBoardRun(tb, pool, at, run, rows)
 	return run
 }
 
-func seedBoardRun(t *testing.T, pool *pgxpool.Pool, at time.Time, run uuid.UUID, rows []boardRow) {
-	t.Helper()
+func seedBoardRun(tb testing.TB, pool *pgxpool.Pool, at time.Time, run uuid.UUID, rows []boardRow) {
+	tb.Helper()
 	q := sqlc.New(pool)
-	if err := q.InsertLeaderboardRun(t.Context(), sqlc.InsertLeaderboardRunParams{
+	if err := q.InsertLeaderboardRun(tb.Context(), sqlc.InsertLeaderboardRunParams{
 		RunID: run, AsOf: at, PricesAsOf: at, StartedAt: at, FinishedAt: at,
 	}); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	wire := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {
@@ -54,10 +54,10 @@ func seedBoardRun(t *testing.T, pool *pgxpool.Pool, at time.Time, run uuid.UUID,
 	}
 	raw, err := json.Marshal(wire)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
-	if err := q.InsertLeaderboardEntries(t.Context(), raw); err != nil {
-		t.Fatal(err)
+	if err := q.InsertLeaderboardEntries(tb.Context(), raw); err != nil {
+		tb.Fatal(err)
 	}
 }
 

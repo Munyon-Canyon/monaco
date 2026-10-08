@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
@@ -706,26 +707,26 @@ ORDER BY member_count DESC, c.created_at DESC, c.id DESC
 func TestSearchCabals_threeCharacterQueryUsesTheTrigramIndexWithinABlockBudget(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
-	seedSearchPerfCabals(t, f)
+	seedSearchPerfCabals(t, f.pool, f.user.ID.UUID())
 	testkit.AssertPlanWork(t, f.pool, "search", "cabals_name_trgm_idx", 1100,
 		searchPlanQuery, f.user.ID.UUID(), "abc", nil, nil, nil, int32(21))
 }
 
-func seedSearchPerfCabals(t *testing.T, f createFixture) {
-	t.Helper()
-	_, err := f.pool.Exec(t.Context(), `WITH seeded AS (
+func seedSearchPerfCabals(tb testing.TB, pool *pgxpool.Pool, userID uuid.UUID) {
+	tb.Helper()
+	_, err := pool.Exec(tb.Context(), `WITH seeded AS (
 		INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds,
 			slippage_bps, invite_code, created_at, updated_at)
 		SELECT md5(n::text)::uuid, CASE WHEN n <= 14 THEN 'abc cabal ' || n ELSE 'other cabal ' || n END,
 			$1, 'request', 'all', 'majority', 86400, 100,
 			lpad(n::text, 10, '0'), now(), now() FROM generate_series(1, 10000) n RETURNING id
 	) INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
-	SELECT id, $1, 'creator', true, now() FROM seeded`, f.user.ID.UUID())
+	SELECT id, $1, 'creator', true, now() FROM seeded`, userID)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
-	if _, err := f.pool.Exec(t.Context(), `ANALYZE cabals, cabal_members`); err != nil {
-		t.Fatal(err)
+	if _, err := pool.Exec(tb.Context(), `ANALYZE cabals, cabal_members`); err != nil {
+		tb.Fatal(err)
 	}
 }
 
