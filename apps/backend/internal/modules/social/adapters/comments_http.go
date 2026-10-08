@@ -138,7 +138,7 @@ func (h HTTP) commentPage(
 	if err != nil {
 		return api.CommentPage{}, err
 	}
-	q := app.CommentsQuery{FeedObjectID: item, Limit: app.CommentPageDefault}
+	q := app.CommentsQuery{FeedObjectID: item, Viewer: me, Limit: app.CommentPageDefault}
 	if limit != nil {
 		q.Limit = *limit
 	}

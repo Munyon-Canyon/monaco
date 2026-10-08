@@ -165,23 +165,30 @@ const listCommentThreads = `-- name: ListCommentThreads :many
 WITH tops AS (
   SELECT t.id
   FROM feed_comments t
-  WHERE t.feed_object_id = $1
+  WHERE t.feed_object_id = $2
     AND t.parent_comment_id IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = t.author_id
+    )
     AND (
-      NOT $2::bool
-      OR (t.created_at, t.id) > ($3::timestamptz, $4::uuid)
+      NOT $3::bool
+      OR (t.created_at, t.id) > ($4::timestamptz, $5::uuid)
     )
   ORDER BY t.created_at, t.id
-  LIMIT $5::int
+  LIMIT $6::int
 )
 SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.body, c.created_at,
   c.deleted_at, c.deleted_by
 FROM feed_comments c
-WHERE c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops)
+WHERE (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = c.author_id
+  )
 ORDER BY c.created_at, c.id
 `
 
 type ListCommentThreadsParams struct {
+	Viewer       uuid.UUID
 	FeedObjectID uuid.UUID
 	HasCursor    bool
 	AfterAt      time.Time
@@ -191,6 +198,7 @@ type ListCommentThreadsParams struct {
 
 func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreadsParams) ([]FeedComment, error) {
 	rows, err := q.db.Query(ctx, listCommentThreads,
+		arg.Viewer,
 		arg.FeedObjectID,
 		arg.HasCursor,
 		arg.AfterAt,

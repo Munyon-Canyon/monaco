@@ -11,6 +11,7 @@ import (
 type FollowCounts = interface {
 	Counts(context.Context, ids.UserID) (int, int, error)
 	FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
+	BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
 }
 
 type UserCards interface {
@@ -29,6 +30,10 @@ func (UnwiredFollowCounts) FollowedByMe(context.Context, ids.UserID, ids.UserID)
 	return false, errs.New(errs.CodeUpstreamUnavailable, "identity.UnwiredFollowCounts.FollowedByMe")
 }
 
+func (UnwiredFollowCounts) BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {
+	return false, errs.New(errs.CodeUpstreamUnavailable, "identity.UnwiredFollowCounts.BlockedByMe")
+}
+
 type PublicUser struct {
 	ID             ids.UserID
 	Handle         string
@@ -37,6 +42,7 @@ type PublicUser struct {
 	FollowerCount  int
 	FollowingCount int
 	FollowedByMe   bool
+	BlockedByMe    bool
 }
 
 func GetUser(ctx context.Context, cards UserCards, follows FollowCounts, viewer, id ids.UserID) (PublicUser, error) {
@@ -57,8 +63,12 @@ func GetUser(ctx context.Context, cards UserCards, follows FollowCounts, viewer,
 	if err != nil {
 		return PublicUser{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
+	blocked, err := follows.BlockedByMe(ctx, viewer, id)
+	if err != nil {
+		return PublicUser{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
 	return PublicUser{
 		ID: id, Handle: card.Handle, DisplayName: card.DisplayName, PhotoURL: card.PhotoURL,
-		FollowerCount: followers, FollowingCount: following, FollowedByMe: followed,
+		FollowerCount: followers, FollowingCount: following, FollowedByMe: followed, BlockedByMe: blocked,
 	}, nil
 }

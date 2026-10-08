@@ -434,7 +434,7 @@ private enum UserProfileSupport {
         Components.Schemas.PublicProfile(
             id: userID, handle: "maya", displayName: "Maya Angelou",
             photoUrl: "https://cdn.example.com/photos/maya.jpg", followerCount: followers, followingCount: following,
-            followedByMe: followed
+            followedByMe: followed, blockedByMe: false
         )
     }
 

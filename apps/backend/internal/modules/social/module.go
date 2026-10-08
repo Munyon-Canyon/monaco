@@ -101,6 +101,7 @@ func (m *Module) Follows() app.Follows { return app.NewFollows(m.deps.Pool) }
 func (m *Module) FollowCounts() interface {
 	Counts(context.Context, ids.UserID) (int, int, error)
 	FollowedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
+	BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error)
 } {
 	return m.Follows()
 }

@@ -150,6 +150,7 @@ func (h HTTP) GetUser(ctx context.Context, req api.GetUserRequestObject) (api.Ge
 	return api.GetUser200JSONResponse{
 		Id: user.ID.UUID(), Handle: user.Handle, DisplayName: user.DisplayName, PhotoUrl: present(user.PhotoURL),
 		FollowerCount: user.FollowerCount, FollowingCount: user.FollowingCount, FollowedByMe: user.FollowedByMe,
+		BlockedByMe: user.BlockedByMe,
 	}, nil
 }
 

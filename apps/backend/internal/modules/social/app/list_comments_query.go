@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 const (
@@ -20,6 +21,7 @@ const (
 
 type CommentsQuery struct {
 	FeedObjectID uuid.UUID
+	Viewer       ids.UserID
 	After        *domain.Keyset
 	Limit        int
 }
@@ -48,7 +50,9 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 	case err != nil:
 		return CommentsPage{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	params := sqlc.ListCommentThreadsParams{FeedObjectID: q.FeedObjectID, RowLimit: int32(q.Limit) + 1}
+	params := sqlc.ListCommentThreadsParams{
+		FeedObjectID: q.FeedObjectID, Viewer: q.Viewer.UUID(), RowLimit: int32(q.Limit) + 1,
+	}
 	if q.After != nil {
 		params.HasCursor, params.AfterAt, params.AfterID = true, q.After.At, q.After.ID
 	}

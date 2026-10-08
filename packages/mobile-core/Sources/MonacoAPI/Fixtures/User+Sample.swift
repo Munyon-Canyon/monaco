@@ -4,7 +4,8 @@ import Foundation
 extension Components.Schemas.PublicProfile {
     public static let sample = Self(
         id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: "maya", displayName: "Maya Angelou",
-        photoUrl: "https://cdn.example.com/photos/maya.jpg", followerCount: 12, followingCount: 8, followedByMe: false
+        photoUrl: "https://cdn.example.com/photos/maya.jpg", followerCount: 12, followingCount: 8, followedByMe: false,
+        blockedByMe: false
     )
 }
 

@@ -59,10 +59,10 @@ func ListChatChannel(ctx context.Context, db sqlc.DBTX, members Members, q ChatC
 			return nil, err
 		}
 		rows, err = reads.ListChatChannelAfter(ctx, sqlc.ListChatChannelAfterParams{
-			CabalID: q.CabalID.UUID(), AfterAt: at.At, AfterID: at.ID, RowLimit: limit,
+			CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), AfterAt: at.At, AfterID: at.ID, RowLimit: limit,
 		})
 	} else {
-		params := sqlc.ListChatChannelParams{CabalID: q.CabalID.UUID(), RowLimit: limit}
+		params := sqlc.ListChatChannelParams{CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), RowLimit: limit}
 		if params.HasBefore, params.BeforeAt, params.BeforeID, err = optionalCursor(
 			ctx, reads, q.CabalID, q.Before,
 		); err != nil {
@@ -95,10 +95,19 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
 	case row.ParentID.Valid:
 		return ChatThread{}, errs.New(errs.CodeChatParentIsReply, op)
-	case row.DeletedAt.Valid && row.ReplyCount == 0:
+	}
+	blocked, err := reads.IsBlocked(ctx, sqlc.IsBlockedParams{Blocker: q.Viewer.UUID(), Blocked: row.AuthorID})
+	if err != nil {
+		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	parent := storedMessage(row)
+	if blocked {
+		parent.Deleted, parent.Body = true, ""
+	}
+	if parent.Deleted && row.ReplyCount == 0 {
 		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.Bool("deleted", true))
 	}
-	params := sqlc.ListChatRepliesParams{ParentID: q.ParentID, RowLimit: limit}
+	params := sqlc.ListChatRepliesParams{ParentID: q.ParentID, Viewer: q.Viewer.UUID(), RowLimit: limit}
 	if q.Before != nil {
 		at, err := threadCursor(ctx, reads, q)
 		if err != nil {
@@ -111,7 +120,7 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	slices.Reverse(replies)
-	return ChatThread{Parent: storedMessage(row), Replies: storedMessages(replies)}, nil
+	return ChatThread{Parent: parent, Replies: storedMessages(replies)}, nil
 }
 
 func checkChatRead(

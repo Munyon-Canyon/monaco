@@ -221,16 +221,21 @@ FROM cabal_messages
 WHERE cabal_id = $1
   AND (parent_id IS NULL OR also_in_channel)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE b.blocker_id = $2::uuid AND b.blocked_id = cabal_messages.author_id
+  )
   AND (
-    NOT $2::bool
-    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+    NOT $3::bool
+    OR (created_at, id) < ($4::timestamptz, $5::uuid)
   )
 ORDER BY created_at DESC, id DESC
-LIMIT $5::int
+LIMIT $6::int
 `
 
 type ListChatChannelParams struct {
 	CabalID   uuid.UUID
+	Viewer    uuid.UUID
 	HasBefore bool
 	BeforeAt  time.Time
 	BeforeID  uuid.UUID
@@ -240,6 +245,7 @@ type ListChatChannelParams struct {
 func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams) ([]CabalMessage, error) {
 	rows, err := q.db.Query(ctx, listChatChannel,
 		arg.CabalID,
+		arg.Viewer,
 		arg.HasBefore,
 		arg.BeforeAt,
 		arg.BeforeID,
@@ -281,13 +287,18 @@ FROM cabal_messages
 WHERE cabal_id = $1
   AND (parent_id IS NULL OR also_in_channel)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
-  AND (created_at, id) > ($2::timestamptz, $3::uuid)
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE b.blocker_id = $2::uuid AND b.blocked_id = cabal_messages.author_id
+  )
+  AND (created_at, id) > ($3::timestamptz, $4::uuid)
 ORDER BY created_at, id
-LIMIT $4::int
+LIMIT $5::int
 `
 
 type ListChatChannelAfterParams struct {
 	CabalID  uuid.UUID
+	Viewer   uuid.UUID
 	AfterAt  time.Time
 	AfterID  uuid.UUID
 	RowLimit int32
@@ -296,6 +307,7 @@ type ListChatChannelAfterParams struct {
 func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelAfterParams) ([]CabalMessage, error) {
 	rows, err := q.db.Query(ctx, listChatChannelAfter,
 		arg.CabalID,
+		arg.Viewer,
 		arg.AfterAt,
 		arg.AfterID,
 		arg.RowLimit,
@@ -335,16 +347,21 @@ SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, re
 FROM cabal_messages
 WHERE parent_id = $1::uuid
   AND deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE b.blocker_id = $2::uuid AND b.blocked_id = cabal_messages.author_id
+  )
   AND (
-    NOT $2::bool
-    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+    NOT $3::bool
+    OR (created_at, id) < ($4::timestamptz, $5::uuid)
   )
 ORDER BY created_at DESC, id DESC
-LIMIT $5::int
+LIMIT $6::int
 `
 
 type ListChatRepliesParams struct {
 	ParentID  uuid.UUID
+	Viewer    uuid.UUID
 	HasBefore bool
 	BeforeAt  time.Time
 	BeforeID  uuid.UUID
@@ -354,6 +371,7 @@ type ListChatRepliesParams struct {
 func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams) ([]CabalMessage, error) {
 	rows, err := q.db.Query(ctx, listChatReplies,
 		arg.ParentID,
+		arg.Viewer,
 		arg.HasBefore,
 		arg.BeforeAt,
 		arg.BeforeID,
