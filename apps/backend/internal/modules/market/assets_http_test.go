@@ -3,6 +3,7 @@ package market_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -766,4 +768,73 @@ func containsAll(body string, parts ...string) bool {
 		}
 	}
 	return true
+}
+
+type backfillState struct {
+	rows        int
+	requestedAt time.Time
+	done        bool
+}
+
+func (s marketAPI) backfillOf(t *testing.T, mint market.Mint) backfillState {
+	t.Helper()
+	var st backfillState
+	if err := s.pool.QueryRow(t.Context(), `SELECT count(*) FROM price_backfills`).Scan(&st.rows); err != nil {
+		t.Fatal(err)
+	}
+	err := s.pool.QueryRow(t.Context(), `SELECT requested_at, done_at IS NOT NULL FROM price_backfills WHERE mint = $1`,
+		mint.String()).Scan(&st.requestedAt, &st.done)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal(err)
+	}
+	st.requestedAt = st.requestedAt.UTC()
+	return st
+}
+
+func TestChart_queuesABackfillOnceTheFirstTimeAListedChartIsRead(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	cold := s.insertClone(t, 5, "COLDx", marketfake.TSpaceX().Mint.String(), "Cold Co", domain.KindEquity, 0)
+	chartOf(t, s.get(t, "/v1/assets/COLDx/chart?range=1D"))
+	first := backfillState{rows: 1, requestedAt: s.when}
+	if got := s.backfillOf(t, cold.Mint); got != first {
+		t.Fatalf("after the first read %+v, want one pending row requested at %v", got, s.when)
+	}
+	s.clock.Advance(3 * time.Minute)
+	chartOf(t, s.get(t, "/v1/assets/COLDx/chart?range=1D"))
+	chartOf(t, s.get(t, "/v1/assets/COLDx/chart?range=1W"))
+	if got := s.backfillOf(t, cold.Mint); got != first {
+		t.Fatalf("after two more reads %+v, want the first row untouched %+v", got, first)
+	}
+	if _, err := s.pool.Exec(t.Context(), `UPDATE price_backfills SET done_at = now()`); err != nil {
+		t.Fatal(err)
+	}
+	s.clock.Advance(3 * time.Minute)
+	chartOf(t, s.get(t, "/v1/assets/COLDx/chart?range=1D"))
+	if got := s.backfillOf(t, cold.Mint); got != (backfillState{rows: 1, requestedAt: s.when, done: true}) {
+		t.Fatalf("after a read of a done mint %+v, want it still done", got)
+	}
+}
+
+func TestChart_queuesOnlyTheListedMintAmongChartsRead(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	unchecked := s.insertClone(t, 5, "NEWx", marketfake.TSpaceX().Mint.String(), "New Co", domain.KindEquity, 0)
+	const uncheck = `UPDATE assets SET chain_checked_at = NULL WHERE symbol = 'NEWx'`
+	if _, err := s.pool.Exec(t.Context(), uncheck); err != nil {
+		t.Fatal(err)
+	}
+	listed := s.insertClone(t, 6, "COLDx", marketfake.SPACEX().Mint.String(), "Cold Co", domain.KindEquity, 0)
+	for _, symbol := range []string{"JPSTx", "NEWx", "COLDx"} {
+		if got := chartOf(t, s.get(t, "/v1/assets/"+symbol+"/chart?range=1D")); !got.Empty {
+			t.Fatalf("%s chart = %+v, want the empty chart it has", symbol, got)
+		}
+	}
+	if got := s.backfillOf(t, unchecked.Mint); got.rows != 1 || !got.requestedAt.IsZero() {
+		t.Fatalf("unchecked NEWx = %+v, want no row of its own among 1 in total", got)
+	}
+	if got := s.backfillOf(t, listed.Mint); got != (backfillState{rows: 1, requestedAt: s.when}) {
+		t.Fatalf("listed COLDx = %+v, want the one row, pending; JPSTx and NEWx are unlisted", got)
+	}
 }
