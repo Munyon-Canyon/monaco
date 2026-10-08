@@ -1,7 +1,7 @@
 -- name: CashOutPayoutJob :one
 SELECT j.id, j.cabal_id, j.user_id, j.share_units::text AS share_units, j.returned_units::text AS returned_units,
   j.payout_micros::text AS payout_micros, j.slice_micros::text AS slice_micros, j.sell_usdc_micros > 0 AS selling,
-  j.status, coalesce(p.attempt, 0)::smallint AS attempt, coalesce(p.signature, '')::text AS signature,
+  j.status, j.cause, coalesce(p.attempt, 0)::smallint AS attempt, coalesce(p.signature, '')::text AS signature,
   coalesce(p.signed_tx, '\x'::bytea)::bytea AS signed_tx, coalesce(p.status, '')::text AS payout_status,
   coalesce(p.last_valid_block_height, 0)::bigint AS last_valid_block_height
 FROM cash_out_jobs AS j
