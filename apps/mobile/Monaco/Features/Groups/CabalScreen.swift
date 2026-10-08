@@ -88,6 +88,7 @@ struct CabalScreen: View {
         .sheet(isPresented: $showsDetails) {
             NavigationStack {
                 SectionStack(context: context, sections: details)
+                    .monacoCanvas()
                     .navigationTitle("Cabal details")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -101,6 +102,7 @@ struct CabalScreen: View {
                     .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
             }
             .presentationDetents([.medium, .large])
+            .presentationBackground(MonacoTheme.canvas)
             .monacoToastCenter(toasts)
         }
     }
