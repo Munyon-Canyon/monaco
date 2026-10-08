@@ -137,6 +137,15 @@ func (Feed) Left(ctx context.Context, tx db.Tx, e events.CabalMemberLeft, at tim
 	return err
 }
 
+func (h Feed) CabalBanned(ctx context.Context, tx db.Tx, e events.CabalBanned, at time.Time) error {
+	hidden, err := sqlc.New(tx.Queries()).HideFeedCabal(ctx, sqlc.HideFeedCabalParams{CabalID: e.CabalID, At: at})
+	if err != nil || hidden == 0 {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
+	return nil
+}
+
 func feedName(displayName, handle string) string {
 	if displayName != "" {
 		return displayName

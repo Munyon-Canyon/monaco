@@ -17,7 +17,8 @@ const getFeedItem = `-- name: GetFeedItem :one
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at,
   (
-    (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
+    NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
+    AND (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
     AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id IS NOT DISTINCT FROM $2::uuid)
     AND ($3::text = '' OR lower(coalesce(f.symbol, '')) = lower($3::text))
     AND (
@@ -135,7 +136,8 @@ const listFeed = `-- name: ListFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
 FROM feed_objects f
-WHERE (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
+WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
+  AND (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
   AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $2::uuid)
   AND ($3::text = '' OR lower(f.symbol) = lower($3::text))
   AND (
@@ -273,7 +275,8 @@ const listTopFeed = `-- name: ListTopFeed :many
 SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.title, f.body, f.payload, f.status,
   f.asset_id, f.cabal_name, f.comment_count, f.created_at, f.updated_at
 FROM feed_objects f
-WHERE (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
+WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
+  AND (cardinality($1::text[]) = 0 OR f.kind = ANY($1::text[]))
   AND ($2::uuid = '00000000-0000-0000-0000-000000000000' OR f.cabal_id = $2::uuid)
   AND ($3::text = '' OR lower(f.symbol) = lower($3::text))
   AND (
