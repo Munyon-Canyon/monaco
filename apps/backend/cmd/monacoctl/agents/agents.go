@@ -62,6 +62,11 @@ type Env struct {
 	featureNote string
 	localConfig string
 	trunk       *trunkLog
+	cwds        []byte
+	pulls       []stackPR
+	pullsShared bool
+	pullsOK     bool
+	openPRs     []PR
 }
 type (
 	Runner  func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error)
