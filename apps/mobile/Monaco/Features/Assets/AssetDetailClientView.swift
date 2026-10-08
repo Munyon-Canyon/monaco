@@ -91,7 +91,11 @@ struct AssetDetailClientView: View {
             Text(detail.ticker)
                 .font(MonacoTheme.Typo.ticker)
                 .foregroundStyle(MonacoTheme.muted)
-            if let price = detail.priceMicros {
+            if let scrub = scrubHeader(model) {
+                Text(scrub.price)
+                    .font(MonacoTheme.Typo.quoteHero)
+                    .accessibilityIdentifier("asset-detail-price")
+            } else if let price = detail.priceMicros {
                 Text(UsdAmountFormatter.format(micros: price))
                     .font(MonacoTheme.Typo.quoteHero)
                     .priceTickFlash(
@@ -101,7 +105,17 @@ struct AssetDetailClientView: View {
                     )
                     .accessibilityIdentifier("asset-detail-price")
             }
-            if let change = model.rangeChange {
+            if let scrub = scrubHeader(model) {
+                HStack(spacing: MonacoTheme.Space.xs) {
+                    if let basisPoints = scrub.basisPoints {
+                        PercentText(basisPoints: basisPoints, style: .row)
+                    }
+                    Text(scrub.caption)
+                        .font(MonacoTheme.Typo.dataCaption)
+                        .foregroundStyle(MonacoTheme.muted)
+                }
+                .accessibilityIdentifier("asset-detail-range-change")
+            } else if let change = model.rangeChange {
                 HStack(spacing: MonacoTheme.Space.xs) {
                     if let basisPoints = change.basisPoints {
                         PercentText(basisPoints: basisPoints, style: .row)
@@ -118,6 +132,10 @@ struct AssetDetailClientView: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.m)
+    }
+
+    private func scrubHeader(_ model: AssetDetailClientModel) -> AssetScrubHeader? {
+        AssetScrubHeader(chart: model.chart, index: scrubbedIndex)
     }
 
     private func chart(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
@@ -327,3 +345,31 @@ private struct AssetDetailClientSampleHarness: View {
     }
 }
 #endif
+
+struct AssetScrubHeader: Equatable {
+    let price: String
+    let basisPoints: Int64?
+    let caption: String
+
+    init?(
+        chart: AssetChartSeries?,
+        index: Int?,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) {
+        guard let chart, let index, let point = chart.point(at: index) else { return nil }
+        price = UsdAmountFormatter.format(micros: point.priceUsdcMicros)
+        basisPoints = Self.basisPoints(from: chart.points.first?.priceUsdcMicros, to: point.priceUsdcMicros)
+        caption = ChartScrubLabel.caption(
+            for: Date(timeIntervalSince1970: TimeInterval(point.timestamp)),
+            range: chart.range, locale: locale, timeZone: timeZone)
+    }
+
+    private static func basisPoints(from first: Int64?, to value: Int64) -> Int64? {
+        guard let first, first > 0 else { return nil }
+        let (change, changeOverflow) = value.subtractingReportingOverflow(first)
+        let (scaled, scaleOverflow) = change.multipliedReportingOverflow(by: 10_000)
+        guard !changeOverflow, !scaleOverflow else { return nil }
+        return scaled / first
+    }
+}
