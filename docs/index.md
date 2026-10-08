@@ -41,6 +41,7 @@ Read these in order to understand the repo:
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
 | [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
 | [Sweep wallets](how-to/sweep-wallets.md) | Recovering test USDC that a QA run left in member wallets or cabal treasuries |
+| [Admin panel](how-to/admin-panel.md) | The viewer service token Grafana uses to read the admin dashboards: create, store, rotate, revoke |
 | [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
 
 ## Operations
