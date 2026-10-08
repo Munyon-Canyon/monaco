@@ -86,7 +86,7 @@ private struct SharedCabalRow: View {
     var body: some View {
         NavigationLink(value: AnyAppRoute(CabalRoute(id: row.id))) {
             MonacoRow(title: row.name, subtitle: "Pot \(row.potValue)", isLast: isLast) {
-                CabalMark(groupId: row.id, name: row.name, size: 40, pictureUrl: row.pictureURL)
+                CabalMark(groupId: row.id, name: row.name, pictureUrl: row.pictureURL)
             } trailing: {
                 if let bps = row.returnBps {
                     PercentText(basisPoints: bps, style: .row)

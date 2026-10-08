@@ -40,7 +40,7 @@ private struct CabalsBoard: View {
                 rowContent: { row, isLast in
                     NavigationLink(value: AnyAppRoute(CabalRoute(id: row.id))) {
                         BoardRow(row: row, figure: .value, isLast: isLast, chevron: true) {
-                            CabalMark(groupId: row.id, name: row.name, size: 40, pictureUrl: row.pictureURL)
+                            CabalMark(groupId: row.id, name: row.name, pictureUrl: row.pictureURL)
                         }
                     }
                     .buttonStyle(.monacoRow)

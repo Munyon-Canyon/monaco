@@ -8,6 +8,8 @@ import SwiftUI
 /// the same argument ("who is ahead"), so it is one row. The crown is the one place gold draws
 /// as a glyph rather than as a coin: it means *first*, and the row prints the number beside it
 /// so the meaning never rests on the colour alone.
+private let boardRankColumnWidth: CGFloat = 24
+
 struct BoardRow<Leading: View>: View {
     /// The figure under the return: a signed P&L for a person, the pot value for a cabal.
     enum Figure {
@@ -38,9 +40,9 @@ struct BoardRow<Leading: View>: View {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     HStack(spacing: MonacoTheme.Space.sm) {
                         rankColumn
-                        leading.frame(width: 40, height: 40)
+                        leading.frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
                         labels
-                        if chevron { chevronGlyph }
+                        if chevron { MonacoRowChevron() }
                     }
                     figures(alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -48,18 +50,18 @@ struct BoardRow<Leading: View>: View {
             } else {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     rankColumn
-                    leading.frame(width: 40, height: 40)
+                    leading.frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
                     labels
                         .frame(minWidth: layout.minimumTitleWidth, alignment: .leading)
                     figures(alignment: .trailing)
                         .layoutPriority(1)
-                    if chevron { chevronGlyph }
+                    if chevron { MonacoRowChevron() }
                 }
             }
         }
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, 8)
-        .frame(minHeight: 60)
+        .frame(minHeight: MonacoRowLayout.minHeight)
         .background(row.isViewer ? MonacoTheme.brandWash : Color.clear)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
@@ -72,7 +74,8 @@ struct BoardRow<Leading: View>: View {
     }
 
     private var ruleInset: CGFloat {
-        MonacoTheme.Space.m + 24 + MonacoTheme.Space.sm + 40 + MonacoTheme.Space.sm
+        let inset = layout.separatorLeadingInset(markSize: MonacoRowLayout.baseMarkSize)
+        return layout.isStacked ? inset : inset + boardRankColumnWidth + MonacoTheme.Space.sm
     }
 
     private func figures(alignment: HorizontalAlignment) -> some View {
@@ -91,13 +94,6 @@ struct BoardRow<Leading: View>: View {
         }
     }
 
-    private var chevronGlyph: some View {
-        Image(systemName: "chevron.right")
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(MonacoTheme.tertiaryText)
-            .accessibilityHidden(true)
-    }
-
     @ViewBuilder
     private var rankColumn: some View {
         ZStack {
@@ -111,30 +107,20 @@ struct BoardRow<Leading: View>: View {
                     .foregroundStyle(MonacoTheme.tertiaryText)
             }
         }
-        .frame(width: 24, alignment: .center)
+        .frame(width: boardRankColumnWidth, alignment: .center)
         .accessibilityHidden(true)
     }
 
     private var labels: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(row.name)
-                .font(MonacoTheme.Typo.rowTitle)
-                .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(layout.titleLineLimit)
-                .truncationMode(.tail)
+        MonacoRowLabels(
+            title: row.name, subtitle: row.pricesDelayed ? "Prices delayed" : nil, layout: layout
+        ) {
             if row.isViewer {
                 Text(Self.viewerLabel)
                     .font(MonacoTheme.Typo.captionStrong)
                     .foregroundStyle(MonacoTheme.brandOnWash)
             }
-            if row.pricesDelayed {
-                Text("Prices delayed")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .lineLimit(layout.subtitleLineLimit)
-            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     static func spoken(_ row: LeaderboardRowView, figure: Figure) -> String {

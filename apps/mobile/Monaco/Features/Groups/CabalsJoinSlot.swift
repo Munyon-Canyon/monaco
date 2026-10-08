@@ -135,39 +135,15 @@ private struct CabalSearchRowView: View {
     let enter: () -> Void
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            Button(action: open) {
-                HStack(spacing: MonacoTheme.Space.sm) {
-                    CabalMark(groupId: row.id, name: row.name, pictureUrl: row.pictureURL)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(row.name)
-                            .font(MonacoTheme.Typo.rowTitle)
-                            .foregroundStyle(MonacoTheme.ink)
-                            .lineLimit(1)
-                        Text(row.detail)
-                            .font(MonacoTheme.Typo.caption)
-                            .foregroundStyle(MonacoTheme.muted)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("cabals-search-result-\(row.id)")
-            trailing
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.sm)
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                Rectangle()
-                    .fill(MonacoTheme.hairline)
-                    .frame(height: 1)
-                    .padding(.leading, MonacoTheme.Space.gutter)
+        Button(action: open) {
+            MonacoRow(title: row.name, subtitle: row.detail, isLast: isLast) {
+                CabalMark(groupId: row.id, name: row.name, pictureUrl: row.pictureURL)
+            } trailing: {
+                trailing
             }
         }
+        .buttonStyle(.monacoRow)
+        .accessibilityIdentifier("cabals-search-result-\(row.id)")
     }
 
     @ViewBuilder

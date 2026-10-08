@@ -30,6 +30,7 @@ struct CabalInvitesSection: View {
                         CabalInviteRow(
                             invite: invite,
                             isAnswering: model.answering.contains(invite.id),
+                            isLast: invite.id == model.invites.last?.id,
                             accept: { accept(invite, model) },
                             decline: { Task { await model.decline(invite) } }
                         )
@@ -78,49 +79,31 @@ struct CabalInvitesSection: View {
 private struct CabalInviteRow: View {
     let invite: ReceivedCabalInvite
     let isAnswering: Bool
+    let isLast: Bool
     let accept: () -> Void
     let decline: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
-                CabalMark(groupId: invite.cabalID, name: invite.cabalName, pictureUrl: invite.pictureURL)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(invite.cabalName)
-                        .font(MonacoTheme.Typo.rowTitle)
-                        .foregroundStyle(MonacoTheme.ink)
-                    Text(invite.invitedBy)
-                        .font(MonacoTheme.Typo.callout)
-                        .foregroundStyle(MonacoTheme.ink)
-                    Text(invite.members)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.muted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .combine)
-            }
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: MonacoTheme.Space.sm) { buttons }
-                VStack(spacing: MonacoTheme.Space.s) { buttons }
+        MonacoRow(
+            title: invite.cabalName, subtitle: "\(invite.invitedBy) · \(invite.members)", isLast: isLast,
+            trailingIsInteractive: true
+        ) {
+            CabalMark(groupId: invite.cabalID, name: invite.cabalName, pictureUrl: invite.pictureURL)
+        } trailing: {
+            HStack(spacing: MonacoTheme.Space.s) {
+                Button("Decline", action: decline)
+                    .buttonStyle(.monacoCompact)
+                    .accessibilityLabel("Decline the invite to \(invite.cabalName)")
+                    .accessibilityIdentifier("cabal-invite-decline")
+                Button("Accept", action: accept)
+                    .buttonStyle(.monacoCompactProminent)
+                    .accessibilityLabel("Accept the invite to \(invite.cabalName)")
+                    .accessibilityIdentifier("cabal-invite-accept")
             }
             .disabled(isAnswering)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.m)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabal-invite-row")
-    }
-
-    @ViewBuilder
-    private var buttons: some View {
-        Button("Accept", action: accept)
-            .buttonStyle(.monacoPrimary)
-            .accessibilityLabel("Accept the invite to \(invite.cabalName)")
-            .accessibilityIdentifier("cabal-invite-accept")
-        Button("Decline", action: decline)
-            .buttonStyle(.monacoSecondary)
-            .accessibilityLabel("Decline the invite to \(invite.cabalName)")
-            .accessibilityIdentifier("cabal-invite-decline")
     }
 }
 

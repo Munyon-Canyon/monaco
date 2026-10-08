@@ -20,7 +20,7 @@ private struct ProfileInviteRow: View {
                     title: InviteCopy.title,
                     chevron: true,
                     isLast: true,
-                    leading: { StockMark(systemImage: "person.badge.plus", size: 40) }
+                    leading: { StockMark(systemImage: "person.badge.plus") }
                 )
             }
             .buttonStyle(.monacoRow)

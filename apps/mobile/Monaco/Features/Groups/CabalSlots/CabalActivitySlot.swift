@@ -152,6 +152,8 @@ private struct CabalActivityRowView: View {
     let isLast: Bool
     let retry: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             SunkenGlyphMark(systemImage: row.glyph)
@@ -191,11 +193,11 @@ private struct CabalActivityRowView: View {
         }
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.s)
-        .frame(minHeight: 60)
+        .frame(minHeight: MonacoRowLayout.minHeight)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if !isLast {
-                MonacoRule().padding(.leading, MonacoTheme.Space.m)
+                MonacoRule().padding(.leading, MonacoRowLayout(dynamicTypeSize: dynamicTypeSize).separatorLeadingInset)
             }
         }
         .accessibilityElement(children: row.offersRetry ? .contain : .combine)

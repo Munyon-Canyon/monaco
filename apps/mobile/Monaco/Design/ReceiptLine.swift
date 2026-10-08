@@ -36,7 +36,7 @@ struct ReceiptLine: View {
         }
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.sm)
-        .frame(minHeight: 52)
+        .frame(minHeight: MonacoRowLayout.minHeight)
         .overlay(alignment: .bottom) {
             if !isLast {
                 MonacoRule()

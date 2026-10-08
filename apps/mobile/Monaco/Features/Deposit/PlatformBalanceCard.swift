@@ -92,7 +92,7 @@ struct PlatformBalanceCard: View {
     }
 
     private var coin: some View {
-        StockMark(symbol: "USDC", size: 40)
+        StockMark(symbol: "USDC")
             .frame(width: 44, height: 44)
     }
 

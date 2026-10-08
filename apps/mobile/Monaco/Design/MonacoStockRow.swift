@@ -133,10 +133,8 @@ enum DayChangeSpeech {
 /// The measures a stock row shares with the lists that mirror it, so the separator
 /// inset and the second line's limit have one home.
 enum StockListRow {
-    /// The mark on a market row: a touch larger than `MonacoRow`'s 44pt, because the
-    /// logo sits inside a coin's face and rim. The separator inset is derived from it
-    /// rather than assumed.
-    static let markSize: CGFloat = 46
+    /// The mark on a market row: `MonacoRow`'s, so the Stocks list lines up with the cabal list.
+    static let markSize = MonacoRowLayout.baseMarkSize
 
     /// Two lines before the second line gives up. Its last words are the member's own
     /// slice ("your slice $77.38"), and a list that truncates a member's money to fit a

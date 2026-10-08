@@ -6,6 +6,11 @@ struct FeedItemCell: View {
     let item: Components.Schemas.FeedItem
     var opensComments = true
 
+    static func separatorLeadingInset(for item: Components.Schemas.FeedItem) -> CGFloat {
+        let stripe = MonacoTheme.Space.m + 3 + MonacoTheme.Space.sm
+        return item.actorId == nil ? stripe : stripe + MonacoRowLayout.baseMarkSize + MonacoTheme.Space.sm
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
             Capsule()
@@ -15,8 +20,8 @@ struct FeedItemCell: View {
                 .accessibilityHidden(true)
             if let actorID = item.actorId {
                 NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: actorID))) {
-                    MonacoAvatar(photoURL: nil, displayName: "", size: 40, seed: actorID)
-                        .frame(width: 44, height: 44)
+                    MonacoAvatar(photoURL: nil, displayName: "", seed: actorID)
+                        .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)

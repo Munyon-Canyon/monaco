@@ -20,7 +20,7 @@ private struct ProfileSettingsRow: View {
                     title: "Settings",
                     chevron: true,
                     isLast: true,
-                    leading: { StockMark(systemImage: "gearshape", size: 40) }
+                    leading: { StockMark(systemImage: "gearshape") }
                 )
             }
             .buttonStyle(.monacoRow)

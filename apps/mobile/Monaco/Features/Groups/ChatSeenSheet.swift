@@ -41,41 +41,24 @@ struct ChatSeenSheet: View {
         case .loaded(let members):
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(members, id: \.userId) { member in
-                        row(member)
+                    ForEach(Array(members.enumerated()), id: \.element.userId) { index, member in
+                        row(member, isLast: index == members.count - 1)
                     }
                 }
             }
         }
     }
 
-    private func row(_ member: ChatSeenModel.Member) -> some View {
+    private func row(_ member: ChatSeenModel.Member, isLast: Bool) -> some View {
         Button {
             dismiss()
             openProfile(member.userId)
         } label: {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                MonacoAvatar(photoURL: member.photoUrl, displayName: member.displayName, size: 40, seed: member.userId)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(ChatSeenCopy.name(member))
-                        .font(MonacoTheme.Typo.rowTitle)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .lineLimit(1)
-                    if let handle = ChatSeenCopy.handle(member) {
-                        Text(handle)
-                            .font(MonacoTheme.Typo.caption)
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 0)
+            MonacoRow(title: ChatSeenCopy.name(member), subtitle: ChatSeenCopy.handle(member), isLast: isLast) {
+                MonacoAvatar(photoURL: member.photoUrl, displayName: member.displayName, seed: member.userId)
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
-            .padding(.vertical, MonacoTheme.Space.sm)
-            .frame(minHeight: 56)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.monacoRow)
         .accessibilityIdentifier("chat-seen-row-\(member.userId)")
     }
 

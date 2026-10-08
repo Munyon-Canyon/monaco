@@ -16,7 +16,7 @@ private struct ProfileFindFriendsRow: View {
                     title: "Find friends",
                     chevron: true,
                     isLast: true,
-                    leading: { StockMark(systemImage: "person.2", size: 40) }
+                    leading: { StockMark(systemImage: "person.2") }
                 )
             }
             .buttonStyle(.monacoRow)

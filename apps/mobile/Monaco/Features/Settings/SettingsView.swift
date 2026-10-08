@@ -124,7 +124,7 @@ struct SettingsList: View {
             } label: {
                 MonacoRow(
                     title: row.title,
-                    leading: { StockMark(systemImage: row.systemImage, size: 40) },
+                    leading: { StockMark(systemImage: row.systemImage) },
                     trailing: {
                         Text(status.map { $0 == .authorized ? "On" : "Off" } ?? "")
                             .font(MonacoTheme.Typo.body)
@@ -172,7 +172,7 @@ struct SettingsList: View {
             subtitle: row.subtitle,
             chevron: row != .deleteAccount,
             isLast: row == SettingsRow.allCases.last,
-            leading: { StockMark(systemImage: row.systemImage, size: 40) }
+            leading: { StockMark(systemImage: row.systemImage) }
         )
     }
 }
