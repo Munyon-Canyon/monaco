@@ -1,21 +1,23 @@
 import SwiftUI
 import UIKit
 
-/// The one field anatomy: 56pt on `surfaceSunken` with the field radius, no stroke at rest, a
-/// 1pt ink stroke while focused, and a 1pt `loss` stroke while what is typed can't be used.
-///
-/// `MonacoTextField` draws itself with it. Fields that need their own focus binding or stable
-/// accessibility identifiers (the sign-in form, the display-name field) apply it directly, so the
-/// three cannot drift apart again: the name field had become a white box with a hairline and a
-/// 2pt brand ring while every other field was sunken paper.
+/// The one field anatomy: 56pt on `surfaceSunken`, a 1pt ink focus stroke, a 1pt `loss` stroke
+/// when invalid. `isOutlined` adds a 1pt `secondaryText` stroke at rest and 2pt focus or `loss`.
+/// `MonacoTextField` uses it; the sign-in and display-name fields apply it directly.
 struct MonacoFieldChrome: ViewModifier {
     let isFocused: Bool
     var isInvalid = false
+    var isOutlined = false
 
     static let height: CGFloat = 56
 
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+    }
+
+    private var strokeWidth: CGFloat {
+        if isInvalid || isFocused { return isOutlined ? 2 : 1 }
+        return isOutlined ? 1 : 0
     }
 
     func body(content: Content) -> some View {
@@ -25,8 +27,8 @@ struct MonacoFieldChrome: ViewModifier {
             .background(shape.fill(MonacoTheme.surfaceSunken))
             .overlay {
                 shape.strokeBorder(
-                    isInvalid ? MonacoTheme.loss : MonacoTheme.ink,
-                    lineWidth: isInvalid || isFocused ? 1 : 0
+                    isInvalid ? MonacoTheme.loss : (isFocused ? MonacoTheme.ink : MonacoTheme.secondaryText),
+                    lineWidth: strokeWidth
                 )
             }
             .animation(.easeOut(duration: 0.15), value: isFocused)
@@ -36,37 +38,48 @@ struct MonacoFieldChrome: ViewModifier {
 
 extension View {
     /// Draws this text field as every Monaco field is drawn. See `MonacoFieldChrome`.
-    func monacoFieldChrome(isFocused: Bool, isInvalid: Bool = false) -> some View {
-        modifier(MonacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid))
+    func monacoFieldChrome(isFocused: Bool, isInvalid: Bool = false, isOutlined: Bool = false) -> some View {
+        modifier(MonacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, isOutlined: isOutlined))
     }
 }
 
-/// 56pt field on `surfaceSunken`, no resting stroke; a 1pt ink stroke while focused.
+/// 56pt field on `surfaceSunken`. `isOutlined`: `secondaryText` placeholder, 50% when disabled.
+/// `errorMessage` is the accessibility value while `isInvalid`.
 struct MonacoTextField: View {
     private let placeholder: String
     @Binding private var text: String
     private let keyboard: UIKeyboardType
     private let contentType: UITextContentType?
+    private let isInvalid: Bool
+    private let isOutlined: Bool
+    private let errorMessage: String?
 
     @FocusState private var focused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     init(
         _ placeholder: String,
         text: Binding<String>,
         keyboard: UIKeyboardType = .default,
-        contentType: UITextContentType? = nil
+        contentType: UITextContentType? = nil,
+        isInvalid: Bool = false,
+        isOutlined: Bool = false,
+        errorMessage: String? = nil
     ) {
         self.placeholder = placeholder
         _text = text
         self.keyboard = keyboard
         self.contentType = contentType
+        self.isInvalid = isInvalid
+        self.isOutlined = isOutlined
+        self.errorMessage = errorMessage
     }
 
     var body: some View {
         TextField(
             "",
             text: $text,
-            prompt: Text(placeholder).foregroundStyle(MonacoTheme.disabledLabel)
+            prompt: Text(placeholder).foregroundStyle(placeholderColor)
         )
         .font(MonacoTheme.Typo.body)
         .foregroundStyle(MonacoTheme.ink)
@@ -76,11 +89,17 @@ struct MonacoTextField: View {
         .textInputAutocapitalization(autocapitalization)
         .autocorrectionDisabled(disablesAutocorrection)
         .focused($focused)
-        .monacoFieldChrome(isFocused: focused)
+        .monacoFieldChrome(isFocused: focused, isInvalid: isInvalid, isOutlined: isOutlined)
+        .opacity(isOutlined && !isEnabled ? 0.5 : 1)
         // The whole 56pt is the target, not just the line of text in the middle of it.
         .contentShape(Rectangle())
         .simultaneousGesture(TapGesture().onEnded { focused = true })
         .accessibilityLabel(placeholder)
+        .accessibilityValue(isInvalid ? (errorMessage ?? "") : "")
+    }
+
+    private var placeholderColor: Color {
+        isOutlined ? MonacoTheme.secondaryText : MonacoTheme.disabledLabel
     }
 
     private var isCodeOrContact: Bool {

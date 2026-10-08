@@ -19,7 +19,7 @@ import UIKit
 /// - `primaryText` / `ink` — headings, body
 /// - `secondaryText` / `muted` — captions
 /// - `tertiaryText` — timestamps and other quiet real content
-/// - `disabledLabel` — disabled control labels and field placeholders; below AA on purpose
+/// - `disabledLabel` — disabled control labels, placeholders of plain fields; below AA on purpose
 /// - `border` / `hairline` — 1pt separators
 /// - `brand` / `brandFill` — the forest interactive colour; never a gain, see `MonacoContrastTests`
 /// - `profit` / `loss` (+ `profitWash` / `lossWash`) — signed P&L only; green never means anything else
