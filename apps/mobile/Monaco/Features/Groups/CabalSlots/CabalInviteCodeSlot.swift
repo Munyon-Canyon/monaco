@@ -130,3 +130,12 @@ final class CabalInviteCodeSampleHarnessEntry: SampleHarnessEntry {
     }
 }
 #endif
+
+enum CabalDetailsCopy {
+    static let inviteHint = "Friends paste this code to join the cabal."
+    static let copyCode = "Copy code"
+    static let copied = "Copied"
+    static let share = "Share"
+
+    static let auditedStrings: [String] = [inviteHint, copyCode, copied, share]
+}

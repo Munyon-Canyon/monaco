@@ -131,13 +131,12 @@ private struct StocksAssetRow: View {
             wide
             stacked
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter).padding(.vertical, MonacoTheme.Space.s).frame(
+        .padding(.horizontal, StockListRow.horizontalPadding).padding(.vertical, MonacoTheme.Space.s).frame(
             minHeight: MonacoRowLayout.minHeight
         )
         .overlay(alignment: .bottom) {
             if !isLast {
-                MonacoRule().padding(
-                    .leading, MonacoTheme.Space.m + StockListRow.markSize + MonacoTheme.Space.sm)
+                MonacoRule().padding(.leading, StockListRow.textLeading)
             }
         }
         .contentShape(Rectangle())
@@ -145,7 +144,7 @@ private struct StocksAssetRow: View {
     }
 
     private var wide: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
+        HStack(spacing: StockListRow.markGap) {
             mark
             names
             Spacer(minLength: MonacoTheme.Space.s)
@@ -155,7 +154,7 @@ private struct StocksAssetRow: View {
 
     private var stacked: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            HStack(spacing: MonacoTheme.Space.sm) {
+            HStack(spacing: StockListRow.markGap) {
                 mark
                 names
             }

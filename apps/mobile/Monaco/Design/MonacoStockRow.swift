@@ -140,6 +140,12 @@ enum StockListRow {
     /// slice ("your slice $77.38"), and a list that truncates a member's money to fit a
     /// row is the wrong way round — the row grows by a line instead.
     static let subtitleLineLimit = 2
+
+    static let horizontalPadding = MonacoTheme.Space.gutter
+
+    static let markGap = MonacoTheme.Space.sm
+
+    static let textLeading = horizontalPadding + markSize + markGap
 }
 
 struct StockRowSkeleton: View {
@@ -150,7 +156,7 @@ struct StockRowSkeleton: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0..<rows, id: \.self) { index in
-                HStack(spacing: MonacoTheme.Space.sm) {
+                HStack(spacing: StockListRow.markGap) {
                     SkeletonBlock(
                         width: StockListRow.markSize, height: StockListRow.markSize,
                         radius: StockListRow.markSize / 2)
@@ -164,7 +170,7 @@ struct StockRowSkeleton: View {
                         SkeletonBlock(width: 56, height: 22, radius: 11)
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, StockListRow.horizontalPadding)
                 .padding(.vertical, 8)
                 .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {
