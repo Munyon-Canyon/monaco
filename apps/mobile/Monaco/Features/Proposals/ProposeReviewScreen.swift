@@ -30,7 +30,7 @@ struct ProposeReviewScreen: View {
             } else if cabalFailed {
                 MonacoErrorRow(thing: "this cabal", identifier: "propose-review-error") { Task { await load() } }
             } else {
-                ProgressView()
+                ProposeReviewSkeleton()
             }
         }
         .monacoCanvas()
@@ -95,5 +95,28 @@ struct ProposeReviewScreen: View {
         } else if let message = model.errorMessage {
             toasts.current = MonacoToast(message: message)
         }
+    }
+}
+
+private struct ProposeReviewSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
+            SkeletonBlock(width: 200, height: 18)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+            MonacoGroupedList {
+                ForEach(0..<4, id: \.self) { index in
+                    HStack {
+                        SkeletonBlock(width: 96, height: 14)
+                        Spacer()
+                        SkeletonBlock(width: 72, height: 14)
+                    }
+                    .padding(MonacoTheme.Space.m)
+                    .overlay(alignment: .bottom) { if index < 3 { MonacoRule() } }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, MonacoTheme.Space.m)
+        .accessibilityHidden(true)
     }
 }

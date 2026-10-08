@@ -49,7 +49,7 @@ struct CabalHoldingsSection: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            BoardRowSkeleton(rows: 3)
+            StockRowSkeleton(rows: 3)
                 .accessibilityElement()
                 .accessibilityLabel("Loading holdings")
                 .accessibilityIdentifier("cabal-holdings-loading")

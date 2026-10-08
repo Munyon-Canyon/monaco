@@ -20,7 +20,7 @@ struct ProposeFromAssetScreen: View {
     var body: some View {
         Group {
             switch model?.state ?? .loading {
-            case .idle, .loading: ProgressView()
+            case .idle, .loading: MonacoRowSkeleton(rows: 3, markShape: .tile, hasTrailing: false)
             case .failed:
                 MonacoErrorRow(thing: "cabals", identifier: "propose-from-asset-error") { Task { await model?.load() } }
             case .loaded(let cabals):

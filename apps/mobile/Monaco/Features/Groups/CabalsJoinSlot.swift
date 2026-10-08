@@ -98,7 +98,7 @@ private struct CabalsSearchContent: View {
         case .idle:
             EmptyView()
         case .loading:
-            BoardRowSkeleton()
+            MonacoRowSkeleton(markShape: .tile)
                 .accessibilityIdentifier("cabals-search-loading")
         case .empty(let query):
             EmptyState(title: "No cabal called \u{201C}\(query)\u{201D}")

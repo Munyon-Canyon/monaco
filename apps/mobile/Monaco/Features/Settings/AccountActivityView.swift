@@ -57,7 +57,7 @@ struct AccountActivityList: View {
     @ViewBuilder private var content: some View {
         switch model?.phase ?? .loading {
         case .loading:
-            BoardRowSkeleton(rows: 6)
+            MonacoRowSkeleton(rows: 6, markShape: .tile)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading activity")
         case .empty:
@@ -95,7 +95,7 @@ struct AccountActivityList: View {
                 }
             }
             if loadingMore {
-                BoardRowSkeleton(rows: 1)
+                MonacoRowSkeleton(rows: 1, markShape: .tile)
             }
         }
     }

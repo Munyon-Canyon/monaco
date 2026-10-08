@@ -57,7 +57,7 @@ struct PlatformBalanceCard: View {
 
     var body: some View {
         if display == .loading {
-            BoardRowSkeleton(rows: 1)
+            MonacoRowSkeleton(rows: 1, markShape: .circle)
                 .accessibilityElement()
                 .accessibilityLabel("Loading your account balance")
                 .accessibilityIdentifier("platform-balance-loading")

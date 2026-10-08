@@ -87,7 +87,7 @@ struct DeleteAccountContent: View {
     @ViewBuilder private var checklist: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            BoardRowSkeleton(rows: 2)
+            MonacoRowSkeleton(rows: 2, markShape: .tile)
                 .accessibilityIdentifier("delete-account-loading")
         case .failed:
             EmptyState(title: AccountCopy.loadFailed, actionTitle: AccountCopy.tryAgain) {

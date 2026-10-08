@@ -71,7 +71,7 @@ struct CabalRulesView: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            BoardRowSkeleton(rows: 4)
+            MonacoRowSkeleton(rows: 4, markShape: .none)
                 .accessibilityElement()
                 .accessibilityLabel(CabalRulesSlotCopy.loading)
                 .accessibilityIdentifier("cabal-rules-loading")

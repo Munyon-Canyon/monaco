@@ -10,7 +10,7 @@ struct PeopleSearchResults: View {
     var body: some View {
         switch model.state {
         case .idle, .loading:
-            BoardRowSkeleton()
+            MonacoRowSkeleton(markShape: .circle)
                 .accessibilityIdentifier("friends-search-loading")
         case .loaded(let users) where users.isEmpty:
             EmptyState(title: "No one called \u{201C}\(model.query)\u{201D}")

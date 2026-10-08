@@ -118,9 +118,7 @@ private struct InviteMemberContent: View {
     private var pending: some View {
         switch model.state {
         case .idle, .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, MonacoTheme.Space.l)
+            MonacoRowSkeleton(rows: 2, markShape: .circle, hasTrailing: false)
         case .failed:
             MonacoErrorRow(thing: "pending invites", identifier: "invite-member-pending-failed") {
                 Task { await model.load() }

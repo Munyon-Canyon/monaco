@@ -48,7 +48,7 @@ private struct UserProfileSharedCabals: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            BoardRowSkeleton(rows: 2)
+            MonacoRowSkeleton(rows: 2, markShape: .tile)
                 .accessibilityElement()
                 .accessibilityLabel("Loading shared cabals")
                 .accessibilityIdentifier("user-profile-shared-loading")

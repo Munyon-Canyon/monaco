@@ -78,7 +78,7 @@ private struct FeedItemDetailContent: View {
                 Task { await model.load() }
             }
         } else {
-            BoardRowSkeleton(rows: 1)
+            MonacoRowSkeleton(rows: 1, markShape: .circle)
         }
     }
 }

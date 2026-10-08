@@ -80,8 +80,7 @@ private struct PhoneStepForm: View {
     }
 
     private var confirmingBody: some View {
-        ProgressView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PhoneConfirmingSkeleton(subtext: subtext)
             .monacoCanvas()
             .accessibilityIdentifier("onboarding-phone-confirming")
             .task { handle(await model.confirmSignInPhone()) }
@@ -335,5 +334,26 @@ struct LinkTextActionStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(isEnabled ? MonacoTheme.brand : MonacoTheme.muted)
             .opacity(configuration.isPressed ? 0.6 : 1)
+    }
+}
+
+private struct PhoneConfirmingSkeleton<Subtext: View>: View {
+    let subtext: Subtext
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                Text(LinkCopy.phoneTitle)
+                    .font(MonacoTheme.Typo.title)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                subtext
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoTheme.Radius.field)
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .skeleton(true)
     }
 }

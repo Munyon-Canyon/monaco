@@ -30,7 +30,7 @@ struct ChatSeenSheet: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            BoardRowSkeleton(rows: 3)
+            MonacoRowSkeleton(rows: 3, markShape: .circle)
                 .accessibilityHidden(true)
                 .accessibilityIdentifier("chat-seen-loading")
         case .failed:

@@ -106,17 +106,8 @@ private struct MyCabalsContent: View {
     private var placeholders: some View {
         HStack(spacing: MonacoTheme.Space.s) {
             ForEach(0..<2, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    SkeletonBlock(width: 36, height: 36, radius: MonacoTheme.Radius.card)
-                    SkeletonBlock(width: 104, height: 14)
-                    Spacer(minLength: 0)
-                }
-                .padding(MonacoTheme.Space.m)
-                .frame(width: Self.cardSize.width, height: Self.cardSize.height, alignment: .topLeading)
-                .background(
-                    MonacoTheme.surface,
-                    in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                )
+                SkeletonBlock(
+                    width: Self.cardSize.width, height: Self.cardSize.height, radius: MonacoTheme.Radius.card)
             }
             Spacer(minLength: 0)
         }

@@ -113,7 +113,7 @@ private struct FeedScreen: View {
     @ViewBuilder private var content: some View {
         switch model.phase {
         case .loading:
-            BoardRowSkeleton(rows: 5)
+            MonacoRowSkeleton(rows: 5, markShape: .circle)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Loading the feed")
                 .accessibilityIdentifier("feed-loading")
@@ -161,7 +161,7 @@ private struct FeedScreen: View {
                         }
                 }
                 if model.isLoadingMore {
-                    BoardRowSkeleton(rows: 1)
+                    MonacoRowSkeleton(rows: 1, markShape: .circle)
                 }
             }
         }

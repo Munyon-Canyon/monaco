@@ -64,7 +64,8 @@ struct CabalTreasuryView: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            BoardRowSkeleton(rows: 1)
+            SkeletonBlock(height: 140, radius: MonacoTheme.Radius.card)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityElement()
                 .accessibilityLabel(CabalTreasurySlotCopy.loading)
                 .accessibilityIdentifier("cabal-treasury-loading")

@@ -59,7 +59,7 @@ struct FriendsOnMonacoView: View {
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                BoardRowSkeleton()
+                MonacoRowSkeleton(markShape: .circle)
             }
             .accessibilityIdentifier("friends-checking")
         case .failed:

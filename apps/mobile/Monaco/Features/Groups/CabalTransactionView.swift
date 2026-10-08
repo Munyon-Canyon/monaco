@@ -41,7 +41,7 @@ struct CabalTransactionView: View {
                     SkeletonBlock(width: 140, height: 36)
                 }
                 .padding(.horizontal, MonacoTheme.Space.m)
-                BoardRowSkeleton(rows: 4)
+                MonacoRowSkeleton(rows: 4, markShape: .tile)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Loading this transaction")
