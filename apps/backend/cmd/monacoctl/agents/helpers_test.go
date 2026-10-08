@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -180,7 +181,7 @@ func snapshotRepo(steps ...[]string) (repoSnapshot, error) {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	for _, step := range append([][]string{{"init", "-q", "--template=", "-b", "main"}}, steps...) {
-		if _, err := Exec(context.Background(), dir, "", "git", gitArgs(step...)...); err != nil {
+		if _, err := harnessGit(context.Background(), dir, "", gitArgs(step...)...); err != nil {
 			return snap, err
 		}
 	}
@@ -339,4 +340,26 @@ func (f *fixture) batch(t *testing.T, tickets ...int) {
 	if err := f.Env(t).saveBatch(b); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func harnessGit(parent context.Context, dir, stdin string, args ...string) ([]byte, error) {
+	return harnessRun(parent, "git", dir, stdin, args...)
+}
+
+func harnessRun(parent context.Context, bin, dir, stdin string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Dir = dir
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return stdout.Bytes(), fmt.Errorf(
+			"%s %s: %w: %s", filepath.Base(bin), strings.Join(args, " "), err, strings.TrimSpace(stderr.String()),
+		)
+	}
+	return stdout.Bytes(), nil
 }

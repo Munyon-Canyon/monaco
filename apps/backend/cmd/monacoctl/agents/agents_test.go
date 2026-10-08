@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +44,7 @@ func TestMain_badArgumentsExitTwoWithTheCommandUsage(t *testing.T) {
 func TestFixture_seedsTheRepositoryLookupGitPrints(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	want, err := Exec(context.Background(), f.dir, "", "git", strings.Fields(repoLookup)...)
+	want, err := harnessGit(context.Background(), f.dir, "", strings.Fields(repoLookup)...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,5 +479,23 @@ func TestGHTimeout_defaultsToOneMinuteWithoutAValidOverride(t *testing.T) {
 	t.Setenv("MONACO_GH_TIMEOUT", "")
 	if d := ghTimeout(); d != time.Minute {
 		t.Fatalf("ghTimeout() = %s, want 1m", d)
+	}
+}
+
+func TestHarnessGit_waitsOutAGitSlowerThanTheExecWaitDelay(t *testing.T) {
+	t.Parallel()
+	sleep := execWaitDelay() + 2*time.Second
+	script := fmt.Sprintf("sleep %.0f; echo done", sleep.Seconds())
+	out, err := harnessRun(context.Background(), "sh", t.TempDir(), "", "-c", script)
+	if err != nil || strings.TrimSpace(string(out)) != "done" {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+}
+
+func TestHarnessGit_errorIncludesStderr(t *testing.T) {
+	t.Parallel()
+	_, err := harnessGit(context.Background(), "", "", "no-such-command")
+	if err == nil || !strings.Contains(err.Error(), "is not a git command") {
+		t.Fatalf("err=%v", err)
 	}
 }

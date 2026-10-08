@@ -927,11 +927,11 @@ func atMergeBase(next Runner, hook func(context.Context) error) Runner {
 
 func patchID(t *testing.T, dir, base, head string, width int) string {
 	t.Helper()
-	diff, err := Exec(t.Context(), dir, "", "git", "diff", fmt.Sprintf("-U%d", width), base, head)
+	diff, err := harnessGit(context.Background(), dir, "", "diff", fmt.Sprintf("-U%d", width), base, head)
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := Exec(t.Context(), dir, string(diff), "git", "patch-id", "--stable")
+	out, err := harnessGit(context.Background(), dir, string(diff), "patch-id", "--stable")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -940,7 +940,7 @@ func patchID(t *testing.T, dir, base, head string, width int) string {
 
 func noVerdictRefs(t *testing.T, dir string) {
 	t.Helper()
-	out, err := Exec(t.Context(), dir, "", "git", "for-each-ref", "--format=%(refname)", "refs/monaco/verdict/")
+	out, err := harnessGit(context.Background(), dir, "", "for-each-ref", "--format=%(refname)", "refs/monaco/verdict/")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -964,7 +964,7 @@ func commits(t *testing.T, dir string) (base, same, retarget string) {
 	writeFile(t, filepath.Join(dir, "a.go"), "package a\n")
 	git(t, dir, "add", "a.go")
 	git(t, dir, "commit", "-q", "-m", "retarget")
-	out, err := Exec(context.Background(), dir, "", "git", "rev-parse", "HEAD")
+	out, err := harnessGit(context.Background(), dir, "", "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -978,7 +978,7 @@ func commitFile(t *testing.T, dir, name, body string) string {
 	writeFile(t, filepath.Join(dir, name), body)
 	git(t, dir, "add", name)
 	git(t, dir, "commit", "-q", "-m", name)
-	cmdOut, err := Exec(context.Background(), dir, "", "git", "rev-parse", "HEAD")
+	cmdOut, err := harnessGit(context.Background(), dir, "", "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}

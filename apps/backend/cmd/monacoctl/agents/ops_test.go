@@ -183,9 +183,9 @@ func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
 				return nil, fetchErr
 			}
 			if target == "" {
-				return Exec(ctx, f.dir, "", "git", "update-ref", "-d", "refs/remotes/origin/fb")
+				return harnessGit(ctx, f.dir, "", "update-ref", "-d", "refs/remotes/origin/fb")
 			}
-			return Exec(ctx, f.dir, "", "git", "update-ref", "refs/remotes/origin/fb", target)
+			return harnessGit(ctx, f.dir, "", "update-ref", "refs/remotes/origin/fb", target)
 		}
 		return f.run(ctx, dir, stdin, name, args...)
 	}
@@ -208,7 +208,7 @@ func TestDispatch_startsFromOriginWhenTheLocalBranchIsBehind(t *testing.T) {
 	if err != nil || rec.Base != ahead || rec.Base == stale {
 		t.Fatalf("rec=%+v err=%v", rec, err)
 	}
-	out, err := Exec(context.Background(), rec.Worktree, "", "git", "rev-parse", "HEAD")
+	out, err := harnessGit(context.Background(), rec.Worktree, "", "rev-parse", "HEAD")
 	if err != nil || strings.TrimSpace(string(out)) != ahead {
 		t.Fatalf("worktree head %q err=%v", out, err)
 	}
@@ -449,7 +449,7 @@ func prepBranch(t *testing.T) *fixture {
 
 func (f *fixture) head(t *testing.T) string {
 	t.Helper()
-	out, err := Exec(context.Background(), f.dir, "", "git", "rev-parse", "HEAD")
+	out, err := harnessGit(context.Background(), f.dir, "", "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}

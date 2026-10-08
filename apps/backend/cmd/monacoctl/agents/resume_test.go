@@ -279,7 +279,7 @@ func commitFixture(t *testing.T, f *fixture) string {
 
 func gitOut(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	out, err := Exec(t.Context(), dir, "", "git", args...)
+	out, err := harnessGit(context.Background(), dir, "", args...)
 	if err != nil {
 		t.Fatal(err)
 	}
