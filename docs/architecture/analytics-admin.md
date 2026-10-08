@@ -32,7 +32,7 @@ The RFC already alerts on `poller_errors_total{poller,code}`, the dead-letter co
 | `monaco_db_pool_in_use`, `monaco_db_pool_wait_seconds` | | Pool exhaustion shows up here before it shows up as latency. |
 | `monaco_open_proposals` | | Gauge on the backlog scrape. |
 | `monaco_events_unpublished`, `monaco_bus_consumer_pending`, `monaco_bus_consumer_ack_pending`, `monaco_dead_letters` | `consumer` | Relay lag and per-consumer backlog on the event bus. Full list in [event-bus.md](event-bus.md#metrics). Synadia account usage comes from the worker's `js.AccountInfo` gauges ([NATS hosting and budget](backend-platform.md#nats-hosting-and-budget)). |
-| `monaco_paused_cabals` | `reason` | External-deposit pauses and ops pauses, read from `funding`'s pause records. |
+| `monaco_paused_cabals` | `reason` | Cabals paused per reason, read from `funding`'s pause records: `external_deposit` and `ops` count cabals, and a global ops pause counts once as `ops_global`. A reason with nothing paused reports 0. |
 
 ## Business metrics
 
@@ -152,7 +152,7 @@ The `admin` module lands in [Rollout](backend-platform.md#rollout) step 6. The t
 
 - Dashboards: the business metrics above.
 - Lookups: user (profile, `auth_state` history, cabals, balances, recent actions), cabal (members, pot, holdings, proposals, pause state, external deposits), proposal (votes, comments, linked transaction), transaction (signature, explorer link, status history).
-- Queues: external deposits pending bounce, stuck transactions, unpublished `events` rows older than 30 s, and dead letters (flow 27). `bus.Dispatch` writes a termed message and its error `code` to the `DEADLETTER` stream, and the `admin` module records each one in its `dead_letters` table with a resolve state (default 2026-09-27), so the queue outlives the stream's 30-day `MaxAge` ([NATS hosting and budget](backend-platform.md#nats-hosting-and-budget)). The redrive button runs the same path as `monacoctl deadletter retry`, back through `bus.Dispatch`, so `event_deliveries` still dedupes, and marks the row resolved when the redriven message is acked.
+- Queues: external deposits pending bounce (`GET /v1/admin/queues/bounces`, open `external_deposit` pauses oldest first, each row linking to the cabal lookup), stuck transactions, unpublished `events` rows older than 30 s, and dead letters (flow 27). `bus.Dispatch` writes a termed message and its error `code` to the `DEADLETTER` stream, and the `admin` module records each one in its `dead_letters` table with a resolve state (default 2026-09-27), so the queue outlives the stream's 30-day `MaxAge` ([NATS hosting and budget](backend-platform.md#nats-hosting-and-budget)). The redrive button runs the same path as `monacoctl deadletter retry`, back through `bus.Dispatch`, so `event_deliveries` still dedupes, and marks the row resolved when the redriven message is acked.
 - User-facing reporting of messages, comments, users and cabals is `POST /v1/reports` and the moderation queue is `GET /v1/admin/reports` ([followers.md](followers.md#blocks-and-reports)); resolving a report waits for the admin panel (#708).
 
 ### Build

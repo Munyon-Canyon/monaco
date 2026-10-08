@@ -100,6 +100,14 @@ func cabalBody(v app.CabalView) api.AdminCabal {
 		holdings[i] = api.AdminHolding{Mint: h.Mint, Symbol: optionalString(h.Symbol), Units: h.Units.String()}
 	}
 	pot, nav, valuedAt := valuation(v.Value)
+	pauses := make([]api.AdminCabalPause, len(v.Pauses))
+	for i, p := range v.Pauses {
+		pauses[i] = api.AdminCabalPause{
+			Reason: api.AdminCabalPauseReason(p.Reason),
+			Scope:  api.AdminCabalPauseScope(p.Scope),
+			Since:  p.Since.UTC(),
+		}
+	}
 	return api.AdminCabal{
 		PotMicros:          pot,
 		NavPerShareMicros:  nav,
@@ -114,6 +122,7 @@ func cabalBody(v app.CabalView) api.AdminCabal {
 		Members:            members,
 		TreasuryAddress:    string(v.Treasury.Address),
 		Positions:          holdings,
+		Pauses:             pauses,
 		RecentTxns:         txnHeaders(v.Txns),
 		RecentAdminActions: actionRecords(v.Actions),
 	}

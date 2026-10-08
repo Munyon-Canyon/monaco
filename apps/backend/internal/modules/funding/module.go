@@ -139,6 +139,7 @@ func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	meter := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/funding")
 	reconcileFailed, _ := meter.Int64Counter("funding_reconcile_failed_total")
+	app.ObservePausedCabals(meter, m.Pauses())
 	withdrawals := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
 		Transfers: m.lazyTransfers(), Hints: m.deps.Bus, UnsentAge: cfg.Worker.WithdrawalUnsentAge,
@@ -219,6 +220,7 @@ type (
 	Balance         = port.Balance
 	Pauses          = port.Pauses
 	Pause           = port.Pause
+	OpenPause       = port.OpenPause
 	PausedSet       = port.PausedSet
 	PauseReason     = domain.PauseReason
 	SignatureOwner  = port.SignatureOwner

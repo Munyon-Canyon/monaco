@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
@@ -56,6 +57,7 @@ func (m *Module) cabalLookup() app.CabalLookup {
 		Assets: market.New(m.deps).
 			Catalog(),
 		Values:  ranking.QueriesOn(m.deps.Pool),
+		Pauses:  funding.New(m.deps).Pauses(),
 		Txns:    ledger,
 		Actions: adapters.ActionLog{DB: m.deps.Pool},
 	}

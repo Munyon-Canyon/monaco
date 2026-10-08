@@ -193,3 +193,43 @@ func TestAdminLookup_Cabal_ShowsTheLatestPotValueAndSharePrice(t *testing.T) {
 			got.PotMicros, got.NavPerShareMicros, got.ValuedAt, valued)
 	}
 }
+
+func TestAdminLookup_Cabal_ShowsTheOpenPausesGlobalFirst(t *testing.T) {
+	t.Parallel()
+	f := newLookupFixture(t)
+	c := f.seedCabal(t)
+	other := testkit.NewCabal(t, f.pool)
+	if got := f.cabal(t, c.ID.String()).Pauses; got == nil || len(got) != 0 {
+		t.Fatalf("pauses of a running cabal = %v, want an empty list", got)
+	}
+	at := f.clock.Now().Add(-time.Hour)
+	for i, row := range []struct {
+		cabal    any
+		reason   string
+		resolved *time.Time
+	}{
+		{c.ID.UUID(), "external_deposit", nil},
+		{c.ID.UUID(), "ops", nil},
+		{c.ID.UUID(), "ops", nil},
+		{c.ID.UUID(), "ops", &at},
+		{other.ID.UUID(), "external_deposit", nil},
+		{nil, "ops", nil},
+	} {
+		f.exec(t, `INSERT INTO cabal_pauses (id, cabal_id, reason, created_at, resolved_at)
+			VALUES ($1, $2, $3, $4, $5)`, f.ids.NewV7(), row.cabal, row.reason, at.Add(time.Duration(i)*time.Minute), row.resolved)
+	}
+	got := f.cabal(t, c.ID.String()).Pauses
+	want := []adminapi.AdminCabalPause{
+		{Reason: "ops", Scope: "global", Since: at.Add(5 * time.Minute)},
+		{Reason: "external_deposit", Scope: "cabal", Since: at},
+		{Reason: "ops", Scope: "cabal", Since: at.Add(time.Minute)},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("pauses = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i].Reason != want[i].Reason || got[i].Scope != want[i].Scope || !got[i].Since.Equal(want[i].Since) {
+			t.Fatalf("pauses[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}

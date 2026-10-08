@@ -292,6 +292,28 @@ paths:
           description: The pause state of the scope after the action.
           content: {application/json: {schema: {$ref: "#/components/schemas/PauseState"}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/queues/bounces:
+    get:
+      operationId: getBounceQueue
+      tags: [funding]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List cabals waiting for a bounce.
+      description: >-
+        Lists the open pauses with reason `external_deposit`, oldest first: a direct transfer into a cabal
+        treasury that has not been sent back yet. Each row names the paused cabal, which the cabal lookup
+        resolves. A resume never clears one of these pauses.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50 and cannot exceed 200.
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: The pending bounces, oldest first.
+          content: {application/json: {schema: {$ref: "#/components/schemas/BounceQueue"}}}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   parameters:
     OnrampSessionId:
@@ -304,6 +326,28 @@ components:
         format: uuid
         examples: [01890a5d-ac96-774b-bcce-b302099a8057]
   schemas:
+    PendingBounce:
+      type: object
+      description: One cabal paused for a direct transfer that has not been sent back.
+      examples:
+        - {cabal_id: 019cc330-2222-7000-8000-000000000001, since: "2026-10-07T12:00:00Z"}
+      additionalProperties: false
+      required: [cabal_id, since]
+      properties:
+        cabal_id: {type: string, format: uuid, description: The paused cabal., examples: [019cc330-2222-7000-8000-000000000001]}
+        since: {type: string, format: date-time, description: When the pause began., examples: ["2026-10-07T12:00:00Z"]}
+    BounceQueue:
+      type: object
+      description: The pending bounces, oldest first.
+      examples:
+        - items: []
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: The paused cabals.
+          items: {$ref: "#/components/schemas/PendingBounce"}
     PauseReason:
       type: string
       description: Why trading is paused. `ops` is an operator's pause, `external_deposit` is an unreturned direct transfer.

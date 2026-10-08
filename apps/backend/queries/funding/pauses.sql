@@ -43,3 +43,10 @@ SELECT id, coalesce(cabal_id, '00000000-0000-0000-0000-000000000000')::uuid AS c
 FROM cabal_pauses
 WHERE resolved_at IS NULL
 ORDER BY created_at, id;
+
+-- name: ListBouncePauses :many
+SELECT cabal_id::uuid AS cabal_id, created_at
+FROM cabal_pauses
+WHERE resolved_at IS NULL AND reason = 'external_deposit' AND cabal_id IS NOT NULL
+ORDER BY created_at, id
+LIMIT sqlc.arg(row_limit)::bigint;
