@@ -138,13 +138,22 @@ func startProcess(ctx context.Context, name, bin string, env []string, logs *Log
 		p.err = p.cmd.Wait()
 		close(p.exited)
 	}()
+	return p, p.awaitListening(ctx)
+}
+
+func (p *process) awaitListening(ctx context.Context) error {
 	select {
 	case p.addr = <-p.listening:
-		return p, nil
+		return nil
 	case <-p.exited:
-		return p, fmt.Errorf("%s exited before boot.listening: %w\n%s", name, p.err, logs.tail(name, 20))
+		select {
+		case p.addr = <-p.listening:
+			return nil
+		default:
+		}
+		return fmt.Errorf("%s exited before boot.listening: %w\n%s", p.name, p.err, p.logs.tail(p.name, 20))
 	case <-ctx.Done():
-		return p, fmt.Errorf("%s never logged boot.listening: %w", name, context.Cause(ctx))
+		return fmt.Errorf("%s never logged boot.listening: %w", p.name, context.Cause(ctx))
 	}
 }
 

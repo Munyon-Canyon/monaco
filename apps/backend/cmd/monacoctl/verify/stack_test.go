@@ -362,6 +362,31 @@ func TestStop_namesThePanicOfACrashedChildEvenWhenStdoutLoggedAfterIt(t *testing
 	}
 }
 
+func TestStartProcess_takesBootListeningFromAChildThatExitsRightAfterLoggingIt(t *testing.T) {
+	t.Parallel()
+	bin := writeScript(t, procWorker, `echo '{"msg":"boot.listening","addr":"127.0.0.1:1"}'; exit 4`)
+	p, err := startProcess(t.Context(), procWorker, bin, []string{"PATH=" + os.Getenv("PATH")}, &Logs{})
+	if err != nil {
+		t.Fatalf("startProcess: %v", err)
+	}
+	<-p.exited
+	if p.addr != "127.0.0.1:1" || p.err == nil {
+		t.Fatalf("addr = %q, err = %v, want 127.0.0.1:1 and the exit status", p.addr, p.err)
+	}
+}
+
+func TestAwaitListening_takesTheAddressWhenExitedIsReadyToo(t *testing.T) {
+	t.Parallel()
+	for range 200 {
+		p := &process{name: procWorker, logs: &Logs{}, listening: make(chan string, 1), exited: make(chan struct{})}
+		p.listening <- "127.0.0.1:1"
+		close(p.exited)
+		if err := p.awaitListening(t.Context()); err != nil || p.addr != "127.0.0.1:1" {
+			t.Fatalf("awaitListening = %v, addr %q, want nil and 127.0.0.1:1", err, p.addr)
+		}
+	}
+}
+
 func TestHealthz_answersZeroWhenNothingAnswers(t *testing.T) {
 	t.Parallel()
 	for _, base := range []string{"http://127.0.0.1:1", "http://bad\x7fhost"} {
