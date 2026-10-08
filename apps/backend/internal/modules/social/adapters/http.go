@@ -19,6 +19,8 @@ import (
 type HTTP struct {
 	Follow        *app.FollowHandler
 	Unfollow      *app.UnfollowHandler
+	Block         *app.BlockUserHandler
+	Unblock       *app.UnblockUserHandler
 	Mute          *app.MuteHandler
 	Unmute        *app.UnmuteHandler
 	PostChat      *app.PostChatMessageHandler

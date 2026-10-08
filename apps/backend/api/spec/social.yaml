@@ -716,6 +716,40 @@ paths:
                 $ref: "#/components/schemas/RealtimeTokenRequest"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/users/{id}/block:
+    post:
+      operationId: postUserBlock
+      tags: [social]
+      x-idempotent: true
+      summary: Block a user.
+      description: >-
+        Blocks the user as the caller. It ends any follow between the two in both directions, appending
+        `follow.removed` for each, then appends `block.created`. The blocker no longer sees the blocked
+        user's chat messages or comments, and neither can follow the other. Blocking someone the caller
+        already blocks changes nothing and answers the same. Blocking yourself is cannot_block_self and an
+        unknown or deleted user is user_not_found. A banned or suspended user can be blocked.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204": {description: The caller blocks the user.}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteUserBlock
+      tags: [social]
+      x-idempotent: true
+      summary: Unblock a user.
+      description: >-
+        Removes the caller's block of the user and appends `block.removed`. Unblocking a user the caller
+        does not block changes nothing and answers the same. No follow is restored.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204": {description: The caller does not block the user.}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     ChatCabalId:
