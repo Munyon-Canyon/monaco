@@ -221,6 +221,9 @@ public final class ProposalDetailModel {
 @Observable
 @MainActor
 public final class PendingVotesModel {
+    public enum Phase: Equatable, Sendable { case loading, loaded, failed }
+
+    public private(set) var phase: Phase = .loading
     public private(set) var votes: [PendingVote] = []
     public private(set) var details: [String: ProposalDetail] = [:]
     public private(set) var pausedCabals: Set<String> = []
@@ -252,7 +255,10 @@ public final class PendingVotesModel {
             votes = kept + pending
             details = fetched.filter { entry in votes.contains { $0.id == entry.key } }
             pausedCabals = await pausedAmong(Set(votes.map(\.cabalID)))
-        } catch {}
+            phase = .loaded
+        } catch {
+            if phase != .loaded { phase = .failed }
+        }
     }
 
     private func details(for votes: [PendingVote]) async -> [String: ProposalDetail] {

@@ -120,7 +120,7 @@ struct ProposalCard: View {
             ) {
                 Text(label)
                     .font(MonacoTheme.Typo.micro)
-                    .foregroundStyle(summary.status == .passed ? MonacoTheme.ink : MonacoTheme.muted)
+                    .foregroundStyle(Self.chipColor(label))
                     .padding(.horizontal, MonacoTheme.Space.sm)
                     .padding(.vertical, MonacoTheme.Space.xs)
                     .background(Capsule().fill(MonacoTheme.surfaceSunken))
@@ -189,7 +189,17 @@ struct ProposalCard: View {
                         changing = false
                     }.buttonStyle(.monacoSecondary)
                 }
+                .monacoFullWidthButtons()
             }
+        }
+    }
+
+    private static func chipColor(_ label: String) -> Color {
+        switch label {
+        case "Buying", "Selling": MonacoTheme.warning
+        case "Couldn't buy", "Couldn't sell": MonacoTheme.loss
+        case "Bought", "Sold": MonacoTheme.ink
+        default: MonacoTheme.muted
         }
     }
 
