@@ -6,17 +6,22 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/coingecko"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
-const backfillPricesUsage = "usage: monacoctl backfill prices (--mint <mint> | --all)"
+const backfillPricesUsage = `usage: monacoctl backfill prices (--mint <mint> | --all)
+  --all backfills the hot listed mints: Popular, held by a cabal, or named by an open proposal`
 
 type priceHistory func(config.Config) app.PriceHistory
 
@@ -52,7 +57,13 @@ func backfillPrices(environ []string, history priceHistory, args []string, stdou
 		return fail(stderr, err)
 	}
 	defer closePools(pools)
-	backfill := app.NewBackfill(db.New(pools[0], ids.Real{}, clock.Real{}), pools[0], clock.Real{}, source)
+	d := module.Deps{
+		Config: cfg, Pool: pools[0], Clock: clock.Real{}, IDs: ids.Real{},
+		UoW: db.New(pools[0], ids.Real{}, clock.Real{}),
+	}
+	m := market.New(d)
+	module.NewSet(m, treasury.New(d), governance.New(d))
+	backfill := m.Backfill(source)
 	var res app.BackfillResult
 	if *all {
 		res, err = backfill.RunAll(ctx)

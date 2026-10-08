@@ -114,9 +114,6 @@ func (p *CatalogPoller) apply(ctx context.Context, c issuerCatalog) (int, error)
 		delisted, err := q.DelistMissingAssets(ctx,
 			sqlc.DelistMissingAssetsParams{Now: now, Issuer: rows.Issuer, Listed: rows.Mints})
 		changed = upserted + delisted
-		if err == nil {
-			_, err = q.InsertPendingBackfills(ctx, sqlc.InsertPendingBackfillsParams{Mints: rows.Mints, Now: now})
-		}
 		return err
 	})
 	if err != nil {

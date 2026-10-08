@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -25,6 +27,7 @@ import (
 
 type backfillRig struct {
 	pool    *pgxpool.Pool
+	uow     *db.UnitOfWork
 	clock   *testkit.Clock
 	history *marketfake.PriceHistoryFake
 	logs    *testkit.Logs
@@ -37,12 +40,48 @@ func newBackfillRig(t *testing.T) *backfillRig {
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))
 	history := &marketfake.PriceHistoryFake{}
-	ids := testkit.NewIDs(3)
+	uow := db.New(pool, testkit.NewIDs(3), clk)
 	return &backfillRig{
-		pool: pool, clock: clk, history: history, logs: &testkit.Logs{},
-		poller: app.NewBackfill(db.New(pool, ids, clk), pool, clk, history),
+		pool: pool, uow: uow, clock: clk, history: history, logs: &testkit.Logs{},
+		poller: app.NewBackfill(uow, pool, clk, history),
 		day:    clk.Now().Truncate(24 * time.Hour).Add(-72 * time.Hour),
 	}
+}
+
+func (r *backfillRig) withHot(readers ...app.HotMints) {
+	r.poller = app.NewBackfill(r.uow, r.pool, r.clock, r.history, readers...)
+}
+
+func hotList(mints *[]market.Mint) app.HotMints {
+	return func(context.Context) ([]chain.SolanaAddress, error) {
+		out := make([]chain.SolanaAddress, len(*mints))
+		for i, m := range *mints {
+			out[i] = m.Address()
+		}
+		return out, nil
+	}
+}
+
+func queued(t *testing.T, pool *pgxpool.Pool) []string {
+	t.Helper()
+	rows, err := pool.Query(t.Context(), `SELECT mint FROM price_backfills ORDER BY mint`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func mintStrings(mints ...market.Mint) []string {
+	out := make([]string, len(mints))
+	for i, m := range mints {
+		out[i] = m.String()
+	}
+	slices.Sort(out)
+	return out
 }
 
 func (r *backfillRig) ctx(t *testing.T) context.Context {
@@ -412,7 +451,7 @@ func TestBackfill_isNamedAndRunsEveryFiveMinutes(t *testing.T) {
 	}
 }
 
-func TestBackfill_AMintAddedByTheCatalogPollerIsBackfilledOnTheNextTick(t *testing.T) {
+func TestBackfill_APopularMintAddedByTheCatalogPollerIsBackfilledOnTheNextTick(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
 	p := &provider{issuer: domain.IssuerXStocks}
@@ -427,7 +466,7 @@ func TestBackfill_AMintAddedByTheCatalogPollerIsBackfilledOnTheNextTick(t *testi
 	history.Put(aapl.Mint, 365, sample(rig.clock.Now().Truncate(24*time.Hour).Add(-48*time.Hour), 120_000_000))
 	report, err := backfill.Tick(rig.ctx(t))
 	if err != nil || report.Scanned != 1 || report.Changed != 1 || len(history.Calls()) != 3 {
-		t.Fatalf("backfill tick = %+v, %v with %d calls, want the new mint backfilled with 3 calls",
+		t.Fatalf("backfill tick = %+v, %v with %d calls, want the new popular mint backfilled with 3 calls",
 			report, err, len(history.Calls()))
 	}
 	if _, err := rig.poller.Tick(rig.ctx(t)); err != nil {
@@ -463,21 +502,24 @@ func TestBackfill_runRequeuesDoneMintsAndDrainsThem(t *testing.T) {
 	}
 }
 
-func TestBackfill_runAllTakesEveryListedMint(t *testing.T) {
+func TestBackfill_runAllTakesOnlyHotListedMints(t *testing.T) {
 	t.Parallel()
-	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
-	jpst.IssuerTradable = false
+	aapl, tsla, jpst, spacex := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx(), marketfake.SPACEX()
+	tsla.IssuerTradable = false
 	r := newBackfillRig(t)
-	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla, jpst)
+	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla, jpst, spacex)
 	r.putChart(aapl.Mint)
 	res, err := r.poller.RunAll(r.ctx(t))
-	if err != nil || res != (app.BackfillResult{Mints: 2, Calls: 6, Rows: 4}) {
-		t.Fatalf("RunAll = %+v, %v, want 2 listed mints, 6 calls and 4 rows", res, err)
+	if err != nil || res != (app.BackfillResult{Mints: 1, Calls: 3, Rows: 4}) {
+		t.Fatalf("RunAll = %+v, %v, want only the popular listed mint, 3 calls and 4 rows", res, err)
 	}
 	for _, c := range r.history.Calls() {
-		if c.Mint == jpst.Mint {
-			t.Fatalf("calls = %v, want none for the unlisted mint", r.history.Calls())
+		if c.Mint != aapl.Mint {
+			t.Fatalf("calls = %v, want none for the unlisted or the cold listed mints", r.history.Calls())
 		}
+	}
+	if got, want := queued(t, r.pool), mintStrings(aapl.Mint); !slices.Equal(got, want) {
+		t.Fatalf("price_backfills = %v, want only %v", got, want)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -589,34 +631,112 @@ func TestBackfill_popularMintsGoBeforeOthers(t *testing.T) {
 	}
 }
 
-func TestBackfill_theCatalogPollerQueuesOnlyListedMints(t *testing.T) {
+func TestBackfill_theCatalogPollerQueuesNothingAndTheTickQueuesOnlyHotListedMints(t *testing.T) {
 	t.Parallel()
-	aapl := marketfake.AAPLx()
-	tsla := marketfake.TSLAx()
-	tsla.IssuerTradable = false
+	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
+	tsla.IssuerTradable, jpst.IssuerTradable = false, true
 	p := &provider{issuer: domain.IssuerXStocks}
-	p.serve(nil, listed(aapl), listed(tsla))
+	p.serve(nil, listed(aapl), listed(tsla), listed(jpst))
 	rig := newRig(t, p)
 	rig.tick(t)
 	rig.exec(t, `UPDATE assets SET chain_checked_at = now()`)
 	rig.tick(t)
-	var queued []string
-	rows, err := rig.pool.Query(t.Context(), `SELECT mint FROM price_backfills`)
-	if err != nil {
+	if got := queued(t, rig.pool); len(got) != 0 {
+		t.Fatalf("price_backfills after two catalog ticks = %v, want none", got)
+	}
+	history := &marketfake.PriceHistoryFake{}
+	backfill := app.NewBackfill(db.New(rig.pool, rig.ids, rig.clock), rig.pool, rig.clock, history)
+	if _, err := backfill.Tick(rig.ctx(t)); err != nil {
 		t.Fatal(err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var m string
-		if err := rows.Scan(&m); err != nil {
-			t.Fatal(err)
+	if got, want := queued(t, rig.pool), mintStrings(aapl.Mint); !slices.Equal(got, want) {
+		t.Fatalf("price_backfills = %v, want only the popular listed %v, not the unlisted popular or the cold listed",
+			got, want)
+	}
+}
+
+func TestBackfill_aTickQueuesPopularHeldAndProposedListedMints(t *testing.T) {
+	t.Parallel()
+	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
+	held, proposed := marketfake.TSpaceX(), marketfake.SPACEX()
+	tsla.PopularRank = 0
+	r := newBackfillRig(t)
+	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla, jpst, held, proposed)
+	heldMints := []market.Mint{held.Mint, jpst.Mint}
+	proposedMints := []market.Mint{proposed.Mint}
+	r.withHot(hotList(&heldMints), hotList(&proposedMints))
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	want := mintStrings(aapl.Mint, held.Mint, proposed.Mint)
+	if got := queued(t, r.pool); !slices.Equal(got, want) {
+		t.Fatalf("price_backfills = %v, want the popular, held and proposed listed mints %v", got, want)
+	}
+	for _, m := range []market.Mint{aapl.Mint, held.Mint, proposed.Mint} {
+		if done, code := r.status(t, m); !done || code != "" {
+			t.Fatalf("%v done = %v, last_code = %q, want drained in the tick that queued it", m, done, code)
 		}
-		queued = append(queued, m)
 	}
-	if err := rows.Err(); err != nil {
+	if got := len(r.history.Calls()); got != 9 {
+		t.Fatalf("%d calls, want 3 for each of the 3 hot listed mints", got)
+	}
+}
+
+func TestBackfill_aMintThatTurnsHotIsQueuedOnTheNextTick(t *testing.T) {
+	t.Parallel()
+	spacex := marketfake.SPACEX()
+	r := newBackfillRig(t)
+	seedAssets(t, r.pool, r.clock.Now(), spacex)
+	held := make([]market.Mint, 0, 1)
+	r.withHot(hotList(&held))
+	if _, err := r.tick(t); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(queued, []string{aapl.Mint.String()}) {
-		t.Fatalf("queued = %v, want only the listed, chain-checked mint", queued)
+	if got := queued(t, r.pool); len(got) != 0 {
+		t.Fatalf("price_backfills before the mint is held = %v, want none", got)
+	}
+	held = append(held, spacex.Mint)
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	if done, _ := r.status(t, spacex.Mint); !done || len(r.history.Calls()) != 3 {
+		t.Fatalf("done = %v with %d calls, want the newly held mint queued and drained", done, len(r.history.Calls()))
+	}
+}
+
+func TestBackfill_aTickThatCannotReadTheHotSetOrQueueFailsBeforeDraining(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r := newBackfillRig(t)
+	seedAssets(t, r.pool, r.clock.Now(), aapl)
+	r.withHot(func(context.Context) ([]chain.SolanaAddress, error) {
+		return nil, errs.New(errs.CodeUpstreamTimeout, "test")
+	})
+	if _, err := r.tick(t); errs.CodeOf(err) != errs.CodeUpstreamTimeout {
+		t.Fatalf("tick err = %v, want the hot reader's upstream_timeout", err)
+	}
+	ctx, cancel := context.WithCancel(r.ctx(t))
+	defer cancel()
+	r.withHot(func(context.Context) ([]chain.SolanaAddress, error) {
+		cancel()
+		return nil, nil
+	})
+	if _, err := r.poller.Tick(ctx); err == nil {
+		t.Fatal("tick whose queue write hit a cancelled context succeeded")
+	}
+	if got := queued(t, r.pool); len(got) != 0 || len(r.history.Calls()) != 0 {
+		t.Fatalf("price_backfills = %v with %d calls, want nothing queued or called", got, len(r.history.Calls()))
+	}
+	r.exec(t, `DELETE FROM assets`)
+	r.pend(t, aapl.Mint)
+	coldCtx, coldCancel := context.WithCancel(r.ctx(t))
+	defer coldCancel()
+	r.withHot(func(context.Context) ([]chain.SolanaAddress, error) {
+		coldCancel()
+		return nil, nil
+	})
+	if _, err := r.poller.Tick(coldCtx); err == nil || len(r.history.Calls()) != 0 {
+		t.Fatalf("tick whose pending read hit a cancelled context = %v with %d calls, want an error and no calls",
+			err, len(r.history.Calls()))
 	}
 }

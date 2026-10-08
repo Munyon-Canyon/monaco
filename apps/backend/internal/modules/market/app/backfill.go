@@ -36,12 +36,14 @@ func finestFirstWindows() []historyWindow {
 type Backfill struct {
 	uow     *db.UnitOfWork
 	reads   sqlc.DBTX
+	catalog *Catalog
 	clock   clock.Clock
 	history PriceHistory
+	hot     []HotMints
 }
 
-func NewBackfill(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, history PriceHistory) *Backfill {
-	return &Backfill{uow: uow, reads: reads, clock: c, history: history}
+func NewBackfill(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, history PriceHistory, hot ...HotMints) *Backfill {
+	return &Backfill{uow: uow, reads: reads, catalog: NewCatalog(reads), clock: c, history: history, hot: hot}
 }
 
 func (*Backfill) Name() string { return "market.backfill" }
@@ -56,6 +58,17 @@ func (b *Backfill) Tick(ctx context.Context) (poller.Report, error) {
 	if !b.history.Configured() {
 		observability.Degraded(ctx, observability.MarketBackfillSkippedNoKey)
 		return poller.Report{}, nil
+	}
+	hot, err := b.hotListed(ctx)
+	if err == nil && len(hot) > 0 {
+		err = b.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			_, err := sqlc.New(tx.Queries()).InsertPendingBackfills(ctx,
+				sqlc.InsertPendingBackfillsParams{Mints: hot, Now: b.clock.Now()})
+			return err
+		})
+	}
+	if err != nil {
+		return poller.Report{}, errs.Wrap(err, errs.CodeOf(err), "market.Backfill.Tick")
 	}
 	pending, err := sqlc.New(b.reads).PendingBackfills(ctx,
 		sqlc.PendingBackfillsParams{Now: b.clock.Now(), BatchLimit: backfillBatch})
@@ -82,15 +95,29 @@ func (b *Backfill) Run(ctx context.Context, mints []string) (BackfillResult, err
 }
 
 func (b *Backfill) RunAll(ctx context.Context) (BackfillResult, error) {
-	assets, err := NewCatalog(b.reads).ListPriceable(ctx)
+	mints, err := b.hotListed(ctx)
 	if err != nil {
 		return BackfillResult{}, err
 	}
-	mints := make([]string, len(assets))
-	for i, a := range assets {
-		mints[i] = a.Mint.String()
-	}
 	return b.Run(ctx, mints)
+}
+
+func (b *Backfill) hotListed(ctx context.Context) ([]string, error) {
+	all, err := b.catalog.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hot, err := hotSet(ctx, b.hot, all)
+	if err != nil {
+		return nil, err
+	}
+	var mints []string
+	for _, a := range all {
+		if hot[a.Mint.Address()] && a.Tradable() {
+			mints = append(mints, a.Mint.String())
+		}
+	}
+	return mints, nil
 }
 
 func (b *Backfill) Drain(ctx context.Context, mints []string) (BackfillResult, error) {

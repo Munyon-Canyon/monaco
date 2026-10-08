@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -48,17 +49,19 @@ func TestBackfillPrices_mintDrainsOneMintAndPrintsTheCounts(t *testing.T) {
 	}
 }
 
-func TestBackfillPrices_allDrainsEveryListedMint(t *testing.T) {
+func TestBackfillPrices_allDrainsOnlyHotListedMints(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	_, err := pool.Exec(t.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
-		issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at)
+		issuer_tradable, company_key, first_seen_at, updated_at, chain_checked_at, popular_rank)
 		VALUES ('01920000-0000-7000-8000-000000000001', 'AAPLx', 'XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp', 8,
-		'xstocks', 'equity', 'Apple xStock', true, 'apple', now(), now(), now()),
+		'xstocks', 'equity', 'Apple xStock', true, 'apple', now(), now(), now(), 1),
 		('01920000-0000-7000-8000-000000000002', 'TSLAx', 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB', 8,
-		'xstocks', 'equity', 'Tesla xStock', true, 'tesla', now(), now(), now()),
+		'xstocks', 'equity', 'Tesla xStock', true, 'tesla', now(), now(), now(), NULL),
 		('01920000-0000-7000-8000-000000000003', 'JPSTx', 'XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq', 8,
-		'xstocks', 'equity', 'JPMorgan xStock', false, 'jpm', now(), now(), now())`)
+		'xstocks', 'equity', 'JPMorgan xStock', true, 'jpm', now(), now(), now(), NULL);
+		INSERT INTO cabal_positions (cabal_id, asset, units, cost_basis_micros, updated_at)
+		VALUES ('01920000-0000-7000-8000-0000000000c1', 'XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq', 3, 0, now())`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,8 +70,15 @@ func TestBackfillPrices_allDrainsEveryListedMint(t *testing.T) {
 	if want := "backfill prices: 2 mints, 6 calls, 0 rows inserted\n"; code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("backfill prices --all = %d, stdout %q, stderr %q, want %q", code, stdout, stderr, want)
 	}
-	if got := len(history.Calls()); got != 6 {
-		t.Fatalf("%d calls, want 3 per listed mint, none for the unlisted one", got)
+	asked := map[string]int{}
+	for _, c := range history.Calls() {
+		asked[c.Mint.String()]++
+	}
+	want := map[string]int{
+		"XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp": 3, "XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq": 3,
+	}
+	if !maps.Equal(asked, want) {
+		t.Fatalf("calls per mint = %v, want 3 each for the popular and the held mint, none for the cold TSLAx", asked)
 	}
 }
 
