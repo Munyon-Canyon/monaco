@@ -64,9 +64,9 @@ func productHandler(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	return dashboardHandler(t, pool, analytics.New(module.Deps{Pool: pool, Config: testkit.Config()}).Mount)
 }
 
-func moneyGet(t *testing.T, h http.Handler, token string, q url.Values) *httptest.ResponseRecorder {
+func dashboardGet(t *testing.T, h http.Handler, route, token string, q url.Values) *httptest.ResponseRecorder {
 	t.Helper()
-	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/admin/dashboards/money?"+q.Encode(), nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/admin/dashboards/"+route+"?"+q.Encode(), nil)
 	r.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)

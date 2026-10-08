@@ -379,6 +379,29 @@ paths:
           content: {application/json: {schema: {$ref: "#/components/schemas/AdminUser"}}}
         default: {$ref: "#/components/responses/Problem"}
   # api/spec/analytics.yaml
+  /v1/admin/dashboards/governance:
+    get:
+      operationId: getGovernanceDashboard
+      tags: [analytics]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
+      summary: Read the governance dashboard.
+      description: >-
+        Returns proposal activity per day or week, read in a read-only transaction with a 5 second statement timeout.
+        A bucket counts the proposal events recorded in it: created, passed, failed, expired and execution blocked.
+        Buckets with no events are omitted. `median_seconds_to_pass` is the median time from creation to pass over the
+        proposals that passed in the range, null when none did. `participation` has one row per cabal that opened a
+        proposal in the range, with the votes cast out of the votes eligible. `open_proposals` counts the proposals
+        open now. `to` is exclusive and the range cannot exceed 400 days.
+      parameters:
+        - $ref: "#/components/parameters/DashboardFrom"
+        - $ref: "#/components/parameters/DashboardTo"
+        - $ref: "#/components/parameters/DashboardBucket"
+      responses:
+        "200":
+          description: The governance dashboard.
+          content: {application/json: {schema: {$ref: "#/components/schemas/GovernanceDashboard"}}}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/admin/dashboards/money:
     get:
       operationId: getMoneyDashboard
@@ -4235,6 +4258,71 @@ components:
       description: A USDC amount in micros as a decimal string.
       pattern: "^(0|[1-9][0-9]*)$"
       examples: ["25000000"]
+    GovernanceBucket:
+      type: object
+      description: The proposal events of one bucket.
+      examples:
+        - bucket_start: "2026-09-01T00:00:00Z"
+          created: 3
+          passed: 1
+          failed: 1
+          expired: 0
+          execution_blocked: 0
+      additionalProperties: false
+      required: [bucket_start, created, passed, failed, expired, execution_blocked]
+      properties:
+        bucket_start: {type: string, format: date-time, description: The start of the bucket in UTC., examples: ["2026-09-01T00:00:00Z"]}
+        created: {type: integer, format: int64, description: Proposals opened., examples: [3]}
+        passed: {type: integer, format: int64, description: Proposals that passed., examples: [1]}
+        failed: {type: integer, format: int64, description: Proposals that failed., examples: [1]}
+        expired: {type: integer, format: int64, description: Proposals that expired., examples: [0]}
+        execution_blocked: {type: integer, format: int64, description: Passed proposals whose trade was blocked., examples: [0]}
+    GovernanceDashboard:
+      type: object
+      description: Proposal activity and voter participation.
+      examples:
+        - from: "2026-09-01T00:00:00Z"
+          to: "2026-10-01T00:00:00Z"
+          bucket: day
+          open_proposals: 2
+          passed_in_range: 4
+          median_seconds_to_pass: 10800
+          buckets: []
+          participation: []
+      additionalProperties: false
+      required: [from, to, bucket, open_proposals, passed_in_range, median_seconds_to_pass, buckets, participation]
+      properties:
+        from: {type: string, format: date-time, description: The start of the range., examples: ["2026-09-01T00:00:00Z"]}
+        to: {type: string, format: date-time, description: "The end of the range, exclusive.", examples: ["2026-10-01T00:00:00Z"]}
+        bucket: {$ref: "#/components/schemas/DashboardBucket"}
+        open_proposals: {type: integer, format: int64, description: Proposals open now., examples: [2]}
+        passed_in_range: {type: integer, format: int64, description: Proposals that passed in the range., examples: [4]}
+        median_seconds_to_pass: {type: [integer, "null"], format: int64, description: The median seconds from creation to pass over the proposals that passed in the range. Null when none did., examples: [10800]}
+        buckets:
+          type: array
+          description: The buckets with proposal events, oldest first.
+          items: {$ref: "#/components/schemas/GovernanceBucket"}
+        participation:
+          type: array
+          description: One row per cabal that opened a proposal in the range, by cabal id.
+          items: {$ref: "#/components/schemas/GovernanceParticipation"}
+    GovernanceParticipation:
+      type: object
+      description: How much of its electorate one cabal used on the proposals it opened in the range.
+      examples:
+        - cabal_id: 019cc330-1111-7000-8000-000000000001
+          proposals: 2
+          eligible_votes: 6
+          votes_cast: 3
+          participation_bps: 5000
+      additionalProperties: false
+      required: [cabal_id, proposals, eligible_votes, votes_cast, participation_bps]
+      properties:
+        cabal_id: {type: string, format: uuid, description: The cabal., examples: [019cc330-1111-7000-8000-000000000001]}
+        proposals: {type: integer, format: int64, description: Proposals the cabal opened in the range., examples: [2]}
+        eligible_votes: {type: integer, format: int64, description: Votes the voters could cast across those proposals., examples: [6]}
+        votes_cast: {type: integer, format: int64, description: Votes cast across those proposals., examples: [3]}
+        participation_bps: {type: integer, format: int64, description: "Votes cast out of the votes eligible in basis points, 0 when none were eligible.", examples: [5000]}
     MoneyBucket:
       type: object
       description: The settled money movement of one bucket.

@@ -67,3 +67,11 @@ func TestModule_servesTheMoneyDashboard(t *testing.T) {
 		t.Fatal("analytics does not serve GET /v1/admin/dashboards/money")
 	}
 }
+
+func TestModule_servesTheGovernanceDashboard(t *testing.T) {
+	t.Parallel()
+	m := analytics.New(module.Deps{})
+	if !testkit.Serves(m.Mount, "GET", "/v1/admin/dashboards/governance") {
+		t.Fatal("analytics does not serve GET /v1/admin/dashboards/governance")
+	}
+}

@@ -115,7 +115,7 @@ func TestDashboard_Money_Totals(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var got api.MoneyDashboard
-			decode(t, moneyGet(t, h, viewerToken, window("2026-09-01", "2026-09-15", tt.bucket)), &got)
+			decode(t, dashboardGet(t, h, "money", viewerToken, window("2026-09-01", "2026-09-15", tt.bucket)), &got)
 			if !slices.Equal(got.Buckets, tt.want) {
 				t.Errorf("buckets = %+v, want %+v", got.Buckets, tt.want)
 			}
@@ -138,7 +138,7 @@ func TestDashboard_Money_BeforeTheFirstValuation(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	var got api.MoneyDashboard
-	decode(t, moneyGet(t, productHandler(t, pool), viewerToken,
+	decode(t, dashboardGet(t, productHandler(t, pool), "money", viewerToken,
 		window("2026-09-01T00:00:00Z", "2026-09-02T00:00:00Z", "day")), &got)
 	if got.AsOf != nil || got.PotMicros != "0" || got.TotalValueHeldMicros != "0" || len(got.Buckets) != 0 {
 		t.Fatalf("dashboard = %+v, want an empty dashboard with no as_of", got)
@@ -159,17 +159,17 @@ func TestDashboard_Money_RefusesABadWindow(t *testing.T) {
 	for name, q := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			w := moneyGet(t, h, viewerToken, q)
+			w := dashboardGet(t, h, "money", viewerToken, q)
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d %s, want 400", w.Code, w.Body)
 			}
 		})
 	}
-	exactly := moneyGet(t, h, viewerToken, window("2025-01-01", "2026-02-05", "week"))
+	exactly := dashboardGet(t, h, "money", viewerToken, window("2025-01-01", "2026-02-05", "week"))
 	if exactly.Code != http.StatusOK {
 		t.Fatalf("400 days: status = %d %s, want 200", exactly.Code, exactly.Body)
 	}
-	tooLong := moneyGet(t, h, viewerToken, window("2025-01-01", "2026-02-07", "day"))
+	tooLong := dashboardGet(t, h, "money", viewerToken, window("2025-01-01", "2026-02-07", "day"))
 	if code := problemCode(t, tooLong); code != string(errs.CodeInvalidInput) {
 		t.Fatalf("code = %s, want invalid_input", code)
 	}
@@ -178,7 +178,7 @@ func TestDashboard_Money_RefusesABadWindow(t *testing.T) {
 func TestDashboard_Money_RefusesAnAnonymousCaller(t *testing.T) {
 	t.Parallel()
 	h := productHandler(t, testkit.DB(t))
-	w := moneyGet(t, h, "nobody", window("2026-09-01", "2026-09-02", "day"))
+	w := dashboardGet(t, h, "money", "nobody", window("2026-09-01", "2026-09-02", "day"))
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", w.Code)
 	}
@@ -191,7 +191,7 @@ func TestDashboard_Money_QueryCount(t *testing.T) {
 	seedValuation(t, pool)
 	h := productHandler(t, pool)
 	testkit.AssertQueries(t, "analytics GetMoneyDashboard", func() {
-		w := moneyGet(t, h, viewerToken, window("2026-09-01", "2026-09-15", "day"))
+		w := dashboardGet(t, h, "money", viewerToken, window("2026-09-01", "2026-09-15", "day"))
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d %s", w.Code, w.Body)
 		}

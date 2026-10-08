@@ -16,6 +16,7 @@ import (
 
 	externalRef0 "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for DashboardBucket.
@@ -45,6 +46,112 @@ type DashboardBucket string
 //
 // Examples: 25000000
 type DashboardMicros = string
+
+// GovernanceBucket The proposal events of one bucket.
+//
+// Examples: {"bucket_start":"2026-09-01T00:00:00Z","created":3,"execution_blocked":0,"expired":0,"failed":1,"passed":1}
+type GovernanceBucket struct {
+	// BucketStart The start of the bucket in UTC.
+	//
+	// Examples: 2026-09-01T00:00:00Z
+	BucketStart time.Time `json:"bucket_start"`
+
+	// Created Proposals opened.
+	//
+	// Examples: 3
+	Created int64 `json:"created"`
+
+	// ExecutionBlocked Passed proposals whose trade was blocked.
+	//
+	// Examples: 0
+	ExecutionBlocked int64 `json:"execution_blocked"`
+
+	// Expired Proposals that expired.
+	//
+	// Examples: 0
+	Expired int64 `json:"expired"`
+
+	// Failed Proposals that failed.
+	//
+	// Examples: 1
+	Failed int64 `json:"failed"`
+
+	// Passed Proposals that passed.
+	//
+	// Examples: 1
+	Passed int64 `json:"passed"`
+}
+
+// GovernanceDashboard Proposal activity and voter participation.
+//
+// Examples: {"bucket":"day","buckets":[],"from":"2026-09-01T00:00:00Z","median_seconds_to_pass":10800,"open_proposals":2,"participation":[],"passed_in_range":4,"to":"2026-10-01T00:00:00Z"}
+type GovernanceDashboard struct {
+	// Bucket The size of one bucket.
+	//
+	// Examples: day
+	Bucket DashboardBucket `json:"bucket"`
+
+	// Buckets The buckets with proposal events, oldest first.
+	Buckets []GovernanceBucket `json:"buckets"`
+
+	// From The start of the range.
+	//
+	// Examples: 2026-09-01T00:00:00Z
+	From time.Time `json:"from"`
+
+	// MedianSecondsToPass The median seconds from creation to pass over the proposals that passed in the range. Null when none did.
+	//
+	// Examples: 10800
+	MedianSecondsToPass *int64 `json:"median_seconds_to_pass"`
+
+	// OpenProposals Proposals open now.
+	//
+	// Examples: 2
+	OpenProposals int64 `json:"open_proposals"`
+
+	// Participation One row per cabal that opened a proposal in the range, by cabal id.
+	Participation []GovernanceParticipation `json:"participation"`
+
+	// PassedInRange Proposals that passed in the range.
+	//
+	// Examples: 4
+	PassedInRange int64 `json:"passed_in_range"`
+
+	// To The end of the range, exclusive.
+	//
+	// Examples: 2026-10-01T00:00:00Z
+	To time.Time `json:"to"`
+}
+
+// GovernanceParticipation How much of its electorate one cabal used on the proposals it opened in the range.
+//
+// Examples: {"cabal_id":"019cc330-1111-7000-8000-000000000001","eligible_votes":6,"participation_bps":5000,"proposals":2,"votes_cast":3}
+type GovernanceParticipation struct {
+	// CabalId The cabal.
+	//
+	// Examples: 019cc330-1111-7000-8000-000000000001
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// EligibleVotes Votes the voters could cast across those proposals.
+	//
+	// Examples: 6
+	EligibleVotes int64 `json:"eligible_votes"`
+
+	// ParticipationBps Votes cast out of the votes eligible in basis points, 0 when none were eligible.
+	//
+	// Examples: 5000
+	ParticipationBps int64 `json:"participation_bps"`
+
+	// Proposals Proposals the cabal opened in the range.
+	//
+	// Examples: 2
+	Proposals int64 `json:"proposals"`
+
+	// VotesCast Votes cast across those proposals.
+	//
+	// Examples: 3
+	VotesCast int64 `json:"votes_cast"`
+}
 
 // MoneyBucket The settled money movement of one bucket.
 //
@@ -155,6 +262,18 @@ type DashboardFrom = string
 // DashboardTo Examples: 2026-10-01
 type DashboardTo = string
 
+// GetGovernanceDashboardParams defines parameters for GetGovernanceDashboard.
+type GetGovernanceDashboardParams struct {
+	// From The start of the range, inclusive, as a date such as 2026-09-01 or an RFC 3339 time. Dates are UTC.
+	From DashboardFrom `form:"from" json:"from"`
+
+	// To The end of the range, exclusive, as a date or an RFC 3339 time. It cannot be more than 400 days after `from`.
+	To DashboardTo `form:"to" json:"to"`
+
+	// Bucket The bucket size. A week starts on Monday, UTC.
+	Bucket DashboardBucket `form:"bucket" json:"bucket"`
+}
+
 // GetMoneyDashboardParams defines parameters for GetMoneyDashboard.
 type GetMoneyDashboardParams struct {
 	// From The start of the range, inclusive, as a date such as 2026-09-01 or an RFC 3339 time. Dates are UTC.
@@ -169,6 +288,9 @@ type GetMoneyDashboardParams struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetGovernanceDashboard Read the governance dashboard.
+	// (GET /v1/admin/dashboards/governance)
+	GetGovernanceDashboard(w http.ResponseWriter, r *http.Request, params GetGovernanceDashboardParams)
 	// GetMoneyDashboard Read the money dashboard.
 	// (GET /v1/admin/dashboards/money)
 	GetMoneyDashboard(w http.ResponseWriter, r *http.Request, params GetMoneyDashboardParams)
@@ -182,6 +304,65 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetGovernanceDashboard operation middleware
+func (siw *ServerInterfaceWrapper) GetGovernanceDashboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetGovernanceDashboardParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "bucket" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "bucket", r.URL.Query(), &params.Bucket, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "bucket"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bucket", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGovernanceDashboard(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetMoneyDashboard operation middleware
 func (siw *ServerInterfaceWrapper) GetMoneyDashboard(w http.ResponseWriter, r *http.Request) {
@@ -362,9 +543,49 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dashboards/governance", wrapper.GetGovernanceDashboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dashboards/money", wrapper.GetMoneyDashboard)
 
 	return m
+}
+
+type GetGovernanceDashboardRequestObject struct {
+	Params GetGovernanceDashboardParams
+}
+
+type GetGovernanceDashboardResponseObject interface {
+	VisitGetGovernanceDashboardResponse(w http.ResponseWriter) error
+}
+
+type GetGovernanceDashboard200JSONResponse GovernanceDashboard
+
+func (response GetGovernanceDashboard200JSONResponse) VisitGetGovernanceDashboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGovernanceDashboarddefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetGovernanceDashboarddefaultApplicationProblemPlusJSONResponse) VisitGetGovernanceDashboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetMoneyDashboardRequestObject struct {
@@ -408,6 +629,9 @@ func (response GetMoneyDashboarddefaultApplicationProblemPlusJSONResponse) Visit
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetGovernanceDashboard Read the governance dashboard.
+	// (GET /v1/admin/dashboards/governance)
+	GetGovernanceDashboard(ctx context.Context, request GetGovernanceDashboardRequestObject) (GetGovernanceDashboardResponseObject, error)
 	// GetMoneyDashboard Read the money dashboard.
 	// (GET /v1/admin/dashboards/money)
 	GetMoneyDashboard(ctx context.Context, request GetMoneyDashboardRequestObject) (GetMoneyDashboardResponseObject, error)
@@ -450,6 +674,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetGovernanceDashboard operation middleware
+func (sh *strictHandler) GetGovernanceDashboard(w http.ResponseWriter, r *http.Request, params GetGovernanceDashboardParams) {
+	var request GetGovernanceDashboardRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGovernanceDashboard(ctx, request.(GetGovernanceDashboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGovernanceDashboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetGovernanceDashboardResponseObject); ok {
+		if err := validResponse.VisitGetGovernanceDashboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetMoneyDashboard operation middleware

@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bucket"
@@ -58,8 +59,30 @@ func TestDashboard_Money_StatementTimeoutAnswers503(t *testing.T) {
 	pool := testkit.DB(t)
 	reads := probeMoney(pool, 50*time.Millisecond, sleepFor("5"))
 	h := dashboardHandler(t, pool, func(m api.Mount) { analyticsapi.Mount(adapters.HTTP{Money: reads}, m) })
-	w := moneyGet(t, h, viewerToken, window("2026-09-01", "2026-09-02", "day"))
+	w := dashboardGet(t, h, "money", viewerToken, window("2026-09-01", "2026-09-02", "day"))
 	if w.Code != http.StatusServiceUnavailable || problemCode(t, w) != string(errs.CodeDashboardTimeout) {
 		t.Fatalf("status = %d %s, want 503 dashboard_timeout", w.Code, w.Body)
+	}
+}
+
+type failingProposals struct{ governanceport.Dashboard }
+
+func (failingProposals) ProposalCounts(context.Context, time.Time, time.Time, bucket.Size) (
+	[]governanceport.ProposalBucket, error,
+) {
+	return nil, errs.New(errs.CodeInternal, "test.failingProposals")
+}
+
+func TestDashboard_Governance_ReadFailureAnswersTheProblem(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	reads := app.Governance{
+		Read: adapters.ReadOnly(pool, time.Second),
+		Bind: func(dbsqlc.DBTX) governanceport.Dashboard { return failingProposals{} },
+	}
+	h := dashboardHandler(t, pool, func(m api.Mount) { analyticsapi.Mount(adapters.HTTP{Governance: reads}, m) })
+	w := dashboardGet(t, h, "governance", viewerToken, window("2026-09-01", "2026-09-02", "day"))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d %s, want 500", w.Code, w.Body)
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bucket"
@@ -105,6 +106,80 @@ func TestMoney_Dashboard_Failures(t *testing.T) {
 				dash.Read = func(context.Context, func(context.Context, dbsqlc.DBTX) error) error { return tt.read }
 			}
 			if got, err := dash.Dashboard(t.Context(), app.Window{}); err == nil {
+				t.Fatalf("Dashboard() = %+v, want an error", got)
+			}
+		})
+	}
+}
+
+type proposalDashFake struct {
+	buckets    []governanceport.ProposalBucket
+	bucketsErr error
+	passed     governanceport.PassTime
+	passedErr  error
+	rows       []governanceport.CabalParticipation
+	rowsErr    error
+	open       int64
+	openErr    error
+}
+
+func (f proposalDashFake) ProposalCounts(context.Context, time.Time, time.Time, bucket.Size) (
+	[]governanceport.ProposalBucket, error,
+) {
+	return f.buckets, f.bucketsErr
+}
+
+func (f proposalDashFake) MedianTimeToPass(context.Context, time.Time, time.Time) (governanceport.PassTime, error) {
+	return f.passed, f.passedErr
+}
+
+func (f proposalDashFake) VoteParticipation(context.Context, time.Time, time.Time) (
+	[]governanceport.CabalParticipation, error,
+) {
+	return f.rows, f.rowsErr
+}
+
+func (f proposalDashFake) OpenCount(context.Context) (int64, error) { return f.open, f.openErr }
+
+func fakeGovernance(f proposalDashFake) app.Governance {
+	return app.Governance{
+		Read: func(ctx context.Context, fn func(context.Context, dbsqlc.DBTX) error) error { return fn(ctx, nil) },
+		Bind: func(dbsqlc.DBTX) governanceport.Dashboard { return f },
+	}
+}
+
+func TestGovernance_Dashboard_ComputesParticipationInBasisPoints(t *testing.T) {
+	t.Parallel()
+	got, err := fakeGovernance(proposalDashFake{
+		rows: []governanceport.CabalParticipation{
+			{Proposals: 1, Eligible: 3, Voted: 1},
+			{Proposals: 1, Eligible: 0, Voted: 0},
+			{Proposals: 2, Eligible: 4, Voted: 4},
+		},
+		open: 7,
+	}).Dashboard(t.Context(), app.Window{})
+	if err != nil || len(got.Participation) != 3 || got.Open != 7 {
+		t.Fatalf("Dashboard() = %+v, %v, want three rows and 7 open", got, err)
+	}
+	bps := [3]int64{got.Participation[0].Bps, got.Participation[1].Bps, got.Participation[2].Bps}
+	if bps != [3]int64{3333, 0, 10000} {
+		t.Fatalf("participation bps = %v, want [3333 0 10000]", bps)
+	}
+}
+
+func TestGovernance_Dashboard_Failures(t *testing.T) {
+	t.Parallel()
+	boom := errs.New(errs.CodeInternal, "test")
+	tests := map[string]proposalDashFake{
+		"buckets":       {bucketsErr: boom},
+		"time to pass":  {passedErr: boom},
+		"participation": {rowsErr: boom},
+		"open count":    {openErr: boom},
+	}
+	for name, f := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got, err := fakeGovernance(f).Dashboard(t.Context(), app.Window{}); err == nil {
 				t.Fatalf("Dashboard() = %+v, want an error", got)
 			}
 		})
