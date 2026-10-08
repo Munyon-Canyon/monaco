@@ -56,7 +56,7 @@ struct ProposalCard: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             header
             amount
-            proposer
+            meta
             if showsThesis, let thesis = summary.thesis, !thesis.isEmpty {
                 Text(thesis)
                     .font(MonacoTheme.Typo.callout)
@@ -78,6 +78,12 @@ struct ProposalCard: View {
             isDetail ? Color.clear : MonacoTheme.surface,
             in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card)
         )
+        .overlay {
+            if !isDetail {
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                    .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("proposal-card-\(summary.id)")
     }
@@ -100,27 +106,25 @@ struct ProposalCard: View {
                 logoURL: asset?.logoURL
             )
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                directionPill
                 Text(
                     AssetDisplayName.format(
                         catalogName: asset?.displayName ?? summary.symbol, kind: asset?.kind ?? .stock)
                 )
                 .font(MonacoTheme.Typo.rowTitle)
-                Text(isSell ? "Sell" : "Buy")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
+                .foregroundStyle(MonacoTheme.ink)
+                .lineLimit(1)
+                .truncationMode(.tail)
             }
-            Spacer()
-            if summary.status == .open {
-                Text(ProposalCardCopy.closes(at: summary.expiresAt, now: .now))
-                    .font(MonacoTheme.Typo.stamp)
-                    .foregroundStyle(MonacoTheme.tertiaryText)
-                    .accessibilityIdentifier("proposal-closes-in")
-            } else if let label = ProposalChip.label(
-                status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed"
-            ) {
+            Spacer(minLength: MonacoTheme.Space.s)
+            if summary.status != .open,
+                let label = ProposalChip.label(
+                    status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed")
+            {
                 Text(label)
                     .font(MonacoTheme.Typo.micro)
                     .foregroundStyle(Self.chipColor(label))
+                    .lineLimit(1)
                     .padding(.horizontal, MonacoTheme.Space.sm)
                     .padding(.vertical, MonacoTheme.Space.xs)
                     .background(Capsule().fill(MonacoTheme.surfaceSunken))
@@ -130,11 +134,32 @@ struct ProposalCard: View {
         .contentShape(Rectangle())
     }
 
+    private var directionPill: some View {
+        Text(isSell ? "Sell" : "Buy")
+            .font(MonacoTheme.Typo.micro)
+            .foregroundStyle(isSell ? MonacoTheme.lossOnWash : MonacoTheme.profitOnWash)
+            .padding(.horizontal, MonacoTheme.Space.s)
+            .padding(.vertical, MonacoTheme.Space.xs)
+            .background(Capsule().fill(isSell ? MonacoTheme.lossWash : MonacoTheme.profitWash))
+    }
+
+    private var meta: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            if summary.status == .open {
+                Text(ProposalCardCopy.closes(at: summary.expiresAt, now: .now))
+                    .font(MonacoTheme.Typo.stamp)
+                    .foregroundStyle(MonacoTheme.warning)
+                    .accessibilityIdentifier("proposal-closes-in")
+            }
+            proposer
+        }
+    }
+
     @ViewBuilder private var amount: some View {
         if isSell {
             Text(shareLabel)
                 .moneyFont(.large)
-                .foregroundStyle(MonacoTheme.ink)
+                .foregroundStyle(summary.status == .open ? MonacoTheme.ink : MonacoTheme.muted)
         } else if let micros = summary.usdcMicros {
             MoneyText(micros: micros, style: .large)
         }
@@ -144,11 +169,12 @@ struct ProposalCard: View {
         NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: summary.proposerID))) {
             HStack(spacing: MonacoTheme.Space.s) {
                 MonacoAvatar(
-                    photoURL: voter?.photoURL?.absoluteString, displayName: voter?.name ?? "Member", size: 28,
+                    photoURL: voter?.photoURL?.absoluteString, displayName: voter?.name ?? "Member", size: 20,
                     seed: summary.proposerID)
-                Text("\(voter?.name ?? "Member") · \(ageLabel)")
+                Text("Proposed by \(voter?.name ?? "Member") · \(ageLabel)")
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
+                    .lineLimit(1)
             }
         }
         .buttonStyle(.plain)
@@ -163,7 +189,9 @@ struct ProposalCard: View {
                 }
             }
             Text(
-                "\(summary.tally.yes + summary.tally.no) of \(summary.tally.voters) voted · \(summary.tally.needed) yes to pass"
+                ProposalCardCopy.tracker(
+                    voted: summary.tally.yes + summary.tally.no, voters: summary.tally.voters,
+                    needed: summary.tally.needed)
             )
             .font(MonacoTheme.Typo.caption)
             .foregroundStyle(MonacoTheme.muted)
@@ -175,6 +203,7 @@ struct ProposalCard: View {
             if let ballot, !changing {
                 HStack {
                     Text("✓ You voted \(ballot)").font(MonacoTheme.Typo.calloutStrong)
+                        .foregroundStyle(MonacoTheme.brand)
                     Spacer()
                     Button("Change") { changing = true }.buttonStyle(.monacoSecondary)
                 }
@@ -184,10 +213,12 @@ struct ProposalCard: View {
                         vote("yes")
                         changing = false
                     }.buttonStyle(.monacoPrimary)
+                        .accessibilityAddTraits(ballot == "yes" ? .isSelected : [])
                     Button("No") {
                         vote("no")
                         changing = false
                     }.buttonStyle(.monacoSecondary)
+                        .accessibilityAddTraits(ballot == "no" ? .isSelected : [])
                 }
                 .monacoFullWidthButtons()
             }
