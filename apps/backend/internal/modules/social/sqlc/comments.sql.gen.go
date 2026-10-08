@@ -32,6 +32,17 @@ func (q *Queries) BumpCommentCount(ctx context.Context, arg BumpCommentCountPara
 	return result.RowsAffected(), nil
 }
 
+const getComment = `-- name: GetComment :one
+SELECT id FROM feed_comments WHERE id = $1
+`
+
+func (q *Queries) GetComment(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getComment, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const getCommentItem = `-- name: GetCommentItem :one
 SELECT id, kind, ref_type, ref_id, cabal_id, actor_id
 FROM feed_objects

@@ -57,3 +57,6 @@ SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user
 FROM feed_comments c
 WHERE c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops)
 ORDER BY c.created_at, c.id;
+
+-- name: GetComment :one
+SELECT id FROM feed_comments WHERE id = sqlc.arg(id);

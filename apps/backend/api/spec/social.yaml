@@ -770,6 +770,39 @@ paths:
                   - {user_id: "7f0c2f6e-4c1b-4a8e-9a53-2d6f0b1c9e11", handle: maya, display_name: Maya Angelou, photo_url: null}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/reports:
+    post:
+      operationId: postReport
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 20, per: 1h, burst: 20}}
+      summary: Report a message, comment, user or cabal.
+      description: >-
+        Files a report for moderators and appends `report.created`, which carries no note text.
+        The target must exist: a missing chat message, comment or cabal, and an unknown or deleted
+        user, is report_target_not_found. A deleted chat message still counts as found. Reporting
+        a target the caller already has an open report on answers 201 with the same id and appends
+        nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: What is reported and why.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+            example: {kind: user, target_id: "7f0c2f6e-4c1b-4a8e-9a53-2d6f0b1c9e11", reason: spam}
+      responses:
+        "201":
+          description: The open report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportCreated"
+              example: {id: "01920000-0000-7000-8000-000000000009"}
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     ChatCabalId:
@@ -785,6 +818,27 @@ components:
       description: The message id.
       schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
   schemas:
+    ReportRequest:
+      type: object
+      description: What is reported and why.
+      additionalProperties: false
+      required: [kind, target_id, reason]
+      properties:
+        kind: {type: string, enum: [message, comment, user, cabal], examples: [user]}
+        target_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        reason: {type: string, enum: [spam, abuse, other], examples: [spam]}
+        note:
+          type: string
+          description: Optional context, at most 500 characters.
+          maxLength: 500
+          examples: [Sends the same link to everyone.]
+    ReportCreated:
+      type: object
+      description: The open report.
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-0000000000a1"]}
     BlockedUser:
       type: object
       description: A user the caller blocks.

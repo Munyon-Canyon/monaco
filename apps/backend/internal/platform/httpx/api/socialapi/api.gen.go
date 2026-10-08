@@ -47,6 +47,51 @@ func (e FeedMuteRequestTargetType) Valid() bool {
 	}
 }
 
+// Defines values for ReportRequestKind.
+const (
+	ReportRequestKindCabal   ReportRequestKind = "cabal"
+	ReportRequestKindComment ReportRequestKind = "comment"
+	ReportRequestKindMessage ReportRequestKind = "message"
+	ReportRequestKindUser    ReportRequestKind = "user"
+)
+
+// Valid indicates whether the value is a known member of the ReportRequestKind enum.
+func (e ReportRequestKind) Valid() bool {
+	switch e {
+	case ReportRequestKindCabal:
+		return true
+	case ReportRequestKindComment:
+		return true
+	case ReportRequestKindMessage:
+		return true
+	case ReportRequestKindUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReportRequestReason.
+const (
+	Abuse ReportRequestReason = "abuse"
+	Other ReportRequestReason = "other"
+	Spam  ReportRequestReason = "spam"
+)
+
+// Valid indicates whether the value is a known member of the ReportRequestReason enum.
+func (e ReportRequestReason) Valid() bool {
+	switch e {
+	case Abuse:
+		return true
+	case Other:
+		return true
+	case Spam:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetFeedParamsScope.
 const (
 	GetFeedParamsScopeAll       GetFeedParamsScope = "all"
@@ -687,6 +732,35 @@ type RealtimeTokenRequest struct {
 	Ttl int64 `json:"ttl"`
 }
 
+// ReportCreated The open report.
+type ReportCreated struct {
+	// Id Examples: 01920000-0000-7000-8000-0000000000a1
+	Id openapi_types.UUID `json:"id"`
+}
+
+// ReportRequest What is reported and why.
+type ReportRequest struct {
+	// Kind Examples: user
+	Kind ReportRequestKind `json:"kind"`
+
+	// Note Optional context, at most 500 characters.
+	//
+	// Examples: Sends the same link to everyone.
+	Note *string `json:"note,omitempty"`
+
+	// Reason Examples: spam
+	Reason ReportRequestReason `json:"reason"`
+
+	// TargetId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	TargetId openapi_types.UUID `json:"target_id"`
+}
+
+// ReportRequestKind Examples: user
+type ReportRequestKind string
+
+// ReportRequestReason Examples: spam
+type ReportRequestReason string
+
 // ChatCabalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 type ChatCabalId = openapi_types.UUID
 
@@ -864,6 +938,12 @@ type CreateRealtimeTokenParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostReportParams defines parameters for PostReport.
+type PostReportParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteUserBlockParams defines parameters for DeleteUserBlock.
 type DeleteUserBlockParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -920,6 +1000,9 @@ type PutMeFeedMutesJSONRequestBody = FeedMuteRequest
 
 // PostProposalCommentJSONRequestBody defines body for PostProposalComment for application/json ContentType.
 type PostProposalCommentJSONRequestBody = CreateCommentRequest
+
+// PostReportJSONRequestBody defines body for PostReport for application/json ContentType.
+type PostReportJSONRequestBody = ReportRequest
 
 // PostUserFollowJSONRequestBody defines body for PostUserFollow for application/json ContentType.
 type PostUserFollowJSONRequestBody = FollowRequest
@@ -986,6 +1069,9 @@ type ServerInterface interface {
 	// CreateRealtimeToken Get a token request for live chat updates.
 	// (POST /v1/realtime/token)
 	CreateRealtimeToken(w http.ResponseWriter, r *http.Request, params CreateRealtimeTokenParams)
+	// PostReport Report a message, comment, user or cabal.
+	// (POST /v1/reports)
+	PostReport(w http.ResponseWriter, r *http.Request, params PostReportParams)
 	// DeleteUserBlock Unblock a user.
 	// (DELETE /v1/users/{id}/block)
 	DeleteUserBlock(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params DeleteUserBlockParams)
@@ -2122,6 +2208,51 @@ func (siw *ServerInterfaceWrapper) CreateRealtimeToken(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// PostReport operation middleware
+func (siw *ServerInterfaceWrapper) PostReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostReportParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostReport(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteUserBlock operation middleware
 func (siw *ServerInterfaceWrapper) DeleteUserBlock(w http.ResponseWriter, r *http.Request) {
 
@@ -2588,6 +2719,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}/comments", wrapper.GetProposalComments)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/comments", wrapper.PostProposalComment)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/realtime/token", wrapper.CreateRealtimeToken)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/reports", wrapper.PostReport)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/block", wrapper.DeleteUserBlock)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/users/{id}/block", wrapper.PostUserBlock)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/users/{id}/follow", wrapper.DeleteUserFollow)
@@ -3373,6 +3505,46 @@ func (response CreateRealtimeTokendefaultApplicationProblemPlusJSONResponse) Vis
 	return err
 }
 
+type PostReportRequestObject struct {
+	Params PostReportParams
+	Body   *PostReportJSONRequestBody
+}
+
+type PostReportResponseObject interface {
+	VisitPostReportResponse(w http.ResponseWriter) error
+}
+
+type PostReport201JSONResponse ReportCreated
+
+func (response PostReport201JSONResponse) VisitPostReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostReportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostReportdefaultApplicationProblemPlusJSONResponse) VisitPostReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteUserBlockRequestObject struct {
 	Id     externalRef0.UserId `json:"id"`
 	Params DeleteUserBlockParams
@@ -3664,6 +3836,9 @@ type StrictServerInterface interface {
 	// CreateRealtimeToken Get a token request for live chat updates.
 	// (POST /v1/realtime/token)
 	CreateRealtimeToken(ctx context.Context, request CreateRealtimeTokenRequestObject) (CreateRealtimeTokenResponseObject, error)
+	// PostReport Report a message, comment, user or cabal.
+	// (POST /v1/reports)
+	PostReport(ctx context.Context, request PostReportRequestObject) (PostReportResponseObject, error)
 	// DeleteUserBlock Unblock a user.
 	// (DELETE /v1/users/{id}/block)
 	DeleteUserBlock(ctx context.Context, request DeleteUserBlockRequestObject) (DeleteUserBlockResponseObject, error)
@@ -4283,6 +4458,39 @@ func (sh *strictHandler) CreateRealtimeToken(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateRealtimeTokenResponseObject); ok {
 		if err := validResponse.VisitCreateRealtimeTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostReport operation middleware
+func (sh *strictHandler) PostReport(w http.ResponseWriter, r *http.Request, params PostReportParams) {
+	var request PostReportRequestObject
+
+	request.Params = params
+
+	var body PostReportJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostReport(ctx, request.(PostReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostReportResponseObject); ok {
+		if err := validResponse.VisitPostReportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

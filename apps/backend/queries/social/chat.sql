@@ -156,3 +156,6 @@ FROM cabal_messages
 WHERE (id = sqlc.arg(parent_id) OR parent_id = sqlc.arg(parent_id))
   AND deleted_at IS NULL
 ORDER BY author_id;
+
+-- name: GetChatMessageByID :one
+SELECT id FROM cabal_messages WHERE id = sqlc.arg(id);

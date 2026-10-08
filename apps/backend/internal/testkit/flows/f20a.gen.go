@@ -4,11 +4,14 @@ package flows
 
 func (defined) ScriptsF20a() map[string]Script {
 	return map[string]Script{
-		"F20aBlockUserOK":                F20aBlockUserOK,
-		"F20aBlockUserCannotBlockSelf":   F20aBlockUserCannotBlockSelf,
-		"F20aBlockUserUserNotFound":      F20aBlockUserUserNotFound,
-		"F20aBlockUserUnauthorized":      F20aBlockUserUnauthorized,
-		"F20aBlockUserCrashBeforeCommit": F20aBlockUserCrashBeforeCommit,
-		"F20aUnblockUserOK":              F20aUnblockUserOK,
+		"F20aBlockUserOK":                      F20aBlockUserOK,
+		"F20aBlockUserCannotBlockSelf":         F20aBlockUserCannotBlockSelf,
+		"F20aBlockUserUserNotFound":            F20aBlockUserUserNotFound,
+		"F20aBlockUserUnauthorized":            F20aBlockUserUnauthorized,
+		"F20aBlockUserCrashBeforeCommit":       F20aBlockUserCrashBeforeCommit,
+		"F20aUnblockUserOK":                    F20aUnblockUserOK,
+		"F20aCreateReportOK":                   F20aCreateReportOK,
+		"F20aCreateReportReportTargetNotFound": F20aCreateReportReportTargetNotFound,
+		"F20aCreateReportRateLimited":          F20aCreateReportRateLimited,
 	}
 }

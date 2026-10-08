@@ -21,6 +21,7 @@ type HTTP struct {
 	Unfollow      *app.UnfollowHandler
 	Block         *app.BlockUserHandler
 	Unblock       *app.UnblockUserHandler
+	Report        *app.CreateReportHandler
 	Mute          *app.MuteHandler
 	Unmute        *app.UnmuteHandler
 	PostChat      *app.PostChatMessageHandler

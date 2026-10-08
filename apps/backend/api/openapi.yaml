@@ -2787,6 +2787,39 @@ paths:
                 $ref: "#/components/schemas/RealtimeTokenRequest"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/reports:
+    post:
+      operationId: postReport
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 20, per: 1h, burst: 20}}
+      summary: Report a message, comment, user or cabal.
+      description: >-
+        Files a report for moderators and appends `report.created`, which carries no note text.
+        The target must exist: a missing chat message, comment or cabal, and an unknown or deleted
+        user, is report_target_not_found. A deleted chat message still counts as found. Reporting
+        a target the caller already has an open report on answers 201 with the same id and appends
+        nothing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: What is reported and why.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+            example: {kind: user, target_id: "7f0c2f6e-4c1b-4a8e-9a53-2d6f0b1c9e11", reason: spam}
+      responses:
+        "201":
+          description: The open report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportCreated"
+              example: {id: "01920000-0000-7000-8000-000000000009"}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/users/{id}/block:
     post:
       operationId: postUserBlock
@@ -6508,6 +6541,27 @@ components:
         ttl: {type: integer, format: int64, description: "How long the token lives, in milliseconds.", examples: [900000]}
         nonce: {type: string, description: A one-time value that stops a replay., examples: [d3b07384d113edec]}
         mac: {type: string, description: The signature over the other fields., examples: [c2lnbmF0dXJl]}
+    ReportCreated:
+      type: object
+      description: The open report.
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-0000000000a1"]}
+    ReportRequest:
+      type: object
+      description: What is reported and why.
+      additionalProperties: false
+      required: [kind, target_id, reason]
+      properties:
+        kind: {type: string, enum: [message, comment, user, cabal], examples: [user]}
+        target_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+        reason: {type: string, enum: [spam, abuse, other], examples: [spam]}
+        note:
+          type: string
+          description: Optional context, at most 500 characters.
+          maxLength: 500
+          examples: [Sends the same link to everyone.]
   # api/spec/system.yaml
     Ping:
       type: object
