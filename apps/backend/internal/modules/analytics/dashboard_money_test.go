@@ -33,6 +33,10 @@ func seedMoney(t *testing.T, pool *pgxpool.Pool) {
 	s.swap("failed", at(2, 9, 0), 99_000_000)
 	s.swap("settled", time.Date(2026, 8, 31, 23, 59, 59, 0, time.UTC), 98_000_000)
 	s.swap("settled", at(15, 0, 0), 97_000_000)
+	e := signalSeed{t: t, pool: pool, ids: testkit.NewIDs(9)}
+	e.event("onramp.status_changed", at(1, 11, 0), map[string]any{"to": "completed"})
+	e.event("onramp.status_changed", at(1, 12, 0), map[string]any{"to": "completed"})
+	e.event("onramp.status_changed", at(3, 12, 0), map[string]any{"to": "failed"})
 }
 
 func seedValuation(t *testing.T, pool *pgxpool.Pool) {
@@ -84,9 +88,10 @@ func TestDashboard_Money_Totals(t *testing.T) {
 	h := productHandler(t, pool)
 	tests := map[string]struct {
 		bucket string
+		series [2]time.Time
 		want   []api.MoneyBucket
 	}{
-		"day": {"day", []api.MoneyBucket{
+		"day": {"day", [2]time.Time{at(1, 0, 0), at(3, 0, 0)}, []api.MoneyBucket{
 			starting(at(1, 0, 0), with(func(b *api.MoneyBucket) {
 				b.DepositCount, b.DepositMicros, b.FundCount, b.FundMicros = 1, "100000000", 1, "100000000"
 				b.SwapBuyMicros = "40000000"
@@ -100,16 +105,20 @@ func TestDashboard_Money_Totals(t *testing.T) {
 				b.DepositCount, b.DepositMicros, b.WithdrawalCount, b.WithdrawalMicros = 1, "30000000", 1, "10000000"
 			})),
 		}},
-		"week": {"week", []api.MoneyBucket{
-			starting(time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), with(func(b *api.MoneyBucket) {
-				b.DepositCount, b.DepositMicros, b.FundCount, b.FundMicros = 2, "150000000", 2, "150000000"
-				b.SwapBuyMicros, b.SwapSellMicros = "40000000", "15000000"
-			})),
-			starting(at(7, 0, 0), with(func(b *api.MoneyBucket) {
-				b.DepositCount, b.DepositMicros, b.WithdrawalCount, b.WithdrawalMicros = 1, "30000000", 1, "10000000"
-				b.CashOutCount, b.CashOutMicros = 1, "20000000"
-			})),
-		}},
+		"week": {
+			"week",
+			[2]time.Time{time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC)},
+			[]api.MoneyBucket{
+				starting(time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), with(func(b *api.MoneyBucket) {
+					b.DepositCount, b.DepositMicros, b.FundCount, b.FundMicros = 2, "150000000", 2, "150000000"
+					b.SwapBuyMicros, b.SwapSellMicros = "40000000", "15000000"
+				})),
+				starting(at(7, 0, 0), with(func(b *api.MoneyBucket) {
+					b.DepositCount, b.DepositMicros, b.WithdrawalCount, b.WithdrawalMicros = 1, "30000000", 1, "10000000"
+					b.CashOutCount, b.CashOutMicros = 1, "20000000"
+				})),
+			},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -119,18 +128,30 @@ func TestDashboard_Money_Totals(t *testing.T) {
 			if !slices.Equal(got.Buckets, tt.want) {
 				t.Errorf("buckets = %+v, want %+v", got.Buckets, tt.want)
 			}
-			wantTotals := [4]string{"75000000", "20000000", "95000000", at(14, 12, 0).String()}
-			gotTotals := [4]string{got.PotMicros, got.PlatformBalanceMicros, got.TotalValueHeldMicros, ""}
-			if got.AsOf != nil {
-				gotTotals[3] = got.AsOf.String()
+			wantSeries := []api.DashboardPoint{
+				{BucketStart: tt.series[0], Metric: "onramp_status_changes", Group: "completed", Count: 2},
+				{BucketStart: tt.series[1], Metric: "onramp_status_changes", Group: "failed", Count: 1},
 			}
-			if gotTotals != wantTotals {
-				t.Errorf("pot, platform, total, as_of = %v, want %v", gotTotals, wantTotals)
+			if !slices.Equal(got.Series, wantSeries) {
+				t.Errorf("series = %+v, want %+v", got.Series, wantSeries)
 			}
-			if !got.From.Equal(at(1, 0, 0)) || !got.To.Equal(at(15, 0, 0)) || string(got.Bucket) != tt.bucket {
-				t.Errorf("window = %v %v %s, want 2026-09-01 2026-09-15 %s", got.From, got.To, got.Bucket, tt.bucket)
-			}
+			assertMoneyTotals(t, got, tt.bucket)
 		})
+	}
+}
+
+func assertMoneyTotals(t *testing.T, got api.MoneyDashboard, bucket string) {
+	t.Helper()
+	wantTotals := [4]string{"75000000", "20000000", "95000000", at(14, 12, 0).String()}
+	gotTotals := [4]string{got.PotMicros, got.PlatformBalanceMicros, got.TotalValueHeldMicros, ""}
+	if got.AsOf != nil {
+		gotTotals[3] = got.AsOf.String()
+	}
+	if gotTotals != wantTotals {
+		t.Errorf("pot, platform, total, as_of = %v, want %v", gotTotals, wantTotals)
+	}
+	if !got.From.Equal(at(1, 0, 0)) || !got.To.Equal(at(15, 0, 0)) || string(got.Bucket) != bucket {
+		t.Errorf("window = %v %v %s, want 2026-09-01 2026-09-15 %s", got.From, got.To, got.Bucket, bucket)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
@@ -14,6 +15,7 @@ import (
 type MoneySources struct {
 	Ledger     treasuryport.Dashboard
 	Valuations rankingport.Queries
+	Events     EventCounter
 }
 
 type MoneyView struct {
@@ -23,11 +25,16 @@ type MoneyView struct {
 	Platform money.Micros
 	Total    money.Micros
 	AsOf     *time.Time
+	Series   []SeriesPoint
 }
 
 type Money struct {
 	Read ReadOnly
 	Bind func(db dbsqlc.DBTX) MoneySources
+}
+
+func moneyReads() []SeriesRead {
+	return []SeriesRead{{Metric: "onramp_status_changes", Type: string(events.TypeOnrampStatusChanged), GroupBy: "to"}}
 }
 
 func (m Money) Dashboard(ctx context.Context, w Window) (MoneyView, error) {
@@ -45,6 +52,10 @@ func (m Money) Dashboard(ctx context.Context, w Window) (MoneyView, error) {
 			},
 			func(ctx context.Context) error { return view.sumPots(ctx, src.Valuations) },
 			func(ctx context.Context) error { return view.stampValuation(ctx, src.Valuations) },
+			func(ctx context.Context) (err error) {
+				view.Series, err = ReadSeries(ctx, src.Events, w, moneyReads())
+				return err
+			},
 		}
 		for _, step := range steps {
 			if err := step(ctx); err != nil {

@@ -42,7 +42,7 @@ func probeMoney(pool *pgxpool.Pool, timeout time.Duration, run func(context.Cont
 		Read: adapters.ReadOnly(pool, timeout),
 		Bind: func(db dbsqlc.DBTX) app.MoneySources {
 			p := probe{db: db, run: run}
-			return app.MoneySources{Ledger: p, Valuations: p}
+			return app.MoneySources{Ledger: p, Valuations: p, Events: countFake{}}
 		},
 	}
 }
