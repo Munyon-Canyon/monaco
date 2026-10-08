@@ -65,72 +65,52 @@ private struct SocialsStepForm: View {
             .padding(.top, MonacoTheme.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .safeAreaInset(edge: .bottom) { actions }
+        .safeAreaInset(edge: .bottom) { BottomCTA { primaryButton } }
         .monacoCanvas()
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            FirstRunToolbar(
+                signOut: mode == .onboarding
+                    ? FirstRunAction(
+                        title: OnboardingCopy.signOut, identifier: "onboarding-socials-step-sign-out",
+                        isDisabled: model.isBusy
+                    ) { Task { await onSignOut() } } : nil,
+                skip: model.connectHidden
+                    ? nil
+                    : FirstRunAction(title: skipTitle, identifier: "socials-step-skip", isDisabled: model.isBusy) {
+                        Task { await skip() }
+                    })
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-socials-step")
     }
 
-    private var actions: some View {
-        VStack(spacing: MonacoTheme.Space.xs) {
-            if !model.connectHidden {
-                Button {
-                    Task { handle(await model.connect()) }
-                } label: {
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        if model.activity == .connecting {
-                            ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                            Text(LinkCopy.connecting)
-                        } else {
-                            Text(LinkCopy.connectX)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.monacoPrimary)
-                .disabled(model.isBusy)
-                .accessibilityIdentifier("socials-step-connect")
-            }
-            skipButton
-            if mode == .onboarding {
-                Button {
-                    Task { await onSignOut() }
-                } label: {
-                    Text(OnboardingCopy.signOut)
-                }
-                .buttonStyle(.monacoText)
-                .disabled(model.isBusy)
-                .accessibilityIdentifier("onboarding-socials-step-sign-out")
-            }
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.s)
-        .background(MonacoTheme.canvas)
-    }
-
     @ViewBuilder
-    private var skipButton: some View {
-        let title = mode == .sheet ? LinkCopy.notNow : LinkCopy.skip
+    private var primaryButton: some View {
         if model.connectHidden {
             Button {
                 Task { await skip() }
             } label: {
-                Text(title).frame(maxWidth: .infinity)
+                Text(skipTitle).frame(maxWidth: .infinity)
             }
             .buttonStyle(.monacoPrimary)
             .disabled(model.isBusy)
             .accessibilityIdentifier("socials-step-skip")
         } else {
             Button {
-                Task { await skip() }
+                Task { handle(await model.connect()) }
             } label: {
-                Text(title)
+                SubmitLabel(
+                    isWorking: model.activity == .connecting, idle: LinkCopy.connectX, working: LinkCopy.connecting)
             }
-            .buttonStyle(.monacoText)
+            .buttonStyle(.monacoPrimary)
             .disabled(model.isBusy)
-            .accessibilityIdentifier("socials-step-skip")
+            .accessibilityIdentifier("socials-step-connect")
         }
     }
+
+    private var skipTitle: String { mode == .sheet ? LinkCopy.notNow : LinkCopy.skip }
 
     private func skip() async {
         guard mode == .onboarding else {

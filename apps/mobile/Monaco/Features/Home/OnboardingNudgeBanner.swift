@@ -57,8 +57,8 @@ struct OnboardingNudgeBanner: View {
             .accessibilityIdentifier("onboarding-nudge")
             .sheet(isPresented: isOpen) {
                 switch opened {
-                case .addPhone: PhoneStepView(mode: .sheet)
-                case .linkX: SocialsStepView(mode: .sheet)
+                case .addPhone: NavigationStack { PhoneStepView(mode: .sheet) }
+                case .linkX: NavigationStack { SocialsStepView(mode: .sheet) }
                 case nil: EmptyView()
                 }
             }

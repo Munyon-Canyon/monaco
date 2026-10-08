@@ -75,9 +75,9 @@ struct SessionGateView: View {
         let advance = { onboardingCursor = onboardingCursor.advanced(past: destination) }
         switch destination {
         case .session: SessionGateSkeleton()
-        case .handle: HandleStepView(onContinue: advance)
-        case .phone: PhoneStepView(onContinue: advance)
-        case .socials: SocialsStepView(onContinue: advance)
+        case .handle: NavigationStack { HandleStepView(onContinue: advance) }
+        case .phone: NavigationStack { PhoneStepView(onContinue: advance) }
+        case .socials: NavigationStack { SocialsStepView(onContinue: advance) }
         case .findFriends:
             NavigationStack {
                 FriendsScreen(onSkip: {

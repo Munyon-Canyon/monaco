@@ -7,6 +7,19 @@ enum LinkStepMode {
     case sheet
 }
 
+enum PhoneStepPrimary: Equatable {
+    case skip
+    case link
+    case sendCode
+
+    static func resolve(linkedElsewhere: Bool, isCodeStep: Bool) -> PhoneStepPrimary {
+        if linkedElsewhere { return .skip }
+        return isCodeStep ? .link : .sendCode
+    }
+
+    var showsToolbarSkip: Bool { self != .skip }
+}
+
 struct PhoneStepView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AppSessionStore.self) private var session
@@ -113,14 +126,29 @@ private struct PhoneStepForm: View {
                 }
 
                 LinkCaptionLine(caption: model.caption, identifier: "phone-step-caption")
+                if isCodeStep { codeActions }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom) { actions }
+        .safeAreaInset(edge: .bottom) { BottomCTA { primaryButton } }
         .monacoCanvas()
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            FirstRunToolbar(
+                signOut: mode == .onboarding
+                    ? FirstRunAction(
+                        title: OnboardingCopy.signOut, identifier: "onboarding-phone-step-sign-out",
+                        isDisabled: model.isBusy
+                    ) { Task { await onSignOut() } } : nil,
+                skip: primaryAction.showsToolbarSkip
+                    ? FirstRunAction(title: skipTitle, identifier: "phone-step-skip", isDisabled: model.isBusy) {
+                        Task { await skip() }
+                    } : nil)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-phone-step")
         .onAppear { focused = .number }
@@ -158,54 +186,37 @@ private struct PhoneStepForm: View {
         .accessibilityIdentifier("phone-step-number-field")
     }
 
-    private var actions: some View {
-        VStack(spacing: MonacoTheme.Space.xs) {
-            primaryButton
-            if isCodeStep { codeActions }
-            skipButton
-            if mode == .onboarding {
-                textAction(OnboardingCopy.signOut, identifier: "onboarding-phone-step-sign-out") {
-                    Task { await onSignOut() }
-                }
-                .disabled(model.isBusy)
-            }
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.s)
-        .background(MonacoTheme.canvas)
+    private var primaryAction: PhoneStepPrimary {
+        PhoneStepPrimary.resolve(linkedElsewhere: model.linkedElsewhere, isCodeStep: isCodeStep)
     }
 
     @ViewBuilder
     private var primaryButton: some View {
-        if isCodeStep {
+        switch primaryAction {
+        case .skip:
+            skipPrimary
+        case .link:
             Button {
                 Task { await link() }
             } label: {
-                busyLabel(model.activity == .linking ? LinkCopy.linking : OnboardingCopy.continueLabel)
+                SubmitLabel(
+                    isWorking: model.activity == .linking, idle: OnboardingCopy.continueLabel,
+                    working: LinkCopy.linking)
             }
             .buttonStyle(.monacoPrimary)
             .disabled(!model.canLink)
             .accessibilityIdentifier("phone-step-continue")
-        } else if !model.linkedElsewhere {
+        case .sendCode:
             Button {
                 Task { await sendCode() }
             } label: {
-                busyLabel(model.activity == .sending ? LinkCopy.sendingCode : LinkCopy.sendCode)
+                SubmitLabel(
+                    isWorking: model.activity == .sending, idle: LinkCopy.sendCode, working: LinkCopy.sendingCode)
             }
             .buttonStyle(.monacoPrimary)
             .disabled(e164 == nil || model.isBusy)
             .accessibilityIdentifier("phone-step-send-code")
         }
-    }
-
-    private func busyLabel(_ title: String) -> some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            if model.activity == .sending || model.activity == .linking {
-                ProgressView().tint(MonacoTheme.primaryButtonLabel)
-            }
-            Text(title)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private var codeActions: some View {
@@ -236,28 +247,18 @@ private struct PhoneStepForm: View {
         .accessibilityIdentifier(identifier)
     }
 
+    private var skipTitle: String { mode == .sheet ? LinkCopy.notNow : LinkCopy.skip }
+
     @ViewBuilder
-    private var skipButton: some View {
-        let title = mode == .sheet ? LinkCopy.notNow : LinkCopy.skip
-        if model.linkedElsewhere {
-            Button {
-                Task { await skip() }
-            } label: {
-                Text(title).frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.monacoPrimary)
-            .disabled(model.isBusy)
-            .accessibilityIdentifier("phone-step-skip")
-        } else {
-            Button {
-                Task { await skip() }
-            } label: {
-                Text(title)
-            }
-            .buttonStyle(.monacoText)
-            .disabled(model.isBusy)
-            .accessibilityIdentifier("phone-step-skip")
+    private var skipPrimary: some View {
+        Button {
+            Task { await skip() }
+        } label: {
+            Text(skipTitle).frame(maxWidth: .infinity)
         }
+        .buttonStyle(.monacoPrimary)
+        .disabled(model.isBusy)
+        .accessibilityIdentifier("phone-step-skip")
     }
 
     private func sendCode() async {

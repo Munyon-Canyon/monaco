@@ -261,12 +261,15 @@ struct OTPLoginForm: View {
 
     @ViewBuilder
     private var primaryButton: some View {
-        let title = OTPPrimaryAction.title(phase: auth.flow.phase, isCodeStep: isCodeStep)
+        let isWorking = auth.flow.phase == (isCodeStep ? .verifyingCode : .sendingCode)
         if isCodeStep {
             Button {
                 Task { await submitCode(otpCode) }
             } label: {
-                Text(title)
+                SubmitLabel(
+                    isWorking: isWorking,
+                    idle: OTPPrimaryAction.title(phase: .idle, isCodeStep: true),
+                    working: OTPPrimaryAction.title(phase: .verifyingCode, isCodeStep: true))
             }
             .buttonStyle(.monacoPrimary)
             .disabled(isVerifyDisabled)
@@ -275,7 +278,10 @@ struct OTPLoginForm: View {
             Button {
                 Task { await sendCode() }
             } label: {
-                Text(title)
+                SubmitLabel(
+                    isWorking: isWorking,
+                    idle: OTPPrimaryAction.title(phase: .idle, isCodeStep: false),
+                    working: OTPPrimaryAction.title(phase: .sendingCode, isCodeStep: false))
             }
             .buttonStyle(.monacoPrimary)
             .disabled(isSendDisabled)
