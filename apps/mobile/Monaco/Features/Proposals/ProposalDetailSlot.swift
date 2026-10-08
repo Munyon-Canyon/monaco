@@ -52,7 +52,7 @@ struct ProposalDetailSlotView: View {
                     }
                     votes(detail).padding(.horizontal, MonacoTheme.Space.gutter)
                     reason(detail)
-                    expected(detail).padding(.horizontal, MonacoTheme.Space.gutter)
+                    expected(detail)
                     status(detail).padding(.horizontal, MonacoTheme.Space.gutter)
                 }
                 .padding(.top, MonacoTheme.Space.m)
@@ -168,8 +168,12 @@ struct ProposalDetailSlotView: View {
         {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Expected")
-                Text(line).font(MonacoTheme.Typo.callout)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                MonacoGroupedList {
+                    ReceiptLine(label: "Cabal gets", value: .words(line), isLast: true)
+                }
             }
+            .accessibilityIdentifier("proposal-expected")
         }
     }
 

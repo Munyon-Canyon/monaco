@@ -44,20 +44,13 @@ struct ProposeReviewScreen: View {
     private func content(_ model: MonacoCore.ProposeReviewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                Text(model.title).font(MonacoTheme.Typo.rowTitle)
+                Text(model.title).font(MonacoTheme.Typo.title)
                     .foregroundStyle(MonacoTheme.ink)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(row.label).font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.muted)
-                            Spacer()
-                            Text(row.value).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.ink)
-                                .multilineTextAlignment(.trailing)
-                        }
-                        .padding(MonacoTheme.Space.m)
-                        .overlay(alignment: .bottom) { if index < model.rows.count - 1 { MonacoRule() } }
-                        .accessibilityElement(children: .combine)
+                        ReceiptLine(
+                            label: row.label, value: Self.value(row), isLast: index == model.rows.count - 1)
                     }
                 }
                 if let reason = model.reason {
@@ -74,6 +67,11 @@ struct ProposeReviewScreen: View {
                     .accessibilityIdentifier("propose-review-send")
             }
         }
+    }
+
+    private static func value(_ row: MonacoCore.ProposeReviewModel.Row) -> ReceiptLine.Value {
+        ["Price", "Cabal gets", "Cabal keeps"].contains(row.label)
+            ? .data(row.value) : .words(row.value)
     }
 
     private func load() async {

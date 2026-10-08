@@ -34,6 +34,28 @@ final class ProposalTradingTests: XCTestCase {
         XCTAssertEqual(model.votes.map(\.id), ["p"])
     }
 
+    @MainActor
+    func testPendingPhaseGoesFromLoadingToLoadedAndSurvivesAFailedRefresh() async throws {
+        let model = PendingVotesModel(
+            repository: Self.repository(
+                StubTransport(scripted: [.json(.ok, "[]"), .failure(URLError(.notConnectedToInternet))])),
+            hints: FakeHintStream())
+        XCTAssertEqual(model.phase, .loading)
+        await model.load()
+        XCTAssertEqual(model.phase, .loaded)
+        await model.load()
+        XCTAssertEqual(model.phase, .loaded)
+    }
+
+    @MainActor
+    func testPendingPhaseFailsWhenTheFirstLoadFails() async throws {
+        let model = PendingVotesModel(
+            repository: Self.repository(StubTransport(.failure(URLError(.notConnectedToInternet)))),
+            hints: FakeHintStream())
+        await model.load()
+        XCTAssertEqual(model.phase, .failed)
+    }
+
     func testTheTrackerReadsTheStepForAnAssistiveTechnology() {
         func label(_ status: ProposalStatus, isSell: Bool, swapFailed: Bool = false) -> String {
             ProposalStepper.make(
