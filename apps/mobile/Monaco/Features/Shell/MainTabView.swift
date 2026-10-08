@@ -18,6 +18,7 @@ struct MainTabView: View {
                             route.destination()
                         }
                 }
+                .monacoToastCenter(toasts)
                 .tabItem {
                     Label(tab.title, systemImage: tab.systemImage)
                         .accessibilityIdentifier(tab.accessibilityIdentifier)
@@ -27,6 +28,7 @@ struct MainTabView: View {
             }
         }
         .tint(MonacoTheme.ink)
+        .preference(key: TabToastHostKey.self, value: true)
         // Each stack knows its tab (`hostMainTab`) and which one is showing, so screens in a tab
         // the member switched away from stop polling. See `pollWhileVisible`.
         .environment(\.selectedMainTab, navigator.selectedTab)
