@@ -969,7 +969,7 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 		t.Fatalf("darwin app change: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
 	}
 	if !strings.Contains(build, "ensure-ios-privy-config.sh placeholder") ||
-		!strings.Contains(build, "-onlyUsePackageVersionsFromResolvedFile") {
+		!strings.Contains(build, "scripts/xcode-cache-args.sh") || !strings.Contains(build, `"${cache_args[@]}"`) {
 		t.Fatalf("build script: %s", build)
 	}
 	if !slices.Contains(h.calls, ".: install-xcsift.sh") {
@@ -2094,13 +2094,5 @@ func TestCheck_aFailingMergeBaseFallsBackToTheChosenParent(t *testing.T) {
 	code, stdout, stderr := h.check(t)
 	if code != 0 || !strings.Contains(stdout, "(base origin/fb, parent origin/fb)") {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
-	}
-}
-
-func TestXcodeScript_usesTheSharedCacheArguments(t *testing.T) {
-	t.Parallel()
-	script := xcodeScript("build-for-testing")
-	if !strings.Contains(script, "scripts/xcode-cache-args.sh") || !strings.Contains(script, `"${cache_args[@]}"`) {
-		t.Fatalf("xcode row does not pass the shared cache arguments:\n%s", script)
 	}
 }
