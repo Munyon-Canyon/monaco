@@ -63,6 +63,8 @@ private struct CabalActivityLive: View {
 }
 
 struct CabalActivitySection: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.hostMainTab) private var hostMainTab
     let model: CabalActivityModel?
 
     var body: some View {
@@ -82,11 +84,14 @@ struct CabalActivitySection: View {
 
     @ViewBuilder private var header: some View {
         if let model, model.hasMore {
-            NavigationLink(value: AnyAppRoute(CabalActivityListRoute(cabalID: model.cabalID))) {
-                MonacoSectionHeader(CabalActivityCopy.header, trailing: CabalActivityCopy.seeAll)
+            MonacoSectionHeader(
+                CabalActivityCopy.header, trailing: CabalActivityCopy.seeAll,
+                actionIdentifier: "cabal-activity-see-all"
+            ) {
+                environment.navigator.open(
+                    CabalActivityListRoute(cabalID: model.cabalID),
+                    in: hostMainTab ?? environment.navigator.selectedTab)
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("cabal-activity-see-all")
         } else {
             MonacoSectionHeader(CabalActivityCopy.header)
         }

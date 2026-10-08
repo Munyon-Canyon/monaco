@@ -13,6 +13,7 @@ struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.hostMainTab) private var hostMainTab
     @State private var model: ProposalListModel?
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
@@ -63,7 +64,7 @@ struct CabalProposals: View {
         if section == nil && inProgress.isEmpty && recent.isEmpty {
             EmptyState(title: "No open votes", message: "Propose the first buy.")
             if !model.pager.items.isEmpty {
-                NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
+                MonacoSectionHeader("Proposals", trailing: "See all", action: openAll)
             }
         } else {
             if let section {
@@ -84,13 +85,7 @@ struct CabalProposals: View {
     @ViewBuilder private func section(
         _ title: String, _ proposals: [ProposalSummary], count: Int?, showsSeeAll: Bool, model: ProposalListModel
     ) -> some View {
-        HStack {
-            MonacoSectionHeader(title, count: count)
-            Spacer()
-            if showsSeeAll {
-                NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
-            }
-        }
+        MonacoSectionHeader(title, count: count, trailing: showsSeeAll ? "See all" : nil, action: openAll)
         ForEach(proposals) { proposal in
             if let voting {
                 ProposalVoteCard(
@@ -99,6 +94,11 @@ struct CabalProposals: View {
                     onVoted: { await model.refresh() })
             }
         }
+    }
+
+    private func openAll() {
+        environment.navigator.open(
+            CabalProposalListRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
     }
 
     private func preparedPause() -> ProposalPauseModel {

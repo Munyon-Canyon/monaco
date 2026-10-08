@@ -292,6 +292,7 @@ enum RepoRules {
         ),
         DesignScaleRules.spacing,
         roundedBorderField,
+        seeAll,
         gutter,
         RepoRule(
             name: "flow-switch",
@@ -733,5 +734,15 @@ extension RepoRules {
             ".padding(.horizontal, MonacoTheme.Space.sm)",
         ],
         applies: { path, _ in path.hasPrefix("apps/mobile/Monaco/Features/") }
+    )
+
+    static let seeAll = RepoRule(
+        name: "see-all",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"(NavigationLink|Text)\("See all""#,
+        message: "A See all is MonacoSectionHeader's trailing action, not a bare link or text.",
+        failing: [#"NavigationLink("See all", value: route)"#, #"Text("See all")"#],
+        passing: [#"MonacoSectionHeader("Activity", trailing: "See all") { open() }"#],
+        applies: { path, _ in !path.hasSuffix("Proposals/ProposalDetailSlot.swift") }
     )
 }
