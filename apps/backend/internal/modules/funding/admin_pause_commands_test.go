@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -20,11 +21,18 @@ import (
 
 func commandAction(t *testing.T, kind events.AdminActionKind, cabal ids.CabalID) *events.AdminAction {
 	t.Helper()
+	return commandActionSeeded(t, 60, kind, cabal)
+}
+
+func commandActionSeeded(
+	t *testing.T, seed uint64, kind events.AdminActionKind, cabal ids.CabalID,
+) *events.AdminAction {
+	t.Helper()
 	reason, err := events.NewReason("investigating")
 	if err != nil {
 		t.Fatal(err)
 	}
-	action, err := events.NewAdminAction(testkit.NewIDs(60).NewV7(), ids.UserIDFrom(testkit.NewIDs(61).NewV7()),
+	action, err := events.NewAdminAction(testkit.NewIDs(seed).NewV7(), ids.UserIDFrom(testkit.NewIDs(seed+1).NewV7()),
 		kind, events.AdminTargetCabal, cabal.String(), reason, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -51,6 +59,66 @@ func TestAdminPauseCommand_AuditsEvenWhenAnotherReasonHoldsThePause(t *testing.T
 		!slices.Equal(pausedReasons(t, action.After), []string{"external_deposit", "ops"}) {
 		t.Fatalf("cabal.paused=%d before=%s after=%s, want the one event and both reasons audited",
 			n, action.Before, action.After)
+	}
+}
+
+func TestAdminPauseCommand_AuditsAReasonOnceWhenTwoPausesHoldIt(t *testing.T) {
+	t.Parallel()
+	env := newPauseEnv(t)
+	cabal := testkit.NewCabal(t, env.pool)
+	mustPause(t, env, cabal.ID, domain.PauseReasonExternalDeposit)
+	mustPause(t, env, cabal.ID, domain.PauseReasonExternalDeposit)
+	_, err := env.pause.Handle(opsContext(t), app.PauseCabal{
+		CabalID:     &cabal.ID,
+		Reason:      domain.PauseReasonOps,
+		AdminAction: commandAction(t, events.AdminActionOpsPause, cabal.ID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	action := adminActionPayload(t, env.pool, events.AdminActionOpsPause)
+	if !slices.Equal(pausedReasons(t, action.Before), []string{"external_deposit"}) ||
+		!slices.Equal(pausedReasons(t, action.After), []string{"external_deposit", "ops"}) {
+		t.Fatalf("before=%s after=%s, want each reason listed once in order", action.Before, action.After)
+	}
+}
+
+func TestAdminPause_ConcurrentOnlyOneWins(t *testing.T) {
+	t.Parallel()
+	env := newPauseEnv(t)
+	cabal := testkit.NewCabal(t, env.pool)
+	const racers = 2
+	start := make(chan struct{})
+	results := make([]error, racers)
+	var group errgroup.Group
+	for i := range racers {
+		action := commandActionSeeded(t, uint64(100+10*i), events.AdminActionOpsPause, cabal.ID)
+		group.Go(func() error {
+			<-start
+			_, results[i] = env.pause.Handle(opsContext(t), app.PauseCabal{
+				CabalID: &cabal.ID, Reason: domain.PauseReasonOps, AdminAction: action,
+			})
+			return nil
+		})
+	}
+	close(start)
+	_ = group.Wait()
+	var won, refused int
+	for _, err := range results {
+		switch {
+		case err == nil:
+			won++
+		case codeOrEmpty(err) == errs.CodeAlreadyPaused:
+			refused++
+		default:
+			t.Fatalf("pause error = %v, want nil or already_paused", err)
+		}
+	}
+	open := openPauses(t, env.pool)
+	audits := countEvents(t, env.pool, events.TypeAdminAction)
+	if won != 1 || refused != 1 || !slices.Equal(open, []string{"ops"}) || audits != 1 {
+		t.Fatalf("won=%d refused=%d open=%v admin.action=%d, want one winner, one ops row and one audit",
+			won, refused, open, audits)
 	}
 }
 
