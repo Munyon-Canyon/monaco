@@ -15,6 +15,7 @@ struct CabalProposals: View {
     @State private var model: ProposalListModel?
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
+    @State private var context: ProposalCardContext?
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
 
     init(
@@ -39,6 +40,7 @@ struct CabalProposals: View {
             }
         }
         .task { await preparedModel().load() }
+        .task(id: model?.pager.items.map(\.id)) { await context?.load(for: model?.pager.items ?? []) }
         .task { await preparedModel().observe(cabalID: cabalID) }
         .task {
             let pause = preparedPause()
@@ -52,28 +54,30 @@ struct CabalProposals: View {
     }
 
     @ViewBuilder private func content(_ model: ProposalListModel) -> some View {
-        let needsVote = model.needsVote(votedThisSession: voting?.votedIDs ?? [])
+        let votedThisSession = voting?.votedIDs ?? []
+        let section = model.cabalSection(votedThisSession: votedThisSession)
         let inProgress = model.trading
-        if needsVote.isEmpty && inProgress.isEmpty {
+        if section == nil && inProgress.isEmpty {
             EmptyState(title: "No open votes", message: "Propose the first buy.")
             if !model.pager.items.isEmpty {
                 NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
             }
         } else {
-            if !needsVote.isEmpty {
-                section("Needs your vote", needsVote, showsSeeAll: true, model: model)
+            if let section {
+                self.section(section.title, section.proposals, count: section.count, showsSeeAll: true, model: model)
             }
             if !inProgress.isEmpty {
-                section("In progress", inProgress, showsSeeAll: needsVote.isEmpty, model: model)
+                self.section(
+                    "In progress", inProgress, count: inProgress.count, showsSeeAll: section == nil, model: model)
             }
         }
     }
 
     @ViewBuilder private func section(
-        _ title: String, _ proposals: [ProposalSummary], showsSeeAll: Bool, model: ProposalListModel
+        _ title: String, _ proposals: [ProposalSummary], count: Int?, showsSeeAll: Bool, model: ProposalListModel
     ) -> some View {
         HStack {
-            MonacoSectionHeader(title, count: proposals.count)
+            MonacoSectionHeader(title, count: count)
             Spacer()
             if showsSeeAll {
                 NavigationLink("See all", value: AnyAppRoute(CabalProposalListRoute(cabalID: cabalID)))
@@ -82,8 +86,9 @@ struct CabalProposals: View {
         ForEach(proposals) { proposal in
             if let voting {
                 ProposalVoteCard(
-                    proposal: proposal, voting: voting, paused: pause?.isPaused == true,
-                    onVoted: { await model.pager.refreshFirstPage() })
+                    proposal: proposal, voting: voting, asset: context?.assets[proposal.symbol],
+                    members: context?.members ?? [], paused: pause?.isPaused == true,
+                    onVoted: { await model.refresh() })
             }
         }
     }
@@ -99,6 +104,7 @@ struct CabalProposals: View {
     private func preparedModel() -> ProposalListModel {
         if let model { return model }
         voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
+        context = ProposalCardContext(cabalID: cabalID, repository: ProposalsRepository(api: environment.api))
         let created = makeModel(environment, cabalID)
         model = created
         return created
@@ -119,42 +125,76 @@ private nonisolated struct CabalProposalListRoute: Hashable, AppRoute {
 private struct CabalAllProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
-    @State private var open: ProposalListModel?
-    @State private var closed: ProposalListModel?
+    @State private var segments: ProposalSegmentsModel?
     @State private var voting: ProposalVoteModel?
+    @State private var context: ProposalCardContext?
+
+    var body: some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            if let segments, let voting, let context {
+                Picker("Status", selection: Bindable(segments).selected) {
+                    ForEach(ProposalSegment.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, MonacoTheme.Space.m)
+                CabalProposalSegmentList(
+                    segment: segments.selected, model: segments.model(for: segments.selected), voting: voting,
+                    context: context, cabalID: cabalID, onVoted: { await segments.refreshLoaded() }
+                )
+                .id(segments.selected)
+            }
+        }
+        .navigationTitle("Proposals")
+        .task { prepare() }
+    }
+
+    private func prepare() {
+        guard segments == nil else { return }
+        let repository = ProposalsRepository(api: environment.api)
+        segments = ProposalSegmentsModel(cabalID: cabalID, repository: repository, hints: environment.hints)
+        voting = ProposalVoteModel(repository: repository)
+        context = ProposalCardContext(cabalID: cabalID, repository: repository)
+    }
+}
+
+private struct CabalProposalSegmentList: View {
+    let segment: ProposalSegment
+    let model: ProposalListModel
+    let voting: ProposalVoteModel
+    let context: ProposalCardContext
+    let cabalID: String
+    let onVoted: () async -> Void
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                if let open, let closed, let voting {
-                    ForEach(open.pager.items + closed.pager.items) { proposal in
-                        ProposalVoteCard(
-                            proposal: proposal, voting: voting,
-                            onVoted: { await open.pager.refreshFirstPage() })
+            LazyVStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                if model.pager.items.isEmpty {
+                    switch model.pager.phase {
+                    case .idle, .loadingFirst:
+                        SkeletonBlock(width: 280, height: 160, radius: MonacoTheme.Radius.card)
+                    case .failed:
+                        EmptyState(title: "Couldn't load proposals.", actionTitle: "Try again") {
+                            Task { await model.load() }
+                        }
+                    default:
+                        EmptyState(title: segment.emptyTitle)
+                    }
+                }
+                ForEach(model.pager.items) { proposal in
+                    ProposalVoteCard(
+                        proposal: proposal, voting: voting, asset: context.assets[proposal.symbol],
+                        members: context.members, onVoted: onVoted
+                    )
+                    .onAppear {
+                        if proposal.id == model.pager.items.last?.id { Task { await model.pager.loadMore() } }
                     }
                 }
             }
             .padding(MonacoTheme.Space.m)
         }
-        .navigationTitle("Proposals")
-        .task {
-            let models = preparedModels()
-            await models.open.load()
-            await models.closed.load()
-        }
-    }
-
-    private func preparedModels() -> (open: ProposalListModel, closed: ProposalListModel) {
-        if let open, let closed { return (open, closed) }
-        let repository = ProposalsRepository(api: environment.api)
-        let created = (
-            open: ProposalListModel(cabalID: cabalID, filter: .open, repository: repository, hints: environment.hints),
-            closed: ProposalListModel(
-                cabalID: cabalID, filter: .closed, repository: repository, hints: environment.hints)
-        )
-        voting = ProposalVoteModel(repository: repository)
-        open = created.open
-        closed = created.closed
-        return created
+        .task { await model.load() }
+        .task { await model.observe(cabalID: cabalID) }
+        .task(id: model.pager.items.map(\.id)) { await context.load(for: model.pager.items) }
+        .onScreenVisibilityChange { model.setVisible($0) }
     }
 }

@@ -34,6 +34,36 @@ struct CabalProposalsRefreshTests {
         #expect(await listRequests(transport) == 2)
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func aVoteThatClosesAProposalMovesItFromOpenToExecuted() async throws {
+        let open = Self.proposalJSON(status: "open")
+        let executed = Self.proposalJSON(status: "executed")
+        let transport = StubTransport(scripted: [
+            .json(.ok, #"{"proposals":[\#(open)],"next_cursor":null}"#),
+            .json(.ok, #"{"proposals":[],"next_cursor":null}"#),
+            .json(.ok, #"{"proposals":[],"next_cursor":null}"#),
+            .json(.ok, #"{"proposals":[\#(executed)],"next_cursor":null}"#),
+        ])
+        let segments = ProposalSegmentsModel(
+            cabalID: "cabal-1",
+            repository: ProposalsRepository(
+                api: APIClient(
+                    serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)),
+            hints: EmittingHintSource())
+        await segments.model(for: .open).load()
+        await segments.model(for: .executed).load()
+        #expect(segments.model(for: .open).pager.items.map(\.id) == ["p"])
+
+        await segments.refreshLoaded()
+
+        #expect(segments.model(for: .open).pager.items.isEmpty)
+        #expect(segments.model(for: .executed).pager.items.map(\.id) == ["p"])
+    }
+
+    private static func proposalJSON(status: String) -> String {
+        #"{"id":"p","cabal_id":"cabal-1","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes","can_vote":true}"#
+    }
+
     private func listRequests(_ transport: StubTransport) async -> Int {
         await transport.sent.filter { ($0.path ?? "").hasPrefix("/v1/cabals/cabal-1/proposals") }.count
     }
