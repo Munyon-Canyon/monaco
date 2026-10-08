@@ -880,3 +880,20 @@ func execSQL(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
 		t.Fatal(err)
 	}
 }
+
+func TestMyCabals_omitsABannedCabal(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	active, banned := testkit.NewCabal(t, f.pool), testkit.NewCabal(t, f.pool)
+	joinMyCabal(t, f, active.ID.UUID(), time.Date(2026, 10, 2, 16, 0, 0, 0, time.UTC))
+	joinMyCabal(t, f, banned.ID.UUID(), time.Date(2026, 10, 2, 17, 0, 0, 0, time.UTC))
+	nameCabal(t, f, banned.ID.UUID(), "Banned pot", "banned")
+	mine, err := f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []api.MyCabal(mine.(api.GetMyCabals200JSONResponse))
+	if len(items) != 1 || items[0].Id != active.ID.UUID() {
+		t.Fatalf("my cabals = %+v, want only the active cabal", items)
+	}
+}

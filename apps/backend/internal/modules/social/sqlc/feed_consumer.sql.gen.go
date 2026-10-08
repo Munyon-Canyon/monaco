@@ -105,6 +105,26 @@ func (q *Queries) FeedCabalName(ctx context.Context, cabalID uuid.UUID) (string,
 	return name, err
 }
 
+const hideFeedCabal = `-- name: HideFeedCabal :execrows
+INSERT INTO feed_cabals (cabal_id, name, updated_at, hidden_at)
+VALUES ($1::uuid, '', $2::timestamptz, $2::timestamptz)
+ON CONFLICT (cabal_id) DO UPDATE SET hidden_at = excluded.hidden_at
+WHERE feed_cabals.hidden_at IS NULL
+`
+
+type HideFeedCabalParams struct {
+	CabalID uuid.UUID
+	At      time.Time
+}
+
+func (q *Queries) HideFeedCabal(ctx context.Context, arg HideFeedCabalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, hideFeedCabal, arg.CabalID, arg.At)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertFeedConsumerItem = `-- name: InsertFeedConsumerItem :exec
 INSERT INTO feed_objects (
   id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, asset_id, symbol, title, payload, status,
