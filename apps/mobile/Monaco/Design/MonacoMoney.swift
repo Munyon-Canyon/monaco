@@ -16,10 +16,10 @@ enum MoneyStyle {
     /// Design size at the default text size.
     var baseSize: CGFloat {
         switch self {
-        case .hero: return 44
-        case .large: return 28
-        case .row: return 17
-        case .caption: return 13
+        case .hero: return 46
+        case .large: return 30
+        case .row: return 18
+        case .caption: return 15
         }
     }
 
@@ -41,7 +41,7 @@ enum MoneyStyle {
     }
 
     /// A row quote in the market's voice. See `MoneyFont.marketRow`.
-    static let marketRowBaseSize: CGFloat = 15
+    static let marketRowBaseSize: CGFloat = 16
 
     /// Hero figures shrink before they wrap; rows keep their size and truncate last.
     var minimumScaleFactor: CGFloat {

@@ -351,20 +351,20 @@ enum MonacoTheme {
     enum Typo {
         // MARK: Words — Avenir Next
 
-        static let display = Font.custom("AvenirNext-Bold", size: 34, relativeTo: .largeTitle)
-        static let title = Font.custom("AvenirNext-DemiBold", size: 24, relativeTo: .title)
-        static let section = Font.custom("AvenirNext-DemiBold", size: 20, relativeTo: .title3)
-        static let rowTitle = Font.custom("AvenirNext-DemiBold", size: 17, relativeTo: .body)
-        static let body = Font.custom("AvenirNext-Regular", size: 17, relativeTo: .body)
-        static let bodyStrong = Font.custom("AvenirNext-DemiBold", size: 17, relativeTo: .body)
+        static let display = Font.custom("AvenirNext-Bold", size: 36, relativeTo: .largeTitle)
+        static let title = Font.custom("AvenirNext-DemiBold", size: 26, relativeTo: .title)
+        static let section = Font.custom("AvenirNext-DemiBold", size: 22, relativeTo: .title3)
+        static let rowTitle = Font.custom("AvenirNext-DemiBold", size: 18, relativeTo: .body)
+        static let body = Font.custom("AvenirNext-Regular", size: 18, relativeTo: .body)
+        static let bodyStrong = Font.custom("AvenirNext-DemiBold", size: 18, relativeTo: .body)
         /// Every Monaco button label.
-        static let button = Font.custom("AvenirNext-DemiBold", size: 17, relativeTo: .body)
-        static let callout = Font.custom("AvenirNext-Regular", size: 16, relativeTo: .callout)
-        static let calloutStrong = Font.custom("AvenirNext-DemiBold", size: 16, relativeTo: .callout)
-        /// Medium, not Regular: at 13pt Avenir Next Regular goes thin on cream.
-        static let caption = Font.custom("AvenirNext-Medium", size: 13, relativeTo: .footnote)
-        static let captionStrong = Font.custom("AvenirNext-DemiBold", size: 13, relativeTo: .footnote)
-        static let micro = Font.custom("AvenirNext-DemiBold", size: 11, relativeTo: .caption2)
+        static let button = Font.custom("AvenirNext-DemiBold", size: 18, relativeTo: .body)
+        static let callout = Font.custom("AvenirNext-Regular", size: 17, relativeTo: .callout)
+        static let calloutStrong = Font.custom("AvenirNext-DemiBold", size: 17, relativeTo: .callout)
+        /// Medium, not Regular: at 15pt Avenir Next Regular goes thin on cream.
+        static let caption = Font.custom("AvenirNext-Medium", size: 15, relativeTo: .footnote)
+        static let captionStrong = Font.custom("AvenirNext-DemiBold", size: 15, relativeTo: .footnote)
+        static let micro = Font.custom("AvenirNext-DemiBold", size: 13, relativeTo: .caption2)
 
         // MARK: The market — SF Mono
 
@@ -377,19 +377,19 @@ enum MonacoTheme {
         /// Any other market figure: a day move, a rank, a stat.
         static let data = Font.system(.subheadline, design: .monospaced).weight(.medium)
         static let dataStrong = Font.system(.subheadline, design: .monospaced).weight(.semibold)
-        static let dataCaption = Font.system(.footnote, design: .monospaced).weight(.medium)
-        static let dataMicro = Font.system(.caption2, design: .monospaced).weight(.semibold)
+        static let dataCaption = Font.system(.subheadline, design: .monospaced).weight(.medium)
+        static let dataMicro = Font.system(.footnote, design: .monospaced).weight(.semibold)
         /// Timestamps and countdowns.
-        static let stamp = Font.system(.caption, design: .monospaced).weight(.medium)
+        static let stamp = Font.system(.footnote, design: .monospaced).weight(.medium)
 
         // MARK: Money statics for older call sites
 
         /// Prefer `.moneyFont(_:)`. These statics pre-scale with `UIFontMetrics`, so they ignore a
         /// `.dynamicTypeSize` cap on the view tree and do not re-render when the text size changes.
-        static var moneyHero: Font { money(size: 44, weight: .semibold, relativeTo: .largeTitle) }
-        static var moneyLarge: Font { money(size: 28, weight: .semibold, relativeTo: .title1) }
-        static var moneyRow: Font { money(size: 17, weight: .semibold, relativeTo: .body) }
-        static var moneyCaption: Font { money(size: 13, weight: .medium, relativeTo: .footnote) }
+        static var moneyHero: Font { money(size: 46, weight: .semibold, relativeTo: .largeTitle) }
+        static var moneyLarge: Font { money(size: 30, weight: .semibold, relativeTo: .title1) }
+        static var moneyRow: Font { money(size: 18, weight: .semibold, relativeTo: .body) }
+        static var moneyCaption: Font { money(size: 15, weight: .medium, relativeTo: .footnote) }
 
         /// Avenir Next pre-scaled against the process-wide content size category.
         /// Prefer `.moneyFont(_:)`, which scales inside the view tree.
