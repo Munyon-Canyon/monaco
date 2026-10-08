@@ -14,6 +14,7 @@ struct ProfileStatsBand: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: PortfolioModel?
 
     init(model: PortfolioModel? = nil) {
@@ -82,8 +83,14 @@ struct ProfileStatsBand: View {
     private func columns(@ViewBuilder _ cells: () -> some View) -> some View {
         VStack(spacing: 0) {
             MonacoRule()
-            HStack(alignment: .top, spacing: 0) { cells() }
-                .padding(.vertical, MonacoTheme.Space.m)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: MonacoTheme.Space.m) { cells() }
+                } else {
+                    HStack(alignment: .top, spacing: MonacoTheme.Space.s) { cells() }
+                }
+            }
+            .padding(.vertical, MonacoTheme.Space.l)
             MonacoRule()
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -105,13 +112,15 @@ private struct ProfileStatColumn: View {
     var body: some View {
         VStack(spacing: MonacoTheme.Space.xs) {
             Text(value)
-                .font(MonacoTheme.Typo.dataStrong)
+                .font(MonacoTheme.Typo.moneyRow)
                 .foregroundStyle(tone ?? MonacoTheme.ink)
                 .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.7)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
             Text(label)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
+                .font(MonacoTheme.Typo.callout)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)

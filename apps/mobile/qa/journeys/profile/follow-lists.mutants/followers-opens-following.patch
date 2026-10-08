@@ -5,15 +5,15 @@ expect-fail: S1
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-index 885e30fb6..9c32c1687 100644
+index 499f1e5d9..8b363c4e9 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-@@ -58,7 +58,7 @@ private struct ProfileFollowCountLinks: View {
-             }
-         case .loaded:
-             HStack(spacing: 0) {
--                link("\(model?.followerCount ?? 0) Followers", .followers, id: "profile-followers")
-+                link("\(model?.followerCount ?? 0) Followers", .following, id: "profile-followers")
-                 Text(" · ")
-                     .font(MonacoTheme.Typo.calloutStrong)
-                     .foregroundStyle(MonacoTheme.muted)
+@@ -62,7 +62,7 @@ private struct ProfileFollowCountLinks: View {
+     }
+ 
+     private var countLinks: some View {
+-        let followers = link(model?.followerCount ?? 0, "Followers", .followers, id: "profile-followers")
++        let followers = link(model?.followerCount ?? 0, "Followers", .following, id: "profile-followers")
+         let following = link(model?.followingCount ?? 0, "Following", .following, id: "profile-following")
+         return ViewThatFits(in: .horizontal) {
+             HStack(spacing: MonacoTheme.Space.m) {

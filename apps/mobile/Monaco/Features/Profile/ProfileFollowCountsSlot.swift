@@ -57,22 +57,35 @@ private struct ProfileFollowCountLinks: View {
                 Task { await model?.load() }
             }
         case .loaded:
-            HStack(spacing: 0) {
-                link("\(model?.followerCount ?? 0) Followers", .followers, id: "profile-followers")
-                Text(" · ")
-                    .font(MonacoTheme.Typo.calloutStrong)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .accessibilityHidden(true)
-                link("\(model?.followingCount ?? 0) Following", .following, id: "profile-following")
-            }
+            countLinks
         }
     }
 
-    private func link(_ title: String, _ kind: FollowListKind, id: String) -> some View {
+    private var countLinks: some View {
+        let followers = link(model?.followerCount ?? 0, "Followers", .followers, id: "profile-followers")
+        let following = link(model?.followingCount ?? 0, "Following", .following, id: "profile-following")
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: MonacoTheme.Space.m) {
+                followers
+                Text("·")
+                    .font(MonacoTheme.Typo.callout)
+                    .foregroundStyle(MonacoTheme.tertiaryText)
+                    .accessibilityHidden(true)
+                following
+            }
+            VStack(spacing: 0) {
+                followers
+                following
+            }
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+
+    private func link(_ count: Int, _ word: String, _ kind: FollowListKind, id: String) -> some View {
         NavigationLink(value: AnyAppRoute(FollowListRoute(userID: userID, kind: kind))) {
-            Text(title)
-                .font(MonacoTheme.Typo.calloutStrong)
-                .foregroundStyle(MonacoTheme.ink)
+            (Text("\(count)").font(MonacoTheme.Typo.rowTitle).foregroundStyle(MonacoTheme.ink)
+                + Text(" \(word)").font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.secondaryText))
+                .lineLimit(1)
                 .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
