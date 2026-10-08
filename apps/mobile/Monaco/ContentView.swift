@@ -3,13 +3,15 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var auth: PrivyAuthService
     @State private var toasts = ToastCenter()
+    @State private var tabsHostToasts = false
 
     var body: some View {
         root
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .monacoRootAppearance()
             .onAppear { MonacoLaunchTrace.markFirstFrame() }
-            .monacoToastCenter(toasts)
+            .monacoToastCenter(toasts, isEnabled: !tabsHostToasts)
+            .onPreferenceChange(TabToastHostKey.self) { tabsHostToasts = $0 }
             .environment(toasts)
     }
 

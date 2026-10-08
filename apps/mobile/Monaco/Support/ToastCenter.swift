@@ -16,20 +16,31 @@ final class ToastCenter {
     }
 }
 
+nonisolated struct TabToastHostKey: PreferenceKey {
+    static let defaultValue = false
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}
+
 extension View {
-    func monacoToastCenter(_ center: ToastCenter, placement: MonacoToastPlacement = .screenBottom) -> some View {
-        modifier(ToastCenterHost(center: center, placement: placement))
+    func monacoToastCenter(
+        _ center: ToastCenter, placement: MonacoToastPlacement = .screenBottom, isEnabled: Bool = true
+    ) -> some View {
+        modifier(ToastCenterHost(center: center, placement: placement, isEnabled: isEnabled))
     }
 }
 
 private struct ToastCenterHost: ViewModifier {
     @Bindable var center: ToastCenter
     let placement: MonacoToastPlacement
+    let isEnabled: Bool
 
     func body(content: Content) -> some View {
         content.monacoToast(
             Binding(
-                get: { center.current },
+                get: { isEnabled ? center.current : nil },
                 set: { center.current = $0 }
             ),
             placement: placement
