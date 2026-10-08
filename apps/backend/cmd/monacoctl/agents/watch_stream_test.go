@@ -1481,3 +1481,32 @@ func TestRereadRecords_keepsTheFirstReadWhenTheRecordsCannotBeReadAgain(t *testi
 		t.Fatalf("records %+v", got)
 	}
 }
+
+func TestWatchStream_aRecordAddedWhileTheWatchReadsGitHubKeepsTheArmedLinesOnTheirTicket(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	var once sync.Once
+	f.hub.hook = func(method, path, body string, status int) {
+		s.onLabel(method, path, body, status)
+		if path != "/graphql" {
+			return
+		}
+		once.Do(func() {
+			added := Record{Ticket: 5, State: Exited, Worktree: f.dir, Settled: &Settlement{
+				Top: 9, PRs: []int{9}, Outcome: outcomeEjected, Detail: "settled five", At: f.now.Add(time.Minute),
+			}}
+			if err := f.Env(t).saveRecord(added); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	out := streamRounds(t, f, 1, func(int) {})
+	if !strings.Contains(out, "armed stack #2 landing\nqueued #1 #2\n") || !strings.Contains(out, "settled five\n") {
+		t.Fatalf("stream:\n%s", out)
+	}
+	if r := f.owned(t); len(r.Queued) == 0 {
+		t.Fatalf("armed record not queued: %+v", r)
+	}
+}
