@@ -41,7 +41,7 @@ call() {
 [[ -x bin/monacoctl ]] || fail "bin/monacoctl is missing: run just build backend"
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
-unset_qa=()
+unset_qa=(-u MONACO_API_BASE_URL)
 while read -r name; do unset_qa+=(-u "$name"); done < <(compgen -e | grep '^MONACO_QA_')
 token="$(env "${unset_qa[@]}" bin/monacoctl dev token --user new 2>"$log")" ||
   fail "monacoctl dev token --user new failed: $(cat "$log")"

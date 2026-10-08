@@ -2,7 +2,8 @@ import XCTest
 
 enum FirstRunJourney {
     static let id = "onboarding/first-run"
-    static let version = 1
+    static let version = 2
+    static let actors = ["C", "B"]
 
     static let handle = "qa_cayman"
     static let addPhoneNudge = "Add your number to find friends"
@@ -15,6 +16,10 @@ enum FirstRunJourney {
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
+    }
+
+    static func session() throws -> JourneySession {
+        try JourneySession(actors: actors, channel: .email)
     }
 
     static func member() throws -> JourneyAccount {
@@ -254,6 +259,11 @@ enum FirstRunJourney {
             XCTAssertTrue(
                 waitUntil(checkTimeout) { toast.exists && toast.label.contains("Number added.") },
                 "S4.3: no 'Number added.' toast")
+            let notNow = app.buttons["friends-not-now"]
+            XCTAssertTrue(
+                notNow.waitForExistence(timeout: stepTimeout),
+                "S4.3: the Find friends step did not show after the number linked")
+            notNow.tap()
             XCTAssertTrue(
                 waitForNudge(app, reading: linkXNudge, timeout: stepTimeout),
                 "S4.3: the nudge did not read '\(linkXNudge)', it read '\(nudge(app).label)'")

@@ -40,7 +40,7 @@ call() {
 }
 
 dev_token() {
-  local unset_qa=()
+  local unset_qa=(-u MONACO_API_BASE_URL)
   while read -r name; do unset_qa+=(-u "$name"); done < <(compgen -e | grep '^MONACO_QA_')
   env "${unset_qa[@]}" bin/monacoctl dev token --user "$1" --ttl 1h 2>/dev/null || fail "monacoctl dev token --user $1 failed"
 }

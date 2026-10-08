@@ -1,7 +1,7 @@
 ---
 id: settings/delete-account
 title: Delete your account
-version: 4
+version: 5
 milestone: M9
 requires: []
 actors: [C]

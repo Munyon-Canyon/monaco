@@ -7,7 +7,7 @@ nonisolated final class FirstRunJourneyUITests: XCTestCase {
 
     @MainActor
     func testJourney() throws {
-        let session = try JourneySession()
+        let session = try FirstRunJourney.session()
         let app = session.app
         let member = try FirstRunJourney.member()
 

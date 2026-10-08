@@ -7,7 +7,7 @@ nonisolated final class SettingsDeleteAccountJourneyUITests: XCTestCase {
 
     @MainActor
     func testJourney() throws {
-        let session = try JourneySession()
+        let session = try JourneySession(actors: ["C"])
         let app = session.app
         let recorder = SettingsDeleteAccountJourney.recorder()
 

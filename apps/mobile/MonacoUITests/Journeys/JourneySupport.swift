@@ -83,8 +83,16 @@ final class JourneySession {
     private let clock = ContinuousClock()
     private static let setupTimeout: TimeInterval = 240
 
-    init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
-        _ = try JourneyAccount.load(actor: "A", environment: environment)
+    init(
+        actors: [String] = ["A"],
+        channel: JourneyAccount.Channel? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws {
+        guard let first = actors.first else {
+            XCTFail("JourneySession needs the journey's declared actors")
+            throw CocoaError(.keyValueValidation)
+        }
+        _ = try JourneyAccount.load(actor: first, channel: channel, environment: environment)
         self.environment = environment
     }
 
