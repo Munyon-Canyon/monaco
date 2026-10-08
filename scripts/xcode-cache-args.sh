@@ -8,12 +8,17 @@
 # second worktree hits the first one's entries. SourcePackages is keyed by a hash of
 # Package.resolved so lanes on different package versions stay apart.
 # See docs/how-to/local-simulator.md#shared-compilation-cache.
+# On Apple silicon the build excludes x86_64: test builds compile some package targets as
+# x86_64 macOS 10.13 host tools, and a cached compile of those fails with "IR generation
+# failure: Cannot read legacy layout file". An Intel Mac keeps x86_64.
 set -euo pipefail
 
 wt=$(git rev-parse --show-toplevel)
 cd "$wt"
 primary=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 dd=${1:-$wt/.build/DerivedData}
+arch_args=()
+[[ "$(uname -m)" == arm64 ]] && arch_args=(EXCLUDED_ARCHS=x86_64)
 pins=$(shasum apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved | cut -c1-12)
 
 printf '%s\n' \
@@ -25,4 +30,5 @@ printf '%s\n' \
   SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES \
   "SWIFT_OTHER_PREFIX_MAPPINGS=$dd=/^dd $wt=/^wt" \
   "CLANG_OTHER_PREFIX_MAPPINGS=$dd=/^dd $wt=/^wt" \
-  ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO
+  ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO \
+  ${arch_args[@]+"${arch_args[@]}"}

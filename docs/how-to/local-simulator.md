@@ -58,7 +58,9 @@ stock fallback.
   Package.resolved>`; both are under the gitignored `.build/`. Prefix mapping makes
   the worktree and DerivedData paths identical in every cache key. Clear the cache with
   `rm -rf <primary>/.build/CompilationCache`. No size limit is set;
-  `COMPILATION_CACHE_LIMIT_SIZE` is the knob.
+  `COMPILATION_CACHE_LIMIT_SIZE` is the knob. On Apple silicon the arguments also set
+  `EXCLUDED_ARCHS=x86_64`: a test build compiles some package targets as x86_64 macOS host
+  tools, and a cached compile of those fails with "Cannot read legacy layout file".
 - **Build slots.** `scripts/qa/xcode-lock.sh` runs one xcodebuild per 16 GB of RAM
   at once and one `swift test` per 8 GB. A 16 GB Mac still builds one at a time; a
   64 GB Mac builds four. A lane holds one xcodebuild slot at a time (`MONACO_LANE`,
