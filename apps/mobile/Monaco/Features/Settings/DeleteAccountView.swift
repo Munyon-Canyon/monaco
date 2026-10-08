@@ -114,7 +114,8 @@ struct DeleteAccountContent: View {
                         NavigationLink(value: AnyAppRoute(CashOutRoute(cabalID: slice.cabal.id))) {
                             MonacoRow(
                                 title: slice.cabal.name,
-                                subtitle: AccountCopy.yourSlice(UsdAmountFormatter.format(micros: slice.valueMicros)),
+                                subtitle: AccountCopy.yourSlice(
+                                    UsdAmountFormatter.format(flooredMicros: slice.valueMicros)),
                                 chevron: true, isLast: index == checklist.slices.count - 1
                             ) {
                                 CabalMark(
@@ -132,7 +133,7 @@ struct DeleteAccountContent: View {
     }
 
     private func withdrawStep(_ checklist: DeleteAccountChecklist) -> some View {
-        let amount = UsdAmountFormatter.format(micros: checklist.balance.availableMicros)
+        let amount = UsdAmountFormatter.format(flooredMicros: checklist.balance.availableMicros)
         return ChecklistStep(
             title: AccountCopy.withdrawStep,
             isDone: checklist.isWithdrawn,

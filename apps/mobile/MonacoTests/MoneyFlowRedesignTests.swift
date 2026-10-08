@@ -85,6 +85,10 @@ struct FundCabalFormTests {
         #expect(FundCabalForm(amountText: "", balance: nil).availability == nil)
     }
 
+    @Test func theHelperRoundsDownToWhatMaxFills() {
+        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(2_999_999)).availability == "$2.99 available")
+    }
+
     /// The line under the pad names the cabal once its name has loaded.
     @Test func theNoteNamesTheCabalWhenThereIsAChoice() {
         #expect(

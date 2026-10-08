@@ -71,7 +71,7 @@ public enum CashOutAmountRule {
     }
 
     public static func helper(for verdict: Verdict, sliceMicros: Int64) -> String {
-        let slice = UsdAmountFormatter.format(micros: sliceMicros)
+        let slice = UsdAmountFormatter.format(flooredMicros: sliceMicros)
         return verdict == .sellsWholeSlice
             ? "We'll cash out your whole slice, \(slice)"
             : "Your slice is worth \(slice)"
@@ -80,6 +80,6 @@ public enum CashOutAmountRule {
     public static func submitTitle(for verdict: Verdict, enteredMicros: Int64, sliceMicros: Int64) -> String {
         let micros = effectiveMicros(for: verdict, enteredMicros: enteredMicros, sliceMicros: sliceMicros)
         guard micros > 0 else { return "Cash out" }
-        return "Cash out \(UsdAmountFormatter.format(micros: micros))"
+        return "Cash out \(UsdAmountFormatter.format(flooredMicros: micros))"
     }
 }

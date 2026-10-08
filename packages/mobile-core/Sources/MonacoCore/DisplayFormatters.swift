@@ -205,6 +205,10 @@ public enum UsdAmountFormatter {
         format(decimal: Decimal(micros) / Decimal(1_000_000))
     }
 
+    public static func flooredToCents(_ micros: Int64) -> Int64 { micros - micros % 10_000 }
+
+    public static func format(flooredMicros micros: Int64) -> String { format(micros: flooredToCents(micros)) }
+
     public static func format(signedMicros: Int64) -> String {
         let body = format(micros: signedMicros)
         guard signedMicros > 0, body != "$0.00" else { return body }

@@ -64,6 +64,12 @@ final class DisplayFormatterTests: XCTestCase {
         XCTAssertEqual(UsdAmountFormatter.format(micros: 2_100_050_000), "$2,100.05")
     }
 
+    func testUsdAmountFormatter_flooredMicrosNeverReadsMoreThanMaxFills() {
+        XCTAssertEqual(UsdAmountFormatter.format(flooredMicros: 2_999_999), "$2.99")
+        XCTAssertEqual(UsdAmountFormatter.format(flooredMicros: 1_000_000), "$1.00")
+        XCTAssertEqual(UsdAmountFormatter.flooredToCents(2_999_999), 2_990_000)
+    }
+
     func testStakeWithdrawConverter_shareMicros_scalesWithUsdTarget() {
         let shares = StakeWithdrawConverter.shareMicros(
             forUsdMicros: 1_050_025_000,
