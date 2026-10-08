@@ -17,6 +17,8 @@ security:
 tags:
   - name: admin
     description: Administrator access to Monaco operations.
+  - name: analytics
+    description: The business numbers behind the admin dashboards.
   - name: cabal
     description: A group treasury and its members.
   - name: funding

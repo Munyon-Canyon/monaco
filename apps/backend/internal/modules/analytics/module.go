@@ -1,17 +1,26 @@
 package analytics
 
 import (
+	"time"
+
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/exports"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/posthog"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/analyticsapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
+
+const dashboardTimeout = 5 * time.Second
 
 type Module struct {
 	deps    module.Deps
@@ -81,7 +90,19 @@ func registerProposalExports(r *Registry, proposers app.ProposerReader) {
 
 func (*Module) Name() string { return "analytics" }
 
-func (*Module) Mount(api.Mount) {}
+func (m *Module) Mount(r api.Mount) {
+	analyticsapi.Mount(adapters.HTTP{Money: m.money()}, r)
+}
+
+func (m *Module) money() app.Money {
+	ledger := treasury.New(m.deps)
+	return app.Money{
+		Read: adapters.ReadOnly(m.deps.Pool, dashboardTimeout),
+		Bind: func(db dbsqlc.DBTX) app.MoneySources {
+			return app.MoneySources{Ledger: ledger.DashboardOn(db), Valuations: ranking.QueriesOn(db)}
+		},
+	}
+}
 
 func (m *Module) Consumers() []bus.Consumer {
 	var port app.PostHog = posthog.Noop{}
