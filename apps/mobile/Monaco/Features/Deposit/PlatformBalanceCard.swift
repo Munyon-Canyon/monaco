@@ -97,7 +97,7 @@ struct PlatformBalanceCard: View {
     }
 
     private var labels: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             Text("Account balance")
                 .font(MonacoTheme.Typo.rowTitle)
                 .foregroundStyle(MonacoTheme.ink)

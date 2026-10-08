@@ -25,7 +25,7 @@ struct CabalPortfolioRow: View {
             MonacoRow(title: name, subtitle: subtitle, isLast: isLast) {
                 CabalMark(groupId: id, name: name, pictureUrl: pictureURL)
             } trailing: {
-                VStack(alignment: .trailing, spacing: 2) {
+                VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                     MoneyText(micros: valueMicros, style: .row)
                     if let returnBps {
                         PercentText(basisPoints: returnBps, style: .caption)

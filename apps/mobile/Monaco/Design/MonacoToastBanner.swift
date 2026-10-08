@@ -37,7 +37,7 @@ struct MonacoToastBanner: View {
     @ScaledMetric(relativeTo: .subheadline) private var glyphSize: CGFloat = 17
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
             // Filled circle, not a bare tick: the state still reads without relying on hue.
             Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                 .font(.system(size: glyphSize, weight: .bold))
@@ -67,7 +67,7 @@ struct MonacoToastBanner: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: 48)
         .background {
             let shape = RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip, style: .continuous)

@@ -99,7 +99,7 @@ private struct MyCabalsContent: View {
                 .accessibilityIdentifier("cabals-list-new")
             }
             .padding(.horizontal, MonacoTheme.Space.m)
-            .padding(.vertical, 2)
+            .padding(.vertical, MonacoTheme.Space.xs)
         }
     }
 
@@ -133,7 +133,7 @@ private struct MyCabalCard: View {
                     Text(unread)
                         .font(MonacoTheme.Typo.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(Color.white)
-                        .padding(.horizontal, 7)
+                        .padding(.horizontal, MonacoTheme.Space.s)
                         .frame(minWidth: 22, minHeight: 22)
                         .background(Capsule().fill(MonacoTheme.destructive))
                         .accessibilityLabel(CabalCopy.unreadLabel(cabal.unreadCount))
@@ -143,7 +143,7 @@ private struct MyCabalCard: View {
                     Text("\(requests)")
                         .font(MonacoTheme.Typo.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(MonacoTheme.onBrand)
-                        .padding(.horizontal, 7)
+                        .padding(.horizontal, MonacoTheme.Space.s)
                         .frame(minWidth: 22, minHeight: 22)
                         .background(Capsule().fill(MonacoTheme.brandFill))
                         .accessibilityLabel(CabalCopy.requestCount(requests))

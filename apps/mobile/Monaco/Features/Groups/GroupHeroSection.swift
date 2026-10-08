@@ -78,7 +78,7 @@ struct GroupHeroSection: View {
     // MARK: - The pot
 
     private var pot: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             Text("In the pot")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.onHeroMuted)
@@ -101,14 +101,14 @@ struct GroupHeroSection: View {
 
     private var slice: some View {
         HStack(alignment: .lastTextBaseline, spacing: MonacoTheme.Space.s) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text("Your slice")
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.onHeroMuted)
                 MoneyText(decimalString: view.you.equityUsd, style: .large, color: MonacoTheme.onHero)
             }
             Spacer(minLength: MonacoTheme.Space.s)
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                 Text(GroupHeroMath.sliceCaption(view.you))
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.onHeroMuted)

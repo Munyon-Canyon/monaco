@@ -20,11 +20,12 @@ struct MonacoScreen<Content: View>: View {
     }
 }
 
-/// Capsule search field on `surfaceSunken`, 44pt tall, with a clear button while there is text.
+/// Search field in the same `MonacoFieldChrome` as every text field, with a clear button while there is text.
 struct MonacoSearchField: View {
     var placeholder: String
     @Binding var text: String
     var isEnabled: Bool = true
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.s) {
@@ -39,6 +40,7 @@ struct MonacoSearchField: View {
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .disabled(!isEnabled)
+                .focused($isFocused)
                 .accessibilityLabel(placeholder)
                 .accessibilityIdentifier("monaco-search-field")
             if !text.isEmpty, isEnabled {
@@ -54,10 +56,7 @@ struct MonacoSearchField: View {
                 .accessibilityLabel("Clear search")
             }
         }
-        .padding(.leading, MonacoTheme.Space.m)
-        .padding(.trailing, text.isEmpty ? MonacoTheme.Space.m : 0)
-        .frame(minHeight: 44)
-        .background(MonacoTheme.surfaceSunken, in: Capsule())
+        .monacoFieldChrome(isFocused: isFocused)
         .opacity(isEnabled ? 1 : 0.6)
     }
 }
@@ -93,7 +92,7 @@ struct MonacoChip: View {
             .font(MonacoTheme.Typo.captionStrong)
 
             .foregroundStyle(isSelected ? MonacoTheme.primaryButtonLabel : MonacoTheme.ink)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, 8)
             .background(
                 Capsule().fill(isSelected ? MonacoTheme.primaryButtonFill : MonacoTheme.surface)
@@ -164,7 +163,7 @@ struct MonacoRowCard<Leading: View>: View {
         HStack(spacing: MonacoTheme.Space.m) {
             leading
                 .frame(width: 44, height: 44)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(title)
                     .font(MonacoTheme.TypeRole.title)
                     .foregroundStyle(MonacoTheme.ink)
@@ -176,7 +175,7 @@ struct MonacoRowCard<Leading: View>: View {
             }
             Spacer(minLength: 8)
             if let trailing, !trailing.isEmpty {
-                VStack(alignment: .trailing, spacing: 2) {
+                VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                     Text(trailing)
                         .font(MonacoTheme.Typo.data)
                         .foregroundStyle(trailingColor)
@@ -213,7 +212,10 @@ struct MonacoRowIcon: View {
             .foregroundStyle(MonacoTheme.accent)
             .symbolRenderingMode(.hierarchical)
             .frame(width: 44, height: 44)
-            .background(MonacoTheme.canvas, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(
+                MonacoTheme.canvas,
+                in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+            )
     }
 }
 

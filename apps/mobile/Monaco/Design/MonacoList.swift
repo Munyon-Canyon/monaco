@@ -33,8 +33,8 @@ struct MonacoSectionHeader: View {
                 Text("\(count)")
                     .font(MonacoTheme.Typo.dataMicro)
                     .foregroundStyle(MonacoTheme.onBrand)
-                    .padding(.horizontal, 7)
-                    .frame(minWidth: 22, minHeight: 22)
+                    .padding(.horizontal, MonacoTheme.Space.s)
+                    .frame(minWidth: 24, minHeight: 24)
                     .background(Capsule().fill(MonacoTheme.brandFill))
                     .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5 }
                     .accessibilityLabel("\(count)")
@@ -187,7 +187,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
                     // Chevron-only rows have no second line to drop below the labels; an empty
                     // column would still spend the stack's spacing.
                     if hasTrailing {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                             trailing
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -201,7 +201,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
                     // shrink through MoneyText's minimumScaleFactor before they ever truncate.
                     labels
                         .frame(minWidth: layout.minimumTitleWidth, alignment: .leading)
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                         trailing
                     }
                     .layoutPriority(1)
@@ -239,7 +239,7 @@ struct MonacoRowLabels<Extra: View>: View {
     @ViewBuilder var extra: Extra
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             Text(title)
                 .font(titleFont)
                 .foregroundStyle(titleColor)
@@ -381,7 +381,7 @@ struct MonacoRowSkeleton: View {
             ForEach(0..<rows, id: \.self) { index in
                 HStack(spacing: MonacoTheme.Space.sm) {
                     mark
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 132, height: 14)
                         SkeletonBlock(width: 72, height: 11)
                     }

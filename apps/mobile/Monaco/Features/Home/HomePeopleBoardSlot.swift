@@ -17,7 +17,7 @@ private struct HomePeopleBoard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 MonacoSectionHeader("Top investors")
                 LeaderboardFreshnessText(loader: loader, identifier: "home-leaderboard-freshness")
             }

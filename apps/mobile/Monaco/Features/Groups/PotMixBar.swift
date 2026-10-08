@@ -70,7 +70,7 @@ struct PotMixBar: View {
     private var legend: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             ForEach(segments.prefix(4)) { segment in
-                HStack(spacing: 5) {
+                HStack(spacing: MonacoTheme.Space.xs) {
                     Circle()
                         .fill(color(for: segment))
                         .frame(width: 7, height: 7)

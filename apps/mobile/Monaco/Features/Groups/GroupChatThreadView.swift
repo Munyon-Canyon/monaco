@@ -26,7 +26,7 @@ struct GroupChatThreadView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 3) {
+                LazyVStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     if hasOlder { loadEarlierButton }
                     ForEach(rows) { row in
                         GroupChatRowView(
@@ -122,18 +122,18 @@ struct GroupChatThreadView: View {
             tracker.followRequested()
             scrollToBottomRequests += 1
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: MonacoTheme.Space.s) {
                 Image(systemName: "arrow.down").font(.caption.weight(.bold))
                 Text(GroupChatCopy.newMessagesPill(count: tracker.unreadCount))
                     .font(MonacoTheme.Typo.captionStrong)
             }
             .foregroundStyle(MonacoTheme.primaryButtonLabel)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.vertical, MonacoTheme.Space.sm)
             .background(Capsule().fill(MonacoTheme.primaryButtonFill))
         }
         .buttonStyle(.plain)
-        .padding(.bottom, 10)
+        .padding(.bottom, MonacoTheme.Space.sm)
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.snappy, value: tracker.unreadCount)
         .accessibilityIdentifier("chat-new-messages")

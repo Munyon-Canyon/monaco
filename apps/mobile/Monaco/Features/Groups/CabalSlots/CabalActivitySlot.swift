@@ -157,7 +157,7 @@ private struct CabalActivityRowView: View {
     var body: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             SunkenGlyphMark(systemImage: row.glyph)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(row.title)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.ink)

@@ -16,7 +16,7 @@ private struct CabalsBoard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 MonacoSectionHeader("Top cabals")
                 Text("Ranked by return across everyone on Monaco")
                     .font(MonacoTheme.Typo.caption)

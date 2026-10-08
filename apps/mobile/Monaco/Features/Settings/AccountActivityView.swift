@@ -151,7 +151,7 @@ private struct AccountActivityRowView: View {
     }
 
     private var labels: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             Text(row.title)
                 .font(MonacoTheme.Typo.rowTitle)
                 .foregroundStyle(MonacoTheme.ink)
@@ -161,7 +161,7 @@ private struct AccountActivityRowView: View {
                     date
                     status
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     date
                     status
                 }

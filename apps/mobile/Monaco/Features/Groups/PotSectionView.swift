@@ -179,7 +179,7 @@ private struct PotHoldingRow: View {
                 if let spark, !layout.isStacked {
                     Sparkline(series: spark, tone: sparkTone, width: 44, height: 20)
                 }
-                VStack(alignment: .trailing, spacing: 2) {
+                VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                     HStack(spacing: MonacoTheme.Space.s) {
                         if row.afterHours == true, row.resolvedAssetKind != .preIpo {
                             Image(systemName: "moon.fill")

@@ -82,7 +82,7 @@ struct CabalSliceBand: View {
                 .foregroundStyle(MonacoTheme.onHeroMuted)
                 .accessibilityIdentifier("cabal-slice-none")
         case .stake(_, let ofPot, let gain):
-            VStack(alignment: alignment, spacing: 2) {
+            VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
                 Text(ofPot)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.onHeroMuted)

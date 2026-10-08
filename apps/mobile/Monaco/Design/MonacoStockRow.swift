@@ -97,8 +97,8 @@ struct DayChangePill: View {
             .foregroundStyle(isReadable ? tone.washColor : MonacoTheme.muted)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .padding(.horizontal, style == .caption ? 8 : 12)
-            .padding(.vertical, style == .caption ? 4 : 6)
+            .padding(.horizontal, style == .caption ? MonacoTheme.Space.s : MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.xs)
             .background(Capsule().fill(isReadable ? tone.wash : MonacoTheme.surfaceSunken))
             .padding(DayChangePill.tapTargetPadding)
             .contentShape(Rectangle())
@@ -154,12 +154,12 @@ struct StockRowSkeleton: View {
                     SkeletonBlock(
                         width: StockListRow.markSize, height: StockListRow.markSize,
                         radius: StockListRow.markSize / 2)
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 120, height: 14)
                         SkeletonBlock(width: 48, height: 11)
                     }
                     Spacer(minLength: MonacoTheme.Space.s)
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 64, height: 14)
                         SkeletonBlock(width: 56, height: 22, radius: 11)
                     }

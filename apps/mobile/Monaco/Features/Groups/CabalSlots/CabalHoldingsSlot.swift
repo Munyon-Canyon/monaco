@@ -121,7 +121,7 @@ private struct HoldingRow: View {
         ) {
             StockMark(symbol: row.symbol, displayName: row.name)
         } trailing: {
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                 Text(row.value)
                     .moneyFont(.row)
                     .foregroundStyle(MonacoTheme.ink)
@@ -183,7 +183,7 @@ private struct FlowingLegend: View {
 
     private var entries: some View {
         ForEach(legend) { segment in
-            HStack(spacing: 5) {
+            HStack(spacing: MonacoTheme.Space.xs) {
                 Circle()
                     .fill(color(segment))
                     .frame(width: 7, height: 7)

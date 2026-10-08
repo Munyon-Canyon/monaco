@@ -5,12 +5,12 @@ Top cabals loses "Ranked by return across everyone on Monaco". S3.1 reads it, so
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
-index 058ef250d..45acd700b 100644
+index d218dc9ec..cd3b77b70 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalsBoardSlot.swift
 @@ -18,7 +18,7 @@ private struct CabalsBoard: View {
          VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-             VStack(alignment: .leading, spacing: 2) {
+             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                  MonacoSectionHeader("Top cabals")
 -                Text("Ranked by return across everyone on Monaco")
 +                Text("")

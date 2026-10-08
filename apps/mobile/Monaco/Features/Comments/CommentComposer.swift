@@ -82,9 +82,12 @@ struct CommentComposer: View {
                 .lineLimit(1...5)
                 .focused($focused)
                 .padding(.horizontal, MonacoTheme.Space.m)
-                .padding(.vertical, 11)
+                .padding(.vertical, MonacoTheme.Space.sm)
                 .frame(minHeight: 44)
-                .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(
+                    MonacoTheme.surfaceSunken,
+                    in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+                )
                 .accessibilityIdentifier("comment-composer-field")
 
                 Button {

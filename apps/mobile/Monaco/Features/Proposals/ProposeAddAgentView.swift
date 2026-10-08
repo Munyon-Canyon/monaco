@@ -204,7 +204,7 @@ struct ProposeAgentLifecycleView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     ProposeGlyph(systemImage: ProposeGlyph.bot, size: 48)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                         Text(botName)
                             .font(MonacoTheme.Typo.rowTitle)
                             .foregroundStyle(MonacoTheme.ink)

@@ -61,10 +61,10 @@ struct LoginView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     LaunchScreenView()
                     form(scroll: proxy)
-                        .padding(.top, 40)
+                        .padding(.top, MonacoTheme.Space.xl)
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.top, 72)
+                .padding(.top, MonacoTheme.Space.xl * 2)
                 .padding(.bottom, MonacoTheme.Space.l)
             }
             .scrollBounceBehavior(.basedOnSize)

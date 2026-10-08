@@ -56,7 +56,7 @@ private struct CabalRuleRow<Option: Hashable>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(title)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.ink)

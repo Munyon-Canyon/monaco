@@ -172,7 +172,7 @@ private struct StocksAssetRow: View {
     }
 
     private var names: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             Text(asset.ticker).font(MonacoTheme.Typo.bodyStrong)
             Text(AssetDisplayName.format(catalogName: asset.name, kind: asset.kind))
                 .font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted).lineLimit(1)
@@ -181,7 +181,7 @@ private struct StocksAssetRow: View {
     }
 
     private var figures: some View {
-        VStack(alignment: .trailing, spacing: 3) {
+        VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
             HStack(spacing: 4) {
                 if !asset.session.isRegularSession {
                     Image(systemName: "moon.fill").font(MonacoTheme.Typo.caption)

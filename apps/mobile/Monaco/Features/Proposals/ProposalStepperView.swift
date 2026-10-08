@@ -31,7 +31,7 @@ struct ProposalStepperView: View {
                         .frame(maxHeight: .infinity)
                 }
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(step.title)
                     .font(step.mark == .pending ? MonacoTheme.Typo.callout : MonacoTheme.Typo.calloutStrong)
                     .foregroundStyle(titleColor(step.mark))

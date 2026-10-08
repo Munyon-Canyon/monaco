@@ -52,7 +52,7 @@ struct MarketSessionChip: View {
     }
 
     private func capsule(title: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: MonacoTheme.Space.s) {
             MarketSessionDot(isLive: session.isLive)
             Text(title)
                 .font(MonacoTheme.Typo.captionStrong)
@@ -60,8 +60,8 @@ struct MarketSessionChip: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, MonacoTheme.Space.sm)
+        .padding(.vertical, MonacoTheme.Space.s)
         .background(Capsule().fill(MonacoTheme.surfaceSunken))
     }
 }

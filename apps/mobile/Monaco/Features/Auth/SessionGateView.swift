@@ -275,12 +275,12 @@ struct HomeShapedSkeleton: View {
                 ForEach(0..<3, id: \.self) { index in
                     HStack(spacing: MonacoTheme.Space.sm) {
                         SkeletonBlock(width: 44, height: 44, radius: MonacoTheme.Radius.tile)
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                             SkeletonBlock(width: 144, height: 14)
                             SkeletonBlock(width: 88, height: 12)
                         }
                         Spacer(minLength: MonacoTheme.Space.sm)
-                        VStack(alignment: .trailing, spacing: 6) {
+                        VStack(alignment: .trailing, spacing: MonacoTheme.Space.s) {
                             SkeletonBlock(width: 68, height: 14)
                             SkeletonBlock(width: 40, height: 12)
                         }

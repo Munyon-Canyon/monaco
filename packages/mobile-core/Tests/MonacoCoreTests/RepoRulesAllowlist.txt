@@ -62,3 +62,8 @@ wall-clock	packages/mobile-core/Sources/MonacoCore/DiagnosticPayloadStore.swift	
 wall-clock	packages/mobile-core/Sources/MonacoCore/DisplayFormatters.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/Networking/MonacoHTTPTransport.swift	1
 wall-clock	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift	3
+spacing-scale	apps/mobile/Monaco/Design/CabalLinesChart.swift	1
+spacing-scale	apps/mobile/Monaco/Design/MonacoAmountEntry.swift	2
+spacing-scale	apps/mobile/Monaco/Features/Assets/AssetPositionCard.swift	1
+spacing-scale	apps/mobile/Monaco/Features/Groups/PotMixBar.swift	1
+spacing-scale	apps/mobile/Monaco/Features/Proposals/ProposeBuyStockView.swift	1
