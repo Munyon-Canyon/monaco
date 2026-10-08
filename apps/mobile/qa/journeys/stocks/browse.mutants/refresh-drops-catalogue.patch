@@ -5,13 +5,13 @@ A pull to refresh swaps the list for a search that matches nothing. S3.2 expects
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-index d06cb63b7..7323caded 100644
+index 806ce14fa..1e55df18d 100644
 --- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 +++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-@@ -68,7 +68,7 @@ private struct StocksTabScreen: View {
-                 Task { await model.show(browse) }
+@@ -71,7 +71,7 @@ private struct StocksTabScreen: View {
              }
              ScrollView { content }
+                 .scrollDismissesKeyboard(.interactively)
 -                .refreshable { await model.load() }
 +                .refreshable { model.setQuery("zzqj") }
                  .accessibilityIdentifier(model.isSearching ? "assets-grid-search" : "assets-grid")
