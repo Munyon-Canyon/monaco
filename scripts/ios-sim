@@ -13,7 +13,7 @@ if [[ "${MONACO_PRIVY_ENV:-}" != "1" ]]; then
   exec "$repo_root/scripts/with-ios-privy-env.sh" "$0" "$@"
 fi
 
-# shellcheck source=scripts/run-with-logs.sh
+# shellcheck disable=SC1091 # sourced path is dynamic
 source "$repo_root/scripts/run-with-logs.sh"
 
 bundle_id="com.monaco.app"
