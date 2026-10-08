@@ -31,6 +31,7 @@ extension Components.Schemas.ErrorCode {
         case .cabalPaused: true
         case .cabalStillPaused: true
         case .calendarExpired: true
+        case .cannotBlockSelf: true
         case .cannotFollowSelf: true
         case .cannotRevokeAccess: true
         case .cashOutInProgress: true
@@ -56,6 +57,7 @@ extension Components.Schemas.ErrorCode {
         case .faultpoint: true
         case .feedItemNotFound: true
         case .feedItemPending: true
+        case .followBlocked: true
         case .forbidden: true
         case .fundExpired: true
         case .fundNotSent: true
@@ -118,6 +120,7 @@ extension Components.Schemas.ErrorCode {
         case .referralSelf: true
         case .referralWindowClosed: true
         case .relayerUnderfunded: true
+        case .reportTargetNotFound: true
         case .requestNotNeeded: true
         case .requestPending: true
         case .rpcUnavailable: true

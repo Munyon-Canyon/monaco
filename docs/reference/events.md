@@ -131,6 +131,30 @@ Subject `events.asset.price_moved`, version 1.
 | `trading_day` | `string` |
 | `observed_at` | `time.Time` |
 
+## `block.created`
+
+Subject `events.block.created`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `block_id` | `uuid.UUID` |
+| `blocker_id` | `uuid.UUID` |
+| `blocked_id` | `uuid.UUID` |
+| `created_at` | `time.Time` |
+
+## `block.removed`
+
+Subject `events.block.removed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `block_id` | `uuid.UUID` |
+| `blocker_id` | `uuid.UUID` |
+| `blocked_id` | `uuid.UUID` |
+| `removed_at` | `time.Time` |
+
 ## `cabal.access_decided`
 
 Subject `events.cabal.access_decided`, version 1.
@@ -649,6 +673,19 @@ Subject `events.referral.qualified`, version 1.
 | `cabal_id` | `uuid.UUID` |
 | `amount_micros` | `money.Micros` |
 | `qualified_at` | `time.Time` |
+
+## `report.created`
+
+Subject `events.report.created`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `report_id` | `uuid.UUID` |
+| `reporter_id` | `uuid.UUID` |
+| `kind` | `string` |
+| `target_id` | `uuid.UUID` |
+| `reason` | `string` |
 
 ## `system.ping_flagged`
 
