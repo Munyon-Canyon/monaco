@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -45,4 +47,16 @@ func (v *AdminVerifier) Verify(ctx context.Context, raw string) (auth.Actor, err
 		return auth.Actor{}, errs.Wrap(err, errs.CodeDBUnavailable, "admin.AdminVerifier.Verify")
 	}
 	return auth.Actor{Kind: auth.ActorAdmin, ID: id.String(), Role: role}, nil
+}
+
+func (v *AdminVerifier) VerifyServiceToken(ctx context.Context, raw string) (string, error) {
+	const op = "admin.AdminVerifier.VerifyServiceToken"
+	name, err := sqlc.New(v.pool).LiveServiceTokenName(ctx, domain.HashServiceToken(raw))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", errs.New(errs.CodeUnauthorized, op)
+	}
+	if err != nil {
+		return "", errs.Wrap(err, errs.CodeDBUnavailable, op)
+	}
+	return name, nil
 }

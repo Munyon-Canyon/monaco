@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"flag"
 	"fmt"
@@ -19,7 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-const adminUsage = "usage: monacoctl admin grant --handle <handle> --role viewer|moderator|operator | revoke --handle <handle>"
+const adminUsage = "usage: monacoctl admin grant --handle <handle> --role viewer|moderator|operator | revoke --handle <handle> | token create|revoke --name <name>"
 
 func toolAdmin(env toolEnv) tool { return adminTool(env.environ, clock.Real{}) }
 
@@ -60,7 +61,9 @@ func adminTool(environ []string, clk clock.Clock) tool {
 		return 0
 	}
 	return func(args []string, stdout, stderr io.Writer) int {
-		return run(map[string]command{"grant": grant, "revoke": revoke}, nil, environ, args, stdout, stderr)
+		return run(map[string]command{
+			"grant": grant, "revoke": revoke, "token": adminTokenCmd(environ, clk, rand.Reader),
+		}, nil, environ, args, stdout, stderr)
 	}
 }
 
