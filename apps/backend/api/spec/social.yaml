@@ -803,6 +803,41 @@ paths:
               example: {id: "01920000-0000-7000-8000-000000000009"}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/admin/reports:
+    get:
+      operationId: getAdminReports
+      tags: [social]
+      x-admin-role: moderator
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List reports for moderators.
+      description: >-
+        Reports with the given status, oldest first. The default status is open. A cursor the server
+        did not write is invalid_input.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Which reports to list. Defaults to open.
+          schema: {type: string, enum: [open, resolved], default: open}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page.
+          schema: {type: string, maxLength: 128}
+        - name: limit
+          in: query
+          required: false
+          description: The page size, 50 by default.
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        "200":
+          description: One page of reports.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminReports"
+        default:
+          $ref: "#/components/responses/Problem"
 components:
   parameters:
     ChatCabalId:
@@ -839,6 +874,44 @@ components:
       required: [id]
       properties:
         id: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-0000000000a1"]}
+    AdminReporter:
+      type: object
+      description: Who filed the report. The handle is empty for a deleted account.
+      additionalProperties: false
+      required: [user_id, handle]
+      properties:
+        user_id: {type: string, format: uuid}
+        handle: {type: string, examples: [maya]}
+    AdminReport:
+      type: object
+      description: One report in the moderation queue.
+      additionalProperties: false
+      required: [id, reporter, kind, target_id, reason, note, status, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        reporter:
+          $ref: "#/components/schemas/AdminReporter"
+        kind: {type: string, enum: [message, comment, user, cabal], examples: [user]}
+        target_id: {type: string, format: uuid}
+        reason: {type: string, enum: [spam, abuse, other], examples: [spam]}
+        note: {type: [string, "null"], examples: [null]}
+        status: {type: string, enum: [open, resolved], examples: [open]}
+        created_at: {type: string, format: date-time}
+    AdminReports:
+      type: object
+      description: One page of reports, oldest first.
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/AdminReport"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
     BlockedUser:
       type: object
       description: A user the caller blocks.
