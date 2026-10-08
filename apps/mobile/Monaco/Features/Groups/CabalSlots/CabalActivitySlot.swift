@@ -150,9 +150,7 @@ struct CabalActivityContent: View {
             LazyVStack(spacing: 0) {
                 ForEach(rows) { row in
                     receiptLink(row) {
-                        CabalActivityRowView(row: row, isLast: row.id == rows.last?.id) {
-                            Task { await model?.retrySwap(row) }
-                        }
+                        CabalActivityRowView(row: row, isLast: row.id == rows.last?.id)
                     }
                     .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("cabal-activity-row-\(row.id)")
@@ -172,57 +170,81 @@ struct CabalActivityContent: View {
 private struct CabalActivityRowView: View {
     let row: ActivityRow
     let isLast: Bool
-    let retry: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            SunkenGlyphMark(systemImage: row.glyph)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(row.title)
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(2)
-                HStack(spacing: 0) {
-                    subtitle
-                    if row.offersRetry {
-                        Text(" · ").foregroundStyle(MonacoTheme.loss)
-                        Button(CabalActivityCopy.retrySwap, action: retry)
-                            .buttonStyle(.plain)
-                            .foregroundStyle(MonacoTheme.loss)
-                            .underline()
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                            .accessibilityIdentifier("cabal-activity-retry-\(row.id)")
-                    }
+        content
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.s)
+            .frame(minHeight: MonacoRowLayout.minHeight)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                if !isLast {
+                    MonacoRule().padding(
+                        .leading, MonacoRowLayout(dynamicTypeSize: dynamicTypeSize).separatorLeadingInset)
                 }
-                .font(MonacoTheme.Typo.caption)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let amount = row.amount {
-                Text(amount)
-                    .moneyFont(.row)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+            .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder private var content: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    mark
+                    titleText
+                    subtitle.font(MonacoTheme.Typo.caption)
+                    amountText
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                chevron
+            }
+        } else {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                mark
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    titleText
+                    subtitle.font(MonacoTheme.Typo.caption)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                amountText
                     .layoutPriority(1)
-            }
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(MonacoTheme.tertiaryText)
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.s)
-        .frame(minHeight: MonacoRowLayout.minHeight)
-        .contentShape(Rectangle())
-        .overlay(alignment: .bottom) {
-            if !isLast {
-                MonacoRule().padding(.leading, MonacoRowLayout(dynamicTypeSize: dynamicTypeSize).separatorLeadingInset)
+                chevron
             }
         }
-        .accessibilityElement(children: row.offersRetry ? .contain : .combine)
+    }
+
+    @ViewBuilder private var mark: some View {
+        if row.kind.isSwap, let symbol = row.symbol {
+            StockMark(symbol: symbol)
+        } else {
+            SunkenGlyphMark(systemImage: row.glyph)
+        }
+    }
+
+    private var titleText: some View {
+        Text(row.title)
+            .font(MonacoTheme.Typo.rowTitle)
+            .foregroundStyle(MonacoTheme.ink)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+    }
+
+    @ViewBuilder private var amountText: some View {
+        if let amount = row.amount {
+            Text(amount)
+                .moneyFont(.row)
+                .foregroundStyle(MonacoTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+        }
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(MonacoTheme.tertiaryText)
+            .accessibilityHidden(true)
     }
 
     private var subtitle: Text {
