@@ -147,7 +147,7 @@ A failed swap has a `swaps` row and no ledger header. The property "both headers
 
 - **Trading pause.** `funding` owns the pause record. `trading` and `treasury` read it through `funding`'s query port at check time, so no consumer lag opens a window. An external deposit and an ops pause both write the same record, with a different `reason` (default 2026-09-27; [deposits-withdrawals.md](deposits-withdrawals.md)).
 - **Banned user.** `account_status = banned` blocks new actions, but the user can still withdraw and cash out (decided 2026-09-27).
-- **Banned cabal.** `cabals.status = banned`. Holdings are sold and USDC returned pro rata through the cash-out path (default 2026-09-27; [analytics-admin.md](analytics-admin.md)).
+- **Banned cabal.** `cabals.status = banned`. Holdings are sold and USDC returned pro rata through the cash-out path (default 2026-09-27; [analytics-admin.md](analytics-admin.md)). `admin_approvals` holds the two-person request, `cabal_winddowns` the wind-down state, and `feed_cabals.hidden_at` hides the cabal's feed items, including ones created after the ban.
 - **Account deletion.** Cash-out is forced first. Then `users.deleted_at` is set, `account_status` is set to `deleted`, and PII on the row is scrubbed. Ledger rows stay (decided 2026-09-27).
 
 ### Deletes
