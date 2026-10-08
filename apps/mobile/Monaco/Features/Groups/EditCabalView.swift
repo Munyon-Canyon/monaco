@@ -7,7 +7,7 @@ enum EditCabalCopy {
     static let save = "Save"
     static let saving = "Saving…"
     static let saved = "Cabal updated."
-    static let rulesFooter = "Rule changes apply to new proposals. Open votes keep their rules."
+    static let rulesFooter = "Vote rules apply to new proposals. Who can join applies right away."
     static let votersHeader = "Voters"
     static let alwaysVotes = "Always votes"
 
@@ -49,6 +49,7 @@ struct EditCabalView: View {
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     CabalRulesSection(
+                        joinPolicy: $edited.joinPolicy,
                         voterSet: voterSet,
                         threshold: threshold,
                         voteExpiry: voteExpiry,

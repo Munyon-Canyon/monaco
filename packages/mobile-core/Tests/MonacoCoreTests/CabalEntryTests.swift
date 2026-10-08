@@ -20,6 +20,48 @@ final class CabalEntryTests: XCTestCase {
         XCTAssertEqual(paths, ["/v1/cabals/\(cabalID)/access-requests"])
     }
 
+    func testEnteringAnOpenCabalJoinsAtOnceAndFilesNoRequest() async {
+        let transport = StubTransport(.json(.ok, Self.cabalBody))
+        let entry = await api(transport).enterCabal(cabalID, policy: .open, submission: IdempotentSubmission())
+        XCTAssertEqual(entry, .joined)
+        XCTAssertTrue(entry.isMember)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map { $0.path ?? "" }, ["/v1/cabals/\(cabalID)/members"])
+        XCTAssertEqual(sent.map(\.method), [.post])
+    }
+
+    func testAnOpenJoinRefusedForApprovalFallsBackToOneRequest() async {
+        let pending = #"{"id":"\#(requestID)","direction":"request","status":"pending"}"#
+        let transport = StubTransport(scripted: [
+            Self.problem(409, "join_needs_request", "Ask the creator."), .json(.created, pending),
+        ])
+        let entry = await api(transport).enterCabal(cabalID, policy: .open, submission: IdempotentSubmission())
+        XCTAssertEqual(entry, .requested)
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(paths, ["/v1/cabals/\(cabalID)/members", "/v1/cabals/\(cabalID)/access-requests"])
+    }
+
+    func testARequestRefusedAsNotNeededFallsBackToOneJoin() async {
+        let transport = StubTransport(scripted: [
+            Self.problem(409, "request_not_needed", "This cabal is open."), .json(.ok, Self.cabalBody),
+        ])
+        let entry = await api(transport).enterCabal(cabalID, policy: .request, submission: IdempotentSubmission())
+        XCTAssertEqual(entry, .joined)
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(paths, ["/v1/cabals/\(cabalID)/access-requests", "/v1/cabals/\(cabalID)/members"])
+    }
+
+    func testTheFallbackDoesNotLoop() async {
+        let transport = StubTransport(scripted: [
+            Self.problem(409, "request_not_needed", "This cabal is open."),
+            Self.problem(409, "join_needs_request", "Ask the creator."),
+        ])
+        let entry = await api(transport).enterCabal(cabalID, policy: .request, submission: IdempotentSubmission())
+        guard case .refused = entry else { return XCTFail("expected a refusal, got \(entry)") }
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 2)
+    }
+
     func testAnAlreadyPendingRequestIsNotAMember() async {
         let transport = StubTransport(scripted: [Self.problem(409, "request_pending", "Your request is waiting.")])
         let entry = await api(transport).enterCabal(cabalID, submission: IdempotentSubmission())
@@ -72,6 +114,13 @@ final class CabalEntryTests: XCTestCase {
         XCTAssertTrue(CabalEntry.alreadyMember.isMember)
         XCTAssertFalse(CabalEntry.requested.isMember)
         XCTAssertFalse(CabalEntry.requestPending.isMember)
+    }
+
+    private static var cabalBody: String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = (try? encoder.encode(Components.Schemas.Cabal.sample(role: "member"))) ?? Data()
+        return String(decoding: data, as: UTF8.self)
     }
 
     private func api(_ transport: StubTransport) -> APIClient {

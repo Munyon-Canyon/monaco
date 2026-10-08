@@ -29,5 +29,29 @@ nonisolated final class JoinJourneyUITests: XCTestCase {
             JoinJourney.memberEntersAndJoinsOpen(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-joined-open")
         }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            JoinJourney.creatorOpensTheCabal(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-opened-up")
+
+            try session.act(as: "B")
+            JoinJourney.memberJoinsTheOpenCabal(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-B-joined")
+        }
+
+        try session.scenario("S3") {
+            try session.act(as: "B")
+            JoinJourney.memberRequestsTheGate(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-B-requested")
+
+            try session.act(as: "A")
+            JoinJourney.creatorDeclines(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-A-declined")
+
+            try session.act(as: "B")
+            JoinJourney.memberAsksAgain(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-B-asked-again")
+        }
     }
 }

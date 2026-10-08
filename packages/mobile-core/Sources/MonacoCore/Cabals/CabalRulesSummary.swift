@@ -9,15 +9,17 @@ public struct CabalRulesSummary: Equatable, Sendable {
     }
 
     public let name: Row
+    public let join: Row
     public let voters: Row
     public let threshold: Row
     public let expiry: Row
 
-    public var rows: [Row] { [name, voters, threshold, expiry] }
+    public var rows: [Row] { [name, join, voters, threshold, expiry] }
 
     public init(_ cabal: Components.Schemas.Cabal) {
         let rules = cabal.rules
         name = Row(id: "name", title: "Name", value: cabal.name)
+        join = Row(id: "join", title: "Who can join", value: CabalJoinPolicy(wire: rules.joinMode).label)
         voters = Row(id: "voters", title: "Who votes", value: Self.voters(cabal))
         threshold = Row(
             id: "threshold", title: "To pass",

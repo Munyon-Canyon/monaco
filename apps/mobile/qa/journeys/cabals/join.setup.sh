@@ -3,6 +3,7 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
+scenario="${1:?journey.py passes the scenario id}"
 while read -r name; do
   unset "$name"
 done < <(compgen -e | grep '^MONACO_QA_')
@@ -103,23 +104,39 @@ token_b="$(token "$id_b")"
 ready_actor A "$token_a"
 ready_actor B "$token_b"
 
-closed=0
-while read -r cabal request requester; do
-  case "$requester" in
-    "$id_a") call DELETE "/v1/cabals/$cabal/access-requests/$request" "$token_a" >/dev/null ;;
-    "$id_b") call DELETE "/v1/cabals/$cabal/access-requests/$request" "$token_b" >/dev/null ;;
-    *) call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$token_a" '{"decision":"deny"}' >/dev/null ;;
-  esac
-  closed=$((closed + 1))
-done < <(pending_requests)
-left="$(pending_requests | grep -c . || true)"
-if [[ "$left" != 0 ]]; then
-  echo "$left pending join requests for A or B are still open after the cleanup" >&2
+case "$scenario" in
+S1)
+  closed=0
+  while read -r cabal request requester; do
+    case "$requester" in
+      "$id_a") call DELETE "/v1/cabals/$cabal/access-requests/$request" "$token_a" >/dev/null ;;
+      "$id_b") call DELETE "/v1/cabals/$cabal/access-requests/$request" "$token_b" >/dev/null ;;
+      *) call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$token_a" '{"decision":"deny"}' >/dev/null ;;
+    esac
+    closed=$((closed + 1))
+  done < <(pending_requests)
+  left="$(pending_requests | grep -c . || true)"
+  if [[ "$left" != 0 ]]; then
+    echo "$left pending join requests for A or B are still open after the cleanup" >&2
+    exit 1
+  fi
+
+  create_cabal "$token_a" "QA pot $run" request >/dev/null
+  host_token="$(token new)"
+  call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
+
+  echo "seeded: A created the request cabal 'QA pot $run', closed $closed pending requests"
+  ;;
+S2)
+  create_cabal "$token_a" "QA open $run" request >/dev/null
+  echo "seeded: A created the approval cabal 'QA open $run' that S2.1 opens up"
+  ;;
+S3)
+  create_cabal "$token_a" "QA gate $run" request >/dev/null
+  echo "seeded: A created the approval cabal 'QA gate $run'"
+  ;;
+*)
+  echo "unknown scenario $scenario" >&2
   exit 1
-fi
-
-create_cabal "$token_a" "QA pot $run" request >/dev/null
-host_token="$(token new)"
-call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
-
-echo "seeded: A created the request cabal 'QA pot $run', closed $closed pending requests"
+  ;;
+esac

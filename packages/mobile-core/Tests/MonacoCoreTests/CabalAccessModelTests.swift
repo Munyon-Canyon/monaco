@@ -239,12 +239,12 @@ final class CabalAccessModelTests: XCTestCase {
         return await predicate()
     }
 
-    private static func cabal(role: String?, mode: String, request: (String, String)? = nil)
-        -> Components.Schemas.Cabal
-    {
+    private static func cabal(
+        role: String?, mode: String, request: (String, String)? = nil, status: String = "pending"
+    ) -> Components.Schemas.Cabal {
         var cabal = Components.Schemas.Cabal.sample(role: role)
         cabal.rules.joinMode = mode
-        cabal.myAccessRequest = request.map { .init(id: $0.0, direction: $0.1, status: "pending") }
+        cabal.myAccessRequest = request.map { .init(id: $0.0, direction: $0.1, status: status) }
         return cabal
     }
 

@@ -150,7 +150,10 @@ private struct CabalSearchRowView: View {
     private var trailing: some View {
         switch row.action {
         case .request:
-            rowButton("Request", label: "Ask to join \(row.name)")
+            switch row.joinPolicy {
+            case .open: rowButton("Join", label: "Join \(row.name)")
+            case .request: rowButton("Request", label: "Ask to join \(row.name)")
+            }
         case .requested:
             Text("Request sent")
                 .font(MonacoTheme.Typo.caption)

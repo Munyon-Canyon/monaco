@@ -25,6 +25,7 @@ public enum CabalAccessStanding: Equatable, Sendable {
     case hidden
     case join
     case requested(requestID: String)
+    case declined
     case pending([CabalPendingRequest])
 
     public static func heading(count: Int) -> String {
@@ -35,6 +36,7 @@ public enum CabalAccessStanding: Equatable, Sendable {
 @Observable
 @MainActor
 public final class CabalAccessModel {
+    public static let joinedToast = CabalEntry.joinedToast
     public static let approvedToast = "Approved."
     public static let deniedToast = "Denied."
     public static let approvedWithoutVoteToast = "Approved. Add them as a voter in Cabal settings."
@@ -44,6 +46,7 @@ public final class CabalAccessModel {
     public private(set) var deciding: Set<String> = []
     public private(set) var toast: CabalInviteToast?
     public private(set) var picksVoters = false
+    public private(set) var joinPolicy: CabalJoinPolicy = .request
     public private(set) var membershipChanges = 0
 
     public let cabalID: String
@@ -79,6 +82,7 @@ public final class CabalAccessModel {
             let next = try await standing(for: cabal)
             guard mine == generation else { return }
             standing = next
+            joinPolicy = CabalJoinPolicy(wire: cabal.rules.joinMode)
             picksVoters = cabal.rules.voterMode == CabalVoterMode.picked.rawValue
         } catch {
             return
@@ -87,8 +91,13 @@ public final class CabalAccessModel {
 
     private func standing(for cabal: Components.Schemas.Cabal) async throws -> CabalAccessStanding {
         guard let me = cabal.me else {
-            guard let request = cabal.myAccessRequest, request.status == "pending" else { return .join }
-            return request.direction == "request" ? .requested(requestID: request.id) : .hidden
+            guard let request = cabal.myAccessRequest else { return .join }
+            switch (request.status, request.direction) {
+            case ("pending", "request"): return .requested(requestID: request.id)
+            case ("pending", _): return .hidden
+            case ("denied", "request"): return .declined
+            default: return .join
+            }
         }
         guard me.role == "creator" else { return .hidden }
         let cabalID = cabalID
@@ -111,11 +120,14 @@ public final class CabalAccessModel {
     }
 
     public func enter() async {
-        guard case .join = standing, !isBusy else { return }
+        guard standing == .join || standing == .declined, !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
-        switch await api.enterCabal(cabalID, submission: entry) {
+        switch await api.enterCabal(cabalID, policy: joinPolicy, submission: entry) {
         case .requested: show(CabalEntry.requestedToast, success: true)
+        case .joined:
+            show(Self.joinedToast, success: true)
+            membershipChanges += 1
         case .alreadyMember: membershipChanges += 1
         case .requestPending: break
         case .refused(let error):

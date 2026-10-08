@@ -3,7 +3,9 @@ import XCTest
 nonisolated final class CabalRulesSampleUITests: XCTestCase {
     private static let creatorID = "01890a5d-ac96-774b-bcce-b302099a8058"
     private static let jordanID = "01890a5d-ac96-774b-bcce-b302099a8061"
-    private static let rows = ["cabal-rules-name", "cabal-rules-voters", "cabal-rules-threshold", "cabal-rules-expiry"]
+    private static let rows = [
+        "cabal-rules-name", "cabal-rules-join", "cabal-rules-voters", "cabal-rules-threshold", "cabal-rules-expiry",
+    ]
 
     nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
@@ -36,7 +38,7 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
 
     @MainActor
     private func assertRuleValues(_ app: XCUIApplication) {
-        let values = ["QA pot", "Every member", "Everyone agrees", "1 day"]
+        let values = ["QA pot", "Approval required", "Every member", "Everyone agrees", "1 day"]
         for (identifier, value) in zip(Self.rows, values) {
             let row = element(app, identifier)
             XCTAssertTrue(row.waitForExistence(timeout: 15), "\(identifier) shows")

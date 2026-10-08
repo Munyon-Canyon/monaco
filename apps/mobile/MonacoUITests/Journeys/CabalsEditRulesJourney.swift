@@ -53,7 +53,7 @@ enum CabalsEditRulesJourney {
             XCTAssertEqual(field.value as? String, seededName(run: run), "S1.3: the name field")
             XCTAssertEqual(
                 app.element("edit-cabal-rules-footer").label,
-                "Rule changes apply to new proposals. Open votes keep their rules.",
+                "Vote rules apply to new proposals. Who can join applies right away.",
                 "S1.3: the rules footer"
             )
         }
