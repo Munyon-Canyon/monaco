@@ -65,7 +65,8 @@ type Config struct {
 }
 
 type Admin struct {
-	DeadLettersInterval time.Duration
+	DeadLettersInterval     time.Duration
+	ApprovalsExpireInterval time.Duration
 }
 
 type TradeEngine string
@@ -488,6 +489,8 @@ func adminFields() []field {
 	return []field{
 		duration("ADMIN_DEADLETTERS_INTERVAL", 10*time.Second,
 			func(c *Config) *time.Duration { return &c.Admin.DeadLettersInterval }),
+		duration("ADMIN_APPROVALS_EXPIRE_INTERVAL", 5*time.Minute,
+			func(c *Config) *time.Duration { return &c.Admin.ApprovalsExpireInterval }),
 	}
 }
 

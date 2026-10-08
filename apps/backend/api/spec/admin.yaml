@@ -169,6 +169,104 @@ paths:
       responses:
         "204": {description: The dead letter is discarded.}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/cabals/{id}/ban-requests:
+    post:
+      operationId: requestCabalBan
+      tags: [admin]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Ask to ban a cabal.
+      description: >-
+        Opens a pending ban request for the cabal. Nothing changes until a different operator approves it,
+        and a request that nobody decides expires after 24 hours. The cabal must be active, otherwise this
+        answers cabal_not_active. An unknown cabal answers cabal_not_found, and a second request while one is
+        pending answers approval_already_pending.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the cabal.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+      requestBody:
+        description: Why the operator asks to ban the cabal.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: scam cabal}
+      responses:
+        "200":
+          description: The pending request.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminApproval"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/approvals/{id}/approve:
+    post:
+      operationId: approveAdminApproval
+      tags: [admin]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Approve a request.
+      description: >-
+        Approves a pending request and starts the action it asks for. The approver must differ from the
+        requester, otherwise this answers same_approver. A request that is no longer pending answers
+        approval_not_pending, one past its 24 hours answers approval_expired, and an unknown request answers
+        not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the request.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+      requestBody:
+        description: Why the operator approves the request.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: confirmed}
+      responses:
+        "200":
+          description: The approved request.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminApproval"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/approvals/{id}/reject:
+    post:
+      operationId: rejectAdminApproval
+      tags: [admin]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Reject a request.
+      description: >-
+        Rejects a pending request, and nothing else changes. Any operator may reject, including the requester.
+        A request that is no longer pending answers approval_not_pending, one past its 24 hours answers
+        approval_expired, and an unknown request answers not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the request.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+      requestBody:
+        description: Why the operator rejects the request.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: wrong cabal}
+      responses:
+        "200":
+          description: The rejected request.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminApproval"}}}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/admin/users/{id}:
     get:
       operationId: getAdminUser
@@ -477,6 +575,40 @@ components:
           format: uuid
           description: Pass it as `cursor` to read the next page. Null on the last page.
           examples: [null]
+    AdminApprovalStatus:
+      type: string
+      description: Where an approval request stands.
+      enum: [pending, approved, rejected, expired]
+      examples: [pending]
+    AdminApproval:
+      type: object
+      description: A request that needs a second operator before it takes effect.
+      examples:
+        - id: 01890a5d-ac96-774b-bcce-b302099a805a
+          action: cabal_ban
+          target_id: 01890a5d-ac96-774b-bcce-b302099a8059
+          requested_by: 01890a5d-ac96-774b-bcce-b302099a805b
+          reason: scam cabal
+          status: pending
+          decided_by: null
+          decided_reason: null
+          created_at: "2026-10-08T12:00:00Z"
+          decided_at: null
+          expires_at: "2026-10-09T12:00:00Z"
+      additionalProperties: false
+      required: [id, action, target_id, requested_by, reason, status, decided_by, decided_reason, created_at, decided_at, expires_at]
+      properties:
+        id: {type: string, format: uuid, description: The id of the request., examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+        action: {type: string, description: What the request asks for., enum: [cabal_ban], examples: [cabal_ban]}
+        target_id: {type: string, format: uuid, description: The id of the cabal the request targets., examples: ["01890a5d-ac96-774b-bcce-b302099a8059"]}
+        requested_by: {type: string, format: uuid, description: The operator who asked., examples: ["01890a5d-ac96-774b-bcce-b302099a805b"]}
+        reason: {type: string, description: Why the requester asked., examples: [scam cabal]}
+        status: {$ref: "#/components/schemas/AdminApprovalStatus"}
+        decided_by: {type: [string, "null"], format: uuid, description: "The operator who approved or rejected it. Null while pending or expired.", examples: [null]}
+        decided_reason: {type: [string, "null"], description: Why that operator decided., examples: [null]}
+        created_at: {type: string, format: date-time, description: When the request was made., examples: ["2026-10-08T12:00:00Z"]}
+        decided_at: {type: [string, "null"], format: date-time, description: "When it was approved, rejected or expired.", examples: [null]}
+        expires_at: {type: string, format: date-time, description: When an undecided request expires., examples: ["2026-10-09T12:00:00Z"]}
     DeadLetterStatus:
       type: string
       description: Where a dead letter stands in the queue.

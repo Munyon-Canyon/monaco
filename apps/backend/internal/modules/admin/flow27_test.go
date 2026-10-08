@@ -30,7 +30,7 @@ func flow27Scenario(t *testing.T) *scenario.Scenario {
 	}
 	return scenario.New(t, scenario.WithPrivy(upstreams, "app"), scenario.WithModules(
 		func(d module.Deps) module.Module {
-			d.Config.Admin = config.Admin{DeadLettersInterval: time.Second}
+			d.Config.Admin = config.Admin{DeadLettersInterval: time.Second, ApprovalsExpireInterval: time.Minute}
 			return admin.New(d)
 		},
 		func(d module.Deps) module.Module { return social.New(d) },

@@ -19,6 +19,33 @@ Subject `events.admin.action`, version 1.
 | `after` | `json.RawMessage` |
 | `approved_by` | `*uuid.UUID` |
 
+## `admin.approval_requested`
+
+Subject `events.admin.approval_requested`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `approval_id` | `uuid.UUID` |
+| `action` | `string` |
+| `target_id` | `uuid.UUID` |
+| `requested_by` | `uuid.UUID` |
+| `reason` | `string` |
+| `expires_at` | `time.Time` |
+
+## `admin.cabal_ban_approved`
+
+Subject `events.admin.cabal_ban_approved`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `approval_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `requested_by` | `uuid.UUID` |
+| `approved_by` | `uuid.UUID` |
+| `reason` | `string` |
+
 ## `admin.granted`
 
 Subject `events.admin.granted`, version 1.

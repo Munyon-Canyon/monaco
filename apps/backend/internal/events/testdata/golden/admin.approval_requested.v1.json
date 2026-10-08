@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "approval_id": "01890a5d-ac96-774b-bcce-b302099a805a",
+  "action": "cabal_ban",
+  "target_id": "01890a5d-ac96-774b-bcce-b302099a8059",
+  "requested_by": "01890a5d-ac96-774b-bcce-b302099a805b",
+  "reason": "scam cabal",
+  "expires_at": "2027-01-15T08:00:00Z"
+}

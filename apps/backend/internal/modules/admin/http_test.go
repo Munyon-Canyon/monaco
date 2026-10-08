@@ -62,6 +62,8 @@ func adminHandlerFor(t *testing.T, deps module.Deps, a *admin.Module) http.Handl
 		switch raw {
 		case "operator":
 			return auth.Actor{Kind: auth.ActorAdmin, ID: "019cc330-1111-7000-8000-000000000001", Role: "operator"}, nil
+		case "operator2":
+			return auth.Actor{Kind: auth.ActorAdmin, ID: "019cc330-1111-7000-8000-000000000005", Role: "operator"}, nil
 		case "viewer":
 			return auth.Actor{Kind: auth.ActorAdmin, ID: "019cc330-1111-7000-8000-000000000002", Role: "viewer"}, nil
 		}
