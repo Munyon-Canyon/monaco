@@ -2,10 +2,8 @@ package adapters
 
 import (
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -360,23 +358,13 @@ func (h HTTP) DeleteCabalMemberMe(
 }
 
 func (h HTTP) GetCabalByCode(
-	ctx context.Context, req api.GetCabalByCodeRequestObject,
+	ctx context.Context, _ api.GetCabalByCodeRequestObject,
 ) (api.GetCabalByCodeResponseObject, error) {
 	const op = "cabal.GetCabalByCode"
 	if _, err := caller(ctx); err != nil {
 		return nil, err
 	}
-	row, err := sqlc.New(h.DB).FindCabalByInviteCode(ctx, strings.ToUpper(strings.TrimSpace(req.Code)))
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errs.New(errs.CodeCabalNotFound, op)
-	}
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
-	}
-	return api.GetCabalByCode200JSONResponse(api.CabalPreview{
-		Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl), JoinMode: row.JoinMode,
-		MemberCount: row.MemberCount,
-	}), nil
+	return nil, errs.New(errs.CodeCabalNotFound, op)
 }
 
 func (h HTTP) PostCabalAccessRequest(
@@ -567,7 +555,7 @@ func wireCabal(view app.CabalView) api.Cabal {
 		},
 		Creator:     wirePerson(view.Creator),
 		MemberCount: view.MemberCount, Members: members, Me: wireMe(view.Me),
-		MyAccessRequest: wireAccess(view.Access), InviteCode: view.InviteCode,
+		MyAccessRequest: wireAccess(view.Access),
 		TreasuryAddress: string(view.TreasuryAddress),
 	}
 }

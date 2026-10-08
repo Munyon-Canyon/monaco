@@ -50,7 +50,7 @@ func TestSchemaStoresBothDirectionsAndEveryStatusAnInviteCanReach(t *testing.T) 
 func TestSchemaStoresEveryRoleTheDomainKnows(t *testing.T) {
 	t.Parallel()
 	f := newQueries(t)
-	empty := insertBareCabal(t, f, "0000000002")
+	empty := insertBareCabal(t, f)
 	for _, role := range []domain.Role{domain.RoleCreator, domain.RoleMember} {
 		user := testkit.SeedUser(t, f.pool, testkit.UserOpts{}).ID.UUID()
 		wantNoError(

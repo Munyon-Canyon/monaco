@@ -1,7 +1,6 @@
 package cabal_test
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
@@ -87,28 +86,6 @@ func TestSchemaAndDomainAgreeOnTheNameLength(t *testing.T) {
 			if (domainErr == nil) != (schemaErr == nil) {
 				t.Errorf("%d x %q: the domain says %v and the schema says %v", n, unit, domainErr, schemaErr)
 			}
-		}
-	}
-}
-
-func TestSchemaStoresEveryCharacterOfTheInviteCodeAlphabetAndOnlyThose(t *testing.T) {
-	t.Parallel()
-	pool := testkit.DB(t)
-	c := testkit.NewCabal(t, pool)
-	for _, start := range []byte{0, 10, 20, 22} {
-		source := bytes.NewReader([]byte{
-			start, start + 1, start + 2, start + 3, start + 4, start + 5, start + 6, start + 7, start + 8, start + 9,
-		})
-		code, err := domain.NewInviteCode(source)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wantNoError(t, "generated code "+code.String(),
-			run(t, pool, `UPDATE cabals SET invite_code = $1 WHERE id = $2`, code.String(), c.ID.UUID()))
-	}
-	for _, raw := range []string{"ABCDEFGHJ", "ABCDEFGHJKM", "ABCDEFGHJU", "ABCDE-FGHJ", "abcdefghjk", "ABCDEFGHIJ"} {
-		if err := run(t, pool, `UPDATE cabals SET invite_code = $1 WHERE id = $2`, raw, c.ID.UUID()); err == nil {
-			t.Errorf("the schema stored %q, which is not a canonical invite code", raw)
 		}
 	}
 }

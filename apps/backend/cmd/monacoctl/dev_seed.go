@@ -148,7 +148,7 @@ func seedConfirmedTrade(t testkit.SeedT, deps module.Deps, actor func(string) id
 	cabal := testkit.NewCabal(t, deps.Pool, testkit.WithCreator(owner))
 	testkit.NewLedger(t, deps.Pool).WithFundedMember(owner, cabal.ID, money.MicrosFromUint64(100_000_000))
 	raw := devScenarioJSONL(t, "cabal-with-confirmed-trade", map[string]string{confirmedTradeCabal: cabal.ID.String()})
-	out := map[string]string{"cabal_id": cabal.ID.String(), "invite_code": cabal.InviteCode}
+	out := map[string]string{"cabal_id": cabal.ID.String()}
 	for _, s := range testkit.SeedJSONL(t, deps.Pool, "cabal-with-confirmed-trade", raw,
 		treasury.New(deps).Consumers()...) {
 		if trade, ok := s.Event.(events.TradeConfirmed); ok {
@@ -171,7 +171,7 @@ func seedFundedPot(t testkit.SeedT, deps module.Deps, actor func(string) ids.Use
 	testkit.NewLedger(t, deps.Pool).
 		WithFundedMember(a, cabal.ID, money.MicrosFromUint64(2_000_000)).
 		WithFundedMember(b, cabal.ID, money.MicrosFromUint64(1_000_000))
-	return map[string]string{"cabal_id": cabal.ID.String(), "cabal_name": "QA " + run, "invite_code": cabal.InviteCode}
+	return map[string]string{"cabal_id": cabal.ID.String(), "cabal_name": "QA " + run}
 }
 
 func seedCabalWithMembers(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
@@ -183,7 +183,7 @@ func seedCabalWithMembers(t testkit.SeedT, deps module.Deps, actor func(string) 
 		"01890a5d-ac96-774b-bcce-b302099a8073": actor("C").String(),
 	})
 	testkit.SeedJSONL(t, deps.Pool, "cabal-with-members", raw, cabalmod.New(deps).Consumers()...)
-	return map[string]string{"cabal_id": cabal.ID.String(), "invite_code": cabal.InviteCode}
+	return map[string]string{"cabal_id": cabal.ID.String()}
 }
 
 func seedOpenProposal(t testkit.SeedT, deps module.Deps, actor func(string) ids.UserID) map[string]string {
@@ -198,7 +198,7 @@ func seedOpenProposal(t testkit.SeedT, deps module.Deps, actor func(string) ids.
 	})
 	testkit.SeedJSONL(t, deps.Pool, "cabal-with-open-proposal", raw, cabalmod.New(deps).Consumers()...)
 	return map[string]string{
-		"cabal_id": cabal.ID.String(), "invite_code": cabal.InviteCode, "proposal_id": id.String(),
+		"cabal_id": cabal.ID.String(), "proposal_id": id.String(),
 		"asset_mint": devProposalMint, "symbol": "AAPLx",
 	}
 }
@@ -239,7 +239,7 @@ func seedFailedTrade(t testkit.SeedT, deps module.Deps, actor func(string) ids.U
 		"01890a5d-ac96-774b-bcce-b302099a80c9": proposal.String(),
 	})
 	out := map[string]string{
-		"cabal_id": cabal.ID.String(), "invite_code": cabal.InviteCode, "proposal_id": proposal.String(),
+		"cabal_id": cabal.ID.String(), "proposal_id": proposal.String(),
 		"asset_mint": devProposalMint, "symbol": "AAPLx",
 	}
 	consumers := append(cabalmod.New(deps).Consumers(), treasury.New(deps).Consumers()...)

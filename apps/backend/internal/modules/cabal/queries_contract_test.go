@@ -2,7 +2,6 @@ package cabal_test
 
 import (
 	"bytes"
-	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -131,14 +130,14 @@ func insertContractUsers(t *testing.T, pool *pgxpool.Pool, users []ids.UserID) {
 	}
 }
 
-func insertContractCabal(t *testing.T, pool *pgxpool.Pool, c contractCabal, code string) {
+func insertContractCabal(t *testing.T, pool *pgxpool.Pool, c contractCabal) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `INSERT INTO cabals (id, name, picture_url, creator_id, join_mode,
-		voter_mode, threshold, proposal_expiry_seconds, slippage_bps, invite_code, status, created_at, updated_at)
-		VALUES ($1, $2, NULLIF($3::text, ''), $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+		voter_mode, threshold, proposal_expiry_seconds, slippage_bps, status, created_at, updated_at)
+		VALUES ($1, $2, NULLIF($3::text, ''), $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
 		c.view.ID.UUID(), c.view.Name, c.view.PictureURL, c.view.CreatorID.UUID(), string(c.rules.JoinMode),
 		string(c.rules.VoterMode), string(c.rules.Threshold), int64(c.rules.ProposalExpiry/time.Second),
-		c.rules.SlippageBps, code, string(c.view.Status), c.view.CreatedAt); err != nil {
+		c.rules.SlippageBps, string(c.view.Status), c.view.CreatedAt); err != nil {
 		t.Fatalf("insert cabal %s: %v", c.view.Name, err)
 	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO treasury_wallets (cabal_id, privy_wallet_id, address, created_at)
@@ -151,8 +150,8 @@ func insertContractCabal(t *testing.T, pool *pgxpool.Pool, c contractCabal, code
 func seedContractWorld(t *testing.T, pool *pgxpool.Pool, w contractWorld) {
 	t.Helper()
 	insertContractUsers(t, pool, w.users)
-	for i, key := range []string{"a", "b", "c", "d", "e"} {
-		insertContractCabal(t, pool, w.cabals[key], fmt.Sprintf("A%09d", i))
+	for _, key := range []string{"a", "b", "c", "d", "e"} {
+		insertContractCabal(t, pool, w.cabals[key])
 	}
 	q := sqlc.New(pool)
 	for _, m := range slices.Backward(w.members) {

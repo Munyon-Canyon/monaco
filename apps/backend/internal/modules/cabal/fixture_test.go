@@ -1,7 +1,6 @@
 package cabal_test
 
 import (
-	"regexp"
 	"slices"
 	"testing"
 
@@ -56,22 +55,18 @@ func TestNewCabal_defaultsToAnOpenCabalOfAllVotersWithOnlyItsCreator(t *testing.
 	}
 }
 
-func TestNewCabal_seedsAnInviteCodeAndATreasuryWalletThatMatchTheFixture(t *testing.T) {
+func TestNewCabal_seedsATreasuryWalletThatMatchTheFixture(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	c := testkit.NewCabal(t, pool)
-	if !regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{10}$`).MatchString(c.InviteCode) {
-		t.Fatalf("invite code %q is not 10 Crockford base32 characters", c.InviteCode)
-	}
-	var code, wallet, address string
-	if err := pool.QueryRow(t.Context(), `SELECT c.invite_code, w.privy_wallet_id, w.address
+	var wallet, address string
+	if err := pool.QueryRow(t.Context(), `SELECT w.privy_wallet_id, w.address
 		FROM cabals c JOIN treasury_wallets w ON w.cabal_id = c.id WHERE c.id = $1`,
-		c.ID.UUID()).Scan(&code, &wallet, &address); err != nil {
+		c.ID.UUID()).Scan(&wallet, &address); err != nil {
 		t.Fatal(err)
 	}
-	if code != c.InviteCode || wallet != c.PrivyWalletID || address != string(c.TreasuryAddress) {
-		t.Fatalf("stored %q, %q, %q; fixture says %q, %q, %q",
-			code, wallet, address, c.InviteCode, c.PrivyWalletID, c.TreasuryAddress)
+	if wallet != c.PrivyWalletID || address != string(c.TreasuryAddress) {
+		t.Fatalf("stored %q, %q; fixture says %q, %q", wallet, address, c.PrivyWalletID, c.TreasuryAddress)
 	}
 }
 
@@ -111,12 +106,12 @@ func TestNewCabal_storesTheJoinAndVoterModesItIsGiven(t *testing.T) {
 	}
 }
 
-func TestNewCabal_givesEachCabalItsOwnIDInviteCodeAndTreasury(t *testing.T) {
+func TestNewCabal_givesEachCabalItsOwnIDAndTreasury(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	a, b := testkit.NewCabal(t, pool), testkit.NewCabal(t, pool)
-	if a.ID == b.ID || a.InviteCode == b.InviteCode || a.PrivyWalletID == b.PrivyWalletID ||
+	if a.ID == b.ID || a.PrivyWalletID == b.PrivyWalletID ||
 		a.TreasuryAddress == b.TreasuryAddress || a.Creator.ID == b.Creator.ID {
-		t.Fatalf("two cabals share an id, code, wallet, address or creator: %+v and %+v", a, b)
+		t.Fatalf("two cabals share an id, wallet, address or creator: %+v and %+v", a, b)
 	}
 }
