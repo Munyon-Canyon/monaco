@@ -62,7 +62,7 @@ func (e *InvariantError) Error() string {
 }
 
 func (d *driver) settle(ctx context.Context, res *Result) error {
-	query, cancel := detached(ctx)
+	query, cancel := detached(ctx, d.env.ProbeTimeout)
 	defer cancel()
 	ids, err := d.flowEvents(query, res.Users, polledEvents(res.Unit))
 	res.Events = ids

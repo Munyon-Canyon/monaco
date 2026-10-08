@@ -13,6 +13,8 @@ import (
 
 const probeTimeout = 5 * time.Second
 
+const unboundedProbe time.Duration = -1
+
 type watched struct {
 	durable, handler, typ string
 }
@@ -61,13 +63,17 @@ func (d *driver) converge(ctx context.Context, u Unit, eventIDs []string) error 
 func (d *driver) pollInterval() time.Duration { return cmp.Or(d.env.PollEvery, pollEvery) }
 
 func (d *driver) probe(ctx context.Context, u Unit, eventIDs []string) (string, error) {
-	ctx, cancel := detached(ctx)
+	ctx, cancel := detached(ctx, d.env.ProbeTimeout)
 	defer cancel()
 	return d.stuck(ctx, d.watchedBy(u), eventIDs)
 }
 
-func detached(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), probeTimeout)
+func detached(ctx context.Context, bound time.Duration) (context.Context, context.CancelFunc) {
+	ctx = context.WithoutCancel(ctx)
+	if bound == unboundedProbe {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, cmp.Or(bound, probeTimeout))
 }
 
 type delivered struct {

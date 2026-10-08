@@ -92,7 +92,7 @@ func (s *Stack) awaitEarlierEventsPublished(ctx context.Context) error {
 	tick := time.NewTicker(s.pollInterval())
 	defer tick.Stop()
 	for {
-		probe, cancel := detached(ctx)
+		probe, cancel := detached(ctx, s.opts.ProbeTimeout)
 		busy, err := s.busy(probe)
 		cancel()
 		if err != nil || busy == "" {

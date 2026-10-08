@@ -439,6 +439,7 @@ func armedExitedStack(tb testing.TB) (*Stack, context.Context) {
 	tb.Helper()
 	o := testOptions(tb, "ok")
 	o.Faultpoint = string(faultpoint.AfterPublish)
+	o.ProbeTimeout = unboundedProbe
 	o.Environ = append(o.Environ, fakeCrashNowEnv+"=1")
 	s := &Stack{RunID: newRunID(), Logs: &Logs{}, opts: o, procs: map[string]*process{}}
 	s.TokenKey = "verify-" + s.RunID
