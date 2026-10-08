@@ -1,7 +1,7 @@
 ---
 id: governance/vote
 title: Vote on a proposal
-version: 2
+version: 3
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -34,11 +34,11 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Home tab | | "Needs your vote" shows with `proposal-card-<proposalID>` within 15 s. The card reads "Closes in", "0 of 3 voted · 2 yes to pass", "Yes" and "No" |
-| S1.2 | A | tap | `proposal-card-<proposalID>` | | The Proposal screen shows "Votes", "Why buy" and "“QA vote {QA.run}”" within 15 s |
+| S1.2 | A | tap | `proposal-card-<proposalID>` | | The Proposal screen shows "Votes", "Why buy" and "QA vote {QA.run}" within 15 s |
 | S1.3 | A | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote in" shows within 10 s. The card reads "✓ You voted yes" and "Change", and "1 of 3 voted · 2 yes to pass" within 10 s |
 | S1.4 | A | tap, then tap | "Change", then "No" | | The toast "Vote in" shows within 10 s, and the card reads "✓ You voted no" within 10 s |
 | S1.5 | A | tap, then tap | "Change", then "Yes" | | The toast "Vote in" shows within 10 s, and the card reads "✓ You voted yes" within 10 s |
-| S1.6 | B | tap, then tap | the Home tab, then `proposal-card-<proposalID>` | | The Proposal screen shows "Alfred voted yes" within 15 s |
+| S1.6 | B | tap, then tap, then tap | the Home tab, `proposal-card-<proposalID>`, then `proposal-votes-see-all` | | The Proposal screen shows "1 yes · 0 no · 2 not voted" within 15 s, and the Votes list shows "Alfred" and "Voted yes" within 15 s |
 | S1.7 | B | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote in" shows within 10 s. Within 15 s the card no longer reads "Closes in" and shows no "Yes", "No" or "Change": the majority closed the vote |
 | S1.8 | A | relaunch, then tap | the Home tab | | `proposal-card-<proposalID>` is not under "Needs your vote" within 15 s |
 
@@ -55,7 +55,7 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | "Needs your vote" shows with `proposal-card-<proposalID>` and "See all" within 15 s |
-| S3.2 | A | tap | "See all" | | `proposal-card-<proposalID>` and `proposal-card-<closedProposalID>` both show within 15 s. The closed card shows its status chip ("Expired") and no "Yes" or "No" |
+| S3.2 | A | tap, then tap | "See all", then "Failed" | | `proposal-card-<proposalID>` shows under Open, and `proposal-card-<closedProposalID>` shows under Failed, both within 15 s. The closed card shows its status chip ("Expired") and no "Yes" or "No" |
 
 ## Ground truth
 

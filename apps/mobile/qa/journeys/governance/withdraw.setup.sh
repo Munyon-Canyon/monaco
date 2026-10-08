@@ -135,9 +135,10 @@ WITH asset AS (
   FROM cabal_members WHERE cabal_id = :'cabal' AND can_vote
 ), proposal AS (
   INSERT INTO proposals (id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, status, expires_at, created_at, updated_at)
+    quote_out_amount, status, threshold, expires_at, created_at, updated_at)
   SELECT $(uuid7), :'cabal', :'proposer', 'buy', symbol, mint, 5000000, NULL, :'thesis',
-    quote_out, :'status', now() + (:'expires')::interval, now() + (:'created')::interval,
+    quote_out, :'status', (SELECT threshold FROM cabals WHERE id = :'cabal'), now() + (:'expires')::interval,
+    now() + (:'created')::interval,
     CASE WHEN :'status' = 'open' THEN now() + (:'created')::interval ELSE now() + (:'expires')::interval END
   FROM asset
   RETURNING id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, quote_out_amount, status, expires_at, created_at
