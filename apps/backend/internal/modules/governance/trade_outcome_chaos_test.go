@@ -46,11 +46,22 @@ func TestTradeOutcome_convergesUnderChaos(t *testing.T) {
 		case i > chaosPassed+1:
 			source = events.TradeSource{Kind: "cashout", ID: chaosProposal(i % chaosPassed)}
 		}
-		if i%2 == 0 {
+		switch i % 4 {
+		case 0:
 			return events.TradeConfirmed{
 				V: 1, SwapID: random(), CabalID: random(), Source: source, SourceBatchSize: 1, Action: "buy",
 				Symbol: "AAPLx", InAmount: 25_000_000, OutAmount: rng.Uint64N(1e9),
 				ConfirmedAt: time.Date(2026, 3, 1, 12, 0, i, 0, time.UTC),
+			}
+		case 3:
+			return events.TradeRetryRequested{
+				V: 1, SwapID: random(), CabalID: random(), Source: source, Action: "sell", Symbol: "AAPLx",
+				InAmount: 25_000_000, RequestedBy: random(),
+			}
+		case 1:
+			return events.TradeFailed{
+				V: 1, SwapID: random(), CabalID: random(), Source: source, SourceBatchSize: 1, Action: "sell",
+				Symbol: "AAPLx", InAmount: 25_000_000, FailureCode: "jupiter_failed",
 			}
 		}
 		codes := []errs.Code{errs.CodeInsufficientFunds, errs.CodeSlippageExceeded, errs.CodeNoRoute}

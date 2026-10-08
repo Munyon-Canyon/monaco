@@ -574,6 +574,17 @@ Subject `events.proposal.passed`, version 1.
 | `quote_out_amount` | `uint64` |
 | `proposer_id` | `uuid.UUID` |
 
+## `proposal.reopened`
+
+Subject `events.proposal.reopened`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `proposal_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `swap_id` | `uuid.UUID` |
+
 ## `proposal.voided`
 
 Subject `events.proposal.voided`, version 1.

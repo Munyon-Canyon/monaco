@@ -56,6 +56,43 @@ func TestPort_statusErrors(t *testing.T) {
 	}
 }
 
+func TestPort_retryableIsTrueForPassedOrSwapFailedOnly(t *testing.T) {
+	t.Parallel()
+	d := newProposalDB(t)
+	port := governance.New(module.Deps{Pool: d.pool}).Queries()
+	unknown := ids.ProposalIDFrom(d.ids.NewV7())
+	if _, err := port.Retryable(t.Context(), unknown); errs.CodeOf(err) != errs.CodeProposalNotFound {
+		t.Errorf("Retryable of an unknown proposal err = %v, want proposal_not_found", err)
+	}
+	p := d.buy(d.ids.NewV7())
+	d.insert(t, p)
+	id := ids.ProposalIDFrom(p.ID)
+	steps := []struct {
+		status, reason string
+		want           bool
+	}{
+		{"open", "", false},
+		{"passed", "", true},
+		{"execution_blocked", "no_route", false},
+		{"execution_blocked", "swap_failed", true},
+	}
+	for _, step := range steps {
+		if _, err := d.pool.Exec(t.Context(),
+			`UPDATE proposals SET status = $2, status_reason = nullif($3, '') WHERE id = $1`,
+			p.ID, step.status, step.reason); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := port.Retryable(t.Context(), id); err != nil || got != step.want {
+			t.Errorf("Retryable of %s %q = %t, %v, want %t", step.status, step.reason, got, err, step.want)
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := port.Retryable(ctx, id); errs.CodeOf(err) != errs.CodeInternal {
+		t.Errorf("Retryable on a cancelled context err = %v, want internal", err)
+	}
+}
+
 func TestPort_proposerNamesWhoOpenedTheProposal(t *testing.T) {
 	t.Parallel()
 	d := newProposalDB(t)

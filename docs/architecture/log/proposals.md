@@ -2,6 +2,7 @@
 
 Dated record of changes to [proposals.md](../proposals.md). Add one line per change, newest last.
 
+- 2026-10-07: A failed swap blocks its passed proposal with `status_reason` `swap_failed` (governance consumes `trade.failed`). `RetryTrade` still accepts that proposal, and governance consumes `trade.retry_requested` to reopen it to `passed` and emit `proposal.reopened` (#3472).
 - 2026-09-29: The propose-time pot check reads `treasury`'s `PotValue(ctx, cabalID)` query port, not market (default; see #535).
 - 2026-09-27: Default 2026-09-27 (reversible): governance consumes `agent.enabled`, `agent.paused` and `agent.removed` to mark agent proposals `executed`. Closes the last open question.
 - 2026-09-27: Applied the 2026-09-27 decisions. Decided 2026-09-27: every cabal is public; the new backend starts on an empty database, so nothing migrates from `proposal_comments`. Default 2026-09-27 (reversible): voters can change their ballot while `open`; the voter set is frozen at creation in `proposal_voters`; only the proposer can withdraw; feed comments and the chat thread stay separate; governance emits `proposal.executed` and `proposal.execution_blocked`; non-members are view-only on other cabals' proposals until moderation; proposal cards reach chat as `message.created` with `proposal_id`; the linked swap lives in trading's `swaps` table. Still open: how agent proposals reach `executed`.

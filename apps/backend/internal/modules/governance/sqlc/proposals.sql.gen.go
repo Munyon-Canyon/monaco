@@ -340,6 +340,37 @@ func (q *Queries) ProposerOfProposal(ctx context.Context, id uuid.UUID) (uuid.UU
 	return proposer_id, err
 }
 
+const reopen = `-- name: Reopen :execrows
+UPDATE proposals
+SET status = 'passed', status_reason = NULL, updated_at = $1::timestamptz
+WHERE id = $2 AND status = 'execution_blocked' AND status_reason = 'swap_failed'
+`
+
+type ReopenParams struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (q *Queries) Reopen(ctx context.Context, arg ReopenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, reopen, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const retryableByID = `-- name: RetryableByID :one
+SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
+FROM proposals WHERE id = $1
+`
+
+func (q *Queries) RetryableByID(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, retryableByID, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const statusByID = `-- name: StatusByID :one
 SELECT status FROM proposals WHERE id = $1
 `
@@ -375,6 +406,34 @@ func (q *Queries) Transition(ctx context.Context, arg TransitionParams) (int64, 
 		arg.At,
 		arg.ID,
 		arg.FromStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const transitionAfterSwapFailure = `-- name: TransitionAfterSwapFailure :execrows
+UPDATE proposals
+SET status = $1::text,
+  status_reason = CASE WHEN $1::text = 'execution_blocked' THEN $2::text END,
+  updated_at = $3::timestamptz
+WHERE id = $4 AND status = 'execution_blocked' AND status_reason = 'swap_failed'
+`
+
+type TransitionAfterSwapFailureParams struct {
+	ToStatus string
+	Reason   pgtype.Text
+	At       time.Time
+	ID       uuid.UUID
+}
+
+func (q *Queries) TransitionAfterSwapFailure(ctx context.Context, arg TransitionAfterSwapFailureParams) (int64, error) {
+	result, err := q.db.Exec(ctx, transitionAfterSwapFailure,
+		arg.ToStatus,
+		arg.Reason,
+		arg.At,
+		arg.ID,
 	)
 	if err != nil {
 		return 0, err

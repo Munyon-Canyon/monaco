@@ -35,11 +35,47 @@ func (h TradeOutcome) Blocked(ctx context.Context, tx db.Tx, e events.TradeBlock
 	if e.Source.Kind != proposalSource {
 		return nil
 	}
+	return h.block(ctx, tx, e.Source.ID, e.CabalID, e.Code, at)
+}
+
+func (h TradeOutcome) Failed(ctx context.Context, tx db.Tx, e events.TradeFailed, at time.Time) error {
+	if e.Source.Kind != proposalSource {
+		return nil
+	}
+	return h.block(ctx, tx, e.Source.ID, e.CabalID, errs.CodeSwapFailed, at)
+}
+
+func (h TradeOutcome) block(
+	ctx context.Context, tx db.Tx, proposal, cabal uuid.UUID, code errs.Code, at time.Time,
+) error {
 	return settle(ctx, tx, h.Hints, outcome{
-		proposal: e.Source.ID, cabal: e.CabalID, to: domain.StatusExecutionBlocked, at: at,
-		reason: pgtype.Text{String: string(e.Code), Valid: true},
-		emit:   events.ProposalExecutionBlocked{V: 1, ProposalID: e.Source.ID, CabalID: e.CabalID, Code: e.Code},
+		proposal: proposal, cabal: cabal, to: domain.StatusExecutionBlocked, at: at,
+		reason: pgtype.Text{String: string(code), Valid: true},
+		emit:   events.ProposalExecutionBlocked{V: 1, ProposalID: proposal, CabalID: cabal, Code: code},
 	})
+}
+
+func (h TradeOutcome) Retried(ctx context.Context, tx db.Tx, e events.TradeRetryRequested, at time.Time) error {
+	const op = "governance.TradeOutcome.Retried"
+	if e.Source.Kind != proposalSource {
+		return nil
+	}
+	moved, err := sqlc.New(tx.Queries()).Reopen(ctx, sqlc.ReopenParams{ID: e.Source.ID, At: at})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if moved == 0 {
+		return nil
+	}
+	if err := tx.Events.Append(ctx, events.ProposalReopened{
+		V: 1, ProposalID: e.Source.ID, CabalID: e.CabalID, SwapID: e.SwapID,
+	}); err != nil {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		h.Hints.ProposalUpdated(ctx, ids.CabalIDFrom(e.CabalID), ids.ProposalIDFrom(e.Source.ID))
+	})
+	return nil
 }
 
 type outcome struct {
@@ -59,6 +95,15 @@ func settle(ctx context.Context, tx db.Tx, hints app.Hints, o outcome) error {
 	})
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	repeatsFailure := o.to == domain.StatusExecutionBlocked && o.reason.String == string(errs.CodeSwapFailed)
+	if moved == 0 && !repeatsFailure {
+		moved, err = q.TransitionAfterSwapFailure(ctx, sqlc.TransitionAfterSwapFailureParams{
+			ID: o.proposal, ToStatus: string(o.to), Reason: o.reason, At: o.at,
+		})
+		if err != nil {
+			return errs.Wrap(err, errs.CodeInternal, op)
+		}
 	}
 	if moved == 1 {
 		if err := tx.Events.Append(ctx, o.emit); err != nil {

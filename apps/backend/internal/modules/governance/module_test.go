@@ -40,6 +40,8 @@ func TestModule_isNamedGovernanceAndRunsTheExpiryPoller(t *testing.T) {
 	want := []string{
 		"governance governance.trade_outcome.confirmed trade.confirmed",
 		"governance governance.trade_outcome.blocked trade.blocked",
+		"governance governance.trade_outcome.failed trade.failed",
+		"governance governance.trade_outcome.retried trade.retry_requested",
 	}
 	if !slices.Equal(handlers, want) {
 		t.Fatalf("consumers = %q, want %q", handlers, want)

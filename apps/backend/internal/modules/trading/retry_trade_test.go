@@ -107,6 +107,18 @@ func TestRetryTrade_appendsTheFailedSwapsParameters(t *testing.T) {
 	}
 }
 
+func TestRetryTrade_proposalBlockedBySwapFailure_IsRetryable(t *testing.T) {
+	t.Parallel()
+	e := newRetryEnv(t)
+	e.proposals.block("swap_failed")
+	if err := e.retry(memberContext(t.Context(), e.member), e.failed.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(e.requests(t, e.failed.ID)); n != 1 {
+		t.Fatalf("appended %d trade.retry_requested, want 1", n)
+	}
+}
+
 func TestRetryTrade_refusesBeforeAppending(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
@@ -127,6 +139,13 @@ func TestRetryTrade_refusesBeforeAppending(t *testing.T) {
 		"proposal is no longer passed": {
 			arrange: func(_ *testing.T, e *retryEnv) uuid.UUID {
 				e.proposals.set(governance.Status("execution_blocked"))
+				return e.failed.ID
+			},
+			want: errs.CodeSwapNotRetryable,
+		},
+		"proposal is blocked for another reason": {
+			arrange: func(_ *testing.T, e *retryEnv) uuid.UUID {
+				e.proposals.block("slippage_exceeded")
 				return e.failed.ID
 			},
 			want: errs.CodeSwapNotRetryable,
@@ -160,7 +179,7 @@ func TestRetryTrade_refusesBeforeAppending(t *testing.T) {
 		},
 		"governance port down": {
 			arrange: func(_ *testing.T, e *retryEnv) uuid.UUID {
-				e.proposals.Fail("Status", errs.New(errs.CodeUpstreamUnavailable, "test"))
+				e.proposals.Fail("Retryable", errs.New(errs.CodeUpstreamUnavailable, "test"))
 				return e.failed.ID
 			},
 			want: errs.CodeUpstreamUnavailable,

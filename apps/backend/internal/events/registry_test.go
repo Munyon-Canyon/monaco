@@ -388,6 +388,7 @@ func TestProposalEventsAggregateOnTheProposal(t *testing.T) {
 		ProposalVoided{ProposalID: id},
 		ProposalExecuted{ProposalID: id},
 		ProposalExecutionBlocked{ProposalID: id},
+		ProposalReopened{ProposalID: id},
 	} {
 		if ev.AggregateType() != "proposal" || ev.AggregateID() != id ||
 			!strings.HasPrefix(string(ev.Type()), "proposal.") {
