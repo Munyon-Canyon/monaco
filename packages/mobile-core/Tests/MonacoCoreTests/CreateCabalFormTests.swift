@@ -4,8 +4,13 @@ import MonacoCore
 import XCTest
 
 final class CreateCabalFormTests: XCTestCase {
-    func testTheCreateRequestDefaultsToApprovalJoining() throws {
-        XCTAssertEqual(try body(CreateCabalForm(name: "Pot"))["join_mode"] as? String, "request")
+    func testTheCreateRequestDefaultsToOpenJoining() throws {
+        XCTAssertEqual(CreateCabalForm(name: "Pot").joinPolicy, .open)
+        XCTAssertEqual(try body(CreateCabalForm(name: "Pot"))["join_mode"] as? String, "open")
+    }
+
+    func testChoosingApprovalSendsRequest() throws {
+        XCTAssertEqual(try body(CreateCabalForm(name: "Pot", joinPolicy: .request))["join_mode"] as? String, "request")
     }
 
     func testTheChosenJoinPolicyReachesTheWire() throws {
@@ -46,7 +51,7 @@ final class CreateCabalFormTests: XCTestCase {
 
     func testTheDefaultsMatchTheFormAMemberFirstSees() throws {
         let sent = try body(CreateCabalForm(name: "Pot"))
-        XCTAssertEqual(sent["join_mode"] as? String, "request")
+        XCTAssertEqual(sent["join_mode"] as? String, "open")
         XCTAssertEqual(sent["voter_mode"] as? String, "all")
         XCTAssertEqual(sent["threshold"] as? String, "majority")
         XCTAssertEqual(sent["proposal_expiry_seconds"] as? Int, 604_800)

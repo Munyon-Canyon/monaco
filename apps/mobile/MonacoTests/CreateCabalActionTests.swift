@@ -25,7 +25,7 @@ struct CreateCabalActionTests {
         let data = try #require(bodies.first ?? nil)
         let body = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(body["name"] as? String == "QA pot")
-        #expect(body["join_mode"] as? String == "request")
+        #expect(body["join_mode"] as? String == "open")
         #expect(body["voter_mode"] as? String == "list")
         #expect(body["slippage_bps"] == nil)
         #expect(body["voter_ids"] == nil)
