@@ -47,6 +47,26 @@ public final class ProposeReviewModel {
         }
     }
 
+    public var isSell: Bool { trade.isSell }
+    public var operation: String { isSell ? "Sell" : "Buy" }
+
+    public var heroAmount: String {
+        switch trade {
+        case .sell(let holding): holding.quantity(of: draft.amount)
+        case .buy: UsdAmountFormatter.format(micros: draft.amount)
+        }
+    }
+
+    public var assetName: String {
+        switch trade {
+        case .sell(let holding): holding.ticker
+        case .buy(let symbol, let kind, _): AssetSymbolFormatter.display(symbol, kind: kind)
+        }
+    }
+
+    public var destination: String { "to \(cabal.name)" }
+    public var voteCaption: String { "\(cabal.voters) will vote on this proposal." }
+
     public var reasonTitle: String { trade.isSell ? "Why sell" : "Why buy" }
 
     public var rows: [Row] {

@@ -19,6 +19,25 @@ final class ProposeReviewModelTests: XCTestCase {
         XCTAssertEqual(model.reason, "Earnings next week.")
     }
 
+    func testBuyHeaderNamesTheOperationAmountAssetAndCabal() {
+        let model = makeModel(kind: .stock, service: ReviewService())
+
+        XCTAssertEqual(model.operation, "Buy")
+        XCTAssertEqual(model.heroAmount, "$250.00")
+        XCTAssertEqual(model.assetName, "GOOGL")
+        XCTAssertEqual(model.destination, "to Sunday Investors")
+        XCTAssertEqual(model.voteCaption, "All 3 members will vote on this proposal.")
+    }
+
+    func testSellHeaderLeadsWithTheQuantity() {
+        let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678)
+        let model = makeSellModel(apple, selling: 60_172_839)
+
+        XCTAssertEqual(model.operation, "Sell")
+        XCTAssertEqual(model.heroAmount, "0.6017 shares")
+        XCTAssertEqual(model.assetName, "AAPL")
+    }
+
     func testPreIpoRowsSayTokens() {
         let model = makeModel(kind: .preIpo, service: ReviewService(), thesis: "  ")
 
