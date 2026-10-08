@@ -420,7 +420,7 @@ func (s stallScan) recordOf(ctx context.Context, p watchPR) (Record, bool) {
 		}
 	}
 	for _, r := range s.rs {
-		if slices.Contains(chain, s.head(ctx, r.Worktree)) {
+		if r.State != Exited && slices.Contains(chain, s.head(ctx, r.Worktree)) {
 			return r, true
 		}
 	}

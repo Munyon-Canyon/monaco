@@ -103,11 +103,13 @@ func (s *stream) next(ctx context.Context) []string {
 
 func (s *stream) round(ctx context.Context) ([]string, []string) {
 	env := s.env
-	data, dataErr := env.watchData(ctx)
 	rs, err := env.records()
 	if err != nil {
 		return []string{watchErr("", err)}, nil
 	}
+	armedLines := env.landEachArmed(ctx, rs, s.reran)
+	data, dataErr := env.watchData(ctx)
+	rs = env.rereadRecords(rs, armedLines)
 	items, _, err := env.ownerLines(ctx, rs)
 	if err != nil {
 		items = append(items, watchErr("", err))
@@ -126,8 +128,8 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 		}
 		for _, a := range r.Armed {
 			armed = append(armed, a.PRs...)
-			items = append(items, env.landArmed(ctx, r, a, s.reran)...)
 		}
+		items = append(items, armedLines[r.Ticket]...)
 		if r.Settled != nil && r.Settled.At.After(s.since) {
 			items = append(items, r.Settled.Detail)
 		}

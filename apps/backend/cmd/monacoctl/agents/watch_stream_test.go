@@ -1377,3 +1377,136 @@ func TestWatchStream_aDropAfterANewHeadIsPrintedAgain(t *testing.T) {
 		t.Fatalf("first:\n%s\nsecond:\n%s", first, second)
 	}
 }
+
+func TestStallScan_headIsCachedAndAGitFailureMeansNoBranch(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	runs := 0
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		runs++
+		return nil, errors.New("not a worktree")
+	}
+	s := stallScan{env: env, heads: map[string]string{}}
+	if h := s.head(t.Context(), "/w/1"); h != "" {
+		t.Fatalf("head %q", h)
+	}
+	if h := s.head(t.Context(), "/w/1"); h != "" || runs != 1 {
+		t.Fatalf("head %q after %d git runs", h, runs)
+	}
+}
+
+func TestSharedOpenPulls_servesOneReadToEveryArmedStackOfAPass(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	env := f.Env(t)
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) {
+		return nil, errors.New("read again")
+	}
+	env.pullsShared, env.pullsOK, env.pulls = true, true, []stackPR{{gqlPR: gqlPR{Number: 7}}}
+	for range 2 {
+		got, err := env.sharedOpenPulls(t.Context())
+		if err != nil || len(got) != 1 || got[0].Number != 7 {
+			t.Fatalf("pulls %+v err %v", got, err)
+		}
+	}
+}
+
+func TestWatchOnce_failsWhenTheOpenPRListCannotBeRead(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 1, State: Running, Worktree: f.dir})
+	f.noFailures()
+	f.hub.status[list("/pulls?state=open")] = 500
+	code, _, _ := f.agents(t, "watch", "--once")
+	if code == 0 {
+		t.Fatal("watch passed without the open PR list")
+	}
+}
+
+type failingTransport struct{}
+
+func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("connection refused")
+}
+
+func TestTraceWatch_reportsEachCommandAndRequestWithItsCountAndThePassTotal(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.hub.on(get("/issues/9"), Issue{})
+	env := f.Env(t)
+	env.Run = func(context.Context, string, string, string, ...string) ([]byte, error) { return nil, nil }
+	var report strings.Builder
+	done := env.traceWatch(&report, true)
+	for range 2 {
+		_, _ = env.Run(t.Context(), "", "", "git", "log")
+	}
+	_, _ = env.Run(t.Context(), "", "", "pgrep")
+	if _, err := env.GitHub.Issue(t.Context(), 9); err != nil {
+		t.Fatal(err)
+	}
+	done()
+	for _, want := range []string{"x2   git log", "x1   pgrep", "http GET /repos/", "pass total"} {
+		if !strings.Contains(report.String(), want) {
+			t.Fatalf("report lacks %q:\n%s", want, report.String())
+		}
+	}
+	var off strings.Builder
+	env.traceWatch(&off, false)()
+	if off.Len() != 0 {
+		t.Fatalf("untraced pass wrote %q", off.String())
+	}
+	tt := tracingTransport{base: failingTransport{}, t: &watchTrace{stats: map[string]traceEntry{}}}
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://x/y", nil)
+	resp, err := tt.RoundTrip(req)
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil {
+		t.Fatal("transport error swallowed")
+	}
+}
+
+func TestRereadRecords_keepsTheFirstReadWhenTheRecordsCannotBeReadAgain(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.owner(t, Record{Ticket: 1, State: Exited})
+	env := f.Env(t)
+	before, err := env.records()
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, env.recordPath(2), "{")
+	if got := env.rereadRecords(before, map[int][]string{}); len(got) != 1 || got[0].Ticket != 1 {
+		t.Fatalf("records %+v", got)
+	}
+}
+
+func TestWatchStream_aRecordAddedWhileTheWatchReadsGitHubKeepsTheArmedLinesOnTheirTicket(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := armedWatch(t, f)
+	*s.prs[2] = *green(t, 2, "b2", "b1")
+	var once sync.Once
+	f.hub.hook = func(method, path, body string, status int) {
+		s.onLabel(method, path, body, status)
+		if path != "/graphql" {
+			return
+		}
+		once.Do(func() {
+			added := Record{Ticket: 5, State: Exited, Worktree: f.dir, Settled: &Settlement{
+				Top: 9, PRs: []int{9}, Outcome: outcomeEjected, Detail: "settled five", At: f.now.Add(time.Minute),
+			}}
+			if err := f.Env(t).saveRecord(added); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	out := streamRounds(t, f, 1, func(int) {})
+	if !strings.Contains(out, "armed stack #2 landing\nqueued #1 #2\n") || !strings.Contains(out, "settled five\n") {
+		t.Fatalf("stream:\n%s", out)
+	}
+	if r := f.owned(t); len(r.Queued) == 0 {
+		t.Fatalf("armed record not queued: %+v", r)
+	}
+}

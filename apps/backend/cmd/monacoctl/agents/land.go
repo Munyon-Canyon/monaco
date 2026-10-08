@@ -117,6 +117,38 @@ func blocker(stack []stackPR) string {
 	return ""
 }
 
+func (env *Env) landEachArmed(ctx context.Context, rs []Record, reran map[int64]int) map[int][]string {
+	out := map[int][]string{}
+	env.pullsShared = true
+	defer func() { env.pullsShared, env.pullsOK = false, false }()
+	for _, r := range rs {
+		for _, a := range r.Armed {
+			lines := env.landArmed(ctx, r, a, reran)
+			if len(lines) > 0 {
+				env.pullsOK = false
+			}
+			out[r.Ticket] = append(out[r.Ticket], lines...)
+		}
+	}
+	return out
+}
+
+func (env *Env) rereadRecords(before []Record, landed map[int][]string) []Record {
+	rs, err := env.records()
+	if err != nil {
+		return before
+	}
+	for _, r := range before {
+		if len(landed[r.Ticket]) == 0 {
+			continue
+		}
+		if j := slices.IndexFunc(rs, func(x Record) bool { return x.Ticket == r.Ticket }); j >= 0 {
+			rs[j] = r
+		}
+	}
+	return rs
+}
+
 func (env *Env) landArmed(ctx context.Context, r Record, a Arm, reran map[int64]int) []string {
 	fresh, err := env.localRecord(r.Ticket)
 	if err != nil {
@@ -230,7 +262,7 @@ func walkStack(open []stackPR, top int, trunk string) ([]stackPR, error) {
 }
 
 func (env *Env) stackOf(ctx context.Context, rec Record, top int, stdout io.Writer) ([]stackPR, string, error) {
-	open, err := env.openPulls(ctx)
+	open, err := env.sharedOpenPulls(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -719,6 +751,21 @@ func (env *Env) graphqlCLI(ctx context.Context, query string, out any) error {
 }
 
 func (env *Env) openPulls(ctx context.Context) ([]stackPR, error) {
+	return env.fetchOpenPulls(ctx)
+}
+
+func (env *Env) sharedOpenPulls(ctx context.Context) ([]stackPR, error) {
+	if env.pullsShared && env.pullsOK {
+		return slices.Clone(env.pulls), nil
+	}
+	open, err := env.fetchOpenPulls(ctx)
+	if err == nil && env.pullsShared {
+		env.pulls, env.pullsOK = slices.Clone(open), true
+	}
+	return open, err
+}
+
+func (env *Env) fetchOpenPulls(ctx context.Context) ([]stackPR, error) {
 	var open []stackPR
 	for after := ""; ; {
 		var data struct {

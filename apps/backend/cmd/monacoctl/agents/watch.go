@@ -7,12 +7,17 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
+
+const watchWorkers = 8
 
 func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
 	once, every, err := watchArgs(args)
@@ -22,14 +27,17 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if !once {
 		return env.watchStream(ctx, every, stdout)
 	}
-	data, err := env.watchData(ctx)
-	if err != nil {
-		return err
-	}
+	defer env.traceWatch(os.Stderr, os.Getenv("MONACO_WATCH_TRACE") == "1")()
 	rs, err := env.records()
 	if err != nil {
 		return err
 	}
+	armed, landed := env.landArmedOnce(ctx, rs)
+	data, err := env.watchData(ctx)
+	if err != nil {
+		return err
+	}
+	rs = env.rereadRecords(rs, landed)
 	if err := env.unqueueEjected(ctx, rs, stdout); err != nil {
 		return err
 	}
@@ -37,7 +45,7 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	lines = append(lines, env.landArmedOnce(ctx, rs)...)
+	lines = append(lines, armed...)
 	failed, err := env.failures(ctx, rs, data)
 	if err != nil {
 		return err
@@ -53,17 +61,16 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	return nil
 }
 
-func (env *Env) landArmedOnce(ctx context.Context, rs []Record) []string {
+func (env *Env) landArmedOnce(ctx context.Context, rs []Record) ([]string, map[int][]string) {
 	var lines []string
+	landed := env.landEachArmed(ctx, rs, map[int64]int{})
 	for _, r := range rs {
 		if line, stale := r.staleLine(); stale {
 			lines = append(lines, line)
 		}
-		for _, a := range r.Armed {
-			lines = append(lines, env.landArmed(ctx, r, a, map[int64]int{})...)
-		}
+		lines = append(lines, landed[r.Ticket]...)
 	}
-	return lines
+	return lines, landed
 }
 
 func (env *Env) ownerLines(ctx context.Context, rs []Record) ([]string, int, error) {
@@ -84,29 +91,62 @@ func (env *Env) ownerLines(ctx context.Context, rs []Record) ([]string, int, err
 	return lines, len(idle) + len(alive), nil
 }
 
+func (env *Env) warmWatchCaches(ctx context.Context, rs []Record) error {
+	if slices.ContainsFunc(rs, func(r Record) bool { return r.State == Running }) {
+		open, err := env.GitHub.PRs(ctx, "state=open")
+		if err != nil {
+			return err
+		}
+		env.openPRs = open
+	}
+	if slices.ContainsFunc(rs, func(r Record) bool { return r.State == Done }) {
+		out, err := env.Run(ctx, "", "", "lsof", "-d", "cwd", "-Fn")
+		if err != nil {
+			return err
+		}
+		env.cwds = out
+	}
+	return nil
+}
+
 func (env *Env) watchLists(ctx context.Context, rs []Record) ([]Record, []Record, bool, error) {
-	var idle, alive []Record
+	flagged := make([]bool, len(rs))
 	running := false
-	for _, r := range rs {
+	if err := env.warmWatchCaches(ctx, rs); err != nil {
+		return nil, nil, false, err
+	}
+	defer func() { env.cwds, env.openPRs = nil, nil }()
+	var g errgroup.Group
+	g.SetLimit(watchWorkers)
+	for i, r := range rs {
 		switch r.State {
 		case Running:
 			running = true
-			stale, err := env.idle(ctx, r)
-			if err != nil {
-				return nil, nil, false, err
-			}
-			if stale {
-				idle = append(idle, r)
-			}
+			g.Go(func() error {
+				stale, err := env.idle(ctx, r)
+				flagged[i] = stale
+				return err
+			})
 		case Done:
-			ok, err := env.alive(ctx, r.Worktree)
-			if err != nil {
-				return nil, nil, false, err
-			}
-			if ok {
-				alive = append(alive, r)
-			}
+			g.Go(func() error {
+				ok, err := env.alive(ctx, r.Worktree)
+				flagged[i] = ok
+				return err
+			})
 		case Exited:
+		}
+	}
+	if err := g.Wait(); err != nil {
+		return nil, nil, false, fmt.Errorf("read owner activity: %w", err)
+	}
+	var idle, alive []Record
+	for i, r := range rs {
+		switch {
+		case !flagged[i]:
+		case r.State == Running:
+			idle = append(idle, r)
+		default:
+			alive = append(alive, r)
 		}
 	}
 	return idle, alive, running, nil
@@ -137,11 +177,11 @@ func (env *Env) lastActivity(ctx context.Context, r Record) (time.Time, error) {
 	if is.UpdatedAt.After(latest) {
 		latest = is.UpdatedAt
 	}
-	prs, err := env.GitHub.PRs(ctx, "state=open")
+	open, err := env.openIssuePRs(ctx)
 	if err != nil {
 		return time.Time{}, err
 	}
-	for _, pr := range prs {
+	for _, pr := range open {
 		if strings.Contains(pr.Body, "#"+strconv.Itoa(r.Ticket)) && pr.UpdatedAt.After(latest) {
 			latest = pr.UpdatedAt
 		}
@@ -152,6 +192,13 @@ func (env *Env) lastActivity(ctx context.Context, r Record) (time.Time, error) {
 		latest = t
 	}
 	return latest, nil
+}
+
+func (env *Env) openIssuePRs(ctx context.Context) ([]PR, error) {
+	if env.openPRs != nil {
+		return env.openPRs, nil
+	}
+	return env.GitHub.PRs(ctx, "state=open")
 }
 
 func (env *Env) commitTime(ctx context.Context, worktree string) (time.Time, error) {
@@ -190,9 +237,12 @@ func unixTime(raw string) (time.Time, error) {
 }
 
 func (env *Env) alive(ctx context.Context, worktree string) (bool, error) {
-	out, err := env.Run(ctx, "", "", "lsof", "-d", "cwd", "-Fn")
-	if err != nil {
-		return false, err
+	out := env.cwds
+	if out == nil {
+		var err error
+		if out, err = env.Run(ctx, "", "", "lsof", "-d", "cwd", "-Fn"); err != nil {
+			return false, err
+		}
 	}
 	return strings.Contains(string(out), worktree), nil
 }
