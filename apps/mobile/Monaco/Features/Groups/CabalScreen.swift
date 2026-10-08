@@ -64,6 +64,9 @@ struct CabalScreen: View {
         }
         .navigationTitle(heroScrolledAway ? titleModel?.cabalName ?? "" : "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(MonacoTheme.heroInk, for: .navigationBar)
+        .toolbarBackground(heroScrolledAway ? .automatic : .visible, for: .navigationBar)
+        .toolbarColorScheme(heroScrolledAway ? nil : .dark, for: .navigationBar)
         .task(id: retryTick) {
             let model = preparedTitleModel()
             await model.load()
