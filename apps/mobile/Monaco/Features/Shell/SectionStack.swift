@@ -22,6 +22,7 @@ struct SectionStack<Context>: View {
                 }
             }
             .environment(\.sectionScrollProxy, proxy)
+            .monacoCanvas()
         }
     }
 }

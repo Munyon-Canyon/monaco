@@ -21,6 +21,5 @@ struct ProfileScreen: View {
     var body: some View {
         SectionStack(context: (), sections: sections.map { $0.erased })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .monacoCanvas()
     }
 }

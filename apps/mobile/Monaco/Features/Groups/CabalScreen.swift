@@ -88,7 +88,6 @@ struct CabalScreen: View {
         .sheet(isPresented: $showsDetails) {
             NavigationStack {
                 SectionStack(context: context, sections: details)
-                    .monacoCanvas()
                     .navigationTitle("Cabal details")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
