@@ -3588,6 +3588,9 @@ components:
           members: []
           treasury_address: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
           positions: []
+          pot_micros: "25000000"
+          nav_per_share_micros: "1000000"
+          valued_at: "2026-10-06T12:05:00Z"
           recent_txns: []
           recent_admin_actions: []
       additionalProperties: false
@@ -3602,6 +3605,9 @@ components:
         - members
         - treasury_address
         - positions
+        - pot_micros
+        - nav_per_share_micros
+        - valued_at
         - recent_txns
         - recent_admin_actions
       properties:
@@ -3621,6 +3627,9 @@ components:
           type: array
           description: The tokens the treasury holds, USDC included. A mint the catalog does not list has a null symbol.
           items: {$ref: "#/components/schemas/AdminHolding"}
+        pot_micros: {type: [string, "null"], pattern: "^(0|[1-9][0-9]*)$", description: The pot value in USDC micros from the latest valuation run. Null before the cabal is first valued., examples: ["25000000"]}
+        nav_per_share_micros: {type: [string, "null"], pattern: "^(0|[1-9][0-9]*)$", description: The value of one share in USDC micros from the latest valuation run. Null before the cabal is first valued., examples: ["1000000"]}
+        valued_at: {type: [string, "null"], format: date-time, description: When the cabal was last valued. Null before the cabal is first valued., examples: ["2026-10-06T12:05:00Z"]}
         recent_txns:
           type: array
           maxItems: 20

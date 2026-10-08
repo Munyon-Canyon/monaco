@@ -341,7 +341,7 @@ type AdminAuthTransition struct {
 
 // AdminCabal One cabal as an operator sees them.
 //
-// Examples: {"created_at":"2026-10-06T12:00:00Z","creator_id":"019cc330-1111-7000-8000-000000000001","id":"019cc330-2222-7000-8000-000000000001","member_count":1,"members":[],"name":"Tech bros","positions":[],"recent_admin_actions":[],"recent_txns":[],"rules":{"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"},"status":"active","treasury_address":"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin"}
+// Examples: {"created_at":"2026-10-06T12:00:00Z","creator_id":"019cc330-1111-7000-8000-000000000001","id":"019cc330-2222-7000-8000-000000000001","member_count":1,"members":[],"name":"Tech bros","nav_per_share_micros":"1000000","positions":[],"pot_micros":"25000000","recent_admin_actions":[],"recent_txns":[],"rules":{"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"},"status":"active","treasury_address":"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin","valued_at":"2026-10-06T12:05:00Z"}
 type AdminCabal struct {
 	// CreatedAt When the cabal was created.
 	//
@@ -371,8 +371,18 @@ type AdminCabal struct {
 	// Examples: Tech bros
 	Name string `json:"name"`
 
+	// NavPerShareMicros The value of one share in USDC micros from the latest valuation run. Null before the cabal is first valued.
+	//
+	// Examples: 1000000
+	NavPerShareMicros *string `json:"nav_per_share_micros"`
+
 	// Positions The tokens the treasury holds, USDC included. A mint the catalog does not list has a null symbol.
 	Positions []AdminHolding `json:"positions"`
+
+	// PotMicros The pot value in USDC micros from the latest valuation run. Null before the cabal is first valued.
+	//
+	// Examples: 25000000
+	PotMicros *string `json:"pot_micros"`
 
 	// RecentAdminActions The 20 newest admin actions on the cabal, newest first.
 	RecentAdminActions []AdminActionRecord `json:"recent_admin_actions"`
@@ -394,6 +404,11 @@ type AdminCabal struct {
 	//
 	// Examples: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin
 	TreasuryAddress string `json:"treasury_address"`
+
+	// ValuedAt When the cabal was last valued. Null before the cabal is first valued.
+	//
+	// Examples: 2026-10-06T12:05:00Z
+	ValuedAt *time.Time `json:"valued_at"`
 }
 
 // AdminCabalMember One member of a cabal with the shares they hold.

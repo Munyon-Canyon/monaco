@@ -8,6 +8,7 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -47,8 +48,16 @@ func (m *Module) userLookup() app.UserLookup {
 func (m *Module) cabalLookup() app.CabalLookup {
 	ledger := treasury.New(m.deps).Ledger()
 	return app.CabalLookup{
-		Cabals: m.cabals, Details: m.cabals, Users: m.users, Shares: ledger, Holdings: ledger,
-		Assets: market.New(m.deps).Catalog(), Txns: ledger, Actions: adapters.ActionLog{DB: m.deps.Pool},
+		Cabals:   m.cabals,
+		Details:  m.cabals,
+		Users:    m.users,
+		Shares:   ledger,
+		Holdings: ledger,
+		Assets: market.New(m.deps).
+			Catalog(),
+		Values:  ranking.QueriesOn(m.deps.Pool),
+		Txns:    ledger,
+		Actions: adapters.ActionLog{DB: m.deps.Pool},
 	}
 }
 

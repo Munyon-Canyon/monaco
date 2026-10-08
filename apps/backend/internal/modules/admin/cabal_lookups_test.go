@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -161,4 +162,34 @@ func TestAdminLookup_Cabal_QueryCountDoesNotGrowWithMembers(t *testing.T) {
 		f.stake(t, member.ID.UUID(), c.ID.UUID(), 1)
 	}
 	testkit.AssertQueries(t, "admin GetAdminCabal", read)
+}
+
+func TestAdminLookup_Cabal_ShowsTheLatestPotValueAndSharePrice(t *testing.T) {
+	t.Parallel()
+	f := newLookupFixture(t)
+	c := f.seedCabal(t)
+	other := testkit.NewCabal(t, f.pool)
+	before := f.cabal(t, c.ID.String())
+	if before.PotMicros != nil || before.NavPerShareMicros != nil || before.ValuedAt != nil {
+		t.Fatalf("unvalued cabal = %+v, want null pot, share price and valuation time", before)
+	}
+	valued := f.clock.Now().Add(-time.Hour)
+	for _, row := range []struct {
+		cabal    uuid.UUID
+		at       time.Time
+		pot, nav int64
+	}{
+		{c.ID.UUID(), valued.Add(-time.Hour), 20_000_000, 900_000},
+		{c.ID.UUID(), valued, 25_000_000, 1_000_000},
+		{other.ID.UUID(), valued.Add(time.Minute), 99_000_000, 5_000_000},
+	} {
+		f.exec(t, `INSERT INTO cabal_value_snapshots (cabal_id, at, value_micros, nav_per_share_micros, total_shares)
+			VALUES ($1, $2, $3, $4, 25)`, row.cabal, row.at, row.pot, row.nav)
+	}
+	got := f.cabal(t, c.ID.String())
+	if got.PotMicros == nil || *got.PotMicros != "25000000" || got.NavPerShareMicros == nil ||
+		*got.NavPerShareMicros != "1000000" || got.ValuedAt == nil || !got.ValuedAt.Equal(valued) {
+		t.Fatalf("valued cabal = pot %v nav %v at %v, want 25000000, 1000000 at %v",
+			got.PotMicros, got.NavPerShareMicros, got.ValuedAt, valued)
+	}
 }

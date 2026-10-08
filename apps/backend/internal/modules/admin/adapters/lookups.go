@@ -99,7 +99,11 @@ func cabalBody(v app.CabalView) api.AdminCabal {
 	for i, h := range v.Holdings {
 		holdings[i] = api.AdminHolding{Mint: h.Mint, Symbol: optionalString(h.Symbol), Units: h.Units.String()}
 	}
+	pot, nav, valuedAt := valuation(v.Value)
 	return api.AdminCabal{
+		PotMicros:          pot,
+		NavPerShareMicros:  nav,
+		ValuedAt:           valuedAt,
 		Id:                 v.Cabal.ID.UUID(),
 		Name:               v.Cabal.Name,
 		Status:             api.AdminCabalStatus(v.Cabal.Status),
@@ -113,6 +117,14 @@ func cabalBody(v app.CabalView) api.AdminCabal {
 		RecentTxns:         txnHeaders(v.Txns),
 		RecentAdminActions: actionRecords(v.Actions),
 	}
+}
+
+func valuation(v *app.Valuation) (pot, nav *string, valuedAt *time.Time) {
+	if v == nil {
+		return nil, nil, nil
+	}
+	p, n, at := v.Pot.String(), v.NavPerShare.String(), v.At.UTC()
+	return &p, &n, &at
 }
 
 func rulesBody(v app.CabalView) api.AdminCabalRules {
