@@ -17,7 +17,7 @@ struct GroupChatRowView: View {
     private var message: ChatMessage { row.message }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             if let label = row.dayLabel(now: now) {
                 ChatDayRule(label: label)
                     .padding(.top, 16)
@@ -71,8 +71,8 @@ struct GroupChatRowView: View {
 
     private var bubble: some View {
         bubbleText
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
+            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.vertical, MonacoTheme.Space.sm)
             .background(bubbleShape.fill(row.isMine ? MonacoTheme.brandFill : MonacoTheme.surface))
             .overlay {
                 if !row.isMine { bubbleShape.strokeBorder(MonacoTheme.hairline, lineWidth: 1) }

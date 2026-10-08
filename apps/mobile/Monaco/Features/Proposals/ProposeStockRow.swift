@@ -53,7 +53,7 @@ struct ProposeStockRow: View {
                 mark
                 labels.frame(minWidth: layout.minimumTitleWidth, alignment: .leading)
                 if hasFigures {
-                    VStack(alignment: .trailing, spacing: 3) {
+                    VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                         figures
                     }
                     .layoutPriority(1)
@@ -72,7 +72,7 @@ struct ProposeStockRow: View {
     }
 
     private var labels: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             Text(stock.ticker)
                 .font(MonacoTheme.Typo.ticker)
                 .foregroundStyle(stock.isTradable ? MonacoTheme.ink : MonacoTheme.disabledLabel)
@@ -119,12 +119,12 @@ struct ProposeStockSkeleton: View {
                     SkeletonBlock(
                         width: ProposeStockRow.markSize, height: ProposeStockRow.markSize,
                         radius: ProposeStockRow.markSize / 2)
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 64, height: 14)
                         SkeletonBlock(width: 96, height: 12)
                     }
                     Spacer(minLength: MonacoTheme.Space.s)
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 72, height: 14)
                         SkeletonBlock(width: 52, height: 20, radius: 10)
                     }

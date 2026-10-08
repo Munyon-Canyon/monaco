@@ -69,7 +69,7 @@ struct ChatSkeleton: View {
     private let bubbles: [(mine: Bool, width: CGFloat)] = [(false, 188), (true, 152), (false, 216)]
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: MonacoTheme.Space.s) {
             if bottomAligned { Spacer(minLength: 0) }
             ForEach(Array(bubbles.enumerated()), id: \.offset) { _, bubble in
                 HStack(spacing: 0) {
@@ -161,9 +161,12 @@ struct ChatComposerBar: View {
         .lineLimit(1...5)
         .focused(focus)
         .padding(.horizontal, MonacoTheme.Space.m)
-        .padding(.vertical, 11)
+        .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: 44)
-        .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(
+            MonacoTheme.surfaceSunken,
+            in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+        )
         .accessibilityIdentifier("chat-composer")
     }
 

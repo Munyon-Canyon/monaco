@@ -97,7 +97,7 @@ struct AssetDetailSectionSkeleton: View {
             MonacoRule()
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 SkeletonBlock(width: 96, height: 18, radius: 4)
-                    .padding(.vertical, 3)
+                    .padding(.vertical, MonacoTheme.Space.xs)
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(0..<2, id: \.self) { index in
                         if index > 0 { AssetCardDivider() }

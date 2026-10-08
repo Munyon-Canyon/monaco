@@ -218,7 +218,7 @@ private struct ProposalCardSkeleton: View {
             HStack(spacing: MonacoTheme.Space.sm) {
                 SkeletonBlock(
                     width: 36, height: 36, radius: 36 * MonacoTheme.Radius.tile / MonacoRowLayout.baseMarkSize)
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     SkeletonBlock(width: 120, height: 14)
                     SkeletonBlock(width: 64, height: 11)
                 }

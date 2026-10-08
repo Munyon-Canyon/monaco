@@ -28,7 +28,7 @@ struct SkeletonBlock: View {
     private let height: CGFloat
     private let radius: CGFloat
 
-    init(width: CGFloat? = nil, height: CGFloat, radius: CGFloat = 8) {
+    init(width: CGFloat? = nil, height: CGFloat, radius: CGFloat = MonacoTheme.Radius.field) {
         self.width = width
         self.height = height
         self.radius = radius

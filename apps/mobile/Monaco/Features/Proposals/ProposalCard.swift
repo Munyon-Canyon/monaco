@@ -99,7 +99,7 @@ struct ProposalCard: View {
                 size: 40,
                 logoURL: asset?.logoURL
             )
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(
                     AssetDisplayName.format(
                         catalogName: asset?.displayName ?? summary.symbol, kind: asset?.kind ?? .stock)
@@ -121,8 +121,8 @@ struct ProposalCard: View {
                 Text(label)
                     .font(MonacoTheme.Typo.micro)
                     .foregroundStyle(summary.status == .passed ? MonacoTheme.ink : MonacoTheme.muted)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, MonacoTheme.Space.sm)
+                    .padding(.vertical, MonacoTheme.Space.xs)
                     .background(Capsule().fill(MonacoTheme.surfaceSunken))
                     .accessibilityIdentifier("proposal-status-chip")
             }

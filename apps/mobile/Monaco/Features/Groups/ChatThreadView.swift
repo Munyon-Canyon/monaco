@@ -179,7 +179,7 @@ struct ChatThreadList: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 3) {
+                LazyVStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     ChatThreadParent(parent: parent, openProfile: openProfile)
                     if hasOlder { loadEarlierButton }
                     if rows.isEmpty {

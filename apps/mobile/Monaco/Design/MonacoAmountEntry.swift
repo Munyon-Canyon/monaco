@@ -206,18 +206,16 @@ struct AmountEntry: View {
     }
 }
 
-/// Blinking ink caret after the figure while the field has focus. It grows with the figure,
+/// Steady ink caret after the figure while the field has focus. It grows with the figure,
 /// and stops where the figure's own text-size cap stops it.
 private struct AmountCaret: View {
     let visible: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle) private var height: CGFloat = 40
 
     var body: some View {
         RoundedRectangle(cornerRadius: 1.5)
             .fill(MonacoTheme.ink)
             .frame(width: 3, height: height)
-            .opacityLoop(to: 0, halfPeriod: 0.5, active: visible && !reduceMotion)
             .opacity(visible ? 1 : 0)
     }
 }
@@ -254,7 +252,7 @@ struct AmountEntrySkeleton: View {
             HStack(spacing: MonacoTheme.Space.s) {
                 ForEach(0..<presetCount, id: \.self) { _ in
                     SkeletonBlock(width: 56, height: 34, radius: 17)
-                        .padding(.vertical, 5)
+                        .padding(.vertical, MonacoTheme.Space.xs)
                 }
             }
             SkeletonBlock(width: 168, height: 14)

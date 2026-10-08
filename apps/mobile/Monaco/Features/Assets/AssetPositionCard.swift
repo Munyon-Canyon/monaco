@@ -127,7 +127,7 @@ struct AssetPositionCard: View {
                 }
             }
         }
-        .padding(.top, 2)
+        .padding(.top, MonacoTheme.Space.xs)
     }
 
     private var spokenTotals: String {
@@ -296,7 +296,7 @@ private struct HoldingRow: View {
     private var identity: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             CabalMark(groupId: holding.groupId, name: holding.name, size: Self.markSize)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(holding.name)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.ink)
@@ -313,7 +313,7 @@ private struct HoldingRow: View {
     }
 
     private func money(alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: 2) {
+        VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
             Text(UsdAmountFormatter.format(decimalString: holding.valueUsd))
                 .moneyFont(.row)
                 .foregroundStyle(MonacoTheme.ink)

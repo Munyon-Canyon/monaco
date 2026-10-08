@@ -119,7 +119,7 @@ struct CommentRow: View {
                     photoURL: row.comment.author.photoUrl, displayName: row.authorName,
                     size: CommentThreadLayout.avatarSize, seed: row.authorID)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
                     authorLink(identifier: "comment-author-\(row.id)") {
                         Text(row.authorName)

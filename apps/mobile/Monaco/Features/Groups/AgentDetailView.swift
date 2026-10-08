@@ -65,7 +65,7 @@ struct AgentDetailView: View {
     private var header: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             SunkenGlyphMark(systemImage: "cpu", size: 56, isMuted: status.isRemoved)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(agent.agentDisplayName)
                     .font(MonacoTheme.Typo.title)
                     .foregroundStyle(status.isRemoved ? MonacoTheme.muted : MonacoTheme.ink)
@@ -90,7 +90,7 @@ struct AgentDetailView: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
                 : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
             layout {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(TradingBotCopy.budgetTitle)
                         .font(MonacoTheme.Typo.rowTitle)
                         .foregroundStyle(MonacoTheme.ink)

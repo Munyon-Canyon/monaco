@@ -18,7 +18,7 @@ private struct CabalMemberBoard: View {
         LeaderboardHost(board: .cabalMembers(id: cabalID), refreshKey: "cabal-member-board", reloadID: retry.tick) {
             loader in
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     MonacoSectionHeader("Leaderboard")
                     LeaderboardFreshnessText(loader: loader, identifier: "cabal-member-board-freshness")
                 }

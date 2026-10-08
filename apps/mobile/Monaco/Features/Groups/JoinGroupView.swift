@@ -100,7 +100,7 @@ private struct JoinCabalPreviewRow: View {
     var body: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
             CabalMark(groupId: preview.id, name: preview.name, size: 56, pictureUrl: preview.pictureUrl)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(preview.name)
                     .font(MonacoTheme.Typo.title)
                     .foregroundStyle(MonacoTheme.ink)

@@ -79,7 +79,7 @@ struct BoardRow<Leading: View>: View {
     }
 
     private func figures(alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: 2) {
+        VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
             if let bps = row.returnBps {
                 PercentText(basisPoints: bps, style: .row)
             } else {
@@ -155,12 +155,12 @@ struct BoardRowSkeleton: View {
                     SkeletonBlock(
                         width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize,
                         radius: MonacoRowLayout.baseMarkSize / 2)
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 132, height: 14)
                         SkeletonBlock(width: 72, height: 11)
                     }
                     Spacer(minLength: MonacoTheme.Space.s)
-                    VStack(alignment: .trailing, spacing: 6) {
+                    VStack(alignment: .trailing, spacing: MonacoTheme.Space.s) {
                         SkeletonBlock(width: 56, height: 14)
                         SkeletonBlock(width: 40, height: 11)
                     }

@@ -290,6 +290,7 @@ enum RepoRules {
             ],
             applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
         ),
+        DesignScaleRules.spacing,
         roundedBorderField,
         RepoRule(
             name: "flow-switch",
@@ -321,6 +322,35 @@ enum RepoRules {
         FeaturePatternRules.decode,
         FeaturePatternRules.coreSwiftUI,
     ]
+}
+
+enum DesignScaleRules {
+    static let spacing = RepoRule(
+        name: "spacing-scale",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"\.padding\((?:[^)\d\n]*,\s*)?(?!(?:0|4|8|12|16|20|24|32)(?![\d.]))\d"#
+            + #"|spacing:\s*(?!(?:0|4|8|12|16|20|24|32)(?![\d.]))\d"#
+            + #"|cornerRadius:\s*(?!(?:12|16|18|24)(?![\d.]))\d"#,
+        message: "Padding and spacing are MonacoTheme.Space tokens (4 8 12 16 20 24 32), radii are Radius tokens "
+            + "(12 16 18 24). Hairlines, chart geometry and mark scaling have an allow-list row.",
+        failing: [
+            ".padding(.vertical, 14)",
+            ".padding(9)",
+            "HStack(alignment: .top, spacing: 10) {",
+            "RoundedRectangle(cornerRadius: 22, style: .continuous)",
+            "RoundedRectangle(cornerRadius: 1.5)",
+            ".padding(.top, 4.5)",
+        ],
+        passing: [
+            ".padding(.vertical, MonacoTheme.Space.sm)",
+            ".padding(.horizontal, 16)",
+            ".padding(.vertical, 0)",
+            "VStack(spacing: 0) {",
+            "HStack(spacing: 24) {",
+            "RoundedRectangle(cornerRadius: MonacoTheme.Radius.field)",
+            "RoundedRectangle(cornerRadius: 18, style: .continuous)",
+        ]
+    )
 }
 
 enum FeaturePatternRules {

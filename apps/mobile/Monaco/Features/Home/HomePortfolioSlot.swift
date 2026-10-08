@@ -102,8 +102,8 @@ private struct HomePortfolioHero: View {
             Text("\(summary.chip) · all time")
                 .moneyFont(.caption, weight: .semibold)
                 .foregroundStyle(MonacoTheme.onHeroMuted)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
+                .padding(.horizontal, MonacoTheme.Space.s)
+                .padding(.vertical, MonacoTheme.Space.xs)
                 .background(Capsule().fill(MonacoTheme.onHeroHairline))
                 .accessibilityIdentifier("home-portfolio-chip")
         } else {
