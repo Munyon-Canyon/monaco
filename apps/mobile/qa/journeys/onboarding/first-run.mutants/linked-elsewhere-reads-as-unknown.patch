@@ -5,15 +5,15 @@ A number linked to someone else shows the generic error. S2 expects "This number
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Onboarding/LinkStepModels.swift b/packages/mobile-core/Sources/MonacoCore/Onboarding/LinkStepModels.swift
-index 1dd52e6d..dd57d535 100644
+index f05181c92..d10372667 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Onboarding/LinkStepModels.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Onboarding/LinkStepModels.swift
-@@ -46,7 +46,7 @@ public enum LinkCopy {
+@@ -48,7 +48,7 @@ public enum LinkCopy {
  
      static func caption(for error: LinkError, linkedElsewhere: String) -> LinkStepCaption? {
          switch error {
 -        case .alreadyLinkedElsewhere: .error(linkedElsewhere)
 +        case .alreadyLinkedElsewhere: .error(unknown)
+         case .alreadyHasPhone: .error(phoneAlreadyOnAccount)
          case .invalidCode: .error(invalidCode)
          case .cancelled: nil
-         case .network: .error(ToastCopy.message(for: .transport(URLError(.notConnectedToInternet))))

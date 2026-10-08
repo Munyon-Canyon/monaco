@@ -34,7 +34,7 @@ func TestGetMe_carriesEveryFieldOfTheAccount(t *testing.T) {
 	changed := f.now.Add(-48 * time.Hour)
 	if _, err := f.pool.Exec(
 		t.Context(),
-		`UPDATE users SET x_username = 'kai_on_x', handle_changed_at = $2 WHERE id = $1`,
+		`UPDATE users SET x_username = 'kai_on_x', handle_changed_at = $2, login_provider = 'email' WHERE id = $1`,
 		u.ID.UUID(),
 		changed,
 	); err != nil {
@@ -48,6 +48,7 @@ func TestGetMe_carriesEveryFieldOfTheAccount(t *testing.T) {
 	sameMe(t, got, app.Me{
 		ID: u.ID, Handle: "kaicenat", DisplayName: "Kai Cenat", PhotoURL: "https://img.example/kai.png",
 		AuthState: domain.AuthAwaitingSocials, AccountStatus: domain.AccountSuspended,
+		LoginProvider:       domain.LoginEmail,
 		MemberWalletAddress: u.Address, PhoneLinked: true, XUsername: "kai_on_x", HandleChangeableAt: &changeable,
 		CreatedAt: f.created(),
 	})
@@ -62,8 +63,9 @@ func TestGetMe_aNewUserHasNoHandleNameOrLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	sameMe(t, got, app.Me{
-		ID: u.ID, AuthState: domain.AuthCreated, AccountStatus: domain.AccountActive, MemberWalletAddress: u.Address,
-		CreatedAt: f.created(),
+		ID: u.ID, AuthState: domain.AuthCreated, AccountStatus: domain.AccountActive, LoginProvider: domain.LoginSMS,
+		MemberWalletAddress: u.Address,
+		CreatedAt:           f.created(),
 	})
 }
 

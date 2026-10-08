@@ -18,7 +18,7 @@
 ## Why
 
 - **OTP login** needs no Apple or Google account and works the same in every environment. Apple ships with Google because App Store guideline 4.8 requires it once any third-party social login is offered.
-- **Phone and X are for the graph.** A phone used to sign in is not stored as the contact-matching number until the user finishes the phone step. The X link stays a separate, skippable ask, and the app nudges it later.
+- **Phone and X are for the graph.** A phone used to sign in is not stored as the contact-matching number until the user finishes the phone step. A user who signed up by SMS has already proven that number to Privy, so the phone step only confirms it and never asks for it again. The X link stays a separate, skippable ask, and the app nudges it later.
 - **Stored state columns** give the app, notifications and analytics a single, indexable answer to "where is this user", instead of each re-deriving it from linked accounts. Two columns, not one, because onboarding progress and account standing change independently: a banned user keeps their onboarding state, and "banned users who never gave a phone" stays answerable.
 
 ## Login
@@ -67,7 +67,7 @@ SMS or email login, then handle picked (required)
 
 **Screen 1: handle.** User types a handle. The app checks it live with `GET /v1/handles/{handle}/availability`, then calls `PUT /v1/me/handle` (`SetHandle`). This screen has no Skip. Until `users.handle` is set, the app shows only this screen, and the phone and socials commands refuse with `HandleRequired`. Rules are in [Handle](#handle).
 
-**Screen 2: phone.** User enters a number. App calls `privy.sms.sendCode(to:)`, then `privy.sms.linkWithCode(_:)`. Linking through Privy means the number is **verified** before Monaco trusts it; this matters because contact matching on an unverified number would let anyone claim someone else's number. App then calls `POST /v1/me/onboarding/phone`; the backend reads the verified phone from the Privy user (server-side), never from the request body, stores it, and advances state.
+**Screen 2: phone.** `GET /v1/me` carries `login_provider`. When it is `sms`, the app skips the number entry and the Privy code: it calls `POST /v1/me/onboarding/phone` straight away, and the backend stores the sign-in number it reads from Privy. If another user already holds that number, the call fails with `phone_not_linked` and the app shows the form below. For `email`, `apple` and `google`, the user enters a number. App calls `privy.sms.sendCode(to:)`, then `privy.sms.linkWithCode(_:)`. Linking through Privy means the number is **verified** before Monaco trusts it; this matters because contact matching on an unverified number would let anyone claim someone else's number. App then calls `POST /v1/me/onboarding/phone`; the backend reads the verified phone from the Privy user (server-side), never from the request body, stores it, and advances state.
 
 **Screen 3: X.** App calls `privy.oAuth.link(with: .twitter, appUrlScheme:)`. Then `POST /v1/me/onboarding/socials`; backend reads the linked X account (username and numeric X user id) from Privy server-side and stores it.
 
@@ -115,7 +115,7 @@ Rules:
 - **Only the backend writes `auth_state` and `account_status`**, from verified Privy data or ops actions. The client never sends either.
 - Each column is a state machine in `identity/domain`: a Go type with a `transitions` table and a pure `Next(from, event)` ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The adapter applies it as a guarded update (`WHERE auth_state = $expected`, or `account_status`) inside `uow.Do`. An `auth_state` change appends `user.auth_state_changed` with from, to, and cause (`onboarding`, `link`, `unlink`). That history is what analytics reads. An `account_status` change is an admin command and appends its own event plus `admin.action` ([analytics-admin.md](analytics-admin.md#actions)).
 - `suspended` and `banned` are enforced in the auth middleware on every request, not only in the app. They block funding, voting, proposing and commenting with a `KindForbidden` code (403). Withdraw (flow 15) and cash out (flow 14) stay open to them (decided 2026-09-27).
-- If a user unlinks phone or X in Privy, the next session call clears its columns and moves them back to the matching `AWAITING_*` state, with cause `unlink`. A phone or X linked in Privy after onboarding is stored at the next session call with cause `link`. During `CREATED` the onboarding commands own that step. A number or X account another user already stores is skipped, and the next call tries again.
+- If a user unlinks phone or X in Privy, the next session call clears its columns and moves them back to the matching `AWAITING_*` state, with cause `unlink`. A phone or X linked in Privy after onboarding is stored at the next session call with cause `link`. During `CREATED` the onboarding commands own that step. The app does not store the sign-in phone when it opens the session, because that would skip the X step. A number or X account another user already stores is skipped, and the next call tries again.
 
 ### Deletion
 

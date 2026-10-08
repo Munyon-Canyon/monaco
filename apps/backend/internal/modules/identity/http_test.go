@@ -302,6 +302,7 @@ func TestGetMe_overHTTPServesTheAccount(t *testing.T) {
 	want := api.Me{
 		Id: u.ID.UUID(), Handle: &handle, DisplayName: "Kai Cenat", PhotoUrl: &photo,
 		AuthState: api.AuthState(domain.AuthAwaitingSocials), AccountStatus: api.AccountStatus(domain.AccountActive),
+		LoginProvider:       api.LoginProvider(domain.LoginSMS),
 		MemberWalletAddress: string(u.Address), PhoneLinked: true, XUsername: &x, HandleChangeableAt: &changeable,
 		CreatedAt: f.created(),
 	}
@@ -631,8 +632,8 @@ func TestGetMe_overHTTPOmitsWhatIsUnset(t *testing.T) {
 		}
 	}
 	if string(fields["display_name"]) != `""` || string(fields["phone_linked"]) != "false" ||
-		string(fields["auth_state"]) != `"CREATED"` {
-		t.Fatalf("GET /v1/me for a new user = %s, want an empty display name, no phone and CREATED", rec.Body)
+		string(fields["auth_state"]) != `"CREATED"` || string(fields["login_provider"]) != `"sms"` {
+		t.Fatalf("GET /v1/me for a new user = %s, want an empty display name, no phone, CREATED and sms", rec.Body)
 	}
 }
 

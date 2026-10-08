@@ -90,6 +90,30 @@ func (e HandleAvailabilityReason) Valid() bool {
 	}
 }
 
+// Defines values for LoginProvider.
+const (
+	Apple  LoginProvider = "apple"
+	Email  LoginProvider = "email"
+	Google LoginProvider = "google"
+	Sms    LoginProvider = "sms"
+)
+
+// Valid indicates whether the value is a known member of the LoginProvider enum.
+func (e LoginProvider) Valid() bool {
+	switch e {
+	case Apple:
+		return true
+	case Email:
+		return true
+	case Google:
+		return true
+	case Sms:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SkipOnboardingStepStep.
 const (
 	Phone   SkipOnboardingStepStep = "phone"
@@ -151,9 +175,14 @@ type HandleAvailability struct {
 // Examples: reserved
 type HandleAvailabilityReason string
 
+// LoginProvider The method a user signed up with.
+//
+// Examples: sms
+type LoginProvider string
+
 // Me The signed-in user's own account, as the app needs it to route and to draw the profile. It carries no email and no phone number.
 //
-// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"x_username":"kaicenat"}
+// Examples: {"account_status":"active","auth_state":"ONBOARDING_COMPLETED","created_at":"2026-09-30T12:00:00Z","display_name":"Kai Cenat","handle":"kaicenat","handle_changeable_at":"2026-10-30T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a8058","login_provider":"sms","member_wallet_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf","phone_linked":true,"x_username":"kaicenat"}
 type Me struct {
 	// AccountStatus The user's standing.
 	//
@@ -189,6 +218,11 @@ type Me struct {
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	Id openapi_types.UUID `json:"id"`
+
+	// LoginProvider How the user signed up. The app skips the phone number entry for `sms`.
+	//
+	// Examples: sms
+	LoginProvider LoginProvider `json:"login_provider"`
 
 	// MemberWalletAddress The Solana address of the user's member wallet. Deposits go here.
 	//

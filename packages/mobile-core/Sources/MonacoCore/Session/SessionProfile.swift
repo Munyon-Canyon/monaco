@@ -17,12 +17,21 @@ public struct SessionProfile: Equatable, Sendable {
         case unknown(String)
     }
 
+    public enum LoginProvider: Equatable, Sendable {
+        case sms
+        case email
+        case apple
+        case google
+        case unknown(String)
+    }
+
     public var userID: String
     public var handle: String?
     public var displayName: String
     public var photoURL: URL?
     public var authState: AuthState
     public var accountStatus: AccountStatus
+    public var loginProvider: LoginProvider
     public var memberWalletAddress: String
     public var phoneLinked: Bool
     public var xUsername: String?
@@ -36,6 +45,7 @@ public struct SessionProfile: Equatable, Sendable {
         photoURL: URL?,
         authState: AuthState,
         accountStatus: AccountStatus,
+        loginProvider: LoginProvider,
         memberWalletAddress: String,
         phoneLinked: Bool,
         xUsername: String?,
@@ -48,6 +58,7 @@ public struct SessionProfile: Equatable, Sendable {
         self.photoURL = photoURL
         self.authState = authState
         self.accountStatus = accountStatus
+        self.loginProvider = loginProvider
         self.memberWalletAddress = memberWalletAddress
         self.phoneLinked = phoneLinked
         self.xUsername = xUsername
@@ -69,6 +80,7 @@ public struct SessionProfile: Equatable, Sendable {
             photoURL: Self.photoURL(me.photoUrl),
             authState: AuthState(me.authState),
             accountStatus: AccountStatus(me.accountStatus),
+            loginProvider: LoginProvider(me.loginProvider),
             memberWalletAddress: me.memberWalletAddress,
             phoneLinked: me.phoneLinked,
             xUsername: me.xUsername,
@@ -103,6 +115,7 @@ public struct SessionProfile: Equatable, Sendable {
             photoURL: Self.photoURL(wire.photoUrl),
             authState: AuthState(wire: wire.authState),
             accountStatus: AccountStatus(wire: wire.accountStatus),
+            loginProvider: wire.loginProvider.map(LoginProvider.init(wire:)) ?? .unknown(""),
             memberWalletAddress: wire.memberWalletAddress,
             phoneLinked: wire.phoneLinked,
             xUsername: wire.xUsername,
@@ -157,6 +170,27 @@ extension SessionProfile.AccountStatus {
     }
 }
 
+extension SessionProfile.LoginProvider {
+    init(_ value: Components.Schemas.LoginProvider) {
+        switch value {
+        case .sms: self = .sms
+        case .email: self = .email
+        case .apple: self = .apple
+        case .google: self = .google
+        }
+    }
+
+    init(wire: String) {
+        switch wire {
+        case "sms": self = .sms
+        case "email": self = .email
+        case "apple": self = .apple
+        case "google": self = .google
+        default: self = .unknown(wire)
+        }
+    }
+}
+
 private struct WireMe: Decodable {
     var id: String
     var handle: String?
@@ -164,6 +198,7 @@ private struct WireMe: Decodable {
     var photoUrl: String?
     var authState: String
     var accountStatus: String
+    var loginProvider: String?
     var memberWalletAddress: String
     var phoneLinked: Bool
     var xUsername: String?
@@ -177,6 +212,7 @@ private struct WireMe: Decodable {
         case photoUrl = "photo_url"
         case authState = "auth_state"
         case accountStatus = "account_status"
+        case loginProvider = "login_provider"
         case memberWalletAddress = "member_wallet_address"
         case phoneLinked = "phone_linked"
         case xUsername = "x_username"

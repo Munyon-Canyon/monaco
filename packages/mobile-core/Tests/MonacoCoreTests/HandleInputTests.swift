@@ -92,7 +92,8 @@ final class HandleInputTests: XCTestCase {
     private static func profile(_ authState: SessionProfile.AuthState) -> SessionProfile {
         SessionProfile(
             userID: "u1", handle: nil, displayName: "Kai", photoURL: nil, authState: authState,
-            accountStatus: .active, memberWalletAddress: "wallet-1", phoneLinked: false, xUsername: nil,
+            accountStatus: .active, loginProvider: .email, memberWalletAddress: "wallet-1", phoneLinked: false,
+            xUsername: nil,
             handleChangeableAt: nil, createdAt: Date())
     }
 }

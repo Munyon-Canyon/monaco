@@ -267,7 +267,7 @@ final class OnboardingFlowTests: XCTestCase {
         return await task.value
     }
 
-    private static func onboarding(_ transport: StubTransport) -> OnboardingAPI {
+    static func onboarding(_ transport: StubTransport) -> OnboardingAPI {
         OnboardingAPI(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport))
     }
@@ -276,17 +276,17 @@ final class OnboardingFlowTests: XCTestCase {
         try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
     }
 
-    private static func problem(code: Components.Schemas.ErrorCode, message: String) -> Components.Schemas.Problem {
+    static func problem(code: Components.Schemas.ErrorCode, message: String) -> Components.Schemas.Problem {
         Components.Schemas.Problem(
             _type: .about_colon_blank, title: "Rejected", status: 409, code: code, message: message,
             traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: false)
     }
 
-    private static func me(authState: String, phoneLinked: Bool, xUsername: String? = nil) -> String {
+    static func me(authState: String, phoneLinked: Bool, xUsername: String? = nil) -> String {
         let x = xUsername.map { #""\#($0)""# } ?? "null"
         return """
             {"id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"qa_handle_1","display_name":"QA",\
-            "photo_url":null,"auth_state":"\(authState)","account_status":"active",\
+            "photo_url":null,"auth_state":"\(authState)","account_status":"active","login_provider":"sms",\
             "member_wallet_address":"wallet-1","phone_linked":\(phoneLinked),"x_username":\(x),\
             "handle_changeable_at":null,"created_at":"2026-09-30T12:00:00Z"}
             """
@@ -294,12 +294,12 @@ final class OnboardingFlowTests: XCTestCase {
 }
 
 extension LinkStepResult {
-    fileprivate var finishedProfile: SessionProfile? {
+    var finishedProfile: SessionProfile? {
         if case .finished(let profile) = self { profile } else { nil }
     }
 }
 
-private actor FakeAccountLinking: AccountLinking {
+actor FakeAccountLinking: AccountLinking {
     enum Call: Equatable {
         case sendPhoneCode(String)
         case linkPhone(String)

@@ -22,6 +22,7 @@ public enum LinkCopy {
     public static let changeNumber = "Change number"
     public static let newCodeSent = "New code sent."
     public static let phoneLinkedElsewhere = "This number is linked to another account."
+    public static let phoneAlreadyOnAccount = "This number is already on your account."
     public static let invalidCode = "That code didn't work. Check it and try again."
     public static let phoneAdded = "Number added."
 
@@ -40,13 +41,15 @@ public enum LinkCopy {
 
     public static let auditedStrings = [
         phoneTitle, phoneSubtext, sendCode, sendingCode, linking, changeNumber, newCodeSent,
-        phoneLinkedElsewhere, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting, xLinkedElsewhere,
+        phoneLinkedElsewhere, phoneAlreadyOnAccount, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting,
+        xLinkedElsewhere,
         xConnected, skip, notNow, unknown, ResendCooldown.readyLabel,
     ]
 
     static func caption(for error: LinkError, linkedElsewhere: String) -> LinkStepCaption? {
         switch error {
         case .alreadyLinkedElsewhere: .error(linkedElsewhere)
+        case .alreadyHasPhone: .error(phoneAlreadyOnAccount)
         case .invalidCode: .error(invalidCode)
         case .cancelled: nil
         case .network: .error(ToastCopy.message(for: .transport(URLError(.notConnectedToInternet))))
@@ -109,6 +112,7 @@ public final class PhoneLinkModel {
     public private(set) var activity = Activity.idle
     public private(set) var caption: LinkStepCaption?
     public private(set) var linkedElsewhere = false
+    public private(set) var signInPhoneUnavailable = false
     public private(set) var cooldown: ResendCooldown
     public var code = "" {
         didSet { if code != oldValue, !code.isEmpty { caption = nil } }
@@ -195,6 +199,20 @@ public final class PhoneLinkModel {
         }
         return await store(waits: fresh ? LinkCopy.freshLinkWaits : []) { [onboarding, storeSubmission] in
             try await onboarding.linkPhone(submission: storeSubmission)
+        }
+    }
+
+    public func confirmSignInPhone() async -> LinkStepResult {
+        guard !isBusy else { return .stay }
+        activity = .linking
+        defer { activity = .idle }
+        caption = nil
+        do {
+            return .finished(try await onboarding.linkPhone(submission: storeSubmission))
+        } catch {
+            signInPhoneUnavailable = true
+            if !LinkCopy.isNotLinked(error) { caption = LinkCopy.result(for: error).1 }
+            return .stay
         }
     }
 
