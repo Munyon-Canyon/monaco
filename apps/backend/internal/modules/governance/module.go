@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -74,6 +75,12 @@ func (m *Module) tradePorts() Ports {
 	if deps.Config.Jupiter.PriceBaseURL == "" {
 		deps.Config.Jupiter.PriceBaseURL = "http://jupiter.invalid"
 	}
+	if deps.Config.Solana.RPCURL == "" {
+		deps.Config.Solana.RPCURL = "http://solana.invalid"
+	}
+	if deps.Config.Timeouts.RPC == 0 {
+		deps.Config.Timeouts.RPC = time.Second
+	}
 	if deps.Config.Timeouts.JupiterQuote == 0 {
 		deps.Config.Timeouts.JupiterQuote = time.Second
 	}
@@ -83,7 +90,7 @@ func (m *Module) tradePorts() Ports {
 	markets := market.New(deps)
 	return Ports{
 		Cabals: cabal.New(m.deps).Queries(), Assets: markets.Catalog(), Routes: markets.RouteChecker(),
-		Treasury: treasury.New(m.deps).Queries(),
+		Treasury: treasury.New(m.deps).Queries(), Balances: solana.New(deps.Config, deps.Clock),
 	}
 }
 

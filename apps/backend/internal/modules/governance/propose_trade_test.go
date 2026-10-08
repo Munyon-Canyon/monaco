@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -60,6 +61,11 @@ func (c guardedCabals) Rules(ctx context.Context, id ids.CabalID) (cabal.Rules, 
 	return c.Cabals.Rules(ctx, id)
 }
 
+func (c guardedCabals) TreasuryWallet(ctx context.Context, id ids.CabalID) (cabal.TreasuryWallet, error) {
+	c.g.port("TreasuryWallet")
+	return c.Cabals.TreasuryWallet(ctx, id)
+}
+
 func (c guardedCabals) VoterSet(ctx context.Context, id ids.CabalID) ([]ids.UserID, error) {
 	c.g.port("VoterSet")
 	return c.Cabals.VoterSet(ctx, id)
@@ -98,6 +104,18 @@ func (r guardedTreasury) Positions(ctx context.Context, id ids.CabalID) ([]treas
 	return r.Treasury.Positions(ctx, id)
 }
 
+type guardedBalances struct {
+	app.Balances
+	g *txGuard
+}
+
+func (b guardedBalances) TokenBalance(
+	ctx context.Context, owner chain.SolanaAddress, mint chain.Mint,
+) (money.BaseUnits, error) {
+	b.g.port("TokenBalance")
+	return b.Balances.TokenBalance(ctx, owner, mint)
+}
+
 type sameID struct{ u uuid.UUID }
 
 func (s sameID) NewV7() uuid.UUID { return s.u }
@@ -125,6 +143,7 @@ func (h proposeHarness) handlerWithHints(g ids.Generator, hints app.Hints) *app.
 	m := guardedMarket{Assets: p.Assets, Routes: p.Routes, g: h.guard}
 	return app.NewProposeTradeHandler(h.guard, g, clock.Real{}, app.TradePorts{
 		Cabals: guardedCabals{p.Cabals, h.guard}, Assets: m, Routes: m, Treasury: guardedTreasury{p.Treasury, h.guard},
+		Balances: guardedBalances{p.Balances, h.guard},
 	}, hints)
 }
 
@@ -161,6 +180,31 @@ func TestProposeTrade_callsNoPortInsideTheTransaction(t *testing.T) {
 		voters, err := h.d.q.ProposalVoters(t.Context(), id.UUID())
 		if err != nil || len(voters) != len(h.w.members) {
 			t.Fatalf("%s voters = %d, %v, want %d", trade.Kind, len(voters), err, len(h.w.members))
+		}
+	}
+}
+
+func TestProposeTrade_sellAboveOnChainBalanceIsRefused(t *testing.T) {
+	t.Parallel()
+	h := newProposeHarness(t)
+	aapl := marketfake.AAPLx()
+	for name, tc := range map[string]struct {
+		ledger, onChain uint64
+		sell            uint64
+		want            errs.Code
+	}{
+		"ledger short, on-chain enough": {heldUnits - 1, heldUnits, heldUnits, errs.CodeInsufficientFunds},
+		"on-chain short, ledger enough": {heldUnits, heldUnits - 1, heldUnits, errs.CodeInsufficientFunds},
+		"both enough":                   {heldUnits, heldUnits, heldUnits, ""},
+	} {
+		h.w = newTradeWorld(t)
+		h.w.treasury.SetPositions(h.w.cabal, []treasury.Position{
+			{Mint: aapl.Mint.Address(), Units: money.NewBaseUnits(tc.ledger, aapl.Decimals)},
+		})
+		h.w.holdOnChain(tc.onChain)
+		_, err := h.propose(h.d.ids, sellAAPL(tc.sell))
+		if (tc.want == "") != (err == nil) || err != nil && errs.CodeOf(err) != tc.want {
+			t.Errorf("%s: propose sell err = %v, want %q", name, err, tc.want)
 		}
 	}
 }
@@ -229,6 +273,14 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 				{Mint: marketfake.AAPLx().Mint.Address(), Units: money.NewBaseUnits(heldUnits, 6)},
 			})
 		}, sellAAPL(1), errs.CodeInternal},
+		"wallet unknown": {
+			func(w *tradeWorld) { w.cabals.current.Load().Fail("TreasuryWallet", failed) },
+			sellAAPL(1), errs.CodeUpstreamUnavailable,
+		},
+		"balance unknown": {
+			func(w *tradeWorld) { w.chain.Fail("TokenBalance", failed) },
+			sellAAPL(1), errs.CodeUpstreamUnavailable,
+		},
 		"asset unknown": {
 			func(*tradeWorld) {},
 			domain.Trade{Kind: domain.KindSell, Symbol: "NOPEx", TokenAmount: 1},

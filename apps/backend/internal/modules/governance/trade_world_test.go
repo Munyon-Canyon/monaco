@@ -10,10 +10,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
@@ -34,6 +36,10 @@ func (c *liveCabals) Rules(ctx context.Context, id ids.CabalID) (cabal.Rules, er
 	return c.current.Load().Rules(ctx, id)
 }
 
+func (c *liveCabals) TreasuryWallet(ctx context.Context, id ids.CabalID) (cabal.TreasuryWallet, error) {
+	return c.current.Load().TreasuryWallet(ctx, id)
+}
+
 func (c *liveCabals) VoterSet(ctx context.Context, id ids.CabalID) ([]ids.UserID, error) {
 	return c.current.Load().VoterSet(ctx, id)
 }
@@ -47,7 +53,10 @@ type tradeWorld struct {
 	catalog  *marketfake.CatalogFake
 	routes   *marketfake.RoutesFake
 	treasury *fakes.Treasury
+	chain    *chainfake.Ledger
 }
+
+const treasuryAddress = chain.SolanaAddress("treasury-wallet")
 
 func newTradeWorld(t *testing.T) *tradeWorld {
 	t.Helper()
@@ -55,6 +64,7 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 	w := &tradeWorld{
 		cabal: ids.CabalIDFrom(g.NewV7()), cabals: &liveCabals{}, routes: &marketfake.RoutesFake{},
 		catalog: marketfake.NewCatalog(marketfake.Fixtures()...), treasury: fakes.NewTreasury(),
+		chain: chainfake.NewLedger(clock.Real{}),
 	}
 	for range 3 {
 		w.members = append(w.members, ids.NewUserID(g))
@@ -65,6 +75,7 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 			JoinMode: cabal.JoinRequest, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
 			ProposalExpiry: 24 * time.Hour, SlippageBps: 100,
 		},
+		Wallet: cabal.TreasuryWallet{CabalID: w.cabal, PrivyWalletID: "treasury", Address: treasuryAddress},
 	}
 	for _, m := range w.members {
 		w.join(m, true)
@@ -78,7 +89,13 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 		{Mint: marketfake.TSLAx().Mint.Address(), Units: money.NewBaseUnits(heldUnits*2, aapl.Decimals)},
 		{Mint: aapl.Mint.Address(), Units: money.NewBaseUnits(heldUnits, aapl.Decimals)},
 	})
+	w.holdOnChain(heldUnits)
 	return w
+}
+
+func (w *tradeWorld) holdOnChain(units uint64) {
+	aapl := marketfake.AAPLx()
+	w.chain.SetTokens(treasuryAddress, chain.Mint{Address: aapl.Mint.Address(), Decimals: aapl.Decimals}, units)
 }
 
 func (w *tradeWorld) join(user ids.UserID, canVote bool) {
@@ -89,5 +106,7 @@ func (w *tradeWorld) join(user ids.UserID, canVote bool) {
 }
 
 func (w *tradeWorld) ports() app.TradePorts {
-	return app.TradePorts{Cabals: w.cabals, Assets: w.catalog, Routes: w.routes, Treasury: w.treasury}
+	return app.TradePorts{
+		Cabals: w.cabals, Assets: w.catalog, Routes: w.routes, Treasury: w.treasury, Balances: w.chain,
+	}
 }

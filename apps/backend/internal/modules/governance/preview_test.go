@@ -68,10 +68,10 @@ func TestPreview_passesThroughWhatIsUnavailable(t *testing.T) {
 		arrange func(w *tradeWorld)
 		trade   domain.Trade
 	}{
-		"pot":       {func(w *tradeWorld) { w.treasury.Fail("PotValue", down) }, buyAAPLFor(1)},
-		"catalog":   {func(w *tradeWorld) { w.catalog.Fail("AssetBySymbol", down) }, buyAAPLFor(1)},
-		"positions": {func(w *tradeWorld) { w.treasury.Fail("Positions", down) }, sellAAPL(1)},
-		"route":     {func(w *tradeWorld) { w.routes.Fail("CheckRoute", down) }, buyAAPLFor(potMicros + 1)},
+		"pot":     {func(w *tradeWorld) { w.treasury.Fail("PotValue", down) }, buyAAPLFor(1)},
+		"catalog": {func(w *tradeWorld) { w.catalog.Fail("AssetBySymbol", down) }, buyAAPLFor(1)},
+		"balance": {func(w *tradeWorld) { w.chain.Fail("TokenBalance", down) }, sellAAPL(1)},
+		"route":   {func(w *tradeWorld) { w.routes.Fail("CheckRoute", down) }, buyAAPLFor(potMicros + 1)},
 	} {
 		h.w = newTradeWorld(t)
 		tc.arrange(h.w)

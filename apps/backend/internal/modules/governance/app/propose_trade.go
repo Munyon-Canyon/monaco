@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -28,6 +29,7 @@ type Cabals interface {
 	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
 	Rules(ctx context.Context, id ids.CabalID) (cabalport.Rules, error)
 	VoterSet(ctx context.Context, id ids.CabalID) ([]ids.UserID, error)
+	TreasuryWallet(ctx context.Context, id ids.CabalID) (cabalport.TreasuryWallet, error)
 }
 
 type Assets interface {
@@ -39,11 +41,16 @@ type Treasury interface {
 	Positions(ctx context.Context, id ids.CabalID) ([]treasuryport.Position, error)
 }
 
+type Balances interface {
+	TokenBalance(ctx context.Context, owner chain.SolanaAddress, mint chain.Mint) (money.BaseUnits, error)
+}
+
 type TradePorts struct {
 	Cabals   Cabals
 	Assets   Assets
 	Routes   market.Routes
 	Treasury Treasury
+	Balances Balances
 }
 
 type Transactor interface {
@@ -172,7 +179,7 @@ func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (mar
 			return market.Asset{}, market.RouteCheck{}, err
 		}
 	}
-	if err := funds(ctx, h.ports.Treasury, cmd.CabalID, asset, cmd.Trade, pot); err != nil {
+	if err := funds(ctx, h.ports, cmd.CabalID, asset, cmd.Trade, pot); err != nil {
 		return market.Asset{}, market.RouteCheck{}, err
 	}
 	quote, err := route(ctx, h.ports.Routes, asset, cmd.Trade)
@@ -194,7 +201,7 @@ func member(ctx context.Context, cabals Cabals, cabal ids.CabalID, user ids.User
 }
 
 func funds(
-	ctx context.Context, t Treasury, cabal ids.CabalID, asset market.Asset, trade domain.Trade, pot money.Micros,
+	ctx context.Context, p TradePorts, cabal ids.CabalID, asset market.Asset, trade domain.Trade, pot money.Micros,
 ) error {
 	const op = "governance.funds"
 	if trade.Kind == domain.KindBuy {
@@ -203,6 +210,28 @@ func funds(
 		}
 		return nil
 	}
+	if err := ledgerHolds(ctx, p.Treasury, cabal, asset, trade); err != nil {
+		return err
+	}
+	wallet, err := p.Cabals.TreasuryWallet(ctx, cabal)
+	if err != nil {
+		return err
+	}
+	mint := chain.Mint{Address: asset.Mint.Address(), Decimals: asset.Decimals}
+	have, err := p.Balances.TokenBalance(ctx, wallet.Address, mint)
+	if err != nil {
+		return err
+	}
+	if have.Uint64() < trade.TokenAmount {
+		return errs.New(errs.CodeInsufficientFunds, op, slog.String("symbol", asset.Symbol))
+	}
+	return nil
+}
+
+func ledgerHolds(
+	ctx context.Context, t Treasury, cabal ids.CabalID, asset market.Asset, trade domain.Trade,
+) error {
+	const op = "governance.funds"
 	positions, err := t.Positions(ctx, cabal)
 	if err != nil {
 		return err
