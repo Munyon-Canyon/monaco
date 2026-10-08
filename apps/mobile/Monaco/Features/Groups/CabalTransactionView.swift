@@ -47,10 +47,9 @@ struct CabalTransactionView: View {
             .accessibilityLabel("Loading this transaction")
             .accessibilityIdentifier("cabal-txn-loading")
         case .missing:
-            EmptyState(title: "Couldn't load this transaction.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "this transaction", identifier: "cabal-txn-error") {
                 Task { await resolve() }
             }
-            .accessibilityIdentifier("cabal-txn-error")
         case .found(let row):
             receipt(row)
         }

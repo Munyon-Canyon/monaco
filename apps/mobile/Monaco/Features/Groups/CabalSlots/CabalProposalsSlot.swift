@@ -34,7 +34,7 @@ struct CabalProposals: View {
                 case .loadingFirst where model.pager.items.isEmpty:
                     SkeletonBlock(width: 280, height: 160, radius: MonacoTheme.Radius.card)
                 case .failed where model.pager.items.isEmpty:
-                    EmptyState(title: "Couldn't load votes.", actionTitle: "Try again") { Task { await model.load() } }
+                    MonacoErrorRow(thing: "votes", identifier: "cabal-votes-error") { Task { await model.load() } }
                 default:
                     content(model)
                 }
@@ -186,7 +186,7 @@ private struct CabalProposalSegmentList: View {
                     case .idle, .loadingFirst:
                         SkeletonBlock(width: 280, height: 160, radius: MonacoTheme.Radius.card)
                     case .failed:
-                        EmptyState(title: "Couldn't load proposals.", actionTitle: "Try again") {
+                        MonacoErrorRow(thing: "proposals", identifier: "cabal-proposals-error") {
                             Task { await model.load() }
                         }
                     default:

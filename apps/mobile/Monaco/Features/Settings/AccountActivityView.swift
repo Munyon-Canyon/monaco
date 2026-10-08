@@ -67,10 +67,9 @@ struct AccountActivityList: View {
             )
             .accessibilityIdentifier("account-activity-empty")
         case .failed:
-            EmptyState(title: "Couldn't load your activity.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "your activity", identifier: "account-activity-error") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("account-activity-error")
         case .loaded:
             list
         }

@@ -55,13 +55,9 @@ struct CabalPotBand: View {
             SkeletonBlock(width: 180, height: 44)
             SkeletonBlock(width: 120, height: 24, radius: 12)
         case .failed:
-            Text("Couldn't load the pot.")
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.onHeroMuted)
-                .accessibilityIdentifier("cabal-pot-failed")
-            Button("Try again") { Task { await model?.load() } }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("cabal-pot-retry")
+            MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed", onHero: true) {
+                Task { await model?.load() }
+            }
         case .loaded(let summary):
             Text(summary.potValue)
                 .moneyFont(.hero)

@@ -87,10 +87,9 @@ struct CashOutContent: View {
                 AmountEntrySkeleton()
                     .accessibilityIdentifier("cash-out-loading")
             case .failed:
-                EmptyState(title: "Couldn't load your slice.", actionTitle: "Try again") {
+                MonacoErrorRow(thing: "your slice", identifier: "cash-out-error") {
                     Task { await model?.load() }
                 }
-                .accessibilityIdentifier("cash-out-error")
             case .loaded(let preview):
                 loaded(preview)
             }

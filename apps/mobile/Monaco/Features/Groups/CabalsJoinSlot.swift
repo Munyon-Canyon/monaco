@@ -104,12 +104,7 @@ private struct CabalsSearchContent: View {
             EmptyState(title: "No cabal called \u{201C}\(query)\u{201D}")
                 .accessibilityIdentifier("cabals-search-empty")
         case .failed:
-            EmptyState(
-                title: "Couldn't load cabals.",
-                actionTitle: "Try again",
-                action: { Task { await model.search() } }
-            )
-            .accessibilityIdentifier("cabals-search-error")
+            MonacoErrorRow(thing: "cabals", identifier: "cabals-search-error") { Task { await model.search() } }
         case .rows(let rows):
             MonacoGroupedList {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in

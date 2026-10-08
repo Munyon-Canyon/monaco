@@ -54,10 +54,9 @@ struct CabalHoldingsSection: View {
                 .accessibilityLabel("Loading holdings")
                 .accessibilityIdentifier("cabal-holdings-loading")
         case .failed:
-            EmptyState(title: "Couldn't load holdings.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "holdings", identifier: "cabal-holdings-failed") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("cabal-holdings-failed")
         case .loaded(let summary):
             loaded(summary)
         }

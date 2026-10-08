@@ -30,8 +30,7 @@ struct PeopleSearchResults: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("friends-search-results")
         case .failed:
-            EmptyState(title: "Couldn't load people.", actionTitle: "Try again", action: model.retry)
-                .accessibilityIdentifier("friends-search-error")
+            MonacoErrorRow(thing: "people", identifier: "friends-search-error", retry: model.retry)
         }
     }
 

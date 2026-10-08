@@ -57,11 +57,9 @@ struct ProposalDetailSlotView: View {
                 }
                 .padding(.top, MonacoTheme.Space.m)
             } else if model?.errorMessage != nil {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                    Text("Couldn't load this proposal.").font(MonacoTheme.Typo.body)
-                    Button("Try again") { Task { await model?.load() } }.buttonStyle(.monacoSecondary)
+                MonacoErrorRow(thing: "this proposal", identifier: "proposal-detail-error") {
+                    Task { await model?.load() }
                 }
-                .padding(MonacoTheme.Space.m)
             } else {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                     SkeletonBlock(width: 180, height: 24)

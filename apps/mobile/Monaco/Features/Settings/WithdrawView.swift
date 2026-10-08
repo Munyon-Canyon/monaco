@@ -227,8 +227,7 @@ struct WithdrawContent: View {
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                         .accessibilityIdentifier("withdraw-loading")
                 case .failed:
-                    EmptyState(title: "Couldn't load your balance.", actionTitle: "Try again", action: onRetry)
-                        .accessibilityIdentifier("withdraw-balance-error")
+                    MonacoErrorRow(thing: "your balance", identifier: "withdraw-balance-error", retry: onRetry)
                 case .loaded:
                     AmountEntry(
                         amountText: $amountText,

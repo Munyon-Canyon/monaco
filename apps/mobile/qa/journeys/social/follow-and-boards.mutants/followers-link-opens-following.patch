@@ -5,10 +5,11 @@ The "Followers" count on the Profile tab opens the "Following" list. S4.2 waits 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
+index 885e30fb6..9c32c1687 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-@@ -67,7 +67,7 @@
-             .accessibilityIdentifier("profile-follow-counts-error")
+@@ -58,7 +58,7 @@ private struct ProfileFollowCountLinks: View {
+             }
          case .loaded:
              HStack(spacing: 0) {
 -                link("\(model?.followerCount ?? 0) Followers", .followers, id: "profile-followers")

@@ -34,7 +34,7 @@ private struct HomePeopleBoard: View {
             .padding(.horizontal, MonacoTheme.Space.m)
             .accessibilityIdentifier("home-leaderboard-filter")
             LeaderboardBoardList(
-                loader: loader, skeletonRows: 5, failureText: "Couldn't load investors.",
+                loader: loader, skeletonRows: 5, failureThing: "investors",
                 identifier: "home-leaderboard",
                 empty: { empty },
                 rowContent: { row, isLast in

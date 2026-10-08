@@ -86,15 +86,10 @@ private struct StocksTabScreen: View {
             case .idle, .loading:
                 BoardRowSkeleton()
             case .failed:
-                EmptyState(title: "Couldn't load stocks.", actionTitle: "Try again") { Task { await model.load() } }
-                    .accessibilityIdentifier("assets-failed")
+                MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
             case .loaded:
                 if model.isSearching {
-                    Text("No stocks match “\(query)”")
-                        .font(MonacoTheme.Typo.body)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, MonacoTheme.Space.xl)
+                    EmptyState(title: "No stocks match “\(query)”")
                         .accessibilityIdentifier("assets-search-empty")
                 } else {
                     EmptyState(title: "No stocks to show")

@@ -55,15 +55,8 @@ private struct CabalsValueChart: View {
             SkeletonBlock(height: 160, radius: 12)
                 .accessibilityIdentifier("cabals-value-chart-loading")
         case .failed:
-            HStack(spacing: MonacoTheme.Space.s) {
-                Text("Couldn't load your cabals' return.")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                Button("Try again") { Task { await model?.load() } }
-                    .buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("cabals-value-chart-retry")
+            MonacoErrorRow(thing: "your cabals' return", identifier: "cabals-value-chart-error") {
+                Task { await model?.load() }
             }
         case .loaded:
             if let model {

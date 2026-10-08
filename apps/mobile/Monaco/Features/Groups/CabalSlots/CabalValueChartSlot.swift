@@ -50,13 +50,9 @@ private struct CabalValueChart: View {
                 SkeletonBlock(height: 160, radius: 12)
                     .accessibilityIdentifier("cabal-value-chart-loading")
             case .failed:
-                Text("Couldn't load the pot's history.")
-                    .font(MonacoTheme.Typo.callout)
-                    .foregroundStyle(MonacoTheme.onHeroMuted)
-                    .accessibilityIdentifier("cabal-value-chart-failed")
-                Button("Try again") { Task { await model.load() } }
-                    .buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("cabal-value-chart-retry")
+                MonacoErrorRow(thing: "the pot's history", identifier: "cabal-value-chart-failed", onHero: true) {
+                    Task { await model.load() }
+                }
             case .loaded:
                 loaded(model)
             }

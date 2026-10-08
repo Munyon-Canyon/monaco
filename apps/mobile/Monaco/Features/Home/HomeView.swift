@@ -36,8 +36,8 @@ struct HomeView: View {
                 HomeSkeletonView()
             case .loaded:
                 dashboardScroll
-            case .failed(let message):
-                failedScroll(message)
+            case .failed:
+                failedScroll()
             }
         }
         .monacoCanvas()
@@ -85,19 +85,11 @@ struct HomeView: View {
 
     /// The failed state lives in a ScrollView, so the "pull down to try again" the store asks
     /// for is a gesture this screen actually has (#278).
-    private func failedScroll(_ message: String) -> some View {
+    private func failedScroll() -> some View {
         ScrollView {
             VStack(spacing: MonacoTheme.Space.s) {
-                // The store's sentence is the explanation, not the heading: as a title it read
-                // "Couldn't load this. Pull down to try again." in bold, trailing period and
-                // all, directly above a "Try again" button saying the same thing again.
-                EmptyState(
-                    title: "Couldn't load Home",
-                    message: message,
-                    actionTitle: "Try again",
-                    action: { Task { await retryLoad() } }
-                )
-                .disabled(isRetrying)
+                MonacoErrorRow(thing: "Home", identifier: "home-error") { Task { await retryLoad() } }
+                    .disabled(isRetrying)
                 if isRetrying {
                     ProgressView()
                         .tint(MonacoTheme.ink)

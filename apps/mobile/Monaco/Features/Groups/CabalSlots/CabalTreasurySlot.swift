@@ -18,8 +18,7 @@ enum CabalTreasurySlotCopy {
     static let header = "Cabal treasury"
     static let warning = "Cabal treasury. Do not send funds here. Transfers are returned."
     static let solscan = "View on Solscan"
-    static let failed = "Couldn't load the treasury."
-    static let retry = "Try again"
+    static let failedThing = "the treasury"
     static let loading = "Loading the treasury"
 }
 
@@ -70,10 +69,9 @@ struct CabalTreasuryView: View {
                 .accessibilityLabel(CabalTreasurySlotCopy.loading)
                 .accessibilityIdentifier("cabal-treasury-loading")
         case .failed:
-            EmptyState(title: CabalTreasurySlotCopy.failed, actionTitle: CabalTreasurySlotCopy.retry) {
+            MonacoErrorRow(thing: CabalTreasurySlotCopy.failedThing, identifier: "cabal-treasury-failed") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("cabal-treasury-failed")
         case .loaded(let cabal):
             CabalTreasuryCard(address: cabal.treasuryAddress)
                 .padding(.horizontal, MonacoTheme.Space.gutter)

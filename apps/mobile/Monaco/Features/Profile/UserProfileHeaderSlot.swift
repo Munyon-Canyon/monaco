@@ -68,18 +68,9 @@ private struct UserProfileHeader: View {
     }
 
     private var loadFailure: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            Text("Couldn't load this profile.")
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Button("Try again") { Task { await model?.load() } }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("user-profile-retry")
+        MonacoErrorRow(thing: "this profile", identifier: "user-profile-error") {
+            Task { await model?.load() }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("user-profile-error")
     }
 
     private var identity: some View {

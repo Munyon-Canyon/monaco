@@ -52,15 +52,7 @@ private struct ProposeSellChooserRow: View {
             .redacted(reason: .placeholder)
             .accessibilityIdentifier("propose-kind-sell-loading")
         case .failed:
-            Button {
-                Task { await pot?.load() }
-            } label: {
-                ProposeChooserRow(
-                    title: "Sell something the cabal owns", detail: "Couldn't load holdings.",
-                    systemImage: ProposeGlyph.sell, retryTitle: "Try again", isLast: true)
-            }
-            .buttonStyle(.monacoRow)
-            .accessibilityIdentifier("propose-kind-sell-failed")
+            MonacoErrorRow(thing: "holdings", identifier: "propose-kind-sell-failed") { Task { await pot?.load() } }
         case .loaded(let summary):
             if let pot, !summary.sellable.isEmpty {
                 NavigationLink {
@@ -88,7 +80,6 @@ struct ProposeChooserRow: View {
     let detail: String
     let systemImage: String
     var isEnabled = true
-    var retryTitle: String?
     var isLast = false
 
     var body: some View {
@@ -105,9 +96,7 @@ struct ProposeChooserRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if let retryTitle {
-                Text(retryTitle).font(MonacoTheme.Typo.bodyStrong).foregroundStyle(MonacoTheme.ink)
-            } else if isEnabled {
+            if isEnabled {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(MonacoTheme.tertiaryText)

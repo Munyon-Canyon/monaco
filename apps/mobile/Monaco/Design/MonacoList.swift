@@ -394,3 +394,47 @@ struct EmptyState: View {
         .padding(.vertical, MonacoTheme.Space.l)
     }
 }
+
+struct MonacoErrorRow: View {
+    let thing: String
+    let identifier: String
+    var onHero = false
+    let retry: () -> Void
+
+    init(thing: String, identifier: String, onHero: Bool = false, retry: @escaping () -> Void) {
+        self.thing = thing
+        self.identifier = identifier
+        self.onHero = onHero
+        self.retry = retry
+    }
+
+    private var retryIdentifier: String {
+        let suffix = ["-error", "-failed", "-retry"].first(where: identifier.hasSuffix)
+        let stem = suffix.map { String(identifier.dropLast($0.count)) } ?? identifier
+        return "\(stem)-retry"
+    }
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            Text("Couldn't load \(thing).")
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(onHero ? MonacoTheme.onHeroMuted : MonacoTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Try again", action: retry)
+                .font(MonacoTheme.Typo.calloutStrong)
+                .foregroundStyle(onHero ? MonacoTheme.onHero : MonacoTheme.brand)
+                .buttonStyle(.plain)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier(retryIdentifier)
+        }
+        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.vertical, 8)
+        .frame(minHeight: 60)
+        .overlay(alignment: .top) { if !onHero { MonacoRule() } }
+        .overlay(alignment: .bottom) { if !onHero { MonacoRule() } }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(identifier == retryIdentifier ? "\(identifier.dropLast(6))-error" : identifier)
+    }
+}

@@ -5,7 +5,7 @@ The copy toast reads "Copied." instead of "Link copied.". S1.4 waits for "Link c
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/InviteView.swift b/apps/mobile/Monaco/Features/Profile/InviteView.swift
-index b428f44d1..2b99c41f8 100644
+index 306f5cf71..c3bd50081 100644
 --- a/apps/mobile/Monaco/Features/Profile/InviteView.swift
 +++ b/apps/mobile/Monaco/Features/Profile/InviteView.swift
 @@ -15,7 +15,7 @@ enum InviteCopy {
@@ -16,4 +16,4 @@ index b428f44d1..2b99c41f8 100644
 +    static let copied = "Copied."
      static let codeLinkLabel = "This link works too"
      static let deposit = "Deposit"
-     static let loadFailed = "Couldn't load your invite link."
+ }

@@ -88,16 +88,7 @@ private struct CabalHero: View {
             .accessibilityLabel("Loading this cabal")
             .accessibilityIdentifier("cabal-header-loading")
         case .failed:
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                Text("Couldn't load this cabal.")
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.onHero)
-                Button("Try again", action: retry)
-                    .buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("cabal-header-retry")
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("cabal-header-failed")
+            MonacoErrorRow(thing: "this cabal", identifier: "cabal-header-failed", onHero: true, retry: retry)
         case .loaded(let cabal):
             identity(cabal)
         }

@@ -64,10 +64,9 @@ struct FollowListView: View {
             EmptyState(title: emptyTitle)
                 .accessibilityIdentifier("follow-list-empty")
         case .failed:
-            EmptyState(title: "Couldn't load this list.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "this list", identifier: "follow-list-error") {
                 Task { await reload() }
             }
-            .accessibilityIdentifier("follow-list-error")
         case .loaded:
             list
         }

@@ -121,15 +121,10 @@ private struct InviteMemberContent: View {
             ProgressView()
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, MonacoTheme.Space.l)
-        case .failed(let error):
-            EmptyState(
-                title: "Pending invites didn't load",
-                message: ToastCopy.message(for: error),
-                actionTitle: "Try again"
-            ) {
+        case .failed:
+            MonacoErrorRow(thing: "pending invites", identifier: "invite-member-pending-failed") {
                 Task { await model.load() }
             }
-            .accessibilityIdentifier("invite-member-pending-failed")
         case .loaded(let invites):
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Pending invites", count: invites.count)

@@ -131,10 +131,9 @@ private struct FeedScreen: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("feed-follow-nobody")
         case .failed:
-            EmptyState(title: "Couldn't load the feed.", actionTitle: "Try again") {
+            MonacoErrorRow(thing: "the feed", identifier: "feed-error") {
                 Task { await model.reload() }
             }
-            .accessibilityIdentifier("feed-error")
         case .loaded:
             cells
         }

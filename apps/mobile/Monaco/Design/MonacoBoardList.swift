@@ -61,7 +61,7 @@ struct LeaderboardFreshnessText: View {
 struct LeaderboardBoardList<Empty: View, RowContent: View>: View {
     let loader: LeaderboardLoader
     let skeletonRows: Int
-    let failureText: String
+    let failureThing: String
     let identifier: String
     var showsEmpty = true
     @ViewBuilder let empty: () -> Empty
@@ -86,17 +86,7 @@ struct LeaderboardBoardList<Empty: View, RowContent: View>: View {
     }
 
     private var failure: some View {
-        HStack {
-            Text(failureText)
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.secondaryText)
-            Spacer()
-            Button("Try again") { loader.retry() }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("\(identifier)-retry")
-        }
-        .padding(.horizontal, MonacoTheme.Space.m)
-        .accessibilityIdentifier("\(identifier)-error")
+        MonacoErrorRow(thing: failureThing, identifier: "\(identifier)-error") { loader.retry() }
     }
 
     private var rows: some View {
