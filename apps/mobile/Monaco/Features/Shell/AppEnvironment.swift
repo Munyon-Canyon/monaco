@@ -9,6 +9,7 @@ final class AppEnvironment {
     let tokens: SessionTokens
     let api: APIClient
     let hints: any HintConnecting
+    let assetLogos: AssetLogoStore
     let chatRealtime: SharedChatRealtime
     let auth: PrivyAuthService
     let linking: any AccountLinking
@@ -52,6 +53,7 @@ final class AppEnvironment {
         self.hints = hints
         let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
+        self.assetLogos = AssetLogoStore(api: api)
         self.chatRealtime = SharedChatRealtime { AblyChatRealtime(api: api) }
         self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints)
         self.cashOuts = CashOutJobWatcher(api: api, hints: hints)

@@ -6,7 +6,7 @@ enum CabalHoldingsSlot: CabalSection {
     static let isLive = true
 
     static func body(for context: CabalContext) -> some View {
-        CabalPotModelHost(cabalID: context.cabalID) { model in
+        CabalPotModelHost(cabalID: context.cabalID, showsLogos: true) { model in
             CabalHoldingsLive(model: model, cabalID: context.cabalID)
         }
     }
@@ -119,7 +119,7 @@ private struct HoldingRow: View {
         MonacoRow(
             title: row.ticker, titleFont: MonacoTheme.Typo.ticker, subtitle: row.detail, chevron: true
         ) {
-            StockMark(symbol: row.symbol, displayName: row.name)
+            StockMark(symbol: row.symbol, displayName: row.name, logoURL: row.logoURL)
         } trailing: {
             VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                 Text(row.value)
@@ -137,7 +137,6 @@ private struct AllocationBar: View {
     let tint: MonacoTheme.CabalTint
 
     private static let gap: CGFloat = 2
-    private static let opacities: [Double] = [1, 0.7, 0.5, 0.36, 0.26]
 
     private var drawn: [CabalPotSummary.Segment] { legend.filter { $0.basisPoints > 0 } }
 
@@ -164,9 +163,22 @@ private struct AllocationBar: View {
     }
 
     private func color(for segment: CabalPotSummary.Segment) -> Color {
-        if segment.isCash { return MonacoTheme.surfaceSunken }
-        let index = legend.firstIndex(of: segment) ?? 0
-        return tint.fill.opacity(Self.opacities[min(index, Self.opacities.count - 1)])
+        AllocationPalette.color(for: segment.swatch, tint: tint)
+    }
+}
+
+enum AllocationPalette {
+    static let opacities: [Double] = [1, 0.7, 0.5, 0.36, 0.26]
+
+    static func opacity(forStep step: Int) -> Double {
+        opacities[min(max(step, 0), opacities.count - 1)]
+    }
+
+    static func color(for swatch: CabalPotSummary.Swatch, tint: MonacoTheme.CabalTint) -> Color {
+        switch swatch {
+        case .cash: return MonacoTheme.cashFill
+        case .stock(let step): return tint.fill.opacity(opacity(forStep: step))
+        }
     }
 }
 

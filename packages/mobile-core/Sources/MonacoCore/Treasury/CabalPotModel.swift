@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 import Observation
 
@@ -11,10 +12,14 @@ public final class CabalPotModel {
     private let api: APIClient
     private let hints: any HintSource
     private var generation = 0
+    private var logos: [String: URL] = [:]
+    private var logoSymbols: Set<String> = []
+    private let logoStore: AssetLogoStore?
 
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
 
-    public init(cabalID: String, api: APIClient, hints: any HintSource) {
+    public init(cabalID: String, api: APIClient, hints: any HintSource, logoStore: AssetLogoStore? = nil) {
+        self.logoStore = logoStore
         self.cabalID = cabalID
         self.api = api
         self.hints = hints
@@ -34,7 +39,9 @@ public final class CabalPotModel {
                 try await client.getCabalPot(path: .init(id: cabalID)).ok.body.json
             }
             guard issued == generation else { return }
-            state = .loaded(CabalPotSummary(pot))
+            let summary = CabalPotSummary(pot)
+            state = .loaded(summary.withLogos(logos))
+            startLogoLookup(for: summary.holdings.map(\.symbol))
         } catch {
             guard issued == generation, !Task.isCancelled else { return }
             let error = APIError(error)
@@ -43,6 +50,19 @@ public final class CabalPotModel {
             } else {
                 toast = ToastCopy.message(for: error)
             }
+        }
+    }
+
+    private func startLogoLookup(for symbols: [String]) {
+        guard let logoStore else { return }
+        let missing = symbols.filter { !logoSymbols.contains($0) }
+        guard !missing.isEmpty else { return }
+        logoSymbols.formUnion(missing)
+        Task { [weak self] in
+            let found = await logoStore.logos(for: missing)
+            guard let self, !found.isEmpty else { return }
+            logos.merge(found) { _, new in new }
+            if let summary { state = .loaded(summary.withLogos(logos)) }
         }
     }
 

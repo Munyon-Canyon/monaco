@@ -191,14 +191,11 @@ struct StockMark: View {
         self.logoURL = logoURL
     }
 
-    /// The whole ticker, up to four characters. One letter is not an identity: nine tickers in
-    /// the catalog start with "A", so Apple, Amazon and Broadcom were three identical grey tiles.
-    ///
-    /// A class separator is dropped rather than left hanging: "BRK.B" cut at four characters is
-    /// "BRK." reading as an abbreviation of itself.
+    /// The whole ticker, up to five characters, with a trailing "." or "-" dropped when it is cut.
+    /// One letter is not an identity: nine catalog tickers start with "A".
     static func tileText(forTicker ticker: String) -> String {
         let trimmed = ticker.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        var tile = String(trimmed.prefix(4))
+        var tile = String(trimmed.prefix(5))
         while let last = tile.last, last == "." || last == "-" {
             tile.removeLast()
         }

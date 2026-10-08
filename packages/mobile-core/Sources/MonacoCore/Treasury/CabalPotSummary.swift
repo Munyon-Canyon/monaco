@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 
 public struct CabalPotSummary: Equatable, Sendable {
@@ -19,8 +20,20 @@ public struct CabalPotSummary: Equatable, Sendable {
         public let detail: String
         public let value: String
         public let gain: String
+        public var logoURL: URL?
 
         public var id: String { symbol }
+    }
+
+    public enum Swatch: Equatable, Sendable {
+        case stock(step: Int)
+        case cash
+
+        public static let steps = 5
+
+        public static func forStock(at index: Int) -> Swatch {
+            .stock(step: min(max(index, 0), steps - 1))
+        }
     }
 
     public struct Segment: Equatable, Sendable, Identifiable {
@@ -28,6 +41,7 @@ public struct CabalPotSummary: Equatable, Sendable {
         public let percent: String
         public let basisPoints: Int
         public let isCash: Bool
+        public let swatch: Swatch
 
         public var id: String { label }
     }
@@ -36,7 +50,7 @@ public struct CabalPotSummary: Equatable, Sendable {
     public let allTime: String
     public let cash: String
     public let slice: Slice?
-    public let holdings: [Row]
+    public private(set) var holdings: [Row]
     public let sellable: [ProposeHolding]
     public let legend: [Segment]
     public let state: PotState
@@ -63,18 +77,28 @@ public struct CabalPotSummary: Equatable, Sendable {
         }
         sellable = pot.holdings.map(ProposeHolding.init)
         legend =
-            pot.holdings.map { holding in
+            pot.holdings.enumerated().map { index, holding in
                 Segment(
                     label: AssetSymbolFormatter.display(holding.symbol),
                     percent: Self.percent(basisPoints: Int(holding.weightBps)),
-                    basisPoints: Int(holding.weightBps), isCash: false)
+                    basisPoints: Int(holding.weightBps), isCash: false, swatch: .forStock(at: index))
             } + [
                 Segment(
                     label: "Cash", percent: Self.percent(basisPoints: Int(pot.cashWeightBps)),
-                    basisPoints: Int(pot.cashWeightBps), isCash: true)
+                    basisPoints: Int(pot.cashWeightBps), isCash: true, swatch: .cash)
             ]
         state =
             if pot.potValueMicros == 0 { .zero } else if pot.holdings.isEmpty { .cashOnly } else { .invested }
+    }
+
+    public func withLogos(_ logos: [String: URL]) -> CabalPotSummary {
+        var copy = self
+        copy.holdings = holdings.map { row in
+            var row = row
+            row.logoURL = logos[row.symbol]
+            return row
+        }
+        return copy
     }
 
     static func percent(basisPoints: Int) -> String {
