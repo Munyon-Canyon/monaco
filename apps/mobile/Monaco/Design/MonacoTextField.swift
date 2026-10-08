@@ -53,6 +53,9 @@ struct MonacoTextField: View {
     private let isInvalid: Bool
     private let isOutlined: Bool
     private let errorMessage: String?
+    private let autofocus: Bool
+    private let capitalization: TextInputAutocapitalization?
+    private let autocorrects: Bool?
 
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
@@ -64,7 +67,10 @@ struct MonacoTextField: View {
         contentType: UITextContentType? = nil,
         isInvalid: Bool = false,
         isOutlined: Bool = false,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        autofocus: Bool = false,
+        capitalization: TextInputAutocapitalization? = nil,
+        autocorrects: Bool? = nil
     ) {
         self.placeholder = placeholder
         _text = text
@@ -73,6 +79,9 @@ struct MonacoTextField: View {
         self.isInvalid = isInvalid
         self.isOutlined = isOutlined
         self.errorMessage = errorMessage
+        self.autofocus = autofocus
+        self.capitalization = capitalization
+        self.autocorrects = autocorrects
     }
 
     var body: some View {
@@ -89,6 +98,9 @@ struct MonacoTextField: View {
         .textInputAutocapitalization(autocapitalization)
         .autocorrectionDisabled(disablesAutocorrection)
         .focused($focused)
+        .task {
+            if autofocus { focused = true }
+        }
         .monacoFieldChrome(isFocused: focused, isInvalid: isInvalid, isOutlined: isOutlined)
         .opacity(isOutlined && !isEnabled ? 0.5 : 1)
         // The whole 56pt is the target, not just the line of text in the middle of it.
@@ -110,11 +122,11 @@ struct MonacoTextField: View {
     }
 
     private var autocapitalization: TextInputAutocapitalization {
-        isCodeOrContact ? .never : .sentences
+        capitalization ?? (isCodeOrContact ? .never : .sentences)
     }
 
     private var disablesAutocorrection: Bool {
-        isCodeOrContact
+        autocorrects.map { !$0 } ?? isCodeOrContact
     }
 }
 

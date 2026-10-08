@@ -31,6 +31,29 @@ struct CreateCabalActionTests {
         #expect(body["voter_ids"] == nil)
     }
 
+    @Test func oneOrTwoLettersAreAMutedHintAndFortyOneOrATabAreRed() {
+        #expect(CreateCabalForm(name: "S").nameProblem == .tooShort)
+        #expect(CreateCabalForm(name: "S").nameProblem?.isHard == false)
+        #expect(CreateCabalForm(name: "Su").nameProblem?.isHard == false)
+        #expect(CreateCabalForm(name: String(repeating: "a", count: 41)).nameProblem?.isHard == true)
+        #expect(CreateCabalForm(name: "a\tb c").nameProblem?.isHard == true)
+    }
+
+    @Test func startACabalHidesToPassAndStillSendsMajority() async throws {
+        #expect(CabalRulesCopy.createShowsThreshold == false)
+        #expect(CabalRulesCopy.createPickedCaption == "Only you vote until you add people in Cabal settings.")
+        let transport = StubTransport(.json(.created, Self.created))
+        let actions = LiveCabalsActionSource(auth: Self.auth, api: Self.api(transport))
+        let input = try #require(CreateCabalForm(name: "QA pot").input)
+
+        _ = try await actions.createCabal(input, submission: IdempotentSubmission())
+
+        let bodies = await transport.sentBodies
+        let data = try #require(bodies.first ?? nil)
+        let body = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(body["threshold"] as? String == "majority")
+    }
+
     @Test func aRetryAfterALostResponseReusesTheKey() async throws {
         let transport = StubTransport(scripted: [
             .failure(URLError(.networkConnectionLost)),

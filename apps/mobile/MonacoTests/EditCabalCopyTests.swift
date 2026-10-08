@@ -19,6 +19,11 @@ struct EditCabalCopyTests {
         #expect(CabalJoinCopy.canVote == "Can vote")
     }
 
+    @Test func toPassShowsOnlyWhenTheCabalHasMoreThanOneMember() {
+        #expect(EditCabalView.showsThreshold(memberCount: 1) == false)
+        #expect(EditCabalView.showsThreshold(memberCount: 2) == true)
+    }
+
     @Test func theRulesSectionSpeaksTheProductLanguage() {
         #expect(MainFlowCopyAudit.stringsAreClean(CabalRulesSlotCopy.auditedStrings))
         #expect(CabalRulesSlotCopy.failedThing == "the rules")
