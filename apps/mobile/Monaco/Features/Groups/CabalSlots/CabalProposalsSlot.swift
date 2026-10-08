@@ -67,25 +67,39 @@ struct CabalProposals: View {
                 MonacoSectionHeader("Proposals", trailing: "See all", action: openAll)
             }
         } else {
+            MonacoSectionHeader("Proposals", trailing: "See all", action: openAll)
+            Text(Self.context(needsVote: section?.count ?? 0, inProgress: inProgress.count))
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .accessibilityIdentifier("cabal-proposals-context")
             if let section {
-                self.section(section.title, section.proposals, count: section.count, showsSeeAll: true, model: model)
+                self.section(section.title == "Proposals" ? nil : section.title, section.proposals, model: model)
             }
             if !inProgress.isEmpty {
-                self.section(
-                    "In progress", inProgress, count: inProgress.count, showsSeeAll: section == nil, model: model)
+                self.section("In progress", inProgress, model: model)
             }
             if !recent.isEmpty {
-                self.section(
-                    "Recently closed", recent, count: nil, showsSeeAll: section == nil && inProgress.isEmpty,
-                    model: model)
+                self.section("Recently closed", recent, model: model)
             }
         }
     }
 
-    @ViewBuilder private func section(
-        _ title: String, _ proposals: [ProposalSummary], count: Int?, showsSeeAll: Bool, model: ProposalListModel
-    ) -> some View {
-        MonacoSectionHeader(title, count: count, trailing: showsSeeAll ? "See all" : nil, action: openAll)
+    private static func context(needsVote: Int, inProgress: Int) -> String {
+        if needsVote > 0 { return "\(needsVote) to vote on. Vote before they close." }
+        if inProgress > 0 { return "Passed proposals are trading now." }
+        return "Open votes and recent outcomes."
+    }
+
+    @ViewBuilder private func section(_ label: String?, _ proposals: [ProposalSummary], model: ProposalListModel)
+        -> some View
+    {
+        if let label {
+            Text(label)
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.tertiaryText)
+                .padding(.top, MonacoTheme.Space.s)
+                .accessibilityAddTraits(.isHeader)
+        }
         ForEach(proposals) { proposal in
             if let voting {
                 ProposalVoteCard(
