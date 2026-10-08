@@ -37,10 +37,14 @@ struct ProposalDetailSlotView: View {
                     ) {
                         choice in
                         Task {
-                            await model?.vote(choice)
-                            if model?.errorMessage == nil { toasts.show(success: "Vote in") }
+                            if await model?.vote(choice) == true {
+                                toasts.show(success: "Vote in")
+                            } else if let message = model?.errorMessage {
+                                toasts.current = MonacoToast(message: message)
+                            }
                         }
                     }
+                    .disabled(model?.isVoting == true)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     if model?.canWithdraw == true {
                         Button("Withdraw proposal", role: .destructive) {

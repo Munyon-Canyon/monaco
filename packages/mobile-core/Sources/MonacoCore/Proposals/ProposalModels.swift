@@ -122,6 +122,7 @@ public final class ProposalDetailModel {
     public private(set) var didWithdraw = false
     public private(set) var isRetrying = false
     public private(set) var didRetry = false
+    public private(set) var isVoting = false
     private let id: String
     private let cabalID: String
     private let repository: ProposalsRepository
@@ -165,13 +166,18 @@ public final class ProposalDetailModel {
             errorMessage = ToastCopy.message(for: APIError(error))
         }
     }
-    public func vote(_ choice: String) async {
+    public func vote(_ choice: String) async -> Bool {
+        isVoting = true
         do {
             try await repository.vote(id: id, choice: choice, submission: submission)
-            await load()
+            isVoting = false
         } catch {
+            isVoting = false
             errorMessage = ToastCopy.message(for: APIError(error))
+            return false
         }
+        await load()
+        return true
     }
 
     public var canWithdraw: Bool { value?.summary.canWithdraw == true }
