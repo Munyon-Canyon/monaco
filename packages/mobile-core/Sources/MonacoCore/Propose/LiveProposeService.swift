@@ -16,6 +16,10 @@ public struct LiveProposeService: ProposeService {
         return ProposePreview(reply)
     }
 
+    public func potValue(cabalID: String) async throws -> Int64 {
+        try await api.read { try await $0.getCabalPot(path: .init(id: cabalID)).ok.body.json }.potValueMicros
+    }
+
     public func propose(
         cabalID: String, draft: ProposalDraft, submission: IdempotentSubmission
     ) async throws -> String {

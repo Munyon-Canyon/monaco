@@ -42,12 +42,18 @@ struct ProposeAmountScreen: View {
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
+                if model.previewFailed {
+                    MonacoErrorRow(thing: "the price", identifier: "propose-amount-price-error") {
+                        model.retryPreview()
+                    }
+                }
             }
             .padding(.top, MonacoTheme.Space.s)
             .padding(.bottom, MonacoTheme.Space.s)
         }
         .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
+        .task { await model.load() }
         .task {
             guard !model.trade.isSell,
                 let asset = try? await ProposalsRepository(api: environment.api).asset(symbol: stock.symbol)
