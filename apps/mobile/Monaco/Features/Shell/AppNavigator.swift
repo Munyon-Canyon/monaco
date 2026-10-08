@@ -41,6 +41,17 @@ final class AppNavigator {
         }
     }
 
+    func openTransaction(cabalID: String, transactionID: String, in tab: MainTab) {
+        let path = binding(for: tab)
+        if let cabal = path.wrappedValue.lastIndex(of: AnyAppRoute(CabalRoute(id: cabalID))) {
+            path.wrappedValue.removeSubrange((cabal + 1)...)
+            selectedTab = tab
+        } else {
+            open(CabalRoute(id: cabalID), in: tab)
+        }
+        open(TransactionRoute(cabalID: cabalID, transactionID: transactionID), in: tab)
+    }
+
     func closeProposeFlow() {
         let path = binding(for: selectedTab)
         guard
