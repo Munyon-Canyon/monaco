@@ -4,6 +4,7 @@ import SwiftUI
 
 struct AssetDetailClientView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.hostMainTab) private var hostMainTab
     let symbol: String
     @State private var model: AssetDetailClientModel?
     @State private var scrubbedIndex: Int?
@@ -204,7 +205,7 @@ struct AssetDetailClientView: View {
                 MonacoGroupedList {
                     ForEach(listings) { listing in
                         Button {
-                            environment.navigator.open(AssetRoute(symbol: listing.symbol), in: .stocks)
+                            environment.navigator.open(AssetRoute(symbol: listing.symbol), in: hostMainTab ?? .stocks)
                         } label: {
                             MonacoRow(
                                 title: listing.name, subtitle: listing.ticker, chevron: true,
@@ -242,7 +243,7 @@ extension AssetDetailClientView {
             VStack(spacing: MonacoTheme.Space.xs) {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     Button(AssetDetailBuyCTA.title(tradable: detail.isTradable)) {
-                        AssetDetailBuyCTA.open(symbol: symbol, kind: .buy) {
+                        AssetDetailBuyCTA.open(symbol: symbol, kind: .buy, tab: hostMainTab ?? .stocks) {
                             environment.navigator.open($0, in: $1)
                         }
                     }
@@ -251,7 +252,7 @@ extension AssetDetailClientView {
                     .accessibilityIdentifier("asset-detail-propose-buy")
                     if model.heldByVotingCabal {
                         Button("Propose sell") {
-                            AssetDetailBuyCTA.open(symbol: symbol, kind: .sell) {
+                            AssetDetailBuyCTA.open(symbol: symbol, kind: .sell, tab: hostMainTab ?? .stocks) {
                                 environment.navigator.open($0, in: $1)
                             }
                         }
@@ -272,8 +273,10 @@ enum AssetDetailBuyCTA {
         tradable ? "Propose buy" : "Can't buy right now"
     }
 
-    static func open(symbol: String, kind: ProposeKind, navigator: (ProposeFromAssetRoute, MainTab) -> Void) {
-        navigator(ProposeFromAssetRoute(symbol: symbol, kind: kind), .stocks)
+    static func open(
+        symbol: String, kind: ProposeKind, tab: MainTab, navigator: (ProposeFromAssetRoute, MainTab) -> Void
+    ) {
+        navigator(ProposeFromAssetRoute(symbol: symbol, kind: kind), tab)
     }
 }
 
