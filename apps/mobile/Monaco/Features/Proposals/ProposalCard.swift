@@ -7,6 +7,7 @@ struct ProposalCard: View {
     let members: [ProposalMember]
     private let paused: Bool
     private let showsThesis: Bool
+    private let isDetail: Bool
     private let openRoute: AnyAppRoute?
     private let vote: (String) -> Void
 
@@ -15,6 +16,7 @@ struct ProposalCard: View {
     init(
         proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
         showsThesis: Bool = true,
+        isDetail: Bool = false,
         openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
@@ -23,6 +25,7 @@ struct ProposalCard: View {
         self.members = members
         self.paused = paused
         self.showsThesis = showsThesis
+        self.isDetail = isDetail
         self.openRoute = openRoute
         self.vote = vote
     }
@@ -30,6 +33,7 @@ struct ProposalCard: View {
     init(
         proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
         showsThesis: Bool = true,
+        isDetail: Bool = false,
         openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
@@ -38,6 +42,7 @@ struct ProposalCard: View {
         self.members = members
         self.paused = paused
         self.showsThesis = showsThesis
+        self.isDetail = isDetail
         self.openRoute = openRoute
         self.vote = vote
     }
@@ -67,9 +72,12 @@ struct ProposalCard: View {
             }
             actions
         }
-        .padding(MonacoTheme.Space.m)
+        .padding(isDetail ? 0 : MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(MonacoTheme.surface, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
+        .background(
+            isDetail ? Color.clear : MonacoTheme.surface,
+            in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card)
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("proposal-card-\(summary.id)")
     }
