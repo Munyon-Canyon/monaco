@@ -5,15 +5,15 @@ The Proposal screen's vote toast reads "Voted" instead of "Vote in". S1.3 waits 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift b/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift
-index 35758c7e3..707a900db 100644
+index 47923f154..2a6e2b4fe 100644
 --- a/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift
-@@ -33,7 +33,7 @@ struct ProposalDetailSlotView: View {
-                             choice in
-                             Task {
-                                 await model?.vote(choice)
--                                if model?.errorMessage == nil { toasts.show(success: "Vote in") }
-+                                if model?.errorMessage == nil { toasts.show(success: "Voted") }
-                             }
+@@ -38,7 +38,7 @@ struct ProposalDetailSlotView: View {
+                         choice in
+                         Task {
+                             await model?.vote(choice)
+-                            if model?.errorMessage == nil { toasts.show(success: "Vote in") }
++                            if model?.errorMessage == nil { toasts.show(success: "Voted") }
                          }
-                         proposedBy(detail)
+                     }
+                     .padding(.horizontal, MonacoTheme.Space.gutter)

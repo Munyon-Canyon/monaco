@@ -28,35 +28,34 @@ struct ProposalDetailSlotView: View {
     var body: some View {
         Group {
             if let detail = model?.value {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                        ProposalCard(
-                            proposal: detail.summary, asset: model?.asset, members: model?.members ?? [],
-                            paused: pause?.isPaused == true,
-                            showsThesis: false
-                        ) {
-                            choice in
-                            Task {
-                                await model?.vote(choice)
-                                if model?.errorMessage == nil { toasts.show(success: "Vote in") }
-                            }
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.gutter) {
+                    ProposalCard(
+                        proposal: detail.summary, asset: model?.asset, members: model?.members ?? [],
+                        paused: pause?.isPaused == true,
+                        showsThesis: false,
+                        isDetail: true
+                    ) {
+                        choice in
+                        Task {
+                            await model?.vote(choice)
+                            if model?.errorMessage == nil { toasts.show(success: "Vote in") }
                         }
-                        proposedBy(detail)
-                        if model?.canWithdraw == true {
-                            Button("Withdraw proposal", role: .destructive) {
-                                confirmingWithdrawal = true
-                            }
-                            .buttonStyle(.monacoDestructive)
-                            .accessibilityIdentifier("proposal-withdraw")
-                        }
-                        votes(detail)
-                        reason(detail)
-                        expected(detail)
-                        status(detail)
                     }
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.vertical, MonacoTheme.Space.m)
+                    if model?.canWithdraw == true {
+                        Button("Withdraw proposal", role: .destructive) {
+                            confirmingWithdrawal = true
+                        }
+                        .buttonStyle(.monacoDestructive)
+                        .accessibilityIdentifier("proposal-withdraw")
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                    }
+                    votes(detail).padding(.horizontal, MonacoTheme.Space.gutter)
+                    reason(detail)
+                    expected(detail).padding(.horizontal, MonacoTheme.Space.gutter)
+                    status(detail).padding(.horizontal, MonacoTheme.Space.gutter)
                 }
+                .padding(.top, MonacoTheme.Space.m)
             } else if model?.errorMessage != nil {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                     Text("Couldn't load this proposal.").font(MonacoTheme.Typo.body)
@@ -113,16 +112,6 @@ struct ProposalDetailSlotView: View {
         }
     }
 
-    private func proposedBy(_ detail: ProposalDetail) -> some View {
-        let proposer = model?.members.first { $0.id == detail.summary.proposerID }
-        return Text(
-            ProposalCardCopy.proposedBy(proposer?.name ?? "a member", since: detail.summary.createdAt, now: .now)
-        )
-        .font(MonacoTheme.Typo.callout)
-        .foregroundStyle(MonacoTheme.muted)
-        .accessibilityIdentifier("proposal-proposed-by")
-    }
-
     private func votes(_ detail: ProposalDetail) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Votes")
@@ -137,7 +126,6 @@ struct ProposalDetailSlotView: View {
     @ViewBuilder private func reason(_ detail: ProposalDetail) -> some View {
         if let thesis = detail.summary.thesis, !thesis.isEmpty {
             ProposalReasonSection(title: detail.summary.kind == "sell" ? "Why sell" : "Why buy", text: thesis)
-                .padding(.horizontal, -MonacoTheme.Space.gutter)
         }
     }
 
