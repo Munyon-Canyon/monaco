@@ -99,9 +99,9 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 
 | Flow | Steps |
 | --- | --- |
-| Onboarding | login_started → login_completed → phone_shown → phone_verified / skipped → x_shown → x_linked / skipped → contacts_permission → follow_suggestions_shown → first_follow |
+| Onboarding | login_started → login_completed → phone_shown → phone_verified / phone_skipped → x_shown → x_linked / x_skipped → contacts_permission → follow_suggestions_shown → first_follow |
 | Crypto deposit | deposit_opened → crypto_selected → address_copied → (server) deposit_credited |
-| Card deposit | deposit_opened → card_selected → page_opened → privy_auth → fund_confirmed / cancelled → (server) deposit_credited |
+| Card deposit | deposit_opened → card_selected → page_opened → privy_auth → fund_confirmed / fund_cancelled → (server) deposit_credited |
 | Join cabal | cabal_viewed → join_tapped → request_sent / joined → fund_sheet_opened → (server) cabal_funded |
 | Propose | propose_opened → asset_selected → amount_entered → thesis_entered → submitted |
 | Vote | proposal_viewed → vote_cast |
@@ -109,10 +109,11 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Cash out | cash_out_opened → amount_entered → confirmed → (server) cash_out_completed / cash_out_partial / cash_out_failed |
 | Withdraw | withdraw_opened → address_entered → confirmed → (server) withdrawal_sent |
 | Feed | feed_opened → item_opened → comment_opened → comment_posted |
-| Social | profile_viewed → follow_tapped; suggestion_shown → suggestion_followed / dismissed |
+| Social | profile_viewed → follow_tapped; suggestion_shown → suggestion_followed / suggestion_dismissed |
 | Chat | chat_opened → message_sent |
+| Referral | invite_paste_shown → invite_pasted / invite_skipped |
 
-The list of flows lives here; adding a screen means adding its steps here and in the app's event enum, so names never drift.
+The list of flows lives here; adding a screen means adding its steps here and in the app's event enum, so names never drift. A step's event name is `<flow>_<step>` with the flow's snake_case name, for example `crypto_deposit_deposit_opened`; the Referral steps keep their own names, as [referrals.md](referrals.md#analytics) lists them. `AnalyticsStepTests` reads this table and fails when `AnalyticsStep` and the table differ.
 
 **Standard reports:** DAU/WAU/MAU, stickiness (DAU/MAU), D1/D7/D30 retention by signup week and by `login_provider`, funnel drop-off per flow, most-used flows, rage-tap hotspots by screen.
 
