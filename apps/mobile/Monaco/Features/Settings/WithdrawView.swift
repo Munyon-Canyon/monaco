@@ -127,7 +127,7 @@ struct WithdrawAmount: Equatable {
     }
 
     static func fullBalanceLabel(micros: Int64) -> String {
-        "\(UsdAmountFormatter.format(micros: micros - micros % 10_000)) (full balance)"
+        "\(UsdAmountFormatter.format(flooredMicros: micros)) (full balance)"
     }
 
     func micros(availableMicros: Int64?) -> Int64? {
@@ -186,7 +186,7 @@ struct WithdrawForm: Equatable {
 
     var balanceHelper: String {
         guard let availableMicros else { return "" }
-        return "\(UsdAmountFormatter.format(micros: availableMicros - availableMicros % 10_000)) available"
+        return "\(UsdAmountFormatter.format(flooredMicros: availableMicros)) available"
     }
 
     /// Under the address field: what kind of address, and that it is final.

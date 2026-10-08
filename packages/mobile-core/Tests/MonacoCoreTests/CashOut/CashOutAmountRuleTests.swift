@@ -60,6 +60,20 @@ final class CashOutAmountRuleTests: XCTestCase {
         XCTAssertTrue(CashOutAmountRule.explainer(for: .ok).contains("this much of your slice"))
     }
 
+    func testAFractionalSliceReadsWhatAllFills() {
+        let fractional: Int64 = 12_345_678
+        let all: Int64 = 12_340_000
+        let whole = CashOutAmountRule.verdict(enteredMicros: all, sliceMicros: fractional, minimumMicros: floor)
+
+        XCTAssertEqual(CashOutAmountRule.helper(for: .ok, sliceMicros: fractional), "Your slice is worth $12.34")
+        XCTAssertEqual(whole, .sellsWholeSlice)
+        XCTAssertEqual(
+            CashOutAmountRule.helper(for: whole, sliceMicros: fractional), "We'll cash out your whole slice, $12.34")
+        XCTAssertEqual(
+            CashOutAmountRule.submitTitle(for: whole, enteredMicros: all, sliceMicros: fractional), "Cash out $12.34")
+        XCTAssertEqual(CashOutAmountRule.sale(for: whole, enteredMicros: all), .all)
+    }
+
     func testTheWholeSliceIsAFullExit() {
         XCTAssertEqual(verdict(slice), .sellsWholeSlice)
     }

@@ -150,7 +150,7 @@ struct FundCabalForm: Equatable {
     /// The line under the figure: what there is to fund with, and what is already on its way.
     var availability: String? {
         guard let availableMicros else { return nil }
-        let available = "\(UsdAmountFormatter.format(micros: availableMicros)) available"
+        let available = "\(UsdAmountFormatter.format(flooredMicros: availableMicros)) available"
         guard inFlightMicros > 0 else { return available }
         return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) funding"
     }

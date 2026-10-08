@@ -118,7 +118,7 @@ struct PlatformBalanceCard: View {
     @ViewBuilder
     private var figure: some View {
         if case .amount(let micros) = display {
-            MoneyText(micros: micros, style: .row)
+            MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .row)
                 .accessibilityIdentifier(valueIdentifier)
         } else {
             // A dash, not a figure: a balance that could not be read is not an empty account.
