@@ -23,6 +23,7 @@ struct SampleAppFrame: View {
         session(store)
         let environment = AppEnvironment(
             auth: auth,
+            tokens: SessionTokens(privyToken: { "sample-token" }, refresh: { _ in nil }),
             hints: SampleSilentHints(),
             sessionStore: store,
             isAuthenticated: { true },

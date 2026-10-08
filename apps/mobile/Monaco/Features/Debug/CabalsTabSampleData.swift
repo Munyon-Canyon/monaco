@@ -16,11 +16,11 @@ enum CabalsTabSampleData {
     enum Scenario: String {
         /// Signed in, cabals loaded. The default.
         case normal
-        /// The cabals list came back empty-handed and nothing is in flight: the
-        /// read failed. The strip offers a retry.
+        /// The cabals list, their return chart and the board all failed to read.
+        /// Each offers a retry and none claims the member has no cabals.
         case cabalsUnavailable
-        /// The shell's first load is still running, so the cabals list is not
-        /// late — it has not arrived yet. The strip shows placeholder cards.
+        /// No read has answered yet, so the list, the chart and the board show
+        /// their placeholders.
         case cabalsLoading
     }
 
@@ -40,12 +40,12 @@ enum CabalsTabSampleData {
     static var script: SampleAPIScript {
         switch scenario {
         case .normal: SampleAPIScript()
-        case .cabalsUnavailable: SampleAPIScript(mode: .empty)
+        case .cabalsUnavailable: SampleAPIScript(mode: .cabalsUnavailable)
         case .cabalsLoading: SampleAPIScript(mode: .hang)
         }
     }
 
-    static let createdCabalID = "5b1f0c9e-0007-4c55-9a51-000000000007"
+    nonisolated static let createdCabalID = "5b1f0c9e-0007-4c55-9a51-000000000007"
 
     /// A stubbed create that always succeeds.
     @MainActor

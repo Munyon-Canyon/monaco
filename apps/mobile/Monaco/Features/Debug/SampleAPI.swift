@@ -9,6 +9,7 @@ nonisolated struct SampleAPIScript: Sendable {
         case empty
         case hang
         case balanceFails
+        case cabalsUnavailable
     }
 
     var mode = Mode.populated
@@ -21,6 +22,7 @@ nonisolated struct SampleAPIScript: Sendable {
 nonisolated final class SampleAPIProtocol: URLProtocol {
     private static let script = Mutex(SampleAPIScript())
     private static let registered = Mutex(false)
+    private static let createdName = Mutex<String?>(nil)
 
     static func install(_ next: SampleAPIScript) {
         script.withLock { $0 = next }
@@ -42,7 +44,11 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     override func startLoading() {
         let script = Self.script.withLock { $0 }
         guard script.mode != .hang, let url = request.url else { return }
-        let reply = Self.reply(path: url.path, method: request.httpMethod ?? "GET", script: script)
+        let method = request.httpMethod ?? "GET"
+        if method == "POST", url.path == "/v1/cabals" { Self.createdName.withLock { $0 = requestedName() } }
+        let range = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first { $0.name == "range" }?.value
+        let reply = Self.reply(path: url.path, method: method, range: range, script: script)
         let response = HTTPURLResponse(
             url: url, statusCode: reply.status, httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": reply.contentType]
@@ -51,6 +57,24 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: reply.body)
         client?.urlProtocolDidFinishLoading(self)
+    }
+
+    private func requestedName() -> String? {
+        var body = request.httpBody
+        if body == nil, let stream = request.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var collected = Data()
+            var buffer = [UInt8](repeating: 0, count: 4_096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                collected.append(buffer, count: count)
+            }
+            body = collected
+        }
+        guard let body, let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return nil }
+        return object["name"] as? String
     }
 
     private struct Reply {
@@ -75,14 +99,27 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
                     .utf8))
     }
 
-    private static func reply(path: String, method: String, script: SampleAPIScript) -> Reply {
+    private static func reply(path: String, method: String, range: String?, script: SampleAPIScript) -> Reply {
         let empty = script.mode == .empty
+        if script.mode == .cabalsUnavailable,
+            ["/v1/me/cabals", "/v1/me/portfolio", "/v1/leaderboards/cabals"].contains(path)
+        {
+            return problem(503, "unavailable", "Cabals can't be read right now.")
+        }
+        if method == "POST", path == "/v1/cabals" {
+            var created = Components.Schemas.Cabal.sample(role: "creator")
+            created.id = CabalsTabSampleData.createdCabalID
+            created.name = createdName.withLock { $0 } ?? created.name
+            var reply = json(created)
+            reply.status = 201
+            return reply
+        }
         let parts = path.split(separator: "/").map(String.init)
         if method == "PUT" || method == "DELETE", parts.last == "picture", script.pictureWriteFails {
             return problem(413, "picture_invalid", "Picture must be at most 2MB.")
         }
         if parts.count >= 3, parts[1] == "cabals", UUID(uuidString: parts[2]) != nil || parts[2].count > 8 {
-            return cabalReply(id: parts[2], tail: Array(parts.dropFirst(3)), script: script)
+            return cabalReply(id: parts[2], tail: Array(parts.dropFirst(3)), range: range, script: script)
         }
         if path.hasPrefix("/v1/me") { return meReply(path: path, script: script) }
         switch path {
@@ -127,13 +164,14 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0, unreadCount: 0)
     }
 
-    private static func cabalReply(id: String, tail: [String], script: SampleAPIScript) -> Reply {
+    private static func cabalReply(id: String, tail: [String], range: String?, script: SampleAPIScript) -> Reply {
         let empty = script.mode == .empty
         switch tail.first {
         case nil:
             var cabal = Components.Schemas.Cabal.sampleWithMembers(role: script.role)
             cabal.id = id
             cabal.pictureUrl = script.pictureURL
+            if id == CabalsTabSampleData.createdCabalID, let name = createdName.withLock({ $0 }) { cabal.name = name }
             return json(cabal)
         case "pot":
             var pot = empty ? Components.Schemas.CabalPot.sampleZero : .sampleInvested
@@ -148,7 +186,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         case "leaderboard":
             return json(Components.Schemas.LeaderboardPage.samplePeople(count: empty ? 0 : 3))
         case "value-history":
-            return json(Components.Schemas.CabalValueHistory.sample(cabalID: id))
+            let history: Components.Schemas.CabalValueHistory =
+                range == "1D" ? .sampleShort(cabalID: id) : .sample(cabalID: id)
+            return json(history)
         case "access-requests", "invites":
             return raw("[]")
         default:
