@@ -47,6 +47,8 @@ cd apps/web && npm ci && VITE_MONACO_API_URL=http://localhost:8080 VITE_PRIVY_AP
 
 Or copy `.env.example` to `.env.local` and fill in `VITE_PRIVY_APP_ID`. Vite reads it on start.
 
+`/fund` works directly in Vite dev: the dev server rewrites it, and `/fund?…`, to the fund page, as `vercel.json` does in production. No `FUND_PAGE_URL` override is needed.
+
 Without the page, **Pay with card or Apple Pay** opens a URL nothing serves.
 
 CORS needs no setup. `WEB_ALLOWED_ORIGINS` already allows `http://localhost:5173` outside staging and production. If you set it yourself, include that origin.
