@@ -55,9 +55,10 @@ struct CashOutContent: View {
         ScrollView {
             content
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.vertical, MonacoTheme.Space.xl)
+                .padding(.top, MonacoTheme.Space.s)
+                .padding(.bottom, MonacoTheme.Space.s)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
             if runningJob == nil, let preview = model?.preview, canEnterAmount(preview) {
@@ -124,23 +125,23 @@ struct CashOutContent: View {
 
     private func amountEntry(_ preview: CashOutPreview) -> some View {
         let verdict = preview.verdict(enteredMicros: enteredMicros)
-        return VStack(spacing: MonacoTheme.Space.l) {
-            AmountEntry(
-                amountText: $amountText,
-                max: AmountEntryText.dollars(micros: preview.sliceMicros),
-                presets: [
-                    .fraction(0.25, label: "25%"),
-                    .fraction(0.5, label: "50%"),
-                    .fraction(1, label: "All"),
-                ],
-                helper: CashOutAmountRule.helper(for: verdict, sliceMicros: preview.sliceMicros),
-                overLimitHelper: "More than your slice",
-                problem: CashOutAmountRule.problem(for: verdict)
-            )
-            .accessibilityIdentifier("cash-out-amount")
+        return AmountEntry(
+            amountText: $amountText,
+            max: AmountEntryText.dollars(micros: preview.sliceMicros),
+            presets: [
+                .fraction(0.25, label: "25%"),
+                .fraction(0.5, label: "50%"),
+                .fraction(1, label: "All"),
+            ],
+            helper: CashOutAmountRule.helper(for: verdict, sliceMicros: preview.sliceMicros),
+            overLimitHelper: "More than your slice",
+            problem: CashOutAmountRule.problem(for: verdict),
+            input: .keypad
+        ) {
             AmountEntryNote(CashOutAmountRule.explainer(for: verdict))
                 .accessibilityIdentifier("cash-out-explainer")
         }
+        .accessibilityIdentifier("cash-out-amount")
     }
 
     private func canEnterAmount(_ preview: CashOutPreview) -> Bool {
