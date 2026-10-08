@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
@@ -70,6 +71,10 @@ type ShareLists interface {
 
 type Valuations interface {
 	LatestCabalValues(ctx context.Context) ([]rankingport.CabalValue, error)
+}
+
+type PauseReader interface {
+	IsPaused(ctx context.Context, cabal ids.CabalID) (fundingport.Pause, error)
 }
 
 type Holdings interface {

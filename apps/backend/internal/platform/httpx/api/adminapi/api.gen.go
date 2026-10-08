@@ -117,6 +117,42 @@ func (e AdminAuthState) Valid() bool {
 	}
 }
 
+// Defines values for AdminCabalPauseReason.
+const (
+	ExternalDeposit AdminCabalPauseReason = "external_deposit"
+	Ops             AdminCabalPauseReason = "ops"
+)
+
+// Valid indicates whether the value is a known member of the AdminCabalPauseReason enum.
+func (e AdminCabalPauseReason) Valid() bool {
+	switch e {
+	case ExternalDeposit:
+		return true
+	case Ops:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminCabalPauseScope.
+const (
+	AdminCabalPauseScopeCabal  AdminCabalPauseScope = "cabal"
+	AdminCabalPauseScopeGlobal AdminCabalPauseScope = "global"
+)
+
+// Valid indicates whether the value is a known member of the AdminCabalPauseScope enum.
+func (e AdminCabalPauseScope) Valid() bool {
+	switch e {
+	case AdminCabalPauseScopeCabal:
+		return true
+	case AdminCabalPauseScopeGlobal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminCabalStatus.
 const (
 	AdminCabalStatusActive AdminCabalStatus = "active"
@@ -341,7 +377,7 @@ type AdminAuthTransition struct {
 
 // AdminCabal One cabal as an operator sees them.
 //
-// Examples: {"created_at":"2026-10-06T12:00:00Z","creator_id":"019cc330-1111-7000-8000-000000000001","id":"019cc330-2222-7000-8000-000000000001","member_count":1,"members":[],"name":"Tech bros","nav_per_share_micros":"1000000","positions":[],"pot_micros":"25000000","recent_admin_actions":[],"recent_txns":[],"rules":{"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"},"status":"active","treasury_address":"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin","valued_at":"2026-10-06T12:05:00Z"}
+// Examples: {"created_at":"2026-10-06T12:00:00Z","creator_id":"019cc330-1111-7000-8000-000000000001","id":"019cc330-2222-7000-8000-000000000001","member_count":1,"members":[],"name":"Tech bros","nav_per_share_micros":"1000000","pauses":[],"positions":[],"pot_micros":"25000000","recent_admin_actions":[],"recent_txns":[],"rules":{"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"},"status":"active","treasury_address":"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin","valued_at":"2026-10-06T12:05:00Z"}
 type AdminCabal struct {
 	// CreatedAt When the cabal was created.
 	//
@@ -375,6 +411,9 @@ type AdminCabal struct {
 	//
 	// Examples: 1000000
 	NavPerShareMicros *string `json:"nav_per_share_micros"`
+
+	// Pauses The pauses open on the cabal, a global pause first. Empty while trading runs.
+	Pauses []AdminCabalPause `json:"pauses"`
 
 	// Positions The tokens the treasury holds, USDC included. A mint the catalog does not list has a null symbol.
 	Positions []AdminHolding `json:"positions"`
@@ -445,6 +484,36 @@ type AdminCabalMember struct {
 	// Examples: 019cc330-1111-7000-8000-000000000001
 	UserId openapi_types.UUID `json:"user_id"`
 }
+
+// AdminCabalPause One reason trading is paused in a cabal.
+//
+// Examples: {"reason":"external_deposit","scope":"cabal","since":"2026-10-07T12:00:00Z"}
+type AdminCabalPause struct {
+	// Reason Why trading is paused: an operator's pause or a direct transfer not yet sent back.
+	//
+	// Examples: ops
+	Reason AdminCabalPauseReason `json:"reason"`
+
+	// Scope Whether the pause covers every cabal or only this one.
+	//
+	// Examples: cabal
+	Scope AdminCabalPauseScope `json:"scope"`
+
+	// Since When the oldest pause with this reason and scope began.
+	//
+	// Examples: 2026-10-07T12:00:00Z
+	Since time.Time `json:"since"`
+}
+
+// AdminCabalPauseReason Why trading is paused: an operator's pause or a direct transfer not yet sent back.
+//
+// Examples: ops
+type AdminCabalPauseReason string
+
+// AdminCabalPauseScope Whether the pause covers every cabal or only this one.
+//
+// Examples: cabal
+type AdminCabalPauseScope string
 
 // AdminCabalRef A cabal named by id.
 //

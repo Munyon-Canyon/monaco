@@ -43,6 +43,39 @@ func (q *Queries) InsertPause(ctx context.Context, arg InsertPauseParams) error 
 	return err
 }
 
+const listBouncePauses = `-- name: ListBouncePauses :many
+SELECT cabal_id::uuid AS cabal_id, created_at
+FROM cabal_pauses
+WHERE resolved_at IS NULL AND reason = 'external_deposit' AND cabal_id IS NOT NULL
+ORDER BY created_at, id
+LIMIT $1::bigint
+`
+
+type ListBouncePausesRow struct {
+	CabalID   uuid.UUID
+	CreatedAt time.Time
+}
+
+func (q *Queries) ListBouncePauses(ctx context.Context, rowLimit int64) ([]ListBouncePausesRow, error) {
+	rows, err := q.db.Query(ctx, listBouncePauses, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBouncePausesRow
+	for rows.Next() {
+		var i ListBouncePausesRow
+		if err := rows.Scan(&i.CabalID, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockPauseScope = `-- name: LockPauseScope :exec
 SELECT pg_advisory_xact_lock(hashtextextended(
   'cabal-pause:' || coalesce(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000')::text, 'global'),

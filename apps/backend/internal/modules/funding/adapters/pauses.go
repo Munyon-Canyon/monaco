@@ -33,7 +33,25 @@ func (p Pauses) IsPaused(ctx context.Context, cabalID ids.CabalID) (port.Pause, 
 	if !paused {
 		return port.Pause{}, nil
 	}
-	return port.Pause{Paused: true, Reasons: reasons, Since: rows[0].CreatedAt}, nil
+	return port.Pause{Paused: true, Reasons: reasons, Since: rows[0].CreatedAt, Open: openPauses(open)}, nil
+}
+
+func openPauses(open []domain.Pause) []port.OpenPause {
+	var out []port.OpenPause
+	for _, scope := range []port.PauseScope{port.PauseScopeGlobal, port.PauseScopeCabal} {
+		for _, p := range open {
+			if (p.CabalID == nil) != (scope == port.PauseScopeGlobal) {
+				continue
+			}
+			if !slices.ContainsFunc(
+				out,
+				func(o port.OpenPause) bool { return o.Reason == p.Reason && o.Scope == scope },
+			) {
+				out = append(out, port.OpenPause{Reason: p.Reason, Scope: scope, Since: p.CreatedAt})
+			}
+		}
+	}
+	return out
 }
 
 func (p Pauses) PausedCabals(ctx context.Context) (port.PausedSet, error) {

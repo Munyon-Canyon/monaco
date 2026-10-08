@@ -7,6 +7,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -38,6 +39,7 @@ type CabalView struct {
 	Members  []MemberDetail
 	Holdings []HoldingDetail
 	Value    *Valuation
+	Pauses   []fundingport.OpenPause
 	Txns     []TxnHeader
 	Actions  []sqlc.AdminAction
 }
@@ -50,6 +52,7 @@ type CabalLookup struct {
 	Holdings Holdings
 	Assets   Assets
 	Values   Valuations
+	Pauses   PauseReader
 	Txns     TxnLists
 	Actions  ActionLog
 }
@@ -61,7 +64,14 @@ func (l CabalLookup) ByID(ctx context.Context, id ids.CabalID) (CabalView, error
 	}
 	view := CabalView{Cabal: cabal}
 	steps := []func(context.Context, *CabalView) error{
-		l.loadRules, l.loadTreasury, l.loadMembers, l.loadHoldings, l.loadValue, l.loadTxns, l.loadActions,
+		l.loadRules,
+		l.loadTreasury,
+		l.loadMembers,
+		l.loadHoldings,
+		l.loadValue,
+		l.loadPauses,
+		l.loadTxns,
+		l.loadActions,
 	}
 	for _, step := range steps {
 		if err := step(ctx, &view); err != nil {
@@ -148,6 +158,12 @@ func (l CabalLookup) loadValue(ctx context.Context, v *CabalView) error {
 	if i := slices.IndexFunc(values, func(c rankingport.CabalValue) bool { return c.CabalID == v.Cabal.ID }); i >= 0 {
 		v.Value = &Valuation{Pot: values[i].Value, NavPerShare: values[i].NavPerShare, At: values[i].At}
 	}
+	return err
+}
+
+func (l CabalLookup) loadPauses(ctx context.Context, v *CabalView) error {
+	pause, err := l.Pauses.IsPaused(ctx, v.Cabal.ID)
+	v.Pauses = pause.Open
 	return err
 }
 

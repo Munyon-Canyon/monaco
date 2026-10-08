@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -137,6 +138,14 @@ type Balance struct {
 	OnChainMicros string `json:"on_chain_micros"`
 }
 
+// BounceQueue The pending bounces, oldest first.
+//
+// Examples: {"items":[]}
+type BounceQueue struct {
+	// Items The paused cabals.
+	Items []PendingBounce `json:"items"`
+}
+
 // CreateOnrampSessionRequest What to prefill on the fund page.
 type CreateOnrampSessionRequest struct {
 	// CabalId The cabal the user came from, when they did.
@@ -260,6 +269,21 @@ type PauseState struct {
 	Since *time.Time `json:"since"`
 }
 
+// PendingBounce One cabal paused for a direct transfer that has not been sent back.
+//
+// Examples: {"cabal_id":"019cc330-2222-7000-8000-000000000001","since":"2026-10-07T12:00:00Z"}
+type PendingBounce struct {
+	// CabalId The paused cabal.
+	//
+	// Examples: 019cc330-2222-7000-8000-000000000001
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// Since When the pause began.
+	//
+	// Examples: 2026-10-07T12:00:00Z
+	Since time.Time `json:"since"`
+}
+
 // ReportOnrampStatusRequest How the provider flow ended.
 type ReportOnrampStatusRequest struct {
 	// Provider The on-ramp provider Privy chose, when the page knows it.
@@ -364,6 +388,12 @@ type PauseAdminAllParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetBounceQueueParams defines parameters for GetBounceQueue.
+type GetBounceQueueParams struct {
+	// Limit Page size. Defaults to 50 and cannot exceed 200.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ResumeAdminAllParams defines parameters for ResumeAdminAll.
 type ResumeAdminAllParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -423,6 +453,9 @@ type ServerInterface interface {
 	// PauseAdminAll Pause trading in every cabal.
 	// (POST /v1/admin/pause)
 	PauseAdminAll(w http.ResponseWriter, r *http.Request, params PauseAdminAllParams)
+	// GetBounceQueue List cabals waiting for a bounce.
+	// (GET /v1/admin/queues/bounces)
+	GetBounceQueue(w http.ResponseWriter, r *http.Request, params GetBounceQueueParams)
 	// ResumeAdminAll Resume trading in every cabal.
 	// (POST /v1/admin/resume)
 	ResumeAdminAll(w http.ResponseWriter, r *http.Request, params ResumeAdminAllParams)
@@ -602,6 +635,39 @@ func (siw *ServerInterfaceWrapper) PauseAdminAll(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PauseAdminAll(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBounceQueue operation middleware
+func (siw *ServerInterfaceWrapper) GetBounceQueue(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetBounceQueueParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBounceQueue(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1003,6 +1069,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/cabals/{id}/pause", wrapper.PauseAdminCabal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/cabals/{id}/resume", wrapper.ResumeAdminCabal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/pause", wrapper.PauseAdminAll)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues/bounces", wrapper.GetBounceQueue)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/resume", wrapper.ResumeAdminAll)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/balance", wrapper.GetMyBalance)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals", wrapper.Withdraw)
@@ -1126,6 +1193,45 @@ type PauseAdminAlldefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PauseAdminAlldefaultApplicationProblemPlusJSONResponse) VisitPauseAdminAllResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBounceQueueRequestObject struct {
+	Params GetBounceQueueParams
+}
+
+type GetBounceQueueResponseObject interface {
+	VisitGetBounceQueueResponse(w http.ResponseWriter) error
+}
+
+type GetBounceQueue200JSONResponse BounceQueue
+
+func (response GetBounceQueue200JSONResponse) VisitGetBounceQueueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBounceQueuedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetBounceQueuedefaultApplicationProblemPlusJSONResponse) VisitGetBounceQueueResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1464,6 +1570,9 @@ type StrictServerInterface interface {
 	// PauseAdminAll Pause trading in every cabal.
 	// (POST /v1/admin/pause)
 	PauseAdminAll(ctx context.Context, request PauseAdminAllRequestObject) (PauseAdminAllResponseObject, error)
+	// GetBounceQueue List cabals waiting for a bounce.
+	// (GET /v1/admin/queues/bounces)
+	GetBounceQueue(ctx context.Context, request GetBounceQueueRequestObject) (GetBounceQueueResponseObject, error)
 	// ResumeAdminAll Resume trading in every cabal.
 	// (POST /v1/admin/resume)
 	ResumeAdminAll(ctx context.Context, request ResumeAdminAllRequestObject) (ResumeAdminAllResponseObject, error)
@@ -1623,6 +1732,32 @@ func (sh *strictHandler) PauseAdminAll(w http.ResponseWriter, r *http.Request, p
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PauseAdminAllResponseObject); ok {
 		if err := validResponse.VisitPauseAdminAllResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBounceQueue operation middleware
+func (sh *strictHandler) GetBounceQueue(w http.ResponseWriter, r *http.Request, params GetBounceQueueParams) {
+	var request GetBounceQueueRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBounceQueue(ctx, request.(GetBounceQueueRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBounceQueue")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBounceQueueResponseObject); ok {
+		if err := validResponse.VisitGetBounceQueueResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

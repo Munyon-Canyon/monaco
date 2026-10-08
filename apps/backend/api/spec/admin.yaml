@@ -220,8 +220,8 @@ paths:
       summary: Look up a cabal by id.
       description: >-
         Returns what an operator needs to investigate one cabal: status, rules, members with their share units,
-        the treasury address and holdings, the 20 newest ledger transactions and the 20 newest admin actions on
-        the cabal. An unknown cabal answers cabal_not_found.
+        the treasury address and holdings, the pauses open on the cabal, the 20 newest ledger transactions and the 20
+        newest admin actions on the cabal. An unknown cabal answers cabal_not_found.
       parameters:
         - name: id
           in: path
@@ -833,6 +833,7 @@ components:
           pot_micros: "25000000"
           nav_per_share_micros: "1000000"
           valued_at: "2026-10-06T12:05:00Z"
+          pauses: []
           recent_txns: []
           recent_admin_actions: []
       additionalProperties: false
@@ -850,6 +851,7 @@ components:
         - pot_micros
         - nav_per_share_micros
         - valued_at
+        - pauses
         - recent_txns
         - recent_admin_actions
       properties:
@@ -872,6 +874,10 @@ components:
         pot_micros: {type: [string, "null"], pattern: "^(0|[1-9][0-9]*)$", description: The pot value in USDC micros from the latest valuation run. Null before the cabal is first valued., examples: ["25000000"]}
         nav_per_share_micros: {type: [string, "null"], pattern: "^(0|[1-9][0-9]*)$", description: The value of one share in USDC micros from the latest valuation run. Null before the cabal is first valued., examples: ["1000000"]}
         valued_at: {type: [string, "null"], format: date-time, description: When the cabal was last valued. Null before the cabal is first valued., examples: ["2026-10-06T12:05:00Z"]}
+        pauses:
+          type: array
+          description: The pauses open on the cabal, a global pause first. Empty while trading runs.
+          items: {$ref: "#/components/schemas/AdminCabalPause"}
         recent_txns:
           type: array
           maxItems: 20
@@ -882,6 +888,17 @@ components:
           maxItems: 20
           description: The 20 newest admin actions on the cabal, newest first.
           items: {$ref: "#/components/schemas/AdminActionRecord"}
+    AdminCabalPause:
+      type: object
+      description: One reason trading is paused in a cabal.
+      examples:
+        - {reason: external_deposit, scope: cabal, since: "2026-10-07T12:00:00Z"}
+      additionalProperties: false
+      required: [reason, scope, since]
+      properties:
+        reason: {type: string, enum: [external_deposit, ops], description: "Why trading is paused: an operator's pause or a direct transfer not yet sent back.", examples: [ops]}
+        scope: {type: string, enum: [global, cabal], description: Whether the pause covers every cabal or only this one., examples: [cabal]}
+        since: {type: string, format: date-time, description: When the oldest pause with this reason and scope began., examples: ["2026-10-07T12:00:00Z"]}
     AdminTxnEntry:
       type: object
       description: One signed line of a ledger transaction.

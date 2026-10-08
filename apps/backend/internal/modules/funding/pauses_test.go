@@ -37,11 +37,20 @@ func TestPauses_GlobalPausesEveryCabal(t *testing.T) {
 	if err != nil || !got.Paused || !slices.Equal(got.Reasons, want) {
 		t.Fatalf("IsPaused(own row) = %+v, %v, want %v", got, err, want)
 	}
+	assertOpenPauses(t, got.Open)
 	assertPausedSet(t, m, own.ID)
 	if err := m.ResumeFromOps(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	assertUnpaused(t, m, bystander.ID, "after resume --all")
+}
+
+func assertOpenPauses(t *testing.T, open []funding.OpenPause) {
+	t.Helper()
+	if len(open) != 2 || open[0].Reason != funding.PauseReasonOps || open[0].Scope != "global" ||
+		open[1].Reason != funding.PauseReasonExternalDeposit || open[1].Scope != "cabal" {
+		t.Fatalf("IsPaused(own row).Open = %+v, want the global ops pause then the cabal's own", open)
+	}
 }
 
 func assertUnpaused(t *testing.T, m *funding.Module, cabal ids.CabalID, when string) {

@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
@@ -112,6 +113,10 @@ func (s stubPorts) LatestCabalValues(context.Context) ([]rankingport.CabalValue,
 	return nil, s.err("LatestCabalValues")
 }
 
+func (s stubPorts) IsPaused(context.Context, ids.CabalID) (fundingport.Pause, error) {
+	return fundingport.Pause{}, s.err("IsPaused")
+}
+
 func (s stubPorts) CabalHoldings(context.Context, ids.CabalID) ([]treasuryport.RawHolding, error) {
 	return nil, s.err("CabalHoldings")
 }
@@ -181,7 +186,8 @@ func userLookup(s stubPorts) app.UserLookup {
 
 func cabalLookup(s stubPorts) app.CabalLookup {
 	return app.CabalLookup{
-		Cabals: s, Details: s, Users: s, Shares: s, Holdings: s, Assets: s, Values: s, Txns: s, Actions: s,
+		Cabals: s, Details: s, Users: s, Shares: s, Holdings: s, Assets: s, Values: s, Pauses: s, Txns: s,
+		Actions: s,
 	}
 }
 
@@ -232,7 +238,7 @@ func TestCabalLookup_PassesEveryPortFailureOn(t *testing.T) {
 	id := ids.CabalIDFrom(newStub().g.NewV7())
 	for _, method := range []string{
 		"Cabal", "Rules", "TreasuryWallet", "Members", "CabalShares", "UsersByID", "CabalHoldings", "ListAll",
-		"LatestCabalValues", "CabalTxns", "Recent",
+		"LatestCabalValues", "IsPaused", "CabalTxns", "Recent",
 	} {
 		if _, err := cabalLookup(newStub(failing(method))).ByID(t.Context(), id); !isPortDown(err) {
 			t.Errorf("ByID with %s down = %v", method, err)
