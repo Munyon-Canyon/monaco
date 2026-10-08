@@ -82,9 +82,9 @@ func TestAccessRequestQueries_insertKeepsOnePendingRowPerUserAndCabalInEitherDir
 	wantRows(t, "a second request", n, 0, nil)
 	_, n = fileInvite(t, f, cabalID, userID, creatorID, f.clock.Now().Add(inviteLifetime))
 	wantRows(t, "an invite beside the pending request", n, 0, nil)
-	pending, err := f.q.FindPendingAccessRequest(
+	pending, err := f.q.FindRequesterAccess(
 		t.Context(),
-		sqlc.FindPendingAccessRequestParams{CabalID: cabalID, UserID: userID},
+		sqlc.FindRequesterAccessParams{CabalID: cabalID, UserID: userID},
 	)
 	if err != nil || pending.ID != first || pending.Direction != "request" || pending.Status != "pending" ||
 		pending.InvitedBy.Valid || pending.ExpiresAt.Valid || pending.DecidedBy.Valid || pending.DecidedAt.Valid {
@@ -94,8 +94,8 @@ func TestAccessRequestQueries_insertKeepsOnePendingRowPerUserAndCabalInEitherDir
 	wantRows(t, "denying the request", decide(t, f, cabalID, first, creatorID, "denied"), 1, nil)
 	second, n := fileRequest(t, f, cabalID, userID)
 	wantRows(t, "a request after a denial", n, 1, nil)
-	if again, err := f.q.FindPendingAccessRequest(t.Context(),
-		sqlc.FindPendingAccessRequestParams{CabalID: cabalID, UserID: userID}); err != nil || again.ID != second {
+	if again, err := f.q.FindRequesterAccess(t.Context(),
+		sqlc.FindRequesterAccessParams{CabalID: cabalID, UserID: userID}); err != nil || again.ID != second {
 		t.Fatalf("pending after the denial = %+v, %v; want the new request %s", again, err, second)
 	}
 }
@@ -128,16 +128,16 @@ func TestAccessRequestQueries_findReadsOnlyWithinTheRowsOwnCabalAndUser(t *testi
 	}
 	_, err := f.q.FindAccessRequest(t.Context(), sqlc.FindAccessRequestParams{CabalID: b.ID.UUID(), ID: id})
 	wantNoRows(t, "FindAccessRequest through another cabal", err)
-	_, err = f.q.FindPendingAccessRequest(
+	_, err = f.q.FindRequesterAccess(
 		t.Context(),
-		sqlc.FindPendingAccessRequestParams{CabalID: b.ID.UUID(), UserID: userID},
+		sqlc.FindRequesterAccessParams{CabalID: b.ID.UUID(), UserID: userID},
 	)
-	wantNoRows(t, "FindPendingAccessRequest in another cabal", err)
-	_, err = f.q.FindPendingAccessRequest(
+	wantNoRows(t, "FindRequesterAccess in another cabal", err)
+	_, err = f.q.FindRequesterAccess(
 		t.Context(),
-		sqlc.FindPendingAccessRequestParams{CabalID: a.ID.UUID(), UserID: newID()},
+		sqlc.FindRequesterAccessParams{CabalID: a.ID.UUID(), UserID: newID()},
 	)
-	wantNoRows(t, "FindPendingAccessRequest for another user", err)
+	wantNoRows(t, "FindRequesterAccess for another user", err)
 }
 
 func TestAccessRequestQueries_decideMovesAPendingRowExactlyOnceInItsOwnCabal(t *testing.T) {

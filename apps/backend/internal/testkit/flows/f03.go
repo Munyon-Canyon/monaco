@@ -23,40 +23,27 @@ func creatorOf(script string) string { return "did:privy:qa-f03-" + script + "-c
 
 func outsiderOf(script string) string { return "did:privy:qa-f03-" + script + "-outsider" }
 
-func cabalOf(voters string) string {
-	return `{"name":"Friends pot","join_mode":"request","voter_mode":"` + voters +
+func cabalOf(join, voters string) string {
+	return `{"name":"Friends pot","join_mode":"` + join + `","voter_mode":"` + voters +
 		`","threshold":"majority","proposal_expiry_seconds":86400}`
 }
 
-func opened(script, voters string) []scenario.Step {
+func opened(script, join, voters string) []scenario.Step {
 	return []scenario.Step{
 		scenario.SignIn(creatorOf(script)),
-		scenario.Post(cabalsPath, cabalOf(voters)),
+		scenario.Post(cabalsPath, cabalOf(join, voters)),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "cabal"),
 	}
 }
 
 func asked(script string) []scenario.Step {
-	return append(opened(script, "all"),
+	return append(opened(script, "request", "all"),
 		scenario.SignIn(outsiderOf(script)),
 		scenario.Post(requestsPath, ""),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "request"),
 	)
-}
-
-func admitted(member, creator string) []scenario.Step {
-	return []scenario.Step{
-		scenario.SignIn(member),
-		scenario.Post(requestsPath, ""),
-		scenario.ExpectStatus(http.StatusCreated),
-		scenario.Remember("id", "request"),
-		scenario.SignIn(creator),
-		scenario.Post(decisionPath, approveBody),
-		scenario.ExpectStatus(http.StatusOK),
-		scenario.SignIn(member),
-	}
 }
 
 func banned() scenario.Step {
@@ -72,6 +59,25 @@ func refused(code errs.Code, typ events.Type, n int) []scenario.Step {
 	return []scenario.Step{scenario.ExpectProblem(code), scenario.ExpectEvents(typ, n), cabalHolds()}
 }
 
+func F03JoinCabalOK(s *scenario.Scenario) {
+	s.Given(opened("join-ok", "open", "all")...).
+		When(
+			scenario.SignIn(outsiderOf("join-ok")),
+			scenario.Post(membersPath, ""),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("member_count", 2),
+			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": true}),
+			scenario.Replay(),
+		).
+		Then(
+			scenario.ExpectEvents(events.TypeCabalMemberJoined, 2),
+			scenario.EventuallyPublished(events.TypeCabalMemberJoined, 2),
+			scenario.EventuallyHint("cabal_access"),
+			cabalHolds(),
+		)
+	s.Then(scenario.EventuallyCapturedBy(events.TypeCabalMemberJoined, "cabal_joined", "cabal_id", s.Recall("cabal")))
+}
+
 func F03JoinCabalUnauthorized(s *scenario.Scenario) {
 	s.Given(scenario.Anonymous()).
 		When(scenario.Post(missingCabal+"/members", "")).
@@ -85,25 +91,25 @@ func F03JoinCabalCabalNotFound(s *scenario.Scenario) {
 }
 
 func F03JoinCabalCabalBanned(s *scenario.Scenario) {
-	s.Given(append(opened("join-banned", "all"), banned())...).
+	s.Given(append(opened("join-banned", "open", "all"), banned())...).
 		When(scenario.SignIn(outsiderOf("join-banned")), scenario.Post(membersPath, "")).
 		Then(refused(errs.CodeCabalBanned, events.TypeCabalMemberJoined, 1)...)
 }
 
 func F03JoinCabalAlreadyMember(s *scenario.Scenario) {
-	s.Given(opened("join-member", "all")...).
+	s.Given(opened("join-member", "open", "all")...).
 		When(scenario.Post(membersPath, "")).
 		Then(refused(errs.CodeAlreadyMember, events.TypeCabalMemberJoined, 1)...)
 }
 
 func F03JoinCabalJoinNeedsRequest(s *scenario.Scenario) {
-	s.Given(opened("join-request", "all")...).
+	s.Given(opened("join-request", "request", "all")...).
 		When(scenario.SignIn(outsiderOf("join-request")), scenario.Post(membersPath, "")).
 		Then(refused(errs.CodeJoinNeedsRequest, events.TypeCabalMemberJoined, 1)...)
 }
 
 func F03RequestAccessOK(s *scenario.Scenario) {
-	s.Given(opened("request-ok", "all")...).
+	s.Given(opened("request-ok", "request", "all")...).
 		When(
 			scenario.SignIn(outsiderOf("request-ok")),
 			scenario.Post(requestsPath, ""),
@@ -134,15 +140,21 @@ func F03RequestAccessCabalNotFound(s *scenario.Scenario) {
 }
 
 func F03RequestAccessCabalBanned(s *scenario.Scenario) {
-	s.Given(append(opened("request-banned", "all"), banned())...).
+	s.Given(append(opened("request-banned", "request", "all"), banned())...).
 		When(scenario.SignIn(outsiderOf("request-banned")), scenario.Post(requestsPath, "")).
 		Then(refused(errs.CodeCabalBanned, events.TypeCabalAccessRequested, 0)...)
 }
 
 func F03RequestAccessAlreadyMember(s *scenario.Scenario) {
-	s.Given(opened("request-member", "all")...).
+	s.Given(opened("request-member", "request", "all")...).
 		When(scenario.Post(requestsPath, "")).
 		Then(refused(errs.CodeAlreadyMember, events.TypeCabalAccessRequested, 0)...)
+}
+
+func F03RequestAccessRequestNotNeeded(s *scenario.Scenario) {
+	s.Given(opened("request-open", "open", "all")...).
+		When(scenario.SignIn(outsiderOf("request-open")), scenario.Post(requestsPath, "")).
+		Then(refused(errs.CodeRequestNotNeeded, events.TypeCabalAccessRequested, 0)...)
 }
 
 func F03RequestAccessRequestPending(s *scenario.Scenario) {
@@ -152,7 +164,7 @@ func F03RequestAccessRequestPending(s *scenario.Scenario) {
 }
 
 func F03DecideAccessOK(s *scenario.Scenario) {
-	s.Given(append(opened("decide-ok", "list"),
+	s.Given(append(opened("decide-ok", "request", "list"),
 		scenario.SignIn(outsiderOf("decide-ok")),
 		scenario.Post(requestsPath, ""),
 		scenario.Remember("id", "request"),
@@ -171,11 +183,9 @@ func F03DecideAccessOK(s *scenario.Scenario) {
 			scenario.SignIn(outsiderOf("decide-ok")),
 			scenario.EventuallyHint("cabal_access"),
 			scenario.Get(cabalsPath+"/{cabal}"),
-			scenario.ExpectJSON("member_count", 2),
 			scenario.ExpectJSON("me", map[string]any{"role": "member", "can_vote": false}),
 			cabalHolds(),
 		)
-	s.Then(scenario.EventuallyCapturedBy(events.TypeCabalMemberJoined, "cabal_joined", "cabal_id", s.Recall("cabal")))
 }
 
 func F03DecideAccessInvalidInput(s *scenario.Scenario) {

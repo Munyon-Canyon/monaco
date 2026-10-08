@@ -89,19 +89,28 @@ func (q *Queries) FindAccessRequest(ctx context.Context, arg FindAccessRequestPa
 	return i, err
 }
 
-const findPendingAccessRequest = `-- name: FindPendingAccessRequest :one
-SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided_by, created_at, decided_at
-FROM cabal_access_requests
-WHERE cabal_id = $1 AND user_id = $2 AND status = 'pending'
+const findRequesterAccess = `-- name: FindRequesterAccess :one
+SELECT r.id, r.cabal_id, r.user_id, r.direction, r.invited_by, r.status, r.expires_at, r.decided_by, r.created_at,
+  r.decided_at
+FROM cabal_access_requests r
+WHERE r.cabal_id = $1 AND r.user_id = $2 AND (
+  r.status = 'pending' OR (r.status = 'denied' AND r.direction = 'request' AND NOT EXISTS (
+    SELECT 1 FROM cabal_access_requests n
+    WHERE n.cabal_id = r.cabal_id AND n.user_id = r.user_id AND n.direction = 'request'
+      AND (n.created_at, n.id) > (r.created_at, r.id)
+  ))
+)
+ORDER BY (r.status = 'pending') DESC, r.created_at DESC, r.id DESC
+LIMIT 1
 `
 
-type FindPendingAccessRequestParams struct {
+type FindRequesterAccessParams struct {
 	CabalID uuid.UUID
 	UserID  uuid.UUID
 }
 
-func (q *Queries) FindPendingAccessRequest(ctx context.Context, arg FindPendingAccessRequestParams) (CabalAccessRequest, error) {
-	row := q.db.QueryRow(ctx, findPendingAccessRequest, arg.CabalID, arg.UserID)
+func (q *Queries) FindRequesterAccess(ctx context.Context, arg FindRequesterAccessParams) (CabalAccessRequest, error) {
+	row := q.db.QueryRow(ctx, findRequesterAccess, arg.CabalID, arg.UserID)
 	var i CabalAccessRequest
 	err := row.Scan(
 		&i.ID,

@@ -32,7 +32,7 @@ Anyone can create a cabal and invite people. One person can be in many cabals: a
 
 The creator sets the rules at creation:
 
-- **Joining.** Every cabal is by request. Someone asks to join and the creator approves each request, or the creator invites them directly. There is no join-mode choice.
+- **Join mode.** Open (anyone can join at once) or by request (the creator approves each request). Existing cabals stay by request. A denied requester sees that their request was rejected.
 - **Voter set.** Every member, or a named list (at least one person, which may be only the creator).
 - **Threshold.** Majority of the voter set, or unanimous. It is frozen on each proposal when it opens, so a later rules change does not move an open vote.
 - **Whose vote counts.** The voter set is whose vote counts. There is no separate list of required approvers. Every yes from a voter counts toward passing, and people outside the voter set cannot vote.

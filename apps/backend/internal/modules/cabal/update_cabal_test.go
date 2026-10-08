@@ -105,7 +105,7 @@ func TestUpdateCabal_Ok(t *testing.T) {
 	}
 	want, err := json.Marshal([]events.CabalUpdated{{
 		V: 1, CabalID: c.ID.UUID(), ActorID: c.Creator.ID.UUID(), Changes: events.CabalChanges{
-			Name: ptr("Work pot"), Threshold: ptr("unanimous"),
+			Name: ptr("Work pot"), JoinMode: ptr("request"), Threshold: ptr("unanimous"),
 			ProposalExpirySeconds: ptr(int32(3600)), SlippageBps: ptr(int32(50)),
 		},
 	}})

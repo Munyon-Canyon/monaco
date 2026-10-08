@@ -4,6 +4,7 @@ package flows
 
 func (defined) ScriptsF03() map[string]Script {
 	return map[string]Script{
+		"F03JoinCabalOK":                         F03JoinCabalOK,
 		"F03JoinCabalUnauthorized":               F03JoinCabalUnauthorized,
 		"F03JoinCabalCabalNotFound":              F03JoinCabalCabalNotFound,
 		"F03JoinCabalCabalBanned":                F03JoinCabalCabalBanned,
@@ -14,6 +15,7 @@ func (defined) ScriptsF03() map[string]Script {
 		"F03RequestAccessCabalNotFound":          F03RequestAccessCabalNotFound,
 		"F03RequestAccessCabalBanned":            F03RequestAccessCabalBanned,
 		"F03RequestAccessAlreadyMember":          F03RequestAccessAlreadyMember,
+		"F03RequestAccessRequestNotNeeded":       F03RequestAccessRequestNotNeeded,
 		"F03RequestAccessRequestPending":         F03RequestAccessRequestPending,
 		"F03DecideAccessOK":                      F03DecideAccessOK,
 		"F03DecideAccessInvalidInput":            F03DecideAccessInvalidInput,

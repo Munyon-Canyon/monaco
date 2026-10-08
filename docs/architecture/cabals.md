@@ -7,7 +7,7 @@
 The `cabal` module owns cabals, members, access requests and treasury wallets ([Table ownership](backend-platform.md#table-ownership)). Its commands are flows 2 to 4 in [Flows](backend-platform.md#flows): `CreateCabal`, `JoinCabal`, `RequestAccess`, `InviteMember`, `DecideAccess`, `LeaveCabal`, plus `UpdateCabal`. The user-facing rules are in [product.md](../product.md#cabals) and the tables in [data-model.md](data-model.md#decision).
 
 - A cabal has two roles, `creator` and `member`. The creator decides access requests and is the only one who edits the cabal.
-- Every cabal is joined by a request the creator approves or by accepting a direct invite. No one joins on their own.
+- Joining is direct in an `open` cabal and goes through a request the creator decides in a `request` cabal.
 - Invites come in two kinds. An **invite code** is a random token, never the cabal id. A **direct invite** targets one user by handle and lives 7 days.
 - Leaving is refused while the member holds share units, while the last member leaves a pot worth more than zero, and while the creator leaves other members behind.
 - The treasury wallet is created before the create transaction opens, idempotently.
@@ -27,7 +27,7 @@ The creator sets these at `CreateCabal`. `UpdateCabal` can change them later ([E
 
 | Rule | Values | Default |
 | --- | --- | --- |
-| `join_mode` | `request` | `request`, the only value |
+| `join_mode` | `open` \| `request` | none, the creator picks |
 | `voter_mode` | `all` \| `list` | none, the creator picks |
 | `threshold` | `majority` \| `unanimous` | none, the creator picks |
 | `proposal_expiry_seconds` | 3600, 86400 or 604800, the three the app offers today | none, the creator picks |
@@ -48,12 +48,10 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 
 ### Join and access requests
 
-| Path | What a signed-in non-member does | Result |
+| `join_mode` | What a signed-in non-member does | Result |
 | --- | --- | --- |
-| Request | `RequestAccess` | Inserts a `cabal_access_requests` row with `direction = request`, `status = pending`. Emits `cabal.access_requested`. |
-| Invite | Accepts a direct invite through `DecideAccess` | Joins at once ([Invites](#invites)). |
-
-`JoinCabal` (`POST /v1/cabals/{id}/members`) is kept for contract shape and always refuses with `JoinNeedsRequest`. The `join_mode` column stays, and a migration set every cabal to `request` and narrowed its CHECK to that one value.
+| `open` | `JoinCabal` | Joins at once. Emits `cabal.member_joined`. |
+| `request` | `RequestAccess` | Inserts a `cabal_access_requests` row with `direction = request`, `status = pending`. Emits `cabal.access_requested`. |
 
 `DecideAccess` resolves a pending request:
 
@@ -66,11 +64,12 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 - Requests do not expire. They stay `pending` until someone decides them.
 - One pending row per (cabal, user), in either direction: a partial unique index on `(cabal_id, user_id) WHERE status = 'pending'`. A second `RequestAccess` from the same user, or one while an invite is pending, is refused with `RequestPending`; the user accepts the invite instead.
 - A denied or revoked user can request again, which inserts a new row.
-- `JoinCabal` is refused with `JoinNeedsRequest`, so the app always files a request or accepts an invite.
+- `GET /v1/cabals/{id}` returns `my_access_request` to a non-member: their pending request or invite, else their latest request when the creator denied it, else `null`. A member always sees `null`. The app shows "rejected" from the denied row. Search rows carry the pending status only.
+- `JoinCabal` on a `request` cabal is refused with `JoinNeedsRequest`, and `RequestAccess` on an `open` cabal with `RequestNotNeeded`, so the app always calls the command that matches the mode it read.
 - `DecideAccess` approves or denies. It refuses an approval into a banned cabal with `CabalBanned` and an invite past `expires_at` with `InviteExpired`. The guarded update `WHERE status = 'pending'` lets one of two concurrent decisions win; the other gets `AccessRequestNotPending`.
 - The `cabal_hints` consumer publishes `cabal.<id>.members` and `user.<user_id>.cabal_access` for `cabal.member_joined` and `cabal.access_decided`, and `cabal.<id>.access_requests` for `cabal.access_requested` and `cabal.access_decided` on a request. On an invite it publishes `user.<invitee>.cabal_invites` in place of `cabal.<id>.access_requests`. The api's SSE hub rescopes a phone to its new cabals when it routes `user.<user_id>.cabal_access`.
 - A member calling `JoinCabal` or `RequestAccess` is refused with `AlreadyMember`. A banned cabal refuses both with `CabalBanned`.
-- `GET /v1/invite-codes/{code}` resolves a pasted invite code to the cabal's id, name, picture, `join_mode` and member count, so the app can file a request.
+- `GET /v1/invite-codes/{code}` resolves a pasted invite code to the cabal's id, name, picture, `join_mode` and member count, so the app can run the path for that mode.
 
 ### Invites
 
@@ -78,14 +77,14 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 
 - A random 10-character Crockford base32 token (50 bits), stored on `cabals.invite_code` with a unique index. It is generated at `CreateCabal`.
 - Only members see it. Non-members never read it from any route.
-- It is never the cabal id. Pasting the code resolves the cabal, and then the app files a request. The code grants no access by itself.
+- It is never the cabal id. Pasting the code resolves the cabal, and then the normal path for its `join_mode` runs: `open` joins, `request` files a request. The code grants no extra access.
 
 **Direct invite.**
 
 - `InviteMember` targets a user by handle, resolved through `identity`'s query port. It inserts a `cabal_access_requests` row with `direction = invite`, `status = pending`, the inviter's id and `expires_at = now() + 7 days`. Emits `cabal.access_requested`.
-- Who may invite: only the creator.
+- Who may invite: only the creator, in either `join_mode`.
 - Inviting an existing member is refused. Inviting a user with a pending request is refused; the creator approves the request instead.
-- The invitee accepts or declines through `DecideAccess`. Accepting joins directly (`approved`, plus `cabal.member_joined`). Declining sets `denied`.
+- The invitee accepts or declines through `DecideAccess`. Accepting joins directly in either `join_mode` (`approved`, plus `cabal.member_joined`). Declining sets `denied`.
 - The inviter or the creator can revoke a pending invite (`revoked`).
 - `GET /v1/me/cabal-invites` lists the caller's live invites with each cabal's name, picture and member count and the inviter, leaving out banned cabals. `GET /v1/cabals/{id}/invites` lists a cabal's live invites to its members. The inbox reads the partial index `cabal_access_requests_pending_user_idx` on `user_id`.
 - A worker poller sets `expired` on pending invites past `expires_at`, one guarded update per row (`WHERE status = 'pending'`), and emits `cabal.access_decided` with decision `expired`. An accept that races the poller loses on the same guard and is refused. The `cabal.invite_expiry` poller runs every 5 minutes under its advisory lock and takes at most 100 invites a tick.
@@ -96,6 +95,7 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 - `UpdateCabal` is creator only. It changes the name, the picture and any rule in [Rules](#rules), the voter list included.
 - A rules change applies to proposals created afterwards. Open proposals keep the voter set frozen at their creation ([proposals.md](proposals.md#data-model)) and their `expires_at`.
 - `threshold` is frozen on the proposal at creation ([proposals.md](proposals.md#data-model)), so a change never reaches an open vote. The trade engine still reads `slippage_bps` ([trade-execution.md](trade-execution.md#stage-2-trade-engine)) through this module's query port when it runs, so a change to it reaches open proposals ([Open questions](#open-questions)).
+- Switching `join_mode` from `request` to `open` leaves pending requests as they are. The creator can still decide them, and the requester can now join directly; that `JoinCabal` sets their pending request to `approved` in the same Unit of Work.
 - Emits `cabal.updated` with the fields that changed.
 
 ### Leave
@@ -132,7 +132,7 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 | Event | Emitted by | Payload |
 | --- | --- | --- |
 | `cabal.created` | `CreateCabal` | `cabal_id`, `creator_id`, `name`, `join_mode`, `voter_mode`, `threshold`, `proposal_expiry_seconds`, `slippage_bps`, `treasury_address` |
-| `cabal.member_joined` | `CreateCabal` (the creator), `JoinCabal`, `DecideAccess` approve or accept | `cabal_id`, `user_id`, `role`, `via` (`create` \| `request` \| `invite`; `open` on events from before the request-only change), `request_id` when via a request or invite |
+| `cabal.member_joined` | `CreateCabal` (the creator), `JoinCabal`, `DecideAccess` approve or accept | `cabal_id`, `user_id`, `role`, `via` (`create` \| `open` \| `request` \| `invite`), `request_id` when via a request or invite |
 | `cabal.access_requested` | `RequestAccess`, `InviteMember` | `request_id`, `cabal_id`, `user_id` (the requester or invitee), `direction` (`request` \| `invite`), `actor_id` (the requester or inviter), `expires_at` for an invite |
 | `cabal.access_decided` | `DecideAccess`, the expiry poller | `request_id`, `cabal_id`, `user_id`, `direction`, `decision` (`approved` \| `denied` \| `revoked` \| `expired`), `actor_id` (absent for `expired`) |
 | `cabal.member_left` | `LeaveCabal` | `cabal_id`, `user_id`, `was_voter` |
@@ -145,7 +145,7 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 | Alternative | Why not |
 | --- | --- |
 | Cabal id as invite code | Guessable. Every cabal is public, so the id is in feed items and links. |
-| An `open` join mode next to `request` | Product joins by request only, so a code or a search row never admits anyone alone. Direct invites cover inviting. |
+| A third `invite` join mode, where only invited users join | Product names two modes, open and by request. Direct invites already cover inviting into a `request` cabal. |
 | An admin role between creator and member | No MVP need. Product gives approval to the creator alone. |
 | Invites in their own table | [data-model.md](data-model.md#decision) puts both directions in `cabal_access_requests`, which keeps one pending-row rule and one poller. |
 | Requests expire like invites | A request waits on the creator, not the requester. Expiring it punishes the requester for the creator's delay. |

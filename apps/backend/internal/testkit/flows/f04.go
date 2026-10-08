@@ -82,14 +82,18 @@ func memberOf(script string) string { return "did:privy:qa-f04-" + script + "-me
 func founded(script string) []scenario.Step {
 	return []scenario.Step{
 		scenario.SignIn(founderOf(script)),
-		scenario.Post(cabalsPath, cabalOf("all")),
+		scenario.Post(cabalsPath, cabalOf("open", "all")),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "cabal"),
 	}
 }
 
 func joined(script string) []scenario.Step {
-	return append(founded(script), admitted(memberOf(script), founderOf(script))...)
+	return append(founded(script),
+		scenario.SignIn(memberOf(script)),
+		scenario.Post(membersPath, ""),
+		scenario.ExpectStatus(http.StatusOK),
+	)
 }
 
 const unpricedMint chain.SolanaAddress = "So11111111111111111111111111111111111111112"

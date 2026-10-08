@@ -15,10 +15,19 @@ SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided
 FROM cabal_access_requests
 WHERE cabal_id = $1 AND id = $2;
 
--- name: FindPendingAccessRequest :one
-SELECT id, cabal_id, user_id, direction, invited_by, status, expires_at, decided_by, created_at, decided_at
-FROM cabal_access_requests
-WHERE cabal_id = $1 AND user_id = $2 AND status = 'pending';
+-- name: FindRequesterAccess :one
+SELECT r.id, r.cabal_id, r.user_id, r.direction, r.invited_by, r.status, r.expires_at, r.decided_by, r.created_at,
+  r.decided_at
+FROM cabal_access_requests r
+WHERE r.cabal_id = $1 AND r.user_id = $2 AND (
+  r.status = 'pending' OR (r.status = 'denied' AND r.direction = 'request' AND NOT EXISTS (
+    SELECT 1 FROM cabal_access_requests n
+    WHERE n.cabal_id = r.cabal_id AND n.user_id = r.user_id AND n.direction = 'request'
+      AND (n.created_at, n.id) > (r.created_at, r.id)
+  ))
+)
+ORDER BY (r.status = 'pending') DESC, r.created_at DESC, r.id DESC
+LIMIT 1;
 
 -- name: DecideAccessRequest :execrows
 UPDATE cabal_access_requests SET status = sqlc.arg(status), decided_by = sqlc.arg(decided_by)::uuid,

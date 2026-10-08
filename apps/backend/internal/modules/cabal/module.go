@@ -61,7 +61,7 @@ func (m *Module) http() adapters.HTTP {
 	}
 	return adapters.HTTP{
 		Create:  m.CreateCabalHandler(),
-		Join:    app.NewJoinCabalHandler(m.deps.UoW),
+		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
 		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock),
 		Revoke:  app.NewRevokeAccessHandler(m.deps.UoW, m.deps.Clock),
 		Decide:  app.NewDecideAccessHandler(m.deps.UoW, m.deps.Clock),
@@ -126,6 +126,7 @@ const (
 	StatusActive = port.StatusActive
 	StatusBanned = port.StatusBanned
 
+	JoinOpen    = domain.JoinOpen
 	JoinRequest = domain.JoinRequest
 
 	VotersAll  = domain.VotersAll

@@ -22,6 +22,7 @@ import (
 type Via string
 
 const (
+	ViaOpen    Via = "open"
 	ViaRequest Via = "request"
 	ViaInvite  Via = "invite"
 )

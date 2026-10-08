@@ -82,7 +82,7 @@ func TestAdminLookup_Cabal_MemberRowsAndRules(t *testing.T) {
 	if *joiner.Handle != "bob" || joiner.ShareUnits != "0" {
 		t.Fatalf("joiner = %+v", joiner)
 	}
-	if r := body.Rules; r.JoinMode != "request" || r.VoterMode != "all" || r.Threshold != "majority" {
+	if r := body.Rules; r.JoinMode != "open" || r.VoterMode != "all" || r.Threshold != "majority" {
 		t.Fatalf("rules = %+v", r)
 	}
 }

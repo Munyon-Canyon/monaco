@@ -143,7 +143,7 @@ public final class CabalInvitesModel {
         case .inviteExpired, .accessRequestNotPending:
             return true
         case .ok, .invalidInput, .unauthorized, .cabalNotFound, .cabalBanned, .alreadyMember, .joinNeedsRequest,
-            .requestPending, .notCabalCreator, .cannotRevokeAccess, .userNotFound, .notCabalMember:
+            .requestNotNeeded, .requestPending, .notCabalCreator, .cannotRevokeAccess, .userNotFound, .notCabalMember:
             return false
         }
     }

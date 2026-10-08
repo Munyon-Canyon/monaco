@@ -133,7 +133,7 @@ func cabalChaosCases(s cabalScene) []chaosCase {
 	return []chaosCase{
 		{
 			events.CabalCreated{
-				V: 1, CabalID: s.cabal, CreatorID: s.user, Name: "Friends pot", JoinMode: "request", VoterMode: "all",
+				V: 1, CabalID: s.cabal, CreatorID: s.user, Name: "Friends pot", JoinMode: "open", VoterMode: "all",
 				Threshold: "majority", ProposalExpirySeconds: 86400, SlippageBps: 100,
 				TreasuryAddress: chain.SolanaAddress(keyOf(3, 32)),
 			},

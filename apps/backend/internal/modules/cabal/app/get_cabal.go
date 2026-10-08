@@ -84,15 +84,18 @@ func GetCabal(
 	if err != nil {
 		return CabalView{}, errs.Wrap(err, errs.CodeInternal, getCabalOp)
 	}
-	access, err := pendingAccess(ctx, dbq, cabalID, actor)
-	if err != nil {
-		return CabalView{}, err
-	}
 	cards, err := users.UsersByID(ctx, memberIDs(memberRows))
 	if err != nil {
 		return CabalView{}, errs.Wrap(err, errs.CodeInternal, getCabalOp)
 	}
 	members, me := membersOf(memberRows, cards, actor.UUID())
+	var access *Access
+	if me == nil {
+		access, err = requesterAccess(ctx, dbq, cabalID, actor)
+		if err != nil {
+			return CabalView{}, err
+		}
+	}
 	view := CabalView{
 		ID: cabalID, Name: row.Name, PictureURL: textPtr(row.PictureUrl.Valid, row.PictureUrl.String),
 		Status: row.Status, JoinMode: row.JoinMode, VoterMode: row.VoterMode, Threshold: row.Threshold,
@@ -106,10 +109,10 @@ func GetCabal(
 	return view, nil
 }
 
-func pendingAccess(
+func requesterAccess(
 	ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID, actor ids.UserID,
 ) (*Access, error) {
-	row, err := q.FindPendingAccessRequest(ctx, sqlc.FindPendingAccessRequestParams{
+	row, err := q.FindRequesterAccess(ctx, sqlc.FindRequesterAccessParams{
 		CabalID: cabalID.UUID(), UserID: actor.UUID(),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
