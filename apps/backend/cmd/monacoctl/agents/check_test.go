@@ -174,7 +174,7 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 
 func (h *checkHarness) mergeBase(t *testing.T, ref string) string {
 	t.Helper()
-	out, err := Exec(context.Background(), h.dir, "", "git", "merge-base", "HEAD", ref)
+	out, err := harnessGit(context.Background(), h.dir, "", "merge-base", "HEAD", ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func (h *checkHarness) commit(t *testing.T, files map[string]string) string {
 	}
 	git(t, h.dir, "add", "-A")
 	git(t, h.dir, "commit", "-q", "-m", "change")
-	out, err := Exec(context.Background(), h.dir, "", "git", "rev-parse", "HEAD^{tree}")
+	out, err := harnessGit(context.Background(), h.dir, "", "rev-parse", "HEAD^{tree}")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1411,7 +1411,7 @@ func (h *checkHarness) ranRows() bool {
 
 func (h *checkHarness) treeOf(t *testing.T) string {
 	t.Helper()
-	out, err := Exec(context.Background(), h.dir, "", "git", "rev-parse", "HEAD^{tree}")
+	out, err := harnessGit(context.Background(), h.dir, "", "rev-parse", "HEAD^{tree}")
 	if err != nil {
 		t.Fatal(err)
 	}
