@@ -10,14 +10,34 @@ final class CabalEntryTests: XCTestCase {
     private let cabalID = "01890a5d-ac96-774b-bcce-b302099a8060"
     private let requestID = "01890a5d-ac96-774b-bcce-b302099a8059"
 
-    func testAModeThatFlipsTwiceStopsAtTheRefusal() async throws {
-        let transport = StubTransport(scripted: [
-            Self.problem(409, "join_needs_request", "Ask to join."),
-            Self.problem(409, "request_not_needed", "Just join."),
-        ])
-        let entry = await api(transport).enterCabal(cabalID, mode: .open, submission: IdempotentSubmission())
+    func testEnteringFilesAnAccessRequestAndNeverJoins() async throws {
+        let pending = #"{"id":"\#(requestID)","direction":"request","status":"pending"}"#
+        let transport = StubTransport(.json(.created, pending))
+        let entry = await api(transport).enterCabal(cabalID, submission: IdempotentSubmission())
+        XCTAssertEqual(entry, .requested)
+        XCTAssertFalse(entry.isMember)
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(paths, ["/v1/cabals/\(cabalID)/access-requests"])
+    }
+
+    func testAnAlreadyPendingRequestIsNotAMember() async {
+        let transport = StubTransport(scripted: [Self.problem(409, "request_pending", "Your request is waiting.")])
+        let entry = await api(transport).enterCabal(cabalID, submission: IdempotentSubmission())
+        XCTAssertEqual(entry, .requestPending)
+        XCTAssertFalse(entry.isMember)
+    }
+
+    func testAnExistingMemberIsReportedAsOne() async {
+        let transport = StubTransport(scripted: [Self.problem(409, "already_member", "You're already in this cabal.")])
+        let entry = await api(transport).enterCabal(cabalID, submission: IdempotentSubmission())
+        XCTAssertEqual(entry, .alreadyMember)
+    }
+
+    func testAnyOtherRefusalIsSurfaced() async {
+        let transport = StubTransport(scripted: [Self.problem(409, "cabal_banned", "This cabal was banned.")])
+        let entry = await api(transport).enterCabal(cabalID, submission: IdempotentSubmission())
         guard case .refused(let error) = entry else { return XCTFail("expected a refusal, got \(entry)") }
-        XCTAssertEqual(ToastCopy.message(for: error), "Just join.")
+        XCTAssertEqual(ToastCopy.message(for: error), "This cabal was banned.")
         XCTAssertFalse(entry.isMember)
     }
 
@@ -48,34 +68,23 @@ final class CabalEntryTests: XCTestCase {
         XCTAssertEqual(Set(paths), ["/v1/cabals/\(cabalID)/access-requests/\(requestID)/decision"])
     }
 
-    func testJoinedAndAlreadyMemberAreMembers() {
-        XCTAssertTrue(CabalEntry.joined.isMember)
+    func testOnlyAnExistingMemberIsAMember() {
         XCTAssertTrue(CabalEntry.alreadyMember.isMember)
         XCTAssertFalse(CabalEntry.requested.isMember)
         XCTAssertFalse(CabalEntry.requestPending.isMember)
     }
 
-    func testTheJoinPreviewJoinsFromTheFixtures() async {
-        let model = JoinCabalModel.preview(joinMode: "request")
+    func testTheJoinPreviewAsksToJoinFromTheFixtures() async {
+        let model = JoinCabalModel.preview()
         model.code = "ABCD2345XY"
         await model.lookUp()
-        XCTAssertEqual(model.actionTitle, "Request to join")
+        XCTAssertEqual(model.actionTitle, "Ask to join")
         let joined = await model.submit()
         XCTAssertEqual(joined?.toast, CabalEntry.requestedToast)
-        let open = JoinCabalModel.preview(joinMode: "open")
-        open.code = "ABCD2345XY"
-        let entered = await open.submit()
-        XCTAssertEqual(entered?.toast, CabalEntry.joinedToast)
     }
 
     private func api(_ transport: StubTransport) -> APIClient {
         APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-    }
-
-    private static func cabal() throws -> String {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return String(decoding: try encoder.encode(Components.Schemas.Cabal.sample(role: "member")), as: UTF8.self)
     }
 
     private static func problem(_ status: Int, _ code: String, _ message: String) -> StubTransport.Reply {

@@ -6,18 +6,6 @@ import Testing
 
 @MainActor
 struct CabalInPlaceJoinTests {
-    @Test func joiningAnOpenCabalTellsTheScreenToRereadIt() async {
-        var cabal = Components.Schemas.Cabal.sample(role: nil)
-        cabal.rules.joinMode = "open"
-        let model = CabalAccessModel.preview(cabal: cabal)
-        await model.load()
-
-        await model.enter()
-
-        #expect(model.toast?.message == CabalEntry.joinedToast)
-        #expect(model.membershipChanges == 1)
-    }
-
     @Test func approvingARequestTellsTheScreenToRereadIt() async {
         var cabal = Components.Schemas.Cabal.sample(role: "creator")
         cabal.rules.joinMode = "request"

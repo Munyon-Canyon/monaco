@@ -261,7 +261,7 @@ final class CabalActionsModelTests: XCTestCase {
 
     private static func cabal(me: String) -> String {
         ##"{"id":"\##(cabalID)","name":"QA pot","picture_url":null,"status":"active","##
-            + ##""rules":{"join_mode":"open","voter_mode":"all","threshold":"unanimous","##
+            + ##""rules":{"join_mode":"request","voter_mode":"all","threshold":"unanimous","##
             + ##""proposal_expiry_seconds":86400,"slippage_bps":100},"##
             + ##""creator":{"user_id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"kai","##
             + ##""display_name":"Kai","photo_url":null},"##

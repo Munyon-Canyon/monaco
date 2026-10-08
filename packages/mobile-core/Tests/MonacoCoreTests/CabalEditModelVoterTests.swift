@@ -152,7 +152,7 @@ extension CabalEditModelTests {
         await model.load()
         XCTAssertTrue(model.isCreator)
         let edited = CabalSettings(
-            name: "QA pot 2", joinMode: "request", threshold: "majority", proposalExpirySeconds: 3600)
+            name: "QA pot 2", threshold: "majority", proposalExpirySeconds: 3600)
 
         let outcome = await model.save(edited)
 

@@ -7,7 +7,6 @@ enum CabalRulesCopy {
     static let namePlaceholder = "Cabal name"
     static let nameHint = "Pick a name your friends will recognize."
     static let sectionTitle = "The rules"
-    static let joinTitle = "Who can join"
     static let votersTitle = "Who votes"
     static let thresholdTitle = "To pass"
     static let expiryTitle = "Votes stay open"
@@ -17,10 +16,9 @@ enum CabalRulesCopy {
 
     static var auditedStrings: [String] {
         [
-            screenTitle, namePlaceholder, nameHint, sectionTitle, joinTitle, votersTitle, thresholdTitle, expiryTitle,
+            screenTitle, namePlaceholder, nameHint, sectionTitle, votersTitle, thresholdTitle, expiryTitle,
             create, creating, created,
         ]
-            + CabalJoinMode.allCases.flatMap { [$0.label, $0.caption] }
             + CabalVoterMode.allCases.flatMap { [$0.label, $0.caption] }
             + CabalThreshold.allCases.flatMap { [$0.label, $0.caption] }
             + CabalProposalExpiry.allCases.flatMap { [$0.label, $0.caption] }
@@ -59,7 +57,6 @@ struct CreateGroupView: View {
                 nameField
                     .padding(.horizontal, MonacoTheme.Space.m)
                 CabalRulesSection(
-                    joinPolicy: $form.joinMode,
                     voterSet: $form.voterMode,
                     threshold: $form.threshold,
                     voteExpiry: $form.expiry,

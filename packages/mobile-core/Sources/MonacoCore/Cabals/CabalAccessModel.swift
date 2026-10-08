@@ -23,7 +23,7 @@ public struct CabalPendingRequest: Identifiable, Equatable, Sendable {
 
 public enum CabalAccessStanding: Equatable, Sendable {
     case hidden
-    case join(CabalInviteStanding.JoinMode)
+    case join
     case requested(requestID: String)
     case pending([CabalPendingRequest])
 
@@ -86,12 +86,11 @@ public final class CabalAccessModel {
     }
 
     private func standing(for cabal: Components.Schemas.Cabal) async throws -> CabalAccessStanding {
-        let mode = CabalInviteStanding.JoinMode(wire: cabal.rules.joinMode)
         guard let me = cabal.me else {
-            guard let request = cabal.myAccessRequest, request.status == "pending" else { return .join(mode) }
+            guard let request = cabal.myAccessRequest, request.status == "pending" else { return .join }
             return request.direction == "request" ? .requested(requestID: request.id) : .hidden
         }
-        guard me.role == "creator", mode == .request else { return .hidden }
+        guard me.role == "creator" else { return .hidden }
         let cabalID = cabalID
         let requests = try await api.read { client in
             try await client.getCabalAccessRequests(path: .init(id: cabalID)).ok.body.json
@@ -112,13 +111,10 @@ public final class CabalAccessModel {
     }
 
     public func enter() async {
-        guard case .join(let mode) = standing, !isBusy else { return }
+        guard case .join = standing, !isBusy else { return }
         isBusy = true
         defer { isBusy = false }
-        switch await api.enterCabal(cabalID, mode: mode, submission: entry) {
-        case .joined:
-            show(CabalEntry.joinedToast, success: true)
-            membershipChanges += 1
+        switch await api.enterCabal(cabalID, submission: entry) {
         case .requested: show(CabalEntry.requestedToast, success: true)
         case .alreadyMember: membershipChanges += 1
         case .requestPending: break

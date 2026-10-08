@@ -4,11 +4,8 @@ import MonacoCore
 import XCTest
 
 final class CreateCabalFormTests: XCTestCase {
-    func testEveryJoinModeReachesTheWire() throws {
-        let wire = try CabalJoinMode.allCases.map { mode in
-            try body(CreateCabalForm(name: "Pot", joinMode: mode))["join_mode"] as? String
-        }
-        XCTAssertEqual(wire, ["open", "request"])
+    func testTheCreateRequestAlwaysAsksForRequestJoining() throws {
+        XCTAssertEqual(try body(CreateCabalForm(name: "Pot"))["join_mode"] as? String, "request")
     }
 
     func testEveryVoterModeReachesTheWireAndJustMeSendsNoIds() throws {
@@ -36,14 +33,14 @@ final class CreateCabalFormTests: XCTestCase {
 
     func testTheDefaultsMatchTheFormAMemberFirstSees() throws {
         let sent = try body(CreateCabalForm(name: "Pot"))
-        XCTAssertEqual(sent["join_mode"] as? String, "open")
+        XCTAssertEqual(sent["join_mode"] as? String, "request")
         XCTAssertEqual(sent["voter_mode"] as? String, "all")
         XCTAssertEqual(sent["threshold"] as? String, "majority")
         XCTAssertEqual(sent["proposal_expiry_seconds"] as? Int, 604_800)
     }
 
     func testTheRequestLeavesSlippageToTheServer() throws {
-        let sent = try body(CreateCabalForm(name: "Pot", joinMode: .request, voterMode: .picked))
+        let sent = try body(CreateCabalForm(name: "Pot", voterMode: .picked))
         XCTAssertNil(sent["slippage_bps"])
     }
 
@@ -85,7 +82,6 @@ final class CreateCabalFormTests: XCTestCase {
     }
 
     func testThePickersKeepTheirLabels() {
-        XCTAssertEqual(CabalJoinMode.allCases.map(\.label), ["Anyone", "I approve"])
         XCTAssertEqual(CabalVoterMode.allCases.map(\.label), ["Everyone", "People I pick"])
         XCTAssertEqual(CabalThreshold.allCases.map(\.label), ["Majority", "Everyone agrees"])
         XCTAssertEqual(CabalProposalExpiry.allCases.map(\.label), ["1 hour", "1 day", "1 week"])
@@ -93,7 +89,7 @@ final class CreateCabalFormTests: XCTestCase {
 
     func testEveryPickerCaptionIsDistinctAndCleanCopy() {
         let captions = [
-            CabalJoinMode.allCases.map(\.caption), CabalVoterMode.allCases.map(\.caption),
+            CabalVoterMode.allCases.map(\.caption),
             CabalThreshold.allCases.map(\.caption), CabalProposalExpiry.allCases.map(\.caption),
         ]
         for options in captions {
@@ -101,7 +97,6 @@ final class CreateCabalFormTests: XCTestCase {
             XCTAssertTrue(MainFlowCopyAudit.stringsAreClean(options), options.description)
         }
         XCTAssertEqual(CabalProposalExpiry.oneHour.caption, "A vote that hasn't passed closes after 1 hour.")
-        XCTAssertEqual(Set(CabalJoinMode.allCases.map(\.id)), ["open", "request"])
         XCTAssertEqual(CabalVoterMode.allCases.map(\.id), ["all", "list"])
         XCTAssertEqual(CabalThreshold.allCases.map(\.id), ["majority", "unanimous"])
         XCTAssertEqual(CabalProposalExpiry.allCases.map(\.id), [3600, 86_400, 604_800])
@@ -116,11 +111,11 @@ final class CreateCabalFormTests: XCTestCase {
 
     func testTheInputCarriesEveryRule() {
         let form = CreateCabalForm(
-            name: "QA pot", joinMode: .request, voterMode: .picked, threshold: .unanimous, expiry: .oneHour)
+            name: "QA pot", voterMode: .picked, threshold: .unanimous, expiry: .oneHour)
         XCTAssertEqual(
             form.input,
             CreateCabalInput(
-                name: "QA pot", joinMode: .request, voterMode: .picked, threshold: .unanimous,
+                name: "QA pot", voterMode: .picked, threshold: .unanimous,
                 proposalExpirySeconds: 3600))
     }
 

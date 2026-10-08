@@ -49,7 +49,6 @@ struct EditCabalView: View {
                     .padding(.horizontal, MonacoTheme.Space.m)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     CabalRulesSection(
-                        joinPolicy: joinPolicy,
                         voterSet: voterSet,
                         threshold: threshold,
                         voteExpiry: voteExpiry,
@@ -123,13 +122,6 @@ struct EditCabalView: View {
                 case .picked: if edited.voters == .everyone { edited.voters = .list([]) }
                 }
             }
-        )
-    }
-
-    private var joinPolicy: Binding<CabalJoinMode> {
-        Binding(
-            get: { CabalJoinMode(rawValue: edited.joinMode) ?? .open },
-            set: { edited.joinMode = $0.rawValue }
         )
     }
 

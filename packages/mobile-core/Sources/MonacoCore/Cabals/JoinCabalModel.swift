@@ -53,10 +53,8 @@ public final class JoinCabalModel {
     }
 
     public var actionTitle: String {
-        if isSubmitting { return "Joining…" }
-        if requestPending { return "Request sent" }
-        return preview.map { CabalInviteStanding.JoinMode(wire: $0.joinMode) } == .request
-            ? "Request to join" : "Join cabal"
+        if isSubmitting { return "Sending…" }
+        return requestPending ? "Request sent" : "Ask to join"
     }
 
     public var canSubmit: Bool {
@@ -111,11 +109,7 @@ public final class JoinCabalModel {
             await lookUp()
         }
         guard let preview else { return nil }
-        let entry = await api.enterCabal(
-            preview.id, mode: CabalInviteStanding.JoinMode(wire: preview.joinMode), submission: submission
-        )
-        switch entry {
-        case .joined: return JoinedCabal(cabalID: preview.id, toast: CabalEntry.joinedToast)
+        switch await api.enterCabal(preview.id, submission: submission) {
         case .requested: return JoinedCabal(cabalID: preview.id, toast: CabalEntry.requestedToast)
         case .alreadyMember: return JoinedCabal(cabalID: preview.id, toast: nil)
         case .requestPending:
@@ -139,27 +133,25 @@ public final class JoinCabalModel {
 
 #if DEBUG
 extension JoinCabalModel {
-    public static func preview(joinMode: String) -> JoinCabalModel {
+    public static func preview() -> JoinCabalModel {
         let serverURL = URL(string: "http://127.0.0.1:9") ?? URL(fileURLWithPath: "/")
         return JoinCabalModel(
             api: APIClient(
                 serverURL: serverURL, tokens: JoinCabalPreviewTokens(),
-                transport: JoinCabalPreviewTransport(joinMode: joinMode)
+                transport: JoinCabalPreviewTransport()
             )
         )
     }
 }
 
 private struct JoinCabalPreviewTransport: ClientTransport {
-    let joinMode: String
-
     func send(
         _ request: HTTPRequest,
         body _: HTTPBody?,
         baseURL _: URL,
         operationID: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
-        let preview = Components.Schemas.CabalPreview.sample(joinMode: joinMode)
+        let preview = Components.Schemas.CabalPreview.sample(joinMode: "request")
         let body: Data
         var response = HTTPResponse(status: .ok)
         switch operationID {

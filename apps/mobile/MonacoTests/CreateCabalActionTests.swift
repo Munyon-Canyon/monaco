@@ -11,7 +11,7 @@ struct CreateCabalActionTests {
     @Test func peopleIPickSendsOnePostWithAKeyAndNoVoterIdsOrSlippage() async throws {
         let transport = StubTransport(.json(.created, Self.created))
         let actions = LiveCabalsActionSource(auth: Self.auth, api: Self.api(transport))
-        let input = try #require(CreateCabalForm(name: " QA pot ", joinMode: .request, voterMode: .picked).input)
+        let input = try #require(CreateCabalForm(name: " QA pot ", voterMode: .picked).input)
 
         let cabal = try await actions.createCabal(input, submission: IdempotentSubmission())
 

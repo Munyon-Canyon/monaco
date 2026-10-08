@@ -8,7 +8,6 @@ import FoundationNetworking
 
 public struct CabalSearchRow: Identifiable, Equatable, Sendable {
     public enum Action: Equatable, Sendable {
-        case join
         case request
         case requested
         case member
@@ -18,25 +17,20 @@ public struct CabalSearchRow: Identifiable, Equatable, Sendable {
     public let name: String
     public let pictureURL: String?
     public let detail: String
-    public let joinMode: CabalInviteStanding.JoinMode
     public var action: Action
 
     init(_ item: Components.Schemas.CabalSearchItem) {
         id = item.id
         name = item.name
         pictureURL = item.pictureUrl
-        joinMode = CabalInviteStanding.JoinMode(wire: item.joinMode)
-        let mode = joinMode == .open ? "Open" : "By request"
-        detail = "\(CabalCopy.memberCount(item.memberCount)) · \(mode)"
-        action = Self.action(item, joinMode: joinMode)
+        detail = "\(CabalCopy.memberCount(item.memberCount)) · By request"
+        action = Self.action(item)
     }
 
-    private static func action(_ item: Components.Schemas.CabalSearchItem, joinMode: CabalInviteStanding.JoinMode)
-        -> Action
-    {
+    private static func action(_ item: Components.Schemas.CabalSearchItem) -> Action {
         if item.isMember { return .member }
         if item.myAccessRequestStatus == "pending" { return .requested }
-        return joinMode == .open ? .join : .request
+        return .request
     }
 }
 
@@ -145,16 +139,12 @@ public final class CabalSearchModel {
     }
 
     public func enter(_ row: CabalSearchRow) async -> String? {
-        guard !entering.contains(row.id), row.action == .join || row.action == .request else { return nil }
+        guard !entering.contains(row.id), row.action == .request else { return nil }
         entering.insert(row.id)
         defer { entering.remove(row.id) }
         let submission = submissions[row.id] ?? IdempotentSubmission()
         submissions[row.id] = submission
-        switch await api.enterCabal(row.id, mode: row.joinMode, submission: submission) {
-        case .joined:
-            entered[row.id] = .member
-            show(CabalEntry.joinedToast, success: true)
-            return row.id
+        switch await api.enterCabal(row.id, submission: submission) {
         case .alreadyMember:
             entered[row.id] = .member
             return row.id

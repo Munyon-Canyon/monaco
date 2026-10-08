@@ -37,7 +37,7 @@ struct CabalJoinSection: View {
         .onChange(of: model?.toast) { _, toast in
             guard let toast else { return }
             toasts.current = MonacoToast(message: toast.message, isSuccess: toast.isSuccess)
-            if toast.message == CabalEntry.joinedToast {
+            if toast.message == CabalEntry.requestedToast {
                 Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
             }
         }
@@ -51,8 +51,8 @@ struct CabalJoinSection: View {
         switch model.standing {
         case .hidden:
             EmptyView()
-        case .join(let mode):
-            Button(model.isBusy ? "Joining…" : mode == .open ? "Join cabal" : "Request to join") {
+        case .join:
+            Button(model.isBusy ? "Sending…" : "Request to join") {
                 Task { await model.enter() }
             }
             .buttonStyle(.monacoPrimary)
@@ -177,11 +177,8 @@ final class CabalJoinSampleHarnessEntry: SampleHarnessEntry {
         }
         var cabal = Components.Schemas.Cabal.sample(role: nil)
         switch arguments[flag + 1] {
-        case "open": cabal.rules.joinMode = "open"
-        case "request": cabal.rules.joinMode = "request"
-        case "creator":
-            cabal = .sample(role: "creator")
-            cabal.rules.joinMode = "request"
+        case "request": break
+        case "creator": cabal = .sample(role: "creator")
         default: return nil
         }
         return AnyView(

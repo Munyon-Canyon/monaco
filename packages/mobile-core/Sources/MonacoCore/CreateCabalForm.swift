@@ -1,27 +1,6 @@
 import Foundation
 import MonacoAPI
 
-public enum CabalJoinMode: String, CaseIterable, Identifiable, Sendable {
-    case open
-    case request
-
-    public var id: String { rawValue }
-
-    public var label: String {
-        switch self {
-        case .open: "Anyone"
-        case .request: "I approve"
-        }
-    }
-
-    public var caption: String {
-        switch self {
-        case .open: "Anyone can join, from search or with the invite code."
-        case .request: "People ask to join, and you say yes or no."
-        }
-    }
-}
-
 public enum CabalVoterMode: String, CaseIterable, Identifiable, Sendable {
     case everyone = "all"
     case picked = "list"
@@ -86,20 +65,17 @@ public enum CabalProposalExpiry: Int32, CaseIterable, Identifiable, Sendable {
 
 public struct CreateCabalInput: Equatable, Sendable {
     public let name: String
-    public let joinMode: CabalJoinMode
     public let voterMode: CabalVoterMode
     public let threshold: CabalThreshold
     public let proposalExpirySeconds: Int32
 
     public init(
         name: String,
-        joinMode: CabalJoinMode,
         voterMode: CabalVoterMode,
         threshold: CabalThreshold,
         proposalExpirySeconds: Int32
     ) {
         self.name = name
-        self.joinMode = joinMode
         self.voterMode = voterMode
         self.threshold = threshold
         self.proposalExpirySeconds = proposalExpirySeconds
@@ -108,7 +84,7 @@ public struct CreateCabalInput: Equatable, Sendable {
     public var request: Components.Schemas.CreateCabalRequest {
         Components.Schemas.CreateCabalRequest(
             name: name,
-            joinMode: joinMode.rawValue,
+            joinMode: "request",
             voterMode: voterMode.rawValue,
             threshold: threshold.rawValue,
             proposalExpirySeconds: proposalExpirySeconds
@@ -136,20 +112,17 @@ public struct CreateCabalForm: Equatable, Sendable {
     }
 
     public var name: String
-    public var joinMode: CabalJoinMode
     public var voterMode: CabalVoterMode
     public var threshold: CabalThreshold
     public var expiry: CabalProposalExpiry
 
     public init(
         name: String = "",
-        joinMode: CabalJoinMode = .open,
         voterMode: CabalVoterMode = .everyone,
         threshold: CabalThreshold = .majority,
         expiry: CabalProposalExpiry = .oneWeek
     ) {
         self.name = name
-        self.joinMode = joinMode
         self.voterMode = voterMode
         self.threshold = threshold
         self.expiry = expiry
@@ -172,7 +145,6 @@ public struct CreateCabalForm: Equatable, Sendable {
         guard nameProblem == nil else { return nil }
         return CreateCabalInput(
             name: trimmedName,
-            joinMode: joinMode,
             voterMode: voterMode,
             threshold: threshold,
             proposalExpirySeconds: expiry.rawValue

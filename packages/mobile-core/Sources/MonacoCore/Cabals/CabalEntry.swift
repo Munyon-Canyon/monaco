@@ -6,7 +6,6 @@ import FoundationNetworking
 #endif
 
 public enum CabalEntry: Equatable, Sendable {
-    case joined
     case requested
     case alreadyMember
     case requestPending
@@ -17,49 +16,22 @@ public enum CabalEntry: Equatable, Sendable {
 
     public var isMember: Bool {
         switch self {
-        case .joined, .alreadyMember: true
+        case .alreadyMember: true
         case .requested, .requestPending, .refused: false
         }
     }
 }
 
-extension CabalInviteStanding.JoinMode {
-    public init(wire: String) {
-        self = wire == "open" ? .open : .request
-    }
-}
-
 extension APIClient {
-    public func enterCabal(
-        _ cabalID: String,
-        mode: CabalInviteStanding.JoinMode,
-        submission: IdempotentSubmission
-    ) async -> CabalEntry {
-        await enterCabal(cabalID, mode: mode, submission: submission, retriesOtherMode: true)
-    }
-
-    private func enterCabal(
-        _ cabalID: String,
-        mode: CabalInviteStanding.JoinMode,
-        submission: IdempotentSubmission,
-        retriesOtherMode: Bool
-    ) async -> CabalEntry {
+    public func enterCabal(_ cabalID: String, submission: IdempotentSubmission) async -> CabalEntry {
         do {
-            switch mode {
-            case .open:
-                try await joinCabal(cabalID, submission: submission)
-                return .joined
-            case .request:
-                try await requestAccess(cabalID, submission: submission)
-                return .requested
-            }
+            try await requestAccess(cabalID, submission: submission)
+            return .requested
         } catch {
             let failure = APIError(error)
             switch Self.flow03Outcome(failure) {
             case .alreadyMember: return .alreadyMember
             case .requestPending: return .requestPending
-            case .joinNeedsRequest where mode == .open && retriesOtherMode:
-                return await enterCabal(cabalID, mode: .request, submission: submission, retriesOtherMode: false)
             default: return .refused(failure)
             }
         }
@@ -105,14 +77,6 @@ extension APIClient {
     static func flow03Outcome(_ error: APIError) -> Flow03Outcome? {
         guard case .problem(let problem) = error else { return nil }
         return Flow03Outcome(code: problem.code.wire)
-    }
-
-    private func joinCabal(_ cabalID: String, submission: IdempotentSubmission) async throws {
-        _ = try await submit(submission, payload: CabalPayload(cabalID: cabalID), operation: "postCabalMember") {
-            client, key in
-            try await client.postCabalMember(path: .init(id: cabalID), headers: .init(idempotencyKey: key))
-                .ok.body.json
-        }
     }
 
     private func requestAccess(_ cabalID: String, submission: IdempotentSubmission) async throws {

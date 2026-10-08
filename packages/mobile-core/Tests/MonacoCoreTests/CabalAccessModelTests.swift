@@ -9,16 +9,10 @@ import XCTest
 final class CabalAccessModelTests: XCTestCase {
     private let requests = Components.Schemas.CabalAccessRequest.samples
 
-    func testANonMemberOfAnOpenCabalCanJoin() async throws {
-        let model = makeModel(StubTransport(.json(.ok, try Self.encode(Self.cabal(role: nil, mode: "open")))))
-        await model.load()
-        XCTAssertEqual(model.standing, .join(.open))
-    }
-
-    func testANonMemberOfARequestCabalCanRequest() async throws {
+    func testANonMemberCanRequestToJoin() async throws {
         let model = makeModel(StubTransport(.json(.ok, try Self.encode(Self.cabal(role: nil, mode: "request")))))
         await model.load()
-        XCTAssertEqual(model.standing, .join(.request))
+        XCTAssertEqual(model.standing, .join)
     }
 
     func testAPendingRequestOffersCancel() async throws {
@@ -37,15 +31,6 @@ final class CabalAccessModelTests: XCTestCase {
 
     func testAMemberWhoIsNotTheCreatorSeesNothing() async throws {
         let transport = StubTransport(.json(.ok, try Self.encode(Self.cabal(role: "member", mode: "request"))))
-        let model = makeModel(transport)
-        await model.load()
-        XCTAssertEqual(model.standing, .hidden)
-        let count = await transport.sent.count
-        XCTAssertEqual(count, 1)
-    }
-
-    func testTheCreatorOfAnOpenCabalSeesNothing() async throws {
-        let transport = StubTransport(.json(.ok, try Self.encode(Self.cabal(role: "creator", mode: "open"))))
         let model = makeModel(transport)
         await model.load()
         XCTAssertEqual(model.standing, .hidden)
@@ -134,29 +119,32 @@ final class CabalAccessModelTests: XCTestCase {
         XCTAssertEqual(model.standing, .requested(requestID: "r1"))
     }
 
-    func testJoiningHidesTheSlotWithYoureIn() async throws {
+    func testAskingToJoinShowsRequestSentAndStaysOutsideTheCabal() async throws {
         let transport = StubTransport(scripted: [
-            .json(.ok, try Self.encode(Self.cabal(role: nil, mode: "open"))),
-            .json(.ok, try Self.encode(Self.cabal(role: "member", mode: "open"))),
-            .json(.ok, try Self.encode(Self.cabal(role: "member", mode: "open"))),
+            .json(.ok, try Self.encode(Self.cabal(role: nil, mode: "request"))),
+            .json(.created, #"{"id":"r1","direction":"request","status":"pending"}"#),
+            .json(.ok, try Self.encode(Self.cabal(role: nil, mode: "request", request: ("r1", "request")))),
         ])
         let model = makeModel(transport)
         await model.load()
         await model.enter()
-        XCTAssertEqual(model.toast?.message, "You're in.")
-        XCTAssertEqual(model.standing, .hidden)
+        XCTAssertEqual(model.toast?.message, CabalEntry.requestedToast)
+        XCTAssertEqual(model.standing, .requested(requestID: "r1"))
+        XCTAssertEqual(model.membershipChanges, 0)
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(paths.dropFirst().first, "/v1/cabals/\(Self.cabalID)/access-requests")
     }
 
     func testAJoinRefusalKeepsTheButton() async throws {
         let transport = StubTransport(scripted: [
-            .json(.ok, try Self.encode(Self.cabal(role: nil, mode: "open"))),
+            .json(.ok, try Self.encode(Self.cabal(role: nil, mode: "request"))),
             Self.problem(409, "cabal_banned", "This cabal was banned."),
         ])
         let model = makeModel(transport)
         await model.load()
         await model.enter()
         XCTAssertEqual(model.toast?.message, "This cabal was banned.")
-        XCTAssertEqual(model.standing, .join(.open))
+        XCTAssertEqual(model.standing, .join)
     }
 
     func testCancellingRevokesTheRequest() async throws {
@@ -168,7 +156,7 @@ final class CabalAccessModelTests: XCTestCase {
         let model = makeModel(transport)
         await model.load()
         await model.cancelRequest()
-        XCTAssertEqual(model.standing, .join(.request))
+        XCTAssertEqual(model.standing, .join)
         let sent = await transport.sent
         XCTAssertEqual(sent[1].method, .delete)
         XCTAssertEqual(sent[1].path, "/v1/cabals/\(Self.cabalID)/access-requests/r1")
@@ -187,7 +175,7 @@ final class CabalAccessModelTests: XCTestCase {
     }
 
     func testEachAccessHintReloads() async throws {
-        let transport = StubTransport(.json(.ok, try Self.encode(Self.cabal(role: nil, mode: "open"))))
+        let transport = StubTransport(.json(.ok, try Self.encode(Self.cabal(role: nil, mode: "request"))))
         let hints = FakeHintStream()
         let model = makeModel(transport, hints: hints)
         let observing = Task { await model.observe() }
@@ -217,11 +205,7 @@ final class CabalAccessModelTests: XCTestCase {
         await visitor.enter()
         XCTAssertEqual(visitor.standing, .requested(requestID: "preview"))
         await visitor.cancelRequest()
-        XCTAssertEqual(visitor.standing, .join(.request))
-        let joiner = CabalAccessModel.preview(cabal: Self.cabal(role: nil, mode: "open"))
-        await joiner.load()
-        await joiner.enter()
-        XCTAssertEqual(joiner.standing, .hidden)
+        XCTAssertEqual(visitor.standing, .join)
     }
 
     private static let cabalID = "01890a5d-ac96-774b-bcce-b302099a8060"
