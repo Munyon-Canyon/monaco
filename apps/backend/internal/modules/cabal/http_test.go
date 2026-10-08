@@ -76,12 +76,12 @@ func (f createFixture) router(t *testing.T) (http.Handler, *auth.DevVerifier) {
 }
 
 func cabalPost(
-	key, name, voters, threshold string, expiry int32, slippage *int32,
+	key, name, join, voters, threshold string, expiry int32, slippage *int32,
 ) api.PostCabalRequestObject {
 	return api.PostCabalRequestObject{
 		Params: api.PostCabalParams{IdempotencyKey: key},
 		Body: &api.CreateCabalRequest{
-			Name: name, JoinMode: "request", VoterMode: voters, Threshold: threshold,
+			Name: name, JoinMode: join, VoterMode: voters, Threshold: threshold,
 			ProposalExpirySeconds: expiry, SlippageBps: slippage,
 		},
 	}
@@ -103,7 +103,7 @@ func TestPostCabal_returnsTheCabalTheCreatorJustOpened(t *testing.T) {
 	slippage := int32(50)
 	res, err := f.routes(nil).PostCabal(
 		f.actor(t.Context()),
-		cabalPost("c1", "Friends pot", "list", "unanimous", domain.ExpiryWeek, &slippage),
+		cabalPost("c1", "Friends pot", "request", "list", "unanimous", domain.ExpiryWeek, &slippage),
 	)
 	got := asCabal(t, res, err)
 	assertPostedCabal(t, f, got)
@@ -166,7 +166,7 @@ func TestPostCabal_usesTheDefaultSlippageWhenItIsOmitted(t *testing.T) {
 	f := newCreate(t)
 	res, err := f.routes(nil).PostCabal(
 		f.actor(t.Context()),
-		cabalPost("c1", "Friends pot", "all", "majority", domain.ExpiryDay, nil),
+		cabalPost("c1", "Friends pot", "open", "all", "majority", domain.ExpiryDay, nil),
 	)
 	got := asCabal(t, res, err)
 	if got.Rules.SlippageBps != domain.DefaultSlippageBps || f.wallets.Creates() != 1 {
@@ -181,9 +181,9 @@ func TestPostCabal_rejectsABadRequestBeforeAnyWallet(t *testing.T) {
 	slippage := int32(0)
 	cases := map[string]api.PostCabalRequestObject{
 		"body":     {Params: api.PostCabalParams{IdempotencyKey: "c1"}},
-		"name":     cabalPost("c1", "no", "list", "unanimous", domain.ExpiryWeek, nil),
-		"rules":    cabalPost("c1", "Friends pot", "list", "unanimous", domain.ExpiryWeek, &slippage),
-		"emptykey": cabalPost("", "Friends pot", "list", "unanimous", domain.ExpiryWeek, nil),
+		"name":     cabalPost("c1", "no", "request", "list", "unanimous", domain.ExpiryWeek, nil),
+		"rules":    cabalPost("c1", "Friends pot", "request", "list", "unanimous", domain.ExpiryWeek, &slippage),
+		"emptykey": cabalPost("", "Friends pot", "request", "list", "unanimous", domain.ExpiryWeek, nil),
 	}
 	for name, req := range cases {
 		_, err := h.PostCabal(f.actor(t.Context()), req)
@@ -199,7 +199,7 @@ func TestPostCabal_returnsTheReadErrorAfterTheCabalExists(t *testing.T) {
 	f := newCreate(t)
 	_, err := f.routes(failCards{}).PostCabal(
 		f.actor(t.Context()),
-		cabalPost("c1", "Friends pot", "list", "unanimous", domain.ExpiryWeek, nil),
+		cabalPost("c1", "Friends pot", "request", "list", "unanimous", domain.ExpiryWeek, nil),
 	)
 	cabals := f.count(t.Context(), t, "cabals")
 	eventsN := f.count(t.Context(), t, "events")
@@ -357,7 +357,7 @@ func TestHTTP_rejectsACallerThatIsNotAUser(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	h := f.routes(nil)
-	req := cabalPost("c1", "Friends pot", "list", "unanimous", domain.ExpiryWeek, nil)
+	req := cabalPost("c1", "Friends pot", "request", "list", "unanimous", domain.ExpiryWeek, nil)
 	lookup := api.GetCabalRequestObject{Id: f.ids.NewV7()}
 	rejectCaller(t.Context(), t, f, h, req, lookup, "absent", errs.CodeUnauthorized)
 	agent := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorAgent, ID: f.user.ID.String()})
@@ -718,7 +718,7 @@ func seedSearchPerfCabals(tb testing.TB, pool *pgxpool.Pool, userID uuid.UUID) {
 		INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds,
 			slippage_bps, invite_code, created_at, updated_at)
 		SELECT md5(n::text)::uuid, CASE WHEN n <= 14 THEN 'abc cabal ' || n ELSE 'other cabal ' || n END,
-			$1, 'request', 'all', 'majority', 86400, 100,
+			$1, 'open', 'all', 'majority', 86400, 100,
 			lpad(n::text, 10, '0'), now(), now() FROM generate_series(1, 10000) n RETURNING id
 	) INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
 	SELECT id, $1, 'creator', true, now() FROM seeded`, userID)
@@ -801,5 +801,54 @@ func TestMyCabals_failsClosedWhileTheChatIsNotWired(t *testing.T) {
 	_, err := cabal.HTTPOf(m).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
 	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("GetMyCabals without a chat counter = %v, want internal", err)
+	}
+}
+
+func TestGetCabal_showsADeniedRequestUntilALaterOutcomeReplacesIt(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	seeded := testkit.NewCabal(t, f.pool)
+	insert := func(status string, age time.Duration) uuid.UUID {
+		id := f.ids.NewV7()
+		execSQL(t, f.pool, `INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, status, created_at)
+			VALUES ($1, $2, $3, 'request', $4, $5)`,
+			id, seeded.ID.UUID(), f.user.ID.UUID(), status, f.clock.Now().Add(-age))
+		return id
+	}
+	if got := readCabal(t, f, f.user.ID, seeded.ID); got.MyAccessRequest != nil {
+		t.Fatalf("no request: access = %+v", got.MyAccessRequest)
+	}
+	denied := insert("denied", time.Hour)
+	got := readCabal(t, f, f.user.ID, seeded.ID)
+	if got.MyAccessRequest == nil || got.MyAccessRequest.Id != denied || got.MyAccessRequest.Status != "denied" {
+		t.Fatalf("denied: access = %+v", got.MyAccessRequest)
+	}
+	pending := insert("pending", time.Minute)
+	got = readCabal(t, f, f.user.ID, seeded.ID)
+	if got.MyAccessRequest == nil || got.MyAccessRequest.Id != pending || got.MyAccessRequest.Status != "pending" {
+		t.Fatalf("pending: access = %+v", got.MyAccessRequest)
+	}
+	execSQL(t, f.pool, `UPDATE cabal_access_requests SET status = 'approved' WHERE id = $1`, pending)
+	if got = readCabal(t, f, f.user.ID, seeded.ID); got.MyAccessRequest != nil {
+		t.Fatalf("approved after denied: access = %+v", got.MyAccessRequest)
+	}
+}
+
+func TestGetCabal_hidesADeniedRequestFromAMember(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	seeded := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	member := seeded.Members[1].ID
+	execSQL(t, f.pool, `INSERT INTO cabal_access_requests (id, cabal_id, user_id, direction, status, created_at)
+		VALUES ($1, $2, $3, 'request', 'denied', $4)`, f.ids.NewV7(), seeded.ID.UUID(), member.UUID(), f.clock.Now())
+	if got := readCabal(t, f, member, seeded.ID); got.MyAccessRequest != nil {
+		t.Fatalf("member access = %+v", got.MyAccessRequest)
+	}
+}
+
+func execSQL(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), sql, args...); err != nil {
+		t.Fatal(err)
 	}
 }

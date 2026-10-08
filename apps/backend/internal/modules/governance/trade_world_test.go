@@ -72,7 +72,7 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 	w.seed = fakes.CabalSeed{
 		View: cabal.View{ID: w.cabal, Name: "Friends pot", CreatorID: w.members[0], Status: cabal.StatusActive},
 		Rules: cabal.Rules{
-			JoinMode: cabal.JoinRequest, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
+			JoinMode: cabal.JoinOpen, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
 			ProposalExpiry: 24 * time.Hour, SlippageBps: 100,
 		},
 		Wallet: cabal.TreasuryWallet{CabalID: w.cabal, PrivyWalletID: "treasury", Address: treasuryAddress},

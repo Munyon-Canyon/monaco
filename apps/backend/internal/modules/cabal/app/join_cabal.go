@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -17,11 +18,12 @@ type JoinCabal struct {
 }
 
 type JoinCabalHandler struct {
-	uow *db.UnitOfWork
+	uow   *db.UnitOfWork
+	clock clock.Clock
 }
 
-func NewJoinCabalHandler(uow *db.UnitOfWork) *JoinCabalHandler {
-	return &JoinCabalHandler{uow: uow}
+func NewJoinCabalHandler(uow *db.UnitOfWork, c clock.Clock) *JoinCabalHandler {
+	return &JoinCabalHandler{uow: uow, clock: c}
 }
 
 func (h *JoinCabalHandler) Handle(ctx context.Context, cmd JoinCabal) error {
@@ -30,6 +32,11 @@ func (h *JoinCabalHandler) Handle(ctx context.Context, cmd JoinCabal) error {
 		if err != nil {
 			return err
 		}
-		return domain.CanJoin(actor, cabal)
+		if err := domain.CanJoin(actor, cabal); err != nil {
+			return err
+		}
+		return addMember(ctx, tx, newMember{
+			cabalID: cmd.CabalID, userID: cmd.ActorID, rules: cabal.Rules, via: ViaOpen, at: h.clock.Now(),
+		}, joinCabalOp)
 	})
 }

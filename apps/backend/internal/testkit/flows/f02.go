@@ -20,9 +20,9 @@ const (
 	cabalInvalidCreator = "did:privy:qa-cabal-invalid"
 	cabalDownCreator    = "did:privy:qa-cabal-down"
 	cabalCrash          = "did:privy:qa-cabal-crash"
-	cabalBody           = `{"name":"Friends pot","join_mode":"request","voter_mode":"all","threshold":"majority",` +
+	cabalBody           = `{"name":"Friends pot","join_mode":"open","voter_mode":"all","threshold":"majority",` +
 		`"proposal_expiry_seconds":86400}`
-	badCabalBody = `{"name":"no","join_mode":"request","voter_mode":"all","threshold":"majority",` +
+	badCabalBody = `{"name":"no","join_mode":"open","voter_mode":"all","threshold":"majority",` +
 		`"proposal_expiry_seconds":86400}`
 )
 

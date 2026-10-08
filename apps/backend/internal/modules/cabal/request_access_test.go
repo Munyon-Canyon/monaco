@@ -90,6 +90,7 @@ func TestRequestAccess_refusesWithoutFilingAnything(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
 	request := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"), testkit.WithMembers(2))
+	open := testkit.NewCabal(t, f.pool)
 	banned := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"))
 	f.exec(t, `UPDATE cabals SET status = 'banned' WHERE id = $1`, banned.ID.UUID())
 	asker, invitee := f.user(t), f.user(t)
@@ -104,6 +105,7 @@ func TestRequestAccess_refusesWithoutFilingAnything(t *testing.T) {
 		{"an unknown cabal", asker, ids.CabalIDFrom(ids.Real{}.NewV7()), errs.CodeCabalNotFound},
 		{"a banned cabal", asker, banned.ID, errs.CodeCabalBanned},
 		{"a member", request.Members[1].ID, request.ID, errs.CodeAlreadyMember},
+		{"an open cabal", asker, open.ID, errs.CodeRequestNotNeeded},
 		{"a second request", asker, request.ID, errs.CodeRequestPending},
 		{"a pending invite", invitee, request.ID, errs.CodeRequestPending},
 	} {
@@ -335,7 +337,7 @@ func TestAccessRequestRoutes_passErrorsThrough(t *testing.T) {
 	f := newAccess(t)
 	open := testkit.NewCabal(t, f.pool)
 	routes, user := f.routes(nil), f.user(t)
-	post := api.PostCabalAccessRequestRequestObject{Id: ids.Real{}.NewV7()}
+	post := api.PostCabalAccessRequestRequestObject{Id: open.ID.UUID()}
 	get := api.GetCabalAccessRequestsRequestObject{Id: open.ID.UUID()}
 	del := api.DeleteCabalAccessRequestRequestObject{Id: open.ID.UUID(), RequestId: ids.Real{}.NewV7()}
 	for _, tt := range []struct {
@@ -345,7 +347,7 @@ func TestAccessRequestRoutes_passErrorsThrough(t *testing.T) {
 	}{
 		{
 			"post", func(ctx context.Context) error { _, err := routes.PostCabalAccessRequest(ctx, post); return err },
-			errs.CodeCabalNotFound,
+			errs.CodeRequestNotNeeded,
 		},
 		{
 			"get", func(ctx context.Context) error { _, err := routes.GetCabalAccessRequests(ctx, get); return err },

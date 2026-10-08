@@ -39,12 +39,16 @@ func (f accessFixture) inviteTerms(t *testing.T, id uuid.UUID) (string, time.Tim
 	return invitedBy, expiresAt.UTC()
 }
 
-func TestInviteMember_theCreatorFilesAnInviteThatLivesSevenDays(t *testing.T) {
+func TestInviteMember_onlyTheCreatorOfAnOpenCabalFilesAnInviteThatLivesSevenDays(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
 	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
 	inviter := c.Creator.ID
 	invitee, handle := f.handled(t)
+	_, err := f.sendInvite(t.Context(), c.Members[1].ID, c.ID, handle)
+	if errs.CodeOf(err) != errs.CodeNotCabalCreator {
+		t.Fatalf("a member's invite = %v, want %s", err, errs.CodeNotCabalCreator)
+	}
 	sent, err := f.sendInvite(t.Context(), inviter, c.ID, strings.ToUpper(handle))
 	if err != nil || sent.Direction != "invite" || sent.Status != "pending" {
 		t.Fatalf("InviteMember = %+v, %v; want a pending invite", sent, err)
@@ -118,6 +122,7 @@ func TestInviteMember_refusesWithoutFilingAnything(t *testing.T) {
 		{"a banned cabal", banned.Creator.ID, banned.ID, handle, errs.CodeCabalBanned},
 		{"an existing member", open.Creator.ID, open.ID, memberHandle, errs.CodeAlreadyMember},
 		{"a user with a pending request", gated.Creator.ID, gated.ID, askerHandle, errs.CodeRequestPending},
+		{"a member of an open cabal", open.Members[1].ID, open.ID, handle, errs.CodeNotCabalCreator},
 		{"a user with a pending invite", open.Creator.ID, open.ID, invitedHandle, errs.CodeRequestPending},
 	} {
 		if _, err := f.sendInvite(t.Context(), tt.inviter, tt.cabal, tt.handle); errs.CodeOf(err) != tt.want {

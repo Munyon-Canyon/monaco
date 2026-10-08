@@ -771,7 +771,7 @@ components:
       type: object
       description: The rules the cabal runs on.
       examples:
-        - join_mode: request
+        - join_mode: open
           voter_mode: all
           threshold: majority
           proposal_expiry_seconds: 86400
@@ -779,7 +779,7 @@ components:
       additionalProperties: false
       required: [join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps]
       properties:
-        join_mode: {type: string, description: "Always `request`.", examples: [request]}
+        join_mode: {type: string, description: "`open` (anyone joins at once) or `request` (the creator approves each request).", examples: [open]}
         voter_mode: {type: string, description: "Who votes: all or list.", examples: [all]}
         threshold: {type: string, description: "What passes a proposal: majority or unanimous.", examples: [majority]}
         proposal_expiry_seconds: {type: integer, format: int64, description: How long a proposal stays open., examples: [86400]}
@@ -825,7 +825,7 @@ components:
           status: active
           created_at: "2026-10-06T12:00:00Z"
           creator_id: 019cc330-1111-7000-8000-000000000001
-          rules: {join_mode: request, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}
+          rules: {join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100}
           member_count: 1
           members: []
           treasury_address: 9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin

@@ -78,7 +78,7 @@ func newContractWorld(t *testing.T) contractWorld {
 	}
 	day := 24 * time.Hour
 	add("a", idA, "Friends pot", "https://pictures.test/a.png", u[0], cabal.StatusActive, t0, cabal.Rules{
-		JoinMode: cabal.JoinRequest, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
+		JoinMode: cabal.JoinOpen, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
 		ProposalExpiry: day, SlippageBps: 100,
 	})
 	add("b", idB, "Banned pot", "", u[2], cabal.StatusBanned, t0.Add(2*time.Hour), cabal.Rules{
@@ -86,7 +86,7 @@ func newContractWorld(t *testing.T) contractWorld {
 		ProposalExpiry: 7 * day, SlippageBps: 300,
 	})
 	small := cabal.Rules{
-		JoinMode: cabal.JoinRequest, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
+		JoinMode: cabal.JoinOpen, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
 		ProposalExpiry: time.Hour, SlippageBps: 1,
 	}
 	add("c", idC, "Solo pot", "", u[5], cabal.StatusActive, t0.Add(4*time.Hour), small)

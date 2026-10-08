@@ -43,7 +43,7 @@ func f14Founded(script string) []scenario.Step {
 	return []scenario.Step{
 		scenario.SignIn("did:privy:qa-f14-" + script),
 		scenario.ExpectStatus(http.StatusOK),
-		scenario.Post(cabalsPath, cabalOf("all")),
+		scenario.Post(cabalsPath, cabalOf("open", "all")),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "cabal"),
 	}

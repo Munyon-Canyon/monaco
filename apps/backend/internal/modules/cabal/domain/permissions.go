@@ -72,8 +72,10 @@ func CanJoin(actor Actor, cabal Cabal) error {
 		return errs.New(errs.CodeCabalBanned, op)
 	case actor.Member:
 		return errs.New(errs.CodeAlreadyMember, op)
+	case cabal.Rules.JoinMode() == JoinRequest:
+		return errs.New(errs.CodeJoinNeedsRequest, op)
 	}
-	return errs.New(errs.CodeJoinNeedsRequest, op)
+	return nil
 }
 
 func CanRequest(actor Actor, cabal Cabal) error {
@@ -83,6 +85,8 @@ func CanRequest(actor Actor, cabal Cabal) error {
 		return errs.New(errs.CodeCabalBanned, op)
 	case actor.Member:
 		return errs.New(errs.CodeAlreadyMember, op)
+	case cabal.Rules.JoinMode() != JoinRequest:
+		return errs.New(errs.CodeRequestNotNeeded, op)
 	}
 	return nil
 }

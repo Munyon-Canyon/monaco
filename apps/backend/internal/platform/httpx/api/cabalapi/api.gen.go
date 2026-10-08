@@ -103,7 +103,7 @@ type Cabal struct {
 	// Members Examples: []
 	Members []CabalMember `json:"members"`
 
-	// MyAccessRequest The caller's pending access request, or null.
+	// MyAccessRequest The caller's pending access request or invite, else their latest access request when the creator denied it, else null. Always null for a member.
 	//
 	// Examples: null
 	MyAccessRequest *CabalAccess `json:"my_access_request"`
@@ -118,7 +118,7 @@ type Cabal struct {
 
 	// Rules How the cabal admits members and how it votes.
 	//
-	// Examples: {"join_mode":"request","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
+	// Examples: {"join_mode":"open","proposal_expiry_seconds":86400,"slippage_bps":100,"threshold":"majority","voter_mode":"all"}
 	Rules CabalRules `json:"rules"`
 
 	// Status `active` or `banned`.
@@ -267,7 +267,7 @@ type CabalPreview struct {
 	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	Id openapi_types.UUID `json:"id"`
 
-	// JoinMode Always `request`: people join by an approved request or an accepted invite.
+	// JoinMode `open` (anyone joins at once) or `request` (the creator approves each request).
 	//
 	// Examples: request
 	JoinMode string `json:"join_mode"`
@@ -286,7 +286,7 @@ type CabalPreview struct {
 
 // CabalRules How the cabal admits members and how it votes.
 type CabalRules struct {
-	// JoinMode Examples: request
+	// JoinMode Examples: open
 	JoinMode string `json:"join_mode"`
 
 	// ProposalExpirySeconds Examples: 86400
@@ -307,7 +307,7 @@ type CabalSearchItem struct {
 	Id       openapi_types.UUID `json:"id"`
 	IsMember bool               `json:"is_member"`
 
-	// JoinMode Examples: request
+	// JoinMode Examples: open
 	JoinMode    string `json:"join_mode"`
 	MemberCount int32  `json:"member_count"`
 
@@ -347,9 +347,9 @@ type CabalSentInvite struct {
 
 // CreateCabalRequest The name and rules for a new cabal.
 type CreateCabalRequest struct {
-	// JoinMode Always `request`: people join by an approved request or an accepted invite.
+	// JoinMode `open` (anyone joins at once) or `request` (the creator approves each request).
 	//
-	// Examples: request
+	// Examples: open
 	JoinMode string `json:"join_mode"`
 
 	// Name Cabal name, 3 to 40 characters.
@@ -407,7 +407,7 @@ type MyCabal struct {
 
 // UpdateCabalRequest The cabal fields to change. An omitted field keeps its value.
 type UpdateCabalRequest struct {
-	// JoinMode Always `request`: people join by an approved request or an accepted invite.
+	// JoinMode `open` (anyone joins at once) or `request` (the creator approves each request).
 	//
 	// Examples: request
 	JoinMode *string `json:"join_mode,omitempty"`
@@ -571,7 +571,7 @@ type ServerInterface interface {
 	// GetCabalAccessRequests List the pending requests to join a cabal.
 	// (GET /v1/cabals/{id}/access-requests)
 	GetCabalAccessRequests(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalAccessRequestsParams)
-	// PostCabalAccessRequest Ask to join a cabal.
+	// PostCabalAccessRequest Ask to join a request cabal.
 	// (POST /v1/cabals/{id}/access-requests)
 	PostCabalAccessRequest(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalAccessRequestParams)
 	// DeleteCabalAccessRequest Withdraw a pending request or invite.
@@ -586,7 +586,7 @@ type ServerInterface interface {
 	// PostCabalInvite Invite a user to a cabal by handle.
 	// (POST /v1/cabals/{id}/invites)
 	PostCabalInvite(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalInviteParams)
-	// PostCabalMember Join a cabal without a request.
+	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostCabalMemberParams)
 	// DeleteCabalMemberMe Leave a cabal.
@@ -2221,7 +2221,7 @@ type StrictServerInterface interface {
 	// GetCabalAccessRequests List the pending requests to join a cabal.
 	// (GET /v1/cabals/{id}/access-requests)
 	GetCabalAccessRequests(ctx context.Context, request GetCabalAccessRequestsRequestObject) (GetCabalAccessRequestsResponseObject, error)
-	// PostCabalAccessRequest Ask to join a cabal.
+	// PostCabalAccessRequest Ask to join a request cabal.
 	// (POST /v1/cabals/{id}/access-requests)
 	PostCabalAccessRequest(ctx context.Context, request PostCabalAccessRequestRequestObject) (PostCabalAccessRequestResponseObject, error)
 	// DeleteCabalAccessRequest Withdraw a pending request or invite.
@@ -2236,7 +2236,7 @@ type StrictServerInterface interface {
 	// PostCabalInvite Invite a user to a cabal by handle.
 	// (POST /v1/cabals/{id}/invites)
 	PostCabalInvite(ctx context.Context, request PostCabalInviteRequestObject) (PostCabalInviteResponseObject, error)
-	// PostCabalMember Join a cabal without a request.
+	// PostCabalMember Join an open cabal.
 	// (POST /v1/cabals/{id}/members)
 	PostCabalMember(ctx context.Context, request PostCabalMemberRequestObject) (PostCabalMemberResponseObject, error)
 	// DeleteCabalMemberMe Leave a cabal.
