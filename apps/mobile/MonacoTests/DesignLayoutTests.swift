@@ -1,5 +1,6 @@
 import SwiftUI
 import Testing
+import UIKit
 
 @testable import Monaco
 
@@ -141,5 +142,19 @@ struct MoneyStyleScalingTests {
         #expect(MoneyStyle.large.weight == .semibold)
         #expect(MoneyStyle.row.weight == .semibold)
         #expect(MoneyStyle.caption.weight == .medium)
+    }
+}
+
+@MainActor
+struct SectionStackLayoutTests {
+    @Test func aZeroHeightSectionTakesNoGap() {
+        let host = UIHostingController(
+            rootView: SectionStackLayout(spacing: SectionStackMetrics.spacing) {
+                Color.red.frame(height: 10)
+                Color.clear.frame(height: 0)
+                Color.red.frame(height: 10)
+            })
+        let size = host.sizeThatFits(in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude))
+        #expect(size.height == 44)
     }
 }
