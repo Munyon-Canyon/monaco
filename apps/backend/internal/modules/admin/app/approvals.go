@@ -75,6 +75,8 @@ type DecideApproval struct {
 	Reason  events.Reason
 }
 
+type ApproveCabalBan DecideApproval
+
 type Approvals struct {
 	uow    *db.UnitOfWork
 	cabals CabalStatuses
@@ -125,8 +127,8 @@ func (a *Approvals) RequestCabalBan(ctx context.Context, cmd RequestCabalBan) (A
 	return row, err
 }
 
-func (a *Approvals) Approve(ctx context.Context, cmd DecideApproval) (Approval, error) {
-	return a.decide(ctx, "admin.ApproveApproval", ApprovalApproved, cmd)
+func (a *Approvals) Approve(ctx context.Context, cmd ApproveCabalBan) (Approval, error) {
+	return a.decide(ctx, "admin.ApproveCabalBan", ApprovalApproved, DecideApproval(cmd))
 }
 
 func (a *Approvals) Reject(ctx context.Context, cmd DecideApproval) (Approval, error) {
