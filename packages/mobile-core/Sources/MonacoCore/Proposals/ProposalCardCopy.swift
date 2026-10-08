@@ -4,9 +4,7 @@ public enum ProposalCardCopy {
     public static let pausedCaption = "Trading is paused. If this passes, it won't buy until trading resumes."
 
     public static func closes(at expiry: Date, now: Date) -> String {
-        let seconds = max(0, Int(expiry.timeIntervalSince(now)))
-        if seconds >= 3600 { return "Closes in \(seconds / 3600)h" }
-        return "Closes in \(max(1, seconds / 60))m"
+        ProposalTimeFormatter.closesLabel(expiry: expiry, now: now)
     }
 
     public static func tracker(voted: Int, voters: Int, needed: Int) -> String {
