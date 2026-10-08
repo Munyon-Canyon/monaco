@@ -2096,3 +2096,11 @@ func TestCheck_aFailingMergeBaseFallsBackToTheChosenParent(t *testing.T) {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 }
+
+func TestXcodeScript_usesTheSharedCacheArguments(t *testing.T) {
+	t.Parallel()
+	script := xcodeScript("build-for-testing")
+	if !strings.Contains(script, "scripts/xcode-cache-args.sh") || !strings.Contains(script, `"${cache_args[@]}"`) {
+		t.Fatalf("xcode row does not pass the shared cache arguments:\n%s", script)
+	}
+}

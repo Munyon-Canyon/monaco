@@ -510,11 +510,11 @@ fi
 
 func xcodeScript(action string) string {
 	return xcodePrivyGuard +
+		`cache_args=(); while IFS= read -r a; do cache_args+=("$a"); done < <(scripts/xcode-cache-args.sh)` + "\n" +
 		`scripts/qa/xcode-lock.sh xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug ` +
 		`-destination "platform=iOS Simulator,id=$(scripts/resolve-ios-sim.sh)" ` +
 		`-derivedDataPath "$(git rev-parse --show-toplevel)/.build/DerivedData" ` +
-		`-onlyUsePackageVersionsFromResolvedFile -skipMacroValidation -skipPackagePluginValidation ` +
-		`CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES COMPILER_INDEX_STORE_ENABLE=NO COMPILATION_CACHE_ENABLE_CACHING=YES ` +
+		`-skipMacroValidation -skipPackagePluginValidation "${cache_args[@]}" CODE_SIGNING_ALLOWED=NO ` +
 		action + ` 2>&1 | .bin/xcsift -f toon --exit-on-failure`
 }
 

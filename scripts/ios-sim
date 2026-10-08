@@ -56,6 +56,8 @@ mkdir -p "$log_dir"
 build_log="$log_dir/xcodebuild.log"
 monaco_step "mobile: building the iOS app for ${sim_name:-$udid} (log: $build_log)"
 rc=0
+cache_args=()
+while IFS= read -r a; do cache_args+=("$a"); done < <(./scripts/xcode-cache-args.sh)
 # shellcheck disable=SC2016 # $1 and $@ expand in the inner bash
 ./scripts/qa/xcode-lock.sh xcode bash -c 'log=$1; shift; exec "$@" > "$log" 2>&1' _ "$build_log" \
   xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco \
@@ -63,6 +65,7 @@ rc=0
   -configuration Debug \
   -derivedDataPath "$derived" \
   -skipPackagePluginValidation \
+  "${cache_args[@]}" \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES \
   build || rc=$?
 if (( rc != 0 )); then
