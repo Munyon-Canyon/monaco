@@ -3,11 +3,15 @@ package app
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -16,7 +20,15 @@ type chartRead struct {
 	newest   func() ([]sqlc.NewestSamplesRow, error)
 	earliest func() (time.Time, error)
 	buckets  func() ([]sqlc.ChartBucketsRow, error)
+	queue    func() (int64, error)
 	got      *sqlc.ChartBucketsParams
+}
+
+func (r chartRead) InsertPendingBackfills(context.Context, sqlc.InsertPendingBackfillsParams) (int64, error) {
+	if r.queue == nil {
+		return 0, nil
+	}
+	return r.queue()
 }
 
 func (r chartRead) AssetBySymbol(context.Context, string) (sqlc.Asset, error) { return r.asset() }
@@ -145,5 +157,29 @@ func assertChartCase(t *testing.T, i int, tc chartCase, got Chart, err error) {
 	point := got.Points[0]
 	if point.Open.Uint64() != 1 || point.High.Uint64() != 4 {
 		t.Fatalf("case %d ohlc = %+v", i, point)
+	}
+}
+
+func TestChart_aFailedBackfillQueueIsLoggedAndTheChartStillReturns(t *testing.T) {
+	t.Parallel()
+	apple := appleRow(t, "equity")
+	when := time.Date(2026, 3, 4, 15, 0, 0, 0, time.UTC)
+	bar := sqlc.ChartBucketsRow{Bucket: when, OpenMicros: 1, HighMicros: 4, LowMicros: 1, CloseMicros: 3}
+	read := chartRead{
+		asset: func() (sqlc.Asset, error) { return apple, nil },
+		newest: func() ([]sqlc.NewestSamplesRow, error) {
+			return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: when, PriceMicros: 3}}, nil
+		},
+		buckets: func() ([]sqlc.ChartBucketsRow, error) { return []sqlc.ChartBucketsRow{bar}, nil },
+		queue:   func() (int64, error) { return 0, errs.New(errs.CodeInternal, "market.test") },
+	}
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	got, err := (&AssetChart{read: read, clock: testkit.NewClock(when)}).Handle(ctx, "AAPLx", "1D")
+	if err != nil || got.Empty || len(got.Points) != 1 || got.Points[0].Close != money.MicrosFromUint64(3) {
+		t.Fatalf("chart = %+v, %v, want the one bar despite the failed queue write", got, err)
+	}
+	if !strings.Contains(string(logs.Bytes()), `"msg":"market.chart.backfill_queue_failed"`) {
+		t.Fatalf("logs = %s, want market.chart.backfill_queue_failed", logs.Bytes())
 	}
 }

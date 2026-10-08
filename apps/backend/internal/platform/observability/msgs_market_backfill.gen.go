@@ -7,5 +7,6 @@ func init() {
 		MarketBackfillSkippedNoKey,
 		MarketCoinGeckoSubMicroDropped,
 		MarketReconcileSkippedNoKey,
+		MarketChartBackfillQueueFailed,
 	)
 }
