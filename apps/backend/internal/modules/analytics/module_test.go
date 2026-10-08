@@ -59,3 +59,11 @@ func TestModule_exportsEachProductSubjectOnTheAnalyticsDurable(t *testing.T) {
 		t.Fatalf("handlers = %v, want %v", got, want)
 	}
 }
+
+func TestModule_servesTheMoneyDashboard(t *testing.T) {
+	t.Parallel()
+	m := analytics.New(module.Deps{})
+	if !testkit.Serves(m.Mount, "GET", "/v1/admin/dashboards/money") {
+		t.Fatal("analytics does not serve GET /v1/admin/dashboards/money")
+	}
+}

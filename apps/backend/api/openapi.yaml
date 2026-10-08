@@ -18,6 +18,8 @@ security:
 tags:
   - name: admin
     description: Administrator access to Monaco operations.
+  - name: analytics
+    description: The business numbers behind the admin dashboards.
   - name: cabal
     description: A group treasury and its members.
   - name: funding
@@ -375,6 +377,31 @@ paths:
         "200":
           description: The user.
           content: {application/json: {schema: {$ref: "#/components/schemas/AdminUser"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  # api/spec/analytics.yaml
+  /v1/admin/dashboards/money:
+    get:
+      operationId: getMoneyDashboard
+      tags: [analytics]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
+      summary: Read the money dashboard.
+      description: >-
+        Returns USDC moving through the platform per day or week, read from the ledger on the primary database
+        in a read-only transaction with a 5 second statement timeout. A bucket holds the settled deposits, funds
+        into cabals, cash-outs and withdrawals as a count and USDC micros, and the settled swap volume bought and
+        sold. Buckets with no activity are omitted. `total_value_held_micros` is the latest value of every cabal pot
+        plus the platform balance of every member wallet, and `as_of` is when the latest valuation run priced the pots,
+        null before the first run. `to` is exclusive and the range cannot exceed 400 days. A longer range, a `to`
+        not after `from` or an unknown bucket is invalid_input. A read over the timeout is dashboard_timeout.
+      parameters:
+        - $ref: "#/components/parameters/DashboardFrom"
+        - $ref: "#/components/parameters/DashboardTo"
+        - $ref: "#/components/parameters/DashboardBucket"
+      responses:
+        "200":
+          description: The money dashboard.
+          content: {application/json: {schema: {$ref: "#/components/schemas/MoneyDashboard"}}}
         default: {$ref: "#/components/responses/Problem"}
   # api/spec/cabal.yaml
   /v1/cabals:
@@ -3370,6 +3397,25 @@ components:
       required: false
       description: Page size. Defaults to 50 and cannot exceed 200.
       schema: {type: integer, minimum: 1, maximum: 200, default: 50, examples: [50]}
+  # api/spec/analytics.yaml
+    DashboardBucket:
+      name: bucket
+      in: query
+      required: true
+      description: The bucket size. A week starts on Monday, UTC.
+      schema: {$ref: "#/components/schemas/DashboardBucket"}
+    DashboardFrom:
+      name: from
+      in: query
+      required: true
+      description: The start of the range, inclusive, as a date such as 2026-09-01 or an RFC 3339 time. Dates are UTC.
+      schema: {type: string, maxLength: 40, examples: ["2026-09-01"]}
+    DashboardTo:
+      name: to
+      in: query
+      required: true
+      description: The end of the range, exclusive, as a date or an RFC 3339 time. It cannot be more than 400 days after `from`.
+      schema: {type: string, maxLength: 40, examples: ["2026-10-01"]}
   # api/spec/base.yaml
     IdempotencyKey:
       name: Idempotency-Key
@@ -4178,6 +4224,83 @@ components:
           type: array
           description: The events.
           items: {$ref: "#/components/schemas/UnpublishedEvent"}
+  # api/spec/analytics.yaml
+    DashboardBucket:
+      type: string
+      description: The size of one bucket.
+      enum: [day, week]
+      examples: [day]
+    DashboardMicros:
+      type: string
+      description: A USDC amount in micros as a decimal string.
+      pattern: "^(0|[1-9][0-9]*)$"
+      examples: ["25000000"]
+    MoneyBucket:
+      type: object
+      description: The settled money movement of one bucket.
+      examples:
+        - bucket_start: "2026-09-01T00:00:00Z"
+          deposit_count: 2
+          deposit_micros: "50000000"
+          fund_count: 1
+          fund_micros: "25000000"
+          swap_buy_micros: "10000000"
+          swap_sell_micros: "0"
+          cash_out_count: 0
+          cash_out_micros: "0"
+          withdrawal_count: 0
+          withdrawal_micros: "0"
+      additionalProperties: false
+      required:
+        - bucket_start
+        - deposit_count
+        - deposit_micros
+        - fund_count
+        - fund_micros
+        - swap_buy_micros
+        - swap_sell_micros
+        - cash_out_count
+        - cash_out_micros
+        - withdrawal_count
+        - withdrawal_micros
+      properties:
+        bucket_start: {type: string, format: date-time, description: The start of the bucket in UTC., examples: ["2026-09-01T00:00:00Z"]}
+        deposit_count: {type: integer, format: int64, description: Deposits credited to member wallets., examples: [2]}
+        deposit_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        fund_count: {type: integer, format: int64, description: Transfers from a member wallet into a cabal., examples: [1]}
+        fund_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        swap_buy_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        swap_sell_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        cash_out_count: {type: integer, format: int64, description: Cash-outs paid to members., examples: [0]}
+        cash_out_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        withdrawal_count: {type: integer, format: int64, description: Withdrawals to external wallets., examples: [0]}
+        withdrawal_micros: {$ref: "#/components/schemas/DashboardMicros"}
+    MoneyDashboard:
+      type: object
+      description: Money moving through the platform and the total value it holds.
+      examples:
+        - from: "2026-09-01T00:00:00Z"
+          to: "2026-10-01T00:00:00Z"
+          bucket: day
+          as_of: "2026-09-30T23:55:00Z"
+          pot_micros: "80000000"
+          platform_balance_micros: "20000000"
+          total_value_held_micros: "100000000"
+          buckets: []
+      additionalProperties: false
+      required: [from, to, bucket, as_of, pot_micros, platform_balance_micros, total_value_held_micros, buckets]
+      properties:
+        from: {type: string, format: date-time, description: The start of the range., examples: ["2026-09-01T00:00:00Z"]}
+        to: {type: string, format: date-time, description: "The end of the range, exclusive.", examples: ["2026-10-01T00:00:00Z"]}
+        bucket: {$ref: "#/components/schemas/DashboardBucket"}
+        as_of: {type: [string, "null"], format: date-time, description: When the latest valuation run priced the pots. Null before the first run., examples: ["2026-09-30T23:55:00Z"]}
+        pot_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        platform_balance_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        total_value_held_micros: {$ref: "#/components/schemas/DashboardMicros"}
+        buckets:
+          type: array
+          description: The buckets with activity, oldest first.
+          items: {$ref: "#/components/schemas/MoneyBucket"}
   # api/spec/base.yaml
     Problem:
       type: object
