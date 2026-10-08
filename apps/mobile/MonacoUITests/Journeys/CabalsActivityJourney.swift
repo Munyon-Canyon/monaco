@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsActivityJourney {
     static let id = "cabals/activity"
-    static let version = 3
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -47,7 +47,10 @@ enum CabalsActivityJourney {
         }
 
         recorder.step("S1.3", "See all lists every row") {
-            app.element("cabal-activity-see-all").tap()
+            let seeAll = app.buttons["cabal-activity-see-all"]
+            app.scrollIntoReach(seeAll)
+            XCTAssertTrue(seeAll.isHittable, "S1.3: See all is not tappable")
+            seeAll.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).tap()
             XCTAssertTrue(
                 app.navigationBars["Activity"].waitForExistence(timeout: 10), "S1.3: no Activity screen within 10 s")
             let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-activity-row-'"))
@@ -77,6 +80,41 @@ enum CabalsActivityJourney {
                 app.element("cabal-txn-solscan").label.contains("View on Solscan"), "S1.4: no View on Solscan")
             JoinJourney.snap(app, "S1-A-receipt")
         }
+
+        backOutOfReceipts(app, recorder: recorder)
+    }
+
+    static func backOutOfReceipts(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        recorder.step("S1.5", "Back from the receipt returns to the full list") {
+            app.navigationBars["Transaction"].buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.navigationBars["Activity"].waitForExistence(timeout: 10), "S1.5: no Activity list")
+            app.navigationBars["Activity"].buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.element("cabal-header-name").waitForExistence(timeout: 10), "S1.5: no cabal")
+        }
+
+        recorder.step("S1.6", "open a Money added receipt from the cabal") {
+            openDepositReceipt(app, step: "S1.6")
+        }
+
+        recorder.step("S1.7", "Back returns straight to the cabal") {
+            backToCabal(app, step: "S1.7")
+        }
+
+        recorder.step("S1.8", "open a Money added receipt again") {
+            openDepositReceipt(app, step: "S1.8")
+        }
+
+        recorder.step("S1.9", "Back again lands on one cabal screen") {
+            backToCabal(app, step: "S1.9")
+        }
+
+        recorder.step("S1.10", "Back from the cabal reaches the Cabals list") {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(
+                app.element("cabals-search-field").waitForExistence(timeout: 10),
+                "S1.10: Back from the cabal did not reach the Cabals list")
+            XCTAssertFalse(app.element("cabal-header-name").exists, "S1.10: a second cabal screen was under the first")
+        }
     }
 
     static func retryFailedTrade(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
@@ -104,5 +142,25 @@ enum CabalsActivityJourney {
                 "S2.3: the failed trade's receipt has no Retry (known failure, #654)"
             )
         }
+    }
+
+    static func openDepositReceipt(_ app: XCUIApplication, step: String) {
+        let deposit = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Money added'")).firstMatch
+        app.scrollIntoReach(deposit)
+        XCTAssertTrue(deposit.waitForExistence(timeout: screenTimeout), "\(step): no Money added row")
+        deposit.tap()
+        XCTAssertTrue(
+            app.navigationBars["Transaction"].waitForExistence(timeout: 10), "\(step): no receipt within 10 s")
+    }
+
+    static func backToCabal(_ app: XCUIApplication, step: String) {
+        app.navigationBars["Transaction"].buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(
+            app.element("cabal-header-name").waitForExistence(timeout: 10), "\(step): Back did not land on the cabal")
+        XCTAssertFalse(app.navigationBars["Transaction"].exists, "\(step): the receipt is still up")
+        XCTAssertEqual(
+            app.sheets.count + app.alerts.count + app.popovers.count + app.menus.count, 0,
+            "\(step): Back opened a prompt")
+        JoinJourney.snap(app, "S1-A-back-to-cabal-\(step)")
     }
 }

@@ -70,7 +70,8 @@ struct CabalActivitySection: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 header
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                CabalActivityContent(model: model, rows: model?.firstFive ?? [], skeletonRows: 3)
+                CabalActivityContent(
+                    opensThroughNavigator: true, model: model, rows: model?.firstFive ?? [], skeletonRows: 3)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("cabal-activity")
@@ -93,6 +94,9 @@ struct CabalActivitySection: View {
 }
 
 struct CabalActivityContent: View {
+    var opensThroughNavigator = false
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.hostMainTab) private var hostMainTab
     let model: CabalActivityModel?
     let rows: [ActivityRow]
     let skeletonRows: Int
@@ -119,15 +123,28 @@ struct CabalActivityContent: View {
         }
     }
 
+    @ViewBuilder private func receiptLink(_ row: ActivityRow, @ViewBuilder label: () -> some View) -> some View {
+        let cabalID = model?.cabalID ?? ""
+        if opensThroughNavigator, let hostMainTab {
+            Button {
+                environment.navigator.openTransaction(
+                    cabalID: cabalID, transactionID: row.id, in: hostMainTab)
+            } label: {
+                label()
+            }
+        } else {
+            NavigationLink(value: AnyAppRoute(TransactionRoute(cabalID: cabalID, transactionID: row.id))) {
+                label()
+            }
+        }
+    }
+
     private var list: some View {
         let loadingMore = model?.isLoadingMore == true
         return MonacoGroupedList(rules: loadingMore ? .top : .both) {
             LazyVStack(spacing: 0) {
                 ForEach(rows) { row in
-                    NavigationLink(
-                        value: AnyAppRoute(
-                            TransactionRoute(cabalID: model?.cabalID ?? "", transactionID: row.id))
-                    ) {
+                    receiptLink(row) {
                         CabalActivityRowView(row: row, isLast: row.id == rows.last?.id) {
                             Task { await model?.retrySwap(row) }
                         }
