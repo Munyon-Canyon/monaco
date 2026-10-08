@@ -51,6 +51,24 @@ func (e OnrampSessionStatus) Valid() bool {
 	}
 }
 
+// Defines values for PauseReason.
+const (
+	ExternalDeposit PauseReason = "external_deposit"
+	Ops             PauseReason = "ops"
+)
+
+// Valid indicates whether the value is a known member of the PauseReason enum.
+func (e PauseReason) Valid() bool {
+	switch e {
+	case ExternalDeposit:
+		return true
+	case Ops:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReportOnrampStatusRequestStatus.
 const (
 	ReportOnrampStatusRequestStatusCancelled ReportOnrampStatusRequestStatus = "cancelled"
@@ -219,6 +237,29 @@ type OnrampSessionCreated struct {
 	Url string `json:"url"`
 }
 
+// PauseReason Why trading is paused. `ops` is an operator's pause, `external_deposit` is an unreturned direct transfer.
+//
+// Examples: ops
+type PauseReason string
+
+// PauseState Whether trading is paused in a scope and why.
+//
+// Examples: {"paused":true,"reasons":["ops"],"since":"2026-10-07T12:00:00Z"}
+type PauseState struct {
+	// Paused True while any pause is open.
+	//
+	// Examples: true
+	Paused bool `json:"paused"`
+
+	// Reasons The reasons that are open, a global pause first.
+	Reasons []PauseReason `json:"reasons"`
+
+	// Since When the oldest open pause began. Null while nothing is paused.
+	//
+	// Examples: 2026-10-07T12:00:00Z
+	Since *time.Time `json:"since"`
+}
+
 // ReportOnrampStatusRequest How the provider flow ended.
 type ReportOnrampStatusRequest struct {
 	// Provider The on-ramp provider Privy chose, when the page knows it.
@@ -305,6 +346,30 @@ type WithdrawalStatus string
 // OnrampSessionId Examples: 01890a5d-ac96-774b-bcce-b302099a8057
 type OnrampSessionId = openapi_types.UUID
 
+// PauseAdminCabalParams defines parameters for PauseAdminCabal.
+type PauseAdminCabalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ResumeAdminCabalParams defines parameters for ResumeAdminCabal.
+type ResumeAdminCabalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PauseAdminAllParams defines parameters for PauseAdminAll.
+type PauseAdminAllParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ResumeAdminAllParams defines parameters for ResumeAdminAll.
+type ResumeAdminAllParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // WithdrawParams defines parameters for Withdraw.
 type WithdrawParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -323,6 +388,18 @@ type ReportOnrampStatusParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PauseAdminCabalJSONRequestBody defines body for PauseAdminCabal for application/json ContentType.
+type PauseAdminCabalJSONRequestBody = externalRef0.ReasonBody
+
+// ResumeAdminCabalJSONRequestBody defines body for ResumeAdminCabal for application/json ContentType.
+type ResumeAdminCabalJSONRequestBody = externalRef0.ReasonBody
+
+// PauseAdminAllJSONRequestBody defines body for PauseAdminAll for application/json ContentType.
+type PauseAdminAllJSONRequestBody = externalRef0.ReasonBody
+
+// ResumeAdminAllJSONRequestBody defines body for ResumeAdminAll for application/json ContentType.
+type ResumeAdminAllJSONRequestBody = externalRef0.ReasonBody
+
 // WithdrawJSONRequestBody defines body for Withdraw for application/json ContentType.
 type WithdrawJSONRequestBody = WithdrawRequest
 
@@ -337,6 +414,18 @@ type ReportOnrampStatusJSONRequestBody = ReportOnrampStatusRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// PauseAdminCabal Pause trading in one cabal.
+	// (POST /v1/admin/cabals/{id}/pause)
+	PauseAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PauseAdminCabalParams)
+	// ResumeAdminCabal Resume trading in one cabal.
+	// (POST /v1/admin/cabals/{id}/resume)
+	ResumeAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ResumeAdminCabalParams)
+	// PauseAdminAll Pause trading in every cabal.
+	// (POST /v1/admin/pause)
+	PauseAdminAll(w http.ResponseWriter, r *http.Request, params PauseAdminAllParams)
+	// ResumeAdminAll Resume trading in every cabal.
+	// (POST /v1/admin/resume)
+	ResumeAdminAll(w http.ResponseWriter, r *http.Request, params ResumeAdminAllParams)
 	// GetMyBalance Read the caller's available platform balance.
 	// (GET /v1/me/balance)
 	GetMyBalance(w http.ResponseWriter, r *http.Request)
@@ -368,6 +457,204 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// PauseAdminCabal operation middleware
+func (siw *ServerInterfaceWrapper) PauseAdminCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PauseAdminCabalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PauseAdminCabal(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResumeAdminCabal operation middleware
+func (siw *ServerInterfaceWrapper) ResumeAdminCabal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ResumeAdminCabalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResumeAdminCabal(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PauseAdminAll operation middleware
+func (siw *ServerInterfaceWrapper) PauseAdminAll(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PauseAdminAllParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PauseAdminAll(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResumeAdminAll operation middleware
+func (siw *ServerInterfaceWrapper) ResumeAdminAll(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ResumeAdminAllParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResumeAdminAll(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetMyBalance operation middleware
 func (siw *ServerInterfaceWrapper) GetMyBalance(w http.ResponseWriter, r *http.Request) {
@@ -713,6 +1000,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/cabals/{id}/pause", wrapper.PauseAdminCabal)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/cabals/{id}/resume", wrapper.ResumeAdminCabal)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/pause", wrapper.PauseAdminAll)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/resume", wrapper.ResumeAdminAll)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/balance", wrapper.GetMyBalance)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/withdrawals", wrapper.Withdraw)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/withdrawals/{id}", wrapper.GetMyWithdrawal)
@@ -722,6 +1013,168 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/onramp/sessions/{id}", wrapper.ReportOnrampStatus)
 
 	return m
+}
+
+type PauseAdminCabalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PauseAdminCabalParams
+	Body   *PauseAdminCabalJSONRequestBody
+}
+
+type PauseAdminCabalResponseObject interface {
+	VisitPauseAdminCabalResponse(w http.ResponseWriter) error
+}
+
+type PauseAdminCabal200JSONResponse PauseState
+
+func (response PauseAdminCabal200JSONResponse) VisitPauseAdminCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PauseAdminCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PauseAdminCabaldefaultApplicationProblemPlusJSONResponse) VisitPauseAdminCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResumeAdminCabalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ResumeAdminCabalParams
+	Body   *ResumeAdminCabalJSONRequestBody
+}
+
+type ResumeAdminCabalResponseObject interface {
+	VisitResumeAdminCabalResponse(w http.ResponseWriter) error
+}
+
+type ResumeAdminCabal200JSONResponse PauseState
+
+func (response ResumeAdminCabal200JSONResponse) VisitResumeAdminCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResumeAdminCabaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ResumeAdminCabaldefaultApplicationProblemPlusJSONResponse) VisitResumeAdminCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PauseAdminAllRequestObject struct {
+	Params PauseAdminAllParams
+	Body   *PauseAdminAllJSONRequestBody
+}
+
+type PauseAdminAllResponseObject interface {
+	VisitPauseAdminAllResponse(w http.ResponseWriter) error
+}
+
+type PauseAdminAll200JSONResponse PauseState
+
+func (response PauseAdminAll200JSONResponse) VisitPauseAdminAllResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PauseAdminAlldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PauseAdminAlldefaultApplicationProblemPlusJSONResponse) VisitPauseAdminAllResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResumeAdminAllRequestObject struct {
+	Params ResumeAdminAllParams
+	Body   *ResumeAdminAllJSONRequestBody
+}
+
+type ResumeAdminAllResponseObject interface {
+	VisitResumeAdminAllResponse(w http.ResponseWriter) error
+}
+
+type ResumeAdminAll200JSONResponse PauseState
+
+func (response ResumeAdminAll200JSONResponse) VisitResumeAdminAllResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResumeAdminAlldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ResumeAdminAlldefaultApplicationProblemPlusJSONResponse) VisitResumeAdminAllResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetMyBalanceRequestObject struct {
@@ -1002,6 +1455,18 @@ func (response ReportOnrampStatusdefaultApplicationProblemPlusJSONResponse) Visi
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// PauseAdminCabal Pause trading in one cabal.
+	// (POST /v1/admin/cabals/{id}/pause)
+	PauseAdminCabal(ctx context.Context, request PauseAdminCabalRequestObject) (PauseAdminCabalResponseObject, error)
+	// ResumeAdminCabal Resume trading in one cabal.
+	// (POST /v1/admin/cabals/{id}/resume)
+	ResumeAdminCabal(ctx context.Context, request ResumeAdminCabalRequestObject) (ResumeAdminCabalResponseObject, error)
+	// PauseAdminAll Pause trading in every cabal.
+	// (POST /v1/admin/pause)
+	PauseAdminAll(ctx context.Context, request PauseAdminAllRequestObject) (PauseAdminAllResponseObject, error)
+	// ResumeAdminAll Resume trading in every cabal.
+	// (POST /v1/admin/resume)
+	ResumeAdminAll(ctx context.Context, request ResumeAdminAllRequestObject) (ResumeAdminAllResponseObject, error)
 	// GetMyBalance Read the caller's available platform balance.
 	// (GET /v1/me/balance)
 	GetMyBalance(ctx context.Context, request GetMyBalanceRequestObject) (GetMyBalanceResponseObject, error)
@@ -1062,6 +1527,140 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// PauseAdminCabal operation middleware
+func (sh *strictHandler) PauseAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PauseAdminCabalParams) {
+	var request PauseAdminCabalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body PauseAdminCabalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PauseAdminCabal(ctx, request.(PauseAdminCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PauseAdminCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PauseAdminCabalResponseObject); ok {
+		if err := validResponse.VisitPauseAdminCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResumeAdminCabal operation middleware
+func (sh *strictHandler) ResumeAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ResumeAdminCabalParams) {
+	var request ResumeAdminCabalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ResumeAdminCabalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResumeAdminCabal(ctx, request.(ResumeAdminCabalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResumeAdminCabal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResumeAdminCabalResponseObject); ok {
+		if err := validResponse.VisitResumeAdminCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PauseAdminAll operation middleware
+func (sh *strictHandler) PauseAdminAll(w http.ResponseWriter, r *http.Request, params PauseAdminAllParams) {
+	var request PauseAdminAllRequestObject
+
+	request.Params = params
+
+	var body PauseAdminAllJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PauseAdminAll(ctx, request.(PauseAdminAllRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PauseAdminAll")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PauseAdminAllResponseObject); ok {
+		if err := validResponse.VisitPauseAdminAllResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResumeAdminAll operation middleware
+func (sh *strictHandler) ResumeAdminAll(w http.ResponseWriter, r *http.Request, params ResumeAdminAllParams) {
+	var request ResumeAdminAllRequestObject
+
+	request.Params = params
+
+	var body ResumeAdminAllJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResumeAdminAll(ctx, request.(ResumeAdminAllRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResumeAdminAll")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResumeAdminAllResponseObject); ok {
+		if err := validResponse.VisitResumeAdminAllResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetMyBalance operation middleware

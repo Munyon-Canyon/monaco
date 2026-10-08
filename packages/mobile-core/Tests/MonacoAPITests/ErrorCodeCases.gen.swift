@@ -19,6 +19,7 @@ extension Components.Schemas.ErrorCode {
         case .agentWrongStatus: true
         case .alreadyFlagged: true
         case .alreadyMember: true
+        case .alreadyPaused: true
         case .analyticsPii: true
         case .apnsAuthFailed: true
         case .apnsUnavailable: true
@@ -86,6 +87,7 @@ extension Components.Schemas.ErrorCode {
         case .ledgerUnbalanced: true
         case .liveSwapExists: true
         case .loginMethodNotAllowed: true
+        case .noOpsPause: true
         case .noRealtimeChannels: true
         case .noRoute: true
         case .notAVoter: true

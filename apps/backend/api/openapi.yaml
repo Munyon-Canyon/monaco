@@ -953,6 +953,125 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/funding.yaml
+  /v1/admin/cabals/{id}/pause:
+    post:
+      operationId: pauseAdminCabal
+      tags: [funding]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Pause trading in one cabal.
+      description: >-
+        Writes an `ops` pause for the cabal and appends `cabal.paused` and `admin.action` in one transaction,
+        then answers the cabal's pause state. A paused cabal gets no executions, no funding and no cash outs.
+        A cabal that already has an open `ops` pause answers already_paused, and an unknown cabal answers
+        cabal_not_found.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the cabal.
+          schema: {type: string, format: uuid, examples: ["019cc330-2222-7000-8000-000000000001"]}
+      requestBody:
+        description: Why the administrator takes the action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: investigating}
+      responses:
+        "200":
+          description: The pause state of the scope after the action.
+          content: {application/json: {schema: {$ref: "#/components/schemas/PauseState"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/cabals/{id}/resume:
+    post:
+      operationId: resumeAdminCabal
+      tags: [funding]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Resume trading in one cabal.
+      description: >-
+        Resolves the cabal's open `ops` pause and appends `cabal.resumed` and `admin.action` in one transaction,
+        then answers the cabal's pause state. It never clears an external-deposit pause: when one is still open
+        the `ops` pause is resolved and audited, and the answer is cabal_still_paused. A cabal with no open
+        `ops` pause answers no_ops_pause.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the cabal.
+          schema: {type: string, format: uuid, examples: ["019cc330-2222-7000-8000-000000000001"]}
+      requestBody:
+        description: Why the administrator takes the action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: resolved}
+      responses:
+        "200":
+          description: The pause state of the scope after the action.
+          content: {application/json: {schema: {$ref: "#/components/schemas/PauseState"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/pause:
+    post:
+      operationId: pauseAdminAll
+      tags: [funding]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Pause trading in every cabal.
+      description: >-
+        Writes a global `ops` pause and appends `cabal.paused` and `admin.action` in one transaction, then
+        answers the global pause state. An open global `ops` pause answers already_paused.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: Why the administrator takes the action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: incident 7}
+      responses:
+        "200":
+          description: The pause state of the scope after the action.
+          content: {application/json: {schema: {$ref: "#/components/schemas/PauseState"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/resume:
+    post:
+      operationId: resumeAdminAll
+      tags: [funding]
+      x-admin-role: operator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Resume trading in every cabal.
+      description: >-
+        Resolves the global `ops` pause and appends `cabal.resumed` and `admin.action` in one transaction, then
+        answers the global pause state. It never clears a cabal's own pause. With no open global `ops` pause it
+        answers no_ops_pause.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: Why the administrator takes the action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: resolved}
+      responses:
+        "200":
+          description: The pause state of the scope after the action.
+          content: {application/json: {schema: {$ref: "#/components/schemas/PauseState"}}}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/me/balance:
     get:
       operationId: getMyBalance
@@ -4840,6 +4959,7 @@ components:
         - agent_wrong_status
         - already_flagged
         - already_member
+        - already_paused
         - analytics_pii
         - apns_auth_failed
         - apns_unavailable
@@ -4907,6 +5027,7 @@ components:
         - ledger_unbalanced
         - live_swap_exists
         - login_method_not_allowed
+        - no_ops_pause
         - no_realtime_channels
         - no_route
         - not_a_voter
@@ -5087,6 +5208,29 @@ components:
           format: date-time
           description: When the token stops working.
           examples: ["2026-10-03T15:10:00Z"]
+    PauseReason:
+      type: string
+      description: Why trading is paused. `ops` is an operator's pause, `external_deposit` is an unreturned direct transfer.
+      enum: [external_deposit, ops]
+      examples: [ops]
+    PauseState:
+      type: object
+      description: Whether trading is paused in a scope and why.
+      examples:
+        - {paused: true, reasons: [ops], since: "2026-10-07T12:00:00Z"}
+      additionalProperties: false
+      required: [paused, reasons, since]
+      properties:
+        paused: {type: boolean, description: True while any pause is open., examples: [true]}
+        reasons:
+          type: array
+          description: The reasons that are open, a global pause first.
+          items: {$ref: "#/components/schemas/PauseReason"}
+        since:
+          type: [string, "null"]
+          format: date-time
+          description: When the oldest open pause began. Null while nothing is paused.
+          examples: ["2026-10-07T12:00:00Z"]
     ReportOnrampStatusRequest:
       type: object
       description: How the provider flow ended.
