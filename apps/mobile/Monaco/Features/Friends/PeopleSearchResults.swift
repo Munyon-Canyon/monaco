@@ -18,9 +18,14 @@ struct PeopleSearchResults: View {
         case .loaded(let users):
             MonacoGroupedList {
                 ForEach(Array(users.enumerated()), id: \.element.userId) { index, user in
-                    Button {
-                        open(user)
-                    } label: {
+                    NavigationLink(
+                        value: AnyAppRoute(
+                            UserProfileRoute(
+                                userID: user.userId,
+                                preview: UserPreview(
+                                    displayName: user.displayName, handle: user.handle, photoURL: user.photoUrl)
+                            ))
+                    ) {
                         PeopleSearchRow(
                             user: user,
                             isViewer: user.userId == environment.viewer?.userID,
@@ -39,11 +44,6 @@ struct PeopleSearchResults: View {
         case .failed:
             MonacoErrorRow(thing: "people", identifier: "friends-search-error", retry: model.retry)
         }
-    }
-
-    private func open(_ user: Components.Schemas.UserSummary) {
-        let preview = UserPreview(displayName: user.displayName, handle: user.handle, photoURL: user.photoUrl)
-        environment.navigator.open(UserProfileRoute(userID: user.userId, preview: preview), in: .profile)
     }
 }
 
