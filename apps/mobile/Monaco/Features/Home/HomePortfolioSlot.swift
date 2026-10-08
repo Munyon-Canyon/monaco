@@ -10,6 +10,13 @@ enum HomePortfolioSlot: HomeSection {
     }
 }
 
+private enum HeroRhythm {
+    static let titleToBalance = MonacoTheme.Space.xs
+    static let balanceToChip = MonacoTheme.Space.s
+    static let chipToChart = MonacoTheme.Space.m
+    static let withinChart = MonacoTheme.Space.s
+}
+
 private struct HomePortfolioHero: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
@@ -19,7 +26,7 @@ private struct HomePortfolioHero: View {
     @State private var selection: Int?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: 0) {
             content
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -66,30 +73,40 @@ private struct HomePortfolioHero: View {
                 }
             }
         case .loaded(let summary):
-            title
-            MoneyText(micros: summary.totalMicros, style: .hero, color: MonacoTheme.onHero)
-                .accessibilityIdentifier("home-portfolio-total")
-            chip(summary)
-            if summary.isEmpty {
-                hairline
-            } else {
-                curve
+            VStack(alignment: .leading, spacing: HeroRhythm.chipToChart) {
+                VStack(alignment: .leading, spacing: HeroRhythm.balanceToChip) {
+                    VStack(alignment: .leading, spacing: HeroRhythm.titleToBalance) {
+                        title
+                        MoneyText(micros: summary.totalMicros, style: .hero, color: MonacoTheme.onHero)
+                            .accessibilityIdentifier("home-portfolio-total")
+                    }
+                    chip(summary)
+                }
+                if summary.isEmpty {
+                    hairline
+                } else {
+                    curve
+                }
             }
         }
     }
 
     private var title: some View {
         Text("Your money in cabals")
-            .font(MonacoTheme.Typo.captionStrong)
-            .foregroundStyle(MonacoTheme.onHero)
+            .font(MonacoTheme.Typo.callout)
+            .foregroundStyle(MonacoTheme.onHeroMuted)
             .accessibilityAddTraits(.isHeader)
     }
 
     private var skeleton: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            SkeletonBlock(width: 140, height: 14)
-            SkeletonBlock(width: 180, height: 44)
-            SkeletonBlock(width: 120, height: 24, radius: 12)
+        VStack(alignment: .leading, spacing: HeroRhythm.chipToChart) {
+            VStack(alignment: .leading, spacing: HeroRhythm.balanceToChip) {
+                VStack(alignment: .leading, spacing: HeroRhythm.titleToBalance) {
+                    SkeletonBlock(width: 140, height: 16)
+                    SkeletonBlock(width: 180, height: 44)
+                }
+                SkeletonBlock(width: 120, height: 24, radius: 12)
+            }
             SkeletonBlock(height: 160, radius: 12)
         }
         .accessibilityElement()
@@ -121,37 +138,42 @@ private struct HomePortfolioHero: View {
         Rectangle()
             .fill(MonacoTheme.onHeroHairline)
             .frame(height: 1)
-            .padding(.vertical, MonacoTheme.Space.m)
             .accessibilityHidden(true)
             .accessibilityIdentifier("home-portfolio-flat")
     }
 
     @ViewBuilder private var curve: some View {
         if let chart {
-            switch chart.state {
-            case .idle, .loading:
-                SkeletonBlock(height: 160, radius: 12)
-                    .accessibilityIdentifier("home-portfolio-chart-loading")
-                rangeChips(chart)
-            case .failed:
-                MonacoErrorRow(thing: "the chart", identifier: "home-portfolio-chart-failed", onHero: true) {
-                    Task { await chart.load() }
-                }
-            case .loaded:
-                if let curve = chart.curve, curve.hasEnoughHistory {
-                    CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) }, onInk: true)
-                    CurveScrubChart(
-                        curve: curve, range: chart.range, onInk: true, selection: $selection,
-                        identifier: "home-pnl-chart")
-                } else {
-                    hairline
-                    Text(chart.range.shortHistoryLine)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.onHeroMuted)
-                        .accessibilityIdentifier("home-portfolio-short")
-                }
-                rangeChips(chart)
+            VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
+                curveRows(chart)
             }
+        }
+    }
+
+    @ViewBuilder private func curveRows(_ chart: ValueChartModel) -> some View {
+        switch chart.state {
+        case .idle, .loading:
+            SkeletonBlock(height: 160, radius: 12)
+                .accessibilityIdentifier("home-portfolio-chart-loading")
+            rangeChips(chart)
+        case .failed:
+            MonacoErrorRow(thing: "the chart", identifier: "home-portfolio-chart-failed", onHero: true) {
+                Task { await chart.load() }
+            }
+        case .loaded:
+            if let curve = chart.curve, curve.hasEnoughHistory {
+                CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) }, onInk: true)
+                CurveScrubChart(
+                    curve: curve, range: chart.range, onInk: true, selection: $selection,
+                    identifier: "home-pnl-chart")
+            } else {
+                hairline
+                Text(chart.range.shortHistoryLine)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.onHeroMuted)
+                    .accessibilityIdentifier("home-portfolio-short")
+            }
+            rangeChips(chart)
         }
     }
 
