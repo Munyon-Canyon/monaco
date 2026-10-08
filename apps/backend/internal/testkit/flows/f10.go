@@ -36,7 +36,13 @@ type seedT struct{ *scenario.Scenario }
 
 func (seedT) Helper() {}
 
+const sellTokens = 50_000_000
+
 func seedOpenProposal(s *scenario.Scenario, members int) openProposal {
+	return seedProposal(s, members, false)
+}
+
+func seedProposal(s *scenario.Scenario, members int, sell bool) openProposal {
 	c := testkit.NewCabal(seedT{s}, s.DB(), testkit.WithMembers(members))
 	id, now := ids.Real{}.NewV7(), time.Now().UTC()
 	p := openProposal{
@@ -47,6 +53,10 @@ func seedOpenProposal(s *scenario.Scenario, members int) openProposal {
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
 		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
 		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
+	}
+	if sell {
+		params.Kind, params.UsdcMicros = "sell", pgtype.Int8{}
+		params.TokenAmount = pgtype.Int8{Int64: sellTokens, Valid: true}
 	}
 	for _, m := range c.Members {
 		p.voters = append(p.voters, m.ID)
@@ -117,6 +127,20 @@ func F10CastVoteOK(s *scenario.Scenario) {
 			scenario.EventuallyCabalHint(p.cabalID, "proposal_updated"),
 			scenario.NoHintFor("mallory", "proposal_updated", 100*time.Millisecond),
 		)
+	sellPasses(s)
+}
+
+func sellPasses(s *scenario.Scenario) {
+	p := seedProposal(s, 1, true)
+	passed := passedProposal(p)
+	passed.Kind, passed.USDCMicros, passed.TokenAmount = "sell", money.Micros{}, sellTokens
+	s.Given(scenario.AsSeededUser("alice", p.voters[0])).
+		When(
+			scenario.Post(p.votes, yes),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("status", "passed"),
+		).
+		Then(scenario.ExpectEventPayload(events.TypeProposalPassed, passed))
 }
 
 func F10CastVoteUnauthorized(s *scenario.Scenario) {

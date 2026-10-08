@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -42,6 +43,8 @@ type tradeOpts struct {
 	micros   int64
 	quoteOut int64
 	usdc     uint64
+	sell     bool
+	held     uint64
 }
 
 func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
@@ -57,6 +60,9 @@ func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
 	if opts.usdc == 0 {
 		opts.usdc = fundedMicros
 	}
+	if opts.held == 0 {
+		opts.held = sellTokens
+	}
 	c := testkit.NewCabal(seedT{s}, s.DB())
 	t := trade{wallet: c.PrivyWalletID, treasury: string(fakes.PrivyWalletAddress(c.PrivyWalletID))}
 	if _, err := s.DB().Exec(s.Context(), `UPDATE treasury_wallets SET address = $1 WHERE cabal_id = $2`,
@@ -69,12 +75,17 @@ func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
 		voters: []ids.UserID{c.Creator.ID},
 	}
 	t.votes = t.path + "/votes"
-	if _, err := sqlc.New(s.DB()).InsertProposal(s.Context(), sqlc.InsertProposalParams{
+	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: opts.symbol,
 		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: opts.micros, Valid: true},
 		QuoteOutAmount: opts.quoteOut, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 		VoterIds: []uuid.UUID{c.Creator.ID.UUID()},
-	}); err != nil {
+	}
+	if opts.sell {
+		params.Kind, params.UsdcMicros = "sell", pgtype.Int8{}
+		params.TokenAmount = pgtype.Int8{Int64: sellTokens, Valid: true}
+	}
+	if _, err := sqlc.New(s.DB()).InsertProposal(s.Context(), params); err != nil {
 		s.Fatalf("flows: insert proposal: %v", err)
 	}
 	seedFeedProposal(s, t.openProposal)
@@ -86,6 +97,13 @@ func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
 			Owner: t.treasury, Mint: string(testkit.USDCMint), Amount: opts.usdc, Decimals: 6,
 		}),
 		scenario.AsSeededUser("alice", t.voters[0]),
+	}
+	if opts.sell {
+		testkit.NewLedger(seedT{s}, s.DB()).
+			WithHolding(c.ID, chain.SolanaAddress(aaplxMint), money.NewBaseUnits(opts.held, 8))
+		t.given = append(t.given, scenario.FakeBalance(fakes.SetBalance{
+			Owner: t.treasury, Mint: aaplxMint, Amount: opts.held, Decimals: 8,
+		}))
 	}
 	return t
 }
@@ -170,6 +188,32 @@ func quoteFails(micros int64, step fakes.Step) scenario.Step {
 func F11ExecuteTradeOK(s *scenario.Scenario) {
 	seedTrade(s, tradeOpts{}).run(s, nil, events.TypeTradeConfirmed,
 		map[events.Type]int{events.TypeTradeSubmitted: 1, events.TypeTradeConfirmed: 1})
+	sellConfirmed(s)
+}
+
+func (t trade) proposalEnds(status, reason string) scenario.Step {
+	return scenario.Eventually("proposal "+t.id.String()+" is "+status, func(s *scenario.Scenario) bool {
+		var got, why string
+		err := s.DB().QueryRow(s.Context(),
+			`SELECT status, coalesce(status_reason, '') FROM proposals WHERE id = $1`, t.id.UUID()).Scan(&got, &why)
+		return err == nil && got == status && why == reason
+	})
+}
+
+func sellConfirmed(s *scenario.Scenario) {
+	t := seedTrade(s, tradeOpts{sell: true})
+	t.run(s, nil, events.TypeTradeConfirmed,
+		map[events.Type]int{events.TypeTradeSubmitted: 1, events.TypeTradeConfirmed: 1})
+	scenario.ExpectEventPayload(events.TypeTradeConfirmed, map[string]any{
+		"cabal_id": t.cabalID.String(), "action": "sell", "in_amount": strconv.Itoa(sellTokens),
+	})(s)
+	t.proposalEnds("executed", "")(s)
+}
+
+func sellBlocked(s *scenario.Scenario) {
+	t := seedTrade(s, tradeOpts{sell: true, held: sellTokens - 1})
+	t.blocks(s, errs.CodeInsufficientFunds)
+	t.proposalEnds("execution_blocked", string(errs.CodeInsufficientFunds))(s)
 }
 
 func F11ExecuteTradeAssetUntradable(s *scenario.Scenario) {
@@ -178,6 +222,7 @@ func F11ExecuteTradeAssetUntradable(s *scenario.Scenario) {
 
 func F11ExecuteTradeInsufficientFunds(s *scenario.Scenario) {
 	seedTrade(s, tradeOpts{usdc: tradeMicros - 1}).blocks(s, errs.CodeInsufficientFunds)
+	sellBlocked(s)
 }
 
 func F11ExecuteTradeSlippageExceeded(s *scenario.Scenario) {
