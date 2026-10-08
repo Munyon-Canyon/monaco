@@ -18,6 +18,10 @@ struct PlatformBalanceCard: View {
     /// The figure's identifier. Each screen names its own, so a test can tell them apart.
     var valueIdentifier = "platform-balance-value"
 
+    static let coinSize: CGFloat = 44
+    static let contentSpacing = MonacoTheme.Space.sm
+    static let leadingInset = MonacoTheme.Space.gutter + coinSize + contentSpacing
+
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
@@ -70,14 +74,14 @@ struct PlatformBalanceCard: View {
         Group {
             if isStacked {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    HStack(spacing: MonacoTheme.Space.sm) {
+                    HStack(spacing: Self.contentSpacing) {
                         coin
                         labels
                     }
                     figure
                 }
             } else {
-                HStack(spacing: MonacoTheme.Space.sm) {
+                HStack(alignment: .center, spacing: Self.contentSpacing) {
                     coin
                     labels
                     figure
@@ -87,20 +91,20 @@ struct PlatformBalanceCard: View {
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.s)
-        .frame(minHeight: 60)
+        .frame(minHeight: Self.coinSize + 2 * MonacoTheme.Space.s)
         .accessibilityElement(children: .combine)
     }
 
     private var coin: some View {
         StockMark(symbol: "USDC")
-            .frame(width: 44, height: 44)
+            .frame(width: Self.coinSize, height: Self.coinSize)
     }
 
     private var labels: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Account balance")
-                .font(MonacoTheme.Typo.rowTitle)
-                .foregroundStyle(MonacoTheme.ink)
+                .font(MonacoTheme.Typo.callout)
+                .foregroundStyle(MonacoTheme.muted)
             if let status = Self.statusLine(cardProcessing: cardProcessing, pendingMicros: pendingAllocationMicros) {
                 Text(status)
                     .font(MonacoTheme.Typo.caption)

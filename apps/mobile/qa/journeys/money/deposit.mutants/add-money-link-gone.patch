@@ -5,13 +5,13 @@ Home's Add money link loses its identifier. S1.2 and S2.1 tap home-add-money-lin
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift b/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
-index 357ba8e5..84b38834 100644
+index 958af53b4..b8d4f1054 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeBalanceRowSection.swift
-@@ -84,7 +84,7 @@ struct HomeBalanceRowSection: View {
+@@ -90,7 +90,7 @@ struct HomeBalanceRowSection: View {
              }
          } else {
-             HStack(spacing: MonacoTheme.Space.l) {
+             HStack(spacing: MonacoTheme.Space.sm) {
 -                link("Add money", DepositRoute(), id: "\(identifierPrefix)-add-money-link")
 +                link("Add money", DepositRoute(), id: "\(identifierPrefix)-add-cash-link")
                  link("Withdraw", WithdrawRoute(), id: "\(identifierPrefix)-withdraw-link")

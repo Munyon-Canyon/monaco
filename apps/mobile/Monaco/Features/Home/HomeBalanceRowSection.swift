@@ -42,9 +42,9 @@ struct HomeBalanceRowSection: View {
                     valueIdentifier: balanceIdentifier)
             }
             actions
-                .padding(.leading, MonacoTheme.Space.gutter + 44 + MonacoTheme.Space.sm)
+                .padding(.leading, PlatformBalanceCard.leadingInset)
                 .padding(.trailing, MonacoTheme.Space.gutter)
-                .padding(.bottom, MonacoTheme.Space.xs)
+                .padding(.bottom, MonacoTheme.Space.sm)
         }
         .task {
             let model = preparedModel()
@@ -84,12 +84,12 @@ struct HomeBalanceRowSection: View {
     @ViewBuilder
     private var actions: some View {
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 link("Add money", DepositRoute(), id: "\(identifierPrefix)-add-money-link")
                 link("Withdraw", WithdrawRoute(), id: "\(identifierPrefix)-withdraw-link")
             }
         } else {
-            HStack(spacing: MonacoTheme.Space.l) {
+            HStack(spacing: MonacoTheme.Space.sm) {
                 link("Add money", DepositRoute(), id: "\(identifierPrefix)-add-money-link")
                 link("Withdraw", WithdrawRoute(), id: "\(identifierPrefix)-withdraw-link")
                 Spacer(minLength: 0)
@@ -102,6 +102,9 @@ struct HomeBalanceRowSection: View {
             Text(title)
                 .font(MonacoTheme.Typo.calloutStrong)
                 .foregroundStyle(MonacoTheme.brand)
+                .padding(.horizontal, MonacoTheme.Space.sm)
+                .padding(.vertical, MonacoTheme.Space.s)
+                .background(MonacoTheme.brandWash, in: Capsule())
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
         }
