@@ -113,14 +113,47 @@ struct ProposalDetailSlotView: View {
     }
 
     private func votes(_ detail: ProposalDetail) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        let groups = ProposalVoterGroups(voters: detail.voters, members: model?.members ?? [])
+        let tally = detail.summary.tally
+        let needed = max(tally.needed, 1)
+        return VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Votes")
-            ForEach(detail.voters) { voter in
-                let member = model?.members.first { $0.id == voter.id }
-                Text("\(member?.name ?? "Member") \(voter.ballot.map { "voted \($0)" } ?? "hasn't voted")")
-                    .font(MonacoTheme.Typo.callout)
+            MonacoRule()
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                Text("\(groups.yes.count) yes · \(groups.no.count) no · \(groups.notVoted.count) not voted")
+                    .font(MonacoTheme.Typo.calloutStrong)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                ProgressView(value: CGFloat(min(groups.yes.count, needed)), total: CGFloat(needed))
+                    .tint(MonacoTheme.brandFill)
+                    .accessibilityLabel("\(groups.yes.count) of \(tally.needed) yes votes to pass")
+                HStack {
+                    HStack(spacing: -10) {
+                        ForEach(groups.summaryAvatars) { entry in
+                            MonacoAvatar(
+                                photoURL: entry.photoURL?.absoluteString, displayName: entry.name, size: 32,
+                                seed: entry.id
+                            )
+                            .overlay { Circle().strokeBorder(MonacoTheme.canvas, lineWidth: 2) }
+                        }
+                    }
+                    Spacer(minLength: MonacoTheme.Space.s)
+                    NavigationLink {
+                        ProposalVotersView(groups: groups)
+                    } label: {
+                        Text("See all")
+                            .font(MonacoTheme.Typo.calloutStrong)
+                            .foregroundStyle(MonacoTheme.brand)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityIdentifier("proposal-votes-see-all")
+                }
+                .frame(height: 44)
             }
+            MonacoRule()
         }
+        .accessibilityIdentifier("proposal-votes")
     }
 
     @ViewBuilder private func reason(_ detail: ProposalDetail) -> some View {
