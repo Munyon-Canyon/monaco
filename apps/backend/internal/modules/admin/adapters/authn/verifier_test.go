@@ -2,12 +2,14 @@ package authn
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -71,5 +73,41 @@ func assertBaseError(t *testing.T, pool *pgxpool.Pool) {
 	_, err := NewAdminVerifier(verifierStub{err: baseErr}, pool).Verify(t.Context(), "token")
 	if !errors.Is(err, baseErr) {
 		t.Fatalf("base error = %v, want %v", err, baseErr)
+	}
+}
+
+func TestAdminServiceToken_verifyResolvesOnlyLiveHashes(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	verifier := NewAdminVerifier(verifierStub{}, pool)
+	token, hash, err := domain.NewServiceToken(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifier.VerifyServiceToken(t.Context(), token); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("unknown = %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO admin_service_tokens (id, name, token_hash, created_at, created_by)
+VALUES (gen_random_uuid(), 'grafana', $1, now(), 'test')`, hash); err != nil {
+		t.Fatal(err)
+	}
+	if name, err := verifier.VerifyServiceToken(t.Context(), token); err != nil || name != "grafana" {
+		t.Fatalf("live = %q, %v", name, err)
+	}
+	if _, err := verifier.VerifyServiceToken(t.Context(), token+"x"); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("altered = %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `UPDATE admin_service_tokens SET revoked_at = now()`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifier.VerifyServiceToken(t.Context(), token); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("revoked = %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `DROP TABLE admin_service_tokens`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifier.VerifyServiceToken(t.Context(), token); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("no table = %v", err)
 	}
 }
