@@ -217,6 +217,15 @@ final class MoneyFlowFailureCopyTests: XCTestCase {
             .toast("Not enough in your account balance."))
     }
 
+    func testInvalidInputToastsTheMinimum() {
+        XCTAssertEqual(
+            MoneyFlowCopy.withdrawFailure(problem(400, .invalidInput, "The request is not valid.")),
+            .toast("The minimum is $1."))
+        XCTAssertEqual(
+            MoneyFlowCopy.fundCabalFailure(problem(400, .invalidInput, "The request is not valid.")),
+            .toast("The minimum is $1."))
+    }
+
     func testPrivyUnavailableAndEverythingElseToastTheServerMessage() {
         XCTAssertEqual(
             MoneyFlowCopy.withdrawFailure(problem(503, .privyUnavailable, "Wallet signing is down. Try again.")),

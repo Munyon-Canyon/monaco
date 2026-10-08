@@ -115,6 +115,8 @@ enum FundCabalStage: Equatable {
 /// What Fund this cabal says and allows for the amount typed against the balance it has.
 struct FundCabalForm: Equatable {
     static let overBalance = "Not enough in your account balance."
+    static let minimumMicros: Int64 = 1_000_000
+    static let belowMinimum = "The minimum is $1."
 
     let amountText: String
     let availableMicros: Int64?
@@ -153,12 +155,12 @@ struct FundCabalForm: Equatable {
         return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) funding"
     }
 
-    /// Replaces the helper, in red, while the amount typed is more than the balance holds.
+    /// Replaces the helper, in red, while the amount typed is over the balance or under the minimum.
     var problem: String? {
-        guard let availableMicros, let micros = AmountEntryText.micros(amountText), micros > availableMicros else {
-            return nil
-        }
-        return Self.overBalance
+        guard let micros = AmountEntryText.micros(amountText) else { return nil }
+        if let availableMicros, micros > availableMicros { return Self.overBalance }
+        if micros > 0, micros < Self.minimumMicros { return Self.belowMinimum }
+        return nil
     }
 
     /// What funding does, under the pad. Cash out's says the same thing the other way round.

@@ -115,6 +115,7 @@ public enum MoneyFlowCopy {
         case .withdrawToOwnWallet:
             return .address("That's your own deposit address. Paste the address you want to send to.")
         case .insufficientFunds: return .toast("Not enough in your account balance.")
+        case .invalidInput: return .toast("The minimum is $1.")
         default: return .toast(ToastCopy.message(for: error))
         }
     }
@@ -131,6 +132,7 @@ public enum MoneyFlowCopy {
         case .insufficientFunds: return .needsMoney(notEnoughBalance)
         case .cabalPaused: return .toast("Trading in this cabal is paused. You can fund it again once it resumes.")
         case .notCabalMember: return .toast("Join this cabal to fund it.")
+        case .invalidInput: return .toast("The minimum is $1.")
         default: return .toast(ToastCopy.message(for: error))
         }
     }

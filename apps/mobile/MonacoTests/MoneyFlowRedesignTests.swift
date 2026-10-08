@@ -57,6 +57,16 @@ struct FundCabalFormTests {
         #expect(FundCabalForm(amountText: "10", balance: nil).problem == nil)
     }
 
+    @Test func anAmountUnderTheBackendsMinFundMicrosCannotBeSent() {
+        let balance = Fixture.balance(248_500_000)
+        #expect(FundCabalForm(amountText: "0.5", balance: balance).problem == FundCabalForm.belowMinimum)
+        #expect(!FundCabalForm(amountText: "0.5", balance: balance).canSubmit)
+        #expect(FundCabalForm(amountText: "1", balance: balance).problem == nil)
+        #expect(FundCabalForm(amountText: "1", balance: balance).canSubmit)
+        #expect(
+            FundCabalForm(amountText: "0.5", balance: Fixture.balance(100_000)).problem == FundCabalForm.overBalance)
+    }
+
     /// The helper under the figure says what there is to fund with, and what is already on
     /// its way to a cabal, rather than the old "From your account balance" with no figure.
     @Test func anAmountOverTheBalanceTurnsTheHelperRed() {
@@ -178,6 +188,22 @@ struct WithdrawFormTests {
                 .canContinue)
     }
 
+    @Test func anAmountOrAMaxUnderTheBackendsMinWithdrawalMicrosCannotContinue() {
+        let balance = Fixture.balance(248_500_000)
+        let under = WithdrawForm(amountText: "0.5", destinationAddress: outsideAddress, balance: balance)
+        #expect(under.problem == WithdrawForm.belowMinimum)
+        #expect(!under.canContinue)
+        let one = WithdrawForm(amountText: "1", destinationAddress: outsideAddress, balance: balance)
+        #expect(one.problem == nil)
+        #expect(one.canContinue)
+        let max = WithdrawForm(amountText: "0.5", destinationAddress: outsideAddress, balance: Fixture.balance(500_000))
+        #expect(max.problem == WithdrawForm.belowMinimum)
+        #expect(!max.canContinue)
+        #expect(
+            WithdrawForm(amountText: "0.5", destinationAddress: outsideAddress, balance: Fixture.balance(100_000))
+                .problem == WithdrawForm.overBalance)
+    }
+
     @Test func theHelperSaysWhatIsAvailable() {
         #expect(
             WithdrawForm(amountText: "", destinationAddress: "", balance: Fixture.balance(248_500_000)).balanceHelper
@@ -235,8 +261,10 @@ struct MoneyFlowCopyTests {
                 FundCabalForm.note(into: nil),
                 FundCabalForm.note(into: "Weekend investors"),
                 FundCabalForm.overBalance,
+                FundCabalForm.belowMinimum,
                 WithdrawForm.caveat,
                 WithdrawForm.overBalance,
+                WithdrawForm.belowMinimum,
                 WithdrawConfirmView.caveat,
                 PlatformBalanceCard.pendingLine(micros: 50_000_000) ?? "",
             ]
