@@ -54,6 +54,7 @@ const (
 	CommentParentMismatch ErrorCode = "comment_parent_mismatch"
 	ConservationBroken ErrorCode = "conservation_broken"
 	ContactHashesInvalid ErrorCode = "contact_hashes_invalid"
+	DashboardTimeout ErrorCode = "dashboard_timeout"
 	DbSchemaBehind ErrorCode = "db_schema_behind"
 	DbUnavailable ErrorCode = "db_unavailable"
 	DeadLetterNotOpen ErrorCode = "dead_letter_not_open"
@@ -245,6 +246,8 @@ func (e ErrorCode) Valid() bool {
 	case ConservationBroken:
 		return true
 	case ContactHashesInvalid:
+		return true
+	case DashboardTimeout:
 		return true
 	case DbSchemaBehind:
 		return true
