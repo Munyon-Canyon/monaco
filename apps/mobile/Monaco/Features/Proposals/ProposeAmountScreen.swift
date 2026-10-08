@@ -26,6 +26,7 @@ struct ProposeAmountScreen: View {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     operationLabel
                     MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
+                    ProposePotTotalRow(cabalID: cabalID)
                 }
                 AmountEntry(
                     amountText: $amountText, max: max, presets: presets, helper: model.helperText,
