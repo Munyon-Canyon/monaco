@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -128,7 +129,9 @@ func TestAdminServiceToken_readsTheFourDashboardsUntilRevoked(t *testing.T) {
 			t.Fatalf("%s = %d, body %s", route, w.Code, w.Body)
 		}
 	}
-	if !strings.Contains(logs.String(), `"admin_id":"service:grafana"`) || strings.Contains(logs.String(), minted) {
+	if !strings.Contains(logs.String(), `"admin_id":"service:grafana"`) ||
+		!strings.Contains(logs.String(), `"actor":"service:grafana"`) ||
+		strings.Contains(logs.String(), "service:service") || strings.Contains(logs.String(), minted) {
 		t.Fatalf("logs must name the token and never carry it: %s", logs.String())
 	}
 	if _, err := pool.Exec(
@@ -145,9 +148,21 @@ func TestAdminServiceToken_readsTheFourDashboardsUntilRevoked(t *testing.T) {
 	}
 }
 
-type adminOp struct{ method, path, role string }
+const dashboardPrefix = "/v1/admin/dashboards/"
 
-func notViewerGets(t *testing.T) []adminOp {
+type adminOp struct{ method, path, role, query string }
+
+func requiredQuery(op *openapi3.Operation) string {
+	q := url.Values{}
+	for _, p := range op.Parameters {
+		if p.Value.In == openapi3.ParameterInQuery && p.Value.Required {
+			q.Set(p.Value.Name, "devadmin")
+		}
+	}
+	return q.Encode()
+}
+
+func notDashboardReads(t *testing.T) []adminOp {
 	t.Helper()
 	doc, err := openapi3.NewLoader().LoadFromData(openapi.Spec)
 	if err != nil {
@@ -157,29 +172,33 @@ func notViewerGets(t *testing.T) []adminOp {
 	for path, item := range doc.Paths.Map() {
 		for method, op := range item.Operations() {
 			role, _ := op.Extensions["x-admin-role"].(string)
-			if strings.HasPrefix(path, "/v1/admin/") && (method != http.MethodGet || role != "viewer") {
-				out = append(out, adminOp{method, path, role})
+			isDashboardRead := method == http.MethodGet && strings.HasPrefix(path, dashboardPrefix)
+			if strings.HasPrefix(path, "/v1/admin/") && !isDashboardRead {
+				out = append(out, adminOp{method, path, role, requiredQuery(op)})
 			}
 		}
 	}
 	return out
 }
 
-func TestAdminServiceToken_everyOtherAdminRouteIsForbidden(t *testing.T) {
+func TestAdminServiceToken_everyRouteOutsideTheDashboardsIsForbidden(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	h := serviceTokenAPI(t, pool, io.Discard)
 	minted := mintServiceToken(t, pool, "grafana")
 	seen := map[string]int{}
-	for _, op := range notViewerGets(t) {
+	for _, op := range notDashboardReads(t) {
 		seen[op.method+" "+op.role]++
 		target := pathParam.ReplaceAllString(op.path, "019cc330-1111-7000-8000-000000000001")
+		if op.query != "" {
+			target += "?" + op.query
+		}
 		w := serviceCall(t, h, op.method, target, minted)
 		if w.Code != http.StatusForbidden || problemCodeOf(t, w) != string(errs.CodeAdminForbidden) {
 			t.Errorf("%s %s = %d (role %s), want 403 admin_forbidden", op.method, op.path, w.Code, op.role)
 		}
 	}
-	for _, want := range []string{"POST operator", "GET operator", "GET moderator"} {
+	for _, want := range []string{"POST operator", "GET operator", "GET moderator", "GET viewer"} {
 		if seen[want] == 0 {
 			t.Errorf("no %s route was checked; saw %v", want, seen)
 		}

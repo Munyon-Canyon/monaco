@@ -12,7 +12,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const adminRoleExtension = "x-admin-role"
+const (
+	adminRoleExtension = "x-admin-role"
+	serviceReadPrefix  = "/v1/admin/dashboards/"
+)
 
 type ServiceTokenVerifier interface {
 	VerifyServiceToken(ctx context.Context, raw string) (name string, err error)
@@ -33,7 +36,7 @@ func Admin(v auth.TokenVerifier) func(http.Handler) http.Handler {
 			}
 			rec := &recorder{ResponseWriter: w}
 			next.ServeHTTP(rec, r.WithContext(withActor(r.Context(), actor)))
-			observability.Info(r.Context(), observability.AdminRequest, slog.String("admin_id", actor.ID),
+			observability.Info(r.Context(), observability.AdminRequest, slog.String("admin_id", adminID(actor)),
 				slog.String("role", actor.Role), slog.String("op", res.route.Operation.OperationID),
 				slog.Int("status", rec.statusOr200()))
 		})
@@ -54,7 +57,7 @@ func adminActor(r *http.Request, v auth.TokenVerifier, res resolved) (auth.Actor
 		return auth.Actor{}, errs.New(errs.CodeUnauthorized, op)
 	}
 	if domain.IsServiceToken(raw) {
-		return serviceActor(r, v, raw, required)
+		return serviceActor(r, v, raw, res, required)
 	}
 	actor, err := v.Verify(r.Context(), raw)
 	if err != nil {
@@ -69,7 +72,9 @@ func adminActor(r *http.Request, v auth.TokenVerifier, res resolved) (auth.Actor
 	return actor, nil
 }
 
-func serviceActor(r *http.Request, v auth.TokenVerifier, raw string, required domain.Role) (auth.Actor, error) {
+func serviceActor(
+	r *http.Request, v auth.TokenVerifier, raw string, res resolved, required domain.Role,
+) (auth.Actor, error) {
 	const op = "httpx.Admin.serviceActor"
 	sv, ok := v.(ServiceTokenVerifier)
 	if !ok {
@@ -79,10 +84,21 @@ func serviceActor(r *http.Request, v auth.TokenVerifier, raw string, required do
 	if err != nil {
 		return auth.Actor{}, verifyProblem(err, op)
 	}
-	if r.Method != http.MethodGet || required != domain.RoleViewer {
+	if !serviceMayRead(r.Method, res.route.Path, required) {
 		return auth.Actor{}, errs.New(errs.CodeAdminForbidden, op, slog.String("service", name))
 	}
-	return auth.Actor{Kind: auth.ActorService, ID: "service:" + name, Role: string(domain.RoleViewer)}, nil
+	return auth.Actor{Kind: auth.ActorService, ID: name, Role: string(domain.RoleViewer)}, nil
+}
+
+func serviceMayRead(method, path string, required domain.Role) bool {
+	return method == http.MethodGet && required == domain.RoleViewer && strings.HasPrefix(path, serviceReadPrefix)
+}
+
+func adminID(a auth.Actor) string {
+	if a.Kind == auth.ActorService {
+		return a.Key()
+	}
+	return a.ID
 }
 
 func isAdminRoute(res resolved) bool {

@@ -36,12 +36,18 @@ func serveServiceToken(
 	t *testing.T, v auth.TokenVerifier, method, role, token string,
 ) (*harness, *httptest.ResponseRecorder, bool) {
 	t.Helper()
+	extensions := map[string]any{adminRoleExtension: role}
+	return serveServiceTokenOn(t, v, method, "/v1/admin/dashboards/money", extensions, token)
+}
+
+func serveServiceTokenOn(
+	t *testing.T, v auth.TokenVerifier, method, path string, extensions map[string]any, token string,
+) (*harness, *httptest.ResponseRecorder, bool) {
+	t.Helper()
 	h := newHarness(t)
 	route := &routers.Route{
-		Path: "/v1/admin/dashboards/money",
-		Operation: &openapi3.Operation{
-			OperationID: "getAdminMoneyDashboard", Extensions: map[string]any{adminRoleExtension: role},
-		},
+		Path:      path,
+		Operation: &openapi3.Operation{OperationID: "getAdminRoute", Extensions: extensions},
 	}
 	reached := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -66,6 +72,10 @@ func TestAdminServiceToken_viewerGetPassesAsAViewerServiceActorAndLogsOnlyTheNam
 	if len(lines) != 1 || lines[0]["admin_id"] != "service:grafana" || lines[0]["role"] != "viewer" ||
 		lines[0]["status"] != float64(http.StatusNoContent) {
 		t.Fatalf("admin log = %v", lines)
+	}
+	access := linesNamed(h.logs.lines(t), "http.request")
+	if len(access) != 1 || access[0]["actor"] != "service:grafana" {
+		t.Fatalf("access line = %v, want actor service:grafana", access)
 	}
 	h.logs.mu.Lock()
 	defer h.logs.mu.Unlock()
@@ -145,5 +155,50 @@ func TestAdminServiceToken_lookupOutageSurfacesAsUnavailableNotForbidden(t *test
 	_, rec, reached := serveServiceToken(t, down, http.MethodGet, "viewer", mstValue)
 	if rec.Code != http.StatusServiceUnavailable || reached {
 		t.Fatalf("status = %d, reached %v, want 503", rec.Code, reached)
+	}
+}
+
+func TestAdminServiceToken_aViewerGetOutsideTheDashboardsIsForbidden(t *testing.T) {
+	t.Parallel()
+	verifier := serviceVerifier{resolve: grafana}
+	for _, path := range []string{
+		"/v1/admin/users", "/v1/admin/users/u1", "/v1/admin/txns", "/v1/admin/cabals/c1", "/v1/admin/actions",
+		"/v1/admin/me", "/v1/admin/dashboards", "/v1/admin/dashboardsx/money",
+	} {
+		h, rec, reached := serveServiceTokenOn(
+			t, verifier, http.MethodGet, path, map[string]any{adminRoleExtension: "viewer"}, mstValue,
+		)
+		if rec.Code != http.StatusForbidden || reached {
+			t.Fatalf("GET %s = %d, reached %v, want 403 and not reached", path, rec.Code, reached)
+		}
+		assertProblemCode(t, rec, errs.CodeAdminForbidden)
+		if lines := linesNamed(h.logs.lines(t), "admin.request"); len(lines) != 0 {
+			t.Fatalf("refused request logged as served: %v", lines)
+		}
+	}
+}
+
+func TestAdminServiceToken_aRouteWithoutAnAdminRoleIsNeverReachedAndNeverSucceeds(t *testing.T) {
+	t.Parallel()
+	for name, extensions := range map[string]map[string]any{
+		"nil extensions": nil,
+		"empty":          {},
+		"unknown role":   {adminRoleExtension: "root"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, rec, reached := serveServiceTokenOn(
+				t,
+				serviceVerifier{resolve: grafana},
+				http.MethodGet,
+				"/v1/admin/dashboards/money",
+				extensions,
+				mstValue,
+			)
+			if reached || rec.Code < http.StatusInternalServerError {
+				t.Fatalf("status = %d, reached %v, want 500 and not reached", rec.Code, reached)
+			}
+			assertProblemCode(t, rec, errs.CodeInternal)
+		})
 	}
 }
