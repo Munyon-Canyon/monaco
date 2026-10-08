@@ -14,6 +14,7 @@ struct CabalJoinSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalRetry) private var retry
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     let cabalID: String
     @State private var model: CabalAccessModel?
 
@@ -138,6 +139,7 @@ struct CabalJoinSection: View {
     private func start() async {
         let model = self.model ?? CabalAccessModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
         self.model = model
+        refresh?.register("cabal-join") { await model.load() }
         await model.load()
         await model.observe()
     }
