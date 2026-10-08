@@ -41,6 +41,6 @@ func testJourney() throws {
 - `try JourneySession()` is the first line. It skips the test unless the runner started it, which keeps live journeys out of the nightly sample run.
 - One `try session.scenario("S1") { … }` per scenario of the doc, in the doc's order. `journey.py check` fails when one is missing or out of order. The runner reports each scenario from its own steps. A scenario after a failed one is `SKIP`.
 - `try session.act(as: "B")` makes B the signed-in member and returns B's `JourneyAccount`. When B is already signed in, it does nothing, so the app stays where the last step left it. Otherwise it signs out through Profile and signs B in with the `auth/sign-in` steps (`SignInJourney.switchActor`). Start each scenario with `act(as:)` for its first actor, and call it again wherever the doc's Actor column changes.
-- A value one actor makes and the next one uses (an invite code, a cabal name) is a variable in `testJourney`, set in one scenario's block and read in a later one. It needs no hand-off file.
+- A value one actor makes and the next one uses (a cabal name, a handle) is a variable in `testJourney`, set in one scenario's block and read in a later one. It needs no hand-off file.
 - A value a setup script makes is read inside the scenario with `try JourneyHandoff.read("cabalID")`. The runner runs `<journey>.setup.sh <scenario>` when the test reaches that scenario, before its block starts.
 - Each scenario ends with `attachScreenshot(of:named:)`.

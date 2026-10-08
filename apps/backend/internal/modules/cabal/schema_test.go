@@ -63,10 +63,6 @@ func TestCabalsSchema_refusesAValueOutsideItsSet(t *testing.T) {
 		{"status", "paused", "cabals_status_check"},
 		{"name", "ab", "cabals_name_check"},
 		{"name", strings.Repeat("x", 41), "cabals_name_check"},
-		{"invite_code", "abcdefghjk", "cabals_invite_code_check"},
-		{"invite_code", "ABCDEFGHIJ", "cabals_invite_code_check"},
-		{"invite_code", "ABCDEFGHJ", "cabals_invite_code_check"},
-		{"invite_code", "ABCDEFGHJKM", "cabals_invite_code_check"},
 	} {
 		err := run(t, pool, `UPDATE cabals SET `+tt.column+` = $1 WHERE id = $2`, tt.value, c.ID.UUID())
 		wantViolation(t, fmt.Sprintf("%s = %v", tt.column, tt.value), err, checkViolation, tt.constraint)
@@ -94,10 +90,6 @@ func TestCabalsSchema_acceptsTheEdgesOfEachSet(t *testing.T) {
 		{"voter_mode", "list"},
 		{"threshold", "unanimous"},
 		{"status", "banned"},
-		{"invite_code", "0123456789"},
-		{"invite_code", "ABCDEFGHJK"},
-		{"invite_code", "MNPQRSTVWX"},
-		{"invite_code", "YZ00000000"},
 	} {
 		err := run(t, pool, `UPDATE cabals SET `+tt.column+` = $1 WHERE id = $2`, tt.value, c.ID.UUID())
 		wantNoError(t, fmt.Sprintf("%s = %v", tt.column, tt.value), err)
@@ -110,8 +102,8 @@ func TestCabalsSchema_slippageAndStatusHaveDefaults(t *testing.T) {
 	creator := testkit.SeedUser(t, pool, testkit.UserOpts{})
 	id := newID()
 	if err := run(t, pool, `INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold,
-		proposal_expiry_seconds, invite_code, created_at, updated_at)
-		VALUES ($1, 'defaults', $2, 'open', 'all', 'majority', 3600, 'ABCDEFGHJK', now(), now())`,
+		proposal_expiry_seconds, created_at, updated_at)
+		VALUES ($1, 'defaults', $2, 'open', 'all', 'majority', 3600, now(), now())`,
 		id, creator.ID.UUID()); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
@@ -125,14 +117,11 @@ func TestCabalsSchema_slippageAndStatusHaveDefaults(t *testing.T) {
 	}
 }
 
-func TestCabalsSchema_inviteCodesAreUniqueAndCreatorsMustExist(t *testing.T) {
+func TestCabalsSchema_creatorsMustExist(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	first := testkit.NewCabal(t, pool)
-	second := testkit.NewCabal(t, pool)
-	err := run(t, pool, `UPDATE cabals SET invite_code = $1 WHERE id = $2`, first.InviteCode, second.ID.UUID())
-	wantViolation(t, "duplicate invite code", err, uniqueViolation, "cabals_invite_code_key")
-	err = run(t, pool, `UPDATE cabals SET creator_id = $1 WHERE id = $2`, newID(), first.ID.UUID())
+	err := run(t, pool, `UPDATE cabals SET creator_id = $1 WHERE id = $2`, newID(), first.ID.UUID())
 	wantViolation(t, "unknown creator", err, foreignKeyViolation, "cabals_creator_id_fkey")
 }
 

@@ -87,7 +87,7 @@ type Cabal struct {
 	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	Id openapi_types.UUID `json:"id"`
 
-	// InviteCode The invite code. Null for a non-member.
+	// InviteCode Retired. Always null: cabals have no invite codes.
 	//
 	// Examples: null
 	InviteCode *string `json:"invite_code"`

@@ -133,7 +133,7 @@ func assertPostedAccess(t *testing.T, f createFixture, got api.Cabal, address st
 	if got.TreasuryAddress != address || f.wallets.Creates() != 1 || got.MyAccessRequest != nil {
 		t.Fatalf("wallet %s creates %d access %v", got.TreasuryAddress, f.wallets.Creates(), got.MyAccessRequest)
 	}
-	if got.InviteCode == nil || *got.InviteCode == "" || got.Me == nil {
+	if got.InviteCode != nil || got.Me == nil {
 		t.Fatalf("invite %v me %v", got.InviteCode, got.Me)
 	}
 	if got.Me.Role != "creator" || !got.Me.CanVote {
@@ -234,7 +234,7 @@ func assertMemberView(t *testing.T, seeded testkit.SeededCabal, view api.Cabal) 
 	if deref(view.PictureUrl) != "https://cdn.example/cabal.jpg" || view.Me == nil || view.Me.Role != "creator" {
 		t.Fatalf("member view = %+v", view)
 	}
-	if view.InviteCode == nil || *view.InviteCode != seeded.InviteCode || view.MyAccessRequest != nil {
+	if view.InviteCode != nil || view.MyAccessRequest != nil {
 		t.Fatalf("member invite %v access %v", view.InviteCode, view.MyAccessRequest)
 	}
 	if view.TreasuryAddress != string(seeded.TreasuryAddress) || len(view.Members) != 2 {
@@ -716,10 +716,10 @@ func seedSearchPerfCabals(tb testing.TB, pool *pgxpool.Pool, userID uuid.UUID) {
 	tb.Helper()
 	_, err := pool.Exec(tb.Context(), `WITH seeded AS (
 		INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds,
-			slippage_bps, invite_code, created_at, updated_at)
+			slippage_bps, created_at, updated_at)
 		SELECT md5(n::text)::uuid, CASE WHEN n <= 14 THEN 'abc cabal ' || n ELSE 'other cabal ' || n END,
 			$1, 'open', 'all', 'majority', 86400, 100,
-			lpad(n::text, 10, '0'), now(), now() FROM generate_series(1, 10000) n RETURNING id
+			now(), now() FROM generate_series(1, 10000) n RETURNING id
 	) INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
 	SELECT id, $1, 'creator', true, now() FROM seeded`, userID)
 	if err != nil {

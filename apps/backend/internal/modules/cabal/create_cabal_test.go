@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +36,6 @@ type createFixture struct {
 	uow     *db.UnitOfWork
 	user    testkit.SeededUser
 	wallets *chainfake.Wallets
-	random  io.Reader
 }
 
 func newCreate(t *testing.T) createFixture {
@@ -55,7 +53,6 @@ func newCreate(t *testing.T) createFixture {
 func (f createFixture) handler() *app.CreateCabalHandler {
 	return app.NewCreateCabalHandler(app.CreateCabalDeps{
 		UoW: f.uow, Reads: f.pool, Wallets: adapters.AppWallets{Client: f.wallets}, IDs: f.ids, Clock: f.clock,
-		Random: f.random,
 	})
 }
 
@@ -85,21 +82,11 @@ func (f createFixture) count(ctx context.Context, t *testing.T, table string) in
 	return n
 }
 
-func takeInvite(t *testing.T, f createFixture) {
-	t.Helper()
-	taken := testkit.NewCabal(t, f.pool)
-	_, err := f.pool.Exec(t.Context(),
-		`UPDATE cabals SET invite_code = $1 WHERE id = $2`, "0123456789", taken.ID.UUID())
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func wantFailure(t *testing.T, err error, wallet string, cabals, got int) {
+func wantFailure(t *testing.T, err error, wallet string, cabals int) {
 	t.Helper()
 	gotWallet := attrString(err, "privy_wallet_id")
-	if errs.CodeOf(err) != errs.CodeInternal || gotWallet != wallet || got != cabals {
-		t.Fatalf("err=%v attr=%q cabals=%d; want internal %q and %d cabals", err, gotWallet, got, wallet, cabals)
+	if errs.CodeOf(err) != errs.CodeInternal || gotWallet != wallet || cabals != 0 {
+		t.Fatalf("err=%v attr=%q cabals=%d; want internal %q and no cabal", err, gotWallet, cabals, wallet)
 	}
 }
 
@@ -114,24 +101,6 @@ func attrString(err error, key string) string {
 		}
 	}
 	return ""
-}
-
-type byteChunks struct {
-	parts [][]byte
-	i     int
-	err   error
-}
-
-func (c *byteChunks) Read(p []byte) (int, error) {
-	if c.i >= len(c.parts) {
-		if c.err != nil {
-			return 0, c.err
-		}
-		return 0, io.EOF
-	}
-	n := copy(p, c.parts[c.i])
-	c.i++
-	return n, nil
 }
 
 type walletStub struct {
@@ -198,7 +167,7 @@ func assertCabalMeta(t *testing.T, f createFixture, got app.CreatedCabal) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.InviteCode != got.InviteCode || row.Status != "active" || row.MemberCount != 1 {
+	if row.Status != "active" || row.MemberCount != 1 {
 		t.Fatalf("meta = %+v", row)
 	}
 	if row.CreatorID != f.user.ID.UUID() || !row.CreatedAt.Equal(f.clock.Now()) {
@@ -449,58 +418,12 @@ func TestCreateCabal_aPrivyOutageWritesNothing(t *testing.T) {
 	}
 }
 
-func TestCreateCabal_retriesOnceWhenTheInviteCodeIsTaken(t *testing.T) {
-	t.Parallel()
-	f := newCreate(t)
-	takeInvite(t, f)
-	f.random = &byteChunks{parts: [][]byte{
-		{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-		{22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
-	}}
-	got, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
-	if err != nil || got.InviteCode != "PQRSTVWXYZ" || f.count(t.Context(), t, "cabals") != 2 {
-		t.Fatalf("Handle = %+v, %v, cabals %d; want the second code", got, err, f.count(t.Context(), t, "cabals"))
-	}
-}
-
-func TestCreateCabal_anInviteCodeThatClashesTwiceNamesTheOrphanWallet(t *testing.T) {
-	t.Parallel()
-	f := newCreate(t)
-	takeInvite(t, f)
-	f.random = &byteChunks{parts: [][]byte{
-		{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-		{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-	}}
-	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
-	same, _ := f.wallets.CreateAppWallet(t.Context(), app.TreasuryKey(f.user.ID, "c1"))
-	wantFailure(t, err, same.ID, 1, f.count(t.Context(), t, "cabals"))
-}
-
-func TestCreateCabal_aSecondInviteDrawThatFailsNamesTheOrphanWallet(t *testing.T) {
-	t.Parallel()
-	f := newCreate(t)
-	takeInvite(t, f)
-	f.random = &byteChunks{parts: [][]byte{{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}, err: io.ErrUnexpectedEOF}
-	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
-	same, _ := f.wallets.CreateAppWallet(t.Context(), app.TreasuryKey(f.user.ID, "c1"))
-	wantFailure(t, err, same.ID, 1, f.count(t.Context(), t, "cabals"))
-}
-
-func TestCreateCabal_aFailedInviteDrawNamesTheOrphanWallet(t *testing.T) {
-	t.Parallel()
-	f := newCreate(t)
-	f.random = &byteChunks{}
-	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
-	same, _ := f.wallets.CreateAppWallet(t.Context(), app.TreasuryKey(f.user.ID, "c1"))
-	wantFailure(t, err, same.ID, 0, f.count(t.Context(), t, "cabals"))
-}
-
 func TestCreateCabal_aWriteWithoutAnActorNamesTheOrphanWallet(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	_, err := f.handler().Handle(t.Context(), f.command(t, "c1"))
 	same, _ := f.wallets.CreateAppWallet(t.Context(), app.TreasuryKey(f.user.ID, "c1"))
-	wantFailure(t, err, same.ID, 0, f.count(t.Context(), t, "cabals"))
+	wantFailure(t, err, same.ID, f.count(t.Context(), t, "cabals"))
 }
 
 func TestCreateCabal_aMemberInsertErrorNamesTheOrphanWallet(t *testing.T) {
@@ -511,7 +434,34 @@ func TestCreateCabal_aMemberInsertErrorNamesTheOrphanWallet(t *testing.T) {
 	}
 	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
 	same, _ := f.wallets.CreateAppWallet(t.Context(), app.TreasuryKey(f.user.ID, "c1"))
-	wantFailure(t, err, same.ID, 0, f.count(t.Context(), t, "cabals"))
+	wantFailure(t, err, same.ID, f.count(t.Context(), t, "cabals"))
+}
+
+func TestCreateCabal_aCabalInsertErrorNamesTheOrphanWallet(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE cabals ADD CHECK (name <> 'Friends pot')`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
+	same, _ := f.wallets.CreateAppWallet(t.Context(), app.TreasuryKey(f.user.ID, "c1"))
+	wantFailure(t, err, same.ID, f.count(t.Context(), t, "cabals"))
+}
+
+func TestCreateCabal_aCabalInsertThatWritesNoRowNamesTheOrphanWallet(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	for _, statement := range []string{
+		`CREATE FUNCTION skip_cabal_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$`,
+		`CREATE TRIGGER skip_cabal_insert BEFORE INSERT ON cabals FOR EACH ROW EXECUTE FUNCTION skip_cabal_insert()`,
+	} {
+		if _, err := f.pool.Exec(t.Context(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := f.handler().Handle(f.actor(t.Context()), f.command(t, "c1"))
+	same, _ := f.wallets.CreateAppWallet(t.Context(), app.TreasuryKey(f.user.ID, "c1"))
+	wantFailure(t, err, same.ID, f.count(t.Context(), t, "cabals"))
 }
 
 func TestAppWallets_returnsTheWalletAndWrapsOnlyAnOutage(t *testing.T) {

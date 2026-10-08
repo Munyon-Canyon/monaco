@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -301,8 +300,8 @@ func TestPostCabalMember_returnsTheCabalAsItsNewMemberSeesIt(t *testing.T) {
 		t.Fatalf("PostCabalMember = %T, %v", res, err)
 	}
 	if got.Id != c.ID.UUID() || got.MemberCount != 2 || got.Me == nil || got.Me.Role != "member" || got.Me.CanVote ||
-		got.InviteCode == nil || *got.InviteCode != c.InviteCode {
-		t.Fatalf("cabal = %+v, me %+v; want the member view with the invite code", got, got.Me)
+		got.InviteCode != nil {
+		t.Fatalf("cabal = %+v, me %+v; want the member view without an invite code", got, got.Me)
 	}
 }
 
@@ -332,40 +331,6 @@ func TestPostCabalMember_refusesWithTheCommandOrReadError(t *testing.T) {
 			t.Errorf("%s: err = %v, want %s", tt.name, err, tt.want)
 		}
 	}
-}
-
-func TestGetCabalByCode_resolvesAPastedCodeToThePreview(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"), testkit.WithMembers(3))
-	f.exec(t, `UPDATE cabals SET picture_url = 'https://cdn.example/c.jpg' WHERE id = $1`, c.ID.UUID())
-	res, err := f.routes(nil).GetCabalByCode(as(t.Context(), f.user(t)),
-		api.GetCabalByCodeRequestObject{Code: " " + strings.ToLower(c.InviteCode) + "\n"})
-	got, ok := res.(api.GetCabalByCode200JSONResponse)
-	if err != nil || !ok {
-		t.Fatalf("GetCabalByCode = %T, %v", res, err)
-	}
-	want := api.CabalPreview{
-		Id: c.ID.UUID(), Name: got.Name, JoinMode: "request", MemberCount: 3, PictureUrl: got.PictureUrl,
-	}
-	if api.CabalPreview(got) != want || got.Name == "" || got.PictureUrl == nil ||
-		*got.PictureUrl != "https://cdn.example/c.jpg" {
-		t.Fatalf("preview = %+v, want %+v with the picture", got, want)
-	}
-}
-
-func TestGetCabalByCode_refusesAnAnonymousCallerAnUnknownCodeAndAStoreFailure(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool)
-	user := f.user(t)
-	_, err := f.routes(nil).GetCabalByCode(t.Context(), api.GetCabalByCodeRequestObject{Code: c.InviteCode})
-	wantErr(t, err, errs.CodeUnauthorized)
-	_, err = f.routes(nil).GetCabalByCode(as(t.Context(), user), api.GetCabalByCodeRequestObject{Code: "ZZZZZZZZZZ"})
-	wantErr(t, err, errs.CodeCabalNotFound)
-	f.exec(t, `ALTER TABLE cabal_members RENAME TO members_gone`)
-	_, err = f.routes(nil).GetCabalByCode(as(t.Context(), user), api.GetCabalByCodeRequestObject{Code: c.InviteCode})
-	wantErr(t, err, errs.CodeInternal)
 }
 
 func TestJoinCabal_neverAddsAnOutsiderWhoeverVotes(t *testing.T) {
@@ -408,4 +373,17 @@ func TestPostCabalMember_refusesARequestCabalWithJoinNeedsRequest(t *testing.T) 
 			t.Errorf("%s: err = %v, want %s", tt.name, err, tt.want)
 		}
 	}
+}
+
+func TestGetCabalByCode_isRetiredAndRefusesEveryCodeAsAnUnknownCabal(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool)
+	user := f.user(t)
+	for _, code := range []string{"0123456789", "ZZZZZZZZZZ", c.ID.String()} {
+		_, err := f.routes(nil).GetCabalByCode(as(t.Context(), user), api.GetCabalByCodeRequestObject{Code: code})
+		wantErr(t, err, errs.CodeCabalNotFound)
+	}
+	_, err := f.routes(nil).GetCabalByCode(t.Context(), api.GetCabalByCodeRequestObject{Code: "0123456789"})
+	wantErr(t, err, errs.CodeUnauthorized)
 }

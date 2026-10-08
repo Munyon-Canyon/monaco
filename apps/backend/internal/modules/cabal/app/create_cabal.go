@@ -2,10 +2,8 @@ package app
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"errors"
-	"io"
 	"log/slog"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -32,7 +30,6 @@ type CreateCabal struct {
 type CreatedCabal struct {
 	ID              ids.CabalID
 	Name            string
-	InviteCode      string
 	TreasuryAddress chain.SolanaAddress
 	PrivyWalletID   string
 }
@@ -43,7 +40,6 @@ type CreateCabalDeps struct {
 	Wallets TreasuryWallets
 	IDs     ids.Generator
 	Clock   clock.Clock
-	Random  io.Reader
 }
 
 type CreateCabalHandler struct {
@@ -52,15 +48,11 @@ type CreateCabalHandler struct {
 	wallets TreasuryWallets
 	ids     ids.Generator
 	clock   clock.Clock
-	random  io.Reader
 }
 
 func NewCreateCabalHandler(d CreateCabalDeps) *CreateCabalHandler {
-	if d.Random == nil {
-		d.Random = rand.Reader
-	}
 	return &CreateCabalHandler{
-		uow: d.UoW, reads: d.Reads, wallets: d.Wallets, ids: d.IDs, clock: d.Clock, random: d.Random,
+		uow: d.UoW, reads: d.Reads, wallets: d.Wallets, ids: d.IDs, clock: d.Clock,
 	}
 }
 
@@ -131,7 +123,7 @@ func (h *CreateCabalHandler) committed(
 		)
 	}
 	return CreatedCabal{
-		ID: ids.CabalIDFrom(cabal.ID), Name: cabal.Name, InviteCode: cabal.InviteCode,
+		ID: ids.CabalIDFrom(cabal.ID), Name: cabal.Name,
 		TreasuryAddress: chain.SolanaAddress(wallet.Address), PrivyWalletID: wallet.PrivyWalletID,
 	}, true, nil
 }
@@ -142,13 +134,12 @@ func (h *CreateCabalHandler) write(
 	q := sqlc.New(tx.Queries())
 	id := ids.CabalIDFrom(h.ids.NewV7())
 	now := h.clock.Now()
-	code, err := insertCabal(ctx, q, sqlc.InsertCabalParams{
+	if err := insertCabal(ctx, q, sqlc.InsertCabalParams{
 		ID: id.UUID(), Name: cmd.Name.String(), CreatorID: cmd.ActorID.UUID(),
 		JoinMode: string(cmd.Rules.JoinMode()), VoterMode: string(cmd.Rules.VoterMode()),
 		Threshold: string(cmd.Rules.Threshold()), ProposalExpirySeconds: cmd.Rules.ExpirySeconds(),
 		SlippageBps: cmd.Rules.SlippageBps(), Now: now,
-	}, h.random)
-	if err != nil {
+	}); err != nil {
 		return CreatedCabal{}, err
 	}
 	n, err := q.InsertMember(ctx, sqlc.InsertMemberParams{
@@ -181,7 +172,7 @@ func (h *CreateCabalHandler) write(
 			slog.String("cabal_id", id.String()), slog.String("treasury_address", string(address)))
 	})
 	return CreatedCabal{
-		ID: id, Name: cmd.Name.String(), InviteCode: code, TreasuryAddress: address, PrivyWalletID: walletID,
+		ID: id, Name: cmd.Name.String(), TreasuryAddress: address, PrivyWalletID: walletID,
 	}, nil
 }
 
@@ -194,26 +185,10 @@ func appendCreated(
 	return tx.Events.Append(ctx, joined)
 }
 
-func insertCabal(
-	ctx context.Context, q *sqlc.Queries, row sqlc.InsertCabalParams, random io.Reader,
-) (string, error) {
-	code, err := domain.NewInviteCode(random)
-	if err != nil {
-		return "", err
-	}
-	row.InviteCode = code.String()
+func insertCabal(ctx context.Context, q *sqlc.Queries, row sqlc.InsertCabalParams) error {
 	n, err := q.InsertCabal(ctx, row)
-	if err != nil || n == 1 {
-		return row.InviteCode, err
-	}
-	code, err = domain.NewInviteCode(random)
-	if err != nil {
-		return "", err
-	}
-	row.InviteCode = code.String()
-	n, err = q.InsertCabal(ctx, row)
 	if err != nil || n != 1 {
-		return "", errs.Wrap(err, errs.CodeInternal, createCabalOp, slog.Int64("cabal_rows", n))
+		return errs.Wrap(err, errs.CodeInternal, createCabalOp, slog.Int64("cabal_rows", n))
 	}
-	return row.InviteCode, nil
+	return nil
 }

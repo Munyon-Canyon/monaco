@@ -19,19 +19,18 @@ import (
 
 func seedManyCabals(t *testing.T, pool *pgxpool.Pool, creator ids.UserID, n int) []ids.CabalID {
 	t.Helper()
-	raw, codes, wallets, addresses := make([]uuid.UUID, n), make([]string, n), make([]string, n), make([]string, n)
+	raw, wallets, addresses := make([]uuid.UUID, n), make([]string, n), make([]string, n)
 	asked := make([]ids.CabalID, n)
 	for i := range n {
 		raw[i] = ids.Real{}.NewV7()
 		asked[i] = ids.CabalIDFrom(raw[i])
-		codes[i] = fmt.Sprintf("B%09d", i)
 		wallets[i], addresses[i] = fmt.Sprintf("bulk-wallet-%d", i), fmt.Sprintf("bulk-address-%d", i)
 	}
 	now := clock.Real{}.Now().UTC()
 	if _, err := pool.Exec(t.Context(), `INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold,
-		proposal_expiry_seconds, invite_code, created_at, updated_at)
-		SELECT id, 'Bulk pot', $2, 'open', 'all', 'majority', 86400, code, $3, $3
-		FROM unnest($1::uuid[], $4::text[]) AS c (id, code)`, raw, creator.UUID(), now, codes); err != nil {
+		proposal_expiry_seconds, created_at, updated_at)
+		SELECT id, 'Bulk pot', $2, 'open', 'all', 'majority', 86400, $3, $3
+		FROM unnest($1::uuid[]) AS c (id)`, raw, creator.UUID(), now); err != nil {
 		t.Fatalf("insert cabals: %v", err)
 	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO treasury_wallets (cabal_id, privy_wallet_id, address, created_at)
@@ -105,8 +104,8 @@ func TestQueries_aRowWhoseIDIsNotV7IsDecodeFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold,
-		proposal_expiry_seconds, invite_code, created_at, updated_at)
-		VALUES (gen_random_uuid(), 'V4 pot', $1, 'open', 'all', 'majority', 86400, 'V400000000', $2, $2)
+		proposal_expiry_seconds, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'V4 pot', $1, 'open', 'all', 'majority', 86400, $2, $2)
 		RETURNING id`, w.users[0].UUID(), now).Scan(&v4Cabal); err != nil {
 		t.Fatal(err)
 	}

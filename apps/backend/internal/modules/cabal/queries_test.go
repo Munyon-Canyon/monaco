@@ -92,10 +92,10 @@ func insertMember(
 	return n
 }
 
-func newCabalParams(creatorID uuid.UUID, inviteCode string, now time.Time) sqlc.InsertCabalParams {
+func newCabalParams(creatorID uuid.UUID, now time.Time) sqlc.InsertCabalParams {
 	return sqlc.InsertCabalParams{
 		ID: newID(), Name: "Friends pot", CreatorID: creatorID, JoinMode: "open", VoterMode: "all",
-		Threshold: "majority", ProposalExpirySeconds: 86400, SlippageBps: 100, InviteCode: inviteCode, Now: now,
+		Threshold: "majority", ProposalExpirySeconds: 86400, SlippageBps: 100, Now: now,
 	}
 }
 
@@ -106,7 +106,7 @@ func TestCabalQueries_insertThenFindReturnsTheCabalAndCountsItsMembers(t *testin
 	id := newID()
 	n, err := f.q.InsertCabal(t.Context(), sqlc.InsertCabalParams{
 		ID: id, Name: "Friends pot", CreatorID: creator.ID.UUID(), JoinMode: "request", VoterMode: "list",
-		Threshold: "unanimous", ProposalExpirySeconds: 604800, SlippageBps: 50, InviteCode: "ABCDEFGHJK",
+		Threshold: "unanimous", ProposalExpirySeconds: 604800, SlippageBps: 50,
 		Now: f.clock.Now(),
 	})
 	wantRows(t, "InsertCabal", n, 1, err)
@@ -118,7 +118,7 @@ func TestCabalQueries_insertThenFindReturnsTheCabalAndCountsItsMembers(t *testin
 	got.CreatedAt, got.UpdatedAt = time.Time{}, time.Time{}
 	want := sqlc.FindCabalRow{
 		ID: id, Name: "Friends pot", CreatorID: creator.ID.UUID(), JoinMode: "request", VoterMode: "list",
-		Threshold: "unanimous", ProposalExpirySeconds: 604800, SlippageBps: 50, InviteCode: "ABCDEFGHJK",
+		Threshold: "unanimous", ProposalExpirySeconds: 604800, SlippageBps: 50,
 		Status: "active",
 	}
 	if got != want {
@@ -133,19 +133,6 @@ func TestCabalQueries_insertThenFindReturnsTheCabalAndCountsItsMembers(t *testin
 	}
 	_, err = f.q.FindCabal(t.Context(), newID())
 	wantNoRows(t, "FindCabal on an unknown id", err)
-}
-
-func TestCabalQueries_findByInviteCodeReadsTheCabalAndMissesAnUnknownCode(t *testing.T) {
-	t.Parallel()
-	f := newQueries(t)
-	a := testkit.NewCabal(t, f.pool, testkit.WithMembers(3), testkit.WithJoinMode("request"))
-	testkit.NewCabal(t, f.pool)
-	got, err := f.q.FindCabalByInviteCode(t.Context(), a.InviteCode)
-	if err != nil || got.ID != a.ID.UUID() || got.MemberCount != 3 || got.JoinMode != "request" {
-		t.Fatalf("FindCabalByInviteCode = %+v, %v; want cabal a with 3 members", got, err)
-	}
-	_, err = f.q.FindCabalByInviteCode(t.Context(), "ZZZZZZZZZZ")
-	wantNoRows(t, "FindCabalByInviteCode on an unknown code", err)
 }
 
 func TestCabalQueries_listReturnsTheKnownCabalsOldestFirstWithTheirMemberCounts(t *testing.T) {
@@ -228,28 +215,6 @@ func TestCabalQueries_setPictureSetsThenClears(t *testing.T) {
 	}
 	n, err := f.q.SetCabalPicture(t.Context(), sqlc.SetCabalPictureParams{ID: newID(), Now: f.clock.Now()})
 	wantRows(t, "SetCabalPicture on an unknown id", n, 0, err)
-}
-
-func TestCabalQueries_anInviteCodeClashInsertsNothingAndLeavesTheTransactionUsable(t *testing.T) {
-	t.Parallel()
-	f := newQueries(t)
-	taken := testkit.NewCabal(t, f.pool)
-	creator := testkit.SeedUser(t, f.pool, testkit.UserOpts{}).ID.UUID()
-	err := f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		clash, err := q.InsertCabal(ctx, newCabalParams(creator, taken.InviteCode, f.clock.Now()))
-		wantRows(t, "InsertCabal with a taken invite code", clash, 0, err)
-		retry, err := q.InsertCabal(ctx, newCabalParams(creator, "0123456789", f.clock.Now()))
-		wantRows(t, "InsertCabal again with a fresh code in the same transaction", retry, 1, err)
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var cabals int
-	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM cabals`).Scan(&cabals); err != nil || cabals != 2 {
-		t.Fatalf("cabals = %d, %v; want the taken one and the retry", cabals, err)
-	}
 }
 
 func tryCabalLock(ctx context.Context, t *testing.T, f queriesFixture, cabalID uuid.UUID, mode string) error {
@@ -550,7 +515,7 @@ func TestMemberQueries_lockMembersListsEveryMemberAndHoldsTheirRowsUntilTheTrans
 func TestTreasuryWalletQueries_insertThenFindReadsTheWalletOfItsCabal(t *testing.T) {
 	t.Parallel()
 	f := newQueries(t)
-	bare := insertBareCabal(t, f, "0000000000")
+	bare := insertBareCabal(t, f)
 	_, err := f.q.FindTreasuryWallet(t.Context(), bare)
 	wantNoRows(t, "FindTreasuryWallet before the wallet exists", err)
 	if err := f.q.InsertTreasuryWallet(t.Context(), sqlc.InsertTreasuryWalletParams{
@@ -568,7 +533,7 @@ func TestTreasuryWalletQueries_insertThenFindReadsTheWalletOfItsCabal(t *testing
 func TestTreasuryWalletQueries_listReturnsEveryCabalsWalletInCabalIDOrder(t *testing.T) {
 	t.Parallel()
 	f := newQueries(t)
-	earliestID := insertBareCabal(t, f, "0000000001")
+	earliestID := insertBareCabal(t, f)
 	seeded := []testkit.SeededCabal{testkit.NewCabal(t, f.pool), testkit.NewCabal(t, f.pool)}
 	if err := f.q.InsertTreasuryWallet(t.Context(), sqlc.InsertTreasuryWalletParams{
 		CabalID: earliestID, PrivyWalletID: "wallet-earliest", Address: "address-earliest", CreatedAt: f.clock.Now(),
@@ -585,9 +550,9 @@ func TestTreasuryWalletQueries_listReturnsEveryCabalsWalletInCabalIDOrder(t *tes
 	}
 }
 
-func insertBareCabal(t *testing.T, f queriesFixture, inviteCode string) uuid.UUID {
+func insertBareCabal(t *testing.T, f queriesFixture) uuid.UUID {
 	t.Helper()
-	params := newCabalParams(testkit.SeedUser(t, f.pool, testkit.UserOpts{}).ID.UUID(), inviteCode, f.clock.Now())
+	params := newCabalParams(testkit.SeedUser(t, f.pool, testkit.UserOpts{}).ID.UUID(), f.clock.Now())
 	n, err := f.q.InsertCabal(t.Context(), params)
 	wantRows(t, "InsertCabal", n, 1, err)
 	return params.ID

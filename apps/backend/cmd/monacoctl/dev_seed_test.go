@@ -331,7 +331,7 @@ func TestDevSeed_cabalWithFundedPotSeatsTwoMembersAndAPotOfThreeDollars(t *testi
 		t.Fatal(err)
 	}
 	a, b := actors["A"].String(), actors["B"].String()
-	if out["cabal_name"] != "QA r4nd0m" || name != out["cabal_name"] || out["invite_code"] == "" ||
+	if out["cabal_name"] != "QA r4nd0m" || name != out["cabal_name"] ||
 		members != a+"=creator,"+b+"=member" || pot.Uint64() != 3_000_000 ||
 		!strings.HasPrefix(shares, a+"=") || !strings.Contains(shares, ","+b+"=") {
 		t.Fatalf("cabal %q (out %v) with members %q, shares %q and a pot of %s; want %q with A creator, B member, "+

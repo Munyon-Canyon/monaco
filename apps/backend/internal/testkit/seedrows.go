@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
 	"encoding/json"
@@ -20,7 +19,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -147,17 +145,12 @@ func seedRows(ctx context.Context, t SeedT, pool *pgxpool.Pool, line seedLine, e
 
 func seedCabalRow(ctx context.Context, t SeedT, pool *pgxpool.Pool, at time.Time, e events.CabalCreated) {
 	t.Helper()
-	sum := sha256.Sum256(e.CabalID[:])
-	code, err := domain.NewInviteCode(bytes.NewReader(bytes.Repeat(sum[:], 4)))
-	if err != nil {
-		t.Fatalf("testkit.Seed: invite code: %v", err)
-	}
 	if _, err := pool.Exec(
 		ctx,
 		`INSERT INTO cabals
-		(id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds, invite_code,
+		(id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds,
 		 created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9) ON CONFLICT (id) DO NOTHING`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8) ON CONFLICT (id) DO NOTHING`,
 		e.CabalID,
 		e.Name,
 		e.CreatorID,
@@ -165,7 +158,6 @@ func seedCabalRow(ctx context.Context, t SeedT, pool *pgxpool.Pool, at time.Time
 		e.VoterMode,
 		e.Threshold,
 		e.ProposalExpirySeconds,
-		code.String(),
 		at,
 	); err != nil {
 		t.Fatalf("testkit.Seed: insert cabal %s: %v", e.CabalID, err)

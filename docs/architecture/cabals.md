@@ -8,14 +8,14 @@ The `cabal` module owns cabals, members, access requests and treasury wallets ([
 
 - A cabal has two roles, `creator` and `member`. The creator decides access requests and is the only one who edits the cabal.
 - Joining is direct in an `open` cabal and goes through a request the creator decides in a `request` cabal.
-- Invites come in two kinds. An **invite code** is a random token, never the cabal id. A **direct invite** targets one user by handle and lives 7 days.
+- A cabal has no invite code. The API keeps `Cabal.invite_code` (always null) and `GET /v1/invite-codes/{code}` (always `cabal_not_found`), both deprecated, until old clients are gone. People find a cabal in search and join or request by its `join_mode`. A **direct invite** targets one user by handle and lives 7 days.
 - Leaving is refused while the member holds share units, while the last member leaves a pot worth more than zero, and while the creator leaves other members behind.
 - The treasury wallet is created before the create transaction opens, idempotently.
 
 ## Why
 
 - **Every M10 ticket needs the same answers.** Without one file, each backend ticket would pick its own invite lifetime, approver and leave guard.
-- **The cabal id is not a secret.** Every cabal is public ([data-model.md](data-model.md#decision)), so ids appear in feeds and links. Today's app uses the id as the invite code, which makes any cabal's invite guessable from its URL.
+- **The cabal id is not a secret.** Every cabal is public ([data-model.md](data-model.md#decision)), so ids appear in feeds and links. The id grants no access: `join_mode` decides how someone gets in.
 - **Two roles are enough for the MVP.** Product names one person who approves requests, the creator. A third role adds a permission matrix nobody has asked for.
 - **Both directions in one table.** A request and an invite are the same fact, a pending link between a user and a cabal, differing only in who started it. One table gives one uniqueness rule and one poller.
 
@@ -69,15 +69,8 @@ There is exactly one creator per cabal, and the role never moves. There is no ad
 - `DecideAccess` approves or denies. It refuses an approval into a banned cabal with `CabalBanned` and an invite past `expires_at` with `InviteExpired`. The guarded update `WHERE status = 'pending'` lets one of two concurrent decisions win; the other gets `AccessRequestNotPending`.
 - The `cabal_hints` consumer publishes `cabal.<id>.members` and `user.<user_id>.cabal_access` for `cabal.member_joined` and `cabal.access_decided`, and `cabal.<id>.access_requests` for `cabal.access_requested` and `cabal.access_decided` on a request. On an invite it publishes `user.<invitee>.cabal_invites` in place of `cabal.<id>.access_requests`. The api's SSE hub rescopes a phone to its new cabals when it routes `user.<user_id>.cabal_access`.
 - A member calling `JoinCabal` or `RequestAccess` is refused with `AlreadyMember`. A banned cabal refuses both with `CabalBanned`.
-- `GET /v1/invite-codes/{code}` resolves a pasted invite code to the cabal's id, name, picture, `join_mode` and member count, so the app can run the path for that mode.
 
 ### Invites
-
-**Invite code.**
-
-- A random 10-character Crockford base32 token (50 bits), stored on `cabals.invite_code` with a unique index. It is generated at `CreateCabal`.
-- Only members see it. Non-members never read it from any route.
-- It is never the cabal id. Pasting the code resolves the cabal, and then the normal path for its `join_mode` runs: `open` joins, `request` files a request. The code grants no extra access.
 
 **Direct invite.**
 
@@ -144,7 +137,7 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 
 | Alternative | Why not |
 | --- | --- |
-| Cabal id as invite code | Guessable. Every cabal is public, so the id is in feed items and links. |
+| Invite codes | A code is a second way in beside search and `join_mode`, and a leaked one has to be rotated. Direct invites already cover inviting a named user. |
 | A third `invite` join mode, where only invited users join | Product names two modes, open and by request. Direct invites already cover inviting into a `request` cabal. |
 | An admin role between creator and member | No MVP need. Product gives approval to the creator alone. |
 | Invites in their own table | [data-model.md](data-model.md#decision) puts both directions in `cabal_access_requests`, which keeps one pending-row rule and one poller. |
@@ -154,6 +147,5 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 
 - **Freezing slippage.** [Edit](#edit) says a rules change applies to later proposals, but the trade engine reads the current slippage. Closing the gap means `ProposeTrade` copies it onto the proposal, which is a governance change.
 - **Admin role.** Whether a creator can name co-admins who decide requests and invite. Not in the MVP.
-- **Invite code rotation.** Whether the creator can rotate a leaked code. Not in the MVP; the code grants no access beyond the join mode, so a leak in a `request` cabal only produces requests.
 
 Log: [log/cabals.md](log/cabals.md).

@@ -61,7 +61,6 @@ type CabalView struct {
 	Members         []Member
 	Me              *Membership
 	Access          *Access
-	InviteCode      *string
 	TreasuryAddress chain.SolanaAddress
 }
 
@@ -102,9 +101,6 @@ func GetCabal(
 		ExpirySeconds: row.ProposalExpirySeconds, SlippageBps: row.SlippageBps,
 		Creator: person(row.CreatorID, cards), MemberCount: row.MemberCount, Members: members, Me: me,
 		Access: access, TreasuryAddress: chain.SolanaAddress(wallet.Address),
-	}
-	if me != nil {
-		view.InviteCode = &row.InviteCode
 	}
 	return view, nil
 }

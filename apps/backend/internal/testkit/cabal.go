@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -41,7 +40,6 @@ type SeededCabal struct {
 	ID              ids.CabalID
 	Creator         SeededUser
 	Members         []SeededUser
-	InviteCode      string
 	PrivyWalletID   string
 	TreasuryAddress chain.SolanaAddress
 }
@@ -62,7 +60,7 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 	if spec.name == "" {
 		spec.name = "cabal " + id.String()[24:]
 	}
-	c := SeededCabal{ID: id, InviteCode: randomInviteCode(t), PrivyWalletID: "treasury-" + id.String()}
+	c := SeededCabal{ID: id, PrivyWalletID: "treasury-" + id.String()}
 	c.Members = seatMembers(t, pool, spec)
 	c.Creator = c.Members[0]
 	key := make([]byte, 32)
@@ -70,10 +68,10 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 	c.TreasuryAddress = chain.AddressOf(key)
 	now := clock.Real{}.Now().UTC()
 	if _, err := pool.Exec(t.Context(), `INSERT INTO cabals
-		(id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds, invite_code,
+		(id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds,
 		 created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, 'majority', 86400, $6, $7, $7)`,
-		id.UUID(), spec.name, c.Creator.ID.UUID(), spec.joinMode, spec.voterMode, c.InviteCode, now,
+		VALUES ($1, $2, $3, $4, $5, 'majority', 86400, $6, $6)`,
+		id.UUID(), spec.name, c.Creator.ID.UUID(), spec.joinMode, spec.voterMode, now,
 	); err != nil {
 		t.Fatalf("testkit.NewCabal: insert cabal: %v", err)
 	}
@@ -110,13 +108,4 @@ func seatMembers(t SeedT, pool *pgxpool.Pool, spec cabalSpec) []SeededUser {
 		members = append(members, SeededUser{ID: user})
 	}
 	return members
-}
-
-func randomInviteCode(t SeedT) string {
-	t.Helper()
-	code, err := domain.NewInviteCode(rand.Reader)
-	if err != nil {
-		t.Fatalf("testkit.NewCabal: %v", err)
-	}
-	return code.String()
 }
