@@ -73,7 +73,7 @@ private struct SocialsStepForm: View {
 
     private var actions: some View {
         VStack(spacing: MonacoTheme.Space.xs) {
-            if !model.linkedElsewhere {
+            if !model.connectHidden {
                 Button {
                     Task { handle(await model.connect()) }
                 } label: {
@@ -114,7 +114,7 @@ private struct SocialsStepForm: View {
     @ViewBuilder
     private var skipButton: some View {
         let title = mode == .sheet ? LinkCopy.notNow : LinkCopy.skip
-        if model.linkedElsewhere {
+        if model.connectHidden {
             Button {
                 Task { await skip() }
             } label: {

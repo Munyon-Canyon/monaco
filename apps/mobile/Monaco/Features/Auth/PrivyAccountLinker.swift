@@ -122,6 +122,7 @@ actor PrivyAccountLinker: AccountLinking {
         -> LinkError
     {
         let text = "\(errorCode) \(description)".lowercased()
+        if text.contains("disallowed_login_method") { return .unavailable }
         if credential == .phone, text.contains("cannot_link_more_of_type") { return .alreadyHasPhone }
         if text.contains("linked_to_another_user") || text.contains("another user") || text.contains("another account")
             || text.contains("already linked") || text.contains("already exists")

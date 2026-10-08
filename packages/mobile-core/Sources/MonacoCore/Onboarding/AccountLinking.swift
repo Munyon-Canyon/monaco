@@ -7,6 +7,7 @@ public enum LinkError: Error, Equatable, Sendable {
     case cancelled
     case network
     case unknown
+    case unavailable
 }
 
 public protocol AccountLinking: Sendable {

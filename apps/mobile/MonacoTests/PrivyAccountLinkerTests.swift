@@ -16,6 +16,13 @@ struct PrivyAccountLinkerTests {
         #expect(PrivyAccountLinker.linkError(from: error, credential: .oAuth) == .alreadyLinkedElsewhere)
     }
 
+    @Test func aLoginMethodPrivyDisallowsIsUnavailable() {
+        let error = ApiError.apiError(
+            httpCode: 403, errorCode: "disallowed_login_method", description: "Login with Twitter not allowed")
+
+        #expect(PrivyAccountLinker.linkError(from: error, credential: .oAuth) == .unavailable)
+    }
+
     @Test func aRejectedCodeIsInvalidOnlyForAPhone() {
         let error = ApiError.apiError(httpCode: 401, errorCode: "invalid_credentials", description: "Invalid code")
 

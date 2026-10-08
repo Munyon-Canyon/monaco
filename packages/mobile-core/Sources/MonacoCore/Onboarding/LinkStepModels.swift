@@ -31,6 +31,7 @@ public enum LinkCopy {
     public static let connectX = "Connect X"
     public static let connecting = "Connecting\u{2026}"
     public static let xLinkedElsewhere = "This X account is linked to another account."
+    public static let xUnavailable = "Connecting X isn't available right now."
     public static let xConnected = "X connected."
 
     public static let skip = "Skip"
@@ -42,7 +43,7 @@ public enum LinkCopy {
     public static let auditedStrings = [
         phoneTitle, phoneSubtext, sendCode, sendingCode, linking, changeNumber, newCodeSent,
         phoneLinkedElsewhere, phoneAlreadyOnAccount, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting,
-        xLinkedElsewhere,
+        xLinkedElsewhere, xUnavailable,
         xConnected, skip, notNow, unknown, ResendCooldown.readyLabel,
     ]
 
@@ -54,6 +55,7 @@ public enum LinkCopy {
         case .cancelled: nil
         case .network: .error(ToastCopy.message(for: .transport(URLError(.notConnectedToInternet))))
         case .unknown: .error(unknown)
+        case .unavailable: .error(xUnavailable)
         }
     }
 
@@ -251,6 +253,7 @@ public final class XLinkModel {
     public private(set) var activity = Activity.idle
     public private(set) var caption: LinkStepCaption?
     public private(set) var linkedElsewhere = false
+    public private(set) var linkUnavailable = false
 
     private let linking: any AccountLinking
     private let onboarding: OnboardingAPI
@@ -266,6 +269,7 @@ public final class XLinkModel {
     }
 
     public var isBusy: Bool { activity != .idle }
+    public var connectHidden: Bool { linkedElsewhere || linkUnavailable }
 
     public func connect() async -> LinkStepResult {
         guard !isBusy else { return .stay }
@@ -273,6 +277,7 @@ public final class XLinkModel {
         defer { activity = .idle }
         caption = nil
         linkedElsewhere = false
+        linkUnavailable = false
         let fresh = !linkedUpstream
         if fresh {
             do {
@@ -280,6 +285,7 @@ public final class XLinkModel {
             } catch {
                 let linkError = error as? LinkError ?? .unknown
                 linkedElsewhere = linkError == .alreadyLinkedElsewhere
+                linkUnavailable = linkError == .unavailable
                 caption = LinkCopy.caption(for: linkError, linkedElsewhere: LinkCopy.xLinkedElsewhere)
                 return .stay
             }
