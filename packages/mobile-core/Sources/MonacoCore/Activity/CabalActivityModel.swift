@@ -13,6 +13,13 @@ public final class CabalActivityModel {
         case hidden
     }
 
+    public enum Lookup: Equatable, Sendable {
+        case found(ActivityRow)
+        case notFound
+        case forbidden
+        case failed
+    }
+
     public struct Toast: Equatable, Sendable {
         public let message: String
         public let isSuccess: Bool
@@ -145,17 +152,37 @@ public final class CabalActivityModel {
         refresher.setVisible(visible)
     }
 
-    public func find(id: String) async -> ActivityRow? {
-        if let row = pager.items.first(where: { $0.id == id }) { return row }
+    public func lookup(id: String) async -> Lookup {
+        if let row = pager.items.first(where: { $0.id == id }) { return .found(row) }
         var cursor: String?
         repeat {
-            guard let page = try? await Self.page(cabalID: cabalID, cursor: cursor, limit: 100, api: api) else {
-                return nil
+            let page: Components.Schemas.CabalActivityPage
+            do {
+                page = try await Self.page(cabalID: cabalID, cursor: cursor, limit: 100, api: api)
+            } catch {
+                guard Self.is(error, .notCabalMember) else { return .failed }
+                return await lookupPublishedSwap(id: id)
             }
-            if let match = page.items.first(where: { $0.id == id }) { return ActivityRow(match, now: clock()) }
+            if let match = page.items.first(where: { $0.id == id }) { return .found(ActivityRow(match, now: clock())) }
             cursor = page.nextCursor
         } while cursor != nil
-        return nil
+        return .notFound
+    }
+
+    private func lookupPublishedSwap(id: String) async -> Lookup {
+        do {
+            let swap = try await api.read { client in try await client.getSwap(path: .init(id: id)).ok.body.json }
+            openSwap = SwapReceipt(swap)
+            return .found(ActivityRow(swap, now: clock()))
+        } catch {
+            if Self.is(error, .swapNotFound) { return .notFound }
+            return Self.is(error, .notCabalMember) ? .forbidden : .failed
+        }
+    }
+
+    private nonisolated static func `is`(_ error: any Error, _ code: Components.Schemas.ErrorCode) -> Bool {
+        guard case .problem(let problem) = APIError(error) else { return false }
+        return problem.code == .known(code)
     }
 
     private nonisolated static func page(

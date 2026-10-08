@@ -7,6 +7,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -39,9 +40,10 @@ func (r SwapDetailReads) Swap(ctx context.Context, id ids.SwapID, user ids.UserI
 	switch {
 	case err != nil:
 		return SwapDetail{}, err
-	case !member:
+	case !member && !publishedToFeed(row):
 		return SwapDetail{}, errs.New(errs.CodeNotCabalMember, op)
 	}
+	row.Retryable = row.Retryable && member
 	mint, err := market.ParseMint(row.TokenMint)
 	if err != nil {
 		return SwapDetail{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
@@ -51,4 +53,8 @@ func (r SwapDetailReads) Swap(ctx context.Context, id ids.SwapID, user ids.UserI
 		return SwapDetail{}, err
 	}
 	return SwapDetail{Swap: row, Asset: asset}, nil
+}
+
+func publishedToFeed(row sqlc.SwapDetailRow) bool {
+	return row.SourceKind == string(domain.SourceProposal) && row.Status == string(domain.StatusConfirmed)
 }

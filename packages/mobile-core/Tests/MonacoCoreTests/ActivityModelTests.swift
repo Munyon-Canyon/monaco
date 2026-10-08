@@ -100,9 +100,10 @@ final class ActivityModelTests: XCTestCase {
         let (model, transport, _) = try make([.page(.sampleFirst)])
         await model.load()
 
-        let row = await model.find(id: Activity.sampleFund.id)
+        let lookup = await model.lookup(id: Activity.sampleFund.id)
 
-        XCTAssertEqual(row?.title, "Money added")
+        guard case .found(let row) = lookup else { return XCTFail("want found, got \(lookup)") }
+        XCTAssertEqual(row.title, "Money added")
         let count = await transport.sent.count
         XCTAssertEqual(count, 1)
     }
@@ -112,29 +113,29 @@ final class ActivityModelTests: XCTestCase {
             .page(Self.page(1...2, next: "c2")), .page(Self.page(3...4, next: "c3")),
         ])
 
-        let row = await model.find(id: Self.page(4...4, next: nil).items[0].id)
+        let lookup = await model.lookup(id: Self.page(4...4, next: nil).items[0].id)
 
-        XCTAssertNotNil(row)
+        guard case .found = lookup else { return XCTFail("want found, got \(lookup)") }
         let paths = await transport.sent.map(\.path)
         XCTAssertEqual(paths, ["\(Self.base)?limit=100", "\(Self.base)?limit=100&cursor=c2"])
     }
 
-    func testFindReturnsNilWhenTheCursorEnds() async throws {
+    func testLookupIsNotFoundWhenTheCursorEnds() async throws {
         let (model, transport, _) = try make([.page(Self.page(1...2, next: "c2")), .page(Self.page(3...4, next: nil))])
 
-        let row = await model.find(id: "missing")
+        let lookup = await model.lookup(id: "missing")
 
-        XCTAssertNil(row)
+        XCTAssertEqual(lookup, .notFound)
         let count = await transport.sent.count
         XCTAssertEqual(count, 2)
     }
 
-    func testFindReturnsNilWhenTheReadFails() async throws {
+    func testLookupFailsRetryablyWhenTheReadFails() async throws {
         let (model, _, _) = try make([.failure(.notConnectedToInternet)])
 
-        let row = await model.find(id: "missing")
+        let lookup = await model.lookup(id: "missing")
 
-        XCTAssertNil(row)
+        XCTAssertEqual(lookup, .failed)
     }
 
     func testAnActivityHintReloadsTheFirstPageAndAnotherCabalsDoesNot() async throws {
