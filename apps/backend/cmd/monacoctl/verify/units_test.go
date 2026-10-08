@@ -190,7 +190,7 @@ func TestDriver_reportsNATSArmAndTokenFailures(t *testing.T) {
 	t.Parallel()
 	env := unservedEnv("")
 	env.JS = testkit.NATS(t).JS
-	d, err := newDriver(env, DefaultBudget())
+	d, err := newDriver(env, testBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestDriver_reportsNATSArmAndTokenFailures(t *testing.T) {
 	if res := d.run(t.Context(), u); res.Failure != "worker would not restart" {
 		t.Errorf("run with a failing arm = %+v", res)
 	}
-	cfg, _ := driveConfig(DefaultBudget())
+	cfg, _ := driveConfig(testBudget())
 	env.TokenKey = ""
 	if err := verifyUnits(t.Context(), cfg, env, &report{}, 1); err == nil {
 		t.Error("verifyUnits without a token key succeeded")

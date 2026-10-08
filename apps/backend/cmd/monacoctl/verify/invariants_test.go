@@ -39,7 +39,7 @@ func healthzSettle(pool *pgxpool.Pool, lines ...string) (*driver, *Result) {
 func TestSettle_passesOnARequiredLineThatLandsAfterTheLogCheckStarts(t *testing.T) {
 	t.Parallel()
 	d, res := healthzSettle(testkit.DB(t))
-	ctx, cancel := context.WithTimeout(t.Context(), DefaultBudget().Converge)
+	ctx, cancel := context.WithTimeout(t.Context(), testBudget().Converge)
 	defer cancel()
 	time.AfterFunc(20*time.Millisecond, func() { d.env.Logs.add(procAPI, healthzRequest) })
 	if err := d.settle(ctx, res); err != nil || ctx.Err() != nil {
@@ -151,7 +151,7 @@ func consumerSettle(pool *pgxpool.Pool) (*driver, *Result) {
 func TestSettle_passesOnAConsumerDispatchThatLandsAfterTheLogCheckStarts(t *testing.T) {
 	t.Parallel()
 	d, res := consumerSettle(testkit.DB(t))
-	ctx, cancel := context.WithTimeout(t.Context(), DefaultBudget().Converge)
+	ctx, cancel := context.WithTimeout(t.Context(), testBudget().Converge)
 	defer cancel()
 	time.AfterFunc(20*time.Millisecond, func() { d.env.Logs.add(procWorker, consumerAck) })
 	if err := d.settle(ctx, res); err != nil || ctx.Err() != nil {

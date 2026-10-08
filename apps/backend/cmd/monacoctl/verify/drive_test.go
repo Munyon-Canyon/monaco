@@ -205,7 +205,7 @@ func TestVerifyUnits_flow01PassesOverHTTPAgainstThePrivyFakes(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			cfg, out := driveConfig(DefaultBudget())
+			cfg, out := driveConfig(testBudget())
 			if err := verifyUnits(
 				t.Context(),
 				cfg,
@@ -288,7 +288,7 @@ func TestDriver_restartsTheScopedProcessAfterACrashResponse(t *testing.T) {
 			got.flow, got.point, got.calls = u.Flow.ID, point, got.calls+1
 			return nil
 		},
-	}, DefaultBudget())
+	}, testBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func TestDriver_rejectsAnUnexpectedServiceUnavailableResponse(t *testing.T) {
 	d, err := newDriver(Env{
 		API: api.URL, TokenKey: "verify-restart", Logs: &Logs{},
 		Crash: func(context.Context, Unit, faultpoint.Name) error { calls++; return nil },
-	}, DefaultBudget())
+	}, testBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +519,7 @@ func serialLast(order []string) string {
 func TestDriver_stopsAFlowWhenTheRunIsCancelled(t *testing.T) {
 	t.Parallel()
 	api, arrived := slowAPI(t)
-	d, err := newDriver(unservedEnv(api), DefaultBudget())
+	d, err := newDriver(unservedEnv(api), testBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -568,7 +568,7 @@ func TestDriver_aFinishedFlowLeavesNoConnectionOpenSoTheAPIShutsDownAtOnce(t *te
 	env := servedEnv(t)
 	var open func() []http.ConnState
 	env.API, open = connTracker(t)
-	budget := DefaultBudget()
+	budget := testBudget()
 	budget.Converge = virtualConverge
 	d, err := newDriver(env, budget)
 	if err != nil {
@@ -683,7 +683,7 @@ func TestVerifyUnits_failsOnDeadLettersInternalErrorsAndLedgerChecks(t *testing.
 		t.Fatal(err)
 	}
 	env.Logs.add("worker", `{"msg":"bus.dispatched","code":"internal"}`)
-	cfg, out := driveConfig(DefaultBudget())
+	cfg, out := driveConfig(testBudget())
 	cfg.Ledger = []LedgerCheck{{Name: "cabal", Check: func(context.Context, *pgxpool.Pool) error {
 		return errors.New("balance off by 1")
 	}}}
@@ -728,7 +728,7 @@ func globalFailures(t *testing.T, units []Unit, letters uint64, lines ...string)
 	for _, line := range lines {
 		env.Logs.add("worker", line)
 	}
-	d, err := newDriver(env, DefaultBudget())
+	d, err := newDriver(env, testBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
