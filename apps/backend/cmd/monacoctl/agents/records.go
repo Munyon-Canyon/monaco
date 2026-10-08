@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -42,18 +43,121 @@ type Settlement struct {
 }
 
 type Record struct {
-	Ticket   int         `json:"ticket"`
-	Model    string      `json:"model"`
-	Worktree string      `json:"worktree"`
-	Branch   string      `json:"branch,omitempty"`
-	Base     string      `json:"base"`
-	State    State       `json:"state"`
-	AgentID  string      `json:"agent_id,omitempty"`
-	Queued   *Queue      `json:"queued,omitempty"`
-	Armed    *Arm        `json:"armed,omitempty"`
-	Settled  *Settlement `json:"settled,omitempty"`
-	Started  time.Time   `json:"started"`
-	Changed  time.Time   `json:"changed"`
+	Ticket    int         `json:"ticket"`
+	Model     string      `json:"model"`
+	Worktree  string      `json:"worktree"`
+	Branch    string      `json:"branch,omitempty"`
+	Base      string      `json:"base"`
+	State     State       `json:"state"`
+	AgentID   string      `json:"agent_id,omitempty"`
+	Queued    Queues      `json:"queues,omitempty"`
+	Armed     Arms        `json:"arms,omitempty"`
+	OldQueued *Queue      `json:"queued,omitempty"`
+	OldArmed  *Arm        `json:"armed,omitempty"`
+	Settled   *Settlement `json:"settled,omitempty"`
+	Started   time.Time   `json:"started"`
+	Changed   time.Time   `json:"changed"`
+
+	staleTops []int
+}
+
+type (
+	Queues []Queue
+	Arms   = Queues
+)
+
+func (r Record) MarshalJSON() ([]byte, error) {
+	type plain Record
+	p := plain(r)
+	p.OldQueued, p.OldArmed = r.Queued.first(), r.Armed.first()
+	raw, _ := json.Marshal(p)
+	return raw, nil
+}
+
+func (r *Record) UnmarshalJSON(data []byte) error {
+	type plain Record
+	var p plain
+	if err := json.Unmarshal(data, &p); err != nil {
+		return fmt.Errorf("decode owner record: %w", err)
+	}
+	queues, lostQueues := reconcile(p.OldQueued, p.Queued)
+	arms, lostArms := reconcile(p.OldArmed, p.Armed)
+	p.Queued, p.Armed, p.OldQueued, p.OldArmed = queues, arms, nil, nil
+	p.staleTops = slices.Concat(lostQueues, lostArms)
+	*r = Record(p)
+	return nil
+}
+
+func reconcile(one *Queue, list Queues) (Queues, []int) {
+	if list == nil {
+		if one == nil {
+			return nil, nil
+		}
+		return Queues{*one}, nil
+	}
+	if one == nil && len(list) == 0 || one != nil && len(list) > 0 && sameStack(*one, list[0]) {
+		return list, nil
+	}
+	return intersect(one, list)
+}
+
+func sameStack(a, b Queue) bool { return a.Top == b.Top && a.At.Equal(b.At) }
+
+func intersect(one *Queue, list Queues) (Queues, []int) {
+	var kept Queues
+	var lost []int
+	for _, e := range list {
+		if one != nil && sameStack(*one, e) {
+			kept = append(kept, e)
+			continue
+		}
+		lost = append(lost, e.Top)
+	}
+	if one != nil && kept == nil {
+		lost = append(lost, one.Top)
+	}
+	return kept, lost
+}
+
+func (r Record) staleLine() (string, bool) {
+	if len(r.staleTops) == 0 {
+		return "", false
+	}
+	return fmt.Sprintf("#%d record was rewritten by an older monacoctl; queued/armed lists may be stale; "+
+		"rerun land-stack for %s with a current monacoctl", r.Ticket, prRefs(r.staleTops)), true
+}
+
+func (qs Queues) first() *Queue {
+	if len(qs) == 0 {
+		return nil
+	}
+	return &qs[0]
+}
+
+func (qs Queues) find(top int) *Queue {
+	if i := slices.IndexFunc(qs, func(q Queue) bool { return q.Top == top }); i >= 0 {
+		return &qs[i]
+	}
+	return nil
+}
+
+func (qs Queues) holding(pr int) *Queue {
+	if i := slices.IndexFunc(qs, func(q Queue) bool { return slices.Contains(q.PRs, pr) }); i >= 0 {
+		return &qs[i]
+	}
+	return nil
+}
+
+func (qs Queues) with(q Queue) Queues {
+	return append(qs.without(q.Top), q)
+}
+
+func (qs Queues) without(top int) Queues {
+	out := slices.DeleteFunc(slices.Clone(qs), func(q Queue) bool { return q.Top == top })
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func noRecord(ticket int) error {
@@ -125,7 +229,8 @@ func jsonKeepingUnknownKeys(path string, r Record) []byte {
 }
 
 func (env *Env) withRecordLock(ticket int, apply func(Record) (Record, error)) (Record, error) {
-	f, err := lockWait(env.recordPath(ticket) + ".lock")
+	path := env.recordPath(ticket)
+	f, err := lockWait(path + ".lock")
 	if err != nil {
 		return Record{}, err
 	}

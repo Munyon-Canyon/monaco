@@ -36,7 +36,7 @@ func TestMigrationWait_armsBehindAQueuedStackThatAlsoAddsOne(t *testing.T) {
 	t.Parallel()
 	f, s := migrationStacks(t)
 	heldFor(t, f, s, "waiting on queued stack #7, which also adds a migration")
-	if code, stdout, stderr := f.agents(t, "watch", "--once"); code != 0 || f.owned(t).Armed == nil ||
+	if code, stdout, stderr := f.agents(t, "watch", "--once"); code != 0 || len(f.owned(t).Armed) == 0 ||
 		s.prs[2].labeled("merge-queue") || strings.Contains(stdout, "restacked") {
 		t.Fatalf("a waiting stack: %d %q %q", code, stdout, stderr)
 	}
@@ -62,7 +62,7 @@ func TestMigrationWait_restacksRenumbersAndResubmitsOnceTheOtherStackLanded(t *t
 	s.gitOut[migrationsDiff] = migrationsDir + "atlas.sum\n" + newestOnTrunk + "\n"
 	code, stdout, stderr := f.agents(t, "watch", "--once")
 	want := "armed stack #2 restacked over staging's migrations and resubmitted; waiting for stage 1"
-	if code != 0 || !strings.Contains(stdout, want) || f.owned(t).Armed == nil {
+	if code != 0 || !strings.Contains(stdout, want) || len(f.owned(t).Armed) == 0 {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 	for _, call := range []string{
@@ -97,7 +97,7 @@ func TestMigrationWait_aFailedRestackDisarmsWithTheReason(t *testing.T) {
 	s.gitOut[migrationsDiff] = newestOnTrunk + "\n"
 	s.fail = "gt sync"
 	if code, stdout, _ := f.agents(t, "watch", "--once"); !strings.Contains(stdout, "disarmed: migration restack:") ||
-		f.owned(t).Armed != nil {
+		len(f.owned(t).Armed) > 0 {
 		t.Fatalf("%d %q", code, stdout)
 	}
 }
@@ -158,7 +158,7 @@ func TestMigrationWait_aFailedStepDisarmsAndNamesTheReason(t *testing.T) {
 				f.hub.mu.Unlock()
 			}
 			code, stdout, _ := f.agents(t, "watch", "--once")
-			if !strings.Contains(stdout, "disarmed: migration restack:") || f.owned(t).Armed != nil {
+			if !strings.Contains(stdout, "disarmed: migration restack:") || len(f.owned(t).Armed) > 0 {
 				t.Fatalf("%d %q", code, stdout)
 			}
 		})

@@ -25,12 +25,15 @@ type sharedRecord struct {
 	Changed time.Time `json:"changed"`
 	Queued  *Queue    `json:"queued"`
 	Armed   *Arm      `json:"armed,omitempty"`
+	Queues  Queues    `json:"queues,omitempty"`
+	Arms    Arms      `json:"arms,omitempty"`
 }
 
 func recordBody(r Record) string {
 	raw, _ := json.Marshal(sharedRecord{
 		Ticket: r.Ticket, Model: r.Model, Branch: r.Branch, Base: r.Base,
-		State: r.State, Started: r.Started, Changed: r.Changed, Queued: r.Queued, Armed: r.Armed,
+		State: r.State, Started: r.Started, Changed: r.Changed,
+		Queued: r.Queued.first(), Armed: r.Armed.first(), Queues: r.Queued, Arms: r.Armed,
 	})
 	branch := r.Branch
 	if branch == "" {
@@ -54,18 +57,16 @@ func (env *Env) recordFromComment(ctx context.Context, ticket int) (Record, erro
 	}
 	_, rest, _ := strings.Cut(c.Body, jsonFence)
 	raw, _, _ := strings.Cut(rest, "\n```")
-	var s sharedRecord
-	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+	var rec Record
+	if err := json.Unmarshal([]byte(raw), &rec); err != nil {
 		return Record{}, detailErr(
 			errs.CodeDecodeFailed,
 			"monacoctl.agents.record",
 			fmt.Sprintf("the owner record comment on #%d does not decode: %v", ticket, err),
 		)
 	}
-	return Record{
-		Ticket: ticket, Model: s.Model, Worktree: env.worktreePath(ticket), Branch: s.Branch, Base: s.Base,
-		State: s.State, Queued: s.Queued, Armed: s.Armed, Started: s.Started, Changed: s.Changed,
-	}, nil
+	rec.Ticket, rec.Worktree = ticket, env.worktreePath(ticket)
+	return rec, nil
 }
 
 func (env *Env) rebuildRecord(ctx context.Context, ticket int) (Record, error) {

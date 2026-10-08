@@ -66,7 +66,7 @@ func (env *Env) waitBehind(ctx context.Context, stack []stackPR, mine [][]string
 func (env *Env) migrationStep(ctx context.Context, r Record, dir string, stack []stackPR) ([]string, bool) {
 	lines, handled, err := env.restackMigrations(ctx, dir, stack)
 	if err != nil {
-		return env.disarm(ctx, r, "migration restack: "+err.Error()), true
+		return env.disarm(ctx, r, stack[len(stack)-1].Number, "migration restack: "+err.Error()), true
 	}
 	return lines, handled
 }

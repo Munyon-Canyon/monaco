@@ -135,10 +135,10 @@ func exitedCmd(ctx context.Context, env *Env, args []string, _ io.Writer) error 
 
 func (r Record) heldTop() (int, bool) {
 	switch {
-	case r.Queued != nil:
-		return r.Queued.Top, true
-	case r.Armed != nil:
-		return r.Armed.Top, true
+	case len(r.Queued) > 0:
+		return r.Queued[0].Top, true
+	case len(r.Armed) > 0:
+		return r.Armed[0].Top, true
 	}
 	return 0, false
 }

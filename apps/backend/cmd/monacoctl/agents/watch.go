@@ -56,8 +56,11 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 func (env *Env) landArmedOnce(ctx context.Context, rs []Record) []string {
 	var lines []string
 	for _, r := range rs {
-		if r.Queued == nil && r.Armed != nil {
-			lines = append(lines, env.landArmed(ctx, r, map[int64]int{})...)
+		if line, stale := r.staleLine(); stale {
+			lines = append(lines, line)
+		}
+		for _, a := range r.Armed {
+			lines = append(lines, env.landArmed(ctx, r, a, map[int64]int{})...)
 		}
 	}
 	return lines

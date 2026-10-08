@@ -262,7 +262,7 @@ func TestLandStack_refusesNamingEveryPRItWaitsOnAndChangesNothing(t *testing.T) 
 	if calls := s.lines(); len(calls) != 0 {
 		t.Fatalf("a refusal ran %v", calls)
 	}
-	if f.owned(t).Queued != nil {
+	if len(f.owned(t).Queued) > 0 {
 		t.Fatal("a refusal marked the stack queued")
 	}
 }
@@ -294,11 +294,11 @@ func TestLandStack_labelsEveryPRAndKeepsTheirBases(t *testing.T) {
 	if s.prs[7].labeled("merge-queue") || s.prs[8].labeled("merge-queue") {
 		t.Fatal("labelled a PR outside the stack")
 	}
-	if q := f.owned(t).Queued; q == nil || q.Top != 3 || !slices.Equal(q.PRs, []int{1, 2, 3}) {
+	if q := f.owned(t).Queued; len(q) != 1 || q[0].Top != 3 || !slices.Equal(q[0].PRs, []int{1, 2, 3}) {
 		t.Fatalf("queued %+v", q)
 	}
 	if got := posted(t, f, "POST /repos/o/r/issues/40/comments"); !strings.Contains(
-		got, `"queued":{"top":3,"prs":[1,2,3],"at":"2026-09-27T12:00:00Z"}`,
+		got, `"queued":{"top":3,"prs":[1,2,3],"at":"2026-09-27T12:00:00Z"},"queues":[{"top":3,`,
 	) {
 		t.Fatalf("published %q", got)
 	}
@@ -571,7 +571,7 @@ func TestLandStack_refusesABottomThatConflictsWithTheTrunkTip(t *testing.T) {
 		!strings.Contains(stderr, "then run land-stack 2") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if got := f.hub.callsContaining("/labels"); len(got) != 0 || f.owned(t).Queued != nil {
+	if got := f.hub.callsContaining("/labels"); len(got) != 0 || len(f.owned(t).Queued) > 0 {
 		t.Fatalf("labelled %v, queued %+v", got, f.owned(t).Queued)
 	}
 }
@@ -590,7 +590,7 @@ func TestLandStack_failsWithoutLabelsWhenGitCannotCheckTheMerge(t *testing.T) {
 				!strings.Contains(stderr, "the stack is not marked queued") {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
-			if got := f.hub.callsContaining("/labels"); len(got) != 0 || f.owned(t).Queued != nil {
+			if got := f.hub.callsContaining("/labels"); len(got) != 0 || len(f.owned(t).Queued) > 0 {
 				t.Fatalf("labelled %v, queued %+v", got, f.owned(t).Queued)
 			}
 		})
@@ -649,7 +649,7 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 			f.hub.on(get("/compare/fb...b2-oid"), `{"status":"identical"}`)
 			f.hub.on(get("/compare/fb...b3-oid"), `{"status":"behind"}`)
 			wt := t.TempDir()
-			f.owner(t, Record{Ticket: 40, Worktree: wt, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
+			f.owner(t, Record{Ticket: 40, Worktree: wt, Queued: Queues{{Top: 3, PRs: []int{1, 2, 3}}}})
 			code, stdout, stderr := f.agents(t, "land-stack", "3")
 			if code != 0 || stdout != strings.ReplaceAll(tt.stdout, "WT", wt) {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
@@ -662,7 +662,7 @@ func TestLandStack_settlesTheQueuedStack(t *testing.T) {
 					t.Fatalf("gt ran in %q", c.dir)
 				}
 			}
-			if queued := f.owned(t).Queued != nil; queued != tt.stillQueue {
+			if queued := len(f.owned(t).Queued) > 0; queued != tt.stillQueue {
 				t.Fatalf("queued = %v", queued)
 			}
 		})
@@ -702,7 +702,7 @@ func TestLandStack_failures(t *testing.T) {
 		{name: "no owner record", args: []string{"2"}, prs: stack, rec: &Record{}, code: 1, stderr: "no owner record for #40"},
 		{
 			name: "another top queued", args: []string{"2"}, prs: stack, code: 1, stderr: "#40 already has #7 queued",
-			rec: &Record{Ticket: 40, Queued: &Queue{Top: 7, PRs: []int{7}}},
+			rec: &Record{Ticket: 40, Queued: Queues{{Top: 7, PRs: []int{2, 7}}}},
 		},
 		{
 			name: "top not open", args: []string{"2"}, code: 1, stderr: "#2 is not an open PR",
@@ -757,7 +757,7 @@ func TestLandStack_failures(t *testing.T) {
 			if code != tt.code || !strings.Contains(stderr, tt.stderr) {
 				t.Fatalf("%d %q", code, stderr)
 			}
-			if rec.Ticket == 40 && rec.Queued == nil && f.owned(t).Queued != nil {
+			if rec.Ticket == 40 && len(rec.Queued) == 0 && len(f.owned(t).Queued) > 0 {
 				t.Fatal("a failed land marked the stack queued")
 			}
 		})
@@ -771,7 +771,7 @@ func TestLandStack_settleFailures(t *testing.T) {
 		f := newFixture(t)
 		newStackGH(t, f, green(t, 2, "b2", "fb"))
 		delete(f.hub.routes, graphqlRoute)
-		f.owner(t, Record{Ticket: 40, Queued: &Queue{Top: 2, PRs: []int{2}}})
+		f.owner(t, Record{Ticket: 40, Queued: Queues{{Top: 2, PRs: []int{2}}}})
 		if code, _, stderr := f.agents(t, "land-stack", "2"); code != 1 || !strings.Contains(stderr, "/graphql") {
 			t.Fatalf("%d %q", code, stderr)
 		}
@@ -782,7 +782,7 @@ func TestLandStack_settleFailures(t *testing.T) {
 		top := green(t, 2, "b2", "fb")
 		top.State = "MERGED"
 		newStackGH(t, f, top)
-		f.owner(t, Record{Ticket: 40, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+		f.owner(t, Record{Ticket: 40, Queued: Queues{{Top: 2, PRs: []int{1, 2}}}})
 		if code, _, stderr := f.agents(t, "land-stack", "2"); code != 1 || !strings.Contains(stderr, "#1 is not a PR") {
 			t.Fatalf("%d %q", code, stderr)
 		}
@@ -810,7 +810,7 @@ func TestPRRefs(t *testing.T) {
 func ejectedStack(t *testing.T, f *fixture) *stackGH {
 	t.Helper()
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"), green(t, 3, "b3", "b2"))
-	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
+	f.owner(t, Record{Ticket: 40, Worktree: f.dir, State: Done, Queued: Queues{{Top: 3, PRs: []int{1, 2, 3}}}})
 	return s
 }
 
@@ -831,7 +831,7 @@ func TestLandStack_relandsAnEjectedStackWholeInOneCall(t *testing.T) {
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
-	if q := f.owned(t).Queued; q == nil || q.Top != 3 || !slices.Equal(q.PRs, []int{1, 2, 3}) {
+	if q := f.owned(t).Queued; len(q) != 1 || q[0].Top != 3 || !slices.Equal(q[0].PRs, []int{1, 2, 3}) {
 		t.Fatalf("queued %+v", q)
 	}
 }
@@ -852,7 +852,7 @@ func TestLandStack_relandsWhatIsLeftWhenOnePRLostTheLabel(t *testing.T) {
 	if got := f.hub.callsContaining("/labels"); !slices.Equal(got, want) {
 		t.Fatalf("calls %v", got)
 	}
-	if q := f.owned(t).Queued; q == nil || !slices.Equal(q.PRs, []int{2, 3}) {
+	if q := f.owned(t).Queued; len(q) != 1 || !slices.Equal(q[0].PRs, []int{2, 3}) {
 		t.Fatalf("queued %+v", q)
 	}
 }
@@ -893,7 +893,7 @@ func TestLandStack_relandChecksEveryPRInTheStack(t *testing.T) {
 			if code != tc.code || !strings.Contains(got, tc.out) || len(s.lines()) != 0 {
 				t.Fatalf("%d %q %q %v", code, stdout, stderr, s.lines())
 			}
-			if f.owned(t).Queued != nil {
+			if len(f.owned(t).Queued) > 0 {
 				t.Fatal("the ejected stack kept its queued mark")
 			}
 		})
@@ -951,7 +951,7 @@ func TestLandStack_aClosedEjectedTopIsUnmarkedAndRefused(t *testing.T) {
 		!strings.Contains(stderr, "#3 is not an open PR") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if f.owned(t).Queued != nil {
+	if len(f.owned(t).Queued) > 0 {
 		t.Fatal("kept the queued mark")
 	}
 }
@@ -980,10 +980,10 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	for _, p := range []*stackPR{queued, half, merged} {
 		s.prs[p.Number] = p
 	}
-	f.owner(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 3, PRs: []int{1, 2, 3}}})
-	f.record(t, Record{Ticket: 41, State: Exited, Queued: &Queue{Top: 5, PRs: []int{5}}})
-	f.record(t, Record{Ticket: 42, State: Exited, Queued: &Queue{Top: 6, PRs: []int{8, 6}}})
-	f.record(t, Record{Ticket: 43, State: Exited, Queued: &Queue{Top: 8, PRs: []int{8}}})
+	f.owner(t, Record{Ticket: 40, State: Exited, Queued: Queues{{Top: 3, PRs: []int{1, 2, 3}}}})
+	f.record(t, Record{Ticket: 41, State: Exited, Queued: Queues{{Top: 5, PRs: []int{5}}}})
+	f.record(t, Record{Ticket: 42, State: Exited, Queued: Queues{{Top: 6, PRs: []int{8, 6}}}})
+	f.record(t, Record{Ticket: 43, State: Exited, Queued: Queues{{Top: 8, PRs: []int{8}}}})
 	f.record(t, Record{Ticket: 44, State: Exited})
 	f.noFailures()
 	code, stdout, stderr := f.agents(t, "watch", "--once")
@@ -994,7 +994,7 @@ func TestWatch_clearsTheQueuedMarkOfAnEjectedStack(t *testing.T) {
 	env := f.Env(t)
 	for ticket, queued := range map[int]bool{40: false, 41: true, 42: true, 43: true} {
 		r, err := env.localRecord(ticket)
-		if err != nil || (r.Queued != nil) != queued {
+		if err != nil || (len(r.Queued) > 0) != queued {
 			t.Fatalf("#%d queued %+v %v", ticket, r.Queued, err)
 		}
 	}
@@ -1042,7 +1042,7 @@ func TestWatch_unqueueFailures(t *testing.T) {
 		)
 		code, stdout, stderr := f.agents(t, "watch", "--once")
 		const want = "stack #3 left queued: an open Graphite draft still tests #1\n"
-		if code != 0 || stdout != want || stderr != "" || f.owned(t).Queued == nil ||
+		if code != 0 || stdout != want || stderr != "" || len(f.owned(t).Queued) == 0 ||
 			slices.Contains(f.waited, dequeueEvery) {
 			t.Fatalf("%d %q %q queued %+v waited %v", code, stdout, stderr, f.owned(t).Queued, f.waited)
 		}
@@ -1076,7 +1076,7 @@ func TestLandStack_aClosedPROutsideTheTrunkWithoutTheLabelIsEjected(t *testing.T
 	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if f.owned(t).Queued != nil {
+	if len(f.owned(t).Queued) > 0 {
 		t.Fatal("kept the queued mark")
 	}
 }
@@ -1134,7 +1134,7 @@ func TestLandStack_aPRClosedByHandIsEjectedEvenWithTheLabel(t *testing.T) {
 	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if f.owned(t).Queued != nil {
+	if len(f.owned(t).Queued) > 0 {
 		t.Fatal("kept the queued mark")
 	}
 }
@@ -1167,7 +1167,7 @@ func TestWatchOnce_waitsAMinuteBeforeEjectingAStackWhoseLabelAPersonRemoved(t *t
 			f.noFailures()
 			code, stdout, stderr := f.agents(t, "watch", "--once")
 			if code != 0 || strings.Contains(stdout, "unqueued: #40") != tc.ejected ||
-				(f.owned(t).Queued == nil) != tc.ejected {
+				(len(f.owned(t).Queued) == 0) != tc.ejected {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 		})
@@ -1282,7 +1282,7 @@ func TestWatchOnce_holdsAStackGraphiteTookBeforeItIsEjected(t *testing.T) {
 			}
 			code, stdout, stderr := f.agents(t, "watch", "--once")
 			if code != 0 || strings.Contains(stdout, "unqueued: #40") != tc.ejected ||
-				(f.owned(t).Queued == nil) != tc.ejected {
+				(len(f.owned(t).Queued) == 0) != tc.ejected {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 			if released := len(f.hub.callsContaining("/labels")) != 0; released != tc.ejected {
@@ -1307,7 +1307,7 @@ func TestWatchOnce_releasesTheEjectedPROfAStackGraphiteHoldsInPart(t *testing.T)
 	if code != 0 || !strings.HasPrefix(stdout, "unqueued: #40; #3 left the Graphite merge queue.") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if s.prs[2].labeled("merge-queue") || f.owned(t).Queued != nil {
+	if s.prs[2].labeled("merge-queue") || len(f.owned(t).Queued) > 0 {
 		t.Fatalf("the ejected PR kept its label %v, or the stack kept its mark %+v", s.prs[2].Labels, f.owned(t).Queued)
 	}
 }
@@ -1327,7 +1327,7 @@ func TestWatchOnce_removesTheLabelsOfAStackAnOpenDraftStillTests(t *testing.T) {
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if r := f.owned(t); r.Queued == nil || r.Settled != nil || len(f.waited) != 0 {
+	if r := f.owned(t); len(r.Queued) == 0 || r.Settled != nil || len(f.waited) != 0 {
 		t.Fatalf("queued %+v settled %+v waited %v", r.Queued, r.Settled, f.waited)
 	}
 	released := []string{
@@ -1353,7 +1353,7 @@ func TestWatchOnce_reportsALabelItCannotRemoveFromAStackAnOpenDraftStillTests(t 
 	)
 	code, stdout, stderr := f.agents(t, "watch", "--once")
 	if code != 1 || !strings.Contains(stderr, "boom") || strings.Contains(stdout, "left queued") ||
-		f.owned(t).Queued == nil {
+		len(f.owned(t).Queued) == 0 {
 		t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
 	}
 }
@@ -1366,7 +1366,7 @@ func TestLandStack_doesNotRelabelAStackGraphiteTookWhileItWaitsForADraft(t *test
 		setUnlabels(t, s.prs[n], unlabel(f.now.Add(-2*time.Minute), "merge-queue", "graphite-app"))
 	}
 	code, stdout, stderr := f.agents(t, "land-stack", "3")
-	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" || f.owned(t).Queued == nil {
+	if code != 0 || stdout != "#3 is queued in the Graphite merge queue\n" || len(f.owned(t).Queued) == 0 {
 		t.Fatalf("%d %q %q queued %+v", code, stdout, stderr, f.owned(t).Queued)
 	}
 	if got := f.hub.callsContaining("/labels"); len(got) != 0 {
@@ -1413,8 +1413,8 @@ func TestLandStack_armsAStackWhoseStage1IsPendingAndLabelsNothing(t *testing.T) 
 		t.Fatalf("arming labelled %v", got)
 	}
 	r := f.owned(t)
-	if r.Queued != nil || r.Armed == nil || r.Armed.Top != 2 || !slices.Equal(r.Armed.PRs, []int{1, 2}) ||
-		!r.Armed.At.Equal(f.now) {
+	if len(r.Queued) > 0 || len(r.Armed) == 0 || r.Armed[0].Top != 2 || !slices.Equal(r.Armed[0].PRs, []int{1, 2}) ||
+		!r.Armed[0].At.Equal(f.now) {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 	got := posted(t, f, "POST /repos/o/r/issues/40/comments")
@@ -1425,7 +1425,7 @@ func TestLandStack_armsAStackWhoseStage1IsPendingAndLabelsNothing(t *testing.T) 
 	if code, stdout, _ := f.agents(t, "land-stack", "2"); code != 0 || !strings.HasPrefix(stdout, "queued #1 #2\n") {
 		t.Fatalf("%d %q", code, stdout)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued == nil {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) == 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -1439,7 +1439,7 @@ func TestLandStack_doesNotArmAStackWithAFailedCheck(t *testing.T) {
 	if code != 0 || stdout != "not landing #2; waiting on #1 (stage 1 failure), #2 (stage 1 pending)\n" {
 		t.Fatalf("%d %q", code, stdout)
 	}
-	if f.owned(t).Armed != nil {
+	if len(f.owned(t).Armed) > 0 {
 		t.Fatal("armed a stack with a failed check")
 	}
 }
@@ -1457,7 +1457,7 @@ func TestWatchOnce_landsAnArmedStackThatWentGreen(t *testing.T) {
 	if code != 0 || !strings.Contains(stdout, "armed stack #2 landing\nqueued #1 #2\n") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued == nil || r.Queued.Top != 2 {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) == 0 || r.Queued[0].Top != 2 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -1472,7 +1472,7 @@ func requeuedDuringRelease(t *testing.T, at int, relabel bool) (*fixture, *stack
 		if n != at {
 			return
 		}
-		f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Queued: &again})
+		f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Queued: Queues{again}})
 		if relabel {
 			labeled(s.prs[1], "merge-queue")
 			labeled(s.prs[2], "merge-queue")
@@ -1495,12 +1495,12 @@ func TestEjectStack_leavesAStackQueuedWhenLandStackQueuesItAgainDuringTheRelease
 			t.Parallel()
 			f, s, again := requeuedDuringRelease(t, tc.at, tc.relabel)
 			prs := []stackPR{*s.prs[1], *s.prs[2]}
-			line, requeued, err := f.Env(t).ejectStack(t.Context(), f.owned(t), prs[1], prs, nil)
+			line, requeued, err := f.Env(t).ejectStack(t.Context(), f.owned(t), f.owned(t).Queued[0], prs[1], prs, nil)
 			if err != nil || !requeued || line != "stack #2 was re-queued during its release; left it queued" {
 				t.Fatalf("ejectStack = %q, %v, %v", line, requeued, err)
 			}
 			r := f.owned(t)
-			if r.Queued == nil || !r.Queued.At.Equal(again.At) || r.Settled != nil {
+			if len(r.Queued) == 0 || !r.Queued[0].At.Equal(again.At) || r.Settled != nil {
 				t.Fatalf("record queued %+v settled %+v, want the new queue kept", r.Queued, r.Settled)
 			}
 			if tc.relabel && (!s.prs[1].labeled("merge-queue") || !s.prs[2].labeled("merge-queue")) {
@@ -1534,7 +1534,7 @@ func TestEjectStack_reportsAnOwnerRecordItCannotReread(t *testing.T) {
 			}
 		}
 		prs := []stackPR{*s.prs[1], *s.prs[2]}
-		if _, _, err := env.ejectStack(t.Context(), rec, prs[1], prs, nil); err == nil {
+		if _, _, err := env.ejectStack(t.Context(), rec, rec.Queued[0], prs[1], prs, nil); err == nil {
 			t.Fatalf("record removed at wait %d: ejectStack returned no error", at)
 		}
 	}
@@ -1549,7 +1549,7 @@ func TestWatchOnce_leavesAStackQueuedAgainDuringItsReleaseAlone(t *testing.T) {
 		strings.Contains(stdout, "unqueued:") {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if r := f.owned(t); r.Queued == nil || !r.Queued.At.Equal(again.At) {
+	if r := f.owned(t); len(r.Queued) == 0 || !r.Queued[0].At.Equal(again.At) {
 		t.Fatalf("queued %+v, want the new queue kept", r.Queued)
 	}
 	if !s.prs[2].labeled("merge-queue") {
@@ -1574,7 +1574,7 @@ func TestLandStack_namesAConflictAnywhereInTheStackInsteadOfStage1Missing(t *tes
 	if code != 0 || stdout != want || stderr != "" {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) > 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -1585,4 +1585,101 @@ func conflicted(t *testing.T, p *stackPR) *stackPR {
 		t.Fatal(err)
 	}
 	return p
+}
+
+func independentStacks(t *testing.T, f *fixture, rec Record) *stackGH {
+	t.Helper()
+	s := newStackGH(t, f,
+		labeled(green(t, 1, "b1", "fb"), "merge-queue"), labeled(green(t, 2, "b2", "b1"), "merge-queue"),
+		stackOf(t, 3, "b3", "fb", "pending", "SUCCESS"))
+	rec.Ticket, rec.State, rec.Worktree = 40, Exited, f.dir
+	f.owner(t, rec)
+	f.noFailures()
+	return s
+}
+
+func TestLandStack_armsAndQueuesASecondStackWhileTheFirstIsQueued(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := independentStacks(t, f, Record{Queued: Queues{{Top: 2, PRs: []int{1, 2}, At: f.now}}})
+	code, stdout, stderr := f.agents(t, "land-stack", "3")
+	if code != 0 || !strings.HasPrefix(stdout, "armed #3;") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if r := f.owned(t); len(r.Queued) != 1 || r.Queued[0].Top != 2 || len(r.Armed) != 1 || r.Armed[0].Top != 3 {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+	*s.prs[3] = *green(t, 3, "b3", "fb")
+	code, stdout, stderr = f.agents(t, "watch", "--once")
+	if code != 0 || !strings.Contains(stdout, "armed stack #3 landing\nqueued #3\n") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	r := f.owned(t)
+	if len(r.Armed) != 0 || len(r.Queued) != 2 || r.Queued.find(2) == nil || r.Queued.find(3) == nil {
+		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
+	}
+}
+
+func TestLandStack_settlingOneQueuedStackLeavesTheOtherQueued(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := independentStacks(t, f, Record{Queued: Queues{
+		{Top: 2, PRs: []int{1, 2}, At: f.now}, {Top: 3, PRs: []int{3}, At: f.now},
+	}})
+	labeled(s.prs[3], "merge-queue")
+	for _, n := range []int{1, 2} {
+		s.prs[n].State = "MERGED"
+	}
+	s.prs[2].MergeCommit.OID = "abcdef0123456789abcdef0123456789abcdef01"
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code != 0 || stdout != "#2 merged as abcdef0\n" {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	r := f.owned(t)
+	if len(r.Queued) != 1 || r.Queued[0].Top != 3 || r.Settled == nil || r.Settled.Top != 2 {
+		t.Fatalf("queued %+v settled %+v", r.Queued, r.Settled)
+	}
+}
+
+func TestLandStack_refusesAStackWhoseTopIsInsideAnotherQueuedStack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	independentStacks(t, f, Record{Queued: Queues{{Top: 2, PRs: []int{1, 2}, At: f.now}}})
+	code, _, stderr := f.agents(t, "land-stack", "1")
+	if code != 1 || !strings.Contains(stderr, "#40 already has #2 queued") {
+		t.Fatalf("%d %q", code, stderr)
+	}
+}
+
+func TestWatch_warnsAndHoldsNothingForStacksAnOlderWriterLeftStale(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
+	f.noFailures()
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir})
+	writeFile(t, f.Env(t).recordPath(40), `{"ticket":40,"state":"exited","worktree":"`+f.dir+`","armed":null,`+
+		`"arms":[{"top":2,"prs":[1,2],"at":"2026-09-27T12:00:00Z"},{"top":7,"prs":[7],"at":"2026-09-27T12:00:00Z"}]}`)
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	want := "#40 record was rewritten by an older monacoctl; queued/armed lists may be stale; " +
+		"rerun land-stack for #2 #7 with a current monacoctl"
+	if code != 0 || !strings.Contains(stdout, want) || strings.Contains(stdout, "landing") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 || s.prs[2].labeled("merge-queue") {
+		t.Fatalf("labels %v", calls)
+	}
+}
+
+func TestWatchStream_warnsOnceAboutQueuesAnOlderWriterLeftStale(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	queuedStack(t, f, f.dir)
+	writeFile(t, f.Env(t).recordPath(40), `{"ticket":40,"state":"exited","worktree":"`+f.dir+`","queued":null,`+
+		`"queues":[{"top":2,"prs":[1,2],"at":"2026-09-27T12:00:00Z"}]}`)
+	got := streamRounds(t, f, 2, func(int) {})
+	line := "#40 record was rewritten by an older monacoctl; queued/armed lists may be stale; " +
+		"rerun land-stack for #2 with a current monacoctl\n"
+	if strings.Count(got, line) != 1 || strings.Contains(got, "#1 queued") {
+		t.Fatalf("stream %q", got)
+	}
 }

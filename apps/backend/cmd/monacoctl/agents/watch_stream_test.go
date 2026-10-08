@@ -65,7 +65,7 @@ func queuedStack(t *testing.T, f *fixture, worktree string) *stackGH {
 	t.Helper()
 	s := newStackGH(t, f,
 		labeled(green(t, 1, "b1", "fb"), "merge-queue"), labeled(green(t, 2, "b2", "b1"), "merge-queue"))
-	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: worktree, Queued: &Queue{Top: 2, PRs: []int{1, 2}}})
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: worktree, Queued: Queues{{Top: 2, PRs: []int{1, 2}}}})
 	f.noFailures()
 	return s
 }
@@ -115,7 +115,7 @@ func TestWatchStream_settlesAStackOnceEveryPRLanded(t *testing.T) {
 	if lines := s.lines(); len(lines) != 0 {
 		t.Fatalf("a landing ran %v; gt sync resets other lanes' unpushed branches", lines)
 	}
-	if f.owned(t).Queued != nil {
+	if len(f.owned(t).Queued) > 0 {
 		t.Fatal("kept the queued mark")
 	}
 }
@@ -145,7 +145,7 @@ func TestWatchStream_ejectsAStackOnlyAfterTwoRoundsWithoutTheLabel(t *testing.T)
 					s.prs[2].Labels.Nodes = nil
 				case round == 2 && tc.back:
 					labeled(s.prs[2], "merge-queue")
-				case round == 2 && f.owned(t).Queued == nil:
+				case round == 2 && len(f.owned(t).Queued) == 0:
 					t.Error("unmarked after one round")
 				}
 			})
@@ -155,8 +155,8 @@ func TestWatchStream_ejectsAStackOnlyAfterTwoRoundsWithoutTheLabel(t *testing.T)
 			}
 			block := "stack #2 ejected: #2 " + why + "\n#2 " + why + "\n" +
 				"  failing job: none\n  fresh owner\n  ticket: 40\n  worktree: /w/40\n  head: b2-oid\n"
-			if strings.Contains(got, block) != tc.ejected || (f.owned(t).Queued == nil) != tc.ejected {
-				t.Fatalf("ejected = %v, want %v:\n%s", f.owned(t).Queued == nil, tc.ejected, got)
+			if strings.Contains(got, block) != tc.ejected || (len(f.owned(t).Queued) == 0) != tc.ejected {
+				t.Fatalf("ejected = %v, want %v:\n%s", len(f.owned(t).Queued) == 0, tc.ejected, got)
 			}
 			if !strings.HasPrefix(got, waiting12+"#2 ejected\n") {
 				t.Fatalf("stream:\n%s", got)
@@ -178,7 +178,7 @@ func TestWatchStream_aStackListedByAnOpenDraftIsNotEjectedWithoutTheLabel(t *tes
 		[]string{queueDraftNode(90, "[Graphite MQ] Draft PR GROUP:spec_1 (PRs 1, 2)", rollup(greenOK))},
 	))
 	got := streamRounds(t, f, 4, func(int) {})
-	if strings.Contains(got, "ejected") || f.owned(t).Queued == nil || !strings.Contains(got, "#2 queued\n") {
+	if strings.Contains(got, "ejected") || len(f.owned(t).Queued) == 0 || !strings.Contains(got, "#2 queued\n") {
 		t.Fatalf("stream:\n%s", got)
 	}
 }
@@ -192,7 +192,7 @@ func TestWatchStream_printsAStackQueuedAgainDuringItsReleaseWithoutAFailureBlock
 	f.hub.hook = func(method, path, body string, status int) {
 		onLabel(method, path, body, status)
 		if method == "DELETE" && strings.Contains(path, "/issues/1/labels/") {
-			again := &Queue{Top: 2, PRs: []int{1, 2}, At: f.now.Add(time.Hour)}
+			again := Queues{{Top: 2, PRs: []int{1, 2}, At: f.now.Add(time.Hour)}}
 			f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Queued: again})
 		}
 	}
@@ -292,8 +292,8 @@ func TestWatchStream_printsEachErrorAsALineAndKeepsGoing(t *testing.T) {
 	delete(f.hub.routes, graphqlRoute)
 	f.owner(t, Record{Ticket: 1, State: Running, Worktree: filepath.Join(f.dir, "gone")})
 	f.record(t, Record{Ticket: 2, State: Running, Worktree: f.dir})
-	f.record(t, Record{Ticket: 40, State: Exited, Queued: &Queue{Top: 9, PRs: []int{9}}})
-	f.record(t, Record{Ticket: 41, State: Exited, Queued: &Queue{Top: 5, PRs: []int{5}}})
+	f.record(t, Record{Ticket: 40, State: Exited, Queued: Queues{{Top: 9, PRs: []int{9}}}})
+	f.record(t, Record{Ticket: 41, State: Exited, Queued: Queues{{Top: 5, PRs: []int{5}}}})
 	env := f.Env(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -358,7 +358,7 @@ func TestWatchStream_reportsAFailedSettleOrUnmark(t *testing.T) {
 		s.prs[2].Labels.Nodes = nil
 		f.hub.status["DELETE /repos/"+testRepo+"/issues/1/labels/merge-queue"] = 500
 		got := streamRounds(t, f, 2, func(int) {})
-		if !strings.Contains(got, "watch error: eject #2: ") || f.owned(t).Queued == nil {
+		if !strings.Contains(got, "watch error: eject #2: ") || len(f.owned(t).Queued) == 0 {
 			t.Fatalf("stream:\n%s", got)
 		}
 	})
@@ -454,7 +454,7 @@ func TestWatchStream_rereadsTheTrunkEachRoundForASquashNotYetVisible(t *testing.
 func armedWatch(t *testing.T, f *fixture) *stackGH {
 	t.Helper()
 	s := newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "pending", "SUCCESS"))
-	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Armed: &Arm{Top: 2, PRs: []int{1, 2}}})
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Armed: Arms{{Top: 2, PRs: []int{1, 2}}}})
 	f.noFailures()
 	return s
 }
@@ -477,8 +477,8 @@ func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
 	}) {
 		t.Fatalf("labels %v", calls)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued == nil || !slices.Equal(r.Queued.PRs, []int{1, 2}) ||
-		r.Queued.At.IsZero() {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) == 0 || !slices.Equal(r.Queued[0].PRs, []int{1, 2}) ||
+		r.Queued[0].At.IsZero() {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -493,7 +493,7 @@ func TestWatchStream_leavesAnArmedStackPendingWithoutWaitingForRuns(t *testing.T
 	if slices.Contains(f.waited, runsEvery) || slices.Contains(f.waited, draftEvery) {
 		t.Fatalf("watch pass waited %v", f.waited)
 	}
-	if r := f.owned(t); r.Armed == nil || r.Queued != nil {
+	if r := f.owned(t); len(r.Armed) == 0 || len(r.Queued) > 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -520,12 +520,12 @@ func TestWatchStream_disarmsAnArmedStackWhenARerunFailsAgain(t *testing.T) {
 	setRuns(f, "b2-oid", Run{
 		ID: 7, WorkflowID: 1, Name: "ci", Status: "completed", Conclusion: "failure", Attempt: 2,
 	})
-	got := f.Env(t).landArmed(t.Context(), f.owned(t), map[int64]int{7: 1})
+	got := f.Env(t).landArmed(t.Context(), f.owned(t), f.owned(t).Armed[0], map[int64]int{7: 1})
 	lines := strings.Join(got, "\n")
 	if !strings.Contains(lines, "armed stack #2 disarmed: #2: run \"ci\" ended failure again after a rerun") {
 		t.Fatalf("lines\n%s", got)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) > 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -546,7 +546,7 @@ func TestWatchStream_queuesAnArmedStackOnTheFirstPassAfterRunsAreClean(t *testin
 	if !strings.HasPrefix(got, "armed stack #2 landing\nqueued #1 #2\n") {
 		t.Fatalf("stream\n%s", got)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued == nil {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) == 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -566,7 +566,7 @@ func TestWatchStream_disarmsAnArmedStackWhoseStage1FailsOnce(t *testing.T) {
 	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 {
 		t.Fatalf("labels %v", calls)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) > 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -588,7 +588,7 @@ func TestWatchStream_keepsAnArmedStackArmedWhileANewerRunReplacesACancelledOne(t
 	if strings.Contains(got, "disarmed") || !strings.HasPrefix(got, "armed stack #2 landing\n") {
 		t.Fatalf("stream:\n%s", got)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued == nil {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) == 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -603,7 +603,7 @@ func TestWatchStream_namesALabeledPRNoDraftHoldsAndItsStage1(t *testing.T) {
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
-	if f.owned(t).Queued == nil {
+	if len(f.owned(t).Queued) == 0 {
 		t.Fatal("a labeled PR no draft holds was treated as ejected")
 	}
 }
@@ -623,7 +623,7 @@ func TestWatchStream_namesAPRWhoseLabelWasJustRemovedWithoutEjectingIt(t *testin
 	if !strings.Contains(got, "#2 label just removed, waiting for Graphite\n") || strings.Contains(got, "ejected") {
 		t.Fatalf("stream:\n%s", got)
 	}
-	if f.owned(t).Queued == nil {
+	if len(f.owned(t).Queued) == 0 {
 		t.Fatal("a PR whose label was just removed was treated as ejected")
 	}
 }
@@ -660,8 +660,8 @@ func TestWatchStream_keepsAStackGraphiteTookQueuedUntilItsDraftOpensOrFails(t *t
 				}
 			})
 			if !strings.Contains(got, tc.want) || strings.Contains(got, "ejected") != tc.ejected ||
-				(f.owned(t).Queued == nil) != tc.ejected {
-				t.Fatalf("queued = %v, want ejected = %v:\n%s", f.owned(t).Queued != nil, tc.ejected, got)
+				(len(f.owned(t).Queued) == 0) != tc.ejected {
+				t.Fatalf("queued = %v, want ejected = %v:\n%s", len(f.owned(t).Queued) > 0, tc.ejected, got)
 			}
 		})
 	}
@@ -681,7 +681,7 @@ func TestWatchStream_disarmsAnArmedStackThatCannotLand(t *testing.T) {
 		"run land-stack again, which relabels every PR\n"; got != want {
 		t.Fatalf("stream %q", got)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued != nil {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) > 0 {
 		t.Fatalf("queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -715,7 +715,7 @@ func TestArm_failures(t *testing.T) {
 		s := armedWatch(t, f)
 		s.prs[2].State = "CLOSED"
 		got := streamRounds(t, f, 1, func(int) {})
-		if got != "watch error: armed stack #2: #2 is not an open PR\n" || f.owned(t).Armed == nil {
+		if got != "watch error: armed stack #2: #2 is not an open PR\n" || len(f.owned(t).Armed) == 0 {
 			t.Fatalf("stream %q", got)
 		}
 	})
@@ -757,7 +757,7 @@ func TestWatchStream_everyStreamReportsAStackThatAnotherStreamSettled(t *testing
 				settled = append(settled, a.next(t.Context())...)
 				other = append(other, b.next(t.Context())...)
 			}
-			if f.owned(t).Queued != nil || f.owned(t).Settled == nil {
+			if len(f.owned(t).Queued) > 0 || f.owned(t).Settled == nil {
 				t.Fatalf("record %+v", f.owned(t))
 			}
 			if n := slices.Index(settled, tc.line); n < 0 || slices.Contains(settled[n+1:], tc.line) {
@@ -973,8 +973,8 @@ func TestStuckOnGraphiteBase_namesTheOwnerRecordOfAnArmedOrQueuedStack(t *testin
 		{Number: 1841, BaseRefName: "graphite-base/1841", HeadRefName: "b1841"},
 	}
 	rs := []Record{
-		{Ticket: 44, Armed: &Arm{Top: 1850, PRs: []int{1839}}},
-		{Ticket: 45, Queued: &Queue{Top: 1860, PRs: []int{1840}}},
+		{Ticket: 44, Armed: Arms{{Top: 1850, PRs: []int{1839}}}},
+		{Ticket: 45, Queued: Queues{{Top: 1860, PRs: []int{1840}}}},
 	}
 	got := stuckOnGraphiteBase(prs, rs, "merge-queue")
 	want := []string{
@@ -1029,7 +1029,7 @@ func TestWatchStream_readsOwnerRecordsAfterTheGitHubData(t *testing.T) {
 			return
 		}
 		once.Do(func() {
-			rec.Armed = &Arm{Top: 1958, PRs: []int{1957, 1958}, At: f.now}
+			rec.Armed = Arms{{Top: 1958, PRs: []int{1957, 1958}, At: f.now}}
 			if err := f.Env(t).saveRecord(rec); err != nil {
 				t.Error(err)
 			}
@@ -1050,17 +1050,17 @@ func TestLandArmed_ignoresAStaleArmedCopyOfAQueuedRecord(t *testing.T) {
 	stale := f.owned(t)
 	queued := stale
 	queued.Armed = nil
-	queued.Queued = &Queue{Top: 2, PRs: []int{1, 2}, At: f.now}
+	queued.Queued = Queues{{Top: 2, PRs: []int{1, 2}, At: f.now}}
 	if err := f.Env(t).saveRecord(queued); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.Env(t).landArmed(t.Context(), stale, map[int64]int{}); len(got) != 0 {
+	if got := f.Env(t).landArmed(t.Context(), stale, stale.Armed[0], map[int64]int{}); len(got) != 0 {
 		t.Fatalf("lines %q", got)
 	}
 	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 {
 		t.Fatalf("labels %v", calls)
 	}
-	if r := f.owned(t); r.Armed != nil || r.Queued == nil || !r.Queued.At.Equal(f.now) {
+	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) == 0 || !r.Queued[0].At.Equal(f.now) {
 		t.Fatalf("record rewritten: queued %+v armed %+v", r.Queued, r.Armed)
 	}
 }
@@ -1083,7 +1083,7 @@ func TestLandArmed_reportsAnArmedRecordThatCannotBeReadBack(t *testing.T) {
 	if err := os.Remove(f.Env(t).recordPath(stale.Ticket)); err != nil {
 		t.Fatal(err)
 	}
-	got := f.Env(t).landArmed(t.Context(), stale, map[int64]int{})
+	got := f.Env(t).landArmed(t.Context(), stale, stale.Armed[0], map[int64]int{})
 	if len(got) != 1 || !strings.Contains(got[0], "armed stack #2: ") {
 		t.Fatalf("lines %q", got)
 	}
@@ -1101,7 +1101,7 @@ func TestSilentStalls_saysNothingForAGreenTopThatIsArmed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	rs := []Record{{Ticket: 1955, Branch: "b1957", Armed: &Arm{Top: 1958, PRs: []int{1957, 1958}}}}
+	rs := []Record{{Ticket: 1955, Branch: "b1957", Armed: Arms{{Top: 1958, PRs: []int{1957, 1958}}}}}
 	if got := f.Env(t).silentStalls(t.Context(), prs, rs); len(got) != 0 {
 		t.Fatalf("%q", got)
 	}
@@ -1183,16 +1183,17 @@ func TestWatchStream_recordsAnEjectOnceInOnePassWithoutWaitingOnGraphite(t *test
 	f := newFixture(t)
 	newStackGH(t, f, green(t, 1, "b1", "fb"), green(t, 2, "b2", "b1"))
 	at := f.now.Add(-25 * time.Minute)
-	f.owner(t, Record{Ticket: 40, State: Running, Worktree: "/w/40", Queued: &Queue{Top: 2, PRs: []int{1, 2}, At: at}})
+	queued := Queues{{Top: 2, PRs: []int{1, 2}, At: at}}
+	f.owner(t, Record{Ticket: 40, State: Running, Worktree: "/w/40", Queued: queued})
 	f.noFailures()
 	f.hub.on(get("/compare/fb...b2-oid"), `{"status":"diverged"}`)
 	clearedAfter, changed := 0, time.Time{}
 	got := streamRounds(t, f, 5, func(round int) {
 		r := f.owned(t)
 		switch {
-		case r.Queued == nil && clearedAfter == 0:
+		case len(r.Queued) == 0 && clearedAfter == 0:
 			clearedAfter, changed = round, r.Changed
-		case r.Queued == nil && !r.Changed.Equal(changed):
+		case len(r.Queued) == 0 && !r.Changed.Equal(changed):
 			t.Errorf("round %d wrote the ejected record again", round)
 		}
 	})
@@ -1219,7 +1220,7 @@ func TestWatchStream_leavesAnEjectedStackQueuedWithoutWaitingWhileADraftHoldsAno
 	f.hub.on(graphqlRoute, draftData([]string{holds}))
 	queuedAfter := map[int]bool{}
 	got := streamRounds(t, f, 5, func(round int) {
-		queuedAfter[round] = f.owned(t).Queued != nil
+		queuedAfter[round] = len(f.owned(t).Queued) > 0
 		if round == 3 {
 			f.hub.on(graphqlRoute, draftData([]string{strings.Replace(holds, `"OPEN"`, `"CLOSED"`, 1)}))
 		}

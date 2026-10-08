@@ -86,7 +86,7 @@ func TestRecords_aFreshCloneRebuildsTheOwnerFromTheTicket(t *testing.T) {
 		t.Fatalf("land: %d %q %q", code, stdout, stderr)
 	}
 	rec, err := env.localRecord(40)
-	if err != nil || rec.Worktree != env.worktreePath(40) || rec.Branch != "h" || rec.Queued == nil {
+	if err != nil || rec.Worktree != env.worktreePath(40) || rec.Branch != "h" || len(rec.Queued) == 0 {
 		t.Fatalf("rec=%+v err=%v", rec, err)
 	}
 }
@@ -302,11 +302,11 @@ func TestRecords_publishEditsOnlyTheNewestTrustedRecordItsUserWrote(t *testing.T
 func TestRecords_aFreshCloneKeepsTheArmedStack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	arm := &Arm{Top: 2, PRs: []int{1, 2}, At: f.now}
+	arm := Arms{{Top: 2, PRs: []int{1, 2}, At: f.now}}
 	f.ownerComments(40, ownerComment(11, Record{Ticket: 40, Model: opus, State: Exited, Armed: arm}))
 	rec, err := f.Env(t).record(t.Context(), 40)
-	if err != nil || rec.Armed == nil || rec.Armed.Top != 2 || !slices.Equal(rec.Armed.PRs, arm.PRs) ||
-		!rec.Armed.At.Equal(f.now) {
+	if err != nil || len(rec.Armed) == 0 || rec.Armed[0].Top != 2 || !slices.Equal(rec.Armed[0].PRs, arm[0].PRs) ||
+		!rec.Armed[0].At.Equal(f.now) {
 		t.Fatalf("rec=%+v err=%v", rec, err)
 	}
 }
@@ -323,7 +323,7 @@ func TestRecords_aWriteKeepsKeysThisBuildDoesNotKnow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := env.unmark(t.Context(), rec); err != nil {
+	if err := env.unmark(t.Context(), rec.Ticket, 2, nil); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(env.recordPath(40))
@@ -341,22 +341,107 @@ func TestRecords_aWriteKeepsKeysThisBuildDoesNotKnow(t *testing.T) {
 	}
 }
 
-func TestRecords_concurrentUpdatesUnderTheRecordLockLoseNothing(t *testing.T) {
+func loadRaw(t *testing.T, raw string) Record {
+	t.Helper()
+	env := newFixture(t).Env(t)
+	writeFile(t, env.recordPath(40), raw)
+	r, err := env.localRecord(40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestRecords_aLegacyRecordWithSingleObjectsLoadsIntoLists(t *testing.T) {
+	t.Parallel()
+	r := loadRaw(t, `{"ticket":40,"queued":{"top":2,"prs":[1,2]},"armed":{"top":5,"prs":[5]}}`)
+	if len(r.Queued) != 1 || r.Queued[0].Top != 2 || len(r.Armed) != 1 || r.Armed[0].Top != 5 || len(r.staleTops) != 0 {
+		t.Fatalf("%+v", r)
+	}
+	if r := loadRaw(t, `{"ticket":40,"queued":null}`); len(r.Queued) != 0 || len(r.Armed) != 0 {
+		t.Fatalf("%+v", r)
+	}
+}
+
+func TestRecords_aTwoStackRecordKeepsTheFirstStackForOlderReaders(t *testing.T) {
+	t.Parallel()
+	env := newFixture(t).Env(t)
+	rec := Record{
+		Ticket: 40, Queued: Queues{{Top: 2, PRs: []int{1, 2}}, {Top: 3, PRs: []int{3}}},
+		Armed: Arms{{Top: 5, PRs: []int{5}}, {Top: 6, PRs: []int{6}}},
+	}
+	if err := env.saveRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(env.recordPath(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old struct {
+		Queued *Queue `json:"queued"`
+		Armed  *Arm   `json:"armed"`
+	}
+	if err := json.Unmarshal(raw, &old); err != nil || old.Queued.Top != 2 || old.Armed.Top != 5 {
+		t.Fatalf("old reader %+v %v", old, err)
+	}
+	back, err := env.localRecord(40)
+	if err != nil || len(back.Queued) != 2 || back.Queued[1].Top != 3 || len(back.Armed) != 2 ||
+		len(back.staleTops) != 0 {
+		t.Fatalf("round trip %+v %v", back, err)
+	}
+}
+
+func TestRecords_holdsOnlyWhatTheListsAndTheSingleObjectsAgreeOn(t *testing.T) {
+	t.Parallel()
+	a := `{"top":2,"prs":[2],"at":"2026-09-27T12:00:00Z"}`
+	b := `{"top":3,"prs":[3],"at":"2026-09-27T12:00:00Z"}`
+	for _, tc := range []struct {
+		name, raw string
+		queued    int
+		stale     []int
+	}{
+		{"consistent", `"queued":` + a + `,"queues":[` + a + `,` + b + `]`, 2, nil},
+		{"old writer dequeued the first", `"queued":null,"queues":[` + a + `,` + b + `]`, 0, []int{2, 3}},
+		{"old writer queued another", `"queued":` + b + `,"queues":[` + a + `]`, 0, []int{2, 3}},
+		{"old writer queued the second", `"queued":` + b + `,"queues":[` + a + `,` + b + `]`, 1, []int{2}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := loadRaw(t, `{"ticket":40,`+tc.raw+`}`)
+			if len(r.Queued) != tc.queued || !slices.Equal(r.staleTops, tc.stale) {
+				t.Fatalf("queued %+v stale %v", r.Queued, r.staleTops)
+			}
+		})
+	}
+}
+
+func TestRecords_refusesAMalformedStack(t *testing.T) {
+	t.Parallel()
+	var r Record
+	if err := json.Unmarshal([]byte(`{"queued":{"top":"x"}}`), &r); err == nil {
+		t.Fatalf("decoded to %+v", r)
+	}
+}
+
+func TestRecords_concurrentUpdatesUnderTheRecordLockKeepEveryStack(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	env := f.Env(t)
 	f.owner(t, Record{Ticket: 40, State: Running})
 	var wg sync.WaitGroup
-	for range 8 {
+	for top := 1; top <= 8; top++ {
 		wg.Go(func() {
-			if err := env.updateRecord(t.Context(), 40, func(r *Record) { r.Model += "x" }); err != nil {
+			err := env.updateRecord(t.Context(), 40, func(r *Record) {
+				r.Queued = r.Queued.with(Queue{Top: top, PRs: []int{top}})
+			})
+			if err != nil {
 				t.Error(err)
 			}
 		})
 	}
 	wg.Wait()
-	if r, err := env.localRecord(40); err != nil || r.Model != "xxxxxxxx" {
-		t.Fatalf("model %q err %v", r.Model, err)
+	if r, err := env.localRecord(40); err != nil || len(r.Queued) != 8 {
+		t.Fatalf("queued %+v err %v", r.Queued, err)
 	}
 }
 
@@ -366,6 +451,7 @@ func TestRecords_aFailingUpdateLeavesTheRecordAlone(t *testing.T) {
 	if _, err := env.withRecordLock(40, func(r Record) (Record, error) { return r, nil }); err == nil {
 		t.Fatal("updated a record that does not exist")
 	}
+	wantErr := errors.New("stop")
 	if err := env.saveRecord(Record{Ticket: 41}); err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +461,6 @@ func TestRecords_aFailingUpdateLeavesTheRecordAlone(t *testing.T) {
 	if err := env.saveRecord(Record{Ticket: 40, State: Running}); err != nil {
 		t.Fatal(err)
 	}
-	wantErr := errors.New("stop")
 	_, err := env.withRecordLock(40, func(r Record) (Record, error) {
 		r.State = Done
 		return r, wantErr

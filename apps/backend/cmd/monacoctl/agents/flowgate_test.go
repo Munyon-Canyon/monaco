@@ -41,7 +41,7 @@ func (f *fixture) flowsVerify(statuses ...GHStatus) {
 func heldFor(t *testing.T, f *fixture, s *stackGH, want string) {
 	t.Helper()
 	code, stdout, stderr := f.agents(t, "land-stack", "2")
-	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || f.owned(t).Armed == nil {
+	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || len(f.owned(t).Armed) == 0 {
 		t.Fatalf("want the stack armed on %q: %d %q %q", want, code, stdout, stderr)
 	}
 }
@@ -100,7 +100,7 @@ func TestFlowGate_startsFlowsVerifyForAFlowThatChangedOnStagingAndArms(t *testin
 	); got != `{"context":"flows-verify","description":"flows 00 on staging tip","state":"pending"}` {
 		t.Fatalf("status %q", got)
 	}
-	if s.prs[1].labeled("merge-queue") || f.owned(t).Queued != nil {
+	if s.prs[1].labeled("merge-queue") || len(f.owned(t).Queued) > 0 {
 		t.Fatal("a held stack was queued")
 	}
 
@@ -169,7 +169,7 @@ func TestFlowGate_keepsAFlowInAnotherQueuedStackArmedUntilItLands(t *testing.T) 
 	}
 
 	code, stdout, stderr := f.agents(t, "watch", "--once")
-	if code != 0 || strings.Contains(stdout, "armed stack #2") || f.owned(t).Armed == nil ||
+	if code != 0 || strings.Contains(stdout, "armed stack #2") || len(f.owned(t).Armed) == 0 ||
 		len(f.hub.callsContaining("/dispatches")) != 0 {
 		t.Fatalf("a still-queued stack: %d %q %q", code, stdout, stderr)
 	}
@@ -177,7 +177,7 @@ func TestFlowGate_keepsAFlowInAnotherQueuedStackArmedUntilItLands(t *testing.T) 
 	otherStackLands(s)
 	code, stdout, stderr = f.agents(t, "watch", "--once")
 	want := "armed stack #2 started flows-verify of flows 00 on staging tip: flow 00 changed on staging since this stack's base (#7)"
-	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || f.owned(t).Armed == nil {
+	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || len(f.owned(t).Armed) == 0 {
 		t.Fatalf("the other stack landed: %d %q %q", code, stdout, stderr)
 	}
 
@@ -208,7 +208,7 @@ func TestFlowGate_aWaitingStackDisarmsWhenFlowsVerifyFailsAfterTheOtherLands(t *
 	code, stdout, stderr := f.agents(t, "watch", "--once")
 	want := "armed stack #2 disarmed: not landing #2: flow 00 changed on staging since this stack's base (#7), " +
 		"and flows-verify failed on staging tip (https://run/1)."
-	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || f.owned(t).Armed != nil {
+	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || len(f.owned(t).Armed) > 0 {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 }
@@ -338,7 +338,7 @@ func movedArmedStack(t *testing.T) (*fixture, *stackGH) {
 	s.gitOut = gateGit("b2-oid")
 	f.flowsVerify()
 	f.hub.on(list("/pulls/2/files?"), []File{{Filename: "packages/flows/app/00.tsv"}})
-	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || f.owned(t).Armed == nil {
+	if code, stdout, stderr := f.agents(t, "land-stack", "2"); code != 0 || len(f.owned(t).Armed) == 0 {
 		t.Fatalf("arm: %d %q %q", code, stdout, stderr)
 	}
 	*s.prs[2] = *green(t, 2, "b2", "b1")
@@ -362,14 +362,14 @@ func TestFlowGate_watchStartsFlowsVerifyOnceAndKeepsTheStackArmed(t *testing.T) 
 	code, stdout, stderr := f.agents(t, "watch", "--once")
 	want := "armed stack #2 started flows-verify of flows 00 on staging tip: " +
 		"flow 00 changed on staging since this stack's base (#77)"
-	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || f.owned(t).Armed == nil ||
+	if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") || len(f.owned(t).Armed) == 0 ||
 		len(f.hub.callsContaining("/dispatches")) != before+1 {
 		t.Fatalf("%d %q %q", code, stdout, stderr)
 	}
 
 	f.flowsVerify(flowsStatus(f, "pending", "tip", 10*time.Minute))
 	code, stdout, stderr = f.agents(t, "watch", "--once")
-	if code != 0 || strings.Contains(stdout, "armed stack #2") || f.owned(t).Armed == nil ||
+	if code != 0 || strings.Contains(stdout, "armed stack #2") || len(f.owned(t).Armed) == 0 ||
 		len(f.hub.callsContaining("/dispatches")) != before+1 {
 		t.Fatalf("a running flows-verify: %d %q %q", code, stdout, stderr)
 	}
@@ -420,7 +420,7 @@ func TestFlowGate_watchDisarmsTheStackWhenFlowsVerifyFails(t *testing.T) {
 				"and flows-verify failed on staging tip (https://run/1). " +
 				"Restack with gt and rerun stage 1, then run land-stack again"
 			if code != 0 || !strings.Contains(stdout, want) || s.prs[2].labeled("merge-queue") ||
-				f.owned(t).Armed != nil {
+				len(f.owned(t).Armed) > 0 {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
 		})
@@ -438,7 +438,7 @@ func TestFlowGate_aFailedFlowsVerifyCallLeavesTheStackUnarmed(t *testing.T) {
 			s.gitOut["log -1 --format=%s base..origin/fb -- packages/flows/app/00.tsv"] = "Edit flow 00 (#77)\n"
 			f.hub.status[route] = http.StatusInternalServerError
 			code, stdout, stderr := f.agents(t, "land-stack", "2")
-			if code == 0 || !strings.Contains(stderr, "500") || f.owned(t).Armed != nil ||
+			if code == 0 || !strings.Contains(stderr, "500") || len(f.owned(t).Armed) > 0 ||
 				s.prs[2].labeled("merge-queue") {
 				t.Fatalf("%d %q %q", code, stdout, stderr)
 			}
