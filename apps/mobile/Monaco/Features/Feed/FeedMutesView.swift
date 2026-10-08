@@ -62,8 +62,12 @@ struct FeedMutesList: View {
                 .accessibilityLabel("Loading your mutes")
                 .accessibilityIdentifier("feed-muted-loading")
         case .empty:
-            EmptyState(title: "Nothing muted")
-                .accessibilityIdentifier("feed-muted-empty")
+            EmptyState(
+                title: "Nothing muted",
+                message: "Press and hold a post in your feed to mute its cabal, stock or person. They'll show up here.",
+                isOnlyContent: true
+            )
+            .accessibilityIdentifier("feed-muted-empty")
         case .failed:
             MonacoErrorRow(thing: "your mutes", identifier: "feed-muted-error") {
                 Task { await model.load() }
