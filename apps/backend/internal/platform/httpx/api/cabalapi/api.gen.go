@@ -347,10 +347,10 @@ type CabalSentInvite struct {
 
 // CreateCabalRequest The name and rules for a new cabal.
 type CreateCabalRequest struct {
-	// JoinMode `open` (anyone joins at once) or `request` (the creator approves each request).
+	// JoinMode `open` (anyone joins at once, the default when omitted) or `request` (the creator approves each request).
 	//
 	// Examples: open
-	JoinMode string `json:"join_mode"`
+	JoinMode *string `json:"join_mode,omitempty"`
 
 	// Name Cabal name, 3 to 40 characters.
 	//

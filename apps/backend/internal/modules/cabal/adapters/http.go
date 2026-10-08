@@ -511,8 +511,12 @@ func createCommand(user ids.UserID, req api.PostCabalRequestObject) (app.CreateC
 	if req.Body.SlippageBps != nil {
 		slippage = *req.Body.SlippageBps
 	}
+	joinMode := string(domain.JoinOpen)
+	if req.Body.JoinMode != nil {
+		joinMode = *req.Body.JoinMode
+	}
 	rules, err := domain.NewRules(
-		req.Body.JoinMode, req.Body.VoterMode, req.Body.Threshold, req.Body.ProposalExpirySeconds, slippage,
+		joinMode, req.Body.VoterMode, req.Body.Threshold, req.Body.ProposalExpirySeconds, slippage,
 	)
 	if err != nil {
 		return app.CreateCabal{}, err

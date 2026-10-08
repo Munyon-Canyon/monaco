@@ -27,7 +27,7 @@ The creator sets these at `CreateCabal`. `UpdateCabal` can change them later ([E
 
 | Rule | Values | Default |
 | --- | --- | --- |
-| `join_mode` | `open` \| `request` | none, the creator picks |
+| `join_mode` | `open` \| `request` | `open`; the creator can pick `request` |
 | `voter_mode` | `all` \| `list` | none, the creator picks |
 | `threshold` | `majority` \| `unanimous` | none, the creator picks |
 | `proposal_expiry_seconds` | 3600, 86400 or 604800, the three the app offers today | none, the creator picks |
