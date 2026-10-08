@@ -49,11 +49,11 @@ func TestModule_registersTheThinningAndTheValuationPollers(t *testing.T) {
 func TestModule_declaresTheTriggersConsumer(t *testing.T) {
 	t.Parallel()
 	for _, c := range ranking.New(module.Deps{}).Consumers() {
-		if c.Durable == "ranking_triggers" && len(c.Handlers) == 3 {
+		if c.Durable == "ranking_triggers" && len(c.Handlers) == 6 {
 			return
 		}
 	}
-	t.Fatal("ranking_triggers with three handlers is not registered")
+	t.Fatal("ranking_triggers with six handlers is not registered")
 }
 
 func TestModule_wiresEveryValuationReadPort(t *testing.T) {

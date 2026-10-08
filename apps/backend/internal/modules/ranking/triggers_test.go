@@ -20,6 +20,15 @@ func TestTriggers_insertOneTriggerPerMoneyEvent(t *testing.T) {
 		"trade":    {"ranking.triggers", events.TradeConfirmed{V: 1, CabalID: cabal}, "trade_confirmed"},
 		"funded":   {"ranking.triggers.funded", events.Funded{V: 1, CabalID: cabal}, "cabal_funded"},
 		"cash out": {"ranking.triggers.cashed_out", events.CashOutCompleted{V: 1, CabalID: cabal}, "cashout_completed"},
+		"cash out started": {
+			"ranking.triggers.cash_out_started", events.CashOutStarted{V: 1, CabalID: cabal}, "cashout_started",
+		},
+		"cash out partial": {
+			"ranking.triggers.cash_out_partial", events.CashOutPartial{V: 1, CabalID: cabal}, "cashout_partial",
+		},
+		"cash out failed": {
+			"ranking.triggers.cash_out_failed", events.CashOutFailed{V: 1, CabalID: cabal}, "cashout_failed",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

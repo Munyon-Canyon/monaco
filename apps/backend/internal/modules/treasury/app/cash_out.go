@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"time"
@@ -89,6 +90,7 @@ type CashOutHandler struct {
 	clock  clock.Clock
 	ids    ids.Generator
 	reads  cashOutReads
+	hints  Hints
 }
 
 func NewCashOutHandler(
@@ -99,6 +101,7 @@ func NewCashOutHandler(
 	c clock.Clock,
 	g ids.Generator,
 	readDB sqlc.DBTX,
+	hints Hints,
 ) *CashOutHandler {
 	return &CashOutHandler{
 		uow:    uow,
@@ -110,6 +113,7 @@ func NewCashOutHandler(
 		clock:  c,
 		ids:    g,
 		reads:  sqlc.New(readDB),
+		hints:  hints,
 	}
 }
 
@@ -350,7 +354,19 @@ func (h *CashOutHandler) record(
 			UserID: cmd.UserID.UUID(), ShareUnits: units.Uint64(), PayoutMicros: payout, SellUSDC: sell,
 		},
 	)
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	h.hintStart(tx, cmd, result.ID)
+	return result, nil
+}
+
+func (h *CashOutHandler) hintStart(tx db.Tx, cmd CashOut, job uuid.UUID) {
+	payload, _ := json.Marshal(map[string]string{"job_id": job.String()})
+	tx.AfterCommit(func(ctx context.Context) {
+		h.hints.PublishHint(ctx, events.UserCashOutChangedHint(cmd.UserID), payload)
+		h.hints.PublishHint(ctx, events.CabalActivityChangedHint(cmd.CabalID), nil)
+	})
 }
 
 func cashOutAmount(

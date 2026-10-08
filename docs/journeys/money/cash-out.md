@@ -60,5 +60,4 @@ The format of this doc is in [App journeys](../README.md).
 ## Not covered
 
 - "Too small to cash out" under $0.10, and "Nothing to cash out yet" / "Add money to this cabal first. Your slice shows up here." for a member with no slice. Both need the live screen (#657).
-- The pot, slice and Home balance refreshing on the job's hint after a cash out. That needs a confirmed cash out (#653).
 - Inline address errors on Withdraw. `WithdrawRouteTests` covers them.

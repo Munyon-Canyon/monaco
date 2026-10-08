@@ -210,6 +210,15 @@ func F14CashOutOK(s *scenario.Scenario) {
 	s.Then(scenario.EventuallyCapturedBy(events.TypeCashOutCompleted, "cash_out_completed", "job_id", s.Recall("job")))
 }
 
+func CashOutStartRevalues(s *scenario.Scenario) {
+	s.Given(append(f14Staked("invalid"), chainSays("finalized"))...).
+		When(cashedOut("1000000")...).
+		Then(
+			scenario.AwaitTickPastTimeouts(valuationPoller),
+			scenario.EventuallyGlobalHint("leaderboards_updated"),
+		)
+}
+
 func F14CashOutInvalidInput(s *scenario.Scenario) {
 	s.Given(f14Staked("invalid")...).
 		When(scenario.Post(cashOutsPath, `{"all":true,"usdc_micros":"1000000"}`)).
