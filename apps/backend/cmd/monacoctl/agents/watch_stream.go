@@ -87,7 +87,7 @@ func (env *Env) watchStream(ctx context.Context, every time.Duration, out io.Wri
 }
 
 func (s *stream) next(ctx context.Context) []string {
-	s.env.trunk, s.env.cwds, s.env.openPRs = nil, nil, nil
+	s.env.trunk = nil
 	seen := map[string]bool{}
 	var fresh []string
 	items, every := s.round(ctx)
@@ -109,6 +109,9 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	}
 	armedLines := env.landEachArmed(ctx, rs, s.reran)
 	data, dataErr := env.watchData(ctx)
+	if rs, err = env.records(); err != nil {
+		return []string{watchErr("", err)}, nil
+	}
 	items, _, err := env.ownerLines(ctx, rs)
 	if err != nil {
 		items = append(items, watchErr("", err))

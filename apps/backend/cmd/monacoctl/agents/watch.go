@@ -37,6 +37,9 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
+	if rs, err = env.records(); err != nil {
+		return err
+	}
 	if err := env.unqueueEjected(ctx, rs, stdout); err != nil {
 		return err
 	}
@@ -92,13 +95,18 @@ func (env *Env) ownerLines(ctx context.Context, rs []Record) ([]string, int, err
 
 func (env *Env) warmWatchCaches(ctx context.Context, rs []Record) error {
 	if slices.ContainsFunc(rs, func(r Record) bool { return r.State == Running }) {
-		if _, err := env.openIssuePRs(ctx); err != nil {
+		open, err := env.GitHub.PRs(ctx, "state=open")
+		if err != nil {
 			return err
 		}
+		env.openPRs = open
 	}
-	if i := slices.IndexFunc(rs, func(r Record) bool { return r.State == Done }); i >= 0 {
-		_, err := env.alive(ctx, rs[i].Worktree)
-		return err
+	if slices.ContainsFunc(rs, func(r Record) bool { return r.State == Done }) {
+		out, err := env.Run(ctx, "", "", "lsof", "-d", "cwd", "-Fn")
+		if err != nil {
+			return err
+		}
+		env.cwds = out
 	}
 	return nil
 }
@@ -109,6 +117,7 @@ func (env *Env) watchLists(ctx context.Context, rs []Record) ([]Record, []Record
 	if err := env.warmWatchCaches(ctx, rs); err != nil {
 		return nil, nil, false, err
 	}
+	defer func() { env.cwds, env.openPRs = nil, nil }()
 	var g errgroup.Group
 	g.SetLimit(watchWorkers)
 	for i, r := range rs {
@@ -188,14 +197,10 @@ func (env *Env) lastActivity(ctx context.Context, r Record) (time.Time, error) {
 }
 
 func (env *Env) openIssuePRs(ctx context.Context) ([]PR, error) {
-	if env.openPRs == nil {
-		prs, err := env.GitHub.PRs(ctx, "state=open")
-		if err != nil {
-			return nil, err
-		}
-		env.openPRs = prs
+	if env.openPRs != nil {
+		return env.openPRs, nil
 	}
-	return env.openPRs, nil
+	return env.GitHub.PRs(ctx, "state=open")
 }
 
 func (env *Env) commitTime(ctx context.Context, worktree string) (time.Time, error) {
@@ -234,12 +239,12 @@ func unixTime(raw string) (time.Time, error) {
 }
 
 func (env *Env) alive(ctx context.Context, worktree string) (bool, error) {
-	if env.cwds == nil {
-		out, err := env.Run(ctx, "", "", "lsof", "-d", "cwd", "-Fn")
-		if err != nil {
+	out := env.cwds
+	if out == nil {
+		var err error
+		if out, err = env.Run(ctx, "", "", "lsof", "-d", "cwd", "-Fn"); err != nil {
 			return false, err
 		}
-		env.cwds = out
 	}
-	return strings.Contains(string(env.cwds), worktree), nil
+	return strings.Contains(string(out), worktree), nil
 }

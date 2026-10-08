@@ -246,7 +246,7 @@ func walkStack(open []stackPR, top int, trunk string) ([]stackPR, error) {
 }
 
 func (env *Env) stackOf(ctx context.Context, rec Record, top int, stdout io.Writer) ([]stackPR, string, error) {
-	open, err := env.openPulls(ctx)
+	open, err := env.sharedOpenPulls(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -735,6 +735,10 @@ func (env *Env) graphqlCLI(ctx context.Context, query string, out any) error {
 }
 
 func (env *Env) openPulls(ctx context.Context) ([]stackPR, error) {
+	return env.fetchOpenPulls(ctx)
+}
+
+func (env *Env) sharedOpenPulls(ctx context.Context) ([]stackPR, error) {
 	if env.pullsShared && env.pullsOK {
 		return slices.Clone(env.pulls), nil
 	}
