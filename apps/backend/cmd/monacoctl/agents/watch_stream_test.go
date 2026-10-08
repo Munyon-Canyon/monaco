@@ -1477,7 +1477,7 @@ func TestRereadRecords_keepsTheFirstReadWhenTheRecordsCannotBeReadAgain(t *testi
 		t.Fatal(err)
 	}
 	writeFile(t, env.recordPath(2), "{")
-	if got := env.rereadRecords(before, make([][]string, len(before))); len(got) != 1 || got[0].Ticket != 1 {
+	if got := env.rereadRecords(before, map[int][]string{}); len(got) != 1 || got[0].Ticket != 1 {
 		t.Fatalf("records %+v", got)
 	}
 }

@@ -61,14 +61,14 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	return nil
 }
 
-func (env *Env) landArmedOnce(ctx context.Context, rs []Record) ([]string, [][]string) {
+func (env *Env) landArmedOnce(ctx context.Context, rs []Record) ([]string, map[int][]string) {
 	var lines []string
 	landed := env.landEachArmed(ctx, rs, map[int64]int{})
-	for i, r := range rs {
+	for _, r := range rs {
 		if line, stale := r.staleLine(); stale {
 			lines = append(lines, line)
 		}
-		lines = append(lines, landed[i]...)
+		lines = append(lines, landed[r.Ticket]...)
 	}
 	return lines, landed
 }

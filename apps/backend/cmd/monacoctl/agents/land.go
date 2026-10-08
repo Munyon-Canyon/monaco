@@ -117,29 +117,29 @@ func blocker(stack []stackPR) string {
 	return ""
 }
 
-func (env *Env) landEachArmed(ctx context.Context, rs []Record, reran map[int64]int) [][]string {
-	out := make([][]string, len(rs))
+func (env *Env) landEachArmed(ctx context.Context, rs []Record, reran map[int64]int) map[int][]string {
+	out := map[int][]string{}
 	env.pullsShared = true
 	defer func() { env.pullsShared, env.pullsOK = false, false }()
-	for i, r := range rs {
+	for _, r := range rs {
 		for _, a := range r.Armed {
 			lines := env.landArmed(ctx, r, a, reran)
 			if len(lines) > 0 {
 				env.pullsOK = false
 			}
-			out[i] = append(out[i], lines...)
+			out[r.Ticket] = append(out[r.Ticket], lines...)
 		}
 	}
 	return out
 }
 
-func (env *Env) rereadRecords(before []Record, landed [][]string) []Record {
+func (env *Env) rereadRecords(before []Record, landed map[int][]string) []Record {
 	rs, err := env.records()
 	if err != nil {
 		return before
 	}
-	for i, r := range before {
-		if len(landed[i]) == 0 {
+	for _, r := range before {
+		if len(landed[r.Ticket]) == 0 {
 			continue
 		}
 		if j := slices.IndexFunc(rs, func(x Record) bool { return x.Ticket == r.Ticket }); j >= 0 {

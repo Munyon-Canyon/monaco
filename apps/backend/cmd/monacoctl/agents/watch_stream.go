@@ -118,7 +118,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 		items = append(items, watchErr("", dataErr))
 	}
 	var queued, armed []int
-	for i, r := range rs {
+	for _, r := range rs {
 		if line, stale := r.staleLine(); stale {
 			items = append(items, line)
 		}
@@ -129,7 +129,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 		for _, a := range r.Armed {
 			armed = append(armed, a.PRs...)
 		}
-		items = append(items, armedLines[i]...)
+		items = append(items, armedLines[r.Ticket]...)
 		if r.Settled != nil && r.Settled.At.After(s.since) {
 			items = append(items, r.Settled.Detail)
 		}
