@@ -910,7 +910,11 @@ class RemappedRun(Output):
         return {"A": row}
 
     def derived_arg(self):
-        args = journey.xcodebuild("sim")
+        saved, journey.cache_args = journey.cache_args, lambda: []
+        try:
+            args = journey.xcodebuild("sim")
+        finally:
+            journey.cache_args = saved
         return args[args.index("-derivedDataPath") + 1]
 
     def test_held_logins_follow_the_remapping(self):
