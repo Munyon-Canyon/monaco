@@ -133,6 +133,22 @@ func (env *Env) landEachArmed(ctx context.Context, rs []Record, reran map[int64]
 	return out
 }
 
+func (env *Env) rereadRecords(before []Record, landed [][]string) ([]Record, error) {
+	rs, err := env.records()
+	if err != nil {
+		return nil, err
+	}
+	for i, r := range before {
+		if len(landed[i]) == 0 {
+			continue
+		}
+		if j := slices.IndexFunc(rs, func(x Record) bool { return x.Ticket == r.Ticket }); j >= 0 {
+			rs[j] = r
+		}
+	}
+	return rs, nil
+}
+
 func (env *Env) landArmed(ctx context.Context, r Record, a Arm, reran map[int64]int) []string {
 	fresh, err := env.localRecord(r.Ticket)
 	if err != nil {

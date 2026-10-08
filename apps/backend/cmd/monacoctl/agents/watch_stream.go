@@ -109,7 +109,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	}
 	armedLines := env.landEachArmed(ctx, rs, s.reran)
 	data, dataErr := env.watchData(ctx)
-	if rs, err = env.records(); err != nil {
+	if rs, err = env.rereadRecords(rs, armedLines); err != nil {
 		return []string{watchErr("", err)}, nil
 	}
 	items, _, err := env.ownerLines(ctx, rs)

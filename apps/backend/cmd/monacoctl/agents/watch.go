@@ -32,12 +32,12 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	armed := env.landArmedOnce(ctx, rs)
+	armed, landed := env.landArmedOnce(ctx, rs)
 	data, err := env.watchData(ctx)
 	if err != nil {
 		return err
 	}
-	if rs, err = env.records(); err != nil {
+	if rs, err = env.rereadRecords(rs, landed); err != nil {
 		return err
 	}
 	if err := env.unqueueEjected(ctx, rs, stdout); err != nil {
@@ -63,7 +63,7 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	return nil
 }
 
-func (env *Env) landArmedOnce(ctx context.Context, rs []Record) []string {
+func (env *Env) landArmedOnce(ctx context.Context, rs []Record) ([]string, [][]string) {
 	var lines []string
 	landed := env.landEachArmed(ctx, rs, map[int64]int{})
 	for i, r := range rs {
@@ -72,7 +72,7 @@ func (env *Env) landArmedOnce(ctx context.Context, rs []Record) []string {
 		}
 		lines = append(lines, landed[i]...)
 	}
-	return lines
+	return lines, landed
 }
 
 func (env *Env) ownerLines(ctx context.Context, rs []Record) ([]string, int, error) {
