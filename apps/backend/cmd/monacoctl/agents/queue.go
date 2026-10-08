@@ -21,9 +21,12 @@ const (
 	admittedLine = "run"
 )
 
+func checkClasses() []string { return []string{"db", "cpu"} }
+
 var errTicketLost = errors.New("the stage 0 ticket was removed while waiting")
 
 type checkQueue struct {
+	class string
 	dir   string
 	slots func() int
 	alive func(pid int) bool
@@ -31,19 +34,19 @@ type checkQueue struct {
 	now   func() time.Time
 }
 
-func (env *Env) checkQueue() *checkQueue {
+func (env *Env) checkQueue(class string) *checkQueue {
 	return &checkQueue{
-		dir: filepath.Join(env.Common, ".monaco", "check-queue"), slots: env.slots,
-		alive: pidAlive, after: env.After, now: env.Now,
+		class: class, dir: filepath.Join(env.Common, ".monaco", "check-queue", class),
+		slots: func() int { return env.tokens(class) }, alive: pidAlive, after: env.After, now: env.Now,
 	}
 }
 
-func (env *Env) slots() int {
+func (env *Env) tokens(class string) int {
 	cfg, _, err := readConfig(env.Work, env.Common)
 	if err != nil {
-		return env.Config.Slots
+		cfg = env.Config
 	}
-	return cfg.Slots
+	return cfg.Tokens.of(class)
 }
 
 func pidAlive(pid int) bool {
@@ -191,7 +194,7 @@ func (q *checkQueue) await(ctx context.Context, name string, stdout io.Writer) e
 		if got.run {
 			return q.admit(name)
 		}
-		line := fmt.Sprintf("waiting for a stage 0 slot: position %d of %d", got.position, got.total)
+		line := fmt.Sprintf("waiting for a %s token: position %d of %d", q.class, got.position, got.total)
 		if got.laneBusy {
 			line += "; this lane already runs a check"
 		}
@@ -201,14 +204,14 @@ func (q *checkQueue) await(ctx context.Context, name string, stdout io.Writer) e
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("wait for a stage 0 slot: %w", ctx.Err())
+			return fmt.Errorf("wait for a %s token: %w", q.class, ctx.Err())
 		case <-q.after(slotPoll):
 		}
 	}
 }
 
-func (env *Env) takeSlot(ctx context.Context, stdout io.Writer) (func(), error) {
-	q := env.checkQueue()
+func (env *Env) takeToken(ctx context.Context, class string, stdout io.Writer) (func(), error) {
+	q := env.checkQueue(class)
 	name, err := q.take(env.Work, os.Getpid())
 	if err != nil {
 		return nil, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check", err.Error())

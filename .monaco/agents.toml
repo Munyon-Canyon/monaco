@@ -60,12 +60,15 @@ shared = [
 ]
 
 [dispatch]
-# dispatch refuses while the stage 0 queue holds more live tickets than max_queue x [check] slots. --urgent bypasses it.
+# dispatch refuses while the stage 0 queue holds more live tickets than max_queue x (db + cpu tokens). --urgent bypasses it.
 max_queue = 3
 
-[check]
-# The most `agents check` runs that execute rows at once on this machine; later runs queue in arrival order.
-slots = 2
+# The most rows of each resource class that run at once on this machine; later rows queue in arrival order,
+# and a lane (worktree) yields its tokens of a class to other lanes. `db` rows are `go test -short` and `flows`
+# (each takes a test Postgres), `cpu` rows are `go build`, `go vet`, lint and the swift row.
+[check.tokens]
+db = 4
+cpu = 6
 
 # agents check gives each row its own budget, except `go test -short`, which is budgeted per package
 # (`package`, twice the 60 s that fails a package in `monacoctl test-report`, so an Intel laptop can finish a wide backend diff). The go budget applies to

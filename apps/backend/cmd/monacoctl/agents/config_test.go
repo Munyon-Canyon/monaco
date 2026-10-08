@@ -226,22 +226,28 @@ func committedConfig(t *testing.T) Config {
 	return c
 }
 
-func TestParseConfig_readsTheCheckSlots(t *testing.T) {
+func TestParseConfig_readsTheCheckTokens(t *testing.T) {
 	t.Parallel()
-	if c, err := parseConfig(strings.NewReader(testConfig)); err != nil || c.Slots != 2 {
-		t.Fatalf("default slots: %d %v", c.Slots, err)
+	if c, err := parseConfig(strings.NewReader(testConfig)); err != nil || c.Tokens != (Tokens{DB: 4, CPU: 6}) {
+		t.Fatalf("default tokens: %+v %v", c.Tokens, err)
 	}
-	if c, err := parseConfig(strings.NewReader(testConfig + "\n[check]\nslots = 3\n")); err != nil || c.Slots != 3 {
-		t.Fatalf("slots: %d %v", c.Slots, err)
+	c, err := parseConfig(strings.NewReader(testConfig + "\n[check.tokens]\ndb = 1\ncpu = 3\n"))
+	if err != nil || c.Tokens != (Tokens{DB: 1, CPU: 3}) {
+		t.Fatalf("tokens: %+v %v", c.Tokens, err)
 	}
-	if c := committedConfig(t); c.Slots != 2 {
-		t.Fatalf("committed slots: %d", c.Slots)
+	if c := committedConfig(t); c.Tokens != (Tokens{DB: 4, CPU: 6}) {
+		t.Fatalf("committed tokens: %+v", c.Tokens)
+	}
+	if c, err := parseConfig(strings.NewReader(testConfig + "\n[check]\nslots = 0\n")); err != nil ||
+		c.Tokens != (Tokens{DB: 4, CPU: 6}) || len(c.Unknown) != 0 {
+		t.Fatalf("check.slots is accepted and ignored: %+v %v", c, err)
 	}
 	for body, want := range map[string]string{
-		"[check]\nslots = 0\n":     "check.slots: want at least 1, got 0",
-		"[check]\nslots = \"2\"\n": "int:",
+		"db = 0\n":     "check.tokens.db: want at least 1, got 0",
+		"cpu = 0\n":    "check.tokens.cpu: want at least 1, got 0",
+		"db = \"2\"\n": "int:",
 	} {
-		if _, err := parseConfig(strings.NewReader(testConfig + "\n" + body)); err == nil ||
+		if _, err := parseConfig(strings.NewReader(testConfig + "\n" + tokensSection + "\n" + body)); err == nil ||
 			!strings.Contains(cliText(err), want) {
 			t.Errorf("%q: %v", body, cliText(err))
 		}
@@ -296,9 +302,9 @@ func TestLoad_appliesTheLocalCapacityFromEveryWorktree(t *testing.T) {
 		}
 	}
 	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath),
-		"lanes = 6\ntracking = 512\nmilestone = \"m12\"\n[check]\nslots = 4\n")
+		"lanes = 6\ntracking = 512\nmilestone = \"m12\"\n[check]\nslots = 9\n[check.tokens]\ndb = 3\n")
 	want := tracked
-	want.Lanes, want.Slots, want.Tracking, want.Milestone = 6, 4, 512, "m12"
+	want.Lanes, want.Tokens.DB, want.Tracking, want.Milestone = 6, 3, 512, "m12"
 	for _, dir := range []string{f.dir, wt} {
 		env, err := load(t.Context(), f.env, dir, hostless)
 		if err != nil || !reflect.DeepEqual(env.Config, want) ||
@@ -329,7 +335,7 @@ func TestApplyLocalConfig_acceptsCapacityTrackingAndMilestoneWithinBounds(t *tes
 		t.Fatal(err)
 	}
 	got, err := applyLocalConfig(tracked, strings.NewReader("[dispatch]\nmax_queue = 20\n"))
-	if err != nil || got.MaxQueue != 20 || got.Lanes != tracked.Lanes || got.Slots != tracked.Slots {
+	if err != nil || got.MaxQueue != 20 || got.Lanes != tracked.Lanes || got.Tokens != tracked.Tokens {
 		t.Fatalf("max_queue: %+v %v", got, err)
 	}
 	applied := tracked
@@ -342,7 +348,7 @@ func TestApplyLocalConfig_acceptsCapacityTrackingAndMilestoneWithinBounds(t *tes
 		"repo = \"x/y\"\n":               `.monaco/agents.local.toml:1: unknown key "repo"`,
 		"lanes = 6\n[batch]\nsize = 3\n": `.monaco/agents.local.toml:3: unknown key "batch.size"`,
 		"[check.budget]\ngo = \"90s\"\n": `.monaco/agents.local.toml:2: unknown key "check.budget.go"`,
-		"[check]\nslots = 0\n":           ".monaco/agents.local.toml: check.slots: want at least 1, got 0",
+		"[check.tokens]\ncpu = 0\n":      ".monaco/agents.local.toml: check.tokens.cpu: want at least 1, got 0",
 		"lanes = 0\n":                    ".monaco/agents.local.toml: lanes: want at least 1, got 0",
 		"tracking = 0\n":                 ".monaco/agents.local.toml: tracking: want at least 1, got 0",
 		"milestone = \"\"\n":             `.monaco/agents.local.toml: milestone: want a name, got ""`,
@@ -380,7 +386,7 @@ func TestParseConfig_warnsOnceOnAKeyANewerConfigAdds(t *testing.T) {
 	}
 	c, err := parseConfig(strings.NewReader(testConfig +
 		"[check]\nslots = 3\nqueue_hint = 1\n[check.budget]\nflows = \"90s\"\nkotlin = \"30s\"\n"))
-	if err != nil || c.Slots != 3 || c.Budget["flows"] != 90*time.Second || c.Batch != 2 ||
+	if err != nil || c.Tokens.DB != 4 || c.Budget["flows"] != 90*time.Second || c.Batch != 2 ||
 		!slices.Equal(c.Unknown, []string{"check.queue_hint", "check.budget.kotlin"}) {
 		t.Fatalf("known values: %+v %v", c, err)
 	}

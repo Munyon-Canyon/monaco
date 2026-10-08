@@ -67,13 +67,18 @@ func mkdir(t *testing.T, dir string) {
 	}
 }
 
-func TestCheck_failsBeforeAnyRowWhenNoTestDatabaseSlotCanBeTaken(t *testing.T) {
+func TestCheck_failsTheDatabaseRowBeforeItsCommandsWhenNoTestDatabaseSlotCanBeTaken(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
 	writeFile(t, filepath.Join(h.Env(t).Common, ".monaco", "test-db"), "")
 	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "take a test database slot") ||
-		slices.ContainsFunc(h.calls, func(c string) bool { return !strings.Contains(c, "gt parent") }) {
+		slices.ContainsFunc(
+			h.calls,
+			func(c string) bool { return strings.Contains(c, "docker") || strings.Contains(c, "go test ") },
+		) ||
+		ticketCount(t, h.Env(t), "db") != 0 {
 		t.Fatalf("an unusable slot dir: %d %q %v", code, stderr, h.calls)
 	}
 }

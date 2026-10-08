@@ -166,15 +166,16 @@ func numberedDraft(n int, at time.Time, jobs ...string) string {
 
 func (f *fixture) stageZeroTickets(t *testing.T, live int) {
 	t.Helper()
-	dir := filepath.Join(f.Env(t).Common, ".monaco", "check-queue")
-	if err := os.RemoveAll(dir); err != nil {
+	root := filepath.Join(f.Env(t).Common, ".monaco", "check-queue")
+	if err := os.RemoveAll(root); err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(dir, "0-dead"), "/work\n")
+	writeFile(t, filepath.Join(root, "db", "0-dead"), "/work\n")
 	for i := 1; i <= live; i++ {
-		writeFile(t, filepath.Join(dir, fmt.Sprintf("%d-%d", i, os.Getpid())), "/work\n")
+		class := checkClasses()[i%len(checkClasses())]
+		writeFile(t, filepath.Join(root, class, fmt.Sprintf("%d-%d", i, os.Getpid())), "/work\n")
 	}
-	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath), "[check]\nslots = 4\n")
+	writeFile(t, filepath.Join(f.dir, ".git", localConfigPath), "[check.tokens]\ndb = 1\ncpu = 3\n")
 }
 
 func (f *fixture) dispatchableTicket(t *testing.T) {
@@ -194,7 +195,7 @@ func TestDispatch_refusesAboveTheBacklogLimitAndUrgentDispatches(t *testing.T) {
 	f.stageZeroTickets(t, 13)
 	code, _, stderr := f.agents(t, "dispatch", "12", "--model", "opus")
 	if code != 1 || !strings.Contains(stderr, "stage 0 queue holds 13 live tickets, over the limit of 12 "+
-		"(max_queue 3 x 4 slots); wait or dispatch with --urgent") {
+		"(max_queue 3 x 4 tokens); wait or dispatch with --urgent") {
 		t.Fatalf("refuse: %d %q", code, stderr)
 	}
 	if _, err := os.Stat(f.Env(t).recordPath(12)); !os.IsNotExist(err) {
@@ -231,7 +232,7 @@ func TestBacklogGate_countsOnlyLiveTicketsAndPassesWithoutAQueueDirectory(t *tes
 		t.Fatalf("no directory: %q %v", msg, err)
 	}
 	f.stageZeroTickets(t, 6)
-	env.Config.Slots, env.Config.MaxQueue = 2, 3
+	env.Config.Tokens, env.Config.MaxQueue = Tokens{DB: 1, CPU: 1}, 3
 	if msg, err := env.backlogGate(t.Context()); err != nil || msg != "6 live tickets, limit 6" {
 		t.Fatalf("dead ticket counted: %q %v", msg, err)
 	}
@@ -324,7 +325,7 @@ func TestDispatch_dryRunPrintsBothGateResultsAndChangesNothing(t *testing.T) {
 		!strings.Contains(
 			stdout,
 			"dry-run: backlog gate would refuse: stage 0 queue holds 13 live tickets, over the limit of 12 "+
-				"(max_queue 3 x 4 slots); wait or dispatch with --urgent\n",
+				"(max_queue 3 x 4 tokens); wait or dispatch with --urgent\n",
 		) ||
 		!strings.Contains(stdout, "dry-run: queue gate would refuse: queue is failing on ci / Flake (drafts #3, #4); "+
 			"fix the pipeline first, or dispatch the fix with --urgent\n") {
@@ -371,10 +372,10 @@ func TestDispatch_dryRunNamesTheLocalConfigOnlyWhenItExists(t *testing.T) {
 		t.Fatalf("without a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 	local := filepath.Join(f.dir, ".git", localConfigPath)
-	writeFile(t, local, "lanes = 6\ntracking = 512\n[check]\nslots = 4\n")
+	writeFile(t, local, "lanes = 6\ntracking = 512\n[check.tokens]\ndb = 3\ncpu = 5\n")
 	code, stdout, stderr = f.agents(t, "dispatch", "12", "--model", "opus", "--dry-run")
 	want := filepath.Join(".git", localConfigPath) +
-		" (lanes=6, check.slots=4, dispatch.max_queue=3, tracking=512, milestone=ms)\n"
+		" (lanes=6, check.tokens.db=3, check.tokens.cpu=5, dispatch.max_queue=3, tracking=512, milestone=ms)\n"
 	if code != 0 || strings.Count(stdout, "local config: ") != 1 || !strings.Contains(stdout, want) {
 		t.Fatalf("with a local file: code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}

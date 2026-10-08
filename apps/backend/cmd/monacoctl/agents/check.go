@@ -49,6 +49,10 @@ type checkRow struct {
 	cmds  [][]string
 	skip  string
 
+	class  string
+	dbCmds func(db testDB) [][]string
+	prep   [][]string
+
 	lockWaited string
 }
 
@@ -70,7 +74,6 @@ type checkRun struct {
 	start   time.Time
 	log     bytes.Buffer
 	timings []timing
-	leave   func()
 }
 
 func parseCheckArgs(base string, args []string) (string, bool, error) {
@@ -110,36 +113,19 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	}
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	leave, err := env.takeSlot(ctx, stdout)
-	if err != nil {
-		return err
-	}
-	defer leave()
-	return env.runStage0(ctx, leave, base, parent, head, tree, patchID, stdout)
+	return env.runStage0(ctx, base, parent, head, tree, patchID, stdout)
 }
 
 func (env *Env) runStage0(
-	ctx context.Context, leaveSlot func(), base, parent, head, tree, patchID string, stdout io.Writer,
+	ctx context.Context, base, parent, head, tree, patchID string, stdout io.Writer,
 ) error {
 	defer func() { _ = os.Remove(env.coverProfile(head)) }()
-	db, releaseDB, err := env.takeTestDB()
-	if err != nil {
-		return err
-	}
-	defer releaseDB()
-	rows, err := env.stage0(ctx, base, parent, head, db)
+	rows, err := env.stage0(ctx, base, parent, head)
 	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s, parent %s)\n", tree[:12], base, parent)
-	run := &checkRun{env: env, start: env.Now(), leave: func() {
-		leaveSlot()
-		releaseDB()
-	}}
-	if slices.ContainsFunc(rows, func(r checkRow) bool { return r.label == "test db" }) {
-		_, _ = fmt.Fprintf(&run.log, "test database: port %d; go test -p %d (%d CPUs over %d busy stage 0 slots)\n",
-			db.port(), testParallelism(runtime.NumCPU(), db.busy), runtime.NumCPU(), db.busy)
-	}
+	run := &checkRun{env: env, start: env.Now()}
 	runErr := run.rows(ctx, rows, stdout)
 	logPath, err := env.writeState("logs", "check-"+tree[:12]+".log", run.log.Bytes())
 	if err != nil {
@@ -289,7 +275,7 @@ func (env *Env) diffNames(ctx context.Context, base, filter string) ([]string, e
 	return strings.Fields(string(out)), nil
 }
 
-func (env *Env) stage0(ctx context.Context, base, parent, head string, db testDB) ([]checkRow, error) {
+func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkRow, error) {
 	changed, err := env.diffNames(ctx, base, "d")
 	if err != nil {
 		return nil, err
@@ -300,11 +286,8 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string, db testDB
 	}
 	rows := env.prRows(parent, head)
 	backend := slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") })
-	if backend || slices.ContainsFunc(changed, env.flowFile) {
-		rows = append(rows, db.row(env.Work))
-	}
 	if backend {
-		goRows, err := env.goRows(ctx, base, head, changed, db)
+		goRows, err := env.goRows(ctx, base, head, changed)
 		if err != nil {
 			return nil, err
 		}
@@ -317,7 +300,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string, db testDB
 		rows = append(rows, env.swiftRow(parent))
 	}
 	if slices.ContainsFunc(changed, env.flowFile) {
-		row, err := env.flowsRow(ctx, parent, head, swift, db)
+		row, err := env.flowsRow(ctx, parent, head, swift)
 		if err != nil {
 			return nil, err
 		}
@@ -355,7 +338,7 @@ func swiftChanged(changed []string) bool {
 func (env *Env) swiftRow(parent string) checkRow {
 	waited := env.statePath(lockWaitedDir, strconv.Itoa(os.Getpid())+".swift.waited")
 	return checkRow{
-		label: "swift test", kind: "swift", dir: filepath.Join(env.Work, "packages", "mobile-core"),
+		label: "swift test", kind: "swift", class: "cpu", dir: filepath.Join(env.Work, "packages", "mobile-core"),
 		cmds: [][]string{
 			{"swift", "format", "lint", "--strict", "--recursive", "--parallel", "../../apps/mobile", "."},
 			{"../../scripts/swiftlint-ratchet.sh", "--base", parent},
@@ -387,7 +370,7 @@ func (env *Env) flowFile(file string) bool {
 	)
 }
 
-func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool, db testDB) (checkRow, error) {
+func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool) (checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
 	self, _ := os.Executable()
 	out, err := env.Run(ctx, backend, "", self, "flows", "--affected", "--base", parent)
@@ -421,21 +404,27 @@ func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool, d
 		return checkRow{}, err
 	}
 	alternatives := strings.Join(ids, "|")
-	row.cmds = [][]string{
-		slices.Concat(db.testEnv(), []string{
-			"bash", "-c", `go test -tags faultpoints -json -run "$1" "${@:3}" > "$2" || true`, "flows",
-			"^TestFlow(" + alternatives + ")_", results,
-		}, pkgs),
-		append(check, "--from", results),
+	row.class, row.cmds = "db", nil
+	row.dbCmds = func(db testDB) [][]string {
+		cmds := [][]string{
+			slices.Concat(db.testEnv(), []string{
+				"bash", "-c", `go test -tags faultpoints -json -run "$1" "${@:3}" > "$2" || true`, "flows",
+				"^TestFlow(" + alternatives + ")_", results,
+			}, pkgs),
+			append(check, "--from", results),
+		}
+		if swift {
+			cmds = append(cmds, lockWaitedCmd(
+				row.lockWaited,
+				filepath.Join(env.Work, "scripts", "mobile-core-test.sh"),
+				"--filter",
+				"(F|Flow)("+alternatives+")[^a-z0-9]",
+			))
+		}
+		return cmds
 	}
 	if swift {
 		row.lockWaited = env.statePath(lockWaitedDir, strconv.Itoa(os.Getpid())+".flows.waited")
-		row.cmds = append(row.cmds, lockWaitedCmd(
-			row.lockWaited,
-			filepath.Join(env.Work, "scripts", "mobile-core-test.sh"),
-			"--filter",
-			"(F|Flow)("+alternatives+")[^a-z0-9]",
-		))
 	}
 	return row, nil
 }
@@ -657,7 +646,7 @@ func (env *Env) coverProfile(head string) string {
 	return env.statePath("coverage", head[:12]+".out")
 }
 
-func (env *Env) goRows(ctx context.Context, base, head string, changed []string, db testDB) ([]checkRow, error) {
+func (env *Env) goRows(ctx context.Context, base, head string, changed []string) ([]checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
 	self, _ := os.Executable()
 	out, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base)
@@ -668,7 +657,6 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string,
 	if len(pkgs) == 0 {
 		return nil, nil
 	}
-	p := strconv.Itoa(testParallelism(runtime.NumCPU(), db.busy))
 	tags := []string{"-tags", "faultpoints"}
 	lint, err := env.lintRow(ctx, backend, pkgs)
 	if err != nil {
@@ -681,16 +669,25 @@ func (env *Env) goRows(ctx context.Context, base, head string, changed []string,
 	covered := coverageFiles(backend, changed)
 	return []checkRow{
 		{
-			label: "go build", kind: "go", dir: backend,
+			label: "go build", kind: "go", dir: backend, class: "cpu",
 			cmds: [][]string{slices.Concat([]string{"go", "build", "-o", os.DevNull}, tags, buildable(backend, pkgs))},
 		},
-		{label: "go vet", kind: "go", dir: backend, cmds: [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)}},
+		{
+			label: "go vet",
+			kind:  "go",
+			dir:   backend,
+			class: "cpu",
+			cmds:  [][]string{slices.Concat([]string{"go", "vet"}, tags, pkgs)},
+		},
 		lint,
 		{
-			label: "go test -short", kind: packageKind, dir: backend,
-			cmds: [][]string{slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
-				"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
-			}, coverFlags(backend, pkgs, covered, profile), pkgs)},
+			label: "go test -short", kind: packageKind, dir: backend, class: "db",
+			dbCmds: func(db testDB) [][]string {
+				p := strconv.Itoa(testParallelism(runtime.NumCPU(), db.busy))
+				return [][]string{slices.Concat(db.testEnv(), []string{"go", "test"}, tags, []string{
+					"-short", "-count=1", "-timeout", env.Config.Budget[packageKind].String(), "-p", p, "-json",
+				}, coverFlags(backend, pkgs, covered, profile), pkgs)}
+			},
 		},
 		coverageRow(backend, self, profile, covered),
 	}, nil
@@ -754,7 +751,7 @@ func (env *Env) lintRow(ctx context.Context, backend string, pkgs []string) (che
 		return checkRow{}, detailErr(errs.CodeInvalidInput, "monacoctl.agents.check",
 			fmt.Sprintf("golangci-lint on PATH is %s and CI pins %s; run: %s", have, want, install))
 	}
-	return checkRow{label: "go lint", kind: "lint", dir: backend, cmds: [][]string{
+	return checkRow{label: "go lint", kind: "lint", dir: backend, class: "cpu", cmds: [][]string{
 		slices.Concat([]string{bin, "run", "--allow-parallel-runners"}, pkgs),
 		slices.Concat([]string{"go", "run", "./internal/platform/lint/nogo/cmd/nogo"}, pkgs),
 		{"go", "run", "./cmd/monacoctl", "lint", "comments"},
@@ -912,7 +909,6 @@ func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) 
 			return err
 		}
 	}
-	r.leave()
 	for _, row := range paced {
 		if err := r.row(ctx, row, stdout); err != nil {
 			return err
@@ -940,6 +936,18 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 		_, _ = fmt.Fprintf(&r.log, "skip %s: %s\n", row.label, row.skip)
 		return nil
 	}
+	release, tokenWait, err := r.admit(ctx, &row, stdout)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err := r.prepare(ctx, row, stdout); err != nil {
+		return err
+	}
+	return r.runRow(ctx, row, stdout, tokenWait)
+}
+
+func (r *checkRun) runRow(ctx context.Context, row checkRow, stdout io.Writer, tokenWait string) error {
 	ctx, cancel, sb := r.rowBudget(ctx, row)
 	defer cancel()
 	watch := r.env.watchLoad(ctx, sb)
@@ -968,18 +976,69 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 			return failRow(stdout, row, cmd, text, err, sb)
 		}
 	}
-	note := ""
+	note := tokenWait
 	if waited > 0 {
 		note += fmt.Sprintf("  waited %s for %s lock", waited, row.label)
 	}
+	note += budgetNote(sb, warnings)
+	took := r.env.Now().Sub(rowStart) - waited
+	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs%s\n", row.label, took.Seconds(), note)
+	return nil
+}
+
+func budgetNote(sb scaledBudget, warnings int) string {
+	note := ""
 	if sb.scaled() {
 		note += "  budget " + sb.String()
 	}
 	if warnings > 0 {
 		note += fmt.Sprintf("  %d warnings in the log", warnings)
 	}
-	took := r.env.Now().Sub(rowStart) - waited
-	_, _ = fmt.Fprintf(stdout, "  %-15s ok    %.1fs%s\n", row.label, took.Seconds(), note)
+	return note
+}
+
+func (r *checkRun) admit(ctx context.Context, row *checkRow, stdout io.Writer) (func(), string, error) {
+	if row.class == "" {
+		return func() {}, "", nil
+	}
+	start := r.env.Now()
+	release, err := r.env.takeToken(ctx, row.class, stdout)
+	if err != nil {
+		return nil, "", err
+	}
+	if row.dbCmds != nil {
+		db, releaseDB, err := r.env.takeTestDB()
+		if err != nil {
+			release()
+			return nil, "", err
+		}
+		_, _ = fmt.Fprintf(&r.log, "test database: port %d; go test -p %d (%d CPUs over %d busy stage 0 slots)\n",
+			db.port(), testParallelism(runtime.NumCPU(), db.busy), runtime.NumCPU(), db.busy)
+		row.prep, row.cmds = db.row(r.env.Work).cmds, row.dbCmds(db)
+		inner := release
+		release = func() {
+			releaseDB()
+			inner()
+		}
+	}
+	waited := r.env.Now().Sub(start)
+	line := fmt.Sprintf("waited %s for a %s token", waited, row.class)
+	_, _ = fmt.Fprintf(&r.log, "%s: %s\n", row.label, line)
+	if waited > 0 {
+		return release, "  " + line, nil
+	}
+	return release, "", nil
+}
+
+func (r *checkRun) prepare(ctx context.Context, row checkRow, stdout io.Writer) error {
+	prep := checkRow{label: row.label, kind: "go", dir: r.env.Work}
+	ctx, cancel, sb := r.rowBudget(ctx, prep)
+	defer cancel()
+	for _, cmd := range row.prep {
+		if text, err := r.exec(ctx, prep, cmd); err != nil {
+			return failRow(stdout, prep, cmd, text, err, sb)
+		}
+	}
 	return nil
 }
 
