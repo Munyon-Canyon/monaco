@@ -61,6 +61,7 @@ type FundCabalDeps struct {
 	Pauses    func(db.Tx) fundingport.Pauses
 	Pot       FundPot
 	Transfers FundTransfers
+	Hints     HintPublisher
 	USDC      chain.Mint
 }
 
@@ -212,10 +213,16 @@ func (h *FundCabalHandler) submit(
 		return errs.New(errs.CodeFundNotSent, "treasury.FundCabal", slog.String("transfer_id", id.String()),
 			slog.String("reason", "failed while signing"))
 	}
-	return tx.Events.Append(ctx, events.FundSubmitted{
+	if err := tx.Events.Append(ctx, events.FundSubmitted{
 		V: 1, TransferID: id, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(), AmountMicros: cmd.Amount,
 		TxSignature: signed.Signature,
+	}); err != nil {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		h.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(cmd.UserID), nil)
 	})
+	return nil
 }
 
 func (h *FundCabalHandler) failUnsent(ctx context.Context, id uuid.UUID, cause error) {

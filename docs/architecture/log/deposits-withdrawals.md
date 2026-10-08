@@ -13,3 +13,4 @@ Dated record of changes to [deposits-withdrawals.md](../deposits-withdrawals.md)
 - 2026-09-26: Direct transfers to a cabal treasury are warned against, detected (Privy `wallet.funds_deposited` webhook plus reconcile poller), bounced to the sender, and pause the cabal's trading until returned. Reverses today's credit-as-deposit behavior.
 - 2026-09-26: Site domain is `monacolabs.xyz`. `apps/web` README still says `trymonaco.xyz`.
 - 2026-09-26: Initial decision. Card deposits via Privy fiat on-ramp on a Monaco-hosted web page, landing in the same member wallet; crypto deposits and withdrawals unchanged. Web-side Privy auth flagged as the blocking question.
+- 2026-10-07: Fund-to-cabal and withdraw each publish the user's `balance_changed` hint when submitted, not only when they settle, so Home shows the in-flight amount at once.

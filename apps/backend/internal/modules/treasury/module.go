@@ -149,7 +149,8 @@ func (m *Module) fundCabalHandler(transfers app.FundTransfers) *app.FundCabalHan
 	return app.NewFundCabalHandler(app.FundCabalDeps{
 		UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock, Cabals: m.fund.cabals, Wallets: m.fund.wallets,
 		Balances: m.fund.funding.Balances(), Pauses: m.fund.funding.PausesIn, Pot: m.reads(), Transfers: transfers,
-		USDC: chain.Mint{Address: chain.SolanaAddress(m.deps.Config.Solana.USDCMint), Decimals: usdcDecimals},
+		Hints: m.deps.Bus,
+		USDC:  chain.Mint{Address: chain.SolanaAddress(m.deps.Config.Solana.USDCMint), Decimals: usdcDecimals},
 	})
 }
 

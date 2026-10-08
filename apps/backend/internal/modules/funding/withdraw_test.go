@@ -206,8 +206,9 @@ func TestWithdraw_signsStoresAndBroadcasts(t *testing.T) {
 	if evs := f.submittedEvents(t); len(evs) != 1 || evs[0] != want {
 		t.Fatalf("events = %+v, want %+v", evs, want)
 	}
-	if len(f.hints.keys) != 1 || f.hints.keys[0] != events.UserBalanceChangedHint(f.user.ID) {
-		t.Fatalf("hints = %v", f.hints.keys)
+	if want := events.UserBalanceChangedHint(f.user.ID); len(f.hints.keys) != 2 ||
+		f.hints.keys[0] != want || f.hints.keys[1] != want {
+		t.Fatalf("hints = %v, want one at create and one at submit", f.hints.keys)
 	}
 	inFlight, err := (app.WithdrawalOutflows{Reads: f.pool}).InFlightMicros(t.Context(), f.user.ID)
 	if err != nil || inFlight.String() != "2000000" {

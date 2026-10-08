@@ -46,6 +46,7 @@ func F07FundCabalOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.ExpectJSON("status", "submitted"),
 			scenario.Remember("transfer_id", "transfer"),
+			scenario.EventuallyHint("balance_changed"),
 			scenario.AwaitTick("treasury.fund-transfers"),
 			scenario.AwaitTick("treasury.fund-transfers"),
 			scenario.Get("/v1/fund-transfers/{transfer}"),

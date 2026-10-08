@@ -56,6 +56,7 @@ func F15WithdrawOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.ExpectJSON("status", "submitted"),
 			scenario.Remember("withdrawal_id", "withdrawal"),
+			scenario.EventuallyHints("balance_changed", 2),
 			scenario.AwaitTick(withdrawPoller),
 			scenario.AwaitTick(withdrawPoller),
 			scenario.Get(withdrawPath+"/{withdrawal}"),

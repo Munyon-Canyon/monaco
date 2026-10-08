@@ -2,12 +2,14 @@ package treasury_test
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
@@ -140,6 +142,11 @@ type fundHarness struct {
 
 func newFundHarness(t *testing.T) *fundHarness {
 	t.Helper()
+	return newFundHarnessHinting(t, &hints{})
+}
+
+func newFundHarnessHinting(t *testing.T, sent *hints) *fundHarness {
+	t.Helper()
 	f := newFixture(t)
 	usdcAddress := chain.SolanaAddress(f.cfg.Solana.USDCMint)
 	s := &fundStubs{
@@ -149,7 +156,7 @@ func newFundHarness(t *testing.T) *fundHarness {
 	h := app.NewFundCabalHandler(app.FundCabalDeps{
 		UoW: f.uow, IDs: f.ids, Clock: f.clock, Cabals: s, Wallets: s, Balances: s,
 		Pauses: func(db.Tx) fundingport.Pauses { return s }, Pot: s, Transfers: s,
-		USDC: chain.Mint{Address: usdcAddress, Decimals: 6},
+		Hints: sent, USDC: chain.Mint{Address: usdcAddress, Decimals: 6},
 	})
 	return &fundHarness{fixture: f, stubs: s, handler: h, user: f.user(t), cabal: f.cabal(t)}
 }
@@ -366,5 +373,32 @@ func TestFundCabal_aFailedFailWriteLeavesTheRowForThePoller(t *testing.T) {
 	}
 	if status != "created" {
 		t.Fatalf("status = %s, want created for the poller to fail", status)
+	}
+}
+
+func TestFundCabal_hintsTheBalanceAfterTheSubmitCommits(t *testing.T) {
+	t.Parallel()
+	sent := &hints{}
+	h := newFundHarnessHinting(t, sent)
+	if _, err := h.fund(5_000_000); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := sent.sent(), []string{events.UserBalanceChangedHint(h.user)}; !slices.Equal(got, want) {
+		t.Fatalf("hints = %q, want %q", got, want)
+	}
+}
+
+func TestFundCabal_hintsNothingWhenTheSubmitRollsBack(t *testing.T) {
+	t.Parallel()
+	sent := &hints{}
+	h := newFundHarnessHinting(t, sent)
+	if _, err := h.pool.Exec(t.Context(), refuse("events", "NEW.type = 'cabal.fund_submitted'")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.fund(5_000_000); err == nil {
+		t.Fatal("fund error = nil, want the refused event to roll the submit back")
+	}
+	if got := sent.sent(); len(got) != 0 {
+		t.Fatalf("hints = %q, want none after a rollback", got)
 	}
 }
