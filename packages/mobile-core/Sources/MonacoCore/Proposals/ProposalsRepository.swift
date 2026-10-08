@@ -277,7 +277,10 @@ public struct ProposalsRepository: Sendable {
 
     @discardableResult
     public func vote(id: String, choice: String, submission: IdempotentSubmission) async throws -> ProposalVoteResult {
-        let body = Components.Schemas.CastVoteRequest(choice: .init(rawValue: choice) ?? .yes)
+        guard let choice = Components.Schemas.BallotChoice(rawValue: choice) else {
+            preconditionFailure("Unknown vote choice \(choice)")
+        }
+        let body = Components.Schemas.CastVoteRequest(choice: choice)
         return try await api.submit(submission, payload: body, operation: "postProposalVote") { client, key in
             ProposalVoteResult(
                 try await client.postProposalVote(

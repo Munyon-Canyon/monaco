@@ -170,7 +170,8 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         ])
         let model = ProposalDetailModel(
             id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
-        await model.vote("yes")
+        let voted = await model.vote("yes")
+        XCTAssertTrue(voted)
         XCTAssertEqual(model.value?.id, "p")
         XCTAssertNil(model.errorMessage)
     }
@@ -265,5 +266,34 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     private func repository(_ transport: StubTransport) -> ProposalsRepository {
         ProposalsRepository(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport))
+    }
+}
+
+extension ProposalsRepositoryMappingTests {
+    @MainActor
+    func testDetailModelReportsAFailedVote() async throws {
+        let model = ProposalDetailModel(
+            id: "p", cabalID: "c",
+            repository: repository(StubTransport(.failure(URLError(.notConnectedToInternet)))), hints: FakeHintStream())
+        let voted = await model.vote("no")
+        XCTAssertFalse(voted)
+        XCTAssertFalse(model.isVoting)
+        XCTAssertEqual(model.errorMessage, "You're offline. Try again.")
+    }
+
+    @MainActor
+    func testDetailModelReportsAVoteWhoseReloadFails() async throws {
+        let transport = StubTransport(scripted: [
+            .json(
+                .ok,
+                #"{"proposal_id":"p","status":"open","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes"}"#
+            ),
+            .failure(URLError(.notConnectedToInternet)),
+        ])
+        let model = ProposalDetailModel(
+            id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        let voted = await model.vote("yes")
+        XCTAssertTrue(voted)
+        XCTAssertNotNil(model.errorMessage)
     }
 }
