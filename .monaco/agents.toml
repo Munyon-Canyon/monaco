@@ -91,5 +91,6 @@ migrate = "30s"
 openapi = "30s"
 docs = "30s"
 pr = "15s"
-flows = "60s"
+# Every flow, which any change to internal/events or internal/errs runs, takes 90 to 100 s on the operator's Intel laptop.
+flows = "150s"
 journeys = "30s"
