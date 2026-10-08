@@ -15,8 +15,10 @@ public struct ProposeCabalInfo: Equatable, Sendable {
         if voting.count == cabal.members.count, voting.count > 1 {
             voters = "All \(voting.count) members"
         } else {
-            voters = voting.map { $0.displayName.isEmpty ? ($0.handle ?? "A member") : $0.displayName }
-                .joined(separator: ", ")
+            let names = voting.map { $0.displayName.isEmpty ? ($0.handle ?? "A member") : $0.displayName }
+            voters =
+                names.count > 3
+                ? "\(names[0]), \(names[1]) and \(names.count - 2) more" : names.joined(separator: ", ")
         }
     }
 

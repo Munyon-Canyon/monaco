@@ -25,11 +25,14 @@ public final class ProposeReviewModel {
     private let preview: ProposePreview
     private let trade: ProposeTrade
     private let submission: IdempotentSubmission
+    private let buyName: String?
 
     public init(
         service: ProposeService, cabalID: String, cabal: ProposeCabalInfo, draft: ProposalDraft,
-        preview: ProposePreview, trade: ProposeTrade, submission: IdempotentSubmission = IdempotentSubmission()
+        preview: ProposePreview, trade: ProposeTrade, buyName: String? = nil,
+        submission: IdempotentSubmission = IdempotentSubmission()
     ) {
+        self.buyName = buyName
         self.service = service
         self.cabalID = cabalID
         self.cabal = cabal
@@ -43,7 +46,7 @@ public final class ProposeReviewModel {
         switch trade {
         case .sell(let holding): "Sell \(holding.quantity(of: draft.amount)) of \(holding.ticker)"
         case .buy(let symbol, let kind, _):
-            "Buy \(UsdAmountFormatter.format(micros: draft.amount)) of \(AssetSymbolFormatter.display(symbol, kind: kind))"
+            "Buy \(UsdAmountFormatter.format(micros: draft.amount)) of \(buyName ?? AssetSymbolFormatter.display(symbol, kind: kind))"
         }
     }
 
@@ -75,7 +78,9 @@ public final class ProposeReviewModel {
         if let out = preview.quoteOutAmount, out > 0 {
             rows.append(Row(label: "Raises", value: "about \(UsdAmountFormatter.format(micros: out))"))
         }
-        rows.append(Row(label: "Cabal keeps", value: holding.quantity(of: holding.tokenAmount - draft.amount)))
+        if holding.tokenAmount - draft.amount > 0 {
+            rows.append(Row(label: "Cabal keeps", value: holding.quantity(of: holding.tokenAmount - draft.amount)))
+        }
         rows.append(Row(label: "Who votes", value: cabal.voters))
         return rows
     }
@@ -94,8 +99,9 @@ public final class ProposeReviewModel {
             rows.append(Row(label: "Price", value: "about \(UsdAmountFormatter.format(decimal: price)) \(noun)"))
         }
         if let percent = potPercent {
-            rows.append(
-                Row(label: "Pot", value: "\(percent)% of \(UsdAmountFormatter.format(micros: preview.potValueMicros))"))
+            let pot = UsdAmountFormatter.format(micros: preview.potValueMicros)
+            let share = percent == 0 && draft.amount > 0 ? "Less than 1%" : "\(percent)%"
+            rows.append(Row(label: "Pot", value: "\(share) of \(pot)"))
         }
         rows.append(Row(label: "Who votes", value: cabal.voters))
         return rows
