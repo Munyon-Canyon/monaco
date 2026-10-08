@@ -10,6 +10,7 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -65,6 +66,10 @@ type RequestIDs interface {
 type ShareLists interface {
 	UserShares(ctx context.Context, user ids.UserID) ([]treasuryport.Share, error)
 	CabalShares(ctx context.Context, cabal ids.CabalID) ([]treasuryport.Share, error)
+}
+
+type Valuations interface {
+	LatestCabalValues(ctx context.Context) ([]rankingport.CabalValue, error)
 }
 
 type Holdings interface {

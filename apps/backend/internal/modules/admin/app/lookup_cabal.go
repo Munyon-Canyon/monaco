@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -23,12 +25,19 @@ type HoldingDetail struct {
 	Units  money.BaseUnits
 }
 
+type Valuation struct {
+	Pot         money.Micros
+	NavPerShare money.Micros
+	At          time.Time
+}
+
 type CabalView struct {
 	Cabal    cabalport.CabalView
 	Rules    cabalport.Rules
 	Treasury cabalport.TreasuryWallet
 	Members  []MemberDetail
 	Holdings []HoldingDetail
+	Value    *Valuation
 	Txns     []TxnHeader
 	Actions  []sqlc.AdminAction
 }
@@ -40,6 +49,7 @@ type CabalLookup struct {
 	Shares   ShareLists
 	Holdings Holdings
 	Assets   Assets
+	Values   Valuations
 	Txns     TxnLists
 	Actions  ActionLog
 }
@@ -51,7 +61,7 @@ func (l CabalLookup) ByID(ctx context.Context, id ids.CabalID) (CabalView, error
 	}
 	view := CabalView{Cabal: cabal}
 	steps := []func(context.Context, *CabalView) error{
-		l.loadRules, l.loadTreasury, l.loadMembers, l.loadHoldings, l.loadTxns, l.loadActions,
+		l.loadRules, l.loadTreasury, l.loadMembers, l.loadHoldings, l.loadValue, l.loadTxns, l.loadActions,
 	}
 	for _, step := range steps {
 		if err := step(ctx, &view); err != nil {
@@ -131,6 +141,14 @@ func (l CabalLookup) loadHoldings(ctx context.Context, v *CabalView) error {
 		})
 	}
 	return nil
+}
+
+func (l CabalLookup) loadValue(ctx context.Context, v *CabalView) error {
+	values, err := l.Values.LatestCabalValues(ctx)
+	if i := slices.IndexFunc(values, func(c rankingport.CabalValue) bool { return c.CabalID == v.Cabal.ID }); i >= 0 {
+		v.Value = &Valuation{Pot: values[i].Value, NavPerShare: values[i].NavPerShare, At: values[i].At}
+	}
+	return err
 }
 
 func (l CabalLookup) loadTxns(ctx context.Context, v *CabalView) error {
