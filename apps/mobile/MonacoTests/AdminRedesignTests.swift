@@ -39,15 +39,7 @@ struct CabalRulesCopyTests {
 @MainActor
 struct AdminCopyAuditTests {
     @Test func theNewCopyPassesTheMainFlowAudit() {
-        let joinCopy = [
-            JoinCabalCopy.title,
-            JoinCabalModel.helper,
-            JoinCabalModel.notFoundMessage,
-            JoinCabalModel.malformedMessage,
-            CabalEntry.requestedToast,
-        ]
-
         #expect(MainFlowCopyAudit.stringsAreClean(CabalRulesCopy.auditedStrings))
-        #expect(MainFlowCopyAudit.stringsAreClean(joinCopy))
+        #expect(MainFlowCopyAudit.stringsAreClean([CabalEntry.requestedToast]))
     }
 }

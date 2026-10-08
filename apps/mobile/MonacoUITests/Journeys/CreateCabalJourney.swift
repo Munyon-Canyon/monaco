@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 6
+    static let version = 7
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -32,8 +32,8 @@ enum CreateCabalJourney {
         recorder.step("S1.2", "open the New cabal sheet") {
             plus.tap()
             XCTAssertTrue(start.waitForExistence(timeout: formTimeout), "S1.2: the sheet has no Start a cabal row")
-            XCTAssertTrue(
-                app.buttons["new-cabal-join-row"].exists, "S1.2: the sheet has no Join with an invite code row")
+            XCTAssertFalse(
+                app.buttons["new-cabal-join-row"].exists, "S1.2: the sheet still offers to join with a code")
         }
 
         recorder.step("S1.3", "open the create form") {
@@ -147,13 +147,11 @@ enum CreateCabalJourney {
         }
     }
 
-    static let duoCodeKey = "duo-invite-code"
+    static let duoCabalKey = "duo-cabal"
 
     static func duoCabal(run: String) -> String { "QA duo \(run)" }
 
-    static func creatorStartsAnOpenCabal(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws
-        -> String
-    {
+    static func creatorStartsAnOpenCabal(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) throws {
         let name = duoCabal(run: run)
         let submit = app.buttons["create-group-submit"]
 
@@ -187,56 +185,27 @@ enum CreateCabalJourney {
             )
         }
 
-        var code = ""
-        recorder.step("S4.3", "read the invite code") {
-            app.buttons["cabal-details-button"].tap()
-            let card = app.element("cabal-invite-card")
-            XCTAssertTrue(card.waitForExistence(timeout: formTimeout), "S4.3: no invite card within 10 s")
-            code = app.staticTexts["cabal-invite-code"].label
-            XCTAssertEqual(code.count, 10, "S4.3: the invite code '\(code)' is not 10 characters")
-        }
-        try JourneyHandoff.write(duoCodeKey, code)
-        return code
+        try JourneyHandoff.write(duoCabalKey, name)
     }
 
-    static func friendJoinsWithTheCode(_ app: XCUIApplication, run: String, code: String, recorder: JourneyRecorder) {
+    static func friendRequestsToJoin(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = duoCabal(run: run)
 
-        recorder.step("S4.4", "open Join with an invite code") {
-            app.tab("Cabals").tap()
-            let plus = app.buttons["cabals-new-button"]
-            XCTAssertTrue(plus.waitForExistence(timeout: listTimeout), "S4.4: no + on the Cabals tab")
-            plus.tap()
-            let join = app.buttons["new-cabal-join-row"]
-            XCTAssertTrue(join.waitForExistence(timeout: formTimeout), "S4.4: no Join with an invite code row")
-            join.tap()
+        recorder.step("S4.3", "find the cabal by name") {
+            JoinJourney.openBySearch(app, name, step: "S4.3")
             XCTAssertTrue(
-                app.textFields["join-group-id"].waitForExistence(timeout: formTimeout),
-                "S4.4: the code field did not show within 10 s"
+                app.buttons["cabal-join-button"].waitForExistence(timeout: listTimeout),
+                "S4.3: no Request to join on the cabal within \(Int(listTimeout)) s"
             )
         }
 
-        recorder.step("S4.5", "paste the code") {
-            UIPasteboard.general.string = code
-            app.buttons["join-group-paste"].tap()
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("join-group-name"), containing: name, timeout: formTimeout),
-                "S4.5: the preview does not name \(name) within 10 s"
-            )
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.buttons["join-group-submit"], containing: "Ask to join", timeout: formTimeout),
-                "S4.5: the button does not read Ask to join: \(app.buttons["join-group-submit"].label)"
-            )
-        }
-
-        recorder.step("S4.6", "ask to join") {
-            app.buttons["join-group-submit"].tap()
+        recorder.step("S4.4", "request to join") {
+            app.buttons["cabal-join-button"].tap()
             JoinJourney.waitForToast(
-                app, "Request sent. You'll be in once the creator says yes.", step: "S4.6")
+                app, "Request sent. You'll be in once the creator says yes.", step: "S4.4")
             XCTAssertTrue(
                 app.element("cabal-join-requested").waitForExistence(timeout: listTimeout),
-                "S4.6: the cabal does not read Request sent for the user who asked"
+                "S4.4: the cabal does not read Request sent for the user who asked"
             )
         }
     }
@@ -244,22 +213,22 @@ enum CreateCabalJourney {
     static func creatorSeesTheFriend(_ app: XCUIApplication, run: String, friend: String, recorder: JourneyRecorder) {
         let name = duoCabal(run: run)
 
-        recorder.step("S4.7", "approve the friend and find them on the member board") {
-            JoinJourney.openBySearch(app, name, step: "S4.7")
+        recorder.step("S4.5", "approve the friend and find them on the member board") {
+            JoinJourney.openBySearch(app, name, step: "S4.5")
             XCTAssertTrue(
                 app.buttons["cabal-join-approve"].firstMatch.waitForExistence(timeout: listTimeout),
-                "S4.7: no request to approve")
+                "S4.5: no request to approve")
             app.buttons["cabal-join-approve"].firstMatch.tap()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),
-                "S4.7: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+                "S4.5: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
             )
             let row = app.buttons.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'cabal-member-' AND label CONTAINS %@", friend)
             ).firstMatch
             app.scrollIntoReach(row, maxSwipes: 12)
-            XCTAssertTrue(row.waitForExistence(timeout: listTimeout), "S4.7: no member board row names \(friend)")
+            XCTAssertTrue(row.waitForExistence(timeout: listTimeout), "S4.5: no member board row names \(friend)")
         }
     }
 }

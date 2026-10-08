@@ -79,7 +79,7 @@ print("%s: %s, one voting member" % (cabal["name"], json.dumps(rules, sort_keys=
   '
 fi
 
-if ran duo-invite-code; then
+if ran duo-cabal; then
   duo_id="$(python3 -c '
 import json, sys
 rows = [r for r in json.load(sys.stdin) if r["name"].startswith("QA duo ")]

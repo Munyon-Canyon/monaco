@@ -44,10 +44,9 @@ Home ──┬─ avatar button ───────────────▶
        ├─ Your cabals row ─────────────▶ CabalRoute
        └─ Top investors row ───────────▶ UserProfileRoute
 Feed ──── item ──▶ ProposalRoute | TransactionRoute | AssetRoute | CabalRoute | FeedItemDetail
-Cabals ┬─ + ──▶ New cabal sheet ─┬─ Start a cabal ──▶ create ──▶ CabalRoute
-       │                         └─ Join with an invite code ──▶ JoinRoute ──▶ CabalRoute
+Cabals ┬─ + ──▶ New cabal sheet ──── Start a cabal ──▶ create ──▶ CabalRoute
        ├─ search result / card / Top cabals row ──▶ CabalRoute
-CabalRoute ─┬─ i ──▶ Cabal details sheet (invite code, rules, treasury, edit, leave)
+CabalRoute ─┬─ i ──▶ Cabal details sheet (rules, treasury, edit, leave)
             ├─ Fund ───────▶ FundRoute
             ├─ Propose ────▶ ProposeRoute ──▶ Buy | Sell | Add a trading bot
             ├─ Cash out ───▶ CashOutRoute
@@ -86,7 +85,7 @@ Pull to refresh. Refreshes on the hints its slots name. Toolbar: the viewer's av
 
 ## Cabals tab
 
-Large title "Cabals". Toolbar "+" opens the **New cabal sheet** (#606): two rows, "Start a cabal" / "Name it and set the rules" (pushes the create screen) and "Join with an invite code" / "Paste the code a friend sent you" (pushes `JoinRoute`, #646).
+Large title "Cabals". Toolbar "+" opens the **New cabal sheet** (#606): one row, "Start a cabal" / "Name it and set the rules" (pushes the create screen). Joining a cabal goes through the search field below and the cabal screen's "Request to join".
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
@@ -97,8 +96,6 @@ Large title "Cabals". Toolbar "+" opens the **New cabal sheet** (#606): two rows
 | 5 | `CabalsBoardSlot` | #699 | "Top cabals" / "Ranked by return across everyone on Monaco". Rows: rank, tile, name, return over pot value. Empty: "No cabal has put money in yet" / "The first one to fund takes the top spot." |
 
 **Start a cabal** (#606). Title "Start a cabal". Name field with "Pick a name your friends will recognize." Then "The rules", each a title, a one-line description that changes with the choice, and a segmented control: "Who votes" ("Everyone" / "People I pick", the creator is the only voter until they pick more in Cabal settings), "To pass" ("Majority" / "Everyone agrees"), "Votes stay open" ("1 hour" / "1 day" / "1 week", with "1 week" preselected; the three `proposal_expiry_seconds` values in [cabals.md](architecture/cabals.md#rules)). Primary "Create cabal", "Creating…" while it runs, then push `CabalRoute` with the toast "Cabal created."
-
-**Ask to join** (`JoinRoute`, #646). Title "Ask to join". A mono field "Invite code" with an ink paste button at its right edge, the helper "Paste the invite code your friend shared.", primary "Ask to join". Every cabal is request-to-join, so submitting a valid code files an access request and does not make the user a member. Success pushes `CabalRoute` with "Request sent. You'll be in once the creator says yes."
 
 ## Cabal screen (`CabalRoute`)
 
@@ -123,11 +120,10 @@ Toolbar: back on the left, and an "i" button on the right that opens the details
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
-| 1 | `CabalInviteCodeSlot` | #646 | Card "Invite code", the code in mono, "Friends paste this code to join the cabal.", primary "Copy code" (turns into "Copied") and secondary "Share" |
-| 2 | `CabalInviteMemberSlot` | #696 | Row "Invite someone" that pushes the invite-by-handle screen |
-| 3 | `CabalRulesSlot` | #2135 | "Rules", read-only for everyone: the cabal name, who votes (with the voter names when it is a list), what passes, how long votes stay open. The creator's rows, including Name, open "Cabal settings" (#647), where "Who votes" is a rule like the others: "Everyone" / "People I pick" with the member checklist beneath, saved by the one Save in one PATCH |
-| 4 | `CabalTreasurySlot` | #651 | "Cabal treasury", the warning "Cabal treasury. Do not send funds here. Transfers are returned.", the address, and "View on Solscan". No copy button |
-| 5 | `CabalLeaveSlot` | #697 | Destructive "Leave cabal" with the confirm dialog |
+| 1 | `CabalInviteMemberSlot` | #696 | Row "Invite someone" that pushes the invite-by-handle screen |
+| 2 | `CabalRulesSlot` | #2135 | "Rules", read-only for everyone: the cabal name, who votes (with the voter names when it is a list), what passes, how long votes stay open. The creator's rows, including Name, open "Cabal settings" (#647), where "Who votes" is a rule like the others: "Everyone" / "People I pick" with the member checklist beneath, saved by the one Save in one PATCH |
+| 3 | `CabalTreasurySlot` | #651 | "Cabal treasury", the warning "Cabal treasury. Do not send funds here. Transfers are returned.", the address, and "View on Solscan". No copy button |
+| 4 | `CabalLeaveSlot` | #697 | Destructive "Leave cabal" with the confirm dialog |
 
 ### Proposal card
 

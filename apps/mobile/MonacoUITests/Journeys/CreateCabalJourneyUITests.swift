@@ -11,7 +11,6 @@ nonisolated final class CreateCabalJourneyUITests: XCTestCase {
         let app = session.app
         let recorder = CreateCabalJourney.recorder()
         let run = try JourneyRun.id()
-        var code = ""
 
         try session.scenario("S1") {
             try session.act(as: "A")
@@ -37,11 +36,11 @@ nonisolated final class CreateCabalJourneyUITests: XCTestCase {
 
         try session.scenario("S4") {
             try session.act(as: "A")
-            code = try CreateCabalJourney.creatorStartsAnOpenCabal(app, run: run, recorder: recorder)
-            attachScreenshot(of: app, named: "S4-A-invite-code")
+            try CreateCabalJourney.creatorStartsAnOpenCabal(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-A-created")
 
             let friend = try session.act(as: "B")
-            CreateCabalJourney.friendJoinsWithTheCode(app, run: run, code: code, recorder: recorder)
+            CreateCabalJourney.friendRequestsToJoin(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S4-B-joined")
 
             try session.act(as: "A")

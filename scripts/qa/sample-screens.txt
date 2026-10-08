@@ -60,7 +60,6 @@ cabals-search                 -MonacoCabalsSearchSample
 cabal-join-open               -MonacoCabalJoinSample open
 cabal-join-request            -MonacoCabalJoinSample request
 cabal-join-creator            -MonacoCabalJoinSample creator
-cabal-invite-code             -MonacoCabalInviteCodeSample
 
 propose-from-stock            -MonacoProposalFeedSample -MonacoProposeSampleStock
 
@@ -137,7 +136,6 @@ stocks-tab-full-bottom        -MonacoStocksTabSample full -MonacoStocksTabScroll
 # Screens around the cabal screen: start, join, and the New cabal sheet.
 group-nav-start               -MonacoGroupNavSample start
 group-nav-new-cabal           -MonacoGroupNavSample newCabal
-group-nav-join-code           -MonacoGroupNavSample joinCode
 group-nav-bots                -MonacoGroupNavSample bots
 group-nav-bot                 -MonacoGroupNavSample bot
 group-nav-bot-removed         -MonacoGroupNavSample botRemoved

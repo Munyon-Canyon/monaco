@@ -1,7 +1,7 @@
 ---
 id: demo/story
 title: The demo story
-version: 2
+version: 3
 milestone: M8.5
 requires: [auth/sign-in, cabals/create-cabal, stocks/asset-detail]
 actors: [A, B]
@@ -35,15 +35,14 @@ The format of this doc is in [App journeys](../README.md).
 
 ### S1 Start a cabal and bring a friend
 
-Beats 1 to 5.
+Beats 1 to 4.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | sign in | `SignInJourney.ensureSignedIn` | A's test login | Home shows within 30 s (beat 1 "Sign in"; old app: `LoginView` number, code, then Home; screens.md Home) |
 | S1.2 | A | tap | the Profile tab | | `profile-header` shows A's name within 15 s (beat 2 "Create your profile"; old app: the onboarding name then Profile; screens.md Profile header) |
 | S1.3 | A | run | `CreateCabalJourney.creatorStartsAnOpenCabal` | `QA duo {QA.run}`, join "Anyone" | The cabal screen for `QA duo {QA.run}` and the toast "Cabal created." (beat 3 "Start a cabal / Set the rules"; old app: Cabals "+", "Start a cabal", `CreateGroupView`; screens.md Start a cabal) |
-| S1.4 | A | wait | `cabal-invite-card` | | The 10-character `cabal-invite-code` and `cabal-invite-copy` show (beat 4 "Invite your friends with a code"; old app: cabal details, Copy code; screens.md Cabal details invite card) |
-| S1.5 | B | run | `CreateCabalJourney.friendJoinsWithTheCode` | the code from S1.4 | The toast "You're in." and `cabal-member-count` reads "2 members" (beat 5 "A paste and they're in!"; old app: "Join with an invite code", paste; screens.md Join with an invite code) |
+| S1.4 | B | run | `CreateCabalJourney.friendRequestsToJoin` | `QA duo {QA.run}` | `cabal-join-button` shows, then the toast "Request sent. You'll be in once the creator says yes." and `cabal-join-requested` reads "Request sent" (beat 4 "Find the cabal and ask to join"; screens.md `CabalJoinSlot`) |
 
 ### S2 Fund the pot
 
