@@ -44,6 +44,7 @@ type Env struct {
 	Arm             func(ctx context.Context, u Unit) error
 	BeforeCoreFlush func()
 	PollEvery       time.Duration
+	ProbeTimeout    time.Duration
 }
 
 type Result struct {

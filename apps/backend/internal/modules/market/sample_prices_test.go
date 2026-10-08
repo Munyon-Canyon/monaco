@@ -615,24 +615,31 @@ func TestSamplePrices_anEmptyCatalogAsksForNothing(t *testing.T) {
 	}
 }
 
-type stalledSource struct{}
+type stalledSource struct{ deadline chan<- time.Time }
 
-func (stalledSource) Prices(ctx context.Context, _ []domain.Mint) (map[domain.Mint]money.Micros, error) {
-	<-ctx.Done()
-	return nil, errs.Wrap(context.Cause(ctx), errs.CodeUpstreamTimeout, "test.stalledSource")
+func (s stalledSource) Prices(ctx context.Context, _ []domain.Mint) (map[domain.Mint]money.Micros, error) {
+	at, _ := ctx.Deadline()
+	s.deadline <- at
+	return nil, errs.New(errs.CodeUpstreamTimeout, "test.stalledSource")
 }
 
 func TestSamplePrices_aFetchThatWaitsOutItsTimeStillLeavesTheTickTimeToStore(t *testing.T) {
 	t.Parallel()
 	r := newSampleRig(t, fixed(&quotes{}), marketfake.AAPLx())
 	ids := testkit.NewIDs(7)
+	fetchDeadline := make(chan time.Time, 1)
 	p := app.NewSamplePrices(
-		db.New(r.pool, ids, r.clock), r.pool, ids, r.clock, stalledSource{}, r.ticks, 2*time.Second,
+		db.New(r.pool, ids, r.clock), r.pool, ids, r.clock, stalledSource{fetchDeadline}, r.ticks, 2*time.Minute,
 	)
 	ctx, cancel := context.WithTimeout(t.Context(), p.Interval())
 	defer cancel()
+	tickDeadline, _ := ctx.Deadline()
 	_, err := p.Tick(ctx)
 	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
-		t.Fatalf("Tick = %v, want the fetch's upstream_timeout, not an expired store", err)
+		t.Fatalf("Tick = %v, want the fetch's upstream_timeout", err)
+	}
+	if left := tickDeadline.Sub(<-fetchDeadline); left < p.Interval()/4 {
+		t.Fatalf("the fetch ends %v before the tick's deadline, want at least %v left to store",
+			left, p.Interval()/4)
 	}
 }

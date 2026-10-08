@@ -42,18 +42,19 @@ type Binaries struct {
 type PostgresFunc func(ctx context.Context, runID string) (url string, remove func(context.Context) error, err error)
 
 type Options struct {
-	Dir        string
-	Atlas      string
-	Docker     Docker
-	Environ    []string
-	Bins       Binaries
-	Budget     Budget
-	CoverDir   string
-	Faultpoint string
-	WorkerEnv  []string
-	Postgres   PostgresFunc
-	Clock      clock.Clock
-	PollEvery  time.Duration
+	Dir          string
+	Atlas        string
+	Docker       Docker
+	Environ      []string
+	Bins         Binaries
+	Budget       Budget
+	CoverDir     string
+	Faultpoint   string
+	WorkerEnv    []string
+	Postgres     PostgresFunc
+	Clock        clock.Clock
+	PollEvery    time.Duration
+	ProbeTimeout time.Duration
 }
 
 type Stack struct {
