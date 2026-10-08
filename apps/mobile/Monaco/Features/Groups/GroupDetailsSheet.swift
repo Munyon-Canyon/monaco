@@ -30,6 +30,7 @@ struct GroupDetailsSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationBackground(MonacoTheme.canvas)
         .presentationDragIndicator(.visible)
         .accessibilityIdentifier("group-details-sheet")
     }
