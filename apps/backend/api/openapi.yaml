@@ -4933,10 +4933,10 @@ components:
       type: object
       description: The name and rules for a new cabal.
       additionalProperties: false
-      required: [name, join_mode, voter_mode, threshold, proposal_expiry_seconds]
+      required: [name, voter_mode, threshold, proposal_expiry_seconds]
       properties:
         name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Kai]}
-        join_mode: {type: string, description: "`open` (anyone joins at once) or `request` (the creator approves each request).", examples: [open]}
+        join_mode: {type: string, description: "`open` (anyone joins at once, the default when omitted) or `request` (the creator approves each request).", default: open, examples: [open]}
         voter_mode: {type: string, description: "all, or list starting with the creator.", examples: [all]}
         threshold: {type: string, description: "`majority` or `unanimous`.", examples: [majority]}
         proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [86400]}

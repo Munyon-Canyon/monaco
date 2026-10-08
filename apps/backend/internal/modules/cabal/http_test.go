@@ -78,10 +78,14 @@ func (f createFixture) router(t *testing.T) (http.Handler, *auth.DevVerifier) {
 func cabalPost(
 	key, name, join, voters, threshold string, expiry int32, slippage *int32,
 ) api.PostCabalRequestObject {
+	var joinMode *string
+	if join != "" {
+		joinMode = &join
+	}
 	return api.PostCabalRequestObject{
 		Params: api.PostCabalParams{IdempotencyKey: key},
 		Body: &api.CreateCabalRequest{
-			Name: name, JoinMode: join, VoterMode: voters, Threshold: threshold,
+			Name: name, JoinMode: joinMode, VoterMode: voters, Threshold: threshold,
 			ProposalExpirySeconds: expiry, SlippageBps: slippage,
 		},
 	}
@@ -171,6 +175,30 @@ func TestPostCabal_usesTheDefaultSlippageWhenItIsOmitted(t *testing.T) {
 	got := asCabal(t, res, err)
 	if got.Rules.SlippageBps != domain.DefaultSlippageBps || f.wallets.Creates() != 1 {
 		t.Fatalf("slippage = %d, creates %d", got.Rules.SlippageBps, f.wallets.Creates())
+	}
+}
+
+func TestPostCabal_defaultsToOpenJoiningWhenJoinModeIsOmitted(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	res, err := f.routes(nil).PostCabal(
+		f.actor(t.Context()),
+		cabalPost("c1", "Friends pot", "", "all", "majority", domain.ExpiryDay, nil),
+	)
+	if got := asCabal(t, res, err); got.Rules.JoinMode != string(domain.JoinOpen) {
+		t.Fatalf("join_mode = %q, want open", got.Rules.JoinMode)
+	}
+}
+
+func TestPostCabal_keepsAnExplicitRequestJoinMode(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	res, err := f.routes(nil).PostCabal(
+		f.actor(t.Context()),
+		cabalPost("c1", "Friends pot", "request", "all", "majority", domain.ExpiryDay, nil),
+	)
+	if got := asCabal(t, res, err); got.Rules.JoinMode != string(domain.JoinRequest) {
+		t.Fatalf("join_mode = %q, want request", got.Rules.JoinMode)
 	}
 }
 
