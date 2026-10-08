@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -12,6 +13,10 @@ import (
 )
 
 const adminRoleExtension = "x-admin-role"
+
+type ServiceTokenVerifier interface {
+	VerifyServiceToken(ctx context.Context, raw string) (name string, err error)
+}
 
 func Admin(v auth.TokenVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -48,6 +53,9 @@ func adminActor(r *http.Request, v auth.TokenVerifier, res resolved) (auth.Actor
 	if !ok {
 		return auth.Actor{}, errs.New(errs.CodeUnauthorized, op)
 	}
+	if domain.IsServiceToken(raw) {
+		return serviceActor(r, v, raw, required)
+	}
 	actor, err := v.Verify(r.Context(), raw)
 	if err != nil {
 		if errs.CodeOf(err) == errs.CodeAdminForbidden {
@@ -59,6 +67,22 @@ func adminActor(r *http.Request, v auth.TokenVerifier, res resolved) (auth.Actor
 		return auth.Actor{}, errs.New(errs.CodeAdminForbidden, op)
 	}
 	return actor, nil
+}
+
+func serviceActor(r *http.Request, v auth.TokenVerifier, raw string, required domain.Role) (auth.Actor, error) {
+	const op = "httpx.Admin.serviceActor"
+	sv, ok := v.(ServiceTokenVerifier)
+	if !ok {
+		return auth.Actor{}, errs.New(errs.CodeUnauthorized, op)
+	}
+	name, err := sv.VerifyServiceToken(r.Context(), raw)
+	if err != nil {
+		return auth.Actor{}, verifyProblem(err, op)
+	}
+	if r.Method != http.MethodGet || required != domain.RoleViewer {
+		return auth.Actor{}, errs.New(errs.CodeAdminForbidden, op, slog.String("service", name))
+	}
+	return auth.Actor{Kind: auth.ActorService, ID: "service:" + name, Role: string(domain.RoleViewer)}, nil
 }
 
 func isAdminRoute(res resolved) bool {

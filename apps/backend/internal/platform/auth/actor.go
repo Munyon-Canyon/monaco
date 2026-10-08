@@ -9,10 +9,11 @@ import (
 type ActorKind string
 
 const (
-	ActorUser   ActorKind = "user"
-	ActorAgent  ActorKind = "agent"
-	ActorAdmin  ActorKind = "admin"
-	ActorSystem ActorKind = "system"
+	ActorUser    ActorKind = "user"
+	ActorAgent   ActorKind = "agent"
+	ActorAdmin   ActorKind = "admin"
+	ActorSystem  ActorKind = "system"
+	ActorService ActorKind = "service"
 )
 
 type Standing string
