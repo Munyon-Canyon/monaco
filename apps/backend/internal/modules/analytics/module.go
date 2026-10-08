@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
+	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -91,7 +92,15 @@ func registerProposalExports(r *Registry, proposers app.ProposerReader) {
 func (*Module) Name() string { return "analytics" }
 
 func (m *Module) Mount(r api.Mount) {
-	analyticsapi.Mount(adapters.HTTP{Money: m.money()}, r)
+	analyticsapi.Mount(adapters.HTTP{Money: m.money(), Governance: m.governance()}, r)
+}
+
+func (m *Module) governance() app.Governance {
+	proposals := governance.New(m.deps)
+	return app.Governance{
+		Read: adapters.ReadOnly(m.deps.Pool, dashboardTimeout),
+		Bind: func(db dbsqlc.DBTX) governanceport.Dashboard { return proposals.DashboardOn(db) },
+	}
 }
 
 func (m *Module) money() app.Money {

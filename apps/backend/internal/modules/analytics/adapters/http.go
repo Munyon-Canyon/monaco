@@ -2,13 +2,15 @@ package adapters
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/app"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/analyticsapi"
 )
 
 type HTTP struct {
-	Money app.Money
+	Money      app.Money
+	Governance app.Governance
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -44,5 +46,41 @@ func (h HTTP) GetMoneyDashboard(
 		From: window.From, To: window.To, Bucket: api.DashboardBucket(window.Size), AsOf: view.AsOf,
 		PotMicros: view.Pots.String(), PlatformBalanceMicros: view.Platform.String(),
 		TotalValueHeldMicros: view.Total.String(), Buckets: buckets,
+	}, nil
+}
+
+func (h HTTP) GetGovernanceDashboard(
+	ctx context.Context, req api.GetGovernanceDashboardRequestObject,
+) (api.GetGovernanceDashboardResponseObject, error) {
+	window, err := app.ParseWindow(req.Params.From, req.Params.To, string(req.Params.Bucket))
+	if err != nil {
+		return nil, err
+	}
+	view, err := h.Governance.Dashboard(ctx, window)
+	if err != nil {
+		return nil, err
+	}
+	buckets := make([]api.GovernanceBucket, len(view.Buckets))
+	for i, b := range view.Buckets {
+		buckets[i] = api.GovernanceBucket{
+			BucketStart: b.Start, Created: b.Created, Passed: b.Passed, Failed: b.Failed, Expired: b.Expired,
+			ExecutionBlocked: b.ExecutionBlocked,
+		}
+	}
+	rows := make([]api.GovernanceParticipation, len(view.Participation))
+	for i, p := range view.Participation {
+		rows[i] = api.GovernanceParticipation{
+			CabalId: p.CabalID.UUID(), Proposals: p.Proposals, EligibleVotes: p.Eligible, VotesCast: p.Voted,
+			ParticipationBps: p.Bps,
+		}
+	}
+	var median *int64
+	if view.Passed.Passed > 0 {
+		seconds := int64(view.Passed.Median / time.Second)
+		median = &seconds
+	}
+	return api.GetGovernanceDashboard200JSONResponse{
+		From: window.From, To: window.To, Bucket: api.DashboardBucket(window.Size), OpenProposals: view.Open,
+		PassedInRange: view.Passed.Passed, MedianSecondsToPass: median, Buckets: buckets, Participation: rows,
 	}, nil
 }
