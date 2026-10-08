@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -941,6 +942,8 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	}
 	ctx, cancel, sb := r.rowBudget(ctx, row)
 	defer cancel()
+	watch := r.env.watchLoad(ctx, sb)
+	defer watch.stop()
 	if row.lockWaited != "" {
 		if _, err := r.env.writeState(lockWaitedDir, filepath.Base(row.lockWaited), nil); err != nil {
 			return err
@@ -950,10 +953,11 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 	warnings := 0
 	var waited time.Duration
 	for _, cmd := range row.cmds {
-		if sb.scaled() {
-			cmd = withTimeout(cmd, sb.limit)
+		if sb.capped() {
+			cmd = withTimeout(cmd, sb.ceiling)
 		}
 		text, err := r.exec(ctx, row, cmd)
+		sb = watch.sample(ctx)
 		warnings += strings.Count(text, "::warning ")
 		waited = lockWaited(row.lockWaited)
 		rescued, budgetErr := r.checkBudget(ctx, stdout, row, cmd, sb, rowStart, waited, first)
@@ -961,7 +965,7 @@ func (r *checkRun) row(ctx context.Context, row checkRow, stdout io.Writer) erro
 			return budgetErr
 		}
 		if err != nil && !rescued {
-			return failRow(stdout, row, cmd, text, err)
+			return failRow(stdout, row, cmd, text, err, sb)
 		}
 	}
 	note := ""
@@ -984,7 +988,7 @@ func (r *checkRun) rowBudget(ctx context.Context, row checkRow) (context.Context
 	if row.kind == packageKind {
 		return ctx, func() {}, sb
 	}
-	limit := sb.limit
+	limit := sb.ceiling
 	if row.lockWaited != "" {
 		limit += xcodeLockWait * time.Duration(len(row.cmds))
 	}
@@ -992,8 +996,8 @@ func (r *checkRun) rowBudget(ctx context.Context, row checkRow) (context.Context
 	return ctx, cancel, sb
 }
 
-func failRow(stdout io.Writer, row checkRow, cmd []string, text string, err error) error {
-	_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s\n", row.label, strings.Join(cmd, " "))
+func failRow(stdout io.Writer, row checkRow, cmd []string, text string, err error, sb scaledBudget) error {
+	_, _ = fmt.Fprintf(stdout, "  %-15s FAIL  %s%s\n", row.label, strings.Join(cmd, " "), sb.peakNote())
 	for _, line := range excerpt(text + "\n" + err.Error()) {
 		_, _ = fmt.Fprintf(stdout, "    %s\n", line)
 	}
@@ -1020,15 +1024,27 @@ func (r *checkRun) checkBudget(
 }
 
 type scaledBudget struct {
-	base, limit time.Duration
-	factor      float64
-	load        float64
-	cores       int
+	base, limit, ceiling time.Duration
+	factor               float64
+	load                 float64
+	cores                int
 }
 
-const maxBudgetScale = 4
+const (
+	maxBudgetScale  = 4
+	loadSampleEvery = time.Minute
+)
 
 func (s scaledBudget) scaled() bool { return s.limit > s.base }
+
+func (s scaledBudget) capped() bool { return s.ceiling > s.base }
+
+func (s scaledBudget) peakNote() string {
+	if !s.scaled() {
+		return ""
+	}
+	return fmt.Sprintf("  (highest load1 %.1f)", s.load)
+}
 
 func (s scaledBudget) String() string {
 	if !s.scaled() {
@@ -1038,28 +1054,89 @@ func (s scaledBudget) String() string {
 		s.limit, s.base, s.factor, s.load, s.cores)
 }
 
+func (s scaledBudget) observe(load float64) scaledBudget {
+	if s.cores < 1 || load <= s.load {
+		return s
+	}
+	s.load = load
+	s.factor = min(max(1, load/float64(s.cores)), maxBudgetScale)
+	s.limit = max(s.base, time.Duration(float64(s.base)*s.factor).Round(100*time.Millisecond))
+	return s
+}
+
 func (env *Env) scaleBudget(ctx context.Context, base time.Duration) scaledBudget {
-	sb := scaledBudget{base: base, limit: base, factor: 1}
+	sb := scaledBudget{base: base, limit: base, ceiling: base, factor: 1}
 	if env.Actions {
 		return sb
 	}
+	sb.cores = runtime.NumCPU()
+	if env.Cores != nil {
+		sb.cores = env.Cores()
+	}
+	if sb.cores < 1 {
+		return sb
+	}
+	sb.ceiling = base * maxBudgetScale
 	load, err := env.loadValue(ctx)
 	if err != nil {
 		return sb
 	}
-	cores := runtime.NumCPU()
-	if env.Cores != nil {
-		cores = env.Cores()
+	return sb.observe(load)
+}
+
+type loadWatch struct {
+	env  *Env
+	mu   sync.Mutex
+	sb   scaledBudget
+	live bool
+	done chan struct{}
+	wg   sync.WaitGroup
+}
+
+func (env *Env) watchLoad(ctx context.Context, sb scaledBudget) *loadWatch {
+	w := &loadWatch{env: env, sb: sb, live: sb.capped(), done: make(chan struct{})}
+	if !w.live {
+		return w
 	}
-	if cores < 1 {
-		return sb
+	tick, stop := env.loadTick()
+	w.wg.Go(func() {
+		defer stop()
+		for {
+			select {
+			case <-w.done:
+				return
+			case <-tick:
+				w.sample(ctx)
+			}
+		}
+	})
+	return w
+}
+
+func (env *Env) loadTick() (<-chan time.Time, func()) {
+	if env.LoadTick != nil {
+		return env.LoadTick()
 	}
-	factor := min(max(1, load/float64(cores)), maxBudgetScale)
-	limit := time.Duration(float64(base) * factor).Round(100 * time.Millisecond)
-	if limit <= base {
-		return sb
+	t := time.NewTicker(loadSampleEvery)
+	return t.C, t.Stop
+}
+
+func (w *loadWatch) sample(ctx context.Context) scaledBudget {
+	if !w.live {
+		return w.sb
 	}
-	return scaledBudget{base: base, limit: limit, factor: factor, load: load, cores: cores}
+	load, err := w.env.loadValue(ctx)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err == nil {
+		w.sb = w.sb.observe(load)
+	}
+	return w.sb
+}
+
+func (w *loadWatch) stop() {
+	close(w.done)
+	w.wg.Wait()
 }
 
 func withTimeout(cmd []string, d time.Duration) []string {
@@ -1142,7 +1219,7 @@ func (r *checkRun) retryAlone(
 		))
 	}
 	if err != nil {
-		return false, failRow(stdout, row, alone, text, err)
+		return false, failRow(stdout, row, alone, text, err, sb)
 	}
 	load := r.env.load1(ctx)
 	for _, t := range again {
