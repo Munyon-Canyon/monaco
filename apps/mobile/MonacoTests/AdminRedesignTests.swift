@@ -48,7 +48,6 @@ struct AdminCopyAuditTests {
         ]
 
         #expect(MainFlowCopyAudit.stringsAreClean(CabalRulesCopy.auditedStrings))
-        #expect(MainFlowCopyAudit.stringsAreClean(CabalDetailsCopy.auditedStrings))
         #expect(MainFlowCopyAudit.stringsAreClean(joinCopy))
     }
 }

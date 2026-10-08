@@ -63,6 +63,6 @@ struct CreateCabalActionTests {
         "rules":{"join_mode":"request","voter_mode":"list","threshold":"majority","proposal_expiry_seconds":86400,"slippage_bps":100},\
         "creator":{"user_id":"01890a5d-ac96-774b-bcce-b302099a8058","handle":"kai","display_name":"Kai","photo_url":null},\
         "member_count":1,"members":[],"me":{"role":"creator","can_vote":true},"my_access_request":null,\
-        "invite_code":"ABCD2345","treasury_address":"treasury-1"}
+        "invite_code":null,"treasury_address":"treasury-1"}
         """
 }

@@ -18,7 +18,6 @@ struct CabalScreen: View {
     ]
 
     static let detailsSections: [any CabalSection.Type] = [
-        CabalInviteCodeSlot.self,
         CabalInviteMemberSlot.self,
         CabalRulesSlot.self,
         CabalTreasurySlot.self,

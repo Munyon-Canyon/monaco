@@ -80,7 +80,7 @@ final class CabalRulesDiffTests: XCTestCase {
             + ##""proposal_expiry_seconds":3600,"slippage_bps":100},"##
             + ##""creator":{"user_id":"\##(creatorID)","handle":"kai","display_name":"Kai","photo_url":null},"##
             + ##""member_count":1,"members":[],"me":{"role":"creator","can_vote":true},"my_access_request":null,"##
-            + ##""invite_code":"ABCD2345","treasury_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf"}"##
+            + ##""invite_code":null,"treasury_address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf"}"##
         let cabal = try JSONDecoder().decode(Components.Schemas.Cabal.self, from: Data(raw.utf8))
 
         XCTAssertEqual(

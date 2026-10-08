@@ -226,7 +226,7 @@ final class InviteMemberModelTests: XCTestCase {
             "rules":{"join_mode":"\(joinMode)","voter_mode":"all","threshold":"majority",
             "proposal_expiry_seconds":86400,"slippage_bps":100},
             "creator":\(creator),"member_count":2,"members":[],"me":{"role":"\(role)","can_vote":true},
-            "my_access_request":null,"invite_code":"ABCD2345","treasury_address":"treasury-placeholder"}
+            "my_access_request":null,"invite_code":null,"treasury_address":"treasury-placeholder"}
             """
     }
 
