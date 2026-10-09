@@ -267,7 +267,7 @@ func TestBackfill_finestWindowWinsASharedBucket(t *testing.T) {
 	}
 }
 
-func TestBackfill_UnlistedMint(t *testing.T) {
+func TestBackfill_anEmptyAnswerFinishesTheMint(t *testing.T) {
 	t.Parallel()
 	r := newBackfillRig(t)
 	tsla := marketfake.TSLAx().Mint
@@ -278,6 +278,93 @@ func TestBackfill_UnlistedMint(t *testing.T) {
 	}
 	if done, code := r.status(t, tsla); !done || code != "" || len(r.points(t, tsla)) != 0 {
 		t.Fatalf("done = %v, last_code = %q, want done with no code and no points", done, code)
+	}
+	if got := len(r.history.Calls()); got != 3 {
+		t.Fatalf("%d calls for an empty answer, want all 3 windows", got)
+	}
+}
+
+func (r *backfillRig) hotUnlisted(t *testing.T) market.Mint {
+	t.Helper()
+	aapl := marketfake.AAPLx()
+	seedAssets(t, r.pool, r.clock.Now(), aapl)
+	hot := []market.Mint{aapl.Mint}
+	r.withHot(hotList(&hot))
+	r.history.FailOnce("MarketChart", errs.New(errs.CodeNotFound, "test"))
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	return aapl.Mint
+}
+
+func TestBackfill_aMintCoinGeckoDoesNotListCostsOneCallAndIsRecorded(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl := r.hotUnlisted(t)
+	want := []marketfake.HistoryCall{{Mint: aapl, Days: 1}}
+	if got := r.history.Calls(); !slices.Equal(got, want) {
+		t.Fatalf("calls = %v, want only %v", got, want)
+	}
+	if done, code := r.status(t, aapl); !done || code != "coingecko_not_listed" || len(r.points(t, aapl)) != 0 {
+		t.Fatalf("done = %v, last_code = %q, want done with coingecko_not_listed and no points", done, code)
+	}
+	if got := strings.Count(string(r.logs.Bytes()), `"msg":"market.backfill.coingecko_not_listed"`); got != 1 {
+		t.Fatalf("coingecko_not_listed logged %d times, want once", got)
+	}
+	if _, err := r.tick(t); err != nil || len(r.history.Calls()) != 1 {
+		t.Fatalf("next tick err = %v with %d calls, want no new call", err, len(r.history.Calls()))
+	}
+}
+
+func TestBackfill_aNotListedMintIsRetriedAfterAWeekNotBefore(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl := r.hotUnlisted(t)
+	r.putChart(aapl)
+	r.clock.Advance(6 * 24 * time.Hour)
+	if _, err := r.tick(t); err != nil || len(r.history.Calls()) != 1 {
+		t.Fatalf("tick after 6 days err = %v with %d calls, want no retry yet", err, len(r.history.Calls()))
+	}
+	r.clock.Advance(24 * time.Hour)
+	if _, err := r.tick(t); err != nil || len(r.history.Calls()) != 4 {
+		t.Fatalf("tick after 7 days err = %v with %d calls, want the 3 windows asked again",
+			err, len(r.history.Calls()))
+	}
+	if done, code := r.status(t, aapl); !done || code != "" || len(r.points(t, aapl)) != 4 {
+		t.Fatalf("done = %v, last_code = %q with %d points, want backfilled with the code cleared",
+			done, code, len(r.points(t, aapl)))
+	}
+}
+
+func TestBackfill_aNotListedMintWhoseWriteFailsStaysPending(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl := marketfake.AAPLx().Mint
+	r.pend(t, aapl)
+	ctx, cancel := context.WithCancel(r.ctx(t))
+	r.history.During(cancel)
+	r.history.FailOnce("MarketChart", errs.New(errs.CodeNotFound, "test"))
+	if _, err := r.poller.Tick(ctx); err == nil {
+		t.Fatal("tick whose not-listed write failed succeeded")
+	}
+	if done, code := r.status(t, aapl); done || code == "coingecko_not_listed" {
+		t.Fatalf("done = %v, last_code = %q, want pending and not marked not-listed", done, code)
+	}
+}
+
+func TestBackfill_aMintThatFinishedIsNeverRequeuedByTheTick(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl := marketfake.AAPLx()
+	seedAssets(t, r.pool, r.clock.Now(), aapl)
+	hot := []market.Mint{aapl.Mint}
+	r.withHot(hotList(&hot))
+	if _, err := r.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	r.clock.Advance(7 * 24 * time.Hour)
+	if _, err := r.tick(t); err != nil || len(r.history.Calls()) != 3 {
+		t.Fatalf("tick a week later err = %v with %d calls, want only the first 3", err, len(r.history.Calls()))
 	}
 }
 

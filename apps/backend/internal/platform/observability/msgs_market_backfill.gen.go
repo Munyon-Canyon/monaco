@@ -5,6 +5,7 @@ package observability
 func init() {
 	register(
 		MarketBackfillSkippedNoKey,
+		MarketBackfillUnlisted,
 		MarketCoinGeckoSubMicroDropped,
 		MarketReconcileSkippedNoKey,
 		MarketChartBackfillQueueFailed,

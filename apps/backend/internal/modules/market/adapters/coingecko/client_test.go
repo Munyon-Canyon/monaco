@@ -181,19 +181,18 @@ func TestCoinGecko_readsEveryRecordedMintAtEveryDays(t *testing.T) {
 	})
 }
 
-func TestCoinGecko_unlistedMintIsAnEmptyAnswer(t *testing.T) {
+func TestCoinGecko_unlistedMintIsNotFound(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		c, _, srv := overFakes(t)
 		script(t, srv, fakes.Step{Route: chartRoute, Action: fakes.ActionFail, Status: http.StatusNotFound})
 		got, err := c.MarketChart(t.Context(), mint(t, aaplx), 1)
-		if err != nil || len(got) != 0 {
-			t.Fatalf("scripted 404 = %v, %v, want an empty answer", got, err)
+		wantCode(t, err, errs.CodeNotFound)
+		if got != nil {
+			t.Fatalf("scripted 404 answered %v, want no samples", got)
 		}
-		got, err = c.MarketChart(t.Context(), mint(t, unlisted), 365)
-		if err != nil || len(got) != 0 {
-			t.Fatalf("unlisted fixture = %v, %v, want an empty answer", got, err)
-		}
+		_, err = c.MarketChart(t.Context(), mint(t, unlisted), 365)
+		wantCode(t, err, errs.CodeNotFound)
 	})
 }
 

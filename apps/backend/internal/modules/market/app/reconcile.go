@@ -97,6 +97,9 @@ func (r *Reconcile) fill(ctx context.Context, mint domain.Mint) (int, error) {
 	const op = "market.Reconcile.fill"
 	window := historyWindow{days: 2, bucket: time.Hour}
 	samples, err := r.history.MarketChart(ctx, mint, window.days)
+	if errs.CodeOf(err) == errs.CodeNotFound {
+		return 0, nil
+	}
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeOf(err), op, slog.String("mint", mint.String()))
 	}

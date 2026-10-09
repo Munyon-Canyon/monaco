@@ -69,6 +69,17 @@ func TestReconcile_OneDaysTwoCallPerListedMintInTheSlot(t *testing.T) {
 	}
 }
 
+func TestReconcile_aMintCoinGeckoDoesNotListIsNotAFailure(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	r := newReconcileRig(t, aapl)
+	r.history.FailOnce("MarketChart", errs.New(errs.CodeNotFound, "test"))
+	report, err := r.tick(t)
+	if err != nil || report.Scanned != 1 || report.Changed != 0 {
+		t.Fatalf("tick = %+v, %v, want the mint scanned with no rows and no error", report, err)
+	}
+}
+
 const reconcileSlot = 150
 
 func calledMints(r *reconcileRig) map[market.Mint]bool {
