@@ -12,7 +12,7 @@ enum MonacoAPIError: Error {
 extension Error {
     /// SwiftUI `.task` cancellation usually surfaces as `URLError.cancelled`, not `CancellationError`.
     var isRequestCancellation: Bool {
-        if self is CancellationError {
+        if (self as? APIError) == .cancelled || self is CancellationError {
             return true
         }
         if let urlError = self as? URLError {

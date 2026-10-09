@@ -17,6 +17,7 @@ public enum APIError: Error, Sendable, Hashable {
     /// `IdempotentSubmission`.
     case inFlight
     case decoding(String)
+    case cancelled
 
     public init(_ error: any Error) {
         switch error {
@@ -27,7 +28,9 @@ public enum APIError: Error, Sendable, Hashable {
         case let problem as ProblemError:
             self.init(problem)
         case let urlError as URLError:
-            self = .transport(urlError)
+            self = urlError.code == .cancelled ? .cancelled : .transport(urlError)
+        case is CancellationError:
+            self = .cancelled
         default:
             self = .decoding(String(describing: error))
         }
@@ -57,7 +60,7 @@ public enum APIError: Error, Sendable, Hashable {
             return (400..<500).contains(problem.status) && problem.status != 401 && problem.status != 429
         case .accountDeleted:
             return true
-        case .transport, .signedOut, .missingAccessToken, .inFlight, .decoding:
+        case .transport, .signedOut, .missingAccessToken, .inFlight, .decoding, .cancelled:
             return false
         }
     }

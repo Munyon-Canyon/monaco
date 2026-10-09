@@ -1,7 +1,9 @@
 import Foundation
-import MonacoAPI
 import MonacoTestSupport
+import OpenAPIRuntime
 import XCTest
+
+@testable import MonacoAPI
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -58,6 +60,63 @@ final class APIErrorMappingTests: XCTestCase {
         else {
             return XCTFail("expected .decoding")
         }
+    }
+
+    func testACancelledTaskIsCancelledNotDecoding() {
+        XCTAssertEqual(APIError(CancellationError()), .cancelled)
+    }
+
+    func testACancelledURLRequestIsCancelledNotTransport() {
+        XCTAssertEqual(APIError(URLError(.cancelled)), .cancelled)
+    }
+
+    func testACancellationWrappedByTheGeneratedClientIsCancelled() {
+        let wrapped = ClientError(
+            operationID: "getHealthz", operationInput: (), causeDescription: "cancelled",
+            underlyingError: CancellationError())
+
+        XCTAssertEqual(APIError(wrapped), .cancelled)
+    }
+
+    func testAnOfflineFailureIsStillTransport() {
+        XCTAssertEqual(
+            APIError(URLError(.notConnectedToInternet)), .transport(URLError(.notConnectedToInternet)))
+    }
+
+    func testACancelledSubmissionIsNotFinalSoTheRetryKeepsItsKey() {
+        XCTAssertFalse(APIError.cancelled.isFinalAnswer)
+    }
+
+    func testCancellingAReadThrowsCancelled() async {
+        let transport = StubTransport(.hang)
+        let call = Task { try await Fixtures.client(transport).healthz() }
+        await transport.waitForRequest()
+
+        call.cancel()
+
+        do {
+            try await call.value
+            XCTFail("expected a throw")
+        } catch {
+            XCTAssertEqual(error as? APIError, .cancelled)
+        }
+    }
+
+    func testCancellingAKeyedWriteKeepsItsKey() async {
+        let transport = StubTransport(.hang)
+        let submission = IdempotentSubmission { "key-1" }
+        let call = Task { _ = try await Fixtures.client(transport).ping(submission) }
+        await transport.waitForRequest()
+
+        call.cancel()
+
+        do {
+            try await call.value
+            XCTFail("expected a throw")
+        } catch {
+            XCTAssertEqual(error as? APIError, .cancelled)
+        }
+        XCTAssertTrue(submission.hasPendingKey, "a cancelled write may have reached the server")
     }
 
     func testTheWireCodeOfAKnownCodeIsItsRawValue() {

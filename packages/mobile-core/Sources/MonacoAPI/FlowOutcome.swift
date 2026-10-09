@@ -9,7 +9,7 @@ extension FlowOutcome {
             self.init(code: problem.code.wire)
         case .signedOut, .missingAccessToken:
             self.init(code: Components.Schemas.ErrorCode.unauthorized.rawValue)
-        case .transport, .accountDeleted, .inFlight, .decoding:
+        case .transport, .accountDeleted, .inFlight, .decoding, .cancelled:
             return nil
         }
     }
