@@ -25,6 +25,9 @@ type HandlePolicy struct{}
 
 func (HandlePolicy) Check(h Handle, facts HandleFacts) error {
 	const op = "identity.HandlePolicy.Check"
+	if strings.HasPrefix(h.String(), DevHandlePrefix) {
+		return errs.New(errs.CodeHandleReserved, op)
+	}
 	if h.String() != strings.ToLower(facts.OwnXUsername) {
 		switch {
 		case reservedHandle(h.String()):

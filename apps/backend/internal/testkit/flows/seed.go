@@ -65,7 +65,7 @@ func seedSignedIn(ctx context.Context, env SeedEnv) (SeedResult, error) {
 	if err != nil {
 		return SeedResult{}, err
 	}
-	user, err := NewDevUser(ctx, cfg)
+	user, err := NewDevUser(ctx, cfg, "")
 	if err != nil {
 		return SeedResult{}, err
 	}
@@ -80,7 +80,7 @@ func seedAnonymous(context.Context, SeedEnv) (SeedResult, error) {
 	return SeedResult{IDs: map[string]string{}}, nil
 }
 
-func NewDevUser(ctx context.Context, cfg config.Config) (app.DevUser, error) {
+func NewDevUser(ctx context.Context, cfg config.Config, poolName string) (app.DevUser, error) {
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
 		return app.DevUser{}, err
@@ -99,7 +99,7 @@ func NewDevUser(ctx context.Context, cfg config.Config) (app.DevUser, error) {
 	return app.CreateDevUser(ctx, app.CreateDevUserDeps{
 		Env: cfg.Env, UoW: db.New(pool, ids.Real{}, clk), Users: adapters.Users{},
 		Privy: privyadapter.Users{Client: client}, Wallets: privyadapter.Wallets{Client: client},
-		IDs: ids.Real{}, Clock: clk, Hints: conn, Rand: rand.Reader,
+		IDs: ids.Real{}, Clock: clk, Hints: conn, Rand: rand.Reader, Pools: adapters.Users{}, Pool: poolName,
 	})
 }
 
