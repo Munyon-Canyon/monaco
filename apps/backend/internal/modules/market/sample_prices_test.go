@@ -668,7 +668,8 @@ func (c *cappedSource) MintsWithin(w time.Duration) int {
 
 func TestSamplePrices_aCappedSourceGetsTheHotMintsAndARotatingColdSlot(t *testing.T) {
 	t.Parallel()
-	const listed, limit = 1000, 300
+	const hotMints, fullSlots, limit = 2, 4, 300
+	const listed = hotMints + fullSlots*(limit-hotMints)
 	assets := generatedCatalog(t, listed)
 	hot := []app.HotMints{func(context.Context) ([]chain.SolanaAddress, error) {
 		return []chain.SolanaAddress{assets[5].Mint.Address(), assets[700].Mint.Address()}, nil
@@ -692,7 +693,7 @@ func TestSamplePrices_aCappedSourceGetsTheHotMintsAndARotatingColdSlot(t *testin
 		r.clock.Advance(2 * time.Minute)
 	}
 	if len(src.asked[0]) != limit || len(seen) != listed || src.window != 105*time.Second {
-		t.Fatalf("%d of %d mints asked over %d ticks, window %v, want all of them and 105s",
-			len(seen), listed, ticks, src.window)
+		t.Fatalf("%d of %d mints asked over %d ticks, first tick asked %d, want %d, window %v, want all and 105s",
+			len(seen), listed, ticks, len(src.asked[0]), limit, src.window)
 	}
 }
