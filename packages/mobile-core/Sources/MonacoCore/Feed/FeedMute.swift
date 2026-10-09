@@ -60,7 +60,7 @@ public struct FeedMuteOption: Equatable, Sendable, Identifiable {
             options.append(.mute(.init(.cabal, cabalID), label: name))
         }
         if let assetID = item.assetId, let symbol = item.symbol, !symbol.isEmpty {
-            options.append(.mute(.init(.asset, assetID), label: symbol))
+            options.append(.mute(.init(.asset, assetID), label: AssetSymbolFormatter.display(symbol)))
         }
         if let actorID = item.actorId, let name = item.actorName, !name.isEmpty,
             actorID.caseInsensitiveCompare(viewerID ?? "") != .orderedSame

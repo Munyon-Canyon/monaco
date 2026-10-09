@@ -46,7 +46,7 @@ final class FeedMuteMatcherTests: XCTestCase {
         let titles = FeedMuteOption.options(for: samples[1], viewerID: nil).map(\.menuTitle)
         XCTAssertEqual(
             titles,
-            ["Hide this post", "Mute Weekend investors", "Mute NVDAx", "Mute Alex", "Mute Trades"])
+            ["Hide this post", "Mute Weekend investors", "Mute NVDA", "Mute Alex", "Mute Trades"])
     }
 
     func testTheMenuNeverOffersMutingYourself() throws {
@@ -57,7 +57,7 @@ final class FeedMuteMatcherTests: XCTestCase {
 
     func testAPriceMoveOffersNoCabalAndNoMenuNamesAMintAddress() {
         let options = FeedMuteOption.options(for: samples[2], viewerID: nil)
-        XCTAssertEqual(options.map(\.menuTitle), ["Hide this post", "Mute TSLAx", "Mute Price moves"])
+        XCTAssertEqual(options.map(\.menuTitle), ["Hide this post", "Mute TSLA", "Mute Price moves"])
         for option in options {
             XCTAssertFalse(option.menuTitle.contains(samples[2].assetId ?? "-"))
             XCTAssertFalse(option.toast.contains("xStock"))
@@ -68,6 +68,13 @@ final class FeedMuteMatcherTests: XCTestCase {
         let options = FeedMuteOption.options(for: samples[1], viewerID: nil)
         XCTAssertEqual(
             options.map(\.toast),
-            ["Hidden.", "Muted Weekend investors.", "Muted NVDAx.", "Muted Alex.", "Muted Trades."])
+            ["Hidden.", "Muted Weekend investors.", "Muted NVDA.", "Muted Alex.", "Muted Trades."])
+    }
+
+    func testAnAssetMuteNamesTheTickerNotTheXStockSymbol() throws {
+        let option = try XCTUnwrap(
+            FeedMuteOption.options(for: samples[0], viewerID: nil).first { $0.target.kind == .asset })
+        XCTAssertEqual(option.menuTitle, "Mute AAPL")
+        XCTAssertEqual(option.toast, "Muted AAPL.")
     }
 }
