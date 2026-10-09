@@ -10,5 +10,5 @@ public enum ContactsAccess: Equatable, Sendable {
 public protocol ContactsSource: AnyObject {
     func currentAccess() -> ContactsAccess
     func requestAccess() async -> ContactsAccess
-    func phoneNumbers() throws -> [String]
+    func phoneNumbers() async throws -> [String]
 }

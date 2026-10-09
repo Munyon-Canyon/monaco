@@ -1,9 +1,10 @@
 import Contacts
 import MonacoCore
+import os
 
 @MainActor
 final class DeviceContactsSource: ContactsSource {
-    private let store = CNContactStore()
+    private static let log = Logger(subsystem: "so.monaco.app", category: "contacts")
 
     func currentAccess() -> ContactsAccess {
         switch CNContactStore.authorizationStatus(for: .contacts) {
@@ -20,14 +21,26 @@ final class DeviceContactsSource: ContactsSource {
 
     func requestAccess() async -> ContactsAccess {
         do {
-            let granted = try await store.requestAccess(for: .contacts)
+            let granted = try await CNContactStore().requestAccess(for: .contacts)
             return granted ? .granted : currentAccess()
         } catch {
             return .denied
         }
     }
 
-    func phoneNumbers() throws -> [String] {
+    func phoneNumbers() async throws -> [String] {
+        do {
+            return try await Task.detached { try Self.readNumbers() }.value
+        } catch {
+            let failure = error as NSError
+            Self.log.error(
+                "contacts read failed: \(failure.domain, privacy: .public) \(failure.code, privacy: .public)")
+            throw error
+        }
+    }
+
+    private nonisolated static func readNumbers() throws -> [String] {
+        let store = CNContactStore()
         let request = CNContactFetchRequest(keysToFetch: [CNContactPhoneNumbersKey as CNKeyDescriptor])
         var numbers: [String] = []
         try store.enumerateContacts(with: request) { contact, _ in

@@ -33,6 +33,7 @@ public final class FriendsOnMonacoModel {
         case loaded
         case empty
         case failed
+        case contactsFailed
     }
 
     public private(set) var access: ContactsAccess
@@ -80,7 +81,7 @@ public final class FriendsOnMonacoModel {
         let previous = access
         access = contacts.currentAccess()
         guard access == .granted, phase != .checking else { return }
-        guard previous != .granted || phase == .idle || phase == .failed else { return }
+        guard previous != .granted || phase == .idle || phase == .failed || phase == .contactsFailed else { return }
         await upload()
     }
 
@@ -114,8 +115,16 @@ public final class FriendsOnMonacoModel {
         phase = .checking
         friends = []
         toast = nil
+        let numbers: [String]
         do {
-            let numbers = try contacts.phoneNumbers()
+            numbers = try await contacts.phoneNumbers()
+        } catch {
+            guard mine == generation else { return }
+            access = contacts.currentAccess()
+            phase = .contactsFailed
+            return
+        }
+        do {
             let digests = ContactHashing.hashes(for: numbers, defaultRegion: defaultRegion)
             try await post(ContactHashing.chunks(digests, size: chunkSize))
             let loaded = try await loadPages()
