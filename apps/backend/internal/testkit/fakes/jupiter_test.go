@@ -88,6 +88,9 @@ func TestJupiter_anOrderForAHeldWalletExecutesUnderItsOwnSignature(t *testing.T)
 		t.Fatalf("order amounts = %v in, %v out, want 50 USDC in at the fixture's 11/25 rate", first.InAmount,
 			first.OutAmount)
 	}
+	if first.MinOut.Uint64() != 21_780_000 {
+		t.Fatalf("order min out = %v, want 22 AAPLx less the requested 100 bps", first.MinOut)
+	}
 	signed, signature := signAs(t, "treasury-a", first.Transaction)
 	got, err := h.jup.Execute(t.Context(), first.RequestID, signed)
 	want := jupiter.ExecuteResult{
@@ -268,5 +271,20 @@ func TestJupiter_aPayerOrderNeedsAValidPayerAndAnyValidPayerCanPay(t *testing.T)
 		"",
 	); got.status != http.StatusOK {
 		t.Fatalf("order with a payer the fakes hold no key for = %d %q, want 200", got.status, got.body)
+	}
+}
+
+func TestJupiter_anOrderRefusesASlippageOutsideZeroToTenThousandBps(t *testing.T) {
+	t.Parallel()
+	h := newSwapHarness(t)
+	h.post("/_wallet", `{"id":"treasury-s"}`)
+	query := "/jupiter/swap/v2/order?inputMint=" + string(usdcMint) +
+		"&outputMint=XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp&amount=25000000&taker=" +
+		string(fakes.PrivyWalletAddress("treasury-s"))
+	for _, bps := range []string{"-1", "10001", "x"} {
+		got := mustCall(t.Context(), t, h.control, http.MethodGet, query+"&slippageBps="+bps, "")
+		if got.status != http.StatusBadRequest {
+			t.Fatalf("order at slippageBps=%s = %d %q, want 400", bps, got.status, got.body)
+		}
 	}
 }

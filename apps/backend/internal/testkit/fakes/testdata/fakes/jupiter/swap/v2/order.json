@@ -7,6 +7,7 @@
     "outputMint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
     "inAmount": "25000000",
     "outAmount": "11000000",
+    "otherAmountThreshold": "10945000",
     "router": "iris",
     "priceImpactPct": "0.12",
     "routePlan": [{"swapInfo": {"label": "Meteora DLMM"}, "percent": 100}],

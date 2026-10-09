@@ -37,6 +37,28 @@ func TestSlippageMinOut_isTheFlooredToleranceAndNeverAboveTheQuote(t *testing.T)
 	})
 }
 
+func TestSlippageKeeping_isTheWidestToleranceWhoseMinOutStaysAtTheFloor(t *testing.T) {
+	t.Parallel()
+	if got := domain.SlippageKeeping(104_475_000, 103_950_000); got != 50 {
+		t.Fatalf("SlippageKeeping = %d, want 50", got)
+	}
+	minOut := func(out uint64, bps int64) *big.Int {
+		n := new(big.Int).Mul(new(big.Int).SetUint64(out), big.NewInt(10_000-bps))
+		return n.Quo(n, big.NewInt(10_000))
+	}
+	rapid.Check(t, func(t *rapid.T) {
+		out := rapid.Uint64Min(1).Draw(t, "out")
+		floor := rapid.Uint64Max(out).Draw(t, "floor")
+		bps := domain.SlippageKeeping(out, floor)
+		f := new(big.Int).SetUint64(floor)
+		widest := bps == 10_000 || minOut(out, bps+1).Cmp(f) < 0
+		if bps < 0 || bps > 10_000 || minOut(out, bps).Cmp(f) < 0 || !widest {
+			t.Fatalf("SlippageKeeping(%d, %d) = %d, want the widest bps whose min out is at least the floor",
+				out, floor, bps)
+		}
+	})
+}
+
 func TestFeeHeadroom_roundsUpAndStopsAtTheMaximumFee(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

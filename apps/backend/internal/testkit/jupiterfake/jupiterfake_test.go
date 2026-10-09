@@ -53,8 +53,8 @@ func TestVenue_ordersAndQuotesArePerPair(t *testing.T) {
 	v.SetQuote(usdc(), aaplx(), jupiter.Quote{Routable: true, PriceImpactBps: 7})
 
 	got, err := v.Order(t.Context(), jupiter.OrderSpec{In: usdc(), Out: aaplx(), Payer: "relayer"})
-	if err != nil || !reflect.DeepEqual(got, buy) {
-		t.Fatalf("Order = %+v, %v, want %+v", got, err, buy)
+	if want := withMinOut(buy, 7); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("Order = %+v, %v, want %+v", got, err, want)
 	}
 	if _, err := v.Order(
 		t.Context(),
@@ -73,6 +73,40 @@ func TestVenue_ordersAndQuotesArePerPair(t *testing.T) {
 	}
 	if q, err := v.Quote(t.Context(), jupiter.QuoteSpec{In: aaplx(), Out: usdc()}); err != nil || q.Routable {
 		t.Fatalf("unscripted Quote = %+v, %v, want unroutable", q, err)
+	}
+}
+
+func withMinOut(o jupiter.Order, minOut uint64) jupiter.Order {
+	o.MinOut = money.NewBaseUnits(minOut, o.OutAmount.Decimals())
+	return o
+}
+
+func TestVenue_unscriptedMinOutIsTheOutAmountLessTheRequestedSlippage(t *testing.T) {
+	t.Parallel()
+	var v jupiterfake.Venue
+	v.SetOrder(usdc(), aaplx(), jupiter.Order{RequestID: "req", OutAmount: money.NewBaseUnits(283_228, 8)})
+	for _, bps := range []int64{30, 100} {
+		spec := jupiter.OrderSpec{In: usdc(), Out: aaplx(), Payer: "relayer", SlippageBps: bps}
+		got, err := v.Order(t.Context(), spec)
+		want := map[int64]uint64{30: 282_378, 100: 280_395}[bps]
+		if err != nil || got.MinOut != money.NewBaseUnits(want, 8) {
+			t.Fatalf("at %d bps Order = %+v, %v, want min out %d", bps, got, err, want)
+		}
+	}
+	if got := v.Slippages(); !reflect.DeepEqual(got, []int64{30, 100}) {
+		t.Fatalf("Slippages = %v, want [30 100]", got)
+	}
+}
+
+func TestVenue_scriptedMinOutIsReturnedAsIs(t *testing.T) {
+	t.Parallel()
+	var v jupiterfake.Venue
+	o := jupiter.Order{RequestID: "req", OutAmount: money.NewBaseUnits(10, 8), MinOut: money.NewBaseUnits(3, 8)}
+	v.SetOrder(usdc(), aaplx(), o)
+	spec := jupiter.OrderSpec{In: usdc(), Out: aaplx(), Payer: "relayer", SlippageBps: 100}
+	got, err := v.Order(t.Context(), spec)
+	if err != nil || !reflect.DeepEqual(got, o) {
+		t.Fatalf("Order = %+v, %v, want %+v", got, err, o)
 	}
 }
 
