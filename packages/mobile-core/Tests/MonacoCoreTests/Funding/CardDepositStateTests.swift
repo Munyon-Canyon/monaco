@@ -205,6 +205,73 @@ final class CardDepositTests: XCTestCase {
         XCTAssertEqual(deposit.state, .done(sessionID: id))
     }
 
+    func testADepositRowNewerThanTheRedirectEndsProcessing() async {
+        let transport = StubTransport(scripted: processingScript(txns: [fundRow(at: 90), depositRow(at: 60)]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+        XCTAssertTrue(deposit.isProcessing)
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .done(sessionID: id))
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths.last, "/v1/me/txns")
+    }
+
+    func testADepositRowOlderThanTheRedirectLeavesProcessing() async {
+        let transport = StubTransport(scripted: processingScript(txns: [fundRow(at: 90), depositRow(at: -60)]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .processing(sessionID: id))
+    }
+
+    func testOnlyASettledDepositEndsProcessing() async {
+        let pending = depositRow(at: 60, status: "pending")
+        let transport = StubTransport(scripted: processingScript(txns: [pending]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .processing(sessionID: id))
+    }
+
+    func testObservingChecksForADepositThatAlreadyLanded() async {
+        let transport = StubTransport(scripted: processingScript(txns: [fundRow(at: 90), depositRow(at: 60)]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+        let observer = Task { await deposit.observe() }
+        addTeardownBlock { observer.cancel() }
+
+        let done = await waitUntil { [id] in deposit.state == .done(sessionID: id) }
+
+        XCTAssertTrue(done)
+    }
+
+    func testABalanceHintChecksForADepositRow() async {
+        let transport = StubTransport(scripted: processingScript(txns: []) + [.json(.ok, txnsPage([depositRow(at: 60)]))])
+        let hints = FakeHintStream()
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: hints)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+        let observer = Task { await deposit.observe() }
+        addTeardownBlock { observer.cancel() }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
+        XCTAssertTrue(deposit.isProcessing)
+
+        await hints.send(.changed(.user(userID), what: BalanceSource.refreshingHint, id: "1"))
+
+        let done = await waitUntil { [id] in deposit.state == .done(sessionID: id) }
+        XCTAssertTrue(done)
+    }
+
     func testTheSamplesDecode() {
         XCTAssertEqual(Components.Schemas.OnrampSession.sample.status, .confirmed)
         XCTAssertEqual(Components.Schemas.OnrampSessionCreated.sample.sessionId, id)
@@ -217,6 +284,29 @@ final class CardDepositTests: XCTestCase {
     private func session(_ status: String) -> String {
         #"{"session_id":"\#(id)","status":"\#(status)","suggested_amount_micros":null,"#
             + #""created_at":"2025-10-04T12:00:00Z","completed_at":null}"#
+    }
+
+    private func processingScript(txns: [String]) -> [StubTransport.Reply] {
+        [.json(.created, created), .json(.ok, session("confirmed")), .json(.ok, txnsPage(txns))]
+    }
+
+    /// A transaction `seconds` after the redirect the test is about to make (negative: before it).
+    private func txn(_ kind: String, status: String, at seconds: TimeInterval) -> String {
+        let stamp = ISO8601DateFormatter().string(from: Date().addingTimeInterval(seconds))
+        return #"{"id":"\#(userID)","kind":"\#(kind)","status":"\#(status)","usdc_micros":"25000000","#
+            + #""cabal":null,"tx_signature":"sig","created_at":"\#(stamp)"}"#
+    }
+
+    private func depositRow(at seconds: TimeInterval, status: String = "settled") -> String {
+        txn("deposit", status: status, at: seconds)
+    }
+
+    private func fundRow(at seconds: TimeInterval) -> String {
+        txn("fund", status: "settled", at: seconds)
+    }
+
+    private func txnsPage(_ items: [String]) -> String {
+        #"{"items":[\#(items.joined(separator: ","))],"next_cursor":null}"#
     }
 
     private func api(_ transport: StubTransport) -> APIClient {
