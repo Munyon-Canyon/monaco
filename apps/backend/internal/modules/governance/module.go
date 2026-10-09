@@ -65,7 +65,10 @@ func (m *Module) Mount(r api.Mount) {
 		Propose:  app.NewProposeTradeHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, ports, hints),
 		Vote:     app.NewCastVoteHandler(m.deps.UoW, m.deps.Clock, hints),
 		Withdraw: app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
-		Reads:    app.NewProposalReads(m.deps.Pool, trading.New(m.deps).Queries()),
+		Void: app.NewVoidProposalHandler(
+			m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
+		),
+		Reads: app.NewProposalReads(m.deps.Pool, trading.New(m.deps).Queries()),
 	}, r)
 }
 
@@ -139,7 +142,12 @@ func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason strin
 	}
 	ctx = auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
 	voids := app.NewVoidProposalHandler(
-		m.deps.UoW, m.deps.Pool, m.deps.Clock, trading.New(m.deps).Queries(), adapters.Hints{Publish: m.deps.Bus},
+		m.deps.UoW,
+		m.deps.Pool,
+		m.deps.IDs,
+		m.deps.Clock,
+		trading.New(m.deps).Queries(),
+		adapters.Hints{Publish: m.deps.Bus},
 	)
 	return voids.Handle(ctx, app.VoidProposal{ProposalID: id, Reason: reason})
 }

@@ -37,6 +37,21 @@ func TestFlow13_WithdrawProposal_WithdrawNotAllowed(t *testing.T) {
 	flows.F13WithdrawProposalWithdrawNotAllowed(scenario.New(t, withGovernance()))
 }
 
+func TestFlow13_VoidProposal_OK(t *testing.T) {
+	t.Parallel()
+	flows.F13VoidProposalOK(scenario.New(t, withGovernance()))
+}
+
+func TestFlow13_VoidProposal_LiveSwapExists(t *testing.T) {
+	t.Parallel()
+	flows.F13VoidProposalLiveSwapExists(scenario.New(t, withGovernance()))
+}
+
+func TestFlow13_VoidProposal_AdminForbidden(t *testing.T) {
+	t.Parallel()
+	flows.F13VoidProposalAdminForbidden(scenario.New(t, withGovernance()))
+}
+
 func TestFlow13a_VoidProposal_OK(t *testing.T) {
 	t.Parallel()
 	flows.F13aVoidProposalOK(scenario.New(t, withGovernance()))

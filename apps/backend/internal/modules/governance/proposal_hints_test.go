@@ -133,7 +133,7 @@ func TestProposalHints_VoidExpiryAndTradeOutcome(t *testing.T) {
 	d := newVoteDB(t)
 	hints := &proposalHints{}
 	p, _ := d.open(t, 1)
-	void := app.NewVoidProposalHandler(d.uow, d.pool, d.clk, fakes.NewTrading(), hints)
+	void := app.NewVoidProposalHandler(d.uow, d.pool, d.ids, d.clk, fakes.NewTrading(), hints)
 	cmd := app.VoidProposal{ProposalID: ids.ProposalIDFrom(p.ID), Reason: "spam"}
 	if err := void.Handle(as(t, auth.ActorAdmin), cmd); err != nil {
 		t.Fatalf("VoidProposal() = %v", err)

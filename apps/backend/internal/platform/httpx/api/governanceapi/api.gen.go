@@ -115,6 +115,21 @@ func (e ProposalStatus) Valid() bool {
 	}
 }
 
+// Defines values for VoidedProposalStatus.
+const (
+	VoidedProposalStatusVoided VoidedProposalStatus = "voided"
+)
+
+// Valid indicates whether the value is a known member of the VoidedProposalStatus enum.
+func (e VoidedProposalStatus) Valid() bool {
+	switch e {
+	case VoidedProposalStatusVoided:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetCabalProposalsParamsFilter.
 const (
 	GetCabalProposalsParamsFilterAll      GetCabalProposalsParamsFilter = "all"
@@ -528,6 +543,29 @@ type TradePreview struct {
 	QuoteOutAmount *int64 `json:"quote_out_amount"`
 }
 
+// VoidedProposal A proposal after a moderator voided it.
+type VoidedProposal struct {
+	// Id The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Status Always `voided`.
+	//
+	// Examples: voided
+	Status VoidedProposalStatus `json:"status"`
+
+	// VoidReason The reason the moderator gave.
+	//
+	// Examples: spam proposal
+	VoidReason string `json:"void_reason"`
+}
+
+// VoidedProposalStatus Always `voided`.
+//
+// Examples: voided
+type VoidedProposalStatus string
+
 // VoteResult The proposal after the caller's ballot.
 type VoteResult struct {
 	// MyBallot A voter's choice on a proposal.
@@ -547,6 +585,12 @@ type VoteResult struct {
 
 	// Tally The ballots counted against the proposal's frozen voter set.
 	Tally Tally `json:"tally"`
+}
+
+// VoidAdminProposalParams defines parameters for VoidAdminProposal.
+type VoidAdminProposalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
 // GetCabalProposalsParams defines parameters for GetCabalProposals.
@@ -597,6 +641,9 @@ type PostProposalVoteParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// VoidAdminProposalJSONRequestBody defines body for VoidAdminProposal for application/json ContentType.
+type VoidAdminProposalJSONRequestBody = externalRef0.ReasonBody
+
 // PostCabalProposalJSONRequestBody defines body for PostCabalProposal for application/json ContentType.
 type PostCabalProposalJSONRequestBody = ProposeTradeRequest
 
@@ -605,6 +652,9 @@ type PostProposalVoteJSONRequestBody = CastVoteRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// VoidAdminProposal Void a proposal.
+	// (POST /v1/admin/proposals/{id}/void)
+	VoidAdminProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params VoidAdminProposalParams)
 	// GetCabalProposals List a cabal's proposals.
 	// (GET /v1/cabals/{id}/proposals)
 	GetCabalProposals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalProposalsParams)
@@ -636,6 +686,60 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// VoidAdminProposal operation middleware
+func (siw *ServerInterfaceWrapper) VoidAdminProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params VoidAdminProposalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VoidAdminProposal(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetCabalProposals operation middleware
 func (siw *ServerInterfaceWrapper) GetCabalProposals(w http.ResponseWriter, r *http.Request) {
@@ -1108,6 +1212,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/proposals/{id}/void", wrapper.VoidAdminProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.GetCabalProposals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.PostCabalProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/preview", wrapper.GetCabalProposalPreview)
@@ -1117,6 +1222,47 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 
 	return m
+}
+
+type VoidAdminProposalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params VoidAdminProposalParams
+	Body   *VoidAdminProposalJSONRequestBody
+}
+
+type VoidAdminProposalResponseObject interface {
+	VisitVoidAdminProposalResponse(w http.ResponseWriter) error
+}
+
+type VoidAdminProposal200JSONResponse VoidedProposal
+
+func (response VoidAdminProposal200JSONResponse) VisitVoidAdminProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoidAdminProposaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response VoidAdminProposaldefaultApplicationProblemPlusJSONResponse) VisitVoidAdminProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetCabalProposalsRequestObject struct {
@@ -1400,6 +1546,9 @@ func (response PostProposalVotedefaultApplicationProblemPlusJSONResponse) VisitP
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// VoidAdminProposal Void a proposal.
+	// (POST /v1/admin/proposals/{id}/void)
+	VoidAdminProposal(ctx context.Context, request VoidAdminProposalRequestObject) (VoidAdminProposalResponseObject, error)
 	// GetCabalProposals List a cabal's proposals.
 	// (GET /v1/cabals/{id}/proposals)
 	GetCabalProposals(ctx context.Context, request GetCabalProposalsRequestObject) (GetCabalProposalsResponseObject, error)
@@ -1460,6 +1609,40 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// VoidAdminProposal operation middleware
+func (sh *strictHandler) VoidAdminProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params VoidAdminProposalParams) {
+	var request VoidAdminProposalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body VoidAdminProposalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.VoidAdminProposal(ctx, request.(VoidAdminProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VoidAdminProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(VoidAdminProposalResponseObject); ok {
+		if err := validResponse.VisitVoidAdminProposalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetCabalProposals operation middleware

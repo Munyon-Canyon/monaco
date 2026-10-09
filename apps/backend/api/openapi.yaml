@@ -1271,6 +1271,43 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/governance.yaml
+  /v1/admin/proposals/{id}/void:
+    post:
+      operationId: voidAdminProposal
+      tags: [governance]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Void a proposal.
+      description: >-
+        Moves an `open` proposal, or a `passed` one with no live transaction, to `voided` and appends
+        `proposal.voided` and `admin.action` in one transaction. A proposal whose swap is `submitted`
+        answers live_swap_exists, a proposal already closed answers proposal_closed, an unknown one answers
+        proposal_not_found, and a reason shorter than 3 characters answers reason_required. A replay with the
+        same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The id of the proposal.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+      requestBody:
+        description: Why the moderator voids the proposal.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: spam proposal}
+      responses:
+        "200":
+          description: The voided proposal.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/VoidedProposal"}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, status: voided, void_reason: spam proposal}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/cabals/{id}/proposals:
     get:
       operationId: getCabalProposals
@@ -5684,6 +5721,15 @@ components:
           format: int64
           description: The cabal's total value, USDC plus priced holdings, in micros.
           examples: [100000000]
+    VoidedProposal:
+      type: object
+      description: A proposal after a moderator voided it.
+      additionalProperties: false
+      required: [id, status, void_reason]
+      properties:
+        id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
+        status: {type: string, description: Always `voided`., enum: [voided], examples: [voided]}
+        void_reason: {type: string, description: The reason the moderator gave., examples: [spam proposal]}
     VoteResult:
       type: object
       description: The proposal after the caller's ballot.

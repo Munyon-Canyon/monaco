@@ -18,17 +18,19 @@ import (
 )
 
 func (d voteDB) void(ctx context.Context, swaps *fakes.Trading, proposal uuid.UUID) error {
-	return app.NewVoidProposalHandler(d.uow, d.pool, d.clk, swaps, app.NoHints{}).Handle(ctx, app.VoidProposal{
+	return app.NewVoidProposalHandler(d.uow, d.pool, d.ids, d.clk, swaps, app.NoHints{}).Handle(ctx, app.VoidProposal{
 		ProposalID: ids.ProposalIDFrom(proposal), Reason: "spam",
 	})
 }
+
+const opsID = "019cc330-2222-7000-8000-0000000000a1"
 
 func as(t *testing.T, kind auth.ActorKind) context.Context {
 	t.Helper()
 	if kind == "" {
 		return t.Context()
 	}
-	return auth.WithActor(t.Context(), auth.Actor{Kind: kind, ID: "ops-1"})
+	return auth.WithActor(t.Context(), auth.Actor{Kind: kind, ID: opsID})
 }
 
 func TestVoidProposal_refusesWhatItMustNotVoid(t *testing.T) {
