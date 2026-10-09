@@ -58,7 +58,7 @@ private struct Payload {
 
     var chat: PushRoute? {
         guard kind == .chatMention || kind == .chatThreadReply, let cabalID = id(.cabalID) else { return nil }
-        if kind == .chatThreadReply, let parentID = id(.parentID) {
+        if let parentID = id(.parentID) {
             return .chatThread(cabalID: cabalID, parentID: parentID)
         }
         return .chat(cabalID: cabalID)
