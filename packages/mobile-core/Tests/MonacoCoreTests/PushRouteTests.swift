@@ -9,6 +9,7 @@ final class PushRouteTests: XCTestCase {
     private let txn = "0192e8a1-0004-7000-8000-000000000004"
     private let feedItem = "0192e8a1-0005-7000-8000-000000000005"
     private let message = "0192e8a1-0006-7000-8000-000000000006"
+    private let parent = "0192e8a1-0007-7000-8000-000000000007"
     private let notAnID = "not-a-uuid"
 
     func testEveryKindTheBackendSendsOpensItsScreen() {
@@ -16,6 +17,10 @@ final class PushRouteTests: XCTestCase {
             ("new_follower", ["user_id": user], .userProfile(userID: user)),
             ("chat_mention", ["cabal_id": cabal, "message_id": message], .chat(cabalID: cabal)),
             ("chat_thread_reply", ["cabal_id": cabal, "message_id": message], .chat(cabalID: cabal)),
+            (
+                "chat_thread_reply", ["cabal_id": cabal, "message_id": message, "parent_id": parent],
+                .chatThread(cabalID: cabal, parentID: parent)
+            ),
             ("trade_filled", ["cabal_id": cabal, "txn_id": txn], .transaction(txnID: txn, cabalID: cabal)),
             ("trade_failed", ["cabal_id": cabal, "txn_id": txn], .transaction(txnID: txn, cabalID: cabal)),
             (
@@ -82,6 +87,8 @@ final class PushRouteTests: XCTestCase {
             ("new_follower", ["user_id": notAnID, "cabal_id": cabal], .cabal(cabalID: cabal)),
             ("new_follower", ["user_id": notAnID], .home),
             ("chat_mention", ["cabal_id": notAnID, "message_id": message], .home),
+            ("chat_thread_reply", ["cabal_id": cabal, "parent_id": notAnID], .chat(cabalID: cabal)),
+            ("chat_mention", ["cabal_id": cabal, "parent_id": parent], .chat(cabalID: cabal)),
             ("trade_filled", ["cabal_id": cabal, "txn_id": notAnID], .cabal(cabalID: cabal)),
             ("trade_filled", ["cabal_id": notAnID, "txn_id": txn], .home),
             ("proposal_created", ["cabal_id": cabal, "proposal_id": notAnID], .cabal(cabalID: cabal)),
@@ -222,7 +229,7 @@ final class PushRouteTests: XCTestCase {
     private func screen(of route: PushRoute) -> String {
         switch route {
         case .userProfile: "userProfile"
-        case .chat: "chat"
+        case .chat, .chatThread: "chat"
         case .transaction: "transaction"
         case .proposal: "proposal"
         case .feedItem: "feedItem"

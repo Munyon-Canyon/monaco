@@ -67,15 +67,17 @@ func chatMessage(
 		return Message{}, err
 	}
 	thread := e.MessageID
+	data := map[string]string{
+		"kind": kind, "cabal_id": e.CabalID.String(), "message_id": e.MessageID.String(),
+	}
 	if e.ParentID != nil {
 		thread = *e.ParentID
+		data["parent_id"] = e.ParentID.String()
 	}
 	return Message{
-		Title: view.Name,
-		Body:  poster + action,
-		Data: map[string]string{
-			"kind": kind, "cabal_id": e.CabalID.String(), "message_id": e.MessageID.String(),
-		},
+		Title:      view.Name,
+		Body:       poster + action,
+		Data:       data,
 		CollapseID: "chat-" + thread.String(),
 	}, nil
 }

@@ -3,6 +3,7 @@ import Foundation
 public enum PushRoute: Equatable, Sendable {
     case userProfile(userID: String)
     case chat(cabalID: String)
+    case chatThread(cabalID: String, parentID: String)
     case transaction(txnID: String, cabalID: String)
     case proposal(proposalID: String, cabalID: String)
     case feedItem(feedItemID: String)
@@ -25,6 +26,7 @@ private enum Key: String {
     case kind
     case userID = "user_id"
     case cabalID = "cabal_id"
+    case parentID = "parent_id"
     case proposalID = "proposal_id"
     case txnID = "txn_id"
     case feedItemID = "feed_item_id"
@@ -56,6 +58,9 @@ private struct Payload {
 
     var chat: PushRoute? {
         guard kind == .chatMention || kind == .chatThreadReply, let cabalID = id(.cabalID) else { return nil }
+        if kind == .chatThreadReply, let parentID = id(.parentID) {
+            return .chatThread(cabalID: cabalID, parentID: parentID)
+        }
         return .chat(cabalID: cabalID)
     }
 

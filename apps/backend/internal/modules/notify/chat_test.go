@@ -74,11 +74,15 @@ func (r *pushRig) handlePosted(t *testing.T, w chatWorld, d bus.Delivery, e even
 func chatPush(
 	to ids.UserID, tok string, e events.ChatMessagePosted, kind, body string, thread uuid.UUID,
 ) apns.Push {
+	data := map[string]string{
+		"kind": kind, "cabal_id": e.CabalID.String(), "message_id": e.MessageID.String(),
+	}
+	if e.ParentID != nil {
+		data["parent_id"] = e.ParentID.String()
+	}
 	return apns.Push{
 		UserID: to, Token: tok, Environment: apns.Sandbox, CollapseID: "chat-" + thread.String(),
-		Title: cabalName, Body: body, Data: map[string]string{
-			"kind": kind, "cabal_id": e.CabalID.String(), "message_id": e.MessageID.String(),
-		},
+		Title: cabalName, Body: body, Data: data,
 	}
 }
 
@@ -220,6 +224,7 @@ type chatRender struct {
 	cards              map[ids.UserID]identity.UserCard
 	cabalErr, usersErr error
 	body, collapse     string
+	parent             string
 }
 
 func chatRenders(golden events.ChatMessagePosted) map[string]chatRender {
@@ -229,10 +234,12 @@ func chatRenders(golden events.ChatMessagePosted) map[string]chatRender {
 	}
 	keep := func(*events.ChatMessagePosted) {}
 	down := func(port string) error { return errs.New(errs.CodeDBUnavailable, "test."+port) }
-	inThread, alone := "chat-"+golden.ParentID.String(), "chat-"+golden.MessageID.String()
+	parent := golden.ParentID.String()
+	inThread, alone := "chat-"+parent, "chat-"+golden.MessageID.String()
 	return map[string]chatRender{
 		"a mention in a thread": {
-			kind: mentionKind, edit: keep, cards: card("Dana", false), body: "Dana mentioned you", collapse: inThread,
+			kind: mentionKind, edit: keep, cards: card("Dana", false), body: "Dana mentioned you",
+			collapse: inThread, parent: parent,
 		},
 		"a mention outside a thread": {
 			kind: mentionKind, edit: func(e *events.ChatMessagePosted) { e.ParentID = nil },
@@ -240,17 +247,18 @@ func chatRenders(golden events.ChatMessagePosted) map[string]chatRender {
 		},
 		"a thread reply": {
 			kind: replyKind, edit: keep, cards: card("Dana", false),
-			body: "Dana replied in a thread you're in", collapse: inThread,
+			body: "Dana replied in a thread you're in", collapse: inThread, parent: parent,
 		},
 		"a deleted author who kept a name": {
-			kind: mentionKind, edit: keep, cards: card("Dana", true), body: "Someone mentioned you", collapse: inThread,
+			kind: mentionKind, edit: keep, cards: card("Dana", true), body: "Someone mentioned you",
+			collapse: inThread, parent: parent,
 		},
 		"an author with no name": {
 			kind: replyKind, edit: keep, cards: card("", false),
-			body: "Someone replied in a thread you're in", collapse: inThread,
+			body: "Someone replied in a thread you're in", collapse: inThread, parent: parent,
 		},
 		"an author the port does not know": {
-			kind: mentionKind, edit: keep, body: "Someone mentioned you", collapse: inThread,
+			kind: mentionKind, edit: keep, body: "Someone mentioned you", collapse: inThread, parent: parent,
 		},
 		"a users port failure": {kind: replyKind, edit: keep, usersErr: down("users")},
 		"a cabal port failure": {kind: mentionKind, edit: keep, cabalErr: down("cabal")},
@@ -275,9 +283,13 @@ func TestNotify_Chat_Render(t *testing.T) {
 
 		wantErr, want := cmp.Or(tc.cabalErr, tc.usersErr), app.Message{}
 		if wantErr == nil {
-			want = app.Message{Title: cabalName, Body: tc.body, CollapseID: tc.collapse, Data: map[string]string{
+			data := map[string]string{
 				"kind": tc.kind, "cabal_id": golden.CabalID.String(), "message_id": golden.MessageID.String(),
-			}}
+			}
+			if tc.parent != "" {
+				data["parent_id"] = tc.parent
+			}
+			want = app.Message{Title: cabalName, Body: tc.body, CollapseID: tc.collapse, Data: data}
 		}
 		if !errors.Is(err, wantErr) || !reflect.DeepEqual(msg, want) {
 			t.Errorf("%s: Render = %+v, %v, want %+v, %v", name, msg, err, want, wantErr)

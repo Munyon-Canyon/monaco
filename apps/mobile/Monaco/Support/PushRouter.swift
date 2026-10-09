@@ -58,6 +58,15 @@ final class PushRouter {
             navigator.open(UserProfileRoute(userID: userID), in: .home)
         case .chat(let cabalID):
             navigator.open(chain: [CabalRoute(id: cabalID), ChatRoute(cabalID: cabalID)], in: .cabals)
+        case .chatThread(let cabalID, let parentID):
+            navigator.open(
+                chain: [
+                    CabalRoute(id: cabalID),
+                    ChatRoute(cabalID: cabalID),
+                    ChatThreadRoute(cabalID: cabalID, parentID: parentID),
+                ],
+                in: .cabals
+            )
         case .transaction(let txnID, let cabalID):
             navigator.openTransaction(cabalID: cabalID, transactionID: txnID, in: .cabals)
         case .proposal(let proposalID, let cabalID):
