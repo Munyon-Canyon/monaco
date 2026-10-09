@@ -216,6 +216,11 @@ public final class ProposalDetailModel {
 
     public var retriesAtCurrentPrice: Bool { value?.summary.swap?.isPriceMoved == true }
 
+    public func canRetry(viewerID: String?) -> Bool {
+        guard retryableSwapID != nil, let viewerID else { return false }
+        return members.contains { $0.id == viewerID }
+    }
+
     public func retry() async {
         guard let swapID = retryableSwapID, !isRetrying else { return }
         let atCurrentPrice = retriesAtCurrentPrice

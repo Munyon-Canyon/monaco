@@ -73,6 +73,8 @@ struct ProposalDetailSlotView: View {
                 .padding(MonacoTheme.Space.m)
             }
         }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             let model = preparedModel()
             if model.value == nil { await model.load() }
@@ -112,6 +114,12 @@ struct ProposalDetailSlotView: View {
         } message: {
             Text("Votes so far are dropped.")
         }
+    }
+
+    private var title: String {
+        guard let summary = model?.summary else { return "Proposal" }
+        let ticker = AssetSymbolFormatter.display(summary.symbol, kind: model?.asset?.kind ?? .stock)
+        return "\(summary.kind == "sell" ? "Sell" : "Buy") \(ticker)"
     }
 
     private func votes(_ detail: ProposalDetail) -> some View {
@@ -197,7 +205,7 @@ struct ProposalDetailSlotView: View {
             if let move = model?.priceMove, summary.swap?.isPriceMoved == true {
                 priceMoved(move, summary)
             }
-            if model?.retryableSwapID != nil {
+            if model?.canRetry(viewerID: environment.viewer?.userID) == true {
                 Button(model?.retriesAtCurrentPrice == true ? "Buy at current price" : "Retry") {
                     Task {
                         await model?.retry()

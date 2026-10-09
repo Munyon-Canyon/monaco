@@ -31,4 +31,16 @@ final class ProposalSampleModelTests: XCTestCase {
         XCTAssertEqual(model.members.count, 3)
         XCTAssertEqual(model.asset?.decimals, 8)
     }
+
+    func testOnlyACabalMemberCanRetryAFailedTrade() {
+        let transport = StubTransport(.failure(URLError(.notConnectedToInternet)))
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport)
+        let members = Components.Schemas.Cabal.sampleWithMembers(role: "member").members
+        let model = ProposalDetailModel(
+            sample: .failedSwap(retryable: true), members: members, asset: .googl,
+            repository: ProposalsRepository(api: api), hints: FakeHintStream())
+        XCTAssertTrue(model.canRetry(viewerID: members[0].userId))
+        XCTAssertFalse(model.canRetry(viewerID: "not-in-the-cabal"))
+        XCTAssertFalse(model.canRetry(viewerID: nil))
+    }
 }
