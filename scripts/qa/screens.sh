@@ -10,18 +10,28 @@
 # manifest line (outside the generated block) launches a flag no harness file reads, a scenario
 # that file does not know, or a further -Monaco flag no app source reads, so the shot would be
 # the login screen. It also fails when a `-MonacoFlow <id> <outcome>` line of the generated block
-# has no SampleHarnessEntry that reads Flow<id>Scenario.matching. The Journeys CI job runs it.
+# has no SampleHarnessEntry that reads Flow<id>Scenario.matching. -MonacoSampleAct and
+# -MonacoSampleScroll are shared flags that no manifest line carries, so the forward check skips
+# them. The Journeys CI job runs it.
 # Capture runs the check too and exits 1 when a screen failed to launch or shoot, or the check
 # failed.
 #
-# MONACO_QA_SCREEN_SETTLE: seconds to wait after launch before the shot (default 4).
+# Capture launches each line with -MonacoSampleAct and waits for the app to write the marker
+# monaco-sample-drawn in its tmp directory, which the sample screen does when it appears. A line
+# whose marker never appears (sign-in, the splash or a crash) is not shot and counts as failed,
+# as does a line whose app is gone after the shot. Shots with the same bytes are listed at the end
+# as a warning that does not change the exit code.
+#
+# MONACO_QA_SCREEN_TIMEOUT: seconds to wait for the marker after launch (default 20).
+# MONACO_QA_SCREEN_SETTLE: seconds to wait after the screen drew before the shot (default 3).
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 manifest="$root/scripts/qa/sample-screens.txt"
 app_src="$root/apps/mobile/Monaco"
 core_src="$root/packages/mobile-core/Sources"
-settle="${MONACO_QA_SCREEN_SETTLE:-4}"
+settle="${MONACO_QA_SCREEN_SETTLE:-3}"
+timeout="${MONACO_QA_SCREEN_TIMEOUT:-20}"
 
 entries() { # name<TAB>args, comments and blank lines dropped
   sed -E 's/#.*//' "$manifest" | awk 'NF { name=$1; $1=""; sub(/^ +/, ""); print name "\t" $0 }'
@@ -82,7 +92,7 @@ check() {
       echo "screens: $flag has no line in scripts/qa/sample-screens.txt" >&2
       missing=1
     fi
-  done < <(grep -rhoE '"-(Monaco[A-Za-z]*(Sample|Gallery)[A-Za-z]*|[a-z][A-Za-z]*Harness)"' "$app_src" --include='*.swift' | tr -d '"' | sort -u)
+  done < <(grep -rhoE '"-(Monaco[A-Za-z]*(Sample|Gallery)[A-Za-z]*|[a-z][A-Za-z]*Harness)"' "$app_src" --include='*.swift' | tr -d '"' | grep -vxE -- '-MonacoSample(Act|Scroll)' | sort -u)
 
   # $harnesses is split on purpose: app source paths have no spaces.
   # shellcheck disable=SC2086
@@ -148,44 +158,82 @@ check() {
 }
 
 capture() {
-  local sim="$1" app="$2" dir="$3" bundle name args failed=0 shot=0 wait
+  local sim="$1" app="$2" dir="$3" bundle container name args failed=0 shot=0
   [[ -d "$app" ]] || { echo "screens: no app at $app" >&2; return 1; }
   bundle="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" || return 1
   mkdir -p "$dir"
   xcrun simctl install "$sim" "$app" </dev/null || { echo "screens: install failed" >&2; return 1; }
+  container="$(xcrun simctl get_app_container "$sim" "$bundle" data </dev/null)" || { echo "screens: no app container" >&2; return 1; }
 
-  wait=$((settle * 3)) # the first launch after an install is the slow one
+  local marker="$container/tmp/monaco-sample-drawn" shots=()
   while IFS=$'\t' read -r name args; do
-    local start=$SECONDS took
+    local start=$SECONDS took waited=0
     xcrun simctl terminate "$sim" "$bundle" </dev/null >/dev/null 2>&1
+    rm -f "$marker"
     # $args is split on purpose: it is a list of launch arguments with no spaces inside.
     # shellcheck disable=SC2086
-    if ! xcrun simctl launch "$sim" "$bundle" $args </dev/null >/dev/null; then
+    if ! xcrun simctl launch "$sim" "$bundle" $args -MonacoSampleAct </dev/null >/dev/null; then
       took=$((SECONDS - start))
       echo "screens: $name ${took}s did not launch"
       failed=$((failed + 1)); continue
     fi
-    sleep "$wait"; wait="$settle"
+    while [[ ! -e "$marker" ]] && (( waited < timeout )); do sleep 1; waited=$((waited + 1)); done
+    if [[ ! -e "$marker" ]]; then
+      echo "screens: $name never drew a sample screen (sign-in, splash or a crash)"
+      failed=$((failed + 1)); continue
+    fi
+    sleep "$settle"
     if xcrun simctl io "$sim" screenshot --type=png "$dir/$name.png" </dev/null >/dev/null 2>&1; then
       took=$((SECONDS - start))
       shot=$((shot + 1))
+      shots+=("$name")
       echo "screens: $name ${took}s"
     else
       took=$((SECONDS - start))
       echo "screens: $name ${took}s could not be shot"
       failed=$((failed + 1))
     fi
+    if ! app_running "$sim" "$bundle"; then
+      echo "screens: $name crashed after it drew"
+      failed=$((failed + 1))
+    fi
   done < <(entries)
   xcrun simctl terminate "$sim" "$bundle" </dev/null >/dev/null 2>&1
 
   echo "screens: $shot shot, $failed failed, in $dir"
+  same_pictures "$dir" "${shots[@]+"${shots[@]}"}"
   check || failed=$((failed + 1))
   (( failed == 0 ))
 }
 
+# A probe that fails to run proves nothing; only a successful probe without the app says it died.
+app_running() {
+  local out gone=0
+  for _ in 1 2 3; do
+    if out="$(xcrun simctl spawn "$1" launchctl list </dev/null 2>/dev/null)"; then
+      gone=1
+      grep -q "UIKitApplication:$2" <<<"$out" && return 0
+    fi
+    sleep 1
+  done
+  return "$gone"
+}
+
+# Warn for every group of shots with the same bytes: usually one harness drew the wrong screen.
+same_pictures() {
+  local dir="$1" name sum prev=""
+  shift
+  for name in "$@"; do echo "$(shasum "$dir/$name.png" | cut -d" " -f1) $name"; done | sort | while read -r sum name; do
+    if [[ -n "$prev" && "${prev% *}" == "$sum" ]]; then
+      echo "screens: ${prev#* } and $name are the same picture"
+    fi
+    prev="$sum $name"
+  done
+}
+
 case "${1:-}" in
   --check) check ;;
-  -h|--help|"") sed -n '2,17p' "$0"; [[ -n "${1:-}" ]] ;;
+  -h|--help|"") sed -n '2,26p' "$0"; [[ -n "${1:-}" ]] ;;
   *)
     [[ $# -eq 3 ]] || { echo "usage: $0 --check | <sim udid> <Monaco.app> <out dir>" >&2; exit 2; }
     capture "$@"

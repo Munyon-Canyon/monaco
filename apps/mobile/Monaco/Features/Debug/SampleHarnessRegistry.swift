@@ -26,7 +26,14 @@ enum SampleHarnessRegistry {
         if matches.count > 1 {
             reportConflict()
         }
-        return first
+        return AnyView(first.onAppear { markDrawn(arguments) })
+    }
+
+    static let actArgument = "-MonacoSampleAct"
+
+    private static func markDrawn(_ arguments: [String]) {
+        let marker = FileManager.default.temporaryDirectory.appending(path: "monaco-sample-drawn")
+        try? Data(arguments.joined(separator: " ").utf8).write(to: marker, options: .atomic)
     }
 
     private static func directSubclasses() -> [SampleHarnessEntry.Type] {

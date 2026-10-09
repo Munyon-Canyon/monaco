@@ -41,6 +41,7 @@ struct SampleAppFrame: View {
     var body: some View {
         let environment = environment.value(makeEnvironment)
         MainTabView()
+            .modifier(SampleScrollModifier(anchor: SampleScrollAnchor.requested(by: SampleScrollAnchor.flag)))
             .environment(environment)
             .environment(environment.sessionStore)
             .sheet(isPresented: $showsSheet) { sheet?() }
@@ -58,6 +59,18 @@ struct SampleAppFrame: View {
 
     @MainActor static func loading(_ store: AppSessionStore) {
         store.isLoading = true
+    }
+}
+
+private struct SampleScrollModifier: ViewModifier {
+    let anchor: UnitPoint?
+
+    func body(content: Content) -> some View {
+        if let anchor {
+            content.defaultScrollAnchor(anchor)
+        } else {
+            content
+        }
     }
 }
 

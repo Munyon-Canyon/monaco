@@ -25,9 +25,9 @@ struct StockRowLayoutTests {
 }
 
 #if DEBUG
-/// `-MonacoAssetDetailScroll` / `-MonacoStocksTabScroll`: where a harness opens its page.
+/// `-MonacoSampleScroll`: where the sample app opens its page.
 struct SampleScrollAnchorTests {
-    private let flag = "-MonacoAssetDetailScroll"
+    private let flag = SampleScrollAnchor.flag
 
     @Test func withoutTheFlagTheScreenOpensAsTheAppDoes() {
         #expect(SampleScrollAnchor.requested(by: flag, in: ["Monaco", "-MonacoAssetDetailSample", "cabals"]) == nil)
