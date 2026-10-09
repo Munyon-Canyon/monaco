@@ -536,7 +536,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s",
-		"APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id")
+		"APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id", "NATS_CREDS=/run/secrets/nats.creds")
 	for k, v := range secrets {
 		environ = append(environ, k+"="+v)
 	}
@@ -551,6 +551,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 	}{
 		{"DATABASE_URL", "***"},
 		{"NATS_URL", "***"},
+		{"NATS_CREDS", "***"},
 		{"OTEL_EXPORTER_OTLP_HEADERS", "***"},
 		{"MONACO_DEV_TOKEN_KEY", "***"},
 		{"JUPITER_API_KEY", "***"},
