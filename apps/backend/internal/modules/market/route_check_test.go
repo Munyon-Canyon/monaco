@@ -141,17 +141,101 @@ func TestCheckRoute_Ok_Sell(t *testing.T) {
 	}
 }
 
-func TestCheckRoute_NoRoute(t *testing.T) {
+func noRouteFor(t *testing.T, calls *quoteCalls, amount string) {
+	t.Helper()
+	scriptQuote(t, calls.srv, fakes.Step{
+		Route: orderRoute, Action: fakes.ActionSucceed, Fixture: orderRoute + "/no-route",
+		Query: map[string]string{"amount": amount},
+	})
+}
+
+func TestCheckRoute_NoRoute_WhenTheProbeRoutes(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	checker, calls := routeChecker(t, aapl)
+	noRouteFor(t, calls, "25000000")
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	wantCode(t, err, errs.CodeNoRoute, calls, 2)
+	if got := calls.asked().Get("amount"); got != "1000000" {
+		t.Fatalf("probe amount = %s, want 1 USDC", got)
+	}
+	if errs.Message(errs.CodeNoRoute) != "No route for this trade right now. Try a smaller amount." {
+		t.Fatalf("message = %q", errs.Message(errs.CodeNoRoute))
+	}
+}
+
+func TestCheckRoute_AssetPaused_WhenTheProbeDoesNotRoute(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
 	scriptQuote(t, calls.srv, fakes.Step{
-		Route: orderRoute, Action: fakes.ActionSucceed, Fixture: orderRoute + "/no-route",
+		Route: orderRoute, Action: fakes.ActionSucceed, Fixture: orderRoute + "/no-route", Times: 2,
 	})
 	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
-	wantCode(t, err, errs.CodeNoRoute, calls, 1)
-	if errs.Message(errs.CodeNoRoute) != "No route for this trade right now. Try a smaller amount." {
-		t.Fatalf("message = %q", errs.Message(errs.CodeNoRoute))
+	wantCode(t, err, errs.CodeAssetPaused, calls, 2)
+	if errs.KindOf(errs.CodeAssetPaused) != errs.KindBlocked || errs.Message(errs.CodeAssetPaused) !=
+		"This stock can't be traded right now." {
+		t.Fatalf("asset_paused kind = %v, message = %q",
+			errs.KindOf(errs.CodeAssetPaused), errs.Message(errs.CodeAssetPaused))
+	}
+}
+
+func TestCheckRoute_AssetPaused_WithoutAProbeWhenTheAmountIsAtOrBelowIt(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		side   app.Side
+		amount money.BaseUnits
+	}{
+		"buy at the probe":     {app.SideBuy, money.NewBaseUnits(1_000_000, 6)},
+		"buy below the probe":  {app.SideBuy, money.NewBaseUnits(250_000, 6)},
+		"sell at one token":    {app.SideSell, money.NewBaseUnits(100_000_000, 8)},
+		"sell below one token": {app.SideSell, money.NewBaseUnits(5_000_000, 8)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			aapl := marketfake.AAPLx()
+			checker, calls := routeChecker(t, aapl)
+			scriptQuote(t, calls.srv, fakes.Step{
+				Route: orderRoute, Action: fakes.ActionSucceed, Fixture: orderRoute + "/no-route",
+			})
+			_, err := checker.CheckRoute(t.Context(), aapl.ID, tc.side, tc.amount)
+			wantCode(t, err, errs.CodeAssetPaused, calls, 1)
+		})
+	}
+}
+
+func TestCheckRoute_SellProbesAtMostOneWholeToken(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	checker, calls := routeChecker(t, aapl)
+	noRouteFor(t, calls, "500000000")
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(500_000_000, 8))
+	wantCode(t, err, errs.CodeNoRoute, calls, 2)
+	if got := calls.asked().Get("amount"); got != "100000000" {
+		t.Fatalf("probe amount = %s, want one whole AAPLx", got)
+	}
+}
+
+func TestCheckRoute_AFailedProbeIsNeitherNoRouteNorPaused(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	checker, calls := routeChecker(t, aapl)
+	noRouteFor(t, calls, "25000000")
+	scriptQuote(t, calls.srv, fakes.Step{
+		Route: orderRoute, Action: fakes.ActionFail, Status: http.StatusInternalServerError,
+		Query: map[string]string{"amount": "1000000"},
+	})
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	wantCode(t, err, errs.CodeJupiterUnavailable, calls, 2)
+}
+
+func TestCheckRoute_RoutedQuoteMakesNoProbe(t *testing.T) {
+	t.Parallel()
+	aapl := marketfake.AAPLx()
+	checker, calls := routeChecker(t, aapl)
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	if err != nil || calls.calls.Load() != 1 {
+		t.Fatalf("err = %v after %d quotes, want none after the one quote", err, calls.calls.Load())
 	}
 }
 

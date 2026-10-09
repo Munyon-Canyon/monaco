@@ -38,6 +38,11 @@ func TestRoutesFake_scriptsOkNoRouteAndUntradable(t *testing.T) {
 	if errs.CodeOf(err) != errs.CodeAssetUntradable {
 		t.Fatalf("Untradable err = %v, want asset_untradable", err)
 	}
+	f.Paused(tsla)
+	_, err = f.CheckRoute(t.Context(), tsla, market.SideBuy, money.NewBaseUnits(1, 6))
+	if errs.CodeOf(err) != errs.CodeAssetPaused {
+		t.Fatalf("Paused err = %v, want asset_paused", err)
+	}
 	_, err = f.CheckRoute(t.Context(), missing, market.SideBuy, money.NewBaseUnits(1, 6))
 	if errs.CodeOf(err) != errs.CodeAssetNotFound {
 		t.Fatalf("missing err = %v, want asset_not_found", err)

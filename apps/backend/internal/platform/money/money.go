@@ -201,3 +201,11 @@ func parseSigned(raw string) (int64, bool) {
 func canonicalDigits(s string) bool {
 	return !strings.HasPrefix(s, "+") && (s == "0" || !strings.HasPrefix(s, "0"))
 }
+
+func OneWhole(decimals uint8) uint64 {
+	n := uint64(1)
+	for range decimals {
+		n *= 10
+	}
+	return n
+}

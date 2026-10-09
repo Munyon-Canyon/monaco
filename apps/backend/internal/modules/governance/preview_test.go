@@ -76,6 +76,16 @@ func TestPreview_answersEachCheckAsAnAdvisoryOrAProblem(t *testing.T) {
 	w.scenario(t).Given(w.asMember()).When(steps...).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
+func TestPreview_advisesAPausedStockSoTheAppDoesNotSuggestASmallerAmount(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	w.routes.Paused(marketfake.TSLAx().ID)
+	w.scenario(t).Given(w.asMember()).When(
+		scenario.Get(w.preview("kind=buy&symbol=TSLAx&usdc_micros=5000000")), scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectJSON("advisory_code", "asset_paused"), scenario.ExpectJSON("quote_out_amount", nil),
+	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
 func TestPreview_passesThroughWhatIsUnavailable(t *testing.T) {
 	t.Parallel()
 	h := newProposeHarness(t)

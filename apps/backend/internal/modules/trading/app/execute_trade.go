@@ -218,10 +218,28 @@ func (h *ExecuteTradeHandler) price(ctx context.Context, cmd ExecuteTrade, req *
 		return refusal{}, err
 	}
 	if !quote.Routable {
-		return refusal{code: errs.CodeNoRoute}, nil
+		return h.unrouted(ctx, req)
 	}
 	req.QuoteOutAmount = quote.OutAmount
 	return refusal{}, nil
+}
+
+func (h *ExecuteTradeHandler) unrouted(ctx context.Context, req *SwapRequest) (refusal, error) {
+	probe := uint64(1_000_000)
+	if req.InMint.Address != h.d.USDC.Address {
+		probe = min(req.InAmount, money.OneWhole(req.InMint.Decimals))
+	}
+	if req.InAmount <= probe {
+		return refusal{code: errs.CodeAssetPaused}, nil
+	}
+	quote, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: req.InMint, OutMint: req.OutMint, InAmount: probe})
+	switch {
+	case err != nil:
+		return refusal{}, err
+	case quote.Routable:
+		return refusal{code: errs.CodeNoRoute}, nil
+	}
+	return refusal{code: errs.CodeAssetPaused}, nil
 }
 
 func (h *ExecuteTradeHandler) slippageBps(ctx context.Context, cmd ExecuteTrade) (int32, error) {

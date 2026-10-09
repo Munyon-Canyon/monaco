@@ -265,3 +265,12 @@ func TestSignedMicrosZeroConvertsToZeroMicros(t *testing.T) {
 	_, err = money.SignedMicrosFromInt64(-1).Micros()
 	wantCode(t, err, errs.CodeInvalidInput)
 }
+
+func TestOneWhole_isTenToTheDecimals(t *testing.T) {
+	t.Parallel()
+	for decimals, want := range map[uint8]uint64{0: 1, 6: 1_000_000, 8: 100_000_000, 9: 1_000_000_000} {
+		if got := money.OneWhole(decimals); got != want {
+			t.Fatalf("OneWhole(%d) = %d, want %d", decimals, got, want)
+		}
+	}
+}

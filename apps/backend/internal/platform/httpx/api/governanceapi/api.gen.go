@@ -786,7 +786,7 @@ type Tally struct {
 
 // TradePreview What proposing the trade would quote, and the first check it fails.
 type TradePreview struct {
-	// AdvisoryCode The error code a proposal of this trade would fail with now: asset_not_found, asset_untradable, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
+	// AdvisoryCode The error code a proposal of this trade would fail with now: asset_not_found, asset_untradable, asset_paused, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
 	//
 	// Examples: null
 	AdvisoryCode *string `json:"advisory_code"`

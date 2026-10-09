@@ -24,6 +24,7 @@ extension Components.Schemas.ErrorCode {
         case .apnsAuthFailed: true
         case .apnsUnavailable: true
         case .assetNotFound: true
+        case .assetPaused: true
         case .assetUntradable: true
         case .authStateTransition: true
         case .bounceFailed: true

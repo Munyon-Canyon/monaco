@@ -34,6 +34,10 @@ func (f *RoutesFake) NoRoute(id market.AssetID) {
 	f.put(id, scriptedRoute{code: errs.CodeNoRoute})
 }
 
+func (f *RoutesFake) Paused(id market.AssetID) {
+	f.put(id, scriptedRoute{code: errs.CodeAssetPaused})
+}
+
 func (f *RoutesFake) Untradable(id market.AssetID) {
 	f.put(id, scriptedRoute{code: errs.CodeAssetUntradable})
 }

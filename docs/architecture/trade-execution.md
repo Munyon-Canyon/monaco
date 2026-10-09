@@ -41,7 +41,7 @@ A durable JetStream pull consumer in the `trading` module, filtered on `proposal
 | --- | --- | --- | --- |
 | Asset tradable | Mint resolves in the market catalog; mint not paused (pre-IPO tokens can pause) | Same | `AssetUntradable` |
 | Treasury funds | Treasury on-chain USDC ≥ `usdc_micros` plus fee headroom | Treasury holds ≥ `token_amount` of the mint | `InsufficientFunds` |
-| Route exists | Jupiter returns a route for the exact-in amount | Same | `Unroutable` |
+| Route exists | Jupiter returns a route for the exact-in amount. When it doesn't, one probe quote (1 USDC on a buy, at most one whole token on a sell) tells `NoRoute` (the probe routes, so a smaller amount may work) from `AssetPaused` (the probe doesn't route either, or the amount is already at or below it) | Same | `NoRoute`, `AssetPaused` |
 | Cabal not paused | Cabal not banned (cabal query port), and no active pause in funding's pause record, whether for an unresolved external deposit or for ops (funding query port) | Same | `CabalPaused` |
 | Agent budget (intents only) | Intent fits the agent's remaining budget, re-read through the agents module's query port | Same | `AgentBudgetExceeded` |
 

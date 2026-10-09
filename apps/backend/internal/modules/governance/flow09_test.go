@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -104,6 +105,13 @@ func TestFlow09_ProposeTrade_NoRoute(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	w.refused(t, w.asMember(), `{"kind":"buy","symbol":"TSLAx","usdc_micros":5000000}`, errs.CodeNoRoute)
+}
+
+func TestFlow09_ProposeTrade_AssetPaused(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	w.routes.Paused(marketfake.TSLAx().ID)
+	w.refused(t, w.asMember(), `{"kind":"buy","symbol":"TSLAx","usdc_micros":5000000}`, errs.CodeAssetPaused)
 }
 
 func TestFlow09_ProposeTrade_PotExceeded(t *testing.T) {

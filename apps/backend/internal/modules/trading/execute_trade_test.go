@@ -92,9 +92,18 @@ func refusalCases() []refusalCase {
 			*cmd = e.sell(50_000_000)
 			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 49_999_999)
 		}, errs.CodeCabalSharesShort, "49999999", "50000000"},
-		{"no route", func(e *engineEnv, _ *app.ExecuteTrade) {
-			e.quote(usdcToken(), aaplxToken(), 0, false)
+		{"no route at this size, routed at the probe", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.quote(usdcToken(), aaplxToken(), quotedOut, true)
+			e.jup.SetQuoteLimit(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), 1_000_000)
 		}, errs.CodeNoRoute, "0", "0"},
+		{"paused: no route at the probe either", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.quote(usdcToken(), aaplxToken(), 0, false)
+		}, errs.CodeAssetPaused, "0", "0"},
+		{"paused sell of less than one token", func(e *engineEnv, cmd *app.ExecuteTrade) {
+			*cmd = e.sell(40_000_000)
+			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 40_000_000)
+			e.quote(aaplxToken(), usdcToken(), 0, false)
+		}, errs.CodeAssetPaused, "0", "0"},
 		{
 			"banned cabal", func(e *engineEnv, _ *app.ExecuteTrade) { e.seedCabal(cabal.StatusBanned, 100) },
 			errs.CodeCabalPaused, "0", "0",
@@ -102,6 +111,23 @@ func refusalCases() []refusalCase {
 		{"funding pause", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.pauses.Pause(e.cabal, funding.PauseReasonExternalDeposit)
 		}, errs.CodeCabalPaused, "0", "0"},
+	}
+}
+
+func TestExecuteTrade_aFailedProbeQuoteIsRetriedAndNeverBlocksAsPausedOrNoRoute(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	cmd := e.buy()
+	d := e.delivery(t, cmd)
+	e.quote(usdcToken(), aaplxToken(), 0, false)
+	e.jup.FailOnce("Quote", nil)
+	e.jup.FailOnce("Quote", errs.New(errs.CodeJupiterUnavailable, "test"))
+
+	err := e.handle(t, d, cmd)
+
+	if errs.CodeOf(err) != errs.CodeJupiterUnavailable || len(e.blocked(t, cmd.ProposalID)) != 0 {
+		t.Fatalf("err = %v with %d blocked, want jupiter_unavailable returned for redelivery and no block",
+			err, len(e.blocked(t, cmd.ProposalID)))
 	}
 }
 

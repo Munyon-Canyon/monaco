@@ -236,8 +236,16 @@ func TestFlow11_ExecuteTrade_PriceMoved(t *testing.T) {
 
 func TestFlow11_ExecuteTrade_NoRoute(t *testing.T) {
 	t.Parallel()
+	newFlow11(t, func(e *engineEnv) {
+		e.quote(usdcToken(), aaplxToken(), quotedOut, true)
+		e.jup.SetQuoteLimit(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), 1_000_000)
+	}).blocks(errs.CodeNoRoute, "0", "0")
+}
+
+func TestFlow11_ExecuteTrade_AssetPaused(t *testing.T) {
+	t.Parallel()
 	newFlow11(t, func(e *engineEnv) { e.quote(usdcToken(), aaplxToken(), 0, false) }).
-		blocks(errs.CodeNoRoute, "0", "0")
+		blocks(errs.CodeAssetPaused, "0", "0")
 }
 
 func TestFlow11_ExecuteTrade_CabalPaused(t *testing.T) {
