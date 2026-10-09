@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -85,6 +87,9 @@ func (v *Venue) Order(_ context.Context, spec jupiter.OrderSpec) (jupiter.Order,
 	if !ok {
 		return jupiter.Order{}, errs.New(errs.CodeJupiterRejected, "jupiterfake.Order",
 			slog.String("in", spec.In.Address), slog.String("out", spec.Out.Address))
+	}
+	if o.OutAmount == (money.BaseUnits{}) {
+		o.OutAmount = money.NewBaseUnits(math.MaxUint64, 0)
 	}
 	return o, nil
 }

@@ -31,6 +31,7 @@ type OrderSpec struct {
 type Order struct {
 	RequestID   string
 	Transaction []byte
+	OutAmount   uint64
 }
 
 type ExecuteStatus uint8

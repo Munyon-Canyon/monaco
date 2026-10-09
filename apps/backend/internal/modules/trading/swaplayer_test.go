@@ -2,17 +2,21 @@ package trading_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 )
@@ -194,21 +198,7 @@ func TestSwapLayer_OrderRejected(t *testing.T) {
 	}
 }
 
-func TestSwapLayer_JupiterDownBeforeSubmit_LeavesCreated(t *testing.T) {
-	t.Parallel()
-	e := newLayerEnv(t)
-	e.jup.Fail("Order", errs.New(errs.CodeJupiterUnavailable, "test"))
-	e.assertLeftCreated(t, errs.CodeJupiterUnavailable)
-}
-
-func TestSwapLayer_PrivyDownBeforeSubmit_LeavesCreated(t *testing.T) {
-	t.Parallel()
-	e := newLayerEnv(t)
-	e.privy.Fail("SignTransaction", errs.New(errs.CodePrivyUnavailable, "test"))
-	e.assertLeftCreated(t, errs.CodePrivyUnavailable)
-}
-
-func (e *layerEnv) assertLeftCreated(t *testing.T, want errs.Code) {
+func (e *layerEnv) assertFailedAtOnce(t *testing.T, want errs.Code) {
 	t.Helper()
 	req := e.request(e.source())
 	if _, err := e.run(t, req); errs.CodeOf(err) != want {
@@ -219,8 +209,178 @@ func (e *layerEnv) assertLeftCreated(t *testing.T, want errs.Code) {
 		t.Fatalf("%d rows, want 1", len(rows))
 	}
 	status, signed, _, _ := e.row(t, rows[0])
-	if status != "created" || len(signed) != 0 || len(e.events(t, rows[0])) != 0 {
-		t.Fatalf("row = %s with %d signed bytes and events %v", status, len(signed), e.events(t, rows[0]))
+	if status != "failed" || len(signed) != 0 {
+		t.Fatalf("row = %s with %d signed bytes, want failed and unsigned", status, len(signed))
+	}
+	if want := []string{"trade.failed"}; !slices.Equal(e.events(t, rows[0]), want) {
+		t.Fatalf("events = %v, want %v", e.events(t, rows[0]), want)
+	}
+	if code := e.payload(t, rows[0], "trade.failed")["failure_code"]; code != "never_submitted" {
+		t.Fatalf("failure_code = %v", code)
+	}
+}
+
+func (e *layerEnv) passTime(t *testing.T) {
+	t.Helper()
+	advanceClock(t, e.clk)
+}
+
+func advanceClock(t *testing.T, clk *testkit.Clock) {
+	t.Helper()
+	done := make(chan struct{})
+	var g errgroup.Group
+	t.Cleanup(func() {
+		close(done)
+		_ = g.Wait()
+	})
+	g.Go(func() error {
+		tick := time.NewTicker(time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-done:
+				return nil
+			case <-tick.C:
+				clk.Advance(time.Second)
+			}
+		}
+	})
+}
+
+func (e *layerEnv) assertConfirmedWithoutFailure(t *testing.T) {
+	t.Helper()
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{
+		Status: jupiter.StatusSuccess, Signature: "sig", OutAmount: 104_000_000,
+	})
+	got, err := e.run(t, e.request(e.source()))
+	if err != nil || got.Status != domain.StatusConfirmed {
+		t.Fatalf("view = %+v, %v, want confirmed", got, err)
+	}
+	if events := e.events(t, got.ID.UUID()); slices.Contains(events, "trade.failed") {
+		t.Fatalf("events = %v, want no trade.failed", events)
+	}
+}
+
+func TestSwapLayer_OneBriefOrderErrorIsRetriedInPlace(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.passTime(t)
+	e.jup.FailOnce("Order", errs.New(errs.CodeJupiterUnavailable, "test"))
+	e.assertConfirmedWithoutFailure(t)
+}
+
+func TestSwapLayer_OneBriefSignErrorIsRetriedInPlace(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.passTime(t)
+	e.privy.FailOnce("SignTransaction", errs.New(errs.CodePrivyUnavailable, "test"))
+	e.assertConfirmedWithoutFailure(t)
+}
+
+func TestSwapLayer_RetriesWaitOneThenThreeSeconds(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	down := errs.New(errs.CodeJupiterUnavailable, "test")
+	e.jup.FailOnce("Order", down)
+	e.jup.FailOnce("Order", down)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
+	start := e.clk.Now()
+	e.passTime(t)
+	if _, err := e.run(t, e.request(e.source())); err != nil {
+		t.Fatal(err)
+	}
+	if waited := e.clk.Now().Sub(start); waited < 4*time.Second {
+		t.Fatalf("clock moved %v, want the 1s and 3s waits", waited)
+	}
+}
+
+func TestSwapLayer_PersistentOrderErrorFailsTheRowAtOnce(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.passTime(t)
+	e.jup.Fail("Order", errs.New(errs.CodeJupiterUnavailable, "test"))
+	e.assertFailedAtOnce(t, errs.CodeJupiterUnavailable)
+}
+
+func TestSwapLayer_PersistentSignErrorFailsTheRowAtOnce(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.passTime(t)
+	e.privy.Fail("SignTransaction", errs.New(errs.CodePrivyUnavailable, "test"))
+	e.assertFailedAtOnce(t, errs.CodePrivyUnavailable)
+}
+
+type cancelOnOrderError struct {
+	app.Venue
+	cancel context.CancelFunc
+}
+
+func (c cancelOnOrderError) Order(ctx context.Context, spec app.OrderSpec) (app.Order, error) {
+	o, err := c.Venue.Order(ctx, spec)
+	if err != nil {
+		c.cancel()
+	}
+	return o, err
+}
+
+func TestSwapLayer_CancelledWhileWaitingLeavesTheRowCreated(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.jup.Fail("Order", errs.New(errs.CodeJupiterUnavailable, "test"))
+	ctx, cancel := context.WithCancel(actorContext(t.Context()))
+	e.venue = cancelOnOrderError{Venue: e.venue, cancel: cancel}
+	req := e.request(e.source())
+	if _, err := e.layer().Run(ctx, req, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run = %v, want context.Canceled", err)
+	}
+	rows := e.swapIDs(t, req.Source.ID)
+	if len(rows) != 1 {
+		t.Fatalf("%d rows, want 1", len(rows))
+	}
+	if status, _, _, _ := e.row(t, rows[0]); status != "created" {
+		t.Fatalf("row = %s, want created", status)
+	}
+}
+
+func TestSwapLayer_OrderBelowTheFloorFailsBeforeSigning(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	var signs atomic.Int64
+	e.signer = signerFunc(
+		func(ctx context.Context, wallet string, unsigned []byte) ([]byte, platform.Signature, error) {
+			signs.Add(1)
+			return e.chainSigner().Sign(ctx, wallet, unsigned)
+		},
+	)
+	req := e.request(e.source())
+	below := req.QuoteOutAmount - 1_000_000
+	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
+		RequestID: "req-1", Transaction: swapTx(), OutAmount: money.NewBaseUnits(below, 6),
+	})
+	got, err := e.run(t, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != domain.StatusFailed || got.FailureCode != domain.FailureNeverSubmitted || signs.Load() != 0 {
+		t.Fatalf("view = %+v after %d signs, want failed never_submitted and no signing", got, signs.Load())
+	}
+	if code := e.payload(t, got.ID.UUID(), "trade.failed")["jupiter_code"]; code != "order_below_floor" {
+		t.Fatalf("jupiter_code = %v", code)
+	}
+}
+
+func TestSwapLayer_OrderAtTheReviewQuoteIsSigned(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	req := e.request(e.source())
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
+	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
+		RequestID: "req-1", Transaction: swapTx(),
+		OutAmount: money.NewBaseUnits(req.QuoteOutAmount, 6),
+	})
+	got, err := e.run(t, req)
+	if err != nil || got.Status != domain.StatusSubmitted {
+		t.Fatalf("view = %+v, %v, want submitted", got, err)
 	}
 }
 

@@ -50,7 +50,7 @@ func (v Venue) Order(ctx context.Context, spec app.OrderSpec) (app.Order, error)
 	if err != nil {
 		return app.Order{}, err
 	}
-	return app.Order{RequestID: o.RequestID, Transaction: o.Transaction}, nil
+	return app.Order{RequestID: o.RequestID, Transaction: o.Transaction, OutAmount: o.OutAmount.Uint64()}, nil
 }
 
 func (v Venue) ExecuteUntilTerminal(ctx context.Context, requestID string, signed []byte) (app.ExecuteResult, error) {

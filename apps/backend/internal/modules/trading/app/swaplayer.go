@@ -27,6 +27,10 @@ import (
 
 const heartbeatEvery = 10 * time.Second
 
+const orderBelowFloor = "order_below_floor"
+
+const retryAttempts = 3
+
 type TreasuryWallet struct {
 	PrivyWalletID string
 	Address       chain.SolanaAddress
@@ -126,16 +130,30 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 	if err != nil {
 		return err
 	}
-	order, err := l.d.Venue.Order(ctx, OrderSpec{
-		Taker: req.TreasuryWallet.Address, Payer: payer, InMint: req.InMint, OutMint: req.OutMint,
-		InAmount: req.InAmount, SlippageBps: req.SlippageBps,
+	var order Order
+	err = retryBriefly(ctx, l.d.Clock, func() (err error) {
+		order, err = l.d.Venue.Order(ctx, OrderSpec{
+			Taker: req.TreasuryWallet.Address, Payer: payer, InMint: req.InMint, OutMint: req.OutMint,
+			InAmount: req.InAmount, SlippageBps: req.SlippageBps,
+		})
+		return err
 	})
 	if err != nil {
 		return l.orderFailed(ctx, req, id, err)
 	}
-	signed, signature, err := l.d.Signer.Sign(ctx, req.TreasuryWallet.PrivyWalletID, order.Transaction)
-	if err != nil {
+	slippage := domain.SlippageOf(int32(min(max(req.SlippageBps, 0), math.MaxInt32)))
+	if slippage.MinOut(order.OutAmount) < slippage.MinOut(req.QuoteOutAmount) {
+		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, orderBelowFloor))
 		return err
+	}
+	var signed []byte
+	var signature chain.Signature
+	err = retryBriefly(ctx, l.d.Clock, func() (err error) {
+		signed, signature, err = l.d.Signer.Sign(ctx, req.TreasuryWallet.PrivyWalletID, order.Transaction)
+		return err
+	})
+	if err != nil {
+		return l.neverSubmitted(ctx, req, id, err)
 	}
 	moved, err := l.move(ctx, req, id, submitted(req, id, order.RequestID, signed, signature))
 	if err != nil || !moved {
@@ -183,11 +201,33 @@ func (l *SwapLayer) confirm(
 }
 
 func (l *SwapLayer) orderFailed(ctx context.Context, req SwapRequest, id uuid.UUID, cause error) error {
-	if errs.CodeOf(cause) != errs.CodeJupiterRejected {
+	if errs.CodeOf(cause) == errs.CodeJupiterRejected {
+		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, ""))
+		return err
+	}
+	return l.neverSubmitted(ctx, req, id, cause)
+}
+
+func (l *SwapLayer) neverSubmitted(ctx context.Context, req SwapRequest, id uuid.UUID, cause error) error {
+	if !errs.Retryable(errs.CodeOf(cause)) {
 		return cause
 	}
 	_, err := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, ""))
-	return err
+	return errors.Join(cause, err)
+}
+
+func retryBriefly(ctx context.Context, clk clock.Clock, op func() error) error {
+	for attempt := 1; ; attempt++ {
+		err := op()
+		if err == nil || !errs.Retryable(errs.CodeOf(err)) || attempt == retryAttempts {
+			return err
+		}
+		select {
+		case <-clk.After(time.Duration(2*attempt-1) * time.Second):
+		case <-ctx.Done():
+			return errors.Join(err, ctx.Err())
+		}
+	}
 }
 
 type step struct {

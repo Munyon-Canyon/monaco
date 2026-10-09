@@ -169,7 +169,10 @@ func TestExecuteTrade_anUpstreamFailureReturnsItsCodeAndWritesNothing(t *testing
 		"slippage":      func(e *engineEnv) { e.cabals.Fail("SlippageBps", rpc) },
 		"cabal status":  func(e *engineEnv) { e.cabals.Fail("Status", rpc) },
 		"pause":         func(e *engineEnv) { e.pauses.Fail("IsPaused", rpc) },
-		"order":         func(e *engineEnv) { e.jup.Fail("Order", down) },
+		"order": func(e *engineEnv) {
+			e.jup.Fail("Order", down)
+			advanceClock(t, e.clk)
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -362,7 +365,7 @@ func TestExecuteTrade_aConcurrentWorkerThatGotThereFirstWins(t *testing.T) {
 		ports.Cabals = raceCabals{Cabals: e.cabals, before: func() {
 			req := e.request(cmd.ProposalID.UUID())
 			req.CabalID = e.cabal
-			e.jup.FailOnce("Order", errs.New(errs.CodeJupiterUnavailable, "jupiter.Order"))
+			e.jup.FailOnce("Order", errs.New(errs.CodeInternal, "jupiter.Order"))
 			if _, err := e.layer().Run(actorContext(t.Context()), req, nil); err == nil {
 				t.Error("the other worker's swap should stop at created")
 			}
