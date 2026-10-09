@@ -15,6 +15,10 @@ final class ToastCenter {
     func show(success: String, link: MonacoToastLink? = nil, action: MonacoToastAction? = nil) {
         current = MonacoToast(message: success, isSuccess: true, link: link, action: action)
     }
+
+    func placement(requested: MonacoToastPlacement) -> MonacoToastPlacement {
+        requested == .screenBottom && bottomCTAs > 0 ? .aboveBottomCTA : requested
+    }
 }
 
 nonisolated struct TabToastHostKey: PreferenceKey {
@@ -44,7 +48,7 @@ private struct ToastCenterHost: ViewModifier {
                 get: { isEnabled ? center.current : nil },
                 set: { center.current = $0 }
             ),
-            placement: center.bottomCTAs > 0 ? .aboveBottomCTA : placement
+            placement: center.placement(requested: placement)
         )
     }
 }
