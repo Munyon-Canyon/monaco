@@ -95,6 +95,30 @@ func TestMarkChatSeen_PublishThrottle(t *testing.T) {
 	}
 }
 
+func TestMarkChatSeen_aNewerMessageLiftsTheThrottle(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	f.mustSend(t, f.member(0), "one", nil)
+	f.clock.Advance(time.Second)
+	f.mustMarkSeen(t, f.member(1))
+	f.clock.Advance(time.Second)
+	second := f.mustSend(t, f.member(0), "two", nil)
+	f.clock.Advance(time.Second)
+	f.mustMarkSeen(t, f.member(1))
+	want := testkit.RealtimePublish{
+		Channel: f.channel(), Name: app.EventSeenUpdated,
+		Data: jsonOf(t, app.SeenUpdated{MessageID: second.ID, Count: 1}),
+	}
+	if got := f.seenPublishes(); len(got) != 2 || !reflect.DeepEqual(got[1], want) {
+		t.Fatalf("seen.updated after a report 3 s into the window = %+v, want a second one for %s", got, second.ID)
+	}
+	f.clock.Advance(time.Second)
+	f.mustMarkSeen(t, f.member(1))
+	if got := f.seenPublishes(); len(got) != 2 {
+		t.Fatalf("seen.updated after a report 1 s later with nothing newer = %d publishes, want still 2", len(got))
+	}
+}
+
 func TestMarkChatSeen_ThrottleIsPerMember(t *testing.T) {
 	t.Parallel()
 	f := newChatFixture(t)

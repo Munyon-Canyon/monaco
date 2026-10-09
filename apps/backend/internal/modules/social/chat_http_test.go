@@ -231,8 +231,8 @@ func TestChatChannel_DeletedParentPlaceholder(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantIDs(t, channel, parent)
-	if p := channel[0]; !p.Deleted || p.Body != nil || p.ReplyCount != 2 {
-		t.Fatalf("placeholder = %+v, want deleted with no body and 2 replies", p)
+	if p := channel[0]; !p.Deleted || p.Body != nil || p.ReplyCount != 1 {
+		t.Fatalf("placeholder = %+v, want deleted with no body and 1 reply", p)
 	}
 	th, err := f.thread(t, f.member(2), parent.Id, api.GetChatThreadParams{})
 	if err != nil {
@@ -246,6 +246,62 @@ func TestChatChannel_DeletedParentPlaceholder(t *testing.T) {
 		errs.CodeChatMessageNotFound {
 		t.Fatalf("thread of a deleted message with no replies: err = %v, want chat_message_not_found", err)
 	}
+}
+
+func (f chatRoutes) mustRemove(t *testing.T, caller ids.UserID, message uuid.UUID) {
+	t.Helper()
+	if err := f.remove(t, caller, message); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (f chatRoutes) mustChannel(t *testing.T) []api.ChatMessage {
+	t.Helper()
+	messages, err := f.channel(t, f.member(2), api.GetChatMessagesParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return messages
+}
+
+func (f chatRoutes) wantThreadGone(t *testing.T, parent uuid.UUID) {
+	t.Helper()
+	if _, err := f.thread(t, f.member(2), parent, api.GetChatThreadParams{}); errs.CodeOf(err) !=
+		errs.CodeChatMessageNotFound {
+		t.Fatalf("thread of a deleted parent with no live replies: err = %v, want chat_message_not_found", err)
+	}
+}
+
+func TestChatChannel_ParentLeavesWhenItsOnlyReplyThenItIsDeleted(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "thread starter"})
+	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "reply", ParentId: &parent.Id})
+	f.mustRemove(t, f.member(1), reply.Id)
+	channel := f.mustChannel(t)
+	wantIDs(t, channel, parent)
+	if p := channel[0]; p.Deleted || p.ReplyCount != 0 {
+		t.Fatalf("parent after its only reply was deleted = %+v, want live with 0 replies", p)
+	}
+	f.mustRemove(t, f.member(0), parent.Id)
+	wantIDs(t, f.mustChannel(t))
+	f.wantThreadGone(t, parent.Id)
+}
+
+func TestChatChannel_PlaceholderLeavesWhenItsOnlyReplyIsDeleted(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "thread starter"})
+	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "reply", ParentId: &parent.Id})
+	f.mustRemove(t, f.member(0), parent.Id)
+	channel := f.mustChannel(t)
+	wantIDs(t, channel, parent)
+	if p := channel[0]; !p.Deleted || p.ReplyCount != 1 {
+		t.Fatalf("parent deleted over one live reply = %+v, want a placeholder with 1 reply", p)
+	}
+	f.mustRemove(t, f.member(1), reply.Id)
+	wantIDs(t, f.mustChannel(t))
+	f.wantThreadGone(t, parent.Id)
 }
 
 func TestChatChannel_AfterCursorCatchUp(t *testing.T) {

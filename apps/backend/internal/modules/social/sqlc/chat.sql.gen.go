@@ -51,7 +51,11 @@ WITH newest AS (
   UPDATE chat_seen
   SET seen_published_at = $2::timestamptz
   WHERE chat_seen.cabal_id = $1 AND chat_seen.user_id = $3
-    AND (seen_published_at IS NULL OR seen_published_at <= $2::timestamptz - interval '5 seconds')
+    AND (
+      seen_published_at IS NULL
+      OR seen_published_at <= $2::timestamptz - interval '5 seconds'
+      OR seen_published_at < (SELECT created_at FROM newest)
+    )
     AND EXISTS (SELECT 1 FROM newest)
   RETURNING 1
 )
@@ -97,6 +101,26 @@ type DeleteChatSeenParams struct {
 func (q *Queries) DeleteChatSeen(ctx context.Context, arg DeleteChatSeenParams) error {
 	_, err := q.db.Exec(ctx, deleteChatSeen, arg.CabalID, arg.UserID)
 	return err
+}
+
+const dropChatReply = `-- name: DropChatReply :one
+UPDATE cabal_messages
+SET reply_count = GREATEST(reply_count - 1, 0)
+WHERE id = $1 AND parent_id IS NULL
+RETURNING id, reply_count, last_reply_at
+`
+
+type DropChatReplyRow struct {
+	ID          uuid.UUID
+	ReplyCount  int32
+	LastReplyAt pgtype.Timestamptz
+}
+
+func (q *Queries) DropChatReply(ctx context.Context, id uuid.UUID) (DropChatReplyRow, error) {
+	row := q.db.QueryRow(ctx, dropChatReply, id)
+	var i DropChatReplyRow
+	err := row.Scan(&i.ID, &i.ReplyCount, &i.LastReplyAt)
+	return i, err
 }
 
 const getChatCursor = `-- name: GetChatCursor :one

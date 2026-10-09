@@ -58,8 +58,12 @@ func (p ChatPublisher) created(ctx context.Context, m ChatMessage, thread *Threa
 	}
 }
 
-func (p ChatPublisher) deleted(ctx context.Context, cabal ids.CabalID, id uuid.UUID) {
-	p.send(context.WithoutCancel(ctx), cabal, id, EventMessageDeleted, MessageDeleted{ID: id})
+func (p ChatPublisher) deleted(ctx context.Context, cabal ids.CabalID, id uuid.UUID, thread *ThreadUpdated) {
+	ctx = context.WithoutCancel(ctx)
+	p.send(ctx, cabal, id, EventMessageDeleted, MessageDeleted{ID: id})
+	if thread != nil {
+		p.send(ctx, cabal, id, EventThreadUpdated, thread)
+	}
 }
 
 func (p ChatPublisher) send(ctx context.Context, cabal ids.CabalID, id uuid.UUID, event string, data any) {

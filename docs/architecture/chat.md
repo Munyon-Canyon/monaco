@@ -131,7 +131,7 @@ So the API is always the history, and Ably only reports what happened since the 
 
 ### Deleting
 
-Soft delete only (decided 2026-09-27), with no editing (default 2026-09-27). The author calls `DELETE /v1/cabals/{id}/messages/{messageId}`. One `uow.Do` sets `deleted_at`. The row stays, so threads, `reply_count` and "seen by" keep their shape. Reads filter `deleted_at IS NULL`, with one exception. A deleted top-level message that has replies comes back as a placeholder with no body, rendered as "deleted", so its thread keeps a parent. After the commit the backend publishes `message.deleted { id }` on the cabal's Ably channel. Admin removal goes through the same column and an audited `admin.action` (flow 26).
+Soft delete only (decided 2026-09-27), with no editing (default 2026-09-27). The author calls `DELETE /v1/cabals/{id}/messages/{messageId}`. One `uow.Do` sets `deleted_at`. The row stays, so threads and "seen by" keep their shape. Deleting a reply also lowers the parent's `reply_count` by one in the same transaction, once, so the count is the number of live replies. Reads filter `deleted_at IS NULL`, with one exception. A deleted top-level message with a nonzero `reply_count` comes back as a placeholder with no body, rendered as "deleted", so its thread keeps a parent. After the commit the backend publishes `message.deleted { id }` on the cabal's Ably channel, and for a reply also `thread.updated` with the parent's lowered `reply_count`. Admin removal goes through the same column and an audited `admin.action` (flow 26).
 
 ### Seen by N
 
@@ -155,7 +155,7 @@ RETURNING last_seen_at;
 
 `created_at` on messages comes from the same injected clock, so the two compare on one clock. A member cannot have seen a message before it committed: the seen call starts after the client received the message, and that happens after the commit.
 
-After the update, the backend recomputes "seen by N" for the newest channel message and publishes `seen.updated { message_id, count }`, so open screens replace the label without doing the comparison themselves ([Thin client](backend-platform.md#thin-client)). It publishes at most once per member per 5 s, to keep the channel quiet when someone sits in the chat during a busy stretch.
+After the update, the backend recomputes "seen by N" for the newest channel message and publishes `seen.updated { message_id, count }`, so open screens replace the label without doing the comparison themselves ([Thin client](backend-platform.md#thin-client)). It publishes at most once per member per 5 s, to keep the channel quiet when someone sits in the chat during a busy stretch, except that a report always publishes when a channel message is newer than that member's last publish.
 
 **Reading.**
 

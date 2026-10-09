@@ -29,6 +29,7 @@ func NewDeleteChatMessageHandler(d ChatDeps) *DeleteChatMessageHandler {
 func (h *DeleteChatMessageHandler) Handle(ctx context.Context, cmd DeleteChatMessage) error {
 	const op = "social.DeleteChatMessage"
 	deleted := false
+	var thread *ThreadUpdated
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		row, found, err := lockChatMessage(ctx, q, cmd.MessageID)
@@ -48,10 +49,20 @@ func (h *DeleteChatMessageHandler) Handle(ctx context.Context, cmd DeleteChatMes
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
 		deleted = true
+		if !row.ParentID.Valid {
+			return nil
+		}
+		dropped, err := q.DropChatReply(ctx, row.ParentID.Bytes)
+		if err != nil {
+			return errs.Wrap(err, errs.CodeInternal, op)
+		}
+		thread = &ThreadUpdated{
+			MessageID: dropped.ID, ReplyCount: dropped.ReplyCount, LastReplyAt: dropped.LastReplyAt.Time.UTC(),
+		}
 		return nil
 	})
 	if err == nil && deleted {
-		h.d.Publish.deleted(ctx, cmd.CabalID, cmd.MessageID)
+		h.d.Publish.deleted(ctx, cmd.CabalID, cmd.MessageID, thread)
 	}
 	return err
 }

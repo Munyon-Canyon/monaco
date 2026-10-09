@@ -18,6 +18,12 @@ SET reply_count = reply_count + 1, last_reply_at = sqlc.arg(at)::timestamptz
 WHERE id = sqlc.arg(id) AND parent_id IS NULL
 RETURNING id, reply_count, last_reply_at;
 
+-- name: DropChatReply :one
+UPDATE cabal_messages
+SET reply_count = GREATEST(reply_count - 1, 0)
+WHERE id = sqlc.arg(id) AND parent_id IS NULL
+RETURNING id, reply_count, last_reply_at;
+
 -- name: SoftDeleteChatMessage :execrows
 UPDATE cabal_messages
 SET deleted_at = sqlc.arg(at)::timestamptz
@@ -100,7 +106,11 @@ WITH newest AS (
   UPDATE chat_seen
   SET seen_published_at = sqlc.arg(now)::timestamptz
   WHERE chat_seen.cabal_id = sqlc.arg(cabal_id) AND chat_seen.user_id = sqlc.arg(user_id)
-    AND (seen_published_at IS NULL OR seen_published_at <= sqlc.arg(now)::timestamptz - interval '5 seconds')
+    AND (
+      seen_published_at IS NULL
+      OR seen_published_at <= sqlc.arg(now)::timestamptz - interval '5 seconds'
+      OR seen_published_at < (SELECT created_at FROM newest)
+    )
     AND EXISTS (SELECT 1 FROM newest)
   RETURNING 1
 )
