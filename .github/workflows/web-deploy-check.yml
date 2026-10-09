@@ -1,0 +1,28 @@
+name: Web deploy check
+
+# Vercel reports each deployment of apps/web as a deployment_status event. When one succeeds, the
+# card fund page must answer 200 on that deployment, or card deposits open a 404 on the phone.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  fund-page:
+    name: /fund answers 200 on the new deployment
+    if: github.event.deployment_status.state == 'success' && github.event.deployment_status.environment_url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: curl /fund
+        env:
+          BASE: ${{ github.event.deployment_status.environment_url }}
+        run: |
+          set -euo pipefail
+          # Preview deployments sit behind Vercel Authentication and answer 401 to curl; only a
+          # public deployment can be checked from here.
+          code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 5 --retry-all-errors "${BASE%/}/fund")
+          echo "GET ${BASE%/}/fund -> $code"
+          if [ "$code" = 401 ]; then echo "protected deployment, skipping"; exit 0; fi
+          [ "$code" = 200 ]
