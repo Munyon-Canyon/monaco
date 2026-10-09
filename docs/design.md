@@ -68,7 +68,7 @@ Tickers set in `Typo.subhead` secondary. Wallet addresses are the one monospaced
 
 ## Spacing, radii, elevation
 
-- Spacing: 4 · 8 · 12 · 16 · 24 · 32 · 48. `Space.gutter` is 16 and the only horizontal inset. 32 between sections, 12 between a section title and its first row. Rows are 64pt minimum with 12 vertical padding. Card padding 16. Bottom bar: 12 top, 8 bottom plus the safe area.
+- Spacing: 4 · 8 · 12 · 16 · 24 · 32 · 48. `Space.gutter` is 16 and the only horizontal inset. 32 between sections, 12 between a section title and its first row. Rows are 64pt with 8 vertical padding, so a title over a subtitle at the type floor fits; they grow only at larger text sizes. Card padding 16. Bottom bar: 12 top, 8 bottom plus the safe area.
 - Radii: buttons, chips, segments are capsules · card 16 · field 12 · cabal mark 12 at 40pt (size × 0.3) · stock mark and avatar are circles · toast 14 · chat bubble 18 · sheets use the system radius. All continuous.
 - Elevation: none. No shadows, gradients or strokes around containers. Depth is sunken fill against the canvas, and the hairline. The bottom bar is canvas with a hairline on top.
 

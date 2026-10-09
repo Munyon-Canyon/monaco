@@ -128,7 +128,7 @@ private struct CabalRuleSummaryRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.sm)
+        .padding(.vertical, MonacoTheme.Space.s)
         .frame(minHeight: MonacoRowLayout.minHeight)
         .overlay(alignment: .bottom) {
             if !isLast {
