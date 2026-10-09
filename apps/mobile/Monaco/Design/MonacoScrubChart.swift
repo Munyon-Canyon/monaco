@@ -15,10 +15,7 @@ import SwiftUI
 /// the screen owns the meaning of its own numbers — `AssetChartSeries` is where the
 /// stock screen's meaning lives.
 struct MonacoScrubChart: View {
-    struct Point: Equatable {
-        let date: Date
-        let value: Double
-    }
+    typealias Point = PlottedPoint
 
     /// Ascending by date.
     let points: [Point]
@@ -105,63 +102,25 @@ struct MonacoScrubChart: View {
     }
 
     private var chart: some View {
-        // Hoisted: every mark below would otherwise walk the series again, and a
-        // 250-bar year chart re-evaluates this body on every frame of a drag.
-        let domain = valueDomain
-        return Chart {
-            if let baseline {
-                RuleMark(y: .value("Previous close", baseline))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 5]))
-                    .foregroundStyle(MonacoTheme.tertiaryText)
-            }
-            // By index, not by date: two samples at one instant would be two marks
-            // with one identity. `AssetChartSeries` already collapses repeats, and
-            // this keeps the component honest for any other series passed to it.
-            ForEach(points.indices, id: \.self) { index in
-                LineMark(
-                    x: .value("Time", points[index].date),
-                    y: .value("Price", points[index].value)
-                )
-                .foregroundStyle(tint)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                // Monotone, not Catmull-Rom: a sparse series must not draw peaks the data never had.
-                .interpolationMethod(.monotone)
-            }
-            if let selectedPoint {
-                RuleMark(x: .value("Time", selectedPoint.date))
-                    .lineStyle(StrokeStyle(lineWidth: 1))
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                PointMark(
-                    x: .value("Time", selectedPoint.date),
-                    y: .value("Price", selectedPoint.value)
-                )
-                .symbolSize(36)
-                .foregroundStyle(tint)
-            }
-        }
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartYScale(domain: domain)
-        // The plot stops short of the trailing edge so the dot at the end of the line
-        // has room to be a circle: at the frame's edge the mask cut it in half, which
-        // read as a rendering glitch rather than as "the price is here".
-        .chartPlotStyle { $0.background(Color.clear).padding(.trailing, 12) }
-        .chartOverlay { proxy in
-            GeometryReader { geometry in
-                ZStack {
-                    liveDot(proxy, in: geometry)
-                    // The drag is owned here rather than left to `chartXSelection`,
-                    // for two reasons: a selection has to be dropped the moment the
-                    // finger leaves — a broker's chart snaps back — and the gesture
-                    // has to sit where a `ChartProxy` can turn an x into a date.
-                    Rectangle()
-                        .fill(.clear)
-                        .contentShape(Rectangle())
-                        .simultaneousGesture(scrubGesture(proxy, in: geometry))
+        MonacoScrubSeries(points: points, tint: tint, baseline: baseline, domain: valueDomain)
+            .equatable()
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    ZStack {
+                        liveDot(proxy, in: geometry)
+                        selectionMarks(proxy, in: geometry)
+                        // The drag is owned here rather than left to `chartXSelection`,
+                        // for two reasons: a selection has to be dropped the moment the
+                        // finger leaves — a broker's chart snaps back — and the gesture
+                        // has to sit where a `ChartProxy` can turn an x into a date.
+                        Rectangle()
+                            .fill(.clear)
+                            .contentShape(Rectangle())
+                            .simultaneousGesture(scrubGesture(proxy, in: geometry))
+                    }
                 }
             }
-        }
-        .mask(alignment: .leading) { drawOnMask }
+            .mask(alignment: .leading) { drawOnMask }
     }
 
     // MARK: - Scrubbing with a finger
@@ -269,6 +228,28 @@ struct MonacoScrubChart: View {
         }
     }
 
+    @ViewBuilder
+    private func selectionMarks(_ proxy: ChartProxy, in geometry: GeometryProxy) -> some View {
+        if let selectedPoint,
+            let plotAnchor = proxy.plotFrame,
+            let x = proxy.position(forX: selectedPoint.date),
+            let y = proxy.position(forY: selectedPoint.value)
+        {
+            let plot = geometry[plotAnchor]
+            ZStack {
+                Rectangle()
+                    .fill(MonacoTheme.secondaryText)
+                    .frame(width: 1, height: plot.height)
+                    .position(x: plot.minX + x, y: plot.midY)
+                Circle()
+                    .fill(tint)
+                    .frame(width: 6, height: 6)
+                    .position(x: plot.minX + x, y: plot.minY + y)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
     // MARK: - VoiceOver
 
     /// Without an adjustable action a scrubbing chart is unusable with VoiceOver on:
@@ -286,6 +267,43 @@ struct MonacoScrubChart: View {
     private var voiceOverValue: String {
         guard !points.isEmpty else { return "No price history" }
         return describePoint(selection ?? points.count - 1)
+    }
+}
+
+private struct MonacoScrubSeries: View, Equatable {
+    let points: [PlottedPoint]
+    let tint: Color
+    let baseline: Double?
+    let domain: ClosedRange<Double>
+
+    var body: some View {
+        Chart {
+            if let baseline {
+                RuleMark(y: .value("Previous close", baseline))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 5]))
+                    .foregroundStyle(MonacoTheme.tertiaryText)
+            }
+            // By index, not by date: two samples at one instant would be two marks
+            // with one identity. `AssetChartSeries` already collapses repeats, and
+            // this keeps the component honest for any other series passed to it.
+            ForEach(points.indices, id: \.self) { index in
+                LineMark(
+                    x: .value("Time", points[index].date),
+                    y: .value("Price", points[index].value)
+                )
+                .foregroundStyle(tint)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                // Monotone, not Catmull-Rom: a sparse series must not draw peaks the data never had.
+                .interpolationMethod(.monotone)
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartYScale(domain: domain)
+        // The plot stops short of the trailing edge so the dot at the end of the line
+        // has room to be a circle: at the frame's edge the mask cut it in half, which
+        // read as a rendering glitch rather than as "the price is here".
+        .chartPlotStyle { $0.background(Color.clear).padding(.trailing, 12) }
     }
 }
 
