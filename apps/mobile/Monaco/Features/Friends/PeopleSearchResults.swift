@@ -8,6 +8,11 @@ struct PeopleSearchResults: View {
     @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
+        VStack(spacing: 0) { results }
+            .onAppear { model.refresh() }
+    }
+
+    @ViewBuilder private var results: some View {
         switch model.state {
         case .idle, .loading:
             MonacoRowSkeleton(markShape: .circle)

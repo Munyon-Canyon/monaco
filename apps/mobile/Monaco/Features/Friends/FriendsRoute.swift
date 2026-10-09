@@ -28,15 +28,17 @@ struct FriendsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { skip }
         .task {
-            guard model == nil else { return }
-            let model = FriendsOnMonacoModel(
-                api: environment.api,
-                contacts: DeviceContactsSource(),
-                defaultRegion: Locale.current.region?.identifier ?? "US"
-            )
-            self.model = model
-            search = PeopleSearchModel(api: environment.api, clock: ContinuousClock())
-            await model.loadIfGranted()
+            if model == nil {
+                model = FriendsOnMonacoModel(
+                    api: environment.api,
+                    contacts: DeviceContactsSource(),
+                    defaultRegion: Locale.current.region?.identifier ?? "US",
+                    userID: environment.viewer?.userID,
+                    now: { Date() }
+                )
+                search = PeopleSearchModel(api: environment.api, clock: ContinuousClock())
+            }
+            await model?.loadIfGranted()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active, let model else { return }

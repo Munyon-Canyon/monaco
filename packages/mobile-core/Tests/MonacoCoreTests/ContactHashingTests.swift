@@ -34,6 +34,13 @@ final class ContactHashingTests: XCTestCase {
         XCTAssertTrue(hashes.contains(Self.usDigest))
     }
 
+    func testFingerprintIsTheSHA256OfTheSortedDigestsJoinedByCommas() {
+        let pinned = "1eb7c54d52831bbfe8942af0b1c56b7409523a59ed6ca99c1174fef7eb32c1b5"
+        XCTAssertEqual(ContactHashing.fingerprint(["a", "b"]), pinned)
+        XCTAssertEqual(ContactHashing.fingerprint(["b", "a"]), pinned)
+        XCTAssertNotEqual(ContactHashing.fingerprint(["a"]), pinned)
+    }
+
     func testChunksSplitAt2000() {
         let hashes = (0..<2001).map { String(format: "%064d", $0) }
         let chunks = ContactHashing.chunks(hashes)

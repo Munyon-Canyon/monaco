@@ -42,22 +42,38 @@ public final class FriendsOnMonacoModel {
     public private(set) var toast: String?
     public private(set) var toastTick = 0
 
+    public static let postedWindow: TimeInterval = 60 * 60
+
+    private struct PostedRecord: Codable {
+        let fingerprint: String
+        let postedAt: Date
+    }
+
     private let api: APIClient
     private let contacts: any ContactsSource
     private let defaultRegion: String
     private let chunkSize: Int
+    private let postedKey: String?
+    private let store: any KeyValueStoring
+    private let now: @Sendable () -> Date
     private var generation = 0
     private var toggling: Set<String> = []
     private var hashesPosted = false
 
     public init(
         api: APIClient, contacts: any ContactsSource, defaultRegion: String,
-        chunkSize: Int = ContactHashing.chunkSize
+        chunkSize: Int = ContactHashing.chunkSize,
+        userID: String? = nil,
+        store: any KeyValueStoring = UserDefaults.standard,
+        now: @escaping @Sendable () -> Date
     ) {
         self.api = api
         self.contacts = contacts
         self.defaultRegion = defaultRegion
         self.chunkSize = chunkSize
+        postedKey = userID.map { "contactsMatchPosted.\($0)" }
+        self.store = store
+        self.now = now
         access = contacts.currentAccess()
     }
 
@@ -157,18 +173,48 @@ public final class FriendsOnMonacoModel {
         }
         do {
             let digests = ContactHashing.hashes(for: numbers, defaultRegion: defaultRegion)
-            try await post(ContactHashing.chunks(digests, size: chunkSize))
-            hashesPosted = true
+            if let rateLimited = try await postUnlessRecent(digests), mine == generation { show(rateLimited) }
             let loaded = try await loadPages()
             guard mine == generation else { return }
             friends = loaded
             phase = loaded.isEmpty ? .empty : .loaded
         } catch {
             guard mine == generation else { return }
-            let failure = APIError(error)
-            if failure.status == 429 { show(failure) }
-            phase = .failed
+            phase = Task.isCancelled ? .idle : .failed
         }
+    }
+
+    private func postUnlessRecent(_ digests: [String]) async throws -> APIError? {
+        let fingerprint = ContactHashing.fingerprint(digests)
+        if postedRecently(fingerprint) {
+            hashesPosted = true
+            return nil
+        }
+        do {
+            try await post(ContactHashing.chunks(digests, size: chunkSize))
+        } catch {
+            let failure = APIError(error)
+            guard failure.status == 429 else { throw error }
+            return failure
+        }
+        hashesPosted = true
+        rememberPosted(fingerprint)
+        return nil
+    }
+
+    private func postedRecently(_ fingerprint: String) -> Bool {
+        guard let postedKey, let data = store.data(forKey: postedKey),
+            let record = try? JSONDecoder().decode(PostedRecord.self, from: data)
+        else { return false }
+        let age = now().timeIntervalSince(record.postedAt)
+        return record.fingerprint == fingerprint && (0..<Self.postedWindow).contains(age)
+    }
+
+    private func rememberPosted(_ fingerprint: String) {
+        guard let postedKey,
+            let data = try? JSONEncoder().encode(PostedRecord(fingerprint: fingerprint, postedAt: now()))
+        else { return }
+        store.set(data, forKey: postedKey)
     }
 
     private func post(_ chunks: [[String]]) async throws {

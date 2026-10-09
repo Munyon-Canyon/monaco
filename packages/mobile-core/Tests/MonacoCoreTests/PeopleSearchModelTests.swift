@@ -129,6 +129,44 @@ final class PeopleSearchModelTests: XCTestCase {
         XCTAssertEqual(count, 2)
     }
 
+    func testRefreshShowsTheServersFollowStateWithoutAnotherSkeleton() async throws {
+        var followed = samples
+        followed[0].followedByMe = true
+        var unfollowed = samples
+        unfollowed[0].followedByMe = false
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.result(unfollowed)), .json(.ok, try Self.result(followed)),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        model.query = "ma"
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: PeopleSearchModel.debounce)
+        _ = await waitUntil { model.state == .loaded(unfollowed) }
+        model.refresh()
+        XCTAssertEqual(model.state, .loaded(unfollowed))
+        let refreshed = await waitUntil { model.state == .loaded(followed) }
+        XCTAssertTrue(refreshed)
+    }
+
+    func testRefreshSendsNothingWithoutRowsOnScreen() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, try Self.result([]))])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        model.refresh()
+        XCTAssertEqual(model.state, .idle)
+        model.query = "zzq"
+        _ = await clock.state.until { $0.pending == 1 }
+        model.refresh()
+        XCTAssertEqual(model.state, .loading)
+        clock.advance(by: PeopleSearchModel.debounce)
+        _ = await waitUntil { model.state == .loaded([]) }
+        model.refresh()
+        XCTAssertEqual(model.state, .loaded([]))
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 1)
+    }
+
     func testClearingTheFieldGoesIdle() async throws {
         let clock = TestClock()
         let model = makeModel(StubTransport(.json(.ok, try Self.result(samples))), clock: clock)

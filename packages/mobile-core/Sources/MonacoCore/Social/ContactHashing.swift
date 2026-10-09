@@ -22,6 +22,10 @@ public enum ContactHashing {
         return digests
     }
 
+    public static func fingerprint(_ hashes: [String]) -> String {
+        sha256Hex(hashes.sorted().joined(separator: ","))
+    }
+
     public static func chunks(_ hashes: [String], size: Int = chunkSize) -> [[String]] {
         guard !hashes.isEmpty else { return [] }
         let limit = max(size, 1)
