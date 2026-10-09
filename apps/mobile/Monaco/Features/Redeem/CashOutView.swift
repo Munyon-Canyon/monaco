@@ -151,17 +151,11 @@ struct CashOutContent: View {
     private func submitBar(_ preview: CashOutPreview) -> some View {
         let verdict = preview.verdict(enteredMicros: enteredMicros)
         let isSubmitting = model?.isSubmitting ?? false
+        let title = CashOutAmountRule.submitTitle(
+            for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros)
         return BottomCTA {
             Button(action: onSubmit) {
-                HStack(spacing: MonacoTheme.Space.s) {
-                    if isSubmitting {
-                        ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                    }
-                    Text(
-                        CashOutAmountRule.submitTitle(
-                            for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros))
-                }
-                .frame(maxWidth: .infinity)
+                SubmitLabel(isWorking: isSubmitting, idle: title, working: title)
             }
             .buttonStyle(.monacoPrimary)
             .disabled(isSubmitting || !verdict.maySubmit || preview.pause != nil)

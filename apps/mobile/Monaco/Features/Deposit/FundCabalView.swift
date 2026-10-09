@@ -226,23 +226,13 @@ struct FundCabalContent: View {
                 BottomCTA {
                     VStack(spacing: MonacoTheme.Space.s) {
                         if stage.showsDepositAction {
-                            Button(action: onAddMoney) {
-                                Text("Deposit").frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.monacoSecondary)
-                            .disabled(isSubmitting)
-                            .accessibilityIdentifier("fund-cabal-deposit-button")
+                            Button("Deposit", action: onAddMoney)
+                                .buttonStyle(.monacoSecondary)
+                                .disabled(isSubmitting)
+                                .accessibilityIdentifier("fund-cabal-deposit-button")
                         }
                         Button(action: onSubmit) {
-                            HStack(spacing: MonacoTheme.Space.s) {
-                                if isSubmitting {
-                                    ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                                    Text("Adding…")
-                                } else {
-                                    Text(form.ctaTitle)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
+                            SubmitLabel(isWorking: isSubmitting, idle: form.ctaTitle, working: "Adding…")
                         }
                         .buttonStyle(.monacoPrimary)
                         .disabled(!form.canSubmit || isSubmitting)

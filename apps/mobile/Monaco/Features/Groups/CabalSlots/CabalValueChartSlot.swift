@@ -71,7 +71,7 @@ private struct CabalValueChart: View {
             CabalInkCaption(model.range.shortHistoryLine, id: "cabal-value-chart-short")
         }
         MonacoRangeChips(
-            ranges: model.ranges, selection: model.range, onInk: true, identifierPrefix: "cabal-value-chart"
+            ranges: model.ranges, selection: model.range, identifierPrefix: "cabal-value-chart"
         ) { range in
             selection = nil
             Task { await model.select(range) }
