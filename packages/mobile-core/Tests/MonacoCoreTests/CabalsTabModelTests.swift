@@ -246,6 +246,33 @@ final class CabalsTabModelTests: XCTestCase {
         return try decoder.decode([Components.Schemas.MyCabal].self, from: Data(Self.list(names).utf8))
     }
 
+    func testStandingsKeyThePortfolioRowsByCabalID() async throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let portfolio = Components.Schemas.MyPortfolio.sample
+        let body = String(decoding: try encoder.encode(portfolio), as: UTF8.self)
+        let transport = StubTransport(scripted: [.json(.ok, body)])
+        let model = CabalsTabModel(api: api(transport))
+
+        await model.loadStandings()
+
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.path), ["/v1/me/portfolio"])
+        XCTAssertEqual(Set(model.standings.keys), Set(portfolio.cabals.map(\.cabal.id)))
+        let first = try XCTUnwrap(portfolio.cabals.first)
+        XCTAssertEqual(model.standings[first.cabal.id]?.valueMicros, first.valueMicros)
+        XCTAssertEqual(model.standings[first.cabal.id]?.pnlMicros, first.pnlMicros)
+    }
+
+    func testAFailedStandingsReadLeavesTheCardsWithoutFigures() async {
+        let transport = StubTransport(scripted: [.failure(URLError(.notConnectedToInternet))])
+        let model = CabalsTabModel(api: api(transport))
+
+        await model.loadStandings()
+
+        XCTAssertTrue(model.standings.isEmpty)
+    }
+
     private func api(_ transport: StubTransport) -> APIClient {
         APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
     }

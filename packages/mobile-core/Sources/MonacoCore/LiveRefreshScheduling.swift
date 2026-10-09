@@ -2,7 +2,7 @@ import Foundation
 
 /// Scheduling for screens that keep themselves fresh while the member is looking at them:
 /// how long to wait between polls, how far to back off when the server stops answering, how
-/// soon a screen coming back into view is worth a request, and the two rules every tick obeys —
+/// quickly a screen coming back into view is worth a request, and the two rules every tick obeys —
 /// one refresh at a time, and never touch a value the server did not change.
 ///
 /// Everything here is a pure value type with no clock of its own — the caller owns the waiting.

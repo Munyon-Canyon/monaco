@@ -24,7 +24,7 @@ struct UserProfileMoreMenu: View {
 
     var body: some View {
         Menu {
-            Section("Report and block open soon.") {
+            Section("Report and block") {
                 ForEach(SafetyAction.allCases, id: \.self) { action in
                     Button(role: action.role) {
                     } label: {

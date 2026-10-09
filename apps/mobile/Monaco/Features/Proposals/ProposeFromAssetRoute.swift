@@ -20,13 +20,19 @@ struct ProposeFromAssetScreen: View {
     var body: some View {
         Group {
             switch model?.state ?? .loading {
-            case .idle, .loading: MonacoRowSkeleton(rows: 3, markShape: .tile, hasTrailing: false)
+            case .idle, .loading: framed { MonacoRowSkeleton(rows: 3, markShape: .tile, hasTrailing: false) }
             case .failed:
-                MonacoErrorRow(thing: "cabals", identifier: "propose-from-asset-error") { Task { await model?.load() } }
+                framed {
+                    MonacoErrorRow(thing: "cabals", identifier: "propose-from-asset-error") {
+                        Task { await model?.load() }
+                    }
+                }
             case .loaded(let cabals):
                 if cabals.isEmpty {
-                    EmptyState(title: "Join a cabal first", actionTitle: "Browse cabals") {
-                        environment.navigator.selectedTab = .cabals
+                    framed {
+                        EmptyState(title: "Join a cabal first", actionTitle: "Browse cabals") {
+                            environment.navigator.selectedTab = .cabals
+                        }
                     }
                 } else if cabals.count == 1 {
                     amount(cabals[0])
@@ -42,24 +48,39 @@ struct ProposeFromAssetScreen: View {
         }
     }
 
+    private func framed<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .monacoCanvas()
+            .navigationTitle("Pick a cabal")
+            .navigationBarTitleDisplayMode(.inline)
+    }
+
     private func pick(_ cabals: [Components.Schemas.MyCabal]) -> some View {
-        ScrollView {
-            MonacoGroupedList {
-                ForEach(cabals, id: \.id) { cabal in
-                    NavigationLink {
-                        amount(cabal)
-                    } label: {
-                        ProposePickCabalRow(name: cabal.name, cabalID: cabal.id, isLast: cabal.id == cabals.last?.id)
+        framed {
+            ScrollView {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                    Text(pickTitle)
+                        .font(MonacoTheme.Typo.title)
+                        .foregroundStyle(MonacoTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                        .accessibilityIdentifier("propose-pick-cabal-question")
+                    MonacoGroupedList {
+                        ForEach(cabals, id: \.id) { cabal in
+                            NavigationLink {
+                                amount(cabal)
+                            } label: {
+                                ProposePickCabalRow(cabal: cabal, isLast: cabal.id == cabals.last?.id)
+                            }
+                            .buttonStyle(.monacoRow)
+                            .accessibilityIdentifier("propose-pick-cabal-\(cabal.id)")
+                        }
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("propose-pick-cabal-\(cabal.id)")
                 }
+                .padding(.top, MonacoTheme.Space.s)
             }
-            .padding(.top, MonacoTheme.Space.s)
         }
-        .monacoCanvas()
-        .navigationTitle(pickTitle)
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var pickTitle: String {
@@ -86,15 +107,14 @@ nonisolated enum ProposeKind: Hashable, Sendable {
 }
 
 private struct ProposePickCabalRow: View {
-    let name: String
-    let cabalID: String
+    let cabal: Components.Schemas.MyCabal
     let isLast: Bool
 
     var body: some View {
-        MonacoRow(title: name, chevron: true, isLast: isLast) {
-            EmptyView()
+        MonacoRow(title: cabal.name, chevron: true, isLast: isLast) {
+            CabalMark(groupId: cabal.id, name: cabal.name, pictureUrl: cabal.pictureUrl)
         } trailing: {
-            CabalPotModelHost(cabalID: cabalID) { pot in
+            CabalPotModelHost(cabalID: cabal.id) { pot in
                 if let summary = pot?.summary {
                     Text(summary.potValue).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
                 } else {

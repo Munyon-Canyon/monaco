@@ -61,8 +61,6 @@ struct DepositChooser: View {
                 NavigationLink(value: AnyAppRoute(DepositAddressRoute())) {
                     MonacoRow(title: "Crypto", subtitle: "Send USDC on Solana", chevron: true, isLast: true) {
                         StockMark(symbol: "USDC")
-                    } trailing: {
-                        EmptyView()
                     }
                     .contentShape(Rectangle())
                 }

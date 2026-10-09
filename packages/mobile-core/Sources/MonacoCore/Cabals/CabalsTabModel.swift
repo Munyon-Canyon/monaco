@@ -5,6 +5,7 @@ import Observation
 @MainActor
 public final class CabalsTabModel {
     public private(set) var state: LoadState<[Components.Schemas.MyCabal]> = .idle
+    public private(set) var standings: [String: PortfolioSummary.Row] = [:]
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
     private let api: APIClient
@@ -36,6 +37,12 @@ public final class CabalsTabModel {
             if case .loaded = state { return }
             state = .failed(error)
         }
+    }
+
+    public func loadStandings() async {
+        guard let portfolio = try? await api.read({ try await $0.getMyPortfolio().ok.body.json }) else { return }
+        standings = Dictionary(
+            PortfolioSummary(portfolio).rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     public func observe(hints: any HintSource) async {

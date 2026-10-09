@@ -13,7 +13,7 @@ struct ProfilePhotoPicker: View {
     var size: CGFloat = 96
     /// Overridden by the first-run screen, which QA drives as `onboarding-photo`.
     var accessibilityID: String = "profile-photo-picker"
-    /// Debug sample harness only: open the face sheet as soon as the screen is up.
+    /// Debug sample harness only: open the face sheet once the screen is up.
     var initiallyOpen = false
     /// Reports upload results so the host screen can toast them.
     var onResult: (MonacoToast) -> Void
