@@ -189,12 +189,14 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
 
     @MainActor
     func testPendingModelLoadsVotesAndDetails() async throws {
-        let transport = StubTransport(scripted: [
-            .json(
-                .ok,
-                #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
-            ),
-            .json(.ok, detailBody),
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [
+                .json(
+                    .ok,
+                    #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+                )
+            ],
+            "/v1/proposals/p": [.json(.ok, detailBody)],
         ])
         let model = PendingVotesModel(repository: repository(transport), hints: FakeHintStream())
         await model.load()
@@ -205,12 +207,14 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
 
     @MainActor
     func testPendingModelKeepsVotesWhenAProposalDetailCannotLoad() async throws {
-        let transport = StubTransport(scripted: [
-            .json(
-                .ok,
-                #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
-            ),
-            .failure(URLError(.notConnectedToInternet)),
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [
+                .json(
+                    .ok,
+                    #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+                )
+            ],
+            "/v1/proposals/p": [.failure(URLError(.notConnectedToInternet))],
         ])
         let model = PendingVotesModel(repository: repository(transport), hints: FakeHintStream())
         await model.load()

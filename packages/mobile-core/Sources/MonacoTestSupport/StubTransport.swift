@@ -46,6 +46,7 @@ public actor StubTransport: ClientTransport {
     private enum Mode {
         case fixed(Reply)
         case scripted([Reply])
+        case routed([String: [Reply]])
     }
 
     private var mode: Mode
@@ -67,6 +68,10 @@ public actor StubTransport: ClientTransport {
         mode = .scripted(replies)
     }
 
+    public init(routes: [String: [Reply]]) {
+        mode = .routed(routes)
+    }
+
     public func send(
         _ request: HTTPRequest,
         body: HTTPBody?,
@@ -82,7 +87,7 @@ public actor StubTransport: ClientTransport {
         let ready = waiters.filter { $0.count <= sent.count }
         waiters.removeAll { $0.count <= sent.count }
         for waiter in ready { waiter.continuation.resume() }
-        switch try nextReply() {
+        switch try nextReply(for: request) {
         case .response(let response, let body):
             return (response, HTTPBody(body))
         case .failure(let error):
@@ -119,9 +124,16 @@ public actor StubTransport: ClientTransport {
         }
     }
 
-    private func nextReply() throws -> Reply {
+    private func nextReply(for request: HTTPRequest) throws -> Reply {
         switch mode {
         case .fixed(let reply):
+            return reply
+        case .routed(var routes):
+            let path = request.path ?? ""
+            guard var replies = routes[path], !replies.isEmpty else { throw ScriptExhausted(request: sent.count) }
+            let reply = replies.removeFirst()
+            routes[path] = replies
+            mode = .routed(routes)
             return reply
         case .scripted(var replies):
             guard !replies.isEmpty else { throw ScriptExhausted(request: sent.count) }

@@ -5,15 +5,26 @@ nonisolated struct PendingVotesRoute: AppRoute {
     @MainActor func destination() -> some View { PendingVotesScreen() }
 }
 
-private struct PendingVotesScreen: View {
+struct PendingVotesScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var model: PendingVotesModel?
     @State private var voting: ProposalVoteModel?
+    private let makeModel: @MainActor (AppEnvironment) -> PendingVotesModel
+
+    init(makeModel: @escaping @MainActor (AppEnvironment) -> PendingVotesModel = PendingVotesScreen.liveModel) {
+        self.makeModel = makeModel
+    }
 
     var body: some View {
         content
-            .navigationTitle("Needs your vote")
-            .task { await preparedModel().load() }
+            .navigationTitle("Votes")
+            .navigationBarTitleDisplayMode(.inline)
+            .task {
+                let model = preparedModel()
+                await model.load()
+                await model.observe()
+            }
+            .onScreenVisibilityChange { model?.setVisible($0) }
     }
 
     @ViewBuilder private var content: some View {
@@ -46,7 +57,10 @@ private struct PendingVotesScreen: View {
 
     @ViewBuilder private func section(_ title: String?, _ votes: [PendingVote], model: PendingVotesModel) -> some View {
         if !votes.isEmpty {
-            if let title { MonacoSectionHeader(title, count: votes.count) }
+            if let title {
+                MonacoSectionHeader(title, count: votes.count)
+                    .padding(.top, model.needsVote.isEmpty ? 0 : MonacoTheme.Space.l)
+            }
             ForEach(votes) { vote in
                 if let detail = model.details[vote.id], let voting {
                     ProposalVoteCard(
@@ -62,9 +76,13 @@ private struct PendingVotesScreen: View {
 
     private func preparedModel() -> PendingVotesModel {
         if let model { return model }
-        let created = PendingVotesModel(repository: ProposalsRepository(api: environment.api), hints: environment.hints)
+        let created = makeModel(environment)
         voting = ProposalVoteModel(repository: ProposalsRepository(api: environment.api))
         model = created
         return created
+    }
+
+    static func liveModel(_ environment: AppEnvironment) -> PendingVotesModel {
+        PendingVotesModel(repository: ProposalsRepository(api: environment.api), hints: environment.hints)
     }
 }

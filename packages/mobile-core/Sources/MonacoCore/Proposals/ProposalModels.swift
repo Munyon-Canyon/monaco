@@ -262,19 +262,23 @@ public final class PendingVotesModel {
         hook.run = { [weak self] in await self?.load() }
     }
 
-    public func load(keeping voted: Set<String> = []) async {
+    public func load() async {
         do {
             let pending = try await repository.pendingVotes()
             let pendingIDs = Set(pending.map(\.id))
             let departed = votes.filter { !pendingIDs.contains($0.id) }
-            let fetched = await details(for: departed + pending)
+            let candidates = departed + pending
+            async let fetchedDetails = details(for: candidates)
+            async let pausedCandidates = pausedAmong(Set(candidates.map(\.cabalID)))
+            let (fetched, paused) = await (fetchedDetails, pausedCandidates)
             let kept = departed.filter {
                 guard let summary = fetched[$0.id]?.summary else { return false }
-                return summary.isTradeInProgress || (summary.status == .open && voted.contains($0.id))
+                return summary.isTradeInProgress || (summary.status == .open && summary.myBallot != nil)
             }
-            votes = kept + pending
-            details = fetched.filter { entry in votes.contains { $0.id == entry.key } }
-            pausedCabals = await pausedAmong(Set(votes.map(\.cabalID)))
+            let listed = kept + pending
+            votes = listed
+            details = fetched.filter { entry in listed.contains { $0.id == entry.key } }
+            pausedCabals = paused.intersection(listed.map(\.cabalID))
             phase = .loaded
             await loadCardContext(for: fetched.values.map(\.summary))
         } catch {
@@ -330,7 +334,9 @@ public final class PendingVotesModel {
     }
 
     public func observe() async {
-        await refresher.observe(hints.hints(matching: .global(what: nil)))
+        let streams = ["proposal_created", "proposal_updated", "swap_updated"]
+            .map { hints.hints(matching: .anyCabal(what: $0)) }
+        await refresher.observe(streams)
     }
     public func setVisible(_ visible: Bool) { refresher.setVisible(visible) }
 }
