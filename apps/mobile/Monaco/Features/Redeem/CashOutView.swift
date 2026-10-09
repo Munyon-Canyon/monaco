@@ -147,7 +147,8 @@ struct CashOutContent: View {
                 minimumMicros: preview.minMicros),
             overLimitHelper: "More than your slice",
             problem: CashOutAmountRule.problem(for: verdict, minimumMicros: preview.minMicros),
-            input: .keypad
+            input: .keypad,
+            showsKeypad: false
         ) {
             AmountEntryNote(CashOutAmountRule.explainer(for: verdict))
                 .accessibilityIdentifier("cash-out-explainer")
@@ -165,12 +166,15 @@ struct CashOutContent: View {
         let title = CashOutAmountRule.submitTitle(
             for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros)
         return BottomCTA {
-            Button(action: onSubmit) {
-                SubmitLabel(isWorking: isSubmitting, idle: title, working: "Cashing out…")
+            VStack(spacing: MonacoTheme.Space.s) {
+                AmountKeypad(amountText: $amountText)
+                Button(action: onSubmit) {
+                    SubmitLabel(isWorking: isSubmitting, idle: title, working: "Cashing out…")
+                }
+                .buttonStyle(.monacoPrimary)
+                .disabled(isSubmitting || !verdict.maySubmit)
+                .accessibilityIdentifier("cash-out-submit")
             }
-            .buttonStyle(.monacoPrimary)
-            .disabled(isSubmitting || !verdict.maySubmit)
-            .accessibilityIdentifier("cash-out-submit")
         }
     }
 }

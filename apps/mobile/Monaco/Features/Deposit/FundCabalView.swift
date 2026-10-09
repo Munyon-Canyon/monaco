@@ -234,6 +234,7 @@ struct FundCabalContent: View {
             } else if stage.showsAmountEntry {
                 BottomCTA {
                     VStack(spacing: MonacoTheme.Space.s) {
+                        AmountKeypad(amountText: $amountText)
                         if stage.showsDepositAction {
                             Button("Deposit", action: onAddMoney)
                                 .buttonStyle(.monacoSecondary)
@@ -287,7 +288,8 @@ struct FundCabalContent: View {
                 presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
                 helper: form.availability,
                 problem: form.problem,
-                input: .keypad
+                input: .keypad,
+                showsKeypad: false
             ) {
                 VStack(spacing: MonacoTheme.Space.s) {
                     AmountEntryNote(FundCabalForm.note(into: cabalName))
