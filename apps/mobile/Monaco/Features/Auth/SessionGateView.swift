@@ -51,6 +51,10 @@ struct SessionGateView: View {
             await session.bootstrap(auth: environment.auth, devSession: environment.skipsSessionOpen)
             await attachReferral()
         }
+        .onChange(of: environment.cashOuts.notice) { _, notice in
+            guard let notice else { return }
+            toasts.current = MonacoToast(message: notice.message, isSuccess: notice.isSuccess)
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await attachReferral() }

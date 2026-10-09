@@ -39,10 +39,6 @@ struct MainTabView: View {
         .onChange(of: navigator.selectedTab) { _, _ in
             Haptics.selection()
         }
-        .onChange(of: environment.cashOuts.notice) { _, notice in
-            guard let notice else { return }
-            toasts.current = MonacoToast(message: notice.message, isSuccess: notice.isSuccess)
-        }
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)
         }

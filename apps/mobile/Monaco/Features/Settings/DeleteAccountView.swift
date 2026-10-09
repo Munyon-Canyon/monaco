@@ -108,24 +108,7 @@ struct DeleteAccountContent: View {
             if checklist.isCashedOut {
                 DoneLine(detail: AccountCopy.noCabalMoney)
             } else {
-                MonacoGroupedList {
-                    ForEach(Array(checklist.slices.enumerated()), id: \.element.id) { index, slice in
-                        NavigationLink(value: AnyAppRoute(CashOutRoute(cabalID: slice.cabal.id))) {
-                            MonacoRow(
-                                title: slice.cabal.name,
-                                subtitle: AccountCopy.yourSlice(
-                                    UsdAmountFormatter.format(flooredMicros: slice.valueMicros)),
-                                chevron: true, isLast: index == checklist.slices.count - 1
-                            ) {
-                                CabalMark(
-                                    groupId: slice.cabal.id, name: slice.cabal.name, size: 40,
-                                    pictureUrl: slice.cabal.pictureUrl)
-                            }
-                        }
-                        .buttonStyle(.monacoRow)
-                        .accessibilityIdentifier("delete-account-cabal-\(slice.cabal.id)")
-                    }
-                }
+                CabalSliceList(slices: checklist.slices)
             }
         }
         .accessibilityIdentifier("delete-account-step-cash-out")
@@ -159,6 +142,31 @@ struct DeleteAccountContent: View {
             }
         }
         .accessibilityIdentifier("delete-account-step-withdraw")
+    }
+}
+
+struct CabalSliceList: View {
+    let slices: [CabalSlice]
+
+    var body: some View {
+        MonacoGroupedList {
+            ForEach(Array(slices.enumerated()), id: \.element.id) { index, slice in
+                NavigationLink(value: AnyAppRoute(CashOutRoute(cabalID: slice.cabal.id))) {
+                    MonacoRow(
+                        title: slice.cabal.name,
+                        subtitle: AccountCopy.yourSlice(
+                            UsdAmountFormatter.format(flooredMicros: slice.valueMicros)),
+                        chevron: true, isLast: index == slices.count - 1
+                    ) {
+                        CabalMark(
+                            groupId: slice.cabal.id, name: slice.cabal.name, size: 40,
+                            pictureUrl: slice.cabal.pictureUrl)
+                    }
+                }
+                .buttonStyle(.monacoRow)
+                .accessibilityIdentifier("delete-account-cabal-\(slice.cabal.id)")
+            }
+        }
     }
 }
 
