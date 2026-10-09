@@ -115,7 +115,8 @@ categories that stay **on** (i.e. *not* slimmed away):
 
 ```json
 {
-  "except": ["icloud", "web", "messaging", "store", "telemetry", "photos"]
+  "except": ["icloud", "web", "messaging", "store", "telemetry", "photos"],
+  "keep": ["com.apple.contactsd"]
 }
 ```
 
@@ -124,6 +125,15 @@ daemons the profile-photo flow (`PHPicker`) depends on, which breaks that QA
 path in a way that looks unrelated to SimSlim. If you create a narrower
 profile for a specific QA pass, keep `photos` in its `except` list too unless
 you're specifically testing the no-photos degraded path.
+
+`com.apple.contactsd` must stay in `keep`. The `pim` category is not in
+`except`, so slimming it would disable `contactsd`, and then
+`CNContactStore.enumerateContacts` fails with `CNErrorDomain` 1 even though
+TCC reports Contacts as allowed (#4222). `keep` re-enables just that daemon
+without pulling in the rest of `pim`. Any narrower profile for a QA pass that
+reads contacts needs the same entry. A simulator slimmed before this entry
+existed keeps `contactsd` disabled until you run `simslim off <udid>` and then
+`simslim on` again; `on` alone never re-enables a daemon.
 
 ### Runtime requirement
 
