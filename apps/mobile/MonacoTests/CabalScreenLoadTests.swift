@@ -133,7 +133,7 @@ struct CabalScreenLoadTests {
 }
 
 @MainActor
-private enum AccessibilityTree {
+enum AccessibilityTree {
     static func setAutomation(enabled: Bool) throws {
         let library = try #require(dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW))
         let symbol = try #require(dlsym(library, "_AXSSetAutomationEnabled"))

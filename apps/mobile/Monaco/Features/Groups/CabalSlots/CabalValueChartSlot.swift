@@ -47,8 +47,7 @@ private struct CabalValueChart: View {
         if let model {
             switch model.state {
             case .idle, .loading:
-                SkeletonBlock(height: 160, radius: 12)
-                    .accessibilityIdentifier("cabal-value-chart-loading")
+                skeleton
             case .failed:
                 MonacoErrorRow(thing: "the pot's history", identifier: "cabal-value-chart-failed", inset: false) {
                     Task { await model.load() }
@@ -57,13 +56,20 @@ private struct CabalValueChart: View {
                 loaded(model)
             }
         } else {
-            SkeletonBlock(height: 160, radius: 12)
+            skeleton
         }
     }
 
+    @ViewBuilder private var skeleton: some View {
+        CurveReadoutLine(readout: nil)
+        SkeletonBlock(height: 160, radius: 12)
+            .accessibilityIdentifier("cabal-value-chart-loading")
+        MonacoRangeChipsSkeleton(ranges: CabalValueHistoryModel.ranges)
+    }
+
     @ViewBuilder private func loaded(_ model: ValueChartModel) -> some View {
+        CurveReadoutLine(readout: model.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } })
         if let curve = model.curve, curve.hasEnoughHistory {
-            CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) })
             CurveScrubChart(
                 curve: curve, range: model.shownRange ?? model.range, selection: $selection,
                 identifier: "cabal-value-chart")
