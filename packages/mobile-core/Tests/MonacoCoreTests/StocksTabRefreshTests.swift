@@ -123,7 +123,7 @@ final class StocksTabRefreshTests: XCTestCase {
     private static func page(symbols: [String], price: String, change: String, cursor: String?) -> String {
         let assets = symbols.map { symbol in
             """
-            {"symbol":"\(symbol)","display_name":"\(symbol) Stock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":\(price),"price_as_of":null,"change_bps":\(change),"sparkline_micros":[100000000,\(price)],"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":null,"next_transition":null}}
+            {"symbol":"\(symbol)","display_name":"\(symbol) Stock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":\(price),"price_as_of":null,"change_bps":\(change),"sparkline_micros":[100000000,\(price)],"quotable":true,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":null,"next_transition":null}}
             """
         }.joined(separator: ",")
         let next = cursor.map { "\"\($0)\"" } ?? "null"

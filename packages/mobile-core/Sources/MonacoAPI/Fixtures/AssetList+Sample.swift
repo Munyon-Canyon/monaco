@@ -28,6 +28,22 @@ extension Components.Schemas.AssetSummary {
         priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
         changeBps: 125,
         sparklineMicros: [174_000_000, 175_420_000],
+        quotable: true,
+        session: .open,
+        tradable: true
+    )
+
+    public static let paused = Self(
+        symbol: "SBUXx",
+        displayName: "Starbucks xStock",
+        issuer: .xstocks,
+        kind: .equity,
+        logoUrl: nil,
+        priceMicros: 98_300_000,
+        priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
+        changeBps: -40,
+        sparklineMicros: [98_700_000, 98_300_000],
+        quotable: false,
         session: .open,
         tradable: true
     )
@@ -42,6 +58,7 @@ extension Components.Schemas.AssetSummary {
         priceAsOf: nil,
         changeBps: nil,
         sparklineMicros: nil,
+        quotable: true,
         session: .closed
     )
 
@@ -55,6 +72,7 @@ extension Components.Schemas.AssetSummary {
         priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
         changeBps: 125,
         sparklineMicros: [40_000_000, 42_000_000],
+        quotable: true,
         session: .init(state: .open, continuous: true, holiday: "", earlyClose: false),
         tradable: true
     )

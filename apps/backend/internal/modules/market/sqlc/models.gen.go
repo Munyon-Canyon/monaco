@@ -32,4 +32,5 @@ type Asset struct {
 	UiMultiplierNextNum pgtype.Int8
 	UiMultiplierNextDen pgtype.Int8
 	UiMultiplierNextAt  pgtype.Timestamptz
+	LastQuotedAt        pgtype.Timestamptz
 }

@@ -353,7 +353,7 @@ func TestAssets_aPricePastInt64DoesNotReachTheClient(t *testing.T) {
 		Asset: asset, Session: session, Priced: true,
 		Price:     domain.Sample{Micros: huge, ObservedAt: when},
 		Sparkline: []money.Micros{money.MicrosFromUint64(1)},
-	}}}}}
+	}}}}, Clock: testkit.NewClock(when)}
 	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
 	if _, err := h.GetAssets(user, api.GetAssetsRequestObject{}); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("huge price = %v", err)
@@ -841,5 +841,40 @@ func TestChart_queuesOnlyTheListedMintAmongChartsRead(t *testing.T) {
 	}
 	if got := s.backfillOf(t, listed.Mint); got != (backfillState{rows: 1, requestedAt: s.when}) {
 		t.Fatalf("listed COLDx = %+v, want the one row, pending; JPSTx and NEWx are unlisted", got)
+	}
+}
+
+func TestAssets_quotableIsTrueOnlyWithinFifteenMinutesOfTheLastJupiterPrice(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	s.quotedAgo(t, marketfake.AAPLx(), 15*time.Minute)
+	s.quotedAgo(t, marketfake.TSLAx(), 15*time.Minute+time.Second)
+	got := map[string]bool{}
+	for _, a := range pageOf(t, s.get(t, "/v1/assets")).Assets {
+		got[a.Symbol] = a.Quotable
+	}
+	if !got["AAPLx"] || got["TSLAx"] {
+		t.Fatalf("list quotable = %v, want AAPLx true and TSLAx false", got)
+	}
+	if !detailOf(t, s.get(t, "/v1/assets/AAPLx")).Quotable || detailOf(t, s.get(t, "/v1/assets/TSLAx")).Quotable {
+		t.Fatal("detail quotable differs from the list")
+	}
+}
+
+func TestAssets_neverQuotedIsNotQuotable(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	if detailOf(t, s.get(t, "/v1/assets/AAPLx")).Quotable {
+		t.Fatal("an asset Jupiter never priced must not be quotable")
+	}
+}
+
+func (s marketAPI) quotedAgo(t *testing.T, a market.Asset, ago time.Duration) {
+	t.Helper()
+	if _, err := s.pool.Exec(t.Context(), `UPDATE assets SET last_quoted_at = $2 WHERE mint = $1`,
+		a.Mint.String(), s.when.Add(-ago)); err != nil {
+		t.Fatal(err)
 	}
 }

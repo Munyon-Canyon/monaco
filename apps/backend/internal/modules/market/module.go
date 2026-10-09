@@ -70,6 +70,10 @@ const (
 
 type RouteCheck = app.RouteCheck
 
+func ProbeFailed(err error) bool { return app.ProbeFailed(err) }
+
+func ProbeFailure(err error) error { return app.ProbeFailure(err) }
+
 type Routes interface {
 	CheckRoute(ctx context.Context, id AssetID, side Side, amount money.BaseUnits) (RouteCheck, error)
 }
@@ -113,7 +117,7 @@ var _ Routes = (*app.RouteChecker)(nil)
 
 func (m *Module) RouteChecker() *app.RouteChecker {
 	quoter := jupiterquote.New(m.deps.JupiterClient())
-	return app.NewRouteChecker(m.Catalog(), quoter, m.deps.Clock)
+	return app.NewRouteChecker(m.Catalog(), m.Prices(), quoter, m.deps.Clock)
 }
 
 func (m *Module) Mount(r api.Mount) {
