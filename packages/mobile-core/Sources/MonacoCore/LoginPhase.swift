@@ -83,6 +83,11 @@ public struct LoginFlow: Equatable, Sendable {
         phase = .failed(message: message)
     }
 
+    public mutating func clearFailure() {
+        guard case .failed = phase else { return }
+        phase = step.isCodeEntry ? .awaitingCode : .idle
+    }
+
     public mutating func beginAuthorizing(_ provider: LoginProvider) -> Bool {
         guard !phase.isAuthenticated else { return false }
         switch phase {

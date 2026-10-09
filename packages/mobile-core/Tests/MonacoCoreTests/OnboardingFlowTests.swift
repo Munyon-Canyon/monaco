@@ -347,3 +347,17 @@ actor FakeAccountLinking: AccountLinking {
         if let linkXError { throw linkXError }
     }
 }
+
+extension OnboardingFlowTests {
+    func testTheLogRedactionHidesAnEmailAndAPhoneInOneLine() {
+        let line = LogRedaction.redacted(
+            in: "authenticationFailure(Could not send to ada@example.com or +1 555 555 0100, status 429)")
+
+        XCTAssertFalse(line.contains("ada"))
+        XCTAssertFalse(line.contains("example.com"))
+        XCTAssertFalse(line.contains("555"))
+        XCTAssertTrue(line.contains(LogRedaction.emailMarker))
+        XCTAssertTrue(line.contains(LogRedaction.phoneMarker))
+        XCTAssertTrue(line.hasSuffix("status 429)"), "short numbers such as a status stay")
+    }
+}

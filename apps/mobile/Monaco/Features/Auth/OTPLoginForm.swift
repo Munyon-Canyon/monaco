@@ -113,6 +113,8 @@ struct OTPLoginForm: View {
     @State private var otpCode: String
     /// A new code went out after the first one. Said once under the field, until the member types.
     @State private var resent = false
+    @State private var cooldown = ResendCooldown(clock: ContinuousClock())
+    @State private var addressHintArmed = false
     @FocusState private var focusedField: Field?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -186,8 +188,25 @@ struct OTPLoginForm: View {
         )
         .onChange(of: auth.flow.phase) { _, phase in
             guard case .failed(let message) = phase else { return }
+            if message == OTPCode.rejectedMessage {
+                otpCode = ""
+            }
             Haptics.warning()
             AccessibilityNotification.Announcement(message).post()
+        }
+        .onChange(of: isCodeStep) { _, onCodeStep in
+            if onCodeStep { restartCooldown() }
+        }
+        .onChange(of: address) {
+            addressHintArmed = false
+        }
+        .onChange(of: focusedField) { old, _ in
+            if old == .address, focusedField != .address,
+                !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                destination.normalize(address) == nil
+            {
+                addressHintArmed = true
+            }
         }
     }
 
@@ -240,6 +259,9 @@ struct OTPLoginForm: View {
         .onChange(of: otpCode) { _, newValue in
             if !newValue.isEmpty {
                 resent = false
+                if auth.pendingUser == nil {
+                    auth.clearLoginFailure()
+                }
             }
         }
     }
@@ -269,7 +291,8 @@ struct OTPLoginForm: View {
             } label: {
                 SubmitLabel(
                     isWorking: isWorking,
-                    idle: OTPPrimaryAction.title(phase: .idle, isCodeStep: true),
+                    idle: auth.pendingUser == nil
+                        ? OTPPrimaryAction.title(phase: .idle, isCodeStep: true) : "Try again",
                     working: OTPPrimaryAction.title(phase: .verifyingCode, isCodeStep: true))
             }
             .buttonStyle(.monacoPrimary)
@@ -298,8 +321,11 @@ struct OTPLoginForm: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.l))
         return layout {
-            textAction("Send a new code", identifier: "\(destination.identifierPrefix)ResendCodeButton") {
-                Task { await resendCode() }
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                textAction(cooldown.label, identifier: "\(destination.identifierPrefix)ResendCodeButton") {
+                    Task { await resendCode() }
+                }
+                .disabled(!cooldown.canResend || auth.flow.isBusy)
             }
             textAction(destination.changeLabel, identifier: "\(destination.identifierPrefix)ChangeAddressButton") {
                 changeAddress()
@@ -319,7 +345,10 @@ struct OTPLoginForm: View {
     // MARK: Actions
 
     private func sendCode() async {
-        guard let normalized = destination.normalize(address) else { return }
+        guard let normalized = destination.normalize(address) else {
+            addressHintArmed = true
+            return
+        }
         await send(normalized)
         if case .awaitingCode = auth.flow.phase {
             focusedField = .code
@@ -334,6 +363,7 @@ struct OTPLoginForm: View {
         if case .awaitingCode = auth.flow.phase {
             otpCode = ""
             resent = true
+            restartCooldown()
             focusedField = .code
         }
     }
@@ -349,8 +379,20 @@ struct OTPLoginForm: View {
     }
 
     private func submitCode(_ code: String) async {
+        if auth.pendingUser != nil {
+            guard !auth.flow.isBusy else { return }
+            await auth.retryPendingSignIn()
+            return
+        }
         guard code.count == OTPCode.length, !auth.flow.isBusy, let sentTo = sentDestination else { return }
         await verify(code, sentTo: sentTo)
+    }
+}
+
+extension OTPLoginForm {
+    private func restartCooldown() {
+        cooldown = ResendCooldown(clock: ContinuousClock())
+        cooldown.restart()
     }
 
     // MARK: Derived state
@@ -367,6 +409,7 @@ struct OTPLoginForm: View {
 
     private var showsAddressHint: Bool {
         !isCodeStep
+            && addressHintArmed
             && !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && destination.normalize(address) == nil
     }
@@ -376,7 +419,7 @@ struct OTPLoginForm: View {
     }
 
     private var isVerifyDisabled: Bool {
-        otpCode.count != OTPCode.length || auth.flow.isBusy
+        (auth.pendingUser == nil && otpCode.count != OTPCode.length) || auth.flow.isBusy
     }
 
     /// Only a turned-down code marks the field; "no connection" is not about what is in it.

@@ -25,7 +25,7 @@ extension OTPDestination {
         prompt: "Phone number",
         keyboardType: .phonePad,
         contentType: .telephoneNumber,
-        invalidHint: "Enter a mobile number with its country code, like +1 555 123 4567.",
+        invalidHint: "Enter your full mobile number.",
         changeLabel: "Change number",
         addressFieldIdentifier: "smsPhoneField",
         identifierPrefix: "sms",

@@ -18,6 +18,7 @@ class PrivyAuthService: ObservableObject {
     /// their token, or the saved session is gone), so LoginView can explain why.
     /// Cleared on the next sign-in attempt.
     @Published var lastSignOutReason: String?
+    private(set) var pendingUser: PrivyUser?
 
     private var sessionStore = MonacoSessionStore()
     private let tokenRefresh = SingleFlight<String?>()
@@ -196,17 +197,31 @@ class PrivyAuthService: ObservableObject {
         // A second tap while the first request is in flight must not send a second code.
         guard flow.beginSend() else { return }
         lastSignOutReason = nil
+        pendingUser = nil
 
         do {
             try await send()
             flow.sendSucceeded(destination: destination)
         } catch {
             let failure = Self.loginFailure(from: error, step: .sendCode)
-            AppLogger.session.error("Send code failed: \(String(describing: error), privacy: .public)")
+            AppLogger.session.error("Send code failed: \(Self.loggable(error), privacy: .public)")
             // Note the failure, but leave the member where they are: a throttled resend
             // must not take away a code box they are about to use.
             flow.sendFailed(message: LoginFailureCopy.message(for: failure, step: .sendCode))
         }
+    }
+
+    nonisolated private static func loggable(_ error: Error) -> String {
+        LogRedaction.redacted(in: String(describing: error))
+    }
+
+    func clearLoginFailure() {
+        flow.clearFailure()
+    }
+
+    func retryPendingSignIn() async {
+        guard let user = pendingUser, flow.beginVerify() else { return }
+        await storeAuthenticatedUser(user, isRestore: false)
     }
 
     private func verifyCode(_ verify: () async throws -> PrivyUser) async {
@@ -219,7 +234,7 @@ class PrivyAuthService: ObservableObject {
         } catch {
             accessToken = nil
             let failure = Self.loginFailure(from: error, step: .verifyCode)
-            AppLogger.session.error("Verify code failed: \(String(describing: error), privacy: .public)")
+            AppLogger.session.error("Verify code failed: \(Self.loggable(error), privacy: .public)")
             flow.verifyFailed(message: LoginFailureCopy.message(for: failure, step: .verifyCode))
         }
     }
@@ -332,6 +347,7 @@ class PrivyAuthService: ObservableObject {
 
     private func endSession(reason: String?) {
         accessToken = nil
+        pendingUser = nil
         sessionTokens.clear()
         lastSignOutReason = reason
         flow.signedOut()
@@ -404,6 +420,7 @@ class PrivyAuthService: ObservableObject {
     private func storeAuthenticatedUser(_ user: PrivyUser, isRestore: Bool) async {
         do {
             let token = try await user.getAccessToken()
+            pendingUser = nil
             isSigningOut = false
             // From here a revoke scheduled by the previous sign-out is stale: this is the
             // session Privy holds now, and ending it would sign the member straight out.
@@ -420,7 +437,7 @@ class PrivyAuthService: ObservableObject {
             #endif
         } catch {
             AppLogger.session.error(
-                "getAccessToken failed (restore: \(isRestore)): \(String(describing: error), privacy: .public)")
+                "getAccessToken failed (restore: \(isRestore)): \(Self.loggable(error), privacy: .public)")
             accessToken = nil
             if Self.isSignedOutError(error) {
                 endSession(reason: LoginFailureCopy.sessionExpired)
@@ -428,6 +445,7 @@ class PrivyAuthService: ObservableObject {
                 // Couldn't reach Privy. The saved session is still good; let the user retry.
                 flow.restoreFailed(message: LoginFailureCopy.restoreOffline)
             } else {
+                if flow.phase == .verifyingCode { pendingUser = user }
                 flow.tokenUnavailable(message: LoginFailureCopy.tokenUnavailable)
             }
         }
