@@ -23,6 +23,7 @@ struct CabalVoterChecklist: View {
             }
         }
         .disabled(isDisabled)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("edit-cabal-voters")
     }
 
