@@ -65,6 +65,20 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const deleteDevUserRows = `-- name: DeleteDevUserRows :execrows
+WITH x_link AS (DELETE FROM dev_x_links WHERE user_id = $1),
+wallet AS (DELETE FROM user_wallets WHERE user_id = $1)
+DELETE FROM users WHERE id = $1
+`
+
+func (q *Queries) DeleteDevUserRows(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDevUserRows, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteUser = `-- name: DeleteUser :execrows
 UPDATE users SET account_status = 'deleted', deleted_at = $1::timestamptz, updated_at = $1,
   email = NULL, phone_e164 = NULL, phone_hash = NULL, phone_verified_at = NULL,
@@ -100,6 +114,27 @@ func (q *Queries) DevUserByHandle(ctx context.Context, handle pgtype.Text) (DevU
 	row := q.db.QueryRow(ctx, devUserByHandle, handle)
 	var i DevUserByHandleRow
 	err := row.Scan(&i.ID, &i.PrivyUserID, &i.Deleted)
+	return i, err
+}
+
+const devUserForDelete = `-- name: DevUserForDelete :one
+SELECT coalesce(u.handle, '')::text AS handle, u.privy_user_id, coalesce(w.address, '')::text AS wallet_address
+FROM users u
+LEFT JOIN user_wallets w ON w.user_id = u.id
+WHERE u.id = $1
+FOR UPDATE OF u
+`
+
+type DevUserForDeleteRow struct {
+	Handle        string
+	PrivyUserID   string
+	WalletAddress string
+}
+
+func (q *Queries) DevUserForDelete(ctx context.Context, id uuid.UUID) (DevUserForDeleteRow, error) {
+	row := q.db.QueryRow(ctx, devUserForDelete, id)
+	var i DevUserForDeleteRow
+	err := row.Scan(&i.Handle, &i.PrivyUserID, &i.WalletAddress)
 	return i, err
 }
 

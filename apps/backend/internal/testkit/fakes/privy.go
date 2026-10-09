@@ -60,6 +60,19 @@ type privyCreatedUser struct {
 	Email string
 }
 
+func (s *Server) privyDeleteUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.mu.Lock()
+	_, ok := s.createdUsers[id]
+	delete(s.createdUsers, id)
+	s.mu.Unlock()
+	if !ok {
+		privyError(w, http.StatusNotFound, "User not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) privyUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	s.mu.Lock()

@@ -122,6 +122,9 @@ func (c *Client) do(ctx context.Context, in call, into any) error {
 		}
 		return errs.New(code, in.op, attrs...)
 	}
+	if into == nil {
+		return nil
+	}
 	if err := json.Unmarshal(raw, into); err != nil {
 		return errs.Wrap(err, errs.CodeDecodeFailed, in.op, slog.Int("status", resp.StatusCode))
 	}

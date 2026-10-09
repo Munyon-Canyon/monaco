@@ -130,3 +130,15 @@ SELECT id, privy_user_id, account_status = 'deleted' AS deleted FROM users WHERE
 UPDATE users SET account_status = 'active', deleted_at = NULL, photo_purged_at = NULL,
   display_name = sqlc.arg(display_name), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND account_status = 'deleted';
+
+-- name: DevUserForDelete :one
+SELECT coalesce(u.handle, '')::text AS handle, u.privy_user_id, coalesce(w.address, '')::text AS wallet_address
+FROM users u
+LEFT JOIN user_wallets w ON w.user_id = u.id
+WHERE u.id = sqlc.arg(id)
+FOR UPDATE OF u;
+
+-- name: DeleteDevUserRows :execrows
+WITH x_link AS (DELETE FROM dev_x_links WHERE user_id = sqlc.arg(id)),
+wallet AS (DELETE FROM user_wallets WHERE user_id = sqlc.arg(id))
+DELETE FROM users WHERE id = sqlc.arg(id);

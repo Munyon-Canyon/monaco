@@ -53,3 +53,27 @@ func (Users) RestoreDevUser(
 	}
 	return n == 1, nil
 }
+
+var _ app.DevUserEraser = Users{}
+
+func (Users) DevUserForDelete(ctx context.Context, q sqlc.DBTX, id ids.UserID) (app.DevUserDeletion, bool, error) {
+	row, err := sqlc.New(q).DevUserForDelete(ctx, id.UUID())
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.DevUserDeletion{}, false, nil
+	}
+	if err != nil {
+		return app.DevUserDeletion{}, false, errs.Wrap(err, errs.CodeInternal, "identity.DevUserForDelete")
+	}
+	return app.DevUserDeletion{
+		Handle:        row.Handle,
+		PrivyID:       row.PrivyUserID,
+		WalletAddress: row.WalletAddress,
+	}, true, nil
+}
+
+func (Users) DeleteDevUser(ctx context.Context, q sqlc.DBTX, id ids.UserID) error {
+	if _, err := sqlc.New(q).DeleteDevUserRows(ctx, id.UUID()); err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "identity.DeleteDevUser")
+	}
+	return nil
+}
