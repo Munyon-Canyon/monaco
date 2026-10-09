@@ -38,6 +38,9 @@ struct ChatSeenSheet: View {
                 Task { await model?.load() }
             }
             .accessibilityIdentifier("chat-seen-failed")
+        case .loaded(let members) where members.isEmpty:
+            EmptyState(title: "Nobody yet", isOnlyContent: true)
+                .accessibilityIdentifier("chat-seen-empty")
         case .loaded(let members):
             ScrollView {
                 LazyVStack(spacing: 0) {

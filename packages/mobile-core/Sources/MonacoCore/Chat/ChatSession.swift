@@ -282,3 +282,11 @@ public actor ChatSession {
         return problem.code == .known(.notCabalMember)
     }
 }
+
+extension ChatSession {
+    public func discard(key: String) {
+        submissions[key] = nil
+        state.timeline.dropUnsent(key: key)
+        publish()
+    }
+}

@@ -88,6 +88,7 @@ struct ChatThreadScreen: View {
         .background(MonacoTheme.background)
         .navigationTitle(ChatThreadCopy.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await thread?.open() }
         .onChange(of: scenePhase) { _, phase in handle(phase) }
@@ -110,13 +111,14 @@ struct ChatThreadScreen: View {
                 replyHere: { composerFocused = true },
                 requestDelete: { messageToDelete = $0 },
                 retry: { key in Task { await thread?.retry(key: key) } },
+                discard: { key in Task { await thread?.discard(key: key) } },
                 loadOlder: { Task { await thread?.loadOlder() } },
                 refresh: { await thread?.reload() }
             )
         } else if case .failed = state?.load {
             GroupChatLoadFailureView(message: ChatThreadCopy.loadFailure) { Task { await thread?.reload() } }
         } else if state?.isClosed == true {
-            Spacer()
+            EmptyState(title: GroupChatCopy.closed, isOnlyContent: true)
         } else if let loadingParent {
             VStack(alignment: .leading, spacing: 0) {
                 ChatThreadParent(parent: loadingParent, members: members, openProfile: openProfile)
@@ -130,7 +132,7 @@ struct ChatThreadScreen: View {
 
     @ViewBuilder private var bottomBar: some View {
         if state?.isClosed == true {
-            GroupChatClosedNotice()
+            if state?.parent != nil { GroupChatClosedNotice() }
         } else if let parent = state?.parent, !parent.deleted {
             VStack(spacing: 0) {
                 Toggle(ChatThreadCopy.alsoInChannel, isOn: $alsoInChannel)
@@ -198,8 +200,11 @@ struct ChatThreadList: View {
     let replyHere: () -> Void
     let requestDelete: (String) -> Void
     let retry: (String) -> Void
+    let discard: (String) -> Void
     let loadOlder: () -> Void
     let refresh: () async -> Void
+
+    @State private var now = Date()
 
     var body: some View {
         ChatList(
@@ -219,12 +224,13 @@ struct ChatThreadList: View {
             }
             ForEach(rows) { row in
                 GroupChatRowView(
-                    row: row, now: Date(), members: members, openProfile: openProfile, retry: retry,
-                    replyHere: replyHere, requestDelete: requestDelete
+                    row: row, now: now, members: members, openProfile: openProfile, retry: retry,
+                    discard: discard, replyHere: replyHere, requestDelete: requestDelete
                 )
                 .id(row.id)
             }
         }
+        .onChange(of: rows) { now = Date() }
     }
 }
 
@@ -272,6 +278,10 @@ struct ChatThreadParent: View {
             ChatMessageText(
                 text: parent.body ?? "", members: members, color: MonacoTheme.ink,
                 mentionColor: MonacoTheme.brand, openProfile: openProfile)
+            Text(parent.createdAt, format: .dateTime.hour().minute())
+                .font(MonacoTheme.Typo.stamp)
+                .foregroundStyle(MonacoTheme.tertiaryText)
+                .accessibilityIdentifier("chat-thread-parent-time")
         }
     }
 }

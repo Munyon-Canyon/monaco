@@ -95,6 +95,12 @@ public actor ThreadSession {
         return nil
     }
 
+    public func discard(key: String) {
+        submissions[key] = nil
+        state.timeline.dropUnsent(key: key)
+        publish()
+    }
+
     public func retry(key: String) async {
         guard state.timeline.unsent(key: key)?.failed == true else { return }
         state.timeline.setFailed(key: key, false)

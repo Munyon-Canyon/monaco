@@ -111,6 +111,10 @@ struct ChatLoadEarlierButton: View {
     }
 }
 
+final class ChatScrollBox {
+    var tracker = ChatScrollTracker()
+}
+
 struct ChatList<Header: View, Content: View>: View {
     let rows: [ChatRow]
     let hasOlder: Bool
@@ -122,12 +126,21 @@ struct ChatList<Header: View, Content: View>: View {
     @ViewBuilder let header: Header
     @ViewBuilder let content: Content
 
-    @State private var tracker = ChatScrollTracker()
+    @State private var scroll = ChatScrollBox()
+    @State private var unreadCount = 0
     @State private var scrollToBottomRequests = 0
     @State private var rowToKeepInView: String?
     @State private var topRowBeforeLoadingOlder: String?
 
     private static var bottomAnchor: String { "chat-bottom" }
+
+    private var tracker: ChatScrollTracker {
+        get { scroll.tracker }
+        nonmutating set {
+            scroll.tracker = newValue
+            if unreadCount != newValue.unreadCount { unreadCount = newValue.unreadCount }
+        }
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -174,10 +187,10 @@ struct ChatList<Header: View, Content: View>: View {
             .accessibilityIdentifier(listID)
             .overlay(alignment: .bottom) {
                 ZStack(alignment: .bottom) {
-                    if tracker.unreadCount > 0 { newMessagesPill }
+                    if unreadCount > 0 { newMessagesPill }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .animation(.snappy, value: tracker.unreadCount)
+                .animation(.snappy, value: unreadCount)
             }
         }
     }
@@ -213,7 +226,7 @@ struct ChatList<Header: View, Content: View>: View {
         } label: {
             HStack(spacing: MonacoTheme.Space.s) {
                 Image(systemName: "arrow.down").font(.caption.weight(.bold))
-                Text(GroupChatCopy.newMessagesPill(count: tracker.unreadCount))
+                Text(GroupChatCopy.newMessagesPill(count: unreadCount))
                     .font(MonacoTheme.Typo.captionStrong)
             }
             .foregroundStyle(MonacoTheme.primaryButtonLabel)

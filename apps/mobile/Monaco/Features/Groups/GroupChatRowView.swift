@@ -8,11 +8,14 @@ struct GroupChatRowView: View {
     var members: [Components.Schemas.CabalMember] = []
     let openProfile: (String) -> Void
     let retry: (String) -> Void
+    var discard: ((String) -> Void)?
     var openThread: ((String) -> Void)?
     var replyHere: (() -> Void)?
     var requestDelete: ((String) -> Void)?
     var seenLabel: String?
     var openSeen: (() -> Void)?
+
+    @Environment(ToastCenter.self) private var toasts
 
     private var message: ChatMessage { row.message }
 
@@ -34,8 +37,16 @@ struct GroupChatRowView: View {
                             ChatMessageMenu(
                                 enabled: canOpenMenu,
                                 reply: replyHere ?? { openThread?(rootID) },
-                                copy: { UIPasteboard.general.string = message.body },
-                                delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil))
+                                copy: {
+                                    UIPasteboard.general.string = message.body
+                                    toasts.show(success: "Copied")
+                                },
+                                delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil)
+                        )
+                        .modifier(
+                            ChatFailedMenu(
+                                enabled: row.delivery == .failed, retry: { retry(row.id) },
+                                discard: discard.map { discard in { discard(row.id) } }))
                     footer
                     seenFooter
                 }
@@ -73,9 +84,9 @@ struct GroupChatRowView: View {
         bubbleText
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, MonacoTheme.Space.sm)
-            .background(bubbleShape.fill(row.isMine ? MonacoTheme.brandFill : MonacoTheme.surface))
+            .background(bubbleShape.fill(onBrand ? MonacoTheme.brandFill : MonacoTheme.surface))
             .overlay {
-                if !row.isMine { bubbleShape.strokeBorder(MonacoTheme.hairline, lineWidth: 1) }
+                if !onBrand { bubbleShape.strokeBorder(MonacoTheme.hairline, lineWidth: 1) }
             }
             .opacity(row.delivery == .pending ? 0.5 : 1)
             .accessibilityElement(children: .combine)
@@ -109,10 +120,21 @@ struct GroupChatRowView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat-retry-\(row.id)")
-        } else if message.replyCount > 0 {
-            repliesRow
+        } else {
+            if row.endsRun && row.delivery == .sent { timeStamp }
+            if message.replyCount > 0 { repliesRow }
         }
     }
+
+    private var timeStamp: some View {
+        Text(row.date, format: .dateTime.hour().minute())
+            .font(MonacoTheme.Typo.stamp)
+            .foregroundStyle(MonacoTheme.tertiaryText)
+            .accessibilityHidden(true)
+            .accessibilityIdentifier("chat-time-\(row.id)")
+    }
+
+    private var onBrand: Bool { row.isMine && !message.deleted }
 
     @ViewBuilder private var seenFooter: some View {
         if let seenLabel, let openSeen {
@@ -220,6 +242,27 @@ struct ChatDayRule: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
+    }
+}
+
+struct ChatFailedMenu: ViewModifier {
+    let enabled: Bool
+    let retry: () -> Void
+    let discard: (() -> Void)?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled, let discard {
+            content.contextMenu {
+                Button(action: retry) {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                }
+                Button(role: .destructive, action: discard) {
+                    Label(ChatThreadCopy.delete, systemImage: "trash")
+                }
+            }
+        } else {
+            content
+        }
     }
 }
 

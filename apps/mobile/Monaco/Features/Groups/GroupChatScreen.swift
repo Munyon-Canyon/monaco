@@ -20,6 +20,10 @@ struct GroupChatScreen: View {
 
     private var sessionID: ObjectIdentifier? { session.map(ObjectIdentifier.init) }
     private var reporterID: ObjectIdentifier? { reporter.map(ObjectIdentifier.init) }
+    private var closedWithoutMessages: Bool {
+        chat?.isClosed == true && chat?.timeline.hasLoadedNewest != true
+    }
+
     private var title: String { GroupChatCopy.title(groupName: cabal?.name) }
 
     var body: some View {
@@ -29,6 +33,7 @@ struct GroupChatScreen: View {
         }
         .background(MonacoTheme.background)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .principal) { titleView }
         }
@@ -75,8 +80,8 @@ struct GroupChatScreen: View {
             } else {
                 thread(chat)
             }
-        } else if chat?.isClosed == true {
-            Color.clear
+        } else if closedWithoutMessages {
+            EmptyState(title: GroupChatCopy.closed, isOnlyContent: true)
         } else if case .failed = chat?.load {
             GroupChatLoadFailureView { Task { await session?.reload() } }
         } else {
@@ -96,13 +101,16 @@ struct GroupChatScreen: View {
             seen: chat.seen,
             openSeen: { seenTarget = SeenTarget(id: $0) },
             retry: { key in Task { await session?.retry(key: key) } },
+            discard: { key in Task { await session?.discard(key: key) } },
             loadOlder: { Task { await session?.loadOlder() } },
             refresh: { await session?.reload() }
         )
     }
 
     @ViewBuilder private var bottomBar: some View {
-        if chat?.isClosed == true {
+        if closedWithoutMessages {
+            EmptyView()
+        } else if chat?.isClosed == true {
             GroupChatClosedNotice()
         } else {
             ChatComposerBar(
