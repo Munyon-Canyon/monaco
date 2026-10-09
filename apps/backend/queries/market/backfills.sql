@@ -54,3 +54,10 @@ WHERE a.mint = ANY (sqlc.arg(mints)::text[])
   AND a.first_seen_at = sqlc.arg(now)::timestamptz
   AND coalesce(a.tradable_override, a.issuer_tradable)
 ON CONFLICT (mint) DO NOTHING;
+
+-- name: QueueAllListedBackfills :execrows
+INSERT INTO price_backfills (mint, requested_at)
+SELECT a.mint, sqlc.arg(now)::timestamptz
+FROM assets AS a
+WHERE a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
+ON CONFLICT (mint) DO NOTHING;
