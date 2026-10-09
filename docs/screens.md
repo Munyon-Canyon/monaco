@@ -45,7 +45,7 @@ The demo film (`docs/demo/storyboard.md`) and the last pre-rewrite build (`01544
 
 ## Navigation
 
-Five tabs, left to right: "Home" (`house`), "Feed" (`newspaper`), "Cabals" (`person.3`), "Stocks" (`chart.line.uptrend.xyaxis`), "Profile" (`person.crop.circle`). The tab bar stays visible on pushed screens. The demo film shows four tabs because it predates the feed (M18).
+Five tabs, left to right: "Home" (`house`), "Feed" (`newspaper`), "Cabals" (`person.3`), "Stocks" (`chart.line.uptrend.xyaxis.circle`), "Profile" (`person.crop.circle`). The tab bar stays visible on pushed screens. The demo film shows four tabs because it predates the feed (M18).
 
 Before the tabs, the session gate runs sign-in, then the first-run steps: handle (#693), phone (#694), X (#694), and later find friends (#663). Each step has a working primary button that calls its route and moves the gate forward. No step may leave the user on a screen whose button does nothing.
 

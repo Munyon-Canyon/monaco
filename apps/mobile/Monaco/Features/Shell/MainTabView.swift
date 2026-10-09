@@ -14,6 +14,7 @@ struct MainTabView: View {
                 NavigationStack(path: navigator.binding(for: tab)) {
                     tab.root
                         .monacoCanvas()
+                        .hardBottomScrollEdge()
                         .navigationDestination(for: AnyAppRoute.self) { route in
                             route.destination()
                                 .monacoCanvas()
@@ -25,6 +26,7 @@ struct MainTabView: View {
                 .monacoToastCenter(toasts, isEnabled: tab == navigator.selectedTab)
                 .tabItem {
                     Label(tab.title, systemImage: tab.systemImage)
+                        .environment(\.symbolVariants, tab == navigator.selectedTab ? .fill : .none)
                         .accessibilityIdentifier(tab.accessibilityIdentifier)
                 }
                 .tag(tab)
@@ -41,6 +43,17 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)
+        }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    fileprivate func hardBottomScrollEdge() -> some View {
+        if #available(iOS 26, *) {
+            scrollEdgeEffectStyle(.hard, for: .bottom)
+        } else {
+            self
         }
     }
 }
