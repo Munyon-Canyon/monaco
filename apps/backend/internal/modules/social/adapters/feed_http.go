@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -44,10 +45,11 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	body := api.FeedPage{Items: make([]api.FeedItem, len(page.Items))}
-	for i, item := range page.Items {
-		body.Items[i] = wireFeedItem(item)
+	items, err := wireFeedItems(ctx, h.Users, page.Items)
+	if err != nil {
+		return nil, err
 	}
+	body := api.FeedPage{Items: items}
 	if page.Next != nil {
 		next := page.Next.Encode()
 		body.NextCursor = &next
@@ -92,8 +94,12 @@ func (h HTTP) GetFeedItem(
 	if err != nil {
 		return nil, err
 	}
+	items, err := wireFeedItems(ctx, h.Users, []app.FeedItem{view.Item})
+	if err != nil {
+		return nil, err
+	}
 	return api.GetFeedItem200JSONResponse(api.FeedItemDetail{
-		Item: wireFeedItem(view.Item), Visible: view.Visible, CanComment: can,
+		Item: items[0], Visible: view.Visible, CanComment: can,
 	}), nil
 }
 
@@ -117,6 +123,27 @@ func feedFilter(kinds *string, cabal *uuid.UUID, symbol, q, scope *string) (app.
 	}
 	f.Symbol, f.Q = strings.TrimSpace(deref(symbol)), strings.TrimSpace(deref(q))
 	return f, nil
+}
+
+func wireFeedItems(ctx context.Context, users app.Users, items []app.FeedItem) ([]api.FeedItem, error) {
+	var actors []ids.UserID
+	for _, item := range items {
+		if item.ActorID.UUID() != uuid.Nil && !slices.Contains(actors, item.ActorID) {
+			actors = append(actors, item.ActorID)
+		}
+	}
+	cards, err := users.UsersByID(ctx, actors)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireFeedItems")
+	}
+	out := make([]api.FeedItem, len(items))
+	for i, item := range items {
+		out[i] = wireFeedItem(item)
+		if card, ok := cards[item.ActorID]; ok && !card.Deleted {
+			out[i].ActorPhotoUrl = optionalWireText(card.PhotoURL)
+		}
+	}
+	return out, nil
 }
 
 func wireFeedItem(item app.FeedItem) api.FeedItem {

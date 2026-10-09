@@ -7248,7 +7248,7 @@ components:
       type: object
       description: One feed item with its display strings rendered.
       additionalProperties: false
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, actor_name, asset_id, symbol, title, detail, body, status, tone, comment_count, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, actor_name, actor_photo_url, asset_id, symbol, title, detail, body, status, tone, comment_count, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -7272,6 +7272,7 @@ components:
           description: The user who acted. Null for a system item.
           examples: [null]
         actor_name: {type: [string, "null"], description: "The acting user's display name, as of the item's last rename, so it follows a rename. Null for a system item.", examples: [null]}
+        actor_photo_url: {type: [string, "null"], description: "The acting user's current profile photo URL. Null for a system item or a member with no photo.", examples: [null]}
         asset_id:
           type: [string, "null"]
           format: uuid

@@ -618,6 +618,11 @@ type FeedItem struct {
 	// Examples: null
 	ActorName *string `json:"actor_name"`
 
+	// ActorPhotoUrl The acting user's current profile photo URL. Null for a system item or a member with no photo.
+	//
+	// Examples: null
+	ActorPhotoUrl *string `json:"actor_photo_url"`
+
 	// AssetId The stock's id, the target of an asset mute. Null when the item is not about a stock.
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
