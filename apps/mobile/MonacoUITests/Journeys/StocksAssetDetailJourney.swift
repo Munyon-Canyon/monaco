@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 3
+    static let version = 4
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -15,25 +15,25 @@ enum StocksAssetDetailJourney {
         JourneyRecorder(journey: id, version: version)
     }
 
-    static func openAsset(
-        _ app: XCUIApplication, _ asset: StocksBrowseJourney.SeededAsset, scrolls: Bool, step: String
-    ) {
+    static func openAsset(_ app: XCUIApplication, _ asset: StocksBrowseJourney.SeededAsset, step: String) {
         StocksBrowseJourney.openStocks(app, step: step)
+        XCTAssertTrue(
+            StocksBrowseJourney.searchField(app).waitForExistence(timeout: 15),
+            "\(step): no search field on the Stocks tab")
+        StocksBrowseJourney.replaceQuery(app, with: asset.ticker)
         let row = StocksBrowseJourney.row(app, asset)
-        if scrolls {
-            XCTAssertTrue(
-                StocksBrowseJourney.scrollTo(app, row, timeout: 15),
-                "\(step): no \(asset.rowID) within 15 s (the catalogue did not list it)")
-        } else {
-            StocksBrowseJourney.waitForRow(app, asset, step: step, timeout: 15)
-        }
+        XCTAssertTrue(
+            row.waitForExistence(timeout: 15),
+            "\(step): no \(asset.rowID) within 15 s of searching '\(asset.ticker)'")
         row.tap()
         XCTAssertTrue(
             app.element("asset-detail-root").waitForExistence(timeout: 15), "\(step): the asset screen did not show")
     }
 
     static func cabalRows(_ app: XCUIApplication) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'propose-pick-cabal-'"))
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'propose-pick-cabal-' AND identifier != 'propose-pick-cabal-question'"))
     }
 
     static func scrollToText(_ app: XCUIApplication, _ text: String, step: String) {
@@ -59,7 +59,7 @@ enum StocksAssetDetailJourney {
 
     static func heroChartAndBuy(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open Journey Alpha") {
-            openAsset(app, alpha, scrolls: false, step: "S1.1")
+            openAsset(app, alpha, step: "S1.1")
             let title = app.navigationBars[alpha.ticker]
             XCTAssertTrue(title.exists, "S1.1: the asset screen is not titled '\(alpha.ticker)'")
         }
@@ -115,10 +115,13 @@ enum StocksAssetDetailJourney {
 
         recorder.step("S1.8", "tap Propose buy") {
             app.buttons["asset-detail-propose-buy"].tap()
-            let title = "Which cabal should buy \(alpha.ticker)?"
+            let question = "Which cabal should buy \(alpha.ticker)?"
             XCTAssertTrue(
-                app.navigationBars[title].waitForExistence(timeout: 10),
-                "S1.8: Propose buy did not open the cabal picker titled '\(title)' (#613)")
+                app.navigationBars["Pick a cabal"].waitForExistence(timeout: 10),
+                "S1.8: Propose buy did not open the cabal picker titled 'Pick a cabal' (#613)")
+            XCTAssertEqual(
+                app.element("propose-pick-cabal-question").label, question,
+                "S1.8: the cabal picker does not ask '\(question)'")
             XCTAssertTrue(cabalRows(app).firstMatch.waitForExistence(timeout: 10), "S1.8: no cabal row in the picker")
             XCTAssertGreaterThanOrEqual(cabalRows(app).count, 2, "S1.8: the picker lists fewer than two cabals")
         }
@@ -135,7 +138,7 @@ enum StocksAssetDetailJourney {
 
     static func stats(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open Journey Alpha") {
-            openAsset(app, alpha, scrolls: false, step: "S2.1")
+            openAsset(app, alpha, step: "S2.1")
         }
 
         recorder.step("S2.2", "scroll to Stats") {
@@ -149,7 +152,7 @@ enum StocksAssetDetailJourney {
 
     static func preIpoBlock(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open Journey Private") {
-            openAsset(app, preIpo, scrolls: true, step: "S3.1")
+            openAsset(app, preIpo, step: "S3.1")
             XCTAssertEqual(
                 app.staticTexts["asset-detail-name"].label, preIpo.name, "S3.1: the name is not '\(preIpo.name)'")
         }
@@ -179,7 +182,7 @@ enum StocksAssetDetailJourney {
 
     static func position(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S4.1", "open Journey Alpha") {
-            openAsset(app, alpha, scrolls: false, step: "S4.1")
+            openAsset(app, alpha, step: "S4.1")
         }
 
         recorder.step("S4.2", "see Your cabals' position") {
