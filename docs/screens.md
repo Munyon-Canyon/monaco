@@ -36,7 +36,7 @@ The demo film (`docs/demo/storyboard.md`) and the last pre-rewrite build (`01544
 
 **Shared patterns.**
 
-- **Ink hero.** At most one dark `heroInk` band per screen: Home's money hero and the cabal hero. Hero slots stacked one after another each paint the same full-bleed `heroInk` background, so they read as one band.
+- **Ink hero.** The cabal hero is the one dark `heroInk` band, and at most one per screen. Home's money sits on the paper, not on ink. Cabal hero slots stacked one after another each paint the same full-bleed `heroInk` background, so they read as one band; their skeleton blocks use `SkeletonBlock(onInk: true)`.
 - **Section.** Header in `Typo.section`, an optional count badge, an optional "See all" link on the right, then ruled rows (`MonacoSectionHeader`, `MonacoGroupedList`). Sections are ledgers on paper, not cards.
 - **Range chips.** A row of capsule chips under a chart or board. Selected is ink with white text. Boards and value curves use ranking's ranges: "1H", "1D", "1W", "1M", "All". Stock charts use market's ranges: "1D", "1W", "1M", "3M", "1Y", "ALL".
 - **Amount entry** (fund, propose, add a bot, cash out, withdraw). A large centred "$0" that turns ink when non-zero. Quick-pick chips under it. A grey helper line ("$1,000.00 available"). A short grey explainer. A full-width primary button pinned above the tab bar whose label echoes the amount ("Add $500 to the pot"). The button is disabled at $0 and over the limit, and the helper turns red with the limit message.
@@ -92,7 +92,7 @@ Pull to refresh. Refreshes on the hints its slots name. Toolbar: the viewer's av
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
 | 1 | `HomeNudgeSlot` | #644 | One onboarding nudge (link your phone, link X). Hidden when there is none |
-| 2 | `HomePortfolioSlot` | #660 | The ink hero: "Your money in cabals", the total in `moneyHero` with the digits rolling on change, a chip "▲ $0.14 · 0.1%" and "all time", an area chart of `GET /v1/me/pnl-history` with range chips 1H to All (default 1D). Empty: "$0.00", chip "$0.00 · all time", a flat hairline, no chips |
+| 2 | `HomePortfolioSlot` | #660 | Home's money on the paper (no ink band): "Your money in cabals", the total in `moneyHero` with the digits rolling on change, a chip "▲ $0.14 · 0.1%" and "all time", an area chart of `GET /v1/me/pnl-history` with range chips 1H to All (default 1D). Empty: "$0.00", chip "$0.00 · all time", a flat hairline, no chips |
 | 3 | `HomeBalanceSlot` | #610 | A row with the coin glyph, "Account balance" and the amount from `GET /v1/me/balance`. Under it two text buttons, "Add money" (`DepositRoute()`) and "Withdraw" (`WithdrawRoute()`). While funds are moving, a grey line "$50.00 funding a cabal" |
 | 4 | `HomePendingVotesSlot` | #612 | "Needs your vote" with a count badge. One proposal card per pending vote (the card below), soonest to close first, up to three, then "See all". A passed proposal whose trade has not finished (chip "Buying" or "Selling") sits under a separate "In progress" section until the trade is bought, sold or failed. Each section is hidden when empty |
 | 5 | `HomeCabalsSlot` | #660 | "Your cabals". One row per cabal from `GET /v1/me/portfolio`: tile, name, under it "34% of your cabals" (your share of the total across your cabals, whole percent; none when you are in one cabal), your slice value on the right over its return. Row opens `CabalRoute`. Empty: "No cabals yet" / "Start one with friends or join an open one." with an outline button "Browse cabals" that selects the Cabals tab |
