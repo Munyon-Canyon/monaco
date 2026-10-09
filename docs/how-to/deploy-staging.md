@@ -23,7 +23,15 @@ The project's `postgres` database holds Supabase's own schemas (`auth`, `storage
 
 ## Pooler size
 
-The api and worker each open up to `MONACO_DB_MAX_CONNS` (default 11) connections, and the pre-deploy step opens a few more. The pooler's plan default of 15 server connections per database is too few, and the worker then fails every poller with `EMAXCONNSESSION max clients reached`. The project's pool size is set to 40 (Supabase dashboard, Database, Connection pooling, or `PATCH /v1/projects/<ref>/config/database/pooler` with `default_pool_size`). Postgres allows 60 connections in all.
+Each service opens at most this many connections:
+
+| Process | Connections |
+| --- | --- |
+| api | `MONACO_DB_MAX_CONNS` |
+| worker | `MONACO_DB_MAX_CONNS` + 1. The extra one holds every poller's advisory lock, however many pollers there are. |
+| pre-deploy (`monacoctl migrate apply`, `bus apply`) | a few, only while it runs |
+
+`render.yaml` sets `MONACO_DB_MAX_CONNS` to 4, so the api and worker use 9 connections together. A deploy runs the old and new copy of each service side by side for a short time, which doubles that to 18, plus the pre-deploy step. A pool size of 25 covers it. When the pool is too small, the worker fails every poller and the api fails boot with `EMAXCONNSESSION max clients reached`. Set the pool size in the Supabase dashboard (Database, Connection pooling) or with `PATCH /v1/projects/<ref>/config/database/pooler` and `default_pool_size`. Postgres allows 60 connections in all.
 
 ## Set up from scratch
 

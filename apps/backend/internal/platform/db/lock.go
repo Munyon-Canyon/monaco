@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -11,68 +12,104 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 )
 
-const tryAdvisoryLock = `SELECT pg_try_advisory_lock(hashtext($1))`
+const (
+	tryAdvisoryLock = `SELECT pg_try_advisory_lock(hashtext($1))`
+	advisoryUnlock  = `SELECT pg_advisory_unlock(hashtext($1))`
+	holdOp          = "db.Locks.Hold"
+)
 
-type Lock struct {
+type Locks struct {
 	pool *pgxpool.Pool
-	key  string
+	mu   sync.Mutex
 	conn *pgxpool.Conn
+	held map[string]bool
+	lost map[string]error
 }
 
-func NewLock(pool *pgxpool.Pool, key string) *Lock {
-	return &Lock{pool: pool, key: key}
+func NewLocks(pool *pgxpool.Pool) *Locks {
+	return &Locks{pool: pool, held: map[string]bool{}, lost: map[string]error{}}
 }
 
-func (l *Lock) Hold(ctx context.Context) (bool, error) {
-	var lost error
+func (l *Locks) Hold(ctx context.Context, key string) (bool, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return false, classify(err, holdOp)
+	}
 	if l.conn != nil {
-		err := l.conn.Ping(ctx)
-		if err == nil {
+		if err := l.conn.Ping(ctx); err != nil {
+			l.drop(ctx, err)
+		} else if l.held[key] {
 			return true, nil
 		}
-		lost = errors.Join(err, l.Release(ctx))
 	}
-	held, err := l.take(ctx)
+	held, err := l.take(ctx, key)
+	lost, wasLost := l.lost[key]
+	delete(l.lost, key)
 	if err != nil {
 		return false, errors.Join(err, lost)
 	}
-	if lost != nil {
+	if wasLost {
 		boundary.Warn(ctx, observability.DBLockLost,
-			slog.String("lock", l.key), slog.Bool("held", held), slog.Any("err", lost))
+			slog.String("lock", key), slog.Bool("held", held), slog.Any("err", lost))
 	}
 	return held, nil
 }
 
-func (l *Lock) take(ctx context.Context) (bool, error) {
-	const op = "db.Lock.Hold"
-	conn, err := l.pool.Acquire(ctx)
-	if err != nil {
-		return false, classify(err, op)
+func (l *Locks) take(ctx context.Context, key string) (bool, error) {
+	if l.conn == nil {
+		conn, err := l.pool.Acquire(ctx)
+		if err != nil {
+			return false, classify(err, holdOp)
+		}
+		l.conn = conn
 	}
 	var held bool
-	if err := conn.QueryRow(ctx, tryAdvisoryLock, l.key).Scan(&held); err != nil {
-		conn.Release()
-		return false, classify(err, op)
+	if err := l.conn.QueryRow(ctx, tryAdvisoryLock, key).Scan(&held); err != nil {
+		l.drop(ctx, err)
+		return false, classify(err, holdOp)
 	}
-	if !held {
-		conn.Release()
-		return false, nil
+	if held {
+		l.held[key] = true
 	}
-	l.conn = conn
-	return true, nil
+	l.releaseIdle()
+	return held, nil
 }
 
-func (l *Lock) Release(ctx context.Context) error {
-	if l.conn == nil {
+func (l *Locks) Release(ctx context.Context, key string) error {
+	const op = "db.Locks.Release"
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.lost, key)
+	if !l.held[key] {
 		return nil
 	}
+	delete(l.held, key)
+	finishCtx, cancel := finishContext(ctx)
+	defer cancel()
+	if _, err := l.conn.Exec(finishCtx, advisoryUnlock, key); err != nil {
+		l.drop(ctx, err)
+		return classify(err, op)
+	}
+	l.releaseIdle()
+	return nil
+}
+
+func (l *Locks) drop(ctx context.Context, cause error) {
 	conn := l.conn.Hijack()
 	l.conn = nil
 	finishCtx, cancel := finishContext(ctx)
 	defer cancel()
-	_, unlockErr := conn.Exec(finishCtx, `SELECT pg_advisory_unlock_all()`)
-	if err := errors.Join(unlockErr, conn.Close(finishCtx)); err != nil {
-		return classify(err, "db.Lock.Release")
+	cause = errors.Join(cause, conn.Close(finishCtx))
+	for key := range l.held {
+		l.lost[key] = cause
 	}
-	return nil
+	clear(l.held)
+}
+
+func (l *Locks) releaseIdle() {
+	if l.conn != nil && len(l.held) == 0 {
+		l.conn.Release()
+		l.conn = nil
+	}
 }

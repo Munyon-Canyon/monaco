@@ -2,6 +2,7 @@ package poller_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -292,12 +293,21 @@ func (*stalledPoller) TickBudget() time.Duration { return 20 * time.Millisecond 
 
 func TestRunner_aTimedOutTickKeepsRankingRunsStalled(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	h := newHarness(t, connectedDB(t), testkit.NewClock(epoch()))
 	out, _ := h.start(t, &stalledPoller{fakePoller{name: "test.stalled"}})
 	if failed := out.expect(t, "poller.tick.failed"); failed["code"] != string(errs.CodeRankingRunsStalled) ||
 		failed["alert"] != true {
 		t.Fatalf("failed line = %v, want ranking_runs_stalled with alert", failed)
 	}
+}
+
+func connectedDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	pool := testkit.DB(t)
+	if err := pool.Ping(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	return pool
 }
 
 type decodeFailedPoller struct{ fakePoller }
@@ -311,26 +321,107 @@ func (*decodeFailedPoller) Tick(ctx context.Context) (poller.Report, error) {
 
 func TestRunner_aTimedOutTickStillBecomesAnUpstreamTimeoutForAnotherInternalKindCode(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	h := newHarness(t, connectedDB(t), testkit.NewClock(epoch()))
 	out, _ := h.start(t, &decodeFailedPoller{fakePoller{name: "test.decode"}})
 	if failed := out.expect(t, "poller.tick.failed"); failed["code"] != "upstream_timeout" {
 		t.Fatalf("failed line = %v, want decode_failed wrapping a deadline rewritten to upstream_timeout", failed)
 	}
 }
 
-func TestRunner_refusesAPoolTooSmallForItsHeldLocks(t *testing.T) {
+func TestRunner_holdsEveryPollerLockOnOneConnection(t *testing.T) {
 	t.Parallel()
-	pool := poolWithMaxConns(t, testkit.DB(t), 2)
-	h := newHarness(t, pool, testkit.NewClock(epoch()))
-	defer func() {
-		if r := recover(); r != "poller.Runner.Run: pool MaxConns 2 must exceed the 2 pollers that each hold a connection" {
-			t.Fatalf("recovered %v, want the pool-size panic", r)
+	base := testkit.DB(t)
+	h := newHarness(t, lockPool(t, base, "poller-locks"), testkit.NewClock(epoch()))
+	pollers := namedPollers(6)
+	out, _ := h.start(t, pollers...)
+	if got := out.take(t, len(pollers)); got["poller.tick"] != len(pollers) {
+		t.Fatalf("first attempts logged %v, want every poller to take its free lock and tick", got)
+	}
+	var conns int
+	err := base.QueryRow(t.Context(), `SELECT count(*) FROM pg_stat_activity
+		WHERE datname = current_database() AND application_name = 'poller-locks'`).Scan(&conns)
+	if err != nil || conns != 1 {
+		t.Fatalf("lock connections = %d (%v), want 1 for %d pollers", conns, err, len(pollers))
+	}
+}
+
+func TestRunner_twoRunnersOnOneDatabaseNeverTickTheSamePoller(t *testing.T) {
+	t.Parallel()
+	base, clk := testkit.DB(t), testkit.NewClock(epoch())
+	a := newHarness(t, lockPool(t, base, "runner-a"), clk)
+	b := newHarness(t, lockPool(t, base, "runner-b"), clk)
+	pa, pb := namedPollers(4), namedPollers(4)
+	linesA, _ := a.start(t, pa...)
+	linesB, _ := b.start(t, pb...)
+	const rounds = 4
+	for round := range rounds {
+		if round > 0 {
+			clk.Advance(interval)
 		}
-	}()
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	err := h.runner.Run(ctx, &fakePoller{name: "test.one", tick: quiet}, &fakePoller{name: "test.two", tick: quiet})
-	t.Fatalf("Run = %v, want a panic before any loop starts", err)
+		got := linesA.take(t, len(pa))
+		for msg, n := range linesB.take(t, len(pb)) {
+			got[msg] += n
+		}
+		if got["poller.tick"] != len(pa) || got["poller.tick.skipped_locked"] != len(pa) {
+			t.Fatalf("round %d logged %v, want each poller ticked once and skipped once across the runners", round, got)
+		}
+	}
+	for i := range pa {
+		na, nb := pa[i].(*fakePoller).ticks.Load(), pb[i].(*fakePoller).ticks.Load()
+		if na+nb != rounds || na*nb != 0 {
+			t.Fatalf("%s ticks a=%d b=%d, want all %d ticks on one runner", pa[i].Name(), na, nb, rounds)
+		}
+	}
+}
+
+func TestRunner_retakesEveryLockAfterItsConnectionDiesAndKeepsThemFromAnotherRunner(t *testing.T) {
+	t.Parallel()
+	base, clk := testkit.DB(t), testkit.NewClock(epoch())
+	a := newHarness(t, lockPool(t, base, "runner-a"), clk)
+	pollers := namedPollers(3)
+	linesA, _ := a.start(t, pollers...)
+	if got := linesA.take(t, len(pollers)); got["poller.tick"] != len(pollers) {
+		t.Fatalf("first attempts logged %v, want every poller to tick", got)
+	}
+	var gone int
+	err := base.QueryRow(t.Context(), terminateRunnerA).Scan(&gone)
+	if err != nil || gone != 1 {
+		t.Fatalf("terminated %d lock connections (%v), want 1", gone, err)
+	}
+	clk.Advance(interval)
+	got := linesA.take(t, 2*len(pollers))
+	if got["db.lock.lost"] != len(pollers) || got["poller.tick"] != len(pollers) {
+		t.Fatalf("attempts after the connection died logged %v, want each poller to report the loss and tick", got)
+	}
+	b := newHarness(t, lockPool(t, base, "runner-b"), clk)
+	linesB, _ := b.start(t, namedPollers(3)...)
+	if got = linesB.take(t, len(pollers)); got["poller.tick.skipped_locked"] != len(pollers) {
+		t.Fatalf("second runner logged %v, want every poller skipped while the first runner holds it", got)
+	}
+}
+
+const terminateRunnerA = `SELECT count(*) FILTER (WHERE pg_terminate_backend(pid, 5000)) FROM pg_stat_activity
+WHERE datname = current_database() AND application_name = 'runner-a'`
+
+func namedPollers(n int) []poller.Poller {
+	pollers := make([]poller.Poller, n)
+	for i := range pollers {
+		pollers[i] = &fakePoller{name: fmt.Sprintf("test.p%d", i), tick: quiet}
+	}
+	return pollers
+}
+
+func lockPool(t *testing.T, base *pgxpool.Pool, app string) *pgxpool.Pool {
+	t.Helper()
+	cfg := base.Config()
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = app
+	pool, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
 }
 
 func TestRunner_lockThatCannotBeTakenFailsWithinTheLockDeadline(t *testing.T) {

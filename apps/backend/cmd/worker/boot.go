@@ -116,7 +116,7 @@ func startWork(
 	if !d.Config.CoinGecko.HistoryEnabled {
 		observability.Info(ctx, observability.MarketHistoryDisabled)
 	}
-	locks, err := openLockPool(ctx, d.Config.DB, pollers)
+	locks, err := db.Open(ctx, config.DB{URL: d.Config.DB.URL, MaxConns: 1})
 	if err != nil {
 		return health{}, err
 	}
@@ -220,14 +220,6 @@ func startConsumers(
 			<-stopped
 		}
 	}, nil
-}
-
-func openLockPool(ctx context.Context, cfg config.DB, pollers []poller.Poller) (*pgxpool.Pool, error) {
-	conns := int32(1)
-	for range pollers {
-		conns++
-	}
-	return db.Open(ctx, config.DB{URL: cfg.URL, MaxConns: conns})
 }
 
 func startPollers(ctx context.Context, runner *poller.Runner, pollers []poller.Poller) func() error {
