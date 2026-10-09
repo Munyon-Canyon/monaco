@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 4
+version: 5
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
 actors: [A]
@@ -20,7 +20,7 @@ The format of this doc is in [App journeys](../README.md).
 | Id | What must be true |
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs, and the Stocks tab [stocks/browse](browse.md) opens |
-| P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/asset-detail.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.setup.sh`, which upserts the catalogue rows of [stocks/browse](browse.md) (P3 there), among them `JRNYQx`, a second `pre_ipo` listing of "Journey Private" from issuer `tessera`, with the same `company_key` as `JRNYPx`. Each row gets two `price_points` samples, stamped twelve hours ago and now. No step taps to create them |
+| P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/asset-detail.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.setup.sh`, which upserts the catalogue rows of [stocks/browse](browse.md) (P3 there), among them `JRNYQx`, a second `pre_ipo` listing of "Journey Private" from issuer `tessera`, with the same `company_key` as `JRNYPx`. Each row gets two `price_points` samples, stamped twelve hours ago and now. The setup then lowers the older `JRNYAx` sample to $120.00, so the year range has a width and the 52-week bar draws (it needs a high above the low). No step taps to create them |
 | P3 | `JRNYAx` is `issuer_tradable`, so its Propose buy is enabled |
 | P4 | S4 needs a cabal of A's that holds `JRNYAx`. A treasury position comes only from a confirmed trade, and the trade path is #2136's, so the setup script seeds no holding and S4 runs against a member with none |
 | P5 | S1 needs A in at least two cabals so Propose buy opens the cabal picker. The S1 setup counts the cabals A votes in and has A create cabals `QA stocks {QA.run} <n>` through the API for the shortfall (cabal creation is rate limited, and earlier runs leave cabals), and marks A done with onboarding |
@@ -51,8 +51,8 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S2.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
-| S2.2 | scroll to | "Stats" | | Within 10 s, a "Stats" card shows open, day high and low, previous close, 52-week high and low and buy premium. Old app: the Stats card. screens.md: "Stats" (open, day high and low, previous close, 52-week high and low, buy premium) |
-| S2.3 | wait | "52-week range" | | The 52-week range bar shows under Stats. Old app: the 52-week bar. screens.md: the 52-week range bar |
+| S2.2 | scroll to | `asset-stats` | | Within 10 s, `asset-stats` shows the Stats card: open, day high and low, previous close, and 52-week high and low, leaving out a row the candles cannot give. Old app: the Stats card. screens.md: "Stats" (open, day high and low, previous close, 52-week high and low). The buy premium waits for the API, so the card has no row for it |
+| S2.3 | scroll to | `asset-year-range` | | Within 10 s, `asset-year-range` shows under the Stats rows, and its label starts with "52-week range". The bar is one accessibility element, so its label reads "52-week range, $x to $y". Old app: the 52-week bar. screens.md: the 52-week range bar |
 
 ### S3 A Pre-IPO token
 
@@ -71,8 +71,8 @@ Starts signed in (auth/sign-in), with a cabal of A's holding `JRNYAx` (P4).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S4.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
-| S4.2 | scroll to | "Your cabals' position" | | Within 10 s, "Your cabals' position" shows one `asset-position-holding-…` row per cabal that holds it. Old app: the position card. screens.md: When one of the viewer's cabals holds it: "Your cabals' position" with one row per cabal |
-| S4.3 | tap | `asset-detail-sell` | | Within 10 s, the propose screen opens with "Propose sell". Old app: Propose sell from the position card. screens.md: plus "Propose sell" when a cabal holds it |
+| S4.2 | scroll to | `asset-cabal-positions` | | Within 10 s, `asset-cabal-positions` ("Your cabals' position") shows one `asset-position-<cabal id>` row per cabal that holds it. Old app: the position card. screens.md: When one of the viewer's cabals holds it: "Your cabals' position" with one row per cabal |
+| S4.3 | tap | `asset-detail-propose-sell` | | Within 10 s, the propose screen opens with "Propose sell". Old app: Propose sell from the position card. screens.md: plus "Propose sell" when a cabal holds it |
 
 ## Ground truth
 
@@ -82,8 +82,7 @@ Looking at a stock writes nothing, and S1.9 backs out of Amount. After a run, `a
 
 | Step | Why | Blocking ticket |
 | --- | --- | --- |
-| S2.2, S2.3 | The asset screen dropped the Stats card and the 52-week bar | #577 |
-| S4.2, S4.3 | The asset screen dropped "Your cabals' position" and Propose sell, and no path seeds a holding | #577, #2136 |
+| S4.2, S4.3 | No path seeds a holding of `JRNYAx` for A (P4), so "Your cabals' position" and Propose sell do not show | #2136 |
 
 ## Not covered
 
@@ -97,4 +96,3 @@ Looking at a stock writes nothing, and S1.9 backs out of Amount. After a run, `a
 - "Can't buy right now" on an untradable asset. The sample harness `-MonacoAssetDetailSample untradable` shows it.
 - The live price tick flash. It needs a new sample mid-scenario.
 - "Private-market reference" and "About <token>". The asset screen does not render them (`GET /v1/assets/{symbol}` does not serve them), so S3 no longer has steps for them.
-- Targets with no accessibility identifier: "Stats" and "52-week range" (S2) and "Your cabals' position" (S4) have no view in `apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift` on staging. The steps target their copy until #577 adds the views and their identifiers.
