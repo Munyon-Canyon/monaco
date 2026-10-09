@@ -69,11 +69,12 @@ public struct CabalPotSummary: Equatable, Sendable {
                 gain: UsdAmountFormatter.format(signedMicros: me.pnlMicros))
         }
         holdings = pot.holdings.map { holding in
-            Row(
+            let units = Self.shares(holding.units, kind: AssetKind(raw: holding.kind.rawValue))
+            return Row(
                 symbol: holding.symbol,
                 ticker: AssetSymbolFormatter.display(holding.symbol),
                 name: holding.displayName,
-                detail: "\(Self.shares(holding.units)) · \(UsdAmountFormatter.format(micros: holding.priceMicros))",
+                detail: "\(units) · \(UsdAmountFormatter.format(micros: holding.priceMicros))",
                 value: UsdAmountFormatter.format(micros: holding.valueMicros),
                 gain: UsdAmountFormatter.format(signedMicros: holding.pnlMicros))
         }
@@ -108,12 +109,14 @@ public struct CabalPotSummary: Equatable, Sendable {
         return "\((basisPoints + 50) / 100)%"
     }
 
-    public static func shares(_ units: String) -> String {
+    public static func shares(_ units: String, kind: AssetKind) -> String {
         var trimmed = Substring(units)
         if trimmed.contains(".") {
             while trimmed.last == "0" { trimmed = trimmed.dropLast() }
             if trimmed.last == "." { trimmed = trimmed.dropLast() }
         }
-        return trimmed == "1" ? "1 share" : "\(trimmed) shares"
+        let (singular, plural) =
+            kind == .preIpo ? (PreIpoCopy.tokenLabelSingular, PreIpoCopy.tokenLabelPlural) : ("share", "shares")
+        return trimmed == "1" ? "1 \(singular)" : "\(trimmed) \(plural)"
     }
 }

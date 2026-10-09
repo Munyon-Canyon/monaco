@@ -24,7 +24,7 @@ struct CabalActionsLive: View {
     }
 
     var body: some View {
-        CabalActionsRow(model: model) { route in
+        CabalActionsRow(model: model, retry: { retry.retry?() }) { route in
             environment.navigator.open(route, in: environment.navigator.selectedTab)
         }
         .onChange(of: cabalModel?.cabal, initial: true) { _, cabal in
@@ -58,6 +58,7 @@ struct CabalActionsLive: View {
 
 struct CabalActionsRow: View {
     let model: CabalActionsModel?
+    let retry: () -> Void
     let open: (any AppRoute) -> Void
 
     @Environment(ToastCenter.self) private var toasts
@@ -65,7 +66,6 @@ struct CabalActionsRow: View {
 
     var body: some View {
         content
-            .padding(.horizontal, MonacoTheme.Space.gutter)
             .onChange(of: model?.toast) { _, message in
                 guard let model, let message else { return }
                 toasts.current = MonacoToast(message: message)
@@ -85,10 +85,13 @@ struct CabalActionsRow: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityHidden(true)
             }
-        case .hidden, .failed:
+        case .hidden:
             Color.clear.frame(height: 0)
+        case .failed:
+            MonacoErrorRow(thing: "the cabal actions", identifier: "cabal-actions-failed", retry: retry)
         case .member(let canPropose):
             if let model {
                 buttons(cabalID: model.cabalID, canPropose: canPropose)
@@ -114,6 +117,7 @@ struct CabalActionsRow: View {
                     .accessibilityIdentifier("cabal-action-propose-caption")
             }
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     private func action(
@@ -159,7 +163,9 @@ private struct CabalActionsHarnessScreen: View {
     var body: some View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
-                CabalActionsRow(model: model) { path.append(AnyAppRoute($0)) }
+                CabalActionsRow(model: model, retry: { Task { await model?.load() } }) {
+                    path.append(AnyAppRoute($0))
+                }
                 Spacer(minLength: 0)
             }
             .padding(.top, MonacoTheme.Space.gutter)

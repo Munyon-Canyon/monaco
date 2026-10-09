@@ -44,22 +44,24 @@ public struct AssetCabalPosition: Equatable, Sendable, Identifiable {
     public let pictureURL: String?
     public let canVote: Bool
     public let units: String
+    public let kind: AssetKind
     public let valueMicros: Int64
     public let pnlMicros: Int64
     public let returnBasisPoints: Int64?
 
     public var id: String { cabalID }
-    public var sharesLabel: String { CabalPotSummary.shares(units) }
+    public var sharesLabel: String { CabalPotSummary.shares(units, kind: kind) }
 
     public init(
         cabalID: String, cabalName: String, pictureURL: String?, canVote: Bool,
-        units: String, valueMicros: Int64, pnlMicros: Int64, costBasisMicros: Int64
+        units: String, kind: AssetKind, valueMicros: Int64, pnlMicros: Int64, costBasisMicros: Int64
     ) {
         self.cabalID = cabalID
         self.cabalName = cabalName
         self.pictureURL = pictureURL
         self.canVote = canVote
         self.units = units
+        self.kind = kind
         self.valueMicros = valueMicros
         self.pnlMicros = pnlMicros
         let (scaled, overflow) = pnlMicros.multipliedReportingOverflow(by: 10_000)
