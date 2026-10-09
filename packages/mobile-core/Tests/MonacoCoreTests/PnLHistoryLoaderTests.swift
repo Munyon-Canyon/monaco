@@ -144,19 +144,24 @@ final class PnLHistoryLoaderTests: XCTestCase {
         task.cancel()
     }
 
-    func testAFailedRefetchKeepsTheScreenAndReportsTheError() async throws {
+    func testAFailedRefetchSendsNothingAndKeepsTheCache() async throws {
         let transport = StubTransport(scripted: [try mine(._1d), .failure(URLError(.notConnectedToInternet))])
         let hints = FakeHintStream()
         let loader = PnLHistoryLoader(api: api(transport), hints: hints)
-        _ = try await loader.show(.me, range: .oneDay)
+        let shown = try await loader.show(.me, range: .oneDay)
         let updates = Updates()
         let task = Task { await loader.observe { await updates.add($0) } }
         await subscribed(hints)
 
         await hints.send(.changed(.user("u1"), what: "balance", id: "1"))
-        await updates.reaches(1)
+        await transport.waitForRequests(2)
+        for _ in 0..<50 { await Task.yield() }
 
-        guard case .failed(.transport) = await updates.all[0] else { return XCTFail("want a transport failure") }
+        let sent = await updates.all.count
+        let cached = await loader.cached(.me, range: .oneDay)
+        XCTAssertEqual(sent, 0)
+        XCTAssertNotNil(cached)
+        XCTAssertEqual(cached, shown)
         task.cancel()
     }
 

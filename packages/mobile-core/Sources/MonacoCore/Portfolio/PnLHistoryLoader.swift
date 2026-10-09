@@ -95,12 +95,13 @@ public actor PnLHistoryLoader {
     private func refetchVisible() async {
         guard !visible.isEmpty else { return }
         let keys = visible
+        let kept = cache
         cache.removeAll()
         do {
             guard let curves = try await queued(keys, issued: generation, force: true) else { return }
             await onUpdate?(.refreshed(range: keys[0].range, curves: curves))
         } catch {
-            await onUpdate?(.failed(APIError(error)))
+            cache.merge(kept) { fresh, _ in fresh }
         }
     }
 

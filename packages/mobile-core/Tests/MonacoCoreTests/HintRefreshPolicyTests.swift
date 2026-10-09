@@ -117,10 +117,38 @@ final class HintRefresherTests: XCTestCase {
         XCTAssertEqual(gate.refreshCount, 2)
     }
 
+    func testAHintRefreshRunsAsBackgroundWorkAndADirectCallDoesNot() async {
+        let gate = RefreshGate()
+        let flags = BackgroundFlags()
+        let refresh: @MainActor () async -> Void = {
+            flags.seen.append(BackgroundRefresh.isActive)
+            await gate.enter()
+        }
+        let refresher = HintRefresher(refresh: refresh)
+        let (stream, continuation) = AsyncStream<Hint>.makeStream()
+        let observing = Task { await refresher.observe(stream) }
+
+        continuation.yield(Self.hint(1))
+        await gate.waitForRefreshes(1)
+        gate.releaseOne()
+        await gate.waitForFinishes(1)
+        continuation.finish()
+        await observing.value
+        gate.releaseOne()
+        await refresh()
+
+        XCTAssertEqual(flags.seen, [true, false])
+    }
+
     private static func hint(_ id: Int) -> Hint {
         Hint(key: "global", what: "feed", id: "\(id)") ?? .resync
     }
 
+}
+
+@MainActor
+private final class BackgroundFlags {
+    var seen: [Bool] = []
 }
 
 @MainActor

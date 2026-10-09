@@ -210,7 +210,7 @@ public final class AssetDetailClientModel {
             if selectedRange == .oneDay, chartPhase != .loading { await refreshChart() }
         } catch {
             lastError = APIError(error)
-            failureTick += 1
+            if !BackgroundRefresh.isActive { failureTick += 1 }
         }
     }
 

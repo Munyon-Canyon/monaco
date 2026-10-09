@@ -235,7 +235,7 @@ public final class CabalActivityModel {
             notMember = true
             return
         }
-        guard !pager.items.isEmpty else { return }
+        guard !pager.items.isEmpty, !BackgroundRefresh.isActive else { return }
         lastError = error
         failureTick += 1
     }

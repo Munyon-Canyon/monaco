@@ -45,6 +45,7 @@ public final class CabalModel {
         } catch {
             guard issued == generation else { return }
             let error = APIError(error)
+            if BackgroundRefresh.isActive, case .loaded = state { return }
             lastError = error
             failureTick += 1
             if case .loaded = state { return }

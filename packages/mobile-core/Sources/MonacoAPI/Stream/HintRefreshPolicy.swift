@@ -50,6 +50,10 @@ public struct HintRefreshPolicy: Equatable, Sendable {
     }
 }
 
+public enum BackgroundRefresh {
+    @TaskLocal public static var isActive = false
+}
+
 @MainActor
 public final class HintRefresher {
     private let refresh: @MainActor () async -> Void
@@ -112,7 +116,7 @@ public final class HintRefresher {
     private func drain() async {
         defer { running = false }
         while true {
-            await refresh()
+            await BackgroundRefresh.$isActive.withValue(true) { await refresh() }
             guard policy.send(.refreshFinished) == .refreshNow else { return }
         }
     }

@@ -81,6 +81,6 @@ public final class AccountActivityModel {
     }
 
     private func noteFailure(_ error: APIError) {
-        if !pager.items.isEmpty { toast = ToastCopy.message(for: error) }
+        if !pager.items.isEmpty, !BackgroundRefresh.isActive { toast = ToastCopy.message(for: error) }
     }
 }
