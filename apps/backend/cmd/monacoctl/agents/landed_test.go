@@ -85,3 +85,36 @@ func TestClosed_readsTheRESTCloseTime(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestLandedCommit_namesTheCommitThatCarriesThePR(t *testing.T) {
+	t.Parallel()
+	closedAt := time.Date(2026, 9, 27, 11, 0, 0, 0, time.UTC)
+	commits := list("/commits?sha=fb&since=2026-09-27T10:00:00Z")
+	squashes := `[{"sha":"s12","commit":{"message":"Queue stacks (#12)\n\nCloses #40"}},{"sha":"s120","commit":{"message":"Wider (#120)"}}]`
+	for _, tc := range []struct {
+		name    string
+		pr      PR
+		compare string
+		want    string
+		landed  bool
+	}{
+		{"merged", PR{Number: 7, State: "closed", MergedAt: &closedAt, MergeCommitSHA: "m7", Head: Ref{SHA: "h7"}}, "", "m7", true},
+		{"open", PR{Number: 7, State: "open", Head: Ref{SHA: "h7"}}, "", "", false},
+		{"squash-landed", PR{Number: 12, State: "closed", ClosedAt: &closedAt, Head: Ref{SHA: "h12"}}, "", "s12", true},
+		{"head on the trunk", PR{Number: 13, State: "closed", ClosedAt: &closedAt, Head: Ref{SHA: "h13"}}, `{"status":"behind"}`, "h13", true},
+		{"closed without landing", PR{Number: 13, State: "closed", ClosedAt: &closedAt, Head: Ref{SHA: "h13"}}, `{"status":"diverged"}`, "h13", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			f.hub.on(commits, squashes)
+			if tc.compare != "" {
+				f.hub.on(get("/compare/fb..."+tc.pr.Head.SHA), tc.compare)
+			}
+			sha, ok, err := f.Env(t).landedCommit(t.Context(), tc.pr)
+			if err != nil || ok != tc.landed || (tc.landed && sha != tc.want) {
+				t.Fatalf("landedCommit = %q, %v, %v; want %q, %v", sha, ok, err, tc.want, tc.landed)
+			}
+		})
+	}
+}

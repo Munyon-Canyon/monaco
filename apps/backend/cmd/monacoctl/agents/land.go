@@ -478,7 +478,7 @@ func (env *Env) landedBeforeGraphiteClosed(ctx context.Context, p stackPR, draft
 }
 
 func (env *Env) draftLanded(ctx context.Context, pr int, at time.Time, drafts []queueDraft) (bool, error) {
-	if squashed, err := env.squashed(ctx, closedPR{Number: pr, ClosedAt: at}); err != nil || squashed {
+	if _, squashed, err := env.squashed(ctx, closedPR{Number: pr, ClosedAt: at}); err != nil || squashed {
 		return squashed, err
 	}
 	for _, d := range drafts {

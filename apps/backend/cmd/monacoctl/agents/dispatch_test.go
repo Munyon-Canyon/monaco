@@ -573,3 +573,53 @@ func TestDispatch_dryRunPrintsTheWholeSpawnBlockPastSixtyRemoteOwners(t *testing
 		t.Fatalf("code=%d stderr=%q stdout=\n%s", code, stderr, stdout)
 	}
 }
+
+func TestDispatch_blockerSquashLandedByTheQueueClears(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	env := f.Env(t)
+	env.Run = f.run
+	squash := commitFile(t, f.dir, "squash.go", "x\n")
+	head := commitFile(t, f.dir, "head.go", "x\n")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", squash)
+	closedAt := f.now
+	trunk := list("/commits?sha=fb&since=" + closedAt.Add(-time.Hour).UTC().Format(time.RFC3339))
+	message := map[string]string{"message": "Rebuild (#8)\n\nCloses #9"}
+	f.hub.on(trunk, []map[string]any{{"sha": squash, "commit": message}})
+	queued := PR{Number: 8, State: "closed", Head: Ref{SHA: head}, ClosedAt: &closedAt}
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 · **Touches:** `a`"})
+
+	f.hub.on(get("/issues/8"), Issue{PullRequest: &struct{}{}})
+	f.hub.on(get("/pulls/8"), queued)
+	if err := env.blockersClear(t.Context(), 4); err != nil {
+		t.Errorf("pull blocker: %v", err)
+	}
+
+	f.hub.on(get("/issues/8"), Issue{State: "open"})
+	closer := queued
+	closer.Base = Ref{Ref: "fb"}
+	closer.Body = "Closes #8"
+	f.hub.on(list("/pulls?state=closed"), []PR{closer})
+	if err := env.blockersClear(t.Context(), 4); err != nil {
+		t.Errorf("issue blocker: %v", err)
+	}
+}
+
+func TestDispatch_blockerClosedWithoutLandingStillRefuses(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	env := f.Env(t)
+	env.Run = f.run
+	head := commitFile(t, f.dir, "head.go", "x\n")
+	git(t, f.dir, "update-ref", "refs/remotes/origin/fb", "HEAD~1")
+	closedAt := f.now
+	f.hub.on(list("/commits?sha=fb&since="+closedAt.Add(-time.Hour).UTC().Format(time.RFC3339)), []map[string]any{})
+	f.hub.on(get("/compare/fb..."+head), `{"status":"diverged"}`)
+	f.hub.on(get("/issues/4"), Issue{Body: "**Milestone:** M7 · **Blocked by:** #8 · **Touches:** `a`"})
+	f.hub.on(get("/issues/8"), Issue{PullRequest: &struct{}{}})
+	f.hub.on(get("/pulls/8"), PR{Number: 8, State: "closed", Head: Ref{SHA: head}, ClosedAt: &closedAt})
+	err := env.blockersClear(t.Context(), 4)
+	if err == nil || !strings.Contains(cliText(err), "blocker #8 is not merged") {
+		t.Fatal(err)
+	}
+}
