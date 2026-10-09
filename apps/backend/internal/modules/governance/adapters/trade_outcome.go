@@ -19,7 +19,10 @@ import (
 
 const proposalSource = "proposal"
 
-type TradeOutcome struct{ Hints app.Hints }
+type TradeOutcome struct {
+	Hints app.Hints
+	Swaps app.Swaps
+}
 
 func (h TradeOutcome) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirmed, at time.Time) error {
 	if e.Source.Kind != proposalSource {
