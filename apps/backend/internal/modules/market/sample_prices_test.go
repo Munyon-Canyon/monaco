@@ -196,6 +196,7 @@ func (j *jupiterFake) source(quoteTimeout time.Duration) func(clock.Clock) app.P
 		cfg := config.Config{
 			Jupiter: config.Jupiter{
 				SwapBaseURL: j.url + "/jupiter/swap/v2", PriceBaseURL: j.url + jupiterPriceRoute, APIKey: "test-key",
+				RateLimit: 1000,
 			},
 			Timeouts: config.Timeouts{JupiterQuote: quoteTimeout, JupiterExecute: time.Minute},
 		}
@@ -396,10 +397,10 @@ func (a *askedSource) Prices(ctx context.Context, mints []domain.Mint) (map[doma
 	return out, nil
 }
 
-func (a *askedSource) tick(i int) []domain.Mint {
+func (a *askedSource) firstTick() []domain.Mint {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.asked[i]
+	return a.asked[0]
 }
 
 func generatedCatalog(t *testing.T, n int) []market.Asset {
@@ -412,9 +413,13 @@ func generatedCatalog(t *testing.T, n int) []market.Asset {
 	return assets
 }
 
-func TestSamplePrices_aTickAsksForTheHotMintsAndOneColdSlotOnly(t *testing.T) {
+func TestSamplePrices_aTickAsksForTheHotMintsFirstThenEveryListedMint(t *testing.T) {
 	t.Parallel()
-	assets := generatedCatalog(t, 1282)
+	const listed, unlisted = 1282, 40
+	assets := generatedCatalog(t, listed+unlisted)
+	for i := listed; i < len(assets); i++ {
+		assets[i].IssuerTradable = false
+	}
 	held := []chain.SolanaAddress{assets[5].Mint.Address(), assets[700].Mint.Address(), "NotInTheCatalog"}
 	proposed := []chain.SolanaAddress{assets[1281].Mint.Address(), assets[5].Mint.Address()}
 	hot := []app.HotMints{
@@ -429,52 +434,30 @@ func TestSamplePrices_aTickAsksForTheHotMintsAndOneColdSlotOnly(t *testing.T) {
 	}, hot, assets...)
 
 	report, err := r.poller.Tick(t.Context())
-	if err != nil || attr(report.Attrs, "hot") != "3" {
-		t.Fatalf("Tick = %+v, %v, want 3 hot mints", report, err)
+	if err != nil || attr(report.Attrs, "hot") != "3" || attr(report.Attrs, "total") != strconv.Itoa(listed) {
+		t.Fatalf("Tick = %+v, %v, want 3 hot of %d total", report, err, listed)
 	}
-	got := asked.tick(0)
-	for _, m := range []domain.Mint{assets[5].Mint, assets[700].Mint, assets[1281].Mint} {
-		if !slices.Contains(got, m) {
-			t.Fatalf("tick asked %d mints without hot mint %s", len(got), m)
+	got := asked.firstTick()
+	for _, m := range got[:3] {
+		if m != assets[5].Mint && m != assets[700].Mint && m != assets[1281].Mint {
+			t.Fatalf("first three asked = %v, want the hot mints first", got[:3])
 		}
 	}
-	cold := len(got) - 3
-	if cold > 100 || attr(report.Attrs, "cold") != strconv.Itoa(cold) || report.Scanned != len(got) {
-		t.Fatalf("tick asked %d mints with %d cold (report %+v), want the 3 hot plus at most 100 cold",
-			len(got), cold, report)
+	if len(got) != listed || report.Scanned != listed {
+		t.Fatalf("tick asked %d mints (report %+v), want all %d listed once", len(got), report, listed)
 	}
-	if calls := j.calls.Load(); calls > 4 {
-		t.Fatalf("one tick made %d Jupiter price calls, want at most 4", calls)
-	}
+	wantListed(t, assets, got, listed)
 }
 
-func TestSamplePrices_ceilListedOver100TicksAskForEveryListedMintAndNoOther(t *testing.T) {
-	t.Parallel()
-	const listed, unlisted = 1282, 40
-	assets := generatedCatalog(t, listed+unlisted)
-	for i := listed; i < len(assets); i++ {
-		assets[i].IssuerTradable = false
-	}
-	asked := &askedSource{next: &quotes{}}
-	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return asked }, assets...)
+func wantListed(t *testing.T, assets []market.Asset, asked []domain.Mint, listed int) {
+	t.Helper()
 	seen := map[domain.Mint]bool{}
-	ticks := (listed + 99) / 100
-	for i := range ticks {
-		if _, err := r.poller.Tick(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		mints := asked.tick(i)
-		if len(mints) > 100 {
-			t.Fatalf("tick %d asked for %d mints, want at most 100 with nothing hot", i, len(mints))
-		}
-		for _, m := range mints {
-			seen[m] = true
-		}
-		r.clock.Advance(2 * time.Minute)
+	for _, m := range asked {
+		seen[m] = true
 	}
 	for i, a := range assets {
-		if listedMint := i < listed; seen[a.Mint] != listedMint {
-			t.Fatalf("asset %d asked = %v over %d ticks, want %v", i, seen[a.Mint], ticks, listedMint)
+		if want := i < listed; seen[a.Mint] != want {
+			t.Fatalf("asset %d asked = %v, want %v", i, seen[a.Mint], want)
 		}
 	}
 }
@@ -488,7 +471,7 @@ func TestSamplePrices_aTickAsksForPopularMintsEvenWhenTheyAreNotListed(t *testin
 	asked := &askedSource{next: &quotes{}}
 	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return asked }, assets...)
 	report, err := r.poller.Tick(t.Context())
-	got := asked.tick(0)
+	got := asked.firstTick()
 	if err != nil || attr(report.Attrs, "hot") != "2" || !slices.Contains(got, assets[10].Mint) ||
 		!slices.Contains(got, assets[299].Mint) {
 		t.Fatalf("Tick = %+v, %v, asked %d mints, want both popular mints as the 2 hot", report, err, len(got))
@@ -610,8 +593,8 @@ func TestSamplePrices_anEmptyCatalogAsksForNothing(t *testing.T) {
 	asked := &askedSource{}
 	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return asked })
 	report, err := r.poller.Tick(t.Context())
-	if err != nil || report.Scanned != 0 || len(asked.tick(0)) != 0 {
-		t.Fatalf("Tick over an empty catalog = %+v, %v, asked %v", report, err, asked.tick(0))
+	if err != nil || report.Scanned != 0 || len(asked.firstTick()) != 0 {
+		t.Fatalf("Tick over an empty catalog = %+v, %v, asked %v", report, err, asked.firstTick())
 	}
 }
 
@@ -638,8 +621,78 @@ func TestSamplePrices_aFetchThatWaitsOutItsTimeStillLeavesTheTickTimeToStore(t *
 	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
 		t.Fatalf("Tick = %v, want the fetch's upstream_timeout", err)
 	}
-	if left := tickDeadline.Sub(<-fetchDeadline); left < p.Interval()/4 {
+	if left := tickDeadline.Sub(<-fetchDeadline); left < p.Interval()/10 {
 		t.Fatalf("the fetch ends %v before the tick's deadline, want at least %v left to store",
-			left, p.Interval()/4)
+			left, p.Interval()/10)
+	}
+}
+
+type deadlineSource struct {
+	answered map[domain.Mint]money.Micros
+	window   time.Duration
+}
+
+func (d *deadlineSource) Prices(ctx context.Context, _ []domain.Mint) (map[domain.Mint]money.Micros, error) {
+	at, _ := ctx.Deadline()
+	d.window = at.Sub(clock.Real{}.Now())
+	return d.answered, errs.New(errs.CodeUpstreamTimeout, "test.deadline")
+}
+
+func TestSamplePrices_aDeadlineMidTickStillWritesTheBatchesThatAnswered(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	src := &deadlineSource{answered: map[domain.Mint]money.Micros{aapl.Mint: usd(254_371_234)}}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return src }, aapl, tsla)
+	_, err := r.poller.Tick(t.Context())
+	detail := errs.Detail(err)
+	if errs.CodeOf(err) != errs.CodeUpstreamTimeout || attr(detail, "written") != "1" ||
+		attr(detail, "duration_ms") == "" {
+		t.Fatalf("Tick err = %v %v, want upstream_timeout with 1 written and the duration", err, detail)
+	}
+	wantPoints(t, r.pool, pricePoint{aapl.Mint.String(), r.bucket, 254_371_234, "jupiter"})
+	if src.window < 100*time.Second || src.window > 105*time.Second {
+		t.Fatalf("fetch window = %v, want the tick minus a 15s tail (105s)", src.window)
+	}
+}
+
+type cappedSource struct {
+	askedSource
+	limit  int
+	window time.Duration
+}
+
+func (c *cappedSource) MintsWithin(w time.Duration) int {
+	c.window = w
+	return c.limit
+}
+
+func TestSamplePrices_aCappedSourceGetsTheHotMintsAndARotatingColdSlot(t *testing.T) {
+	t.Parallel()
+	const listed, limit = 1000, 300
+	assets := generatedCatalog(t, listed)
+	hot := []app.HotMints{func(context.Context) ([]chain.SolanaAddress, error) {
+		return []chain.SolanaAddress{assets[5].Mint.Address(), assets[700].Mint.Address()}, nil
+	}}
+	src := &cappedSource{limit: limit}
+	r := newHotSampleRig(t, func(clock.Clock) app.PriceSource { return src }, hot, assets...)
+	seen := map[domain.Mint]bool{}
+	ticks := (listed + limit - 3) / (limit - 2)
+	for i := range ticks {
+		report, err := r.poller.Tick(t.Context())
+		if err != nil || report.Scanned > limit || report.Scanned < 2 || attr(report.Attrs, "hot") != "2" {
+			t.Fatalf("tick %d = %+v, %v, want at most %d asked with 2 hot", i, report, err, limit)
+		}
+		got := src.asked[i]
+		if !slices.Contains(got[:2], assets[5].Mint) || !slices.Contains(got[:2], assets[700].Mint) {
+			t.Fatalf("tick %d asked %v first, want the hot mints first", i, got[:2])
+		}
+		for _, m := range got {
+			seen[m] = true
+		}
+		r.clock.Advance(2 * time.Minute)
+	}
+	if len(src.asked[0]) != limit || len(seen) != listed || src.window != 105*time.Second {
+		t.Fatalf("%d of %d mints asked over %d ticks, window %v, want all of them and 105s",
+			len(seen), listed, ticks, src.window)
 	}
 }

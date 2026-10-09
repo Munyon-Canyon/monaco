@@ -217,7 +217,7 @@ func TestPrices_cancelledCallAsksNothing(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	got, err := client(u).Prices(ctx, []jupiter.Mint{fixtureMint(1)})
-	if !errors.Is(err, context.Canceled) || got != nil || len(u.requests()) != 0 {
+	if !errors.Is(err, context.Canceled) || len(got) != 0 || len(u.requests()) != 0 {
 		t.Fatalf("Prices on a cancelled context = %v, %v after %d calls", got, err, len(u.requests()))
 	}
 }
@@ -446,6 +446,57 @@ func TestPrices_configuredRateLimitSendsTheCatalogWithoutWaiting(t *testing.T) {
 		}
 		if took := now().Sub(start); took != 0 {
 			t.Fatalf("26 requests under a limit of 1000 took %v, want no wait", took)
+		}
+	})
+}
+
+func TestPrices_aRateLimitedBatchKeepsTheEarlierBatchesAndStopsTheRest(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		mints := catalog(1282)
+		u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ids := strings.Split(r.URL.Query().Get("ids"), ",")
+			if ids[0] >= mints[100].Address {
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			body := map[string]map[string]int{}
+			for _, id := range ids {
+				body[id] = map[string]int{"usdPrice": 2}
+			}
+			_ = json.NewEncoder(w).Encode(body)
+		})}
+
+		got, err := client(u).Prices(t.Context(), mints)
+		if errs.CodeOf(err) != errs.CodeJupiterUnavailable || len(got) != 100 {
+			t.Fatalf("Prices = %d prices, %v, want the first 100 and a jupiter_unavailable error", len(got), err)
+		}
+		if sent := len(u.requests()); sent > 2+4*3 {
+			t.Fatalf("%d requests went out after a 429, want the rest of the 26 batches skipped", sent)
+		}
+		if attr(err, "failed_batches") != "24" {
+			t.Fatalf("failed_batches = %q, want 24 (the 429 and the skipped)", attr(err, "failed_batches"))
+		}
+	})
+}
+
+func TestPrices_aDeadlineKeepsTheBatchesThatAnsweredHotFirst(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		u := &upstream{handler: mainnetLimit()}
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		mints := catalog(1282)
+
+		got, err := client(u).Prices(ctx, mints)
+		if errs.CodeOf(err) != errs.CodeUpstreamTimeout || attr(err, "failed_batches") == "" {
+			t.Fatalf("Prices err = %v, want upstream_timeout with failed_batches", err)
+		}
+		if len(got) < 18*50 || got[mints[0]].USDMicros.Uint64() == 0 {
+			t.Fatalf("Prices returned %d prices, want the answered batches (at least 18) with batch 0", len(got))
+		}
+		if strings.Count(err.Error(), "httpclient.Do") > 1 || strings.Count(err.Error(), "jupiter.pace") > 1 {
+			t.Fatalf("err repeats the same failure per batch: %v", err)
 		}
 	})
 }

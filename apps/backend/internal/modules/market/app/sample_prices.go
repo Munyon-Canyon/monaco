@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -62,12 +63,13 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 		return poller.Report{}, err
 	}
 	at := domain.Bucket(p.clock.Now())
-	need, err := p.needs(ctx, assets)
+	start := p.clock.Now()
+	need, err := p.needs(ctx, assets, p.capacity())
 	if err != nil {
 		return poller.Report{}, err
 	}
 	asked := need.mints()
-	fetchCtx, cancelFetch := context.WithTimeout(ctx, p.interval/2)
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, p.fetchWindow())
 	answered, sampleErr := p.source.Prices(fetchCtx, asked)
 	cancelFetch()
 	rows := sqlc.InsertPricePointsParams{Ts: at, Source: string(domain.SourceJupiter)}
@@ -98,14 +100,26 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 	logMissing(ctx, left)
 	report := poller.Report{Scanned: len(asked), Changed: written, Attrs: []slog.Attr{
 		slog.Int("priced", len(rows.Mints)), slog.Int("missing", missing),
-		slog.Int("hot", need.hot), slog.Int("cold", need.cold), slog.Int("failed_batches", 0),
+		slog.Int("hot", need.hot), slog.Int("total", len(asked)), slog.Int("failed_batches", 0),
 	}}
 	if sampleErr != nil {
 		return report, errs.Wrap(sampleErr, errs.CodeOf(sampleErr), "market.SamplePrices.Tick",
 			slog.Int("written", written), slog.Int("missing", missing),
-			slog.Int("hot", need.hot), slog.Int("cold", need.cold))
+			slog.Int("hot", need.hot), slog.Int("total", len(asked)),
+			slog.Int64("duration_ms", p.clock.Now().Sub(start).Milliseconds()))
 	}
 	return report, nil
+}
+
+const priceTail = 15 * time.Second
+
+func (p *SamplePrices) fetchWindow() time.Duration { return max(p.interval-priceTail, p.interval/2) }
+
+func (p *SamplePrices) capacity() int {
+	if c, ok := p.source.(CappedSource); ok {
+		return c.MintsWithin(p.fetchWindow())
+	}
+	return math.MaxInt
 }
 
 const missingMintsLogged = 10

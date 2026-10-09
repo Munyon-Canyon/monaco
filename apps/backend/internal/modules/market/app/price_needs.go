@@ -13,11 +13,9 @@ import (
 
 type HotMints func(context.Context) ([]chain.SolanaAddress, error)
 
-const coldPerTick = 100
-
 type priceNeeds struct {
-	assets    []domain.Asset
-	hot, cold int
+	assets []domain.Asset
+	hot    int
 }
 
 func (n priceNeeds) mints() []domain.Mint {
@@ -28,28 +26,30 @@ func (n priceNeeds) mints() []domain.Mint {
 	return out
 }
 
-func (p *SamplePrices) needs(ctx context.Context, all []domain.Asset) (priceNeeds, error) {
+func (p *SamplePrices) needs(ctx context.Context, all []domain.Asset, limit int) (priceNeeds, error) {
 	hot, err := hotSet(ctx, p.hot, all)
 	if err != nil {
 		return priceNeeds{}, errs.Wrap(err, errs.CodeOf(err), "market.SamplePrices.needs")
 	}
 	var n priceNeeds
-	var listed []domain.Asset
+	var rest []domain.Asset
 	for _, a := range all {
-		if hot[a.Mint.Address()] {
+		switch {
+		case hot[a.Mint.Address()]:
 			n.assets = append(n.assets, a)
-		}
-		if a.Tradable() {
-			listed = append(listed, a)
+		case a.Tradable():
+			rest = append(rest, a)
 		}
 	}
 	n.hot = len(n.assets)
-	for _, a := range coldSlot(listed, p.clock.Now(), p.interval, coldPerTick) {
-		if !hot[a.Mint.Address()] {
-			n.assets = append(n.assets, a)
-			n.cold++
+	restAll := rest
+	if room := limit - n.hot; room < len(rest) {
+		rest = nil
+		if room > 0 {
+			rest = coldSlot(restAll, p.clock.Now(), p.interval, room)
 		}
 	}
+	n.assets = append(n.assets, rest...)
 	return n, nil
 }
 

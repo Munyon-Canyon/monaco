@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -54,7 +56,7 @@ func (w priceWire) price() json.Number {
 
 const (
 	pricesPerCall = 50
-	priceCalls    = 1
+	priceCalls    = 4
 )
 
 type batchAnswer struct {
@@ -62,30 +64,61 @@ type batchAnswer struct {
 	err    error
 }
 
+func (c *Client) PriceCapacity(window time.Duration) int {
+	windows := max(int(window/paceWindow)-1, 1)
+	return windows * c.pace.laneLimit(priceLane) * pricesPerCall
+}
+
 func (c *Client) Prices(ctx context.Context, mints []Mint) (map[Mint]Price, error) {
 	batches := slices.Collect(slices.Chunk(mints, pricesPerCall))
-	answers, err := concurrency.FanOut(ctx, priceCalls, batches, c.answerBatch)
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeUpstreamTimeout, "jupiter.Prices")
+	var throttled atomic.Pointer[error]
+	answer := func(_ context.Context, batch []Mint) (batchAnswer, error) {
+		return c.answerBatch(ctx, batch, &throttled), nil
 	}
+	answers, _ := concurrency.FanOut(context.WithoutCancel(ctx), priceCalls, batches, answer)
 	out := make(map[Mint]Price, len(mints))
-	failed := make([]error, 0, len(answers))
+	var failed []error
+	seen := map[string]bool{}
+	failedBatches := 0
 	for _, a := range answers {
 		maps.Copy(out, a.prices)
-		if a.err != nil {
+		if a.err == nil {
+			continue
+		}
+		failedBatches++
+		if kind := string(errs.CodeOf(a.err)) + strconv.FormatInt(attrStatus(a.err), 10); !seen[kind] {
+			seen[kind] = true
 			failed = append(failed, a.err)
 		}
 	}
-	if len(failed) > 0 {
+	if failedBatches > 0 {
 		return out, errs.Wrap(errors.Join(failed...), errs.CodeOf(failed[0]), "jupiter.Prices",
-			slog.Int("failed_batches", len(failed)), slog.Int("batches", len(batches)))
+			slog.Int("failed_batches", failedBatches), slog.Int("batches", len(batches)))
 	}
 	return out, nil
 }
 
-func (c *Client) answerBatch(ctx context.Context, batch []Mint) (batchAnswer, error) {
+func attrStatus(err error) int64 {
+	for _, a := range errs.Detail(err) {
+		if a.Key == "status" {
+			return a.Value.Int64()
+		}
+	}
+	return 0
+}
+
+func (c *Client) answerBatch(ctx context.Context, batch []Mint, throttled *atomic.Pointer[error]) batchAnswer {
+	if stop := throttled.Load(); stop != nil {
+		return batchAnswer{err: *stop}
+	}
+	if err := ctx.Err(); err != nil {
+		return batchAnswer{err: errs.Wrap(context.Cause(ctx), errs.CodeUpstreamTimeout, "jupiter.Prices")}
+	}
 	prices, err := c.priceBatch(ctx, batch)
-	return batchAnswer{prices: prices, err: err}, nil
+	if err != nil && attrStatus(err) == http.StatusTooManyRequests {
+		throttled.CompareAndSwap(nil, &err)
+	}
+	return batchAnswer{prices: prices, err: err}
 }
 
 func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, error) {
