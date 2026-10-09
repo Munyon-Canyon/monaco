@@ -53,7 +53,8 @@ struct EditCabalView: View {
                         voterSet: voterSet,
                         threshold: threshold,
                         voteExpiry: voteExpiry,
-                        identifierPrefix: "edit-rule"
+                        identifierPrefix: "edit-rule",
+                        showsThreshold: Self.showsThreshold(memberCount: Int((model.cabal ?? cabal).memberCount))
                     )
                     Text(EditCabalCopy.rulesFooter)
                         .font(MonacoTheme.Typo.caption)
@@ -91,11 +92,18 @@ struct EditCabalView: View {
     }
 
     private var nameField: some View {
-        MonacoTextField(CabalRulesCopy.namePlaceholder, text: $edited.name)
-            .submitLabel(.done)
-            .disabled(model.isSaving)
-            .accessibilityIdentifier("edit-cabal-name")
+        MonacoTextField(
+            CabalRulesCopy.namePlaceholder,
+            text: $edited.name,
+            capitalization: .words,
+            autocorrects: false
+        )
+        .submitLabel(.done)
+        .disabled(model.isSaving)
+        .accessibilityIdentifier("edit-cabal-name")
     }
+
+    static func showsThreshold(memberCount: Int) -> Bool { memberCount > 1 }
 
     private var canSave: Bool {
         guard !model.isSaving, !edited.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

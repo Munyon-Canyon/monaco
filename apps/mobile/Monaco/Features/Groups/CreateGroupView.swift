@@ -6,6 +6,8 @@ enum CabalRulesCopy {
     static let screenTitle = "Start a cabal"
     static let namePlaceholder = "Cabal name"
     static let nameHint = "Pick a name your friends will recognize."
+    static let createPickedCaption = "Only you vote until you add people in Cabal settings."
+    static let createShowsThreshold = false
     static let sectionTitle = "The rules"
     static let joinTitle = "Who can join"
     static let votersTitle = "Who votes"
@@ -18,7 +20,7 @@ enum CabalRulesCopy {
     static var auditedStrings: [String] {
         [
             screenTitle, namePlaceholder, nameHint, sectionTitle, joinTitle, votersTitle, thresholdTitle, expiryTitle,
-            create, creating, created,
+            create, creating, created, createPickedCaption,
         ]
             + CabalJoinPolicy.allCases.flatMap { [$0.label, $0.caption] }
             + CabalVoterMode.allCases.flatMap { [$0.label, $0.caption] }
@@ -26,6 +28,10 @@ enum CabalRulesCopy {
             + CabalProposalExpiry.allCases.flatMap { [$0.label, $0.caption] }
             + [CreateCabalForm.NameProblem.tooShort, .tooLong, .invalid].compactMap(\.message)
     }
+}
+
+extension CreateCabalForm.NameProblem {
+    var isHard: Bool { self == .tooLong || self == .invalid }
 }
 
 struct CreateGroupView: View {
@@ -63,7 +69,9 @@ struct CreateGroupView: View {
                     voterSet: $form.voterMode,
                     threshold: $form.threshold,
                     voteExpiry: $form.expiry,
-                    identifierPrefix: "create-rule"
+                    identifierPrefix: "create-rule",
+                    showsThreshold: CabalRulesCopy.createShowsThreshold,
+                    pickedCaption: CabalRulesCopy.createPickedCaption
                 )
                 .disabled(isCreating)
             }
@@ -96,9 +104,12 @@ struct CreateGroupView: View {
             MonacoTextField(
                 CabalRulesCopy.namePlaceholder,
                 text: $form.name,
-                isInvalid: nameProblemMessage != nil,
+                isInvalid: isHardProblem,
                 isOutlined: true,
-                errorMessage: nameProblemMessage
+                errorMessage: nameProblemMessage,
+                autofocus: true,
+                capitalization: .words,
+                autocorrects: false
             )
             .submitLabel(.done)
             .disabled(isCreating)
@@ -106,7 +117,7 @@ struct CreateGroupView: View {
             if let problem = nameProblemMessage {
                 Text(problem)
                     .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.loss)
+                    .foregroundStyle(isHardProblem ? MonacoTheme.loss : MonacoTheme.muted)
                     .accessibilityIdentifier("create-group-name-problem")
             } else {
                 Text(CabalRulesCopy.nameHint)
@@ -119,6 +130,10 @@ struct CreateGroupView: View {
     private var nameProblemMessage: String? {
         guard !form.name.isEmpty else { return nil }
         return form.nameProblem?.message
+    }
+
+    private var isHardProblem: Bool {
+        !form.name.isEmpty && form.nameProblem?.isHard == true
     }
 
     private func create() async {
