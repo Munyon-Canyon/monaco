@@ -123,6 +123,8 @@ nonisolated struct SampleScreenRoute: AppRoute {
     enum Screen: Hashable, Sendable {
         case chat
         case chatThread
+        case proposeBuy
+        case proposeReview(ProposeKind)
     }
 
     let screen: Screen
@@ -132,6 +134,8 @@ nonisolated struct SampleScreenRoute: AppRoute {
         switch screen {
         case .chat: ChatSampleQA.screen(arguments: arguments)
         case .chatThread: ChatThreadSampleQA.screen()
+        case .proposeBuy: ProposeBuyStockView(cabalID: GroupDetailSampleData.cabalID)
+        case .proposeReview(let kind): ProposeReviewSample(kind: kind)
         }
     }
 }

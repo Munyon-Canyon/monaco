@@ -12,6 +12,7 @@ nonisolated struct SampleAPIScript: Sendable {
         case cabalsUnavailable
         case assetsUnavailable
         case chartUnavailable
+        case potUnavailable
     }
 
     var mode = Mode.populated
@@ -22,6 +23,7 @@ nonisolated struct SampleAPIScript: Sendable {
     var asset = Components.Schemas.AssetDetail.googl
     var chart = Components.Schemas.AssetChart.oneDay
     var cabalCount = 1
+    var pot = Components.Schemas.CabalPot.sampleInvested
 }
 
 nonisolated final class SampleAPIProtocol: URLProtocol {
@@ -125,7 +127,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             return problem(413, "picture_invalid", "Picture must be at most 2MB.")
         }
         if parts.count >= 3, parts[1] == "cabals", UUID(uuidString: parts[2]) != nil || parts[2].count > 8 {
-            return cabalReply(id: parts[2], tail: Array(parts.dropFirst(3)), range: range, script: script)
+            let tail = Array(parts.dropFirst(3))
+            return proposeReply(id: parts[2], tail: tail, method: method)
+                ?? cabalReply(id: parts[2], tail: tail, range: range, script: script)
         }
         if parts.count >= 2, parts[1] == "assets" {
             return assetReply(tail: Array(parts.dropFirst(2)), query: query, script: script)
@@ -215,6 +219,16 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0, unreadCount: 0)
     }
 
+    private static func proposeReply(id: String, tail: [String], method: String) -> Reply? {
+        if tail == ["proposals", "preview"] { return json(Components.Schemas.TradePreview.proposalPreviewClean) }
+        guard tail == ["proposals"], method == "POST" else { return nil }
+        var created = Components.Schemas.Proposal.sample()
+        created.cabalId = id
+        var reply = json(created)
+        reply.status = 201
+        return reply
+    }
+
     private static func cabalReply(id: String, tail: [String], range: String?, script: SampleAPIScript) -> Reply {
         let empty = script.mode == .empty
         switch tail.first {
@@ -225,7 +239,8 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             if id == CabalsTabSampleData.createdCabalID, let name = createdName.withLock({ $0 }) { cabal.name = name }
             return json(cabal)
         case "pot":
-            var pot = empty ? Components.Schemas.CabalPot.sampleZero : .sampleInvested
+            if script.mode == .potUnavailable { return problem(503, "unavailable", "The pot can't be read right now.") }
+            var pot = empty ? Components.Schemas.CabalPot.sampleZero : script.pot
             pot.cabalId = id
             return json(pot)
         case "proposals":
