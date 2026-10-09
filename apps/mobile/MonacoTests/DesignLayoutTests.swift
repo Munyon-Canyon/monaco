@@ -11,7 +11,7 @@ struct MonacoRowLayoutTests {
             let layout = MonacoRowLayout(dynamicTypeSize: size)
             #expect(layout.isStacked == false)
             #expect(layout.titleLineLimit == 1)
-            #expect(layout.separatorLeadingInset == 76)
+            #expect(layout.separatorLeadingInset == 72)
         }
     }
 
@@ -120,28 +120,28 @@ struct StockMarkTests {
 }
 
 /// `MoneyFont` builds its `@ScaledMetric` bases from `MoneyStyle.baseSize`, so these assertions
-/// are over the numbers that actually render. They used to be over a parallel copy: the sizes were
-/// restated as literals in `MoneyFont` and nothing tied the two together.
+/// are over the numbers that actually render. The values are the redesign's money roles
+/// (`docs/design.md`): hero 48 bold, large 32 bold, row 17 semibold, small 15 semibold.
 struct MoneyStyleScalingTests {
-    @Test func everyStyleHasTheDesignSizeItUsedToPreScale() {
-        #expect(MoneyStyle.hero.baseSize == 46)
-        #expect(MoneyStyle.large.baseSize == 30)
+    @Test func everyStyleHasItsDesignSize() {
+        #expect(MoneyStyle.hero.baseSize == 48)
+        #expect(MoneyStyle.large.baseSize == 32)
         #expect(MoneyStyle.row.baseSize == 18)
         #expect(MoneyStyle.caption.baseSize == 15)
     }
 
-    @Test func stylesScaleAgainstTheSameTextStylesAsBefore() {
+    @Test func stylesScaleAgainstTheTextStyleOfTheirSize() {
         #expect(MoneyStyle.hero.textStyle == .largeTitle)
         #expect(MoneyStyle.large.textStyle == .title)
         #expect(MoneyStyle.row.textStyle == .body)
-        #expect(MoneyStyle.caption.textStyle == .footnote)
+        #expect(MoneyStyle.caption.textStyle == .subheadline)
     }
 
-    @Test func weightsMatchTheOldFonts() {
-        #expect(MoneyStyle.hero.weight == .semibold)
-        #expect(MoneyStyle.large.weight == .semibold)
+    @Test func weightsMatchTheDesign() {
+        #expect(MoneyStyle.hero.weight == .bold)
+        #expect(MoneyStyle.large.weight == .bold)
         #expect(MoneyStyle.row.weight == .semibold)
-        #expect(MoneyStyle.caption.weight == .medium)
+        #expect(MoneyStyle.caption.weight == .semibold)
     }
 }
 

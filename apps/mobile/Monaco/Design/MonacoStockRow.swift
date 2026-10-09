@@ -93,7 +93,7 @@ struct DayChangePill: View {
 
     var body: some View {
         Text(label)
-            .moneyFont(style, weight: .semibold, voice: .market)
+            .moneyFont(style, weight: .semibold)
             .foregroundStyle(isReadable ? tone.washColor : MonacoTheme.muted)
             .lineLimit(1)
             .minimumScaleFactor(0.8)

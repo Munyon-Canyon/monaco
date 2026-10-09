@@ -17,9 +17,8 @@ enum AmountEntryInput: Equatable {
 /// `amountText` holds a plain decimal string ("50", "12.5"); the view keeps it to digits,
 /// one ".", and two decimals.
 ///
-/// The figure is the member's own money, so it sets in Avenir Next (`moneyFont(.hero)`); the
-/// presets are a strip of choices, so they set in the market's voice at the size of Home's
-/// range chips. A screen that says what the money will do puts an `AmountEntryNote` under it.
+/// The figure sets in `moneyFont(.hero)`; the presets are a strip of choices at the size of
+/// Home's range chips. A screen that says what the money will do puts an `AmountEntryNote` under it.
 struct AmountEntry<Accessory: View>: View {
     @Binding private var amountText: String
     private let input: AmountEntryInput

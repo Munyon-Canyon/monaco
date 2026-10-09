@@ -5,12 +5,11 @@ import UIKit
 enum MonacoAppearance {
     static func configureUIKit() {
         let canvas = UIColor(MonacoTheme.canvas)
-        let surface = UIColor(MonacoTheme.surface)
         let primaryText = UIColor(MonacoTheme.primaryText)
         let muted = UIColor(MonacoTheme.muted)
         let hairline = UIColor(MonacoTheme.hairline)
-        let titleFont = UIFont(name: "AvenirNext-DemiBold", size: 17) ?? .systemFont(ofSize: 17, weight: .semibold)
-        let largeTitleFont = UIFont(name: "AvenirNext-Bold", size: 32) ?? .systemFont(ofSize: 32, weight: .bold)
+        let titleFont = UIFont.systemFont(ofSize: 17, weight: .semibold)
+        let largeTitleFont = UIFont.systemFont(ofSize: 34, weight: .bold)
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: primaryText,
             .font: UIFontMetrics(forTextStyle: .headline).scaledFont(for: titleFont, maximumPointSize: 22),
@@ -55,27 +54,27 @@ enum MonacoAppearance {
         navigationBar.scrollEdgeAppearance = scrollEdge
         navigationBar.compactScrollEdgeAppearance = scrollEdge
         navigationBar.tintColor = primaryText
-        navigationBar.prefersLargeTitles = true
+        navigationBar.prefersLargeTitles = false
 
-        // Tab bar: opaque surface, hairline top edge.
+        // Tab bar: opaque canvas, hairline top edge, the selected item in ink.
         let tabBar = UITabBarAppearance()
         tabBar.configureWithOpaqueBackground()
-        tabBar.backgroundColor = surface
+        tabBar.backgroundColor = canvas
         tabBar.shadowColor = hairline
-        let brand = UIColor(MonacoTheme.brand)
         let tabItem = UITabBarItemAppearance()
-        let tabFont = UIFont(name: "AvenirNext-DemiBold", size: 10) ?? .systemFont(ofSize: 10, weight: .semibold)
+        let tabFont = UIFontMetrics(forTextStyle: .caption2)
+            .scaledFont(for: .systemFont(ofSize: 11, weight: .medium), maximumPointSize: 15)
         tabItem.normal.iconColor = muted
         tabItem.normal.titleTextAttributes = [.foregroundColor: muted, .font: tabFont]
-        tabItem.selected.iconColor = brand
-        tabItem.selected.titleTextAttributes = [.foregroundColor: brand, .font: tabFont]
+        tabItem.selected.iconColor = primaryText
+        tabItem.selected.titleTextAttributes = [.foregroundColor: primaryText, .font: tabFont]
 
         tabBar.stackedLayoutAppearance = tabItem
         tabBar.inlineLayoutAppearance = tabItem
         tabBar.compactInlineLayoutAppearance = tabItem
         UITabBar.appearance().standardAppearance = tabBar
         UITabBar.appearance().scrollEdgeAppearance = tabBar
-        UITabBar.appearance().tintColor = brand
+        UITabBar.appearance().tintColor = primaryText
         UITabBar.appearance().unselectedItemTintColor = muted
 
         // Legacy Form / List screens until they migrate to MonacoGroupedList.
@@ -126,11 +125,11 @@ extension View {
             .toolbarBackground(.visible, for: .navigationBar)
     }
 
-    /// Toolbar / nav bar SF Symbol — ink tint, readable weight.
+    /// Toolbar / nav bar SF Symbol: 17pt semibold, ink, monochrome.
     func monacoToolbarIcon() -> some View {
-        font(MonacoTheme.Typo.bodyStrong)
+        font(MonacoTheme.Typo.headline)
             .foregroundStyle(MonacoTheme.ink)
-            .symbolRenderingMode(.hierarchical)
+            .symbolRenderingMode(.monochrome)
     }
 
     /// Form screen root — canvas background, visible rows/separators, readable fields.
