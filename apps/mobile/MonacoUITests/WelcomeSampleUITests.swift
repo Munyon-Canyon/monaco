@@ -65,7 +65,7 @@ nonisolated final class WelcomeSampleUITests: XCTestCase {
     @MainActor
     func testRestoreFailedShowsItsTitle() throws {
         let app = launch("restoreFailed")
-        assertDrawn(app, app.staticTexts["Can't sign you in yet"], "the restore failure")
+        assertDrawn(app, app.staticTexts["You're offline"], "the restore failure")
     }
 
     @MainActor
