@@ -379,11 +379,6 @@ func TestLoadFailures(t *testing.T) {
 			want:    "config.Load: invalid_input: invalid TRADE_ENGINE (stub runs only in local dev)",
 		},
 		{
-			name:    "staging without the APNs key names every missing key",
-			environ: append(required(), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key", agentKeyEnv),
-			want:    "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID",
-		},
-		{
 			name: "production with a partial APNs key",
 			environ: append(
 				required(),

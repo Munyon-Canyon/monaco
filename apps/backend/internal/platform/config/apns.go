@@ -1,7 +1,7 @@
 package config
 
 func (e *keysError) checkAPNs(c Config) {
-	sends := c.Env == EnvStaging || c.Env == EnvProduction || c.APNs.KeyP8 != ""
+	sends := c.Env == EnvProduction || c.APNs.KeyP8 != ""
 	if sends {
 		for _, k := range []struct{ name, value string }{
 			{"APNS_KEY_P8", c.APNs.KeyP8},
