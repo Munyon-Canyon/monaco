@@ -24,7 +24,7 @@ private struct CabalValueChart: View {
             Rectangle()
                 .fill(MonacoTheme.onHeroHairline)
                 .frame(height: 1)
-                .padding(.vertical, MonacoTheme.Space.s)
+                .padding(.bottom, MonacoTheme.Space.s)
                 .accessibilityHidden(true)
             content
         }

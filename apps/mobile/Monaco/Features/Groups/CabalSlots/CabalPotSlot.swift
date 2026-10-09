@@ -94,6 +94,8 @@ private struct AllTimeChip: View {
 }
 
 struct CabalInkBand<Content: View>: View {
+    static var rhythm: CGFloat { MonacoTheme.Space.m }
+
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -101,11 +103,12 @@ struct CabalInkBand<Content: View>: View {
             content
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.bottom, MonacoTheme.Space.m)
+        .padding(.bottom, Self.rhythm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            MonacoTheme.heroInk.padding(.top, -SectionStackMetrics.spacing)
+            MonacoTheme.heroInk.padding(.top, -1)
         }
+        .padding(.top, -SectionStackMetrics.spacing)
     }
 }
 
@@ -155,13 +158,12 @@ private struct CabalPotHarnessScreen: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                VStack(spacing: 0) {
+                SectionStackLayout(spacing: SectionStackMetrics.spacing) {
                     CabalPotBand(model: model)
                     CabalSliceBand(model: model)
                     CabalHoldingsSection(model: model, cabalID: pot.cabalId) { path.append(AnyAppRoute($0)) }
-                        .padding(.top, MonacoTheme.Space.l)
                 }
-                .padding(.top, MonacoTheme.Space.gutter)
+                .padding(.top, MonacoTheme.Space.gutter + SectionStackMetrics.spacing)
             }
             .monacoCanvas()
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
