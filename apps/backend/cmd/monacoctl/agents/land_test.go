@@ -46,6 +46,7 @@ type stackGH struct {
 	needRun  string
 	openFail int
 	opens    int
+	usedBy   map[string]string
 }
 
 func newStackGH(t *testing.T, f *fixture, prs ...*stackPR) *stackGH {
@@ -180,6 +181,9 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 	}
 	if s.fail != "" && strings.HasPrefix(line, s.fail) {
 		return nil, errors.New(s.fail + ": boom")
+	}
+	if wt, ok := s.usedBy[strings.TrimPrefix(line, "gt checkout --no-interactive ")]; ok && wt != dir {
+		return nil, fmt.Errorf("fatal: already used by worktree at '%s'", wt)
 	}
 	if name == "bash" || name == "go" || name == "env" {
 		return nil, nil

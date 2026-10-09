@@ -29,9 +29,11 @@ func migrationStacks(t *testing.T) (*fixture, *stackGH) {
 	}, q)
 	s.gitOut[migrationsDiff] = ""
 	s.gitOut["ls-tree --name-only origin/fb "+migrationsDir] = migrationsDir + "atlas.sum\n" + newestOnTrunk + "\n"
+	s.gitOut["status --porcelain"] = ""
 	s.gitOut["mv "+oldMigration+" "+renamedAddedBy] = ""
 	f.noFailures()
-	backend := filepath.Join(f.dir, "apps", "backend")
+	wt := t.TempDir()
+	backend := filepath.Join(wt, "apps", "backend")
 	if err := os.MkdirAll(backend, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -39,6 +41,9 @@ func migrationStacks(t *testing.T) (*fixture, *stackGH) {
 	if err := os.WriteFile(filepath.Join(backend, "go.mod"), []byte(gomod), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	r := f.owned(t)
+	r.Worktree = wt
+	f.owner(t, r)
 	return f, s
 }
 
@@ -107,7 +112,7 @@ func TestMigrationWait_aGoModWithoutAToolchainDisarmsBeforeGenerating(t *testing
 			heldFor(t, f, s, "waiting on queued stack #7")
 			s.prs[7].Labels.Nodes = nil
 			s.gitOut[migrationsDiff] = newestOnTrunk + "\n"
-			path := filepath.Join(f.dir, "apps", "backend", "go.mod")
+			path := filepath.Join(f.owned(t).Worktree, "apps", "backend", "go.mod")
 			if gomod == nil {
 				if err := os.Remove(path); err != nil {
 					t.Fatal(err)
@@ -163,6 +168,58 @@ func TestMigrationWait_fetchesTheStackHeadBeforeFindingTheMergeBase(t *testing.T
 	}
 }
 
+func TestMigrationWait_runsEachBranchsStepsInTheWorktreeThatHasItCheckedOut(t *testing.T) {
+	t.Parallel()
+	f, s := migrationStacks(t)
+	heldFor(t, f, s, "waiting on queued stack #7")
+	s.prs[7].Labels.Nodes = nil
+	s.gitOut[migrationsDiff] = migrationsDir + "atlas.sum\n" + newestOnTrunk + "\n"
+	other := t.TempDir()
+	s.gitOut["worktree list --porcelain"] = "worktree " + other + "\nHEAD abc\nbranch refs/heads/b1\n\n"
+	s.usedBy = map[string]string{"b1": other}
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || strings.Contains(stdout, "disarmed") || len(f.owned(t).Armed) == 0 {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+	for _, c := range s.calls {
+		if c.line == "gt checkout --no-interactive b1" && c.dir != other {
+			t.Errorf("checked out b1 in %s, want %s", c.dir, other)
+		}
+	}
+	if !s.ran("gt checkout --no-interactive b1") {
+		t.Fatal("never checked out b1")
+	}
+}
+
+func TestMigrationWait_aFileLeftUncommittedDisarmsAndNamesIt(t *testing.T) {
+	t.Parallel()
+	f, s := migrationStacks(t)
+	heldFor(t, f, s, "waiting on queued stack #7")
+	s.prs[7].Labels.Nodes = nil
+	s.gitOut[migrationsDiff] = newestOnTrunk + "\n"
+	s.gitOut["status --porcelain"] = "?? apps/backend/internal/gen/extra.go\n"
+	code, stdout, _ := f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "left uncommitted files") || !strings.Contains(stdout, "internal/gen/extra.go") ||
+		s.ran("go run ./cmd/monacoctl agents check") || s.ran("gt submit") || code != 0 {
+		t.Fatalf("%d %q %q", code, stdout, s.calls)
+	}
+}
+
+func TestMigrationWait_neverRestacksInThePrimaryCheckout(t *testing.T) {
+	t.Parallel()
+	f, s := migrationStacks(t)
+	heldFor(t, f, s, "waiting on queued stack #7")
+	s.prs[7].Labels.Nodes = nil
+	s.gitOut[migrationsDiff] = newestOnTrunk + "\n"
+	r := f.owned(t)
+	r.Worktree = filepath.Join(f.dir, "gone")
+	f.owner(t, r)
+	_, stdout, _ := f.agents(t, "watch", "--once")
+	if !strings.Contains(stdout, "refusing to restack in the primary checkout") || s.ran("gt ") || s.ran("git mv") {
+		t.Fatalf("%q %q", stdout, s.calls)
+	}
+}
+
 func (s *stackGH) ran(prefix string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -195,6 +252,7 @@ func TestMigrationWait_aFailedStepDisarmsAndNamesTheReason(t *testing.T) {
 		{name: "mv", gitFail: "mv"},
 		{name: "generate", fail: "env GOTOOLCHAIN=go1.26.9 go generate"},
 		{name: "modify", fail: "gt modify"},
+		{name: "status", gitFail: "status"},
 		{name: "stage 0", fail: "go run"},
 		{name: "submit", fail: "gt submit"},
 		{name: "stamp", newest: migrationsDir + "99999999999999_x.sql\n"},
