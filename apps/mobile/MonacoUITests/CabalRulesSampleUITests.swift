@@ -49,7 +49,8 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
     @MainActor
     func testTheCreatorPicksAVoterFromTheRules() {
         let app = launch(role: "creator")
-        XCTAssertTrue(app.navigationBars["Cabal details"].waitForExistence(timeout: 15))
+        XCTAssertTrue(
+            app.navigationBars["Cabal details"].waitForExistence(timeout: 15), "the harness opens on Cabal details")
         assertRuleValues(app)
         for identifier in Self.rows {
             XCTAssertFalse(app.buttons[identifier].exists, "\(identifier) is a static row")
@@ -65,10 +66,12 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         XCTAssertFalse(save.isEnabled, "Save waits for a change")
         voters.buttons["People I pick"].tap()
         let jordan = element(app, "voters-member-\(Self.jordanID)")
+        app.scrollIntoReach(jordan)
         XCTAssertTrue(jordan.waitForExistence(timeout: 5), "picking voters lists the members")
         jordan.tap()
         XCTAssertTrue(save.isEnabled, "Save is enabled once the list changed")
         let creator = element(app, "voters-member-\(Self.creatorID)")
+        app.scrollIntoReach(creator)
         creator.tap()
         XCTAssertTrue(creator.isSelected, "the creator stays checked")
         XCTAssertTrue(creator.label.contains("Always votes"), "the creator's row says Always votes")
@@ -76,11 +79,10 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         save.tap()
         XCTAssertTrue(app.staticTexts["Cabal updated."].waitForExistence(timeout: 10), "the save toasts")
         screenshot(app, "2-voters-saved")
-        XCTAssertFalse(save.isEnabled, "Save is disabled again after the save")
+        XCTAssertFalse(save.waitForExistence(timeout: 3), "Cabal settings closes after the save")
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
         let rulesVoters = element(app, "cabal-rules-voters")
-        XCTAssertTrue(rulesVoters.waitForExistence(timeout: 5))
+        XCTAssertTrue(rulesVoters.waitForExistence(timeout: 5), "the rules sheet shows again after the save")
         XCTAssertTrue(
             rulesVoters.label.contains("Kai and Jordan"), "Who votes names the creator first, got \(rulesVoters.label)")
         screenshot(app, "3-rules-after-save")
@@ -89,7 +91,8 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
     @MainActor
     func testAMemberReadsTheRulesWithoutChevrons() {
         let app = launch(role: "member")
-        XCTAssertTrue(app.navigationBars["Cabal details"].waitForExistence(timeout: 15))
+        XCTAssertTrue(
+            app.navigationBars["Cabal details"].waitForExistence(timeout: 15), "the harness opens on Cabal details")
         assertRuleValues(app)
         for identifier in Self.rows {
             XCTAssertFalse(app.buttons[identifier].exists, "a member cannot open \(identifier)")

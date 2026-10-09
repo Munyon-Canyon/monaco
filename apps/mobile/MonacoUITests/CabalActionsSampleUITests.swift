@@ -37,16 +37,16 @@ nonisolated final class CabalActionsSampleUITests: XCTestCase {
         XCTAssertFalse(element(app, "cabal-action-propose-caption").exists, "a voter sees no caption")
         screenshot(app, "cabal-actions-voter")
 
-        let placeholders = [
-            ("cabal-action-fund", "Fund this cabal"),
-            ("cabal-action-propose", "Propose"),
-            ("cabal-action-cash-out", "Cash out"),
-            ("cabal-action-chat", "Chat"),
+        let destinations: [(id: String, screen: String, rootID: String?)] = [
+            ("cabal-action-fund", "Fund this cabal", "fund-cabal-view"),
+            ("cabal-action-propose", "Propose", "propose-chooser"),
+            ("cabal-action-cash-out", "Cash out", nil),
+            ("cabal-action-chat", "Chat", "chat-view"),
         ]
-        for (id, screen) in placeholders {
+        for (id, screen, rootID) in destinations {
             element(app, id).tap()
-            let placeholder = app.staticTexts["\(screen) is on its way"]
-            XCTAssertTrue(placeholder.waitForExistence(timeout: 10), "\(id) opens the \(screen) placeholder")
+            let root = rootID.map { element(app, $0) } ?? app.navigationBars[screen]
+            XCTAssertTrue(root.waitForExistence(timeout: 10), "\(id) opens the \(screen) screen")
             screenshot(app, "cabal-actions-\(id)")
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(element(app, id).waitForExistence(timeout: 10), "back returns to the action row")

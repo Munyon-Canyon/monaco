@@ -9,9 +9,6 @@ private struct PerfBudgetReport: Decodable {
 }
 
 nonisolated final class PerfBudgetSampleUITests: XCTestCase {
-    private static let budgets = URL(filePath: #filePath).deletingLastPathComponent()
-        .appending(path: "perf-budgets.tsv")
-
     nonisolated override func setUpWithError() throws {
         continueAfterFailure = false
     }
@@ -35,9 +32,12 @@ nonisolated final class PerfBudgetSampleUITests: XCTestCase {
 
     private func budget(screen: String, metric: String) throws -> Int {
         let key = "\(screen)\t\(metric)\t"
-        let rows = try String(contentsOf: Self.budgets, encoding: .utf8).split(separator: "\n")
+        let url = try XCTUnwrap(
+            Bundle(for: Self.self).url(forResource: "perf-budgets", withExtension: "tsv"),
+            "perf-budgets.tsv is not in the MonacoUITests bundle")
+        let rows = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
         let budget = rows.first { $0.hasPrefix(key) }.flatMap { Int($0.dropFirst(key.count)) }
-        return try XCTUnwrap(budget, "no \(screen) \(metric) budget in \(Self.budgets.path)")
+        return try XCTUnwrap(budget, "no \(screen) \(metric) budget in \(url.path)")
     }
 
     @MainActor
