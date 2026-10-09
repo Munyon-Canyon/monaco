@@ -22,10 +22,11 @@ type Point struct {
 }
 
 type Chart struct {
-	Range  domain.ChartRange
-	Bucket time.Duration
-	Points []Point
-	Empty  bool
+	Range         domain.ChartRange
+	Bucket        time.Duration
+	Points        []Point
+	Empty         bool
+	PreviousClose *money.Micros
 }
 
 type Charter interface {
@@ -42,15 +43,19 @@ type chartReader interface {
 
 var _ Charter = (*AssetChart)(nil)
 
+var _ dayBaseReader = (*sqlc.Queries)(nil)
+
 var _ chartReader = (*sqlc.Queries)(nil)
 
 type AssetChart struct {
 	read  chartReader
+	base  dayBaseReader
 	clock clock.Clock
 }
 
 func NewChart(db sqlc.DBTX, c clock.Clock) *AssetChart {
-	return &AssetChart{read: sqlc.New(db), clock: c}
+	queries := sqlc.New(db)
+	return &AssetChart{read: queries, base: queries, clock: c}
 }
 
 func (c *AssetChart) Handle(ctx context.Context, symbol, raw string) (Chart, error) {
@@ -93,7 +98,41 @@ func (c *AssetChart) Handle(ctx context.Context, symbol, raw string) (Chart, err
 	}
 	out.Points = points
 	out.Empty = len(points) == 0
+	if span == domain.Chart1D {
+		base, known, err := c.previousClose(ctx, asset, now)
+		if err != nil {
+			return Chart{}, err
+		}
+		if known {
+			out.PreviousClose = &base
+		}
+	}
 	return out, nil
+}
+
+func (c *AssetChart) previousClose(
+	ctx context.Context, asset domain.Asset, now time.Time,
+) (money.Micros, bool, error) {
+	book, err := c.dayBase(ctx, asset, now)
+	if err != nil {
+		return money.Micros{}, false, err
+	}
+	base, known := reference(asset, book)
+	return base, known, nil
+}
+
+func (c *AssetChart) dayBase(ctx context.Context, asset domain.Asset, now time.Time) (quotes, error) {
+	mints := []string{asset.Mint.String()}
+	if asset.Kind == domain.KindPreIPO {
+		opened, since, err := openedSamples(ctx, c.base, mints, now)
+		return quotes{opened: opened, openedSince: since}, err
+	}
+	session, err := domain.Session(asset.Kind, now)
+	if err != nil {
+		return quotes{}, err
+	}
+	closed, err := closedSamples(ctx, c.base, mints, session)
+	return quotes{closed: closed}, err
 }
 
 func (c *AssetChart) until(ctx context.Context, mint string, now time.Time) (time.Time, bool, error) {

@@ -755,6 +755,11 @@ func TestChart_rejectsACallerThatIsNotAUser(t *testing.T) {
 	if errs.CodeOf(hugeErr) != errs.CodeDecodeFailed {
 		t.Fatalf("huge = %v", hugeErr)
 	}
+	h.Chart = hugeChart{chart: app.Chart{Range: domain.Chart1D, Bucket: 5 * time.Minute, PreviousClose: &huge}}
+	_, closeErr := h.GetAssetChart(user, api.GetAssetChartRequestObject{Symbol: "AAPLx"})
+	if errs.CodeOf(closeErr) != errs.CodeDecodeFailed {
+		t.Fatalf("huge previous close = %v", closeErr)
+	}
 }
 
 type hugeChart struct{ chart app.Chart }

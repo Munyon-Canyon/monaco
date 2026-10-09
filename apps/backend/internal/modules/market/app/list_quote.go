@@ -30,7 +30,7 @@ func (l *ListAssets) load(
 	equity, preIPO := splitMints(assets)
 	closed := map[string][]domain.Sample{}
 	if len(equity) > 0 {
-		closed, err = l.newest(ctx, equity, equitySession.LastClose)
+		closed, err = closedSamples(ctx, l.read, equity, equitySession)
 		if err != nil {
 			return quotes{}, err
 		}
@@ -38,8 +38,7 @@ func (l *ListAssets) load(
 	opened := map[string][]domain.Sample{}
 	openedSince := time.Time{}
 	if len(preIPO) > 0 {
-		openedSince = now.UTC().Truncate(24 * time.Hour)
-		opened, err = l.samplesSince(ctx, preIPO, openedSince, now)
+		opened, openedSince, err = openedSamples(ctx, l.read, preIPO, now)
 		if err != nil {
 			return quotes{}, err
 		}
@@ -59,16 +58,6 @@ func (l *ListAssets) newest(
 		return nil, errs.Wrap(err, errs.CodeOf(err), "market.NewestSamples")
 	}
 	return groupNewest(rows)
-}
-
-func (l *ListAssets) samplesSince(
-	ctx context.Context, mints []string, since, until time.Time,
-) (map[string][]domain.Sample, error) {
-	rows, err := l.read.FirstSamplesSince(ctx, sqlc.FirstSamplesSinceParams{Mints: mints, Since: since, Until: until})
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "market.FirstSamplesSince")
-	}
-	return groupSamples(rows)
 }
 
 func (l *ListAssets) sparkline(

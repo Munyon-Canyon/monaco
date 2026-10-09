@@ -213,6 +213,11 @@ type AssetChart struct {
 	// Examples: [{"close_micros":110000000,"high_micros":130000000,"low_micros":90000000,"open_micros":100000000,"t":"2026-03-04T14:55:00Z"}]
 	Points []ChartPoint `json:"points"`
 
+	// PreviousCloseMicros The day-change base in USD micros, the price the header's day change is measured from. Set only when `range` is `1D` and the base sample exists.
+	//
+	// Examples: 100000000
+	PreviousCloseMicros *int64 `json:"previous_close_micros,omitempty"`
+
 	// Range The range that was requested.
 	//
 	// Examples: 1D

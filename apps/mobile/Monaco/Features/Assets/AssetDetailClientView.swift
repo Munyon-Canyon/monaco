@@ -392,7 +392,7 @@ enum AssetDetailBuyCTA {
 
 #if DEBUG
 private enum AssetDetailClientSampleScenario: String {
-    case open, sparse, untradable, fallbackSeries, emptyChart, chartFailed
+    case open, previousClose, sparse, untradable, fallbackSeries, emptyChart, chartFailed
     static func matching(_ arguments: [String]) -> Self? {
         guard let index = arguments.firstIndex(of: "-MonacoAssetDetailSample"), arguments.indices.contains(index + 1)
         else { return nil }
@@ -415,7 +415,10 @@ private struct AssetDetailClientSampleHarness: View {
         var detail = isPreIpo ? Components.Schemas.AssetDetail.spaceX : .googl
         if scenario == .untradable { detail.tradable = false }
         let range: AssetChartRange = scenario == .fallbackSeries ? .oneYear : .oneDay
-        let chart = scenario == .emptyChart || scenario == .chartFailed ? nil : Self.chart(range: range)
+        let previousClose: Int64? = scenario == .previousClose ? 176_000_000 : nil
+        let chart =
+            scenario == .emptyChart || scenario == .chartFailed
+            ? nil : Self.chart(range: range, previousClose: previousClose)
         _model = State(
             initialValue: AssetDetailClientModel(
                 sampleDetail: detail,
@@ -430,13 +433,14 @@ private struct AssetDetailClientSampleHarness: View {
             .tint(MonacoTheme.ink)
     }
 
-    private static func chart(range: AssetChartRange) -> AssetChartSeries {
+    private static func chart(range: AssetChartRange, previousClose: Int64?) -> AssetChartSeries {
         AssetChartSeries(
             range: range,
             points: [
                 .init(timestamp: 1_772_596_200, priceUsdcMicros: 174_000_000),
                 .init(timestamp: 1_772_614_200, priceUsdcMicros: 175_420_000),
-            ]
+            ],
+            previousCloseUsdcMicros: previousClose
         )
     }
 }
@@ -455,7 +459,7 @@ struct AssetScrubHeader: Equatable {
     ) {
         guard let chart, let index, let point = chart.point(at: index) else { return nil }
         price = UsdAmountFormatter.format(micros: point.priceUsdcMicros)
-        basisPoints = Self.basisPoints(from: chart.points.first?.priceUsdcMicros, to: point.priceUsdcMicros)
+        basisPoints = Self.basisPoints(from: chart.baselineUsdcMicros, to: point.priceUsdcMicros)
         caption = ChartScrubLabel.caption(
             for: Date(timeIntervalSince1970: TimeInterval(point.timestamp)),
             range: chart.range, locale: locale, timeZone: timeZone)
