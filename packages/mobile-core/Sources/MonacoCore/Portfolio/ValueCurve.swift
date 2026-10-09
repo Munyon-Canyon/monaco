@@ -57,7 +57,16 @@ public struct ValueCurve: Equatable, Sendable {
         samples.compactMap { sample in sample.nav.map { CurvePoint(at: sample.at, value: $0) } }
     }
 
-    public var hasEnoughHistory: Bool { samples.count >= 2 }
+    public var drawnPoints: [CurvePoint] { Self.drawable(points) }
+
+    public var drawnNavPoints: [CurvePoint] { Self.drawable(navPoints) }
+
+    public var hasEnoughHistory: Bool { !samples.isEmpty }
+
+    private static func drawable(_ points: [CurvePoint]) -> [CurvePoint] {
+        guard points.count == 1, let only = points.first else { return points }
+        return [CurvePoint(at: only.at.addingTimeInterval(-1), value: only.value), only]
+    }
 
     public var direction: PortfolioSummary.Direction {
         guard let first = samples.first, let last = samples.last, samples.count >= 2 else { return .flat }

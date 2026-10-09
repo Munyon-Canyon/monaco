@@ -73,7 +73,7 @@ private struct CabalsValueChart: View {
         if model.hasEnoughHistory {
             CabalLinesChart(
                 lines: model.lines.filter(\.curve.hasEnoughHistory).map {
-                    .init(id: $0.id, name: $0.name, points: $0.curve.navPoints)
+                    .init(id: $0.id, name: $0.name, points: $0.curve.drawnNavPoints)
                 },
                 range: model.range, identifier: "cabals-value-chart-lines")
         } else {
