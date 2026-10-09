@@ -5233,6 +5233,7 @@ components:
         - swap_failed
         - swap_not_found
         - swap_not_retryable
+        - swap_not_sent
         - swap_not_stuck
         - too_many_contact_hashes
         - trade_not_started

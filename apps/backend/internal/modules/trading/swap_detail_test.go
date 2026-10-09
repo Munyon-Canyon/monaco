@@ -13,6 +13,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/tradingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -91,6 +92,20 @@ func TestGetSwap_failedSwapWithALaterSwapIsNotRetryable(t *testing.T) {
 	}
 	if got := s.swap(t, later.ID); got.Status != "created" || got.TxSignature != nil || got.Retryable {
 		t.Fatalf("later swap = %+v, want created with no signature and not retryable", got)
+	}
+}
+
+func TestGetSwap_neverSubmittedSwapSaysTheTradeWasNotSent(t *testing.T) {
+	t.Parallel()
+	s := newRetryServer(t)
+	row := s.created(s.ids.NewV7(), usdcMint)
+	row.CabalID = s.failed.CabalID
+	s.insert(t, row)
+	s.fail(t, row.ID, string(domain.FailureNeverSubmitted))
+	got := s.swap(t, row.ID)
+	if got.FailureCode == nil || *got.FailureCode != "never_submitted" ||
+		got.FailureMessage == nil || *got.FailureMessage != "The trade couldn't be sent." {
+		t.Fatalf("swap = %+v, want never_submitted with the message %q", got, "The trade couldn't be sent.")
 	}
 }
 
