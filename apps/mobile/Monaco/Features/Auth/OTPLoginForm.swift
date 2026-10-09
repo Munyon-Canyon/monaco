@@ -199,6 +199,7 @@ struct OTPLoginForm: View {
         }
         .onChange(of: address) {
             addressHintArmed = false
+            auth.clearLoginFailure()
         }
         .onChange(of: focusedField) { old, _ in
             if old == .address, focusedField != .address,

@@ -78,6 +78,38 @@ struct LoginFlowTests {
         #expect(flow.destination == nil)
     }
 
+    @Test func clearingAFailedSendOnTheAddressStepReturnsToIdle() {
+        var flow = LoginFlow()
+        _ = flow.beginSend()
+        flow.sendFailed(message: "Couldn't send the code. Try again.")
+
+        flow.clearFailure()
+
+        #expect(flow.phase == .idle)
+        #expect(!flow.isCodeEntry)
+    }
+
+    @Test func signInLinesUseNoPlumbingWords() {
+        let failures: [LoginFailure] = [
+            .cancelled, .codeRejected, .offline, .rateLimited, .signUpsPaused, .methodUnavailable,
+            .other(detail: nil),
+        ]
+        let steps: [LoginStep] = [.authorize, .sendCode, .verifyCode]
+        let lines =
+            failures.flatMap { failure in
+                steps.map { LoginFailureCopy.message(for: failure, step: $0) }
+            } + [
+                LoginFailureCopy.sessionExpired, LoginFailureCopy.restoreOffline,
+                LoginFailureCopy.tokenUnavailable,
+            ]
+
+        for line in lines {
+            for word in ["session", "service"] {
+                #expect(!line.lowercased().contains(word), "\"\(line)\" says \"\(word)\"")
+            }
+        }
+    }
+
     @Test func onlyTheMemberGoesBackToTheAddressStep() {
         var flow = onCodeStep()
         flow.returnToAddressEntry()
