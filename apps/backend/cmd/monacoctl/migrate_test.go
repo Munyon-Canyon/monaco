@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -454,5 +455,35 @@ func TestMigrationCommits_stopsOnTheFirstGitFailure(t *testing.T) {
 			!strings.Contains(stderr.String(), "boom") {
 			t.Fatalf("%s failing: code=%d stderr=%q", failing, code, stderr.String())
 		}
+	}
+}
+
+func TestSharedDev_createsAnEmptyDatabaseOnTheTestPostgresAndDropsItOnCleanup(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+
+	got, cleanup := sharedDev(context.Background(), os.Environ())
+
+	u, err := url.Parse(got)
+	if err != nil || !strings.HasPrefix(u.Path, "/atlas_dev_") {
+		cleanup()
+		t.Fatalf("url = %q (%v), want a database named atlas_dev_*", got, err)
+	}
+	exists := func() bool {
+		var n int
+		err := pool.QueryRow(context.Background(), "SELECT count(*) FROM pg_database WHERE datname = $1",
+			strings.TrimPrefix(u.Path, "/")).Scan(&n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}
+	if !exists() {
+		cleanup()
+		t.Fatalf("database %s was not created", u.Path)
+	}
+	cleanup()
+	if exists() {
+		t.Fatalf("database %s survived cleanup", u.Path)
 	}
 }
