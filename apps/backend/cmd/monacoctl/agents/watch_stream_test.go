@@ -954,7 +954,7 @@ func TestWatch_flagsALabeledPRStuckOnAGraphiteBaseOnEveryPass(t *testing.T) {
 		queueLabeled(watchNode(1830, "fb", rollup(greenOK), "")),
 	))
 	want := "#1820 is stuck on graphite-base/1820 (a restack that never retargeted); owner: dequeue 1821, " +
-		"gt sync, gt restack, gt submit --stack --draft, land-stack 1821; ticket #40"
+		"gt restack, gt submit --stack --draft, land-stack 1821; ticket #40"
 	out := streamRounds(t, f, 2, func(int) {})
 	if strings.Count(out, want+"\n") != 2 || strings.Contains(out, "#1830") || strings.Contains(out, "#1821 is stuck") {
 		t.Fatalf("stream:\n%s", out)
@@ -979,9 +979,9 @@ func TestStuckOnGraphiteBase_namesTheOwnerRecordOfAnArmedOrQueuedStack(t *testin
 	got := stuckOnGraphiteBase(prs, rs, "merge-queue")
 	want := []string{
 		"#1839 is stuck on graphite-base/1839 (a restack that never retargeted); owner: dequeue 1850, " +
-			"gt sync, gt restack, gt submit --stack --draft, land-stack 1850; owner record 44.json",
+			"gt restack, gt submit --stack --draft, land-stack 1850; owner record 44.json",
 		"#1840 is stuck on graphite-base/1840 (a restack that never retargeted); owner: dequeue 1860, " +
-			"gt sync, gt restack, gt submit --stack --draft, land-stack 1860; owner record 45.json",
+			"gt restack, gt submit --stack --draft, land-stack 1860; owner record 45.json",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("%q", got)
