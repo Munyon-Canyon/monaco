@@ -9,10 +9,13 @@ struct ProposeStock: Hashable, Identifiable {
     var priceMicros: Int64?
     var change24h: String?
     var isTradable = true
+    var isQuotable = true
     var assetKind: AssetKind = .stock
     var tokenDecimals: Int?
 
     var id: String { symbol }
+
+    var isPaused: Bool { isTradable && !isQuotable }
 
     /// Ticker without the xStock suffix, e.g. "AAPL".
     var ticker: String { AssetSymbolFormatter.display(symbol, kind: assetKind) }
@@ -27,6 +30,7 @@ struct ProposeStock: Hashable, Identifiable {
         priceMicros: Int64? = nil,
         change24h: String? = nil,
         isTradable: Bool = true,
+        isQuotable: Bool = true,
         assetKind: AssetKind = .stock,
         tokenDecimals: Int? = nil
     ) {
@@ -35,6 +39,7 @@ struct ProposeStock: Hashable, Identifiable {
         self.priceMicros = priceMicros
         self.change24h = change24h
         self.isTradable = isTradable
+        self.isQuotable = isQuotable
         self.assetKind = assetKind
         self.tokenDecimals = tokenDecimals
     }

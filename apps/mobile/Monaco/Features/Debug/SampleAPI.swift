@@ -30,6 +30,7 @@ nonisolated struct SampleAPIScript: Sendable {
     var invites: [Components.Schemas.CabalInvite] = []
     var accessRequests: [Components.Schemas.CabalAccessRequest] = []
     var viewerCanVote = false
+    var includesPausedStock = false
 }
 
 nonisolated final class SampleAPIProtocol: URLProtocol {
@@ -276,7 +277,7 @@ nonisolated extension SampleAPIProtocol {
         }
         switch tail.count {
         case 0:
-            return json(assetList(query: query, empty: script.mode == .empty))
+            return json(assetList(query: query, empty: script.mode == .empty, paused: script.includesPausedStock))
         case 1:
             return json(script.asset)
         case 2 where tail[1] == "chart":
@@ -286,9 +287,12 @@ nonisolated extension SampleAPIProtocol {
         }
     }
 
-    private static func assetList(query: [String: String], empty: Bool) -> Components.Schemas.AssetList {
+    private static func assetList(
+        query: [String: String], empty: Bool, paused: Bool = false
+    ) -> Components.Schemas.AssetList {
         if empty { return .init(assets: [], nextCursor: nil) }
-        let catalog: [Components.Schemas.AssetSummary] = [.googl, .spaceX, .unpriced]
+        let catalog: [Components.Schemas.AssetSummary] =
+            paused ? [.paused, .googl, .spaceX, .unpriced] : [.googl, .spaceX, .unpriced]
         if let text = query["q"], !text.isEmpty {
             let matches = catalog.filter {
                 $0.symbol.localizedCaseInsensitiveContains(text)
@@ -297,7 +301,7 @@ nonisolated extension SampleAPIProtocol {
             return .init(assets: matches, nextCursor: nil)
         }
         switch query["filter"] {
-        case "popular": return .popularSample
+        case "popular": return paused ? .init(assets: [.paused, .googl], nextCursor: nil) : .popularSample
         case "pre_ipo": return .preIpoSample
         default: return .init(assets: catalog, nextCursor: nil)
         }
