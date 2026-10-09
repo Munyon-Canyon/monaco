@@ -41,6 +41,14 @@ func budgetedWatch(
 	)
 }
 
+func tickWithRemaining(t *testing.T, remaining time.Duration) (context.Context, time.Time) {
+	t.Helper()
+	deadline := clock.Real{}.Now().UTC().Add(30 * time.Minute).Truncate(time.Microsecond)
+	ctx, cancel := context.WithDeadline(watchActor(t), deadline)
+	t.Cleanup(cancel)
+	return ctx, deadline.Add(-remaining)
+}
+
 func stepAttrs(report poller.Report) string {
 	parts := make([]string, 0, len(report.Attrs))
 	for _, a := range report.Attrs {
@@ -113,22 +121,20 @@ func TestDepositWatchStopsFiveSecondsBeforeTheTickDeadline(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
-	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	ata := seedWatchAccount(t, pool, user)
 	wallets := []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}
 	rpc := watchRPC{}
-	late, cancel := context.WithTimeout(watchActor(t), 2*time.Second)
-	defer cancel()
-	report, err := budgetedWatch(pool, now, wallets, &rpc, 480, 64, 65).Tick(late)
+	late, lateNow := tickWithRemaining(t, 2*time.Second)
+	report, err := budgetedWatch(pool, lateNow, wallets, &rpc, 480, 64, 65).Tick(late)
 	if err != nil || rpc.signCalls != 0 || stepAttrs(report) != "gate=0 gate_calls=0" {
 		t.Fatalf("late Tick = %+v, %v with %d calls; want no RPC call inside the last 5 s", report, err, rpc.signCalls)
 	}
 	if got := loadAccount(t, pool, ata); got.CleanGen == got.DirtyGen {
 		t.Fatalf("account = %+v, want it still dirty", got)
 	}
-	early, cancelEarly := context.WithTimeout(watchActor(t), time.Minute)
-	defer cancelEarly()
-	if _, err := budgetedWatch(pool, now, wallets, &rpc, 480, 66, 67).Tick(early); err != nil || rpc.signCalls != 1 {
+	early, earlyNow := tickWithRemaining(t, time.Minute)
+	_, err = budgetedWatch(pool, earlyNow, wallets, &rpc, 480, 66, 67).Tick(early)
+	if err != nil || rpc.signCalls != 1 {
 		t.Fatalf("early Tick error = %v with %d calls; want one scan", err, rpc.signCalls)
 	}
 }
