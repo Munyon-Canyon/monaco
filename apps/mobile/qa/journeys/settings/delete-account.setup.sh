@@ -16,7 +16,6 @@ fi
 : "${MONACO_QA_HANDOFF:?journey.py sets MONACO_QA_HANDOFF}"
 run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
 api="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
-unset MONACO_API_BASE_URL
 
 sql() {
   apps/mobile/qa/journeys/psql.sh -v ON_ERROR_STOP=1 -tA "$@"
@@ -38,12 +37,9 @@ call() {
     -H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')" -d "$body"
 }
 
-[[ -x bin/monacoctl ]] || fail "bin/monacoctl is missing: run just build backend"
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
-unset_qa=(-u MONACO_API_BASE_URL)
-while read -r name; do unset_qa+=(-u "$name"); done < <(compgen -e | grep '^MONACO_QA_')
-token="$(env "${unset_qa[@]}" bin/monacoctl dev token --user new 2>"$log")" ||
+token="$(scripts/qa/monacoctl.sh dev token --user new 2>"$log")" ||
   fail "monacoctl dev token --user new failed: $(cat "$log")"
 user_id="$(awk '$1 == "dev" && $2 == "user" { print $3 }' "$log")"
 [[ -n "$user_id" ]] || fail "monacoctl dev token did not name the new dev user: $(cat "$log")"

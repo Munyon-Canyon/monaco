@@ -646,6 +646,20 @@ def git_apply_check(patch):
     return sh(["git", "apply", "--check", str(patch)], stderr=subprocess.DEVNULL).returncode == 0
 
 
+def check_setup_monacoctl(qa=None):
+    """Name every setup or truth script line that mentions bin/monacoctl or cmd/monacoctl."""
+    qa = QA if qa is None else qa
+    problems = []
+    for path in sorted(list(qa.rglob("*.setup.sh")) + list(qa.rglob("*.truth.sh"))):
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            if not line.lstrip().startswith("#") and ("bin/monacoctl" in line or "cmd/monacoctl" in line):
+                problems.append(
+                    "%s:%d: runs monacoctl itself: use scripts/qa/monacoctl.sh, which drops the app's API variables"
+                    % (os.path.relpath(str(path), str(ROOT)), number)
+                )
+    return problems
+
+
 def build_label(mutant=None):
     sha = sh(["git", "rev-parse", "--short", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
     return "%s+mutant:%s" % (sha, mutant) if mutant else sha
@@ -1318,6 +1332,7 @@ def cmd_check(args):
     journeys = load_journeys()
     problems = check_journeys(journeys, load_accounts(), git_apply_check)
     problems.extend(check_setup_inserts())
+    problems.extend(check_setup_monacoctl())
     for problem in problems:
         print(problem)
     if problems:

@@ -14,11 +14,7 @@ fi
 
 run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
 handoff="${MONACO_QA_HANDOFF:?journey.py sets MONACO_QA_HANDOFF}"
-while read -r name; do
-  unset "$name"
-done < <(compgen -e | grep '^MONACO_QA_')
 api="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
-unset MONACO_API_BASE_URL
 accounts="${QA_ACCOUNTS_FILE:-apps/mobile/qa/journeys/accounts.tsv}"
 
 fail() {
@@ -26,7 +22,6 @@ fail() {
   exit 1
 }
 
-[[ -x bin/monacoctl ]] || fail "run just build backend first"
 curl -fsS "$api/healthz" >/dev/null || fail "the backend does not answer $api/healthz: just run backend first"
 
 column() {
@@ -55,7 +50,7 @@ user_id() {
 }
 
 token() {
-  bin/monacoctl dev token --user "$1" --ttl 1h || fail "monacoctl dev token --user $1 failed"
+  scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h || fail "monacoctl dev token --user $1 failed"
 }
 
 call() {

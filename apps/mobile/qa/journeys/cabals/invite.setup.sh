@@ -2,16 +2,9 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
-while read -r name; do
-  unset "$name"
-done < <(compgen -e | grep '^MONACO_QA_')
 api="${MONACO_API_BASE_URL:-http://127.0.0.1:8080}"
 accounts="${QA_ACCOUNTS_FILE:-apps/mobile/qa/journeys/accounts.tsv}"
 
-if [[ ! -x bin/monacoctl ]]; then
-  echo "run just build backend first" >&2
-  exit 1
-fi
 if ! curl -fsS "$api/healthz" >/dev/null; then
   echo "the backend does not answer $api/healthz: just run backend first" >&2
   exit 1
@@ -45,7 +38,7 @@ user_id() {
 token() {
   local error_file out
   error_file="$(mktemp)"
-  if ! out="$(scripts/with-dotenv-local.sh bin/monacoctl dev token --user "$1" --ttl 1h 2>"$error_file")"; then
+  if ! out="$(scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h 2>"$error_file")"; then
     grep -v -e '^with-dotenv-local:' -e 'injected env' "$error_file" >&2 || true
     echo "monacoctl dev token --user $1 failed" >&2
     rm -f "$error_file"

@@ -40,12 +40,9 @@ call() {
 }
 
 dev_token() {
-  local unset_qa=(-u MONACO_API_BASE_URL)
-  while read -r name; do unset_qa+=(-u "$name"); done < <(compgen -e | grep '^MONACO_QA_')
-  env "${unset_qa[@]}" bin/monacoctl dev token --user "$1" --ttl 1h 2>/dev/null || fail "monacoctl dev token --user $1 failed"
+  scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h 2>/dev/null || fail "monacoctl dev token --user $1 failed"
 }
 
-[[ -x bin/monacoctl ]] || fail "bin/monacoctl is missing: run just build backend"
 did="$(apps/mobile/qa/journeys/privy-user-id.sh B)"
 row="$(sql -F ' ' -v did="$did" <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now()
   WHERE privy_user_id = :'did' RETURNING id, handle" | head -1)"

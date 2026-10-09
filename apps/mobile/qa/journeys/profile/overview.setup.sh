@@ -32,7 +32,6 @@ json.dump(values, open(path, "w"))
 PY
 }
 
-[[ -x bin/monacoctl ]] || fail "bin/monacoctl is missing: run just build backend"
 did="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 user_id="$(sql -v did="$did" <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now()
   WHERE privy_user_id = :'did' RETURNING id" | head -1)"
@@ -41,10 +40,8 @@ user_id="$(sql -v did="$did" <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPL
 cabal_id="$(sql -v uid="$user_id" -v name="$name" <<<"SELECT c.id FROM cabals c
   JOIN cabal_members m ON m.cabal_id = c.id WHERE m.user_id = :'uid' AND c.name = :'name' LIMIT 1")"
 if [[ -z "$cabal_id" ]]; then
-  unset_qa=()
-  while read -r var; do unset_qa+=(-u "$var"); done < <(compgen -e | grep '^MONACO_QA_')
   log="$(mktemp)"
-  token="$(env "${unset_qa[@]}" bin/monacoctl dev token --user "$user_id" --ttl 1h 2>"$log")" ||
+  token="$(scripts/qa/monacoctl.sh dev token --user "$user_id" --ttl 1h 2>"$log")" ||
     fail "monacoctl dev token for actor A failed: $(grep -v 'injected env' "$log")"
   cabal_id="$(curl -fsS -X POST "$api/v1/cabals" -H "Authorization: Bearer $token" \
     -H 'Content-Type: application/json' -H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')" \

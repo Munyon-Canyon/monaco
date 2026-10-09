@@ -69,7 +69,7 @@ A step that has no accessibility identifier to target is a gap in the app. Add t
 
 The setup script and the truth check also get `MONACO_QA_HANDOFF`, the run's hand-off file: a JSON object of strings that the test reads with `JourneyHandoff.read`. A setup script writes a value there that only it can make, such as a dev token, and the truth check reads back what the run left there, such as the dev user's id.
 
-A state the app cannot reach, such as an `auth_state` a test login never passes through, comes from the journey's setup script, never from a person editing the database. The setup and truth scripts reach Postgres through `apps/mobile/qa/journeys/psql.sh`, which uses the host `psql` or the one in the Compose `monaco-postgres` container.
+A state the app cannot reach, such as an `auth_state` a test login never passes through, comes from the journey's setup script, never from a person editing the database. The setup and truth scripts reach Postgres through `apps/mobile/qa/journeys/psql.sh`, which uses the host `psql` or the one in the Compose `monaco-postgres` container. They call `monacoctl` only through `scripts/qa/monacoctl.sh`, which drops `MONACO_API_BASE_URL` and `MONACO_QA_*` because `monacoctl` rejects `MONACO_` variables it does not know; `journey.py check` fails on a direct `bin/monacoctl` call.
 
 ## Steps run one at a time
 
