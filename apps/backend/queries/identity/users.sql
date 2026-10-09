@@ -119,3 +119,14 @@ SET first_deposit_at = LEAST(COALESCE(first_deposit_at, sqlc.arg(deposited_at)::
     updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
   AND (first_deposit_at IS NULL OR first_deposit_at > sqlc.arg(deposited_at)::timestamptz);
+
+-- name: LockDevHandle :exec
+SELECT pg_advisory_xact_lock(hashtext(sqlc.arg(handle)::text));
+
+-- name: DevUserByHandle :one
+SELECT id, privy_user_id, account_status = 'deleted' AS deleted FROM users WHERE handle = sqlc.arg(handle);
+
+-- name: RestoreDevUser :execrows
+UPDATE users SET account_status = 'active', deleted_at = NULL, photo_purged_at = NULL,
+  display_name = sqlc.arg(display_name), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND account_status = 'deleted';

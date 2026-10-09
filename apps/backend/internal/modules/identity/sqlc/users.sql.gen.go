@@ -86,6 +86,23 @@ func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const devUserByHandle = `-- name: DevUserByHandle :one
+SELECT id, privy_user_id, account_status = 'deleted' AS deleted FROM users WHERE handle = $1
+`
+
+type DevUserByHandleRow struct {
+	ID          uuid.UUID
+	PrivyUserID string
+	Deleted     bool
+}
+
+func (q *Queries) DevUserByHandle(ctx context.Context, handle pgtype.Text) (DevUserByHandleRow, error) {
+	row := q.db.QueryRow(ctx, devUserByHandle, handle)
+	var i DevUserByHandleRow
+	err := row.Scan(&i.ID, &i.PrivyUserID, &i.Deleted)
+	return i, err
+}
+
 const findUserByID = `-- name: FindUserByID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
   w.privy_wallet_id, w.address
@@ -226,6 +243,15 @@ func (q *Queries) LinksHeldByOthers(ctx context.Context, arg LinksHeldByOthersPa
 	return i, err
 }
 
+const lockDevHandle = `-- name: LockDevHandle :exec
+SELECT pg_advisory_xact_lock(hashtext($1::text))
+`
+
+func (q *Queries) LockDevHandle(ctx context.Context, handle string) error {
+	_, err := q.db.Exec(ctx, lockDevHandle, handle)
+	return err
+}
+
 const lockUserByID = `-- name: LockUserByID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
   w.privy_wallet_id, w.address
@@ -349,6 +375,26 @@ func (q *Queries) PhotoPurgesDue(ctx context.Context, batch int32) ([]uuid.UUID,
 		return nil, err
 	}
 	return items, nil
+}
+
+const restoreDevUser = `-- name: RestoreDevUser :execrows
+UPDATE users SET account_status = 'active', deleted_at = NULL, photo_purged_at = NULL,
+  display_name = $1, updated_at = $2
+WHERE id = $3 AND account_status = 'deleted'
+`
+
+type RestoreDevUserParams struct {
+	DisplayName string
+	Now         time.Time
+	ID          uuid.UUID
+}
+
+func (q *Queries) RestoreDevUser(ctx context.Context, arg RestoreDevUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restoreDevUser, arg.DisplayName, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setDisplayName = `-- name: SetDisplayName :execrows

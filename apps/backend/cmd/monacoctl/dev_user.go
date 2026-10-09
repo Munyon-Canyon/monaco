@@ -12,13 +12,23 @@ import (
 	testflows "github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
-func devTokenNewUser(cfg config.Config, ttl time.Duration, stdout, stderr io.Writer) int {
+const devPoolRefused = "monacoctl dev token: refused: --pool only works against the local dev database"
+
+func devTokenNew(cfg config.Config, pool string, ttl time.Duration, stdout, stderr io.Writer) int {
+	if pool != "" && !cfg.LocalDev() {
+		_, _ = fmt.Fprintln(stderr, devPoolRefused)
+		return 1
+	}
+	return devTokenNewUser(cfg, pool, ttl, stdout, stderr)
+}
+
+func devTokenNewUser(cfg config.Config, pool string, ttl time.Duration, stdout, stderr io.Writer) int {
 	clk := clock.Real{}
 	verifier, err := auth.NewDevVerifier(cfg, clk)
 	if err != nil {
 		return devTokenFail(stderr, err)
 	}
-	user, err := testflows.NewDevUser(context.Background(), cfg)
+	user, err := testflows.NewDevUser(context.Background(), cfg, pool)
 	if err != nil {
 		return devTokenFail(stderr, err)
 	}

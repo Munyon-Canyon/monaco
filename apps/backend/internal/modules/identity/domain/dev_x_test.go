@@ -37,3 +37,26 @@ func TestDevXAccount(t *testing.T) {
 		t.Fatalf("named = %+v", got)
 	}
 }
+
+func TestValidDevPool(t *testing.T) {
+	t.Parallel()
+	for name, want := range map[string]bool{
+		"browse-host": true, "a": true, "vote-host-2": true, "sixteen-chars-ok": true,
+		"": false, "Upper": false, "has_underscore": false, "-lead": false, "trail-": false, "a--b": false,
+		"seventeen-chars-x": false, "0a1b2c3d": false, "0a1b2c3de": true, "0a1b2c3g": true,
+	} {
+		if got := domain.ValidDevPool(name); got != want {
+			t.Errorf("ValidDevPool(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func TestDevHandle(t *testing.T) {
+	t.Parallel()
+	if got := domain.DevHandle("browse-other-1"); got != "dev_browse_other_1" {
+		t.Fatalf("DevHandle = %q", got)
+	}
+	if got := domain.DevHandle("0a1b2c3d"); got != "dev_0a1b2c3d" {
+		t.Fatalf("DevHandle(throwaway) = %q", got)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -35,6 +36,18 @@ type DevUsers interface {
 	) error
 }
 
+type DevUserRow struct {
+	ID      ids.UserID
+	PrivyID string
+	Deleted bool
+}
+
+type DevPools interface {
+	LockDevHandle(ctx context.Context, q sqlc.DBTX, handle string) error
+	DevUserByHandle(ctx context.Context, q sqlc.DBTX, handle string) (DevUserRow, bool, error)
+	RestoreDevUser(ctx context.Context, q sqlc.DBTX, id ids.UserID, displayName string, at time.Time) (bool, error)
+}
+
 type CreateDevUserDeps struct {
 	Env     config.Env
 	UoW     *db.UnitOfWork
@@ -45,6 +58,8 @@ type CreateDevUserDeps struct {
 	Clock   clock.Clock
 	Hints   Hints
 	Rand    io.Reader
+	Pools   DevPools
+	Pool    string
 }
 
 func CreateDevUser(ctx context.Context, d CreateDevUserDeps) (DevUser, error) {
@@ -52,11 +67,109 @@ func CreateDevUser(ctx context.Context, d CreateDevUserDeps) (DevUser, error) {
 	if d.Env == config.EnvProduction {
 		return DevUser{}, errs.New(errs.CodeInvalidInput, op)
 	}
+	if d.Pool != "" {
+		return poolDevUser(ctx, d)
+	}
 	suffix, err := devSuffix(d.Rand)
 	if err != nil {
 		return DevUser{}, err
 	}
 	return settleDevUser(ctx, d, suffix)
+}
+
+func poolDevUser(ctx context.Context, d CreateDevUserDeps) (DevUser, error) {
+	const op = "identity.CreateDevUser"
+	if !domain.ValidDevPool(d.Pool) {
+		return DevUser{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "pool_name"))
+	}
+	handle := domain.DevHandle(d.Pool)
+	var user DevUser
+	err := d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		q := tx.Queries()
+		if err := d.Pools.LockDevHandle(ctx, q, handle); err != nil {
+			return err
+		}
+		row, found, err := d.Pools.DevUserByHandle(ctx, q, handle)
+		if err != nil {
+			return err
+		}
+		if found && !row.Deleted {
+			return poolWallet(ctx, d, &user, row.ID, PrivyUserID(row.PrivyID), handle)
+		}
+		privyID, err := adoptOrCreatePrivy(ctx, d, domain.DevEmail(d.Pool))
+		if err != nil {
+			return err
+		}
+		if found {
+			return restorePoolUser(ctx, d, tx, row, privyID, &user)
+		}
+		return insertPoolUser(ctx, d, tx, handle, privyID, &user)
+	})
+	return user, err
+}
+
+func poolWallet(
+	ctx context.Context, d CreateDevUserDeps, user *DevUser, id ids.UserID, privyID PrivyUserID, handle string,
+) error {
+	wallet, err := d.Wallets.FindOrCreate(ctx, privyID)
+	if err != nil {
+		return err
+	}
+	*user = DevUser{UserID: id, Handle: handle, WalletAddress: wallet.Address}
+	return nil
+}
+
+func adoptOrCreatePrivy(ctx context.Context, d CreateDevUserDeps, email string) (PrivyUserID, error) {
+	id, found, err := d.Privy.ByEmail(ctx, email)
+	if err != nil || found {
+		return id, err
+	}
+	id, err = d.Privy.Create(ctx, email)
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		return id, err
+	}
+	again, found, lookupErr := d.Privy.ByEmail(ctx, email)
+	if lookupErr != nil || !found {
+		return "", err
+	}
+	return again, nil
+}
+
+func restorePoolUser(
+	ctx context.Context, d CreateDevUserDeps, tx db.Tx, row DevUserRow, privyID PrivyUserID, user *DevUser,
+) error {
+	const op = "identity.CreateDevUser"
+	if string(privyID) != row.PrivyID {
+		return errs.New(errs.CodeWalletMismatch, op, slog.String("reason", "pool_privy_user_changed"))
+	}
+	handle := domain.DevHandle(d.Pool)
+	restored, err := d.Pools.RestoreDevUser(ctx, tx.Queries(), row.ID, "Dev "+d.Pool, d.Clock.Now())
+	if err != nil {
+		return err
+	}
+	if !restored {
+		return errs.New(errs.CodeInternal, op, slog.String("reason", "pool_user_not_deleted"))
+	}
+	return poolWallet(ctx, d, user, row.ID, privyID, handle)
+}
+
+func insertPoolUser(
+	ctx context.Context, d CreateDevUserDeps, tx db.Tx, handle string, privyID PrivyUserID, user *DevUser,
+) error {
+	wallet, err := d.Wallets.FindOrCreate(ctx, privyID)
+	if err != nil {
+		return err
+	}
+	id := ids.NewUserID(d.IDs)
+	err = writeDevUser(ctx, tx, d, devRow{
+		id: id, privyID: string(privyID), handle: handle, display: "Dev " + d.Pool,
+		wallet: wallet.Wallet, at: d.Clock.Now(),
+	})
+	if err != nil {
+		return err
+	}
+	*user = DevUser{UserID: id, Handle: handle, WalletAddress: wallet.Address}
+	return nil
 }
 
 func devSuffix(r io.Reader) (string, error) {
@@ -68,7 +181,7 @@ func devSuffix(r io.Reader) (string, error) {
 }
 
 func settleDevUser(ctx context.Context, d CreateDevUserDeps, suffix string) (DevUser, error) {
-	handle := "dev_" + suffix
+	handle := domain.DevHandle(suffix)
 	privyID, err := d.Privy.Create(ctx, domain.DevEmail(suffix))
 	if err != nil {
 		return DevUser{}, err
