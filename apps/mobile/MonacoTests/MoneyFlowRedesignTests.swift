@@ -22,6 +22,14 @@ private enum Fixture {
 /// Fund this cabal: what the amount step says and allows against the balance it has.
 @MainActor
 struct FundCabalFormTests {
+    @Test func depositActionShowsOnlyInTheAmountStage() {
+        let balance = Fixture.balance(248_500_000)
+        #expect(FundCabalStage.resolve(state: .loaded(balance)).showsDepositAction)
+        #expect(!FundCabalStage.resolve(state: .loading).showsDepositAction)
+        #expect(!FundCabalStage.failed.showsDepositAction)
+        #expect(!FundCabalStage.resolve(state: .loaded(Fixture.balance(0))).showsDepositAction)
+    }
+
     @Test func theButtonReadsTheAmountOnceThereIsOne() {
         #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).ctaTitle == "Add money")
         #expect(FundCabalForm(amountText: "0", balance: Fixture.balance(248_500_000)).ctaTitle == "Add money")
