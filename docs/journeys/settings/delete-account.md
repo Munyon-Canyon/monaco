@@ -71,4 +71,4 @@ None known.
 - A delete the backend refuses with "Cash out of every cabal first." or "Withdraw your balance first.". It needs a stake or a balance, which only real USDC makes. Flow `01e` covers both refusals with fixture data, and `DeleteAccountModelTests` covers the highlighted step.
 - Tapping a cabal row or the "Account balance" row on the checklist. They open `CashOutRoute` and `WithdrawRoute`, which `money/cash-out` and `money/withdraw` cover.
 - "Deleting…" on the button. The local backend answers before a poll sees it.
-- "Couldn't load your account." with "Try again". The local backend cannot be made to fail one read on cue; `DeleteAccountModelTests` covers it.
+- "Couldn't load your balances." with "Try again". The local backend cannot be made to fail one read on cue; `DeleteAccountModelTests` covers it.

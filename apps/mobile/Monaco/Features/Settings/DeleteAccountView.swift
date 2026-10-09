@@ -90,10 +90,9 @@ struct DeleteAccountContent: View {
             MonacoRowSkeleton(rows: 2, markShape: .tile)
                 .accessibilityIdentifier("delete-account-loading")
         case .failed:
-            EmptyState(title: AccountCopy.loadFailed, actionTitle: AccountCopy.tryAgain) {
+            MonacoErrorRow(thing: "your balances", identifier: "delete-account-failed") {
                 Task { await model?.load() }
             }
-            .accessibilityIdentifier("delete-account-failed")
         case .loaded(let checklist):
             cashOutStep(checklist)
             withdrawStep(checklist)

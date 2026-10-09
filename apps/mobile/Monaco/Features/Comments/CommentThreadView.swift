@@ -38,19 +38,9 @@ struct CommentThreadView: View {
             EmptyState(title: CommentsCopy.empty)
                 .accessibilityIdentifier("comment-thread-empty")
         case .failed:
-            HStack(spacing: MonacoTheme.Space.sm) {
-                Text(CommentsCopy.loadFailed)
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: MonacoTheme.Space.s)
-                Button(CommentsCopy.tryAgain) { Task { await model.load() } }
-                    .buttonStyle(.monacoSecondary)
-                    .monacoFullWidthButtons(false)
-                    .accessibilityIdentifier("comment-thread-retry")
+            MonacoErrorRow(thing: "comments", identifier: "comment-thread-error") {
+                Task { await model.load() }
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .accessibilityIdentifier("comment-thread-error")
         case .loaded:
             loaded
         }

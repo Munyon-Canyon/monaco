@@ -112,11 +112,9 @@ struct FollowListView: View {
                     }
                 }
                 if canRetryPage {
-                    Button("Try again") { Task { await retry() } }
-                        .buttonStyle(.monacoSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                        .accessibilityIdentifier("follow-list-page-retry")
+                    MonacoErrorRow(thing: "more people", identifier: "follow-list-page-error") {
+                        Task { await retry() }
+                    }
                 }
             }
             if loadingMore {

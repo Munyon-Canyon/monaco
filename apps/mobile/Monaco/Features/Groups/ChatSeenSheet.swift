@@ -34,10 +34,11 @@ struct ChatSeenSheet: View {
                 .accessibilityHidden(true)
                 .accessibilityIdentifier("chat-seen-loading")
         case .failed:
-            EmptyState(title: ChatSeenCopy.loadFailed, actionTitle: ChatSeenCopy.retry) {
-                Task { await model?.load() }
+            ScrollView {
+                MonacoErrorRow(thing: "who has seen this", identifier: "chat-seen-failed") {
+                    Task { await model?.load() }
+                }
             }
-            .accessibilityIdentifier("chat-seen-failed")
         case .loaded(let members) where members.isEmpty:
             EmptyState(title: "Nobody yet", isOnlyContent: true)
                 .accessibilityIdentifier("chat-seen-empty")
