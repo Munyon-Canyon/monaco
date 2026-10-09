@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const advanceDepositCursor = `-- name: AdvanceDepositCursor :exec
@@ -36,6 +37,57 @@ func (q *Queries) AdvanceDepositCursor(ctx context.Context, arg AdvanceDepositCu
 		arg.ScannedAt,
 		arg.LastSignature,
 	)
+	return err
+}
+
+const checkpointDepositWatchPage = `-- name: CheckpointDepositWatchPage :exec
+UPDATE deposit_watch_accounts
+SET page_before = $2::text,
+    page_top_signature = COALESCE(page_top_signature, $3::text),
+    page_top_slot = COALESCE(page_top_slot, $4::bigint),
+    scanned_at = $5::timestamptz
+WHERE token_account = $1
+`
+
+type CheckpointDepositWatchPageParams struct {
+	TokenAccount     string
+	PageBefore       string
+	PageTopSignature string
+	PageTopSlot      int64
+	ScannedAt        time.Time
+}
+
+func (q *Queries) CheckpointDepositWatchPage(ctx context.Context, arg CheckpointDepositWatchPageParams) error {
+	_, err := q.db.Exec(ctx, checkpointDepositWatchPage,
+		arg.TokenAccount,
+		arg.PageBefore,
+		arg.PageTopSignature,
+		arg.PageTopSlot,
+		arg.ScannedAt,
+	)
+	return err
+}
+
+const completeDepositWatchPage = `-- name: CompleteDepositWatchPage :exec
+UPDATE deposit_watch_accounts
+SET high_signature = COALESCE(page_top_signature, high_signature),
+    high_slot = COALESCE(page_top_slot, high_slot),
+    page_before = NULL,
+    page_top_signature = NULL,
+    page_top_slot = NULL,
+    clean_gen = $2,
+    scanned_at = $3::timestamptz
+WHERE token_account = $1 AND clean_gen < $2
+`
+
+type CompleteDepositWatchPageParams struct {
+	TokenAccount string
+	CleanGen     int64
+	ScannedAt    time.Time
+}
+
+func (q *Queries) CompleteDepositWatchPage(ctx context.Context, arg CompleteDepositWatchPageParams) error {
+	_, err := q.db.Exec(ctx, completeDepositWatchPage, arg.TokenAccount, arg.CleanGen, arg.ScannedAt)
 	return err
 }
 
@@ -133,6 +185,82 @@ func (q *Queries) DepositCursorsToMigrate(ctx context.Context, arg DepositCursor
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const depositWatchDirtyAccounts = `-- name: DepositWatchDirtyAccounts :many
+SELECT a.token_account, a.wallet_address, w.user_id, a.dirty_gen, a.dirty_slot, a.observed_slot,
+  a.high_signature, a.page_before
+FROM deposit_watch_accounts a
+JOIN deposit_watch_wallets w ON w.wallet_address = a.wallet_address
+WHERE a.dirty_gen > a.clean_gen AND a.state <> 'foreign'
+ORDER BY a.dirty_slot, a.token_account
+LIMIT $1
+`
+
+type DepositWatchDirtyAccountsRow struct {
+	TokenAccount  string
+	WalletAddress string
+	UserID        uuid.UUID
+	DirtyGen      int64
+	DirtySlot     int64
+	ObservedSlot  int64
+	HighSignature pgtype.Text
+	PageBefore    pgtype.Text
+}
+
+func (q *Queries) DepositWatchDirtyAccounts(ctx context.Context, limit int32) ([]DepositWatchDirtyAccountsRow, error) {
+	rows, err := q.db.Query(ctx, depositWatchDirtyAccounts, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DepositWatchDirtyAccountsRow
+	for rows.Next() {
+		var i DepositWatchDirtyAccountsRow
+		if err := rows.Scan(
+			&i.TokenAccount,
+			&i.WalletAddress,
+			&i.UserID,
+			&i.DirtyGen,
+			&i.DirtySlot,
+			&i.ObservedSlot,
+			&i.HighSignature,
+			&i.PageBefore,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const depositWatchKnownWallets = `-- name: DepositWatchKnownWallets :many
+SELECT wallet_address
+FROM deposit_watch_wallets
+WHERE wallet_address = ANY($1::text[])
+`
+
+func (q *Queries) DepositWatchKnownWallets(ctx context.Context, walletAddresses []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, depositWatchKnownWallets, walletAddresses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var wallet_address string
+		if err := rows.Scan(&wallet_address); err != nil {
+			return nil, err
+		}
+		items = append(items, wallet_address)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -272,6 +400,25 @@ func (q *Queries) InsertDepositWatchWallet(ctx context.Context, arg InsertDeposi
 		arg.FirstSeenSlot,
 		arg.FirstSeenAt,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markDepositWatchAccountDirty = `-- name: MarkDepositWatchAccountDirty :execrows
+UPDATE deposit_watch_accounts
+SET dirty_gen = dirty_gen + 1, dirty_slot = GREATEST(dirty_slot, $2::bigint)
+WHERE token_account = $1
+`
+
+type MarkDepositWatchAccountDirtyParams struct {
+	TokenAccount string
+	Slot         int64
+}
+
+func (q *Queries) MarkDepositWatchAccountDirty(ctx context.Context, arg MarkDepositWatchAccountDirtyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markDepositWatchAccountDirty, arg.TokenAccount, arg.Slot)
 	if err != nil {
 		return 0, err
 	}
