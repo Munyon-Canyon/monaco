@@ -148,7 +148,7 @@ struct DeleteAccountContent: View {
                             leading: { StockMark(systemImage: "arrow.down.left") },
                             trailing: {
                                 Text(amount)
-                                    .font(MonacoTheme.Typo.moneyRow)
+                                    .moneyFont(.row)
                                     .foregroundStyle(MonacoTheme.ink)
                             }
                         )

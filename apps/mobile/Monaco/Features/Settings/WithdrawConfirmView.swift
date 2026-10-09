@@ -1,10 +1,17 @@
+import MonacoCore
 import SwiftUI
 
 struct WithdrawConfirmView: View {
+    static let fullBalanceCaption = "Full balance"
+
+    static func fullBalanceFigure(_ availableMicros: Int64) -> Int64 {
+        UsdAmountFormatter.flooredToCents(availableMicros)
+    }
+
     static let caveat = "Double-check the address. Transfers can't be undone."
     let destinationAddress: String
     let amountText: String
-    var fullBalanceLabel: String?
+    var fullBalanceMicros: Int64?
     let isSubmitting: Bool
     let onWithdraw: () -> Void
 
@@ -15,10 +22,11 @@ struct WithdrawConfirmView: View {
                     Text("You're withdrawing")
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
-                    if let fullBalanceLabel {
-                        Text(fullBalanceLabel)
-                            .font(MonacoTheme.Typo.moneyLarge)
-                            .foregroundStyle(MonacoTheme.ink)
+                    if let fullBalanceMicros {
+                        MoneyText(micros: Self.fullBalanceFigure(fullBalanceMicros), style: .large)
+                        Text(Self.fullBalanceCaption)
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.muted)
                     } else {
                         MoneyText(decimalString: amountText, style: .large)
                     }

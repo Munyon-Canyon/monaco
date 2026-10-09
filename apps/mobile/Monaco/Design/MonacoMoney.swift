@@ -44,7 +44,7 @@ enum MoneyStyle {
 }
 
 /// Scales a money figure inside the view tree, so a `.dynamicTypeSize` cap applies to it and a
-/// text-size change invalidates the view. `MonacoTheme.Typo.money*` cannot do either: it asks
+/// text-size change invalidates the view. a pre-scaled font cannot do either: it asks
 /// `UIFontMetrics` for a size once, outside the environment, and returns a fixed-size font.
 struct MoneyFont: ViewModifier {
     let style: MoneyStyle

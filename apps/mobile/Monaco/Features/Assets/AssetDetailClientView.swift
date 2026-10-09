@@ -94,11 +94,15 @@ struct AssetDetailClientView: View {
                 .foregroundStyle(MonacoTheme.muted)
             if let scrub = scrubHeader(model) {
                 Text(scrub.price)
-                    .font(MonacoTheme.Typo.quoteHero)
+                    .moneyFont(.hero)
+                    .lineLimit(1)
+                    .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
                     .accessibilityIdentifier("asset-detail-price")
             } else if let price = detail.priceMicros {
                 Text(UsdAmountFormatter.format(micros: price))
-                    .font(MonacoTheme.Typo.quoteHero)
+                    .moneyFont(.hero)
+                    .lineLimit(1)
+                    .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
                     .priceTickFlash(
                         priceTick,
                         in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip, style: .continuous),
@@ -106,7 +110,11 @@ struct AssetDetailClientView: View {
                     )
                     .accessibilityIdentifier("asset-detail-price")
             } else {
-                Text("—").font(MonacoTheme.Typo.quoteHero).foregroundStyle(MonacoTheme.muted)
+                Text("—")
+                    .moneyFont(.hero)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
             }
             if let scrub = scrubHeader(model) {
                 HStack(spacing: MonacoTheme.Space.xs) {

@@ -112,7 +112,7 @@ private struct ProfileStatColumn: View {
     var body: some View {
         VStack(spacing: MonacoTheme.Space.xs) {
             Text(value)
-                .font(MonacoTheme.Typo.moneyRow)
+                .moneyFont(.row)
                 .foregroundStyle(tone ?? MonacoTheme.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
