@@ -62,4 +62,4 @@ The format of this doc is in [App journeys](../README.md).
 - "Needs your vote" (`HomePendingVotesSlot`). A pending vote needs an open proposal, and a proposal needs a funded treasury. The proposal journeys cover it with a `funds:` block.
 - The pot value and slice on a Home cabal row ("Pot $950.69"). Blocked by #660; the cabal pot journey (`cabals/pot`) covers the same numbers on the cabal screen.
 - The onboarding nudge (`HomeNudgeSlot`). `onboarding/first-run` covers it.
-- "$50.00 funding a cabal" under the balance. That needs money moving; the fund journey covers it.
+- "$50.00 pending" under the balance. That needs money moving; the fund journey covers it.

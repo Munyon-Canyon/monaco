@@ -45,10 +45,10 @@ struct PlatformBalanceCard: View {
             valueIdentifier: valueIdentifier)
     }
 
-    /// "$50.00 funding a cabal", or nil when nothing is on its way.
+    /// "$50.00 pending", or nil when nothing is on its way. The amount covers funds and withdrawals.
     static func pendingLine(micros: Int64) -> String? {
         guard micros > 0 else { return nil }
-        return "\(UsdAmountFormatter.format(micros: micros)) funding a cabal"
+        return "\(UsdAmountFormatter.format(micros: micros)) pending"
     }
 
     static func statusLine(cardProcessing: Bool, pendingMicros: Int64) -> String? {

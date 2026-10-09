@@ -287,6 +287,6 @@ struct MoneyFlowCopyTests {
 
     @Test func thePendingLineOnlyShowsWhenSomethingIsOnItsWay() {
         #expect(PlatformBalanceCard.pendingLine(micros: 0) == nil)
-        #expect(PlatformBalanceCard.pendingLine(micros: 50_000_000) == "$50.00 funding a cabal")
+        #expect(PlatformBalanceCard.pendingLine(micros: 50_000_000) == "$50.00 pending")
     }
 }
