@@ -2,11 +2,13 @@ package treasury_test
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -60,6 +62,35 @@ func TestFundOutflows_lastChangeIsTheUsersLatestMove(t *testing.T) {
 	assertLast(latest)
 	if _, err := outflows.LastChange(canceled(f.ctx()), user); err == nil {
 		t.Fatal("LastChange on a canceled context = nil error")
+	}
+}
+
+func TestFundOutflows_submittedIsTheUsersSubmittedAmountBySignature(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user := f.user(t)
+	want := map[chain.Signature]money.Micros{}
+	for i, status := range fundStatuses() {
+		id := f.fundTransferIn(t, user, status, int64(i+1)*1_000_000)
+		if status == domain.FundSubmitted {
+			want[fundSignature(id)] = money.MicrosFromUint64(uint64(i+1) * 1_000_000)
+		}
+	}
+	f.fundTransferIn(t, f.user(t), domain.FundSubmitted, 9_000_000)
+	outflows := treasury.New(module.Deps{Pool: f.pool}).FundOutflows()
+	if got, err := outflows.Submitted(f.ctx(), user); err != nil || !maps.Equal(got, want) {
+		t.Fatalf("Submitted = %v, %v, want %v", got, err, want)
+	}
+	if _, err := outflows.Submitted(canceled(f.ctx()), user); err == nil {
+		t.Fatal("Submitted on a canceled context = nil error")
+	}
+	huge := f.fundTransferIn(t, user, domain.FundSubmitted, 1_000_000)
+	if _, err := f.pool.Exec(f.ctx(), `UPDATE fund_transfers SET amount_micros = 99999999999999999999 WHERE id = $1`,
+		huge); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := outflows.Submitted(f.ctx(), user); err == nil {
+		t.Fatal("Submitted with an amount past uint64 = nil error")
 	}
 }
 

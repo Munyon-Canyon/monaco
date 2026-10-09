@@ -38,14 +38,14 @@ func TestTokenBalance_sumsEveryAccountForTheMint(t *testing.T) {
 	}
 }
 
-func TestTokenBalanceAt_readsAtTheCommitmentItWasGiven(t *testing.T) {
+func TestTokenBalanceAt_readsAtTheCommitmentItWasGivenAndReturnsTheReadingsSlot(t *testing.T) {
 	t.Parallel()
 	options := func(level string) string { return `{"commitment":"` + level + `","encoding":"jsonParsed"}` }
 	for _, level := range []string{"confirmed", "finalized"} {
 		c, u, _ := overFakes(t)
-		got, err := c.TokenBalanceAt(t.Context(), member, usdc(), level)
-		if err != nil || got != money.NewBaseUnits(25_500_000, 6) {
-			t.Fatalf("TokenBalanceAt(%s) = %v, %v", level, got, err)
+		slot, got, err := c.TokenBalanceAt(t.Context(), member, usdc(), level)
+		if err != nil || got != money.NewBaseUnits(25_500_000, 6) || slot != 451_000_000 {
+			t.Fatalf("TokenBalanceAt(%s) = %d, %v, %v, want slot 451000000", level, slot, got, err)
 		}
 		if p := string(u.requests()[0].params[2]); p != options(level) {
 			t.Fatalf("TokenBalanceAt(%s) options = %s", level, p)
@@ -177,10 +177,10 @@ func TestSignatureStatuses_mapsFinalizedProcessingAndNotFound(t *testing.T) {
 	}
 	const height = 380_000_000
 	want := []solana.Status{
-		{Signature: "a", State: solana.StateFinalized, BlockHeight: height},
-		{Signature: "b", State: solana.StateProcessing, BlockHeight: height},
+		{Signature: "a", State: solana.StateFinalized, BlockHeight: height, Slot: 450_999_000},
+		{Signature: "b", State: solana.StateProcessing, BlockHeight: height, Slot: 450_999_990},
 		{Signature: "c", State: solana.StateNotFound, BlockHeight: height},
-		{Signature: "d", State: solana.StateFinalized, Failed: true, BlockHeight: height},
+		{Signature: "d", State: solana.StateFinalized, Failed: true, BlockHeight: height, Slot: 450_999_100},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("SignatureStatuses = %+v, want %+v", got, want)

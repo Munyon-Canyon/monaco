@@ -2,6 +2,7 @@ package funding_test
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
@@ -10,8 +11,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -110,6 +113,47 @@ func TestWithdrawalOutflows_lastChangeIsTheUsersLatestMove(t *testing.T) {
 	cancel()
 	if _, err := outflows.LastChange(ctx, user.ID); err == nil {
 		t.Fatal("LastChange on a canceled context error = nil")
+	}
+}
+
+func TestWithdrawalOutflows_submittedIsTheUsersSubmittedAmountBySignature(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	other := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	now := clock.Real{}.Now()
+	want := map[chain.Signature]money.Micros{}
+	seed := func(owner ids.UserID, micros int64, status string) uuid.UUID {
+		t.Helper()
+		id := ids.Real{}.NewV7()
+		if _, err := pool.Exec(t.Context(), seedWithdrawal, id, owner.UUID(), micros, status, now); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	for i, status := range []string{"created", "submitted", "submitted", "confirmed", "failed"} {
+		micros := int64(i+1) * 1_000_000
+		if id := seed(user.ID, micros, status); status == "submitted" {
+			want[chain.Signature(id.String())] = money.MicrosFromUint64(uint64(micros))
+		}
+	}
+	seed(other.ID, 16_000_000, "submitted")
+	outflows := app.WithdrawalOutflows{Reads: pool}
+	if got, err := outflows.Submitted(t.Context(), user.ID); err != nil || !maps.Equal(got, want) {
+		t.Fatalf("Submitted = %v, %v, want %v", got, err, want)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := outflows.Submitted(ctx, user.ID); err == nil {
+		t.Fatal("Submitted on a canceled context error = nil")
+	}
+	huge := seed(user.ID, 1_000_000, "submitted")
+	if _, err := pool.Exec(t.Context(), `UPDATE withdrawals SET amount_micros = 99999999999999999999 WHERE id = $1`,
+		huge); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := outflows.Submitted(t.Context(), user.ID); err == nil {
+		t.Fatal("Submitted with an amount past uint64 error = nil")
 	}
 }
 

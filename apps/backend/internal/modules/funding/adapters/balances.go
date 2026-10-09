@@ -3,6 +3,8 @@ package adapters
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -10,16 +12,18 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-type TokenBalances interface {
+type ChainReads interface {
 	TokenBalanceAt(
 		ctx context.Context, owner chain.SolanaAddress, mint chain.Mint, commitment string,
-	) (money.BaseUnits, error)
+	) (uint64, money.BaseUnits, error)
+	app.SignatureStatuses
 }
 
 type Outflows struct {
@@ -29,8 +33,8 @@ type Outflows struct {
 
 type Balances struct {
 	wallets  app.MemberWallets
-	newRPC   func() TokenBalances
-	rpc      TokenBalances
+	newRPC   func() ChainReads
+	rpc      ChainReads
 	once     sync.Once
 	mu       sync.Mutex
 	readings map[ids.UserID]reading
@@ -43,7 +47,7 @@ var _ port.Balances = (*Balances)(nil)
 
 func NewBalances(
 	wallets app.MemberWallets,
-	newRPC func() TokenBalances,
+	newRPC func() ChainReads,
 	outflows Outflows,
 	clk clock.Clock,
 	usdc chain.Mint,
@@ -61,6 +65,7 @@ const (
 
 type reading struct {
 	onChain money.Micros
+	slot    uint64
 	at      time.Time
 }
 
@@ -71,16 +76,16 @@ func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance
 		return port.Balance{}, err
 	}
 	b.once.Do(func() { b.rpc = b.newRPC() })
-	onChain, err := b.rpc.TokenBalanceAt(ctx, address, b.usdc, inFlightEndsAt)
+	slot, onChain, err := b.rpc.TokenBalanceAt(ctx, address, b.usdc, inFlightEndsAt)
 	if err != nil {
 		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
 	if onChain.Decimals() != b.usdc.Decimals {
 		return port.Balance{}, errs.New(errs.CodeDecodeFailed, op)
 	}
-	now := b.clock.Now()
-	b.record(user, reading{onChain: onChainMicros(onChain), at: now})
-	return b.compose(ctx, user, onChainMicros(onChain), now)
+	r := reading{onChain: onChainMicros(onChain), slot: slot, at: b.clock.Now()}
+	b.record(user, r)
+	return b.compose(ctx, user, r)
 }
 
 func (b *Balances) ForDisplay(ctx context.Context, user ids.UserID) (port.Balance, error) {
@@ -101,7 +106,7 @@ func (b *Balances) ForDisplay(ctx context.Context, user ids.UserID) (port.Balanc
 			return port.Balance{}, err
 		}
 	}
-	return b.compose(ctx, user, last.onChain, last.at)
+	return b.compose(ctx, user, last)
 }
 
 func (b *Balances) record(user ids.UserID, r reading) {
@@ -117,29 +122,77 @@ func (b *Balances) lastReading(user ids.UserID) (reading, bool) {
 	return r, ok
 }
 
-func (b *Balances) compose(
-	ctx context.Context, user ids.UserID, onChain money.Micros, asOf time.Time,
-) (port.Balance, error) {
+func (b *Balances) compose(ctx context.Context, user ids.UserID, r reading) (port.Balance, error) {
 	const op = "funding.Balances.compose"
-	fund, err := b.outflows.Funds.InFlightMicros(ctx, user)
+	funds, err := readInFlight(ctx, b.outflows.Funds, user)
 	if err != nil {
 		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	withdrawals, err := b.outflows.Withdrawals.InFlightMicros(ctx, user)
+	sent, err := readInFlight(ctx, b.outflows.Withdrawals, user)
 	if err != nil {
 		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	available, err := spendable(onChain, fund, withdrawals)
+	landed := b.landed(ctx, r.slot, funds, sent)
+	fund, withdrawals := funds.without(landed), sent.without(landed)
+	available, err := spendable(r.onChain, fund, withdrawals)
 	if err != nil {
 		observability.Degraded(ctx, observability.FundingBalanceClamped,
-			slog.String("user_id", user.String()), slog.String("on_chain_micros", onChain.String()),
+			slog.String("user_id", user.String()), slog.String("on_chain_micros", r.onChain.String()),
 			slog.String("in_flight_fund_micros", fund.String()),
 			slog.String("in_flight_withdrawal_micros", withdrawals.String()))
 	}
 	return port.Balance{
-		OnChainMicros: onChain, InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
-		AvailableMicros: available, AsOf: asOf,
+		OnChainMicros: r.onChain, InFlightFundMicros: fund, InFlightWithdrawalMicros: withdrawals,
+		AvailableMicros: available, AsOf: r.at,
 	}, nil
+}
+
+type inFlight struct {
+	total     money.Micros
+	submitted map[chain.Signature]money.Micros
+}
+
+func readInFlight(ctx context.Context, outflows app.Outflows, user ids.UserID) (inFlight, error) {
+	total, err := outflows.InFlightMicros(ctx, user)
+	if err != nil {
+		return inFlight{}, err
+	}
+	submitted, err := outflows.Submitted(ctx, user)
+	return inFlight{total: total, submitted: submitted}, err
+}
+
+func (b *Balances) landed(ctx context.Context, slot uint64, outflows ...inFlight) map[chain.Signature]bool {
+	var sigs []chain.Signature
+	for _, o := range outflows {
+		sigs = slices.AppendSeq(sigs, maps.Keys(o.submitted))
+	}
+	if len(sigs) == 0 {
+		return nil
+	}
+	statuses, err := b.rpc.SignatureStatuses(ctx, sigs)
+	if err != nil {
+		return nil
+	}
+	landed := make(map[chain.Signature]bool, len(statuses))
+	for _, s := range statuses {
+		landed[s.Signature] = s.State == solana.StateFinalized && s.Slot <= slot
+	}
+	return landed
+}
+
+func (o inFlight) without(landed map[chain.Signature]bool) money.Micros {
+	left := o.total
+	for sig, amount := range o.submitted {
+		if !landed[sig] {
+			continue
+		}
+		next, err := left.Sub(amount)
+		if err != nil {
+			return o.total
+		}
+		left = next
+	}
+	return left
 }
 
 func spendable(onChain, fund, withdrawals money.Micros) (money.Micros, error) {

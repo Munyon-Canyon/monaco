@@ -1,16 +1,22 @@
 package funding_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -116,4 +122,82 @@ func TestBalance_RouteMatchesTheContractResponse(t *testing.T) {
 		scenario.ExpectJSON("in_flight_micros", "0"),
 		scenario.ExpectJSON("deposit_address", user.Address),
 	)
+}
+
+func finalizedChain(t *testing.T, readingSlot, finalizedAt uint64) (string, func() []string) {
+	t.Helper()
+	var mu sync.Mutex
+	var methods []string
+	results := map[string]string{
+		"getTokenAccountsByOwner": fmt.Sprintf(`{"context":{"slot":%d},"value":[{"account":{"data":{"parsed":`+
+			`{"info":{"tokenAmount":{"amount":"60000000","decimals":6}}}}}}]}`, readingSlot),
+		"getBlockHeight": `1`,
+		"getSignatureStatuses": fmt.Sprintf(`{"context":{"slot":%d},"value":[{"slot":%d,"confirmations":null,`+
+			`"err":null,"confirmationStatus":"finalized"}]}`, finalizedAt+30, finalizedAt),
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var call struct {
+			Method string `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&call)
+		mu.Lock()
+		methods = append(methods, call.Method)
+		mu.Unlock()
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":1,"result":%s}`, results[call.Method])
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL + "/", func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(methods)
+	}
+}
+
+func TestBalance_AvailableSubtractsAWithdrawalFinalizedBeforeThePollerTicksOnce(t *testing.T) {
+	t.Parallel()
+	const reading = 451_000_000
+	for name, tc := range map[string]struct {
+		status      string
+		finalizedAt uint64
+		available   uint64
+		methods     []string
+	}{
+		"finalized at the reading's slot": {
+			status: "submitted", finalizedAt: reading, available: 60_000_000,
+			methods: []string{"getTokenAccountsByOwner", "getBlockHeight", "getSignatureStatuses"},
+		},
+		"finalized one slot after the reading": {
+			status: "submitted", finalizedAt: reading + 1, available: 20_000_000,
+			methods: []string{"getTokenAccountsByOwner", "getBlockHeight", "getSignatureStatuses"},
+		},
+		"created and not yet signed": {
+			status: "created", finalizedAt: reading, available: 20_000_000,
+			methods: []string{"getTokenAccountsByOwner"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			pool := testkit.DB(t)
+			user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+			if _, err := pool.Exec(t.Context(), seedWithdrawal,
+				ids.Real{}.NewV7(), user.ID.UUID(), 40_000_000, tc.status, clock.Real{}.Now()); err != nil {
+				t.Fatal(err)
+			}
+			url, methods := finalizedChain(t, reading, tc.finalizedAt)
+			balances := funding.New(module.Deps{
+				Config: config.Config{
+					Solana:   config.Solana{RPCURL: url, USDCMint: string(testkit.USDCMint)},
+					Timeouts: config.Timeouts{RPC: time.Second},
+				},
+				Pool: pool, Clock: testkit.NewClock(clock.Real{}.Now()),
+			}).Balances()
+			got, err := balances.Available(t.Context(), user.ID)
+			if err != nil || got.OnChainMicros.Uint64() != 60_000_000 || got.AvailableMicros.Uint64() != tc.available {
+				t.Fatalf("Available = %+v, %v, want 60 USDC on chain and %d micros available", got, err, tc.available)
+			}
+			if !slices.Equal(methods(), tc.methods) {
+				t.Fatalf("RPC calls = %v, want %v", methods(), tc.methods)
+			}
+		})
+	}
 }

@@ -269,3 +269,34 @@ func (q *Queries) SubmitFundTransfer(ctx context.Context, arg SubmitFundTransfer
 	}
 	return result.RowsAffected(), nil
 }
+
+const userSubmittedFunds = `-- name: UserSubmittedFunds :many
+SELECT COALESCE(tx_signature, '')::text AS tx_signature, amount_micros::text AS amount_micros
+FROM fund_transfers
+WHERE user_id = $1 AND status = 'submitted'
+`
+
+type UserSubmittedFundsRow struct {
+	TxSignature  string
+	AmountMicros string
+}
+
+func (q *Queries) UserSubmittedFunds(ctx context.Context, userID uuid.UUID) ([]UserSubmittedFundsRow, error) {
+	rows, err := q.db.Query(ctx, userSubmittedFunds, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserSubmittedFundsRow
+	for rows.Next() {
+		var i UserSubmittedFundsRow
+		if err := rows.Scan(&i.TxSignature, &i.AmountMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -50,8 +51,12 @@ type chainBalance struct{ micros uint64 }
 
 func (b chainBalance) TokenBalanceAt(
 	context.Context, chain.SolanaAddress, chain.Mint, string,
-) (money.BaseUnits, error) {
-	return money.NewBaseUnits(b.micros, 6), nil
+) (uint64, money.BaseUnits, error) {
+	return 0, money.NewBaseUnits(b.micros, 6), nil
+}
+
+func (chainBalance) SignatureStatuses(context.Context, []chain.Signature) ([]solana.Status, error) {
+	return nil, nil
 }
 
 type stubTransfers struct {
@@ -108,7 +113,7 @@ func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.Withdraw
 		UoW: f.uow,
 		Balances: adapters.NewBalances(
 			signingWalletAddress{f.user.Address},
-			func() adapters.TokenBalances { return chainBalance{micros: onChain} },
+			func() adapters.ChainReads { return chainBalance{micros: onChain} },
 			adapters.Outflows{
 				Funds:       treasury.New(module.Deps{Pool: pool}).FundOutflows(),
 				Withdrawals: app.WithdrawalOutflows{Reads: pool},
