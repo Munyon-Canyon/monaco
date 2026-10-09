@@ -466,6 +466,7 @@ paths:
     get:
       operationId: getMyCabals
       tags: [cabal]
+      x-allow-restricted: true
       summary: List the caller's cabals.
       description: >-
         Returns every cabal the caller belongs to, most recently joined first. Each row carries the
