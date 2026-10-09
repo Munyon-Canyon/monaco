@@ -288,8 +288,7 @@ struct FundCabalContent: View {
                 presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
                 helper: form.availability,
                 problem: form.problem,
-                input: .keypad,
-                showsKeypad: false
+                input: .keypad
             ) {
                 VStack(spacing: MonacoTheme.Space.s) {
                     AmountEntryNote(FundCabalForm.note(into: cabalName))

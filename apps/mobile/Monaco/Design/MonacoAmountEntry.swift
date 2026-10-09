@@ -22,7 +22,6 @@ enum AmountEntryInput: Equatable {
 struct AmountEntry<Accessory: View>: View {
     @Binding private var amountText: String
     private let input: AmountEntryInput
-    private let showsKeypad: Bool
     private let accessory: Accessory
     private let max: Decimal?
     private let presets: [AmountPreset]
@@ -47,13 +46,11 @@ struct AmountEntry<Accessory: View>: View {
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
         input: AmountEntryInput = .systemKeyboard,
-        showsKeypad: Bool = true,
         onPreset: @escaping (AmountPreset) -> Void = { _ in },
         @ViewBuilder accessory: () -> Accessory
     ) {
         _amountText = amountText
         self.input = input
-        self.showsKeypad = showsKeypad
         self.accessory = accessory()
         self.max = max
         self.presets = presets
@@ -90,9 +87,6 @@ struct AmountEntry<Accessory: View>: View {
                     .accessibilityIdentifier("amount-entry-helper")
             }
             accessory
-            if usesKeypad, showsKeypad {
-                AmountKeypad(amountText: $amountText)
-            }
         }
         .frame(maxWidth: .infinity)
         .task {
@@ -265,13 +259,12 @@ extension AmountEntry where Accessory == EmptyView {
         overLimitHelper: String = "More than you have",
         problem: String? = nil,
         input: AmountEntryInput = .systemKeyboard,
-        showsKeypad: Bool = true,
         onPreset: @escaping (AmountPreset) -> Void = { _ in }
     ) {
         self.init(
             amountText: amountText, max: max, presets: presets, helper: helper,
             overLimitHelper: overLimitHelper, problem: problem, input: input,
-            showsKeypad: showsKeypad, onPreset: onPreset
+            onPreset: onPreset
         ) { EmptyView() }
     }
 }
