@@ -57,25 +57,32 @@ public enum CashOutAmountRule {
         }
     }
 
-    public static func problem(for verdict: Verdict) -> String? {
-        verdict == .belowMinimum ? tooSmall : nil
+    public static func problem(for verdict: Verdict, minimumMicros: Int64) -> String? {
+        verdict == .belowMinimum ? "The minimum is \(UsdAmountFormatter.format(micros: minimumMicros))." : nil
     }
 
     public static func explainer(for verdict: Verdict) -> String {
         switch verdict {
         case .sellsWholeSlice:
-            "This cashes out your whole slice. The cash moves to your account balance, and you stay in the cabal with nothing in the pot."
+            "This cashes out your whole slice. The cash moves to your account balance, and you stay in the cabal with no slice."
         case .noAmount, .belowMinimum, .overSlice, .ok:
             "We sell this much of your slice and move the cash to your account balance. You stay in the cabal."
         }
     }
 
-    public static func helper(for verdict: Verdict, sliceMicros: Int64) -> String {
+    public static func helper(
+        for verdict: Verdict, enteredMicros: Int64, sliceMicros: Int64, minimumMicros: Int64
+    ) -> String {
         let slice = UsdAmountFormatter.format(flooredMicros: sliceMicros)
-        return verdict == .sellsWholeSlice
-            ? "We'll cash out your whole slice, \(slice)"
-            : "Your slice is worth \(slice)"
+        guard verdict == .sellsWholeSlice else { return "Your slice is worth \(slice)" }
+        if sliceMicros - enteredMicros >= wholeCentMicros {
+            let minimum = UsdAmountFormatter.format(micros: minimumMicros)
+            return "That leaves less than \(minimum), so this cashes out all of it"
+        }
+        return "We'll cash out your whole slice, \(slice)"
     }
+
+    private static let wholeCentMicros: Int64 = 10_000
 
     public static func submitTitle(for verdict: Verdict, enteredMicros: Int64, sliceMicros: Int64) -> String {
         let micros = effectiveMicros(for: verdict, enteredMicros: enteredMicros, sliceMicros: sliceMicros)
