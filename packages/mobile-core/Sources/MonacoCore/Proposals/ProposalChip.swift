@@ -74,8 +74,18 @@ public struct ProposalStepper: Equatable, Sendable {
             return Self(steps: [Step(title: title, mark: .failed, stamp: stamp, note: note)], isTerminal: true)
         }
         func tradeFailed() -> Self {
-            let note = failureMessage ?? statusMessage ?? "Couldn't \(action)"
-            return Self(steps: [voting(.done), step(doing, .failed, note: note)], isTerminal: false)
+            let note: String?
+            if swapFailed {
+                let kept = isSell ? "The shares are still in the pot." : "The money is still in the pot."
+                if let message = failureMessage ?? statusMessage {
+                    note = (message.hasSuffix(".") ? message : message + ".") + " " + kept
+                } else {
+                    note = kept
+                }
+            } else {
+                note = statusMessage
+            }
+            return Self(steps: [voting(.done), step("Couldn't \(action)", .failed, note: note)], isTerminal: false)
         }
         if swapFailed { return tradeFailed() }
         switch status {

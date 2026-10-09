@@ -72,7 +72,8 @@ final class ProposalTradingTests: XCTestCase {
             "Voting, step 1 of 3, done. Selling, step 2 of 3, done. Sold, step 3 of 3, done")
         XCTAssertEqual(
             label(.passed, isSell: false, swapFailed: true),
-            "Voting, step 1 of 2, done. Buying, step 2 of 2, failed, Price moved too far")
+            "Voting, step 1 of 2, done. Couldn't buy, step 2 of 2, failed, "
+                + "Price moved too far. The money is still in the pot.")
     }
 
     @MainActor

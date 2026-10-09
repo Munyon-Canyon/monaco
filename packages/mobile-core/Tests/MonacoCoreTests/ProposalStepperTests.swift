@@ -43,18 +43,25 @@ final class ProposalStepperTests: XCTestCase {
 
     func testAFailedSwapShowsItsMessageOnceOnTheBuyingStep() {
         let stepper = make(.passed, swapFailed: true, failure: "Price moved too far", message: "ignored")
-        XCTAssertEqual(titles(stepper), ["Voting", "Buying"])
+        XCTAssertEqual(titles(stepper), ["Voting", "Couldn't buy"])
         XCTAssertEqual(marks(stepper), [.done, .failed])
-        XCTAssertEqual(stepper.steps.compactMap(\.note), ["Price moved too far"])
+        XCTAssertEqual(stepper.steps.compactMap(\.note), ["Price moved too far. The money is still in the pot."])
     }
 
     func testAFailedSwapWithoutAMessageFallsBackToCouldntSell() {
-        XCTAssertEqual(make(.passed, isSell: true, swapFailed: true).steps[1].note, "Couldn't sell")
+        XCTAssertEqual(make(.passed, isSell: true, swapFailed: true).steps[1].note, "The shares are still in the pot.")
+    }
+
+    func testAFailedSellKeepsAMessageThatAlreadyEndsInAPeriod() {
+        let stepper = make(.passed, isSell: true, swapFailed: true, failure: "Price moved too far.")
+        XCTAssertEqual(stepper.steps[1].title, "Couldn't sell")
+        XCTAssertEqual(stepper.steps[1].note, "Price moved too far. The shares are still in the pot.")
     }
 
     func testExecutionBlockedShowsTheStatusMessage() {
         let stepper = make(.executionBlocked, message: "The cabal is short on USDC.")
         XCTAssertEqual(marks(stepper), [.done, .failed])
+        XCTAssertEqual(stepper.steps[1].title, "Couldn't buy")
         XCTAssertEqual(stepper.steps[1].note, "The cabal is short on USDC.")
     }
 

@@ -45,6 +45,7 @@ struct ProposalStepperView: View {
             .padding(.bottom, isLast ? 0 : MonacoTheme.Space.s)
             Spacer(minLength: 0)
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func titleColor(_ mark: ProposalStepper.Mark) -> Color {
