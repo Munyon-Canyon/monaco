@@ -132,7 +132,7 @@ struct DeleteAccountContent: View {
                     NavigationLink(value: AnyAppRoute(WithdrawRoute())) {
                         MonacoRow(
                             title: AccountCopy.accountBalance, chevron: true, isLast: true,
-                            leading: { StockMark(systemImage: "arrow.up.right") },
+                            leading: { SunkenGlyphMark(systemImage: "arrow.up.right") },
                             trailing: {
                                 Text(amount)
                                     .moneyFont(.row)
@@ -184,7 +184,7 @@ private struct ChecklistStep<Content: View>: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             HStack(spacing: MonacoTheme.Space.s) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isDone ? MonacoTheme.success : stepColor)
+                    .foregroundStyle(isDone ? MonacoTheme.ink : stepColor)
                     .accessibilityHidden(true)
                 Text(title)
                     .font(MonacoTheme.Typo.section)
@@ -196,7 +196,7 @@ private struct ChecklistStep<Content: View>: View {
             if isHighlighted {
                 Text("Do this first.")
                     .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.destructive)
+                    .foregroundStyle(MonacoTheme.secondaryText)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .accessibilityIdentifier("delete-account-step-highlight")
             }
@@ -205,7 +205,7 @@ private struct ChecklistStep<Content: View>: View {
         .accessibilityElement(children: .contain)
     }
 
-    private var stepColor: Color { isHighlighted ? MonacoTheme.destructive : MonacoTheme.ink }
+    private var stepColor: Color { isHighlighted ? MonacoTheme.ink : MonacoTheme.secondaryText }
 }
 
 private struct DoneLine: View {
@@ -215,7 +215,7 @@ private struct DoneLine: View {
         HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
             Text(AccountCopy.done)
                 .font(MonacoTheme.Typo.bodyStrong)
-                .foregroundStyle(MonacoTheme.success)
+                .foregroundStyle(MonacoTheme.ink)
             Text(detail)
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.muted)

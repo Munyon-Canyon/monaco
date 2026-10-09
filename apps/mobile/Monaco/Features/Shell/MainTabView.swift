@@ -5,6 +5,7 @@ import SwiftUI
 struct MainTabView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.accountRestricted) private var accountRestricted
 
     var body: some View {
         @Bindable var navigator = environment.navigator
@@ -14,6 +15,9 @@ struct MainTabView: View {
                 NavigationStack(path: navigator.binding(for: tab)) {
                     tab.root
                         .monacoCanvas()
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            if accountRestricted { AccountUnderReviewNotice() }
+                        }
                         .hardBottomScrollEdge()
                         .navigationDestination(for: AnyAppRoute.self) { route in
                             route.destination()

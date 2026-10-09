@@ -10,7 +10,7 @@ index 11ce52539..715b7e20e 100644
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 @@ -126,7 +126,7 @@ struct SettingsList: View {
                      title: row.title,
-                     leading: { StockMark(systemImage: row.systemImage) },
+                     leading: { SunkenGlyphMark(systemImage: row.systemImage) },
                      trailing: {
 -                        Text(status.map { $0 == .authorized ? "On" : "Off" } ?? "")
 +                        Text(status.map { $0 == .denied ? "Off" : "On" } ?? "")

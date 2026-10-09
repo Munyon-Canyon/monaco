@@ -212,8 +212,8 @@ private struct HandleStepForm: View {
                 ProgressView().controlSize(.mini)
                 Text(HandleCopy.checking).foregroundStyle(MonacoTheme.secondaryText)
             case .available:
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(MonacoTheme.success)
-                Text(HandleCopy.available).foregroundStyle(MonacoTheme.success)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(MonacoTheme.ink)
+                Text(HandleCopy.available).foregroundStyle(MonacoTheme.ink)
             case .unavailable(_, let reason):
                 Text(reason.message(changeableAt: profile?.handleChangeableAt))
                     .foregroundStyle(reason == .tooSoon ? MonacoTheme.secondaryText : MonacoTheme.loss)

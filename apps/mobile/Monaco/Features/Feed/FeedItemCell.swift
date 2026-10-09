@@ -14,7 +14,7 @@ struct FeedItemCell: View {
     var body: some View {
         HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
             Capsule()
-                .fill(accentColor)
+                .fill(stripeColor)
                 .frame(width: 3)
                 .frame(maxHeight: .infinity)
                 .accessibilityHidden(true)
@@ -112,13 +112,8 @@ struct FeedItemCell: View {
             .accessibilityLabel(item.commentCount == 1 ? "1 comment" : "\(item.commentCount) comments")
     }
 
-    private var accentColor: Color {
-        switch FeedAccent(item) {
-        case .ink: MonacoTheme.ink
-        case .positive: MonacoTheme.profit
-        case .negative: MonacoTheme.loss
-        case .muted: MonacoTheme.muted
-        }
+    private var stripeColor: Color {
+        item.cabalId.map { MonacoTheme.CabalTint.forGroupId($0).fill } ?? .clear
     }
 }
 
