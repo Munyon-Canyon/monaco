@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 3
+version: 4
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
 actors: [A]
@@ -34,14 +34,14 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S1.1 | tap, then tap | the Stocks tab `tab-assets`, then `assets-row-JRNYAx` | | Within 15 s, `asset-detail-root` shows under the inline title "JRNYA". Old app: a Stocks row pushed `AssetDetailView` (`asset-detail-root`). screens.md: Title is the ticker |
+| S1.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s of typing, `assets-row-JRNYAx` shows, because the Stocks tab lists the whole catalogue a page at a time and renders only the rows in view. Within 15 s of the tap, `asset-detail-root` shows under the inline title "JRNYA". Old app: a Stocks row pushed `AssetDetailView` (`asset-detail-root`). screens.md: Title is the ticker |
 | S1.2 | wait | `asset-detail-name`, `asset-detail-price` | | `asset-detail-name` reads "Journey Alpha", `asset-detail-price` reads "$123.45", and "Trading 24/7 on Solana" shows. Old app: the hero's name, ticker and price. screens.md: Name and ticker, price in `quoteHero`, "Trading 24/7 on Solana" |
 | S1.3 | wait | `asset-detail-range-change`, `asset-chart-ranges` | | Within 15 s, `asset-detail-range-change` reads "Past day · JRNYA", and `asset-chart-ranges` holds "1D", "1W", "1M", "3M", "1Y" and "ALL" with "1D" selected. Old app: the range chips under the chart. screens.md: the change chip for the selected range ("Past day · GOOGL"), chips 1D 1W 1M 3M 1Y ALL |
 | S1.4 | wait | `asset-detail-chart` | | Within 15 s, `asset-detail-chart` shows the two seeded samples. Old app: the scrub chart. screens.md: a scrubbable chart |
 | S1.5 | tap | "1W" in `asset-chart-ranges` | | Within 10 s, "1W" is selected and `asset-detail-range-change` reads "Past week · JRNYA". Old app: a range chip reloaded the series. screens.md: chips 1D 1W 1M 3M 1Y ALL |
 | S1.6 | tap | "1Y" in `asset-chart-ranges` | | Within 10 s, "1Y" is selected and `asset-detail-range-change` reads "Past year · JRNYA". Old app: a range chip reloaded the series. screens.md: chips 1D 1W 1M 3M 1Y ALL |
 | S1.7 | wait | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose buy", is enabled, and "Your cabal votes before anything is bought" shows under it. Old app: the pinned Propose buy CTA. screens.md: Pinned CTA "Propose buy" with the caption "Your cabal votes before anything is bought" |
-| S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows with the title "Which cabal should buy JRNYA?" and at least two cabal rows. Old app: Propose buy opened the cabal picker. screens.md: Propose from a stock (#613) |
+| S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows titled "Pick a cabal", `propose-pick-cabal-question` asks "Which cabal should buy JRNYA?", and at least two cabal rows follow. Old app: Propose buy opened the cabal picker. screens.md: Propose from a stock (#613) |
 | S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows titled "Amount" with the stock row for JRNYAx. A backs out without proposing. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
 
 ### S2 Stats and the 52-week bar
@@ -50,7 +50,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap, then tap | the Stocks tab `tab-assets`, then `assets-row-JRNYAx` | | Within 15 s, `asset-detail-root` shows |
+| S2.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S2.2 | scroll to | "Stats" | | Within 10 s, a "Stats" card shows open, day high and low, previous close, 52-week high and low and buy premium. Old app: the Stats card. screens.md: "Stats" (open, day high and low, previous close, 52-week high and low, buy premium) |
 | S2.3 | wait | "52-week range" | | The 52-week range bar shows under Stats. Old app: the 52-week bar. screens.md: the 52-week range bar |
 
@@ -60,7 +60,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S3.1 | tap, scroll to, then tap | the Stocks tab `tab-assets`, then `assets-row-JRNYPx` | | Within 15 s, `asset-detail-root` shows and `asset-detail-name` reads "Journey Private". Old app: a Pre-IPO row pushed `AssetDetailView`. screens.md: Stocks: Asset screen |
+| S3.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYPx` | `JRNYPx` | Within 15 s, `asset-detail-root` shows and `asset-detail-name` reads "Journey Private". Old app: a Pre-IPO row pushed `AssetDetailView`. screens.md: Stocks: Asset screen |
 | S3.2 | scroll to | `asset-other-listings` | | Within 10 s, "Also available from" shows with `asset-other-listing-JRNYQx`. Old app: "Also available from" issuers. screens.md: "Also available from" issuers |
 | S3.3 | tap | `asset-other-listing-JRNYQx` | | Within 10 s, `asset-detail-root` shows for that listing, titled "JRNYQx". Old app: an issuer row opened that listing's asset screen. screens.md: "Also available from" issuers |
 
@@ -70,7 +70,7 @@ Starts signed in (auth/sign-in), with a cabal of A's holding `JRNYAx` (P4).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S4.1 | tap, then tap | the Stocks tab `tab-assets`, then `assets-row-JRNYAx` | | Within 15 s, `asset-detail-root` shows |
+| S4.1 | tap, type, then tap | the Stocks tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S4.2 | scroll to | "Your cabals' position" | | Within 10 s, "Your cabals' position" shows one `asset-position-holding-…` row per cabal that holds it. Old app: the position card. screens.md: When one of the viewer's cabals holds it: "Your cabals' position" with one row per cabal |
 | S4.3 | tap | `asset-detail-sell` | | Within 10 s, the propose screen opens with "Propose sell". Old app: Propose sell from the position card. screens.md: plus "Propose sell" when a cabal holds it |
 

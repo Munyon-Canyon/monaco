@@ -105,7 +105,7 @@ enum DemoStoryJourney {
 
     static func browseStocks(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open Journey Alpha") {
-            StocksAssetDetailJourney.openAsset(app, StocksAssetDetailJourney.alpha, scrolls: false, step: "S3.1")
+            StocksAssetDetailJourney.openAsset(app, StocksAssetDetailJourney.alpha, step: "S3.1")
             XCTAssertEqual(
                 app.staticTexts["asset-detail-name"].label, StocksAssetDetailJourney.alpha.name,
                 "S3.1: the asset screen is not Journey Alpha"
@@ -124,7 +124,7 @@ enum DemoStoryJourney {
 
         recorder.step("S3.3", "the Pre-IPO block") {
             app.navigationBars.buttons.firstMatch.tap()
-            StocksAssetDetailJourney.openAsset(app, StocksAssetDetailJourney.preIpo, scrolls: true, step: "S3.3")
+            StocksAssetDetailJourney.openAsset(app, StocksAssetDetailJourney.preIpo, step: "S3.3")
             StocksAssetDetailJourney.scrollToText(app, "Private-market reference", step: "S3.3")
             StocksAssetDetailJourney.scrollToText(app, "Also available from", step: "S3.3")
         }
