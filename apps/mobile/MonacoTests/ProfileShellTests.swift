@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import XCTest
 
 @testable import Monaco
@@ -41,6 +42,16 @@ nonisolated final class UserProfileMoreMenuTests: XCTestCase {
         for action in UserProfileMoreMenu.SafetyAction.allCases {
             XCTAssertEqual(action.role, .destructive, action.title)
             XCTAssertFalse(action.systemImage.isEmpty, action.title)
+        }
+    }
+}
+
+nonisolated final class MainTabGlyphTests: XCTestCase {
+    @MainActor
+    func testEveryTabGlyphHasAFilledVariant() {
+        for tab in MainTab.allCases {
+            XCTAssertNotNil(UIImage(systemName: tab.systemImage), tab.title)
+            XCTAssertNotNil(UIImage(systemName: tab.systemImage + ".fill"), tab.title)
         }
     }
 }

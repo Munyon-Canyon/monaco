@@ -14,6 +14,6 @@ index 49a16d31..e7aae694 100644
  enum StocksTab: TabContent {
 -    static let title = "Stocks"
 +    static let title = "Assets"
-     static let systemImage = "chart.line.uptrend.xyaxis"
+     static let systemImage = "chart.line.uptrend.xyaxis.circle"
      static let accessibilityIdentifier = "tab-assets"
  
