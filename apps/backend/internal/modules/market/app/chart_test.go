@@ -89,6 +89,27 @@ func TestChart_stopsAtTheAcceptedSample(t *testing.T) {
 	}
 }
 
+func TestChart_dayChartIsTheLastSessionWhenTheMarketIsClosed(t *testing.T) {
+	t.Parallel()
+	apple := appleRow(t, "equity")
+	saturday := time.Date(2026, 3, 7, 15, 0, 0, 0, time.UTC)
+	fridayOpen := time.Date(2026, 3, 6, 14, 30, 0, 0, time.UTC)
+	var got sqlc.ChartBucketsParams
+	read := chartRead{
+		asset: func() (sqlc.Asset, error) { return apple, nil },
+		newest: func() ([]sqlc.NewestSamplesRow, error) {
+			return []sqlc.NewestSamplesRow{{Mint: apple.Mint, Ts: saturday.Add(-time.Minute), PriceMicros: 100}}, nil
+		},
+		buckets: func() ([]sqlc.ChartBucketsRow, error) { return nil, nil },
+		got:     &got,
+	}
+	chart := &AssetChart{read: read, base: read, clock: testkit.NewClock(saturday)}
+	_, err := chart.Handle(t.Context(), "AAPLx", "1D")
+	if err != nil || !got.Since.Equal(fridayOpen) {
+		t.Fatalf("since = %s want %s err %v", got.Since, fridayOpen, err)
+	}
+}
+
 func TestChart_reportsAMissingAssetAndABadRead(t *testing.T) {
 	t.Parallel()
 	apple := appleRow(t, "equity")
