@@ -5,7 +5,6 @@ struct CurveScrubChart: View {
     let curve: ValueCurve
     let range: LeaderboardRange
     var height: CGFloat = 160
-    var onInk = false
     @Binding var selection: Int?
     let identifier: String
 
@@ -15,7 +14,7 @@ struct CurveScrubChart: View {
         switch curve.direction {
         case .up: MonacoTheme.profitVivid
         case .down: MonacoTheme.lossVivid
-        case .flat: onInk ? MonacoTheme.onHeroMuted : MonacoTheme.muted
+        case .flat: MonacoTheme.tertiaryText
         }
     }
 
@@ -39,12 +38,11 @@ struct CurveScrubChart: View {
 
 struct CurveReadoutLine: View {
     let readout: ValueCurve.Readout?
-    var onInk = false
 
     var body: some View {
         Text(text)
             .font(MonacoTheme.Typo.dataCaption)
-            .foregroundStyle(onInk ? MonacoTheme.onHeroMuted : MonacoTheme.muted)
+            .foregroundStyle(MonacoTheme.muted)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .opacity(readout == nil ? 0 : 1)

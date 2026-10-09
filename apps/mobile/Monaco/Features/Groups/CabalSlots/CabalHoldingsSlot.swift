@@ -116,18 +116,15 @@ private struct HoldingRow: View {
     let row: CabalPotSummary.Row
 
     var body: some View {
-        MonacoRow(
-            title: row.ticker, titleFont: MonacoTheme.Typo.ticker, subtitle: row.detail, chevron: true
+        MarketStockRow(
+            name: row.name, subtitle: "\(row.ticker) · \(row.detail)",
+            mark: StockMark(symbol: row.symbol, displayName: row.name, logoURL: row.logoURL)
         ) {
-            StockMark(symbol: row.symbol, displayName: row.name, logoURL: row.logoURL)
-        } trailing: {
-            VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
-                Text(row.value)
-                    .moneyFont(.row)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(1)
-                PnLText(dollarPnl: row.gain, style: .caption)
-            }
+            Text(row.value)
+                .moneyFont(.row)
+                .foregroundStyle(MonacoTheme.ink)
+                .lineLimit(1)
+            PnLText(dollarPnl: row.gain, style: .caption)
         }
     }
 }

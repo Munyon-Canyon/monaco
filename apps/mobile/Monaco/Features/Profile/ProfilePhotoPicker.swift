@@ -22,15 +22,6 @@ struct ProfilePhotoPicker: View {
     @State private var isUploading = false
     @State private var submission = IdempotentSubmission()
 
-    /// The animal the avatar shows now, so the sheet can ring it. Resolved the way
-    /// `MonacoAvatar` resolves it, and nil once a photo is set.
-    private var currentAnimal: PixelAnimal? {
-        let photo = session.profile?.photoURL?.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard photo.isEmpty else { return nil }
-        let id = session.profile?.userID ?? ""
-        return PixelAnimal.forSeed(id.isEmpty ? (session.profile?.displayName ?? "") : id)
-    }
-
     var body: some View {
         Button {
             showFaces = true
@@ -67,7 +58,7 @@ struct ProfilePhotoPicker: View {
         .accessibilityIdentifier(accessibilityID)
         .sheet(isPresented: $showFaces) {
             FacePickerSheet(
-                currentAnimal: currentAnimal,
+                currentAnimal: nil,
                 onPickAnimal: { animal in
                     showFaces = false
                     Task { await wear(animal) }

@@ -12,16 +12,12 @@ struct CabalMark: View {
     private let initials: String
     private let name: String
     private let size: CGFloat
-    private let onInk: Bool
     private let pictureURL: URL?
     private let accessibilityLabel: String?
 
     @State private var loadedPicture: UIImage?
     @State private var pictureFailed = false
 
-    /// `onInk` brightens the tile and drops the initials to deep ink, so the mark still
-    /// carries the cabal's identity on a deep ink hero card.
-    ///
     /// `pictureUrl` is the cabal's picture; blank or unparseable falls back to the
     /// initials. `accessibilityLabel` makes the mark its own VoiceOver element —
     /// pass it where the mark stands alone, and leave it off in a row whose own
@@ -29,8 +25,7 @@ struct CabalMark: View {
     init(
         groupId: String,
         name: String,
-        size: CGFloat = 44,
-        onInk: Bool = false,
+        size: CGFloat = 40,
         pictureUrl: String? = nil,
         accessibilityLabel: String? = nil
     ) {
@@ -38,7 +33,6 @@ struct CabalMark: View {
         initials = CabalMark.initials(for: name)
         self.name = name
         self.size = size
-        self.onInk = onInk
         self.pictureURL = CabalMark.resolvedURL(pictureUrl)
         self.accessibilityLabel = accessibilityLabel
     }
@@ -56,7 +50,7 @@ struct CabalMark: View {
         let shape = RoundedRectangle(cornerRadius: MarkGeometry.radius(for: size), style: .continuous)
         return
             shape
-            .fill(onInk ? tint.onInk : tint.fill)
+            .fill(tint.fill)
             .frame(width: size, height: size)
             .overlay {
                 // A picture already in the cache draws on the first pass, so a mark
@@ -80,7 +74,7 @@ struct CabalMark: View {
     private var initialsLabel: some View {
         Text(initials)
             .font(.system(size: size * (initials.count > 1 ? 0.36 : 0.42), weight: .semibold))
-            .foregroundStyle(onInk ? MonacoTheme.heroInk : tint.onFill)
+            .foregroundStyle(tint.onFill)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
             .padding(size * 0.08)
@@ -176,7 +170,7 @@ struct StockMark: View {
     private let logoURL: URL?
 
     init(
-        symbol: String, displayName: String? = nil, assetKind: AssetKind = .stock, size: CGFloat = 44,
+        symbol: String, displayName: String? = nil, assetKind: AssetKind = .stock, size: CGFloat = 40,
         logoURL: URL? = nil
     ) {
         let ticker = AssetSymbolFormatter.display(symbol, kind: assetKind)
@@ -214,7 +208,7 @@ struct StockMark: View {
     }
 
     /// For non-stock rows, e.g. `"cpu"` for a trading bot.
-    init(systemImage: String, size: CGFloat = 44) {
+    init(systemImage: String, size: CGFloat = 40) {
         content = .symbol(systemImage)
         self.size = size
         logoURL = nil
@@ -222,47 +216,7 @@ struct StockMark: View {
 
     @State private var logo: UIImage?
 
-    /// A coin, not a tile. These are tokenised stocks, and a disc reads as one at a glance.
     private var shape: Circle { Circle() }
-
-    /// The coin's face. Gold, because these are tokens — a grey disc read as a disabled
-    /// control, and the warm face also separates a stock from a cabal's tinted tile at a
-    /// glance. Lit from the top left, so the face has a direction and does not read as a flat
-    /// swatch. Dark mode drops the luminance rather than the hue so it still reads as metal.
-    private static var coinFace: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.adaptive(light: 0xFCF5E4, dark: 0x4A4030),
-                Color.adaptive(light: 0xEBD9A8, dark: 0x2E2719),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    /// The rim. Metal is not one colour: a real rim catches the light at two points and falls
-    /// into shadow at the two between them, which is what makes a disc read as struck rather
-    /// than drawn. An angular sweep around the circle is the cheapest honest way to say that —
-    /// highlight at the top left, shadow at the top right and bottom left, a second, weaker
-    /// highlight at the bottom right where the light bounces back.
-    private static var coinRim: AngularGradient {
-        AngularGradient(
-            stops: [
-                .init(color: Color.adaptive(light: 0xFFF6DC, dark: 0x8A7648), location: 0.00),
-                .init(color: Color.adaptive(light: 0xB08E3E, dark: 0x4A3F26), location: 0.20),
-                .init(color: Color.adaptive(light: 0xE8CE86, dark: 0x6F5F3A), location: 0.42),
-                .init(color: Color.adaptive(light: 0xA8873A, dark: 0x453A22), location: 0.62),
-                .init(color: Color.adaptive(light: 0xF3E4B4, dark: 0x7D6B42), location: 0.82),
-                .init(color: Color.adaptive(light: 0xFFF6DC, dark: 0x8A7648), location: 1.00),
-            ],
-            center: .center,
-            angle: .degrees(-135)
-        )
-    }
-
-    /// Thinner than a hairline separator on purpose: at 0.33pt the rim is a single device pixel
-    /// on a 3x screen, so it describes the coin's edge without drawing a ring around the logo.
-    private static let rimWidth: CGFloat = 0.33
 
     /// The issuer's artwork frames every company logo with four grey arrows that reach about
     /// 16% in from each edge, so drawn whole they show as triangles poking out around the mark.
@@ -273,10 +227,8 @@ struct StockMark: View {
     /// artwork only — a logo from anywhere else is drawn as it comes.
     private static let issuerArtworkVisibleFraction: CGFloat = 0.70
 
-    /// How much of the disc the mark itself occupies. Most issuer logos are solid squares —
-    /// Apple's black tile, Tesla's red one — not marks on transparency, so they are clipped to
-    /// the coin and this cannot usefully exceed the largest square a circle holds (0.707).
-    /// 0.72 fills the face to its edge and lets the rim, not a ring of fill, be the border.
+    /// How much of the disc the logo occupies. Most issuer logos are solid squares, clipped to the
+    /// circle, so this cannot usefully exceed the largest square a circle holds (0.707).
     private static let markInset: CGFloat = 0.72
 
     /// Centre-crops the issuer's arrow frame away. Done once when the image loads, not on every
@@ -295,18 +247,17 @@ struct StockMark: View {
         return UIImage(cgImage: cropped, scale: scale, orientation: image.imageOrientation)
     }
 
+    @Environment(\.displayScale) private var displayScale
+
     var body: some View {
         shape
-            .fill(StockMark.coinFace)
+            .fill(MonacoTheme.surfaceSunken)
             .frame(width: size, height: size)
             .overlay {
-                shape.strokeBorder(StockMark.coinRim, lineWidth: StockMark.rimWidth)
+                shape.strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale)
             }
             .overlay {
                 if let logo = logo ?? logoURL.flatMap({ MonacoRemoteImageStore.stockLogos.cachedImage(for: $0) }) {
-                    // Fitted, not filled. Filling a disc with a square mark (Microsoft's four
-                    // tiles) slices its corners off; fitting keeps every logo whole and lets the
-                    // coin's face be the frame around it.
                     Image(uiImage: StockMark.croppedToMark(logo))
                         .resizable()
                         .scaledToFit()
@@ -333,7 +284,7 @@ struct StockMark: View {
         case .symbol(let name):
             Image(systemName: name)
                 .font(.system(size: size * 0.40, weight: .semibold))
-                .foregroundStyle(MonacoTheme.ink)
+                .foregroundStyle(MonacoTheme.secondaryText)
         }
     }
 
@@ -352,9 +303,8 @@ struct StockMark: View {
 }
 
 private enum MarkGeometry {
-    /// `Radius.tile` at 44pt, proportional elsewhere.
     static func radius(for size: CGFloat) -> CGFloat {
-        size * MonacoTheme.Radius.tile / 44
+        size * MonacoTheme.Radius.tile / 40
     }
 }
 
@@ -363,7 +313,7 @@ private enum MarkGeometry {
 /// tinted marks are for cabals.
 struct SunkenGlyphMark: View {
     let systemImage: String
-    var size: CGFloat = 44
+    var size: CGFloat = 40
     /// For a bot that was removed: the glyph drops to the quiet ink.
     var isMuted = false
 
@@ -373,8 +323,8 @@ struct SunkenGlyphMark: View {
             .frame(width: size, height: size)
             .overlay {
                 Image(systemName: systemImage)
-                    .font(.system(size: size * 0.40, weight: .semibold))
-                    .foregroundStyle(isMuted ? MonacoTheme.tertiaryText : MonacoTheme.ink)
+                    .font(.system(size: size * 0.425, weight: .medium))
+                    .foregroundStyle(isMuted ? MonacoTheme.tertiaryText : MonacoTheme.secondaryText)
             }
             .accessibilityHidden(true)
     }

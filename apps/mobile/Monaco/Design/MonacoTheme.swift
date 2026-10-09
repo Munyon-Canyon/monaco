@@ -323,8 +323,8 @@ enum MonacoTheme {
         static let chip: CGFloat = 12
         static let card: CGFloat = 16
         static let sheet: CGFloat = 24
-        /// `CabalMark` / `StockMark` at 44pt; marks scale this proportionally.
-        static let tile: CGFloat = 16
+        /// `CabalMark` at 40pt; marks scale this proportionally (size × 0.3).
+        static let tile: CGFloat = 12
         static let field: CGFloat = 12
         static let bubble: CGFloat = 18
     }
