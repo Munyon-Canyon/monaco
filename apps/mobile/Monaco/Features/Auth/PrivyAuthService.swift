@@ -246,9 +246,9 @@ class PrivyAuthService: ObservableObject {
 
     // MARK: Sign out
 
-    func logout() async {
+    func logout(reason: String? = nil) async {
         await unregisterPushToken()
-        performLogout(reason: nil)
+        performLogout(reason: reason)
     }
 
     private func unregisterPushToken() async {
