@@ -11,7 +11,7 @@ CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES
 
 This is **ad-hoc signing** ("sign to run locally") — it self-signs the app
 without needing the project's own Apple Developer team certificate
-(`DEVELOPMENT_TEAM = JSF53DFS29` in `apps/mobile/Monaco.xcodeproj`), so the
+(`DEVELOPMENT_TEAM = 8Q2V9WHNNT` in `apps/mobile/Monaco.xcodeproj`), so the
 build works on any contributor's machine regardless of whether they have
 that team's signing identity installed.
 

@@ -158,7 +158,7 @@ main() {
   archive="${archive_dir}/Monaco-${env_name}-${build_number}.xcarchive"
 
   echo "archiving ${archive} (build ${build_number}, ${env_name})"
-  run_xcodebuild xcodebuild archive -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Release -destination 'generic/platform=iOS' -archivePath "$archive" "MONACO_ENVIRONMENT=${env_name}" "CURRENT_PROJECT_VERSION=${build_number}" -authenticationKeyPath "$asc_key_path" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" -allowProvisioningUpdates
+  run_xcodebuild xcodebuild archive -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Release -destination 'generic/platform=iOS' -archivePath "$archive" "MONACO_ENVIRONMENT=${env_name}" "CURRENT_PROJECT_VERSION=${build_number}" -authenticationKeyPath "$asc_key_path" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" -allowProvisioningUpdates -skipPackagePluginValidation
 
   plist="${archive}/Products/Applications/Monaco.app/Info.plist"
   check_archived_plist "$plist" "$build_number" "$env_name"
