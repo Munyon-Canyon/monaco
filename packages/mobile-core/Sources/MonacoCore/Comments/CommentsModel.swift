@@ -116,6 +116,7 @@ public final class CommentsModel {
             return false
         }
         replyTarget = nil
+        showPosted(created)
         await refresh()
         lastPostedID = created.id
         return true
@@ -134,7 +135,27 @@ public final class CommentsModel {
         deleteSubmissions[row.id] = nil
         if replyTarget?.id == row.id { replyTarget = nil }
         say(.deleted)
+        showDeleted(row)
         await refresh()
+    }
+
+    private func showPosted(_ created: Components.Schemas.Comment) {
+        if let threadID = created.parentCommentId {
+            pager.update(id: threadID) { thread in
+                if !thread.replies.contains(where: { $0.id == created.id }) { thread.replies.append(created) }
+            }
+        } else if pager.phase == .exhausted {
+            pager.append(Components.Schemas.CommentThread(comment: created, replies: []))
+        }
+    }
+
+    private func showDeleted(_ row: CommentThreadRow) {
+        pager.update(id: row.comment.parentCommentId ?? row.id) { thread in
+            if thread.comment.id == row.id { thread.comment.blank() }
+            for index in thread.replies.indices where thread.replies[index].id == row.id {
+                thread.replies[index].blank()
+            }
+        }
     }
 
     private func loadCanComment() async {
@@ -170,5 +191,12 @@ public final class CommentsModel {
             try await clock.sleep(for: pendingRetryDelay)
             return try await call()
         }
+    }
+}
+
+extension Components.Schemas.Comment {
+    fileprivate mutating func blank() {
+        body = nil
+        bodyDisplay = CommentsCopy.deleted
     }
 }

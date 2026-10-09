@@ -99,7 +99,8 @@ struct CommentComposer: View {
                     guard let body = draft.body else { return }
                     Task {
                         guard await onPost(body) else { return }
-                        text = ""
+                        text = CommentDraft.field(text, afterPosting: body)
+                        guard text.isEmpty else { return }
                         focused = false
                         onDidStandDown()
                     }

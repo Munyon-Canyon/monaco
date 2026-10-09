@@ -309,6 +309,18 @@ final class CursorPagerReplaceTests: XCTestCase {
         XCTAssertEqual(pager.phase, .exhausted)
     }
 
+    func testAppendAddsAnItemAtTheEndOnceAndLeavesThePhaseAlone() {
+        let pager = CursorPager<PageRow> { _ in throw PagerTestError.boom }
+        pager.replace(items: [PageRow(id: "a")], nextCursor: nil)
+
+        pager.append(PageRow(id: "b"))
+        pager.append(PageRow(id: "b", label: "again"))
+        pager.append(PageRow(id: "a", label: "again"))
+
+        XCTAssertEqual(pager.items, [PageRow(id: "a"), PageRow(id: "b")])
+        XCTAssertEqual(pager.phase, .exhausted)
+    }
+
     func testReplaceDropsAnInFlightLoadMoreAndLetsTheNextOneRun() async {
         let probe = FetchProbe()
         let pager = CursorPager<PageRow> { cursor in
