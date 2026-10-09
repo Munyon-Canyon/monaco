@@ -5,7 +5,7 @@ struct CabalPortfolioRow: View {
     private let id: String
     private let name: String
     private let pictureURL: String?
-    private let subtitle: String
+    private let subtitle: String?
     private let valueMicros: Int64
     private let returnBps: Int64?
     private let isLast: Bool

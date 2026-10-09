@@ -24,7 +24,7 @@ final class SharedCabalsModelTests: XCTestCase {
 
         let rows = try XCTUnwrap(model.summary?.rows)
         XCTAssertEqual(rows[0].potValue, "$950.69")
-        XCTAssertEqual(rows[0].returnText, "+1.49%")
+        XCTAssertEqual(rows[0].returnText, "+1.5%")
         XCTAssertEqual(rows[1].returnText, "—")
     }
 

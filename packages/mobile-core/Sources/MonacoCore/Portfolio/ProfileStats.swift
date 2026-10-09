@@ -10,7 +10,8 @@ public struct ProfileStats: Equatable, Sendable {
         inCabals = UsdAmountFormatter.format(micros: portfolio.totalValueMicros)
         allTimePnl = UsdAmountFormatter.format(signedMicros: portfolio.pnlMicros)
         if let returnBps = portfolio.returnBps {
-            allTime = "\(allTimePnl) · \(PercentFormatter.format(basisPoints: returnBps, signed: true))"
+            let percent = PercentFormatter.format(basisPoints: returnBps, signed: true, fractionDigits: 1)
+            allTime = "\(allTimePnl) · \(percent)"
         } else {
             allTime = allTimePnl
         }
