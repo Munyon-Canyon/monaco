@@ -75,7 +75,7 @@ struct FollowListView: View {
                 .accessibilityIdentifier("follow-list-loading")
         case .empty:
             VStack(spacing: MonacoTheme.Space.m) {
-                EmptyState(title: emptyTitle, message: emptyMessage)
+                EmptyState(title: emptyTitle, message: emptyMessage, isOnlyContent: true)
                 if let findFriends {
                     NavigationLink("Find friends", value: findFriends)
                         .buttonStyle(.monacoSecondary)

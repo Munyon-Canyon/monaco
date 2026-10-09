@@ -49,10 +49,10 @@ struct CabalTransactionView: View {
             .accessibilityLabel("Loading this transaction")
             .accessibilityIdentifier("cabal-txn-loading")
         case .missing:
-            EmptyState(title: "This transaction doesn't exist.")
+            EmptyState(title: "This transaction doesn't exist.", isOnlyContent: true)
                 .accessibilityIdentifier("cabal-txn-missing")
         case .forbidden:
-            EmptyState(title: "Only members of this cabal can see this transaction.")
+            EmptyState(title: "Only members of this cabal can see this transaction.", isOnlyContent: true)
                 .accessibilityIdentifier("cabal-txn-forbidden")
         case .failed:
             MonacoErrorRow(thing: "this transaction", identifier: "cabal-txn-error") {

@@ -35,7 +35,7 @@ struct CommentThreadView: View {
                 .accessibilityLabel("Loading comments")
                 .accessibilityIdentifier("comment-thread-loading")
         case .empty:
-            EmptyState(title: CommentsCopy.empty)
+            EmptyState(title: CommentsCopy.empty, message: CommentsCopy.emptyMessage)
                 .accessibilityIdentifier("comment-thread-empty")
         case .failed:
             MonacoErrorRow(thing: "comments", identifier: "comment-thread-error") {
