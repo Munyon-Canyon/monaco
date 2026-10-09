@@ -27,4 +27,12 @@ func TestBounceChain_BuildsNoClientUntilFirstUse(t *testing.T) {
 	if err != nil || len(accounts) != 1 || accounts[0].Exists {
 		t.Fatalf("Accounts = %+v, %v, want the sender's account read as closed", accounts, err)
 	}
+	transfers, err := c.InboundTransfersForMint(
+		t.Context(),
+		"2Wjpe2AeceTX6fouJ1gYZktJKLVfJZLrPP7QGp3XvmzCtjTua3GZ6np8nB8geG9G5AWARjQaUKgtCCcGdyAcoGcK",
+		"5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP", testkit.USDCMint,
+	)
+	if err != nil || len(transfers) != 2 {
+		t.Fatalf("InboundTransfersForMint = %+v, %v, want the fixture's two USDC transfers", transfers, err)
+	}
 }

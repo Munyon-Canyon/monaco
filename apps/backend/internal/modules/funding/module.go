@@ -77,12 +77,24 @@ func (m *Module) Wire(set module.Set) {
 
 func (m *Module) DetectExternalDeposit() *app.DetectExternalDepositHandler {
 	cfg, prices := m.deps.Config, market.New(m.deps)
-	owners := append([]port.SignatureOwner{treasury.New(m.deps).SignatureOwner(), m.SignatureOwner()}, m.owners...)
 	return app.NewDetectExternalDepositHandler(app.DetectDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, IDs: m.deps.IDs, Clock: m.deps.Clock, Hints: m.deps.Bus,
-		Chain: solana.New(cfg, m.deps.Clock), Owners: owners, Assets: prices.Catalog(), Prices: prices.Prices(),
+		Chain: solana.New(cfg, m.deps.Clock), Owners: m.signatureOwners(),
+		Assets: prices.Catalog(), Prices: prices.Prices(),
 		Wallets: identity.New(m.deps).Queries(), USDC: chain.SolanaAddress(cfg.Solana.USDCMint),
 	})
+}
+
+func (m *Module) signatureOwners() []port.SignatureOwner {
+	return append([]port.SignatureOwner{treasury.New(m.deps).SignatureOwner(), m.SignatureOwner()}, m.owners...)
+}
+
+func (m *Module) CandidateResolver() app.DepositCandidateResolver {
+	cfg := m.deps.Config
+	return app.NewDepositCandidateResolver(
+		newLazyChain(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint), m.signatureOwners(),
+		app.NewCreditDepositHandler(m.deps.UoW, m.deps.Bus), m.deps.IDs,
+	)
 }
 
 func (m *Module) withdrawDeps(wallets app.WalletReader) app.WithdrawDeps {
@@ -113,7 +125,14 @@ func (m *Module) usdc() chain.Mint {
 }
 
 func (m *Module) Consumers() []bus.Consumer {
+	resolver := m.CandidateResolver()
 	return []bus.Consumer{
+		{
+			Durable: "funding",
+			Handlers: []bus.HandlerSpec{
+				bus.HandleFetched("funding.resolve_deposit_candidate", resolver.Fetch, resolver.Apply),
+			},
+		},
 		{
 			Durable: "funding_bounce",
 			Handlers: []bus.HandlerSpec{
@@ -248,6 +267,12 @@ func (c lazyChain) BlockhashValid(ctx context.Context, hash string) (bool, error
 
 func (c lazyChain) MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error) {
 	return c.client().MintConfig(ctx, mint)
+}
+
+func (c lazyChain) InboundTransfersForMint(
+	ctx context.Context, sig chain.Signature, wallet, mint chain.SolanaAddress,
+) ([]solana.Transfer, error) {
+	return c.client().InboundTransfersForMint(ctx, sig, wallet, mint)
 }
 
 func (c lazyChain) Accounts(

@@ -20,8 +20,13 @@ import (
 func requireBounceConsumer(t *testing.T, m *funding.Module) {
 	t.Helper()
 	got := m.Consumers()
-	if len(got) != 1 || got[0].Durable != "funding_bounce" || len(got[0].Handlers) != 1 ||
-		got[0].Handlers[0].Type() != events.TypeCabalExternalDepositDetected {
+	if len(got) != 2 || got[0].Durable != "funding" || len(got[0].Handlers) != 1 ||
+		got[0].Handlers[0].Name != "funding.resolve_deposit_candidate" ||
+		got[0].Handlers[0].Type() != events.TypeDepositCandidateSeen {
+		t.Fatalf("Consumers = %v, want funding resolving deposit.candidate_seen first", got)
+	}
+	if got[1].Durable != "funding_bounce" || len(got[1].Handlers) != 1 ||
+		got[1].Handlers[0].Type() != events.TypeCabalExternalDepositDetected {
 		t.Fatalf("Consumers = %v, want funding_bounce on cabal.external_deposit_detected", got)
 	}
 }

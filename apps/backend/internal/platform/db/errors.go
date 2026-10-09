@@ -53,3 +53,5 @@ func codeFor(err error) errs.Code {
 	}
 	return errs.CodeInternal
 }
+
+func CodeFor(err error) errs.Code { return codeFor(err) }
