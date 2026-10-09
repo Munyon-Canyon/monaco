@@ -153,6 +153,7 @@ private struct PhoneStepForm: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-phone-step")
         .onAppear { focused = .number }
+        .onChange(of: number) { model.numberEdited() }
         .onChange(of: isCodeStep) { _, codeStep in
             focused = codeStep ? .code : .number
         }

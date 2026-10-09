@@ -22,8 +22,8 @@ public enum LinkCopy {
     public static let changeNumber = "Change number"
     public static let newCodeSent = "New code sent."
     public static let phoneLinkedElsewhere = "This number is linked to another account."
-    public static let phoneAlreadyOnAccount = "This number is already on your account."
-    public static let invalidCode = "That code didn't work. Check it and try again."
+    public static let phoneAlreadyOnAccount = "Your account already has a number."
+    public static let invalidCode = LoginFailureCopy.message(for: .codeRejected, step: .verifyCode)
     public static let phoneAdded = "Number added."
 
     public static let xTitle = "Connect X"
@@ -36,7 +36,7 @@ public enum LinkCopy {
 
     public static let skip = "Skip"
     public static let notNow = "Not now"
-    public static let unknown = "Something went wrong. Try again."
+    public static let unknown = "Couldn't finish that. Try again in a minute."
 
     public static func codeSent(to number: String) -> String { "Code sent to \(number)" }
 
@@ -54,6 +54,7 @@ public enum LinkCopy {
         case .invalidCode: .error(invalidCode)
         case .cancelled: nil
         case .network: .error(ToastCopy.message(for: .transport(URLError(.notConnectedToInternet))))
+        case .rateLimited: .error(LoginFailureCopy.message(for: .rateLimited, step: .sendCode))
         case .unknown: .error(unknown)
         case .unavailable: .error(xUnavailable)
         }
@@ -174,6 +175,12 @@ public final class PhoneLinkModel {
         code = ""
         cooldown.restart()
         caption = .note(LinkCopy.newCodeSent)
+    }
+
+    public func numberEdited() {
+        guard step == .number, !isBusy else { return }
+        caption = nil
+        linkedElsewhere = false
     }
 
     public func changeNumber() {

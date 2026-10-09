@@ -94,8 +94,15 @@ actor PrivyAccountLinker: AccountLinking {
         switch apiError {
         case .apiError(_, let errorCode, let description):
             linkError(errorCode: errorCode, description: description, credential: credential)
-        case .networkError(let responseCode, _):
-            (400..<600).contains(responseCode) ? .unknown : .network
+        case .networkError(let responseCode, let description):
+            switch responseCode {
+            case 429:
+                .rateLimited
+            case 400..<600:
+                linkError(errorCode: "\(responseCode)", description: description ?? "", credential: credential)
+            default:
+                .network
+            }
         case .couldNotConstructRequest, .decodingError, .malformedResponse:
             .unknown
         @unknown default:

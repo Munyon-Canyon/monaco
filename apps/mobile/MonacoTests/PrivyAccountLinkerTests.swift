@@ -30,6 +30,18 @@ struct PrivyAccountLinkerTests {
         #expect(PrivyAccountLinker.linkError(from: error, credential: .oAuth) == .unknown)
     }
 
+    @Test func aThrottledRequestIsRateLimited() {
+        let error = ApiError.networkError(responseCode: 429, description: "Too many requests")
+
+        #expect(PrivyAccountLinker.linkError(from: error, credential: .phone) == .rateLimited)
+    }
+
+    @Test func aRefusalThatNamesAnotherUserIsLinkedElsewhere() {
+        let error = ApiError.networkError(responseCode: 400, description: "linked_to_another_user")
+
+        #expect(PrivyAccountLinker.linkError(from: error, credential: .phone) == .alreadyLinkedElsewhere)
+    }
+
     @Test func aClosedWebSheetIsACancel() {
         let error = ASWebAuthenticationSessionError(.canceledLogin)
 

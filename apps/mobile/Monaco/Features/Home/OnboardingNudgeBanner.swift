@@ -3,6 +3,7 @@ import SwiftUI
 
 struct OnboardingNudgeBanner: View {
     @Environment(AppSessionStore.self) private var session
+    @Environment(ToastCenter.self) private var toasts
     @State private var opened: OnboardingNudge?
 
     private var current: OnboardingNudge? {
@@ -15,6 +16,21 @@ struct OnboardingNudgeBanner: View {
     }
 
     var body: some View {
+        content
+            .sheet(isPresented: isOpen) {
+                Group {
+                    switch opened {
+                    case .addPhone: NavigationStack { PhoneStepView(mode: .sheet) }
+                    case .linkX: NavigationStack { SocialsStepView(mode: .sheet) }
+                    case nil: EmptyView()
+                    }
+                }
+                .monacoToastCenter(toasts)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if let current {
             HStack(spacing: MonacoTheme.Space.s) {
                 Button {
@@ -55,13 +71,6 @@ struct OnboardingNudgeBanner: View {
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("onboarding-nudge")
-            .sheet(isPresented: isOpen) {
-                switch opened {
-                case .addPhone: NavigationStack { PhoneStepView(mode: .sheet) }
-                case .linkX: NavigationStack { SocialsStepView(mode: .sheet) }
-                case nil: EmptyView()
-                }
-            }
         }
     }
 }
