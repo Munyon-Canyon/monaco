@@ -85,8 +85,8 @@ struct LoginView: View {
             // not a banner, gone with the next code they ask for.
             if let reason = auth.lastSignOutReason {
                 Text(reason)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.loss)
+                    .font(MonacoTheme.Typo.callout)
+                    .foregroundStyle(MonacoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("signOutReasonNotice")
                     .padding(.bottom, MonacoTheme.Space.sm)

@@ -5,7 +5,7 @@ import SwiftUI
 /// a screenshot shows what the app says.
 enum SessionGateCopy {
     /// The saved sign-in couldn't be checked (offline). The member is still signed in.
-    static let restoreFailedTitle = "Can't sign you in yet"
+    static let restoreFailedTitle = "You're offline"
     /// Signed in, but the backend session didn't open. Not "Couldn't open Monaco": that is the
     /// generic message set under the title, and the screen used to say it twice.
     static let openFailedTitle = "Your account didn't load"

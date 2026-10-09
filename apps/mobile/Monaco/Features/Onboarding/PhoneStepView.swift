@@ -111,22 +111,24 @@ private struct PhoneStepForm: View {
                 }
                 .fixedSize(horizontal: false, vertical: true)
 
-                if isCodeStep {
-                    OTPCodeField(
-                        code: $model.code,
-                        isFocused: focused == .code,
-                        isInvalid: model.caption == .error(LinkCopy.invalidCode),
-                        identifier: "phone-step-code-field",
-                        focus: { focused = .code }
-                    ) { _ in
-                        Task { await link() }
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    if isCodeStep {
+                        OTPCodeField(
+                            code: $model.code,
+                            isFocused: focused == .code,
+                            isInvalid: model.caption == .error(LinkCopy.invalidCode),
+                            identifier: "phone-step-code-field",
+                            focus: { focused = .code }
+                        ) { _ in
+                            Task { await link() }
+                        }
+                        .focused($focused, equals: .code)
+                    } else {
+                        numberField
                     }
-                    .focused($focused, equals: .code)
-                } else {
-                    numberField
-                }
 
-                LinkCaptionLine(caption: model.caption, identifier: "phone-step-caption")
+                    LinkCaptionLine(caption: model.caption, identifier: "phone-step-caption")
+                }
                 if isCodeStep { codeActions }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)

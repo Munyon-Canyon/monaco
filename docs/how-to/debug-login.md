@@ -82,7 +82,7 @@ because one expired:
 
 - **At launch** a returning user sees a splash (`sessionRestoringView`) while
   Privy restores the saved session, not the login form. If Privy can't be
-  reached, they get "Can't sign you in yet" with **Try again** (it also retries
+  reached, they get "You're offline" with **Try again** (it also retries
   when the app comes back to the foreground). They stay signed in.
 - **While the app is open** every request goes through `MonacoHTTPTransport`
   (`packages/mobile-core/Sources/MonacoCore/Networking`). On a 401 it asks
