@@ -12,6 +12,8 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
@@ -30,7 +32,7 @@ import (
 
 const (
 	withdrawMicros = 2_000_000
-	withdrawTo     = chain.SolanaAddress("9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P")
+	withdrawTo     = chain.SolanaAddress("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM")
 	withdrawSig    = chain.Signature(
 		"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW")
 )
@@ -110,9 +112,10 @@ func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.Withdraw
 				Withdrawals: app.WithdrawalOutflows{Reads: pool},
 			},
 			clk, usdc),
-		Wallets:   signingWallet{wallet: chain.Wallet{ID: f.user.PrivyWalletID, Address: f.user.Address}},
-		Transfers: func() (app.Transfers, error) { return f.transfers, nil },
-		Hints:     f.hints, Clock: clk, USDC: usdc,
+		Wallets:    signingWallet{wallet: chain.Wallet{ID: f.user.PrivyWalletID, Address: f.user.Address}},
+		Treasuries: cabal.New(module.Deps{Pool: pool}).Queries(),
+		Transfers:  func() (app.Transfers, error) { return f.transfers, nil },
+		Hints:      f.hints, Clock: clk, USDC: usdc,
 	}
 	for _, opt := range opts {
 		opt(&deps)
@@ -337,9 +340,10 @@ func TestWithdraw_DependencyErrorsWriteNothing(t *testing.T) {
 	t.Parallel()
 	boom := errs.New(errs.CodePrivyUnavailable, "test")
 	for name, opt := range map[string]func(*app.WithdrawDeps){
-		"wallet":    func(d *app.WithdrawDeps) { d.Wallets = signingWallet{err: boom} },
-		"transfers": func(d *app.WithdrawDeps) { d.Transfers = func() (app.Transfers, error) { return nil, boom } },
-		"balance":   func(d *app.WithdrawDeps) { d.Balances = fixedBalancesErr{boom} },
+		"wallet":     func(d *app.WithdrawDeps) { d.Wallets = signingWallet{err: boom} },
+		"transfers":  func(d *app.WithdrawDeps) { d.Transfers = func() (app.Transfers, error) { return nil, boom } },
+		"balance":    func(d *app.WithdrawDeps) { d.Balances = fixedBalancesErr{boom} },
+		"treasuries": func(d *app.WithdrawDeps) { d.Treasuries = treasuriesErr{boom} },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -349,6 +353,12 @@ func TestWithdraw_DependencyErrorsWriteNothing(t *testing.T) {
 			}
 		})
 	}
+}
+
+type treasuriesErr struct{ err error }
+
+func (t treasuriesErr) TreasuryWallets(context.Context) ([]cabalport.TreasuryWallet, error) {
+	return nil, t.err
 }
 
 type fixedBalancesErr struct{ err error }

@@ -38,6 +38,9 @@ func ParseWithdrawalRequest(rawAmount, rawTo string) (WithdrawalRequest, error) 
 	if err != nil {
 		return WithdrawalRequest{}, errs.Wrap(err, errs.CodeInvalidAddress, op)
 	}
+	if !to.OnCurve() {
+		return WithdrawalRequest{}, errs.New(errs.CodeInvalidAddress, op, slog.String("reason", "off_curve"))
+	}
 	return WithdrawalRequest{Amount: amount, To: to}, nil
 }
 

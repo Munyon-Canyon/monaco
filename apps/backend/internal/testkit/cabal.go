@@ -1,7 +1,7 @@
 package testkit
 
 import (
-	"crypto/rand"
+	"crypto/ed25519"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -63,8 +63,7 @@ func NewCabal(t SeedT, pool *pgxpool.Pool, opts ...CabalOption) SeededCabal {
 	c := SeededCabal{ID: id, PrivyWalletID: "treasury-" + id.String()}
 	c.Members = seatMembers(t, pool, spec)
 	c.Creator = c.Members[0]
-	key := make([]byte, 32)
-	_, _ = rand.Read(key)
+	key, _, _ := ed25519.GenerateKey(nil)
 	c.TreasuryAddress = chain.AddressOf(key)
 	now := clock.Real{}.Now().UTC()
 	if _, err := pool.Exec(t.Context(), `INSERT INTO cabals

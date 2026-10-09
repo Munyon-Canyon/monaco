@@ -54,7 +54,7 @@ func TestFlow15_Withdraw_CrashBeforeCommit(t *testing.T) {
 	).
 		When(
 			scenario.Post("/v1/me/withdrawals",
-				`{"amount_micros":"2000000","to_address":"9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"}`),
+				`{"amount_micros":"2000000","to_address":"`+string(withdrawTo)+`"}`),
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.TickCrashingAt("funding.withdrawals", faultpoint.BeforeCommit),
 			scenario.ExpectEvents(events.TypeWithdrawalConfirmed, 0),

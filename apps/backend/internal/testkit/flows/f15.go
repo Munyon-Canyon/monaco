@@ -14,7 +14,7 @@ import (
 
 const (
 	withdrawPath      = "/v1/me/withdrawals"
-	withdrawElsewhere = "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"
+	withdrawElsewhere = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 	withdrawBody      = `{"amount_micros":"2000000","to_address":"` + withdrawElsewhere + `"}`
 	withdrawPoller    = "funding.withdrawals"
 )

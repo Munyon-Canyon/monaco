@@ -50,6 +50,11 @@ func (a SolanaAddress) Bytes() ([]byte, error) {
 	return b, nil
 }
 
+func (a SolanaAddress) OnCurve() bool {
+	b, err := a.Bytes()
+	return err == nil && onCurve(b)
+}
+
 func SignatureOf(sig []byte) Signature { return Signature(EncodeBase58(sig)) }
 
 func AssociatedTokenAccount(owner, mint, tokenProgram SolanaAddress) (SolanaAddress, error) {

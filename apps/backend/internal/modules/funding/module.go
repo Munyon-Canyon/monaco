@@ -101,7 +101,7 @@ func (m *Module) CandidateResolver() app.DepositCandidateResolver {
 func (m *Module) withdrawDeps(wallets app.WalletReader) app.WithdrawDeps {
 	return app.WithdrawDeps{
 		UoW: m.deps.UoW, Balances: m.Balances(), Wallets: wallets, Hints: m.deps.Bus, Clock: m.deps.Clock,
-		USDC: m.usdc(), Transfers: m.lazyTransfers(),
+		USDC: m.usdc(), Transfers: m.lazyTransfers(), Treasuries: cabal.New(m.deps).Queries(),
 	}
 }
 

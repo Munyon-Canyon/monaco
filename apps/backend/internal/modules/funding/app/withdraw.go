@@ -45,13 +45,14 @@ type WithdrawResult struct {
 }
 
 type WithdrawDeps struct {
-	UoW       *db.UnitOfWork
-	Balances  port.Balances
-	Wallets   SigningWallets
-	Transfers func() (Transfers, error)
-	Hints     HintPublisher
-	Clock     clock.Clock
-	USDC      chain.Mint
+	UoW        *db.UnitOfWork
+	Balances   port.Balances
+	Wallets    SigningWallets
+	Treasuries TreasuryWallets
+	Transfers  func() (Transfers, error)
+	Hints      HintPublisher
+	Clock      clock.Clock
+	USDC       chain.Mint
 }
 
 type WithdrawHandler struct{ d WithdrawDeps }
@@ -66,6 +67,9 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 	}
 	if wallet.Address == cmd.Request.To {
 		return WithdrawResult{}, errs.New(errs.CodeWithdrawToOwnWallet, op)
+	}
+	if err := h.refuseTreasury(ctx, cmd.Request.To); err != nil {
+		return WithdrawResult{}, err
 	}
 	transfers, err := h.d.Transfers()
 	if err != nil {
@@ -90,6 +94,21 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 			slog.String("withdrawal_id", cmd.ID.String()), slog.String("code", string(errs.CodeOf(err))))
 	}
 	return WithdrawResult{ID: cmd.ID, Status: domain.WithdrawalSubmitted, TxSignature: signed.Signature}, nil
+}
+
+func (h *WithdrawHandler) refuseTreasury(ctx context.Context, to chain.SolanaAddress) error {
+	const op = "funding.Withdraw.refuseTreasury"
+	treasuries, err := h.d.Treasuries.TreasuryWallets(ctx)
+	if err != nil {
+		return err
+	}
+	for _, t := range treasuries {
+		if t.Address == to {
+			return errs.New(errs.CodeInvalidAddress, op,
+				slog.String("reason", "cabal_treasury"), slog.String("cabal_id", t.CabalID.String()))
+		}
+	}
+	return nil
 }
 
 func (h *WithdrawHandler) create(ctx context.Context, cmd Withdraw) error {
