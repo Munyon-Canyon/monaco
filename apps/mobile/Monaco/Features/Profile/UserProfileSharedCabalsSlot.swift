@@ -5,22 +5,28 @@ import SwiftUI
 enum UserProfileSharedCabalsSlot: UserProfileSection {
     static let isLive = true
 
+    static func isVisible(phase: UserProfileModel.Phase?, userID: String, viewerID: String?) -> Bool {
+        phase == .loaded && userID != viewerID
+    }
+
     static func body(for context: UserProfileContext) -> some View {
-        UserProfileSharedCabals(userID: context.userID, displayName: context.preview?.displayName)
+        UserProfileSharedCabals(userID: context.userID)
     }
 }
 
 private struct UserProfileSharedCabals: View {
     let userID: String
-    let displayName: String?
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(UserProfileModel.self) private var profile: UserProfileModel?
     @State private var model: SharedCabalsModel?
 
     var body: some View {
-        if userID != environment.viewer?.userID {
+        if UserProfileSharedCabalsSlot.isVisible(
+            phase: profile?.phase, userID: userID, viewerID: environment.viewer?.userID)
+        {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Cabals you share")
                     .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -59,7 +65,7 @@ private struct UserProfileSharedCabals: View {
         case .loaded(let summary) where summary.isEmpty:
             EmptyState(
                 title: "No cabals in common",
-                message: SharedCabalsSummary.emptyLine(displayName: displayName)
+                message: SharedCabalsSummary.emptyLine(displayName: profile?.displayName)
             )
             .accessibilityIdentifier("user-profile-shared-empty")
         case .loaded(let summary):

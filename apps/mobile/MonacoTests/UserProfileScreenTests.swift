@@ -1,3 +1,4 @@
+import MonacoCore
 import Testing
 
 @testable import Monaco
@@ -21,5 +22,16 @@ struct UserProfileScreenTests {
         #expect(screen.context.preview == preview)
         #expect(
             screen.sections.map { String(describing: $0) } == ["UserProfileHeaderSlot", "UserProfileSharedCabalsSlot"])
+    }
+
+    @Test func sharedCabalsShowOnlyOnceAnotherMembersProfileLoaded() {
+        func visible(_ phase: UserProfileModel.Phase?) -> Bool {
+            UserProfileSharedCabalsSlot.isVisible(phase: phase, userID: "u", viewerID: "me")
+        }
+        #expect(visible(.loaded))
+        for phase: UserProfileModel.Phase? in [nil, .idle, .loading, .unavailable, .failed] {
+            #expect(!visible(phase))
+        }
+        #expect(!UserProfileSharedCabalsSlot.isVisible(phase: .loaded, userID: "me", viewerID: "me"))
     }
 }
