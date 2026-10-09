@@ -81,7 +81,8 @@ func calledMints(r *reconcileRig) map[market.Mint]bool {
 
 func TestReconcile_aTickCallsEveryHotMintAndAtMostOneSlotOfTheRest(t *testing.T) {
 	t.Parallel()
-	const listed, unlisted = 1300, 20
+	const hotListed, fullSlots, unlisted = 3, 9, 20
+	const listed = fullSlots*reconcileSlot + hotListed
 	assets := generatedCatalog(t, listed+unlisted)
 	for i := listed; i < len(assets); i++ {
 		assets[i].IssuerTradable = false
