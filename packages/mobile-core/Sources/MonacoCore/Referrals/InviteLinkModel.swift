@@ -41,6 +41,7 @@ public enum InviteLinkState: Equatable, Sendable {
 @MainActor
 public final class InviteLinkModel {
     public static let pendingRetryDelay: Duration = .seconds(2)
+    public static let pendingRetries = 3
 
     public private(set) var state: InviteLinkState = .idle
     public private(set) var toast: String?
@@ -72,11 +73,13 @@ public final class InviteLinkModel {
         let current = generation
         if links == nil { state = .loading }
         var result = await fetch()
-        if case .failure(let error) = result, Self.isPending(error) {
+        var retries = 0
+        while case .failure(let error) = result, Self.isPending(error), retries < Self.pendingRetries {
             guard current == generation else { return }
             if links == nil { state = .pending }
             do { try await sleep(Self.pendingRetryDelay) } catch { return }
             guard current == generation else { return }
+            retries += 1
             result = await fetch()
         }
         guard current == generation, !Task.isCancelled else { return }
@@ -84,8 +87,11 @@ public final class InviteLinkModel {
         case .success(let links):
             state = .loaded(links)
         case .failure(let error):
-            if links == nil { state = .failed(error) }
-            toast = ToastCopy.message(for: error)
+            if links == nil {
+                state = .failed(error)
+            } else {
+                toast = ToastCopy.message(for: error)
+            }
         }
     }
 

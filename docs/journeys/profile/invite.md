@@ -56,5 +56,5 @@ None expected. A failing step becomes a wave 2 fix ticket.
 ## Not covered
 
 - The pasteboard contents after Copy. XCUITest cannot read the simulator pasteboard without a paste prompt, so S1.4 checks the toast only.
-- The handle link ("This link works too") and the deposit prompt that unlocks it. They need a funded account; a money journey covers them.
+- The "Backup link" row and the deposit prompt that unlocks the handle link. They need a funded account; a money journey covers them.
 - A friend opening the link and following back. That is the referral flow, not this screen.
