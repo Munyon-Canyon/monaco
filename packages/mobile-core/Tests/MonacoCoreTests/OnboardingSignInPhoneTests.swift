@@ -38,7 +38,29 @@ extension OnboardingFlowTests {
         XCTAssertEqual(calls, [])
     }
 
-    func testAFailedSignInNumberConfirmationFallsBackToTheFormWithACaption() async throws {
+    func testAServerErrorOnTheSignInNumberConfirmationKeepsTheConfirmStateAndRetries() async throws {
+        let transport = StubTransport(
+            scripted: [
+                .json(.serviceUnavailable, "{}"),
+                .json(.ok, Self.me(authState: "AWAITING_SOCIALS", phoneLinked: true)),
+            ])
+        let model = PhoneLinkModel(
+            linking: FakeAccountLinking(), onboarding: Self.onboarding(transport), clock: TestClock())
+
+        let first = await model.confirmSignInPhone()
+
+        XCTAssertEqual(first, .stay)
+        XCTAssertFalse(model.signInPhoneUnavailable)
+        XCTAssertNotNil(model.caption)
+
+        let second = await model.confirmSignInPhone()
+
+        XCTAssertEqual(try XCTUnwrap(second.finishedProfile).authState, .awaitingSocials)
+        XCTAssertFalse(model.signInPhoneUnavailable)
+        XCTAssertNil(model.caption)
+    }
+
+    func testAnOfflineSignInNumberConfirmationKeepsTheConfirmStateWithACaption() async throws {
         let transport = StubTransport(scripted: [.failure(URLError(.notConnectedToInternet))])
         let model = PhoneLinkModel(
             linking: FakeAccountLinking(), onboarding: Self.onboarding(transport), clock: TestClock())
@@ -46,7 +68,7 @@ extension OnboardingFlowTests {
         let result = await model.confirmSignInPhone()
 
         XCTAssertEqual(result, .stay)
-        XCTAssertTrue(model.signInPhoneUnavailable)
+        XCTAssertFalse(model.signInPhoneUnavailable)
         XCTAssertNotNil(model.caption)
     }
 
