@@ -4,15 +4,15 @@ expect-fail: S1
 The caption under Propose buy reads "Buy now". S1.6 expects "Your cabal votes before anything is bought", so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
-index 9d4afaf1c..af9175a94 100644
+index a84777cd9..46bee471f 100644
 --- a/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
 +++ b/apps/mobile/Monaco/Features/Assets/AssetDetailClientView.swift
-@@ -271,7 +271,7 @@ extension AssetDetailClientView {
-                         .accessibilityIdentifier("asset-detail-propose-sell")
-                     }
-                 }
--                Text("Your cabal votes before anything is bought")
-+                Text("Buy now")
-                     .font(MonacoTheme.Typo.caption)
-                     .foregroundStyle(MonacoTheme.muted)
-             }
+@@ -278,7 +278,7 @@ enum AssetDetailBuyCTA {
+     static func caption(tradable: Bool, canSell: Bool) -> String {
+         if !tradable { return "Not available to buy yet." }
+         if canSell { return "Your cabal votes before anything is bought or sold" }
+-        return "Your cabal votes before anything is bought"
++        return "Buy now"
+     }
+ 
+     static func open(
