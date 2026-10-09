@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -19,6 +20,7 @@ struct CashOutView: View {
             onSubmit: { Task { await submit() } },
             onFund: { environment.navigator.open(FundRoute(cabalID: cabalID), in: environment.navigator.selectedTab) }
         )
+        .analyticsScreen("cash_out", step: .cashOut(.cashOutOpened))
         .task {
             let model = self.model ?? CashOutModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
             self.model = model

@@ -1,3 +1,4 @@
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -12,11 +13,13 @@ nonisolated struct DepositRoute: AppRoute {
 
     @MainActor func destination() -> some View {
         DepositView(prefillMicros: prefillMicros, cabalID: cabalID)
+            .analyticsScreen("deposit")
     }
 }
 
 nonisolated struct DepositAddressRoute: AppRoute {
     @MainActor func destination() -> some View {
         DepositAddressView()
+            .analyticsScreen("deposit_address", step: .cryptoDeposit(.depositOpened))
     }
 }

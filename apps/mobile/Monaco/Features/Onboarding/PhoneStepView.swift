@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -38,13 +39,16 @@ struct PhoneStepView: View {
                 onboarding: onboarding ?? OnboardingAPI(api: environment.api),
                 clock: ContinuousClock()),
             onContinue: onContinue,
-            onSignOut: { await environment.signOut() })
+            onSignOut: { await environment.signOut() }
+        )
+        .analyticsScreen("onboarding_phone", step: mode == .onboarding ? .onboarding(.phoneShown) : nil)
     }
 }
 
 private struct PhoneStepForm: View {
     @Environment(AppSessionStore.self) private var session
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.analytics) private var analytics
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -269,7 +273,7 @@ private struct PhoneStepForm: View {
     }
 
     private func link() async {
-        handle(await model.link())
+        handle(await model.link(), linked: true)
     }
 
     private func skip() async {
@@ -277,10 +281,12 @@ private struct PhoneStepForm: View {
             dismiss()
             return
         }
+        analytics.step(.onboarding(.phoneSkipped))
         handle(await model.skip())
     }
 
-    private func handle(_ result: LinkStepResult) {
+    private func handle(_ result: LinkStepResult, linked: Bool = false) {
+        if linked, case .finished = result { analytics.step(.onboarding(.phoneVerified)) }
         switch result {
         case .stay:
             break
