@@ -253,7 +253,8 @@ final class AccountActivityModelTests: XCTestCase {
         let hints = FakeHintStream()
         let model = AccountActivityModel(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
-            hints: hints, clock: { now })
+            hints: hints, clock: { now },
+            locale: Locale(identifier: "en_US_POSIX"))
         return (model, transport, hints)
     }
 

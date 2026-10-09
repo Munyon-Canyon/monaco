@@ -67,14 +67,14 @@ final class AccountActivityRowTests: XCTestCase {
     }
 
     func testTheDateShowsTheTimeThisYearAndTheYearOtherwise() throws {
-        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z").date, "Oct 3, 3:00 PM")
-        XCTAssertEqual(try makeRow(at: "2026-01-01T00:05:00Z").date, "Jan 1, 12:05 AM")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z").date, "Oct 3 at 3:00\u{202F}PM")
+        XCTAssertEqual(try makeRow(at: "2026-01-01T00:05:00Z").date, "Jan 1 at 12:05\u{202F}AM")
         XCTAssertEqual(try makeRow(at: "2025-10-03T15:00:00Z").date, "Oct 3, 2025")
     }
 
     func testTheDateIsInTheDeviceTimeZone() throws {
         let eastern = try Self.zone(hours: -4)
-        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z", timeZone: eastern).date, "Oct 3, 11:00 AM")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z", timeZone: eastern).date, "Oct 3 at 11:00\u{202F}AM")
     }
 
     func testTheYearIsJudgedInTheDeviceTimeZone() throws {
@@ -83,8 +83,14 @@ final class AccountActivityRowTests: XCTestCase {
     }
 
     func testTheFullDateAlwaysHasTheYearAndTheTime() throws {
-        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z").fullDate, "Oct 3, 2026 at 3:00 PM")
-        XCTAssertEqual(try makeRow(at: "2025-10-03T15:00:00Z").fullDate, "Oct 3, 2025 at 3:00 PM")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z").fullDate, "Oct 3, 2026 at 3:00\u{202F}PM")
+        XCTAssertEqual(try makeRow(at: "2025-10-03T15:00:00Z").fullDate, "Oct 3, 2025 at 3:00\u{202F}PM")
+    }
+
+    func testTheTimeFollowsA24HourLocale() throws {
+        let gb = Locale(identifier: "en_GB")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:05:00Z", locale: gb).date, "3 Oct at 15:05")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:05:00Z", locale: gb).fullDate, "3 Oct 2026 at 15:05")
     }
 
     func testSolscanLinksTheTransactionOnlyOnceItWasSent() throws {
@@ -96,10 +102,10 @@ final class AccountActivityRowTests: XCTestCase {
         let zone = try Self.zone(hours: 0)
         let now = try Self.date(Self.now)
         let first = try Components.Schemas.UserTxnPage.sampleFirst.items.map {
-            try AccountActivityRow($0, now: now, timeZone: zone)
+            try AccountActivityRow($0, now: now, timeZone: zone, locale: Locale(identifier: "en_US_POSIX"))
         }
         let second = try Components.Schemas.UserTxnPage.sampleSecond.items.map {
-            try AccountActivityRow($0, now: now, timeZone: zone)
+            try AccountActivityRow($0, now: now, timeZone: zone, locale: Locale(identifier: "en_US_POSIX"))
         }
 
         XCTAssertEqual(first.prefix(3).map(\.title), ["Deposit", "Funded QA pot", "Withdrawal"])
@@ -119,13 +125,15 @@ final class AccountActivityRowTests: XCTestCase {
         cabal: Components.Schemas.UserTxn.CabalPayload? = nil,
         signature: String? = "signature-1",
         at created: String = "2026-10-03T15:00:00Z",
-        timeZone: TimeZone? = nil
+        timeZone: TimeZone? = nil,
+        locale: Locale = Locale(identifier: "en_US_POSIX")
     ) throws -> AccountActivityRow {
         let txn = Components.Schemas.UserTxn(
             id: "txn-1", kind: kind, status: status, usdcMicros: micros, cabal: cabal, txSignature: signature,
             createdAt: try Self.date(created))
         return try AccountActivityRow(
-            txn, now: try Self.date(Self.now), timeZone: try timeZone ?? Self.zone(hours: 0))
+            txn, now: try Self.date(Self.now), timeZone: try timeZone ?? Self.zone(hours: 0),
+            locale: locale)
     }
 
     private static func date(_ iso: String) throws -> Date {

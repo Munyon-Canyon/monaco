@@ -300,7 +300,8 @@ final class ActivityModelTests: XCTestCase {
         let model = CabalActivityModel(
             cabalID: Self.cabalID,
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
-            hints: hints, clock: { now })
+            hints: hints, clock: { now },
+            locale: Locale(identifier: "en_US_POSIX"))
         return (model, transport, hints)
     }
 

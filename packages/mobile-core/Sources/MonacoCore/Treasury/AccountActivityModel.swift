@@ -17,14 +17,16 @@ public final class AccountActivityModel {
     private let api: APIClient
     private let hints: any HintSource
     private let clock: @Sendable () -> Date
+    private let locale: Locale
 
-    @ObservationIgnored private lazy var pager = CursorPager<AccountActivityRow> { [weak self, api, clock] cursor in
+    @ObservationIgnored private lazy var pager = CursorPager<AccountActivityRow> {
+        [weak self, api, clock, locale] cursor in
         do {
             let page = try await api.read { client in
                 try await client.getMyTxns(query: .init(limit: 30, cursor: cursor)).ok.body.json
             }
             let now = clock()
-            return (try page.items.map { try AccountActivityRow($0, now: now) }, page.nextCursor)
+            return (try page.items.map { try AccountActivityRow($0, now: now, locale: locale) }, page.nextCursor)
         } catch {
             if !Task.isCancelled { await self?.noteFailure(APIError(error)) }
             throw error
@@ -33,10 +35,14 @@ public final class AccountActivityModel {
 
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
 
-    public init(api: APIClient, hints: any HintSource, clock: @escaping @Sendable () -> Date) {
+    public init(
+        api: APIClient, hints: any HintSource, clock: @escaping @Sendable () -> Date,
+        locale: Locale = .autoupdatingCurrent
+    ) {
         self.api = api
         self.hints = hints
         self.clock = clock
+        self.locale = locale
     }
 
     public var rows: [AccountActivityRow] { pager.items }

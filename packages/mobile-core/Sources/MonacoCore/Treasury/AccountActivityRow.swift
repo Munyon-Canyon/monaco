@@ -39,7 +39,10 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
     public let cabal: Cabal?
     public let solscanURL: URL?
 
-    public init(_ txn: Components.Schemas.UserTxn, now: Date, timeZone: TimeZone = .current) throws {
+    public init(
+        _ txn: Components.Schemas.UserTxn, now: Date, timeZone: TimeZone = .current,
+        locale: Locale = .autoupdatingCurrent
+    ) throws {
         guard let micros = Int64(txn.usdcMicros) else { throw APIError.decoding("usdc_micros") }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
@@ -49,8 +52,9 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
         self.id = txn.id
         self.title = headline.title
         self.glyph = headline.glyph
-        self.date = Self.string(txn.createdAt, sameYear ? "MMM d, h:mm a" : "MMM d, yyyy", calendar)
-        self.fullDate = Self.string(txn.createdAt, "MMM d, yyyy 'at' h:mm a", calendar)
+        let short: SharedFormatters.DatePattern = sameYear ? .template("MMMdjmm") : .template("yMMMd")
+        self.date = Self.string(txn.createdAt, short, calendar, locale)
+        self.fullDate = Self.string(txn.createdAt, .template("yMMMdjmm"), calendar, locale)
         self.status = Status(txn.status)
         self.amount = UsdAmountFormatter.format(signedMicros: micros)
         self.cabal = cabal
@@ -68,9 +72,10 @@ public struct AccountActivityRow: Identifiable, Hashable, Sendable {
         }
     }
 
-    private static func string(_ date: Date, _ pattern: String, _ calendar: Calendar) -> String {
-        SharedFormatters.string(
-            from: date, pattern: .fixed(pattern), locale: Locale(identifier: "en_US_POSIX"), calendar: calendar)
+    private static func string(
+        _ date: Date, _ pattern: SharedFormatters.DatePattern, _ calendar: Calendar, _ locale: Locale
+    ) -> String {
+        SharedFormatters.string(from: date, pattern: pattern, locale: locale, calendar: calendar)
     }
 }
 

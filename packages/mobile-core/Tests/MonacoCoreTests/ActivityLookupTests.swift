@@ -68,7 +68,8 @@ final class ActivityLookupTests: XCTestCase {
         let model = CabalActivityModel(
             cabalID: "cabal-1",
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
-            hints: FakeHintStream(), clock: { now })
+            hints: FakeHintStream(), clock: { now },
+            locale: Locale(identifier: "en_US_POSIX"))
         return (model, transport)
     }
 }

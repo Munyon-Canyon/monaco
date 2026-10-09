@@ -51,18 +51,20 @@ public final class CabalActivityModel {
     private let api: APIClient
     private let hints: any HintSource
     private let clock: @Sendable () -> Date
+    private let locale: Locale
     private var notMember = false
     private var retries: [String: Retry] = [:]
     private var superseded: Set<String> = []
     private var openSwapID: String?
     @ObservationIgnored private var submissions: [String: IdempotentSubmission] = [:]
 
-    @ObservationIgnored private lazy var pager = CursorPager<ActivityRow> { [weak self, cabalID, api, clock] cursor in
+    @ObservationIgnored private lazy var pager = CursorPager<ActivityRow> {
+        [weak self, cabalID, api, clock, locale] cursor in
         do {
             let page = try await Self.page(cabalID: cabalID, cursor: cursor, limit: 30, api: api)
             let now = clock()
             await self?.noteSuccess()
-            return (page.items.map { ActivityRow($0, now: now) }, page.nextCursor)
+            return (page.items.map { ActivityRow($0, now: now, locale: locale) }, page.nextCursor)
         } catch {
             if !Task.isCancelled { await self?.noteFailure(APIError(error)) }
             throw error
@@ -71,11 +73,15 @@ public final class CabalActivityModel {
 
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
 
-    public init(cabalID: String, api: APIClient, hints: any HintSource, clock: @escaping @Sendable () -> Date) {
+    public init(
+        cabalID: String, api: APIClient, hints: any HintSource, clock: @escaping @Sendable () -> Date,
+        locale: Locale = .autoupdatingCurrent
+    ) {
         self.cabalID = cabalID
         self.api = api
         self.hints = hints
         self.clock = clock
+        self.locale = locale
     }
 
     public var rows: [ActivityRow] { pager.items.map(present) }
@@ -163,7 +169,9 @@ public final class CabalActivityModel {
                 guard Self.is(error, .notCabalMember) else { return .failed }
                 return await lookupPublishedSwap(id: id)
             }
-            if let match = page.items.first(where: { $0.id == id }) { return .found(ActivityRow(match, now: clock())) }
+            if let match = page.items.first(where: { $0.id == id }) {
+                return .found(ActivityRow(match, now: clock(), locale: locale))
+            }
             cursor = page.nextCursor
         } while cursor != nil
         return .notFound
@@ -173,7 +181,7 @@ public final class CabalActivityModel {
         do {
             let swap = try await api.read { client in try await client.getSwap(path: .init(id: id)).ok.body.json }
             openSwap = SwapReceipt(swap)
-            return .found(ActivityRow(swap, now: clock()))
+            return .found(ActivityRow(swap, now: clock(), locale: locale))
         } catch {
             if Self.is(error, .swapNotFound) { return .notFound }
             return Self.is(error, .notCabalMember) ? .forbidden : .failed
