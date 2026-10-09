@@ -112,6 +112,64 @@ final class FundProgressTests: XCTestCase {
         XCTAssertEqual(keys[0], keys[1])
     }
 
+    func testAnAnswerlessSubmitSaysToCheckTheBalanceFirst() async throws {
+        let inFlight = try StubTransport.Reply.problem(problem(409, .idempotencyInFlight))
+        let answerless: [[StubTransport.Reply]] = [
+            [.failure(URLError(.timedOut))], [.json(.accepted, "{")], Array(repeating: inFlight, count: 4),
+        ]
+        for replies in answerless {
+            let funding = funding(StubTransport(scripted: replies))
+
+            let attempt = await funding.submit(micros: 5_000_000)
+
+            XCTAssertEqual(attempt, .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary), "\(replies)")
+            XCTAssertEqual(funding.progress, .idle)
+        }
+    }
+
+    func testAServerErrorKeepsTheServersLine() async throws {
+        let funding = funding(try StubTransport.problem(problem(503, .rpcUnavailable)))
+
+        let attempt = await funding.submit(micros: 5_000_000)
+
+        XCTAssertEqual(attempt, .unconfirmed(retryMessage: "Server says no."))
+    }
+
+    func testAChangedAmountWhileUnconfirmedSendsNothingAndTheSameAmountKeepsTheKey() async throws {
+        let transport = StubTransport(scripted: [.failure(URLError(.timedOut)), .json(.accepted, accepted)])
+        let funding = funding(transport)
+        _ = await funding.submit(micros: 5_000_000)
+
+        let changed = await funding.submit(micros: 6_000_000)
+
+        XCTAssertEqual(changed, .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary))
+        let afterChange = await transport.sent.count
+        XCTAssertEqual(afterChange, 1)
+        let same = await funding.submit(micros: 5_000_000)
+        XCTAssertEqual(same, .accepted(transfer(.submitted)))
+        let header = try keyHeader()
+        let keys = await transport.sent.map { $0.headerFields[header] }
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertEqual(keys[0], keys[1])
+    }
+
+    func testAFinalAnswerLetsADifferentAmountGoOut() async throws {
+        let transport = StubTransport(scripted: [
+            .failure(URLError(.timedOut)), try .problem(problem(422, .insufficientFunds)), .json(.accepted, accepted),
+        ])
+        let funding = funding(transport)
+        _ = await funding.submit(micros: 5_000_000)
+        _ = await funding.submit(micros: 5_000_000)
+
+        let smaller = await funding.submit(micros: 4_000_000)
+
+        XCTAssertEqual(smaller, .accepted(FundTransfer(transferID: id, status: .submitted, amountMicros: 4_000_000)))
+        let header = try keyHeader()
+        let keys = await transport.sent.map { $0.headerFields[header] }
+        XCTAssertEqual(keys.count, 3)
+        XCTAssertNotEqual(keys[1], keys[2])
+    }
+
     func testInFlightRetriesWithTheSameKey() async throws {
         let transport = StubTransport(scripted: [
             try .problem(problem(409, .idempotencyInFlight)), .json(.accepted, accepted),

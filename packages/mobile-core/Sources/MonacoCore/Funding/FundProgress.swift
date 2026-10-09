@@ -81,6 +81,7 @@ public final class Funding {
     private let hints: any HintSource
     private let inFlightRetryDelay: Duration
     private let submission = IdempotentSubmission()
+    @ObservationIgnored private var unconfirmedMicros: Int64?
 
     static let inFlightRetries = 3
     public static let activityHint = "activity_changed"
@@ -101,6 +102,9 @@ public final class Funding {
             if case .submitted(let transfer) = progress { return .accepted(transfer) }
             return .unconfirmed(retryMessage: ToastCopy.message(for: .inFlight))
         }
+        if submission.hasPendingKey, let pending = unconfirmedMicros, pending != micros {
+            return .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary)
+        }
         progress = progress.applying(.start)
         var retries = 0
         while true {
@@ -116,7 +120,10 @@ public final class Funding {
                     continue
                 }
                 progress = progress.applying(.refused)
-                if submission.hasPendingKey { return .unconfirmed(retryMessage: ToastCopy.message(for: error)) }
+                if submission.hasPendingKey {
+                    unconfirmedMicros = micros
+                    return .unconfirmed(retryMessage: MoneyFlowCopy.pendingKeyLine(error))
+                }
                 return .refused(MoneyFlowCopy.fundCabalFailure(error))
             }
         }

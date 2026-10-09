@@ -97,7 +97,11 @@ public final class CashOutModel {
         case .invalidInput:
             return Self.invalidRequest
         case .privyUnavailable, .rPCUnavailable, .saleShort, .ok, .interrupted, nil:
-            return ToastCopy.message(for: error)
+            switch error {
+            case .transport, .decoding: return MoneyFlowCopy.unconfirmed.summary
+            case .problem, .signedOut, .missingAccessToken, .accountDeleted, .inFlight:
+                return ToastCopy.message(for: error)
+            }
         }
     }
 }
