@@ -113,3 +113,20 @@ SET high_signature = COALESCE(page_top_signature, high_signature),
     clean_gen = $2,
     scanned_at = sqlc.arg(scanned_at)::timestamptz
 WHERE token_account = $1 AND clean_gen < $2;
+
+-- name: DepositWatchGateAccounts :many
+SELECT token_account, wallet_address, state, last_amount::text AS last_amount, observed_slot
+FROM deposit_watch_accounts
+WHERE state <> 'foreign' AND token_account > $1
+ORDER BY token_account
+LIMIT $2;
+
+-- name: ApplyDepositWatchObservation :execrows
+UPDATE deposit_watch_accounts
+SET state = sqlc.arg(state)::text,
+    last_amount = sqlc.arg(last_amount)::text::numeric,
+    observed_slot = sqlc.arg(observed_slot)::bigint,
+    dirty_gen = dirty_gen + CASE WHEN sqlc.arg(dirty)::bool THEN 1 ELSE 0 END,
+    dirty_slot = CASE WHEN sqlc.arg(dirty)::bool THEN GREATEST(dirty_slot, sqlc.arg(observed_slot)::bigint)
+      ELSE dirty_slot END
+WHERE token_account = $1 AND observed_slot <= sqlc.arg(observed_slot)::bigint AND state <> 'foreign';

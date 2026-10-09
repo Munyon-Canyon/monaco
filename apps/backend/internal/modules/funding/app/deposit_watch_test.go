@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -46,6 +48,8 @@ func (w *watchWallets) MemberWallets(context.Context, ids.UserID, int) ([]port.M
 }
 
 type watchRPC struct {
+	fixed    []solana.TokenAccountState
+	reads    sqlc.DBTX
 	pages    [][]solana.SignatureInfo
 	sigErr   error
 	slot     uint64
@@ -67,6 +71,33 @@ func (r *watchRPC) SignaturesFor(
 	return page, nil
 }
 
+func (r *watchRPC) Accounts(
+	ctx context.Context, addrs []chain.SolanaAddress, _ uint64,
+) (uint64, []solana.TokenAccountState, error) {
+	if r.fixed != nil {
+		return 0, r.fixed, nil
+	}
+	var slot uint64
+	states := make([]solana.TokenAccountState, len(addrs))
+	for i, addr := range addrs {
+		var state, wallet, amountText, observedText string
+		err := r.reads.QueryRow(ctx,
+			`SELECT state, wallet_address, last_amount::text, observed_slot::text FROM deposit_watch_accounts
+			WHERE token_account = $1`, addr).Scan(&state, &wallet, &amountText, &observedText)
+		if err != nil {
+			return 0, nil, err
+		}
+		observed, _ := strconv.ParseUint(observedText, 10, 64)
+		amount, _ := strconv.ParseUint(amountText, 10, 64)
+		slot = max(slot, observed)
+		states[i] = solana.TokenAccountState{
+			Address: addr, Exists: state == "open", Program: chain.SPLProgram, Mint: testkit.USDCMint,
+			Owner: chain.SolanaAddress(wallet), State: "initialized", Amount: money.NewBaseUnits(amount, 6),
+		}
+	}
+	return slot, states, nil
+}
+
 func (r *watchRPC) TokenAccounts(
 	context.Context, chain.SolanaAddress, chain.Mint,
 ) (uint64, []solana.TokenAccountState, error) {
@@ -74,9 +105,12 @@ func (r *watchRPC) TokenAccounts(
 }
 
 func testWatch(pool sqlc.DBTX, uow *db.UnitOfWork, rpc DepositWatchRPC, wallets port.WalletReader) *DepositWatch {
+	if fake, ok := rpc.(*watchRPC); ok {
+		fake.reads = pool
+	}
 	return NewDepositWatch(
 		pool, uow, testkit.NewIDs(2), clock.Real{}, wallets, rpc, testkit.USDCMint, time.Second,
-		rate.NewLimiter(rate.Inf, 0), 480,
+		rate.NewLimiter(rate.Inf, 0), 480, nil,
 	)
 }
 
@@ -107,7 +141,7 @@ func TestDepositWatchFetchesOnePageAndHonorsCancellation(t *testing.T) {
 
 func TestDepositWatchReportsItsNameAndInterval(t *testing.T) {
 	t.Parallel()
-	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, 0)
+	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, 0, nil)
 	if p.Interval() != time.Second || p.Name() != "funding.deposit_watch" {
 		t.Fatalf("name/interval = %q/%s", p.Name(), p.Interval())
 	}
@@ -315,8 +349,8 @@ func TestDepositWatchCatchesUpADirtyAccountPageByPage(t *testing.T) {
 	rpc := &watchRPC{pages: [][]solana.SignatureInfo{full, {{Signature: "last", Slot: 5}}}}
 	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), rpc, &watchWallets{})
 	report, err := p.Tick(observability.WithActor(t.Context(), "system:test"))
-	if err != nil || report.Changed != 1001 || report.Scanned != 1 {
-		t.Fatalf("Tick = %+v, %v; want 1001 candidates from one dirty account", report, err)
+	if err != nil || report.Changed != 1001 || report.Scanned != 2 {
+		t.Fatalf("Tick = %+v, %v; want 1001 candidates from one dirty account (one gated, one scanned)", report, err)
 	}
 	var high string
 	var page *string

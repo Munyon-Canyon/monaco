@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -34,6 +36,43 @@ type watchRPC struct {
 	untils        []chain.Signature
 	slot          uint64
 	accounts      []solana.TokenAccountState
+
+	pool          *pgxpool.Pool
+	observe       func([]chain.SolanaAddress) (uint64, []solana.TokenAccountState)
+	accountsCalls int
+	accountsErr   error
+}
+
+func (r *watchRPC) Accounts(
+	ctx context.Context, addrs []chain.SolanaAddress, _ uint64,
+) (uint64, []solana.TokenAccountState, error) {
+	r.accountsCalls++
+	if r.accountsErr != nil {
+		return 0, nil, r.accountsErr
+	}
+	if r.observe != nil {
+		slot, states := r.observe(addrs)
+		return slot, states, nil
+	}
+	var slot uint64
+	states := make([]solana.TokenAccountState, len(addrs))
+	for i, addr := range addrs {
+		var state, wallet, amountText, observedText string
+		err := r.pool.QueryRow(ctx,
+			`SELECT state, wallet_address, last_amount::text, observed_slot::text FROM deposit_watch_accounts
+			WHERE token_account = $1`, addr).Scan(&state, &wallet, &amountText, &observedText)
+		if err != nil {
+			return 0, nil, err
+		}
+		observed, _ := strconv.ParseUint(observedText, 10, 64)
+		amount, _ := strconv.ParseUint(amountText, 10, 64)
+		slot = max(slot, observed)
+		states[i] = solana.TokenAccountState{
+			Address: addr, Exists: state == "open", Program: chain.SPLProgram, Mint: testkit.USDCMint,
+			Owner: chain.SolanaAddress(wallet), State: "initialized", Amount: money.NewBaseUnits(amount, 6),
+		}
+	}
+	return slot, states, nil
 }
 
 func (r *watchRPC) SignaturesFor(
@@ -133,9 +172,10 @@ func newDepositWatch(
 }
 
 func watchFor(
-	pool *pgxpool.Pool, user testkit.SeededUser, now time.Time, rpc app.DepositWatchRPC, limit app.RPCLimiter,
+	pool *pgxpool.Pool, user testkit.SeededUser, now time.Time, rpc *watchRPC, limit app.RPCLimiter,
 	uowID, watchID uint64,
 ) *app.DepositWatch {
+	rpc.pool = pool
 	return app.NewDepositWatch(
 		pool,
 		db.New(pool, testkit.NewIDs(uowID), testkit.NewClock(now)),
@@ -147,6 +187,7 @@ func watchFor(
 		app.DepositPollInterval,
 		limit,
 		480,
+		noop.Int64Counter{},
 	)
 }
 
@@ -268,20 +309,21 @@ func TestDepositWatchCommitsCandidatesWithTheCheckpointOfAWholePage(t *testing.T
 	}}
 	watchClock := testkit.NewClock(now)
 	budget := &rpcBudget{}
+	rpc.pool = pool
 	p := app.NewDepositWatch(
 		pool, db.New(pool, testkit.NewIDs(76), watchClock), testkit.NewIDs(77), watchClock,
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, 480,
+		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, 480, noop.Int64Counter{},
 	)
 	ctx := watchActor(t)
 	watchClock.Advance(time.Second)
-	budget.refill(1)
+	budget.refill(2)
 	if report, err := p.Tick(ctx); err != nil || report.Changed != 3 {
 		t.Fatalf("first Tick = %+v, %v; want three candidates", report, err)
 	}
 	assertWholePageCheckpoint(t, loadAccount(t, pool, ata), now.Add(time.Second))
 	assertCandidateSignatures(ctx, t, pool, user.Address, "sig1000", "sig999", "sig998")
-	budget.refill(1)
+	budget.refill(2)
 	if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
 		t.Fatalf("second Tick = %+v, %v; want the walk finished", report, err)
 	}

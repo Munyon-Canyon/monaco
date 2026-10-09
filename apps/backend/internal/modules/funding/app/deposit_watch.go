@@ -8,6 +8,8 @@ import (
 	"slices"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
@@ -56,6 +58,9 @@ type DepositWatchRPC interface {
 	TokenAccounts(
 		context.Context, chain.SolanaAddress, chain.Mint,
 	) (uint64, []solana.TokenAccountState, error)
+	Accounts(
+		context.Context, []chain.SolanaAddress, uint64,
+	) (uint64, []solana.TokenAccountState, error)
 }
 
 type DepositWatch struct {
@@ -69,16 +74,19 @@ type DepositWatch struct {
 	period  time.Duration
 	limit   RPCLimiter
 	calls   int
+
+	regressed metric.Int64Counter
 }
 
 func NewDepositWatch(
 	reads sqlc.DBTX, uow *db.UnitOfWork, g ids.Generator, c clock.Clock, wallets port.WalletReader,
 	rpc DepositWatchRPC, usdc chain.SolanaAddress, period time.Duration, limit RPCLimiter,
-	callBudget int,
+	callBudget int, regressed metric.Int64Counter,
 ) *DepositWatch {
 	return &DepositWatch{
 		reads: reads, uow: uow, ids: g, clock: c, wallets: wallets, rpc: rpc, usdc: usdc,
 		period: period, limit: limit, calls: callBudget,
+		regressed: regressed,
 	}
 }
 
@@ -90,6 +98,7 @@ func (p *DepositWatch) Tick(ctx context.Context) (poller.Report, error) {
 	budget := newWatchBudget(ctx, p.calls)
 	ctx = context.WithValue(ctx, watchBudgetKey{}, budget)
 	steps := []watchStep{
+		{"gate", p.gate},
 		{"dirty", p.catchUpDirty},
 		{"first_sight", func(ctx context.Context) (int, int, error) {
 			seeded, err := p.firstSight(ctx)

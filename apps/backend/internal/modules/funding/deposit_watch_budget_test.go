@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
@@ -23,6 +24,7 @@ import (
 func budgetedWatch(
 	pool *pgxpool.Pool, now time.Time, wallets []identity.MemberWallet, rpc *watchRPC, calls int, uowID, watchID uint64,
 ) *app.DepositWatch {
+	rpc.pool = pool
 	return app.NewDepositWatch(
 		pool,
 		db.New(pool, testkit.NewIDs(uowID), testkit.NewClock(now)),
@@ -34,6 +36,7 @@ func budgetedWatch(
 		app.DepositPollInterval,
 		unlimited(),
 		calls,
+		noop.Int64Counter{},
 	)
 }
 
@@ -62,11 +65,11 @@ func TestDepositWatchStopsAtTheCallBudgetAndScansTheOldestDirtyAccountFirst(t *t
 		{UserID: unseen.ID, Address: unseen.Address},
 	}
 	rpc := watchRPC{}
-	report, err := budgetedWatch(pool, now, wallets, &rpc, 1, 60, 61).Tick(watchActor(t))
-	if err != nil || report.Scanned != 1 {
-		t.Fatalf("Tick = %+v, %v; want one account scanned and no error when the budget runs out", report, err)
+	report, err := budgetedWatch(pool, now, wallets, &rpc, 2, 60, 61).Tick(watchActor(t))
+	if err != nil || report.Scanned != 3 {
+		t.Fatalf("Tick = %+v, %v; want two gated, one scanned and no error", report, err)
 	}
-	if got, want := stepAttrs(report), "dirty=1 dirty_calls=1"; got != want {
+	if got, want := stepAttrs(report), "gate=2 gate_calls=1 dirty=1 dirty_calls=1"; got != want {
 		t.Fatalf("step attrs = %q, want %q: first sight must not run after the budget is spent", got, want)
 	}
 	if got := loadAccount(t, pool, olderAccount); got.CleanGen != got.DirtyGen {
@@ -94,11 +97,11 @@ func TestDepositWatchRunsFirstSightAfterTheDirtyCatchUpsAndReportsCallsPerStep(t
 		{UserID: fresh.ID, Address: fresh.Address},
 	}
 	rpc := watchRPC{}
-	report, err := budgetedWatch(pool, now, wallets, &rpc, 3, 62, 63).Tick(watchActor(t))
+	report, err := budgetedWatch(pool, now, wallets, &rpc, 4, 62, 63).Tick(watchActor(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "dirty=1 dirty_calls=1 first_sight=1 first_sight_calls=2"
+	want := "gate=1 gate_calls=1 dirty=1 dirty_calls=1 first_sight=1 first_sight_calls=2"
 	if got := stepAttrs(report); got != want {
 		t.Fatalf("step attrs = %q, want %q", got, want)
 	}
@@ -115,7 +118,7 @@ func TestDepositWatchStopsFiveSecondsBeforeTheTickDeadline(t *testing.T) {
 	late, cancel := context.WithTimeout(watchActor(t), 2*time.Second)
 	defer cancel()
 	report, err := budgetedWatch(pool, now, wallets, &rpc, 480, 64, 65).Tick(late)
-	if err != nil || rpc.signCalls != 0 || stepAttrs(report) != "dirty=0 dirty_calls=0" {
+	if err != nil || rpc.signCalls != 0 || stepAttrs(report) != "gate=0 gate_calls=0" {
 		t.Fatalf("late Tick = %+v, %v with %d calls; want no RPC call inside the last 5 s", report, err, rpc.signCalls)
 	}
 	if got := loadAccount(t, pool, ata); got.CleanGen == got.DirtyGen {
