@@ -43,10 +43,12 @@ private struct SocialsStepForm: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    Text(LinkCopy.xTitle)
-                        .font(MonacoTheme.Typo.display)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .accessibilityAddTraits(.isHeader)
+                    if mode == .onboarding {
+                        Text(LinkCopy.xTitle)
+                            .font(MonacoTheme.Typo.display)
+                            .foregroundStyle(MonacoTheme.ink)
+                            .accessibilityAddTraits(.isHeader)
+                    }
                     Text(LinkCopy.xSubtext)
                         .font(MonacoTheme.Typo.callout)
                         .foregroundStyle(MonacoTheme.secondaryText)
@@ -66,7 +68,7 @@ private struct SocialsStepForm: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .safeAreaInset(edge: .bottom) { BottomCTA { primaryButton } }
-        .monacoCanvas()
+        .background { if mode == .onboarding { MonacoCanvasBackground() } }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

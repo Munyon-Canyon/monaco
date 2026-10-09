@@ -95,10 +95,12 @@ private struct PhoneStepForm: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    Text(LinkCopy.phoneTitle)
-                        .font(MonacoTheme.Typo.display)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .accessibilityAddTraits(.isHeader)
+                    if mode == .onboarding {
+                        Text(LinkCopy.phoneTitle)
+                            .font(MonacoTheme.Typo.display)
+                            .foregroundStyle(MonacoTheme.ink)
+                            .accessibilityAddTraits(.isHeader)
+                    }
                     subtext
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -129,7 +131,7 @@ private struct PhoneStepForm: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { BottomCTA { primaryButton } }
-        .monacoCanvas()
+        .background { if mode == .onboarding { MonacoCanvasBackground() } }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -306,7 +308,7 @@ extension PhoneStepForm {
                     BottomCTA { retryButton }
                 }
             }
-            .monacoCanvas()
+            .background { if mode == .onboarding { MonacoCanvasBackground() } }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { confirmingToolbar }

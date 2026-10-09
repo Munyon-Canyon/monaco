@@ -15,6 +15,10 @@ struct OnboardingNudgeBanner: View {
         Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })
     }
 
+    private var sheetTitle: String {
+        if case .linkX = opened { LinkCopy.xTitle } else { LinkCopy.phoneTitle }
+    }
+
     var body: some View {
         content
             .sheet(isPresented: isOpen) {
@@ -25,6 +29,7 @@ struct OnboardingNudgeBanner: View {
                     case nil: EmptyView()
                     }
                 }
+                .monacoSheet(title: sheetTitle)
                 .monacoToastCenter(toasts)
             }
     }
