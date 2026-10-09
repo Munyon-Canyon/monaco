@@ -40,7 +40,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 dev_tools=(
   apt-get awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
   docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt hdiutil head id
-  install jq just kill ln ls lsof magick mdutil mkdir mktemp mv npm npx oasdiff open pgrep
+  install jq just kill ln ls lsof magick mdutil mkdir mktemp mv nats npm npx oasdiff open pgrep
   pkill ps python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
   tar tee touch tr uname uuidgen wc xcode-select xcodebuild xcrun
 )
@@ -220,6 +220,16 @@ if ! have simslim; then
     if have brew; then
       brew tap mobai-app/tap
       brew install simslim || true
+    fi
+  fi
+fi
+
+# --- optional nats CLI ---
+if ! have nats; then
+  say "The nats CLI is optional. scripts/nats-staging.sh uses it to connect to staging NATS."
+  if ask_yes "Install the nats CLI with Homebrew (nats-io/nats-tools/nats)?"; then
+    if have brew; then
+      brew install nats-io/nats-tools/nats || true
     fi
   fi
 fi

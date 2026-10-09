@@ -6,7 +6,7 @@ The staging backend runs on Render, with Postgres on Supabase and NATS JetStream
 | --- | --- | --- |
 | api (`monaco-api`, web service) and worker (`monaco-worker`, background worker) | Render, Virginia, Starter plan | `render.yaml`, image from `apps/backend/deployments/Dockerfile` |
 | Postgres | Database `monaco_staging` in the Supabase project `monaco`, session pooler on port 5432 | `DATABASE_URL` in `.env.staging` |
-| NATS | Synadia Cloud, `tls://connect.ngs.global` | `NATS_CREDS` points at the Render secret file `/etc/secrets/nats.creds` |
+| NATS | Synadia Cloud, `tls://connect.ngs.global` | `NATS_CREDS` points at the Render secret file `/etc/secrets/nats.creds`, filled from `NATS_STAGING_CREDS` in `.env.staging` |
 
 Every push to `staging` that touches `apps/backend/**` or `render.yaml` redeploys both services. Before the api goes live, its pre-deploy command, `predeploy` (`apps/backend/deployments/predeploy.sh`), runs `monacoctl migrate apply` then `monacoctl bus apply`. Render runs that command without a shell, so `&&` or `sh -c "..."` in `render.yaml` does not work. The worker can start before that finishes. It then stops with `db_schema_behind`, and Render restarts it until the schema catches up.
 
@@ -41,7 +41,7 @@ Each service opens at most this many connections:
 4. Push the secrets and the NATS creds file into the env group:
 
    ```bash
-   scripts/render-staging-env.sh ~/.config/monaco/staging.creds
+   scripts/render-staging-env.sh
    ```
 
 5. Trigger a deploy (`render deploys create <service-id>`), then check `curl -fsS https://<api-host>/healthz`.
@@ -49,6 +49,10 @@ Each service opens at most this many connections:
 ## Change a secret
 
 Edit `.env.staging` with `dotenvx set`, rerun `scripts/render-staging-env.sh`, then redeploy both services. Env group changes reach a service only on its next deploy.
+
+## Connect to staging NATS
+
+`scripts/nats-staging.sh` decrypts `NATS_STAGING_CREDS` to `~/.config/monaco/staging.creds`, saves the nats CLI context `monaco-staging`, and selects it for the `nats-channel` Claude Code plugin. It needs the `.env.staging` private key. Then `nats --context monaco-staging stream ls` lists `EVENTS` and `DEADLETTER`, and `/reload-plugins` connects the plugin.
 
 ## Synadia limits
 
