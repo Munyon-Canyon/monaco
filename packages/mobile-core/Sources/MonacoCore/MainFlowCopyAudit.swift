@@ -86,5 +86,8 @@ public enum MainFlowCopyManifest {
             GroupChatCopy.closed,
             GroupChatCopy.notSent,
             GroupChatCopy.deleted,
+            CabalPause(reasons: ["external_deposit"]).message,
+            CabalPause(reasons: []).message,
+            CashOutJob.failure("sale_short"),
         ] + PreIpoCopy.auditedStrings + OnboardingCopy.auditedStrings + AccountCopy.auditedStrings
 }
