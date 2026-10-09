@@ -25,7 +25,26 @@ type Users struct {
 	testkit.Faults
 	mu    sync.Mutex
 	users map[app.PrivyUserID]app.PrivyUser
+	owned map[app.PrivyUserID][]chain.SolanaAddress
 	n     int
+}
+
+func (u *Users) SeedWallets(id app.PrivyUserID, addresses ...chain.SolanaAddress) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.owned == nil {
+		u.owned = map[app.PrivyUserID][]chain.SolanaAddress{}
+	}
+	u.owned[id] = addresses
+}
+
+func (u *Users) Wallets(_ context.Context, id app.PrivyUserID) ([]chain.SolanaAddress, error) {
+	if err := u.Check("Wallets"); err != nil {
+		return nil, err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.owned[id], nil
 }
 
 func (u *Users) Seed(user app.PrivyUser) {

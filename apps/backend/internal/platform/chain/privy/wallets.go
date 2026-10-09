@@ -117,3 +117,37 @@ func (c *Client) ListAppWallets(ctx context.Context) ([]chain.Wallet, error) {
 		cursor = page.NextCursor
 	}
 }
+
+func (c *Client) ListUserWallets(ctx context.Context, user UserID) ([]chain.SolanaAddress, error) {
+	const op = "privy.ListUserWallets"
+	var out []chain.SolanaAddress
+	cursor := ""
+	for {
+		var page struct {
+			Data       []walletWire `json:"data"`
+			NextCursor string       `json:"next_cursor"`
+		}
+		q := url.Values{"user_id": {string(user)}, "chain_type": {"solana"}, "limit": {"100"}}
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		if err := c.do(
+			ctx,
+			call{op: op, method: http.MethodGet, path: "/v1/wallets?" + q.Encode()},
+			&page,
+		); err != nil {
+			return nil, err
+		}
+		for _, w := range page.Data {
+			addr, err := chain.ParseAddress(w.Address)
+			if err != nil {
+				return nil, errs.New(errs.CodeDecodeFailed, op, slog.String("wallet_id", w.ID))
+			}
+			out = append(out, addr)
+		}
+		if page.NextCursor == "" || page.NextCursor == cursor {
+			return out, nil
+		}
+		cursor = page.NextCursor
+	}
+}

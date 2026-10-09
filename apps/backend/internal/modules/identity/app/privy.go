@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 )
 
 type PrivyUserID string
@@ -47,4 +48,5 @@ type MemberWallets interface {
 type PrivyDevUsers interface {
 	DevOnly(ctx context.Context, id PrivyUserID) (devOnly, found bool, err error)
 	Delete(ctx context.Context, id PrivyUserID) error
+	Wallets(ctx context.Context, id PrivyUserID) ([]chain.SolanaAddress, error)
 }

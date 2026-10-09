@@ -272,14 +272,62 @@ func TestDeleteDevUser_aRowItCannotReadStopsBeforePrivy(t *testing.T) {
 	}
 }
 
-func TestDeleteDevUser_aUserWithoutAWalletNeedsNoBalanceCheck(t *testing.T) {
-	t.Parallel()
-	f, _ := newDevDeleteFixture(t)
-	f.privy.Seed(app.PrivyUser{ID: f.privyID, Email: "dev-0a1b2c3d@example.com"})
+func (f devDeleteFixture) dropWalletRow(t *testing.T) {
+	t.Helper()
 	if _, err := f.pool.Exec(t.Context(), `DELETE FROM user_wallets`); err != nil {
 		t.Fatal(err)
 	}
-	f.balances.err = errs.New(errs.CodeRPCUnavailable, "test.rpc")
+}
+
+func TestDeleteDevUser_withoutAWalletRowChecksEveryWalletPrivyLists(t *testing.T) {
+	t.Parallel()
+	f, privy := newDevDeleteFixture(t)
+	f.privy.Seed(app.PrivyUser{ID: f.privyID, Email: "dev-0a1b2c3d@example.com"})
+	f.privy.SeedWallets(f.privyID, "WalletOne", "WalletTwo")
+	f.dropWalletRow(t)
+	f.balances.usdc = 1
+	var funded *app.FundedError
+	if err := app.DeleteDevUser(t.Context(), f.deps, f.made.UserID); !errors.As(err, &funded) ||
+		funded.Address != "WalletOne" || privy.deletes != 0 || f.count(t, "users") != 1 {
+		t.Fatalf("err %v, %d Privy deletes", err, privy.deletes)
+	}
+	f.balances.usdc = 0
+	if err := app.DeleteDevUser(t.Context(), f.deps, f.made.UserID); err != nil || f.balances.asked != "WalletTwo" ||
+		f.count(t, "users") != 0 {
+		t.Fatalf("err %v, asked %q", err, f.balances.asked)
+	}
+}
+
+func TestDeleteDevUser_withoutAWalletRowRefusesWhenPrivyListsNone(t *testing.T) {
+	t.Parallel()
+	f, privy := newDevDeleteFixture(t)
+	f.privy.Seed(app.PrivyUser{ID: f.privyID, Email: "dev-0a1b2c3d@example.com"})
+	f.dropWalletRow(t)
+	if err := app.DeleteDevUser(t.Context(), f.deps, f.made.UserID); errs.CodeOf(err) != errs.CodeInvalidInput ||
+		privy.deletes != 0 || f.count(t, "users") != 1 {
+		t.Fatalf("err %v, %d Privy deletes", err, privy.deletes)
+	}
+}
+
+func TestDeleteDevUser_withoutAWalletRowRefusesWhenTheListingFails(t *testing.T) {
+	t.Parallel()
+	f, privy := newDevDeleteFixture(t)
+	f.privy.Seed(app.PrivyUser{ID: f.privyID, Email: "dev-0a1b2c3d@example.com"})
+	f.privy.Fail("Wallets", errs.New(errs.CodePrivyUnavailable, "test.privy"))
+	f.dropWalletRow(t)
+	if err := app.DeleteDevUser(t.Context(), f.deps, f.made.UserID); errs.CodeOf(err) != errs.CodePrivyUnavailable ||
+		privy.deletes != 0 || f.count(t, "users") != 1 {
+		t.Fatalf("err %v, %d Privy deletes", err, privy.deletes)
+	}
+}
+
+func TestDeleteDevUser_withoutAWalletRowAndNoPrivyUserStillDeletes(t *testing.T) {
+	t.Parallel()
+	f, _ := newDevDeleteFixture(t)
+	f.dropWalletRow(t)
+	if err := f.privy.Delete(t.Context(), f.privyID); err != nil {
+		t.Fatal(err)
+	}
 	if err := app.DeleteDevUser(t.Context(), f.deps, f.made.UserID); err != nil || f.count(t, "users") != 0 {
 		t.Fatalf("err %v, %d users", err, f.count(t, "users"))
 	}

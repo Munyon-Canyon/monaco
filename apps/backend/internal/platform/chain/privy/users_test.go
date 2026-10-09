@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -254,4 +255,87 @@ func TestDeleteUser_deletesByIDAndSaysNotFoundForAMissingOne(t *testing.T) {
 		t.Fatalf("request = %s %s", req.method, req.path)
 	}
 	wantCode(t, c.DeleteUser(t.Context(), id), errs.CodeNotFound)
+}
+
+func TestListUsers_followsTheCursorAndReadsAgeIdentitiesAndWallet(t *testing.T) {
+	t.Parallel()
+	pages := map[string]string{
+		"": `{"data":[{"id":"did:privy:a","created_at":1760000000,"linked_accounts":[{"type":"email","address":"dev-a@example.com"},
+			{"type":"wallet","chain_type":"solana","wallet_client_type":"privy","id":"w","address":"Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf"}]}],
+			"next_cursor":"c 2"}`,
+		"c 2": `{"data":[{"id":"did:privy:b","created_at":1760000100,"linked_accounts":[{"type":"phone","number":"+1"},` +
+			`{"type":"email","address":"b@example.com"}]}]}`,
+	}
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, pages[r.URL.Query().Get("cursor")])
+	})}
+	got, err := client(u).ListUsers(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []privy.ListedUser{
+		{
+			ID: "did:privy:a", CreatedAt: time.Unix(1760000000, 0).UTC(), Email: "dev-a@example.com", Identities: 1,
+			Wallet: "Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf",
+		},
+		{ID: "did:privy:b", CreatedAt: time.Unix(1760000100, 0).UTC(), Email: "b@example.com", Identities: 2},
+	}
+	if !reflect.DeepEqual(got, want) || u.requests()[0].query != "limit=100" ||
+		u.requests()[1].query != "cursor=c+2&limit=100" {
+		t.Fatalf("ListUsers = %+v, query %q", got, u.requests()[1].query)
+	}
+	_, err = client(replying(http.StatusInternalServerError, `{}`)).ListUsers(t.Context())
+	wantCode(t, err, errs.CodePrivyUnavailable)
+}
+
+func TestListUsers_overTheFakesListsWhatWasCreated(t *testing.T) {
+	t.Parallel()
+	c, _, _ := overFakes(t)
+	for _, email := range []string{"dev-ab@example.com", "dev-cd@example.com"} {
+		if _, err := c.CreateUser(t.Context(), email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := c.ListUsers(t.Context())
+	if err != nil || len(got) != 2 || got[0].Email != "dev-ab@example.com" || got[1].ID != "did:privy:fake-2" {
+		t.Fatalf("ListUsers = %+v, %v", got, err)
+	}
+}
+
+func TestListUsers_stopsOnARepeatedCursorAndReadsNoCreationDateAsZero(t *testing.T) {
+	t.Parallel()
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":[{"id":"did:privy:a","linked_accounts":[]}],"next_cursor":"same"}`)
+	})}
+	got, err := client(u).ListUsers(t.Context())
+	if err != nil || len(got) != 2 || !got[0].CreatedAt.IsZero() || len(u.requests()) != 2 {
+		t.Fatalf("ListUsers = %+v, %v, %d requests", got, err, len(u.requests()))
+	}
+}
+
+func TestListUserWallets_pagesEveryWalletAndStopsOnARepeatedCursor(t *testing.T) {
+	t.Parallel()
+	a, b := "Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf", "BGQoQgGkjSQc6c5YjsyRjuj4M5LbYJMHVCdS8BJSrr2R"
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("cursor") {
+		case "":
+			_, _ = io.WriteString(w, `{"data":[{"id":"w1","address":"`+a+`"}],"next_cursor":"c2"}`)
+		default:
+			_, _ = io.WriteString(w, `{"data":[{"id":"w2","address":"`+b+`"}],"next_cursor":"c2"}`)
+		}
+	})}
+	got, err := client(u).ListUserWallets(t.Context(), "did:privy:a")
+	if err != nil || !reflect.DeepEqual(got, []chain.SolanaAddress{chain.SolanaAddress(a), chain.SolanaAddress(b)}) {
+		t.Fatalf("ListUserWallets = %v, %v", got, err)
+	}
+	if q := u.requests()[0].query; !strings.Contains(q, "user_id=did%3Aprivy%3Aa") ||
+		!strings.Contains(q, "limit=100") {
+		t.Fatalf("query %q", q)
+	}
+	_, err = client(replying(http.StatusInternalServerError, `{}`)).ListUserWallets(t.Context(), "did:privy:a")
+	wantCode(t, err, errs.CodePrivyUnavailable)
+	_, err = client(
+		replying(http.StatusOK, `{"data":[{"id":"w","address":"nope"}]}`),
+	).ListUserWallets(t.Context(), "did:privy:a")
+	wantCode(t, err, errs.CodeDecodeFailed)
 }

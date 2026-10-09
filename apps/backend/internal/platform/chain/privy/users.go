@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -24,6 +25,14 @@ type User struct {
 	X              *XAccount
 	EmbeddedWallet *chain.Wallet
 	Identities     int
+}
+
+type ListedUser struct {
+	ID         UserID
+	CreatedAt  time.Time
+	Email      string
+	Identities int
+	Wallet     chain.SolanaAddress
 }
 
 type linkedAccount struct {
@@ -106,6 +115,53 @@ func (c *Client) DeleteUser(ctx context.Context, id UserID) error {
 	return c.do(ctx, call{
 		op: "privy.DeleteUser", method: http.MethodDelete, path: "/v1/users/" + url.PathEscape(string(id)),
 	}, nil)
+}
+
+type listedWire struct {
+	ID             UserID          `json:"id"`
+	CreatedAt      int64           `json:"created_at"`
+	LinkedAccounts []linkedAccount `json:"linked_accounts"`
+}
+
+func (w listedWire) listed() ListedUser {
+	u := newUser(w.ID, w.LinkedAccounts)
+	listed := ListedUser{ID: w.ID, Email: u.Email, Identities: u.Identities}
+	if w.CreatedAt != 0 {
+		listed.CreatedAt = time.Unix(w.CreatedAt, 0).UTC()
+	}
+	if u.EmbeddedWallet != nil {
+		listed.Wallet = u.EmbeddedWallet.Address
+	}
+	return listed
+}
+
+func (c *Client) ListUsers(ctx context.Context) ([]ListedUser, error) {
+	var all []ListedUser
+	cursor := ""
+	for {
+		var page struct {
+			Data       []listedWire `json:"data"`
+			NextCursor string       `json:"next_cursor"`
+		}
+		q := url.Values{"limit": {"100"}}
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		if err := c.do(
+			ctx,
+			call{op: "privy.ListUsers", method: http.MethodGet, path: "/v1/users?" + q.Encode()},
+			&page,
+		); err != nil {
+			return nil, err
+		}
+		for _, w := range page.Data {
+			all = append(all, w.listed())
+		}
+		if page.NextCursor == "" || page.NextCursor == cursor {
+			return all, nil
+		}
+		cursor = page.NextCursor
+	}
 }
 
 func (u *User) link(a linkedAccount) {
