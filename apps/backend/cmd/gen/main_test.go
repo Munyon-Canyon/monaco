@@ -97,7 +97,9 @@ func TestAllRunsEveryStepInOrder(t *testing.T) {
 		names[i] = all[i].name
 		all[i].run = func() error { ran = append(ran, names[i]); return nil }
 	}
-	want := []string{"golangci", "registry", "sqlc", "errors", "openapi", "httpapi", "flows", "docs", "hash"}
+	want := []string{
+		"golangci", "registry", "sqlc", "errors", "openapi", "clientspec", "httpapi", "flows", "docs", "hash",
+	}
 	if !slices.Equal(names, want) {
 		t.Fatalf("steps = %v, want %v", names, want)
 	}

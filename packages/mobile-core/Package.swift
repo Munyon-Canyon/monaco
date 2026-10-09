@@ -53,9 +53,9 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux])),
             ] + moduleNames
         ),
-        // Sources/MonacoAPI/openapi.yaml is a symlink to apps/backend/api/openapi.yaml, not a
-        // copy: the generator plugin reads it through the sandbox in swift build, Xcode and the
-        // Linux container, so there is no second file to keep fresh.
+        // Sources/MonacoAPI/openapi.yaml is a generated copy (cmd/gen clientspec) of apps/backend/api/openapi.yaml
+        // without additionalProperties: false, not a symlink, so shipped builds ignore fields the server adds.
+        // The server keeps the strict schemas.
         .target(
             name: "MonacoAPI",
             dependencies: [
