@@ -48,6 +48,7 @@ public struct CabalPotSummary: Equatable, Sendable {
 
     public let potValue: String
     public let allTime: String
+    public let allTimeReturn: String?
     public let cash: String
     public let invested: String
     public let slice: Slice?
@@ -59,6 +60,9 @@ public struct CabalPotSummary: Equatable, Sendable {
     public init(_ pot: Components.Schemas.CabalPot) {
         potValue = UsdAmountFormatter.format(micros: pot.potValueMicros)
         allTime = UsdAmountFormatter.format(signedMicros: pot.pnlMicros)
+        allTimeReturn = pot.returnBps.map {
+            PercentFormatter.format(basisPoints: Int64($0), signed: true, fractionDigits: 1)
+        }
         cash = UsdAmountFormatter.format(micros: pot.cashMicros)
         invested = UsdAmountFormatter.format(micros: pot.holdings.reduce(0) { $0 + $1.valueMicros })
         slice = pot.me.map { me in

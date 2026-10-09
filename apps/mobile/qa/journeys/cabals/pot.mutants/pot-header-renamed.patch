@@ -16,4 +16,4 @@ index 4ca9cf6db..2c65156b6 100644
 +            Text("In the pool")
                  .font(MonacoTheme.Typo.callout)
                  .fixedSize(horizontal: false, vertical: true)
-                 .foregroundStyle(MonacoTheme.onHero)
+                 .foregroundStyle(MonacoTheme.secondaryText)

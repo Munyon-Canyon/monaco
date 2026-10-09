@@ -11,6 +11,7 @@ final class CabalPotSummaryTests: XCTestCase {
         XCTAssertEqual(summary.state, .invested)
         XCTAssertEqual(summary.potValue, "$1,000.00")
         XCTAssertEqual(summary.allTime, "+$0.73")
+        XCTAssertEqual(summary.allTimeReturn, "+0.1%")
         XCTAssertEqual(summary.cash, "$750.00")
         XCTAssertEqual(summary.invested, "$250.00")
         XCTAssertEqual(summary.slice, .stake(value: "$380.15", ofPot: "38% of the pot", gain: "+$0.15"))
@@ -42,6 +43,7 @@ final class CabalPotSummaryTests: XCTestCase {
         XCTAssertEqual(summary.state, .zero)
         XCTAssertEqual(summary.potValue, "$0.00")
         XCTAssertEqual(summary.allTime, "$0.00")
+        XCTAssertNil(summary.allTimeReturn)
         XCTAssertEqual(summary.slice, CabalPotSummary.Slice.none)
     }
 

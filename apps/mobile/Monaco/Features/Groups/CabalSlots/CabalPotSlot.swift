@@ -49,7 +49,7 @@ struct CabalPotBand: View {
             Text("In the pot")
                 .font(MonacoTheme.Typo.callout)
                 .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(MonacoTheme.onHero)
+                .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityAddTraits(.isHeader)
             content
         }
@@ -71,7 +71,7 @@ struct CabalPotBand: View {
                 .lineLimit(1)
                 .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
                 .accessibilityIdentifier("cabal-pot-value")
-            AllTimeChip(allTime: summary.allTime)
+            AllTimeChip(allTime: summary.allTime, allTimeReturn: summary.allTimeReturn)
             if summary.state != .zero {
                 CabalInkCaption("\(summary.invested) in stocks · \(summary.cash) cash", id: "cabal-pot-split")
             }
@@ -81,16 +81,19 @@ struct CabalPotBand: View {
 
 private struct AllTimeChip: View {
     let allTime: String
+    let allTimeReturn: String?
+
+    private var label: String { PnLBadge.label(dollarPnl: allTime, percentReturn: allTimeReturn) }
 
     var body: some View {
-        (Text(allTime).foregroundStyle(PnLTone(dollarPnl: allTime).color)
+        (Text(label).foregroundStyle(PnLTone(dollarPnl: allTime).color)
             + Text(" All time").foregroundStyle(MonacoTheme.secondaryText))
             .moneyFont(.caption)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("All-time gain")
-            .accessibilityValue(allTime)
+            .accessibilityValue(label)
             .accessibilityIdentifier("cabal-pot-all-time")
     }
 }
