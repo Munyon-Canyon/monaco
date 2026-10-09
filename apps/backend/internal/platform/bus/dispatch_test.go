@@ -684,3 +684,22 @@ func TestDispatch_aHandlerAppendsItsEventsAsTheSystemActorNamedForIt(t *testing.
 		t.Fatalf("follow-up event actor = %s:%s (err %v), want system:notify.echo", actorType, actorID, err)
 	}
 }
+
+func TestDispatch_deliveryIsFinalOnlyAtMaxDeliver(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	var finals []bool
+	own := bus.HandleOwn("trading.engine", func(_ context.Context, d bus.Delivery, _ events.SystemPinged) error {
+		finals = append(finals, d.Final)
+		return nil
+	})
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{own}})
+	_, msg := h.pingMsg(t)
+
+	reg.Dispatch(h.ctx(t), durable, fromMsg(msg, 1))
+	reg.Dispatch(h.ctx(t), durable, fromMsg(msg, bus.MaxDeliver-1))
+	reg.Dispatch(h.ctx(t), durable, fromMsg(msg, bus.MaxDeliver))
+	if want := []bool{false, false, true}; !slices.Equal(finals, want) {
+		t.Fatalf("Final = %v on deliveries 1, %d and %d, want %v", finals, bus.MaxDeliver-1, bus.MaxDeliver, want)
+	}
+}

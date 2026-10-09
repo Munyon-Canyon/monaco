@@ -1,6 +1,8 @@
+cabal_shares_short
 no_route
 slippage_exceeded
 swap_failed
 swap_not_found
 swap_not_retryable
 swap_not_stuck
+trade_not_started

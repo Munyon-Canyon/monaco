@@ -212,8 +212,8 @@ func sellConfirmed(s *scenario.Scenario) {
 
 func sellBlocked(s *scenario.Scenario) {
 	t := seedTrade(s, tradeOpts{sell: true, held: sellTokens - 1})
-	t.blocks(s, errs.CodeInsufficientFunds)
-	t.proposalEnds("execution_blocked", string(errs.CodeInsufficientFunds))(s)
+	t.blocks(s, errs.CodeCabalSharesShort)
+	t.proposalEnds("execution_blocked", string(errs.CodeCabalSharesShort))(s)
 }
 
 func F11ExecuteTradeAssetUntradable(s *scenario.Scenario) {

@@ -3,6 +3,7 @@ package trading_test
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -90,7 +91,7 @@ func refusalCases() []refusalCase {
 		{"sell short of the token amount", func(e *engineEnv, cmd *app.ExecuteTrade) {
 			*cmd = e.sell(50_000_000)
 			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 49_999_999)
-		}, errs.CodeInsufficientFunds, "49999999", "50000000"},
+		}, errs.CodeCabalSharesShort, "49999999", "50000000"},
 		{"no route", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.quote(usdcToken(), aaplxToken(), 0, false)
 		}, errs.CodeNoRoute, "0", "0"},
@@ -195,8 +196,55 @@ func TestExecuteTrade_aBuyAmountThatOverflowsWithTheFeeFails(t *testing.T) {
 	cmd := e.buy()
 	cmd.USDCMicros = money.MicrosFromUint64(math.MaxUint64)
 
-	if err := e.handle(t, e.delivery(t, cmd), cmd); err == nil || len(e.blocked(t, cmd.ProposalID)) != 0 {
-		t.Fatalf("err = %v, want the overflow to fail before any block", err)
+	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil || e.blockedCodes(t, cmd) != "trade_not_started" {
+		t.Fatalf("err = %v, blocked %q; want the overflow, which no retry fixes, blocked as trade_not_started",
+			err, e.blockedCodes(t, cmd))
+	}
+}
+
+func (e *engineEnv) blockedCodes(t *testing.T, cmd app.ExecuteTrade) string {
+	t.Helper()
+	blocked := e.blocked(t, cmd.ProposalID)
+	codes := make([]string, 0, len(blocked))
+	for _, b := range blocked {
+		codes = append(codes, b["code"].(string))
+	}
+	return strings.Join(codes, ",")
+}
+
+func TestExecuteTrade_aQuoteJupiterRejectsBlocksTheTradeAsNotStarted(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.jup.Fail("Quote", errs.New(errs.CodeJupiterRejected, "jupiter.Quote"))
+	cmd := e.buy()
+	d := e.delivery(t, cmd)
+
+	if err := e.handle(t, d, cmd); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.blockedCodes(t, cmd); got != "trade_not_started" || e.deliveryCode(t, d) != "trade_not_started" ||
+		len(e.swapsOf(t, cmd.ProposalID)) != 0 {
+		t.Fatalf("blocked %q, delivery %q, %d swaps; want one trade_not_started block and no swap",
+			got, e.deliveryCode(t, d), len(e.swapsOf(t, cmd.ProposalID)))
+	}
+}
+
+func TestExecuteTrade_aRetryableCheckErrorBlocksOnlyOnTheFinalDelivery(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.jup.Fail("Quote", errs.New(errs.CodeJupiterUnavailable, "jupiter.Quote"))
+	cmd := e.buy()
+	d := e.delivery(t, cmd)
+
+	if err := e.handle(t, d, cmd); errs.CodeOf(err) != errs.CodeJupiterUnavailable ||
+		e.recorded(t, d) || e.blockedCodes(t, cmd) != "" {
+		t.Fatalf("err = %v, recorded %v, blocked %q; want the error returned and nothing written",
+			err, e.recorded(t, d), e.blockedCodes(t, cmd))
+	}
+	d.Final = true
+	if err := e.handle(t, d, cmd); err != nil || e.blockedCodes(t, cmd) != "trade_not_started" {
+		t.Fatalf("err = %v, blocked %q; want the final delivery to block as trade_not_started",
+			err, e.blockedCodes(t, cmd))
 	}
 }
 

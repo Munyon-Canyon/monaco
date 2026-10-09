@@ -77,7 +77,7 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 	req, refused, err := h.check(ctx, cmd)
 	switch {
 	case err != nil:
-		return err
+		return h.checkFailed(ctx, d, cmd, err)
 	case refused.refused():
 		return h.block(ctx, d, cmd, refused)
 	}
@@ -93,6 +93,18 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 		_, err := d.Record(ctx, tx)
 		return err
 	})
+}
+
+func (h *ExecuteTradeHandler) checkFailed(ctx context.Context, d bus.Delivery, cmd ExecuteTrade, err error) error {
+	code := errs.CodeOf(err)
+	if errs.Retryable(code) && !d.Final {
+		return err
+	}
+	observability.Alert(ctx, observability.TradingEngineBlocked,
+		slog.String("proposal_id", cmd.ProposalID.String()), slog.String("cabal_id", cmd.CabalID.String()),
+		slog.String("code", string(code)), slog.Uint64("have", 0), slog.Uint64("need", 0),
+		slog.Any("err", err), slog.Bool("final", d.Final))
+	return h.block(ctx, d, cmd, refusal{code: errs.CodeTradeNotStarted})
 }
 
 func (h *ExecuteTradeHandler) claimed(ctx context.Context, d bus.Delivery, cmd ExecuteTrade) (bool, error) {
@@ -178,7 +190,11 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 		need = total.Uint64()
 	}
 	if have.Uint64() < need {
-		return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: need}, nil
+		code := errs.CodeInsufficientFunds
+		if cmd.Action == domain.ActionSell {
+			code = errs.CodeCabalSharesShort
+		}
+		return refusal{code: code, have: have.Uint64(), need: need}, nil
 	}
 	return refusal{}, nil
 }

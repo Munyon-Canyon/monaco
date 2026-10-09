@@ -177,11 +177,11 @@ func TestFlow11_ExecuteTrade_InsufficientFunds(t *testing.T) {
 		f.pass(
 			scenario.ExpectEvents(busevents.TypeTradeBlocked, 1),
 			scenario.ExpectEventPayload(busevents.TypeTradeBlocked, map[string]any{
-				"code": string(errs.CodeInsufficientFunds), "have": strconv.Itoa(sellUnits - 1),
+				"code": string(errs.CodeCabalSharesShort), "have": strconv.Itoa(sellUnits - 1),
 				"need": strconv.Itoa(sellUnits), "action": "sell", "symbol": "AAPLx",
 			}),
 			scenario.ExpectEvents(busevents.TypeTradeSubmitted, 0),
-			f.proposalIs("execution_blocked", string(errs.CodeInsufficientFunds)),
+			f.proposalIs("execution_blocked", string(errs.CodeCabalSharesShort)),
 		)
 	})
 }
