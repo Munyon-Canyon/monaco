@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -114,7 +115,11 @@ func (env *Env) stackSpecDiff(ctx context.Context, stack []PR, files []string) (
 		bases[pr.Base.Ref] = true
 	}
 	top := stack[slices.IndexFunc(stack, func(pr PR) bool { return !bases[pr.Head.Ref] })]
-	if _, err := env.git(ctx, "fetch", "--no-tags", "origin", top.Head.Ref); err != nil {
+	_, err := env.fetchOtherHead(top.Number)(ctx, "fetch", "--no-tags", "origin", top.Head.Ref)
+	if errors.Is(err, errStackGone) {
+		return specDiff{}, nil
+	}
+	if err != nil {
 		return specDiff{}, err
 	}
 	return env.diffSpec(ctx, files, "origin/"+env.Config.FeatureBranch, top.Head.SHA)

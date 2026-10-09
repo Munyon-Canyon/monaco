@@ -190,9 +190,15 @@ func TestForecast_saysSoWhenAStackHeadCannotBeFetched(t *testing.T) {
 	f.hub.on(list("/pulls?state=open"), []PR{pr(1, "gone", "fb", ""), pr(2, "b", "fb", "")})
 	f.hub.on(list("/pulls/1/files?"), []File{{Filename: flows.SpecPath}})
 	f.hub.on(list("/pulls/2/files?"), []File{})
+	f.hub.on(get("/pulls/1"), PR{Number: 1, State: "open"})
 	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || !strings.Contains(stdout, "flows: not checked: ") ||
 		!strings.Contains(stdout, "gone") {
 		t.Fatalf("code=%d stdout=%q", code, stdout)
+	}
+
+	f.hub.on(get("/pulls/1"), PR{Number: 1, State: "closed"})
+	if code, stdout, _ := f.agents(t, "forecast"); code != 0 || strings.Contains(stdout, "not checked") {
+		t.Fatalf("a stack that landed and lost its branch: code=%d stdout=%q", code, stdout)
 	}
 }
 

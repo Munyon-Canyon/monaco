@@ -41,6 +41,7 @@ type stackGH struct {
 	gitOut   map[string]string
 	gitCalls []string
 	gitFail  string
+	gitGone  string
 	openFail int
 	opens    int
 }
@@ -145,6 +146,9 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 		s.gitCalls = append(s.gitCalls, line)
 		if s.gitFail != "" && strings.HasPrefix(line, s.gitFail) {
 			return nil, errors.New("git broke")
+		}
+		if s.gitGone != "" && line == s.gitGone {
+			return nil, errors.New("exit status 128: fatal: couldn't find remote ref " + args[len(args)-1])
 		}
 		if out, ok := s.gitOut[line]; ok || args[0] == "fetch" || args[0] == "merge-tree" {
 			return []byte(out), nil

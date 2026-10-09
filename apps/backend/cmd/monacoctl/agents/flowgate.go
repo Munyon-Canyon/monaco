@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"regexp"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/tools/flows"
 )
+
+var errStackGone = errors.New("stack head is gone and its PR is closed")
 
 var landedRef = regexp.MustCompile(`\(#(\d+)\)\s*$`)
 
@@ -55,7 +58,7 @@ func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) (flowsW
 	if wait, err := env.migrationWait(ctx, stack); err != nil || wait.waiting != "" {
 		return wait, err
 	}
-	reg, mine, err := env.stackFlows(ctx, stack, top)
+	reg, mine, err := env.stackFlows(ctx, stack, top, false)
 	if err != nil || len(mine) == 0 {
 		return flowsWait{}, err
 	}
@@ -70,7 +73,7 @@ func (env *Env) flowGate(ctx context.Context, _ Record, stack []stackPR) (flowsW
 	return env.verifyMoved(ctx, top, moved)
 }
 
-func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR) (registry, []string, error) {
+func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR, other bool) (registry, []string, error) {
 	var changed []string
 	for _, p := range prs {
 		files, err := env.GitHub.Files(ctx, p.Number)
@@ -84,7 +87,11 @@ func (env *Env) stackFlows(ctx context.Context, prs []stackPR, top stackPR) (reg
 	if len(changed) == 0 {
 		return registry{}, nil, nil
 	}
-	if _, err := env.git(ctx, "fetch", "--no-tags", "origin", top.Head); err != nil {
+	fetch := env.git
+	if other {
+		fetch = env.fetchOtherHead(top.Number)
+	}
+	if _, err := fetch(ctx, "fetch", "--no-tags", "origin", top.Head); err != nil {
 		return registry{}, nil, err
 	}
 	reg, err := env.registryAt(ctx, top.HeadOID)
@@ -164,6 +171,20 @@ func (env *Env) filesAt(ctx context.Context, rev, dir string) (map[string]string
 	return files, nil
 }
 
+func (env *Env) fetchOtherHead(number int) func(context.Context, ...string) (string, error) {
+	return func(ctx context.Context, args ...string) (string, error) {
+		out, err := env.git(ctx, args...)
+		if err == nil || !strings.Contains(err.Error(), "couldn't find remote ref") {
+			return out, err
+		}
+		pr, prErr := env.GitHub.PR(ctx, number)
+		if prErr == nil && (pr.State == "closed" || pr.MergedAt != nil) {
+			return "", errStackGone
+		}
+		return out, err
+	}
+}
+
 func (env *Env) git(ctx context.Context, args ...string) (string, error) {
 	out, err := env.Run(ctx, env.Work, "", "git", args...)
 	return string(out), err
@@ -238,7 +259,10 @@ func (env *Env) sharedInQueue(ctx context.Context, stack []stackPR, mine []strin
 	}
 	var shared []string
 	for _, q := range queued {
-		_, theirs, err := env.stackFlows(ctx, q.prs, q.top)
+		_, theirs, err := env.stackFlows(ctx, q.prs, q.top, true)
+		if errors.Is(err, errStackGone) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
