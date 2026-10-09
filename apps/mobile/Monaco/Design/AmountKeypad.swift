@@ -2,6 +2,15 @@ import SwiftUI
 
 struct AmountKeypad: View {
     @Binding var amountText: String
+
+    var body: some View {
+        AmountKeypadGrid(amountText: $amountText)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+}
+
+private struct AmountKeypadGrid: View {
+    @Binding var amountText: String
     @ScaledMetric(relativeTo: .title) private var rowHeight: CGFloat = 56
 
     private static let rows: [[AmountKey]] = [
@@ -21,7 +30,6 @@ struct AmountKeypad: View {
                 }
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("amount-keypad")
     }

@@ -33,7 +33,7 @@ struct ProposeAmountScreen: View {
                 AmountEntry(
                     amountText: $amountText, max: max, presets: presets, helper: model.helperText,
                     overLimitHelper: model.overLimitHelper, problem: model.message(assetName: stock.name),
-                    input: .keypad, showsKeypad: !reasonFocused
+                    input: .keypad, showsKeypad: false
                 ) {
                     VStack(spacing: MonacoTheme.Space.s) {
                         if let note = model.sellQuantityNote { AmountEntryNote(note) }
@@ -64,9 +64,12 @@ struct ProposeAmountScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
-                Button(model.reviewTitle) { showsReview = true }.buttonStyle(.monacoPrimary)
-                    .disabled(!model.reviewEnabled(assetName: stock.name))
-                    .accessibilityIdentifier("propose-amount-review")
+                VStack(spacing: MonacoTheme.Space.s) {
+                    if !reasonFocused { AmountKeypad(amountText: $amountText) }
+                    Button(model.reviewTitle) { showsReview = true }.buttonStyle(.monacoPrimary)
+                        .disabled(!model.reviewEnabled(assetName: stock.name))
+                        .accessibilityIdentifier("propose-amount-review")
+                }
             }
         }
         .navigationDestination(isPresented: $showsReview) {
