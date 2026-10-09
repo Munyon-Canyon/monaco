@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 7
+version: 8
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -46,7 +46,7 @@ Starts on the form (S1).
 | S2.3 | tap twice | `create-group-submit` | | The cabal screen shows within 20 s: `cabal-header-name` is the typed name, and the form is gone. The second tap proves "Creating…" holds off a duplicate. Old app: Create pushed `GroupDetailView` |
 | S2.4 | wait | the toast | | "Cabal created." shows within 20 s of the S2.3 tap, read while the cabal screen loads because the toast stays up 2.5 s. Old app: the same toast over `GroupDetailView` |
 | S2.5 | wait | `cabal-member-count` | | Reads "1 member", the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
-| S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-list` ("Your cabals") within 10 s, exactly one card in it is named the typed name, and the dashed `cabals-list-new` ("+ New cabal") card is there. Old app: Back to `CabalsTabView`'s cabals strip |
+| S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-list` ("Your cabals") within 10 s, exactly one card in it is named the typed name, and the dashed `cabals-list-new` ("+ New cabal") card is hittable within 10 s of swiping the list. Old app: Back to `CabalsTabView`'s cabals strip |
 
 ### S3 A blank name cannot be submitted
 
@@ -71,14 +71,13 @@ A creates a cabal, B finds it by name and asks to join, A approves, and A finds 
 
 ## Ground truth
 
-After S2, `apps/mobile/qa/journeys/cabals/create-cabal.truth.sh` reads `GET /v1/me/cabals` and `GET /v1/cabals/{id}` with a dev token for actor A. The cabal S2 typed appears once, with `join_mode: request`, `voter_mode: list`, `threshold: unanimous`, `proposal_expiry_seconds: 3600`, and one member, actor A, with `can_vote: true`. Each check runs only when its scenario ran. After S4, the newest cabal named `QA duo <run>` has `join_mode: open` and two members.
+After S2, `apps/mobile/qa/journeys/cabals/create-cabal.truth.sh` reads `GET /v1/me/cabals` and `GET /v1/cabals/{id}` with a dev token for actor A. The cabal S2 typed appears once, with `join_mode: request`, `voter_mode: list`, `threshold: unanimous`, `proposal_expiry_seconds: 3600`, and one member, actor A, with `can_vote: true`. Each check runs only when its scenario ran. After S4, the newest cabal named `QA duo <run>` has `join_mode: request` and two members.
 
 ## Known failures on staging
 
-Every step's route, `POST /v1/cabals`, is live. Two steps are unstable on the dev stack:
+Every step's route, `POST /v1/cabals`, is live. The setup script removes actor A from every earlier `QA pot` and `QA duo` cabal before S2 and S4, so the Cabals list stays short and the dashed "+ New cabal" card is reached within 10 s. One step still depends on services outside the repo:
 
-- S2.6: actor A is in about 216 dev cabals, so the dashed "+ New cabal" card is past the 20-swipe limit of the list.
-- S2.3: creating a cabal depends on Privy treasury creation and public mainnet RPC, so the cabal screen can take longer than 20 s.
+- S2.3: creating a cabal depends on Privy treasury creation and public mainnet RPC, so the cabal screen can take longer than 20 s. On failure the journey attaches `app.debugDescription` and the last 50 lines of the api log (when `journey.py` started the backend) to the result.
 
 ## Not covered
 

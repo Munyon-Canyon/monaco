@@ -74,8 +74,24 @@ ready_actor() {
   fi
 }
 
-if [[ "$scenario" != S4 ]]; then
+leave_earlier_cabals() {
+  local id removed
+  id="$(user_id A)"
+  removed="$(sql -v id="$id" <<<"WITH gone AS (
+    DELETE FROM cabal_members m USING cabals c
+    WHERE m.cabal_id = c.id AND m.user_id = :'id' AND (c.name LIKE 'QA pot %' OR c.name LIKE 'QA duo %')
+    RETURNING 1
+  ) SELECT count(*) FROM gone")"
+  echo "left $removed earlier QA pot and QA duo cabals as A"
+}
+
+if [[ "$scenario" != S2 && "$scenario" != S4 ]]; then
   echo "seeded: nothing for $scenario"
+  exit 0
+fi
+
+leave_earlier_cabals
+if [[ "$scenario" == S2 ]]; then
   exit 0
 fi
 

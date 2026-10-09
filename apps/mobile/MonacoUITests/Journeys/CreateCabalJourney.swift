@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 7
+    static let version = 8
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -90,8 +90,9 @@ enum CreateCabalJourney {
                 createdToastLabel = toast.label
             }
             let hero = app.element("cabal-header-name")
+            let landed = JourneyDiagnostics.wait(for: hero, in: app, timeout: createdTimeout)
             XCTAssertTrue(
-                hero.waitForExistence(timeout: createdTimeout),
+                landed,
                 "S2.3: the cabal screen did not show within \(Int(createdTimeout)) s"
             )
             XCTAssertEqual(hero.label, name, "S2.3: the hero does not name the cabal")
@@ -123,10 +124,15 @@ enum CreateCabalJourney {
                 named.firstMatch.waitForExistence(timeout: formTimeout), "S2.6: '\(name)' is not on the Cabals list")
             XCTAssertEqual(named.count, 1, "S2.6: '\(name)' is on the Cabals list \(named.count) times")
             let newCard = app.buttons["cabals-list-new"]
-            for _ in 0..<20 where !newCard.exists {
-                list.swipeLeft(velocity: .fast)
-            }
+            swipeUntilHittable(newCard, in: list)
             XCTAssertTrue(newCard.exists, "S2.6: no + New cabal card on the Cabals list")
+        }
+    }
+
+    private static func swipeUntilHittable(_ element: XCUIElement, in list: XCUIElement) {
+        let deadline = Date().addingTimeInterval(10)
+        while !element.isHittable && Date() < deadline {
+            list.swipeLeft(velocity: .fast)
         }
     }
 
