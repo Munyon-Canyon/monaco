@@ -78,7 +78,9 @@ func main() {
 const fakeNpx = `#!/usr/bin/env bash
 printf 'npx %s | dir=%s api=%s privy=%s env=%s\n' "$*" "$(basename "$PWD")" "$VITE_MONACO_API_URL" "$VITE_PRIVY_APP_ID" "$VITE_PRIVY_ENV" >> "$CALLS"
 shift
-exec "$LISTENER" "$@"
+mkdir -p "$PWD/node_modules/.bin"
+cp "$LISTENER" "$PWD/node_modules/.bin/vite"
+exec "$PWD/node_modules/.bin/vite" "$@"
 `
 
 type recipeSandbox struct {
@@ -161,7 +163,7 @@ func newRecipeSandbox(t *testing.T) recipeSandbox {
 	fakebin := filepath.Join(t.TempDir(), "bin")
 	writeExecutable(t, filepath.Join(fakebin, "go"), fakeGo)
 	writeExecutable(t, filepath.Join(fakebin, "npx"), fakeNpx)
-	writeExecutable(t, filepath.Join(fakebin, "npm"), recordingStub)
+	writeExecutable(t, filepath.Join(fakebin, "npm"), recordingStub+"exit ${NPM_EXIT:-0}\n")
 	writeExecutable(t, filepath.Join(fakebin, "docker"), recordingStub)
 	writeExecutable(t, filepath.Join(fakebin, "dotenvx"), fakeDotenvx)
 	writeExecutable(t, filepath.Join(root, ".bin", "atlas"), recordingStub)
@@ -173,7 +175,7 @@ func newRecipeSandbox(t *testing.T) recipeSandbox {
 		"PATH="+fakebin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"CALLS="+calls,
 		// Long enough for the fund page, started beside api and worker, to be recorded before they exit.
-		"RECORDING_STUB="+recordingStub+"sleep 1\n",
+		"RECORDING_STUB="+recordingStub+"[[ -z \"${MONACO_FUND_PAGE_PORT:-}\" || \"$(basename \"$0\")\" == monacoctl ]] || echo \"leak $(basename \"$0\")\" >> \"$CALLS\"\nsleep 1\n",
 		"MONACO_LOG_DIR=",
 		"LISTENER="+listener,
 		fmt.Sprintf("MONACO_FUND_PAGE_PORT=%d", fundPort),
@@ -255,6 +257,12 @@ func TestJustRunBackend_startsTheFundPageAgainstTheLocalApi(t *testing.T) {
 
 	calls := s.just(t, "run", "backend")
 
+	for _, call := range calls {
+		if strings.HasPrefix(call, "leak ") {
+			t.Fatalf("%s was started with MONACO_FUND_PAGE_PORT, which the backend rejects as an unknown variable", call)
+		}
+	}
+	waitFor(t, "the fund page to stop when the recipe exits", func() bool { return !listening(s.fundPort) })
 	want := fmt.Sprintf("npx vite --port %d --strictPort | dir=web api=http://localhost:8080 privy=privy-test env=sandbox", s.fundPort)
 	if got := fundPageCalls(calls); len(got) != 1 || got[0] != want {
 		t.Fatalf("fund page calls = %q, want [%q]\nall calls:\n%s", got, want, strings.Join(calls, "\n"))
@@ -343,25 +351,101 @@ func TestJustRunBackend_startsWithoutNodeAndWarnsOnce(t *testing.T) {
 	}
 }
 
-func TestJustStopBackend_stopsTheFundPage(t *testing.T) {
-	s := newRecipeSandbox(t)
+// startFundListener listens on the sandbox's fund port, as this checkout's Vite when asVite and
+// as an unrelated program otherwise.
+func startFundListener(t *testing.T, s recipeSandbox, asVite bool) {
+	t.Helper()
 	listener := ""
 	for _, kv := range s.env {
 		if v, ok := strings.CutPrefix(kv, "LISTENER="); ok {
 			listener = v
 		}
 	}
-	page := exec.Command(listener, "--port", fmt.Sprint(s.fundPort))
+	if asVite {
+		root, err := filepath.EvalSymlinks(s.root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		vite := filepath.Join(root, "apps", "web", "node_modules", ".bin", "vite")
+		writeExecutable(t, vite, "")
+		data, err := os.ReadFile(listener)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeExecutable(t, vite, string(data))
+		listener = vite
+	}
+	page := exec.Command(listener, "--port", fmt.Sprint(s.fundPort), "--strictPort")
 	if err := page.Start(); err != nil {
 		t.Fatal(err)
 	}
 	go func() { _ = page.Wait() }()
 	t.Cleanup(func() { _ = page.Process.Kill() })
 	waitFor(t, "the fund page to listen", func() bool { return listening(s.fundPort) })
+}
+
+func TestJustStopBackend_stopsThisCheckoutsFundPage(t *testing.T) {
+	s := newRecipeSandbox(t)
+	startFundListener(t, s, true)
 
 	s.justWithEnv(t, nil, "stop", "backend")
 
 	waitFor(t, "nothing to listen on the fund page port", func() bool { return !listening(s.fundPort) })
+}
+
+func TestJustStopBackend_leavesAnUnrelatedListenerOnTheFundPort(t *testing.T) {
+	s := newRecipeSandbox(t)
+	startFundListener(t, s, false)
+
+	s.justWithEnv(t, nil, "stop", "backend")
+
+	time.Sleep(500 * time.Millisecond)
+	if !listening(s.fundPort) {
+		t.Fatal("just stop backend killed a listener that is not this checkout's fund page")
+	}
+}
+
+func TestJustRunBackend_skipsTheFundPageWhenOff(t *testing.T) {
+	s := newRecipeSandbox(t)
+
+	out, calls := s.justWithEnv(t, []string{"MONACO_FUND_PAGE_PORT=off"}, "run", "backend")
+
+	if got := fundPageCalls(calls); len(got) != 0 {
+		t.Fatalf("started the fund page while off: %q", got)
+	}
+	if strings.Contains(out, "fund page") {
+		t.Fatalf("off should be silent, got:\n%s", out)
+	}
+	for _, call := range calls {
+		if strings.HasPrefix(call, "leak ") {
+			t.Fatalf("%s was started with MONACO_FUND_PAGE_PORT", call)
+		}
+	}
+}
+
+func TestJustRunBackend_keepsTheBackendWhenTheInstallFails(t *testing.T) {
+	s := newRecipeSandbox(t)
+	if err := os.Remove(filepath.Join(s.root, "apps", "web", "node_modules")); err != nil {
+		t.Fatal(err)
+	}
+
+	out, calls := s.justWithEnv(t, []string{"NPM_EXIT=1"}, "run", "backend")
+
+	if !strings.Contains(out, "fund page not started: npm ci failed; see ") {
+		t.Fatalf("want the npm ci warning, got:\n%s", out)
+	}
+	if got := fundPageCalls(calls); len(got) != 0 {
+		t.Fatalf("started the fund page after a failed install: %q", got)
+	}
+	var started int
+	for _, call := range calls {
+		if name := strings.TrimSpace(call); name == "api" || name == "worker" {
+			started++
+		}
+	}
+	if started != 2 {
+		t.Fatalf("started %d of api and worker\nall calls:\n%s", started, strings.Join(calls, "\n"))
+	}
 }
 
 func TestJustKillports_stopsTheFundPageAndOnlyOurPorts(t *testing.T) {
@@ -371,19 +455,7 @@ func TestJustKillports_stopsTheFundPageAndOnlyOurPorts(t *testing.T) {
 		fmt.Sprintf("MONACO_HTTP_ADDR=:%d", freePort(t)),
 		fmt.Sprintf("MONACO_WORKER_HEALTH_ADDR=:%d", freePort(t)),
 	}
-	listener := ""
-	for _, kv := range s.env {
-		if v, ok := strings.CutPrefix(kv, "LISTENER="); ok {
-			listener = v
-		}
-	}
-	page := exec.Command(listener, "--port", fmt.Sprint(s.fundPort))
-	if err := page.Start(); err != nil {
-		t.Fatal(err)
-	}
-	go func() { _ = page.Wait() }()
-	t.Cleanup(func() { _ = page.Process.Kill() })
-	waitFor(t, "the fund page to listen", func() bool { return listening(s.fundPort) })
+	startFundListener(t, s, false)
 
 	s.justWithEnv(t, env, "killports")
 

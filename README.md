@@ -96,14 +96,10 @@ You can fund a group from **personal Phantom** (iOS app or browser extension). T
 
 **Add money** → **Pay with card or Apple Pay** opens the fund page. Locally that is `http://localhost:5173/fund`, which `just run backend` serves (it needs Node; `just install` offers it). If something else holds `:5173`, the page is skipped and the button opens a page that does not load.
 
-1. In a second terminal, start the fund page with Vite on port 5173. Use `PRIVY_APP_ID` from `just show-env`:
+1. `just run`.
+2. Tap **Add money** → **Pay with card or Apple Pay**.
 
-   ```bash
-   cd apps/web && npm ci && VITE_MONACO_API_URL=http://localhost:8080 VITE_PRIVY_APP_ID=<PRIVY_APP_ID> VITE_PRIVY_ENV=sandbox npx vite --port 5173
-   ```
-
-2. `just run`.
-3. Tap **Add money** → **Pay with card or Apple Pay**.
+To run the page on its own, see [apps/web/README.md](apps/web/README.md#fund-page-against-a-local-backend).
 
 `curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/fund` prints `200` when the page is up. The fund page and its variables are in [apps/web/README.md](apps/web/README.md#fund-page-against-a-local-backend).
 
