@@ -6,6 +6,7 @@ func init() {
 	register(
 		FundingDepositDuplicate,
 		FundingDepositCredited,
+		FundingCandidateRecorded,
 		FundingBalanceClamped,
 		FundingPauseChanged,
 		FundingWatchOwnTransfer,

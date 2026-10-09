@@ -417,16 +417,14 @@ func (p *DepositPoller) credit(
 		return false, errs.New(errs.CodeInternal, "funding.DepositPoller.credit")
 	}
 	credited, err := NewCreditDepositHandler(p.uow, p.hints).Handle(ctx, CreditDeposit{
-		ID:              p.ids.NewV7(),
-		UserID:          wallet.UserID,
-		WalletAddress:   wallet.Address,
-		TxSignature:     sig.Signature,
-		Amount:          amount,
-		Slot:            int64(sig.Slot),
-		BlockTime:       sig.BlockTime,
-		CreditedAt:      p.clock.Now(),
-		CursorSignature: sig.Signature,
-		DeferCursor:     true,
+		ID:            p.ids.NewV7(),
+		UserID:        wallet.UserID,
+		WalletAddress: wallet.Address,
+		TxSignature:   sig.Signature,
+		Amount:        amount,
+		Slot:          int64(sig.Slot),
+		BlockTime:     sig.BlockTime,
+		CreditedAt:    p.clock.Now(),
 	})
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeOf(err), "funding.DepositPoller.credit")
