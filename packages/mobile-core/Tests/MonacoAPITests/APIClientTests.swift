@@ -116,6 +116,64 @@ final class APIClientTests: XCTestCase {
             XCTAssertEqual(problem.message, "No such cabal.")
         }
     }
+
+    func testAnAccountDeletedAnswerEndsTheSessionNamingTheTokenSent() async throws {
+        let transport = StubTransport(Fixtures.problem(403, "account_deleted"))
+        let tokens = AccountDeletedRecorder(token: "t1")
+        let client = APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)
+
+        await assertThrows(.accountDeleted) { _ = try await client.ping(IdempotentSubmission()) }
+
+        let deleted = await tokens.deleted
+        XCTAssertEqual(deleted, ["t1"])
+    }
+
+    func testAnAccountDeletedAnswerEndsTheSessionOfAProviderThatOnlyEndsSessions() async throws {
+        let transport = StubTransport(Fixtures.problem(403, "account_deleted"))
+        let tokens = StubTokenProvider(token: "t1")
+
+        await assertThrows(.accountDeleted) {
+            _ = try await Fixtures.client(transport, tokens: tokens).ping(IdempotentSubmission())
+        }
+
+        let ended = await tokens.ended
+        XCTAssertEqual(ended, ["t1"])
+    }
+
+    func testAccountDeletedToTheDeleteCallEndsNothing() async throws {
+        let transport = StubTransport(Fixtures.problem(403, "account_deleted"))
+        let tokens = AccountDeletedRecorder(token: "t1")
+        let client = APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)
+
+        await assertThrows(.accountDeleted) {
+            try await SessionAPI(api: client).deleteAccount(submission: IdempotentSubmission())
+        }
+
+        let deleted = await tokens.deleted
+        XCTAssertEqual(deleted, [])
+    }
+
+    func testAnotherProblemEndsNothing() async throws {
+        let transport = StubTransport(Fixtures.problem(404, "not_found"))
+        let tokens = AccountDeletedRecorder(token: "t1")
+        let client = APIClient(serverURL: testServerURL, tokens: tokens, transport: transport)
+
+        _ = try? await client.ping(IdempotentSubmission())
+
+        let deleted = await tokens.deleted
+        XCTAssertEqual(deleted, [])
+    }
+}
+
+private actor AccountDeletedRecorder: MonacoAPI.AccessTokenProvider {
+    private let token: String
+    private(set) var deleted: [String] = []
+
+    init(token: String) { self.token = token }
+
+    func accessToken() async throws -> String? { token }
+    func refreshedToken(replacing _: String) async throws -> String? { nil }
+    func accountDeleted(rejectedToken: String) { deleted.append(rejectedToken) }
 }
 
 private actor DefaultToken: MonacoAPI.AccessTokenProvider {

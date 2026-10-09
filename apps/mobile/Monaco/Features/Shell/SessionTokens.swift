@@ -5,6 +5,7 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
     private let privyToken: @Sendable () async -> String?
     private let refresh: @Sendable (String) async throws -> String?
     private let signedOutHandler = Mutex<(@Sendable () -> Void)?>(nil)
+    private let accountDeletedHandler = Mutex<(@Sendable () -> Void)?>(nil)
     #if DEBUG
     private let devSession = Mutex<DevSession?>(nil)
     #endif
@@ -34,6 +35,10 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
         signedOutHandler.withLock { $0 = handler }
     }
 
+    func onAccountDeleted(_ handler: @escaping @Sendable () -> Void) {
+        accountDeletedHandler.withLock { $0 = handler }
+    }
+
     func accessToken() async throws -> String? {
         #if DEBUG
         if let token = devSession.withLock({ $0?.token }) { return token }
@@ -46,13 +51,11 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
     }
 
     func endSession(rejectedToken: String) async {
-        #if DEBUG
-        if let dev = devSession.withLock({ $0 }) {
-            if dev.token == rejectedToken { notifySignedOut() }
-            return
-        }
-        #endif
-        if await privyToken() == rejectedToken { notifySignedOut() }
+        if await isCurrent(rejectedToken) { notifySignedOut() }
+    }
+
+    func accountDeleted(rejectedToken: String) async {
+        if await isCurrent(rejectedToken) { accountDeletedHandler.withLock { $0 }?() }
     }
 
     func refreshedToken(replacing stale: String) async throws -> String? {
@@ -68,6 +71,13 @@ nonisolated final class SessionTokens: AccessTokenProvider, Sendable {
             notifySignedOut()
         }
         return fresh
+    }
+
+    private func isCurrent(_ token: String) async -> Bool {
+        #if DEBUG
+        if let dev = devSession.withLock({ $0 }) { return dev.token == token }
+        #endif
+        return await privyToken() == token
     }
 
     private func notifySignedOut() {

@@ -5,14 +5,18 @@ Sign out no longer ends the Privy session, so the tab bar stays. S3.3 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift b/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift
-index d34767771..e57fefe8d 100644
+index 88dd6e329..65959381f 100644
 --- a/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift
 +++ b/apps/mobile/Monaco/Features/Shell/AppEnvironment.swift
-@@ -159,7 +159,6 @@ final class AppEnvironment {
+@@ -162,11 +162,6 @@ final class AppEnvironment {
          #if DEBUG
          tokens.use(nil)
          #endif
--        await (expired ? endExpiredSession : endAuthSession)()
+-        if let reason {
+-            await endExpiredSession(reason)
+-        } else {
+-            await endAuthSession()
+-        }
+         clearSignedInState()
          viewer = nil
      }
- 
