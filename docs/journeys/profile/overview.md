@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 3
+version: 4
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -32,7 +32,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Profile tab | | Within 15 s, `profile-header` shows with `profile-display-name`, `profile-handle` reading "@" and the handle, and `profile-member-since` reading "Member since" with a month and year | `profile-root`, then `profile-header` |
-| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the band shows three columns, "In cabals", "All time" and "Cabals". `profile-stat-cabals` reads a whole number of 1 or more | The count badge on "Your cabals" (`cabalRows.count`) |
+| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the band shows three columns, "In cabals", "Return" and "Cabal" or "Cabals" by count. `profile-stat-cabals` reads a whole number of 1 or more | The count badge on "Your cabals" (`cabalRows.count`) |
 | S1.3 | scroll to | `cabal-row-{cabalID}` | | "Your cabals" shows, with the row for `cabalName` | `ProfileCabalsSection` rows |
 | S1.4 | scroll to | `profile-settings-row` | | The row reads "Settings" | None, new in spec ("Settings" row) |
 
@@ -79,7 +79,7 @@ Starts signed in (auth/sign-in). Every step here fails on staging until the rout
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S6.1 | tap | the Profile tab | | Within 15 s, `profile-stat-in-cabals` and `profile-stat-all-time` read a figure, not "Not available yet", and `profile-stats-coming` does not show | The old header's portfolio total |
+| S6.1 | tap | the Profile tab | | Within 15 s, `profile-stat-in-cabals` and `profile-stat-return` read a figure, not "Not available yet", and `profile-stats-coming` does not show | The old header's portfolio total |
 | S6.2 | scroll to | `cabal-row-{cabalID}` | | The row shows the cabal's value, and `profile-cabals-coming` ("Pot values show up here soon.") does not show | `ProfileCabalsSection` row value |
 
 ## Ground truth
@@ -90,7 +90,7 @@ Signing out ends the session the run opened, and nothing on A's account changes.
 
 | Step | What fails | Blocked by |
 | --- | --- | --- |
-| S6.1 | "In cabals" and "All time" show "—" with "Your totals show up here soon.", because no route serves the member's totals | #2140 |
+| S6.1 | "In cabals" and "Return" show "—" with "Your totals show up here soon.", because no route serves the member's totals | #2140 |
 | S6.2 | Your cabals rows show no value, with "Pot values show up here soon.", because no route serves the pot or the member's slice | #2140, #2136 |
 
 ## Not covered

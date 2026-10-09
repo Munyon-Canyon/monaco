@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 3
+    static let version = 4
 
     static let notYet = "Not available yet"
     static let signOutTitle = "Sign out of Monaco?"
@@ -60,8 +60,9 @@ enum ProfileOverviewJourney {
                 "S1.2: 'Cabals' reads '\(app.element("profile-stat-cabals").label)', not a count of 1 or more")
             XCTAssertTrue(
                 app.element("profile-stat-in-cabals").label.contains("In cabals"), "S1.2: no 'In cabals' column")
-            XCTAssertTrue(app.element("profile-stat-all-time").label.contains("All time"), "S1.2: no 'All time' column")
-            XCTAssertTrue(app.element("profile-stat-cabals").label.contains("Cabals"), "S1.2: no 'Cabals' column")
+            XCTAssertTrue(app.element("profile-stat-return").label.contains("Return"), "S1.2: no 'Return' column")
+            XCTAssertTrue(
+                app.element("profile-stat-cabals").label.contains("Cabal"), "S1.2: no 'Cabal' or 'Cabals' column")
         }
 
         recorder.step("S1.3", "find the cabal under Your cabals") {
@@ -189,7 +190,7 @@ enum ProfileOverviewJourney {
                 app.element("profile-stat-in-cabals").label.contains(notYet),
                 "S6.1: 'In cabals' shows no figure (#2140)")
             XCTAssertFalse(
-                app.element("profile-stat-all-time").label.contains(notYet), "S6.1: 'All time' shows no figure (#2140)")
+                app.element("profile-stat-return").label.contains(notYet), "S6.1: 'Return' shows no figure (#2140)")
             XCTAssertFalse(
                 app.element("profile-stats-coming").exists, "S6.1: 'Your totals show up here soon.' shows (#2140)")
         }
