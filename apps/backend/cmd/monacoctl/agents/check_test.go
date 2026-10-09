@@ -263,6 +263,28 @@ func TestAffectedTests_selectsAGlobTheTestFileDeclares(t *testing.T) {
 	}
 }
 
+func TestAffectedTests_aChangedScriptsTestFileRunsTheTestsThatScanScriptsTests(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "scripts", "executable_writes_test.go"), ""+
+		"package scripts_test\n\n"+
+		"func TestScriptsTests_writeExecutablesThroughForkLockedHelper(t *testing.T) {}\n")
+	writeFile(t, filepath.Join(dir, "scripts", "ci_path_filter_test.go"), ""+
+		"package scripts_test\n\n"+
+		"func TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges(t *testing.T) {}\n")
+	env := &Env{Work: dir}
+	want := []string{
+		"TestCIPathFilter_scriptsRunWhenAFileTheyReadChanges",
+		"TestScriptsTests_writeExecutablesThroughForkLockedHelper",
+	}
+	for _, changed := range []string{"scripts/new_thing_test.go", "scripts/sub/new_thing_test.go"} {
+		got, py := env.affectedTests([]string{changed})
+		if len(py) != 0 || !slices.Equal(got["."], want) {
+			t.Fatalf("%s: tests %#v python %#v", changed, got, py)
+		}
+	}
+}
+
 func TestCheck_aChangeToAFileAScriptsTestReadsRunsThatTest(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

@@ -884,8 +884,11 @@ func (env *Env) affectedTests(changed []string) (goTests map[string][]string, py
 }
 
 func scannedGlobHit(testFile, changed string) bool {
+	scriptsTestGlobs := []string{"scripts/*_test.go", "scripts/*/*_test.go", "scripts/*/*/*_test.go"}
 	globs := map[string][]string{
-		"tool_manifest_test.go": strings.Split(toolManifestTestGlobs, "\n"),
+		"tool_manifest_test.go":     strings.Split(toolManifestTestGlobs, "\n"),
+		"executable_writes_test.go": scriptsTestGlobs,
+		"ci_path_filter_test.go":    scriptsTestGlobs,
 	}
 	for _, glob := range globs[path.Base(testFile)] {
 		if ok, err := path.Match(glob, changed); err == nil && ok {
