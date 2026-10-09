@@ -25,6 +25,8 @@ import (
 const (
 	depositWatchDirtyBatch = 500
 	depositWatchStopBefore = 5 * time.Second
+
+	depositWatchStopDivisor = 5
 )
 
 type watchBudget struct {
@@ -34,10 +36,10 @@ type watchBudget struct {
 
 type watchBudgetKey struct{}
 
-func newWatchBudget(ctx context.Context, calls int) *watchBudget {
+func newWatchBudget(ctx context.Context, calls int, period time.Duration) *watchBudget {
 	b := &watchBudget{left: calls}
 	if deadline, ok := ctx.Deadline(); ok {
-		b.stopAt = deadline.Add(-depositWatchStopBefore)
+		b.stopAt = deadline.Add(-min(depositWatchStopBefore, period/depositWatchStopDivisor))
 	}
 	return b
 }
@@ -96,7 +98,7 @@ func (*DepositWatch) Name() string { return "funding.deposit_watch" }
 func (p *DepositWatch) Interval() time.Duration { return p.period }
 
 func (p *DepositWatch) Tick(ctx context.Context) (poller.Report, error) {
-	budget := newWatchBudget(ctx, p.calls)
+	budget := newWatchBudget(ctx, p.calls, p.period)
 	ctx = context.WithValue(ctx, watchBudgetKey{}, budget)
 	steps := []watchStep{
 		{"gate", p.gate},

@@ -83,8 +83,9 @@ func TestNewRPCLimiterDefaultsToTwentyPerSecond(t *testing.T) {
 			t.Fatalf("NewRPCLimiter(%d) = %v/%d, want %v/%d", tc.in, l.Limit(), l.Burst(), tc.limit, tc.burst)
 		}
 	}
-	if p := NewDepositPoller(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil); p.Interval() != time.Second {
-		t.Fatalf("interval = %s", p.Interval())
+	p := NewDepositPoller(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil)
+	if p.Interval() != time.Second || p.Name() != "funding.deposit_watch" {
+		t.Fatalf("interval/name = %s/%s", p.Interval(), p.Name())
 	}
 }
 

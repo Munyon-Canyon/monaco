@@ -14,7 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func TestDepositWatchJ2_CrashAfterCandidateLeavesCandidatesAndCheckpointTogether(t *testing.T) {
+func TestFlow05_CreditDeposit_CrashAfterCandidate(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})

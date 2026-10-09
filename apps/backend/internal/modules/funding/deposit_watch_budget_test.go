@@ -24,6 +24,13 @@ import (
 func budgetedWatch(
 	pool *pgxpool.Pool, now time.Time, wallets []identity.MemberWallet, rpc *watchRPC, calls int, uowID, watchID uint64,
 ) *app.DepositWatch {
+	return budgetedWatchEvery(pool, now, wallets, rpc, calls, app.DepositPollInterval, uowID, watchID)
+}
+
+func budgetedWatchEvery(
+	pool *pgxpool.Pool, now time.Time, wallets []identity.MemberWallet, rpc *watchRPC, calls int,
+	period time.Duration, uowID, watchID uint64,
+) *app.DepositWatch {
 	rpc.pool = pool
 	return app.NewDepositWatch(
 		pool,
@@ -33,7 +40,7 @@ func budgetedWatch(
 		fakes.NewIdentity(nil, wallets),
 		rpc,
 		testkit.USDCMint,
-		app.DepositPollInterval,
+		period,
 		unlimited(),
 		calls,
 		watchTuning(),
@@ -136,6 +143,26 @@ func TestDepositWatchStopsFiveSecondsBeforeTheTickDeadline(t *testing.T) {
 	_, err = budgetedWatch(pool, earlyNow, wallets, &rpc, 480, 66, 67).Tick(early)
 	if err != nil || rpc.signCalls != 1 {
 		t.Fatalf("early Tick error = %v with %d calls; want one scan", err, rpc.signCalls)
+	}
+}
+
+func TestDepositWatchStopsAFifthOfAShortIntervalBeforeTheTickDeadline(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	seedWatchAccount(t, pool, user)
+	wallets := []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}
+	rpc := watchRPC{}
+	late, lateNow := tickWithRemaining(t, 300*time.Millisecond)
+	watch := budgetedWatchEvery(pool, lateNow, wallets, &rpc, 480, 2*time.Second, 68, 69)
+	if _, err := watch.Tick(late); err != nil || rpc.signCalls != 0 {
+		t.Fatalf("late Tick error = %v with %d calls; want none in the last 400ms of a 2s interval",
+			err, rpc.signCalls)
+	}
+	early, earlyNow := tickWithRemaining(t, 500*time.Millisecond)
+	watch = budgetedWatchEvery(pool, earlyNow, wallets, &rpc, 480, 2*time.Second, 70, 71)
+	if _, err := watch.Tick(early); err != nil || rpc.signCalls != 1 {
+		t.Fatalf("early Tick error = %v with %d calls; want one scan outside the 400ms margin", err, rpc.signCalls)
 	}
 }
 

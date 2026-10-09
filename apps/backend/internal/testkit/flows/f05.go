@@ -22,8 +22,6 @@ const (
 	depositCreditPoll   = 50 * time.Millisecond
 )
 
-func scannedBeforeEveryWallet() time.Time { return time.Unix(-1, 0).UTC() }
-
 func (defined) WorkerEnvF05() []string { return []string{"FUNDING_DEPOSIT_POLL_INTERVAL=2s"} }
 
 func F05CreditDepositOK(s *scenario.Scenario) {
@@ -100,6 +98,34 @@ func F05CreditDepositRPCUnavailable(s *scenario.Scenario) {
 func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 	user := testkit.SeedUser(seedT{s}, s.DB(), testkit.UserOpts{WithWallet: true})
 	user.Address = chain.SolanaAddress(depositWallet)
+	ata, err := chain.AssociatedTokenAccount(user.Address, testkit.USDCMint, chain.SPLProgram)
+	if err != nil {
+		s.Fatalf("flows: derive deposit account: %v", err)
+	}
+	if _, err := s.DB().Exec(
+		s.Context(),
+		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at)
+		VALUES ($1, $2, 0, now(), now() + interval '1 day')
+		ON CONFLICT (wallet_address) DO UPDATE
+		SET user_id = EXCLUDED.user_id, first_seen_slot = 0, discovery_due_at = EXCLUDED.discovery_due_at`,
+		user.Address,
+		user.ID.UUID(),
+	); err != nil {
+		s.Fatalf("flows: seed deposit watch wallet: %v", err)
+	}
+	if _, err := s.DB().Exec(
+		s.Context(),
+		`INSERT INTO deposit_watch_accounts (
+			token_account, wallet_address, canonical, state, dirty_gen, recovery_due_at)
+		VALUES ($1, $2, true, 'open', 1, now() + interval '1 day')
+		ON CONFLICT (token_account) DO UPDATE SET wallet_address = EXCLUDED.wallet_address, canonical = true, state = 'open', high_signature = NULL, high_slot = 0,
+			page_before = NULL, page_top_signature = NULL, page_top_slot = NULL, recovery_before = NULL,
+			recovery_due_at = EXCLUDED.recovery_due_at, dirty_gen = deposit_watch_accounts.clean_gen + 1`,
+		ata,
+		user.Address,
+	); err != nil {
+		s.Fatalf("flows: seed deposit watch account: %v", err)
+	}
 	if _, err := s.DB().Exec(s.Context(), `DELETE FROM user_wallets WHERE address = $1`, user.Address); err != nil {
 		s.Fatalf("flows: clear deposit wallet: %v", err)
 	}
@@ -110,15 +136,6 @@ func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 		user.ID.UUID(),
 	); err != nil {
 		s.Fatalf("flows: update deposit wallet: %v", err)
-	}
-	if _, err := s.DB().Exec(
-		s.Context(),
-		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
-		VALUES ($1, '', 0, $2) ON CONFLICT (wallet_address) DO NOTHING`,
-		user.Address,
-		scannedBeforeEveryWallet(),
-	); err != nil {
-		s.Fatalf("flows: seed deposit cursor: %v", err)
 	}
 	return user
 }
