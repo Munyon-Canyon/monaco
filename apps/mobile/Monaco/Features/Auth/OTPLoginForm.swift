@@ -220,7 +220,7 @@ struct OTPLoginForm: View {
             Task { await sendCode() }
         }
         .focused($focusedField, equals: .address)
-        .authTextFieldStyle(isFocused: focusedField == .address)
+        .authTextFieldStyle(isFocused: focusedField == .address, focus: { focusedField = .address })
         .accessibilityIdentifier(destination.addressFieldIdentifier)
     }
 
@@ -229,7 +229,8 @@ struct OTPLoginForm: View {
             code: $otpCode,
             isFocused: focusedField == .code,
             isInvalid: codeWasRejected,
-            identifier: "\(destination.identifierPrefix)CodeField"
+            identifier: "\(destination.identifierPrefix)CodeField",
+            focus: { focusedField = .code }
         ) { code in
             // Autofill drops all six digits in at once: don't make them tap Continue too.
             guard !auth.flow.isBusy else { return }
