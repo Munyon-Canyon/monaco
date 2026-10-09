@@ -40,6 +40,39 @@ func (q *Queries) AdvanceDepositCursor(ctx context.Context, arg AdvanceDepositCu
 	return err
 }
 
+const applyDepositWatchObservation = `-- name: ApplyDepositWatchObservation :execrows
+UPDATE deposit_watch_accounts
+SET state = $2::text,
+    last_amount = $3::text::numeric,
+    observed_slot = $4::bigint,
+    dirty_gen = dirty_gen + CASE WHEN $5::bool THEN 1 ELSE 0 END,
+    dirty_slot = CASE WHEN $5::bool THEN GREATEST(dirty_slot, $4::bigint)
+      ELSE dirty_slot END
+WHERE token_account = $1 AND observed_slot <= $4::bigint AND state <> 'foreign'
+`
+
+type ApplyDepositWatchObservationParams struct {
+	TokenAccount string
+	State        string
+	LastAmount   string
+	ObservedSlot int64
+	Dirty        bool
+}
+
+func (q *Queries) ApplyDepositWatchObservation(ctx context.Context, arg ApplyDepositWatchObservationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, applyDepositWatchObservation,
+		arg.TokenAccount,
+		arg.State,
+		arg.LastAmount,
+		arg.ObservedSlot,
+		arg.Dirty,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const checkpointDepositWatchPage = `-- name: CheckpointDepositWatchPage :exec
 UPDATE deposit_watch_accounts
 SET page_before = $2::text,
@@ -231,6 +264,53 @@ func (q *Queries) DepositWatchDirtyAccounts(ctx context.Context, limit int32) ([
 			&i.ObservedSlot,
 			&i.HighSignature,
 			&i.PageBefore,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const depositWatchGateAccounts = `-- name: DepositWatchGateAccounts :many
+SELECT token_account, wallet_address, state, last_amount::text AS last_amount, observed_slot
+FROM deposit_watch_accounts
+WHERE state <> 'foreign' AND token_account > $1
+ORDER BY token_account
+LIMIT $2
+`
+
+type DepositWatchGateAccountsParams struct {
+	TokenAccount string
+	Limit        int32
+}
+
+type DepositWatchGateAccountsRow struct {
+	TokenAccount  string
+	WalletAddress string
+	State         string
+	LastAmount    string
+	ObservedSlot  int64
+}
+
+func (q *Queries) DepositWatchGateAccounts(ctx context.Context, arg DepositWatchGateAccountsParams) ([]DepositWatchGateAccountsRow, error) {
+	rows, err := q.db.Query(ctx, depositWatchGateAccounts, arg.TokenAccount, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DepositWatchGateAccountsRow
+	for rows.Next() {
+		var i DepositWatchGateAccountsRow
+		if err := rows.Scan(
+			&i.TokenAccount,
+			&i.WalletAddress,
+			&i.State,
+			&i.LastAmount,
+			&i.ObservedSlot,
 		); err != nil {
 			return nil, err
 		}
