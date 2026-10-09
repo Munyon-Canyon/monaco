@@ -107,6 +107,24 @@ final class ChatSessionDeleteTests: XCTestCase {
         XCTAssertEqual(current.timeline.rows.map(\.id), [])
     }
 
+    func testAThreadUpdateToNoRepliesRemovesADeletedParentAndKeepsALiveOne() async throws {
+        let mine = Fixtures.message("m1", author: Fixtures.viewerID, minutes: 1, replyCount: 1)
+        let live = Fixtures.message("m2", minutes: 2, replyCount: 1)
+        let transport = StubTransport(scripted: [try Fixtures.page([mine, live]), Fixtures.noContent])
+        let session = Fixtures.session(transport)
+        await session.open()
+        _ = await session.delete(messageId: "m1")
+        let placeholder = await Fixtures.state(session)
+        XCTAssertEqual(placeholder.timeline.rows.first(where: { $0.id == "m1" })?.isPlaceholder, true)
+
+        await session.apply(.threadUpdated(id: "m1", replyCount: 0, lastReplyAt: Fixtures.epoch))
+        await session.apply(.threadUpdated(id: "m2", replyCount: 0, lastReplyAt: Fixtures.epoch))
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["m2"])
+        XCTAssertEqual(state.timeline.rows.first?.message.replyCount, 0)
+    }
+
     private func threadState(_ thread: ThreadSession) async -> ThreadSession.State {
         for await state in await thread.states() { return state }
         preconditionFailure("states ended")
