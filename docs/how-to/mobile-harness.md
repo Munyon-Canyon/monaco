@@ -24,7 +24,7 @@ final class HomeSampleHarnessEntry: SampleHarnessEntry {
 
 `SampleHarnessRegistry.requestedRoot(auth:)` asks every direct subclass. One match becomes the window's root. Two matches trip an assertion. No match falls through to `AuthGateView`, which is the login screen.
 
-Launch flags stay exactly as they are (`-MonacoHomeSample populated`, `-MonacoCabalsTabSample`, `-MonacoDesignGallery`, `-MonacoChatSampleQA`, and the rest). `scripts/qa/screens.sh --check` fails when a new `-Monaco…Sample` or `-Monaco…Gallery` flag, or a new scenario case, has no line in `scripts/qa/sample-screens.txt`.
+Launch flags stay exactly as they are (`-MonacoHomeSample populated`, `-MonacoCabalsTabSample`, `-MonacoDesignGallery`, `-MonacoChatSampleQA`, and the rest). `scripts/qa/screens.sh --check` fails in both directions. A new `-Monaco…Sample`, `-Monaco…Gallery` or `-…Harness` flag, or a new scenario case, with no line in `scripts/qa/sample-screens.txt` fails it. So does a line whose flag or scenario no harness reads, which is how a deleted harness leaves a gallery shot that shows the login screen. The Journeys CI job runs it.
 
 ## Flow scenarios
 

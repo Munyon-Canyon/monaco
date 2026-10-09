@@ -1,6 +1,7 @@
 # Screens for the QA screenshot gallery, one per line: <file name> <launch arguments...>
 # Every screen is a Debug sample harness: canned data, no backend, no sign-in.
-# `scripts/qa/screens.sh --check` fails when a harness flag or scenario in the app is missing here.
+# `scripts/qa/screens.sh --check` fails when a harness flag or scenario in the app is missing here,
+# and when a line launches a flag or scenario that no harness reads.
 
 design-gallery-primitives     -MonacoDesignGallery -MonacoDesignGalleryTab primitives
 design-gallery-money          -MonacoDesignGallery -MonacoDesignGalleryTab money
@@ -23,20 +24,6 @@ group-nav-create              -MonacoGroupNavSample create
 group-detail-populated        -MonacoGroupDetailSample populated
 group-detail-empty            -MonacoGroupDetailSample empty
 group-detail-loading          -MonacoGroupDetailSample loading
-group-detail-details          -MonacoGroupDetailSample details
-group-detail-propose          -MonacoGroupDetailSample propose
-group-detail-cash-out         -MonacoGroupDetailSample cashOut
-
-proposal-feed                 -MonacoProposalFeedSample
-proposal-detail-commented     -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-0
-proposal-detail-sell          -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-1
-proposal-detail-add-agent     -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-2
-proposal-detail-read-only     -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-3
-proposal-detail-passed        -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-20
-proposal-detail-failed        -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-21
-proposal-detail-swapping      -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-22
-propose-cabal                 -MonacoProposalFeedSample -MonacoProposeSample
-propose-sheet                 -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleOpen
 
 profile-placeholder           -MonacoProfileSample placeholder
 profile-photo                 -MonacoProfileSample photo
@@ -54,14 +41,9 @@ chat-offline                  -MonacoChatSampleQA -MonacoChatSampleOffline
 cabals-tab-unavailable        -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsUnavailable
 cabals-tab-loading            -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario cabalsLoading
 cabal-invites                 -MonacoCabalInvitesSample
-join-cabal-open               -MonacoJoinCabalSample open
-join-cabal-request            -MonacoJoinCabalSample request
 cabals-search                 -MonacoCabalsSearchSample
-cabal-join-open               -MonacoCabalJoinSample open
 cabal-join-request            -MonacoCabalJoinSample request
 cabal-join-creator            -MonacoCabalJoinSample creator
-
-propose-from-stock            -MonacoProposalFeedSample -MonacoProposeSampleStock
 
 chat-busy                     -MonacoChatSampleQA -MonacoChatSampleBusy
 chat-closed-first-load        -MonacoChatSampleQA -MonacoChatSampleClosedFirstLoad
@@ -83,62 +65,17 @@ cabal-no-picture              -MonacoGroupDetailSample noPicture
 cabal-picture-not-creator     -MonacoGroupDetailSample pictureNotCreator
 cabal-picture-upload-failure  -MonacoGroupDetailSample pictureUploadFailure
 
-stocks-tab-full               -MonacoStocksTabSample full
-stocks-tab-no-cabals          -MonacoStocksTabSample noCabals
-stocks-tab-cabals-failed      -MonacoStocksTabSample cabalsFailed
-stocks-tab-cabals-stale       -MonacoStocksTabSample cabalsStale
-stocks-tab-popular-failed     -MonacoStocksTabSample popularFailed
-stocks-tab-loading            -MonacoStocksTabSample loading
-stocks-tab-no-series          -MonacoStocksTabSample noSeries
-stocks-tab-after-hours        -MonacoStocksTabSample afterHours
-
 asset-open                    -MonacoAssetDetailSample open
-asset-after-hours             -MonacoAssetDetailSample afterHours
-asset-pre-market              -MonacoAssetDetailSample preMarket
-asset-holiday                 -MonacoAssetDetailSample holiday
 asset-sparse                  -MonacoAssetDetailSample sparse
-asset-jupiter-fallback        -MonacoAssetDetailSample jupiterFallback
-asset-not-entitled            -MonacoAssetDetailSample notEntitled
+asset-untradable              -MonacoAssetDetailSample untradable
 asset-fallback-series         -MonacoAssetDetailSample fallbackSeries
 asset-empty-chart             -MonacoAssetDetailSample emptyChart
 asset-chart-failed            -MonacoAssetDetailSample chartFailed
 asset-loading                 -MonacoAssetDetailSample loading
-asset-ticking                 -MonacoAssetDetailSample ticking
-asset-slow-range              -MonacoAssetDetailSample slowRange
-asset-stale-range             -MonacoAssetDetailSample staleRange
-asset-ticking-chart           -MonacoAssetDetailSample tickingChart
-asset-cabals                  -MonacoAssetDetailSample cabals
-asset-one-cabal               -MonacoAssetDetailSample oneCabal
-asset-no-cabals               -MonacoAssetDetailSample noCabals
-asset-cabals-partial          -MonacoAssetDetailSample cabalsPartial
-asset-cabals-failed           -MonacoAssetDetailSample cabalsFailed
-asset-not-routable            -MonacoAssetDetailSample notRoutable
-asset-scrubbed                -MonacoAssetDetailSample scrubbed
-asset-votes-only              -MonacoAssetDetailSample votesOnly -MonacoAssetDetailScroll 0.25
-
-# The stock screen runs to about three screens under the chart, and the Stocks tab to two;
-# these open them scrolled to a fraction of the way down, the middle, or the end.
-asset-cabals-position         -MonacoAssetDetailSample cabals -MonacoAssetDetailScroll 0.25
-asset-cabals-center           -MonacoAssetDetailSample cabals -MonacoAssetDetailScroll center
-asset-cabals-bottom           -MonacoAssetDetailSample cabals -MonacoAssetDetailScroll bottom
-asset-one-cabal-center        -MonacoAssetDetailSample oneCabal -MonacoAssetDetailScroll center
-asset-open-center             -MonacoAssetDetailSample open -MonacoAssetDetailScroll center
-asset-open-bottom             -MonacoAssetDetailSample open -MonacoAssetDetailScroll bottom
-asset-after-hours-center      -MonacoAssetDetailSample afterHours -MonacoAssetDetailScroll center
-asset-not-entitled-center     -MonacoAssetDetailSample notEntitled -MonacoAssetDetailScroll center
-asset-not-entitled-bottom     -MonacoAssetDetailSample notEntitled -MonacoAssetDetailScroll bottom
-asset-sparse-bottom           -MonacoAssetDetailSample sparse -MonacoAssetDetailScroll bottom
-asset-cabals-partial-position -MonacoAssetDetailSample cabalsPartial -MonacoAssetDetailScroll 0.25
-asset-cabals-failed-center    -MonacoAssetDetailSample cabalsFailed -MonacoAssetDetailScroll center
-asset-not-routable-bottom     -MonacoAssetDetailSample notRoutable -MonacoAssetDetailScroll bottom
-stocks-tab-full-bottom        -MonacoStocksTabSample full -MonacoStocksTabScroll bottom
 
 # Screens around the cabal screen: start, join, and the New cabal sheet.
 group-nav-start               -MonacoGroupNavSample start
 group-nav-new-cabal           -MonacoGroupNavSample newCabal
-group-nav-bots                -MonacoGroupNavSample bots
-group-nav-bot                 -MonacoGroupNavSample bot
-group-nav-bot-removed         -MonacoGroupNavSample botRemoved
 
 login-signed-out              -MonacoWelcomeSample signedOut
 login-code                    -MonacoWelcomeSample code
@@ -159,39 +96,39 @@ money-fund-empty              -MonacoMoneyFlowSample fundCabalEmpty
 money-fund-loading            -MonacoMoneyFlowSample fundCabalLoading
 money-withdraw                -MonacoMoneyFlowSample withdraw
 money-withdraw-failed         -MonacoMoneyFlowSample withdrawFailed
-money-withdraw-confirm        -MonacoMoneyFlowSample withdrawConfirm
 
-proposal-feed-closed              -MonacoProposalFeedSample -MonacoProposalSampleClosed
-proposal-detail-swap-failed       -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-24
-proposal-detail-commented-bottom  -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-0 -MonacoProposalSampleBottom
-proposal-detail-passed-bottom     -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-20 -MonacoProposalSampleBottom
-proposal-detail-failed-bottom     -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-21 -MonacoProposalSampleBottom
-proposal-feed-empty               -MonacoProposalFeedSample -MonacoProposalSampleEmpty
-proposal-feed-failed              -MonacoProposalFeedSample -MonacoProposalSampleFailing
-proposal-feed-loading             -MonacoProposalFeedSample -MonacoProposalSampleLoading
-proposal-detail-loading           -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-0 -MonacoProposalSampleLoading
-proposal-detail-unavailable       -MonacoProposalFeedSample -MonacoProposalSampleDetail sample-0 -MonacoProposalSampleFailing
 chat-loading                      -MonacoChatSampleQA -MonacoChatSampleLoading
-
-propose-buy                   -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleBuy
-propose-amount                -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleAmount
-propose-review                -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleReview
-propose-sell                  -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleSell
-propose-sell-amount           -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleSellAmount
-propose-sell-review           -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleSellReview
-propose-add-bot               -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleAddBot
-propose-pause-bot             -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSamplePauseBot
-propose-sheet-cash-only       -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleCashOnly
-propose-pick-cabal            -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSamplePickCabal
-propose-pick-cabal-sell       -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSamplePickCabalSell
-propose-buy-large-text        -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleBuy -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
-propose-review-large-text     -MonacoProposalFeedSample -MonacoProposeSample -MonacoProposeSampleReview -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 
 chat-thread-toggle            -MonacoChatThreadSampleQA
 proposal-detail-retryable     -MonacoProposalDetailSample failedRetryable
 proposal-detail-final-failure -MonacoProposalDetailSample failedFinal
 propose-amount-sample         -MonacoProposeAmountSample
 stocks-sections               -MonacoStocksSectionsSample
+
+# Harnesses that take a `-…Harness` flag; the word after it is the mode.
+feed-items                    -feedHarness items
+feed-empty                    -feedHarness empty
+feed-failed                   -feedHarness failed
+feed-follows-nobody           -feedHarness followsNobody
+settings                      -settingsHarness
+settings-on                   -settingsHarness on
+cash-out-slice                -cashOutHarness slice
+cash-out-deposit              -cashOutHarness deposit
+cash-out-none                 -cashOutHarness none
+cash-out-paused               -cashOutHarness paused
+invite-locked                 -inviteHarness locked
+invite-unlocked               -inviteHarness unlocked
+cabal-pot-invested            -cabalPotHarness invested
+cabal-pot-cash-only           -cabalPotHarness cashOnly
+cabal-pot-outsider            -cabalPotHarness outsider
+cabal-pot-zero                -cabalPotHarness zero
+profile-portfolio-two         -profilePortfolioHarness two
+profile-portfolio-none        -profilePortfolioHarness none
+cabal-actions                 -cabalActionsHarness
+cabal-rules                   -cabalRulesHarness
+account-activity              -accountActivityHarness
+friends                       -friendsHarness
+system-ping                   -systemPingHarness
 
 # BEGIN generated flow scenarios
 # cmd/gen flows writes this block from packages/flows/backend and packages/flows/app. Never edit it.
