@@ -189,7 +189,7 @@ write_info_plist() {
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.monaco.app</string>
+			<string>xyz.monacolabs.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>monaco</string>

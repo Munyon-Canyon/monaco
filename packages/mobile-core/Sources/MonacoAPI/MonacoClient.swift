@@ -25,7 +25,7 @@ struct HeadersMiddleware: ClientMiddleware {
         if operationID != Operations.GetHealthz.id {
             guard let token = try await accessToken(), !token.isEmpty else {
                 #if canImport(os)
-                Logger(subsystem: "com.monaco.app", category: "api").error(
+                Logger(subsystem: "xyz.monacolabs.app", category: "api").error(
                     "Refusing unsigned API request operation=\(operationID, privacy: .public)"
                 )
                 #endif

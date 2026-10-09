@@ -79,7 +79,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			BounceSweepInterval:       30 * time.Second, BounceSweepAge: 2 * time.Minute,
 		},
 		Privy:   config.Privy{BaseURL: "https://api.privy.io"},
-		APNs:    config.APNs{Topic: "com.monaco.app"},
+		APNs:    config.APNs{Topic: "xyz.monacolabs.app"},
 		PostHog: config.PostHog{Host: "https://us.i.posthog.com"},
 		Ably:    config.Ably{RESTHost: "rest.ably.io"},
 		Trade: config.Trade{
@@ -600,7 +600,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"APNS_KEY_P8", "***"},
 		{"APNS_KEY_ID", "key-id"},
 		{"APNS_TEAM_ID", "team-id"},
-		{"APNS_TOPIC", "com.monaco.app"},
+		{"APNS_TOPIC", "xyz.monacolabs.app"},
 		{"APNS_BASE_URL", ""},
 		{"MONACO_TIMEOUT_APNS", "10s"},
 		{"POSTHOG_API_KEY", "***"},

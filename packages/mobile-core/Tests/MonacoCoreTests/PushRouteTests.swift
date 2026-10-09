@@ -210,7 +210,7 @@ final class PushRouteTests: XCTestCase {
             let data = try Data(contentsOf: directory.appendingPathComponent("\(row.file).apns"))
             var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any], row.file)
             XCTAssertEqual(
-                payload.removeValue(forKey: "Simulator Target Bundle") as? String, "com.monaco.app", row.file)
+                payload.removeValue(forKey: "Simulator Target Bundle") as? String, "xyz.monacolabs.app", row.file)
             let alert = (payload.removeValue(forKey: "aps") as? [String: Any])?["alert"] as? [String: Any]
             XCTAssertNotNil(alert?["title"] as? String, row.file)
             XCTAssertNotNil(alert?["body"] as? String, row.file)

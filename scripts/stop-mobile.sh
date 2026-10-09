@@ -2,7 +2,7 @@
 # Stop this checkout's Monaco builds and app sessions, and no other worktree's.
 #
 # - xcodebuild: only processes building into this checkout's .build/DerivedData.
-# - In a lane (a linked worktree): terminate and uninstall com.monaco.app on the lane's
+# - In a lane (a linked worktree): terminate and uninstall xyz.monacolabs.app on the lane's
 #   simulators only ("Monaco <lane>", MONACO_SIM_UDID, and the lane's rows in the registry
 #   scripts/lane-sim-udid.sh keeps).
 # - In the primary checkout: terminate and uninstall on every available simulator except
@@ -14,7 +14,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-bundle_id="com.monaco.app"
+bundle_id="xyz.monacolabs.app"
 top="$(git rev-parse --show-toplevel)"
 git_dir="$(git rev-parse --path-format=absolute --git-dir)"
 common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"

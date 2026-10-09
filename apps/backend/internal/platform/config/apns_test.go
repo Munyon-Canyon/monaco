@@ -13,7 +13,7 @@ func TestLoad_apnsKeyIsOptionalInLocalAndTest(t *testing.T) {
 		if err != nil {
 			t.Fatalf("MONACO_ENV=%s without an APNs key: %v", env, err)
 		}
-		if want := (config.APNs{Topic: "com.monaco.app"}); cfg.APNs != want {
+		if want := (config.APNs{Topic: "xyz.monacolabs.app"}); cfg.APNs != want {
 			t.Fatalf("MONACO_ENV=%s APNs = %+v, want %+v", env, cfg.APNs, want)
 		}
 	}
@@ -52,7 +52,7 @@ func TestLoad_anEmptyAPNsTopicFallsBackToTheBundleID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.APNs.Topic != "com.monaco.app" {
-		t.Fatalf("Topic = %q, want com.monaco.app", cfg.APNs.Topic)
+	if cfg.APNs.Topic != "xyz.monacolabs.app" {
+		t.Fatalf("Topic = %q, want xyz.monacolabs.app", cfg.APNs.Topic)
 	}
 }

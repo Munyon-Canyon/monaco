@@ -16,7 +16,7 @@ fi
 # shellcheck disable=SC1091 # sourced path is dynamic
 source "$repo_root/scripts/run-with-logs.sh"
 
-bundle_id="com.monaco.app"
+bundle_id="xyz.monacolabs.app"
 monaco_step "mobile: picking a simulator"
 udid="$(./scripts/resolve-ios-sim.sh)"
 sim_name="$(xcrun simctl list devices | sed -n "s/^ *\(.*\) (${udid}).*/\1/p" | head -1)"

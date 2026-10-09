@@ -4,7 +4,7 @@ import os
 /// Persistent, structured logging via os.Logger (visible in Console.app / `log stream`,
 /// unlike a bare `print`). Add a category here per subsystem as needed.
 enum AppLogger {
-    nonisolated private static let subsystem = Bundle.main.bundleIdentifier ?? "com.monaco.app"
+    nonisolated private static let subsystem = Bundle.main.bundleIdentifier ?? "xyz.monacolabs.app"
 
     static let session = Logger(subsystem: subsystem, category: "session")
     nonisolated static let linking = Logger(subsystem: subsystem, category: "linking")

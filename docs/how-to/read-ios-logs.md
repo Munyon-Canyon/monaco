@@ -16,7 +16,7 @@ Use this when you need to match an app failure to a backend log line, or pull cr
 To stream the `api` category from a running simulator:
 
 ```sh
-xcrun simctl spawn booted log stream --predicate 'subsystem == "com.monaco.app" AND category == "api"'
+xcrun simctl spawn booted log stream --predicate 'subsystem == "xyz.monacolabs.app" AND category == "api"'
 ```
 
 Not built: uploading those diagnostics anywhere. The iOS app has no remote crash reporting yet;

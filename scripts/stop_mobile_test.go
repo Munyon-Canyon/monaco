@@ -76,10 +76,10 @@ func TestStopMobile_primarySparesLiveLanesAndDeletesOrphans(t *testing.T) {
 	}
 	want := []string{
 		"delete " + goneSim,
-		"terminate AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA com.monaco.app",
-		"terminate BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB com.monaco.app",
-		"uninstall AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA com.monaco.app",
-		"uninstall BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB com.monaco.app",
+		"terminate AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA xyz.monacolabs.app",
+		"terminate BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB xyz.monacolabs.app",
+		"uninstall AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA xyz.monacolabs.app",
+		"uninstall BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB xyz.monacolabs.app",
 	}
 	if got := simCalls(t, state); !slices.Equal(got, want) {
 		t.Fatalf("simctl calls\n%s\nwant\n%s\noutput:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"), r.out)
@@ -99,7 +99,7 @@ func TestStopMobile_laneTouchesOnlyItsOwnSimulators(t *testing.T) {
 	if r.err != nil {
 		t.Fatalf("stop-mobile.sh: %v\n%s", r.err, r.out)
 	}
-	want := []string{"terminate " + liveSim + " com.monaco.app", "uninstall " + liveSim + " com.monaco.app"}
+	want := []string{"terminate " + liveSim + " xyz.monacolabs.app", "uninstall " + liveSim + " xyz.monacolabs.app"}
 	if got := simCalls(t, state); !slices.Equal(got, want) {
 		t.Fatalf("simctl calls %q, want %q\n%s", got, want, r.out)
 	}
