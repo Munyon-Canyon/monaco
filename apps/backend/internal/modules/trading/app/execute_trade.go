@@ -87,12 +87,19 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		if view.Status == domain.StatusFailed {
-			_, err := d.RecordAs(ctx, tx, string(errs.CodeSwapFailed))
+			_, err := d.RecordAs(ctx, tx, string(failedOutcome(view.FailureCode)))
 			return err
 		}
 		_, err := d.Record(ctx, tx)
 		return err
 	})
+}
+
+func failedOutcome(code domain.FailureCode) errs.Code {
+	if code == domain.FailurePriceMoved {
+		return errs.CodePriceMoved
+	}
+	return errs.CodeSwapFailed
 }
 
 func (h *ExecuteTradeHandler) checkFailed(ctx context.Context, d bus.Delivery, cmd ExecuteTrade, err error) error {
@@ -204,17 +211,13 @@ func (h *ExecuteTradeHandler) price(ctx context.Context, cmd ExecuteTrade, req *
 	if err != nil {
 		return refusal{}, err
 	}
-	slippage := domain.SlippageOf(bps)
-	req.SlippageBps = slippage.Bps()
+	req.SlippageBps = domain.SlippageOf(bps).Bps()
 	quote, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: req.InMint, OutMint: req.OutMint, InAmount: req.InAmount})
 	if err != nil {
 		return refusal{}, err
 	}
 	if !quote.Routable {
 		return refusal{code: errs.CodeNoRoute}, nil
-	}
-	if floor := slippage.MinOut(cmd.QuoteOutAmount); quote.OutAmount < floor {
-		return refusal{code: errs.CodeSlippageExceeded, have: quote.OutAmount, need: floor}, nil
 	}
 	return refusal{}, nil
 }

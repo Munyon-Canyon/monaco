@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -87,6 +88,15 @@ func (f *flow11) proposalIs(status, reason string) scenario.Step {
 		const q = `SELECT status, coalesce(status_reason, '') FROM proposals WHERE id = $1`
 		err := s.DB().QueryRow(s.Context(), q, f.proposal.UUID()).Scan(&got, &why)
 		return err == nil && got == status && why == reason
+	})
+}
+
+func (f *flow11) engineRecorded(code errs.Code) scenario.Step {
+	return scenario.Eventually("the engine recorded proposal.passed as "+string(code), func(s *scenario.Scenario) bool {
+		var n int
+		const q = `SELECT count(*) FROM event_deliveries WHERE handler = $1 AND code = $2`
+		err := s.DB().QueryRow(s.Context(), q, engineHandler, string(code)).Scan(&n)
+		return err == nil && n == 1
 	})
 }
 
@@ -186,10 +196,22 @@ func TestFlow11_ExecuteTrade_InsufficientFunds(t *testing.T) {
 	})
 }
 
-func TestFlow11_ExecuteTrade_SlippageExceeded(t *testing.T) {
+func TestFlow11_ExecuteTrade_PriceMoved(t *testing.T) {
 	t.Parallel()
-	newFlow11(t, func(e *engineEnv) { e.quote(usdcToken(), aaplxToken(), 20_000_000, true) }).
-		blocks(errs.CodeSlippageExceeded, "20000000", "20790000")
+	f := newFlow11(t, func(e *engineEnv) {
+		e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
+			RequestID: "req-1", Transaction: swapTx(), OutAmount: money.NewBaseUnits(20_000_000, aaplxToken().Decimals),
+		})
+	})
+	f.pass(
+		scenario.ExpectEvents(busevents.TypeTradeFailed, 1),
+		scenario.ExpectEventPayload(busevents.TypeTradeFailed, map[string]any{"failure_code": "price_moved"}),
+		f.exported(busevents.TypeTradeFailed, "trade_failed"),
+		scenario.ExpectEvents(busevents.TypeTradeSubmitted, 0),
+		scenario.ExpectEvents(busevents.TypeTradeBlocked, 0),
+		f.proposalIs("execution_blocked", string(errs.CodeSwapFailed)),
+		f.engineRecorded(errs.CodePriceMoved),
+	)
 }
 
 func TestFlow11_ExecuteTrade_NoRoute(t *testing.T) {
