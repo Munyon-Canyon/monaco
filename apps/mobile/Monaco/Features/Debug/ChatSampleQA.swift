@@ -18,8 +18,9 @@ enum ChatSampleQA {
             failFirstSend: arguments.contains("-MonacoChatSampleFlaky"),
             closedOnSend: arguments.contains("-MonacoChatSampleClosedOnSend")
         )
+        let acts = arguments.contains(SampleHarnessRegistry.actArgument)
         return OpensOnceActive {
-            ChatSampleHost(scenario: scenario)
+            ChatSampleHost(scenario: scenario, acts: acts)
         }
     }
 }
@@ -27,8 +28,11 @@ enum ChatSampleQA {
 private struct ChatSampleHost: View {
     @State private var session: ChatSession
     @State private var openedProfile: String?
+    @State private var sent = false
+    private let sendsOnLaunch: Bool
 
-    init(scenario: ChatSampleScenario) {
+    init(scenario: ChatSampleScenario, acts: Bool) {
+        sendsOnLaunch = acts && (scenario.failSends || scenario.failFirstSend || scenario.closedOnSend)
         _session = State(initialValue: ChatSession.sample(scenario) { Date() })
     }
 
@@ -40,6 +44,11 @@ private struct ChatSampleHost: View {
             openProfile: { openedProfile = $0 },
             openThread: { _ in }
         )
+        .task {
+            guard sendsOnLaunch, !sent else { return }
+            sent = true
+            await session.send(body: "Anyone looking at NVDA before Friday?")
+        }
         .overlay(alignment: .top) {
             if let openedProfile {
                 Text("Opened profile \(openedProfile)")

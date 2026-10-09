@@ -19,8 +19,23 @@ struct CabalLeaveSection: View {
     @State private var model: LeaveCabalModel?
     @State private var confirming = false
     @State private var offersCashOut = false
+    #if DEBUG
+    @State private var leftOnLoad = false
+    private let leavesOnLoad: Bool
+    #endif
     private let makeModel: @MainActor (AppEnvironment, String) -> LeaveCabalModel
 
+    #if DEBUG
+    init(
+        cabalID: String,
+        leavesOnLoad: Bool = false,
+        makeModel: @escaping @MainActor (AppEnvironment, String) -> LeaveCabalModel = CabalLeaveSection.liveModel
+    ) {
+        self.cabalID = cabalID
+        self.leavesOnLoad = leavesOnLoad
+        self.makeModel = makeModel
+    }
+    #else
     init(
         cabalID: String,
         makeModel: @escaping @MainActor (AppEnvironment, String) -> LeaveCabalModel = CabalLeaveSection.liveModel
@@ -28,6 +43,7 @@ struct CabalLeaveSection: View {
         self.cabalID = cabalID
         self.makeModel = makeModel
     }
+    #endif
 
     static func liveModel(_ environment: AppEnvironment, cabalID: String) -> LeaveCabalModel {
         LeaveCabalModel(api: environment.api, hints: environment.hints, cabalID: cabalID)
@@ -39,6 +55,12 @@ struct CabalLeaveSection: View {
                 let model = model ?? makeModel(environment, cabalID)
                 self.model = model
                 await model.load()
+                #if DEBUG
+                if leavesOnLoad, !leftOnLoad, case .loaded(let standing?) = model.standing, standing.canLeave {
+                    leftOnLoad = true
+                    await leave()
+                }
+                #endif
                 await model.observe()
             }
     }
@@ -113,7 +135,8 @@ final class CabalLeaveFlowHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
         guard let scenario = Flow04Scenario.matching(arguments) else { return nil }
-        return CabalLeaveSampleScreen.root(.preview(answering: scenario))
+        let leaves = arguments.contains(SampleHarnessRegistry.actArgument)
+        return CabalLeaveSampleScreen.root(.preview(answering: scenario), leavesOnLoad: leaves)
     }
 }
 
@@ -135,12 +158,15 @@ final class CabalLeaveSampleHarnessEntry: SampleHarnessEntry {
 
 private enum CabalLeaveSampleScreen {
     @MainActor
-    static func root(_ model: LeaveCabalModel) -> AnyView {
+    static func root(_ model: LeaveCabalModel, leavesOnLoad: Bool = false) -> AnyView {
         AnyView(
             NavigationStack {
                 ScrollView {
-                    CabalLeaveSection(cabalID: LeaveCabalModel.previewCabalID) { _, _ in model }
-                        .padding(.top, MonacoTheme.Space.m)
+                    CabalLeaveSection(
+                        cabalID: LeaveCabalModel.previewCabalID, leavesOnLoad: leavesOnLoad,
+                        makeModel: { _, _ in model }
+                    )
+                    .padding(.top, MonacoTheme.Space.m)
                 }
                 .monacoCanvas()
                 .navigationTitle("Cabal details")
