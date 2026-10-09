@@ -24,9 +24,9 @@ struct FriendsScreen: View {
             }
         }
         .monacoCanvas()
-        .navigationTitle("Friends on Monaco")
+        .navigationTitle(onSkip == nil ? ContactsExplainerView.title : "")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { done }
+        .toolbar { skip }
         .task {
             guard model == nil else { return }
             let model = FriendsOnMonacoModel(
@@ -55,12 +55,16 @@ struct FriendsScreen: View {
     private func content(model: FriendsOnMonacoModel, search: PeopleSearchModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                if onSkip != nil {
+                    ContactsFirstRunHeader(
+                        showsExplainer: model.access != .granted, isDenied: model.access == .denied)
+                }
                 PeopleSearchField(model: search)
                 if search.isSearching {
                     PeopleSearchResults(model: search)
                 } else if model.access == .granted {
                     FriendsOnMonacoView(model: model)
-                } else {
+                } else if onSkip == nil {
                     ContactsExplainerView(isDenied: model.access == .denied)
                 }
             }
@@ -69,18 +73,21 @@ struct FriendsScreen: View {
         .safeAreaInset(edge: .bottom) {
             if model.access != .granted {
                 ContactsActions(model: model, onSkip: onSkip)
+            } else if let onSkip {
+                ContactsDoneBar(done: onSkip)
             }
         }
     }
 
     @ToolbarContentBuilder
-    private var done: some ToolbarContent {
-        if let onSkip, model?.access == .granted {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Done", action: onSkip)
-                    .accessibilityIdentifier("friends-done")
-            }
-        }
+    private var skip: some ToolbarContent {
+        FirstRunToolbar(
+            signOut: nil,
+            skip: onSkip.flatMap { onSkip in
+                model?.access == .granted
+                    ? nil
+                    : FirstRunAction(title: "Skip", identifier: "friends-not-now", isDisabled: false, perform: onSkip)
+            })
     }
 }
 

@@ -2,7 +2,7 @@ import XCTest
 
 enum FirstRunJourney {
     static let id = "onboarding/first-run"
-    static let version = 3
+    static let version = 4
     static let actors = ["C", "B"]
 
     static let handle = "qa_cayman"
@@ -259,11 +259,10 @@ enum FirstRunJourney {
             XCTAssertTrue(
                 waitUntil(checkTimeout) { toast.exists && toast.label.contains("Number added.") },
                 "S4.3: no 'Number added.' toast")
-            let notNow = app.buttons["friends-not-now"]
-            XCTAssertTrue(
-                notNow.waitForExistence(timeout: stepTimeout),
-                "S4.3: the Find friends step did not show after the number linked")
-            notNow.tap()
+            XCTAssertFalse(
+                app.buttons["friends-not-now"].exists,
+                "S4.3: Find friends replaced the tab bar after a number was added from the nudge")
+            XCTAssertTrue(app.tab("Home").exists, "S4.3: the tab bar went away after the number linked")
             XCTAssertTrue(
                 waitForNudge(app, reading: linkXNudge, timeout: stepTimeout),
                 "S4.3: the nudge did not read '\(linkXNudge)', it read '\(nudge(app).label)'")

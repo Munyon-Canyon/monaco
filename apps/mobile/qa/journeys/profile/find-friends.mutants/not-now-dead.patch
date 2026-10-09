@@ -7,12 +7,12 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
 --- a/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
 +++ b/apps/mobile/Monaco/Features/Friends/ContactsExplainerView.swift
-@@ -22,7 +22,7 @@
- 
+@@ -60,7 +60,7 @@
      var body: some View {
          BottomCTA {
--            Button("Not now", action: skip)
-+            Button("Not now") {}
-                 .buttonStyle(.monacoSecondary)
-                 .accessibilityIdentifier("friends-not-now")
-             if model.access == .denied {
+             if onSkip == nil {
+-                Button("Not now", action: skip)
++                Button("Not now") {}
+                     .buttonStyle(.monacoSecondary)
+                     .accessibilityIdentifier("friends-not-now")
+             }
