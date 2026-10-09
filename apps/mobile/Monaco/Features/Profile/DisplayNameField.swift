@@ -78,7 +78,11 @@ struct DisplayNameField<Trailing: View>: View {
                 .submitLabel(.done)
                 .focused(focus)
                 .onSubmit(onSubmit)
-                .monacoFieldChrome(isFocused: focus.wrappedValue, isInvalid: errorMessage != nil)
+                .monacoFieldChrome(
+                    isFocused: focus.wrappedValue,
+                    isInvalid: errorMessage != nil,
+                    focus: { focus.wrappedValue = true }
+                )
                 .accessibilityIdentifier("\(identifierPrefix)-field")
 
                 trailing()

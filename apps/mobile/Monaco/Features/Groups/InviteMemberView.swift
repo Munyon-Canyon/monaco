@@ -96,9 +96,7 @@ private struct InviteMemberContent: View {
                 .accessibilityLabel("Handle")
                 .accessibilityIdentifier("invite-member-handle-field")
             }
-            .monacoFieldChrome(isFocused: fieldFocused)
-            .contentShape(Rectangle())
-            .onTapGesture { fieldFocused = true }
+            .monacoFieldChrome(isFocused: fieldFocused, focus: { fieldFocused = true })
 
             Button(action: send) {
                 SubmitLabel(isWorking: model.isSending, idle: "Send", working: "Sending\u{2026}")

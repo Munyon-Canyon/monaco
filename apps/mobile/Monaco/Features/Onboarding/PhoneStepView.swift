@@ -116,7 +116,8 @@ private struct PhoneStepForm: View {
                         code: $model.code,
                         isFocused: focused == .code,
                         isInvalid: model.caption == .error(LinkCopy.invalidCode),
-                        identifier: "phone-step-code-field"
+                        identifier: "phone-step-code-field",
+                        focus: { focused = .code }
                     ) { _ in
                         Task { await link() }
                     }
@@ -181,7 +182,11 @@ private struct PhoneStepForm: View {
         .submitLabel(.send)
         .onSubmit { Task { await sendCode() } }
         .focused($focused, equals: .number)
-        .authTextFieldStyle(isFocused: focused == .number, isInvalid: model.linkedElsewhere)
+        .authTextFieldStyle(
+            isFocused: focused == .number,
+            isInvalid: model.linkedElsewhere,
+            focus: { focused = .number }
+        )
         .disabled(model.isBusy)
         .accessibilityIdentifier("phone-step-number-field")
     }

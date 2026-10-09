@@ -37,7 +37,7 @@ struct ReferralCodeSheet: View {
             .submitLabel(.done)
             .focused($isFocused)
             .onSubmit { Task { await submit() } }
-            .monacoFieldChrome(isFocused: isFocused)
+            .monacoFieldChrome(isFocused: isFocused, focus: { isFocused = true })
             .accessibilityIdentifier("referral-code-field")
 
             Button {

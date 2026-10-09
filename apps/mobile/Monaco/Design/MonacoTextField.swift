@@ -8,6 +8,7 @@ struct MonacoFieldChrome: ViewModifier {
     let isFocused: Bool
     var isInvalid = false
     var isOutlined = false
+    let focus: () -> Void
 
     static let height: CGFloat = 56
 
@@ -25,6 +26,8 @@ struct MonacoFieldChrome: ViewModifier {
             .padding(.horizontal, MonacoTheme.Space.m)
             .frame(minHeight: Self.height)
             .background(shape.fill(MonacoTheme.surfaceSunken))
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { focus() })
             .overlay {
                 shape.strokeBorder(
                     isInvalid ? MonacoTheme.loss : (isFocused ? MonacoTheme.ink : MonacoTheme.secondaryText),
@@ -38,8 +41,13 @@ struct MonacoFieldChrome: ViewModifier {
 
 extension View {
     /// Draws this text field as every Monaco field is drawn. See `MonacoFieldChrome`.
-    func monacoFieldChrome(isFocused: Bool, isInvalid: Bool = false, isOutlined: Bool = false) -> some View {
-        modifier(MonacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, isOutlined: isOutlined))
+    func monacoFieldChrome(
+        isFocused: Bool,
+        isInvalid: Bool = false,
+        isOutlined: Bool = false,
+        focus: @escaping () -> Void
+    ) -> some View {
+        modifier(MonacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, isOutlined: isOutlined, focus: focus))
     }
 }
 
@@ -101,11 +109,8 @@ struct MonacoTextField: View {
         .task {
             if autofocus { focused = true }
         }
-        .monacoFieldChrome(isFocused: focused, isInvalid: isInvalid, isOutlined: isOutlined)
+        .monacoFieldChrome(isFocused: focused, isInvalid: isInvalid, isOutlined: isOutlined, focus: { focused = true })
         .opacity(isOutlined && !isEnabled ? 0.5 : 1)
-        // The whole 56pt is the target, not just the line of text in the middle of it.
-        .contentShape(Rectangle())
-        .simultaneousGesture(TapGesture().onEnded { focused = true })
         .accessibilityLabel(placeholder)
         .accessibilityValue(isInvalid ? (errorMessage ?? "") : "")
     }
@@ -162,10 +167,7 @@ struct MonacoAddressField: View {
             )
         }
         .padding(.vertical, MonacoTheme.Space.sm)
-        .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid)
-        // The whole field is the target, not just the line of text in the middle of it.
-        .contentShape(Rectangle())
-        .onTapGesture { focusRequests += 1 }
+        .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, focus: { focusRequests += 1 })
     }
 }
 

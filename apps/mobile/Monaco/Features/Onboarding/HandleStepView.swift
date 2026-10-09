@@ -175,7 +175,7 @@ private struct HandleStepForm: View {
                 .accessibilityLabel("Handle")
                 .accessibilityIdentifier("handle-step-field")
         }
-        .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid)
+        .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, focus: { isFocused = true })
         .disabled(isLocked || isSaving)
         .opacity(isLocked ? 0.6 : 1)
     }

@@ -128,9 +128,7 @@ struct ProposeAmountScreen: View {
         .tint(MonacoTheme.ink)
         .focused($reasonFocused)
         .padding(.vertical, MonacoTheme.Space.sm)
-        .monacoFieldChrome(isFocused: reasonFocused)
-        .contentShape(Rectangle())
-        .simultaneousGesture(TapGesture().onEnded { reasonFocused = true })
+        .monacoFieldChrome(isFocused: reasonFocused, focus: { reasonFocused = true })
         .accessibilityLabel(model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?")
         .accessibilityIdentifier("propose-amount-reason")
     }

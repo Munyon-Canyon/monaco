@@ -5,6 +5,7 @@ struct OTPCodeField: View {
     let isFocused: Bool
     var isInvalid = false
     let identifier: String
+    let focus: () -> Void
     let onComplete: (String) -> Void
 
     var body: some View {
@@ -19,7 +20,7 @@ struct OTPCodeField: View {
         .tracking(code.isEmpty ? 0 : OTPCode.tracking)
         .keyboardType(.numberPad)
         .textContentType(.oneTimeCode)
-        .authTextFieldStyle(isFocused: isFocused, isInvalid: isInvalid)
+        .authTextFieldStyle(isFocused: isFocused, isInvalid: isInvalid, focus: focus)
         .accessibilityIdentifier(identifier)
         .onChange(of: code) { _, newValue in
             let sanitized = String(newValue.filter(\.isASCIIDigit).prefix(OTPCode.length))
