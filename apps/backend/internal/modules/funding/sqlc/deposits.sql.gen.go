@@ -94,6 +94,52 @@ func (q *Queries) DepositCursorsForWallets(ctx context.Context, walletAddresses 
 	return items, nil
 }
 
+const depositCursorsToMigrate = `-- name: DepositCursorsToMigrate :many
+SELECT c.wallet_address, w.user_id, COALESCE(c.last_signature, '') AS last_signature, c.cursor_slot
+FROM deposit_cursors c
+JOIN user_wallets w ON w.address = c.wallet_address
+WHERE c.wallet_address > $1
+ORDER BY c.wallet_address
+LIMIT $2
+`
+
+type DepositCursorsToMigrateParams struct {
+	WalletAddress string
+	Limit         int32
+}
+
+type DepositCursorsToMigrateRow struct {
+	WalletAddress string
+	UserID        uuid.UUID
+	LastSignature string
+	CursorSlot    int64
+}
+
+func (q *Queries) DepositCursorsToMigrate(ctx context.Context, arg DepositCursorsToMigrateParams) ([]DepositCursorsToMigrateRow, error) {
+	rows, err := q.db.Query(ctx, depositCursorsToMigrate, arg.WalletAddress, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DepositCursorsToMigrateRow
+	for rows.Next() {
+		var i DepositCursorsToMigrateRow
+		if err := rows.Scan(
+			&i.WalletAddress,
+			&i.UserID,
+			&i.LastSignature,
+			&i.CursorSlot,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertDeposit = `-- name: InsertDeposit :execrows
 INSERT INTO deposits (
   id, user_id, wallet_address, tx_signature, amount_micros, slot, block_time, credited_at
@@ -158,6 +204,73 @@ func (q *Queries) InsertDepositCandidate(ctx context.Context, arg InsertDepositC
 		arg.Source,
 		arg.SeenAt,
 		arg.BlockTime,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const insertDepositWatchAccount = `-- name: InsertDepositWatchAccount :exec
+INSERT INTO deposit_watch_accounts (
+  token_account, wallet_address, canonical, state, last_amount, observed_slot,
+  dirty_gen, dirty_slot, high_signature, high_slot, recovery_due_at
+) VALUES ($1, $2, $3, $4, $5::text::numeric, $6::bigint,
+  $7::bigint, $8::bigint,
+  NULLIF($9::text, ''), $10::bigint, $11::timestamptz)
+ON CONFLICT (token_account) DO NOTHING
+`
+
+type InsertDepositWatchAccountParams struct {
+	TokenAccount  string
+	WalletAddress string
+	Canonical     bool
+	State         string
+	LastAmount    string
+	ObservedSlot  int64
+	DirtyGen      int64
+	DirtySlot     int64
+	HighSignature string
+	HighSlot      int64
+	RecoveryDueAt time.Time
+}
+
+func (q *Queries) InsertDepositWatchAccount(ctx context.Context, arg InsertDepositWatchAccountParams) error {
+	_, err := q.db.Exec(ctx, insertDepositWatchAccount,
+		arg.TokenAccount,
+		arg.WalletAddress,
+		arg.Canonical,
+		arg.State,
+		arg.LastAmount,
+		arg.ObservedSlot,
+		arg.DirtyGen,
+		arg.DirtySlot,
+		arg.HighSignature,
+		arg.HighSlot,
+		arg.RecoveryDueAt,
+	)
+	return err
+}
+
+const insertDepositWatchWallet = `-- name: InsertDepositWatchWallet :execrows
+INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (wallet_address) DO NOTHING
+`
+
+type InsertDepositWatchWalletParams struct {
+	WalletAddress string
+	UserID        uuid.UUID
+	FirstSeenSlot int64
+	FirstSeenAt   time.Time
+}
+
+func (q *Queries) InsertDepositWatchWallet(ctx context.Context, arg InsertDepositWatchWalletParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertDepositWatchWallet,
+		arg.WalletAddress,
+		arg.UserID,
+		arg.FirstSeenSlot,
+		arg.FirstSeenAt,
 	)
 	if err != nil {
 		return 0, err

@@ -53,3 +53,25 @@ UPDATE deposit_candidates
 SET status = $1,
     resolved_at = NULLIF(sqlc.arg(resolved_at)::timestamptz, '0001-01-01T00:00:00Z'::timestamptz)
 WHERE tx_signature = $2 AND wallet_address = $3 AND status = 'pending';
+
+-- name: DepositCursorsToMigrate :many
+SELECT c.wallet_address, w.user_id, COALESCE(c.last_signature, '') AS last_signature, c.cursor_slot
+FROM deposit_cursors c
+JOIN user_wallets w ON w.address = c.wallet_address
+WHERE c.wallet_address > $1
+ORDER BY c.wallet_address
+LIMIT $2;
+
+-- name: InsertDepositWatchWallet :execrows
+INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (wallet_address) DO NOTHING;
+
+-- name: InsertDepositWatchAccount :exec
+INSERT INTO deposit_watch_accounts (
+  token_account, wallet_address, canonical, state, last_amount, observed_slot,
+  dirty_gen, dirty_slot, high_signature, high_slot, recovery_due_at
+) VALUES ($1, $2, $3, $4, sqlc.arg(last_amount)::text::numeric, sqlc.arg(observed_slot)::bigint,
+  sqlc.arg(dirty_gen)::bigint, sqlc.arg(dirty_slot)::bigint,
+  NULLIF(sqlc.arg(high_signature)::text, ''), sqlc.arg(high_slot)::bigint, sqlc.arg(recovery_due_at)::timestamptz)
+ON CONFLICT (token_account) DO NOTHING;

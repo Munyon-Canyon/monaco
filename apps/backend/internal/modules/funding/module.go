@@ -154,6 +154,12 @@ func (m *Module) Bouncer() *app.Bouncer {
 	})
 }
 
+func (m *Module) CursorMigrator() app.CursorMigrator {
+	return app.NewCursorMigrator(
+		m.deps.Pool, m.deps.UoW, m.deps.Clock, chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
+	)
+}
+
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	meter := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/funding")
