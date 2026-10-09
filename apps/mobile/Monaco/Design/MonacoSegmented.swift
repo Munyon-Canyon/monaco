@@ -10,6 +10,7 @@ struct MonacoSegmented<T: Hashable>: View {
 
     @Namespace private var thumb
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(_ options: [T], selection: Binding<T>, label: @escaping (T) -> String) {
         self.options = options
@@ -30,8 +31,9 @@ struct MonacoSegmented<T: Hashable>: View {
                 } label: {
                     Text(label(option))
                         .font(MonacoTheme.Typo.calloutStrong)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                         .minimumScaleFactor(0.8)
+                        .multilineTextAlignment(.center)
                         .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.ink)
                         .padding(.horizontal, MonacoTheme.Space.m)
                         .frame(maxWidth: .infinity, minHeight: 44)

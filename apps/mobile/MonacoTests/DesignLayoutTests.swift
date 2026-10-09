@@ -167,3 +167,26 @@ struct BottomCTALayoutTests {
         #expect(size.width == 390)
     }
 }
+
+@MainActor
+struct MonacoSegmentedLayoutTests {
+    private func controlHeight(
+        _ labels: [String], width: CGFloat, size: DynamicTypeSize
+    ) -> CGFloat {
+        let host = UIHostingController(
+            rootView: MonacoSegmented(labels, selection: .constant(labels[0])) { $0 }
+                .environment(\.dynamicTypeSize, size)
+                .frame(width: width))
+        return host.sizeThatFits(in: CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)).height
+    }
+
+    @Test func theControlKeepsAFortyFourPointHitArea() {
+        #expect(controlHeight(["Email", "Text"], width: 320, size: .large) >= 44)
+    }
+
+    @Test func aLongLabelWrapsInsteadOfTruncatingAtAccessibilitySizes() {
+        let long = controlHeight(["Text message", "Email"], width: 320, size: .accessibility3)
+        let short = controlHeight(["Email", "Text"], width: 320, size: .accessibility3)
+        #expect(long > short)
+    }
+}
