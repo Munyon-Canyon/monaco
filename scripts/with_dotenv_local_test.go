@@ -352,6 +352,44 @@ func TestEnsureIosPrivyConfig_writesTheDevAndProductionAppsPerEnvironment(t *tes
 	}
 }
 
+func TestEnsureIosPrivyConfig_writesTheStagingAppFromEnvStaging(t *testing.T) {
+	t.Parallel()
+	s := newDotenvSandbox(t)
+	installEnsureFixture(t, s)
+	writeFile(t, filepath.Join(s.worktree, ".env.staging"), "PRIVY_APP_ID=encrypted\n")
+
+	runEnsure(t, s, filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh"), "generate")
+
+	readStaging := false
+	for _, args := range dotenvxInvocations(t, s) {
+		if slices.Contains(args, ".env.staging") {
+			readStaging = true
+		}
+	}
+	if !readStaging {
+		t.Error("dotenvx never read .env.staging")
+	}
+	config := readFile(t, filepath.Join(s.worktree, "apps", "mobile", "Config", "Privy.local.xcconfig"))
+	for _, want := range []string{"PRIVY_APP_ID_STAGING = app-fake\n", "PRIVY_APP_CLIENT_ID_STAGING = client-fake\n"} {
+		if !strings.Contains(config, want) {
+			t.Errorf("Privy.local.xcconfig lacks %q:\n%s", want, config)
+		}
+	}
+}
+
+func TestEnsureIosPrivyConfig_noStagingEnvLeavesStagingEmpty(t *testing.T) {
+	t.Parallel()
+	s := newDotenvSandbox(t)
+	installEnsureFixture(t, s)
+
+	runEnsure(t, s, filepath.Join(s.worktree, "scripts", "ensure-ios-privy-config.sh"), "generate")
+
+	config := readFile(t, filepath.Join(s.worktree, "apps", "mobile", "Config", "Privy.local.xcconfig"))
+	if !strings.Contains(config, "PRIVY_APP_ID_STAGING = \n") || !strings.Contains(config, "PRIVY_APP_CLIENT_ID_STAGING = \n") {
+		t.Errorf("staging ids must stay empty without .env.staging:\n%s", config)
+	}
+}
+
 func TestEnsureIosPrivyConfig_noProductionEnvLeavesProductionEmpty(t *testing.T) {
 	t.Parallel()
 	s := newDotenvSandbox(t)
