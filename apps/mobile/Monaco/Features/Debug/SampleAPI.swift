@@ -24,12 +24,15 @@ nonisolated struct SampleAPIScript: Sendable {
     var chart = Components.Schemas.AssetChart.oneDay
     var cabalCount = 1
     var pot = Components.Schemas.CabalPot.sampleInvested
+    var proposal: Components.Schemas.ProposalDetail?
+    var pendingVotes: [Components.Schemas.PendingVote] = []
 }
 
 nonisolated final class SampleAPIProtocol: URLProtocol {
     private static let script = Mutex(SampleAPIScript())
     private static let registered = Mutex(false)
     private static let createdName = Mutex<String?>(nil)
+    private static let castChoice = Mutex<String?>(nil)
 
     static func install(_ next: SampleAPIScript) {
         script.withLock { $0 = next }
@@ -52,7 +55,12 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         let script = Self.script.withLock { $0 }
         guard script.mode != .hang, let url = request.url else { return }
         let method = request.httpMethod ?? "GET"
-        if method == "POST", url.path == "/v1/cabals" { Self.createdName.withLock { $0 = requestedName() } }
+        if method == "POST", url.path == "/v1/cabals" {
+            Self.createdName.withLock { $0 = requestObject()?["name"] as? String }
+        }
+        if method == "POST", url.path.hasSuffix("/votes") {
+            Self.castChoice.withLock { $0 = requestObject()?["choice"] as? String }
+        }
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let query = Dictionary(items.compactMap { item in item.value.map { (item.name, $0) } }) { first, _ in first }
         let reply = Self.reply(path: url.path, method: method, query: query, script: script)
@@ -66,7 +74,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         client?.urlProtocolDidFinishLoading(self)
     }
 
-    private func requestedName() -> String? {
+    private func requestObject() -> [String: Any]? {
         var body = request.httpBody
         if body == nil, let stream = request.httpBodyStream {
             stream.open()
@@ -80,8 +88,8 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             }
             body = collected
         }
-        guard let body, let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else { return nil }
-        return object["name"] as? String
+        guard let body else { return nil }
+        return try? JSONSerialization.jsonObject(with: body) as? [String: Any]
     }
 
     private struct Reply {
@@ -131,6 +139,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             return proposeReply(id: parts[2], tail: tail, method: method)
                 ?? cabalReply(id: parts[2], tail: tail, range: range, script: script)
         }
+        if parts.count >= 3, parts[1] == "proposals" {
+            return proposalReply(id: parts[2], tail: Array(parts.dropFirst(3)), method: method, script: script)
+        }
         if parts.count >= 2, parts[1] == "assets" {
             return assetReply(tail: Array(parts.dropFirst(2)), query: query, script: script)
         }
@@ -145,7 +156,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             return problem(404, "not_found", "Not in the sample data.")
         }
     }
+}
 
+nonisolated extension SampleAPIProtocol {
     private static func meReply(path: String, script: SampleAPIScript) -> Reply {
         let empty = script.mode == .empty
         switch path {
@@ -162,7 +175,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             return json(empty ? Components.Schemas.MyPnlHistory.sampleEmpty : .sample())
         case "/v1/me/txns":
             return json(empty ? Components.Schemas.UserTxnPage.sampleEmpty : .sampleFirst)
-        case "/v1/me/pending-votes", "/v1/me/cabal-invites":
+        case "/v1/me/pending-votes":
+            return json(script.pendingVotes)
+        case "/v1/me/cabal-invites":
             return raw("[]")
         default:
             return problem(404, "not_found", "Not in the sample data.")
@@ -174,6 +189,31 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             index == 0
                 ? myCabal(id: Components.Schemas.Cabal.sample(role: nil).id, script)
                 : myCabal(id: CabalsTabSampleData.createdCabalID, name: "Friday Fund", script)
+        }
+    }
+
+    private static func proposalReply(id: String, tail: [String], method: String, script: SampleAPIScript) -> Reply {
+        guard var proposal = script.proposal else {
+            return problem(503, "unavailable", "Proposals can't be read right now.")
+        }
+        proposal.id = id
+        switch (method, tail.first) {
+        case ("GET", nil):
+            return json(proposal)
+        case ("POST", "votes"):
+            let choice = Components.Schemas.BallotChoice(rawValue: castChoice.withLock { $0 } ?? "") ?? .yes
+            var tally = proposal.tally
+            if choice == .yes { tally.yes += 1 } else { tally.no += 1 }
+            return json(
+                Components.Schemas.VoteResult(
+                    proposalId: proposal.id, status: proposal.status, tally: tally, myBallot: choice))
+        case ("GET", "comments"):
+            return json(
+                Components.Schemas.ProposalCommentPage(
+                    feedObjectId: "01920000-0000-7000-8000-000000000007",
+                    items: Components.Schemas.CommentThread.samples, nextCursor: nil))
+        default:
+            return problem(404, "not_found", "Not in the sample data.")
         }
     }
 

@@ -112,9 +112,6 @@ money-withdraw-failed         -MonacoMoneyFlowSample withdrawFailed
 chat-loading                      -MonacoChatSampleQA -MonacoChatSampleLoading
 
 chat-thread-toggle            -MonacoChatThreadSampleQA
-proposal-detail-retryable     -MonacoProposalDetailSample failedRetryable
-proposal-detail-final-failure -MonacoProposalDetailSample failedFinal
-proposal-detail-price-moved   -MonacoProposalDetailSample priceMoved
 propose-chooser               -MonacoProposeSample chooser
 propose-chooser-cash-only     -MonacoProposeSample chooserCashOnly
 propose-buy-list              -MonacoProposeSample buyList
@@ -127,6 +124,22 @@ propose-review                -MonacoProposeSample review
 propose-sell-review           -MonacoProposeSample sellReview
 propose-amount-large-text     -MonacoProposeSample amount -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 propose-review-large-text     -MonacoProposeSample review -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+proposal-open                 -MonacoProposalSample open
+proposal-voted                -MonacoProposalSample voted
+proposal-passed               -MonacoProposalSample passed
+proposal-swapping             -MonacoProposalSample swapping
+proposal-executed             -MonacoProposalSample executed
+proposal-failed-retryable     -MonacoProposalSample failedRetryable
+proposal-failed-final         -MonacoProposalSample failedFinal
+proposal-expired              -MonacoProposalSample expired
+proposal-read-only            -MonacoProposalSample readOnly
+proposal-sell                 -MonacoProposalSample sell
+proposal-loading              -MonacoProposalSample loading
+proposal-unavailable          -MonacoProposalSample unavailable
+proposal-needs-vote           -MonacoProposalSample needsVote
+proposal-needs-vote-empty     -MonacoProposalSample needsVoteEmpty
+proposal-open-bottom          -MonacoProposalSample open -MonacoSampleScroll bottom
+proposal-open-large-text      -MonacoProposalSample open -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 
 # Harnesses that take a `-…Harness` flag; the word after it is the mode.
 feed-items                    -feedHarness items
