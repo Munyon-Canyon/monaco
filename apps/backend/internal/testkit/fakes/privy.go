@@ -84,6 +84,35 @@ func (s *Server) privyUser(w http.ResponseWriter, r *http.Request) {
 	privyError(w, http.StatusNotFound, "User not found")
 }
 
+func (s *Server) privyUserByEmail(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Address string `json:"address"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Address == "" {
+		privyError(w, http.StatusBadRequest, "invalid email request")
+		return
+	}
+	s.mu.Lock()
+	created, ok := s.userWithEmail(req.Address)
+	s.mu.Unlock()
+	if !ok {
+		privyError(w, http.StatusNotFound, "User not found")
+		return
+	}
+	writeJSON(w, map[string]any{
+		"id": created.ID, "linked_accounts": []map[string]string{{"type": "email", "address": created.Email}},
+	})
+}
+
+func (s *Server) userWithEmail(address string) (privyCreatedUser, bool) {
+	for _, u := range s.createdUsers {
+		if u.Email == address {
+			return u, true
+		}
+	}
+	return privyCreatedUser{}, false
+}
+
 func (s *Server) privyCreateUser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		LinkedAccounts []struct {
@@ -97,6 +126,11 @@ func (s *Server) privyCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
+	if _, taken := s.userWithEmail(req.LinkedAccounts[0].Address); taken {
+		s.mu.Unlock()
+		privyError(w, http.StatusBadRequest, "Linked account already exists")
+		return
+	}
 	s.nextUser++
 	id := "did:privy:fake-" + strconv.Itoa(s.nextUser)
 	s.createdUsers[id] = privyCreatedUser{ID: id, Email: req.LinkedAccounts[0].Address}

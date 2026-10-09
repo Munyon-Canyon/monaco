@@ -410,3 +410,20 @@ func TestScript_rejectsAFixtureItCannotServe(t *testing.T) {
 		}
 	}
 }
+
+func TestPrivyEmailLookup_refusesABodyWithoutAnAddress(t *testing.T) {
+	t.Parallel()
+	c := overHTTP(t)
+	for _, body := range []string{`{}`, `nope`} {
+		if got := mustCall(
+			t.Context(),
+			t,
+			c,
+			http.MethodPost,
+			"/privy/v1/users/email/address",
+			body,
+		); got.status != http.StatusBadRequest {
+			t.Fatalf("POST email/address %s = %d, want 400", body, got.status)
+		}
+	}
+}

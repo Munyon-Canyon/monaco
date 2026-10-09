@@ -37,6 +37,7 @@ type PrivyUsers interface {
 	Verify(ctx context.Context, raw string) (PrivyUserID, error)
 	User(ctx context.Context, id PrivyUserID) (PrivyUser, error)
 	Create(ctx context.Context, email string) (PrivyUserID, error)
+	ByEmail(ctx context.Context, email string) (PrivyUserID, bool, error)
 }
 
 type MemberWallets interface {
