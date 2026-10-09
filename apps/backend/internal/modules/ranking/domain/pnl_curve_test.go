@@ -179,3 +179,22 @@ func TestPnLCurve_Failures(t *testing.T) {
 		t.Errorf("net underflows: err = %v, want invalid_input", err)
 	}
 }
+
+func TestPnLCurve_ANewHolderGetsALineFromTheFirstSnapshot(t *testing.T) {
+	t.Parallel()
+	for _, r := range []domain.Range{domain.Range1H, domain.Range1D, domain.Range1W, domain.Range1M, domain.RangeAll} {
+		t.Run(string(r), func(t *testing.T) {
+			t.Parallel()
+			fund := bucketNowAt()
+			valued := fund.Add(time.Second)
+			now := valued.Add(2 * time.Minute)
+			cabal := newCabalID()
+			stakes := []domain.StakePoint{stake(cabal, fund, 10, 1_000)}
+			snaps := map[ids.CabalID][]domain.Snapshot{cabal: {potSnap(valued, 1_000, 10), potSnap(now, 1_100, 10)}}
+			got, err := domain.PnLCurve(r, now, stakes, snaps, skipNone)
+			if err != nil || len(got) != 2 || !got[0].At.Equal(valued) || !got[1].At.Equal(now) {
+				t.Fatalf("PnLCurve = %+v, %v, want points at %v and %v", got, err, valued, now)
+			}
+		})
+	}
+}

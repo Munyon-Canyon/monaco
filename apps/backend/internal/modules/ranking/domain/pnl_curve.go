@@ -35,7 +35,7 @@ func PnLCurve(
 	for _, s := range stakes {
 		byCabal[s.CabalID] = append(byCabal[s.CabalID], s)
 	}
-	for _, end := range BucketTimes(r, now, stakes[0].At) {
+	for _, end := range BucketTimes(r, now, firstValued(stakes[0], snaps)) {
 		held, ok, err := heldAt(end, byCabal, snaps, skipped)
 		if err != nil {
 			return nil, err
@@ -50,6 +50,15 @@ func PnLCurve(
 		points = append(points, PnLPoint{At: end, Equity: held.equity, PnL: pnl})
 	}
 	return points, nil
+}
+
+func firstValued(first StakePoint, snaps map[ids.CabalID][]Snapshot) time.Time {
+	for _, s := range snaps[first.CabalID] {
+		if !s.At.Before(first.At) {
+			return s.At
+		}
+	}
+	return first.At
 }
 
 type held struct {
