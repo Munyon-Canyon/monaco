@@ -13,11 +13,18 @@ final class PnLHistoryLoaderConcurrencyTests: XCTestCase {
     private static let cabalID = Components.Schemas.CabalRef.sampleAlpha.id
 
     func testNoMoreThanFourValueHistoryRequestsAreInFlight() async throws {
-        let transport = InFlightTransport(total: 10, body: try encode(PotHistory.sample(range: ._1m)))
+        let transport = InFlightTransport(body: try encode(PotHistory.sample(range: ._1m)))
         let loader = PnLHistoryLoader(api: api(transport), hints: FakeHintStream())
         let subjects = (0..<10).map { PnLHistoryLoader.Subject.cabal(id: "cabal-\($0)") }
 
-        let curves = try await loader.show(subjects, range: .oneMonth)
+        let load = Task { try await loader.show(subjects, range: .oneMonth) }
+        await transport.waitUntilInFlight(4)
+        for _ in 0..<20 { await Task.yield() }
+        let held = await transport.current
+        XCTAssertEqual(held, 4, "a fifth request started while four were held")
+
+        await transport.releaseAll()
+        let curves = try await load.value
 
         XCTAssertEqual(curves?.count, 10)
         let peak = await transport.peak
@@ -87,41 +94,44 @@ final class PnLHistoryLoaderConcurrencyTests: XCTestCase {
     }
 
     private actor InFlightTransport: ClientTransport {
-        private let total: Int
         private let body: String
-        private var current = 0
-        private var started = 0
-        private var waiters: [CheckedContinuation<Void, Never>] = []
+        private var held: [CheckedContinuation<Void, Never>] = []
+        private var waiter: (count: Int, continuation: CheckedContinuation<Void, Never>)?
+        private var released = false
+        private(set) var current = 0
         private(set) var peak = 0
 
-        init(total: Int, body: String) {
-            self.total = total
+        init(body: String) {
             self.body = body
+        }
+
+        func waitUntilInFlight(_ n: Int) async {
+            if current == n { return }
+            await withCheckedContinuation { waiter = (n, $0) }
+        }
+
+        func releaseAll() {
+            released = true
+            for continuation in held { continuation.resume() }
+            held = []
         }
 
         func send(_ request: HTTPRequest, body _: HTTPBody?, baseURL _: URL, operationID _: String) async throws
             -> (HTTPResponse, HTTPBody?)
         {
             current += 1
-            started += 1
             peak = max(peak, current)
-            if started == total {
-                release()
-            } else if current >= 4 {
-                for _ in 0..<50 { await Task.yield() }
-                release()
-            } else {
-                await withCheckedContinuation { waiters.append($0) }
+            if let pending = waiter, pending.count == current {
+                waiter = nil
+                pending.continuation.resume()
+            }
+            if !released {
+                await withCheckedContinuation { held.append($0) }
             }
             current -= 1
             var response = HTTPResponse(status: .ok)
             response.headerFields[.contentType] = "application/json"
             return (response, HTTPBody(body))
-        }
-
-        private func release() {
-            for waiter in waiters { waiter.resume() }
-            waiters = []
         }
     }
 
