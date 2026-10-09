@@ -148,17 +148,19 @@ struct SubmitLabel: View {
     let isWorking: Bool
     let idle: String
     let working: String
+    let tint: Color
 
-    init(isWorking: Bool, idle: String, working: String) {
+    init(isWorking: Bool, idle: String, working: String, tint: Color = MonacoTheme.primaryButtonLabel) {
         self.isWorking = isWorking
         self.idle = idle
         self.working = working
+        self.tint = tint
     }
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.s) {
             if isWorking {
-                ProgressView().tint(MonacoTheme.primaryButtonLabel)
+                ProgressView().tint(tint)
             }
             Text(isWorking ? working : idle)
         }

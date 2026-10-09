@@ -67,10 +67,9 @@ struct DeleteAccountContent: View {
                 Button {
                     confirming = true
                 } label: {
-                    HStack(spacing: MonacoTheme.Space.s) {
-                        if isDeleting { ProgressView() }
-                        Text(isDeleting ? AccountCopy.deleting : AccountCopy.deleteTitle)
-                    }
+                    SubmitLabel(
+                        isWorking: isDeleting, idle: AccountCopy.deleteTitle, working: AccountCopy.deleting,
+                        tint: MonacoTheme.destructive)
                 }
                 .buttonStyle(.monacoDestructive)
                 .disabled(isDeleting || !canDelete)
