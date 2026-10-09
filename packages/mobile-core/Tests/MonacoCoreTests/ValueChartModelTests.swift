@@ -1,6 +1,8 @@
 import Foundation
 import MonacoAPI
 import MonacoTestSupport
+import Observation
+import Synchronization
 import XCTest
 
 @testable import MonacoCore
@@ -91,10 +93,63 @@ final class ValueChartModelTests: XCTestCase {
         XCTAssertNotNil(model.curve)
     }
 
+    func testTheShownRangeStaysOnTheOldRangeUntilTheNewOnesDataLands() async throws {
+        let (model, transport, _) = try make([.curve(._1d), .gate])
+        await model.load()
+        XCTAssertEqual(model.shownRange, .oneDay)
+
+        let selecting = Task { await model.select(.oneWeek) }
+        await transport.waitForRequests(2)
+
+        XCTAssertEqual(model.range, .oneWeek)
+        XCTAssertEqual(model.shownRange, .oneDay)
+        XCTAssertEqual(model.curve, ValueCurve(MyHistory.sample(range: ._1d)))
+        await transport.releaseGate(try Script.curve(._1w).reply())
+        await selecting.value
+        XCTAssertEqual(model.shownRange, .oneWeek)
+        XCTAssertEqual(model.curve, ValueCurve(MyHistory.sample(range: ._1w)))
+    }
+
+    func testSubjectsThatOnlySwapPlacesLeaveTheChartAlone() async throws {
+        let (model, transport, _) = try make(
+            [.cabal(._1d, id: "a"), .cabal(._1d, id: "b")], subjects: [.cabal(id: "a"), .cabal(id: "b")])
+        await model.load()
+        let shown = model.curves
+        let touched = Mutex(false)
+        withObservationTracking {
+            _ = model.state
+        } onChange: {
+            touched.withLock { $0 = true }
+        }
+
+        await model.setSubjects([.cabal(id: "b"), .cabal(id: "a")])
+
+        XCTAssertFalse(touched.withLock { $0 })
+        XCTAssertEqual(model.curves, shown)
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 2)
+    }
+
+    func testNewSubjectsKeepTheLoadedChartWhileTheirCurvesLoad() async throws {
+        let (model, transport, _) = try make([.cabal(._1d, id: "a"), .gate], subjects: [.cabal(id: "a")])
+        await model.load()
+        let before = model.curves
+
+        let changing = Task { await model.setSubjects([.cabal(id: "a"), .cabal(id: "b")]) }
+        await transport.waitForRequests(2)
+
+        guard case .loaded = model.state else { return XCTFail("want the old curves on screen, got \(model.state)") }
+        XCTAssertEqual(model.curves, before)
+        await transport.releaseGate(try Script.cabal(._1d, id: "b").reply())
+        await changing.value
+        XCTAssertEqual(model.curves?.keys.count, 2)
+    }
+
     private enum Script {
         case curve(MyHistory.RangePayload, shifted: Bool = false)
-        case cabal(Components.Schemas.CabalValueHistory.RangePayload)
+        case cabal(Components.Schemas.CabalValueHistory.RangePayload, id: String = "cabal-1")
         case failure
+        case gate
 
         func reply() throws -> StubTransport.Reply {
             let encoder = JSONEncoder()
@@ -104,22 +159,25 @@ final class ValueChartModelTests: XCTestCase {
                 var history = MyHistory.sample(range: range)
                 if shifted { history.points[3].equityMicros += 1_000_000 }
                 return .json(.ok, String(decoding: try encoder.encode(history), as: UTF8.self))
-            case .cabal(let range):
-                let history = Components.Schemas.CabalValueHistory.sample(cabalID: "cabal-1", range: range)
+            case .cabal(let range, let id):
+                let history = Components.Schemas.CabalValueHistory.sample(cabalID: id, range: range)
                 return .json(.ok, String(decoding: try encoder.encode(history), as: UTF8.self))
             case .failure:
                 return .failure(URLError(.notConnectedToInternet))
+            case .gate:
+                return .gate
             }
         }
     }
 
     private func make(
-        _ script: [Script], ranges: [LeaderboardRange] = LeaderboardRange.allCases
+        _ script: [Script], ranges: [LeaderboardRange] = LeaderboardRange.allCases,
+        subjects: [PnLHistoryLoader.Subject] = [.me]
     ) throws -> (ValueChartModel, StubTransport, FakeHintStream) {
         let transport = StubTransport(scripted: try script.map { try $0.reply() })
         let hints = FakeHintStream()
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        let model = ValueChartModel(subjects: [.me], ranges: ranges, range: .oneDay, api: api, hints: hints)
+        let model = ValueChartModel(subjects: subjects, ranges: ranges, range: .oneDay, api: api, hints: hints)
         return (model, transport, hints)
     }
 }

@@ -6,12 +6,12 @@ import Observation
 public final class ValueChartModel {
     public private(set) var state: LoadState<[PnLHistoryLoader.Subject: ValueCurve]> = .idle
     public private(set) var range: LeaderboardRange
+    public private(set) var shownRange: LeaderboardRange?
     public private(set) var toast: String?
     public let ranges: [LeaderboardRange]
 
     private let loader: PnLHistoryLoader
     private var subjects: [PnLHistoryLoader.Subject]
-    private var shownRange: LeaderboardRange?
     private var generation = 0
 
     public init(
@@ -44,13 +44,11 @@ public final class ValueChartModel {
     }
 
     public func setSubjects(_ next: [PnLHistoryLoader.Subject]) async {
-        if next == subjects {
+        if Set(next) == Set(subjects) {
             if case .failed = state { await show(range) }
             return
         }
         subjects = next
-        shownRange = nil
-        state = .idle
         await show(range)
     }
 

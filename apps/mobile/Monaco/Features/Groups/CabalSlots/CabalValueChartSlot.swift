@@ -65,10 +65,11 @@ private struct CabalValueChart: View {
         if let curve = model.curve, curve.hasEnoughHistory {
             CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) })
             CurveScrubChart(
-                curve: curve, range: model.range, selection: $selection,
+                curve: curve, range: model.shownRange ?? model.range, selection: $selection,
                 identifier: "cabal-value-chart")
         } else {
             CabalInkCaption(model.range.shortHistoryLine, id: "cabal-value-chart-short")
+                .frame(height: 160, alignment: .center)
         }
         MonacoRangeChips(
             ranges: model.ranges, selection: model.range, identifierPrefix: "cabal-value-chart"

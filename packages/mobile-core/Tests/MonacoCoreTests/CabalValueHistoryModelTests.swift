@@ -89,11 +89,29 @@ final class CabalValueHistoryModelTests: XCTestCase {
         XCTAssertEqual(Set(model.lines.map(\.curve.hasEnoughHistory)), [true, false])
     }
 
+    func testACabalJoinedAfterTheFirstLoadKeepsTheChartUpWhileItsLineLoads() async throws {
+        var one = Components.Schemas.MyPortfolio.sample
+        one.cabals.removeLast()
+        let (model, transport, _) = try make([.portfolio(one), .pot(Self.alpha), .portfolio(.sample), .gate])
+        await model.load()
+        XCTAssertEqual(model.phase, .loaded)
+
+        let reloading = Task { await model.load() }
+        await transport.waitForRequests(4)
+
+        XCTAssertEqual(model.phase, .loaded)
+        XCTAssertEqual(model.lines.map(\.name), ["Alpha"])
+        await transport.releaseGate(try Script.pot(Self.beta).reply())
+        await reloading.value
+        XCTAssertEqual(model.lines.map(\.name), ["Alpha", "Sunday Investors"])
+    }
+
     private enum Script {
         case portfolio(Components.Schemas.MyPortfolio)
         case pot(String, Pot.RangePayload = ._1m)
         case short(String)
         case failure
+        case gate
 
         func reply() throws -> StubTransport.Reply {
             let encoder = JSONEncoder()
@@ -108,6 +126,8 @@ final class CabalValueHistoryModelTests: XCTestCase {
                 return .json(.ok, String(decoding: try encoder.encode(Pot.sampleShort(cabalID: id)), as: UTF8.self))
             case .failure:
                 return .failure(URLError(.notConnectedToInternet))
+            case .gate:
+                return .gate
             }
         }
     }

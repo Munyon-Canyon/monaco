@@ -87,7 +87,7 @@ private struct HomePortfolioHero: View {
                     chip(summary)
                 }
                 if summary.isEmpty {
-                    hairline
+                    hairline.frame(height: 160, alignment: .center)
                 } else {
                     curve
                 }
@@ -149,14 +149,17 @@ private struct HomePortfolioHero: View {
             if let curve = chart.curve, curve.hasEnoughHistory {
                 CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) })
                 CurveScrubChart(
-                    curve: curve, range: chart.range, selection: $selection,
+                    curve: curve, range: chart.shownRange ?? chart.range, selection: $selection,
                     identifier: "home-pnl-chart")
             } else {
-                hairline
-                Text(chart.range.shortHistoryLine)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .accessibilityIdentifier("home-portfolio-short")
+                VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
+                    hairline
+                    Text(chart.range.shortHistoryLine)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .accessibilityIdentifier("home-portfolio-short")
+                }
+                .frame(height: 160, alignment: .center)
             }
             rangeChips(chart)
         }
