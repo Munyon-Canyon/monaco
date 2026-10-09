@@ -62,6 +62,10 @@ jobs:
           done
           docker run --rm -v "$PWD/api:/api:ro" ghcr.io/daveshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
 
+      - name: Pull the dev database image that Atlas starts (dockerDevURL in cmd/monacoctl/migrate.go)
+        working-directory: .
+        run: scripts/ci/retry.sh docker pull -q public.ecr.aws/docker/library/postgres:16
+
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
 
@@ -239,6 +243,9 @@ jobs:
 
       - name: Install the pinned atlas community build
         run: scripts/install-atlas.sh
+
+      - name: Pull the Postgres image that verify starts
+        run: scripts/ci/retry.sh docker compose --profile test pull postgres-test
 
       - name: Every flow, then every registered crash point, against a throwaway stack
         run: scripts/ci/e2e.sh
@@ -533,6 +540,7 @@ jobs:
               - 'scripts/test-backend.sh'
               - 'scripts/test-shard.awk'
               - 'scripts/ci/e2e.sh'
+              - 'scripts/ci/retry.sh'
               - 'scripts/require-docker.sh'
               - '.github/actions/backend-test-env/**'
               - 'docker-compose.yml'
@@ -573,6 +581,7 @@ jobs:
               - 'apps/backend/internal/modules/**'
               - 'apps/backend/internal/tools/flows/**'
               - 'scripts/ci/mobile-integration.sh'
+              - 'scripts/ci/retry.sh'
             ios:
               - 'apps/mobile/**'
               - 'packages/mobile-core/**'

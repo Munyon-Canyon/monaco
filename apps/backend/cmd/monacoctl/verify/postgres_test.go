@@ -47,7 +47,7 @@ func TestStartPostgres_runsATmpfsContainerOnARandomPortAndRemovesItByName(t *tes
 	for _, want := range []string{
 		"run -d --rm --name monaco-verify-run1 --label monaco.verify=run1 -p 127.0.0.1::5432 " +
 			"--tmpfs /var/lib/postgresql/data",
-		"postgres:16-alpine postgres -c fsync=off",
+		"public.ecr.aws/docker/library/postgres:16-alpine postgres -c fsync=off",
 		"port monaco-verify-run1 5432/tcp",
 		"rm -f -v monaco-verify-run1",
 	} {

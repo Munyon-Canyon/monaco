@@ -243,7 +243,7 @@ Egress must allow these hosts:
 - `api.github.com`, for REST (`gh api`, `monacoctl agents`, `scripts/pr-body.sh`).
 - `api.graphite.com`, for `gt submit`.
 - `proxy.golang.org`, for Go modules and toolchains.
-- `mirror.gcr.io` or Docker Hub, for `mirror.gcr.io/library/swift:6.3-noble` and for Postgres.
+- `mirror.gcr.io`, for `mirror.gcr.io/library/swift:6.3-noble`, and `public.ecr.aws`, for the Postgres and NATS images that Compose and Atlas pull.
 
 The Claude GitHub App must be installed on `Munyon-Canyon/monaco` with write on contents, pull requests, issues and commit statuses. Without that write, pushes, comments and `verdict` fail with `Resource not accessible by integration`.
 

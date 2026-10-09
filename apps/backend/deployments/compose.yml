@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: public.ecr.aws/docker/library/postgres:16-alpine
     container_name: monaco-postgres
     command:
       - postgres
@@ -26,7 +26,7 @@ services:
       start_period: 5s
 
   nats:
-    image: nats:2-alpine
+    image: public.ecr.aws/docker/library/nats:2-alpine
     container_name: monaco-nats
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
@@ -41,7 +41,7 @@ services:
       start_period: 2s
 
   postgres-test:
-    image: postgres:16-alpine
+    image: public.ecr.aws/docker/library/postgres:16-alpine
     # monacoctl agents check runs stage 0 slot N > 0 as project monaco-test-N with the MONACO_TEST_DB_* vars set.
     container_name: ${MONACO_TEST_DB_NAME:-monaco-postgres-test}
     profiles: [test]
