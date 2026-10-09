@@ -158,6 +158,7 @@ extension MarketMappingTests {
                 priceAsOf: sampledAt,
                 changeBps: 125,
                 sparklineMicros: [40_000_000, 42_000_000],
+                quotable: true,
                 session: .init(state: .open, continuous: true, holiday: "", earlyClose: false),
                 decimals: 6,
                 uiMultiplier: .init(num: 1, den: 1),
@@ -285,6 +286,7 @@ extension MarketMappingTests {
             priceAsOf: priceAsOf,
             changeBps: changeBps,
             sparklineMicros: sparklineMicros,
+            quotable: true,
             session: session,
             tradable: tradable
         )

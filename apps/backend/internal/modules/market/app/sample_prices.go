@@ -165,7 +165,10 @@ func (p *SamplePrices) insert(ctx context.Context, rows sqlc.InsertPricePointsPa
 	var written int64
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		written, err = sqlc.New(tx.Queries()).InsertPricePoints(ctx, rows)
+		q := sqlc.New(tx.Queries())
+		if written, err = q.InsertPricePoints(ctx, rows); err == nil {
+			_, err = q.MarkAssetsQuoted(ctx, sqlc.MarkAssetsQuotedParams{At: p.clock.Now(), Mints: rows.Mints})
+		}
 		return err
 	})
 	if err != nil {

@@ -15,7 +15,7 @@ UPDATE assets SET
   tradable_override = CASE $1::text WHEN 'auto' THEN NULL ELSE $1::text = 'on' END,
   updated_at = $2::timestamptz
 WHERE symbol = $3::text
-RETURNING id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at
+RETURNING id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at
 `
 
 type SetTradableOverrideParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) SetTradableOverride(ctx context.Context, arg SetTradableOverri
 		&i.UiMultiplierNextNum,
 		&i.UiMultiplierNextDen,
 		&i.UiMultiplierNextAt,
+		&i.LastQuotedAt,
 	)
 	return i, err
 }

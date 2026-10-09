@@ -46,3 +46,8 @@ FROM ROWS FROM (
   unnest(sqlc.arg(timestamps)::timestamptz[]), unnest(sqlc.arg(price_micros)::bigint[])
 ) AS u (ts, price_micros)
 ON CONFLICT (mint, ts) DO NOTHING;
+
+-- name: MarkAssetsQuoted :execrows
+UPDATE assets SET last_quoted_at = sqlc.arg(at)::timestamptz
+WHERE mint = ANY (sqlc.arg(mints)::text[])
+  AND (last_quoted_at IS NULL OR last_quoted_at < sqlc.arg(at)::timestamptz);

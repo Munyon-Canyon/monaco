@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -30,6 +31,9 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 	}
 	fundsErr := funds(ctx, h.ports, req.CabalID, asset, req.Trade, pot)
 	quote, routeErr := route(ctx, h.ports.Routes, asset, req.Trade)
+	if market.ProbeFailed(routeErr) {
+		routeErr = errs.New(errs.CodeNoRoute, "governance.Preview")
+	}
 	if routeErr == nil {
 		out.QuoteOut = quote.OutAmount.Uint64()
 	}
