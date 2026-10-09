@@ -9,11 +9,11 @@ public enum OnboardingNudge: Equatable, Sendable {
     }
 }
 
-public func nudge(for profile: SessionProfile) -> OnboardingNudge? {
+public func nudge(for profile: SessionProfile, connectX: Bool = true) -> OnboardingNudge? {
     guard profile.accountStatus == .active else { return nil }
     switch profile.authState {
     case .awaitingPhone: return .addPhone("Add your number to find friends")
-    case .awaitingSocials: return .linkX("Connect X to find people you follow")
+    case .awaitingSocials: return connectX ? .linkX("Connect X to find people you follow") : nil
     case .created, .onboardingCompleted, .unknown: return nil
     }
 }

@@ -78,7 +78,8 @@ struct SessionGateView: View {
     @ViewBuilder
     private func routed(_ profile: SessionProfile) -> some View {
         let destination = FirstRunGate.destination(
-            for: profile, onboardingCursor: onboardingCursor, contactsPromptSeen: contactsPromptSeen)
+            for: profile, onboardingCursor: onboardingCursor, contactsPromptSeen: contactsPromptSeen,
+            connectX: AppFeatures.current.connectX)
         let advance = { onboardingCursor = onboardingCursor.advanced(past: destination) }
         switch destination {
         case .session: SessionGateSkeleton()

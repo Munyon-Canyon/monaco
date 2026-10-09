@@ -183,6 +183,8 @@ write_info_plist() {
 	<string>\$(MONACO_API_BASE_URL)</string>
 	<key>MonacoAPSEnvironment</key>
 	<string>\$(MONACO_APS_ENVIRONMENT)</string>
+	<key>MonacoFeatureConnectX</key>
+	<string>\$(MONACO_FEATURE_CONNECT_X)</string>
 	<key>POSTHOG_API_KEY</key>
 	<string>${POSTHOG_API_KEY:-}</string>
 	<key>CFBundleURLTypes</key>
