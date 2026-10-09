@@ -27,6 +27,7 @@ type ExchangeOnrampToken struct {
 
 type OnrampExchange struct {
 	SessionID       uuid.UUID
+	PrivyUserID     string
 	WalletAddress   chain.SolanaAddress
 	SuggestedAmount *money.Micros
 	USDCMint        string
@@ -36,13 +37,14 @@ type ExchangeOnrampTokenHandler struct {
 	uow      *db.UnitOfWork
 	clock    clock.Clock
 	wallets  MemberWallets
+	privy    PrivyUsers
 	usdcMint string
 }
 
 func NewExchangeOnrampTokenHandler(
-	uow *db.UnitOfWork, c clock.Clock, wallets MemberWallets, usdcMint string,
+	uow *db.UnitOfWork, c clock.Clock, wallets MemberWallets, privy PrivyUsers, usdcMint string,
 ) *ExchangeOnrampTokenHandler {
-	return &ExchangeOnrampTokenHandler{uow: uow, clock: c, wallets: wallets, usdcMint: usdcMint}
+	return &ExchangeOnrampTokenHandler{uow: uow, clock: c, wallets: wallets, privy: privy, usdcMint: usdcMint}
 }
 
 func (h *ExchangeOnrampTokenHandler) Handle(ctx context.Context, cmd ExchangeOnrampToken) (OnrampExchange, error) {
@@ -62,6 +64,10 @@ func (h *ExchangeOnrampTokenHandler) Handle(ctx context.Context, cmd ExchangeOnr
 			return domain.RefuseOnrampToken(domain.OnrampStatus(row.Status), row.WasOpened, row.ExpiresAt, now)
 		}
 		user := ids.UserIDFrom(row.UserID)
+		privyUser, err := h.privy.PrivyUserID(ctx, user)
+		if err != nil {
+			return err
+		}
 		address, err := h.wallets.MemberWalletAddress(ctx, user)
 		if err != nil {
 			return err
@@ -71,7 +77,8 @@ func (h *ExchangeOnrampTokenHandler) Handle(ctx context.Context, cmd ExchangeOnr
 			return err
 		}
 		out = OnrampExchange{
-			SessionID: row.ID, WalletAddress: address, SuggestedAmount: suggested, USDCMint: h.usdcMint,
+			SessionID: row.ID, PrivyUserID: privyUser, WalletAddress: address, SuggestedAmount: suggested,
+			USDCMint: h.usdcMint,
 		}
 		ctx = observability.WithActor(ctx, auth.Actor{Kind: auth.ActorUser, ID: user.String()}.Key())
 		return tx.Events.Append(ctx, statusChanged(row.ID, row.UserID, domain.OnrampCreated, domain.OnrampOpened,

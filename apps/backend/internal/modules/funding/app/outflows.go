@@ -16,6 +16,10 @@ type MemberWallets interface {
 	MemberWalletAddress(context.Context, ids.UserID) (chain.SolanaAddress, error)
 }
 
+type PrivyUsers interface {
+	PrivyUserID(context.Context, ids.UserID) (string, error)
+}
+
 type WalletReader struct{ Reader identityport.WalletReader }
 
 func (r WalletReader) MemberWalletAddress(ctx context.Context, user ids.UserID) (chain.SolanaAddress, error) {

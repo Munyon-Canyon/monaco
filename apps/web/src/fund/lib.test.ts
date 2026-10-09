@@ -17,6 +17,7 @@ import {
 
 const session: Session = {
   session_id: "01890a5d-ac96-774b-bcce-b302099a8057",
+  privy_user_id: "did:privy:cm1abcdefghijklmnopqrstuv",
   wallet_address: "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P",
   suggested_amount_micros: "25000000",
   usdc_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -142,6 +143,14 @@ describe("state machine", () => {
     expect(back).toEqual(reporting);
     expect(view(back, { ready: true, authenticated: false })).toBe("login");
     expect(view(back, signedIn)).toBe("reporting");
+  });
+
+  it("returns to open after a wrong account is caught before funding, then funds once signed in", () => {
+    const open: State = { step: "open", session };
+    const back = transition(transition(open, { type: "failed", failure: "wrong_account" }), { type: "retry" });
+    expect(back).toEqual(open);
+    expect(view(back, { ready: true, authenticated: false })).toBe("login");
+    expect(view(back, signedIn)).toBe("ready");
   });
 
   it("does not retry an expired link", () => {

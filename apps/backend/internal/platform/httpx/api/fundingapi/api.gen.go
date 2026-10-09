@@ -169,6 +169,11 @@ type ExchangeOnrampTokenRequest struct {
 
 // OnrampExchange What the fund page needs to start the provider flow.
 type OnrampExchange struct {
+	// PrivyUserId The Privy user the session belongs to. The fund page checks the signed-in Privy user against it before opening the provider flow.
+	//
+	// Examples: did:privy:cm1abcdefghijklmnopqrstuv
+	PrivyUserId string `json:"privy_user_id"`
+
 	// SessionId The session id.
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057

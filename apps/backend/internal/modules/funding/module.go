@@ -45,11 +45,12 @@ func (*Module) Name() string { return "funding" }
 
 func (m *Module) Mount(r api.Mount) {
 	cfg := m.deps.Config
-	wallets := app.WalletReader{Reader: identity.New(m.deps).Queries()}
+	queries := identity.New(m.deps).Queries()
+	wallets := app.WalletReader{Reader: queries}
 	fundingapi.Mount(adapters.HTTP{
 		Balances: m.balanceReader(), Wallets: wallets,
 		Create:      app.NewCreateOnrampSessionHandler(m.deps.UoW, m.deps.Clock, cfg.FundPageURL()),
-		Exchange:    app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, wallets, cfg.Solana.USDCMint),
+		Exchange:    app.NewExchangeOnrampTokenHandler(m.deps.UoW, m.deps.Clock, wallets, queries, cfg.Solana.USDCMint),
 		Report:      app.NewReportOnrampStatusHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
 		Reads:       m.deps.Pool,
 		IDs:         m.deps.IDs,

@@ -72,6 +72,17 @@ func (q *Queries) MemberWalletsAfter(ctx context.Context, arg MemberWalletsAfter
 	return items, nil
 }
 
+const privyUserIDByUserID = `-- name: PrivyUserIDByUserID :one
+SELECT privy_user_id FROM users WHERE id = $1::uuid AND deleted_at IS NULL
+`
+
+func (q *Queries) PrivyUserIDByUserID(ctx context.Context, dollar_1 uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, privyUserIDByUserID, dollar_1)
+	var privy_user_id string
+	err := row.Scan(&privy_user_id)
+	return privy_user_id, err
+}
+
 const userCardByHandle = `-- name: UserCardByHandle :one
 SELECT id, handle, display_name, photo_url, auth_state, account_status,
   (phone_verified_at IS NOT NULL)::boolean AS phone_verified,

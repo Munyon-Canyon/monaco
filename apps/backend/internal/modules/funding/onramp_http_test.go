@@ -45,7 +45,8 @@ func TestOnrampHTTP_createThenExchangeRoundTripsTheAmount(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := out.(api.ExchangeOnrampToken200JSONResponse)
-	if !ok || got.SessionId != created.SessionId || got.WalletAddress != string(f.user.Address) ||
+	if !ok || got.SessionId != created.SessionId || got.PrivyUserId != f.user.PrivyUserID ||
+		got.WalletAddress != string(f.user.Address) ||
 		got.SuggestedAmountMicros == nil || *got.SuggestedAmountMicros != amount || got.UsdcMint != usdcMint {
 		t.Fatalf("exchange response = %+v", out)
 	}

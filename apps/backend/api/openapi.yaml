@@ -5188,13 +5188,17 @@ components:
       type: object
       description: What the fund page needs to start the provider flow.
       additionalProperties: false
-      required: [session_id, wallet_address, suggested_amount_micros, usdc_mint]
+      required: [session_id, privy_user_id, wallet_address, suggested_amount_micros, usdc_mint]
       properties:
         session_id:
           type: string
           format: uuid
           description: The session id.
           examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        privy_user_id:
+          type: string
+          description: The Privy user the session belongs to. The fund page checks the signed-in Privy user against it before opening the provider flow.
+          examples: ["did:privy:cm1abcdefghijklmnopqrstuv"]
         wallet_address:
           type: string
           description: The member wallet the provider sends USDC to.

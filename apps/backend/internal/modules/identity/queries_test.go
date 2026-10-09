@@ -601,9 +601,11 @@ func TestQueries_databaseFailuresAreInternalAndKeepTheirCause(t *testing.T) {
 	_, byX := f.port.UsersByXUserIDs(ctx, []string{"x-someone"})
 	_, wallet := f.port.MemberWallet(ctx, id)
 	_, wallets := f.port.MemberWallets(ctx, id, 1)
+	_, privyUser := f.port.PrivyUserID(ctx, id)
 	for name, err := range map[string]error{
 		"UsersByID": byID, "UserByHandle": byHandle, "UserIDsByHandles": byHandles, "UsersByPhoneHashes": byPhone,
 		"UsersByXUserIDs": byX, "MemberWallet": wallet, "MemberWallets": wallets,
+		"PrivyUserID": privyUser,
 	} {
 		if errs.CodeOf(err) != errs.CodeInternal || !errors.Is(err, context.Canceled) {
 			t.Errorf("%s err = %v, want internal wrapping the context error", name, err)
