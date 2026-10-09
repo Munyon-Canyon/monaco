@@ -110,6 +110,8 @@ enum FundCabalStage: Equatable {
         if case .amount = self { return true }
         return false
     }
+
+    var showsDepositAction: Bool { showsAmountEntry }
 }
 
 /// What Fund this cabal says and allows for the amount typed against the balance it has.
@@ -203,29 +205,39 @@ struct FundCabalContent: View {
     var body: some View {
         ScrollView {
             stageContent
-                // The figure starts where Cash out's does, so the two read as one pair.
-                .padding(.top, MonacoTheme.Space.xl)
-                .padding(.bottom, MonacoTheme.Space.xl)
+                // The amount stage starts where Cash out's does, so the two read as one pair.
+                .padding(.top, stage.showsAmountEntry ? MonacoTheme.Space.s : MonacoTheme.Space.xl)
+                .padding(.bottom, stage.showsAmountEntry ? MonacoTheme.Space.s : MonacoTheme.Space.xl)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
             if stage.showsAmountEntry {
                 BottomCTA {
-                    Button(action: onSubmit) {
-                        HStack(spacing: MonacoTheme.Space.s) {
-                            if isSubmitting {
-                                ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                                Text("Adding…")
-                            } else {
-                                Text(form.ctaTitle)
+                    VStack(spacing: MonacoTheme.Space.s) {
+                        if stage.showsDepositAction {
+                            Button(action: onAddMoney) {
+                                Text("Deposit").frame(maxWidth: .infinity)
                             }
+                            .buttonStyle(.monacoSecondary)
+                            .disabled(isSubmitting)
+                            .accessibilityIdentifier("fund-cabal-deposit-button")
                         }
-                        .frame(maxWidth: .infinity)
+                        Button(action: onSubmit) {
+                            HStack(spacing: MonacoTheme.Space.s) {
+                                if isSubmitting {
+                                    ProgressView().tint(MonacoTheme.primaryButtonLabel)
+                                    Text("Adding…")
+                                } else {
+                                    Text(form.ctaTitle)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.monacoPrimary)
+                        .disabled(!form.canSubmit || isSubmitting)
+                        .accessibilityIdentifier("fund-cabal-submit-button")
                     }
-                    .buttonStyle(.monacoPrimary)
-                    .disabled(!form.canSubmit || isSubmitting)
-                    .accessibilityIdentifier("fund-cabal-submit-button")
                 }
             }
         }
@@ -258,21 +270,23 @@ struct FundCabalContent: View {
     }
 
     private var amountEntry: some View {
-        VStack(spacing: MonacoTheme.Space.l) {
-            AmountEntry(
-                amountText: $amountText,
-                max: form.maxDollars,
-                presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
-                helper: form.availability,
-                problem: form.problem
-            )
-            AmountEntryNote(FundCabalForm.note(into: cabalName))
-            Text(FundCabalForm.treasuryNote)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("fund-cabal-treasury-note")
+        AmountEntry(
+            amountText: $amountText,
+            max: form.maxDollars,
+            presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
+            helper: form.availability,
+            problem: form.problem,
+            input: .keypad
+        ) {
+            VStack(spacing: MonacoTheme.Space.s) {
+                AmountEntryNote(FundCabalForm.note(into: cabalName))
+                Text(FundCabalForm.treasuryNote)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("fund-cabal-treasury-note")
+            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
