@@ -31,8 +31,8 @@ public enum LoginStep: Equatable, Sendable {
 }
 
 public enum LoginFailureCopy {
-    public static let sessionExpired = "Your session expired. Sign in again."
-    public static let restoreOffline = "Can't reach the sign-in service. Check your connection and try again."
+    public static let sessionExpired = "You were signed out. Sign in again."
+    public static let restoreOffline = "Can't reach Monaco. Check your connection and try again."
     public static let tokenUnavailable = "Signed in, but couldn't finish. Check your connection and try again."
 
     public static func message(for failure: LoginFailure, step: LoginStep) -> String {

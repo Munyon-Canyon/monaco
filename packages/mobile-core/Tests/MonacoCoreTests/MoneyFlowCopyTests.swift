@@ -123,7 +123,7 @@ final class MoneyFlowCopyTests: XCTestCase {
 
     func testGeneric_sessionExpiredAndRateLimited() {
         let expired = MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 401))
-        XCTAssertEqual(expired.summary, "Your session expired. Sign in again to cash out.")
+        XCTAssertEqual(expired.summary, "You were signed out. Sign in again to cash out.")
         XCTAssertFalse(expired.isRetryable)
         XCTAssertTrue(MoneyFlowCopy.sellStakeFailure(FlowErrorInput(status: 429)).isRetryable)
     }

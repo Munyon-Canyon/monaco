@@ -211,7 +211,7 @@ public enum MoneyFlowCopy {
         }
         if input.status == 401 {
             return FlowFailure(
-                message: "Your session expired.",
+                message: "You were signed out.",
                 recovery: .none,
                 nextStep: "Sign in again to \(action)."
             )

@@ -90,7 +90,7 @@ because one expired:
   retries the request once. Concurrent 401s share one refresh.
 - **Only a real rejection signs out**: Privy reports no session, or the backend
   still answers 401 with a freshly minted token. The login screen then says
-  "Your session expired. Sign in again." (or the verification message above for
+  "You were signed out. Sign in again." (or the verification message above for
   `POST /v1/auth/session`). A refresh that fails because the device is offline
   surfaces as a connection error instead.
 
