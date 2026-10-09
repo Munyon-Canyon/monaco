@@ -166,7 +166,7 @@ struct FundCabalForm: Equatable {
         guard let availableMicros else { return nil }
         let available = "\(UsdAmountFormatter.format(flooredMicros: availableMicros)) available"
         guard inFlightMicros > 0 else { return available }
-        return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) funding"
+        return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) funding a cabal"
     }
 
     /// Replaces the helper, in red, while the amount typed is over the balance or under the minimum.
@@ -183,11 +183,11 @@ struct FundCabalForm: Equatable {
             return "The money leaves your account balance and joins the pot. Your slice grows by the same amount."
         }
         return
-            "The money leaves your account balance and joins the \(cabalName) pot. Your slice grows by the same amount."
+            "The money leaves your account balance and joins \(cabalName)'s pot. Your slice grows by the same amount."
     }
 
     static let treasuryNote =
-        "To add money to this cabal, use Fund. Sending USDC straight to the treasury will be returned and pauses the cabal's trading."
+        "Only fund this cabal from here. USDC sent straight to the cabal is returned and pauses its trading."
 }
 
 /// Fund this cabal's layout: the amount as the hero, the balance it comes out of, and a button

@@ -94,11 +94,11 @@ struct FundCabalFormTests {
             FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).availability == "$248.50 available")
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(198_500_000, pending: 50_000_000)).availability
-                == "$198.50 available · $50.00 funding"
+                == "$198.50 available · $50.00 funding a cabal"
         )
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(1_000_000_000, pending: 300_000_000)).availability
-                == "$1,000.00 available · $300.00 funding"
+                == "$1,000.00 available · $300.00 funding a cabal"
         )
         #expect(FundCabalForm(amountText: "", balance: nil).availability == nil)
     }
@@ -114,7 +114,7 @@ struct FundCabalFormTests {
                 == "The money leaves your account balance and joins the pot. Your slice grows by the same amount.")
         #expect(
             FundCabalForm.note(into: "Semis or bust")
-                == "The money leaves your account balance and joins the Semis or bust pot. Your slice grows by the same amount."
+                == "The money leaves your account balance and joins Semis or bust's pot. Your slice grows by the same amount."
         )
         #expect(FundCabalForm.note(into: "") == FundCabalForm.note(into: nil))
     }

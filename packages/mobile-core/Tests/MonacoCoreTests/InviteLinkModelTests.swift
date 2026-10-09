@@ -175,12 +175,12 @@ final class InviteLinkModelTests: XCTestCase {
 
     func testUnlockCopyNamesTheHandle() {
         XCTAssertEqual(
-            InviteLinks.unlockCopy(handle: "kaicenat"), "Make your first deposit to use @kaicenat as your invite link")
+            InviteLinks.unlockCopy(handle: "kaicenat"), "Add money to use @kaicenat as your invite link")
     }
 
     func testUnlockCopyWithoutAHandle() {
         XCTAssertEqual(
-            InviteLinks.unlockCopy(handle: nil), "Make your first deposit to use your handle as your invite link")
+            InviteLinks.unlockCopy(handle: nil), "Add money to use your handle as your invite link")
     }
 
     private static func pending() throws -> StubTransport.Reply {
