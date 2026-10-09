@@ -217,30 +217,6 @@ class PrivyAuthService: ObservableObject {
         }
     }
 
-    func loginWithApple() async {
-        await authorize(.apple) { try await self.privy.oAuth.login(with: .apple, appUrlScheme: "monaco") }
-    }
-
-    func loginWithGoogle() async {
-        await authorize(.google) { try await self.privy.oAuth.login(with: .google, appUrlScheme: "monaco") }
-    }
-
-    private func authorize(_ provider: LoginProvider, _ login: () async throws -> PrivyUser) async {
-        await awaitPendingRevoke()
-        guard flow.beginAuthorizing(provider) else { return }
-        lastSignOutReason = nil
-
-        do {
-            let user = try await login()
-            await storeAuthenticatedUser(user, isRestore: false)
-        } catch {
-            accessToken = nil
-            AppLogger.session.error(
-                "\(provider.rawValue, privacy: .public) sign-in failed: \(String(describing: error), privacy: .public)")
-            flow.authorizationFailed(Self.loginFailure(from: error, step: .authorize))
-        }
-    }
-
     /// "Change number" / switching sign-in method.
     func resetLoginFlow() {
         flow.returnToAddressEntry()

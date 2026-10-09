@@ -7,11 +7,6 @@ import SwiftUI
 // did not help). The harness now subclasses the service instead, which is plain class
 // dispatch and works.
 
-enum LoginCopy {
-    static let signInWithApple = "Sign in with Apple"
-    static let continueWithGoogle = "Continue with Google"
-}
-
 /// The two ways in. Which of them are on comes from the build (`Config.privy`).
 enum LoginMethod: String, CaseIterable, Identifiable {
     case sms = "Text message"
@@ -115,36 +110,8 @@ struct LoginView: View {
             case .email:
                 EmailLoginView(auth: auth, scroll: scroll, initialCode: initialCode)
             }
-
-            if !auth.flow.isCodeEntry {
-                providerButtons
-                    .padding(.top, MonacoTheme.Space.l)
-            }
         }
         .monacoFullWidthButtons()
-    }
-
-    private var providerButtons: some View {
-        VStack(spacing: MonacoTheme.Space.sm) {
-            Button {
-                Task { await auth.loginWithApple() }
-            } label: {
-                AppleSignInCapsule()
-                    .frame(height: MonacoButtonMetrics.minimumHeight)
-                    .allowsHitTesting(false)
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(LoginCopy.signInWithApple)
-            .accessibilityIdentifier("signInWithAppleButton")
-
-            Button(LoginCopy.continueWithGoogle) {
-                Task { await auth.loginWithGoogle() }
-            }
-            .buttonStyle(.monacoSecondary)
-            .accessibilityIdentifier("continueWithGoogleButton")
-        }
-        .disabled(auth.flow.isBusy)
     }
 
     private var effectiveMethod: LoginMethod {
