@@ -17,6 +17,7 @@ import (
 
 var (
 	_ app.PrivyUsers    = (*Users)(nil)
+	_ app.PrivyDevUsers = (*Users)(nil)
 	_ app.MemberWallets = (*Wallets)(nil)
 )
 
@@ -84,6 +85,30 @@ func (u *Users) withEmail(email string) (app.PrivyUserID, bool) {
 		}
 	}
 	return "", false
+}
+
+func (u *Users) DevOnly(_ context.Context, id app.PrivyUserID) (bool, bool, error) {
+	if err := u.Check("DevOnly"); err != nil {
+		return false, false, err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	user, ok := u.users[id]
+	if !ok {
+		return false, false, nil
+	}
+	_, dev := domain.DevSuffix(user.Email)
+	return dev && user.AppleEmail == "" && user.GoogleEmail == "" && user.PhoneE164 == "" && user.X == nil, true, nil
+}
+
+func (u *Users) Delete(_ context.Context, id app.PrivyUserID) error {
+	if err := u.Check("Delete"); err != nil {
+		return err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	delete(u.users, id)
+	return nil
 }
 
 func (u *Users) User(_ context.Context, id app.PrivyUserID) (app.PrivyUser, error) {

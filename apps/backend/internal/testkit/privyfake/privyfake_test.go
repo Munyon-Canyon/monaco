@@ -110,3 +110,42 @@ func TestUsers_findsByEmailAndRefusesADuplicate(t *testing.T) {
 		t.Fatalf("ByEmail with a scripted fault = %v", err)
 	}
 }
+
+func TestUsers_devOnlyAndDelete(t *testing.T) {
+	t.Parallel()
+	var u privyfake.Users
+	if _, found, err := u.DevOnly(t.Context(), "did:privy:a"); found || err != nil {
+		t.Fatalf("DevOnly before Seed = %v, %v", found, err)
+	}
+	for name, tc := range map[string]struct {
+		user app.PrivyUser
+		want bool
+	}{
+		"dev email":  {app.PrivyUser{ID: "did:privy:a", Email: "dev-0a1b2c3d@example.com"}, true},
+		"real email": {app.PrivyUser{ID: "did:privy:a", Email: "a@gmail.com"}, false},
+		"phone":      {app.PrivyUser{ID: "did:privy:a", Email: "dev-0a1b2c3d@example.com", PhoneE164: "+14155550100"}, false},
+		"x":          {app.PrivyUser{ID: "did:privy:a", Email: "dev-0a1b2c3d@example.com", X: &domain.XAccount{UserID: "1"}}, false},
+		"apple":      {app.PrivyUser{ID: "did:privy:a", Email: "dev-0a1b2c3d@example.com", AppleEmail: "a@icloud.com"}, false},
+		"google":     {app.PrivyUser{ID: "did:privy:a", Email: "dev-0a1b2c3d@example.com", GoogleEmail: "a@gmail.com"}, false},
+	} {
+		u.Seed(tc.user)
+		if got, found, err := u.DevOnly(t.Context(), "did:privy:a"); got != tc.want || !found || err != nil {
+			t.Errorf("%s: DevOnly = %v, %v, %v, want %v", name, got, found, err, tc.want)
+		}
+	}
+	if err := u.Delete(t.Context(), "did:privy:a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, _ := u.DevOnly(t.Context(), "did:privy:a"); found {
+		t.Fatal("user still there after Delete")
+	}
+	down := errs.New(errs.CodePrivyUnavailable, "test")
+	u.Fail("DevOnly", down)
+	u.Fail("Delete", down)
+	if _, _, err := u.DevOnly(t.Context(), "x"); !errors.Is(err, down) {
+		t.Errorf("DevOnly fault = %v", err)
+	}
+	if err := u.Delete(t.Context(), "x"); !errors.Is(err, down) {
+		t.Errorf("Delete fault = %v", err)
+	}
+}

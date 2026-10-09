@@ -281,3 +281,45 @@ func TestPrivyUsers_byEmailFindsTheUserOrSaysNone(t *testing.T) {
 		t.Fatalf("empty email = %v, want invalid_input", err)
 	}
 }
+
+func TestPrivyUsers_devOnlyReadsTheShapeAndDeleteForgivesAMissingUser(t *testing.T) {
+	t.Parallel()
+	c, _, _ := overPrivyFakes(t)
+	users := privyadapter.Users{Client: c}
+	dev, err := users.Create(t.Context(), "dev-0a1b2c3d@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, err := users.Create(t.Context(), "person@gmail.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range map[string]struct {
+		id          app.PrivyUserID
+		devOnly, ok bool
+	}{
+		"dev email": {dev, true, true}, "real email": {member, false, true}, "missing": {"did:privy:gone", false, false},
+		"phone and apple": {"did:privy:member-with-wallet", false, true},
+	} {
+		devOnly, found, err := users.DevOnly(t.Context(), tc.id)
+		if devOnly != tc.devOnly || found != tc.ok || err != nil {
+			t.Errorf("%s: DevOnly = %v, %v, %v, want %v, %v", name, devOnly, found, err, tc.devOnly, tc.ok)
+		}
+	}
+	if err := users.Delete(t.Context(), dev); err != nil {
+		t.Fatalf("Delete = %v", err)
+	}
+	if err := users.Delete(t.Context(), dev); err != nil {
+		t.Fatalf("Delete of a missing user = %v, want nil", err)
+	}
+	down, _ := privyOver(t, privyConfig(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	failing := privyadapter.Users{Client: down}
+	if err := failing.Delete(t.Context(), member); err == nil {
+		t.Fatal("Delete through a failing Privy succeeded")
+	}
+	if _, _, err := failing.DevOnly(t.Context(), member); err == nil {
+		t.Fatal("DevOnly through a failing Privy succeeded")
+	}
+}

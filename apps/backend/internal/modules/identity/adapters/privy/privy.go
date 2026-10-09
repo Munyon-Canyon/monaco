@@ -15,6 +15,7 @@ const maxE164Digits = 15
 
 var (
 	_ app.PrivyUsers    = Users{}
+	_ app.PrivyDevUsers = Users{}
 	_ app.MemberWallets = Wallets{}
 )
 
@@ -47,6 +48,26 @@ func (u Users) ByEmail(ctx context.Context, email string) (app.PrivyUserID, bool
 		return "", false, err
 	}
 	return app.PrivyUserID(got.ID), true, nil
+}
+
+func (u Users) DevOnly(ctx context.Context, id app.PrivyUserID) (bool, bool, error) {
+	got, err := u.Client.GetUser(ctx, chainprivy.UserID(id))
+	if errs.CodeOf(err) == errs.CodeNotFound {
+		return false, false, nil
+	}
+	if err != nil {
+		return false, false, err
+	}
+	_, dev := domain.DevSuffix(got.Email)
+	return dev && got.Identities == 1, true, nil
+}
+
+func (u Users) Delete(ctx context.Context, id app.PrivyUserID) error {
+	err := u.Client.DeleteUser(ctx, chainprivy.UserID(id))
+	if errs.CodeOf(err) == errs.CodeNotFound {
+		return nil
+	}
+	return err
 }
 
 func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, error) {

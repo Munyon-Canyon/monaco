@@ -23,6 +23,7 @@ type User struct {
 	Phone          string
 	X              *XAccount
 	EmbeddedWallet *chain.Wallet
+	Identities     int
 }
 
 type linkedAccount struct {
@@ -87,11 +88,24 @@ func (c *Client) readUser(ctx context.Context, in call) (User, error) {
 	if err := c.do(ctx, in, &w); err != nil {
 		return User{}, err
 	}
-	u := User{ID: w.ID}
-	for _, a := range w.LinkedAccounts {
+	return newUser(w.ID, w.LinkedAccounts), nil
+}
+
+func newUser(id UserID, accounts []linkedAccount) User {
+	u := User{ID: id}
+	for _, a := range accounts {
 		u.link(a)
+		if a.Type != "wallet" {
+			u.Identities++
+		}
 	}
-	return u, nil
+	return u
+}
+
+func (c *Client) DeleteUser(ctx context.Context, id UserID) error {
+	return c.do(ctx, call{
+		op: "privy.DeleteUser", method: http.MethodDelete, path: "/v1/users/" + url.PathEscape(string(id)),
+	}, nil)
 }
 
 func (u *User) link(a linkedAccount) {

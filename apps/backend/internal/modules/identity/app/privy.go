@@ -43,3 +43,8 @@ type PrivyUsers interface {
 type MemberWallets interface {
 	FindOrCreate(ctx context.Context, id PrivyUserID) (PrivyWallet, error)
 }
+
+type PrivyDevUsers interface {
+	DevOnly(ctx context.Context, id PrivyUserID) (devOnly, found bool, err error)
+	Delete(ctx context.Context, id PrivyUserID) error
+}

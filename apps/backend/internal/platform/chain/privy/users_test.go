@@ -59,7 +59,7 @@ func TestGetUser_readsLinkedAccountsAndTheEmbeddedSolanaWallet(t *testing.T) {
 	}
 	want := privy.User{
 		ID: "did:privy:member-with-wallet", AppleEmail: "member@privaterelay.appleid.com", Phone: "+14155550100",
-		X:              &privy.XAccount{UserID: "1234567890", Username: "monaco_member"},
+		X: &privy.XAccount{UserID: "1234567890", Username: "monaco_member"}, Identities: 3,
 		EmbeddedWallet: &chain.Wallet{ID: "wallet-member", Address: "Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf"},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -78,7 +78,7 @@ func TestGetUser_readsTheEmailAccountAMemberSignedInWith(t *testing.T) {
 	c, _, _ := overFakes(t)
 	got, err := c.GetUser(t.Context(), "did:privy:member-legacy")
 	want := privy.User{
-		ID: "did:privy:member-legacy", Email: "legacy@example.com",
+		ID: "did:privy:member-legacy", Email: "legacy@example.com", Identities: 1,
 		EmbeddedWallet: &chain.Wallet{ID: "wallet-legacy", Address: "BGQoQgGkjSQc6c5YjsyRjuj4M5LbYJMHVCdS8BJSrr2R"},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
@@ -237,4 +237,21 @@ func TestUserByEmail_findsACreatedUserAndRefusesADuplicate(t *testing.T) {
 	wantCode(t, err, errs.CodeInvalidInput)
 	_, err = c.UserByEmail(t.Context(), "")
 	wantCode(t, err, errs.CodeInvalidInput)
+}
+
+func TestDeleteUser_deletesByIDAndSaysNotFoundForAMissingOne(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	id, err := c.CreateUser(t.Context(), "dev-ab@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteUser(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	req := u.requests()[1]
+	if req.method != http.MethodDelete || req.path != "/privy/v1/users/"+string(id) {
+		t.Fatalf("request = %s %s", req.method, req.path)
+	}
+	wantCode(t, c.DeleteUser(t.Context(), id), errs.CodeNotFound)
 }
