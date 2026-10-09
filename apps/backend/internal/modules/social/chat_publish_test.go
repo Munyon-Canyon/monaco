@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
@@ -202,6 +204,71 @@ func TestDeleteChatMessage_publishesTheDeletionOnceAndOnlyWhenItHappens(t *testi
 	}
 	if len(published) != 2 || !reflect.DeepEqual(published[1], want) {
 		t.Fatalf("published = %+v, want the post then one %+v", published, want)
+	}
+}
+
+func TestDeleteChatMessage_aReplyPublishesTheParentsThreadUpdateOnceAfterTheDeletion(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	top := f.mustSend(t, f.member(0), "top", nil)
+	first := f.mustSend(t, f.member(1), "one", &domain.Reply{Parent: top.ID})
+	f.clock.Advance(time.Minute)
+	second := f.mustSend(t, f.member(2), "two", &domain.Reply{Parent: top.ID})
+	before := len(f.rt.Published())
+	cmd := app.DeleteChatMessage{CabalID: f.cabal.ID, MessageID: first.ID, Caller: f.member(1)}
+	for range 2 {
+		if err := f.del.Handle(f.as(t, f.member(1)), cmd); err != nil {
+			t.Fatal(err)
+		}
+	}
+	thread := app.ThreadUpdated{MessageID: top.ID, ReplyCount: 1, LastReplyAt: second.CreatedAt}
+	want := []testkit.RealtimePublish{
+		{Channel: f.channel(), Name: app.EventMessageDeleted, Data: jsonOf(t, map[string]any{"id": first.ID})},
+		{Channel: f.channel(), Name: app.EventThreadUpdated, Data: jsonOf(t, thread)},
+	}
+	if got := f.rt.Published()[before:]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("published by deleting a reply twice = %+v, want %+v", got, want)
+	}
+}
+
+type threadCountProbe struct {
+	f      chatFixture
+	parent uuid.UUID
+	seen   *[]int
+}
+
+func (p threadCountProbe) Publish(ctx context.Context, _ string, event string, _ any) error {
+	if event != app.EventThreadUpdated {
+		return nil
+	}
+	var n int
+	if err := p.f.pool.QueryRow(ctx, `SELECT reply_count FROM cabal_messages WHERE id = $1`, p.parent).
+		Scan(&n); err != nil {
+		return err
+	}
+	*p.seen = append(*p.seen, n)
+	return nil
+}
+
+func (threadCountProbe) TokenRequest(context.Context, ids.UserID, []string, time.Duration) (app.TokenRequest, error) {
+	return app.TokenRequest{}, nil
+}
+
+func TestDeleteChatMessage_publishesTheThreadUpdateOnlyAfterTheCountIsCommitted(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	top := f.mustSend(t, f.member(0), "top", nil)
+	reply := f.mustSend(t, f.member(1), "reply", &domain.Reply{Parent: top.ID})
+	var seen []int
+	deps := f.deps
+	deps.Publish = app.NewChatPublisher(threadCountProbe{f: f, parent: top.ID, seen: &seen}, plainWire)
+	if err := app.NewDeleteChatMessageHandler(deps).Handle(f.as(t, f.member(1)), app.DeleteChatMessage{
+		CabalID: f.cabal.ID, MessageID: reply.ID, Caller: f.member(1),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(seen, []int{0}) {
+		t.Fatalf("reply_count visible to another connection at publish time = %v, want [0]", seen)
 	}
 }
 

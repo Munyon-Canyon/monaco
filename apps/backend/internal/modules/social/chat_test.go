@@ -418,6 +418,32 @@ func TestDeleteChatMessage_softDeletesTheAuthorsMessageOnce(t *testing.T) {
 	}
 }
 
+func TestDeleteChatMessage_aReplyLowersItsParentsCountOnce(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	top := f.mustSend(t, f.member(0), "top", nil)
+	first := f.mustSend(t, f.member(1), "one", &domain.Reply{Parent: top.ID})
+	f.clock.Advance(time.Minute)
+	second := f.mustSend(t, f.member(2), "two", &domain.Reply{Parent: top.ID})
+	cmd := app.DeleteChatMessage{CabalID: f.cabal.ID, MessageID: first.ID, Caller: f.member(1)}
+	for range 2 {
+		if err := f.del.Handle(f.as(t, f.member(1)), cmd); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, last := f.parentState(t, top.ID); n != 1 || last == nil || !last.Equal(second.CreatedAt) {
+		t.Fatalf("parent after deleting one of two replies, twice = %d replies, last %v, want 1 and %s",
+			n, last, second.CreatedAt)
+	}
+	cmd = app.DeleteChatMessage{CabalID: f.cabal.ID, MessageID: second.ID, Caller: f.member(2)}
+	if err := f.del.Handle(f.as(t, f.member(2)), cmd); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := f.parentState(t, top.ID); n != 0 {
+		t.Fatalf("parent after deleting both replies = %d replies, want 0", n)
+	}
+}
+
 func TestDeleteChatMessage_refusesWhenTheCallerCannotDeleteIt(t *testing.T) {
 	t.Parallel()
 	f := newChatFixture(t)
@@ -522,6 +548,21 @@ func TestChatCommands_failWithInternalWhenTheStoreFails(t *testing.T) {
 				return f.del.Handle(f.as(t, f.member(0)), app.DeleteChatMessage{
 					CabalID: f.cabal.ID, MessageID: parent.ID, Caller: f.member(0),
 				})
+			},
+		},
+		{
+			"delete a reply when lowering the parent's count fails",
+			`ALTER TABLE cabal_messages ADD CONSTRAINT keep_replies CHECK (parent_id IS NOT NULL OR reply_count > 0) NOT VALID`,
+			func(t *testing.T, f chatFixture, parent app.ChatMessage) error {
+				t.Helper()
+				reply := f.mustSend(t, f.member(1), "reply", &domain.Reply{Parent: parent.ID})
+				err := f.del.Handle(f.as(t, f.member(1)), app.DeleteChatMessage{
+					CabalID: f.cabal.ID, MessageID: reply.ID, Caller: f.member(1),
+				})
+				if n := f.count(t, `SELECT count(*) FROM cabal_messages WHERE deleted_at IS NOT NULL`); n != 0 {
+					t.Fatalf("deleted messages = %d after a failed delete, want 0", n)
+				}
+				return err
 			},
 		},
 		{
