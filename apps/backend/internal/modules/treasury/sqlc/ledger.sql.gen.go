@@ -425,8 +425,10 @@ func (q *Queries) CabalTotalShares(ctx context.Context, cabalID uuid.UUID) (stri
 }
 
 const cabalUserPosition = `-- name: CabalUserPosition :one
-SELECT share_units::text AS share_units, contributed_micros::text AS contributed_micros,
-  withdrawn_micros::text AS withdrawn_micros
+SELECT (share_units + coalesce((SELECT sum(j.share_units - j.returned_units) FROM cash_out_jobs AS j
+    WHERE j.cabal_id = $1::uuid AND j.user_id = $2::uuid
+      AND j.status IN ('started', 'selling', 'paying')), 0))::text AS share_units,
+  contributed_micros::text AS contributed_micros, withdrawn_micros::text AS withdrawn_micros
 FROM user_positions
 WHERE cabal_id = $1::uuid AND user_id = $2::uuid
 `
@@ -711,7 +713,8 @@ SELECT p.cabal_id, p.user_id, p.share_units::text AS share_units, p.contributed_
   coalesce((SELECT sum(all_positions.share_units) FROM user_positions AS all_positions
     WHERE all_positions.cabal_id = p.cabal_id), 0)::text AS total_shares
 FROM user_positions AS p
-WHERE p.user_id = $1::uuid AND p.share_units > 0
+WHERE p.user_id = $1::uuid AND (p.share_units > 0 OR EXISTS (SELECT 1 FROM cash_out_jobs AS j
+  WHERE j.user_id = p.user_id AND j.cabal_id = p.cabal_id AND j.status IN ('started', 'selling', 'paying')))
 ORDER BY p.cabal_id
 `
 

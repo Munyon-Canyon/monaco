@@ -113,11 +113,7 @@ func (r *saleRig) state(t *testing.T) jobState {
 
 func (r *saleRig) shares(t *testing.T, user ids.UserID) uint64 {
 	t.Helper()
-	units, err := newQueries(r.f).ShareUnits(t.Context(), r.cabal, user)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return units.Uint64()
+	return r.f.positionUnits(t, r.cabal, user)
 }
 
 func (r *saleRig) want(t *testing.T, status, payout, returned string, code string, aliceShares uint64) {

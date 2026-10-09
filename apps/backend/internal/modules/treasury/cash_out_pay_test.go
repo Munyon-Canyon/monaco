@@ -181,11 +181,7 @@ func (r *payoutRig) wantJob(t *testing.T, status, code string) {
 
 func (r *payoutRig) shares(t *testing.T, user ids.UserID) uint64 {
 	t.Helper()
-	units, err := newQueries(r.f).ShareUnits(t.Context(), r.cabal, user)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return units.Uint64()
+	return r.f.positionUnits(t, r.cabal, user)
 }
 
 func (r *payoutRig) scalar(t *testing.T, query string, args ...any) string {

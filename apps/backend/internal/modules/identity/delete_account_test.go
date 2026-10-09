@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"pgregory.net/rapid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -22,6 +23,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -31,21 +33,23 @@ type deleteFixture struct {
 	pool     *pgxpool.Pool
 	clock    *testkit.Clock
 	treasury *fakes.Treasury
+	stakes   app.Stakes
 	balances *fakes.Balances
 	hints    *recordedHints
 }
 
 func newDeleteFixture(t *testing.T) deleteFixture {
 	t.Helper()
+	treasury := fakes.NewTreasury()
 	return deleteFixture{
 		pool: testkit.DB(t), clock: testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond)),
-		treasury: fakes.NewTreasury(), balances: fakes.NewBalances(), hints: &recordedHints{},
+		treasury: treasury, stakes: treasury, balances: fakes.NewBalances(), hints: &recordedHints{},
 	}
 }
 
 func (f deleteFixture) handler(users app.DeletingUsers) *app.DeleteAccount {
 	return app.NewDeleteAccount(app.DeleteAccountDeps{
-		UoW: db.New(f.pool, testkit.NewIDs(642), f.clock), Users: users, Balances: f.balances, Stakes: f.treasury,
+		UoW: db.New(f.pool, testkit.NewIDs(642), f.clock), Users: users, Balances: f.balances, Stakes: f.stakes,
 		Clock: f.clock, Hints: f.hints,
 	})
 }
@@ -197,8 +201,14 @@ func TestDeleteAccount_refusesWhileMoneyIsLeftOrItCannotTell(t *testing.T) {
 		given func(f deleteFixture, user ids.UserID)
 		code  errs.Code
 	}{
-		{"one micro of platform balance", func(f deleteFixture, user ids.UserID) {
-			f.balances.Set(user, funding.Balance{AvailableMicros: money.MicrosFromUint64(1)})
+		{"one micro on chain", func(f deleteFixture, user ids.UserID) {
+			f.balances.Set(user, funding.Balance{OnChainMicros: micros(1), AvailableMicros: micros(1)})
+		}, errs.CodeAccountHasBalance},
+		{"a withdrawal still in flight", func(f deleteFixture, user ids.UserID) {
+			f.balances.Set(user, funding.Balance{OnChainMicros: micros(40), InFlightWithdrawalMicros: micros(40)})
+		}, errs.CodeAccountHasBalance},
+		{"a fund still in flight", func(f deleteFixture, user ids.UserID) {
+			f.balances.Set(user, funding.Balance{OnChainMicros: micros(40), InFlightFundMicros: micros(40)})
 		}, errs.CodeAccountHasBalance},
 		{"treasury down", func(f deleteFixture, _ ids.UserID) {
 			f.treasury.Fail("StakesOf", errs.New(errs.CodeUpstreamUnavailable, "treasury.fake"))
@@ -217,6 +227,53 @@ func TestDeleteAccount_refusesWhileMoneyIsLeftOrItCannotTell(t *testing.T) {
 			}
 			f.expectUntouched(t, u)
 		})
+	}
+}
+
+func micros(v uint64) money.Micros { return money.MicrosFromUint64(v) }
+
+func TestDeleteAccount_deletesOnlyWithNoUSDCOnChainOrInFlight(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	h := f.handler(adapters.Users{})
+	rapid.Check(t, func(rt *rapid.T) {
+		draw := func(label string) money.Micros { return micros(rapid.Uint64Range(0, 100).Draw(rt, label)) }
+		b := funding.Balance{
+			OnChainMicros:            draw("on_chain"),
+			InFlightFundMicros:       draw("fund"),
+			InFlightWithdrawalMicros: draw("withdrawal"),
+		}
+		available, err := b.OnChainMicros.Sub(b.InFlightFundMicros)
+		if err == nil {
+			available, err = available.Sub(b.InFlightWithdrawalMicros)
+		}
+		if err == nil {
+			b.AvailableMicros = available
+		}
+		u := testkit.SeedUser(t, f.pool, testkit.UserOpts{WithWallet: true})
+		f.balances.Set(u.ID, b)
+		held := !b.OnChainMicros.IsZero() || !b.InFlightFundMicros.IsZero() || !b.InFlightWithdrawalMicros.IsZero()
+		err = h.Handle(asUser(t, u.ID), u.ID)
+		if held && errs.CodeOf(err) != errs.CodeAccountHasBalance || !held && err != nil {
+			rt.Fatalf("DeleteAccount with %+v = %v, want it refused %t", b, err, held)
+		}
+	})
+}
+
+func TestDeleteAccount_aRunningCashOutRefusesUntilItEnds(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	f.stakes = treasury.New(module.Deps{Pool: f.pool, Clock: f.clock, Config: testkit.Config()}).Queries()
+	u := f.seedWithPII(t, "active")
+	testkit.SeedCashOut(t, f.pool, ids.CabalIDFrom(ids.Real{}.NewV7()), u.ID, 5, "selling")
+	h := f.handler(adapters.Users{})
+	if err := h.Handle(asUser(t, u.ID), u.ID); errs.CodeOf(err) != errs.CodeAccountHasPositions {
+		t.Fatalf("DeleteAccount during the cash out = %v, want AccountHasPositions", err)
+	}
+	f.expectUntouched(t, u)
+	f.exec(t, `UPDATE cash_out_jobs SET status = 'completed'`)
+	if err := h.Handle(asUser(t, u.ID), u.ID); err != nil {
+		t.Fatalf("DeleteAccount after the cash out completed = %v, want it deleted", err)
 	}
 }
 

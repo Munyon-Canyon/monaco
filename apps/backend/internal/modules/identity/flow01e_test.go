@@ -32,7 +32,7 @@ func (s stakedEveryone) StakesOf(ctx context.Context, user ids.UserID) ([]treasu
 type fundedEveryone struct{ *fakes.Balances }
 
 func (b fundedEveryone) Available(ctx context.Context, user ids.UserID) (funding.Balance, error) {
-	b.Set(user, funding.Balance{AvailableMicros: money.MicrosFromUint64(1)})
+	b.Set(user, funding.Balance{OnChainMicros: money.MicrosFromUint64(1), AvailableMicros: money.MicrosFromUint64(1)})
 	return b.Balances.Available(ctx, user)
 }
 

@@ -79,6 +79,16 @@ func (f fixture) user(t *testing.T) ids.UserID {
 	return id
 }
 
+func (f fixture) positionUnits(t *testing.T, cabal ids.CabalID, user ids.UserID) uint64 {
+	t.Helper()
+	var units uint64
+	if err := f.pool.QueryRow(t.Context(), `SELECT coalesce((SELECT share_units FROM user_positions
+		WHERE cabal_id = $1 AND user_id = $2), 0)::bigint`, cabal.UUID(), user.UUID()).Scan(&units); err != nil {
+		t.Fatal(err)
+	}
+	return units
+}
+
 func (f fixture) do(fn func(ctx context.Context, tx db.Tx) error) error {
 	return f.uow.Do(f.ctx(), fn)
 }

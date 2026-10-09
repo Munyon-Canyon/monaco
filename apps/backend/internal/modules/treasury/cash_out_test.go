@@ -88,8 +88,8 @@ func TestCashOut_debitsSharesAndReservesPayout(t *testing.T) {
 	if err != nil || result.ShareUnits.Uint64() != 10 || result.PayoutMicros != money.MicrosFromUint64(10_000_000) {
 		t.Fatalf("CashOut = (%#v, %v)", result, err)
 	}
-	if shares, err := newQueries(f).ShareUnits(t.Context(), cabal, user); err != nil || shares.Uint64() != 90 {
-		t.Fatalf("ShareUnits = (%v, %v)", shares, err)
+	if shares := f.positionUnits(t, cabal, user); shares != 90 {
+		t.Fatalf("position = %d shares, want the 10 cashed out burned", shares)
 	}
 	if pot, err := newQueries(f).PotValue(t.Context(), cabal); err != nil || pot != money.MicrosFromUint64(90_000_000) {
 		t.Fatalf("PotValue = (%v, %v)", pot, err)
