@@ -31,12 +31,12 @@ func (e *firstSightEnv) assertOneCandidate(t *testing.T) {
 	}
 }
 
-func TestDepositWatchFirstSightCrashBeforeCommitRollsBackAndTheNextTickRecordsOnce(t *testing.T) {
+func TestFlow05_CreditDeposit_CrashFirstSightBeforeCommit(t *testing.T) {
 	t.Parallel()
 	created, history := firstSightDeposit()
 	e := newFirstSightEnv(t, created, history)
 	runs := 0
-	testkit.CrashAt(t, faultpoint.AfterCandidate, func(ctx context.Context) error {
+	testkit.CrashAt(t, faultpoint.FirstSightBeforeCommit, func(ctx context.Context) error {
 		runs++
 		if runs == 1 {
 			defer func() {
@@ -58,17 +58,17 @@ func TestDepositWatchFirstSightCrashBeforeCommitRollsBackAndTheNextTickRecordsOn
 	e.assertOpeningSettlesTo(t, "2")
 }
 
-func TestDepositWatchFirstSightCrashAfterCommitDoesNotRecordTwice(t *testing.T) {
+func TestFlow05_CreditDeposit_CrashFirstSightAfterCommit(t *testing.T) {
 	t.Parallel()
 	created, history := firstSightDeposit()
 	e := newFirstSightEnv(t, created, history)
 	crashed := func() (r any) {
 		defer func() { r = recover() }()
-		ctx := faultpoint.ArmedAfter(watchActor(t), faultpoint.AfterCandidate, 1)
+		ctx := faultpoint.Armed(watchActor(t), faultpoint.FirstSightAfterCommit)
 		_, _ = e.watch.Tick(ctx)
 		return nil
 	}()
-	if crashed != (faultpoint.Crash{Name: faultpoint.AfterCandidate}) {
+	if crashed != (faultpoint.Crash{Name: faultpoint.FirstSightAfterCommit}) {
 		t.Fatalf("first run = %v, want a crash after the commit", crashed)
 	}
 	e.assertOneCandidate(t)

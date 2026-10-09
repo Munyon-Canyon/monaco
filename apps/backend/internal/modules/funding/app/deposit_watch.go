@@ -487,8 +487,8 @@ func (p *DepositWatch) persistSeeds(ctx context.Context, wallet port.MemberWalle
 		if _, err := NewCandidateRecorder(p.ids, p.clock.Now).Record(ctx, tx, plan.candidates); err != nil {
 			return err
 		}
-		faultpoint.Hit(ctx, faultpoint.AfterCandidate)
-		tx.AfterCommit(func(ctx context.Context) { faultpoint.Hit(ctx, faultpoint.AfterCandidate) })
+		faultpoint.Hit(ctx, faultpoint.FirstSightBeforeCommit)
+		tx.AfterCommit(func(ctx context.Context) { faultpoint.Hit(ctx, faultpoint.FirstSightAfterCommit) })
 		return nil
 	})
 	if err != nil {

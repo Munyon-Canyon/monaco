@@ -95,9 +95,36 @@ func F05CreditDepositRPCUnavailable(s *scenario.Scenario) {
 	).Then(scenario.ExpectEvents(events.TypeDepositCredited, 0))
 }
 
+func F05CreditDepositCrashFirstSightBeforeCommit(s *scenario.Scenario) {
+	firstSightCrashes(s, faultpoint.FirstSightBeforeCommit)
+}
+
+func F05CreditDepositCrashFirstSightAfterCommit(s *scenario.Scenario) {
+	firstSightCrashes(s, faultpoint.FirstSightAfterCommit)
+}
+
+const fixtureTransferBlockTime = 1790000000
+
+func firstSightCrashes(s *scenario.Scenario, point faultpoint.Name) {
+	user := seedDepositUser(s)
+	if _, err := s.DB().Exec(
+		s.Context(),
+		`UPDATE user_wallets SET created_at = to_timestamp($1) WHERE user_id = $2`,
+		fixtureTransferBlockTime-100,
+		user.ID.UUID(),
+	); err != nil {
+		s.Fatalf("flows: backdate deposit wallet: %v", err)
+	}
+	s.Given(oneInboundTransfer(user)...).When(
+		scenario.TickCrashingAt(depositPoller, point),
+		scenario.AwaitTick(depositPoller),
+		scenario.AwaitTick(depositPoller),
+		expectDeposit(user),
+	).Then(scenario.ExpectAllEvents(events.TypeDepositCredited, 1))
+}
+
 func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
-	user := testkit.SeedUser(seedT{s}, s.DB(), testkit.UserOpts{WithWallet: true})
-	user.Address = chain.SolanaAddress(depositWallet)
+	user := seedDepositUser(s)
 	ata, err := chain.AssociatedTokenAccount(user.Address, testkit.USDCMint, chain.SPLProgram)
 	if err != nil {
 		s.Fatalf("flows: derive deposit account: %v", err)
@@ -128,6 +155,12 @@ func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 	); err != nil {
 		s.Fatalf("flows: seed deposit watch account: %v", err)
 	}
+	return user
+}
+
+func seedDepositUser(s *scenario.Scenario) testkit.SeededUser {
+	user := testkit.SeedUser(seedT{s}, s.DB(), testkit.UserOpts{WithWallet: true})
+	user.Address = chain.SolanaAddress(depositWallet)
 	if _, err := s.DB().Exec(s.Context(), `DELETE FROM user_wallets WHERE address = $1`, user.Address); err != nil {
 		s.Fatalf("flows: clear deposit wallet: %v", err)
 	}
