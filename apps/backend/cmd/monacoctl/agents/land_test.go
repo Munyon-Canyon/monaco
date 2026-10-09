@@ -42,6 +42,8 @@ type stackGH struct {
 	gitCalls []string
 	gitFail  string
 	gitGone  string
+	needLine string
+	needRun  string
 	openFail int
 	opens    int
 }
@@ -135,25 +137,32 @@ var (
 	pageRE  = regexp.MustCompile(`c0: object\(oid:"(\w+)"\)`)
 )
 
+func (s *stackGH) fakeGit(args []string) ([]byte, error) {
+	line := strings.Join(args, " ")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gitCalls = append(s.gitCalls, line)
+	if s.gitFail != "" && strings.HasPrefix(line, s.gitFail) {
+		return nil, errors.New("git broke")
+	}
+	if s.needLine != "" && line == s.needLine && !slices.Contains(s.gitCalls, s.needRun) {
+		return nil, errors.New("exit status 128: fatal: Not a valid commit name " + args[len(args)-1])
+	}
+	if s.gitGone != "" && line == s.gitGone {
+		return nil, errors.New("exit status 128: fatal: couldn't find remote ref " + args[len(args)-1])
+	}
+	if out, ok := s.gitOut[line]; ok || args[0] == "fetch" || args[0] == "merge-tree" {
+		return []byte(out), nil
+	}
+	return nil, errors.New("unexpected git " + line)
+}
+
 func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
 	if name == "git" && args[0] == "rev-parse" && args[1] == "--abbrev-ref" {
 		return []byte(s.checkedOut() + "\n"), nil
 	}
 	if name == "git" && s.gitOut != nil {
-		line := strings.Join(args, " ")
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.gitCalls = append(s.gitCalls, line)
-		if s.gitFail != "" && strings.HasPrefix(line, s.gitFail) {
-			return nil, errors.New("git broke")
-		}
-		if s.gitGone != "" && line == s.gitGone {
-			return nil, errors.New("exit status 128: fatal: couldn't find remote ref " + args[len(args)-1])
-		}
-		if out, ok := s.gitOut[line]; ok || args[0] == "fetch" || args[0] == "merge-tree" {
-			return []byte(out), nil
-		}
-		return nil, errors.New("unexpected git " + line)
+		return s.fakeGit(args)
 	}
 	if name == "git" && !s.repo && (args[0] == "fetch" || args[0] == "merge-tree") {
 		s.mu.Lock()
