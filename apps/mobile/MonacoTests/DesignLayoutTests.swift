@@ -183,6 +183,33 @@ struct BottomCTALayoutTests {
 }
 
 @MainActor
+struct MonacoRowHeightTests {
+    private func height(subtitle: String?, at size: DynamicTypeSize) -> CGFloat {
+        let host = UIHostingController(
+            rootView: MonacoRow(title: "Alpha", subtitle: subtitle) {
+                Color.clear
+            } trailing: {
+                Text("$600.00")
+                Text("+1.69%")
+            }
+            .dynamicTypeSize(size))
+        return host.sizeThatFits(in: CGSize(width: 402, height: CGFloat.greatestFiniteMagnitude)).height
+    }
+
+    @Test func aTwoLineRowIsSixtyFourPointsAtTheDefaultSize() {
+        #expect(height(subtitle: "60% of your cabals", at: .large) == MonacoRowLayout.minHeight)
+    }
+
+    @Test func aOneLineRowIsSixtyFourPointsAtTheDefaultSize() {
+        #expect(height(subtitle: nil, at: .large) == MonacoRowLayout.minHeight)
+    }
+
+    @Test func aTwoLineRowGrowsAtAccessibilitySizes() {
+        #expect(height(subtitle: "60% of your cabals", at: .accessibility3) > MonacoRowLayout.minHeight)
+    }
+}
+
+@MainActor
 struct MonacoSegmentedLayoutTests {
     private func controlHeight(
         _ labels: [String], width: CGFloat, size: DynamicTypeSize

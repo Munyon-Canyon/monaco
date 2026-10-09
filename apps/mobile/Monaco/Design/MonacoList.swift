@@ -199,7 +199,7 @@ struct MonacoRow<Leading: View, Trailing: View>: View {
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.s)
             .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
