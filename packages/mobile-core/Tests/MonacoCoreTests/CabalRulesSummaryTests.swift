@@ -91,13 +91,24 @@ final class CabalRulesSummaryTests: XCTestCase {
         XCTAssertEqual(summary(voting([])).voters.value, "")
     }
 
-    func testUnknownServerValuesShowAsSent() {
+    func testUnknownExpiryReadsAsWholeUnitsLargestFirst() {
+        func expiry(_ seconds: Int32) -> String {
+            summary { $0.rules.proposalExpirySeconds = seconds }.expiry.value
+        }
+        XCTAssertEqual(expiry(172_800), "2 days")
+        XCTAssertEqual(expiry(43_200), "12 hours")
+        XCTAssertEqual(expiry(2_700), "45 minutes")
+        XCTAssertEqual(expiry(90_000), "1 day")
+        XCTAssertEqual(expiry(30), "Under a minute")
+    }
+
+    func testUnknownServerValuesNeverShowRawWireValues() {
         let rows = summary {
             $0.rules.voterMode = "council"
             $0.rules.threshold = "two_thirds"
             $0.rules.proposalExpirySeconds = 7200
         }.rows
 
-        XCTAssertEqual(rows.dropFirst(2).map(\.value), ["council", "two_thirds", "7200"])
+        XCTAssertEqual(rows.dropFirst(2).map(\.value), ["Custom", "two_thirds", "2 hours"])
     }
 }

@@ -16,7 +16,7 @@ enum CabalTreasurySlot: CabalSection {
 
 enum CabalTreasurySlotCopy {
     static let header = "Cabal treasury"
-    static let warning = "Cabal treasury. Do not send funds here. Transfers are returned."
+    static let warning = "Do not send funds here. Transfers are returned."
     static let solscan = "View on Solscan"
     static let failedThing = "the treasury"
     static let loading = "Loading the treasury"

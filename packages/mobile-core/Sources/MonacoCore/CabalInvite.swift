@@ -12,6 +12,7 @@ public enum CabalInvite {
 
     public static func expiryText(expiresAt: Date, now: Date) -> String {
         let left = expiresAt.timeIntervalSince(now)
+        guard left > 0 else { return "Expired" }
         guard left >= day else { return "Expires today" }
         let days = Int((left / day).rounded(.up))
         return days == 1 ? "Expires in 1 day" : "Expires in \(days) days"

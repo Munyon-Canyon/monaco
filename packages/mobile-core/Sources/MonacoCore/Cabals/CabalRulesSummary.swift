@@ -27,19 +27,28 @@ public struct CabalRulesSummary: Equatable, Sendable {
         expiry = Row(
             id: "expiry", title: "Votes stay open",
             value: CabalProposalExpiry(rawValue: rules.proposalExpirySeconds)?.label
-                ?? String(rules.proposalExpirySeconds))
+                ?? Self.durationLabel(seconds: rules.proposalExpirySeconds))
     }
 
     private static func voters(_ cabal: Components.Schemas.Cabal) -> String {
         switch CabalVoterMode(rawValue: cabal.rules.voterMode) {
         case .everyone: return "Every member"
-        case nil: return cabal.rules.voterMode
+        case nil: return "Custom"
         case .picked:
             let voting = cabal.members.filter(\.canVote)
             let creatorID = cabal.creator.userId
             let creatorFirst = voting.filter { $0.userId == creatorID } + voting.filter { $0.userId != creatorID }
             return joined(creatorFirst.map(\.shownName))
         }
+    }
+
+    static func durationLabel(seconds: Int32) -> String {
+        let units: [(size: Int32, name: String)] = [(86_400, "day"), (3_600, "hour"), (60, "minute")]
+        for unit in units where seconds >= unit.size {
+            let count = seconds / unit.size
+            return "\(count) \(unit.name)\(count == 1 ? "" : "s")"
+        }
+        return "Under a minute"
     }
 
     private static func joined(_ names: [String]) -> String {
