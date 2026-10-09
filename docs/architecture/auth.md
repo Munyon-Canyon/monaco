@@ -1,10 +1,10 @@
 # Auth & onboarding
 
-**Status:** Decided 2026-09-26; login and account-standing rules decided 2026-09-27; login methods changed 2026-09-29; Apple and Google added 2026-10-02. X follow import is deferred past MVP. The backend shape (modules, events, errors, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ.
+**Status:** Decided 2026-09-26; login and account-standing rules decided 2026-09-27; login methods changed 2026-09-29; Apple and Google added 2026-10-02 and removed from the login screen 2026-10-08 (#4140). X follow import is deferred past MVP. The backend shape (modules, events, errors, rollout) follows [backend-platform.md](backend-platform.md), which wins where the two differ.
 
 ## Decision
 
-- **Login is SMS OTP or email OTP**, through Privy, in every build including production (decided 2026-09-29). Sign in with Apple and Continue with Google sit under the OTP form as secondary buttons (#541, 2026-10-02). Agents and simulators sign in with OTP, the same way as users.
+- **Login is SMS OTP or email OTP**, through Privy, in every build including production (decided 2026-09-29). Apple and Google sign-in were added under the OTP form on 2026-10-02 (#541) and removed from the login screen on 2026-10-08 (#4140), so login is SMS OTP or email OTP only. Agents and simulators sign in with OTP, the same way as users.
 - **Two Privy apps** (decided 2026-10-02): local and staging builds use the dev Privy app, so the staging backend verifies dev tokens; production builds use the production Privy app. A Release build whose environment has no Privy app refuses to launch.
 - After first login, onboarding asks for three things on separate screens:
   1. **Username (handle)**, unique across Monaco and required (decided 2026-09-27). It lives on `users.handle` and `identity` owns it. See [Handle](#handle).
