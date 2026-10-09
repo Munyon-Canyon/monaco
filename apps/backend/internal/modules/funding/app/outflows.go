@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
@@ -34,6 +35,7 @@ func (r WalletReader) SigningWallet(ctx context.Context, user ids.UserID) (chain
 
 type Outflows interface {
 	InFlightMicros(context.Context, ids.UserID) (money.Micros, error)
+	LastChange(context.Context, ids.UserID) (time.Time, error)
 }
 
 type WithdrawalOutflows struct{ Reads sqlc.DBTX }
@@ -44,6 +46,10 @@ func (o WithdrawalOutflows) InFlightMicros(ctx context.Context, user ids.UserID)
 		return money.Micros{}, err
 	}
 	return money.ParseMicros(raw)
+}
+
+func (o WithdrawalOutflows) LastChange(ctx context.Context, user ids.UserID) (time.Time, error) {
+	return sqlc.New(o.Reads).LastWithdrawalChange(ctx, user.UUID())
 }
 
 type WithdrawalReads struct{ Reads sqlc.DBTX }

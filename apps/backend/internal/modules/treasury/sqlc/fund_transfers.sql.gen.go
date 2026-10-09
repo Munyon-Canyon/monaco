@@ -147,6 +147,19 @@ func (q *Queries) LandFundTransfer(ctx context.Context, arg LandFundTransferPara
 	return result.RowsAffected(), nil
 }
 
+const lastFundChange = `-- name: LastFundChange :one
+SELECT COALESCE(MAX(GREATEST(created_at, submitted_at, landed_at, settled_at)), 'epoch')::timestamptz AS changed_at
+FROM fund_transfers
+WHERE user_id = $1
+`
+
+func (q *Queries) LastFundChange(ctx context.Context, userID uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRow(ctx, lastFundChange, userID)
+	var changed_at time.Time
+	err := row.Scan(&changed_at)
+	return changed_at, err
+}
+
 const listOpenFundTransfers = `-- name: ListOpenFundTransfers :many
 SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(signed_tx, ''::bytea)::bytea AS signed_tx, COALESCE(tx_signature, '')::text AS tx_signature,

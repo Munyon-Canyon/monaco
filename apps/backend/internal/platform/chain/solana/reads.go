@@ -198,13 +198,22 @@ func (c *Client) TokenBalance(
 	owner chain.SolanaAddress,
 	mint chain.Mint,
 ) (money.BaseUnits, error) {
+	return c.TokenBalanceAt(ctx, owner, mint, "confirmed")
+}
+
+func (c *Client) TokenBalanceAt(
+	ctx context.Context,
+	owner chain.SolanaAddress,
+	mint chain.Mint,
+	level string,
+) (money.BaseUnits, error) {
 	const op = "solana.TokenBalance"
 	total := money.NewBaseUnits(0, mint.Decimals)
 	if err := addresses(op, owner, mint.Address); err != nil {
 		return total, err
 	}
 	var w tokenAccountsWire
-	opts := map[string]string{"encoding": "jsonParsed", "commitment": "confirmed"}
+	opts := map[string]string{"encoding": "jsonParsed", "commitment": level}
 	if err := c.call(
 		ctx,
 		"getTokenAccountsByOwner",

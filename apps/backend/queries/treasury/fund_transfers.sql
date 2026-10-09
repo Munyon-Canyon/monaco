@@ -37,6 +37,11 @@ SELECT COALESCE(SUM(amount_micros), 0)::text AS micros
 FROM fund_transfers
 WHERE user_id = $1 AND status IN ('created', 'submitted');
 
+-- name: LastFundChange :one
+SELECT COALESCE(MAX(GREATEST(created_at, submitted_at, landed_at, settled_at)), 'epoch')::timestamptz AS changed_at
+FROM fund_transfers
+WHERE user_id = $1;
+
 -- name: ExpireCreatedFundTransfers :many
 UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_not_sent'
 WHERE status = 'created' AND created_at < sqlc.arg(cutoff)::timestamptz

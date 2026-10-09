@@ -17,7 +17,9 @@ import (
 )
 
 type TokenBalances interface {
-	TokenBalance(context.Context, chain.SolanaAddress, chain.Mint) (money.BaseUnits, error)
+	TokenBalanceAt(
+		ctx context.Context, owner chain.SolanaAddress, mint chain.Mint, commitment string,
+	) (money.BaseUnits, error)
 }
 
 type Outflows struct {
@@ -52,7 +54,10 @@ func NewBalances(
 	}
 }
 
-const displayMaxAge = 10 * time.Minute
+const (
+	displayMaxAge  = 10 * time.Minute
+	inFlightEndsAt = "finalized"
+)
 
 type reading struct {
 	onChain money.Micros
@@ -66,7 +71,7 @@ func (b *Balances) Available(ctx context.Context, user ids.UserID) (port.Balance
 		return port.Balance{}, err
 	}
 	b.once.Do(func() { b.rpc = b.newRPC() })
-	onChain, err := b.rpc.TokenBalance(ctx, address, b.usdc)
+	onChain, err := b.rpc.TokenBalanceAt(ctx, address, b.usdc, inFlightEndsAt)
 	if err != nil {
 		return port.Balance{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
@@ -86,6 +91,15 @@ func (b *Balances) ForDisplay(ctx context.Context, user ids.UserID) (port.Balanc
 	last, ok := b.lastReading(user)
 	if !ok || b.clock.Now().Sub(last.at) >= displayMaxAge {
 		return port.Balance{}, err
+	}
+	for _, outflows := range []app.Outflows{b.outflows.Funds, b.outflows.Withdrawals} {
+		changed, cerr := outflows.LastChange(ctx, user)
+		if cerr != nil {
+			return port.Balance{}, errs.Wrap(cerr, errs.CodeOf(cerr), "funding.Balances.ForDisplay")
+		}
+		if !changed.Before(last.at) {
+			return port.Balance{}, err
+		}
 	}
 	return b.compose(ctx, user, last.onChain, last.at)
 }

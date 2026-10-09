@@ -29,6 +29,11 @@ SELECT COALESCE(SUM(amount_micros), 0)::text AS micros
 FROM withdrawals
 WHERE user_id = $1 AND status IN ('created', 'submitted');
 
+-- name: LastWithdrawalChange :one
+SELECT COALESCE(MAX(GREATEST(created_at, submitted_at, completed_at)), 'epoch')::timestamptz AS changed_at
+FROM withdrawals
+WHERE user_id = $1;
+
 -- name: ListStaleCreatedWithdrawals :many
 SELECT id, user_id, amount_micros::text AS amount_micros
 FROM withdrawals
