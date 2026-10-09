@@ -5,24 +5,28 @@ enum UserProfileHeaderSlot: UserProfileSection {
     static let isLive = true
 
     static func body(for context: UserProfileContext) -> some View {
-        UserProfileHeader(userID: context.userID)
+        UserProfileHeader(context: context)
     }
 }
 
 private struct UserProfileHeader: View {
-    let userID: String
+    let context: UserProfileContext
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var model: UserProfileModel?
+    @Environment(UserProfileModel.self) private var model: UserProfileModel?
 
+    private var userID: String { context.userID }
     private var isViewer: Bool { userID == environment.viewer?.userID }
 
     var body: some View {
         Group {
             switch model?.phase ?? .loading {
             case .idle, .loading:
-                skeleton
+                if let preview = context.preview {
+                    previewIdentity(preview)
+                } else {
+                    skeleton
+                }
             case .unavailable:
                 EmptyState(title: "This account isn't available.")
                     .accessibilityIdentifier("user-profile-unavailable")
@@ -33,20 +37,10 @@ private struct UserProfileHeader: View {
             }
         }
         .padding(.top, MonacoTheme.Space.m)
-        .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity)
         .toolbar {
             if model?.phase == .loaded, !isViewer {
                 ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu() }
-            }
-        }
-        .task(id: userID) {
-            let model = prepared()
-            refresh?.register("user-profile-header") { await model.refresh() }
-            if model.profile == nil {
-                await model.load()
-            } else {
-                await model.refresh()
             }
         }
         .onChange(of: model?.toastTick) {
@@ -62,6 +56,7 @@ private struct UserProfileHeader: View {
             SkeletonBlock(
                 width: 160, height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading profile")
         .accessibilityIdentifier("user-profile-loading")
@@ -73,12 +68,29 @@ private struct UserProfileHeader: View {
         }
     }
 
+    private func previewIdentity(_ preview: UserPreview) -> some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            MonacoAvatar(photoURL: preview.photoURL, displayName: preview.displayName, size: 96, seed: userID)
+            Text(preview.displayName)
+                .font(MonacoTheme.Typo.display)
+                .foregroundStyle(MonacoTheme.ink)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("user-profile-name")
+            SkeletonBlock(width: 200, height: 14)
+            SkeletonBlock(
+                width: 160, height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("user-profile-loading")
+    }
+
     private var identity: some View {
         VStack(spacing: MonacoTheme.Space.s) {
             MonacoAvatar(
                 photoURL: model?.photoURL, displayName: title, size: 96, seed: userID)
             Text(title)
-                .font(MonacoTheme.Typo.title)
+                .font(MonacoTheme.Typo.display)
                 .foregroundStyle(MonacoTheme.ink)
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier("user-profile-name")
@@ -93,6 +105,7 @@ private struct UserProfileHeader: View {
                 followButton(model)
             }
         }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("user-profile-header")
     }
@@ -145,12 +158,5 @@ private struct UserProfileHeader: View {
             }
         }
         .disabled(model.isToggling(model.userID))
-    }
-
-    private func prepared() -> UserProfileModel {
-        if let model, model.userID == userID { return model }
-        let created = UserProfileModel(userID: userID, api: environment.api)
-        model = created
-        return created
     }
 }

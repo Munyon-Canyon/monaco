@@ -30,6 +30,17 @@ final class UserProfileModelTests: XCTestCase {
         XCTAssertEqual(sent.map(\.path), ["/v1/users/\(UserProfileSupport.userID)"])
     }
 
+    func testTheSharedCabalsEmptyLineUsesTheLoadedName() async throws {
+        let profile = UserProfileSupport.profile(followers: 1, following: 1, followed: false)
+        let model = UserProfileSupport.model(try StubTransport(scripted: [.profile(profile)]))
+
+        await model.load()
+
+        XCTAssertEqual(
+            SharedCabalsSummary.emptyLine(displayName: model.displayName),
+            "You and Maya Angelou aren't in a cabal together yet.")
+    }
+
     func testAnUnknownUserIsUnavailable() async throws {
         let transport = StubTransport(UserProfileSupport.problem(404, "user_not_found", "No such user."))
         let model = UserProfileSupport.model(transport)
