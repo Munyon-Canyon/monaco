@@ -2,6 +2,7 @@ package treasury_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"reflect"
 	"slices"
@@ -27,7 +28,7 @@ func confirmedAt() time.Time { return time.Date(2026, 3, 1, 12, 0, 5, 0, time.UT
 
 func (f fixture) confirm(t *testing.T, e events.TradeConfirmed) error {
 	t.Helper()
-	h := adapters.Trades{Ledger: f.ledger}
+	h := adapters.Trades{Ledger: f.ledger, Hints: &hints{}}
 	return f.do(func(ctx context.Context, tx db.Tx) error { return h.Handle(ctx, tx, e, confirmedAt()) })
 }
 
@@ -212,10 +213,63 @@ func TestTradesConsumer_aCanceledContextWritesNothing(t *testing.T) {
 	ctx, cancel := context.WithCancel(f.ctx())
 	err := f.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		cancel()
-		return adapters.Trades{Ledger: f.ledger}.Handle(ctx, tx, buy(cabal, f.ids.NewV7(), 1, 1, 0), confirmedAt())
+		h := adapters.Trades{Ledger: f.ledger, Hints: &hints{}}
+		return h.Handle(ctx, tx, buy(cabal, f.ids.NewV7(), 1, 1, 0), confirmedAt())
 	})
 	wantCode(t, err, errs.CodeDBUnavailable)
 	if got := len(f.swapHeaders(t)); got != 0 {
 		t.Fatalf("swap headers = %d, want 0", got)
+	}
+}
+
+type swapRowsAtHint struct {
+	f    fixture
+	swap uuid.UUID
+	rows []int
+	keys []string
+}
+
+func (h *swapRowsAtHint) PublishHint(ctx context.Context, key string, _ []byte) {
+	var n int
+	const q = `SELECT count(*) FROM cabal_txns WHERE swap_id = $1`
+	if err := h.f.pool.QueryRow(ctx, q, h.swap).Scan(&n); err != nil {
+		h.f.t.Error(err)
+	}
+	h.rows = append(h.rows, n)
+	h.keys = append(h.keys, key)
+}
+
+func TestTradesHintsTheCabalOnceTheSwapIsBooked(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	e := buy(cabal, f.ids.NewV7(), 1, 1, 0)
+	sent := &swapRowsAtHint{f: f, swap: e.SwapID}
+	h := adapters.Trades{Ledger: f.ledger, Hints: sent}
+	rollback := errs.New(errs.CodeInternal, "test.rollback")
+	if err := f.do(func(ctx context.Context, tx db.Tx) error {
+		if err := h.Handle(ctx, tx, e, confirmedAt()); err != nil {
+			return err
+		}
+		return rollback
+	}); !errors.Is(err, rollback) {
+		t.Fatalf("rolled back handle error = %v, want %v", err, rollback)
+	}
+	if len(sent.keys) != 0 {
+		t.Fatalf("hints after rollback = %q, want none", sent.keys)
+	}
+	if err := f.do(func(ctx context.Context, tx db.Tx) error {
+		return h.Handle(ctx, tx, e, confirmedAt())
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := events.CabalActivityChangedHint(cabal)
+	if !slices.Equal(sent.keys, []string{want}) || !slices.Equal(sent.rows, []int{1}) {
+		t.Fatalf(
+			"hints = %q with swap rows %v at publish, want %q once with the rows readable",
+			sent.keys,
+			sent.rows,
+			want,
+		)
 	}
 }
