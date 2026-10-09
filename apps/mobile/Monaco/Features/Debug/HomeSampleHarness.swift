@@ -1,4 +1,5 @@
 #if DEBUG
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -12,6 +13,7 @@ enum HomeSampleScenario: String, CaseIterable {
     case nudgeX
     case nudgeXEmpty
     case prePrompt
+    case votes
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -30,6 +32,10 @@ extension HomeSampleScenario {
         case .nudgeX: SampleAPIScript()
         case .nudgeXEmpty: SampleAPIScript(mode: .empty)
         case .prePrompt: SampleAPIScript()
+        case .votes:
+            SampleAPIScript(
+                proposal: .sample(canVote: true), pendingVotes: Components.Schemas.PendingVote.samples,
+                viewerCanVote: true)
         }
     }
 }

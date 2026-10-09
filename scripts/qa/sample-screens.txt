@@ -15,6 +15,7 @@ home-nudge-x                  -MonacoHomeSample nudgeX -MonacoFeatureConnectX YE
 home-nudge-x-empty            -MonacoHomeSample nudgeXEmpty -MonacoFeatureConnectX YES
 home-nudge-sheet              -MonacoHomeSample nudgeX -MonacoNudgeSheetOpen -MonacoFeatureConnectX YES
 home-push-pre-prompt          -MonacoHomeSample prePrompt
+home-votes                    -MonacoHomeSample votes -MonacoSampleScroll 0.35
 
 cabals-tab                    -MonacoCabalsTabSample
 
@@ -28,6 +29,17 @@ group-nav-create              -MonacoGroupNavSample create
 group-detail-populated        -MonacoGroupDetailSample populated
 group-detail-empty            -MonacoGroupDetailSample empty
 group-detail-loading          -MonacoGroupDetailSample loading
+group-detail-paused           -MonacoGroupDetailSample paused
+group-detail-outsider         -MonacoGroupDetailSample outsider
+group-detail-invited          -MonacoGroupDetailSample invited
+group-detail-requests         -MonacoGroupDetailSample requests
+group-detail-cash-only        -MonacoGroupDetailSample cashOnly
+group-detail-votes            -MonacoGroupDetailSample votes
+group-detail-populated-upper  -MonacoGroupDetailSample populated -MonacoSampleScroll 0.3
+group-detail-populated-center -MonacoGroupDetailSample populated -MonacoSampleScroll center
+group-detail-populated-bottom -MonacoGroupDetailSample populated -MonacoSampleScroll bottom
+group-detail-votes-center     -MonacoGroupDetailSample votes -MonacoSampleScroll center
+group-detail-paused-center    -MonacoGroupDetailSample paused -MonacoSampleScroll center
 
 profile-placeholder           -MonacoProfileSample placeholder
 profile-photo                 -MonacoProfileSample photo
