@@ -95,11 +95,7 @@ struct CabalLeaveSection: View {
             toasts.show(success: "You left \(cabalName).")
             dismiss()
             let navigator = environment.navigator
-            if let hostMainTab {
-                navigator.binding(for: hostMainTab).wrappedValue = []
-            }
-            navigator.cabalsPath = []
-            navigator.selectedTab = .cabals
+            navigator.closeCabal(id: cabalID, in: hostMainTab ?? navigator.selectedTab)
         case .cashOutFirst(let message):
             offersCashOut = true
             toasts.current = MonacoToast(message: message)
@@ -110,7 +106,7 @@ struct CabalLeaveSection: View {
 
     private func cashOut() {
         dismiss()
-        environment.navigator.open(CashOutRoute(cabalID: cabalID), in: .cabals)
+        environment.navigator.open(CashOutRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
     }
 }
 
