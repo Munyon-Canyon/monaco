@@ -124,7 +124,6 @@ struct ProposeAddAgentView: View {
 
     private func send() async {
         guard canSend, let budgetMicros else { return }
-        Haptics.tap()
         isSending = true
         errorMessage = nil
         defer { isSending = false }
@@ -258,7 +257,6 @@ struct ProposeAgentLifecycleView: View {
 
     private func send() async {
         guard !isSending else { return }
-        Haptics.tap()
         isSending = true
         errorMessage = nil
         defer { isSending = false }

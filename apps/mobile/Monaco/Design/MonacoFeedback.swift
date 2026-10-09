@@ -1,9 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// Haptic vocabulary. `selection` for chips, segments and tabs; `tap` for primary buttons;
-/// `success` when something lands (vote, proposal, funding, cash out, comment, message);
-/// `warning` on every error toast. Safe no-ops on the simulator and on devices without a Taptic Engine.
+/// Haptic vocabulary. `selection` for chips, segments and tabs; `tap` for primary buttons only, which play it
+/// on press themselves (other styles are silent); `success` when something lands (vote, proposal, funding,
+/// cash out, comment, message); `warning` on every error toast. No-ops without a Taptic Engine.
 enum Haptics {
     static func tap() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
