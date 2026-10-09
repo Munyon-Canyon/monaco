@@ -12,6 +12,7 @@ struct WithdrawView: View {
     @State private var amount = WithdrawAmount()
     @State private var refusedAddress: String?
     @State private var showConfirm = false
+    @State private var frozen: WithdrawAmount.Frozen?
 
     private var trimmedAddress: String {
         destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,7 +29,14 @@ struct WithdrawView: View {
             destinationAddress: $destinationAddress,
             onMax: { amount.tapMax() },
             refusedAddress: refusedAddress,
-            onContinue: { showConfirm = true },
+            onContinue: {
+                frozen = amount.frozen(availableMicros: balanceSource?.balance?.availableMicros)
+                showConfirm = true
+            },
+            onAddMoney: {
+                environment.navigator.open(
+                    DepositRoute(prefillMicros: nil, cabalID: nil), in: environment.navigator.selectedTab)
+            },
             onRetry: { Task { await balanceSource?.load() } }
         )
         .onChange(of: destinationAddress) { _, _ in refusedAddress = nil }
@@ -36,11 +44,15 @@ struct WithdrawView: View {
             guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
             toasts.current = MonacoToast(message: BalanceSource.message(for: error))
         }
+        .onChange(of: showConfirm) { _, shown in
+            if !shown { frozen = nil }
+        }
         .navigationDestination(isPresented: $showConfirm) {
             WithdrawConfirmView(
                 destinationAddress: trimmedAddress,
                 amountText: amount.text,
-                fullBalanceMicros: amount.withdrawAll ? balanceSource?.balance?.availableMicros : nil,
+                amountLabel: UsdAmountFormatter.format(flooredMicros: frozen?.micros ?? 0),
+                fullBalanceMicros: frozen?.fullBalanceLabel != nil ? frozen?.micros : nil,
                 isSubmitting: withdrawing?.isSubmitting ?? false,
                 onWithdraw: { Task { await withdraw() } }
             )
@@ -60,12 +72,12 @@ struct WithdrawView: View {
     }
 
     private func withdraw() async {
-        guard let withdrawing, let micros = amount.micros(availableMicros: balanceSource?.balance?.availableMicros),
-            micros > 0
-        else { return }
-        let fullBalanceLabel = amount.fullBalanceLabel(availableMicros: balanceSource?.balance?.availableMicros)
+        guard let withdrawing, let frozen, frozen.micros > 0 else { return }
+        let micros = frozen.micros
+        let fullBalanceLabel = frozen.fullBalanceLabel
         switch await withdrawing.submit(micros: micros, toAddress: trimmedAddress) {
         case .accepted:
+            Haptics.success()
             if let line = Self.message(for: withdrawing.progress, fullBalanceLabel: fullBalanceLabel) {
                 toasts.show(success: line)
             }
@@ -130,6 +142,16 @@ struct WithdrawAmount: Equatable {
         "\(UsdAmountFormatter.format(flooredMicros: micros)) (full balance)"
     }
 
+    struct Frozen: Equatable {
+        let micros: Int64
+        let fullBalanceLabel: String?
+    }
+
+    func frozen(availableMicros: Int64?) -> Frozen? {
+        guard let micros = micros(availableMicros: availableMicros) else { return nil }
+        return Frozen(micros: micros, fullBalanceLabel: fullBalanceLabel(availableMicros: availableMicros))
+    }
+
     func micros(availableMicros: Int64?) -> Int64? {
         if withdrawAll, let availableMicros { return availableMicros }
         return AmountEntryText.micros(text)
@@ -143,13 +165,17 @@ struct WithdrawForm: Equatable {
     let availableMicros: Int64?
     /// The member's own deposit address, which is never a destination.
     let ownDepositAddress: String?
+    private let balance: AccountBalance?
 
     init(amountText: String, destinationAddress: String, balance: AccountBalance?) {
+        self.balance = balance
         self.amountText = amountText
         self.destinationAddress = destinationAddress
         availableMicros = balance?.availableMicros
         ownDepositAddress = balance?.depositAddress
     }
+
+    var hasNothingToWithdraw: Bool { balance.map { $0.availableMicros == 0 && $0.inFlightMicros == 0 } ?? false }
 
     var maxDollars: Decimal? {
         guard let availableMicros, availableMicros > 0 else { return nil }
@@ -204,6 +230,7 @@ struct WithdrawContent: View {
     var onMax: () -> Void = {}
     var refusedAddress: String?
     let onContinue: () -> Void
+    var onAddMoney: () -> Void = {}
     let onRetry: () -> Void
 
     private var form: WithdrawForm {
@@ -216,7 +243,7 @@ struct WithdrawContent: View {
     /// The amount pad, the destination field and the button belong together: whenever one is on
     /// screen, so are the others. A reload never takes them away mid-entry.
     private var showsForm: Bool {
-        if case .loaded = state { return true }
+        if case .loaded = state { return !form.hasNothingToWithdraw }
         return false
     }
 
@@ -230,6 +257,10 @@ struct WithdrawContent: View {
                         .accessibilityIdentifier("withdraw-loading")
                 case .failed:
                     MonacoErrorRow(thing: "your balance", identifier: "withdraw-balance-error", retry: onRetry)
+                case .loaded where form.hasNothingToWithdraw:
+                    EmptyState(
+                        title: "Nothing to withdraw yet", message: "Add money first. Your balance shows up here.",
+                        actionTitle: "Add money", action: onAddMoney)
                 case .loaded:
                     AmountEntry(
                         amountText: $amountText,
@@ -267,7 +298,17 @@ struct WithdrawContent: View {
 
     private var destination: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader("Send to")
+            HStack {
+                MonacoSectionHeader("Send to")
+                Spacer()
+                PasteButton(payloadType: String.self) { strings in
+                    guard let first = strings.first else { return }
+                    destinationAddress = first.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                .labelStyle(.titleOnly)
+                .buttonBorderShape(.capsule)
+                .tint(MonacoTheme.brand)
+            }
 
             WithdrawAddressField(text: $destinationAddress)
 

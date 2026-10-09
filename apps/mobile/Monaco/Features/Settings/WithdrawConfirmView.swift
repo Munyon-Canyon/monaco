@@ -11,6 +11,7 @@ struct WithdrawConfirmView: View {
     static let caveat = "Double-check the address. Transfers can't be undone."
     let destinationAddress: String
     let amountText: String
+    let amountLabel: String
     var fullBalanceMicros: Int64?
     let isSubmitting: Bool
     let onWithdraw: () -> Void
@@ -18,19 +19,20 @@ struct WithdrawConfirmView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                VStack(alignment: .center, spacing: MonacoTheme.Space.s) {
                     Text("You're withdrawing")
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
                     if let fullBalanceMicros {
-                        MoneyText(micros: Self.fullBalanceFigure(fullBalanceMicros), style: .large)
+                        MoneyText(micros: Self.fullBalanceFigure(fullBalanceMicros), style: .hero)
                         Text(Self.fullBalanceCaption)
                             .font(MonacoTheme.Typo.caption)
                             .foregroundStyle(MonacoTheme.muted)
                     } else {
-                        MoneyText(decimalString: amountText, style: .large)
+                        MoneyText(decimalString: amountText, style: .hero)
                     }
                 }
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityElement(children: .combine)
 
@@ -54,7 +56,7 @@ struct WithdrawConfirmView: View {
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
                 Button(action: onWithdraw) {
-                    SubmitLabel(isWorking: isSubmitting, idle: "Withdraw", working: "Withdrawing…")
+                    SubmitLabel(isWorking: isSubmitting, idle: "Withdraw \(amountLabel)", working: "Withdrawing…")
                 }
                 .buttonStyle(.monacoPrimary)
                 .disabled(isSubmitting)

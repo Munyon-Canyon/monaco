@@ -61,4 +61,33 @@ struct WithdrawRouteTests {
         amount.edit(to: "2")
         #expect(amount.fullBalanceLabel(availableMicros: 2_998_175) == nil)
     }
+
+    @Test func theAmountSentIsTheOneFrozenAtContinueEvenIfTheBalanceMoves() throws {
+        var amount = WithdrawAmount()
+        amount.tapMax()
+        let frozen = try #require(amount.frozen(availableMicros: 2_998_175))
+        #expect(frozen.micros == 2_998_175)
+        #expect(frozen.fullBalanceLabel == "$2.99 (full balance)")
+        #expect(amount.micros(availableMicros: 102_998_175) == 102_998_175)
+        #expect(frozen.micros == 2_998_175)
+    }
+
+    @Test func theConfirmButtonNamesTheFlooredAmount() {
+        let view = WithdrawConfirmView(
+            destinationAddress: "", amountText: "2.998175",
+            amountLabel: UsdAmountFormatter.format(flooredMicros: 2_998_175), isSubmitting: false, onWithdraw: {})
+        #expect(view.amountLabel == "$2.99")
+    }
+
+    @Test func aZeroBalanceHasNothingToWithdraw() {
+        func form(available: Int64, inFlight: Int64) -> WithdrawForm {
+            let balance = AccountBalance(
+                availableMicros: available, onChainMicros: available + inFlight, inFlightMicros: inFlight,
+                depositAddress: "dep", asOf: Date())
+            return WithdrawForm(amountText: "", destinationAddress: "", balance: balance)
+        }
+        #expect(form(available: 0, inFlight: 0).hasNothingToWithdraw)
+        #expect(!form(available: 0, inFlight: 1).hasNothingToWithdraw)
+        #expect(!form(available: 1, inFlight: 0).hasNothingToWithdraw)
+    }
 }
