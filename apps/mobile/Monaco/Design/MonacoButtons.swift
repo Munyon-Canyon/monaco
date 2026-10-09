@@ -47,6 +47,7 @@ private struct MonacoButtonChrome: ViewModifier {
     let label: Color
     let isPressed: Bool
     var isCompact = false
+    var tapsOnPress = false
 
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.monacoButtonFullWidth) private var fullWidth
@@ -66,7 +67,7 @@ private struct MonacoButtonChrome: ViewModifier {
             .frame(minHeight: 44)
             .contentShape(Rectangle())
             .modifier(MonacoPressEffect(isPressed: isPressed))
-            .sensoryFeedback(.impact(weight: .light), trigger: isPressed) { _, pressed in pressed }
+            .sensoryFeedback(.impact(weight: .light), trigger: isPressed) { _, pressed in tapsOnPress && pressed }
     }
 }
 
@@ -75,7 +76,7 @@ struct MonacoPrimaryButtonStyle: ButtonStyle {
         configuration.label.modifier(
             MonacoButtonChrome(
                 fill: MonacoTheme.primaryButtonFill, label: MonacoTheme.primaryButtonLabel,
-                isPressed: configuration.isPressed))
+                isPressed: configuration.isPressed, tapsOnPress: true))
     }
 }
 

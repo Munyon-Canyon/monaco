@@ -76,7 +76,7 @@ Tickers set in `Typo.subhead` secondary. Wallet addresses are the one monospaced
 
 - SF Symbols only, monochrome. Tab bar: default size, `.fill` when selected. Toolbar: 17pt semibold (`plus`, `ellipsis`, `bubble.left`, `magnifyingglass`, `gearshape`). Row leading glyph: 17pt medium in `secondaryText` on a 40pt sunken circle.
 - State change `.easeOut(0.2)`. Segment and chip selection `.spring(response: 0.3, dampingFraction: 0.85)`. Button press scales to 0.97. Numbers roll with `.numericText`. Charts draw on once per range per appearance. Skeletons pulse 1 to 0.55 over 1.2s.
-- Haptics: `.selection` for chips, segments, tabs, presets and chart scrub; light impact on button press; `.success` when a vote, proposal or money movement lands; `.warning` on every error toast.
+- Haptics: `.selection` for chips, segments, tabs, presets and chart scrub; light impact on press of the primary button style only (the style plays it; actions never call `Haptics.tap()` behind it); `.success` when a vote, proposal or money movement lands; `.warning` on every error toast.
 - Reduce Motion turns everything off except the toast fade.
 
 ## Composition rules
