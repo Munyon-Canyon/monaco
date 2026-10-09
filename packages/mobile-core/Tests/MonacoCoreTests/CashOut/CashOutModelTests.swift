@@ -83,10 +83,35 @@ final class CashOutModelTests: XCTestCase {
         let first = await model.submit(enteredMicros: 1_000_000)
         _ = await model.submit(enteredMicros: 1_000_000)
 
-        XCTAssertEqual(first, .refused("You're offline. Try again."))
+        XCTAssertEqual(first, .refused(MoneyFlowCopy.unconfirmed.summary))
         let keys = try await transport.sent.dropFirst().map { $0.headerFields[try idempotencyKey()] }
         XCTAssertEqual(keys.count, 2)
         XCTAssertEqual(keys[0], keys[1])
+    }
+
+    func testAnUnreadableReplySaysToCheckTheBalanceFirst() async throws {
+        let transport = StubTransport(scripted: [
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sample), .json(.accepted, "{"),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+
+        let result = await model.submit(enteredMicros: 1_000_000)
+
+        XCTAssertEqual(result, .refused(MoneyFlowCopy.unconfirmed.summary))
+    }
+
+    func testAServerErrorKeepsTheServersLine() async throws {
+        let transport = StubTransport(scripted: [
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
+            try problem(.privyUnavailable, status: 503, "Signing is down. Try again in a minute."),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+
+        let result = await model.submit(enteredMicros: 1_000_000)
+
+        XCTAssertEqual(result, .refused("Signing is down. Try again in a minute."))
     }
 
     func testCabalPausedRefusalShowsThePauseCopyAndReloads() async throws {

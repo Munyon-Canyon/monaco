@@ -120,6 +120,13 @@ public enum MoneyFlowCopy {
         }
     }
 
+    public static func pendingKeyLine(_ error: APIError) -> String {
+        switch error {
+        case .transport, .decoding, .inFlight: unconfirmed.summary
+        case .problem, .signedOut, .missingAccessToken, .accountDeleted: ToastCopy.message(for: error)
+        }
+    }
+
     // MARK: - Fund a cabal (POST /v1/cabals/{id}/fund)
 
     public static let notEnoughBalance = "Not enough in your account balance."

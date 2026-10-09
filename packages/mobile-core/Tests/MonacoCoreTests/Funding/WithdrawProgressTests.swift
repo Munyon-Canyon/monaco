@@ -10,6 +10,7 @@ final class WithdrawProgressTests: XCTestCase {
     private let id = "01890a5d-ac96-774b-bcce-b302099a8057"
     private let other = "01890a5d-ac96-774b-bcce-b302099a8058"
     private let address = "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"
+    private let otherAddress = "7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV"
     private let signature = "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"
 
     private func withdrawal(_ status: WithdrawalStatus, id: String? = nil, failCode: String? = nil) -> Withdrawal {
@@ -109,6 +110,67 @@ final class WithdrawProgressTests: XCTestCase {
         XCTAssertEqual(keys[0], keys[1])
     }
 
+    func testAnAnswerlessSubmitSaysToCheckTheBalanceFirst() async throws {
+        let inFlight = try StubTransport.Reply.problem(problem(409, .idempotencyInFlight))
+        let answerless: [[StubTransport.Reply]] = [
+            [.failure(URLError(.networkConnectionLost))], [.json(.accepted, "{")], Array(repeating: inFlight, count: 4),
+        ]
+        for replies in answerless {
+            let withdrawing = withdrawing(StubTransport(scripted: replies))
+
+            let attempt = await withdrawing.submit(micros: 2_000_000, toAddress: address)
+
+            XCTAssertEqual(attempt, .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary), "\(replies)")
+            XCTAssertEqual(withdrawing.progress, .idle)
+        }
+    }
+
+    func testAServerErrorKeepsTheServersLine() async throws {
+        let withdrawing = withdrawing(try StubTransport.problem(problem(503, .privyUnavailable)))
+
+        let attempt = await withdrawing.submit(micros: 2_000_000, toAddress: address)
+
+        XCTAssertEqual(attempt, .unconfirmed(retryMessage: "Server says no."))
+    }
+
+    func testAChangedAmountOrAddressWhileUnconfirmedSendsNothingAndTheSamePayloadKeepsTheKey() async throws {
+        let transport = StubTransport(scripted: [.failure(URLError(.timedOut)), .json(.accepted, accepted)])
+        let withdrawing = withdrawing(transport)
+        _ = await withdrawing.submit(micros: 2_000_000, toAddress: address)
+
+        let changedAmount = await withdrawing.submit(micros: 3_000_000, toAddress: address)
+        let changedAddress = await withdrawing.submit(micros: 2_000_000, toAddress: otherAddress)
+
+        XCTAssertEqual(changedAmount, .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary))
+        XCTAssertEqual(changedAddress, .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary))
+        let afterChange = await transport.sent.count
+        XCTAssertEqual(afterChange, 1)
+        let same = await withdrawing.submit(micros: 2_000_000, toAddress: address)
+        XCTAssertEqual(same, .accepted(withdrawal(.submitted)))
+        let header = try keyHeader()
+        let keys = await transport.sent.map { $0.headerFields[header] }
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertEqual(keys[0], keys[1])
+    }
+
+    func testAFinalAnswerLetsADifferentAddressGoOut() async throws {
+        let transport = StubTransport(scripted: [
+            .failure(URLError(.timedOut)), try .problem(problem(400, .withdrawToOwnWallet)),
+            .json(.accepted, accepted),
+        ])
+        let withdrawing = withdrawing(transport)
+        _ = await withdrawing.submit(micros: 2_000_000, toAddress: address)
+        _ = await withdrawing.submit(micros: 2_000_000, toAddress: address)
+
+        let corrected = await withdrawing.submit(micros: 2_000_000, toAddress: otherAddress)
+
+        XCTAssertEqual(corrected, .accepted(withdrawal(.submitted)))
+        let header = try keyHeader()
+        let keys = await transport.sent.map { $0.headerFields[header] }
+        XCTAssertEqual(keys.count, 3)
+        XCTAssertNotEqual(keys[1], keys[2])
+    }
+
     func testInFlightRetriesWithTheSameKey() async throws {
         let transport = StubTransport(scripted: [
             try .problem(problem(409, .idempotencyInFlight)), .json(.accepted, accepted),
@@ -184,6 +246,10 @@ final class WithdrawProgressTests: XCTestCase {
 
     private func keyHeader() throws -> HTTPField.Name {
         try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+    }
+
+    private func withdrawing(_ transport: StubTransport) -> Withdrawing {
+        Withdrawing(source: WithdrawSource(api: api(transport)), hints: FakeHintStream(), inFlightRetryDelay: .zero)
     }
 
     private func api(_ transport: StubTransport) -> APIClient {

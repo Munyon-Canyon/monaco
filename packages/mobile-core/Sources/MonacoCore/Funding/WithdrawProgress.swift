@@ -76,6 +76,7 @@ public final class Withdrawing {
     private let hints: any HintSource
     private let inFlightRetryDelay: Duration
     private let submission = IdempotentSubmission()
+    @ObservationIgnored private var unconfirmed: (micros: Int64, toAddress: String)?
 
     static let inFlightRetries = 3
 
@@ -91,6 +92,9 @@ public final class Withdrawing {
         guard progress == .idle else {
             if case .submitted(let withdrawal) = progress { return .accepted(withdrawal) }
             return .unconfirmed(retryMessage: ToastCopy.message(for: .inFlight))
+        }
+        if submission.hasPendingKey, let pending = unconfirmed, pending != (micros, toAddress) {
+            return .unconfirmed(retryMessage: MoneyFlowCopy.unconfirmed.summary)
         }
         progress = progress.applying(.start)
         var retries = 0
@@ -108,7 +112,10 @@ public final class Withdrawing {
                     continue
                 }
                 progress = progress.applying(.refused)
-                if submission.hasPendingKey { return .unconfirmed(retryMessage: ToastCopy.message(for: error)) }
+                if submission.hasPendingKey {
+                    unconfirmed = (micros, toAddress)
+                    return .unconfirmed(retryMessage: MoneyFlowCopy.pendingKeyLine(error))
+                }
                 return .refused(MoneyFlowCopy.withdrawFailure(error))
             }
         }
