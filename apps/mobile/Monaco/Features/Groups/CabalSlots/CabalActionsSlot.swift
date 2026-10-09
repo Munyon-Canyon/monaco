@@ -15,6 +15,7 @@ struct CabalActionsLive: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.cabalRetry) private var retry
+    @Environment(\.cabalModel) private var cabalModel
     @State private var model: CabalActionsModel?
 
     init(cabalID: String, model: CabalActionsModel? = nil) {
@@ -26,11 +27,24 @@ struct CabalActionsLive: View {
         CabalActionsRow(model: model) { route in
             environment.navigator.open(route, in: environment.navigator.selectedTab)
         }
+        .onChange(of: cabalModel?.cabal, initial: true) { _, cabal in
+            guard let cabal else { return }
+            preparedModel().apply(cabal)
+        }
+        .onChange(of: cabalModel?.failureTick) { _, _ in
+            guard cabalModel?.cabal == nil, let error = cabalModel?.lastError else { return }
+            preparedModel().fail(error)
+        }
         .task(id: retry.tick) {
             let model = preparedModel()
-            await model.load()
+            guard cabalModel != nil else {
+                await model.load()
+                await model.loadUnread()
+                await model.observe()
+                return
+            }
             await model.loadUnread()
-            await model.observe()
+            await model.observeUnread()
         }
     }
 

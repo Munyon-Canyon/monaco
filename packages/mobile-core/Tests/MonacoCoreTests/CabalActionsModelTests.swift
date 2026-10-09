@@ -20,6 +20,46 @@ final class CabalActionsModelTests: XCTestCase {
         XCTAssertEqual(sent.first?.path, "/v1/cabals/\(Self.cabalID)")
     }
 
+    func testApplyShowsTheCabalWithoutReadingIt() async {
+        let (model, transport, _) = make([])
+
+        model.apply(Components.Schemas.Cabal.sample(role: "member", canVote: false))
+
+        XCTAssertEqual(model.actions, .member(canPropose: false))
+        XCTAssertEqual(model.cabalName, "QA pot")
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 0)
+    }
+
+    func testApplyingACabalYouAreNotInHidesTheRow() async {
+        let (model, _, _) = make([])
+
+        model.apply(Components.Schemas.Cabal.sample(role: nil))
+
+        XCTAssertEqual(model.actions, .hidden)
+    }
+
+    func testAFailureBeforeAnyCabalShowsTheFailure() async {
+        let (model, _, _) = make([])
+
+        model.fail(.transport(URLError(.notConnectedToInternet)))
+
+        guard case .failed(.transport) = model.actions else {
+            return XCTFail("want a transport failure, got \(model.actions)")
+        }
+        XCTAssertNil(model.toast)
+    }
+
+    func testAFailureAfterTheCabalKeepsTheRowAndToasts() async {
+        let (model, _, _) = make([])
+        model.apply(Components.Schemas.Cabal.sample(role: "member"))
+
+        model.fail(.transport(URLError(.networkConnectionLost)))
+
+        XCTAssertEqual(model.actions, .member(canPropose: true))
+        XCTAssertEqual(model.toast, "You're offline. Try again.")
+    }
+
     func testANonMemberSeesNoActions() async {
         let (model, _, _) = make([.json(.ok, Self.cabal(me: "null"))])
 

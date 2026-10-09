@@ -15,6 +15,30 @@ final class CabalAccessModelTests: XCTestCase {
         XCTAssertEqual(model.standing, .join)
     }
 
+    func testLoadingAGivenCabalAsksForNoCabal() async throws {
+        let transport = StubTransport(.json(.ok, "[]"))
+        let model = makeModel(transport)
+
+        await model.load(cabal: Self.cabal(role: nil, mode: "open"))
+
+        XCTAssertEqual(model.standing, .join)
+        XCTAssertEqual(model.joinPolicy, .open)
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 0)
+    }
+
+    func testLoadingAGivenCreatorCabalAsksOnlyForTheRequests() async throws {
+        let transport = StubTransport(.json(.ok, try Self.encode(requests)))
+        let model = makeModel(transport)
+
+        await model.load(cabal: Self.cabal(role: "creator", mode: "request"))
+
+        guard case .pending = model.standing else { return XCTFail("want pending, got \(model.standing)") }
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(paths.count, 1)
+        XCTAssertEqual(paths.first?.hasPrefix("/v1/cabals/\(Self.cabalID)/access-requests"), true)
+    }
+
     func testAPendingRequestOffersCancel() async throws {
         let cabal = Self.cabal(role: nil, mode: "request", request: ("r1", "request"))
         let model = makeModel(StubTransport(.json(.ok, try Self.encode(cabal))))

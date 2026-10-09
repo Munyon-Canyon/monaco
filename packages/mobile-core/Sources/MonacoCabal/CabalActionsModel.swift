@@ -45,16 +45,23 @@ public final class CabalActionsModel {
                 try await client.getCabal(path: .init(id: cabalID)).ok.body.json
             }
             guard mine == generation else { return }
-            cabalName = cabal.name
-            actions = cabal.me.map { .member(canPropose: $0.canVote) } ?? .hidden
+            apply(cabal)
         } catch {
             guard mine == generation else { return }
-            let failure = APIError(error)
-            if isShowingRow {
-                toast = ToastCopy.message(for: failure)
-            } else {
-                actions = .failed(failure)
-            }
+            fail(APIError(error))
+        }
+    }
+
+    public func apply(_ cabal: Components.Schemas.Cabal) {
+        cabalName = cabal.name
+        actions = cabal.me.map { .member(canPropose: $0.canVote) } ?? .hidden
+    }
+
+    public func fail(_ failure: APIError) {
+        if isShowingRow {
+            toast = ToastCopy.message(for: failure)
+        } else {
+            actions = .failed(failure)
         }
     }
 
@@ -81,8 +88,12 @@ public final class CabalActionsModel {
             if case .changed = hint { return true }
             return false
         }
-        async let unread: Void = unreadRefresher.observe(hints.hints(matching: .user(what: "cabals")))
+        async let unread: Void = observeUnread()
         _ = await (cabal, access, unread)
+    }
+
+    public func observeUnread() async {
+        await unreadRefresher.observe(hints.hints(matching: .user(what: "cabals")))
     }
 
     public func dismissToast() {

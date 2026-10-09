@@ -14,6 +14,7 @@ struct CabalJoinSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalRetry) private var retry
+    @Environment(\.cabalModel) private var cabalModel
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     let cabalID: String
     @State private var model: CabalAccessModel?
@@ -32,6 +33,10 @@ struct CabalJoinSection: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabal-join")
         .task(id: cabalID) { await start() }
+        .task(id: cabalModel?.cabal) {
+            guard let cabal = cabalModel?.cabal else { return }
+            await preparedModel().load(cabal: cabal)
+        }
         .onScreenVisibilityChange { visible in
             model?.setVisible(visible)
         }
@@ -42,7 +47,8 @@ struct CabalJoinSection: View {
                 Task { await environment.pushPrePrompt.noteCabalJoined(after: toasts) }
             }
         }
-        .onChange(of: model?.membershipChanges) { _, _ in
+        .onChange(of: model?.membershipChanges) { previous, _ in
+            guard previous != nil else { return }
             retry.retry?()
         }
     }
@@ -136,11 +142,20 @@ struct CabalJoinSection: View {
         .accessibilityIdentifier("cabal-join-button")
     }
 
+    private func preparedModel() -> CabalAccessModel {
+        if let model { return model }
+        let created = CabalAccessModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        model = created
+        return created
+    }
+
     private func start() async {
-        let model = self.model ?? CabalAccessModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
-        self.model = model
-        refresh?.register("cabal-join") { await model.load() }
-        await model.load()
+        let model = preparedModel()
+        let shared = cabalModel
+        refresh?.register("cabal-join") {
+            if let cabal = shared?.cabal { await model.load(cabal: cabal) } else { await model.load() }
+        }
+        if shared == nil { await model.load() }
         await model.observe()
     }
 }

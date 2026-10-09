@@ -27,11 +27,13 @@ private struct CabalTreasuryLive: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.cabalModel) private var shared
     @State private var model: CabalModel?
 
     var body: some View {
-        CabalTreasuryView(model: model, onReloadFailure: { toasts.show($0) })
+        CabalTreasuryView(model: shared ?? model, onReloadFailure: { toasts.show($0) })
             .task(id: cabalID) {
+                guard shared == nil else { return }
                 let model = self.model ?? CabalModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
                 self.model = model
                 await model.load()

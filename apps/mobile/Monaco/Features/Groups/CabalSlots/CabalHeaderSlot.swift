@@ -6,7 +6,7 @@ enum CabalHeaderSlot: CabalSection {
     static let isLive = true
 
     static func body(for context: CabalContext) -> some View {
-        CabalHeader(cabalID: context.cabalID)
+        CabalHeader()
     }
 
     static func canChangePicture(_ cabal: Components.Schemas.Cabal) -> Bool {
@@ -15,11 +15,10 @@ enum CabalHeaderSlot: CabalSection {
 }
 
 private struct CabalHeader: View {
-    let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.cabalRetry) private var retry
-    @State private var model: CabalModel?
+    @Environment(\.cabalModel) private var model
 
     var body: some View {
         CabalHero(
@@ -34,25 +33,10 @@ private struct CabalHeader: View {
                 Task { await model?.load() }
             }
         )
-        .task(id: retry.tick) {
-            let model = preparedModel()
-            await model.load()
-            await model.observe()
-        }
-        .onScreenVisibilityChange { visible in
-            model?.setVisible(visible)
-        }
         .onChange(of: model?.failureTick) { _, _ in
             guard model?.cabal != nil, let error = model?.lastError else { return }
             toasts.show(error)
         }
-    }
-
-    private func preparedModel() -> CabalModel {
-        if let model { return model }
-        let created = CabalModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
-        model = created
-        return created
     }
 }
 

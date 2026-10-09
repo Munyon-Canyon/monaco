@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -33,7 +34,7 @@ struct CabalScreen: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var showsDetails = false
     @State private var heroScrolledAway = false
-    @State private var titleModel: CabalActionsModel?
+    @State private var models = CabalScreenModels()
     @State private var retryTick = 0
     @State private var refresh = ScreenRefresh()
 
@@ -50,11 +51,14 @@ struct CabalScreen: View {
     var body: some View {
         let sections = sections.map { $0.erased }
         let details = detailsSections.map { $0.erased }
+        let (cabal, pot) = models.prepared(cabalID: context.cabalID, environment: environment)
         Group {
             if SectionStack<CabalContext>.live(sections).isEmpty {
                 NotMigratedView(screen: "Cabal")
             } else {
                 SectionStack(context: context, sections: sections)
+                    .environment(\.cabalModel, cabal)
+                    .environment(\.cabalPotModel, pot)
                     .environment(refresh)
                     .refreshable {
                         retryTick += 1
@@ -68,12 +72,19 @@ struct CabalScreen: View {
         } action: { _, scrolledAway in
             heroScrolledAway = scrolledAway
         }
-        .navigationTitle(heroScrolledAway ? titleModel?.cabalName ?? "" : "")
+        .navigationTitle(heroScrolledAway ? cabal.cabal?.name ?? "" : "")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: retryTick) {
-            let model = preparedTitleModel()
-            await model.load()
-            await model.observe()
+            async let loadedCabal: Void = cabal.load()
+            async let loadedPot: Void = pot.load()
+            _ = await (loadedCabal, loadedPot)
+            async let observedCabal: Void = cabal.observe()
+            async let observedPot: Void = pot.observe()
+            _ = await (observedCabal, observedPot)
+        }
+        .onScreenVisibilityChange { visible in
+            cabal.setVisible(visible)
+            pot.setVisible(visible)
         }
         .toolbar {
             if !SectionStack<CabalContext>.live(details).isEmpty {
@@ -93,6 +104,8 @@ struct CabalScreen: View {
         .sheet(isPresented: $showsDetails) {
             NavigationStack {
                 SectionStack(context: context, sections: details)
+                    .environment(\.cabalModel, cabal)
+                    .environment(\.cabalPotModel, pot)
                     .monacoCanvas()
                     .navigationTitle("Cabal details")
                     .navigationBarTitleDisplayMode(.inline)
@@ -112,11 +125,22 @@ struct CabalScreen: View {
         }
     }
 
-    private func preparedTitleModel() -> CabalActionsModel {
-        if let titleModel { return titleModel }
-        let created = CabalActionsModel(cabalID: context.cabalID, api: environment.api, hints: environment.hints)
-        titleModel = created
-        return created
+}
+
+@MainActor
+private final class CabalScreenModels {
+    private var cabal: CabalModel?
+    private var pot: CabalPotModel?
+
+    func prepared(cabalID: String, environment: AppEnvironment) -> (CabalModel, CabalPotModel) {
+        let cabal = self.cabal ?? CabalModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        let pot =
+            self.pot
+            ?? CabalPotModel(
+                cabalID: cabalID, api: environment.api, hints: environment.hints, logoStore: environment.assetLogos)
+        self.cabal = cabal
+        self.pot = pot
+        return (cabal, pot)
     }
 }
 
@@ -127,4 +151,6 @@ struct CabalRetry {
 
 extension EnvironmentValues {
     @Entry var cabalRetry = CabalRetry()
+    @Entry var cabalModel: CabalModel? = nil
+    @Entry var cabalPotModel: CabalPotModel? = nil
 }
