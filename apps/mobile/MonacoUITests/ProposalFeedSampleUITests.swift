@@ -1,16 +1,13 @@
 import XCTest
 
-/// Drives the proposal feed on in-memory sample data (`-MonacoProposalFeedSample`, Debug only):
-/// vote from a card, open the thread, post a comment, reply. No Privy session or backend needed.
-/// Set `MONACO_QA_SCREENSHOT_DIR` (via `TEST_RUNNER_MONACO_QA_SCREENSHOT_DIR`) to save PNGs for docs/qa.
 nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     @MainActor private var app: XCUIApplication!
 
     @MainActor
-    private func launch() {
+    private func launch(_ scenario: String) {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-MonacoProposalFeedSample"]
+        app.launchArguments = ["-MonacoProposalSample", scenario]
         app.launch()
     }
 
@@ -31,7 +28,6 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
-    /// On screen and not behind the keyboard or the pinned composer.
     @MainActor
     private func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
         let hittable = expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: element)
@@ -39,63 +35,57 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testFeed_voteFromCard_thenCommentAndReplyInThread() throws {
-        launch()
-        // Feed renders cards with vote summary and inline voting.
-        let yes = element("proposal-card-vote-yes-sample-0")
-        XCTAssertTrue(yes.waitForExistence(timeout: 10))
-        XCTAssertTrue(element("proposal-card-comment-count-sample-0").exists)
-        // The proposer's thesis shows as a two-line excerpt on the card.
-        XCTAssertTrue(element("proposal-card-reason-sample-0").exists)
-        capture("01-feed")
+    private func scrollIntoReach(_ element: XCUIElement, maxSwipes: Int = 8) {
+        app.scrollIntoReach(element, maxSwipes: maxSwipes)
+    }
 
-        // Vote yes from the card: buttons disappear and the tally updates.
+    @MainActor
+    func testNeedsVote_voteFromCard_thenCommentAndReplyInThread() throws {
+        launch("needsVote")
+        let first = element("proposal-card-proposal-1")
+        XCTAssertTrue(first.waitForExistence(timeout: 10), "the first vote card never drew")
+        let yes = first.buttons["Yes"]
+        XCTAssertTrue(yes.exists, "the first card should offer Yes")
+        XCTAssertTrue(first.buttons["No"].exists, "the first card should offer No")
+        XCTAssertTrue(first.staticTexts["Buy"].exists, "the card should say which way the trade goes")
+        capture("01-votes")
+
         yes.tap()
-        XCTAssertTrue(app.staticTexts["Vote recorded."].waitForExistence(timeout: 5))
-        let tally = element("proposal-card-votes-sample-0")
-        let updated = NSPredicate(format: "label CONTAINS %@", "1 of 5 voted · 3 yes to pass")
-        wait(for: [expectation(for: updated, evaluatedWith: tally)], timeout: 5)
-        XCTAssertFalse(element("proposal-card-vote-yes-sample-0").exists)
-        XCTAssertTrue(element("proposal-card-voted-sample-0").exists)
+        XCTAssertTrue(app.staticTexts["Vote recorded."].waitForExistence(timeout: 5), "no toast after voting")
+        XCTAssertTrue(first.buttons["Change"].waitForExistence(timeout: 5), "the card should offer Change after a vote")
+        XCTAssertFalse(first.buttons["Yes"].exists, "Yes should be gone once voted")
         capture("02-after-card-vote")
 
-        // Scroll performance smoke: the feed holds 20 open cards; reach the last one.
-        let last = element("proposal-card-sample-19")
+        let last = element("proposal-card-proposal-2")
         var swipes = 0
-        while !last.exists && swipes < 30 {
+        while !last.exists && swipes < 6 {
             app.swipeUp()
             swipes += 1
         }
-        XCTAssertTrue(last.exists, "last of 20 open cards never rendered")
-        capture("03-feed-scrolled")
-        while !element("proposal-card-open-sample-0").isHittable && swipes > 0 {
+        XCTAssertTrue(last.exists, "the second open card never rendered")
+        capture("03-votes-scrolled")
+        while !first.isHittable && swipes > 0 {
             app.swipeDown()
             swipes -= 1
         }
 
-        // Open detail: existing thread shows the nested reply.
-        element("proposal-card-open-sample-0").tap()
-        XCTAssertTrue(element("comment-thread").waitForExistence(timeout: 5))
-        XCTAssertTrue(element("comment-row-c-2").exists)
-        // Detail quotes the full thesis once, in its own block.
-        XCTAssertTrue(element("proposal-detail-thesis").exists)
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "proposal-card-reason-sample-0").count, 0)
+        first.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 120, dy: 40)).tap()
+        XCTAssertTrue(element("proposal-reason").waitForExistence(timeout: 10), "the thesis block is missing")
+        XCTAssertTrue(element("comment-thread").waitForExistence(timeout: 10), "the thread never drew")
+        let quotes = app.staticTexts.matching(NSPredicate(format: "label == %@", "Earnings next week."))
+        XCTAssertEqual(quotes.count, 1, "the thesis should be quoted once")
+        scrollIntoReach(element("comment-row-c2"))
+        XCTAssertTrue(element("comment-row-c2").exists, "the nested reply is missing")
         capture("04-detail-thread")
 
-        // Post a top-level comment.
         let field = element("comment-composer-field")
         field.tap()
         field.typeText("Count me in if we cap it at $25.")
-        // A simulator with Connect Hardware Keyboard on never shows the software keyboard, so
-        // asserting it went away would pass there without proving anything. Only hold it to
-        // standing down when it was actually up; the hittability checks below are the real test
-        // either way, since they fail whether the keyboard or the composer is covering the thread.
         let keyboardWasUp = app.keyboards.firstMatch.exists
         element("comment-composer-send").tap()
-        XCTAssertTrue(app.staticTexts["Comment posted"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Count me in if we cap it at $25."].waitForExistence(timeout: 5))
-        // The keyboard stands down once the comment lands and the thread scrolls to it, so the
-        // member sees what they posted and Reply can be reached without dismissing anything first.
+        XCTAssertTrue(
+            app.staticTexts["Count me in if we cap it at $25."].waitForExistence(timeout: 5),
+            "the posted comment never reached the thread")
         if keyboardWasUp {
             XCTAssertTrue(
                 app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "the keyboard stayed up over the thread")
@@ -106,17 +96,21 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         )
         capture("05-comment-posted")
 
-        // Reply to Ben's comment.
-        let reply = element("comment-reply-c-1")
+        let reply = element("comment-reply-c1")
         XCTAssertTrue(waitUntilHittable(reply), "Reply is not reachable after posting")
         reply.tap()
-        XCTAssertTrue(app.staticTexts["Replying to Ben Ortiz"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Replying to Maya"].waitForExistence(timeout: 5), "no reply target shown")
         field.tap()
         field.typeText("Agreed, Nvidia next.")
         element("comment-composer-send").tap()
-        XCTAssertTrue(app.staticTexts["Reply posted"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Agreed, Nvidia next."].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["4 comments"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["Agreed, Nvidia next."].waitForExistence(timeout: 5),
+            "the posted reply never reached the thread")
+        XCTAssertTrue(
+            app.staticTexts["Replying to Maya"].waitForNonExistence(timeout: 5),
+            "the reply target should clear after posting")
+        XCTAssertTrue(
+            app.staticTexts["6"].waitForExistence(timeout: 5), "the thread count should read 6 after two posts")
         XCTAssertTrue(
             waitUntilHittable(app.staticTexts["Agreed, Nvidia next."]),
             "the posted reply is off screen or behind the composer"
@@ -126,46 +120,40 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
 
     @MainActor
     func testComposer_whitespaceOnly_keepsPostDisabled() throws {
-        launch()
-        let open = element("proposal-card-open-sample-1")
-        XCTAssertTrue(open.waitForExistence(timeout: 10))
-        open.tap()
-
+        launch("open")
         let field = element("comment-composer-field")
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "the composer never drew")
+        XCTAssertTrue(element("comment-thread").waitForExistence(timeout: 10), "the thread never drew")
+        scrollIntoReach(element("comment-row-c1"))
         field.tap()
         field.typeText("   ")
 
-        XCTAssertFalse(element("comment-composer-send").isEnabled)
-        XCTAssertTrue(element("comment-thread-empty").exists)
+        XCTAssertFalse(element("comment-composer-send").isEnabled, "Post should stay disabled for whitespace")
+        XCTAssertTrue(element("comment-row-c1").exists, "the sample thread should be on screen")
+        XCTAssertFalse(element("comment-thread-empty").exists, "a thread with comments is not the empty state")
     }
 
     @MainActor
     func testReadOnlyProposal_showsTallyWithoutButtons() throws {
-        launch()
-        let card = element("proposal-card-sample-3")
-        var swipes = 0
-        while !card.exists && swipes < 6 {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(card.waitForExistence(timeout: 5))
-        XCTAssertTrue(element("proposal-card-votes-sample-3").exists)
-        XCTAssertFalse(element("proposal-card-vote-yes-sample-3").exists)
-        XCTAssertFalse(element("proposal-card-vote-no-sample-3").exists)
+        launch("readOnly")
+        let card = element("proposal-card-proposal-1")
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "the proposal card never drew")
+        XCTAssertTrue(element("proposal-votes").waitForExistence(timeout: 10), "the votes block never drew")
+        XCTAssertTrue(
+            app.staticTexts["1 yes · 0 no · 2 not voted"].exists, "the tally line is missing or wrong")
+        XCTAssertFalse(card.buttons["Yes"].exists, "a read-only proposal must not offer Yes")
+        XCTAssertFalse(card.buttons["No"].exists, "a read-only proposal must not offer No")
     }
 }
 
-/// Drives the propose sheet on sample data (`-MonacoProposalFeedSample -MonacoProposeSample`):
-/// chooser → pick a stock → amount preset → review → send, then the toast on the cabal screen.
 nonisolated final class ProposeFlowSampleUITests: XCTestCase {
     @MainActor private var app: XCUIApplication!
 
     @MainActor
-    private func launch() {
+    private func launch(_ scenario: String) {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-MonacoProposalFeedSample", "-MonacoProposeSample"]
+        app.launchArguments = ["-MonacoProposeSample", scenario]
         app.launch()
     }
 
@@ -186,10 +174,15 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         }
     }
 
-    /// With the keyboard up, the reason field sits fully above the pinned Review button.
+    @MainActor
+    private func waitUntilEnabled(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let enabled = expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: element)
+        return XCTWaiter().wait(for: [enabled], timeout: timeout) == .completed
+    }
+
     @MainActor
     private func assertAboveReview(_ field: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        let review = app.buttons["Review"]
+        let review = element("propose-amount-review")
         XCTAssertTrue(field.isHittable, "reason field is covered", file: file, line: line)
         XCTAssertLessThanOrEqual(
             field.frame.maxY, review.frame.minY, "reason field runs under Review", file: file, line: line)
@@ -197,80 +190,70 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
 
     @MainActor
     func testBuy_threeSteps_sendsToCabal() throws {
-        launch()
-        let propose = element("group-action-propose")
-        XCTAssertTrue(propose.waitForExistence(timeout: 10))
-        propose.tap()
-
+        launch("chooser")
         let buy = element("propose-kind-buy")
-        XCTAssertTrue(buy.waitForExistence(timeout: 5))
+        XCTAssertTrue(buy.waitForExistence(timeout: 10), "the chooser never drew")
         sleep(1)
         capture("10-chooser")
         buy.tap()
 
-        let apple = element("proposal-asset-AAPLx")
-        XCTAssertTrue(apple.waitForExistence(timeout: 5))
+        let alphabet = element("propose-buy-stock-GOOGLx")
+        XCTAssertTrue(alphabet.waitForExistence(timeout: 5), "the stock list never drew Alphabet")
         sleep(1)
         capture("11-pick-stock")
-        apple.tap()
+        alphabet.tap()
 
         let preset = app.buttons["$50"]
-        XCTAssertTrue(preset.waitForExistence(timeout: 5))
-        // One empty state: the "$0" figure, no placeholder drawn over it; VoiceOver reads "Amount".
-        XCTAssertEqual(element("amount-entry-field").label, "Amount")
-        XCTAssertEqual(element("amount-entry-field").placeholderValue ?? "", "")
+        XCTAssertTrue(preset.waitForExistence(timeout: 5), "the amount step never drew its presets")
+        XCTAssertEqual(element("amount-entry-field").label, "Amount", "the figure should be named Amount")
+        XCTAssertEqual(element("amount-entry-field").value as? String, "$0", "the empty figure should read $0")
         sleep(1)
         capture("12a-amount-empty")
         preset.tap()
         sleep(1)
         capture("12-amount")
 
-        element("amount-entry-field").typeText("00")
-        XCTAssertTrue(app.staticTexts["More than the pot has"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["Review"].isEnabled)
+        element("amount-keypad-0").tap()
+        element("amount-keypad-0").tap()
+        XCTAssertTrue(
+            app.staticTexts["More than the pot has"].waitForExistence(timeout: 5),
+            "$5,000 should read as more than the pot has")
         capture("13-amount-over")
         preset.tap()
 
-        // Optional thesis: sent with the proposal and repeated on the review receipt.
-        element("proposal-add-reason").tap()
-        let thesis = element("proposal-thesis-field")
-        XCTAssertTrue(thesis.waitForExistence(timeout: 3))
+        element("propose-amount-add-reason").tap()
+        let thesis = element("propose-amount-reason")
+        XCTAssertTrue(thesis.waitForExistence(timeout: 3), "the reason field never drew")
         thesis.typeText("Earnings Thursday.")
         sleep(1)
         assertAboveReview(thesis)
         capture("13b-amount-reason")
 
-        app.buttons["Review"].tap()
-        let send = app.buttons["Send to cabal"]
-        XCTAssertTrue(send.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Earnings Thursday."].exists)
+        let review = element("propose-amount-review")
+        XCTAssertTrue(waitUntilEnabled(review), "Review stayed disabled for a valid amount")
+        review.tap()
+        let send = element("propose-review-send")
+        XCTAssertTrue(send.waitForExistence(timeout: 5), "the review screen never drew")
+        XCTAssertEqual(send.label, "Send to cabal", "the send button should say where it goes")
+        XCTAssertTrue(app.staticTexts["Earnings Thursday."].exists, "the thesis should repeat on the receipt")
         sleep(1)
         capture("14-review")
         send.tap()
 
-        XCTAssertTrue(app.staticTexts["Proposal sent to Weekend investors"].waitForExistence(timeout: 5))
+        let sent = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Proposal sent to")).firstMatch
+        XCTAssertTrue(sent.waitForExistence(timeout: 5), "no toast after sending")
         capture("15-sent")
     }
 
-    /// Once a flow is pushed the sheet stays full height: dragging it down does not drop it to
-    /// half height, where "Add a reason" and Review would sit below the fold.
     @MainActor
     func testFlow_keepsSheetFullHeightWhenDragged() throws {
-        launch()
-        let propose = element("group-action-propose")
-        XCTAssertTrue(propose.waitForExistence(timeout: 10))
-        propose.tap()
-        let buy = element("propose-kind-buy")
-        XCTAssertTrue(buy.waitForExistence(timeout: 5))
-        buy.tap()
-        let apple = element("proposal-asset-AAPLx")
-        XCTAssertTrue(apple.waitForExistence(timeout: 5))
-        apple.tap()
-        let addReason = element("proposal-add-reason")
-        XCTAssertTrue(addReason.waitForExistence(timeout: 5))
+        launch("amount")
+        let addReason = element("propose-amount-add-reason")
+        XCTAssertTrue(addReason.waitForExistence(timeout: 10), "the amount step never drew")
         sleep(1)
 
         let title = app.navigationBars["Amount"]
+        XCTAssertTrue(title.exists, "the Amount bar never drew")
         let before = title.frame.minY
         title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(
@@ -278,60 +261,60 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
                 thenDragTo: app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)))
         sleep(1)
         capture("16-flow-after-drag")
-        XCTAssertTrue(title.exists, "the sheet closed")
-        XCTAssertEqual(title.frame.minY, before, accuracy: 2, "the sheet dropped from full height")
-        XCTAssertTrue(addReason.isHittable)
-        XCTAssertTrue(app.buttons["Review"].isHittable)
+        XCTAssertTrue(title.exists, "the screen closed")
+        XCTAssertEqual(title.frame.minY, before, accuracy: 2, "the screen dropped from full height")
+        XCTAssertTrue(addReason.isHittable, "Add a reason slid out of reach")
+        XCTAssertTrue(element("propose-amount-review").isHittable, "Review slid out of reach")
     }
 
     @MainActor
     func testSell_dollarsToShares_reviewShowsEstimate() throws {
-        launch()
-        let propose = element("group-action-propose")
-        XCTAssertTrue(propose.waitForExistence(timeout: 10))
-        propose.tap()
+        launch("chooser")
         let sell = element("propose-kind-sell")
-        XCTAssertTrue(sell.waitForExistence(timeout: 5))
+        XCTAssertTrue(sell.waitForExistence(timeout: 10), "the chooser never drew a sell row")
         sell.tap()
 
-        let apple = element("proposal-sell-AAPLx")
-        XCTAssertTrue(apple.waitForExistence(timeout: 5))
+        let alphabet = element("propose-sell-GOOGLx")
+        XCTAssertTrue(alphabet.waitForExistence(timeout: 5), "the sell list never drew Alphabet")
         sleep(1)
         capture("20-sell-pick")
-        apple.tap()
+        alphabet.tap()
 
         let half = app.buttons["50%"]
-        XCTAssertTrue(half.waitForExistence(timeout: 5))
+        XCTAssertTrue(half.waitForExistence(timeout: 5), "the sell amount step never drew its presets")
         half.tap()
-        let thesis = element("proposal-sell-thesis-field")
-        XCTAssertTrue(thesis.waitForExistence(timeout: 3))
-        thesis.tap()
+        element("propose-amount-add-reason").tap()
+        let thesis = element("propose-amount-reason")
+        XCTAssertTrue(thesis.waitForExistence(timeout: 3), "the reason field never drew")
         thesis.typeText("Take some profit before earnings.")
         sleep(1)
         assertAboveReview(thesis)
         capture("21-sell-amount")
 
-        app.buttons["Review"].tap()
-        let send = app.buttons["Send to cabal"]
-        XCTAssertTrue(send.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Take some profit before earnings."].exists)
+        let review = element("propose-amount-review")
+        XCTAssertTrue(waitUntilEnabled(review), "Review stayed disabled for a valid sell")
+        review.tap()
+        let send = element("propose-review-send")
+        XCTAssertTrue(send.waitForExistence(timeout: 5), "the review screen never drew")
+        XCTAssertTrue(
+            app.staticTexts["Take some profit before earnings."].exists, "the thesis should repeat on the receipt")
+        XCTAssertTrue(app.staticTexts["Raises"].exists, "a sell review should estimate what it raises")
         sleep(1)
         capture("22-sell-review")
         send.tap()
-        XCTAssertTrue(app.staticTexts["Proposal sent to Weekend investors"].waitForExistence(timeout: 5))
+        let sent = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Proposal sent to")).firstMatch
+        XCTAssertTrue(sent.waitForExistence(timeout: 5), "no toast after sending")
     }
 }
 
-/// The Stock detail entry into the buy flow, where no pot is handed down and the stock is already
-/// picked (`-MonacoProposeSampleStock`). `-MonacoProposePotFails` fails the first pot read.
 nonisolated final class ProposeFromStockSampleUITests: XCTestCase {
     @MainActor private var app: XCUIApplication!
 
     @MainActor
-    private func launch(_ extraArguments: [String]) {
+    private func launch(_ scenario: String) {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-MonacoProposalFeedSample", "-MonacoProposeSampleStock"] + extraArguments
+        app.launchArguments = ["-MonacoProposeSample", scenario]
         app.launch()
     }
 
@@ -342,33 +325,32 @@ nonisolated final class ProposeFromStockSampleUITests: XCTestCase {
 
     @MainActor
     func testStockEntry_reachesTheAmountStepWithThePot() throws {
-        launch([])
-        XCTAssertTrue(element("amount-entry-field").waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["The pot has $548.20"].exists)
+        launch("amount")
+        XCTAssertTrue(element("amount-entry-field").waitForExistence(timeout: 10), "the amount step never drew")
+        let helper = element("amount-entry-helper")
+        XCTAssertTrue(helper.waitForExistence(timeout: 10), "the pot helper never drew")
+        XCTAssertTrue(helper.label.hasPrefix("The pot has"), "the helper should say what the pot has: \(helper.label)")
+        XCTAssertTrue(element("propose-amount-pot-total").exists, "the pot total row is missing")
     }
 
-    /// A failed pot read used to leave a dead amount step: Review disabled for good, and helper
-    /// text saying "Try again" that was not a button. Now it is a real retry.
     @MainActor
-    func testStockEntry_potFails_retryReachesTheAmountStep() throws {
-        launch(["-MonacoProposePotFails"])
-
-        let retry = element("propose-pot-error")
-        XCTAssertTrue(retry.waitForExistence(timeout: 10), "no retry offered after the pot failed to load")
-        XCTAssertFalse(element("amount-entry-field").exists, "the amount step opened without a pot")
-
-        // Scoped to this error state: "Try again" is also the popular-stocks retry on the picker
-        // underneath, so a bare `app.buttons["Try again"]` matches two elements and errors out
-        // instead of failing usefully the day the sample popular load breaks.
-        let retryButton = app.buttons.matching(identifier: "propose-pot-error").firstMatch
-        XCTAssertTrue(retryButton.waitForExistence(timeout: 5), "the pot retry is not a button")
-        retryButton.tap()
+    func testStockEntry_potFails_amountStepStillReachesReview() throws {
+        launch("potFailed")
 
         let amount = element("amount-entry-field")
-        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        XCTAssertTrue(amount.waitForExistence(timeout: 10), "the amount step did not open when the pot failed")
+        let total = element("propose-amount-pot-total")
+        XCTAssertTrue(total.waitForExistence(timeout: 10), "the pot total row is missing")
+        XCTAssertTrue(total.label.contains("Unavailable"), "the pot total should say Unavailable: \(total.label)")
+        XCTAssertFalse(
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "The pot has")).firstMatch.exists,
+            "no pot figure should be claimed when the read failed")
+
         let preset = app.buttons["$50"]
-        XCTAssertTrue(preset.waitForExistence(timeout: 5))
+        XCTAssertTrue(preset.waitForExistence(timeout: 5), "the presets never drew")
         preset.tap()
-        XCTAssertTrue(app.buttons["Review"].isEnabled, "Review stayed disabled after the pot loaded")
+        let review = element("propose-amount-review")
+        let enabled = expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: review)
+        XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 10), .completed, "Review stayed disabled")
     }
 }

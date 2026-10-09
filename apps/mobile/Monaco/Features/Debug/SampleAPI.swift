@@ -33,6 +33,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     private static let registered = Mutex(false)
     private static let createdName = Mutex<String?>(nil)
     private static let castChoice = Mutex<String?>(nil)
+    private static let postedComments = Mutex<[Components.Schemas.Comment]>([])
 
     static func install(_ next: SampleAPIScript) {
         script.withLock { $0 = next }
@@ -60,6 +61,9 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         }
         if method == "POST", url.path.hasSuffix("/votes") {
             Self.castChoice.withLock { $0 = requestObject()?["choice"] as? String }
+        }
+        if method == "POST", url.path.hasSuffix("/comments") {
+            Self.recordComment(requestObject())
         }
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let query = Dictionary(items.compactMap { item in item.value.map { (item.name, $0) } }) { first, _ in first }
@@ -153,12 +157,19 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             let items = empty ? [] : Components.Schemas.FeedItem.samples
             return json(Components.Schemas.FeedPage(items: items, nextCursor: nil))
         default:
+            if path.hasPrefix("/v1/feed/") { return feedItemReply(id: String(path.dropFirst("/v1/feed/".count))) }
             return problem(404, "not_found", "Not in the sample data.")
         }
     }
 }
 
 nonisolated extension SampleAPIProtocol {
+    private static func feedItemReply(id: String) -> Reply {
+        var item = Components.Schemas.FeedItem.samples[0]
+        item.id = id
+        return json(Components.Schemas.FeedItemDetail(item: item, visible: true, canComment: true))
+    }
+
     private static func meReply(path: String, script: SampleAPIScript) -> Reply {
         let empty = script.mode == .empty
         switch path {
@@ -211,10 +222,47 @@ nonisolated extension SampleAPIProtocol {
             return json(
                 Components.Schemas.ProposalCommentPage(
                     feedObjectId: "01920000-0000-7000-8000-000000000007",
-                    items: Components.Schemas.CommentThread.samples, nextCursor: nil))
+                    items: threadsWithPosted(Components.Schemas.CommentThread.samples), nextCursor: nil))
+        case ("POST", "comments"):
+            guard let posted = postedComments.withLock({ $0.last }) else {
+                return problem(400, "invalid_request", "No comment in the request.")
+            }
+            var reply = json(posted)
+            reply.status = 201
+            return reply
         default:
             return problem(404, "not_found", "Not in the sample data.")
         }
+    }
+
+    private static func recordComment(_ object: [String: Any]?) {
+        guard let body = object?["body"] as? String else { return }
+        let parent = object?["parent_comment_id"] as? String
+        let id = "posted-\(postedComments.withLock { $0.count + 1 })"
+        let comment = Components.Schemas.Comment(
+            id: id, parentCommentId: parent,
+            author: .init(
+                id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: "kaicenat", displayName: "Kai Cenat",
+                photoUrl: nil),
+            replyToHandle: nil, body: body, bodyDisplay: body, isMine: true, createdAt: .now)
+        postedComments.withLock { $0.append(comment) }
+    }
+
+    private static func threadsWithPosted(
+        _ samples: [Components.Schemas.CommentThread]
+    ) -> [Components.Schemas.CommentThread] {
+        let posted = postedComments.withLock { $0 }
+        var threads = samples
+        for comment in posted {
+            if let parent = comment.parentCommentId,
+                let index = threads.firstIndex(where: { $0.comment.id == parent })
+            {
+                threads[index].replies.append(comment)
+            } else {
+                threads.append(Components.Schemas.CommentThread(comment: comment, replies: []))
+            }
+        }
+        return threads
     }
 
     private static func assetReply(tail: [String], query: [String: String], script: SampleAPIScript) -> Reply {
@@ -262,7 +310,7 @@ nonisolated extension SampleAPIProtocol {
     private static func proposeReply(id: String, tail: [String], method: String) -> Reply? {
         if tail == ["proposals", "preview"] { return json(Components.Schemas.TradePreview.proposalPreviewClean) }
         guard tail == ["proposals"], method == "POST" else { return nil }
-        var created = Components.Schemas.Proposal.sample()
+        var created = Components.Schemas.ProposalDetail.sample()
         created.cabalId = id
         var reply = json(created)
         reply.status = 201
