@@ -916,3 +916,18 @@ func TestDo_returnsAChosenRetryableStatusWithoutRetrying(t *testing.T) {
 			resp.StatusCode, resp.Header.Get("x-ratelimit-reset"), u.count())
 	}
 }
+
+func TestDo_aFinalRateLimitCarriesItsRetryAfter(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		u := &upstream{replies: []reply{status(http.StatusTooManyRequests, "Retry-After", "90")}}
+		c := client(u, httpclient.WithRetry(1, time.Second, time.Second))
+		resp, err := c.Do(t.Context(), get(t, "/v1/users"))
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		if _, attrs := errAttrs(t, err); attrs["retry_after_s"] != int64(90) {
+			t.Fatalf("attrs = %v, want retry_after_s 90", attrs)
+		}
+	})
+}

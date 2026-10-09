@@ -42,7 +42,7 @@ func moduleConfig() config.Config {
 		XStocks:   config.XStocks{BaseURL: "http://fakes/xstocks"},
 		Tessera:   config.Tessera{BaseURL: "http://fakes/tessera"},
 		PreStocks: config.PreStocks{BaseURL: "http://fakes/prestocks"},
-		CoinGecko: config.CoinGecko{BaseURL: "http://fakes/coingecko"},
+		CoinGecko: config.CoinGecko{BaseURL: "http://fakes/coingecko", HistoryEnabled: true},
 		Solana:    config.Solana{RPCURL: "http://fakes/rpc/"},
 		Jupiter: config.Jupiter{
 			SwapBaseURL: "http://fakes/jupiter/swap/v2", PriceBaseURL: "http://fakes/jupiter/price/v3",
@@ -139,5 +139,20 @@ func TestModule_backfillsEveryFiveMinutesAndReconcilesDailyOnOneCoinGeckoClient(
 	}
 	if built != 1 {
 		t.Fatalf("built %d CoinGecko clients, want one so a single limiter paces both pollers", built)
+	}
+}
+
+func TestModule_withHistoryDisabledNeitherCoinGeckoPollerRuns(t *testing.T) {
+	t.Parallel()
+	cfg := moduleConfig()
+	cfg.CoinGecko.HistoryEnabled = false
+	pollers := market.New(module.Deps{Config: cfg, HTTPClient: httpclient.New}).Pollers()
+	for _, p := range pollers {
+		if p.Name() == "market.backfill" || p.Name() == "market.reconcile" {
+			t.Fatalf("Pollers include %s with MARKET_HISTORY_ENABLED off", p.Name())
+		}
+	}
+	if len(pollers) != 3 {
+		t.Fatalf("Pollers = %v, want the catalog, the sampler and retention", pollers)
 	}
 }

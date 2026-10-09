@@ -123,7 +123,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 			continue
 		}
 		cancel()
-		return nil, c.fail(ctx, err, status, attempt)
+		return nil, c.fail(ctx, err, status, attempt, resp)
 	}
 }
 
@@ -202,9 +202,12 @@ func (c *Client) wait(ctx context.Context, attempt, status int, resp *http.Respo
 	}
 }
 
-func (c *Client) fail(ctx context.Context, err error, status, attempt int) error {
+func (c *Client) fail(ctx context.Context, err error, status, attempt int, resp *http.Response) error {
 	attrs := []slog.Attr{
 		slog.String("upstream", c.name), slog.Int("status", status), slog.Int("attempt", attempt),
+	}
+	if after, ok := retryAfter(resp); ok {
+		attrs = append(attrs, slog.Int("retry_after_s", int(after/time.Second)))
 	}
 	code := errs.CodeUpstreamUnavailable
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) || responseHeaderTimeout(err) {

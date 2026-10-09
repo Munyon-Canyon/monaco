@@ -2,6 +2,7 @@ package market_test
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -335,7 +337,8 @@ func TestBackfill_aRateLimitStopsTheTickAndFreshMintsGoFirst(t *testing.T) {
 	r := newBackfillRig(t)
 	aapl, tsla, jpst := marketfake.AAPLx().Mint, marketfake.TSLAx().Mint, marketfake.JPSTx().Mint
 	r.pend(t, aapl, tsla, jpst)
-	r.exec(t, `UPDATE price_backfills SET last_code = 'upstream_timeout' WHERE mint = $1`, aapl.String())
+	r.exec(t, `UPDATE price_backfills SET last_code = 'upstream_timeout', attempts = 1, last_attempt_at = $2
+		WHERE mint = $1`, aapl.String(), r.clock.Now().Add(-time.Hour))
 	r.history.Fail("MarketChart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
 
 	report, err := r.tick(t)
@@ -573,7 +576,17 @@ func TestBackfill_aFailingMintBacksOffExponentiallyUpToADay(t *testing.T) {
 	}
 }
 
-func TestBackfill_aRateLimitDoesNotBackOffTheMint(t *testing.T) {
+func (r *backfillRig) attempts(t *testing.T, mint market.Mint) int {
+	t.Helper()
+	var n int
+	if err := r.pool.QueryRow(t.Context(),
+		`SELECT attempts FROM price_backfills WHERE mint = $1`, mint.String()).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestBackfill_aRateLimitRecordsTheAttemptAndCoolsDownForAMinute(t *testing.T) {
 	t.Parallel()
 	r := newBackfillRig(t)
 	aapl := marketfake.AAPLx().Mint
@@ -582,8 +595,75 @@ func TestBackfill_aRateLimitDoesNotBackOffTheMint(t *testing.T) {
 	if _, err := r.tick(t); errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited {
 		t.Fatalf("tick err = %v, want coin_gecko_rate_limited", err)
 	}
+	if n := r.attempts(t, aapl); n != 1 {
+		t.Fatalf("attempts = %d, want the 429 recorded", n)
+	}
+	calls := len(r.history.Calls())
+	r.clock.Advance(59 * time.Second)
+	if report, err := r.tick(t); err != nil || report.Scanned != 0 || len(r.history.Calls()) != calls {
+		t.Fatalf("tick in the cooldown = %+v, %v, %d calls, want none", report, err, len(r.history.Calls())-calls)
+	}
+	r.clock.Advance(11 * time.Minute)
 	if report, err := r.tick(t); err != nil || report.Scanned != 1 {
-		t.Fatalf("next tick = %+v, %v, want the mint tried again at once", report, err)
+		t.Fatalf("tick after the cooldown = %+v, %v, want the mint tried again", report, err)
+	}
+}
+
+func TestBackfill_aLongRetryAfterExtendsTheCooldown(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	r.pend(t, marketfake.AAPLx().Mint)
+	r.history.FailOnce("MarketChart",
+		errs.New(errs.CodeCoinGeckoRateLimited, "test", slog.Int("retry_after_s", 900)))
+	if _, err := r.tick(t); errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited {
+		t.Fatalf("tick err = %v, want coin_gecko_rate_limited", err)
+	}
+	r.clock.Advance(14 * time.Minute)
+	calls := len(r.history.Calls())
+	if _, err := r.tick(t); err != nil || len(r.history.Calls()) != calls {
+		t.Fatalf("tick inside a 15m Retry-After made %d calls, err %v", len(r.history.Calls())-calls, err)
+	}
+	r.clock.Advance(2 * time.Minute)
+	if report, err := r.tick(t); err != nil || report.Scanned != 1 {
+		t.Fatalf("tick after the Retry-After = %+v, %v, want the mint tried again", report, err)
+	}
+}
+
+func TestBackfill_aSharedCooldownPausesEveryCoinGeckoPoller(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	r.pend(t, marketfake.AAPLx().Mint)
+	cool := app.NewCooldown(r.clock)
+	r.poller.WithCooldown(cool)
+	rec := app.NewReconcile(r.uow, r.pool, r.clock, r.history).WithCooldown(cool)
+	r.history.FailOnce("MarketChart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+	if _, err := r.tick(t); errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited {
+		t.Fatalf("tick err = %v, want coin_gecko_rate_limited", err)
+	}
+	calls := len(r.history.Calls())
+	if _, err := rec.Tick(r.ctx(t)); err != nil || len(r.history.Calls()) != calls {
+		t.Fatalf("reconcile in the cooldown made %d calls, err %v", len(r.history.Calls())-calls, err)
+	}
+}
+
+func TestBackfill_aFailedMintGoesBehindUntriedOnes(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl, tsla, jpst := marketfake.AAPLx().Mint, marketfake.TSLAx().Mint, marketfake.JPSTx().Mint
+	r.pend(t, aapl, tsla, jpst)
+	r.history.FailOnce("MarketChart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+	if _, err := r.tick(t); err == nil {
+		t.Fatal("tick succeeded, want the 429")
+	}
+	r.clock.Advance(11 * time.Minute)
+	pending, err := sqlc.New(r.pool).PendingBackfills(t.Context(),
+		sqlc.PendingBackfillsParams{Now: r.clock.Now(), BatchLimit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{tsla.String(), jpst.String(), aapl.String()}
+	if !slices.Equal(pending, want) {
+		t.Fatalf("pending = %v, want the failed AAPLx last: %v", pending, want)
 	}
 }
 
@@ -631,7 +711,7 @@ func TestBackfill_popularMintsGoBeforeOthers(t *testing.T) {
 	}
 }
 
-func TestBackfill_theCatalogPollerQueuesNothingAndTheTickQueuesOnlyHotListedMints(t *testing.T) {
+func TestBackfill_theCatalogPollerQueuesTradableNewListingsAndTheTickQueuesOnlyHotListedMints(t *testing.T) {
 	t.Parallel()
 	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
 	tsla.IssuerTradable, jpst.IssuerTradable = false, true
@@ -641,9 +721,10 @@ func TestBackfill_theCatalogPollerQueuesNothingAndTheTickQueuesOnlyHotListedMint
 	rig.tick(t)
 	rig.exec(t, `UPDATE assets SET chain_checked_at = now()`)
 	rig.tick(t)
-	if got := queued(t, rig.pool); len(got) != 0 {
-		t.Fatalf("price_backfills after two catalog ticks = %v, want none", got)
+	if got, want := queued(t, rig.pool), mintStrings(aapl.Mint, jpst.Mint); !slices.Equal(got, want) {
+		t.Fatalf("price_backfills after two catalog ticks = %v, want the tradable new listings %v", got, want)
 	}
+	rig.exec(t, `DELETE FROM price_backfills`)
 	history := &marketfake.PriceHistoryFake{}
 	backfill := app.NewBackfill(db.New(rig.pool, rig.ids, rig.clock), rig.pool, rig.clock, history)
 	if _, err := backfill.Tick(rig.ctx(t)); err != nil {

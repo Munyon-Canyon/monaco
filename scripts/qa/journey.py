@@ -553,6 +553,8 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     log_dir = OUT / ("backend-slot%d-%s" % (slot, stamp()))
     log_dir.mkdir(parents=True, exist_ok=True)
     env["MONACO_LOG_DIR"] = str(log_dir)
+    # Slot backends must not spend the shared CoinGecko key on price history.
+    env["MARKET_HISTORY_ENABLED"] = "false"
     if env.get("QA_FAKE_RPC") == "1":
         env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
     env.setdefault("TRADE_ENGINE", trade_engine)

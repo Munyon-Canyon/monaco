@@ -13,25 +13,19 @@ import (
 const failBackfill = `-- name: FailBackfill :exec
 UPDATE price_backfills
 SET last_code = $1::text,
-    attempts = attempts + $2::boolean::integer,
-    last_attempt_at = CASE WHEN $2::boolean THEN $3::timestamptz ELSE last_attempt_at END
-WHERE mint = $4::text
+    attempts = attempts + 1,
+    last_attempt_at = $2::timestamptz
+WHERE mint = $3::text
 `
 
 type FailBackfillParams struct {
-	Code    string
-	BackOff bool
-	Now     time.Time
-	Mint    string
+	Code string
+	Now  time.Time
+	Mint string
 }
 
 func (q *Queries) FailBackfill(ctx context.Context, arg FailBackfillParams) error {
-	_, err := q.db.Exec(ctx, failBackfill,
-		arg.Code,
-		arg.BackOff,
-		arg.Now,
-		arg.Mint,
-	)
+	_, err := q.db.Exec(ctx, failBackfill, arg.Code, arg.Now, arg.Mint)
 	return err
 }
 
@@ -83,7 +77,7 @@ WHERE b.done_at IS NULL
     OR b.last_attempt_at + LEAST(interval '5 minutes' * power(2, LEAST(b.attempts, 12)), interval '24 hours')
       <= $1::timestamptz
   )
-ORDER BY b.last_code IS NOT NULL, a.popular_rank NULLS LAST, b.requested_at, b.mint
+ORDER BY b.last_attempt_at NULLS FIRST, a.popular_rank NULLS LAST, b.requested_at, b.mint
 LIMIT $2::integer
 `
 
@@ -110,6 +104,29 @@ func (q *Queries) PendingBackfills(ctx context.Context, arg PendingBackfillsPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const queueNewListingBackfills = `-- name: QueueNewListingBackfills :execrows
+INSERT INTO price_backfills (mint, requested_at)
+SELECT a.mint, $1::timestamptz
+FROM assets AS a
+WHERE a.mint = ANY ($2::text[])
+  AND a.first_seen_at = $1::timestamptz
+  AND coalesce(a.tradable_override, a.issuer_tradable)
+ON CONFLICT (mint) DO NOTHING
+`
+
+type QueueNewListingBackfillsParams struct {
+	Now   time.Time
+	Mints []string
+}
+
+func (q *Queries) QueueNewListingBackfills(ctx context.Context, arg QueueNewListingBackfillsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, queueNewListingBackfills, arg.Now, arg.Mints)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const requestBackfills = `-- name: RequestBackfills :execrows
