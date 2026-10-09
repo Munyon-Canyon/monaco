@@ -52,6 +52,7 @@ public actor StubTransport: ClientTransport {
     private var mode: Mode
     private var gates: [CheckedContinuation<(HTTPResponse, HTTPBody?), Error>] = []
     private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var pathWaiters: [(path: String, continuation: CheckedContinuation<Void, Never>)] = []
     public private(set) var sent: [HTTPRequest] = []
     public private(set) var sentBodies: [Data?] = []
 
@@ -87,6 +88,9 @@ public actor StubTransport: ClientTransport {
         let ready = waiters.filter { $0.count <= sent.count }
         waiters.removeAll { $0.count <= sent.count }
         for waiter in ready { waiter.continuation.resume() }
+        let arrived = pathWaiters.filter { hasSent(path: $0.path) }
+        pathWaiters.removeAll { hasSent(path: $0.path) }
+        for waiter in arrived { waiter.continuation.resume() }
         switch try nextReply(for: request) {
         case .response(let response, let body):
             return (response, HTTPBody(body))
@@ -105,6 +109,15 @@ public actor StubTransport: ClientTransport {
 
     public func waitForRequest() async {
         await waitForRequests(1)
+    }
+
+    public func waitForRequest(path: String) async {
+        if hasSent(path: path) { return }
+        await withCheckedContinuation { pathWaiters.append((path, $0)) }
+    }
+
+    private func hasSent(path: String) -> Bool {
+        sent.contains { $0.path.flatMap { URLComponents(string: $0)?.path } == path }
     }
 
     public func waitForRequests(_ count: Int) async {

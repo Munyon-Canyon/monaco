@@ -19,11 +19,13 @@ struct CabalPotModelHost<Content: View>: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.cabalRetry) private var retry
+    @Environment(\.cabalPotModel) private var shared
     @State private var model: CabalPotModel?
 
     var body: some View {
-        content(model)
+        content(shared ?? model)
             .task(id: retry.tick) {
+                guard shared == nil else { return }
                 let model = self.model ?? makeModel()
                 self.model = model
                 await model.load()

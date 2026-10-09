@@ -42,6 +42,7 @@ final class AppEnvironment {
     init(
         auth: PrivyAuthService,
         tokens: SessionTokens? = nil,
+        api: APIClient? = nil,
         hints: any HintConnecting,
         sessionStore: AppSessionStore? = nil,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
@@ -51,7 +52,7 @@ final class AppEnvironment {
         self.auth = auth
         self.tokens = tokens
         self.hints = hints
-        let api = APIClient(serverURL: Config.api.baseURL, tokens: tokens)
+        let api = api ?? APIClient(serverURL: Config.api.baseURL, tokens: tokens)
         self.api = api
         self.assetLogos = AssetLogoStore(api: api)
         self.chatRealtime = SharedChatRealtime { AblyChatRealtime(api: api) }

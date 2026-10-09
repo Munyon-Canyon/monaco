@@ -79,14 +79,22 @@ public final class CabalAccessModel {
             let cabal = try await api.read { client in
                 try await client.getCabal(path: .init(id: cabalID)).ok.body.json
             }
-            let next = try await standing(for: cabal)
-            guard mine == generation else { return }
-            standing = next
-            joinPolicy = CabalJoinPolicy(wire: cabal.rules.joinMode)
-            picksVoters = cabal.rules.voterMode == CabalVoterMode.picked.rawValue
+            await settle(cabal, generation: mine)
         } catch {
             return
         }
+    }
+
+    public func load(cabal: Components.Schemas.Cabal) async {
+        generation += 1
+        await settle(cabal, generation: generation)
+    }
+
+    private func settle(_ cabal: Components.Schemas.Cabal, generation mine: Int) async {
+        guard let next = try? await standing(for: cabal), mine == generation else { return }
+        standing = next
+        joinPolicy = CabalJoinPolicy(wire: cabal.rules.joinMode)
+        picksVoters = cabal.rules.voterMode == CabalVoterMode.picked.rawValue
     }
 
     private func standing(for cabal: Components.Schemas.Cabal) async throws -> CabalAccessStanding {
