@@ -68,6 +68,37 @@ final class FriendsOnMonacoModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .empty)
     }
 
+    func testAContactsReadFailureShowsItsOwnPhaseAndPostsNothing() async {
+        let contacts = FakeContacts(access: .granted, numbers: [])
+        contacts.readError = CocoaError(.fileReadUnknown)
+        let transport = StubTransport(scripted: [])
+        let model = makeModel(transport, contacts: contacts, chunkSize: 2000)
+        await model.loadIfGranted()
+        XCTAssertEqual(model.phase, .contactsFailed)
+        let sent = await transport.sent
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testAServerFailureIsNotAContactsFailure() async {
+        let contacts = FakeContacts(access: .granted, numbers: [])
+        let transport = StubTransport(scripted: [Self.problem(500, "internal", "Something went wrong.")])
+        let model = makeModel(transport, contacts: contacts, chunkSize: 2000)
+        await model.loadIfGranted()
+        XCTAssertEqual(model.phase, .failed)
+    }
+
+    func testRetryAfterAContactsReadFailureReadsContactsAgain() async {
+        let contacts = FakeContacts(access: .granted, numbers: [])
+        contacts.readError = CocoaError(.fileReadUnknown)
+        let transport = StubTransport(scripted: [.json(.ok, Self.emptyPage)])
+        let model = makeModel(transport, contacts: contacts, chunkSize: 2000)
+        await model.loadIfGranted()
+        contacts.readError = nil
+        await model.retry()
+        XCTAssertEqual(contacts.reads, 2)
+        XCTAssertEqual(model.phase, .empty)
+    }
+
     func testFollowUsesThePhoneSource() async throws {
         let contacts = FakeContacts(access: .granted, numbers: [])
         let transport = StubTransport(scripted: [
@@ -162,6 +193,8 @@ private final class FakeContacts: ContactsSource {
     var access: ContactsAccess
     var requestResult: ContactsAccess
     var numbers: [String]
+    var readError: Error?
+    private(set) var reads = 0
 
     init(access: ContactsAccess, requestResult: ContactsAccess? = nil, numbers: [String]) {
         self.access = access
@@ -176,5 +209,9 @@ private final class FakeContacts: ContactsSource {
         return access
     }
 
-    func phoneNumbers() throws -> [String] { numbers }
+    func phoneNumbers() throws -> [String] {
+        reads += 1
+        if let readError { throw readError }
+        return numbers
+    }
 }

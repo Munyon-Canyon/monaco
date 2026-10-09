@@ -1,5 +1,6 @@
 import MonacoCore
 import SwiftUI
+import UIKit
 
 struct FriendsOnMonacoView: View {
     @Bindable var model: FriendsOnMonacoModel
@@ -19,18 +20,25 @@ struct FriendsOnMonacoView: View {
             MonacoErrorRow(thing: "your friends", identifier: "friends-try-again") {
                 Task { await model.retry() }
             }
+        case .contactsFailed:
+            ContactsReadErrorRow(canOpenSettings: model.access != .granted) {
+                Task { await model.retry() }
+            }
         case .empty:
             EmptyState(title: "None of your contacts are on Monaco yet")
                 .accessibilityIdentifier("friends-empty")
         case .loaded:
-            MonacoGroupedList {
-                ForEach(Array(model.friends.enumerated()), id: \.element.id) { index, friend in
-                    FriendMatchRow(
-                        friend: friend,
-                        isLast: index == model.friends.count - 1,
-                        isToggling: model.isToggling(friend.id)
-                    ) {
-                        Task { await model.follow(friend.id) }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                MonacoSectionHeader("From your contacts")
+                MonacoGroupedList {
+                    ForEach(Array(model.friends.enumerated()), id: \.element.id) { index, friend in
+                        FriendMatchRow(
+                            friend: friend,
+                            isLast: index == model.friends.count - 1,
+                            isToggling: model.isToggling(friend.id)
+                        ) {
+                            Task { await model.follow(friend.id) }
+                        }
                     }
                 }
             }
@@ -65,5 +73,41 @@ private struct FriendMatchRow: View {
         }
         .buttonStyle(.monacoRow)
         .accessibilityIdentifier("friends-row-\(friend.handle)")
+    }
+}
+
+private struct ContactsReadErrorRow: View {
+    let canOpenSettings: Bool
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            Text("Couldn't read your contacts.")
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if canOpenSettings {
+                Button("Open Settings") {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+                .font(MonacoTheme.Typo.calloutStrong)
+                .foregroundStyle(MonacoTheme.brand)
+                .buttonStyle(.plain)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("friends-contacts-open-settings")
+            }
+            Button("Try again", action: retry)
+                .font(MonacoTheme.Typo.calloutStrong)
+                .foregroundStyle(MonacoTheme.brand)
+                .buttonStyle(.plain)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("friends-contacts-retry")
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("friends-contacts-error")
     }
 }
