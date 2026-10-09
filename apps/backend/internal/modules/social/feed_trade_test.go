@@ -89,7 +89,7 @@ func TestFeedTrade_Confirmed_InsertsOnce(t *testing.T) {
 		t.Fatalf("trade items after a redelivery = %d, want 1", len(rows))
 	}
 	row := rows[0]
-	if row.Title != "Alpha bought $500 of AAPLx" || row.Symbol != "AAPLx" || row.Actor != "" ||
+	if row.Title != "Alpha bought $500 of Apple" || row.Symbol != "AAPLx" || row.Actor != "" ||
 		row.Asset != marketfake.AAPLx().ID.UUID() {
 		t.Fatalf("row = %+v", row)
 	}
@@ -150,7 +150,7 @@ func TestFeedTrade_SellReadsTheStockLegAndSaysSold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if row.Title != "Alpha sold $500 of AAPLx" || payload.TokenAmount != 250_000_000 ||
+	if row.Title != "Alpha sold $500 of Apple" || payload.TokenAmount != 250_000_000 ||
 		payload.PriceMicros.Uint64() != 200_000_000 {
 		t.Fatalf("row = %+v payload = %+v", row, payload)
 	}
@@ -164,7 +164,7 @@ func TestFeedTrade_TheCatalogNamesASymbolTheEventLacks(t *testing.T) {
 	if err := r.deliverTrade(t, e); err != nil {
 		t.Fatal(err)
 	}
-	if row := r.tradeRows(t)[0]; row.Symbol != "AAPLx" || row.Title != "Alpha bought $500 of AAPLx" {
+	if row := r.tradeRows(t)[0]; row.Symbol != "AAPLx" || row.Title != "Alpha bought $500 of Apple" {
 		t.Fatalf("row = %+v", row)
 	}
 }

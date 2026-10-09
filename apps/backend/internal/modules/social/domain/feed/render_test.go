@@ -27,18 +27,18 @@ func renderCases() []renderCase {
 	alpha := "Alpha Cabal"
 	return []renderCase{
 		{"proposal_buy", feed.KindProposal, feed.Payload{
-			CabalName: alpha, ActorName: "alice", Symbol: "AAPLx", Action: feed.ActionBuy,
+			CabalName: alpha, ActorName: "alice", Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
 			USDCMicros: usd(500_000_000), Status: "open",
 		}},
 		{"proposal_buy_cents", feed.KindProposal, feed.Payload{
-			CabalName: alpha, ActorName: "alice", Symbol: "TSLAx", Action: feed.ActionBuy,
+			CabalName: alpha, ActorName: "alice", Symbol: "TSLAx", AssetName: "Tesla", Action: feed.ActionBuy,
 			USDCMicros: usd(1_234_567_891), Status: "passed",
 		}},
 		{"proposal_sell_no_amount", feed.KindProposal, feed.Payload{
 			CabalName: alpha, ActorName: "bob", Symbol: "NVDAx", Action: feed.ActionSell, Status: "executed",
 		}},
 		{"proposal_sell_amount", feed.KindProposal, feed.Payload{
-			CabalName: alpha, ActorName: "bob", Symbol: "NVDAx", Action: feed.ActionSell,
+			CabalName: alpha, ActorName: "bob", Symbol: "NVDAx", AssetName: "NVIDIA", Action: feed.ActionSell,
 			USDCMicros: usd(25_050_000), Status: "execution_failed",
 		}},
 		{"proposal_blocked", feed.KindProposal, feed.Payload{
@@ -61,12 +61,28 @@ func renderCases() []renderCase {
 		{"trade_sell", feed.KindTrade, feed.Payload{
 			CabalName: alpha, Symbol: "AAPLx", Action: feed.ActionSell, USDCMicros: usd(99_990_000),
 		}},
-		{"price_move_up_500", feed.KindPriceMove, feed.Payload{
-			Symbol: "AAPLx", ChangeBps: 500, MarkMicros: usd(212_400_000), PrevClose: usd(193_100_000),
-		}},
-		{"price_move_down_1000", feed.KindPriceMove, feed.Payload{
-			Symbol: "TSLAx", ChangeBps: -1000, MarkMicros: usd(1_250_005_000), PrevClose: usd(1_388_900_000),
-		}},
+		{
+			"price_move_up_500",
+			feed.KindPriceMove,
+			feed.Payload{
+				Symbol:     "AAPLx",
+				AssetName:  "Apple",
+				ChangeBps:  500,
+				MarkMicros: usd(212_400_000),
+				PrevClose:  usd(193_100_000),
+			},
+		},
+		{
+			"price_move_down_1000",
+			feed.KindPriceMove,
+			feed.Payload{
+				Symbol:     "TSLAx",
+				AssetName:  "Tesla",
+				ChangeBps:  -1000,
+				MarkMicros: usd(1_250_005_000),
+				PrevClose:  usd(1_388_900_000),
+			},
+		},
 		{"price_move_up_1234", feed.KindPriceMove, feed.Payload{
 			Symbol: "AAPLx", ChangeBps: 1234, MarkMicros: usd(212_400_000), PrevClose: usd(189_000_000),
 		}},

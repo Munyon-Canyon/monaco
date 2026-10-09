@@ -36,7 +36,7 @@ func RenderDetail(k Kind, p Payload) string {
 		return statusLabel(p.Status, p.StatusCode)
 	case KindTrade:
 		if p.PriceMicros.IsZero() {
-			return p.AssetName
+			return ""
 		}
 		return "Filled at " + priceOf(p.PriceMicros)
 	case KindPriceMove:
@@ -79,28 +79,35 @@ func tradeTitle(p Payload) string {
 	return p.CabalName + " " + verb + " " + amountOf(p)
 }
 
+func assetLabel(p Payload) string {
+	if p.AssetName != "" {
+		return p.AssetName
+	}
+	return p.Symbol
+}
+
 func amountOf(p Payload) string {
 	if p.USDCMicros.IsZero() {
-		return p.Symbol
+		return assetLabel(p)
 	}
-	return dollars(p.USDCMicros) + " of " + p.Symbol
+	return dollars(p.USDCMicros) + " of " + assetLabel(p)
 }
 
 func exactAmountOf(p Payload) string {
 	if p.USDCMicros.IsZero() {
-		return p.Symbol
+		return assetLabel(p)
 	}
-	return priceOf(p.USDCMicros) + " of " + p.Symbol
+	return priceOf(p.USDCMicros) + " of " + assetLabel(p)
 }
 
 func priceMoveTitle(p Payload) string {
 	switch {
 	case p.ChangeBps > 0:
-		return p.Symbol + " is up " + percent(p.ChangeBps) + " today"
+		return assetLabel(p) + " is up " + percent(p.ChangeBps) + " today"
 	case p.ChangeBps < 0:
-		return p.Symbol + " is down " + percent(-p.ChangeBps) + " today"
+		return assetLabel(p) + " is down " + percent(-p.ChangeBps) + " today"
 	default:
-		return p.Symbol + " is flat today"
+		return assetLabel(p) + " is flat today"
 	}
 }
 

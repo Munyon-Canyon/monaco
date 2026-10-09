@@ -141,7 +141,7 @@ func TestFeedProposal_createdWritesTheOpenItem(t *testing.T) {
 	}
 	row := r.row(t)
 	if row.Status != "open" || row.Body != "" || row.Symbol != "AAPLx" ||
-		row.Title != "bob proposed buying $500.00 of AAPLx in Alpha" {
+		row.Title != "bob proposed buying $500.00 of Apple in Alpha" {
 		t.Fatalf("row = %+v", row)
 	}
 	for key, want := range map[string]any{
@@ -174,7 +174,7 @@ func TestFeedProposal_sellRendersSelling(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got := r.row(t); got.Title != "bob proposed selling AAPLx in Alpha" || got.Payload["token_amount"] != "7" {
+	if got := r.row(t); got.Title != "bob proposed selling Apple in Alpha" || got.Payload["token_amount"] != "7" {
 		t.Fatalf("row = %+v", got)
 	}
 }
@@ -416,19 +416,19 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 		got = append(got, cabal+"|"+status+"|"+title)
 	}
 	want := []string{
-		"Alpha|open|alice proposed buying $5.00 of AAPLx in Alpha",
-		"Beta|executed|bob proposed buying $7.50 of AAPLx in Beta",
+		"Alpha|open|alice proposed buying $5.00 of Apple in Alpha",
+		"Beta|executed|bob proposed buying $7.50 of Apple in Beta",
 	}
 	if err := rows.Err(); err != nil || !slices.Equal(got, want) {
 		t.Fatalf("proposal items = %v, %v, want %v", got, err, want)
 	}
 	var title string
 	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'trade'`).Scan(&title)
-	if err != nil || title != "Beta bought $7.50 of AAPLx" {
+	if err != nil || title != "Beta bought $7.50 of Apple" {
 		t.Fatalf("trade item = %q, %v", title, err)
 	}
 	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'price_move'`).Scan(&title)
-	if err != nil || title != "AAPLx is up 10% today" {
+	if err != nil || title != "Apple is up 10% today" {
 		t.Fatalf("price move item = %q, %v", title, err)
 	}
 }

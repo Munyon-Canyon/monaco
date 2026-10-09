@@ -57,7 +57,7 @@ func TestFeedPriceMove_InsertsOnce(t *testing.T) {
 	err := r.pool.QueryRow(t.Context(), `SELECT count(*) OVER (), id, ref_id, cabal_id, actor_id, title, payload
 		FROM feed_objects WHERE kind = 'price_move' AND ref_type = 'asset_price_moves'`).
 		Scan(&n, &id, &ref, &cabal, &actor, &title, &raw)
-	if err != nil || n != 1 || ref != id || title != "AAPLx is up 10% today" {
+	if err != nil || n != 1 || ref != id || title != "Apple is up 10% today" {
 		t.Fatalf("rows = %d id %x ref %x title %q, %v", n, id, ref, title, err)
 	}
 	if cabal != nil || actor != nil {
@@ -92,7 +92,7 @@ func TestGetFeed_aPriceMoveMatchesTheSymbolAndNotACabal(t *testing.T) {
 	viewer := ids.NewUserID(r.gen)
 	got := f.getFeed(t, viewer, api.GetFeedParams{Symbol: ptr("aaplx")})
 	if len(got.Items) != 1 || got.Items[0].Kind != "price_move" || got.Items[0].CabalId != nil ||
-		got.Items[0].Title != "AAPLx is up 10% today" ||
+		got.Items[0].Title != "Apple is up 10% today" ||
 		got.Items[0].Detail == nil || *got.Items[0].Detail != "$212.40, previous close $193.10" ||
 		got.Items[0].Tone != "positive" {
 		t.Fatalf("symbol filter = %+v, want the price move", got.Items)

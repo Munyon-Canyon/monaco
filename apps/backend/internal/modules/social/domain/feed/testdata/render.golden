@@ -1,18 +1,18 @@
-proposal_buy	alice proposed buying $500.00 of AAPLx in Alpha Cabal	Open	neutral
-proposal_buy_cents	alice proposed buying $1,234.56 of TSLAx in Alpha Cabal	Passed	neutral
+proposal_buy	alice proposed buying $500.00 of Apple in Alpha Cabal	Open	neutral
+proposal_buy_cents	alice proposed buying $1,234.56 of Tesla in Alpha Cabal	Passed	neutral
 proposal_sell_no_amount	bob proposed selling NVDAx in Alpha Cabal	Executed	neutral
-proposal_sell_amount	bob proposed selling $25.05 of NVDAx in Alpha Cabal	Trade failed	neutral
+proposal_sell_amount	bob proposed selling $25.05 of NVIDIA in Alpha Cabal	Trade failed	neutral
 proposal_blocked	A member proposed buying $500.00 of AAPLx in Alpha Cabal	Blocked: This feed item is still being prepared. Try again in a moment.	neutral
 proposal_failed	A member proposed buying AAPLx in Alpha Cabal	Failed	neutral
 proposal_expired	A member proposed buying AAPLx in Alpha Cabal	Expired	neutral
 proposal_withdrawn	A member proposed buying AAPLx in Alpha Cabal	Withdrawn	neutral
 proposal_voided	A member proposed buying AAPLx in Alpha Cabal	Voided	neutral
 proposal_unknown_status	A member proposed buying AAPLx in Alpha Cabal		neutral
-trade_buy	Alpha Cabal bought $12,500 of AAPLx	Apple	neutral
-trade_buy_filled	Alpha Cabal bought $500 of AAPLx	Filled at $212.40	neutral
+trade_buy	Alpha Cabal bought $12,500 of Apple		neutral
+trade_buy_filled	Alpha Cabal bought $500 of Apple	Filled at $212.40	neutral
 trade_sell	Alpha Cabal sold $99.99 of AAPLx		neutral
-price_move_up_500	AAPLx is up 5% today	$212.40, previous close $193.10	positive
-price_move_down_1000	TSLAx is down 10% today	$1,250.00, previous close $1,388.90	negative
+price_move_up_500	Apple is up 5% today	$212.40, previous close $193.10	positive
+price_move_down_1000	Tesla is down 10% today	$1,250.00, previous close $1,388.90	negative
 price_move_up_1234	AAPLx is up 12.34% today	$212.40, previous close $189.00	positive
 price_move_no_prev_close	AAPLx is up 5% today	$212.40	positive
 price_move_flat_no_price	AAPLx is flat today		neutral
