@@ -69,6 +69,7 @@ public struct CardDepositPage: Identifiable, Equatable, Sendable {
 public final class CardDeposit {
     public static let refreshingHint = "onramp_changed"
     public static let processingLine = "Card purchase processing"
+    private static let processingWindow: TimeInterval = 3600
 
     public private(set) var state: CardDepositState = .idle
     public private(set) var page: CardDepositPage?
@@ -77,19 +78,22 @@ public final class CardDeposit {
 
     private let source: OnrampSource
     private let hints: any HintSource
+    private let now: @Sendable () -> Date
     private var submission = IdempotentSubmission()
     private var checkOnForeground = false
+    private var processingSince: Date?
 
-    public init(source: OnrampSource, hints: any HintSource) {
+    public init(source: OnrampSource, hints: any HintSource, now: @escaping @Sendable () -> Date) {
         self.source = source
         self.hints = hints
+        self.now = now
     }
 
     public var isCreating: Bool { state == .creating }
 
     public var isProcessing: Bool {
-        if case .processing = state { return true }
-        return false
+        guard case .processing = state, let since = processingSince else { return false }
+        return !expired(since)
     }
 
     public func start(suggestedMicros: Int64?, cabalID: String?) async {
@@ -120,6 +124,7 @@ public final class CardDeposit {
     }
 
     public func foregrounded() async {
+        await checkDeposited()
         guard checkOnForeground, page == nil, case .browsing(let id) = state else { return }
         checkOnForeground = false
         await readStatus(of: id)
@@ -131,14 +136,15 @@ public final class CardDeposit {
     }
 
     public func observe() async {
-        for await _ in hints.hints(matching: .user(what: Self.refreshingHint)) {
-            guard let id = liveSessionID else { continue }
-            await readStatus(of: id)
-        }
+        async let onramp: Void = followOnramp()
+        async let balance: Void = followBalance()
+        await checkDeposited()
+        _ = await (onramp, balance)
     }
 
     public func reset() {
         state = .idle
+        processingSince = nil
         page = nil
         message = nil
         checkOnForeground = false
@@ -152,6 +158,35 @@ public final class CardDeposit {
         }
     }
 
+    private func followOnramp() async {
+        for await _ in hints.hints(matching: .user(what: Self.refreshingHint)) {
+            guard let id = liveSessionID else { continue }
+            await readStatus(of: id)
+        }
+    }
+
+    private func followBalance() async {
+        for await _ in hints.hints(matching: .user(what: BalanceSource.refreshingHint)) {
+            await checkDeposited()
+        }
+    }
+
+    private func expired(_ since: Date) -> Bool {
+        now().timeIntervalSince(since) > Self.processingWindow
+    }
+
+    private func checkDeposited() async {
+        guard case .processing = state, let since = processingSince else { return }
+        if expired(since) {
+            reset()
+            return
+        }
+        guard let landed = try? await source.latestDepositAt(), landed >= since, processingSince == since else {
+            return
+        }
+        apply(.deposited)
+    }
+
     private func readStatus(of id: String) async {
         guard let status = try? await source.session(id: id) else { return }
         apply(.status(sessionID: id, status))
@@ -161,6 +196,7 @@ public final class CardDeposit {
         let next = state.applying(event)
         guard next != state else { return }
         state = next
+        if case .processing = next { processingSince = now() } else { processingSince = nil }
         if case .browsing = next {} else { page = nil }
         if case .failed(_, let text) = next {
             message = text

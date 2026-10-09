@@ -47,4 +47,9 @@ public struct OnrampSource: Sendable {
         }
         return status
     }
+
+    public func latestDepositAt() async throws -> Date? {
+        let page = try await api.read { try await $0.getMyTxns(query: .init(limit: 5)).ok.body.json }
+        return page.items.first { $0.kind == .deposit && $0.status == .settled }?.createdAt
+    }
 }

@@ -2,6 +2,7 @@ import Foundation
 import MonacoAPI
 import MonacoCore
 import MonacoTestSupport
+import Synchronization
 import XCTest
 
 final class CardDepositStateTests: XCTestCase {
@@ -93,10 +94,11 @@ final class CardDepositStateTests: XCTestCase {
 final class CardDepositTests: XCTestCase {
     private let id = "01890a5d-ac96-774b-bcce-b302099a8057"
     private let userID = "01890a5d-ac96-774b-bcce-b302099a8058"
+    private let clock = WallClock()
 
     func testStartPostsTheShortfallAndOpensThePage() async throws {
         let transport = StubTransport(.json(.created, created))
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
 
         await deposit.start(suggestedMicros: 25_000_000, cabalID: userID)
 
@@ -115,7 +117,7 @@ final class CardDepositTests: XCTestCase {
 
     func testStartWithoutACabalSendsAnEmptyBody() async throws {
         let transport = StubTransport(.json(.created, created))
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
 
         await deposit.start(suggestedMicros: nil, cabalID: nil)
 
@@ -127,7 +129,7 @@ final class CardDepositTests: XCTestCase {
 
     func testAFailedStartToastsAndOpensNothing() async {
         let transport = StubTransport(.failure(URLError(.notConnectedToInternet)))
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
 
         await deposit.start(suggestedMicros: nil, cabalID: nil)
 
@@ -139,7 +141,7 @@ final class CardDepositTests: XCTestCase {
 
     func testTheRedirectClosesThePageAndReadsTheSession() async {
         let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("confirmed"))])
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
         await deposit.start(suggestedMicros: nil, cabalID: nil)
 
         await deposit.redirected(sessionID: id)
@@ -152,7 +154,7 @@ final class CardDepositTests: XCTestCase {
 
     func testACancelledRedirectToasts() async {
         let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("cancelled"))])
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
         await deposit.start(suggestedMicros: nil, cabalID: nil)
 
         await deposit.redirected(sessionID: id)
@@ -163,7 +165,7 @@ final class CardDepositTests: XCTestCase {
 
     func testClosingTheBrowserReadsTheSessionOnceOnForeground() async {
         let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("opened"))])
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
         await deposit.start(suggestedMicros: nil, cabalID: nil)
 
         deposit.browserClosed()
@@ -179,7 +181,7 @@ final class CardDepositTests: XCTestCase {
     func testAnOnrampHintReadsTheLiveSession() async {
         let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("submitted"))])
         let hints = FakeHintStream()
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: hints)
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: hints, now: clock.now)
         await deposit.start(suggestedMicros: nil, cabalID: nil)
         let observer = Task { await deposit.observe() }
         addTeardownBlock { observer.cancel() }
@@ -194,7 +196,7 @@ final class CardDepositTests: XCTestCase {
 
     func testADepositEndsProcessing() async {
         let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("confirmed"))])
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream())
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
         await deposit.start(suggestedMicros: nil, cabalID: nil)
         await deposit.redirected(sessionID: id)
 
@@ -203,6 +205,97 @@ final class CardDepositTests: XCTestCase {
         deposit.balanceChanged(.deposited(25_000_000))
 
         XCTAssertEqual(deposit.state, .done(sessionID: id))
+    }
+
+    func testADepositRowNewerThanTheRedirectEndsProcessing() async {
+        let transport = StubTransport(scripted: processingScript(txns: [fundRow(at: 90), depositRow(at: 60)]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+        XCTAssertTrue(deposit.isProcessing)
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .done(sessionID: id))
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths.last, "/v1/me/txns?limit=5")
+    }
+
+    func testADepositRowOlderThanTheRedirectLeavesProcessing() async {
+        let transport = StubTransport(scripted: processingScript(txns: [fundRow(at: 90), depositRow(at: -60)]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .processing(sessionID: id))
+    }
+
+    func testOnlyASettledDepositEndsProcessing() async {
+        let pending = depositRow(at: 60, status: "pending")
+        let transport = StubTransport(scripted: processingScript(txns: [pending]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .processing(sessionID: id))
+    }
+
+    func testProcessingEndsAnHourAfterTheRedirect() async {
+        let replies: [StubTransport.Reply] = [
+            .json(.created, created), .json(.ok, session("confirmed")), .json(.ok, session("confirmed")),
+        ]
+        let transport = StubTransport(scripted: replies)
+        let deposit = CardDeposit(
+            source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        clock.advance(by: 3600)
+        XCTAssertTrue(deposit.isProcessing)
+        clock.advance(by: 1)
+        XCTAssertFalse(deposit.isProcessing)
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .idle)
+        let afterTimeout = await transport.sent.count
+        XCTAssertEqual(afterTimeout, 2)
+        await deposit.redirected(sessionID: id)
+        XCTAssertTrue(deposit.isProcessing)
+    }
+
+    func testObservingChecksForADepositThatAlreadyLanded() async {
+        let transport = StubTransport(scripted: processingScript(txns: [fundRow(at: 90), depositRow(at: 60)]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+        let observer = Task { await deposit.observe() }
+        addTeardownBlock { observer.cancel() }
+
+        let done = await waitUntil { [id] in deposit.state == .done(sessionID: id) }
+
+        XCTAssertTrue(done)
+    }
+
+    func testABalanceHintChecksForADepositRow() async {
+        let landed = [StubTransport.Reply.json(.ok, txnsPage([depositRow(at: 60)]))]
+        let transport = StubTransport(scripted: processingScript(txns: []) + landed)
+        let hints = FakeHintStream()
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: hints, now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+        let observer = Task { await deposit.observe() }
+        addTeardownBlock { observer.cancel() }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
+        XCTAssertTrue(deposit.isProcessing)
+
+        await hints.send(.changed(.user(userID), what: BalanceSource.refreshingHint, id: "1"))
+
+        let done = await waitUntil { [id] in deposit.state == .done(sessionID: id) }
+        XCTAssertTrue(done)
     }
 
     func testTheSamplesDecode() {
@@ -219,6 +312,28 @@ final class CardDepositTests: XCTestCase {
             + #""created_at":"2025-10-04T12:00:00Z","completed_at":null}"#
     }
 
+    private func processingScript(txns: [String]) -> [StubTransport.Reply] {
+        [.json(.created, created), .json(.ok, session("confirmed")), .json(.ok, txnsPage(txns))]
+    }
+
+    private func txn(_ kind: String, status: String, at seconds: TimeInterval) -> String {
+        let stamp = ISO8601DateFormatter().string(from: Date().addingTimeInterval(seconds))
+        return #"{"id":"\#(userID)","kind":"\#(kind)","status":"\#(status)","usdc_micros":"25000000","#
+            + #""cabal":null,"tx_signature":"sig","created_at":"\#(stamp)"}"#
+    }
+
+    private func depositRow(at seconds: TimeInterval, status: String = "settled") -> String {
+        txn("deposit", status: status, at: seconds)
+    }
+
+    private func fundRow(at seconds: TimeInterval) -> String {
+        txn("fund", status: "settled", at: seconds)
+    }
+
+    private func txnsPage(_ items: [String]) -> String {
+        #"{"items":[\#(items.joined(separator: ","))],"next_cursor":null}"#
+    }
+
     private func api(_ transport: StubTransport) -> APIClient {
         APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
     }
@@ -229,5 +344,15 @@ final class CardDepositTests: XCTestCase {
             await Task.yield()
         }
         return await predicate()
+    }
+}
+
+private final class WallClock: Sendable {
+    private let current = Mutex(Date())
+
+    var now: @Sendable () -> Date { { [self] in current.withLock { $0 } } }
+
+    func advance(by seconds: TimeInterval) {
+        current.withLock { $0 += seconds }
     }
 }

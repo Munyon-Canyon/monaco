@@ -56,7 +56,7 @@ final class AppEnvironment {
         self.api = api
         self.assetLogos = AssetLogoStore(api: api)
         self.chatRealtime = SharedChatRealtime { AblyChatRealtime(api: api) }
-        self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints)
+        self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints, now: { Date() })
         self.cashOuts = CashOutJobWatcher(api: api, hints: hints)
         let push = PushRegistrar(
             service: DeviceAPI(api: api),
