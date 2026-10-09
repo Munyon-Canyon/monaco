@@ -95,8 +95,8 @@ enum HomeDashboardJourney {
                 "S2.1: no \"Start one with friends or join an open one.\"")
         }
 
-        recorder.step("S2.2", "Browse cabals selects the Cabals tab") {
-            let browse = app.buttons["Browse cabals"].firstMatch
+        recorder.step("S2.2", "Find a cabal selects the Cabals tab") {
+            let browse = app.buttons["Find a cabal"].firstMatch
             app.scrollIntoReach(browse)
             browse.tap()
             XCTAssertTrue(app.element("cabals-root").waitForExistence(timeout: 10), "S2.2: the Cabals tab did not show")

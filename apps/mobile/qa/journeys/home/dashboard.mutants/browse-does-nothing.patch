@@ -1,16 +1,16 @@
 journey: home/dashboard
 expect-fail: S2
 
-Browse cabals leaves the viewer on Home. S2.2 waits for the Cabals tab, so it must fail.
+Find a cabal leaves the viewer on Home. S2.2 waits for the Cabals tab, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift b/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
-index 5c5cb0185..7ff33a13b 100644
+index 04ff5d31b..d04ff9d38 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeCabalsSlot.swift
 @@ -56,7 +56,7 @@ private struct HomeCabals: View {
                  message: "Start one with friends or join an open one.",
-                 actionTitle: "Browse cabals"
+                 actionTitle: "Find a cabal"
              ) {
 -                environment.navigator.selectedTab = .cabals
 +                _ = environment

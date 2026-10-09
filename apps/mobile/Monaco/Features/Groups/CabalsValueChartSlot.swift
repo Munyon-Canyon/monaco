@@ -10,7 +10,7 @@ enum CabalsValueChartSlot: CabalsTabSection {
     }
 
     static func shows(_ phase: CabalValueHistoryModel.Phase) -> Bool {
-        phase != .hidden
+        phase == .loaded || phase == .failed
     }
 }
 

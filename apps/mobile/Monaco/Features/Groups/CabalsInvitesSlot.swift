@@ -87,6 +87,8 @@ private struct CabalInviteRow: View {
     let accept: () -> Void
     let decline: () -> Void
 
+    @Environment(\.accountRestricted) private var accountRestricted
+
     var body: some View {
         MonacoRow(
             title: invite.cabalName, subtitle: invite.invitedBy, isLast: isLast,
@@ -108,6 +110,7 @@ private struct CabalInviteRow: View {
                 Button("Accept", action: accept)
                     .buttonStyle(.monacoCompactProminent)
                     .accessibilityLabel("Accept the invite to \(invite.cabalName)")
+                    .disabled(accountRestricted)
                     .accessibilityIdentifier("cabal-invite-accept")
             }
             .disabled(isAnswering)

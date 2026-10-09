@@ -45,7 +45,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "No cabals yet" and "Start one with friends or join an open one." within 15 s (screens.md `HomeCabalsSlot`: "Empty: "No cabals yet" / "Start one with friends or join an open one.""; old app: `HomeView` empty state) |
-| S2.2 | C | tap | "Browse cabals" | | The Cabals tab is selected and `cabals-root` shows within 10 s (screens.md `HomeCabalsSlot`: "an outline button "Browse cabals" that selects the Cabals tab"; old app: `HomeView` "Browse cabals") |
+| S2.2 | C | tap | "Find a cabal" | | The Cabals tab is selected and `cabals-root` shows within 10 s (screens.md `HomeCabalsSlot`: "an outline button "Find a cabal" that selects the Cabals tab"; old app: `HomeView` "Browse cabals") |
 
 ## Ground truth
 
