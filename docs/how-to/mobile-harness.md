@@ -64,3 +64,13 @@ app.launch()
 ```
 
 The nightly runs the existing `MonacoUITests` classes with those same arguments. A new screen adds a class next to them and a manifest line, and leaves the other classes alone.
+
+## What the gallery checks
+
+`scripts/qa/screens.sh <sim udid> <Monaco.app> <dir>` shoots the manifest and fails on a line that did not draw its sample screen.
+
+- **Drawn marker.** `SampleHarnessRegistry` writes the launch arguments to `monaco-sample-drawn` in the app's `tmp` directory when a harness root appears. The script deletes the marker, launches the line, and polls for it for `MONACO_QA_SCREEN_TIMEOUT` seconds (default 20). A line that never writes it is sign-in, the launch splash or a crash. It prints `screens: <name> never drew a sample screen (sign-in, splash or a crash)`, counts as failed and is not shot. `MONACO_QA_SCREEN_SETTLE` (default 3) is the wait after the marker, before the shot.
+- **Crash check.** After each shot the script looks for `UIKitApplication:<bundle>` in `launchctl list`. A missing line prints `screens: <name> crashed after it drew` and counts as failed.
+- **Identical shots.** After the loop, shots with the same `shasum` print `screens: <a> and <b> are the same picture`. It is a warning and does not change the exit code.
+- **`-MonacoSampleScroll <center|bottom|0..1>`.** `SampleAppFrame` opens the tab screen scrolled to that anchor, such as `-MonacoGroupDetailSample populated -MonacoSampleScroll bottom`. Without the flag a harness's own anchor applies.
+- **`-MonacoSampleAct`.** A harness whose state needs one action (Save, Send, Leave) performs it only when this flag is present (`SampleHarnessRegistry.actArgument`). `screens.sh` adds it to every line. Manifest lines never carry it and UI tests never pass it.

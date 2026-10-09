@@ -2,6 +2,8 @@
 import SwiftUI
 
 enum SampleScrollAnchor {
+    static let flag = "-MonacoSampleScroll"
+
     static func requested(by flag: String, in arguments: [String] = ProcessInfo.processInfo.arguments) -> UnitPoint? {
         guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
         let value = arguments[index + 1]
