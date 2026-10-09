@@ -39,6 +39,10 @@ struct MonacoApp: App {
                     Task { await appEnvironment.sessionDidChange(scenePhase: scenePhase) }
                 }
                 .onOpenURL { url in
+                    if let id = DepositDeepLink.sessionID(in: url) {
+                        Task { await appEnvironment.cardDeposit.redirected(sessionID: id) }
+                        return
+                    }
                     DeepLinkRouter.handle(url, navigator: appEnvironment.navigator)
                 }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in

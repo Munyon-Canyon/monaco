@@ -5,10 +5,7 @@ protocol DeepLinkHandler {
 }
 
 enum DeepLinkRouter {
-    static let handlers: [any DeepLinkHandler.Type] = [
-        DepositDeepLink.self,
-        ReferralDeepLink.self,
-    ]
+    static let handlers: [any DeepLinkHandler.Type] = [ReferralDeepLink.self]
 
     @MainActor
     static func handle(_ url: URL, navigator: AppNavigator, handlers: [any DeepLinkHandler.Type] = handlers) {

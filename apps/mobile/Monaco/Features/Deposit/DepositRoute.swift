@@ -20,29 +20,3 @@ nonisolated struct DepositAddressRoute: AppRoute {
         DepositAddressView()
     }
 }
-
-nonisolated struct DepositCompleteRoute: AppRoute {
-    let sessionID: String
-
-    @MainActor func destination() -> some View {
-        DepositCompleteView(sessionID: sessionID)
-    }
-}
-
-struct DepositCompleteView: View {
-    let sessionID: String
-
-    @Environment(AppEnvironment.self) private var environment
-
-    var body: some View {
-        AmountEntrySkeleton()
-            .padding(.top, MonacoTheme.Space.xl)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .monacoCanvas()
-            .task {
-                environment.navigator.homePath.removeAll()
-                await environment.cardDeposit.redirected(sessionID: sessionID)
-            }
-    }
-}
