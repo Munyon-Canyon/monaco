@@ -69,7 +69,7 @@ actor PrivyAccountLinker: AccountLinking {
 
     private static func failure(_ error: any Error, step: String, credential: Credential) -> LinkError {
         let mapped = linkError(from: error, credential: credential)
-        let detail = LogRedaction.phoneNumbers(in: String(describing: error))
+        let detail = LogRedaction.redacted(in: String(describing: error))
         AppLogger.linking.error(
             "\(step, privacy: .public) failed as \(String(describing: mapped), privacy: .public): \(detail, privacy: .public)"
         )

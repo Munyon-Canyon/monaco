@@ -24,5 +24,13 @@ public enum LogRedaction {
         text.replacing(phoneRun, with: { _ in phoneMarker })
     }
 
+    public static let emailMarker = "<email>"
+
+    public static func redacted(in text: String) -> String {
+        phoneNumbers(in: text.replacing(emailAddress, with: { _ in emailMarker }))
+    }
+
+    private static var emailAddress: Regex<Substring> { /[^\s@]+@[^\s@]+\.[^\s@]+/ }
+
     private static var phoneRun: Regex<Substring> { /\+?\d(?:[\d\s().\-]*\d){6,}/ }
 }

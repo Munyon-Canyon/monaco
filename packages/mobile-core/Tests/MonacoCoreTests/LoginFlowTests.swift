@@ -46,6 +46,28 @@ struct LoginFlowTests {
         #expect(flow.phase == .failed(message: "That code didn't work. Try again."))
     }
 
+    @Test func clearingAFailureReturnsToTheCodeBox() {
+        var flow = onCodeStep()
+        _ = flow.beginVerify()
+        flow.verifyFailed(message: "That code didn't work. Try again.")
+
+        flow.clearFailure()
+
+        #expect(flow.phase == .awaitingCode)
+        #expect(flow.destination == onCodeStep().destination)
+    }
+
+    @Test func clearingAFailureLeavesEveryOtherPhaseAlone() {
+        var flow = onCodeStep()
+        flow.clearFailure()
+        #expect(flow.phase == .awaitingCode)
+
+        var verifying = onCodeStep()
+        _ = verifying.beginVerify()
+        verifying.clearFailure()
+        #expect(verifying.phase == .verifyingCode)
+    }
+
     @Test func aFailedFirstSendStaysOnTheAddressStep() {
         var flow = LoginFlow()
         let started = flow.beginSend()
