@@ -35,12 +35,12 @@ public enum GroupChatDraft {
 
 public enum GroupChatCopy {
     public static let title = "Cabal chat"
-    public static let emptyState =
-        "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
+    public static let emptyTitle = "No messages yet"
+    public static let emptyHint = "Say hi, or float a stock idea."
     public static let composerPlaceholder = "Message your cabal"
     public static let loadEarlier = "Load earlier messages"
     public static let loadFailure = "Couldn't load messages."
-    public static let closed = "You're no longer in this cabal, so its chat is closed to you."
+    public static let closed = "You're not in this cabal anymore."
     public static let notSent = "Not sent · Retry"
     public static let deleted = "Message deleted"
     public static let copy = "Copy"

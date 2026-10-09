@@ -59,8 +59,8 @@ With two voters and "Majority", a buy needs both yes votes.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | B | tap | the Home tab | | "Needs your vote" shows a `proposal-card-<id>` for GOOGL that reads "Closes in", `Journey buy {QA.run}` and "0 of 2 voted · 2 yes to pass" within 10 s |
-| S3.2 | B | tap | "Yes" on the card | | The toast "Vote in" shows. The card reads "✓ You voted yes" and "1 of 2 voted · 2 yes to pass" within 10 s |
-| S3.3 | A | tap, then tap | the Home tab, then the header of the `proposal-card-<id>` (its `proposal-closes-in` row) | | The Proposal screen shows "Votes", "Proposed by" with A's name and "<B's name> voted yes" within 15 s. A taps "Yes" on the card and the toast "Vote in" shows |
+| S3.2 | B | tap | "Yes" on the card | | The toast "Vote recorded." shows. The card reads "✓ You voted yes" and "1 of 2 voted · 2 yes to pass" within 10 s |
+| S3.3 | A | tap, then tap | the Home tab, then the header of the `proposal-card-<id>` (its `proposal-closes-in` row) | | The Proposal screen shows "Votes", "Proposed by" with A's name and "<B's name> voted yes" within 15 s. A taps "Yes" on the card and the toast "Vote recorded." shows |
 | S3.4 | A | wait | `proposal-tracker` | | The Status tracker reads "Bought, step 3 of 3, done" and the `proposal-status-chip` reads "Bought" within 120 s |
 
 ### S4 See the trade

@@ -78,7 +78,7 @@ enum GovernanceVoteJourney {
         let button = target.buttons[choice]
         XCTAssertTrue(button.waitForExistence(timeout: checkTimeout), "\(step): the card shows no \"\(choice)\"")
         button.tap()
-        JoinJourney.waitForToast(app, "Vote in", step: step)
+        JoinJourney.waitForToast(app, "Vote recorded.", step: step)
     }
 
     static func voteFromHome(_ app: XCUIApplication, proposalID: String, run: String, recorder: JourneyRecorder) {

@@ -456,3 +456,21 @@ public enum RelativeTimeFormatter {
         return SharedFormatters.iso8601Date(from: trimmed)
     }
 }
+
+public enum FollowCountFormatter {
+    public static func count(_ count: Int, locale: Locale = .current) -> String {
+        count.formatted(.number.locale(locale))
+    }
+
+    public static func followersNoun(_ count: Int) -> String {
+        count == 1 ? "follower" : "followers"
+    }
+
+    public static func followers(_ count: Int, locale: Locale = .current) -> String {
+        "\(Self.count(count, locale: locale)) \(followersNoun(count))"
+    }
+
+    public static func following(_ count: Int, locale: Locale = .current) -> String {
+        "\(Self.count(count, locale: locale)) following"
+    }
+}

@@ -8,11 +8,11 @@ public enum ChatThreadCopy {
     public static let deleteMessage = "It's removed for everyone in the cabal."
     public static let cancel = "Cancel"
     public static let composerPlaceholder = "Reply in thread"
-    public static let alsoInChannel = "Also send to channel"
+    public static let alsoInChannel = "Also post in the cabal chat"
     public static let parentDeleted = "This message was deleted."
     public static let noReplies = "No replies yet. Start the thread."
     public static let loadFailure = "Couldn't load this thread."
-    public static let headerPrefix = "replied to a thread"
+    public static let headerPrefix = "Replied to a thread"
     public static let snippetLength = 60
 
     public static func summary(replyCount: Int, lastReplyAt: Date?, now: Date, calendar: Calendar = .current)

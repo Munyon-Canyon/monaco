@@ -266,4 +266,16 @@ final class DisplayFormatterTests: XCTestCase {
             "ZYXWV"
         )
     }
+
+    func testFollowCountFormatter_singularPluralAndThousandsSeparator() {
+        let us = Locale(identifier: "en_US")
+        XCTAssertEqual(FollowCountFormatter.followers(0, locale: us), "0 followers")
+        XCTAssertEqual(FollowCountFormatter.followers(1, locale: us), "1 follower")
+        XCTAssertEqual(FollowCountFormatter.followers(12_400, locale: us), "12,400 followers")
+        XCTAssertEqual(FollowCountFormatter.following(1, locale: us), "1 following")
+        XCTAssertEqual(FollowCountFormatter.following(8, locale: us), "8 following")
+        XCTAssertEqual(FollowCountFormatter.count(12_400, locale: us), "12,400")
+        XCTAssertEqual(FollowCountFormatter.followersNoun(1), "follower")
+        XCTAssertEqual(FollowCountFormatter.followersNoun(2), "followers")
+    }
 }

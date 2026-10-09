@@ -54,13 +54,13 @@ final class CabalPictureEditor: ObservableObject {
     }
 
     func setPicture(imageData: Data, mimeType: String) async -> CabalPictureOutcome {
-        await write(fallback: "Could not update the cabal picture. Try again.") { [groupId, writer] in
+        await write(fallback: "Couldn't update the cabal picture.") { [groupId, writer] in
             try await writer.uploadPicture(groupId: groupId, imageData: imageData, mimeType: mimeType)
         }
     }
 
     func removePicture() async -> CabalPictureOutcome {
-        await write(fallback: "Could not remove the cabal picture. Try again.") { [groupId, writer] in
+        await write(fallback: "Couldn't remove the cabal picture.") { [groupId, writer] in
             try await writer.removePicture(groupId: groupId)
         }
     }

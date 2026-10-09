@@ -37,16 +37,16 @@ final class ChatThreadCopyTests: XCTestCase {
 
     func testTheHeaderQuotesTheFirst60CharactersOfTheParent() {
         let long = String(repeating: "a", count: 80)
-        XCTAssertEqual(ChatThreadCopy.header(parentBody: "idea"), "replied to a thread: idea")
+        XCTAssertEqual(ChatThreadCopy.header(parentBody: "idea"), "Replied to a thread: idea")
         XCTAssertEqual(
-            ChatThreadCopy.header(parentBody: long), "replied to a thread: \(String(repeating: "a", count: 60))…")
+            ChatThreadCopy.header(parentBody: long), "Replied to a thread: \(String(repeating: "a", count: 60))…")
         XCTAssertEqual(
             ChatThreadCopy.header(parentBody: String(repeating: "a", count: 61)),
-            "replied to a thread: \(String(repeating: "a", count: 60))…")
+            "Replied to a thread: \(String(repeating: "a", count: 60))…")
         XCTAssertEqual(
             ChatThreadCopy.header(parentBody: String(repeating: "a", count: 60)),
-            "replied to a thread: \(String(repeating: "a", count: 60))")
-        XCTAssertEqual(ChatThreadCopy.header(parentBody: nil), "replied to a thread")
+            "Replied to a thread: \(String(repeating: "a", count: 60))")
+        XCTAssertEqual(ChatThreadCopy.header(parentBody: nil), "Replied to a thread")
     }
 
     func testADeletedParentHasItsOwnLine() {

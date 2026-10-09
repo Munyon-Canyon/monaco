@@ -34,7 +34,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap, then tap | the Profile tab, then `cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-details-button` | A leaderboard or Groups row opens the cabal |
 | S1.2 | scroll to, then tap | `cabal-member-{memberID}` | | `user-profile-header` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
-| S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the header shows "Followers" (`user-profile-followers`) and "Following" (`user-profile-following`), as screens.md's header "avatar, name, "@handle", follower counts" | The profile header: avatar, name, "@handle", counts |
+| S1.3 | read | `user-profile-header` | | `user-profile-name` reads "Bartholomez", and the header shows "followers" (`user-profile-followers`) and "following" (`user-profile-following`), as screens.md's header "avatar, name, "@handle", follower counts" | The profile header: avatar, name, "@handle", counts |
 | S1.4 | read | `user-profile-more` | | The "…" menu shows in the toolbar, labelled "More" | The report and block menu |
 
 ### S2 Follow, then unfollow
@@ -89,7 +89,7 @@ S2 follows B and then unfollows B through `POST` and `DELETE /v1/users/{id}/foll
 ## Not covered
 
 - The "@handle" line. `UserProfileHeaderSlot.swift` shows `user-profile-handle` only when it differs from the name, and B's handle is not fixed across databases.
-- The follower and following counts. The header shows the words "Followers" and "Following" with no numbers until #620. `profile/follow-lists` covers the counts and lists.
+- The follower and following counts. The header shows the words "followers" and "following" with no numbers until #620. `profile/follow-lists` covers the counts and lists.
 - The empty "No cabals in common" / "You and Maya aren't in a cabal together yet." P3 puts A and B in one cabal, so the shared list is never empty.
 - "This account isn't available." for a banned or deleted user (`user-profile-unavailable`). No journey actor can be banned or deleted without breaking every other journey.
 - The rows on a shared cabal have no accessibility identifier yet. S3.3 taps the row by `cabalName`. `UserProfileSharedCabalsSlot.swift` should give each row `user-profile-shared-{cabalID}` when #2145 builds it.

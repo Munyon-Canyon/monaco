@@ -72,7 +72,7 @@ Beats 11 to 13.
 | --- | --- | --- | --- | --- | --- |
 | S4.1 | B | open, then tap | `QA story {QA.run}`, then `cabal-action-propose` | | The title "Propose" and the row "Buy a stock" show within 10 s (beat 11 "Propose a buy"; old app: `ProposeTradeView`; screens.md Propose chooser) |
 | S4.2 | B | tap, type, then tap | "Buy a stock", the amount, the reason, "Review", "Send" | `$1`, "Super bullish. This stock will only keep growing." | The proposal card shows "1 of 2 voted" within 15 s (screens.md proposal card tracker) |
-| S4.3 | A | tap | Home "Needs your vote", then "Yes" | | The toast "Vote in" within 10 s (beat 12 "Everyone votes"; old app: `ProposalCard` Yes; screens.md `HomePendingVotesSlot` and the proposal card) |
+| S4.3 | A | tap | Home "Needs your vote", then "Yes" | | The toast "Vote recorded." within 10 s (beat 12 "Everyone votes"; old app: `ProposalCard` Yes; screens.md `HomePendingVotesSlot` and the proposal card) |
 | S4.4 | A | wait | the proposal's "Status" stepper | | "Done" is reached and the card reads "Bought" within 60 s (beat 13 "Majority wins, the cabal buys"; screens.md `ProposalDetailSlot`) |
 
 ### S5 Talk it over

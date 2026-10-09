@@ -31,8 +31,8 @@ struct FundCabalFormTests {
     }
 
     @Test func theButtonReadsTheAmountOnceThereIsOne() {
-        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).ctaTitle == "Add money")
-        #expect(FundCabalForm(amountText: "0", balance: Fixture.balance(248_500_000)).ctaTitle == "Add money")
+        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).ctaTitle == "Enter an amount")
+        #expect(FundCabalForm(amountText: "0", balance: Fixture.balance(248_500_000)).ctaTitle == "Enter an amount")
         #expect(FundCabalForm(amountText: "50", balance: Fixture.balance(248_500_000)).ctaTitle == "Add $50 to the pot")
     }
 

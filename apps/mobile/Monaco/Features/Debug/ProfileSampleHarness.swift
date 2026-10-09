@@ -76,7 +76,7 @@ struct ProfileSampleHarness: View {
             session.isLoading = true
             return
         case .error:
-            session.errorMessage = "Could not connect to Monaco."
+            session.errorMessage = "Couldn't connect to Monaco."
             return
         default:
             break
@@ -117,7 +117,9 @@ private struct AcceptingNameStore: DisplayNameSaving {
         guard case .success(let normalized) = DisplayNameRules.normalize(draft) else {
             return .failed("That name can't be used.")
         }
-        guard let current = session.profile else { return .failed("Your profile is still loading.") }
+        guard let current = session.profile else {
+            return .failed("Couldn't save your name. Your profile is still loading.")
+        }
         guard normalized != current.displayName else { return .unchanged }
         session.profile = current.withDisplayName(normalized)
         return .saved

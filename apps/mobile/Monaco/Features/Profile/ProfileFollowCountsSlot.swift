@@ -62,8 +62,12 @@ private struct ProfileFollowCountLinks: View {
     }
 
     private var countLinks: some View {
-        let followers = link(model?.followerCount ?? 0, "Followers", .followers, id: "profile-followers")
-        let following = link(model?.followingCount ?? 0, "Following", .following, id: "profile-following")
+        let followerCount = model?.followerCount ?? 0
+        let followers = link(
+            FollowCountFormatter.count(followerCount), FollowCountFormatter.followersNoun(followerCount),
+            .followers, id: "profile-followers")
+        let following = link(
+            FollowCountFormatter.count(model?.followingCount ?? 0), "following", .following, id: "profile-following")
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: MonacoTheme.Space.m) {
                 followers
@@ -81,9 +85,9 @@ private struct ProfileFollowCountLinks: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
-    private func link(_ count: Int, _ word: String, _ kind: FollowListKind, id: String) -> some View {
+    private func link(_ count: String, _ word: String, _ kind: FollowListKind, id: String) -> some View {
         NavigationLink(value: AnyAppRoute(FollowListRoute(userID: userID, kind: kind))) {
-            (Text("\(count)").font(MonacoTheme.Typo.rowTitle).foregroundStyle(MonacoTheme.ink)
+            (Text(count).font(MonacoTheme.Typo.rowTitle).foregroundStyle(MonacoTheme.ink)
                 + Text(" \(word)").font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.secondaryText))
                 .lineLimit(1)
                 .frame(minHeight: 44)

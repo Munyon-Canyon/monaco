@@ -10,11 +10,11 @@ struct GroupChatEmptyView: View {
     var body: some View {
         VStack(spacing: 12) {
             CabalMark(groupId: cabalID, name: title, size: 56, pictureUrl: pictureUrl)
-            Text(title)
+            Text(GroupChatCopy.emptyTitle)
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.ink)
                 .multilineTextAlignment(.center)
-            Text(GroupChatCopy.emptyState)
+            Text(GroupChatCopy.emptyHint)
                 .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .multilineTextAlignment(.center)

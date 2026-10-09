@@ -68,11 +68,11 @@ public enum CommentsCopy {
     public static let tryAgain = "Try again"
     public static let placeholder = "Add a comment"
     public static let membersOnly = "Only members of this cabal can comment."
-    public static let deleted = "Comment deleted."
+    public static let deleted = "Comment deleted"
     public static let delete = "Delete"
     public static let reply = "Reply"
     public static let postAccessibility = "Post comment"
-    public static let tooLong = "Comments can be up to 1,000 characters"
+    public static let tooLong = "Comments can be up to 1,000 characters."
     public static let unknownAuthor = "Someone"
 
     public static func replyingTo(_ name: String) -> String {

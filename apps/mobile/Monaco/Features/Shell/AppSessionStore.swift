@@ -48,7 +48,7 @@ final class AppSessionStore {
     func bootstrap(auth: SessionAuthenticating, devSession: Bool = false) async {
         guard let token = await accessToken(auth: auth) else {
             reset()
-            errorMessage = "Missing sign-in token."
+            errorMessage = "Sign in again to continue."
             return
         }
         guard let sessions else {
@@ -101,7 +101,7 @@ final class AppSessionStore {
     ) async {
         let token = await resolvedAccessToken(accessToken, auth: auth)
         guard let token else {
-            errorMessage = "Missing sign-in token."
+            errorMessage = "Sign in again to continue."
             isLoading = false
             return
         }

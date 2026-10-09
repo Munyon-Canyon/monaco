@@ -13,7 +13,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/GovernanceVoteJourney.swift, apps/
 
 Two members of a cabal vote on a buy that a third member proposed. A votes from Home's "Needs your vote", changes the ballot twice, and B's yes makes the majority. The rules are [Proposals](../../architecture/proposals.md).
 
-The old app (`c838bd24`) did this from the cabal screen: the "Needs your vote" card (`ProposalHistorySection`, `ProposalCardView`) with "Yes" / "No" and the toast "Vote in", the card opening `ProposalDetailView` with the same buttons and "Change", and "See all" to the open and closed list. Copy in Expect quotes [screens.md](../../screens.md): `HomePendingVotesSlot`, `CabalProposalsSlot`, the Proposal card and `ProposalDetailSlot`.
+The old app (`c838bd24`) did this from the cabal screen: the "Needs your vote" card (`ProposalHistorySection`, `ProposalCardView`) with "Yes" / "No" and the toast "Vote recorded.", the card opening `ProposalDetailView` with the same buttons and "Change", and "See all" to the open and closed list. Copy in Expect quotes [screens.md](../../screens.md): `HomePendingVotesSlot`, `CabalProposalsSlot`, the Proposal card and `ProposalDetailSlot`.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -35,11 +35,11 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Home tab | | "Needs your vote" shows with `proposal-card-<proposalID>` within 15 s. The card reads "Closes in", "0 of 3 voted · 2 yes to pass", "Yes" and "No" |
 | S1.2 | A | tap | `proposal-card-<proposalID>` | | The Proposal screen shows "Votes", "Why buy" and "QA vote {QA.run}" within 15 s |
-| S1.3 | A | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote in" shows within 10 s. The card reads "✓ You voted yes" and "Change", and "1 of 3 voted · 2 yes to pass" within 10 s |
-| S1.4 | A | tap, then tap | "Change", then "No" | | The toast "Vote in" shows within 10 s, and the card reads "✓ You voted no" within 10 s |
-| S1.5 | A | tap, then tap | "Change", then "Yes" | | The toast "Vote in" shows within 10 s, and the card reads "✓ You voted yes" within 10 s |
+| S1.3 | A | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote recorded." shows within 10 s. The card reads "✓ You voted yes" and "Change", and "1 of 3 voted · 2 yes to pass" within 10 s |
+| S1.4 | A | tap, then tap | "Change", then "No" | | The toast "Vote recorded." shows within 10 s, and the card reads "✓ You voted no" within 10 s |
+| S1.5 | A | tap, then tap | "Change", then "Yes" | | The toast "Vote recorded." shows within 10 s, and the card reads "✓ You voted yes" within 10 s |
 | S1.6 | B | tap, then tap, then tap | the Home tab, `proposal-card-<proposalID>`, then `proposal-votes-see-all` | | The Proposal screen shows "1 yes · 0 no · 2 not voted" within 15 s, and the Votes list shows "Alfred" and "Voted yes" within 15 s |
-| S1.7 | B | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote in" shows within 10 s. Within 15 s the card no longer reads "Closes in" and shows no "Yes", "No" or "Change": the majority closed the vote |
+| S1.7 | B | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote recorded." shows within 10 s. Within 15 s the card no longer reads "Closes in" and shows no "Yes", "No" or "Change": the majority closed the vote |
 | S1.8 | A | relaunch, then tap | the Home tab | | `proposal-card-<proposalID>` is not under "Needs your vote" within 15 s |
 
 ### S2 Vote on the cabal's card
@@ -47,7 +47,7 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | `cabal-header-name` reads `{cabalName}` within 15 s. "Needs your vote" shows with `proposal-card-<proposalID>` and "See all" within 15 s |
-| S2.2 | A | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote in" shows within 10 s, and the card reads "✓ You voted yes" within 10 s |
+| S2.2 | A | tap | "Yes" on `proposal-card-<proposalID>` | | The toast "Vote recorded." shows within 10 s, and the card reads "✓ You voted yes" within 10 s |
 | S2.3 | A | tap | `proposal-card-<proposalID>` | | The Proposal screen shows "Votes" and "Why buy" within 15 s |
 
 ### S3 See all with the closed history

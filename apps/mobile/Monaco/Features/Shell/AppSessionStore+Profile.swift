@@ -36,7 +36,7 @@ extension AppSessionStore {
         submission: IdempotentSubmission
     ) async -> ProfileSaveOutcome {
         guard let current = profile else {
-            return .failed("Your profile is still loading.")
+            return .failed("Couldn't save your name. Your profile is still loading.")
         }
         let normalized: String
         switch DisplayNameRules.normalize(draft) {
@@ -49,7 +49,7 @@ extension AppSessionStore {
             return .unchanged
         }
         guard let sessions else {
-            return .failed("Could not save your name. Try again.")
+            return .failed("Couldn't save your name. Try again.")
         }
         guard let token = await accessToken(auth: auth) else {
             return .failed("Sign in again to edit your profile.")
