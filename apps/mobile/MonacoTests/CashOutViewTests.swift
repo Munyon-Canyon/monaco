@@ -22,4 +22,11 @@ struct CashOutViewTests {
             CashOutAmountRule.submitTitle(for: verdict, enteredMicros: 50_030_000, sliceMicros: slice)
                 == "Cash out $50.03")
     }
+
+    @Test func theUnderMinimumMessageFloorsTheSlice() {
+        let preview = CashOutPreview(sliceMicros: 95_000, shareUnits: 95_000, minMicros: 100_000, pause: nil)
+        let message = CashOutContent.belowMinimumMessage(preview)
+        #expect(message.contains("worth $0.09"))
+        #expect(message.contains("starts at $0.10"))
+    }
 }

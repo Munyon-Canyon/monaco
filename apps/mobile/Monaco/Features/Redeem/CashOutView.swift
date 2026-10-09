@@ -111,16 +111,19 @@ struct CashOutContent: View {
             } else if preview.sliceIsBelowMinimum {
                 EmptyState(
                     title: CashOutAmountRule.tooSmall,
-                    message:
-                        "Your slice is worth \(UsdAmountFormatter.format(micros: preview.sliceMicros)). "
-                        + "Cash out starts at \(UsdAmountFormatter.format(micros: preview.minMicros)), "
-                        + "so this one has to grow first."
+                    message: Self.belowMinimumMessage(preview)
                 )
                 .accessibilityIdentifier("cash-out-below-minimum")
             } else {
                 amountEntry(preview)
             }
         }
+    }
+
+    static func belowMinimumMessage(_ preview: CashOutPreview) -> String {
+        "Your slice is worth \(UsdAmountFormatter.format(flooredMicros: preview.sliceMicros)). "
+            + "Cash out starts at \(UsdAmountFormatter.format(micros: preview.minMicros)), "
+            + "so this one has to grow first."
     }
 
     private func amountEntry(_ preview: CashOutPreview) -> some View {
