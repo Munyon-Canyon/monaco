@@ -68,6 +68,14 @@ public final class StocksTabModel {
         defer { replacementGenerations.remove(issued) }
         await replace(isSearching ? .search : browsedSection, issued: issued)
     }
+    public func loadPopular() async {
+        do {
+            let page = try await page(.popular, cursor: nil)
+            popular = .init(rows: page.assets, phase: .loaded, nextCursor: page.nextCursor, cursors: [nil])
+        } catch {
+            note(APIError(error), section: .popular, empty: popular.rows.isEmpty)
+        }
+    }
     public func show(_ next: Browse) async {
         searchTask?.cancel()
         searchTask = nil
@@ -157,7 +165,7 @@ public final class StocksTabModel {
     }
     private func page(_ section: Section?, cursor: String?) async throws -> MarketAssetPage {
         let searchQuery = section == .search ? Self.trimmed(query) : nil
-        let filter: Operations.GetAssets.Input.Query.FilterPayload =
+        let browsed: Operations.GetAssets.Input.Query.FilterPayload =
             switch browse {
             case .all: .all
             case .popular: .popular
@@ -166,7 +174,7 @@ public final class StocksTabModel {
         let list = try await api.read { client in
             try await client.getAssets(
                 query: .init(
-                    q: searchQuery, filter: filter, limit: Self.pageLimit,
+                    q: searchQuery, filter: section == .popular ? .popular : browsed, limit: Self.pageLimit,
                     cursor: cursor
                 )
             ).ok.body.json
