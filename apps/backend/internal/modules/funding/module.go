@@ -165,15 +165,23 @@ func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	meter := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/funding")
 	reconcileFailed, _ := meter.Int64Counter("funding_reconcile_failed_total")
+	regressed, _ := meter.Int64Counter("monaco_funding_watch_regressed_total")
 	app.ObservePausedCabals(meter, m.Pauses())
 	withdrawals := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
 		Transfers: m.lazyTransfers(), Hints: m.deps.Bus, UnsentAge: cfg.Worker.WithdrawalUnsentAge,
 	})
 	return []poller.Poller{
-		app.NewDepositPoller(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
+		app.NewDepositWatch(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
 			identity.New(m.deps).Queries(), solana.New(cfg, m.deps.Clock), chain.SolanaAddress(cfg.Solana.USDCMint),
 			cfg.Funding.DepositPollInterval, app.NewRPCLimiter(cfg.Funding.DepositRPCRate),
+			int(cfg.Funding.DepositTickBudget),
+			app.DepositWatchTuning{
+				Rotation: cfg.Funding.DepositRotation, RecoverySlots: int64(cfg.Funding.DepositRecoverySlots),
+				Discovery: cfg.Funding.DepositDiscovery,
+				Spread:    poller.Spread,
+			},
+			regressed,
 		),
 		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
 		withdrawals,

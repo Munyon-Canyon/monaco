@@ -58,8 +58,11 @@ func flow05Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 		scenario.WithPrivy(upstreams, "app"),
 		scenario.WithModules(func(d module.Deps) module.Module {
 			d.Config = config.Config{
-				Solana:   config.Solana{RPCURL: srv.URL + "/rpc/", USDCMint: string(testkit.USDCMint)},
-				Funding:  config.Funding{DepositPollInterval: app.DepositPollInterval, DepositRPCRate: 1000},
+				Solana: config.Solana{RPCURL: srv.URL + "/rpc/", USDCMint: string(testkit.USDCMint)},
+				Funding: config.Funding{
+					DepositPollInterval: app.DepositPollInterval, DepositRPCRate: 1000, DepositTickBudget: 480,
+					DepositRotation: 6 * time.Hour, DepositRecoverySlots: 216000, DepositDiscovery: 6 * time.Hour,
+				},
 				Timeouts: config.Timeouts{RPC: time.Second},
 			}
 			d.HTTPClient = httpclient.New
