@@ -623,3 +623,115 @@ func TestDispatch_blockerClosedWithoutLandingStillRefuses(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestDispatch_reusesACleanRegisteredWorktreeWithoutMovingItsHead(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.allowDispatch(t)
+	env := f.Env(t)
+	wt := env.worktreePath(12)
+	git(t, f.dir, "worktree", "add", "-q", "-b", "coded", wt)
+	git(t, wt, "commit", "-q", "--allow-empty", "-m", "coded work")
+	want, err := harnessGit(t.Context(), wt, "", "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	short, err := harnessGit(t.Context(), wt, "", "rev-parse", "--short", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+	line := "reusing .worktrees/12 at " + strings.TrimSpace(string(short)) + " (coded)\n"
+	if !strings.Contains(stdout, line) {
+		t.Fatalf("stdout lacks %q: %q", line, stdout)
+	}
+	got, err := harnessGit(t.Context(), wt, "", "rev-parse", "HEAD")
+	if err != nil || string(got) != string(want) {
+		t.Fatalf("HEAD moved: %q -> %q (%v)", want, got, err)
+	}
+	if rec, err := env.localRecord(12); err != nil || rec.State != Running || rec.Worktree != wt {
+		t.Fatalf("rec=%+v err=%v", rec, err)
+	}
+	if !strings.Contains(stdout, "spawn:") {
+		t.Fatalf("no brief: %q", stdout)
+	}
+}
+
+func TestDispatch_refusesARegisteredWorktreeWithUncommittedChanges(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.allowDispatch(t)
+	env := f.Env(t)
+	wt := env.worktreePath(12)
+	git(t, f.dir, "worktree", "add", "-q", "--detach", wt)
+	for i := range 7 {
+		writeFile(t, filepath.Join(wt, "dirty"+strconv.Itoa(i)), "x\n")
+	}
+	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus")
+	want := ".worktrees/12 has uncommitted changes: dirty0, dirty1, dirty2, dirty3, dirty4; " +
+		"commit or remove them, then dispatch again"
+	if code != 1 || !strings.Contains(stderr, want) || strings.Contains(stdout, "spawn:") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(env.recordPath(12)); !os.IsNotExist(err) {
+		t.Fatalf("record written: %v", err)
+	}
+}
+
+func TestDispatch_refusesAnExistingDirectoryThatIsNotAWorktree(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	f.allowDispatch(t)
+	env := f.Env(t)
+	writeFile(t, filepath.Join(env.worktreePath(12), ".bin", "atlas"), "stub\n")
+	code, stdout, stderr := f.agents(t, "dispatch", "12", "--model", "opus")
+	want := ".worktrees/12 exists but is not a git worktree (.bin); remove it, or run open-lane after dispatch"
+	if code != 1 || !strings.Contains(stderr, want) || strings.Contains(stdout, "spawn:") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestDispatch_reportsAGitFailureWhileInspectingAnExistingWorktree(t *testing.T) {
+	t.Parallel()
+	for _, failing := range []string{"worktree list", "status"} {
+		t.Run(failing, func(t *testing.T) {
+			t.Parallel()
+			f := prepBranch(t)
+			env := f.Env(t)
+			wt := env.worktreePath(12)
+			git(t, f.dir, "worktree", "add", "-q", "--detach", wt)
+			boom := errors.New("git failed")
+			run := env.Run
+			env.Run = func(ctx context.Context, dir, stdin, name string, args ...string) ([]byte, error) {
+				if name == "git" && strings.Contains(strings.Join(args, " "), failing) {
+					return nil, boom
+				}
+				return run(ctx, dir, stdin, name, args...)
+			}
+			if err := env.ensureWorktree(t.Context(), wt, "fb", ioDiscard()); !errors.Is(err, boom) {
+				t.Fatalf("got %v", err)
+			}
+		})
+	}
+}
+
+func TestDispatch_reusesADetachedWorktreeAndLetsGitReportAnUnreadableOne(t *testing.T) {
+	t.Parallel()
+	f := prepBranch(t)
+	env := f.Env(t)
+	wt := env.worktreePath(12)
+	git(t, f.dir, "worktree", "add", "-q", "--detach", wt)
+	var out strings.Builder
+	err := env.ensureWorktree(t.Context(), wt, "fb", &out)
+	if err != nil || !strings.HasSuffix(out.String(), " (detached)\n") {
+		t.Fatalf("err=%v out=%q", err, out.String())
+	}
+	file := filepath.Join(t.TempDir(), "file")
+	writeFile(t, file, "not a directory\n")
+	if err := env.ensureWorktree(t.Context(), file, "fb", ioDiscard()); err == nil {
+		t.Fatal("want git to refuse a file where the worktree should be")
+	}
+}

@@ -80,7 +80,7 @@ func dispatchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer)
 		writeOwnerSpawn(stdout, in, path, tip, risks.String())
 		return nil
 	}
-	if err := env.addWorktree(ctx, path, tip); err != nil {
+	if err := env.ensureWorktree(ctx, path, tip, stdout); err != nil {
 		return err
 	}
 	rec := Record{
@@ -422,6 +422,80 @@ func (env *Env) lanesOpen(ctx context.Context, stdout io.Writer) error {
 
 func (env *Env) worktreePath(ticket int) string {
 	return filepath.Join(filepath.Dir(env.Common), ".worktrees", strconv.Itoa(ticket))
+}
+
+func (env *Env) ensureWorktree(ctx context.Context, path, tip string, stdout io.Writer) error {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return env.addWorktree(ctx, path, tip)
+	}
+	rel := filepath.Join(".worktrees", filepath.Base(path))
+	registered, err := env.isWorktree(ctx, path)
+	if err != nil {
+		return err
+	}
+	if !registered {
+		names := make([]string, len(entries))
+		for i, e := range entries {
+			names[i] = e.Name()
+		}
+		return dispatchErr(fmt.Sprintf(
+			"%s exists but is not a git worktree (%s); remove it, or run open-lane after dispatch",
+			rel, strings.Join(names, ", ")))
+	}
+	status, err := env.Run(ctx, path, "", "git", "-C", path, "status", "--porcelain=v2", "--branch")
+	if err != nil {
+		return err
+	}
+	var oid, branch string
+	var dirty []string
+	for _, line := range strings.Split(strings.TrimSpace(string(status)), "\n") {
+		switch {
+		case strings.HasPrefix(line, "# branch.oid "):
+			oid = strings.TrimPrefix(line, "# branch.oid ")
+		case strings.HasPrefix(line, "# branch.head "):
+			branch = strings.TrimPrefix(line, "# branch.head ")
+		case !strings.HasPrefix(line, "#"):
+			dirty = append(dirty, line[strings.LastIndex(line, " ")+1:])
+		}
+	}
+	if len(dirty) > 0 {
+		return dispatchErr(fmt.Sprintf(
+			"%s has uncommitted changes: %s; commit or remove them, then dispatch again",
+			rel, strings.Join(dirty[:min(5, len(dirty))], ", ")))
+	}
+	if branch == "(detached)" {
+		branch = "detached"
+	}
+	_, _ = fmt.Fprintf(stdout, "reusing %s at %s (%s)\n", rel, oid[:min(7, len(oid))], branch)
+	return nil
+}
+
+func dispatchErr(detail string) error {
+	return detailErr(errs.CodeInvalidInput, "monacoctl.agents.dispatch", detail)
+}
+
+func (env *Env) isWorktree(ctx context.Context, path string) (bool, error) {
+	listed, err := env.Run(ctx, env.Work, "", "git", "worktree", "list", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(listed), "\n") {
+		if at, ok := strings.CutPrefix(line, "worktree "); ok && sameDir(at, path) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func sameDir(a, b string) bool {
+	if ra, err := filepath.EvalSymlinks(a); err == nil {
+		a = ra
+	}
+	if rb, err := filepath.EvalSymlinks(b); err == nil {
+		b = rb
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
 }
 
 func (env *Env) addWorktree(ctx context.Context, path, tip string) error {
