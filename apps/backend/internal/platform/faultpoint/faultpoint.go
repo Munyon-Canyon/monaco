@@ -20,6 +20,9 @@ const (
 	AfterCandidate Name = "after-candidate"
 	AfterPublish   Name = "after-publish"
 
+	FirstSightBeforeCommit Name = "first-sight-before-commit"
+	FirstSightAfterCommit  Name = "first-sight-after-commit"
+
 	AfterSellRequest Name = "after-sell-request"
 	AfterSellConfirm Name = "after-sell-confirm"
 )
@@ -27,7 +30,7 @@ const (
 func Names() []Name {
 	return []Name{
 		AfterBroadcast, AfterCandidate, AfterCreate, AfterExecute, AfterPublish, AfterSellConfirm, AfterSellRequest,
-		AfterSign, BeforeCommit,
+		AfterSign, BeforeCommit, FirstSightAfterCommit, FirstSightBeforeCommit,
 	}
 }
 

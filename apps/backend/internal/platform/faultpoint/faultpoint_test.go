@@ -36,6 +36,7 @@ func TestNames_listsTheRegisteredPointsSorted(t *testing.T) {
 		faultpoint.AfterBroadcast, faultpoint.AfterCandidate, faultpoint.AfterCreate, faultpoint.AfterExecute,
 		faultpoint.AfterPublish,
 		faultpoint.AfterSellConfirm, faultpoint.AfterSellRequest, faultpoint.AfterSign, faultpoint.BeforeCommit,
+		faultpoint.FirstSightAfterCommit, faultpoint.FirstSightBeforeCommit,
 	}
 	got := faultpoint.Names()
 	if !slices.Equal(got, want) {
