@@ -84,7 +84,7 @@ The design behind each step lives elsewhere. [Pull requests: small and stacked](
 
     - **Title:** what the PR changes, in the present tense, with no issue number and no `feat:` style prefix. For example, "Name the child that spent the verify teardown budget".
     - **Body:** the six sections of `.github/pull_request_template.md`: TLDR, Why, What changed, Proof, What came up, Reviewer focus. The `pr-summary` skill in `.claude/skills` drafts it.
-    - **Why** says `Part of #<n>`. The ticket's last PR says `Closes #<n>` instead and adds a `## Needs from Logan` section, holding "Nothing." or a checklist of what only the operator can do.
+    - **Why** says `Part of #<n>`. The ticket's last PR says `Closes #<n>` instead and adds a `## Needs from Logan` section, holding "Nothing." or a checklist of what only the operator can do. `Closes #<n>` starts its own line, and the rest of that line is free prose. GitHub closes a ticket for a closing verb followed by a ticket reference anywhere in the body, even in a sentence that negates it, so the format check fails any other line with one, and a second one later on a `Closes` line.
     - **Proof** pastes the `agents check` output and says that CI runs the rest. Write the tree hash it prints as `<tree>`.
     - Cite only commit SHAs that are already on `staging`. The check treats any 7 to 40 character hex string as a commit, and a restack changes the PR's own SHAs.
     - A docs-only PR says `No code paths affected:` in Proof and names the paths.
