@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/port"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
@@ -64,6 +65,10 @@ func (m *Module) cabalLookup() app.CabalLookup {
 }
 
 func (*Module) Name() string { return "admin" }
+
+var _ port.Actions = adapters.ActionLog{}
+
+func (m *Module) Actions() adapters.ActionLog { return adapters.ActionLog{DB: m.deps.Pool} }
 
 func (m *Module) txnLookup() app.TxnLookup {
 	swaps := trading.New(m.deps).Queries()

@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -24,6 +25,20 @@ func (a ActionLog) Recent(ctx context.Context, targetType, targetID string, limi
 		return nil, errs.Wrap(err, errs.CodeDBUnavailable, "admin.ActionLog.Recent")
 	}
 	return rows, nil
+}
+
+func (a ActionLog) RecentActions(
+	ctx context.Context, targetType, targetID string, limit int,
+) ([]port.Action, error) {
+	rows, err := a.Recent(ctx, targetType, targetID, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]port.Action, len(rows))
+	for i, r := range rows {
+		out[i] = port.Action{ID: r.ID, AdminID: r.AdminID, Kind: r.Action, Reason: r.Reason, At: r.CreatedAt.UTC()}
+	}
+	return out, nil
 }
 
 func (h HTTP) GetAdminUser(

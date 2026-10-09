@@ -19,6 +19,57 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AdminProposalSwapStatus.
+const (
+	AdminProposalSwapStatusConfirmed AdminProposalSwapStatus = "confirmed"
+	AdminProposalSwapStatusCreated   AdminProposalSwapStatus = "created"
+	AdminProposalSwapStatusFailed    AdminProposalSwapStatus = "failed"
+	AdminProposalSwapStatusSubmitted AdminProposalSwapStatus = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the AdminProposalSwapStatus enum.
+func (e AdminProposalSwapStatus) Valid() bool {
+	switch e {
+	case AdminProposalSwapStatusConfirmed:
+		return true
+	case AdminProposalSwapStatusCreated:
+		return true
+	case AdminProposalSwapStatusFailed:
+		return true
+	case AdminProposalSwapStatusSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminStatusChangeActorType.
+const (
+	Admin   AdminStatusChangeActorType = "admin"
+	Agent   AdminStatusChangeActorType = "agent"
+	Service AdminStatusChangeActorType = "service"
+	System  AdminStatusChangeActorType = "system"
+	User    AdminStatusChangeActorType = "user"
+)
+
+// Valid indicates whether the value is a known member of the AdminStatusChangeActorType enum.
+func (e AdminStatusChangeActorType) Valid() bool {
+	switch e {
+	case Admin:
+		return true
+	case Agent:
+		return true
+	case Service:
+		return true
+	case System:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BallotChoice.
 const (
 	No  BallotChoice = "no"
@@ -130,6 +181,36 @@ func (e VoidedProposalStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetAdminCabalProposalsParamsStatus.
+const (
+	GetAdminCabalProposalsParamsStatusAll      GetAdminCabalProposalsParamsStatus = "all"
+	GetAdminCabalProposalsParamsStatusClosed   GetAdminCabalProposalsParamsStatus = "closed"
+	GetAdminCabalProposalsParamsStatusExecuted GetAdminCabalProposalsParamsStatus = "executed"
+	GetAdminCabalProposalsParamsStatusFailed   GetAdminCabalProposalsParamsStatus = "failed"
+	GetAdminCabalProposalsParamsStatusOpen     GetAdminCabalProposalsParamsStatus = "open"
+	GetAdminCabalProposalsParamsStatusPassed   GetAdminCabalProposalsParamsStatus = "passed"
+)
+
+// Valid indicates whether the value is a known member of the GetAdminCabalProposalsParamsStatus enum.
+func (e GetAdminCabalProposalsParamsStatus) Valid() bool {
+	switch e {
+	case GetAdminCabalProposalsParamsStatusAll:
+		return true
+	case GetAdminCabalProposalsParamsStatusClosed:
+		return true
+	case GetAdminCabalProposalsParamsStatusExecuted:
+		return true
+	case GetAdminCabalProposalsParamsStatusFailed:
+		return true
+	case GetAdminCabalProposalsParamsStatusOpen:
+		return true
+	case GetAdminCabalProposalsParamsStatusPassed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetCabalProposalsParamsFilter.
 const (
 	GetCabalProposalsParamsFilterAll      GetCabalProposalsParamsFilter = "all"
@@ -159,6 +240,189 @@ func (e GetCabalProposalsParamsFilter) Valid() bool {
 		return false
 	}
 }
+
+// AdminProposal One proposal as the admin panel shows it.
+type AdminProposal struct {
+	// CabalId The cabal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CabalId openapi_types.UUID `json:"cabal_id"`
+
+	// CreatedAt When the proposal opened.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// ExpiresAt When voting closes.
+	//
+	// Examples: 2026-10-04T15:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Id The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind Whether the proposal spends USDC on the token or sells the token for USDC.
+	//
+	// Examples: buy
+	Kind ProposalKind `json:"kind"`
+
+	// Proposer The member who proposed it. Nothing else about them is shown.
+	Proposer AdminProposer `json:"proposer"`
+
+	// QuoteOutAmount The quoted output, in the output asset's base units, when the proposal opened.
+	//
+	// Examples: 105000000
+	QuoteOutAmount int64 `json:"quote_out_amount"`
+
+	// RecentAdminActions The 20 newest admin actions on the proposal, newest first.
+	//
+	// Examples: []
+	RecentAdminActions []AdminProposalAction `json:"recent_admin_actions"`
+
+	// Status Where a proposal is in its lifecycle.
+	//
+	// Examples: open
+	Status ProposalStatus `json:"status"`
+
+	// StatusHistory The statuses the proposal entered, oldest first. The list holds at most 50 events, the oldest 50, so a proposal with more would lose its newest statuses.
+	//
+	// Examples: []
+	StatusHistory []AdminStatusChange `json:"status_history"`
+
+	// StatusReason The error code that blocked execution. Null unless `status` is `execution_blocked`.
+	//
+	// Examples: null
+	StatusReason *string `json:"status_reason"`
+
+	// Swap The latest trade linked to the proposal. Null when none exists.
+	//
+	// Examples: null
+	Swap *AdminProposalSwap `json:"swap"`
+
+	// Symbol The token symbol.
+	//
+	// Examples: AAPLx
+	Symbol string `json:"symbol"`
+
+	// Tally The ballots counted against the proposal's frozen voter set.
+	Tally Tally `json:"tally"`
+
+	// Thesis The proposer's reason, up to 280 characters.
+	//
+	// Examples: Earnings next week.
+	Thesis *string `json:"thesis"`
+
+	// TokenAmount Token base units a sell spends. Null for a buy.
+	//
+	// Examples: null
+	TokenAmount *int64 `json:"token_amount"`
+
+	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
+	//
+	// Examples: 25000000
+	UsdcMicros *int64 `json:"usdc_micros"`
+
+	// Voters Every member of the frozen voter set, ordered by user id.
+	//
+	// Examples: []
+	Voters []ProposalVoter `json:"voters"`
+}
+
+// AdminProposalSwapStatus Where the trade is.
+//
+// Examples: confirmed
+type AdminProposalSwapStatus string
+
+// AdminProposalSwap The latest trade linked to the proposal. Null when none exists.
+//
+// Examples: null
+type AdminProposalSwap struct {
+	// FailureCode Why the trade failed. Null unless `status` is `failed`.
+	//
+	// Examples: null
+	FailureCode *string `json:"failure_code"`
+
+	// Status Where the trade is.
+	//
+	// Examples: confirmed
+	Status AdminProposalSwapStatus `json:"status"`
+
+	// SwapId The swap id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8060
+	SwapId openapi_types.UUID `json:"swap_id"`
+
+	// TxSignature The Solana transaction signature. Null before the trade is submitted.
+	//
+	// Examples: null
+	TxSignature *string `json:"tx_signature"`
+}
+
+// AdminProposalAction One admin action taken on the proposal.
+type AdminProposalAction struct {
+	// Action The kind of action.
+	//
+	// Examples: proposal_void
+	Action string `json:"action"`
+
+	// AdminId The administrator who took it.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	AdminId openapi_types.UUID `json:"admin_id"`
+
+	// CreatedAt When it was audited.
+	//
+	// Examples: 2026-10-03T16:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// Id The action id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a805a
+	Id openapi_types.UUID `json:"id"`
+
+	// Reason The reason the administrator gave.
+	//
+	// Examples: spam proposal
+	Reason string `json:"reason"`
+}
+
+// AdminProposer The member who proposed it. Nothing else about them is shown.
+type AdminProposer struct {
+	// Handle Their handle.
+	//
+	// Examples: alice
+	Handle string `json:"handle"`
+
+	// Id The member.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	Id openapi_types.UUID `json:"id"`
+}
+
+// AdminStatusChange One status the proposal entered, read from its `proposal.*` events.
+type AdminStatusChange struct {
+	// ActorType Who caused it, as the event records it.
+	//
+	// Examples: user
+	ActorType AdminStatusChangeActorType `json:"actor_type"`
+
+	// At When the event was recorded.
+	//
+	// Examples: 2026-10-03T15:00:00Z
+	At time.Time `json:"at"`
+
+	// Status Where a proposal is in its lifecycle.
+	//
+	// Examples: open
+	Status ProposalStatus `json:"status"`
+}
+
+// AdminStatusChangeActorType Who caused it, as the event records it.
+//
+// Examples: user
+type AdminStatusChangeActorType string
 
 // BallotChoice A voter's choice on a proposal.
 //
@@ -587,6 +851,21 @@ type VoteResult struct {
 	Tally Tally `json:"tally"`
 }
 
+// GetAdminCabalProposalsParams defines parameters for GetAdminCabalProposals.
+type GetAdminCabalProposalsParams struct {
+	// Status Which proposals to return.
+	Status *GetAdminCabalProposalsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Limit Page size. Defaults to 20 and cannot exceed 50.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor The `next_cursor` from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetAdminCabalProposalsParamsStatus defines parameters for GetAdminCabalProposals.
+type GetAdminCabalProposalsParamsStatus string
+
 // VoidAdminProposalParams defines parameters for VoidAdminProposal.
 type VoidAdminProposalParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -652,6 +931,12 @@ type PostProposalVoteJSONRequestBody = CastVoteRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// GetAdminCabalProposals List a cabal's proposals.
+	// (GET /v1/admin/cabals/{id}/proposals)
+	GetAdminCabalProposals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminCabalProposalsParams)
+	// GetAdminProposal Look up one proposal.
+	// (GET /v1/admin/proposals/{id})
+	GetAdminProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// VoidAdminProposal Void a proposal.
 	// (POST /v1/admin/proposals/{id}/void)
 	VoidAdminProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params VoidAdminProposalParams)
@@ -686,6 +971,100 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// GetAdminCabalProposals operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminCabalProposals(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminCabalProposalsParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "status"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminCabalProposals(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminProposal operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminProposal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // VoidAdminProposal operation middleware
 func (siw *ServerInterfaceWrapper) VoidAdminProposal(w http.ResponseWriter, r *http.Request) {
@@ -1212,6 +1591,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/cabals/{id}/proposals", wrapper.GetAdminCabalProposals)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/proposals/{id}", wrapper.GetAdminProposal)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/proposals/{id}/void", wrapper.VoidAdminProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.GetCabalProposals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.PostCabalProposal)
@@ -1222,6 +1603,85 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
 
 	return m
+}
+
+type GetAdminCabalProposalsRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params GetAdminCabalProposalsParams
+}
+
+type GetAdminCabalProposalsResponseObject interface {
+	VisitGetAdminCabalProposalsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminCabalProposals200JSONResponse ProposalList
+
+func (response GetAdminCabalProposals200JSONResponse) VisitGetAdminCabalProposalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCabalProposalsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminCabalProposalsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminCabalProposalsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProposalRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAdminProposalResponseObject interface {
+	VisitGetAdminProposalResponse(w http.ResponseWriter) error
+}
+
+type GetAdminProposal200JSONResponse AdminProposal
+
+func (response GetAdminProposal200JSONResponse) VisitGetAdminProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminProposaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAdminProposaldefaultApplicationProblemPlusJSONResponse) VisitGetAdminProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type VoidAdminProposalRequestObject struct {
@@ -1546,6 +2006,12 @@ func (response PostProposalVotedefaultApplicationProblemPlusJSONResponse) VisitP
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// GetAdminCabalProposals List a cabal's proposals.
+	// (GET /v1/admin/cabals/{id}/proposals)
+	GetAdminCabalProposals(ctx context.Context, request GetAdminCabalProposalsRequestObject) (GetAdminCabalProposalsResponseObject, error)
+	// GetAdminProposal Look up one proposal.
+	// (GET /v1/admin/proposals/{id})
+	GetAdminProposal(ctx context.Context, request GetAdminProposalRequestObject) (GetAdminProposalResponseObject, error)
 	// VoidAdminProposal Void a proposal.
 	// (POST /v1/admin/proposals/{id}/void)
 	VoidAdminProposal(ctx context.Context, request VoidAdminProposalRequestObject) (VoidAdminProposalResponseObject, error)
@@ -1609,6 +2075,59 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// GetAdminCabalProposals operation middleware
+func (sh *strictHandler) GetAdminCabalProposals(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetAdminCabalProposalsParams) {
+	var request GetAdminCabalProposalsRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminCabalProposals(ctx, request.(GetAdminCabalProposalsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminCabalProposals")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminCabalProposalsResponseObject); ok {
+		if err := validResponse.VisitGetAdminCabalProposalsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminProposal operation middleware
+func (sh *strictHandler) GetAdminProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAdminProposalRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminProposal(ctx, request.(GetAdminProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminProposalResponseObject); ok {
+		if err := validResponse.VisitGetAdminProposalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // VoidAdminProposal operation middleware
