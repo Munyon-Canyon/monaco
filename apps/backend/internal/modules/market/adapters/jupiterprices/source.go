@@ -2,6 +2,7 @@ package jupiterprices
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
@@ -16,6 +17,8 @@ type Source struct {
 }
 
 func New(client *jupiter.Client) Source { return Source{client: client} }
+
+func (s Source) MintsWithin(window time.Duration) int { return s.client.PriceCapacity(window) }
 
 func (s Source) Prices(ctx context.Context, mints []domain.Mint) (map[domain.Mint]money.Micros, error) {
 	asked := make([]jupiter.Mint, len(mints))
