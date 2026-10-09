@@ -113,6 +113,7 @@ if [[ "${CI:-}" != "true" ]]; then
     exit 1
   fi
 fi
+"$root/scripts/ci/retry.sh" docker compose pull postgres nats
 docker compose up -d --wait postgres nats
 
 # The ports compose published, not 54322 and 4222: COMPOSE_PROJECT_NAME, COMPOSE_FILE and
@@ -243,6 +244,8 @@ if [[ "$ready" -ne 1 ]]; then
   exit 1
 fi
 
+swift_image=public.ecr.aws/docker/library/swift:6.3-noble
+"$root/scripts/ci/retry.sh" docker pull -q "$swift_image" || exit 1
 set +e
 docker run --rm --network host \
   -v "$root:/w" -w /w/packages/mobile-core \
@@ -251,7 +254,7 @@ docker run --rm --network host \
   -e MONACO_SEED_BIN=/seed/monacoctl -e MONACO_SEED_DIR=/w/apps/backend \
   -e DATABASE_URL="${DATABASE_URL/127.0.0.1/$container_host}" -e NATS_URL="${NATS_URL/127.0.0.1/$container_host}" \
   -e MONACO_DEV_TOKEN_KEY="$token_key" -e MONACO_FAKES_URL="http://${container_host}:${fakes_addr##*:}" \
-  public.ecr.aws/docker/library/swift:6.3-noble swift test --filter "$filter" \
+  "$swift_image" swift test --filter "$filter" \
   > "$logdir/swift.log" 2>&1
 swift_status=$?
 set -e

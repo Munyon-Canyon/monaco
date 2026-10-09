@@ -80,4 +80,6 @@ runs:
     - name: Start the tmpfs test Postgres that testkit.DB clones from
       if: inputs.db == 'true'
       shell: bash
-      run: docker compose --profile test up -d --wait postgres-test
+      run: |
+        scripts/ci/retry.sh docker compose --profile test pull postgres-test
+        docker compose --profile test up -d --wait postgres-test
