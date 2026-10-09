@@ -172,6 +172,7 @@ func TestHTTP_GetProposal(t *testing.T) {
 		FailureCode: "jupiter_failed", Retryable: true, CreatedAt: d.now,
 	}
 	d.swaps.Put(failed)
+	d.setStatus(t, p, string(domain.StatusExecutionBlocked), string(errs.CodeSwapFailed))
 	h := adapters.HTTP{Reads: d.reads()}
 	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: d.caller.String()})
 	res, err := h.GetProposal(ctx, api.GetProposalRequestObject{Id: p})
@@ -193,7 +194,7 @@ func TestHTTP_GetProposal(t *testing.T) {
 		tally          api.Tally
 		swap           *api.LinkedSwap
 	}
-	failedSummary := summary{p, true, false, api.Tally{No: 1, Voters: 2, Needed: 2}, &wantSwap}
+	failedSummary := summary{p, false, false, api.Tally{No: 1, Voters: 2, Needed: 2}, &wantSwap}
 	if s := (summary{got.Id, got.CanVote, got.CanWithdraw, got.Tally, got.Swap}); !reflect.DeepEqual(s, failedSummary) {
 		t.Errorf("detail = %+v, want %+v", s, failedSummary)
 	}
@@ -209,6 +210,40 @@ func TestHTTP_GetProposal(t *testing.T) {
 	wantRetry := api.LinkedSwap{SwapId: retried.Swap.SwapId, Status: "confirmed", TxSignature: ptr("sig-1")}
 	if !reflect.DeepEqual(*retried.Swap, wantRetry) {
 		t.Errorf("swap after a confirmed retry = %+v, want %+v", *retried.Swap, wantRetry)
+	}
+}
+
+func TestHTTP_GetProposal_retryOnlyWhenTheEngineCanRetry(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, status, reason string
+		retryable            bool
+	}{
+		{"swap failed", "execution_blocked", string(errs.CodeSwapFailed), true},
+		{"passed", "passed", "", true},
+		{"retry refused", "execution_blocked", "slippage_exceeded", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := newReadsDB(t)
+			p := d.proposedBy(t, d.caller)
+			d.swaps.Put(trading.SwapView{
+				ID: ids.SwapIDFrom(d.ids.NewV7()), Source: trading.Source{Kind: "proposal", ID: p}, Status: "failed",
+				FailureCode: "jupiter_failed", Retryable: true, CreatedAt: d.now,
+			})
+			d.setStatus(t, p, tc.status, tc.reason)
+			h := adapters.HTTP{Reads: d.reads()}
+			ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: d.caller.String()})
+			res, err := h.GetProposal(ctx, api.GetProposalRequestObject{Id: p})
+			got, ok := res.(api.GetProposal200JSONResponse)
+			if err != nil || !ok {
+				t.Fatalf("GetProposal = %#v, %v", res, err)
+			}
+			if got.Swap.Retryable != tc.retryable || (got.Swap.FailureMessage != nil) != tc.retryable {
+				t.Errorf("retryable = %v, failureMessage = %v, want retryable %v with a message only then",
+					got.Swap.Retryable, got.Swap.FailureMessage, tc.retryable)
+			}
+		})
 	}
 }
 
