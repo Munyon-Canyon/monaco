@@ -121,6 +121,7 @@ type TradeRetryRequested struct {
 	QuoteOutAmount uint64              `json:"quote_out_amount,string"`
 	SlippageBps    int32               `json:"slippage_bps"`
 	RequestedBy    uuid.UUID           `json:"requested_by"`
+	AtCurrentPrice bool                `json:"at_current_price,omitempty"`
 }
 
 func (TradeRetryRequested) Type() Type { return TypeTradeRetryRequested }

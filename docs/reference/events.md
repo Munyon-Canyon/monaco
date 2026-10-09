@@ -811,6 +811,7 @@ Subject `events.trade.retry_requested`, version 1.
 | `quote_out_amount` | `uint64` |
 | `slippage_bps` | `int32` |
 | `requested_by` | `uuid.UUID` |
+| `at_current_price` | `bool` |
 
 ## `trade.submitted`
 

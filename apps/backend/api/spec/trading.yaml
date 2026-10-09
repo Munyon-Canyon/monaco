@@ -41,7 +41,9 @@ paths:
         `failed`; a cash out leg is final. The server appends `trade.retry_requested` with the trade
         parameters from the failed swap and answers at once. The engine re-runs the pre-trade checks
         and creates a new swap, or blocks the proposal, later. A replay with the same Idempotency-Key
-        returns the first response.
+        returns the first response. When the swap failed `price_moved`, `at_current_price: true` makes the
+        engine hold the new order to the cabal's slippage around a fresh server-side quote instead of
+        the voted one. The client never sends a price. Sending it for any other swap is refused.
       parameters:
         - name: id
           in: path
@@ -51,6 +53,14 @@ paths:
             type: string
             format: uuid
         - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: Whether to retry at the current price. Omit it to retry at the voted quote.
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwapRetryRequest"
+            example: {at_current_price: true}
       responses:
         "202":
           description: The retry was requested.
@@ -63,6 +73,15 @@ paths:
           $ref: "#/components/responses/Problem"
 components:
   schemas:
+    SwapRetryRequest:
+      type: object
+      description: How to retry a swap that failed because the price moved.
+      additionalProperties: false
+      properties:
+        at_current_price:
+          type: boolean
+          description: Hold the retry to the cabal's slippage around the current quote. Only for a `price_moved` swap.
+          examples: [true]
     SwapRetryAccepted:
       type: object
       description: A retry the trade engine will run.

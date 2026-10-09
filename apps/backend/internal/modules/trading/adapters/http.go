@@ -28,7 +28,11 @@ func (h HTTP) PostSwapRetry(
 	if err != nil {
 		return nil, err
 	}
-	if err := h.Retry.Handle(ctx, app.RetryTrade{SwapID: ids.SwapIDFrom(req.Id), ActorID: user}); err != nil {
+	cmd := app.RetryTrade{SwapID: ids.SwapIDFrom(req.Id), ActorID: user}
+	if req.Body != nil {
+		cmd.AtCurrentPrice = req.Body.AtCurrentPrice != nil && *req.Body.AtCurrentPrice
+	}
+	if err := h.Retry.Handle(ctx, cmd); err != nil {
 		return nil, err
 	}
 	return api.PostSwapRetry202JSONResponse{SwapId: req.Id, Status: api.RetryRequested}, nil

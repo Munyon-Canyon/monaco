@@ -102,7 +102,7 @@ Relay, streams (`EVENTS`, `DEADLETTER`), consumer settings, retries and dedupe o
 
 ### Retry and manual paths
 
-- `RetryTrade` ([flow 12](backend-platform.md#flows)) re-runs the engine for the proposal: re-check, then a new swap row. Allowed only when the latest `swaps` row is `failed`. It takes an `Idempotency-Key` like every mutating call ([Thin client](backend-platform.md#thin-client)). The trade parameters come from the failed `swaps` row, not from governance tables. The route is `POST /v1/swaps/{id}/retry` (flow 12 in the [flows table](backend-platform.md#flows)).
+- `RetryTrade` ([flow 12](backend-platform.md#flows)) re-runs the engine for the proposal: re-check, then a new swap row. Allowed only when the latest `swaps` row is `failed`. It takes an `Idempotency-Key` like every mutating call ([Thin client](backend-platform.md#thin-client)). The trade parameters come from the failed `swaps` row, not from governance tables. The route is `POST /v1/swaps/{id}/retry` (flow 12 in the [flows table](backend-platform.md#flows)). When the latest swap failed `price_moved`, the body may carry `at_current_price: true`. The event then carries the flag, and the engine, after its fresh quote is routable, replaces the Review quote with that server-measured quote, so the order is held to the cabal's slippage around the current price and the new swap row stores that quote. The client never sends a price. The flag is refused for any other failure.
 - An ops command to force-resolve a stuck `submitted` row by signature, going through the same guarded update. It runs from `monacoctl` or the admin module ([flow 26](backend-platform.md#flows)). Useful when Jupiter and RPC disagree.
 
 ## Alternatives considered

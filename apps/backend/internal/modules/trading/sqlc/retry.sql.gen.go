@@ -14,7 +14,7 @@ import (
 
 const swapForRetry = `-- name: SwapForRetry :one
 SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.out_mint, s.in_amount,
-  s.quote_out_amount, s.slippage_bps, v.retryable::bool AS retryable
+  s.quote_out_amount, s.slippage_bps, s.failure_code, v.retryable::bool AS retryable
 FROM swaps s
 JOIN swap_views v ON v.id = s.id
 WHERE s.id = $1
@@ -32,6 +32,7 @@ type SwapForRetryRow struct {
 	InAmount       int64
 	QuoteOutAmount pgtype.Int8
 	SlippageBps    int32
+	FailureCode    pgtype.Text
 	Retryable      bool
 }
 
@@ -50,6 +51,7 @@ func (q *Queries) SwapForRetry(ctx context.Context, id uuid.UUID) (SwapForRetryR
 		&i.InAmount,
 		&i.QuoteOutAmount,
 		&i.SlippageBps,
+		&i.FailureCode,
 		&i.Retryable,
 	)
 	return i, err
