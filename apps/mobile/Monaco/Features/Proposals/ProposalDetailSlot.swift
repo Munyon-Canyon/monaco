@@ -186,7 +186,7 @@ struct ProposalDetailSlotView: View {
         let stepper = ProposalStepper.make(
             status: summary.status, isSell: summary.kind == "sell", swapFailed: summary.swap?.status == "failed",
             expiresAt: summary.expiresAt, failureMessage: summary.swap?.failureMessage,
-            statusMessage: summary.statusMessage)
+            statusMessage: summary.statusMessage, priceMoved: summary.swap?.isPriceMoved == true)
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Status")
                 .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -194,8 +194,11 @@ struct ProposalDetailSlotView: View {
             ProposalStepperView(stepper: stepper)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule()
+            if let move = model?.priceMove, summary.swap?.isPriceMoved == true {
+                priceMoved(move, summary)
+            }
             if model?.retryableSwapID != nil {
-                Button("Retry") {
+                Button(model?.retriesAtCurrentPrice == true ? "Buy at current price" : "Retry") {
                     Task {
                         await model?.retry()
                         if model?.didRetry == true {
@@ -222,6 +225,22 @@ struct ProposalDetailSlotView: View {
         }
     }
 
+    private func priceMoved(_ move: ProposalPriceMove, _ summary: ProposalSummary) -> some View {
+        let isSell = summary.kind == "sell"
+        let decimals = model?.asset?.decimals ?? AssetCatalogDefaults.decimals
+        let kind = model?.asset?.kind ?? .stock
+        func words(_ quote: Int64) -> String {
+            ProposalCardCopy.expected(
+                isSell: isSell, quoteOut: quote, usdcMicros: summary.usdcMicros, decimals: decimals, kind: kind) ?? "-"
+        }
+        return MonacoGroupedList {
+            ReceiptLine(label: "Voted for", value: .words(words(move.votedQuote)))
+            ReceiptLine(label: "Now", value: .words(words(move.currentQuote)))
+            ReceiptLine(label: "Price moved", value: .words("\(move.percentText) since the vote"), isLast: true)
+        }
+        .accessibilityIdentifier("proposal-price-moved")
+    }
+
     private func bursts(from old: ProposalStatus?, to new: ProposalStatus?) -> Bool {
         guard let old, let new else { return false }
         return new == .executed && old != .executed && model?.value?.summary.kind == "buy"
@@ -238,7 +257,7 @@ struct ProposalDetailSlotView: View {
 
 #if DEBUG
 enum ProposalDetailSampleScenario: String {
-    case failedRetryable, failedFinal
+    case failedRetryable, failedFinal, priceMoved
 
     static func matching(_ arguments: [String]) -> Self? {
         guard let index = arguments.firstIndex(of: "-MonacoProposalDetailSample"), arguments.indices.contains(index + 1)
@@ -266,8 +285,10 @@ private struct ProposalDetailSampleHarness: View {
         _environment = State(initialValue: environment)
         _model = State(
             initialValue: ProposalDetailModel(
-                sample: .failedSwap(retryable: scenario == .failedRetryable),
+                sample: scenario == .priceMoved ? .priceMoved : .failedSwap(retryable: scenario == .failedRetryable),
                 members: Components.Schemas.Cabal.sampleWithMembers(role: "member").members, asset: .googl,
+                priceMove: scenario == .priceMoved
+                    ? ProposalPriceMove(votedQuote: 14_250_000, currentQuote: 13_600_000, isSell: false) : nil,
                 repository: ProposalsRepository(api: environment.api), hints: environment.hints))
     }
 

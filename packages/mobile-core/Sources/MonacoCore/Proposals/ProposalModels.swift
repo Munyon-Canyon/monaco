@@ -123,6 +123,7 @@ public final class ProposalDetailModel {
     public private(set) var isRetrying = false
     public private(set) var didRetry = false
     public private(set) var isVoting = false
+    public private(set) var priceMove: ProposalPriceMove?
     private let id: String
     private let cabalID: String
     private let repository: ProposalsRepository
@@ -148,12 +149,14 @@ public final class ProposalDetailModel {
 
     public convenience init(
         sample detail: Components.Schemas.ProposalDetail, members: [Components.Schemas.CabalMember],
-        asset: Components.Schemas.AssetDetail, repository: ProposalsRepository, hints: any HintSource
+        asset: Components.Schemas.AssetDetail, priceMove: ProposalPriceMove? = nil, repository: ProposalsRepository,
+        hints: any HintSource
     ) {
         self.init(id: detail.id, cabalID: detail.cabalId, repository: repository, hints: hints)
         value = ProposalDetail(detail)
         self.members = members.map(ProposalMember.init)
         self.asset = ProposalAsset(asset)
+        self.priceMove = priceMove
     }
 
     public func load() async {
@@ -165,10 +168,23 @@ public final class ProposalDetailModel {
             if let members = await members { self.members = members }
             if let asset = await asset { self.asset = asset }
             errorMessage = nil
+            await loadPriceMove(for: detail.summary)
         } catch {
             errorMessage = ToastCopy.message(for: APIError(error))
         }
     }
+
+    private func loadPriceMove(for summary: ProposalSummary) async {
+        guard summary.swap?.isPriceMoved == true else {
+            priceMove = nil
+            return
+        }
+        let live = try? await repository.liveQuote(for: summary)
+        priceMove = live.flatMap {
+            ProposalPriceMove(votedQuote: summary.quoteOutAmount, currentQuote: $0, isSell: summary.kind == "sell")
+        }
+    }
+
     public func vote(_ choice: String) async -> Bool {
         guard let current = value?.summary else { return false }
         isVoting = true
@@ -198,13 +214,16 @@ public final class ProposalDetailModel {
         return swap.id
     }
 
+    public var retriesAtCurrentPrice: Bool { value?.summary.swap?.isPriceMoved == true }
+
     public func retry() async {
         guard let swapID = retryableSwapID, !isRetrying else { return }
+        let atCurrentPrice = retriesAtCurrentPrice
         isRetrying = true
         didRetry = false
         defer { isRetrying = false }
         do {
-            try await repository.retrySwap(id: swapID, submission: retrySubmission)
+            try await repository.retrySwap(id: swapID, atCurrentPrice: atCurrentPrice, submission: retrySubmission)
             retriedSwapID = swapID
             didRetry = true
             errorMessage = nil

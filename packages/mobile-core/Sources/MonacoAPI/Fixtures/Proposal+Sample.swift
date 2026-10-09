@@ -13,7 +13,10 @@ extension Components.Schemas.Proposal {
 }
 
 extension Components.Schemas.ProposalDetail {
-    public static func failedSwap(retryable: Bool) -> Self {
+    public static func failedSwap(
+        retryable: Bool, failureCode: String = "jupiter_failed",
+        failureMessage: String = "The trade did not go through."
+    ) -> Self {
         let members = Components.Schemas.Cabal.sampleWithMembers(role: "member").members
         return .init(
             id: "proposal-1", cabalId: "cabal-1", proposerId: members[1].userId, kind: .buy, symbol: "GOOGLx",
@@ -27,7 +30,15 @@ extension Components.Schemas.ProposalDetail {
                 .init(userId: members[2].userId, choice: nil, castAt: nil),
             ], canVote: false, canWithdraw: false,
             swap: .init(
-                swapId: "swap-1", status: .failed, failureCode: "jupiter_failed",
-                failureMessage: "The trade did not go through.", txSignature: nil, retryable: retryable))
+                swapId: "swap-1", status: .failed, failureCode: failureCode,
+                failureMessage: failureMessage, txSignature: nil, retryable: retryable))
+    }
+}
+
+extension Components.Schemas.ProposalDetail {
+    public static var priceMoved: Self {
+        failedSwap(
+            retryable: true, failureCode: "price_moved",
+            failureMessage: "The price moved past the cabal's limit since the vote.")
     }
 }
