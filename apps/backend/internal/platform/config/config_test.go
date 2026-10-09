@@ -273,6 +273,21 @@ func TestLoadReadsEveryKey(t *testing.T) {
 	}
 }
 
+func TestLoadIgnoresIOSOnlyKeys(t *testing.T) {
+	t.Parallel()
+	environ := append(required(),
+		"MONACO_STAGING_API_BASE_URL=https://staging.example.com",
+		"MONACO_PRODUCTION_API_BASE_URL=https://api.example.com",
+	)
+	if _, err := config.Load(environ); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	_, err := config.Load(append(environ, "MONACO_FOO=1"))
+	if err == nil || !strings.Contains(err.Error(), "unknown MONACO_FOO") {
+		t.Fatalf("Load with MONACO_FOO = %v, want unknown MONACO_FOO", err)
+	}
+}
+
 func TestLoadAcceptsEveryEnv(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging, config.EnvProduction} {

@@ -222,6 +222,10 @@ type Timeouts struct {
 
 const redacted = "***"
 
+func isIOSBuildKey(key string) bool {
+	return key == "MONACO_STAGING_API_BASE_URL" || key == "MONACO_PRODUCTION_API_BASE_URL"
+}
+
 func Load(environ []string) (Config, error) {
 	vars := make(map[string]string, len(environ))
 	for _, kv := range environ {
@@ -249,7 +253,7 @@ func Load(environ []string) (Config, error) {
 	bad.checkTrade(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {
-		if strings.HasPrefix(k, "MONACO_") && !known[k] {
+		if strings.HasPrefix(k, "MONACO_") && !known[k] && !isIOSBuildKey(k) {
 			bad.unknown = append(bad.unknown, k)
 		}
 	}
