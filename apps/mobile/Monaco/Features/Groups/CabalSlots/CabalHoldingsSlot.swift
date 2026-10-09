@@ -98,7 +98,7 @@ struct CabalHoldingsSection: View {
     }
 
     private static func cashOnlyNote(canPropose: Bool) -> String {
-        canPropose ? "Nothing bought yet. Propose the first buy." : "No stocks right now."
+        canPropose ? "No stocks right now. Propose a buy to put the cash to work." : "No stocks right now."
     }
 
     private func cashRow(_ cash: String) -> some View {
