@@ -51,6 +51,29 @@ struct AppNavigatorTests {
 
         #expect(navigator.homePath.count == 2)
     }
+
+    @Test func aChainForACabalAlreadyOpenCutsBackToItInsteadOfStackingASecond() {
+        let navigator = AppNavigator()
+        navigator.open(CabalRoute(id: "c-1"), in: .cabals)
+        navigator.open(ProbeRoute(marker: "chat"), in: .cabals)
+
+        navigator.open(chain: [CabalRoute(id: "c-1"), ProposalRoute(proposalID: "p-1")], in: .cabals)
+
+        #expect(
+            navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: "c-1")), AnyAppRoute(ProposalRoute(proposalID: "p-1"))])
+    }
+
+    @Test func tappingTheTabThatIsShowingPopsItToItsRoot() {
+        let navigator = AppNavigator()
+        navigator.open(ProbeRoute(marker: "cabal"), in: .cabals)
+
+        navigator.select(.home)
+        #expect(navigator.cabalsPath.count == 1)
+        navigator.select(.cabals)
+        #expect(navigator.cabalsPath.count == 1)
+        navigator.select(.cabals)
+        #expect(navigator.cabalsPath.isEmpty)
+    }
 }
 
 nonisolated private struct ProbeRoute: AppRoute {

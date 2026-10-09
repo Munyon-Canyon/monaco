@@ -65,15 +65,12 @@ struct MonacoToastBanner: View {
                     .accessibilityIdentifier("monaco-toast-action")
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.sm)
-        .frame(minHeight: 48)
-        .background {
-            let shape = RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip, style: .continuous)
-            shape
-                .fill(MonacoTheme.toastFill)
-                .overlay { shape.strokeBorder(MonacoTheme.toastStroke, lineWidth: 1) }
-        }
+        .frame(minHeight: 52)
+        .background(
+            MonacoTheme.toastFill, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.toast, style: .continuous)
+        )
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: link == nil && action == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
@@ -207,7 +204,7 @@ private struct MonacoToastModifier: ViewModifier {
     }
 
     private var transitionAnimation: Animation {
-        reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.35, dampingFraction: 0.85)
+        .easeOut(duration: 0.25)
     }
 
     func body(content: Content) -> some View {
@@ -270,7 +267,7 @@ private struct MonacoToastModifier: ViewModifier {
             .transition(
                 reduceMotion
                     ? .opacity
-                    : .move(edge: .bottom).combined(with: .opacity)
+                    : .offset(y: MonacoTheme.Space.m).combined(with: .opacity)
             )
             .padding(.bottom, bottomInset)
             .zIndex(1)

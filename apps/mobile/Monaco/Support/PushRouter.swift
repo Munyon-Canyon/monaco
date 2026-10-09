@@ -49,18 +49,15 @@ final class PushRouter {
         case .userProfile(let userID):
             navigator.open(UserProfileRoute(userID: userID), in: .home)
         case .chat(let cabalID):
-            navigator.open(CabalRoute(id: cabalID), in: .cabals)
-            navigator.open(ChatRoute(cabalID: cabalID), in: .cabals)
+            navigator.open(chain: [CabalRoute(id: cabalID), ChatRoute(cabalID: cabalID)], in: .cabals)
         case .transaction(let txnID, let cabalID):
-            navigator.open(CabalRoute(id: cabalID), in: .cabals)
-            navigator.open(TransactionRoute(cabalID: cabalID, transactionID: txnID), in: .cabals)
+            navigator.openTransaction(cabalID: cabalID, transactionID: txnID, in: .cabals)
         case .proposal(let proposalID, let cabalID):
-            navigator.open(CabalRoute(id: cabalID), in: .cabals)
-            navigator.open(ProposalRoute(proposalID: proposalID), in: .cabals)
+            navigator.open(chain: [CabalRoute(id: cabalID), ProposalRoute(proposalID: proposalID)], in: .cabals)
         case .feedItem(let feedItemID):
             navigator.open(FeedItemRoute(itemID: feedItemID), in: .feed)
         case .cabal(let cabalID):
-            navigator.open(CabalRoute(id: cabalID), in: .cabals)
+            navigator.open(chain: [CabalRoute(id: cabalID)], in: .cabals)
         case .home:
             navigator.selectedTab = .home
             navigator.homePath = []

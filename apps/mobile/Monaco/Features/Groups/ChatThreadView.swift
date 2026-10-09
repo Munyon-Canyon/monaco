@@ -74,7 +74,7 @@ struct ChatThreadScreen: View {
     @State private var state: ThreadSession.State?
     @State private var messageToDelete: String?
     @State private var alsoInChannel = false
-    @State private var toast: MonacoToast?
+    @Environment(ToastCenter.self) private var toasts
     @FocusState private var composerFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
@@ -94,7 +94,6 @@ struct ChatThreadScreen: View {
         .onChange(of: state?.notice) { _, notice in show(notice) }
         .onDisappear { Task { await thread?.close() } }
         .chatDeleteConfirmation(messageID: $messageToDelete) { id in delete(id) }
-        .monacoToast($toast)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat-thread-screen")
     }
@@ -179,13 +178,13 @@ struct ChatThreadScreen: View {
     private func delete(_ id: String) {
         Task {
             let failure = await deleteMessage(id)
-            toast = MonacoToast(message: failure.map(ToastCopy.message(for:)) ?? GroupChatCopy.deleted)
+            toasts.current = MonacoToast(message: failure.map(ToastCopy.message(for:)) ?? GroupChatCopy.deleted)
         }
     }
 
     private func show(_ notice: ChatSession.Notice?) {
         guard let notice else { return }
-        toast = MonacoToast(message: ToastCopy.message(for: notice.error))
+        toasts.current = MonacoToast(message: ToastCopy.message(for: notice.error))
     }
 }
 

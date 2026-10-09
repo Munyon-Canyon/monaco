@@ -6,7 +6,7 @@ import SwiftUI
 struct SystemPingView: View {
     @State private var model: SystemPingModel
     @State private var note = ""
-    @State private var toast: MonacoToast?
+    @Environment(ToastCenter.self) private var toasts
 
     init(model: SystemPingModel) {
         _model = State(initialValue: model)
@@ -37,14 +37,13 @@ struct SystemPingView: View {
         .onChange(of: model.state) { _, newState in
             switch newState {
             case .invalidInput(let message):
-                toast = MonacoToast(message: message)
+                toasts.current = MonacoToast(message: message)
             case .failed(let error):
-                toast = MonacoToast(message: ToastCopy.message(for: error))
+                toasts.current = MonacoToast(message: ToastCopy.message(for: error))
             case .idle, .loading, .loaded, .unauthorized:
                 break
             }
         }
-        .monacoToast($toast)
     }
 
     private var sending: Bool {

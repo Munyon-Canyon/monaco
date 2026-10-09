@@ -9,7 +9,7 @@ protocol TabContent {
 }
 
 enum MainTab: Hashable, CaseIterable, Identifiable {
-    case home, feed, cabals, stocks, profile
+    case home, cabals, stocks, feed, profile
 
     var id: Self { self }
 
