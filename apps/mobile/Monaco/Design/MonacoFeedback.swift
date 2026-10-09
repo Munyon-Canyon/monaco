@@ -25,10 +25,10 @@ enum Haptics {
 /// Placeholder bar in the shape of the content that is loading.
 struct SkeletonBlock: View {
     private let width: CGFloat?
-    private let height: CGFloat
+    private let height: CGFloat?
     private let radius: CGFloat
 
-    init(width: CGFloat? = nil, height: CGFloat, radius: CGFloat = MonacoTheme.Radius.field) {
+    init(width: CGFloat? = nil, height: CGFloat?, radius: CGFloat = MonacoTheme.Radius.field) {
         self.width = width
         self.height = height
         self.radius = radius
@@ -45,6 +45,10 @@ struct SkeletonBlock: View {
 }
 
 extension View {
+    func skeletonBar(width: CGFloat, radius: CGFloat = MonacoTheme.Radius.field) -> some View {
+        hidden().lineLimit(1).frame(width: width).overlay { SkeletonBlock(width: width, height: nil, radius: radius) }
+    }
+
     /// Redacts the view to placeholder shapes and pulses it while `active`.
     /// Pair with sample content of the real layout; VoiceOver hears "Loading".
     func skeleton(_ active: Bool) -> some View {

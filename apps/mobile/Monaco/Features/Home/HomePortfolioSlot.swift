@@ -69,7 +69,7 @@ private struct HomePortfolioHero: View {
             EmptyView()
         case .failed:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                title
+                HomePortfolioTitle()
                 if reads.showsOwnRow(.portfolio) {
                     MonacoErrorRow(thing: "your portfolio", identifier: "home-portfolio-failed", inset: false) {
                         Task { await portfolio?.load() }
@@ -80,7 +80,7 @@ private struct HomePortfolioHero: View {
             VStack(alignment: .leading, spacing: HeroRhythm.chipToChart) {
                 VStack(alignment: .leading, spacing: HeroRhythm.balanceToChip) {
                     VStack(alignment: .leading, spacing: HeroRhythm.titleToBalance) {
-                        title
+                        HomePortfolioTitle()
                         MoneyText(micros: summary.totalMicros, style: .hero)
                             .accessibilityIdentifier("home-portfolio-total")
                     }
@@ -91,13 +91,6 @@ private struct HomePortfolioHero: View {
                 }
             }
         }
-    }
-
-    private var title: some View {
-        Text("Your money in cabals")
-            .font(MonacoTheme.Typo.callout)
-            .foregroundStyle(MonacoTheme.muted)
-            .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder private func chip(_ summary: PortfolioSummary) -> some View {
@@ -136,6 +129,7 @@ private struct HomePortfolioHero: View {
     @ViewBuilder private func curveRows(_ chart: ValueChartModel) -> some View {
         switch chart.state {
         case .idle, .loading:
+            CurveReadoutLine(readout: nil)
             SkeletonBlock(height: 160, radius: 12)
                 .accessibilityIdentifier("home-portfolio-chart-loading")
             rangeChips(chart)
@@ -144,8 +138,8 @@ private struct HomePortfolioHero: View {
                 Task { await chart.load() }
             }
         case .loaded:
+            CurveReadoutLine(readout: chart.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } })
             if let curve = chart.curve, curve.hasEnoughHistory {
-                CurveReadoutLine(readout: selection.flatMap { curve.readout(at: $0) })
                 CurveScrubChart(
                     curve: curve, range: chart.shownRange ?? chart.range, selection: $selection,
                     identifier: "home-pnl-chart")
@@ -182,17 +176,30 @@ private struct HomePortfolioHero: View {
     }
 }
 
+private struct HomePortfolioTitle: View {
+    var body: some View {
+        Text("Your money in cabals")
+            .font(MonacoTheme.Typo.callout)
+            .foregroundStyle(MonacoTheme.muted)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 struct HomePortfolioSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HeroRhythm.chipToChart) {
             VStack(alignment: .leading, spacing: HeroRhythm.balanceToChip) {
                 VStack(alignment: .leading, spacing: HeroRhythm.titleToBalance) {
-                    SkeletonBlock(width: 140, height: 16)
-                    SkeletonBlock(width: 180, height: 44)
+                    HomePortfolioTitle().skeletonBar(width: 140)
+                    MoneyText(micros: 0, style: .hero).skeletonBar(width: 180)
                 }
-                SkeletonBlock(width: 120, height: 24, radius: 12)
+                Text(" ").moneyFont(.caption).skeletonBar(width: 120, radius: 12)
             }
-            SkeletonBlock(height: 160, radius: 12)
+            VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
+                CurveReadoutLine(readout: nil)
+                SkeletonBlock(height: 160, radius: 12)
+                MonacoRangeChipsSkeleton(ranges: LeaderboardRange.allCases)
+            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.sm)

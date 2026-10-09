@@ -2,6 +2,8 @@ import MonacoCore
 import SwiftUI
 
 struct MonacoChipLabel: ViewModifier {
+    static let capsuleHeight: CGFloat = 32
+
     let isSelected: Bool
     var isPreset = false
     @Environment(\.isEnabled) private var isEnabled
@@ -14,7 +16,7 @@ struct MonacoChipLabel: ViewModifier {
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .padding(.horizontal, isPreset ? MonacoTheme.Space.m : MonacoTheme.Space.sm)
-            .frame(minHeight: isPreset ? 36 : 32)
+            .frame(minHeight: isPreset ? 36 : Self.capsuleHeight)
             .background(Capsule().fill(fill))
             .frame(minHeight: 44)
             .contentShape(Rectangle())
@@ -80,6 +82,22 @@ struct MonacoRangeChips<Range: Hashable>: View {
             .padding(.horizontal, MonacoTheme.Space.gutter)
         }
         .padding(.horizontal, -MonacoTheme.Space.gutter)
+    }
+}
+
+struct MonacoRangeChipsSkeleton: View {
+    let ranges: [LeaderboardRange]
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            ForEach(ranges, id: \.self) { range in
+                Text(range.label).monacoChipLabel(isSelected: false).hidden().overlay {
+                    SkeletonBlock(height: MonacoChipLabel.capsuleHeight, radius: MonacoChipLabel.capsuleHeight / 2)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityHidden(true)
     }
 }
 
