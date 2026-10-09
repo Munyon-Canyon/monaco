@@ -20,7 +20,7 @@ struct FeedItemCell: View {
                 .accessibilityHidden(true)
             if let actorID = item.actorId {
                 NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: actorID))) {
-                    MonacoAvatar(photoURL: nil, displayName: item.actorName ?? "", seed: actorID)
+                    MonacoAvatar(photoURL: item.actorPhotoUrl, displayName: item.actorName ?? "", seed: actorID)
                         .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
                         .contentShape(Circle())
                 }

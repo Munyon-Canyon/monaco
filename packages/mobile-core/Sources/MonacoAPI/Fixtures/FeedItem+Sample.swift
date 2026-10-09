@@ -39,6 +39,7 @@ extension Components.Schemas.FeedItem {
             cabalName: cabalID.map { _ in "Weekend investors" },
             actorId: actor.map { String(format: "00000000-0000-7000-8000-0000000fb%03d", $0) },
             actorName: actor.map { actorNames[$0 - 1] },
+            actorPhotoUrl: nil,
             assetId: symbol.map { _ in String(format: "00000000-0000-7000-8000-0000000fd%03d", number) },
             symbol: symbol,
             title: title, detail: detail, body: body, status: status, tone: tone, commentCount: comments,

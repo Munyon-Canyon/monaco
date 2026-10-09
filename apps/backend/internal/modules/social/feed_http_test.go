@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
@@ -17,9 +20,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-func (f feedFixture) routes() adapters.HTTP {
+func (f feedFixture) routes() adapters.HTTP { return f.routesWith(nil) }
+
+func (f feedFixture) routesWith(cards []identity.UserCard) adapters.HTTP {
+	return f.routesUsing(fakes.NewIdentity(cards, nil))
+}
+
+func (f feedFixture) routesUsing(users *fakes.Identity) adapters.HTTP {
 	deps := module.Deps{Pool: f.pool, UoW: db.New(f.pool, f.gen, f.clock), IDs: f.gen, Clock: f.clock}
-	return social.HTTPOf(social.New(deps, social.WithUsers(fakes.NewIdentity(nil, nil))))
+	return social.HTTPOf(social.New(deps, social.WithUsers(users)))
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -68,6 +77,59 @@ func TestGetFeed_pagesNewestFirstWithAnOpaqueCursor(t *testing.T) {
 	if len(second.Items) != 1 || !reflect.DeepEqual(second.Items[0], want) || second.NextCursor != nil {
 		t.Fatalf("second page = %+v, want [%+v] and no cursor", second, want)
 	}
+}
+
+func TestGetFeed_returnsTheActorsCurrentPhotoOrNull(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	withPhoto, without := ids.NewUserID(f.gen), ids.NewUserID(f.gen)
+	photoItem := f.item(t, func(it *feed.Item) { it.ActorID = withPhoto })
+	f.clock.Advance(time.Millisecond)
+	bareItem := f.item(t, func(it *feed.Item) { it.RefID, it.ActorID = f.gen.NewV7(), without })
+	f.clock.Advance(time.Millisecond)
+	systemItem := f.item(t, func(it *feed.Item) { it.RefID, it.ActorID = f.gen.NewV7(), ids.UserID{} })
+	cards := []identity.UserCard{
+		{ID: withPhoto, Handle: "maya", PhotoURL: "https://img.example/maya.png"},
+		{ID: without, Handle: "sam"},
+	}
+	res, err := f.routesWith(cards).GetFeed(asUser(t.Context(), viewer), api.GetFeedRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := api.FeedPage(res.(api.GetFeed200JSONResponse))
+	got := map[uuid.UUID]*string{}
+	for _, item := range page.Items {
+		got[item.Id] = item.ActorPhotoUrl
+	}
+	if len(got) != 3 || got[photoItem] == nil || *got[photoItem] != "https://img.example/maya.png" {
+		t.Fatalf("photo item = %v in %v, want the member's photo", got[photoItem], got)
+	}
+	if got[bareItem] != nil || got[systemItem] != nil {
+		t.Fatalf("photoless photos = %v and %v, want null", got[bareItem], got[systemItem])
+	}
+}
+
+func TestGetFeed_failsWhenTheUserLookupFails(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	f.item(t, func(it *feed.Item) { it.ActorID = viewer })
+	users := fakes.NewIdentity(nil, nil)
+	users.Fail("UsersByID", errs.New(errs.CodeUpstreamUnavailable, "test"))
+	_, err := f.routesUsing(users).GetFeed(asUser(t.Context(), viewer), api.GetFeedRequestObject{})
+	wantCode(t, err, errs.CodeUpstreamUnavailable)
+}
+
+func TestGetFeedItem_failsWhenTheUserLookupFails(t *testing.T) {
+	t.Parallel()
+	f := newFeedFixture(t)
+	viewer := ids.NewUserID(f.gen)
+	id := f.item(t, func(it *feed.Item) { it.ActorID = viewer })
+	users := fakes.NewIdentity(nil, nil)
+	users.Fail("UsersByID", errs.New(errs.CodeUpstreamUnavailable, "test"))
+	_, err := f.routesUsing(users).GetFeedItem(asUser(t.Context(), viewer), api.GetFeedItemRequestObject{Id: id})
+	wantCode(t, err, errs.CodeUpstreamUnavailable)
 }
 
 func TestGetFeed_appliesTheFiltersItParses(t *testing.T) {
