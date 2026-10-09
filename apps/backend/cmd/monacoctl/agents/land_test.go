@@ -169,7 +169,7 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 		defer s.mu.Unlock()
 		return nil, s.git[args[0]]
 	}
-	if name != "gh" && name != "gt" && name != "bash" && name != "go" {
+	if name != "gh" && name != "gt" && name != "bash" && name != "go" && name != "env" {
 		return hostless(ctx, dir, stdin, name, args...)
 	}
 	line := name + " " + strings.Join(args, " ")
@@ -181,7 +181,7 @@ func (s *stackGH) run(ctx context.Context, dir, stdin, name string, args ...stri
 	if s.fail != "" && strings.HasPrefix(line, s.fail) {
 		return nil, errors.New(s.fail + ": boom")
 	}
-	if name == "bash" || name == "go" {
+	if name == "bash" || name == "go" || name == "env" {
 		return nil, nil
 	}
 	if name == "gt" {

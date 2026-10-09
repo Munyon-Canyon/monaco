@@ -42,6 +42,10 @@ func regenRepo(t *testing.T) string {
 		regenRun(t, dir, "git", "commit", "-q", "-m", msg)
 	}
 	regenRun(t, dir, "git", "init", "-q", "-b", "main")
+	if err := os.MkdirAll(filepath.Join(dir, "apps", "backend"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, filepath.Join(dir, "apps", "backend", "go.mod"), "module example.com/m\n\ngo 1.26\n\ntoolchain go1.26.9\n")
 	commit("base", "base.txt", "a\nm\nz\n")
 	regenRun(t, dir, "git", "checkout", "-q", "-b", "feature")
 	commit("feature one", "feature1.txt", "b\n")
@@ -52,7 +56,7 @@ func regenRepo(t *testing.T) string {
 	return dir
 }
 
-func runRegen(t *testing.T, dir string) (string, error) {
+func runRegen(t *testing.T, dir string, extraEnv ...string) (string, error) {
 	t.Helper()
 	// The fake gt lives outside the repo so the script's git add -A cannot stage it.
 	// restack rebases onto main and continue continues the rebase.
@@ -61,18 +65,15 @@ func runRegen(t *testing.T, dir string) (string, error) {
 	cmd := exec.Command(filepath.Join(repoRoot(t), "scripts", "restack-regen.sh"))
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), regenGitEnv...)
-	cmd.Env = append(cmd.Env,
-		"GT="+gt,
-		"GENERATE=sort src/*.txt > docs/reference/events.md",
-		"GENERATED_GLOBS=docs/reference/events.md",
-	)
+	cmd.Env = append(cmd.Env, "GT="+gt, "GENERATED_GLOBS=docs/reference/events.md")
+	cmd.Env = append(cmd.Env, extraEnv...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
 
 func TestRestackRegen_settlesAGeneratedOnlyRestack(t *testing.T) {
 	dir := regenRepo(t)
-	out, err := runRegen(t, dir)
+	out, err := runRegen(t, dir, "GENERATE=sort src/*.txt > docs/reference/events.md")
 	if err != nil {
 		t.Fatalf("restack-regen: %v\n%s", err, out)
 	}
@@ -94,6 +95,21 @@ func TestRestackRegen_settlesAGeneratedOnlyRestack(t *testing.T) {
 	}
 	if string(log) != "feature two\nfeature one\n" {
 		t.Fatalf("feature's commits = %q", log)
+	}
+}
+
+func TestRestackRegen_defaultGenerateRunsOnTheToolchainGoModPins(t *testing.T) {
+	dir := regenRepo(t)
+	bin := t.TempDir()
+	seen := filepath.Join(t.TempDir(), "toolchain")
+	writeExecutable(t, filepath.Join(bin, "go"), "#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nprintf '%s' \"$GOTOOLCHAIN\" > \"$SEEN\"\nsort \"$root\"/src/*.txt > \"$root\"/docs/reference/events.md\n")
+	out, err := runRegen(t, dir, "PATH="+bin+":"+os.Getenv("PATH"), "SEEN="+seen)
+	if err != nil {
+		t.Fatalf("restack-regen: %v\n%s", err, out)
+	}
+	got, err := os.ReadFile(seen)
+	if err != nil || string(got) != "go1.26.9" {
+		t.Fatalf("go generate ran with GOTOOLCHAIN=%q (%v)\n%s", got, err, out)
 	}
 }
 

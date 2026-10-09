@@ -3,10 +3,13 @@ package agents
 import (
 	"context"
 	"fmt"
+	"os"
 	"path"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
 const (
@@ -157,14 +160,29 @@ func (env *Env) renumber(ctx context.Context, dir string, files []string, newest
 	if !renamed {
 		return newest, nil
 	}
-	for _, step := range [][]string{{"go", "generate", "./..."}, {"gt", "modify", "--all", "--no-interactive"}} {
-		wd := dir
-		if step[0] == "go" {
-			wd = path.Join(dir, "apps/backend")
-		}
-		if _, err := env.Run(ctx, wd, "", step[0], step[1:]...); err != nil {
-			return "", err
-		}
+	backend := path.Join(dir, "apps/backend")
+	toolchain, err := goToolchain(backend)
+	if err != nil {
+		return "", err
+	}
+	if _, err := env.Run(ctx, backend, "", "env", "GOTOOLCHAIN="+toolchain, "go", "generate", "./..."); err != nil {
+		return "", err
+	}
+	if _, err := env.Run(ctx, dir, "", "gt", "modify", "--all", "--no-interactive"); err != nil {
+		return "", err
 	}
 	return newest, nil
+}
+
+func goToolchain(backend string) (string, error) {
+	mod, err := os.ReadFile(path.Join(backend, "go.mod"))
+	if err != nil {
+		return "", fmt.Errorf("read go.mod: %w", err)
+	}
+	for _, line := range strings.Split(string(mod), "\n") {
+		if f := strings.Fields(line); len(f) >= 2 && f[0] == "toolchain" {
+			return f[1], nil
+		}
+	}
+	return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.toolchain", backend+"/go.mod has no toolchain line")
 }
