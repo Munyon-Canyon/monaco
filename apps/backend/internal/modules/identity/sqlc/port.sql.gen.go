@@ -14,7 +14,7 @@ import (
 )
 
 const memberWalletByUserID = `-- name: MemberWalletByUserID :one
-SELECT w.privy_wallet_id, w.address
+SELECT w.privy_wallet_id, w.address, w.created_at
 FROM user_wallets w
 JOIN users u ON u.id = w.user_id
 WHERE w.user_id = $1::uuid AND u.deleted_at IS NULL
@@ -23,17 +23,18 @@ WHERE w.user_id = $1::uuid AND u.deleted_at IS NULL
 type MemberWalletByUserIDRow struct {
 	PrivyWalletID string
 	Address       string
+	CreatedAt     time.Time
 }
 
 func (q *Queries) MemberWalletByUserID(ctx context.Context, userID uuid.UUID) (MemberWalletByUserIDRow, error) {
 	row := q.db.QueryRow(ctx, memberWalletByUserID, userID)
 	var i MemberWalletByUserIDRow
-	err := row.Scan(&i.PrivyWalletID, &i.Address)
+	err := row.Scan(&i.PrivyWalletID, &i.Address, &i.CreatedAt)
 	return i, err
 }
 
 const memberWalletsAfter = `-- name: MemberWalletsAfter :many
-SELECT w.user_id, w.privy_wallet_id, w.address
+SELECT w.user_id, w.privy_wallet_id, w.address, w.created_at
 FROM user_wallets w
 JOIN users u ON u.id = w.user_id
 WHERE w.user_id > $1::uuid AND u.deleted_at IS NULL
@@ -46,22 +47,21 @@ type MemberWalletsAfterParams struct {
 	PageSize int64
 }
 
-type MemberWalletsAfterRow struct {
-	UserID        uuid.UUID
-	PrivyWalletID string
-	Address       string
-}
-
-func (q *Queries) MemberWalletsAfter(ctx context.Context, arg MemberWalletsAfterParams) ([]MemberWalletsAfterRow, error) {
+func (q *Queries) MemberWalletsAfter(ctx context.Context, arg MemberWalletsAfterParams) ([]UserWallet, error) {
 	rows, err := q.db.Query(ctx, memberWalletsAfter, arg.After, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []MemberWalletsAfterRow
+	var items []UserWallet
 	for rows.Next() {
-		var i MemberWalletsAfterRow
-		if err := rows.Scan(&i.UserID, &i.PrivyWalletID, &i.Address); err != nil {
+		var i UserWallet
+		if err := rows.Scan(
+			&i.UserID,
+			&i.PrivyWalletID,
+			&i.Address,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -368,9 +368,16 @@ func TestQueries_memberWalletReadsTheWalletOfAKnownUser(t *testing.T) {
 	owner := f.seed(t, portSeed{wallet: true})
 	noWallet := f.seed(t, portSeed{})
 	ctx := t.Context()
-	want := identity.MemberWallet{UserID: owner.ID, PrivyWalletID: owner.PrivyWalletID, Address: owner.Address}
+	created := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
+	if _, err := f.pool.Exec(ctx, `UPDATE user_wallets SET created_at = $2 WHERE user_id = $1`,
+		owner.ID.UUID(), created); err != nil {
+		t.Fatal(err)
+	}
 	if got, err := f.port.PrivyUserID(ctx, owner.ID); err != nil || got != owner.PrivyUserID {
 		t.Fatalf("PrivyUserID = %q, %v, want %q", got, err, owner.PrivyUserID)
+	}
+	want := identity.MemberWallet{
+		UserID: owner.ID, PrivyWalletID: owner.PrivyWalletID, Address: owner.Address, CreatedAt: created,
 	}
 	if got, err := f.port.MemberWallet(ctx, owner.ID); err != nil || got != want {
 		t.Fatalf("MemberWallet = %+v, %v, want %+v", got, err, want)
