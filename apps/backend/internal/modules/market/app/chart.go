@@ -84,7 +84,7 @@ func (c *AssetChart) Handle(ctx context.Context, symbol, raw string) (Chart, err
 		out.Empty = true
 		return out, nil
 	}
-	since, ok, err := c.since(ctx, mint, span, now)
+	since, ok, err := c.since(ctx, asset, span, now)
 	if err != nil {
 		return Chart{}, err
 	}
@@ -152,9 +152,13 @@ func (c *AssetChart) until(ctx context.Context, mint string, now time.Time) (tim
 }
 
 func (c *AssetChart) since(
-	ctx context.Context, mint string, span domain.ChartRange, now time.Time,
+	ctx context.Context, asset domain.Asset, span domain.ChartRange, now time.Time,
 ) (time.Time, bool, error) {
+	mint := asset.Mint.String()
 	if window, bounded := span.Window(); bounded {
+		if opened, ok := lastSessionOpen(asset, span, now); ok {
+			return opened, true, nil
+		}
 		return now.Add(-window), true, nil
 	}
 	ts, err := c.read.EarliestPrice(ctx, mint)
@@ -165,6 +169,17 @@ func (c *AssetChart) since(
 		return time.Time{}, false, errs.Wrap(err, errs.CodeOf(err), "market.EarliestPrice", slog.String("mint", mint))
 	}
 	return ts, true, nil
+}
+
+func lastSessionOpen(asset domain.Asset, span domain.ChartRange, now time.Time) (time.Time, bool) {
+	if span != domain.Chart1D || asset.Kind != domain.KindEquity {
+		return time.Time{}, false
+	}
+	session, err := domain.Session(asset.Kind, now)
+	if err != nil || session.State == domain.StateOpen || session.LastSessionOpen.IsZero() {
+		return time.Time{}, false
+	}
+	return session.LastSessionOpen, true
 }
 
 func (c *AssetChart) points(
