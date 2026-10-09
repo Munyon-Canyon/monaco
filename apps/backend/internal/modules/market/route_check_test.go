@@ -164,7 +164,7 @@ func TestCheckRoute_AssetUntradable(t *testing.T) {
 	if errs.KindOf(errs.CodeAssetUntradable) != errs.KindBlocked || errs.Retryable(errs.CodeAssetUntradable) {
 		t.Fatal("asset_untradable must be blocked and not retryable")
 	}
-	if errs.Message(errs.CodeAssetUntradable) != "This asset can't be traded right now" {
+	if errs.Message(errs.CodeAssetUntradable) != "This asset can't be traded right now." {
 		t.Fatalf("message = %q", errs.Message(errs.CodeAssetUntradable))
 	}
 }

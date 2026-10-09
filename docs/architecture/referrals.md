@@ -100,7 +100,7 @@ Backend checks, in one `uow.Do` ([Patterns](backend-platform.md#patterns-and-whe
 
 `AttachReferral` is the only attribution path (default 2026-09-27). Universal Link, clipboard and manual codes all arrive after the session exists, so one command covers all three sources. The `referrals` consumer of `user.created` (flow 1) only mints the random code; it never attributes.
 
-On success: insert `referrals` row (`status = attributed`) and append the `events` row `referral.attributed` in the same transaction. Consumers do the rest. `social` auto-follows both ways (`follows.source = 'referral'`, [followers.md](followers.md)); `referrals` never writes `follows`. No push on attribution for MVP ([notifications.md](notifications.md#what-notifies-mvp)). Failure returns an `errs` code whose table message the app shows in a toast ("That code isn't valid").
+On success: insert `referrals` row (`status = attributed`) and append the `events` row `referral.attributed` in the same transaction. Consumers do the rest. `social` auto-follows both ways (`follows.source = 'referral'`, [followers.md](followers.md)); `referrals` never writes `follows`. No push on attribution for MVP ([notifications.md](notifications.md#what-notifies-mvp)). Failure returns an `errs` code whose table message the app shows in a toast ("That code isn't valid.").
 
 `referral.attributed` has its own row in the flows table, with `social` and `analytics` as consumers (platform default 2026-09-27, with `analytics` added for the funnel).
 

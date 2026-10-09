@@ -127,6 +127,13 @@ func TestEveryRowHasAKindAndAMessage(t *testing.T) {
 		if row.Message == "" {
 			t.Errorf("%q: empty Message", code)
 		}
+		if !strings.HasSuffix(row.Message, ".") {
+			t.Errorf(
+				"%q: Message %q must end in a period, because a push appends a sentence after it",
+				code,
+				row.Message,
+			)
+		}
 	}
 }
 

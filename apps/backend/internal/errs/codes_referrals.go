@@ -10,7 +10,7 @@ const (
 
 func (codeFiles) Referrals() map[Code]Row {
 	return map[Code]Row{
-		CodeReferralCodeUnknown: {Name: "ReferralCodeUnknown", Kind: KindNotFound, Message: "That code isn't valid"},
+		CodeReferralCodeUnknown: {Name: "ReferralCodeUnknown", Kind: KindNotFound, Message: "That code isn't valid."},
 		CodeReferralCodePending: {
 			Name: "ReferralCodePending", Kind: KindUnavailable, Retryable: true,
 			Message: "Your invite code is still being created. Try again in a moment.",
