@@ -65,7 +65,7 @@ struct ProposalCard: View {
             }
             tracker
             if paused && summary.status == .open {
-                Text(ProposalCardCopy.pausedCaption)
+                Text(ProposalCardCopy.pausedCaption(isSell: isSell))
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
                     .accessibilityIdentifier("proposal-paused-caption")
@@ -157,9 +157,16 @@ struct ProposalCard: View {
 
     @ViewBuilder private var amount: some View {
         if isSell {
-            Text(shareLabel)
-                .moneyFont(.large)
-                .foregroundStyle(summary.status == .open ? MonacoTheme.ink : MonacoTheme.muted)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(shareLabel)
+                    .moneyFont(.large)
+                    .foregroundStyle(summary.status == .open ? MonacoTheme.ink : MonacoTheme.muted)
+                if summary.quoteOutAmount > 0 {
+                    Text("About \(UsdAmountFormatter.format(micros: summary.quoteOutAmount))")
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                }
+            }
         } else if let micros = summary.usdcMicros {
             MoneyText(micros: micros, style: .large)
         }
@@ -176,18 +183,18 @@ struct ProposalCard: View {
                     .foregroundStyle(MonacoTheme.muted)
                     .lineLimit(1)
             }
+            .frame(minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
     private var tracker: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            HStack(spacing: 4) {
-                ForEach(0..<summary.tally.voters, id: \.self) { index in
-                    Circle().fill(index < summary.tally.yes + summary.tally.no ? MonacoTheme.ink : MonacoTheme.hairline)
-                        .frame(width: 8, height: 8)
-                }
-            }
+        let needed = max(summary.tally.needed, 1)
+        return VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            ProgressView(value: CGFloat(min(summary.tally.yes, needed)), total: CGFloat(needed))
+                .tint(MonacoTheme.brandFill)
+                .accessibilityHidden(true)
             Text(
                 ProposalCardCopy.tracker(
                     voted: summary.tally.yes + summary.tally.no, voters: summary.tally.voters,
@@ -202,7 +209,8 @@ struct ProposalCard: View {
         if canVote {
             if let ballot, !changing {
                 HStack {
-                    Text("✓ You voted \(ballot)").font(MonacoTheme.Typo.calloutStrong)
+                    Label("You voted \(ballot.capitalized)", systemImage: "checkmark")
+                        .font(MonacoTheme.Typo.calloutStrong)
                         .foregroundStyle(MonacoTheme.brand)
                     Spacer()
                     Button("Change") { changing = true }.buttonStyle(.monacoSecondary)
@@ -234,10 +242,7 @@ struct ProposalCard: View {
         }
     }
 
-    private var ageLabel: String {
-        let minutes = max(0, Int(Date.now.timeIntervalSince(summary.createdAt) / 60))
-        return minutes < 60 ? "\(minutes)m" : "\(minutes / 60)h"
-    }
+    private var ageLabel: String { ProposalCardCopy.age(since: summary.createdAt, now: .now) }
 
     private var shareLabel: String { Self.shareLabel(summary: summary, asset: asset) }
 

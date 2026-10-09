@@ -1,7 +1,9 @@
 import Foundation
 
 public enum ProposalCardCopy {
-    public static let pausedCaption = "Trading is paused. If this passes, it won't buy until trading resumes."
+    public static func pausedCaption(isSell: Bool) -> String {
+        "Trading is paused. If this passes, it won't \(isSell ? "sell" : "buy") until trading resumes."
+    }
 
     public static func closes(at expiry: Date, now: Date) -> String {
         ProposalTimeFormatter.closesLabel(expiry: expiry, now: now)
@@ -27,6 +29,7 @@ public enum ProposalCardCopy {
 
     public static func age(since created: Date, now: Date) -> String {
         let minutes = max(0, Int(now.timeIntervalSince(created) / 60))
+        if minutes < 1 { return "now" }
         if minutes < 60 { return "\(minutes)m" }
         if minutes < 1440 { return "\(minutes / 60)h" }
         return "\(minutes / 1440)d"
@@ -49,7 +52,8 @@ public enum ProposalCardCopy {
         formatter.numberStyle = .decimal
         formatter.maximumFractionDigits = 4
         let count = formatter.string(from: shares as NSDecimalNumber) ?? "\(shares)"
-        return "about \(count) \(unit) at \(priceLabel)"
+        let noun = shares == 1 ? String(unit.dropLast()) : unit
+        return "about \(count) \(noun) at \(priceLabel)"
     }
 
     private static func pricePerShareMicros(usdcMicros: Int64, quoteOut: Int64, decimals: Int) -> UInt64? {

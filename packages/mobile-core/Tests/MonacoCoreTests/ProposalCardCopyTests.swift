@@ -33,14 +33,20 @@ final class ProposalCardCopyTests: XCTestCase {
 
     func testCaptionCopyIsTheScreenMapSentence() async throws {
         XCTAssertEqual(
-            ProposalCardCopy.pausedCaption, "Trading is paused. If this passes, it won't buy until trading resumes.")
+            ProposalCardCopy.pausedCaption(isSell: false),
+            "Trading is paused. If this passes, it won't buy until trading resumes.")
+        XCTAssertEqual(
+            ProposalCardCopy.pausedCaption(isSell: true),
+            "Trading is paused. If this passes, it won't sell until trading resumes.")
     }
 
     func testAge() {
         let now = Date(timeIntervalSince1970: 100_000)
         XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(-3 * 3600), now: now), "3h")
         XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(-50 * 3600), now: now), "2d")
-        XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(60), now: now), "0m")
+        XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(60), now: now), "now")
+        XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(-30), now: now), "now")
+        XCTAssertEqual(ProposalCardCopy.age(since: now.addingTimeInterval(-5 * 60), now: now), "5m")
     }
 
     func testExpectedForABuyNamesSharesAndPrice() {
@@ -56,6 +62,17 @@ final class ProposalCardCopyTests: XCTestCase {
             ProposalCardCopy.expected(
                 isSell: false, quoteOut: 123_456_789, usdcMicros: 100_000_000, decimals: 8, kind: .stock),
             "about 1.2346 shares at $81.00")
+    }
+
+    func testExpectedForExactlyOneIsSingular() {
+        XCTAssertEqual(
+            ProposalCardCopy.expected(
+                isSell: false, quoteOut: 100_000_000, usdcMicros: 100_000_000, decimals: 8, kind: .stock),
+            "about 1 share at $100.00")
+        XCTAssertEqual(
+            ProposalCardCopy.expected(
+                isSell: false, quoteOut: 100_000_000, usdcMicros: 100_000_000, decimals: 8, kind: .preIpo),
+            "about 1 token at $100.00")
     }
 
     func testExpectedForASellIsTheDollarProceeds() {
