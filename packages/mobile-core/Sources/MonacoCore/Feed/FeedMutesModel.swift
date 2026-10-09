@@ -38,7 +38,9 @@ public final class FeedMutesModel {
     }
 
     public static func label(_ mute: Components.Schemas.FeedMute) -> String {
-        if let label = mute.label, !label.isEmpty { return label }
+        if let label = mute.label, !label.isEmpty {
+            return mute.targetType == FeedMuteTarget.Kind.asset.rawValue ? AssetSymbolFormatter.display(label) : label
+        }
         return FeedKind(rawValue: mute.targetId)?.muteLabel ?? "this"
     }
 

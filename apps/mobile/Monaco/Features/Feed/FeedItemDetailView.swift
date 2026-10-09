@@ -23,7 +23,7 @@ struct FeedItemDetailView: View {
                 FeedItemDetailContent(model: model)
             }
         }
-        .navigationTitle(CommentsCopy.title)
+        .navigationTitle("Post")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-item-detail")

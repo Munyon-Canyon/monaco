@@ -16,20 +16,23 @@ struct FeedView: View {
             MonacoTheme.canvas.ignoresSafeArea()
             if let model {
                 FeedScreen(model: model)
+            } else {
+                MonacoRowSkeleton(rows: 5, markShape: .circle)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Loading the feed")
+                    .accessibilityIdentifier("feed-loading")
             }
         }
         .monacoTopLevelHeader(title: FeedTab.title)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    NavigationLink("Muted", value: AnyAppRoute(FeedMutesRoute()))
-                        .accessibilityIdentifier("feed-muted-link")
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .frame(minWidth: 44, minHeight: 44)
+                NavigationLink(value: AnyAppRoute(FeedMutesRoute())) {
+                    Image(systemName: "speaker.slash")
+                        .frame(width: 44, height: 44)
                 }
-                .accessibilityLabel("More")
-                .accessibilityIdentifier("feed-menu")
+                .accessibilityLabel("Muted")
+                .accessibilityIdentifier("feed-muted-link")
             }
         }
         .accessibilityElement(children: .contain)
@@ -84,6 +87,7 @@ private struct FeedScreen: View {
             }
             .padding(.vertical, MonacoTheme.Space.m)
         }
+        .scrollDismissesKeyboard(.interactively)
         .refreshable { await model.refresh() }
         .monacoCanvas()
         .onChange(of: search) { _, text in model.setSearch(text) }

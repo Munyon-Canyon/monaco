@@ -18,6 +18,15 @@ final class FeedMutesModelTests: XCTestCase {
         XCTAssertEqual(model.mutes.map(FeedMutesModel.label), ["Maya proposed", "Trades"])
     }
 
+    func testAnOldAssetMuteSavedWithTheXStockSymbolListsAsTheTicker() async {
+        let old = """
+            [{"target_type":"asset","target_id":"00000000-0000-7000-8000-0000000a0001","label":"AAPLx","created_at":"2026-10-04T12:00:00Z"}]
+            """
+        let model = makeModel(StubTransport(.json(.ok, old)))
+        await model.load()
+        XCTAssertEqual(model.mutes.map(FeedMutesModel.label), ["AAPL"])
+    }
+
     func testNoMutesIsEmpty() async {
         let model = makeModel(StubTransport(.json(.ok, "[]")))
         await model.load()
