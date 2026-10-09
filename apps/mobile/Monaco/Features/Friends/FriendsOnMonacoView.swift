@@ -6,6 +6,14 @@ struct FriendsOnMonacoView: View {
     @Bindable var model: FriendsOnMonacoModel
 
     var body: some View {
+        content
+            .onAppear {
+                guard model.phase == .loaded || model.phase == .empty else { return }
+                Task { await model.reloadMatches() }
+            }
+    }
+
+    @ViewBuilder private var content: some View {
         switch model.phase {
         case .idle, .checking:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -25,8 +33,13 @@ struct FriendsOnMonacoView: View {
                 Task { await model.retry() }
             }
         case .empty:
-            EmptyState(title: "None of your contacts are on Monaco yet")
-                .accessibilityIdentifier("friends-empty")
+            VStack(spacing: MonacoTheme.Space.m) {
+                EmptyState(title: "None of your contacts are on Monaco yet", message: "Invite them with your link.")
+                NavigationLink("Invite friends", value: AnyAppRoute(InviteRoute()))
+                    .buttonStyle(.monacoSecondary)
+                    .accessibilityIdentifier("friends-invite")
+            }
+            .accessibilityIdentifier("friends-empty")
         case .loaded:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("From your contacts")
@@ -37,7 +50,13 @@ struct FriendsOnMonacoView: View {
                             isLast: index == model.friends.count - 1,
                             isToggling: model.isToggling(friend.id)
                         ) {
-                            Task { await model.follow(friend.id) }
+                            Task {
+                                if friend.followedByMe {
+                                    await model.unfollow(friend.id)
+                                } else {
+                                    await model.follow(friend.id)
+                                }
+                            }
                         }
                     }
                 }
@@ -50,7 +69,7 @@ private struct FriendMatchRow: View {
     let friend: FriendOnMonaco
     let isLast: Bool
     let isToggling: Bool
-    let follow: () -> Void
+    let toggle: () -> Void
 
     private var name: String { friend.displayName.isEmpty ? friend.handle : friend.displayName }
 
@@ -67,7 +86,7 @@ private struct FriendMatchRow: View {
             } trailing: {
                 FollowToggle(
                     isFollowing: friend.followedByMe, isBusy: isToggling,
-                    action: friend.followedByMe ? nil : follow,
+                    action: toggle,
                     identifier: "friends-follow-\(friend.handle)")
             }
         }

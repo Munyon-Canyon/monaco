@@ -22,6 +22,7 @@ struct FollowListView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: UserProfileModel?
+    @State private var hasLoaded = false
 
     private var title: String {
         switch kind {
@@ -37,6 +38,14 @@ struct FollowListView: View {
         }
     }
 
+    private var isOwnFollowing: Bool {
+        kind == .following && userID == environment.viewer?.userID
+    }
+
+    private var emptyMessage: String? { isOwnFollowing ? "Find people you know." : nil }
+
+    private var findFriends: AnyAppRoute? { isOwnFollowing ? AnyAppRoute(FriendsRoute()) : nil }
+
     var body: some View {
         ScrollView { content }
             .refreshable { await reload() }
@@ -45,8 +54,12 @@ struct FollowListView: View {
             .navigationBarTitleDisplayMode(.inline)
             .task(id: userID) {
                 let model = prepared()
-                guard needsFirstLoad(model) else { return }
-                await reload()
+                if needsFirstLoad(model) { await reload() }
+                hasLoaded = true
+            }
+            .onAppear {
+                guard hasLoaded, !isLoadingMore else { return }
+                Task { await reload() }
             }
             .onChange(of: model?.toastTick) {
                 if let error = model?.lastError { toasts.show(error) }
@@ -61,8 +74,15 @@ struct FollowListView: View {
                 .accessibilityLabel("Loading \(title)")
                 .accessibilityIdentifier("follow-list-loading")
         case .empty:
-            EmptyState(title: emptyTitle)
-                .accessibilityIdentifier("follow-list-empty")
+            VStack(spacing: MonacoTheme.Space.m) {
+                EmptyState(title: emptyTitle, message: emptyMessage)
+                if let findFriends {
+                    NavigationLink("Find friends", value: findFriends)
+                        .buttonStyle(.monacoSecondary)
+                        .accessibilityIdentifier("follow-list-find-friends")
+                }
+            }
+            .accessibilityIdentifier("follow-list-empty")
         case .failed:
             MonacoErrorRow(thing: "this list", identifier: "follow-list-error") {
                 Task { await reload() }

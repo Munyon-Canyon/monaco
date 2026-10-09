@@ -48,6 +48,7 @@ public final class FriendsOnMonacoModel {
     private let chunkSize: Int
     private var generation = 0
     private var toggling: Set<String> = []
+    private var hashesPosted = false
 
     public init(
         api: APIClient, contacts: any ContactsSource, defaultRegion: String,
@@ -87,23 +88,53 @@ public final class FriendsOnMonacoModel {
 
     public func retry() async {
         guard phase != .checking else { return }
-        await upload()
+        if hashesPosted {
+            await reloadMatches()
+        } else {
+            await upload()
+        }
+    }
+
+    public func reloadMatches() async {
+        guard phase != .checking else { return }
+        generation += 1
+        let mine = generation
+        let hadRows = phase == .loaded || phase == .empty
+        if !hadRows { phase = .checking }
+        do {
+            let loaded = try await loadPages()
+            guard mine == generation else { return }
+            friends = loaded
+            phase = loaded.isEmpty ? .empty : .loaded
+        } catch {
+            guard mine == generation else { return }
+            if hadRows { return }
+            phase = .failed
+        }
     }
 
     public func follow(_ friendID: String) async {
+        await change(friendID, to: true)
+    }
+
+    public func unfollow(_ friendID: String) async {
+        await change(friendID, to: false)
+    }
+
+    private func change(_ friendID: String, to following: Bool) async {
         guard let index = friends.firstIndex(where: { $0.id == friendID }) else { return }
-        guard !friends[index].followedByMe, !toggling.contains(friendID) else { return }
+        guard friends[index].followedByMe != following, !toggling.contains(friendID) else { return }
         toggling.insert(friendID)
         defer { toggling.remove(friendID) }
-        friends[index].followedByMe = true
+        friends[index].followedByMe = following
         do {
-            let following = try await sendFollow(friendID)
+            let result = try await send(friendID, following: following)
             if let current = friends.firstIndex(where: { $0.id == friendID }) {
-                friends[current].followedByMe = following
+                friends[current].followedByMe = result
             }
         } catch {
             if let current = friends.firstIndex(where: { $0.id == friendID }) {
-                friends[current].followedByMe = false
+                friends[current].followedByMe = !following
             }
             show(APIError(error))
         }
@@ -127,6 +158,7 @@ public final class FriendsOnMonacoModel {
         do {
             let digests = ContactHashing.hashes(for: numbers, defaultRegion: defaultRegion)
             try await post(ContactHashing.chunks(digests, size: chunkSize))
+            hashesPosted = true
             let loaded = try await loadPages()
             guard mine == generation else { return }
             friends = loaded
@@ -169,13 +201,23 @@ public final class FriendsOnMonacoModel {
         return rows
     }
 
-    private func sendFollow(_ friendID: String) async throws -> Bool {
+    private func send(_ friendID: String, following: Bool) async throws -> Bool {
         let submission = IdempotentSubmission()
-        let state = try await api.submit(submission, payload: friendID, operation: "postUserFollow") { client, key in
-            try await client.postUserFollow(
+        if following {
+            let operation = "postUserFollow"
+            let state = try await api.submit(submission, payload: friendID, operation: operation) { client, key in
+                try await client.postUserFollow(
+                    path: .init(id: friendID),
+                    headers: .init(idempotencyKey: key),
+                    body: .json(.init(source: "phone"))
+                ).ok.body.json
+            }
+            return state.following
+        }
+        let state = try await api.submit(submission, payload: friendID, operation: "deleteUserFollow") { client, key in
+            try await client.deleteUserFollow(
                 path: .init(id: friendID),
-                headers: .init(idempotencyKey: key),
-                body: .json(.init(source: "phone"))
+                headers: .init(idempotencyKey: key)
             ).ok.body.json
         }
         return state.following

@@ -117,6 +117,58 @@ final class FriendsOnMonacoModelTests: XCTestCase {
         await assertNoContactSecrets(transport)
     }
 
+    func testUnfollowSendsDeleteAndRollsBackOnFailure() async {
+        let contacts = FakeContacts(access: .granted, numbers: [])
+        let followed = Self.page.replacingOccurrences(
+            of: #""followed_by_me":false"#, with: #""followed_by_me":true"#)
+        let transport = StubTransport(scripted: [
+            .json(.ok, followed),
+            Self.problem(500, "internal", "Something went wrong."),
+            .json(.ok, #"{"following":false}"#),
+        ])
+        let model = makeModel(transport, contacts: contacts, chunkSize: 2000)
+        await model.loadIfGranted()
+        XCTAssertEqual(model.friends.first?.followedByMe, true)
+        await model.unfollow(Self.friendID)
+        XCTAssertEqual(model.friends.first?.followedByMe, true)
+        XCTAssertEqual(model.toastTick, 1)
+        await model.unfollow(Self.friendID)
+        XCTAssertEqual(model.friends.first?.followedByMe, false)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.last?.method, .delete)
+        XCTAssertEqual(sent.last?.path, "/v1/users/\(Self.friendID)/follow")
+    }
+
+    func testReloadMatchesPostsNoHashes() async {
+        let contacts = FakeContacts(access: .granted, numbers: [Self.rawNumber])
+        let transport = StubTransport(scripted: [.json(.ok, Self.emptyPage), .json(.ok, Self.page)])
+        let model = makeModel(transport, contacts: contacts, chunkSize: 2000)
+        await model.loadIfGranted()
+        XCTAssertEqual(model.phase, .loaded)
+        await model.reloadMatches()
+        XCTAssertEqual(model.phase, .loaded)
+        let sent = await transport.sent
+        XCTAssertEqual(
+            Self.paths(sent), ["/v1/me/contacts/match", "/v1/me/contacts/matches", "/v1/me/contacts/matches"])
+    }
+
+    func testRetryAfterAMatchesFailureDoesNotPostHashesAgain() async {
+        let contacts = FakeContacts(access: .granted, numbers: [Self.rawNumber])
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.emptyPage),
+            Self.problem(500, "internal", "Something went wrong."),
+            .json(.ok, Self.page),
+        ])
+        let model = makeModel(transport, contacts: contacts, chunkSize: 2000)
+        await model.loadIfGranted()
+        XCTAssertEqual(model.phase, .failed)
+        await model.retry()
+        XCTAssertEqual(model.phase, .loaded)
+        let sent = await transport.sent
+        XCTAssertEqual(
+            Self.paths(sent), ["/v1/me/contacts/match", "/v1/me/contacts/matches", "/v1/me/contacts/matches"])
+    }
+
     func testARateLimitKeepsTheListAndToastsTheProblemMessage() async throws {
         let contacts = FakeContacts(access: .granted, numbers: [])
         let transport = StubTransport(scripted: [
