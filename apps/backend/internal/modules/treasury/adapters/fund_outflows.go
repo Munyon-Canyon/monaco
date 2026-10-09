@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -18,4 +19,8 @@ func (o FundOutflows) InFlightMicros(ctx context.Context, user ids.UserID) (mone
 		return money.Micros{}, err
 	}
 	return money.ParseMicros(raw)
+}
+
+func (o FundOutflows) LastChange(ctx context.Context, user ids.UserID) (time.Time, error) {
+	return sqlc.New(o.reads).LastFundChange(ctx, user.UUID())
 }

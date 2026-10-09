@@ -48,7 +48,9 @@ func (w signingWallet) SigningWallet(context.Context, ids.UserID) (chain.Wallet,
 
 type chainBalance struct{ micros uint64 }
 
-func (b chainBalance) TokenBalance(context.Context, chain.SolanaAddress, chain.Mint) (money.BaseUnits, error) {
+func (b chainBalance) TokenBalanceAt(
+	context.Context, chain.SolanaAddress, chain.Mint, string,
+) (money.BaseUnits, error) {
 	return money.NewBaseUnits(b.micros, 6), nil
 }
 

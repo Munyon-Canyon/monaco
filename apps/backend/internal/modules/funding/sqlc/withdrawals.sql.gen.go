@@ -131,6 +131,19 @@ func (q *Queries) InsertWithdrawal(ctx context.Context, arg InsertWithdrawalPara
 	return err
 }
 
+const lastWithdrawalChange = `-- name: LastWithdrawalChange :one
+SELECT COALESCE(MAX(GREATEST(created_at, submitted_at, completed_at)), 'epoch')::timestamptz AS changed_at
+FROM withdrawals
+WHERE user_id = $1
+`
+
+func (q *Queries) LastWithdrawalChange(ctx context.Context, userID uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRow(ctx, lastWithdrawalChange, userID)
+	var changed_at time.Time
+	err := row.Scan(&changed_at)
+	return changed_at, err
+}
+
 const listOpenWithdrawals = `-- name: ListOpenWithdrawals :many
 SELECT id, status, (-amount_micros)::bigint AS amount, tx_signature, created_at
 FROM withdrawals

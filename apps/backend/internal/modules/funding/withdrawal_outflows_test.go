@@ -3,9 +3,13 @@ package funding_test
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -52,6 +56,60 @@ func TestWithdrawalOutflows_sumsCreatedAndSubmitted(t *testing.T) {
 	}
 	if _, err := (app.WithdrawalOutflows{Reads: pool}).InFlightMicros(t.Context(), user.ID); err == nil {
 		t.Fatal("InFlightMicros error = nil")
+	}
+}
+
+func TestWithdrawalOutflows_lastChangeIsTheUsersLatestMove(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	other := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	outflows, q := app.WithdrawalOutflows{Reads: pool}, sqlc.New(pool)
+	at := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	tick := func() time.Time { at = at.Add(time.Second); return at }
+	assertLast := func(want time.Time) {
+		t.Helper()
+		if got, err := outflows.LastChange(t.Context(), user.ID); err != nil || !got.Equal(want) {
+			t.Fatalf("LastChange = %v, %v, want %v", got, err, want)
+		}
+	}
+	insert := func(owner ids.UserID) uuid.UUID {
+		t.Helper()
+		id := ids.Real{}.NewV7()
+		if err := q.InsertWithdrawal(t.Context(), sqlc.InsertWithdrawalParams{
+			ID: id, UserID: owner.UUID(), ToAddress: "to", AmountMicros: "1000000", CreatedAt: tick(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	moved := func(n int64, err error) {
+		t.Helper()
+		if err != nil || n != 1 {
+			t.Fatalf("move = %d, %v, want one row", n, err)
+		}
+		assertLast(at)
+	}
+	assertLast(time.Unix(0, 0))
+	confirmed := insert(user.ID)
+	assertLast(at)
+	moved(q.SubmitWithdrawal(t.Context(), sqlc.SubmitWithdrawalParams{
+		ID: confirmed, SignedTx: []byte{1}, TxSignature: confirmed.String(), LastValidBlockHeight: "9",
+		SubmittedAt: tick(),
+	}))
+	moved(q.ConfirmWithdrawal(t.Context(), sqlc.ConfirmWithdrawalParams{ID: confirmed, CompletedAt: tick()}))
+	failed := insert(user.ID)
+	assertLast(at)
+	moved(q.FailWithdrawal(t.Context(), sqlc.FailWithdrawalParams{
+		ID: failed, FailCode: "privy_unavailable", CompletedAt: tick(),
+	}))
+	latest := at
+	insert(other.ID)
+	assertLast(latest)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := outflows.LastChange(ctx, user.ID); err == nil {
+		t.Fatal("LastChange on a canceled context error = nil")
 	}
 }
 

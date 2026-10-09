@@ -38,6 +38,28 @@ func TestTokenBalance_sumsEveryAccountForTheMint(t *testing.T) {
 	}
 }
 
+func TestTokenBalanceAt_readsAtTheCommitmentItWasGiven(t *testing.T) {
+	t.Parallel()
+	options := func(level string) string { return `{"commitment":"` + level + `","encoding":"jsonParsed"}` }
+	for _, level := range []string{"confirmed", "finalized"} {
+		c, u, _ := overFakes(t)
+		got, err := c.TokenBalanceAt(t.Context(), member, usdc(), level)
+		if err != nil || got != money.NewBaseUnits(25_500_000, 6) {
+			t.Fatalf("TokenBalanceAt(%s) = %v, %v", level, got, err)
+		}
+		if p := string(u.requests()[0].params[2]); p != options(level) {
+			t.Fatalf("TokenBalanceAt(%s) options = %s", level, p)
+		}
+	}
+	c, u, _ := overFakes(t)
+	if _, err := c.TokenBalance(t.Context(), member, usdc()); err != nil {
+		t.Fatal(err)
+	}
+	if p := string(u.requests()[0].params[2]); p != options("confirmed") {
+		t.Fatalf("TokenBalance options = %s, want confirmed", p)
+	}
+}
+
 func TestTokenBalance_rejectsBadAmounts(t *testing.T) {
 	t.Parallel()
 	account := func(amount string, decimals string) string {
