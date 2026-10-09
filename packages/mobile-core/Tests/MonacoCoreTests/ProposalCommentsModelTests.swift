@@ -59,6 +59,19 @@ final class ProposalCommentsModelTests: XCTestCase {
         XCTAssertEqual(paths, ["/v1/proposals/prop-1/comments", "/v1/feed/feed-9"])
     }
 
+    func testAProposalWhoseCommentsFailedToLoadDoesNotReportAFailedCanCommentCheck() async throws {
+        let transport = StubTransport(scripted: [.json(.internalServerError, "{}")])
+        let model = proposalModel(transport)
+
+        await model.load()
+
+        guard case .failed = model.phase else { return XCTFail("\(model.phase)") }
+        XCTAssertFalse(model.canCommentFailed)
+        XCTAssertFalse(model.canCommentKnown)
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths, ["/v1/proposals/prop-1/comments"])
+    }
+
     func testAProposalDeleteGoesThroughTheFeedCommentRoute() async throws {
         let mine = Thread(comment: .sample("c1", mine: true), replies: [])
         let transport = StubTransport(scripted: [

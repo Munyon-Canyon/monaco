@@ -9,7 +9,7 @@ struct CommentThreadView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoSectionHeader(CommentsCopy.title, count: model.rows.count)
+            MonacoSectionHeader(CommentsCopy.title, count: model.commentCount)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
             content
         }
