@@ -130,6 +130,8 @@ public final class ProposalDetailModel {
     private let refresher: HintRefresher
     private let submission = IdempotentSubmission()
     private let retrySubmission = IdempotentSubmission()
+    private let voting: ProposalVoteModel
+    private var retriedSwapID: String?
     private let proposeService: any ProposeService
 
     public init(id: String, cabalID: String, repository: ProposalsRepository, hints: any HintSource) {
@@ -137,6 +139,7 @@ public final class ProposalDetailModel {
         self.cabalID = cabalID
         self.repository = repository
         self.hints = hints
+        voting = ProposalVoteModel(repository: repository)
         proposeService = LiveProposeService(api: repository.api)
         let hook = ProposalReloadHook()
         refresher = HintRefresher { await hook.run?() }
@@ -167,23 +170,31 @@ public final class ProposalDetailModel {
         }
     }
     public func vote(_ choice: String) async -> Bool {
+        guard let current = value?.summary else { return false }
         isVoting = true
-        do {
-            try await repository.vote(id: id, choice: choice, submission: submission)
-            isVoting = false
-        } catch {
-            isVoting = false
-            errorMessage = ToastCopy.message(for: APIError(error))
+        defer { isVoting = false }
+        guard await voting.vote(choice, on: current) else {
+            errorMessage = voting.errorMessage
             return false
         }
         await load()
         return true
     }
 
+    public var summary: ProposalSummary? {
+        guard let current = value?.summary else { return nil }
+        return voting.applying(isRetryPending ? ProposalSummary(retrying: current) : current)
+    }
+
+    private var isRetryPending: Bool {
+        guard let retriedSwapID, let current = value?.summary else { return false }
+        return current.swap?.id == retriedSwapID && [.passed, .executionBlocked].contains(current.status)
+    }
+
     public var canWithdraw: Bool { value?.summary.canWithdraw == true }
 
     public var retryableSwapID: String? {
-        guard let swap = value?.summary.swap, swap.retryable else { return nil }
+        guard !isRetryPending, let swap = value?.summary.swap, swap.retryable else { return nil }
         return swap.id
     }
 
@@ -194,6 +205,7 @@ public final class ProposalDetailModel {
         defer { isRetrying = false }
         do {
             try await repository.retrySwap(id: swapID, submission: retrySubmission)
+            retriedSwapID = swapID
             didRetry = true
             errorMessage = nil
             await load()
@@ -333,8 +345,14 @@ private final class ProposalReloadHook {
 public final class ProposalCardContext {
     public private(set) var members: [ProposalMember] = []
     public private(set) var assets: [String: ProposalAsset] = [:]
+    public private(set) var hasLoaded = false
     private let cabalID: String
     private let repository: ProposalsRepository
+
+    private enum Fetched: Sendable {
+        case members([ProposalMember])
+        case asset(String, ProposalAsset)
+    }
 
     public init(cabalID: String, repository: ProposalsRepository) {
         self.cabalID = cabalID
@@ -343,9 +361,26 @@ public final class ProposalCardContext {
 
     public func load(for proposals: [ProposalSummary]) async {
         guard !proposals.isEmpty else { return }
-        if members.isEmpty { members = (try? await repository.members(cabalID: cabalID)) ?? [] }
-        for symbol in Set(proposals.map(\.symbol)).subtracting(assets.keys).sorted() {
-            if let asset = try? await repository.asset(symbol: symbol) { assets[symbol] = asset }
+        let needsMembers = members.isEmpty
+        let symbols = Set(proposals.map(\.symbol)).subtracting(assets.keys)
+        let fetched = await withTaskGroup(of: Fetched?.self) { group in
+            if needsMembers {
+                group.addTask { (try? await self.repository.members(cabalID: self.cabalID)).map(Fetched.members) }
+            }
+            for symbol in symbols {
+                group.addTask { (try? await self.repository.asset(symbol: symbol)).map { .asset(symbol, $0) } }
+            }
+            var results: [Fetched] = []
+            for await result in group { if let result { results.append(result) } }
+            return results
         }
+        guard !Task.isCancelled else { return }
+        for item in fetched {
+            switch item {
+            case .members(let people): members = people
+            case .asset(let symbol, let asset): assets[symbol] = asset
+            }
+        }
+        hasLoaded = true
     }
 }
