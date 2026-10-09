@@ -9,6 +9,7 @@ const (
 	CodeLiveSwapExists     Code = "live_swap_exists"
 	CodePotExceeded        Code = "pot_exceeded"
 	CodeProposalStillOpen  Code = "proposal_still_open"
+	CodePotCashShort       Code = "pot_cash_short"
 )
 
 func (codeFiles) Governance() map[Code]Row {
@@ -33,6 +34,10 @@ func (codeFiles) Governance() map[Code]Row {
 			Name: "LiveSwapExists", Kind: KindBlocked, Message: "This proposal's trade is already underway.",
 		},
 		CodePotExceeded: {Name: "PotExceeded", Kind: KindBlocked, Message: "That amount is more than the cabal holds."},
+		CodePotCashShort: {
+			Name: "PotCashShort", Kind: KindBlocked,
+			Message: "The pot doesn't have that much cash. Sell a holding first or propose less.",
+		},
 		CodeProposalStillOpen: {
 			Name: "ProposalStillOpen", Kind: KindUnavailable, Retryable: true,
 			Message: "This proposal is still being decided. Try again in a moment.",

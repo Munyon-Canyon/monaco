@@ -105,6 +105,7 @@ extension Components.Schemas.ErrorCode {
         case .photoInvalid: true
         case .postHogRejected: true
         case .postHogUnavailable: true
+        case .potCashShort: true
         case .potExceeded: true
         case .potValueChanged: true
         case .potValueZero: true

@@ -87,7 +87,7 @@ func TestFlow09Scripts_pinEveryProposeTradeOutcome(t *testing.T) {
 		ID: "09", Status: tools.StatusBuilt, Commands: []string{"ProposeTrade"},
 		Outcomes: []tools.Outcome{
 			"ok", "InvalidInput", "Unauthorized", "NotCabalMember", "AssetNotFound", "AssetUntradable",
-			"NoRoute", "PotExceeded", "InsufficientFunds", "JupiterUnavailable", "PriceUnavailable",
+			"NoRoute", "PotExceeded", "CabalSharesShort", "JupiterUnavailable", "PriceUnavailable",
 			"crash:after-publish",
 		},
 	}

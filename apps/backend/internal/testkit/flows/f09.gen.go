@@ -12,7 +12,7 @@ func (defined) ScriptsF09() map[string]Script {
 		"F09ProposeTradeAssetUntradable":    F09ProposeTradeAssetUntradable,
 		"F09ProposeTradeNoRoute":            F09ProposeTradeNoRoute,
 		"F09ProposeTradePotExceeded":        F09ProposeTradePotExceeded,
-		"F09ProposeTradeInsufficientFunds":  F09ProposeTradeInsufficientFunds,
+		"F09ProposeTradeCabalSharesShort":   F09ProposeTradeCabalSharesShort,
 		"F09ProposeTradeJupiterUnavailable": F09ProposeTradeJupiterUnavailable,
 		"F09ProposeTradePriceUnavailable":   F09ProposeTradePriceUnavailable,
 		"F09ProposeTradeCrashAfterPublish":  F09ProposeTradeCrashAfterPublish,
