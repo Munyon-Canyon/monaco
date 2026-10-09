@@ -3,8 +3,10 @@ package privy_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -196,5 +198,19 @@ func TestGetUser_aPrivyTransportFailureStaysPrivyUnavailable(t *testing.T) {
 
 	_, err := client(down).GetUser(t.Context(), "did:privy:member")
 
+	wantCode(t, err, errs.CodePrivyUnavailable)
+}
+
+func TestCreateUser_namesTheUserLimit(t *testing.T) {
+	t.Parallel()
+	body := `{"error":"User limit reached","code":"max_accounts_reached"}`
+	_, err := client(replying(http.StatusBadRequest, body)).CreateUser(t.Context(), "dev-ab@example.com")
+	wantCode(t, err, errs.CodePrivyUserLimit)
+	if !strings.Contains(fmt.Sprint(errs.Detail(err)), "User limit reached") {
+		t.Fatalf("detail = %v, want Privy's message", errs.Detail(err))
+	}
+	_, err = client(replying(http.StatusBadRequest, `{"error":"bad email"}`)).CreateUser(t.Context(), "x@example.com")
+	wantCode(t, err, errs.CodeInvalidInput)
+	_, err = client(replying(http.StatusInternalServerError, body)).CreateUser(t.Context(), "x@example.com")
 	wantCode(t, err, errs.CodePrivyUnavailable)
 }

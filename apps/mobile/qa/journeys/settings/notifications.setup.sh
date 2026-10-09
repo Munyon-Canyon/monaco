@@ -40,7 +40,8 @@ call() {
 }
 
 dev_token() {
-  scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h 2>/dev/null || fail "monacoctl dev token --user $1 failed"
+  scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h \
+    2> >(grep -v -e '^with-dotenv-local:' -e 'injected env' >&2) || fail "monacoctl dev token --user $1 failed"
 }
 
 did="$(apps/mobile/qa/journeys/privy-user-id.sh B)"

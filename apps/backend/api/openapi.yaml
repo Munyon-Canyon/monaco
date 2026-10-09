@@ -5197,6 +5197,7 @@ components:
         - price_unavailable
         - prices_stale
         - privy_unavailable
+        - privy_user_limit
         - proposal_closed
         - proposal_not_found
         - proposal_still_open

@@ -112,6 +112,7 @@ extension Components.Schemas.ErrorCode {
         case .priceUnavailable: true
         case .pricesStale: true
         case .privyUnavailable: true
+        case .privyUserLimit: true
         case .proposalClosed: true
         case .proposalNotFound: true
         case .proposalStillOpen: true

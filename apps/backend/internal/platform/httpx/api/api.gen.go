@@ -118,6 +118,7 @@ const (
 	PriceUnavailable ErrorCode = "price_unavailable"
 	PricesStale ErrorCode = "prices_stale"
 	PrivyUnavailable ErrorCode = "privy_unavailable"
+	PrivyUserLimit ErrorCode = "privy_user_limit"
 	ProposalClosed ErrorCode = "proposal_closed"
 	ProposalNotFound ErrorCode = "proposal_not_found"
 	ProposalStillOpen ErrorCode = "proposal_still_open"
@@ -379,6 +380,8 @@ func (e ErrorCode) Valid() bool {
 	case PricesStale:
 		return true
 	case PrivyUnavailable:
+		return true
+	case PrivyUserLimit:
 		return true
 	case ProposalClosed:
 		return true
