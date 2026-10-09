@@ -51,6 +51,8 @@ private struct PendingVotesScreen: View {
                 if let detail = model.details[vote.id], let voting {
                     ProposalVoteCard(
                         proposal: detail.summary, voting: voting,
+                        asset: model.assets[detail.summary.symbol],
+                        members: model.members[detail.summary.cabalID] ?? [],
                         paused: model.pausedCabals.contains(detail.summary.cabalID),
                         onVoted: { await model.load() })
                 }

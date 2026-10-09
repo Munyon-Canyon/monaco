@@ -56,6 +56,46 @@ final class ProposalTradingTests: XCTestCase {
         XCTAssertEqual(model.phase, .failed)
     }
 
+    @MainActor
+    func testPendingModelLoadsTheCardContextAndKeepsItWhenALaterFetchFails() async throws {
+        func pending(_ symbols: [String]) -> String {
+            let rows = symbols.enumerated().map { index, symbol in
+                #"{"proposal_id":"p\#(index)","cabal_id":"c","kind":"buy","symbol":"\#(symbol)","expires_at":"2099-01-01T00:00:00Z"}"#
+            }
+            return "[\(rows.joined(separator: ","))]"
+        }
+        func detail(_ index: Int, _ symbol: String) -> String {
+            Self.detail("open").replacingOccurrences(of: #""id":"p""#, with: #""id":"p\#(index)""#)
+                .replacingOccurrences(of: "AAPLx", with: symbol)
+        }
+        let asset =
+            #"{"symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":null,"#
+            + #""price_micros":null,"price_as_of":null,"change_bps":null,"sparkline_micros":null,"#
+            + #""session":{"state":"open","continuous":false,"holiday":"","early_close":false,"#
+            + #""next_state":null,"next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"#
+            + #""tradable":true,"other_listings":[],"attribution":"test"}"#
+        let cabal = CabalModelTests.cabal(name: "Cabal", members: 1)
+        let transport = PathRoutedTransport([
+            "/v1/me/pending-votes": [.json(.ok, pending(["AAPLx"])), .json(.ok, pending(["AAPLx", "TSLAx"]))],
+            "/v1/proposals/p0": [.json(.ok, detail(0, "AAPLx")), .json(.ok, detail(0, "AAPLx"))],
+            "/v1/proposals/p1": [.json(.ok, detail(1, "TSLAx"))],
+            "/v1/assets/AAPLx": [.json(.ok, asset)],
+            "/v1/cabals/c": [.json(.ok, cabal)],
+        ])
+        let model = PendingVotesModel(
+            repository: Self.repository(transport: transport), hints: FakeHintStream())
+
+        await model.load()
+        XCTAssertEqual(model.assets["AAPLx"]?.displayName, "Apple")
+        XCTAssertEqual(model.members["c"]?.map(\.name), ["Kai 0"])
+
+        await model.load()
+        XCTAssertEqual(model.votes.count, 2)
+        XCTAssertEqual(model.assets["AAPLx"]?.displayName, "Apple")
+        XCTAssertNil(model.assets["TSLAx"])
+        XCTAssertEqual(model.members["c"]?.map(\.name), ["Kai 0"])
+    }
+
     func testTheTrackerReadsTheStepForAnAssistiveTechnology() {
         func label(_ status: ProposalStatus, isSell: Bool, swapFailed: Bool = false) -> String {
             ProposalStepper.make(
@@ -82,6 +122,7 @@ final class ProposalTradingTests: XCTestCase {
             #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2099-01-01T00:00:00Z"}]"#
         let transport = StubTransport(scripted: [
             .json(.ok, pending), .json(.ok, detail("open")), .json(.ok, "{}"),
+            .failure(URLError(.notConnectedToInternet)), .failure(URLError(.notConnectedToInternet)),
             .json(.ok, "[]"), .json(.ok, detail(status)),
         ])
         let model = PendingVotesModel(repository: repository(transport), hints: FakeHintStream())
@@ -91,6 +132,10 @@ final class ProposalTradingTests: XCTestCase {
     }
 
     private static func repository(_ transport: StubTransport) -> ProposalsRepository {
+        repository(transport: transport)
+    }
+
+    private static func repository(transport: any ClientTransport) -> ProposalsRepository {
         ProposalsRepository(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport))
     }
