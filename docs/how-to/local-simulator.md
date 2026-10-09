@@ -56,7 +56,9 @@ stock fallback.
   worktree compiled. The compilation cache lives in `<primary>/.build/CompilationCache`
   and the resolved Swift packages in `<primary>/.build/SourcePackages/<hash of
   Package.resolved>`; both are under the gitignored `.build/`. Prefix mapping makes
-  the worktree and DerivedData paths identical in every cache key. Clear the cache with
+  the worktree and DerivedData paths identical in every cache key. An Intel Mac builds
+  with the compilation cache off: its cached x86_64 host-tool compiles fail with "Cannot
+  read legacy layout file". Clear the cache with
   `rm -rf <primary>/.build/CompilationCache`. No size limit is set;
   `COMPILATION_CACHE_LIMIT_SIZE` is the knob. On Apple silicon the arguments also set
   `EXCLUDED_ARCHS=x86_64`: a test build compiles some package targets as x86_64 macOS host
