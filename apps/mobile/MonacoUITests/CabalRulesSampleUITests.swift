@@ -52,11 +52,12 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Cabal details"].waitForExistence(timeout: 15))
         assertRuleValues(app)
         for identifier in Self.rows {
-            XCTAssertTrue(app.buttons[identifier].exists, "the creator can open \(identifier)")
+            XCTAssertFalse(app.buttons[identifier].exists, "\(identifier) is a static row")
         }
+        XCTAssertTrue(app.buttons["cabal-rules-edit"].exists, "the creator can open Edit rules")
         screenshot(app, "1-rules-creator")
 
-        app.buttons["cabal-rules-voters"].tap()
+        app.buttons["cabal-rules-edit"].tap()
         let voters = element(app, "edit-rule-voters")
         XCTAssertTrue(voters.waitForExistence(timeout: 10), "Cabal settings is pushed with a Who votes row")
         XCTAssertFalse(element(app, "edit-cabal-voters").exists, "Everyone hides the member list")
@@ -93,6 +94,7 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         for identifier in Self.rows {
             XCTAssertFalse(app.buttons[identifier].exists, "a member cannot open \(identifier)")
         }
+        XCTAssertFalse(app.buttons["cabal-rules-edit"].exists, "a member has no Edit rules row")
         screenshot(app, "4-rules-member")
     }
 }

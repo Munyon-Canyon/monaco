@@ -14,6 +14,7 @@ enum CabalRulesSlotCopy {
     static let header = "Rules"
     static let failedThing = "the rules"
     static let loading = "Loading the rules"
+    static let edit = "Edit rules"
 
     static var auditedStrings: [String] { [header, loading] }
 }
@@ -93,19 +94,17 @@ struct CabalRulesView: View {
     ) -> some View {
         MonacoGroupedList {
             ForEach(summary.rows) { row in
-                let isLast = row.id == summary.rows.last?.id
-                if model.isCreator {
-                    NavigationLink {
-                        EditCabalView(model: model, cabal: cabal, pictureWriter: pictureWriter())
-                    } label: {
-                        CabalRuleSummaryRow(row: row, chevron: true, isLast: isLast)
-                    }
-                    .buttonStyle(.plain)
+                CabalRuleSummaryRow(row: row, isLast: !model.isCreator && row.id == summary.rows.last?.id)
                     .accessibilityIdentifier("cabal-rules-\(row.id)")
-                } else {
-                    CabalRuleSummaryRow(row: row, chevron: false, isLast: isLast)
-                        .accessibilityIdentifier("cabal-rules-\(row.id)")
+            }
+            if model.isCreator {
+                NavigationLink {
+                    EditCabalView(model: model, cabal: cabal, pictureWriter: pictureWriter())
+                } label: {
+                    CabalRuleEditRow()
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("cabal-rules-edit")
             }
         }
     }
@@ -113,7 +112,6 @@ struct CabalRulesView: View {
 
 private struct CabalRuleSummaryRow: View {
     let row: CabalRulesSummary.Row
-    let chevron: Bool
     let isLast: Bool
 
     var body: some View {
@@ -128,17 +126,10 @@ private struct CabalRuleSummaryRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if chevron {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(MonacoTheme.tertiaryText)
-                    .accessibilityHidden(true)
-            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: MonacoRowLayout.minHeight)
-        .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if !isLast {
                 MonacoRule()
@@ -146,7 +137,27 @@ private struct CabalRuleSummaryRow: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(chevron ? .isButton : [])
+    }
+}
+
+private struct CabalRuleEditRow: View {
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            Text(CabalRulesSlotCopy.edit)
+                .font(MonacoTheme.Typo.rowTitle)
+                .foregroundStyle(MonacoTheme.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(MonacoTheme.tertiaryText)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, MonacoTheme.Space.sm)
+        .frame(minHeight: MonacoRowLayout.minHeight)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
     }
 }
 

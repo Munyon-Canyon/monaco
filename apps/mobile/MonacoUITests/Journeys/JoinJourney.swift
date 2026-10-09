@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -204,7 +204,9 @@ extension JoinJourney {
             app.buttons["cabal-details-button"].tap()
             app.scrollIntoReach(app.element("cabal-rules"))
             CabalsEditRulesJourney.assertRule(app, "join", reads: "Approval required", step: "S2.1")
-            CabalsEditRulesJourney.rule(app, "join").tap()
+            let edit = app.element("cabal-rules-edit")
+            app.scrollIntoReach(edit)
+            edit.tap()
             let join = app.element("edit-rule-join")
             XCTAssertTrue(join.waitForExistence(timeout: 10), "S2.1: Cabal settings did not show within 10 s")
             join.buttons["Open"].tap()

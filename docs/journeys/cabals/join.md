@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 5
+version: 6
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -47,7 +47,7 @@ The setup creates both cabals through the API, so this journey does not depend o
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, then edit | the cabal `QA open {QA.run}`, then the `cabal-rules-join` row and its `edit-rule-join` row | Open | Save enables, and after Save the toast "Cabal updated." shows. The `cabal-rules-join` row reads "Open" |
+| S2.1 | A | tap, then edit | the cabal `QA open {QA.run}`, then `cabal-rules-edit` and its `edit-rule-join` row | Open | Save enables, and after Save the toast "Cabal updated." shows. The `cabal-rules-join` row reads "Open" |
 | S2.2 | B | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA open {QA.run}` | The row reads "Open", and `cabal-join-policy` reads "Open: anyone can join." `cabal-join-button` reads "Join" |
 | S2.3 | B | tap | `cabal-join-button` | | The toast "You're in." shows, no request is sent, and `cabal-action-fund` shows within 15 s. There is no `cabal-join-button` |
 

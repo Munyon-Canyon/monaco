@@ -44,8 +44,9 @@ final class CabalInviteTests: XCTestCase {
         XCTAssertEqual(CabalInvite.expiryText(expiresAt: now + 23 * hour, now: now), "Expires today")
     }
 
-    func testAnInvitePastItsExpiryReadsToday() {
-        XCTAssertEqual(CabalInvite.expiryText(expiresAt: now - hour, now: now), "Expires today")
+    func testAnInvitePastItsExpiryReadsExpired() {
+        XCTAssertEqual(CabalInvite.expiryText(expiresAt: now - hour, now: now), "Expired")
+        XCTAssertEqual(CabalInvite.expiryText(expiresAt: now, now: now), "Expired")
     }
 
     func testOnlyTheCreatorCanInvite() {

@@ -35,7 +35,6 @@ struct CabalLeaveSection: View {
 
     var body: some View {
         content
-            .padding(.horizontal, MonacoTheme.Space.gutter)
             .task {
                 let model = model ?? makeModel(environment, cabalID)
                 self.model = model
@@ -65,10 +64,11 @@ struct CabalLeaveSection: View {
                         .accessibilityIdentifier("cabalLeaveCashOutButton")
                 }
             }
-        case .failed(let error):
-            Text(ToastCopy.message(for: error))
-                .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.secondaryText)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+        case .failed:
+            MonacoErrorRow(thing: "your membership", identifier: "cabal-leave-failed") {
+                Task { await model?.load() }
+            }
         case .loaded(nil), .idle, .loading, nil:
             Color.clear.frame(height: 0)
         }

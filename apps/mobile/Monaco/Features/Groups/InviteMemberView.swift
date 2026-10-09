@@ -123,10 +123,7 @@ private struct InviteMemberContent: View {
                 MonacoSectionHeader("Pending invites", count: invites.count)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 if invites.isEmpty {
-                    Text("No pending invites.")
-                        .font(MonacoTheme.Typo.callout)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                    EmptyState(title: "No pending invites")
                         .accessibilityIdentifier("invite-member-pending-empty")
                 } else {
                     MonacoGroupedList {
@@ -161,7 +158,7 @@ private struct PendingInviteRow: View {
     var body: some View {
         MonacoRow(
             title: invite.invitee,
-            subtitle: "\(invite.invitedBy), \(invite.expiry)",
+            subtitle: "\(invite.invitedBy) · \(invite.expiry)",
             isLast: isLast
         ) {
             Image(systemName: "envelope")

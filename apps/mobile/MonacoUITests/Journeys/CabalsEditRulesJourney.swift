@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 4
+    static let version = 5
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -46,8 +46,10 @@ enum CabalsEditRulesJourney {
             JoinJourney.snap(app, "S1-A-rules-before")
         }
 
-        recorder.step("S1.3", "open the editor from a rule row") {
-            rule(app, "threshold").tap()
+        recorder.step("S1.3", "open the editor from the Edit rules row") {
+            let edit = app.element("cabal-rules-edit")
+            app.scrollIntoReach(edit)
+            edit.tap()
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: Cabal settings did not show within 10 s")
             XCTAssertTrue(app.navigationBars["Cabal settings"].exists, "S1.3: the editor is not titled Cabal settings")
             XCTAssertEqual(field.value as? String, seededName(run: run), "S1.3: the name field")
