@@ -72,7 +72,7 @@ private struct HomePortfolioHero: View {
         case .failed:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 title
-                MonacoErrorRow(thing: "your money in cabals", identifier: "home-portfolio-failed") {
+                MonacoErrorRow(thing: "your money in cabals", identifier: "home-portfolio-failed", inset: false) {
                     retry()
                 }
             }
@@ -142,7 +142,7 @@ private struct HomePortfolioHero: View {
                 .accessibilityIdentifier("home-portfolio-chart-loading")
             rangeChips(chart)
         case .failed:
-            MonacoErrorRow(thing: "the chart", identifier: "home-portfolio-chart-failed") {
+            MonacoErrorRow(thing: "the chart", identifier: "home-portfolio-chart-failed", inset: false) {
                 Task { await chart.load() }
             }
         case .loaded:

@@ -61,7 +61,7 @@ struct CabalPotBand: View {
             SkeletonBlock(width: 180, height: 44)
             SkeletonBlock(width: 120, height: 24, radius: 12)
         case .failed:
-            MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed") {
+            MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed", inset: false) {
                 Task { await model?.load() }
             }
         case .loaded(let summary):
