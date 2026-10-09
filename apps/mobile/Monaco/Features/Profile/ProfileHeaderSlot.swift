@@ -14,6 +14,7 @@ struct ProfileHeaderPresets {
     var showsEditProfile = false
     var showsFacePicker = false
     var saveName: (any DisplayNameSaving)?
+    var savesOnOpen = false
 }
 
 extension EnvironmentValues {
@@ -60,7 +61,12 @@ struct ProfileHeader: View {
         .sheet(isPresented: $showEditProfile) {
             NavigationStack {
                 ScrollView {
-                    ProfileNameEditor(auth: auth, initialDraft: presets.nameDraft, saveName: presets.saveName) {
+                    ProfileNameEditor(
+                        auth: auth,
+                        initialDraft: presets.nameDraft,
+                        saveName: presets.saveName,
+                        savesOnOpen: presets.savesOnOpen
+                    ) {
                         showEditProfile = false
                         toasts.show(success: "Name updated.")
                     }

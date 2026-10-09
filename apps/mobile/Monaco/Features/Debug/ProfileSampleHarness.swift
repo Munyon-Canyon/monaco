@@ -40,7 +40,6 @@ struct ProfileSampleHarness: View {
 
     var body: some View {
         SampleAppFrame(auth: auth, tab: .profile, store: store) { Self.fill($0, for: scenario) }
-            .defaultScrollAnchor(scenario == .cabals || scenario == .empty ? .bottom : .top)
             .environment(\.profileHeaderPresets, presets)
     }
 
@@ -49,8 +48,14 @@ struct ProfileSampleHarness: View {
             nameDraft: Self.nameDraft(for: scenario),
             showsEditProfile: scenario == .validation || scenario == .saveFailure || scenario == .saveSuccess,
             showsFacePicker: scenario == .facePicker,
-            saveName: saveNameOverride
+            saveName: saveNameOverride,
+            savesOnOpen: savesOnOpen
         )
+    }
+
+    private var savesOnOpen: Bool {
+        (scenario == .saveFailure || scenario == .saveSuccess)
+            && ProcessInfo.processInfo.arguments.contains(SampleHarnessRegistry.actArgument)
     }
 
     private var saveNameOverride: (any DisplayNameSaving)? {
@@ -85,7 +90,7 @@ struct ProfileSampleHarness: View {
         session.profile = sampleProfile(
             userID: "sample-user",
             displayName: "Logan Norman",
-            photoURL: scenario == .photo || scenario == .cabals ? samplePhotoURL() : nil,
+            photoURL: scenario == .photo || scenario == .cabals ? samplePhotoURL : nil,
             createdAt: ISO8601DateFormatter().date(from: "2026-09-01T14:30:00Z")
         )
 
@@ -103,9 +108,7 @@ struct ProfileSampleHarness: View {
         return profile
     }
 
-    static func samplePhotoURL() -> URL? {
-        SampleImage.flat(.plum, name: "avatar")
-    }
+    static let samplePhotoURL = SampleImage.flat(.plum, name: "avatar")
 }
 
 /// A store that accepts the save, standing in for the profile endpoint. Writes the name back
@@ -126,11 +129,19 @@ private struct AcceptingNameStore: DisplayNameSaving {
     }
 }
 
+private func apiMode(for scenario: ProfileSampleScenario) -> SampleAPIScript.Mode {
+    switch scenario {
+    case .empty: return .empty
+    case .loading: return .hang
+    default: return .populated
+    }
+}
+
 final class ProfileSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(SampleAPIScript(mode: scenario == .empty ? .empty : .populated))
+        SampleAPIProtocol.install(SampleAPIScript(mode: apiMode(for: scenario)))
         return AnyView(ProfileSampleHarness(scenario: scenario, auth: auth))
     }
 }

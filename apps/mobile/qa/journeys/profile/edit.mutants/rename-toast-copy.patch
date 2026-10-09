@@ -3,14 +3,13 @@ expect-fail: S1
 
 The rename toast says "Name saved." S1.3 expects "Name updated.", so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-index 09571ca8d..fec55889e 100644
+index ab9316c7e..1e7d807f1 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-@@ -62,7 +62,7 @@ struct ProfileHeader: View {
-                 ScrollView {
-                     ProfileNameEditor(auth: auth, initialDraft: presets.nameDraft, saveName: presets.saveName) {
+@@ -68,7 +68,7 @@ struct ProfileHeader: View {
+                         savesOnOpen: presets.savesOnOpen
+                     ) {
                          showEditProfile = false
 -                        toasts.show(success: "Name updated.")
 +                        toasts.show(success: "Name saved.")
