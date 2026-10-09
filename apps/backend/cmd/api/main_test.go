@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
@@ -23,7 +25,24 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testkit.Main(m, testkit.WithChild(main), testkit.WithNATS())
+	testkit.Main(m, testkit.WithChild(main), testkit.WithNATS(), testkit.WithSetup(installGlobalMeter))
+}
+
+var globalMeterBeforeTests metric.MeterProvider
+
+func installGlobalMeter() (func(), error) {
+	otel.SetMeterProvider(noop.NewMeterProvider())
+	globalMeterBeforeTests = otel.GetMeterProvider()
+	return func() {}, nil
+}
+
+func TestGlobalMeter_isInstalledBeforeAnyTestSoSetupNeverRacesAnUnregister(t *testing.T) {
+	t.Parallel()
+	if _, ok := globalMeterBeforeTests.(noop.MeterProvider); !ok {
+		t.Fatalf("global meter before the tests = %T, want noop.MeterProvider: the first otel.SetMeterProvider swaps "+
+			"otel's delegating meter under its lock, and that deadlocks a parallel test's Unregister (#4289)",
+			globalMeterBeforeTests)
+	}
 }
 
 var privyKeyEnv = "PRIVY_VERIFICATION_KEY=" + fakes.PrivyVerificationKey()
