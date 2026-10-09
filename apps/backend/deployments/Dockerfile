@@ -21,6 +21,7 @@ COPY apps/backend/go.mod apps/backend/.atlas-version ./
 COPY apps/backend/migrations/ migrations/
 COPY --from=atlas /repo/.bin/atlas /app/.bin/atlas
 COPY --from=build /out/ /app/bin/
+COPY apps/backend/deployments/predeploy.sh /app/bin/predeploy
 ENV PATH=/app/bin:$PATH
 USER monaco
 CMD ["api"]

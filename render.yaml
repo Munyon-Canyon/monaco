@@ -27,7 +27,8 @@ services:
     dockerfilePath: ./apps/backend/deployments/Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
-    preDeployCommand: monacoctl migrate apply && monacoctl bus apply
+    # Render runs this without a shell, so the steps live in apps/backend/deployments/predeploy.sh.
+    preDeployCommand: predeploy
     buildFilter:
       paths:
         - apps/backend/**
