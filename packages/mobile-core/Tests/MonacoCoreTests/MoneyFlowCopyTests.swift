@@ -205,7 +205,7 @@ final class MoneyFlowFailureCopyTests: XCTestCase {
     func testAddressCodesShowUnderTheField() {
         XCTAssertEqual(
             MoneyFlowCopy.withdrawFailure(problem(422, .invalidAddress, "bad")),
-            .address("That isn't a Solana address."))
+            .address("Paste a wallet address. That one can't receive USDC from here."))
         XCTAssertEqual(
             MoneyFlowCopy.withdrawFailure(problem(422, .withdrawToOwnWallet, "own")),
             .address("That's your own deposit address. Paste the address you want to send to."))
