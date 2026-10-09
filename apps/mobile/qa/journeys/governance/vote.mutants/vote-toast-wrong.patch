@@ -1,7 +1,7 @@
 journey: governance/vote
 expect-fail: S1
 
-The Proposal screen's vote toast reads "Voted" instead of "Vote in". S1.3 waits for "Vote in", so it must fail.
+The Proposal screen's vote toast reads "Voted" instead of "Vote recorded.". S1.3 waits for "Vote recorded.", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift b/apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift
@@ -12,7 +12,7 @@ index 84a193bcf..214f0b056 100644
                          choice in
                          Task {
                              if await model?.vote(choice) == true {
--                                toasts.show(success: "Vote in")
+-                                toasts.show(success: "Vote recorded.")
 +                                toasts.show(success: "Voted")
                              } else if let message = model?.errorMessage {
                                  toasts.current = MonacoToast(message: message)

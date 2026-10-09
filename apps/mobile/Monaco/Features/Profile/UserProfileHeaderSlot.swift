@@ -123,12 +123,12 @@ private struct UserProfileHeader: View {
 
     private var counts: some View {
         HStack(spacing: 0) {
-            link("\(model?.followerCount ?? 0) Followers", .followers, id: "user-profile-followers")
+            link(FollowCountFormatter.followers(model?.followerCount ?? 0), .followers, id: "user-profile-followers")
             Text(" · ")
                 .font(MonacoTheme.Typo.calloutStrong)
                 .foregroundStyle(MonacoTheme.muted)
                 .accessibilityHidden(true)
-            link("\(model?.followingCount ?? 0) Following", .following, id: "user-profile-following")
+            link(FollowCountFormatter.following(model?.followingCount ?? 0), .following, id: "user-profile-following")
         }
     }
 

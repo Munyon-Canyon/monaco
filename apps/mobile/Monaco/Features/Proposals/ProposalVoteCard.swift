@@ -17,7 +17,7 @@ struct ProposalVoteCard: View {
         ) { choice in
             Task {
                 if await voting.vote(choice, on: proposal) {
-                    toasts.show(success: "Vote in")
+                    toasts.show(success: "Vote recorded.")
                     await onVoted()
                 } else if let message = voting.errorMessage {
                     toasts.current = MonacoToast(message: message)

@@ -3,7 +3,8 @@ import XCTest
 enum TalkItOverJourney {
     static let id = "chat/talk-it-over"
     static let version = 2
-    static let emptyCopy = "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
+    static let emptyTitle = "No messages yet"
+    static let emptyHint = "Say hi, or float a stock idea."
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -125,7 +126,8 @@ enum TalkItOverJourney {
         recorder.step("S1.1", "open the empty chat") {
             openChat(app, run: run, step: "S1.1", from: .search)
             XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("chat-empty"), containing: emptyCopy, timeout: 10),
+                JoinJourney.waitForLabel(app.element("chat-empty"), containing: emptyTitle, timeout: 10)
+                    && JoinJourney.waitForLabel(app.element("chat-empty"), containing: emptyHint, timeout: 10),
                 "S1.1: no 'No messages yet' empty state within 10 s"
             )
             let composer = app.element("chat-composer")
@@ -179,8 +181,8 @@ enum TalkItOverJourney {
 
         recorder.step("S3.2", "B replies gm back") {
             let toggle = app.element("chat-thread-also-in-channel")
-            XCTAssertTrue(toggle.waitForExistence(timeout: 5), "S3.2: no 'Also send to channel' toggle")
-            XCTAssertEqual(toggle.value as? String, "0", "S3.2: 'Also send to channel' starts on")
+            XCTAssertTrue(toggle.waitForExistence(timeout: 5), "S3.2: no 'Also post in the cabal chat' toggle")
+            XCTAssertEqual(toggle.value as? String, "0", "S3.2: 'Also post in the cabal chat' starts on")
             let composer = app.element("chat-composer")
             XCTAssertEqual(
                 composer.placeholderValue, "Reply in thread", "S3.2: the thread composer placeholder is not the spec's")

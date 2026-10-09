@@ -38,7 +38,7 @@ struct ProposalDetailSlotView: View {
                         choice in
                         Task {
                             if await model?.vote(choice) == true {
-                                toasts.show(success: "Vote in")
+                                toasts.show(success: "Vote recorded.")
                             } else if let message = model?.errorMessage {
                                 toasts.current = MonacoToast(message: message)
                             }
@@ -201,7 +201,7 @@ struct ProposalDetailSlotView: View {
                     Task {
                         await model?.retry()
                         if model?.didRetry == true {
-                            toasts.show(success: "Trying the trade again.")
+                            toasts.show(success: "Retrying the trade.")
                         } else if let message = model?.errorMessage {
                             toasts.current = MonacoToast(message: message)
                         }

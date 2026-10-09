@@ -102,7 +102,7 @@ struct DevBuyView: View {
         } catch MonacoAPIError.httpStatus(let status) {
             errorMessage = "Dev buy failed (HTTP \(status))."
         } catch {
-            errorMessage = "Could not execute dev buy."
+            errorMessage = "Couldn't execute dev buy."
         }
 
         isSubmitting = false

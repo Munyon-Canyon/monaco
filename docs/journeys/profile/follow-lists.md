@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileFollowListsJourney.swift, a
 
 # Followers and following
 
-A member opens the Profile tab, reads their follower and following counts, and opens each list to find the person who follows them and the person they follow. The design is `ProfileFollowCountsSlot` on the [Profile tab](../../screens.md#profile-tab): "12 Followers · 8 Following", each opening the follow list. The old app's version is the counts under the Profile header at `c838bd24`.
+A member opens the Profile tab, reads their follower and following counts, and opens each list to find the person who follows them and the person they follow. The design is `ProfileFollowCountsSlot` on the [Profile tab](../../screens.md#profile-tab): "12 followers · 8 following", each opening the follow list. The old app's version is the counts under the Profile header at `c838bd24`.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 
@@ -31,7 +31,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | tap | the Profile tab | | Within 15 s, `profile-followers` and `profile-following` show, reading "Followers" and "Following" | The counts under the Profile header |
+| S1.1 | tap | the Profile tab | | Within 15 s, `profile-followers` and `profile-following` show, reading "followers" and "following" | The counts under the Profile header |
 | S1.2 | tap | `profile-followers` | | The "Followers" screen shows within 10 s | The followers count opens the followers list |
 | S1.3 | read | the list | | A row reading "Bartholomez" shows within 15 s, and `follow-list-coming` ("Followers show up here soon.") does not show | The followers list rows |
 
@@ -51,7 +51,7 @@ Starts signed in (auth/sign-in). Fails on staging until the route lands (Known f
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | tap | the Profile tab | | Within 15 s, `profile-followers` reads a whole number of 1 or more and "Followers", and `profile-following` a whole number of 1 or more and "Following", as screens.md's "12 Followers · 8 Following" | The counts under the Profile header |
+| S3.1 | tap | the Profile tab | | Within 15 s, `profile-followers` reads a whole number of 1 or more and "Followers", and `profile-following` a whole number of 1 or more and "Following", as screens.md's "12 followers · 8 following" | The counts under the Profile header |
 
 ## Ground truth
 
@@ -63,7 +63,7 @@ The journey only reads. `apps/mobile/qa/journeys/profile/follow-lists.truth.sh` 
 | --- | --- | --- |
 | S1.3 | The list shows "Followers show up here soon.", because no route lists a user's followers | #620 |
 | S2.3 | The list shows "People you follow show up here soon.", because no route lists who a user follows | #620 |
-| S3.1 | The links read "Followers" and "Following" with no numbers, because no route serves the counts | #620 |
+| S3.1 | The links read "followers" and "following" with no numbers, because no route serves the counts | #620 |
 
 ## Not covered
 

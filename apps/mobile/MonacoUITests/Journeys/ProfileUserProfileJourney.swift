@@ -68,9 +68,9 @@ enum ProfileUserProfileJourney {
                 waitUntil(10) { name.label == memberName },
                 "S1.3: the name reads '\(name.label)', not '\(memberName)'")
             XCTAssertTrue(
-                app.element("user-profile-followers").label.contains("Followers"), "S1.3: no 'Followers' link")
+                app.element("user-profile-followers").label.contains("follower"), "S1.3: no 'Followers' link")
             XCTAssertTrue(
-                app.element("user-profile-following").label.contains("Following"), "S1.3: no 'Following' link")
+                app.element("user-profile-following").label.contains("following"), "S1.3: no 'Following' link")
         }
 
         recorder.step("S1.4", "find the more menu") {

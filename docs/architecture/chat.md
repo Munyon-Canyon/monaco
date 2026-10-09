@@ -10,7 +10,7 @@ The `social` module owns chat: its tables, the send and seen commands, the Ably 
 
 1. **Send.** The user types a message and presses enter. The app calls `POST /v1/cabals/{id}/messages`. The backend inserts the row into CabalChat and commits. Only after the commit does it publish a `message.created` event on the cabal's Ably channel. Every other member with the chat open gets the event and renders the message right away.
 2. **Threads.** Any top-level message can have a thread. A reply is a CabalChat row whose `parent_id` points at the top-level message. Threads are one level deep, as in Slack.
-3. **Also send to channel.** When replying in a thread, the user can tick "Also send to channel". The reply stays in the thread and also shows in the main channel, with a "replied to a thread" label that links back.
+3. **Also post in the cabal chat.** When replying in a thread, the user can tick "Also post in the cabal chat". The reply stays in the thread and also shows in the main channel, with a "Replied to a thread" label that links back.
 4. **Seen by N.** A `social`-owned `chat_seen` row per member per cabal holds a `last_seen_at` timestamp. The app bumps it while the member has the chat open. For the most recent message, "seen by N" is the count of other members whose `last_seen_at` is at or after that message's `created_at`. That is one indexed count query, with no per-message read rows.
 
 ## Why
@@ -126,7 +126,7 @@ So the API is always the history, and Ably only reports what happened since the 
 
 - The channel shows top-level messages, plus replies sent with "also send to channel". A top-level message with replies shows "N replies · last reply 2m ago", driven by `reply_count` and `last_reply_at`.
 - Tapping that opens the thread view, which loads `GET .../thread` and listens on the same Ably channel for `message.created` events whose `parent_id` matches.
-- A reply sent with `also_in_channel` shows in both places. In the channel it has a "replied to a thread: <parent snippet>" header that opens the thread.
+- A reply sent with `also_in_channel` shows in both places. In the channel it has a "Replied to a thread: <parent snippet>" header that opens the thread.
 - Replies to a reply are not possible. Replying to a message in a thread just posts to the same thread.
 
 ### Deleting

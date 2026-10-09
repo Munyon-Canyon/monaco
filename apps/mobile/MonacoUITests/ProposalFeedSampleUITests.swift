@@ -51,7 +51,7 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
 
         // Vote yes from the card: buttons disappear and the tally updates.
         yes.tap()
-        XCTAssertTrue(app.staticTexts["Vote in"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Vote recorded."].waitForExistence(timeout: 5))
         let tally = element("proposal-card-votes-sample-0")
         let updated = NSPredicate(format: "label CONTAINS %@", "1 of 5 voted · 3 yes to pass")
         wait(for: [expectation(for: updated, evaluatedWith: tally)], timeout: 5)

@@ -43,7 +43,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S1.2 to S1.5: `ProposeFromAssetRoute` shows "Propose isn't on the new backend yet." The cabal picker and every later step are blocked by #613.
+- S1.2 to S1.5: `ProposeFromAssetRoute` shows "Propose is on its way" The cabal picker and every later step are blocked by #613.
 - S1.4: the pot is empty, so "Review" stays disabled with "More than the pot has" even once #613 lands. Seeding a funded pot without real USDC needs a testkit loader that does not exist yet.
 
 ## Not covered

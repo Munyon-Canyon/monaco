@@ -45,7 +45,7 @@ nonisolated final class CabalActionsSampleUITests: XCTestCase {
         ]
         for (id, screen) in placeholders {
             element(app, id).tap()
-            let placeholder = app.staticTexts["\(screen) isn't on the new backend yet."]
+            let placeholder = app.staticTexts["\(screen) is on its way"]
             XCTAssertTrue(placeholder.waitForExistence(timeout: 10), "\(id) opens the \(screen) placeholder")
             screenshot(app, "cabal-actions-\(id)")
             app.navigationBars.buttons.element(boundBy: 0).tap()

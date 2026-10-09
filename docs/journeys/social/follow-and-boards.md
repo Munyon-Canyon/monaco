@@ -46,8 +46,8 @@ Starts where S2 ended.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap | `home-leaderboard-row-<B id>` | | `user-profile-header` shows within 15 s with `user-profile-name` reading "Bartholomez", `user-profile-handle` starting with "@", `user-profile-followers` reading "0 Followers", `user-profile-following` reading "0 Following" and `user-profile-follow` reading "Follow" |
-| S3.2 | A | tap | `user-profile-follow` | | `user-profile-follow` reads "Following" and `user-profile-followers` reads "1 Followers" within 5 s, and `user-profile-following` still reads "0 Following" |
+| S3.1 | A | tap | `home-leaderboard-row-<B id>` | | `user-profile-header` shows within 15 s with `user-profile-name` reading "Bartholomez", `user-profile-handle` starting with "@", `user-profile-followers` reading "0 followers", `user-profile-following` reading "0 following" and `user-profile-follow` reading "Follow" |
+| S3.2 | A | tap | `user-profile-follow` | | `user-profile-follow` reads "Following" and `user-profile-followers` reads "1 follower" within 5 s, and `user-profile-following` still reads "0 following" |
 | S3.3 | A | go back, then tap | "Friends" in `home-leaderboard-filter` | | `home-leaderboard-row-<B id>` shows, and A's own row, labelled "You", shows (`home-leaderboard-row-<A id>`, or `home-leaderboard-me` when pinned), within 10 s, and `home-leaderboard-friends-empty` is gone (screens.md `HomePeopleBoardSlot`: "the viewer's row pinned at the bottom when off the page") |
 
 ### S4 B sees the follower
@@ -56,7 +56,7 @@ Starts where S3 ended.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | B | tap | the Profile tab | | `profile-followers` reads "1 Followers" and `profile-following` reads "0 Following" within 15 s |
+| S4.1 | B | tap | the Profile tab | | `profile-followers` reads "1 follower" and `profile-following` reads "0 following" within 15 s |
 | S4.2 | B | tap, then tap | `profile-followers`, then `follow-list-open-<A id>` | | The "Followers" screen shows within 10 s with `follow-list-row-<A id>` and its `follow-list-follow-<A id>` button reading "Follow" within 15 s. Tapping A's row shows `user-profile-name` reading "Alfred" within 15 s |
 
 ### S5 Unfollow
@@ -65,7 +65,7 @@ Starts where S4 ended.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row-<B id>`, then `user-profile-follow` | | B's profile shows `user-profile-follow` reading "Following" within 15 s. After the tap it reads "Follow" and `user-profile-followers` reads "0 Followers" within 5 s, with `user-profile-following` still reading "0 Following" |
+| S5.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row-<B id>`, then `user-profile-follow` | | B's profile shows `user-profile-follow` reading "Following" within 15 s. After the tap it reads "Follow" and `user-profile-followers` reads "0 followers" within 5 s, with `user-profile-following` still reading "0 following" |
 | S5.2 | A | go back, then tap | "Friends" in `home-leaderboard-filter` | | `home-leaderboard-friends-empty` reads "Follow people to see how they do." with `home-leaderboard-find-friends` within 10 s |
 
 ## Ground truth

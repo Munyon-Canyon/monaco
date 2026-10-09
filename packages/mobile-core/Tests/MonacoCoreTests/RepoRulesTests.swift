@@ -85,8 +85,9 @@ enum RepoRules {
             roots: productCode,
             pattern:
                 #"(?:\b(?:Text|Button|Label|ToastCopy|MonacoToast)\(|\.navigationTitle\(|\bString\(localized:)\s*(?:\w+:\s*)?"#
-                + #""[^"\n]*(?:(?i:xstock)|(?i:\bclub\b)|(?i:\bgroup\b)|"# + base58 + #")[^"\n]*""#,
-            message: "User-facing copy says cabal, never club or group, and shows no xStock branding or raw address.",
+                + #""[^"\n]*(?:(?i:xstock)|(?i:\bclub\b)|(?i:\bgroup\b)|(?i:\bchannel\b)|Could not|"#
+                + #"\S\s(?:Followers|Following)\b|"# + base58 + #")[^"\n]*""#,
+            message: "User-facing copy says cabal (never club, group or channel) and Couldn't, in sentence case.",
             failing: [
                 #"Text("Join the club")"#,
                 #"Text("xStock")"#,
@@ -598,6 +599,21 @@ final class RepoRulesTests: XCTestCase {
             for fixture in rule.passing {
                 XCTAssertEqual(try rule.matches(in: fixture as NSString), 0, "\(rule.name) should pass: \(fixture)")
             }
+        }
+    }
+
+    func testTheCopyRuleBansOffVoiceWords() throws {
+        let copy = try XCTUnwrap(RepoRules.all.first { $0.name == "copy" })
+        for line in [
+            #"Text("Also send to channel")"#,
+            #"MonacoToast(message: "Could not read that picture.")"#,
+            #"Text("\(count) Followers")"#,
+            #"Text("12 Following")"#,
+        ] {
+            XCTAssertGreaterThan(try copy.matches(in: line as NSString), 0, "copy should flag: \(line)")
+        }
+        for line in [#"Text("1 follower")"#, #"Button("Following") {"#, #"MonacoToast(message: "Couldn't read it.")"#] {
+            XCTAssertEqual(try copy.matches(in: line as NSString), 0, "copy should pass: \(line)")
         }
     }
 

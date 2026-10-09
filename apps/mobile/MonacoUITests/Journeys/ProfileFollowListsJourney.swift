@@ -28,8 +28,8 @@ enum ProfileFollowListsJourney {
             let followers = app.element("profile-followers")
             let following = app.element("profile-following")
             XCTAssertTrue(followers.waitForExistence(timeout: 15), "\(open): no 'Followers' link on Profile")
-            XCTAssertTrue(followers.label.contains("Followers"), "\(open): the link reads '\(followers.label)'")
-            XCTAssertTrue(following.label.contains("Following"), "\(open): the link reads '\(following.label)'")
+            XCTAssertTrue(followers.label.contains("follower"), "\(open): the link reads '\(followers.label)'")
+            XCTAssertTrue(following.label.contains("following"), "\(open): the link reads '\(following.label)'")
         }
 
         recorder.step(tapLink, "open \(title)") {
@@ -68,10 +68,10 @@ enum ProfileFollowListsJourney {
             XCTAssertTrue(followers.waitForExistence(timeout: 15), "S3.1: no 'Followers' link on Profile")
             XCTAssertTrue(
                 waitUntil(15) { (count(followers.label) ?? 0) >= 1 },
-                "S3.1: the link reads '\(followers.label)', not a count and 'Followers' (#620)")
+                "S3.1: the link reads '\(followers.label)', not a count and 'followers' (#620)")
             XCTAssertTrue(
                 (count(following.label) ?? 0) >= 1,
-                "S3.1: the link reads '\(following.label)', not a count and 'Following' (#620)")
+                "S3.1: the link reads '\(following.label)', not a count and 'following' (#620)")
         }
     }
 }

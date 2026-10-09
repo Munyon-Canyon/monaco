@@ -110,7 +110,7 @@ struct CabalPicturePicker: View {
             data = nil
         }
         guard let data else {
-            onResult(MonacoToast(message: "Could not read that picture.", isSuccess: false))
+            onResult(MonacoToast(message: "Couldn't read that picture.", isSuccess: false))
             return
         }
 

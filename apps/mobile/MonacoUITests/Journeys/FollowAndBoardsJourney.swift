@@ -138,11 +138,11 @@ enum FollowAndBoardsJourney {
                 label(app, "user-profile-handle").hasPrefix("@"),
                 "S3.1: the handle reads '\(label(app, "user-profile-handle"))', not an @handle")
             XCTAssertEqual(
-                label(app, "user-profile-followers"), "0 Followers",
-                "S3.1: the followers link does not read \"0 Followers\"")
+                label(app, "user-profile-followers"), "0 followers",
+                "S3.1: the followers link does not read \"0 followers\"")
             XCTAssertEqual(
-                label(app, "user-profile-following"), "0 Following",
-                "S3.1: the following link does not read \"0 Following\"")
+                label(app, "user-profile-following"), "0 following",
+                "S3.1: the following link does not read \"0 following\"")
             XCTAssertEqual(
                 label(app, "user-profile-follow"), "Follow", "S3.1: the button does not read \"Follow\"")
         }
@@ -152,13 +152,13 @@ enum FollowAndBoardsJourney {
             XCTAssertTrue(
                 waitUntil(5) {
                     label(app, "user-profile-follow") == "Following"
-                        && label(app, "user-profile-followers") == "1 Followers"
+                        && label(app, "user-profile-followers") == "1 follower"
                 },
-                "S3.2: after Follow the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(label(app, "user-profile-followers"))', not \"Following\" and \"1 Followers\""
+                "S3.2: after Follow the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(label(app, "user-profile-followers"))', not \"Following\" and \"1 follower\""
             )
             XCTAssertEqual(
-                label(app, "user-profile-following"), "0 Following",
-                "S3.2: the following link does not read \"0 Following\"")
+                label(app, "user-profile-following"), "0 following",
+                "S3.2: the following link does not read \"0 following\"")
         }
 
         recorder.step("S3.3", "Friends ranks the member and A's own row") {
@@ -181,9 +181,9 @@ enum FollowAndBoardsJourney {
             app.tab("Profile").tap()
             XCTAssertTrue(
                 waitUntil(15) {
-                    label(app, "profile-followers") == "1 Followers" && label(app, "profile-following") == "0 Following"
+                    label(app, "profile-followers") == "1 follower" && label(app, "profile-following") == "0 following"
                 },
-                "S4.1: Profile reads '\(label(app, "profile-followers"))' and '\(label(app, "profile-following"))', not \"1 Followers\" and \"0 Following\""
+                "S4.1: Profile reads '\(label(app, "profile-followers"))' and '\(label(app, "profile-following"))', not \"1 follower\" and \"0 following\""
             )
         }
 
@@ -217,13 +217,13 @@ enum FollowAndBoardsJourney {
             XCTAssertTrue(
                 waitUntil(5) {
                     label(app, "user-profile-follow") == "Follow"
-                        && label(app, "user-profile-followers") == "0 Followers"
+                        && label(app, "user-profile-followers") == "0 followers"
                 },
-                "S5.1: after Following the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(label(app, "user-profile-followers"))', not \"Follow\" and \"0 Followers\""
+                "S5.1: after Following the button reads '\(label(app, "user-profile-follow"))' and the followers link '\(label(app, "user-profile-followers"))', not \"Follow\" and \"0 followers\""
             )
             XCTAssertEqual(
-                label(app, "user-profile-following"), "0 Following",
-                "S5.1: the following link does not read \"0 Following\"")
+                label(app, "user-profile-following"), "0 following",
+                "S5.1: the following link does not read \"0 following\"")
         }
 
         recorder.step("S5.2", "Friends is empty again") {

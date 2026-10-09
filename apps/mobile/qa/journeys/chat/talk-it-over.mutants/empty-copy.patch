@@ -1,19 +1,19 @@
 journey: chat/talk-it-over
 expect-fail: S1
 
-The empty chat drops its prompt to say hi. S1.1 expects the full "No messages yet. Say hi to your cabal ..." copy, so it must fail.
+The empty chat drops its prompt to say hi. S1.1 expects the "Say hi, or float a stock idea." line under "No messages yet", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift b/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
-index 6e31d18a9..12991de2c 100644
+index e6137dbaf..dc4cab0ad 100644
 --- a/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
 @@ -36,7 +36,7 @@ public enum GroupChatDraft {
  public enum GroupChatCopy {
      public static let title = "Cabal chat"
-     public static let emptyState =
--        "No messages yet. Say hi to your cabal or float a stock idea before someone proposes a buy."
-+        "No messages yet."
+     public static let emptyTitle = "No messages yet"
+-    public static let emptyHint = "Say hi, or float a stock idea."
++    public static let emptyHint = ""
      public static let composerPlaceholder = "Message your cabal"
      public static let loadEarlier = "Load earlier messages"
      public static let loadFailure = "Couldn't load messages."

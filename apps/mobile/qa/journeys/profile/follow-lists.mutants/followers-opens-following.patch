@@ -5,15 +5,15 @@ expect-fail: S1
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-index 499f1e5d9..8b363c4e9 100644
+index 5d7895475..f385cb7ed 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileFollowCountsSlot.swift
-@@ -62,7 +62,7 @@ private struct ProfileFollowCountLinks: View {
-     }
- 
-     private var countLinks: some View {
--        let followers = link(model?.followerCount ?? 0, "Followers", .followers, id: "profile-followers")
-+        let followers = link(model?.followerCount ?? 0, "Followers", .following, id: "profile-followers")
-         let following = link(model?.followingCount ?? 0, "Following", .following, id: "profile-following")
+@@ -65,7 +65,7 @@ private struct ProfileFollowCountLinks: View {
+         let followerCount = model?.followerCount ?? 0
+         let followers = link(
+             FollowCountFormatter.count(followerCount), FollowCountFormatter.followersNoun(followerCount),
+-            .followers, id: "profile-followers")
++            .following, id: "profile-followers")
+         let following = link(
+             FollowCountFormatter.count(model?.followingCount ?? 0), "following", .following, id: "profile-following")
          return ViewThatFits(in: .horizontal) {
-             HStack(spacing: MonacoTheme.Space.m) {

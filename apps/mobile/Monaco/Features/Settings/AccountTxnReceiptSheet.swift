@@ -22,7 +22,7 @@ struct AccountTxnReceiptSheet: View {
                         ReceiptLine(label: "Status", value: .words(row.status.receiptLabel))
                             .accessibilityIdentifier("account-txn-receipt-status")
                         ReceiptLine(
-                            label: "Time", value: .data(row.fullDate), isLast: row.cabal == nil && row.solscanURL == nil
+                            label: "When", value: .data(row.fullDate), isLast: row.cabal == nil && row.solscanURL == nil
                         )
                         .accessibilityIdentifier("account-txn-receipt-time")
                         if let cabal = row.cabal {

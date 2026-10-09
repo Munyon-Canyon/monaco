@@ -164,7 +164,7 @@ enum DemoStoryJourney {
                 header.waitForExistence(timeout: screenTimeout),
                 "S4.3: no Needs your vote on Home (known failure, #612)")
             button(app, "Yes").tap()
-            JoinJourney.waitForToast(app, "Vote in", step: "S4.3")
+            JoinJourney.waitForToast(app, "Vote recorded.", step: "S4.3")
         }
 
         recorder.step("S4.4", "majority wins and the cabal buys") {

@@ -22,7 +22,7 @@ final class ChatCopyTests: XCTestCase {
 
     func testTheMemberFacingSentencesAreExact() {
         XCTAssertEqual(GroupChatCopy.loadFailure, "Couldn't load messages.")
-        XCTAssertEqual(GroupChatCopy.closed, "You're no longer in this cabal, so its chat is closed to you.")
+        XCTAssertEqual(GroupChatCopy.closed, "You're not in this cabal anymore.")
         XCTAssertEqual(GroupChatCopy.notSent, "Not sent · Retry")
     }
 
@@ -31,7 +31,8 @@ final class ChatCopyTests: XCTestCase {
             MainFlowCopyAudit.stringsAreClean([
                 GroupChatCopy.title,
                 GroupChatCopy.title(groupName: "Weekend investors"),
-                GroupChatCopy.emptyState,
+                GroupChatCopy.emptyTitle,
+                GroupChatCopy.emptyHint,
                 GroupChatCopy.composerPlaceholder,
                 GroupChatCopy.loadEarlier,
                 GroupChatCopy.loadFailure,

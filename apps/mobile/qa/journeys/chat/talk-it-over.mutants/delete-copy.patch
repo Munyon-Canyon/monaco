@@ -5,7 +5,7 @@ The delete dialog says the message is removed for you only. S4.1 expects "It's r
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Chat/ChatThreadCopy.swift b/packages/mobile-core/Sources/MonacoCore/Chat/ChatThreadCopy.swift
-index 5954221c1..30daaa635 100644
+index cc4fd5091..31d9c149a 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Chat/ChatThreadCopy.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Chat/ChatThreadCopy.swift
 @@ -5,7 +5,7 @@ public enum ChatThreadCopy {
@@ -16,4 +16,4 @@ index 5954221c1..30daaa635 100644
 +    public static let deleteMessage = "It's removed for you."
      public static let cancel = "Cancel"
      public static let composerPlaceholder = "Reply in thread"
-     public static let alsoInChannel = "Also send to channel"
+     public static let alsoInChannel = "Also post in the cabal chat"
