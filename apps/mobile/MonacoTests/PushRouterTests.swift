@@ -13,10 +13,10 @@ struct PushRouterTests {
     private let txn = "0192e8a1-0004-7000-8000-000000000004"
     private let feedItem = "0192e8a1-0005-7000-8000-000000000005"
 
-    @Test func aProposalPushOpensItsCabalThenTheProposalOnTheCabalsTab() {
+    @Test func aProposalPushOpensItsCabalThenTheProposalOnTheCabalsTab() async {
         let (router, navigator) = open(sessionOpen: true)
 
-        router.handle(.proposal(proposalID: proposal, cabalID: cabal))
+        await tap(.proposal(proposalID: proposal, cabalID: cabal), on: router)
 
         #expect(navigator.selectedTab == .cabals)
         #expect(
@@ -27,10 +27,10 @@ struct PushRouterTests {
         #expect(untouched(navigator, except: .cabals))
     }
 
-    @Test func aTransactionPushOpensItsCabalThenTheTransactionOnTheCabalsTab() {
+    @Test func aTransactionPushOpensItsCabalThenTheTransactionOnTheCabalsTab() async {
         let (router, navigator) = open(sessionOpen: true)
 
-        router.handle(.transaction(txnID: txn, cabalID: cabal))
+        await tap(.transaction(txnID: txn, cabalID: cabal), on: router)
 
         #expect(navigator.selectedTab == .cabals)
         #expect(
@@ -42,66 +42,66 @@ struct PushRouterTests {
         #expect(untouched(navigator, except: .cabals))
     }
 
-    @Test func aChatPushOpensItsCabalThenTheChatOnTheCabalsTab() {
+    @Test func aChatPushOpensItsCabalThenTheChatOnTheCabalsTab() async {
         let (router, navigator) = open(sessionOpen: true)
 
-        router.handle(.chat(cabalID: cabal))
+        await tap(.chat(cabalID: cabal), on: router)
 
         #expect(navigator.selectedTab == .cabals)
         #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: cabal)), AnyAppRoute(ChatRoute(cabalID: cabal))])
         #expect(untouched(navigator, except: .cabals))
     }
 
-    @Test func aCabalPushOpensTheCabalOnTheCabalsTab() {
+    @Test func aCabalPushOpensTheCabalOnTheCabalsTab() async {
         let (router, navigator) = open(sessionOpen: true)
 
-        router.handle(.cabal(cabalID: cabal))
+        await tap(.cabal(cabalID: cabal), on: router)
 
         #expect(navigator.selectedTab == .cabals)
         #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: cabal))])
         #expect(untouched(navigator, except: .cabals))
     }
 
-    @Test func aFollowerPushOpensTheirProfileOnTheHomeTab() {
+    @Test func aFollowerPushOpensTheirProfileOnTheHomeTab() async {
         let (router, navigator) = open(sessionOpen: true)
         navigator.selectedTab = .profile
 
-        router.handle(.userProfile(userID: user))
+        await tap(.userProfile(userID: user), on: router)
 
         #expect(navigator.selectedTab == .home)
         #expect(navigator.homePath == [AnyAppRoute(UserProfileRoute(userID: user))])
         #expect(untouched(navigator, except: .home))
     }
 
-    @Test func aFeedItemPushOpensTheItemOnTheFeedTab() {
+    @Test func aFeedItemPushOpensTheItemOnTheFeedTab() async {
         let (router, navigator) = open(sessionOpen: true)
 
-        router.handle(.feedItem(feedItemID: feedItem))
+        await tap(.feedItem(feedItemID: feedItem), on: router)
 
         #expect(navigator.selectedTab == .feed)
         #expect(navigator.feedPath == [AnyAppRoute(FeedItemRoute(itemID: feedItem))])
         #expect(untouched(navigator, except: .feed))
     }
 
-    @Test func aHomePushSelectsHomeAndPopsItsStackToTheRoot() {
+    @Test func aHomePushSelectsHomeAndPopsItsStackToTheRoot() async {
         let (router, navigator) = open(sessionOpen: true)
         navigator.open(UserProfileRoute(userID: user), in: .home)
         navigator.open(CabalRoute(id: cabal), in: .home)
         navigator.open(CabalRoute(id: cabal), in: .cabals)
         navigator.selectedTab = .profile
 
-        router.handle(.home)
+        await tap(.home, on: router)
 
         #expect(navigator.selectedTab == .home)
         #expect(navigator.homePath.isEmpty)
         #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: cabal))])
     }
 
-    @Test func aPushOpensAScreenAboveWhateverTheTabAlreadyShows() {
+    @Test func aPushOpensAScreenAboveWhateverTheTabAlreadyShows() async {
         let (router, navigator) = open(sessionOpen: true)
         navigator.open(CabalRoute(id: proposal), in: .cabals)
 
-        router.handle(.cabal(cabalID: cabal))
+        await tap(.cabal(cabalID: cabal), on: router)
 
         #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: proposal)), AnyAppRoute(CabalRoute(id: cabal))])
     }
@@ -147,6 +147,48 @@ struct PushRouterTests {
         #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: cabal))])
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func aPushWaitsForOpenSheetsToCloseBeforeItsScreenOpens() async {
+        let closing = SheetClosing()
+        let (router, navigator, _) = openWithEnvironment(sessionOpen: true, dismissPresented: closing.dismiss)
+
+        router.handle(.proposal(proposalID: proposal, cabalID: cabal))
+        while !closing.isWaiting { await Task.yield() }
+
+        #expect(navigator.cabalsPath.isEmpty)
+        #expect(navigator.selectedTab == .home)
+        closing.finish()
+        while navigator.cabalsPath.isEmpty { await Task.yield() }
+
+        #expect(closing.count == 1)
+        #expect(navigator.selectedTab == .cabals)
+        #expect(
+            navigator.cabalsPath == [
+                AnyAppRoute(CabalRoute(id: cabal)), AnyAppRoute(ProposalRoute(proposalID: proposal)),
+            ]
+        )
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func aTapBeforeTheSessionOpensClosesSheetsOnlyOnceTheSessionIsOpen() async {
+        let closing = SheetClosing()
+        let (router, navigator, environment) = openWithEnvironment(
+            sessionOpen: false, dismissPresented: closing.dismiss)
+
+        router.handle(.cabal(cabalID: cabal))
+        for _ in 0..<10 { await Task.yield() }
+
+        #expect(closing.count == 0)
+        environment.viewer = Viewer(userID: user, handle: nil)
+        while !closing.isWaiting { await Task.yield() }
+
+        #expect(navigator.cabalsPath.isEmpty)
+        closing.finish()
+        while navigator.cabalsPath.isEmpty { await Task.yield() }
+
+        #expect(closing.count == 1)
+    }
+
     @Test func finishingLaunchInstallsThePushCenterDelegate() {
         let (_, _, environment) = openWithEnvironment(sessionOpen: false)
         let center = UNUserNotificationCenter.current()
@@ -183,7 +225,15 @@ struct PushRouterTests {
         return (router, navigator)
     }
 
-    private func openWithEnvironment(sessionOpen: Bool) -> (PushRouter, AppNavigator, AppEnvironment) {
+    private func tap(_ route: PushRoute, on router: PushRouter) async {
+        router.handle(route)
+        for _ in 0..<10 { await Task.yield() }
+    }
+
+    private func openWithEnvironment(
+        sessionOpen: Bool,
+        dismissPresented: @escaping @MainActor () async -> Void = {}
+    ) -> (PushRouter, AppNavigator, AppEnvironment) {
         let environment = AppEnvironment(
             auth: PrivyAuthService.processInstance ?? PrivyAuthService(),
             hints: FakeHintSource(),
@@ -191,10 +241,29 @@ struct PushRouterTests {
             endAuthSession: {}
         )
         if sessionOpen { environment.viewer = Viewer(userID: user, handle: nil) }
-        return (PushRouter(environment: environment), environment.navigator, environment)
+        let router = PushRouter(environment: environment, dismissPresented: dismissPresented)
+        return (router, environment.navigator, environment)
     }
 
     private func untouched(_ navigator: AppNavigator, except tab: MainTab?) -> Bool {
         MainTab.allCases.filter { $0 != tab }.allSatisfy { navigator.path(for: $0).isEmpty }
+    }
+}
+
+@MainActor
+private final class SheetClosing {
+    private var release: CheckedContinuation<Void, Never>?
+    private(set) var count = 0
+
+    var isWaiting: Bool { release != nil }
+
+    func dismiss() async {
+        count += 1
+        await withCheckedContinuation { release = $0 }
+    }
+
+    func finish() {
+        release?.resume()
+        release = nil
     }
 }

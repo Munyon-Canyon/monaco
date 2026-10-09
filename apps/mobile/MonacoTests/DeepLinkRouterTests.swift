@@ -6,10 +6,10 @@ import Testing
 
 @MainActor
 struct DeepLinkRouterTests {
-    @Test func matchingURLOpensItsRouteInItsTab() {
+    @Test func matchingURLOpensItsRouteInItsTab() async {
         let navigator = AppNavigator()
 
-        DeepLinkRouter.handle(
+        await DeepLinkRouter.handle(
             URL(string: "monaco://match")!,
             navigator: navigator,
             handlers: [ProbeDeepLink.self, NeverMatchesDeepLink.self]
@@ -22,10 +22,39 @@ struct DeepLinkRouterTests {
         }
     }
 
-    @Test func nonMatchingURLOpensNothing() {
+    @Test func matchingURLClosesOpenSheetsBeforeItsRouteOpens() async {
+        let navigator = AppNavigator()
+        var routeWasOpenWhenSheetsClosed: [Bool] = []
+
+        await DeepLinkRouter.handle(
+            URL(string: "monaco://match")!,
+            navigator: navigator,
+            handlers: [ProbeDeepLink.self],
+            dismissPresented: { routeWasOpenWhenSheetsClosed.append(!navigator.path(for: .cabals).isEmpty) }
+        )
+
+        #expect(routeWasOpenWhenSheetsClosed == [false])
+        #expect(navigator.path(for: .cabals).count == 1)
+    }
+
+    @Test func nonMatchingURLLeavesOpenSheetsAlone() async {
+        let navigator = AppNavigator()
+        var closings = 0
+
+        await DeepLinkRouter.handle(
+            URL(string: "monaco://nothing")!,
+            navigator: navigator,
+            handlers: [NeverMatchesDeepLink.self],
+            dismissPresented: { closings += 1 }
+        )
+
+        #expect(closings == 0)
+    }
+
+    @Test func nonMatchingURLOpensNothing() async {
         let navigator = AppNavigator()
 
-        DeepLinkRouter.handle(
+        await DeepLinkRouter.handle(
             URL(string: "monaco://nothing")!,
             navigator: navigator,
             handlers: [NeverMatchesDeepLink.self]
@@ -37,10 +66,10 @@ struct DeepLinkRouterTests {
         }
     }
 
-    @Test func twoMatchingHandlersOnlyOpenTheFirst() {
+    @Test func twoMatchingHandlersOnlyOpenTheFirst() async {
         let navigator = AppNavigator()
 
-        DeepLinkRouter.handle(
+        await DeepLinkRouter.handle(
             URL(string: "monaco://either")!,
             navigator: navigator,
             handlers: [AlwaysMatchesInCabals.self, AlwaysMatchesInProfile.self]

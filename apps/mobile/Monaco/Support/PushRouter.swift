@@ -4,11 +4,16 @@ import Observation
 @MainActor
 final class PushRouter {
     private let environment: AppEnvironment
+    private let dismissPresented: @MainActor () async -> Void
     private var held: PushRoute?
     private var waiting: Task<Void, Never>?
 
-    init(environment: AppEnvironment) {
+    init(
+        environment: AppEnvironment,
+        dismissPresented: @escaping @MainActor () async -> Void = PresentedSheets.dismissAll
+    ) {
         self.environment = environment
+        self.dismissPresented = dismissPresented
     }
 
     func handle(_ route: PushRoute) {
@@ -40,7 +45,10 @@ final class PushRouter {
     private func openHeld() {
         guard let route = held else { return }
         held = nil
-        open(route)
+        Task {
+            await dismissPresented()
+            open(route)
+        }
     }
 
     private func open(_ route: PushRoute) {
