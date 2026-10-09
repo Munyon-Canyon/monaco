@@ -13,8 +13,11 @@ struct GroupChatThreadView: View {
     let seen: ChatSession.Seen?
     let openSeen: (String) -> Void
     let retry: (String) -> Void
+    let discard: (String) -> Void
     let loadOlder: () -> Void
     let refresh: () async -> Void
+
+    @State private var now = Date()
 
     var body: some View {
         ChatList(
@@ -26,8 +29,8 @@ struct GroupChatThreadView: View {
         } content: {
             ForEach(rows) { row in
                 GroupChatRowView(
-                    row: row, now: Date(), members: members, openProfile: openProfile, retry: retry,
-                    openThread: openThread, requestDelete: requestDelete,
+                    row: row, now: now, members: members, openProfile: openProfile, retry: retry,
+                    discard: discard, openThread: openThread, requestDelete: requestDelete,
                     seenLabel: row.id == seen?.messageID
                         ? seen.flatMap { ChatSeenCopy.label(count: $0.count) } : nil,
                     openSeen: { openSeen(row.id) }
@@ -35,5 +38,6 @@ struct GroupChatThreadView: View {
                 .id(row.id)
             }
         }
+        .onChange(of: rows) { now = Date() }
     }
 }

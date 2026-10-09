@@ -45,18 +45,35 @@ final class ChatSessionSendTests: XCTestCase {
         XCTAssertEqual(state.timeline.rows.map(\.delivery), [.sent])
     }
 
-    func testALiveMessageWithAFailedRowsBodyLeavesTheFailedRowAndItsRetry() async throws {
-        let elsewhere = Fixtures.message("m1", author: Fixtures.viewerID, body: "gm", minutes: 1)
-        let transport = StubTransport(scripted: [try Fixtures.page([]), .failure(URLError(.notConnectedToInternet))])
+    func testAnEchoOfALostResponseSendRemovesTheFailedTwin() async throws {
+        let stored = Fixtures.message("m1", author: Fixtures.viewerID, body: "gm", minutes: 1)
+        let transport = StubTransport(scripted: [try Fixtures.page([]), .failure(URLError(.timedOut))])
         let session = Fixtures.session(transport)
         await session.open()
         await session.send(body: "gm")
 
-        await session.apply(.messageCreated(elsewhere))
+        await session.apply(.messageCreated(stored))
 
         let state = await Fixtures.state(session)
-        XCTAssertEqual(Fixtures.ids(state), ["m1", "key-1"])
-        XCTAssertEqual(state.timeline.rows.map(\.delivery), [.sent, .failed])
+        XCTAssertEqual(Fixtures.ids(state), ["m1"])
+        XCTAssertEqual(state.timeline.rows.map(\.delivery), [.sent])
+    }
+
+    func testDiscardingAFailedSendRemovesItsRowAndNeverSendsItAgain() async throws {
+        let transport = StubTransport(scripted: [try Fixtures.page([]), .failure(URLError(.notConnectedToInternet))])
+        let session = Fixtures.session(transport)
+        await session.open()
+        await session.send(body: "gm")
+        let failed = await Fixtures.state(session)
+        XCTAssertEqual(failed.timeline.rows.map(\.delivery), [.failed])
+
+        await session.discard(key: "key-1")
+        await session.retry(key: "key-1")
+
+        let state = await Fixtures.state(session)
+        XCTAssertTrue(state.timeline.rows.isEmpty)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 2)
     }
 
     func testACatchUpPageNeverSettlesAnUnsentRowByBody() async throws {

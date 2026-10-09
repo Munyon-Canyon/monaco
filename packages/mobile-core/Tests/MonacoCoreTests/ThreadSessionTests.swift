@@ -187,6 +187,23 @@ final class ThreadSessionTests: XCTestCase {
         XCTAssertEqual(keys, ["key-1", "key-1"])
     }
 
+    func testDiscardingAFailedReplyRemovesItsRow() async throws {
+        let transport = StubTransport(scripted: [
+            try Fixtures.thread(parent: parent, replies: []),
+            .failure(URLError(.notConnectedToInternet)),
+        ])
+        let thread = await Fixtures.session(transport).thread(parentId: "p1")
+        await thread.open()
+        await thread.send(body: "agree")
+        let failed = await state(thread)
+        XCTAssertEqual(failed.timeline.rows.map(\.delivery), [.failed])
+
+        await thread.discard(key: "key-1")
+
+        let after = await state(thread)
+        XCTAssertTrue(after.timeline.rows.isEmpty)
+    }
+
     func testAFirstLoadFailureCanBeRetried() async throws {
         let transport = StubTransport(scripted: [
             Fixtures.problem(500, "internal", "Something went wrong."),
