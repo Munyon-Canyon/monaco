@@ -22,7 +22,11 @@ struct CabalInvitesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            if let model, !model.invites.isEmpty {
+            if let model, case .failed = model.state {
+                MonacoErrorRow(thing: "your invites", identifier: "cabals-invites-failed") {
+                    Task { await model.load() }
+                }
+            } else if let model, !model.invites.isEmpty {
                 MonacoSectionHeader("Cabal invites", count: model.invites.count)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
@@ -85,16 +89,22 @@ private struct CabalInviteRow: View {
 
     var body: some View {
         MonacoRow(
-            title: invite.cabalName, subtitle: "\(invite.invitedBy) · \(invite.members)", isLast: isLast,
+            title: invite.cabalName, subtitle: invite.invitedBy, isLast: isLast,
             trailingIsInteractive: true
         ) {
             CabalMark(groupId: invite.cabalID, name: invite.cabalName, pictureUrl: invite.pictureURL)
         } trailing: {
             HStack(spacing: MonacoTheme.Space.s) {
-                Button("Decline", action: decline)
-                    .buttonStyle(.monacoCompact)
-                    .accessibilityLabel("Decline the invite to \(invite.cabalName)")
-                    .accessibilityIdentifier("cabal-invite-decline")
+                Button(action: decline) {
+                    Text("Decline")
+                        .font(MonacoTheme.Typo.calloutStrong)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Decline the invite to \(invite.cabalName)")
+                .accessibilityIdentifier("cabal-invite-decline")
                 Button("Accept", action: accept)
                     .buttonStyle(.monacoCompactProminent)
                     .accessibilityLabel("Accept the invite to \(invite.cabalName)")

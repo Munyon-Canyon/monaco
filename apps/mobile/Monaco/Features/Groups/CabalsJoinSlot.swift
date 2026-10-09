@@ -86,6 +86,7 @@ private struct CabalsSearchContent: View {
             results
         }
         .task(id: model.trimmedQuery) {
+            guard model.searched != model.trimmedQuery else { return }
             try? await Task.sleep(for: CabalsSearchSection.debounce)
             guard !Task.isCancelled else { return }
             await model.search()
@@ -136,7 +137,7 @@ private struct CabalSearchRowView: View {
 
     var body: some View {
         Button(action: open) {
-            MonacoRow(title: row.name, subtitle: row.detail, isLast: isLast) {
+            MonacoRow(title: row.name, subtitle: row.detail, isLast: isLast, trailingIsInteractive: true) {
                 CabalMark(groupId: row.id, name: row.name, pictureUrl: row.pictureURL)
             } trailing: {
                 trailing
@@ -152,7 +153,7 @@ private struct CabalSearchRowView: View {
         case .request:
             switch row.joinPolicy {
             case .open: rowButton("Join", label: "Join \(row.name)")
-            case .request: rowButton("Request", label: "Ask to join \(row.name)")
+            case .request: rowButton("Request", label: "Request to join \(row.name)")
             }
         case .requested:
             Text("Request sent")
@@ -160,25 +161,21 @@ private struct CabalSearchRowView: View {
                 .foregroundStyle(MonacoTheme.muted)
                 .accessibilityIdentifier("cabals-search-requested")
         case .member:
-            EmptyView()
+            Text("Joined")
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+                .accessibilityIdentifier("cabals-search-joined")
         }
     }
 
     private func rowButton(_ title: String, label: String) -> some View {
-        Button(action: enter) {
-            Text(title)
-                .font(MonacoTheme.Typo.callout.weight(.semibold))
-                .foregroundStyle(MonacoTheme.ink)
-                .padding(.horizontal, MonacoTheme.Space.m)
-                .frame(minHeight: 36)
-                .overlay(Capsule().strokeBorder(MonacoTheme.ink, lineWidth: 1))
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isEntering)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier("cabals-search-enter-\(row.id)")
+        Button(title, action: enter)
+            .buttonStyle(.monacoCompact)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .disabled(isEntering)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier("cabals-search-enter-\(row.id)")
     }
 }
 

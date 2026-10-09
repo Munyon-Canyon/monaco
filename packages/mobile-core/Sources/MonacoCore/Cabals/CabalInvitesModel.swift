@@ -38,7 +38,7 @@ public final class CabalInvitesModel {
     private let api: APIClient
     private let hints: any HintSource
     private let refresher: HintRefresher
-    private let submission = IdempotentSubmission()
+    private var submissions: [String: IdempotentSubmission] = [:]
     private var generation = 0
     private var toastSerial = 0
 
@@ -109,6 +109,8 @@ public final class CabalInvitesModel {
         let cabalID = invite.cabalID
         let requestID = invite.id
         let body = Components.Schemas.AccessDecisionRequest(decision: decision)
+        let submission = submissions[requestID] ?? IdempotentSubmission()
+        submissions[requestID] = submission
         do {
             _ = try await api.submit(
                 submission,

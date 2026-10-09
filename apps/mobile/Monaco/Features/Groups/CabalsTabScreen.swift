@@ -29,6 +29,7 @@ struct CabalsTabScreen: View {
                 NotMigratedView(screen: "Cabals")
             } else {
                 SectionStack(context: (), sections: sections)
+                    .scrollDismissesKeyboard(.interactively)
             }
         }
         .environment(search)
