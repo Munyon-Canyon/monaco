@@ -147,8 +147,12 @@ public struct ChatTimeline: Equatable, Sendable {
 
     public mutating func applyThread(id: String, replyCount: Int, lastReplyAt: Date?) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
-        messages[index].replyCount = replyCount
-        messages[index].lastReplyAt = lastReplyAt
+        if messages[index].deleted && replyCount == 0 {
+            messages.remove(at: index)
+        } else {
+            messages[index].replyCount = replyCount
+            messages[index].lastReplyAt = lastReplyAt
+        }
         rebuildRows()
     }
 
