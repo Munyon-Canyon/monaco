@@ -12,6 +12,7 @@ final class CabalPotSummaryTests: XCTestCase {
         XCTAssertEqual(summary.potValue, "$1,000.00")
         XCTAssertEqual(summary.allTime, "+$0.73")
         XCTAssertEqual(summary.cash, "$750.00")
+        XCTAssertEqual(summary.invested, "$250.00")
         XCTAssertEqual(summary.slice, .stake(value: "$380.15", ofPot: "38% of the pot", gain: "+$0.15"))
         let row = summary.holdings.first
         XCTAssertEqual(summary.holdings.count, 1)
@@ -30,6 +31,7 @@ final class CabalPotSummaryTests: XCTestCase {
         let summary = CabalPotSummary(Pot.sampleCashOnly)
 
         XCTAssertEqual(summary.state, .cashOnly)
+        XCTAssertEqual(summary.invested, "$0.00")
         XCTAssertTrue(summary.holdings.isEmpty)
         XCTAssertEqual(summary.legend.map(\.percent), ["100%"])
     }
