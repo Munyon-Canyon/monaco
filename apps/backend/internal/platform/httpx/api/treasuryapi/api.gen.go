@@ -380,7 +380,7 @@ type CabalPot struct {
 	// Examples: 20000000
 	PnlMicros int64 `json:"pnl_micros"`
 
-	// PotValueMicros Cash plus every holding's value, in USDC micros.
+	// PotValueMicros Cash plus every holding's value, less what a cash out still owes beyond the cash, in USDC micros.
 	//
 	// Examples: 120000000
 	PotValueMicros int64 `json:"pot_value_micros"`

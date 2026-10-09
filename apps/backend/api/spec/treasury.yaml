@@ -278,7 +278,7 @@ components:
       required: [cabal_id, pot_value_micros, cash_micros, cash_weight_bps, pnl_micros, return_bps, prices_as_of, holdings, me]
       properties:
         cabal_id: {type: string, format: uuid, description: "The cabal id.", examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
-        pot_value_micros: {type: integer, format: int64, description: "Cash plus every holding's value, in USDC micros.", examples: [120000000]}
+        pot_value_micros: {type: integer, format: int64, description: "Cash plus every holding's value, less what a cash out still owes beyond the cash, in USDC micros.", examples: [120000000]}
         cash_micros: {type: integer, format: int64, description: "The cabal's USDC not reserved for a cash out, in micros.", examples: [60000000]}
         cash_weight_bps: {type: integer, format: int32, description: "Cash's share of the pot in basis points. With every holding's weight it sums to 10000, or all are 0 when the pot is empty.", examples: [5000]}
         pnl_micros: {type: integer, format: int64, description: "Signed all-time gain, the pot value minus what members put in net of what they took out.", examples: [20000000]}
