@@ -16,7 +16,7 @@ struct PushPrePromptSheet: View {
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("push-pre-prompt-title")
-                Text("We'll tell you when a vote opens, passes, or a trade fills.")
+                Text("We'll tell you when a vote opens or passes, when a trade fills, and when a cabal lets you in.")
                     .font(MonacoTheme.Typo.body)
                     .foregroundStyle(MonacoTheme.muted)
                     .multilineTextAlignment(.center)

@@ -99,7 +99,7 @@ private struct HandleStepForm: View {
                     Button {
                         isEnteringReferral = true
                     } label: {
-                        Text("Have a referral code?")
+                        Text("Have an invite code?")
                     }
                     .buttonStyle(.monacoText)
                     .accessibilityIdentifier("onboarding-handle-step-referral")
