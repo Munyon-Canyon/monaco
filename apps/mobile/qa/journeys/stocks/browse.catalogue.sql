@@ -21,4 +21,6 @@ FROM (VALUES
 JOIN assets a ON a.symbol = p.symbol
 CROSS JOIN (VALUES (now() - interval '12 hours'), (now())) AS s(ts);
 
+UPDATE assets SET last_quoted_at = now() WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx');
+
 SELECT count(*) FROM price_points WHERE source = 'qa-journey';

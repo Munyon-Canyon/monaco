@@ -9,6 +9,13 @@ import Testing
 
 @MainActor
 struct AssetDetailBuyCTATests {
+    @Test func aPausedStockCannotBeBoughtAndSaysWhy() {
+        #expect(!AssetDetailBuyCTA.canBuy(tradable: true, quotable: false))
+        #expect(AssetDetailBuyCTA.canBuy(tradable: true, quotable: true))
+        #expect(
+            AssetDetailBuyCTA.caption(tradable: true, quotable: false, canSell: true) == "Trading paused right now")
+    }
+
     @Test func untradableAssetsShowTheDisabledCopy() {
         #expect(AssetDetailBuyCTA.title(tradable: false) == "Can't buy right now")
     }

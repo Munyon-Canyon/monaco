@@ -82,6 +82,7 @@ cabal-picture-not-creator     -MonacoGroupDetailSample pictureNotCreator
 cabal-picture-upload-failure  -MonacoGroupDetailSample pictureUploadFailure
 
 stocks-tab-full               -MonacoStocksTabSample full
+stocks-tab-paused             -MonacoStocksTabSample paused
 stocks-tab-loading            -MonacoStocksTabSample loading
 stocks-tab-failed             -MonacoStocksTabSample failed
 stocks-tab-empty              -MonacoStocksTabSample empty
@@ -92,6 +93,7 @@ asset-pre-market              -MonacoAssetDetailSample preMarket
 asset-after-hours             -MonacoAssetDetailSample afterHours
 asset-closed                  -MonacoAssetDetailSample closed
 asset-pre-ipo                 -MonacoAssetDetailSample preIpo
+asset-paused                  -MonacoAssetDetailSample paused
 asset-untradable              -MonacoAssetDetailSample untradable
 asset-empty-chart             -MonacoAssetDetailSample emptyChart
 asset-chart-failed            -MonacoAssetDetailSample chartFailed
@@ -131,6 +133,7 @@ chat-thread-toggle            -MonacoChatThreadSampleQA
 propose-chooser               -MonacoProposeSample chooser
 propose-chooser-cash-only     -MonacoProposeSample chooserCashOnly
 propose-buy-list              -MonacoProposeSample buyList
+propose-buy-list-paused         -MonacoProposeSample buyListPaused
 propose-amount                -MonacoProposeSample amount
 propose-pot-failed            -MonacoProposeSample potFailed
 propose-pick-cabal            -MonacoProposeSample pickCabal

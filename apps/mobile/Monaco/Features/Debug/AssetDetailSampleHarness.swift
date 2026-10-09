@@ -11,6 +11,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     case closed
     case preIpo
     case untradable
+    case paused
     case emptyChart
     case chartFailed
     case loading
@@ -37,6 +38,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
                 state: .closed, continuous: false, holiday: "Thanksgiving Day", earlyClose: false)
         case .preIpo: script.asset = .spaceX
         case .untradable: script.asset.tradable = false
+        case .paused: script.asset = .paused
         case .emptyChart: script.chart = .empty
         case .chartFailed: script.mode = .chartUnavailable
         case .loading: script.mode = .hang

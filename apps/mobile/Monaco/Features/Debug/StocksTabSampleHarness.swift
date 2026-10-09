@@ -8,6 +8,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
     case loading
     case failed
     case empty
+    case paused
 
     static let launchArgument = "-MonacoStocksTabSample"
 
@@ -24,6 +25,7 @@ enum StocksTabSampleScenario: String, CaseIterable {
         case .loading: SampleAPIScript(mode: .hang)
         case .failed: SampleAPIScript(mode: .assetsUnavailable)
         case .empty: SampleAPIScript(mode: .empty)
+        case .paused: SampleAPIScript(includesPausedStock: true)
         }
     }
 }

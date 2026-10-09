@@ -13,6 +13,7 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let market: MarketAsset
     public let otherListings: [AssetListingPresentation]
     public let isTradable: Bool
+    public let isQuotable: Bool
 }
 
 public typealias AssetListingPresentation = MarketListing
@@ -263,7 +264,8 @@ public final class AssetDetailClientModel {
             session: market.session,
             market: market,
             otherListings: mapped.otherListings,
-            isTradable: detail.tradable
+            isTradable: detail.tradable,
+            isQuotable: detail.quotable
         )
     }
 
