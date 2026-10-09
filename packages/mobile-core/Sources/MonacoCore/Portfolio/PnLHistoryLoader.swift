@@ -92,17 +92,13 @@ public actor PnLHistoryLoader {
         } while policy.send(.refreshFinished) == .refreshNow
     }
 
-    private func refetchVisible() async {
+    func refetchVisible() async {
         guard !visible.isEmpty else { return }
         let keys = visible
-        let kept = cache
-        cache.removeAll()
-        do {
-            guard let curves = try await queued(keys, issued: generation, force: true) else { return }
-            await onUpdate?(.refreshed(range: keys[0].range, curves: curves))
-        } catch {
-            cache.merge(kept) { fresh, _ in fresh }
-        }
+        let stale = cache.keys.filter { !keys.contains($0) }
+        guard let curves = try? await queued(keys, issued: generation, force: true) else { return }
+        for key in stale { cache[key] = nil }
+        await onUpdate?(.refreshed(range: keys[0].range, curves: curves))
     }
 
     private func queued(_ keys: [Key], issued: Int, force: Bool) async throws -> [Subject: ValueCurve]? {

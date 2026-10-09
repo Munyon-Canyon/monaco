@@ -145,7 +145,7 @@ final class PnLHistoryLoaderTests: XCTestCase {
     }
 
     func testAFailedRefetchSendsNothingAndKeepsTheCache() async throws {
-        let transport = StubTransport(scripted: [try mine(._1d), .failure(URLError(.notConnectedToInternet))])
+        let transport = StubTransport(scripted: [try mine(._1d), .gate])
         let hints = FakeHintStream()
         let loader = PnLHistoryLoader(api: api(transport), hints: hints)
         let shown = try await loader.show(.me, range: .oneDay)
@@ -153,9 +153,12 @@ final class PnLHistoryLoaderTests: XCTestCase {
         let task = Task { await loader.observe { await updates.add($0) } }
         await subscribed(hints)
 
-        await hints.send(.changed(.user("u1"), what: "balance", id: "1"))
+        async let refetch: Void = loader.refetchVisible()
         await transport.waitForRequests(2)
-        for _ in 0..<50 { await Task.yield() }
+        let inFlight = await loader.cached(.me, range: .oneDay)
+        XCTAssertEqual(inFlight, shown)
+        await transport.releaseGate(.failure(URLError(.notConnectedToInternet)))
+        await refetch
 
         let sent = await updates.all.count
         let cached = await loader.cached(.me, range: .oneDay)
