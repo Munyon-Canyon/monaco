@@ -6,7 +6,9 @@ struct CommentComposerBar: View {
     var onDidStandDown: () -> Void = {}
 
     var body: some View {
-        if model.canComment {
+        if !model.canCommentKnown {
+            EmptyView()
+        } else if model.canComment {
             CommentComposer(
                 replyTarget: model.replyTarget,
                 isPosting: model.isPosting,
@@ -18,7 +20,9 @@ struct CommentComposerBar: View {
             Text(CommentsCopy.membersOnly)
                 .font(MonacoTheme.Typo.callout)
                 .foregroundStyle(MonacoTheme.muted)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.vertical, MonacoTheme.Space.m)
                 .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))

@@ -47,24 +47,23 @@ struct FeedItemDetailView: View {
 private struct FeedItemDetailContent: View {
     let model: FeedItemDetailModel
 
-    private static let end = "feed-item-detail-end"
-
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                     header
                     CommentThreadView(model: model.comments)
-                    Color.clear.frame(height: 1).id(Self.end)
                 }
                 .padding(.vertical, MonacoTheme.Space.m)
             }
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await model.refresh() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CommentComposerBar(model: model.comments) {
-                    withAnimation { proxy.scrollTo(Self.end, anchor: .bottom) }
-                }
+                CommentComposerBar(model: model.comments)
+            }
+            .onChange(of: model.comments.lastPostedID) { _, id in
+                guard let id else { return }
+                withAnimation { proxy.scrollTo(id, anchor: .center) }
             }
         }
         .monacoCanvas()
