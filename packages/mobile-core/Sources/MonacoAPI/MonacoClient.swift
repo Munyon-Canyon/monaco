@@ -37,11 +37,18 @@ struct HeadersMiddleware: ClientMiddleware {
     }
 }
 
+extension HTTPRequest {
+    fileprivate static let bearerPrefix = "Bearer "
+
+    fileprivate var bearerToken: String? {
+        guard let sent = headerFields[.authorization], sent.hasPrefix(Self.bearerPrefix) else { return nil }
+        return String(sent.dropFirst(Self.bearerPrefix.count))
+    }
+}
+
 /// Answers a 401 by asking for a fresh token once and resending. It sits inside
 /// `ProblemMiddleware`, so it sees the 401 as a response rather than a thrown problem.
 struct RefreshMiddleware: ClientMiddleware {
-    private static let bearerPrefix = "Bearer "
-
     let tokens: any AccessTokenProvider
 
     func intercept(
@@ -53,21 +60,41 @@ struct RefreshMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (response, responseBody) = try await next(request, body, baseURL)
         guard response.status == .unauthorized else { return (response, responseBody) }
-        guard let sent = request.headerFields[.authorization], sent.hasPrefix(Self.bearerPrefix) else {
-            throw APIError.missingAccessToken(operationID)
-        }
-        guard let fresh = try await tokens.refreshedToken(replacing: String(sent.dropFirst(Self.bearerPrefix.count)))
-        else {
+        guard let sent = request.bearerToken else { throw APIError.missingAccessToken(operationID) }
+        guard let fresh = try await tokens.refreshedToken(replacing: sent) else {
             throw APIError.signedOut
         }
         var retry = request
-        retry.headerFields[.authorization] = Self.bearerPrefix + fresh
+        retry.headerFields[.authorization] = HTTPRequest.bearerPrefix + fresh
         let (retried, retriedBody) = try await next(retry, body, baseURL)
         guard retried.status != .unauthorized else {
             await tokens.endSession(rejectedToken: fresh)
             throw APIError.signedOut
         }
         return (retried, retriedBody)
+    }
+}
+
+struct AccountDeletedMiddleware: ClientMiddleware {
+    let tokens: any AccessTokenProvider
+
+    func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID: String,
+        next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        do {
+            return try await next(request, body, baseURL)
+        } catch {
+            if operationID != Operations.DeleteMe.id, ProblemError(error)?.code.wire == "account_deleted",
+                let token = request.bearerToken
+            {
+                await tokens.accountDeleted(rejectedToken: token)
+            }
+            throw error
+        }
     }
 }
 

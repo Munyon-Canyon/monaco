@@ -27,7 +27,7 @@ final class AppEnvironment {
 
     private let privyAuthenticated: @MainActor () -> Bool
     private let endAuthSession: @MainActor () async -> Void
-    private let endExpiredSession: @MainActor () async -> Void
+    private let endExpiredSession: @MainActor (String) async -> Void
     private var isSigningOut = false
     private var sceneIsActive = false
 
@@ -38,7 +38,7 @@ final class AppEnvironment {
         return privyAuthenticated()
     }
 
-    var hasOpenSession: Bool { isSignedIn && viewer != nil }
+    var hasOpenSession: Bool { isSignedIn && viewer != nil && !isSigningOut }
 
     init(
         auth: PrivyAuthService,
@@ -48,7 +48,7 @@ final class AppEnvironment {
         sessionStore: AppSessionStore? = nil,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
         endAuthSession: (@MainActor () async -> Void)? = nil,
-        endExpiredSession: (@MainActor () async -> Void)? = nil
+        endExpiredSession: (@MainActor (String) async -> Void)? = nil
     ) {
         let tokens = tokens ?? SessionTokens(auth: auth)
         self.auth = auth
@@ -81,14 +81,18 @@ final class AppEnvironment {
             )
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }
-        self.endExpiredSession =
-            endExpiredSession ?? { await auth.logout(reason: LoginFailureCopy.sessionExpired) }
+        self.endExpiredSession = endExpiredSession ?? { await auth.logout(reason: $0) }
         self.sessionStore.onProfileChange = { [weak self] next in
             self?.sessionDidChange(next)
         }
         tokens.onSignedOut { [weak self] in
             Task { @MainActor in
-                await self?.signOut(expired: true)
+                await self?.signOut(reason: LoginFailureCopy.sessionExpired)
+            }
+        }
+        tokens.onAccountDeleted { [weak self] in
+            Task { @MainActor in
+                await self?.signOut(reason: ToastCopy.message(for: .accountDeleted))
             }
         }
         auth.pushRegistrar = push
@@ -149,17 +153,21 @@ final class AppEnvironment {
     }
     #endif
 
-    func signOut(expired: Bool = false) async {
+    func signOut(reason: String? = nil) async {
         guard !isSigningOut else { return }
         isSigningOut = true
         defer { isSigningOut = false }
-        clearSignedInState()
         await hints.stop()
         AppLogger.session.info("hint stream stopped")
         #if DEBUG
         tokens.use(nil)
         #endif
-        await (expired ? endExpiredSession : endAuthSession)()
+        if let reason {
+            await endExpiredSession(reason)
+        } else {
+            await endAuthSession()
+        }
+        clearSignedInState()
         viewer = nil
     }
 

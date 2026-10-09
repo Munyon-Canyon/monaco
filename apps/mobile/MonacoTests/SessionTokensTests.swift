@@ -106,5 +106,33 @@ struct SessionTokensTests {
 
         #expect(fired.withLock { $0 } == 0)
     }
+
+    @Test func aDeletedAccountFiresItsHandlerForTheCurrentTokenOnly() async {
+        let tokens = SessionTokens(privyToken: { "current" }, refresh: { _ in nil })
+        let deleted = Mutex(0)
+        let signedOut = Mutex(0)
+        tokens.onAccountDeleted { deleted.withLock { $0 += 1 } }
+        tokens.onSignedOut { signedOut.withLock { $0 += 1 } }
+
+        await tokens.accountDeleted(rejectedToken: "old")
+        #expect(deleted.withLock { $0 } == 0)
+
+        await tokens.accountDeleted(rejectedToken: "current")
+        #expect(deleted.withLock { $0 } == 1)
+        #expect(signedOut.withLock { $0 } == 0)
+    }
+
+    @Test func aDeletedAccountFollowsTheActiveDevToken() async {
+        let tokens = SessionTokens(privyToken: { "privy-token" }, refresh: { _ in nil })
+        tokens.use(DevSession(token: "dev-token", userID: "u-1"))
+        let deleted = Mutex(0)
+        tokens.onAccountDeleted { deleted.withLock { $0 += 1 } }
+
+        await tokens.accountDeleted(rejectedToken: "privy-token")
+        #expect(deleted.withLock { $0 } == 0)
+
+        await tokens.accountDeleted(rejectedToken: "dev-token")
+        #expect(deleted.withLock { $0 } == 1)
+    }
 }
 #endif
