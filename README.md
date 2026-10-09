@@ -185,6 +185,7 @@ The app's API base URL comes from the build, not from source: `apps/mobile/Confi
 
 - `just run` / `just run mobile` need nothing extra: Debug is `local`.
 - Set the remote URLs once (not secrets, `https://` only): `dotenvx set MONACO_STAGING_API_BASE_URL https://… -f .env.local --plain` (same for `MONACO_PRODUCTION_API_BASE_URL`). `scripts/ensure-ios-privy-config.sh` writes them to the gitignored `Config/Environment.local.xcconfig` and rejects a non-https value.
+- Each environment signs in with its own Privy app: `local` uses the dev app from `.env.local`, `staging` the app from `.env.staging`, `production` the app from `.env.production`. `scripts/ensure-ios-privy-config.sh` reads `PRIVY_APP_ID` and `PRIVY_APP_CLIENT_ID` (`client-…`) from each file that exists; a missing or incomplete file leaves that environment empty and its build refuses to launch.
 - Build for another environment: `xcodebuild … MONACO_ENVIRONMENT=staging` (or pass `MONACO_STAGING_API_BASE_URL=https://…` on the same command line).
 - Point an already-built Debug sim at staging or a tunnel without rebuilding: `MONACO_API_BASE_URL=https://<tunnel-host> just run mobile` (exported as `SIMCTL_CHILD_MONACO_API_BASE_URL`; add `MONACO_ENVIRONMENT=staging` to label it). Debug builds only.
 - Release builds ignore the process environment and refuse to launch (`fatalError` naming the setting to fix) when the URL is empty, malformed, not `https`, a local host, or the environment is `local`. The rules live in `MonacoAPIConfiguration` and are covered by `just test mobile`.
