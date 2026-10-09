@@ -43,7 +43,7 @@ func depositCommand(t *testing.T, user testkit.SeededUser, micros uint64) app.Cr
 	sig := chain.Signature(depositSignature)
 	return app.CreditDeposit{
 		ID: testkit.NewIDs(90).NewV7(), UserID: user.ID, WalletAddress: user.Address,
-		TxSignature: sig, CursorSignature: sig, Amount: money.MicrosFromUint64(micros),
+		TxSignature: sig, Amount: money.MicrosFromUint64(micros),
 		Slot: 42, BlockTime: now, CreditedAt: now,
 	}
 }

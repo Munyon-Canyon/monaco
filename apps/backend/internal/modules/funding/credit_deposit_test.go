@@ -29,7 +29,7 @@ func (h *hints) PublishHint(
 	h.keys = append(h.keys, key)
 }
 
-func TestCreditDeposit_writesOneDepositEventCursorAndHint(t *testing.T) {
+func TestCreditDeposit_writesOneDepositEventAndHintWithoutMovingTheCursor(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
@@ -49,10 +49,8 @@ func TestCreditDeposit_writesOneDepositEventCursorAndHint(t *testing.T) {
 		Amount: money.MicrosFromUint64(
 			25_000_000,
 		), Slot: 123, BlockTime: now, CreditedAt: now,
-		CursorSignature: chain.Signature(
-			"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
-		),
 	}
+	seedDepositCursor(t, pool, user.Address, now)
 	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
 	credited, err := handler.Handle(ctx, cmd)
 	if err != nil || !credited {
@@ -73,9 +71,22 @@ func TestCreditDeposit_writesOneDepositEventCursorAndHint(t *testing.T) {
 	if deposits != 1 || eventCount != 1 || len(h.keys) != 1 {
 		t.Fatalf("deposits=%d events=%d hints=%v, want 1 1 one", deposits, eventCount, h.keys)
 	}
-	assertDepositCursor(t, pool, user.Address, cmd.CursorSignature)
+	assertDepositCursor(t, pool, user.Address, seededCursor)
 	assertDepositHint(t, h, user.ID)
 	assertDepositPayload(t, pool, cmd)
+}
+
+const seededCursor chain.Signature = "seeded-cursor"
+
+func seedDepositCursor(t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, at time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(
+		t.Context(),
+		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at) VALUES ($1, $2, 7, $3)`,
+		address, string(seededCursor), at,
+	); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func assertDepositCursor(t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, want chain.Signature) {
@@ -122,7 +133,7 @@ func assertDepositPayload(t *testing.T, pool *pgxpool.Pool, want app.CreditDepos
 	}
 }
 
-func TestCreditDeposit_duplicateDoesNotMoveCursorBackward(t *testing.T) {
+func TestCreditDeposit_duplicateLeavesTheCursorUntouched(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
@@ -136,32 +147,21 @@ func TestCreditDeposit_duplicateDoesNotMoveCursorBackward(t *testing.T) {
 		TxSignature: chain.Signature(
 			"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
 		),
-		Amount:          money.MicrosFromUint64(1),
-		Slot:            2,
-		BlockTime:       now,
-		CreditedAt:      now,
-		CursorSignature: chain.Signature("newer"),
+		Amount:     money.MicrosFromUint64(1),
+		Slot:       2,
+		BlockTime:  now,
+		CreditedAt: now,
 	}
+	seedDepositCursor(t, pool, user.Address, now)
 	if _, err := handler.Handle(ctx, newer); err != nil {
 		t.Fatal(err)
 	}
 	duplicate := newer
-	duplicate.CursorSignature = chain.Signature("older")
 	duplicate.Slot = 1
 	if credited, err := handler.Handle(ctx, duplicate); err != nil || credited {
 		t.Fatalf("duplicate = %v, %v", credited, err)
 	}
-	var cursor string
-	if err := pool.QueryRow(
-		t.Context(),
-		`SELECT last_signature FROM deposit_cursors WHERE wallet_address = $1`,
-		user.Address,
-	).Scan(&cursor); err != nil {
-		t.Fatal(err)
-	}
-	if cursor != "newer" {
-		t.Fatalf("cursor = %q, want newer", cursor)
-	}
+	assertDepositCursor(t, pool, user.Address, seededCursor)
 }
 
 func TestCreditDeposit_rollsBackOnEachWriteFailure(t *testing.T) {
@@ -191,9 +191,9 @@ func TestCreditDeposit_rollsBackOnEachWriteFailure(t *testing.T) {
 		t.Parallel()
 		check(t, "deposits")
 	})
-	t.Run("cursor", func(t *testing.T) {
+	t.Run("events", func(t *testing.T) {
 		t.Parallel()
-		check(t, "deposit_cursors")
+		check(t, "events")
 	})
 }
 

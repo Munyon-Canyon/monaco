@@ -10,6 +10,11 @@ var FundingDepositCredited = Msg{
 	Required: []string{"wallet_address", "amount_micros"},
 }
 
+var FundingCandidateRecorded = Msg{
+	Name:     "funding.candidate.recorded",
+	Required: []string{"wallet_address"},
+}
+
 var FundingBalanceClamped = Msg{
 	Name:     "funding.balance.clamped",
 	Required: []string{"user_id", "on_chain_micros", "in_flight_fund_micros", "in_flight_withdrawal_micros"},

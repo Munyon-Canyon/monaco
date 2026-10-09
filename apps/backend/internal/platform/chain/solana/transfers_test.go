@@ -207,3 +207,14 @@ func TestInboundTransfers_refusesAToken2022FeeItCannotAttributeOrThatDoesNotAddU
 		}
 	}
 }
+
+func TestInboundTransfersForMint_unsupportedTransactionVersionIsNotRetryable(t *testing.T) {
+	t.Parallel()
+	_, err := client(replying(200, `{"jsonrpc":"2.0","id":1,"error":{"code":-32015,`+
+		`"message":"Transaction version (1) is not supported by the requesting client"}}`)).
+		InboundTransfersForMint(t.Context(), deposit, member, usdcMint)
+	wantCode(t, err, errs.CodeDecodeFailed)
+	_, err = client(replying(200, `{"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"busy"}}`)).
+		InboundTransfersForMint(t.Context(), deposit, member, usdcMint)
+	wantCode(t, err, errs.CodeRPCUnavailable)
+}
