@@ -40,7 +40,11 @@ struct CabalProposals: View {
                 case .failed where model.pager.items.isEmpty:
                     MonacoErrorRow(thing: "votes", identifier: "cabal-votes-error") { Task { await model.load() } }
                 default:
-                    content(model)
+                    if !model.pager.items.isEmpty, context?.hasLoaded != true {
+                        ProposalCardSkeleton()
+                    } else {
+                        content(model)
+                    }
                 }
             }
         }
@@ -285,20 +289,11 @@ private struct CabalProposalSegmentList: View {
 
 private struct ProposalCardSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                SkeletonBlock(
-                    width: 36, height: 36, radius: 36 * MonacoTheme.Radius.tile / MonacoRowLayout.baseMarkSize)
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    SkeletonBlock(width: 120, height: 14)
-                    SkeletonBlock(width: 64, height: 11)
-                }
-            }
-            SkeletonBlock(width: 140, height: 28)
-            SkeletonBlock(width: 160, height: 12)
-            HStack(spacing: MonacoTheme.Space.s) {
-                SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
-                SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoButtonMetrics.minimumHeight / 2)
+        HStack(spacing: MonacoTheme.Space.sm) {
+            SkeletonBlock(width: 36, height: 36, radius: 36 * MonacoTheme.Radius.tile / MonacoRowLayout.baseMarkSize)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                SkeletonBlock(width: 120, height: 14)
+                SkeletonBlock(width: 64, height: 11)
             }
         }
         .padding(MonacoTheme.Space.m)

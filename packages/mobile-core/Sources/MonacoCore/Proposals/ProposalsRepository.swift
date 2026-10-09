@@ -39,6 +39,15 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self = other.replacing(ballot: ballot, tally: tally)
     }
 
+    init(retrying other: ProposalSummary) {
+        self.init(
+            id: other.id, cabalID: other.cabalID, kind: other.kind, symbol: other.symbol,
+            proposerID: other.proposerID, thesis: other.thesis, usdcMicros: other.usdcMicros,
+            tokenAmount: other.tokenAmount, quoteOutAmount: other.quoteOutAmount, createdAt: other.createdAt,
+            tally: other.tally, myBallot: other.myBallot, status: .passed, statusMessage: other.statusMessage,
+            expiresAt: other.expiresAt, canVote: other.canVote, canWithdraw: other.canWithdraw, swap: nil)
+    }
+
     private func replacing(ballot: String, tally: ProposalTally) -> ProposalSummary {
         ProposalSummary(
             id: id, cabalID: cabalID, kind: kind, symbol: symbol, proposerID: proposerID, thesis: thesis,

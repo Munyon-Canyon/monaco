@@ -27,10 +27,10 @@ struct ProposalDetailSlotView: View {
 
     var body: some View {
         Group {
-            if let detail = model?.value {
+            if let detail = model?.value, let summary = model?.summary {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.gutter) {
                     ProposalCard(
-                        proposal: detail.summary, asset: model?.asset, members: model?.members ?? [],
+                        proposal: summary, asset: model?.asset, members: model?.members ?? [],
                         paused: pause?.isPaused == true,
                         showsThesis: false,
                         isDetail: true
@@ -56,8 +56,8 @@ struct ProposalDetailSlotView: View {
                     }
                     votes(detail)
                     reason(detail)
-                    expected(detail)
-                    status(detail)
+                    expected(summary)
+                    status(summary)
                 }
                 .padding(.top, MonacoTheme.Space.m)
             } else if model?.errorMessage != nil {
@@ -166,8 +166,7 @@ struct ProposalDetailSlotView: View {
         }
     }
 
-    @ViewBuilder private func expected(_ detail: ProposalDetail) -> some View {
-        let summary = detail.summary
+    @ViewBuilder private func expected(_ summary: ProposalSummary) -> some View {
         let isPending = summary.status == .open || summary.status == .passed
         if isPending, summary.swap?.status != "failed",
             let line = ProposalCardCopy.expected(
@@ -185,8 +184,7 @@ struct ProposalDetailSlotView: View {
         }
     }
 
-    private func status(_ detail: ProposalDetail) -> some View {
-        let summary = detail.summary
+    private func status(_ summary: ProposalSummary) -> some View {
         let stepper = ProposalStepper.make(
             status: summary.status, isSell: summary.kind == "sell", swapFailed: summary.swap?.status == "failed",
             expiresAt: summary.expiresAt, failureMessage: summary.swap?.failureMessage,

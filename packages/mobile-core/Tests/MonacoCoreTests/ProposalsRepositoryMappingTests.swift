@@ -161,15 +161,11 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
 
     @MainActor
     func testDetailModelVotesThenReloads() async throws {
-        let transport = StubTransport(scripted: [
-            .json(
-                .ok,
-                #"{"proposal_id":"p","status":"open","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes"}"#
-            ),
-            .json(.ok, detailBody),
-        ])
+        let transport = StubTransport(
+            scripted: loadReplies(detailBody) + [.json(.ok, voteResult("yes"))] + loadReplies(detailBody))
         let model = ProposalDetailModel(
             id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
         let voted = await model.vote("yes")
         XCTAssertTrue(voted)
         XCTAssertEqual(model.value?.id, "p")
@@ -263,6 +259,14 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
         #"{"id":"p","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"open","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":true,"can_withdraw":false,"swap":null}"#
     }
 
+    private func loadReplies(_ detail: String) -> [StubTransport.Reply] {
+        [.json(.ok, detail), .json(.ok, "{}"), .json(.ok, "{}")]
+    }
+
+    private func voteResult(_ choice: String) -> String {
+        #"{"proposal_id":"p","status":"open","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"\#(choice)"}"#
+    }
+
     private func repository(_ transport: StubTransport) -> ProposalsRepository {
         ProposalsRepository(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport))
@@ -272,28 +276,183 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
 extension ProposalsRepositoryMappingTests {
     @MainActor
     func testDetailModelReportsAFailedVote() async throws {
+        let transport = StubTransport(
+            scripted: loadReplies(detailBody) + [.failure(URLError(.notConnectedToInternet))])
         let model = ProposalDetailModel(
-            id: "p", cabalID: "c",
-            repository: repository(StubTransport(.failure(URLError(.notConnectedToInternet)))), hints: FakeHintStream())
+            id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
         let voted = await model.vote("no")
         XCTAssertFalse(voted)
         XCTAssertFalse(model.isVoting)
+        XCTAssertNil(model.summary?.myBallot)
         XCTAssertEqual(model.errorMessage, "You're offline. Try again.")
     }
 
     @MainActor
     func testDetailModelReportsAVoteWhoseReloadFails() async throws {
-        let transport = StubTransport(scripted: [
-            .json(
-                .ok,
-                #"{"proposal_id":"p","status":"open","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes"}"#
-            ),
-            .failure(URLError(.notConnectedToInternet)),
-        ])
+        let transport = StubTransport(
+            scripted: loadReplies(detailBody) + [
+                .json(.ok, voteResult("yes")), .failure(URLError(.notConnectedToInternet)),
+            ])
         let model = ProposalDetailModel(
             id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
         let voted = await model.vote("yes")
         XCTAssertTrue(voted)
         XCTAssertNotNil(model.errorMessage)
+    }
+}
+
+extension ProposalsRepositoryMappingTests {
+    @MainActor
+    func testChangingAVoteShowsTheNewBallotAndLocksTheScreenUntilTheReloadReturns() async throws {
+        let before = detailBody.replacingOccurrences(of: #""my_ballot":null"#, with: #""my_ballot":"yes""#)
+        let after = detailBody.replacingOccurrences(of: #""my_ballot":null"#, with: #""my_ballot":"no""#)
+        let transport = StubTransport(scripted: loadReplies(before) + [.gate, .gate] + loadReplies(after))
+        let model = ProposalDetailModel(
+            id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
+        XCTAssertEqual(model.summary?.myBallot, "yes")
+        let voting = Task { await model.vote("no") }
+        let posted = await eventArrives(within: 30) { await transport.waitForRequests(4) }
+        XCTAssertTrue(posted)
+        XCTAssertEqual(model.summary?.myBallot, "no")
+        XCTAssertTrue(model.isVoting)
+        await transport.releaseGate(.json(.ok, voteResult("no")))
+        let reloading = await eventArrives(within: 30) { await transport.waitForRequests(5) }
+        XCTAssertTrue(reloading)
+        XCTAssertEqual(model.summary?.myBallot, "no")
+        XCTAssertTrue(model.isVoting)
+        await transport.releaseGate(.json(.ok, after))
+        let voted = await voting.value
+        XCTAssertTrue(voted)
+        XCTAssertFalse(model.isVoting)
+        XCTAssertEqual(model.summary?.myBallot, "no")
+    }
+
+    @MainActor
+    func testRetryShowsTheTradeRunningWhileTheReloadStillReturnsTheFailedSwap() async throws {
+        let failed = try failedSwapJSON(swapID: "swap-1")
+        let transport = StubTransport(
+            scripted: loadReplies(failed) + [.json(.accepted, #"{"swap_id":"swap-1","status":"retry_requested"}"#)]
+                + loadReplies(failed))
+        let model = ProposalDetailModel(
+            id: "proposal-1", cabalID: "cabal-1", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
+        XCTAssertEqual(model.retryableSwapID, "swap-1")
+        XCTAssertEqual(model.summary?.swap?.status, "failed")
+        await model.retry()
+        XCTAssertTrue(model.didRetry)
+        XCTAssertNil(model.retryableSwapID)
+        XCTAssertEqual(model.summary?.status, .passed)
+        XCTAssertNil(model.summary?.swap)
+        XCTAssertEqual(model.value?.summary.swap?.id, "swap-1")
+    }
+
+    @MainActor
+    func testANewSwapEndsTheRetryingState() async throws {
+        let failed = try failedSwapJSON(swapID: "swap-1")
+        let transport = StubTransport(
+            scripted: loadReplies(failed) + [.json(.accepted, #"{"swap_id":"swap-1","status":"retry_requested"}"#)]
+                + loadReplies(failed) + loadReplies(try failedSwapJSON(swapID: "swap-2")))
+        let model = ProposalDetailModel(
+            id: "proposal-1", cabalID: "cabal-1", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
+        await model.retry()
+        XCTAssertNil(model.retryableSwapID)
+        await model.load()
+        XCTAssertEqual(model.summary?.swap?.id, "swap-2")
+        XCTAssertEqual(model.summary?.swap?.status, "failed")
+        XCTAssertEqual(model.retryableSwapID, "swap-2")
+    }
+
+    @MainActor
+    func testAnotherStatusEndsTheRetryingState() async throws {
+        let failed = try failedSwapJSON(swapID: "swap-1")
+        let voided = failed.replacingOccurrences(of: #""status":"passed""#, with: #""status":"voided""#)
+        let transport = StubTransport(
+            scripted: loadReplies(failed) + [.json(.accepted, #"{"swap_id":"swap-1","status":"retry_requested"}"#)]
+                + loadReplies(failed) + loadReplies(voided))
+        let model = ProposalDetailModel(
+            id: "proposal-1", cabalID: "cabal-1", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
+        await model.retry()
+        await model.load()
+        XCTAssertEqual(model.summary?.status, .voided)
+        XCTAssertEqual(model.summary?.swap?.id, "swap-1")
+    }
+
+    @MainActor
+    func testAFailedRetryKeepsTheRetryButton() async throws {
+        let failed = try failedSwapJSON(swapID: "swap-1")
+        let transport = StubTransport(
+            scripted: loadReplies(failed) + [.failure(URLError(.notConnectedToInternet))])
+        let model = ProposalDetailModel(
+            id: "proposal-1", cabalID: "cabal-1", repository: repository(transport), hints: FakeHintStream())
+        await model.load()
+        await model.retry()
+        XCTAssertFalse(model.didRetry)
+        XCTAssertEqual(model.retryableSwapID, "swap-1")
+        XCTAssertEqual(model.summary?.swap?.status, "failed")
+    }
+
+    @MainActor
+    func testCardContextReadsMembersAndEveryAssetTogether() async throws {
+        let transport = StubTransport(scripted: [.gate, .gate, .gate])
+        let context = ProposalCardContext(cabalID: "c", repository: repository(transport))
+        let loading = Task { await context.load(for: [proposal(symbol: "AAPLx"), proposal(symbol: "TSLAx")]) }
+        let issued = await eventArrives(within: 30) { await transport.waitForRequests(3) }
+        XCTAssertTrue(issued)
+        XCTAssertFalse(context.hasLoaded)
+        XCTAssertTrue(context.members.isEmpty)
+        XCTAssertTrue(context.assets.isEmpty)
+        for path in await transport.sent.compactMap(\.path) {
+            let reply = path.hasSuffix("TSLAx") ? assetBody.replacingOccurrences(of: "AAPLx", with: "TSLAx") : assetBody
+            await transport.releaseGate(.json(.ok, path.contains("/v1/cabals/") ? cabalBody : reply))
+        }
+        await loading.value
+        XCTAssertTrue(context.hasLoaded)
+        XCTAssertEqual(context.members.map(\.name), ["Jordan"])
+        XCTAssertEqual(Set(context.assets.keys), ["AAPLx", "TSLAx"])
+    }
+
+    @MainActor
+    func testCardContextFetchesOnlyWhatIsMissing() async throws {
+        let transport = PathRoutedTransport([
+            "/v1/cabals/c": [.json(.ok, cabalBody)],
+            "/v1/assets/AAPLx": [.json(.ok, assetBody)],
+            "/v1/assets/TSLAx": [.json(.ok, assetBody.replacingOccurrences(of: "AAPLx", with: "TSLAx"))],
+        ])
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport)
+        let context = ProposalCardContext(cabalID: "c", repository: ProposalsRepository(api: api))
+        await context.load(for: [proposal(symbol: "AAPLx")])
+        await context.load(for: [proposal(symbol: "AAPLx"), proposal(symbol: "TSLAx")])
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.sorted(), ["/v1/assets/AAPLx", "/v1/assets/TSLAx", "/v1/cabals/c"])
+        XCTAssertEqual(Set(context.assets.keys), ["AAPLx", "TSLAx"])
+    }
+
+    @MainActor
+    func testCardContextFinishesItsFirstPassWhenEveryReadFails() async throws {
+        let transport = StubTransport(.failure(URLError(.notConnectedToInternet)))
+        let context = ProposalCardContext(cabalID: "c", repository: repository(transport))
+        await context.load(for: [proposal(symbol: "AAPLx")])
+        XCTAssertTrue(context.hasLoaded)
+        XCTAssertTrue(context.members.isEmpty)
+        XCTAssertTrue(context.assets.isEmpty)
+    }
+
+    private func proposal(symbol: String) -> ProposalSummary {
+        var proposal = Components.Schemas.Proposal.sample()
+        proposal.symbol = symbol
+        return ProposalSummary(proposal)
+    }
+
+    private func failedSwapJSON(swapID: String) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var detail = Components.Schemas.ProposalDetail.failedSwap(retryable: true)
+        detail.swap?.swapId = swapID
+        return String(decoding: try encoder.encode(detail), as: UTF8.self)
     }
 }
