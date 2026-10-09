@@ -31,6 +31,19 @@ struct AssetScrubHeaderTests {
         #expect(header.caption == "Sat, Aug 15")
     }
 
+    @Test func theDayChartScrubsFromThePreviousClose() throws {
+        let day = AssetChartSeries(
+            range: .oneDay,
+            points: [
+                .init(timestamp: Self.start, priceUsdcMicros: 100_000_000),
+                .init(timestamp: Self.start + 300, priceUsdcMicros: 101_000_000),
+            ],
+            previousCloseUsdcMicros: 102_000_000)
+        let header = try #require(Self.header(1, chart: day))
+
+        #expect(header.basisPoints == -98)
+    }
+
     @Test func scrubbingBelowTheFirstPointReportsALoss() throws {
         let header = try #require(Self.header(2))
 

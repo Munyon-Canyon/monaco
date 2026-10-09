@@ -179,9 +179,17 @@ func wireChart(chart app.Chart) (api.AssetChart, error) {
 		}
 		points = append(points, wired)
 	}
+	var base *int64
+	if chart.PreviousClose != nil {
+		wired, err := int64Micros(*chart.PreviousClose)
+		if err != nil {
+			return api.AssetChart{}, err
+		}
+		base = &wired
+	}
 	return api.AssetChart{
 		Range: api.AssetChartRange(chart.Range), BucketSeconds: int64(chart.Bucket / time.Second),
-		Points: points, Empty: chart.Empty, Attribution: domain.Attribution,
+		Points: points, Empty: chart.Empty, Attribution: domain.Attribution, PreviousCloseMicros: base,
 	}, nil
 }
 

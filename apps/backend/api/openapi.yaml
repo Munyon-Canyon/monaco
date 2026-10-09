@@ -5953,6 +5953,13 @@ components:
           type: string
           description: The data source line the chart shows.
           examples: ["Data provided by CoinGecko"]
+        previous_close_micros:
+          type: integer
+          format: int64
+          description: >-
+            The day-change base in USD micros, the price the header's day change is measured from.
+            Set only when `range` is `1D` and the base sample exists.
+          examples: [100000000]
     AssetDetail:
       type: object
       description: One asset, the list fields plus the chain facts and the other listings.

@@ -78,7 +78,8 @@ public enum MarketMapping {
                     highUsdcMicros: $0.highMicros,
                     lowUsdcMicros: $0.lowMicros
                 )
-            }
+            },
+            previousCloseUsdcMicros: value.previousCloseMicros
         )
     }
 

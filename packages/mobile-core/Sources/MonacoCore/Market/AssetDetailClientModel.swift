@@ -228,7 +228,7 @@ public final class AssetDetailClientModel {
     }
 
     private static func basisPoints(for chart: AssetChartSeries?) -> Int64? {
-        guard let first = chart?.points.first?.priceUsdcMicros,
+        guard let first = chart?.baselineUsdcMicros,
             let last = chart?.points.last?.priceUsdcMicros,
             first > 0
         else { return nil }

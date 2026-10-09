@@ -39,6 +39,16 @@ final class AssetDetailClientModelTests: XCTestCase {
         XCTAssertEqual(model.rangeChange?.label, "Past day · GOOGL")
     }
 
+    func testDayChangeIsMeasuredFromThePreviousCloseWhenTheChartHasOne() async throws {
+        var day = chart(range: "1D", prices: [100_000_000, 101_250_000])
+        day.previousCloseMicros = 102_000_000
+        let model = makeModel(try reply(Components.Schemas.AssetDetail.googl), try reply(day))
+
+        await model.load()
+
+        XCTAssertEqual(model.rangeChange?.basisPoints, -73)
+    }
+
     func testShowsTheWeekRangeChangeAndLabelFromTheChart() async throws {
         let model = makeModel(
             try reply(Components.Schemas.AssetDetail.googl),
