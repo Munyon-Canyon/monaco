@@ -83,6 +83,16 @@ export function view(state: State, auth: Auth): View {
   return state.step === "open" ? "ready" : "reporting";
 }
 
+export type AccountInput = { ready: boolean; authenticated: boolean; userId: string | undefined };
+export type AccountDecision = "login" | "fund" | "wrong_account" | "wait";
+
+// Safari can still be signed in as someone else, so funding opens only for the session's own Privy user.
+export function accountDecision(auth: AccountInput, sessionPrivyUserId: string): AccountDecision {
+  if (!auth.ready) return "wait";
+  if (!auth.authenticated) return "login";
+  return auth.userId === sessionPrivyUserId ? "fund" : "wrong_account";
+}
+
 export function statusFromResult(result: { status: "confirmed" | "submitted" }): ReportStatus {
   return result.status;
 }
