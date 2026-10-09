@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -13,9 +14,11 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -91,22 +94,37 @@ func (w balanceWallets) MemberWalletAddress(context.Context, ids.UserID) (chain.
 	return w.address, w.err
 }
 
+type noStatuses struct{}
+
+func (noStatuses) SignatureStatuses(context.Context, []chain.Signature) ([]solana.Status, error) {
+	return nil, nil
+}
+
 type balanceRPC struct {
+	noStatuses
 	amount money.BaseUnits
 	err    error
 }
 
-func (r balanceRPC) TokenBalanceAt(context.Context, chain.SolanaAddress, chain.Mint, string) (money.BaseUnits, error) {
-	return r.amount, r.err
+func (r balanceRPC) TokenBalanceAt(
+	context.Context, chain.SolanaAddress, chain.Mint, string,
+) (uint64, money.BaseUnits, error) {
+	return 0, r.amount, r.err
 }
 
 type balanceOutflows struct {
-	amount money.Micros
-	err    error
+	amount    money.Micros
+	err       error
+	submitted map[chain.Signature]money.Micros
+	submitErr error
 }
 
 func (o balanceOutflows) InFlightMicros(context.Context, ids.UserID) (money.Micros, error) {
 	return o.amount, o.err
+}
+
+func (o balanceOutflows) Submitted(context.Context, ids.UserID) (map[chain.Signature]money.Micros, error) {
+	return o.submitted, o.submitErr
 }
 
 func (o balanceOutflows) LastChange(context.Context, ids.UserID) (time.Time, error) {
@@ -118,7 +136,7 @@ func TestBalancesAvailableReturnsDependenciesErrors(t *testing.T) {
 	boom := errs.New(errs.CodeInternal, "test")
 	user := ids.UserIDFrom(ids.Real{}.NewV7())
 	newBalances := func(wallets balanceWallets, rpc balanceRPC, outflows balanceOutflows) *adapters.Balances {
-		return adapters.NewBalances(wallets, func() adapters.TokenBalances { return rpc },
+		return adapters.NewBalances(wallets, func() adapters.ChainReads { return rpc },
 			adapters.Outflows{Funds: outflows, Withdrawals: balanceOutflows{}},
 			testkit.NewClock(time.Time{}), chain.Mint{Decimals: 6})
 	}
@@ -127,8 +145,14 @@ func TestBalancesAvailableReturnsDependenciesErrors(t *testing.T) {
 		"rpc":      newBalances(balanceWallets{}, balanceRPC{err: boom}, balanceOutflows{}),
 		"outflow":  newBalances(balanceWallets{}, balanceRPC{amount: money.NewBaseUnits(1, 6)}, balanceOutflows{err: boom}),
 		"decimals": newBalances(balanceWallets{}, balanceRPC{amount: money.NewBaseUnits(1, 5)}, balanceOutflows{}),
+		"submitted funds": newBalances(balanceWallets{}, balanceRPC{amount: money.NewBaseUnits(1, 6)},
+			balanceOutflows{submitErr: boom}),
+		"submitted withdrawals": adapters.NewBalances(balanceWallets{},
+			func() adapters.ChainReads { return balanceRPC{amount: money.NewBaseUnits(1, 6)} },
+			adapters.Outflows{Funds: balanceOutflows{}, Withdrawals: balanceOutflows{submitErr: boom}},
+			testkit.NewClock(time.Time{}), chain.Mint{Decimals: 6}),
 		"withdrawals": adapters.NewBalances(balanceWallets{},
-			func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(1, 6)} },
+			func() adapters.ChainReads { return balanceRPC{amount: money.NewBaseUnits(1, 6)} },
 			adapters.Outflows{Funds: balanceOutflows{}, Withdrawals: balanceOutflows{err: boom}},
 			testkit.NewClock(time.Time{}), chain.Mint{Decimals: 6}),
 	} {
@@ -147,7 +171,7 @@ func TestBalance_AvailableSubtractsInFlight(t *testing.T) {
 	now := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
 	b := adapters.NewBalances(
 		balanceWallets{address: "wallet"},
-		func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(10, 6)} },
+		func() adapters.ChainReads { return balanceRPC{amount: money.NewBaseUnits(10, 6)} },
 		adapters.Outflows{
 			Funds: balanceOutflows{
 				amount: money.MicrosFromUint64(3),
@@ -170,7 +194,7 @@ func TestBalance_AvailableClampsAtZero(t *testing.T) {
 	user := ids.UserIDFrom(ids.Real{}.NewV7())
 	b := adapters.NewBalances(
 		balanceWallets{},
-		func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(3, 6)} },
+		func() adapters.ChainReads { return balanceRPC{amount: money.NewBaseUnits(3, 6)} },
 		adapters.Outflows{Funds: balanceOutflows{amount: money.MicrosFromUint64(10)}, Withdrawals: balanceOutflows{}},
 		testkit.NewClock(time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)), chain.Mint{Address: "usdc", Decimals: 6},
 	)
@@ -180,7 +204,7 @@ func TestBalance_AvailableClampsAtZero(t *testing.T) {
 	}
 	withdrawing := adapters.NewBalances(
 		balanceWallets{},
-		func() adapters.TokenBalances { return balanceRPC{amount: money.NewBaseUnits(3, 6)} },
+		func() adapters.ChainReads { return balanceRPC{amount: money.NewBaseUnits(3, 6)} },
 		adapters.Outflows{
 			Funds:       balanceOutflows{amount: money.MicrosFromUint64(1)},
 			Withdrawals: balanceOutflows{amount: money.MicrosFromUint64(4)},
@@ -198,6 +222,7 @@ func TestBalance_AvailableClampsAtZero(t *testing.T) {
 }
 
 type flakyRPC struct {
+	noStatuses
 	mu     sync.Mutex
 	amount money.BaseUnits
 	err    error
@@ -209,10 +234,12 @@ func (r *flakyRPC) fail(err error) {
 	r.err = err
 }
 
-func (r *flakyRPC) TokenBalanceAt(context.Context, chain.SolanaAddress, chain.Mint, string) (money.BaseUnits, error) {
+func (r *flakyRPC) TokenBalanceAt(
+	context.Context, chain.SolanaAddress, chain.Mint, string,
+) (uint64, money.BaseUnits, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.amount, r.err
+	return 0, r.amount, r.err
 }
 
 type mutableOutflows struct {
@@ -247,6 +274,10 @@ func (o *mutableOutflows) LastChange(context.Context, ids.UserID) (time.Time, er
 	return o.changed, o.changeErr
 }
 
+func (*mutableOutflows) Submitted(context.Context, ids.UserID) (map[chain.Signature]money.Micros, error) {
+	return map[chain.Signature]money.Micros{}, nil
+}
+
 type displayRig struct {
 	b           *adapters.Balances
 	rpc         *flakyRPC
@@ -263,7 +294,7 @@ func newDisplayRig() displayRig {
 	start := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
 	clk := testkit.NewClock(start)
 	return displayRig{
-		b: adapters.NewBalances(balanceWallets{address: "wallet"}, func() adapters.TokenBalances { return rpc },
+		b: adapters.NewBalances(balanceWallets{address: "wallet"}, func() adapters.ChainReads { return rpc },
 			adapters.Outflows{Funds: funds, Withdrawals: withdrawals},
 			clk, chain.Mint{Address: "usdc", Decimals: 6}),
 		rpc: rpc, funds: funds, withdrawals: withdrawals, clock: clk, user: ids.UserIDFrom(ids.Real{}.NewV7()),
@@ -397,8 +428,12 @@ type commitmentRPC map[string]money.BaseUnits
 
 func (r commitmentRPC) TokenBalanceAt(
 	_ context.Context, _ chain.SolanaAddress, _ chain.Mint, commitment string,
-) (money.BaseUnits, error) {
-	return r[commitment], nil
+) (uint64, money.BaseUnits, error) {
+	return 0, r[commitment], nil
+}
+
+func (commitmentRPC) SignatureStatuses(context.Context, []chain.Signature) ([]solana.Status, error) {
+	return nil, nil
 }
 
 func settlingBalances(confirmed, finalized, fund, withdrawal uint64) *adapters.Balances {
@@ -408,7 +443,7 @@ func settlingBalances(confirmed, finalized, fund, withdrawal uint64) *adapters.B
 		Withdrawals: balanceOutflows{amount: money.MicrosFromUint64(withdrawal)},
 	}
 	clk := testkit.NewClock(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC))
-	return adapters.NewBalances(balanceWallets{address: "wallet"}, func() adapters.TokenBalances { return rpc },
+	return adapters.NewBalances(balanceWallets{address: "wallet"}, func() adapters.ChainReads { return rpc },
 		outflows, clk, chain.Mint{Address: "usdc", Decimals: 6})
 }
 
@@ -455,4 +490,190 @@ func TestBalance_AvailableCountsEachOutflowOnceWhateverHasLanded(t *testing.T) {
 
 func withLogs(ctx context.Context, logs *testkit.Logs) context.Context {
 	return observability.WithLogger(ctx, observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+}
+
+type landingRPC struct {
+	slot      uint64
+	onChain   uint64
+	statuses  map[chain.Signature]solana.Status
+	statusErr error
+	calls     int
+}
+
+func (r *landingRPC) TokenBalanceAt(
+	context.Context, chain.SolanaAddress, chain.Mint, string,
+) (uint64, money.BaseUnits, error) {
+	return r.slot, money.NewBaseUnits(r.onChain, 6), nil
+}
+
+func (r *landingRPC) SignatureStatuses(_ context.Context, sigs []chain.Signature) ([]solana.Status, error) {
+	r.calls++
+	out := make([]solana.Status, len(sigs))
+	for i, sig := range sigs {
+		status, ok := r.statuses[sig]
+		if !ok {
+			status.State = solana.StateNotFound
+		}
+		status.Signature = sig
+		out[i] = status
+	}
+	return out, r.statusErr
+}
+
+func landingBalances(rpc *landingRPC, funds, withdrawals app.Outflows) *adapters.Balances {
+	return adapters.NewBalances(balanceWallets{address: "wallet"}, func() adapters.ChainReads { return rpc },
+		adapters.Outflows{Funds: funds, Withdrawals: withdrawals},
+		testkit.NewClock(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)), chain.Mint{Address: "usdc", Decimals: 6})
+}
+
+func outflow(sig chain.Signature, usd uint64) balanceOutflows {
+	amount := money.MicrosFromUint64(usd * 1_000_000)
+	return balanceOutflows{amount: amount, submitted: map[chain.Signature]money.Micros{sig: amount}}
+}
+
+func TestBalance_AvailableSubtractsAnOutflowFinalizedByTheReadingOnce(t *testing.T) {
+	t.Parallel()
+	const reading = 451_000_000
+	finalized := func(slot uint64) solana.Status { return solana.Status{State: solana.StateFinalized, Slot: slot} }
+	for name, tc := range map[string]struct {
+		onChain            uint64
+		funds, withdrawals balanceOutflows
+		statuses           map[chain.Signature]solana.Status
+		statusErr          error
+		available          uint64
+		calls              int
+	}{
+		"withdrawal finalized at the reading's slot": {
+			onChain: 60, withdrawals: outflow("w", 40), statuses: map[chain.Signature]solana.Status{"w": finalized(reading)},
+			available: 60, calls: 1,
+		},
+		"withdrawal finalized one slot after the reading": {
+			onChain: 60, withdrawals: outflow("w", 40),
+			statuses: map[chain.Signature]solana.Status{"w": finalized(reading + 1)}, available: 20, calls: 1,
+		},
+		"fund finalized before the reading": {
+			onChain: 60, funds: outflow("f", 40), statuses: map[chain.Signature]solana.Status{"f": finalized(reading - 1)},
+			available: 60, calls: 1,
+		},
+		"fund landed and withdrawal not yet, read in one call": {
+			onChain: 70, funds: outflow("f", 30), withdrawals: outflow("w", 20),
+			statuses:  map[chain.Signature]solana.Status{"f": finalized(reading), "w": finalized(reading + 1)},
+			available: 50, calls: 1,
+		},
+		"withdrawal still confirming": {
+			onChain: 60, withdrawals: outflow("w", 40),
+			statuses:  map[chain.Signature]solana.Status{"w": {State: solana.StateProcessing, Slot: reading}},
+			available: 20, calls: 1,
+		},
+		"withdrawal failed on chain at the reading's slot": {
+			onChain: 100, withdrawals: outflow("w", 40),
+			statuses:  map[chain.Signature]solana.Status{"w": {State: solana.StateFinalized, Failed: true, Slot: reading}},
+			available: 100, calls: 1,
+		},
+		"status read fails": {
+			onChain: 60, withdrawals: outflow("w", 40), statuses: map[chain.Signature]solana.Status{"w": finalized(reading)},
+			statusErr: errs.New(errs.CodeRPCUnavailable, "test"), available: 20, calls: 1,
+		},
+		"submitted amounts above the in-flight sum": {
+			onChain: 60,
+			withdrawals: balanceOutflows{
+				amount: money.MicrosFromUint64(50_000_000),
+				submitted: map[chain.Signature]money.Micros{
+					"a": money.MicrosFromUint64(40_000_000), "b": money.MicrosFromUint64(30_000_000),
+				},
+			},
+			statuses:  map[chain.Signature]solana.Status{"a": finalized(reading), "b": finalized(reading)},
+			available: 10, calls: 1,
+		},
+		"nothing submitted": {
+			onChain: 60, withdrawals: balanceOutflows{amount: money.MicrosFromUint64(40_000_000)},
+			available: 20,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rpc := &landingRPC{
+				slot: reading, onChain: tc.onChain * 1_000_000, statuses: tc.statuses, statusErr: tc.statusErr,
+			}
+			got, err := landingBalances(rpc, tc.funds, tc.withdrawals).
+				Available(t.Context(), ids.UserIDFrom(ids.Real{}.NewV7()))
+			if err != nil || got.AvailableMicros.Uint64() != tc.available*1_000_000 || rpc.calls != tc.calls {
+				t.Fatalf("Available = %+v, %v with %d status reads, want %d USDC available and %d reads",
+					got, err, rpc.calls, tc.available, tc.calls)
+			}
+		})
+	}
+}
+
+func TestBalance_AvailableCountsEachSubmittedOutflowOnceWhereverItLanded(t *testing.T) {
+	t.Parallel()
+	const reading = 451_000_000
+	rapid.Check(t, func(rt *rapid.T) {
+		start := rapid.Uint64Range(0, 1<<40).Draw(rt, "start")
+		rpc := &landingRPC{slot: reading, statuses: map[chain.Signature]solana.Status{}}
+		totals := [2]uint64{}
+		submitted := [2]map[chain.Signature]money.Micros{{}, {}}
+		left, onChain := start, start
+		for i := range rapid.IntRange(0, 6).Draw(rt, "outflows") {
+			amount := rapid.Uint64Range(0, left).Draw(rt, "amount")
+			kind := rapid.IntRange(0, 1).Draw(rt, "fund or withdrawal")
+			sig := chain.Signature(strconv.Itoa(i))
+			left, totals[kind], submitted[kind][sig] = left-amount, totals[kind]+amount, money.MicrosFromUint64(amount)
+			landed := rapid.Uint64Range(reading-2, reading+3).Draw(rt, "landed at, or not landed past reading+2")
+			if landed <= reading+2 {
+				rpc.statuses[sig] = solana.Status{State: solana.StateFinalized, Slot: landed}
+				if landed <= reading {
+					onChain -= amount
+				}
+			}
+		}
+		rpc.onChain = onChain
+		logs := &testkit.Logs{}
+		got, err := landingBalances(rpc,
+			balanceOutflows{amount: money.MicrosFromUint64(totals[0]), submitted: submitted[0]},
+			balanceOutflows{amount: money.MicrosFromUint64(totals[1]), submitted: submitted[1]},
+		).Available(withLogs(t.Context(), logs), ids.UserIDFrom(ids.Real{}.NewV7()))
+		if err != nil || got.AvailableMicros.Uint64() != left || len(logs.Bytes()) != 0 || rpc.calls > 1 {
+			rt.Fatalf("Available = %+v, %v, logs %s, %d status reads, want %d with no clamp and one read at most",
+				got, err, logs.Bytes(), rpc.calls, left)
+		}
+	})
+}
+
+type pollerMidRead struct{ reads int }
+
+func (o *pollerMidRead) moved() bool {
+	o.reads++
+	return o.reads > 1
+}
+
+func (o *pollerMidRead) InFlightMicros(context.Context, ids.UserID) (money.Micros, error) {
+	if o.moved() {
+		return money.MicrosFromUint64(50_000_000), nil
+	}
+	return money.MicrosFromUint64(90_000_000), nil
+}
+
+func (o *pollerMidRead) Submitted(context.Context, ids.UserID) (map[chain.Signature]money.Micros, error) {
+	if o.moved() {
+		return map[chain.Signature]money.Micros{}, nil
+	}
+	return outflow("w", 40).submitted, nil
+}
+
+func (*pollerMidRead) LastChange(context.Context, ids.UserID) (time.Time, error) {
+	return time.Time{}, nil
+}
+
+func TestBalance_AvailableNeverOverstatesWhenThePollerConfirmsMidRead(t *testing.T) {
+	t.Parallel()
+	const reading = 451_000_000
+	rpc := &landingRPC{slot: reading, onChain: 60_000_000, statuses: map[chain.Signature]solana.Status{
+		"w": {State: solana.StateFinalized, Slot: reading},
+	}}
+	got, err := landingBalances(rpc, balanceOutflows{}, &pollerMidRead{}).
+		Available(t.Context(), ids.UserIDFrom(ids.Real{}.NewV7()))
+	if err != nil || got.AvailableMicros.Uint64() > 10_000_000 {
+		t.Fatalf("Available = %+v, %v, want at most the 10 USDC left after the 50 still created", got, err)
+	}
 }

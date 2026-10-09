@@ -207,7 +207,7 @@ func (m *Module) balanceReader() *adapters.Balances {
 	cfg := m.deps.Config
 	m.balances = adapters.NewBalances(
 		app.WalletReader{Reader: identity.New(m.deps).Queries()},
-		func() adapters.TokenBalances { return solana.New(cfg, m.deps.Clock) },
+		func() adapters.ChainReads { return solana.New(cfg, m.deps.Clock) },
 		adapters.Outflows{
 			Funds:       treasury.New(m.deps).FundOutflows(),
 			Withdrawals: app.WithdrawalOutflows{Reads: m.deps.Pool},

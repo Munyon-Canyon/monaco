@@ -26,6 +26,7 @@ type Status struct {
 	State       State
 	Failed      bool
 	BlockHeight uint64
+	Slot        uint64
 }
 
 func (s Status) BlockhashExpired(lastValidBlockHeight uint64) bool {
@@ -69,6 +70,9 @@ func (c *Client) SOLBalance(ctx context.Context, addr chain.SolanaAddress) (mone
 }
 
 type tokenAccountsWire struct {
+	Context struct {
+		Slot uint64 `json:"slot"`
+	} `json:"context"`
 	Value []struct {
 		Account struct {
 			Data struct {
@@ -198,7 +202,8 @@ func (c *Client) TokenBalance(
 	owner chain.SolanaAddress,
 	mint chain.Mint,
 ) (money.BaseUnits, error) {
-	return c.TokenBalanceAt(ctx, owner, mint, "confirmed")
+	_, balance, err := c.TokenBalanceAt(ctx, owner, mint, "confirmed")
+	return balance, err
 }
 
 func (c *Client) TokenBalanceAt(
@@ -206,11 +211,11 @@ func (c *Client) TokenBalanceAt(
 	owner chain.SolanaAddress,
 	mint chain.Mint,
 	level string,
-) (money.BaseUnits, error) {
+) (uint64, money.BaseUnits, error) {
 	const op = "solana.TokenBalance"
 	total := money.NewBaseUnits(0, mint.Decimals)
 	if err := addresses(op, owner, mint.Address); err != nil {
-		return total, err
+		return 0, total, err
 	}
 	var w tokenAccountsWire
 	opts := map[string]string{"encoding": "jsonParsed", "commitment": level}
@@ -220,22 +225,23 @@ func (c *Client) TokenBalanceAt(
 		[]any{owner, map[string]any{"mint": mint.Address}, opts},
 		&w,
 	); err != nil {
-		return total, err
+		return 0, total, err
 	}
 	for _, acct := range w.Value {
 		amt := acct.Account.Data.Parsed.Info.TokenAmount
 		v, err := strconv.ParseUint(amt.Amount, 10, 64)
 		if err != nil {
-			return total, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("amount", amt.Amount))
+			return 0, total, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("amount", amt.Amount))
 		}
 		if total, err = total.Add(money.NewBaseUnits(v, amt.Decimals)); err != nil {
-			return money.NewBaseUnits(0, mint.Decimals), errs.Wrap(err, errs.CodeDecodeFailed, op)
+			return 0, money.NewBaseUnits(0, mint.Decimals), errs.Wrap(err, errs.CodeDecodeFailed, op)
 		}
 	}
-	return total, nil
+	return w.Context.Slot, total, nil
 }
 
 type statusWire struct {
+	Slot               uint64 `json:"slot"`
 	Err                any    `json:"err"`
 	ConfirmationStatus string `json:"confirmationStatus"`
 }
@@ -273,7 +279,7 @@ func (c *Client) SignatureStatuses(ctx context.Context, sigs []chain.Signature) 
 		if s == nil {
 			continue
 		}
-		out[i].State, out[i].Failed = StateProcessing, s.Err != nil
+		out[i].State, out[i].Failed, out[i].Slot = StateProcessing, s.Err != nil, s.Slot
 		if s.ConfirmationStatus == "finalized" {
 			out[i].State = StateFinalized
 		}

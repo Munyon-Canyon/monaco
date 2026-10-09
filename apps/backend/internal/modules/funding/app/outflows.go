@@ -36,6 +36,7 @@ func (r WalletReader) SigningWallet(ctx context.Context, user ids.UserID) (chain
 type Outflows interface {
 	InFlightMicros(context.Context, ids.UserID) (money.Micros, error)
 	LastChange(context.Context, ids.UserID) (time.Time, error)
+	Submitted(context.Context, ids.UserID) (map[chain.Signature]money.Micros, error)
 }
 
 type WithdrawalOutflows struct{ Reads sqlc.DBTX }
@@ -50,6 +51,22 @@ func (o WithdrawalOutflows) InFlightMicros(ctx context.Context, user ids.UserID)
 
 func (o WithdrawalOutflows) LastChange(ctx context.Context, user ids.UserID) (time.Time, error) {
 	return sqlc.New(o.Reads).LastWithdrawalChange(ctx, user.UUID())
+}
+
+func (o WithdrawalOutflows) Submitted(ctx context.Context, user ids.UserID) (map[chain.Signature]money.Micros, error) {
+	rows, err := sqlc.New(o.Reads).UserSubmittedWithdrawals(ctx, user.UUID())
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[chain.Signature]money.Micros, len(rows))
+	for _, row := range rows {
+		amount, err := money.ParseMicros(row.AmountMicros)
+		if err != nil {
+			return nil, err
+		}
+		out[chain.Signature(row.TxSignature)] = amount
+	}
+	return out, nil
 }
 
 type WithdrawalReads struct{ Reads sqlc.DBTX }
