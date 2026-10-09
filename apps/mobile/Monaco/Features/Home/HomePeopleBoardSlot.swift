@@ -14,6 +14,7 @@ enum HomePeopleBoardSlot: HomeSection {
 private struct HomePeopleBoard: View {
     let loader: LeaderboardLoader
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.homeReads) private var reads
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -35,7 +36,7 @@ private struct HomePeopleBoard: View {
             .accessibilityIdentifier("home-leaderboard-filter")
             LeaderboardBoardList(
                 loader: loader, skeletonRows: 5, failureThing: "investors",
-                identifier: "home-leaderboard",
+                identifier: "home-leaderboard", showsFailure: reads.showsOwnRow(.board),
                 empty: { empty },
                 rowContent: { row, isLast in
                     NavigationLink(
@@ -56,6 +57,9 @@ private struct HomePeopleBoard: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-people-board")
+        .onChange(of: HomeReadStatus(loader.phase), initial: true) { _, status in
+            reads?.report(.board, status)
+        }
     }
 
     @ViewBuilder private var empty: some View {

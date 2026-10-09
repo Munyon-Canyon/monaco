@@ -15,6 +15,7 @@ struct HomeScreen: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var portfolio: PortfolioModel?
+    @State private var reads = HomeReads()
     let sections: [any HomeSection.Type]
 
     init(sections: [any HomeSection.Type] = Self.sections) {
@@ -28,6 +29,7 @@ struct HomeScreen: View {
             if live.contains(where: { ObjectIdentifier($0) != ObjectIdentifier(HomeNudgeSlot.self) }) {
                 SectionStack(context: (), sections: sections)
                     .environment(portfolio)
+                    .environment(\.homeReads, reads)
             } else {
                 VStack(spacing: 0) {
                     if !live.isEmpty {

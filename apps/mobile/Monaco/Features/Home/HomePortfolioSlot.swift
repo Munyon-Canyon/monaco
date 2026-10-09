@@ -6,7 +6,10 @@ enum HomePortfolioSlot: HomeSection {
     static let isLive = true
 
     static func body(for context: Void) -> some View {
-        HomePortfolioHero()
+        VStack(spacing: 0) {
+            HomeSharedErrorRow()
+            HomePortfolioHero()
+        }
     }
 }
 
@@ -22,6 +25,7 @@ private struct HomePortfolioHero: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
+    @Environment(\.homeReads) private var reads
     @State private var chart: ValueChartModel?
     @State private var selection: Int?
 
@@ -40,6 +44,9 @@ private struct HomePortfolioHero: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-portfolio")
+        .onChange(of: HomeReadStatus(portfolio?.state ?? .loading), initial: true) { _, status in
+            reads?.report(.portfolio, status)
+        }
         .task {
             let chart = preparedChart()
             refresh?.register("home-portfolio-chart") { await chart.load() }
@@ -63,8 +70,10 @@ private struct HomePortfolioHero: View {
         case .failed:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 title
-                MonacoErrorRow(thing: "your portfolio", identifier: "home-portfolio-failed", inset: false) {
-                    Task { await portfolio?.load() }
+                if reads.showsOwnRow(.portfolio) {
+                    MonacoErrorRow(thing: "your portfolio", identifier: "home-portfolio-failed", inset: false) {
+                        Task { await portfolio?.load() }
+                    }
                 }
             }
         case .loaded(let summary):

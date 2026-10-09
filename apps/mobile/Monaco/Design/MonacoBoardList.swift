@@ -65,6 +65,7 @@ struct LeaderboardBoardList<Empty: View, RowContent: View>: View {
     let failureThing: String
     let identifier: String
     var showsEmpty = true
+    var showsFailure = true
     @ViewBuilder let empty: () -> Empty
     @ViewBuilder let rowContent: (LeaderboardRowView, Bool) -> RowContent
 
@@ -80,7 +81,9 @@ struct LeaderboardBoardList<Empty: View, RowContent: View>: View {
                 empty()
             }
         case .failed:
-            failure
+            if showsFailure {
+                failure
+            }
         case .loaded:
             rows
         }
