@@ -21,8 +21,7 @@ import (
 const fundingUsage = `usage: monacoctl funding bounce <command> <external-deposit-id> [args]
   set-return-address <id> <address>  send the bounce to <address>; only while detected or bounce_failed
   retry <id>                         sign and send a new bounce for a bounce_failed deposit
-  hold <id>                          keep a detected or bounce_failed deposit as unclaimed and end its pause
-       funding migrate-cursors       copy each deposit cursor into the deposit watch tables; safe to rerun`
+  hold <id>                          keep a detected or bounce_failed deposit as unclaimed and end its pause`
 
 func toolFunding(env toolEnv) tool { return fundingTool(env.environ, clock.Real{}) }
 
@@ -94,35 +93,13 @@ func fundingTool(environ []string, clk clock.Clock) tool {
 			return 0
 		}
 		return run(
-			map[string]command{"bounce": bounce, "migrate-cursors": migrateCursors(clk)},
+			map[string]command{"bounce": bounce},
 			nil,
 			environ,
 			args,
 			stdout,
 			stderr,
 		)
-	}
-}
-
-func migrateCursors(clk clock.Clock) command {
-	return func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
-		if len(args) != 0 {
-			_, _ = fmt.Fprintln(stderr, fundingUsage)
-			return 2
-		}
-		ctx := auth.WithActor(context.Background(), auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
-		pool, err := db.Open(ctx, cfg.DB)
-		if err != nil {
-			return fail(stderr, err)
-		}
-		defer pool.Close()
-		deps := module.Deps{Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clk)}
-		added, err := funding.New(deps).CursorMigrator().Run(ctx)
-		if err != nil {
-			return fail(stderr, err)
-		}
-		_, _ = fmt.Fprintf(stdout, "migrated %d wallets\n", added)
-		return 0
 	}
 }
 

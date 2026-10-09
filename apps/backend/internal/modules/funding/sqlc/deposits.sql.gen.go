@@ -146,52 +146,6 @@ func (q *Queries) DepositCandidatesPendingOldestSeconds(ctx context.Context, now
 	return column_1, err
 }
 
-const depositCursorsToMigrate = `-- name: DepositCursorsToMigrate :many
-SELECT c.wallet_address, w.user_id, COALESCE(c.last_signature, '') AS last_signature, c.cursor_slot
-FROM deposit_cursors c
-JOIN user_wallets w ON w.address = c.wallet_address
-WHERE c.wallet_address > $1
-ORDER BY c.wallet_address
-LIMIT $2
-`
-
-type DepositCursorsToMigrateParams struct {
-	WalletAddress string
-	Limit         int32
-}
-
-type DepositCursorsToMigrateRow struct {
-	WalletAddress string
-	UserID        uuid.UUID
-	LastSignature string
-	CursorSlot    int64
-}
-
-func (q *Queries) DepositCursorsToMigrate(ctx context.Context, arg DepositCursorsToMigrateParams) ([]DepositCursorsToMigrateRow, error) {
-	rows, err := q.db.Query(ctx, depositCursorsToMigrate, arg.WalletAddress, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []DepositCursorsToMigrateRow
-	for rows.Next() {
-		var i DepositCursorsToMigrateRow
-		if err := rows.Scan(
-			&i.WalletAddress,
-			&i.UserID,
-			&i.LastSignature,
-			&i.CursorSlot,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const depositWatchDirtyAccounts = `-- name: DepositWatchDirtyAccounts :many
 SELECT a.token_account, a.wallet_address, w.user_id, w.first_seen_slot, a.dirty_gen, a.dirty_slot, a.observed_slot,
   a.high_signature, a.page_before
