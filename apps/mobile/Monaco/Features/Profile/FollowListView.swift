@@ -59,7 +59,7 @@ struct FollowListView: View {
             }
             .onAppear {
                 guard hasLoaded, !isLoadingMore else { return }
-                Task { await reload() }
+                Task { await refresh() }
             }
             .onChange(of: model?.toastTick) {
                 if let error = model?.lastError { toasts.show(error) }
@@ -172,6 +172,14 @@ struct FollowListView: View {
         switch kind {
         case .followers: await model.loadFollowers()
         case .following: await model.loadFollowing()
+        }
+    }
+
+    private func refresh() async {
+        guard let model else { return }
+        switch kind {
+        case .followers: await model.refreshFollowers()
+        case .following: await model.refreshFollowing()
         }
     }
 
