@@ -25,6 +25,19 @@ final class AssetSymbolFormatterTests: XCTestCase {
         XCTAssertEqual(AssetSymbolFormatter.display(" SPYx "), "SPY")
     }
 
+    func testDisplay_stripsXStocksSuffixFromTickersWithDigits() {
+        XCTAssertEqual(AssetSymbolFormatter.display("A5Gx"), "A5G")
+        XCTAssertEqual(AssetSymbolFormatter.display("DB1x"), "DB1")
+        XCTAssertEqual(AssetSymbolFormatter.display("MUV2x"), "MUV2")
+        XCTAssertEqual(AssetSymbolFormatter.display("RS1.GBx"), "RS1.GB")
+        XCTAssertEqual(AssetSymbolFormatter.display("VOW3x"), "VOW3")
+    }
+
+    func testDisplay_preIpoSymbolReturnedAsIs() {
+        XCTAssertEqual(AssetSymbolFormatter.display("tSpaceX", kind: .preIpo), "tSpaceX")
+        XCTAssertEqual(AssetSymbolFormatter.display("tA5Gx", kind: .preIpo), "tA5Gx")
+    }
+
     func testDisplay_leavesOtherSymbolsAlone() {
         XCTAssertEqual(AssetSymbolFormatter.display("USDC"), "USDC")
         XCTAssertEqual(AssetSymbolFormatter.display("AAPL"), "AAPL")
