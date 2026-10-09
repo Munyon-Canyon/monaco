@@ -54,13 +54,16 @@ struct ProfileStatsBand: View {
 
     private func band(_ stats: ProfileStats) -> some View {
         columns {
-            ProfileStatColumn(value: stats.inCabals, label: "In cabals", tone: nil)
-                .accessibilityIdentifier("profile-stat-in-cabals")
             ProfileStatColumn(
-                value: stats.allTime, label: "All time", tone: PnLTone(dollarPnl: stats.allTimePnl).color
+                value: stats.inCabals, detail: nil, label: "In cabals", tone: nil, stacked: stacked
             )
-            .accessibilityIdentifier("profile-stat-all-time")
-            ProfileStatColumn(value: stats.cabals, label: "Cabals", tone: nil)
+            .accessibilityIdentifier("profile-stat-in-cabals")
+            ProfileStatColumn(
+                value: stats.returnDollars, detail: stats.returnPercent, label: "Return",
+                tone: PnLTone(dollarPnl: stats.returnDollars).color, stacked: stacked
+            )
+            .accessibilityIdentifier("profile-stat-return")
+            ProfileStatColumn(value: stats.cabals, detail: nil, label: stats.cabalsLabel, tone: nil, stacked: stacked)
                 .accessibilityIdentifier("profile-stat-cabals")
         }
     }
@@ -80,20 +83,24 @@ struct ProfileStatsBand: View {
         .accessibilityIdentifier("profile-stats-loading")
     }
 
+    private var stacked: Bool { Self.isStacked(dynamicTypeSize) }
+
+    static func isStacked(_ size: DynamicTypeSize) -> Bool { size.isAccessibilitySize }
+
     private func columns(@ViewBuilder _ cells: () -> some View) -> some View {
         VStack(spacing: 0) {
             MonacoRule()
             Group {
-                if dynamicTypeSize.isAccessibilitySize {
+                if stacked {
                     VStack(spacing: MonacoTheme.Space.m) { cells() }
                 } else {
                     HStack(alignment: .top, spacing: MonacoTheme.Space.s) { cells() }
                 }
             }
             .padding(.vertical, MonacoTheme.Space.l)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule()
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     private func preparedModel() -> PortfolioModel {
@@ -106,24 +113,51 @@ struct ProfileStatsBand: View {
 
 private struct ProfileStatColumn: View {
     let value: String
+    let detail: String?
     let label: String
     let tone: Color?
+    let stacked: Bool
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.xs) {
+        if stacked {
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.m) {
+                labelText
+                Spacer(minLength: MonacoTheme.Space.s)
+                figures(alignment: .trailing)
+            }
+            .accessibilityElement(children: .combine)
+        } else {
+            VStack(spacing: MonacoTheme.Space.xs) {
+                figures(alignment: .center)
+                labelText
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var labelText: some View {
+        Text(label)
+            .font(MonacoTheme.Typo.callout)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .multilineTextAlignment(stacked ? .leading : .center)
+    }
+
+    private func figures(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 0) {
             Text(value)
                 .font(MonacoTheme.Typo.moneyRow)
                 .foregroundStyle(tone ?? MonacoTheme.ink)
-                .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
-            Text(label)
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .multilineTextAlignment(.center)
+            if let detail {
+                Text(detail)
+                    .font(MonacoTheme.Typo.moneyCaption)
+                    .foregroundStyle(tone ?? MonacoTheme.ink)
+                    .lineLimit(1)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
+        .multilineTextAlignment(alignment == .trailing ? .trailing : .center)
     }
 }
 

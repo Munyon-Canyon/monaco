@@ -201,7 +201,7 @@ Pull to refresh, like Home.
 | --- | --- | --- | --- |
 | 1 | `ProfileHeaderSlot` | #644 | Centred: the photo picker (96 pt avatar with a camera badge, opens "Your face": eight animals and "Choose a photo"), the name, centred under the avatar, with a pencil beside it that opens "Edit name" (a sheet with "Cancel"), "@handle" with a pencil (opens `HandleEditRoute`), "Member since Sep 2026" |
 | 2 | `ProfileFollowCountsSlot` | #620 | "12 followers · 8 following" ("1 follower" for one, thousands separated: "12,400 followers"), each opening the follow list |
-| 3 | `ProfileStatsSlot` | #2140 | Three columns between rules: "In cabals" (total slice value), "All time" (return), "Cabals" (count) |
+| 3 | `ProfileStatsSlot` | #2140 | Three columns between rules: "In cabals" (total slice value), "Return" (dollars over percent, current holdings only), "Cabal" or "Cabals" by count (#3939). Rules run full width. At accessibility text sizes the cells become label and value rows |
 | 4 | `ProfileBalanceSlot` | #610 | The same balance row as Home, with "Add money" and "Withdraw" |
 | 5 | `ProfileCabalsSlot` | #2140 | "Your cabals", the same rows as Home's. Empty: "No money in a cabal yet" / "Fund a cabal to see it here." with "Browse cabals", which opens the Cabals tab |
 | 6 | `ProfileLinksSlot` | #682, #663, #2139 | One list of three rows: "Invite friends", "Find friends" (contacts, plus search by name or handle from #2142) and "Settings" |

@@ -1,19 +1,20 @@
 journey: profile/overview
 expect-fail: S1
 
-The stats band calls its count column "Groups". S1.2 reads "Cabals", so it must fail.
+The stats band calls its count column "Groups". S1.2 reads "Cabal" or "Cabals", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
-index 0e32023d7..d010af9cf 100644
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
+index 35ce92f21..e2898e5d7 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileStatsSlot.swift
-@@ -60,7 +60,7 @@ struct ProfileStatsBand: View {
-                 value: stats.allTime, label: "All time", tone: PnLTone(dollarPnl: stats.allTimePnl).color
+@@ -63,7 +63,7 @@ struct ProfileStatsBand: View {
+                 tone: PnLTone(dollarPnl: stats.returnDollars).color, stacked: stacked
              )
-             .accessibilityIdentifier("profile-stat-all-time")
--            ProfileStatColumn(value: stats.cabals, label: "Cabals", tone: nil)
-+            ProfileStatColumn(value: stats.cabals, label: "Groups", tone: nil)
+             .accessibilityIdentifier("profile-stat-return")
+-            ProfileStatColumn(value: stats.cabals, detail: nil, label: stats.cabalsLabel, tone: nil, stacked: stacked)
++            ProfileStatColumn(value: stats.cabals, detail: nil, label: "Groups", tone: nil, stacked: stacked)
                  .accessibilityIdentifier("profile-stat-cabals")
          }
      }
