@@ -7,6 +7,7 @@ struct ProposeAmountScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var showsReview = false
     @State private var model: ProposeAmountModel
+    @State private var reviewMemory = MonacoCore.ProposeReviewMemory()
     @State private var amountText = ""
     @State private var showsReason = false
     @FocusState private var reasonFocused: Bool
@@ -74,7 +75,7 @@ struct ProposeAmountScreen: View {
                 ProposeReviewScreen(
                     service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID,
                     draft: model.draft, preview: preview, trade: model.trade,
-                    buyName: stock.name)
+                    buyName: stock.name, memory: reviewMemory)
             }
         }
         .accessibilityElement(children: .contain)

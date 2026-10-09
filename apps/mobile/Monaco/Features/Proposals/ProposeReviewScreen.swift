@@ -13,12 +13,15 @@ struct ProposeReviewScreen: View {
     private let preview: MonacoCore.ProposePreview
     private let trade: MonacoCore.ProposeTrade
     private let buyName: String?
+    private let memory: MonacoCore.ProposeReviewMemory
 
     init(
         service: MonacoCore.ProposeService, cabalID: String, draft: MonacoCore.ProposalDraft,
-        preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade, buyName: String? = nil
+        preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade, buyName: String? = nil,
+        memory: MonacoCore.ProposeReviewMemory
     ) {
         self.buyName = buyName
+        self.memory = memory
         self.service = service
         self.cabalID = cabalID
         self.draft = draft
@@ -88,12 +91,17 @@ struct ProposeReviewScreen: View {
 
     private func load() async {
         guard model == nil else { return }
+        if let held = memory.model(for: draft) {
+            model = held
+            return
+        }
         cabalFailed = false
         do {
             let cabal = try await MonacoCore.ProposeCabalInfo.load(api: environment.api, cabalID: cabalID)
-            model = MonacoCore.ProposeReviewModel(
-                service: service, cabalID: cabalID, cabal: cabal, draft: draft, preview: preview, trade: trade,
-                buyName: buyName)
+            model = memory.hold(
+                MonacoCore.ProposeReviewModel(
+                    service: service, cabalID: cabalID, cabal: cabal, draft: draft, preview: preview, trade: trade,
+                    buyName: buyName))
         } catch {
             cabalFailed = true
         }
