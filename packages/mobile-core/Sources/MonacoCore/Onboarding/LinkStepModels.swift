@@ -15,6 +15,8 @@ public enum LinkStepResult: Equatable, Sendable {
 
 public enum LinkCopy {
     public static let phoneTitle = "Add your number"
+    public static let confirmingTitle = "Confirming your number"
+    public static let tryAgain = "Try again"
     public static let phoneSubtext = "We match your contacts to find friends. Your number stays private."
     public static let sendCode = "Send code"
     public static let sendingCode = "Sending code\u{2026}"
@@ -41,7 +43,7 @@ public enum LinkCopy {
     public static func codeSent(to number: String) -> String { "Code sent to \(number)" }
 
     public static let auditedStrings = [
-        phoneTitle, phoneSubtext, sendCode, sendingCode, linking, changeNumber, newCodeSent,
+        phoneTitle, confirmingTitle, tryAgain, phoneSubtext, sendCode, sendingCode, linking, changeNumber, newCodeSent,
         phoneLinkedElsewhere, phoneAlreadyOnAccount, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting,
         xLinkedElsewhere, xUnavailable,
         xConnected, skip, notNow, unknown, ResendCooldown.readyLabel,
@@ -212,8 +214,11 @@ public final class PhoneLinkModel {
         do {
             return .finished(try await onboarding.linkPhone(submission: storeSubmission))
         } catch {
-            signInPhoneUnavailable = true
-            if !LinkCopy.isNotLinked(error) { caption = LinkCopy.result(for: error).1 }
+            if LinkCopy.isNotLinked(error) {
+                signInPhoneUnavailable = true
+            } else {
+                caption = LinkCopy.result(for: error).1
+            }
             return .stay
         }
     }

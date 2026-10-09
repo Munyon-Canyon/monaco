@@ -32,8 +32,7 @@ struct PhoneStepView: View {
     var body: some View {
         PhoneStepForm(
             mode: mode,
-            confirmsSignInPhone: mode == .onboarding && session.profile?.authState == .created
-                && session.profile?.loginProvider == .sms,
+            confirmsSignInPhone: session.profile?.loginProvider == .sms && session.profile?.phoneLinked == false,
             model: PhoneLinkModel(
                 linking: linking ?? environment.linking,
                 onboarding: onboarding ?? OnboardingAPI(api: environment.api),
@@ -90,13 +89,6 @@ private struct PhoneStepForm: View {
         } else {
             formBody
         }
-    }
-
-    private var confirmingBody: some View {
-        PhoneConfirmingSkeleton(subtext: subtext)
-            .monacoCanvas()
-            .accessibilityIdentifier("onboarding-phone-confirming")
-            .task { handle(await model.confirmSignInPhone()) }
     }
 
     private var formBody: some View {
@@ -303,6 +295,51 @@ private struct PhoneStepForm: View {
     }
 }
 
+extension PhoneStepForm {
+    fileprivate var confirmingBody: some View {
+        PhoneConfirmingSkeleton(subtext: subtext, caption: model.caption)
+            .safeAreaInset(edge: .bottom) {
+                if model.caption != nil {
+                    BottomCTA { retryButton }
+                }
+            }
+            .monacoCanvas()
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { confirmingToolbar }
+            .accessibilityIdentifier("onboarding-phone-confirming")
+            .task { await confirm() }
+    }
+
+    @ToolbarContentBuilder
+    fileprivate var confirmingToolbar: some ToolbarContent {
+        FirstRunToolbar(
+            signOut: mode == .onboarding
+                ? FirstRunAction(
+                    title: OnboardingCopy.signOut, identifier: "onboarding-phone-step-sign-out",
+                    isDisabled: model.isBusy
+                ) { Task { await onSignOut() } } : nil,
+            skip: FirstRunAction(title: skipTitle, identifier: "phone-step-skip", isDisabled: model.isBusy) {
+                Task { await skip() }
+            })
+    }
+
+    fileprivate var retryButton: some View {
+        Button {
+            Task { await confirm() }
+        } label: {
+            SubmitLabel(isWorking: model.isBusy, idle: LinkCopy.tryAgain, working: LinkCopy.linking)
+        }
+        .buttonStyle(.monacoPrimary)
+        .disabled(model.isBusy)
+        .accessibilityIdentifier("phone-step-confirm-retry")
+    }
+
+    fileprivate func confirm() async {
+        handle(await model.confirmSignInPhone())
+    }
+}
+
 struct LinkCaptionLine: View {
     let caption: LinkStepCaption?
     let identifier: String
@@ -329,21 +366,24 @@ struct LinkCaptionLine: View {
 
 private struct PhoneConfirmingSkeleton<Subtext: View>: View {
     let subtext: Subtext
+    let caption: LinkStepCaption?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                Text(LinkCopy.phoneTitle)
+                Text(LinkCopy.confirmingTitle)
                     .font(MonacoTheme.Typo.display)
                     .foregroundStyle(MonacoTheme.ink)
+                    .accessibilityAddTraits(.isHeader)
                 subtext
             }
             .fixedSize(horizontal: false, vertical: true)
             SkeletonBlock(height: MonacoButtonMetrics.minimumHeight, radius: MonacoTheme.Radius.field)
+            LinkCaptionLine(caption: caption, identifier: "phone-step-confirm-caption")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .skeleton(true)
+        .skeleton(caption == nil)
     }
 }
