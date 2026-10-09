@@ -162,8 +162,17 @@ public final class FeedModel {
 
     private func apply(_ next: FeedQuery) async {
         query = next
-        pager = Self.pager(api: api, query: next)
-        await reload()
+        let candidate = Self.pager(api: api, query: next)
+        guard !pager.items.isEmpty else {
+            pager = candidate
+            await reload()
+            return
+        }
+        await candidate.loadFirst()
+        guard query == next else { return }
+        pager = candidate
+        noteFailure(of: candidate)
+        await checkFollows(after: candidate)
     }
 
     private func checkFollows(after pager: CursorPager<Components.Schemas.FeedItem>) async {
