@@ -102,6 +102,19 @@ func TestMigrationWait_aFailedRestackDisarmsWithTheReason(t *testing.T) {
 	}
 }
 
+func TestMigrationWait_fetchesTheStackHeadBeforeFindingTheMergeBase(t *testing.T) {
+	t.Parallel()
+	f, s := migrationStacks(t)
+	heldFor(t, f, s, "waiting on queued stack #7")
+	s.prs[7].Labels.Nodes = nil
+	s.gitOut[migrationsDiff] = newestOnTrunk + "\n"
+	s.needLine, s.needRun = "merge-base origin/fb b2-oid", "fetch --no-tags origin b2"
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || strings.Contains(stdout, "Not a valid commit name") || !s.ran("bash scripts/restack-regen.sh") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}
+
 func (s *stackGH) ran(prefix string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -124,6 +137,7 @@ func TestMigrationWait_aFailedStepDisarmsAndNamesTheReason(t *testing.T) {
 		{name: "queued files", route: "/pulls/7/files?", stay: true},
 		{name: "queued stacks", openFail: 2, stay: true},
 		{name: "fetch", gitFail: "fetch --no-tags origin fb"},
+		{name: "fetch head", gitFail: "fetch --no-tags origin b2"},
 		{name: "merge-base", gitFail: "merge-base origin/fb"},
 		{name: "diff", gitFail: "diff --name-only"},
 		{name: "sync", fail: "gt sync"},

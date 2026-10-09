@@ -88,6 +88,9 @@ func (env *Env) restackMigrations(ctx context.Context, dir string, stack []stack
 	if _, err := env.git(ctx, "fetch", "--no-tags", "origin", env.Config.FeatureBranch); err != nil {
 		return nil, false, err
 	}
+	if _, err := env.git(ctx, "fetch", "--no-tags", "origin", top.Head); err != nil {
+		return nil, false, err
+	}
 	base, err := env.git(ctx, "merge-base", trunk, top.HeadOID)
 	if err != nil {
 		return nil, false, err
