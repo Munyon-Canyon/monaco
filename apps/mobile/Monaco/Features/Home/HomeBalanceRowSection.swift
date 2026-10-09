@@ -21,12 +21,10 @@ struct HomeBalanceRowSection: View {
     var balanceIdentifier = "platform-balance-value"
 
     @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(\.homeReads) private var reads
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
-    @State private var model: BalanceSource?
 
     static func showsRetryRow(_ state: LoadState<AccountBalance>) -> Bool {
         if case .failed = state { return true }
@@ -35,52 +33,36 @@ struct HomeBalanceRowSection: View {
 
     var body: some View {
         MonacoGroupedList {
-            if let model, Self.showsRetryRow(model.state), reads.showsOwnRow(.balance) {
-                retryRow(model)
+            if Self.showsRetryRow(environment.balance.state), reads.showsOwnRow(.balance) {
+                retryRow
             } else {
                 PlatformBalanceCard(
-                    state: model?.state ?? .loading, cardProcessing: environment.cardDeposit.isProcessing,
+                    state: environment.balance.state, cardProcessing: environment.cardDeposit.isProcessing,
                     valueIdentifier: balanceIdentifier)
             }
             actions
                 .padding(.leading, PlatformBalanceCard.leadingInset)
                 .padding(.trailing, MonacoTheme.Space.gutter)
         }
-        .onChange(of: HomeReadStatus(model?.state ?? .loading), initial: true) { _, status in
+        .onChange(of: HomeReadStatus(environment.balance.state), initial: true) { _, status in
             reads?.report(.balance, status)
         }
         .task {
-            let model = preparedModel()
-            refresh?.register("balance") { await model.load() }
-            await model.load()
-            await model.observe()
+            refresh?.register("balance") { await environment.balance.load() }
+            await environment.balance.load()
         }
         .task {
             await environment.cardDeposit.observe()
-        }
-        .onScreenVisibilityChange { visible in
-            model?.setVisible(visible)
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await environment.cardDeposit.foregrounded() }
         }
-        .onChange(of: model?.failureTick) { _, _ in
-            guard model?.balance != nil, let error = model?.lastError else { return }
-            toasts.current = MonacoToast(message: BalanceSource.message(for: error))
-        }
-        .onChange(of: model?.balance) { previous, current in
-            guard let current else { return }
-            let change = BalanceChange.detect(previous: previous, current: current)
-            guard let change else { return }
-            environment.cardDeposit.balanceChanged(change)
-            toasts.show(success: change.message)
-        }
     }
 
-    private func retryRow(_ model: BalanceSource) -> some View {
+    private var retryRow: some View {
         MonacoErrorRow(thing: "your balance", identifier: "\(identifierPrefix)-balance-error") {
-            Task { await model.load() }
+            Task { await environment.balance.load() }
         }
     }
 
@@ -113,12 +95,5 @@ struct HomeBalanceRowSection: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)
-    }
-
-    private func preparedModel() -> BalanceSource {
-        if let model { return model }
-        let created = BalanceSource(api: environment.api, hints: environment.hints)
-        model = created
-        return created
     }
 }

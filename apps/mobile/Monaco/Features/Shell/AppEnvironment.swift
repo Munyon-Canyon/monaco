@@ -15,6 +15,7 @@ final class AppEnvironment {
     let linking: any AccountLinking
     let navigator = AppNavigator()
     let cardDeposit: CardDeposit
+    let balance: BalanceSource
     let cashOuts: CashOutJobWatcher
     let sessionStore: AppSessionStore
     let push: PushRegistrar
@@ -59,6 +60,7 @@ final class AppEnvironment {
         self.assetLogos = AssetLogoStore(api: api)
         self.chatRealtime = SharedChatRealtime { AblyChatRealtime(api: api) }
         self.cardDeposit = CardDeposit(source: OnrampSource(api: api), hints: hints, now: { Date() })
+        self.balance = BalanceSource(api: api, hints: hints)
         self.cashOuts = CashOutJobWatcher(api: api, hints: hints)
         let push = PushRegistrar(
             service: DeviceAPI(api: api),
@@ -192,6 +194,7 @@ final class AppEnvironment {
         chatRealtime.close()
         navigator.reset()
         cardDeposit.reset()
+        balance.reset()
         cashOuts.reset()
         sessionStore.reset()
         #if DEBUG

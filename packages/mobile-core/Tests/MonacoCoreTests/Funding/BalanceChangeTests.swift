@@ -26,6 +26,16 @@ final class BalanceChangeTests: XCTestCase {
         XCTAssertNil(BalanceChange.detect(previous: balance(12_000_000), current: balance(7_000_000)))
     }
 
+    func testARiseUnderOneCentIsDustNotADeposit() {
+        XCTAssertNil(BalanceChange.detect(previous: balance(12_000_000), current: balance(12_000_001)))
+        XCTAssertNil(BalanceChange.detect(previous: balance(12_000_000), current: balance(12_009_999)))
+    }
+
+    func testARiseOfOneCentIsTheSmallestDeposit() {
+        XCTAssertEqual(
+            BalanceChange.detect(previous: balance(12_000_000), current: balance(12_010_000)), .deposited(10_000))
+    }
+
     func testTheFirstReadIsNotADeposit() {
         XCTAssertNil(BalanceChange.detect(previous: nil, current: balance(12_000_000)))
     }

@@ -55,6 +55,6 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Not covered
 
-- The toast "Deposit received: $25.00". It shows only when a deposit lands while Add money is on screen, and the runner deposits before the run, so a step would wait on a person. `BalanceChangeTests` covers its copy.
+- The toast "Deposit received: $25.00". It shows on whichever screen is open when a deposit lands, and the runner deposits before the run, so a step would wait on a person. `BalanceChangeTests` covers its copy.
 - Tapping the address itself to copy it (`deposit-address-value`). It copies the same way as S1.3.
 - The clipboard's content. XCUITest cannot read the simulator pasteboard without a system prompt.

@@ -86,7 +86,6 @@ private struct AddressPoll: Hashable {
 struct DepositAddressView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @State private var model: BalanceSource?
     @State private var addressAttempts = 0
     @State private var addressRetry = 0
 
@@ -96,17 +95,17 @@ struct DepositAddressView: View {
         DepositContent(
             address: environment.sessionStore.profile?.memberWalletAddress,
             gaveUp: addressAttempts >= Self.maxAddressAttempts,
-            state: model?.state ?? .loading,
+            state: environment.balance.state,
             onCopy: copyAddress,
             onRetryAddress: {
                 addressAttempts = 0
                 addressRetry += 1
             },
-            onRetryBalance: { Task { await model?.load() } }
+            onRetryBalance: { Task { await environment.balance.load() } }
         )
         .refreshable {
             await environment.sessionStore.reloadProfile(auth: environment.auth)
-            await model?.load()
+            await environment.balance.load()
         }
         .task(id: AddressPoll(address: environment.sessionStore.profile?.memberWalletAddress, retry: addressRetry)) {
             while DepositAddress.usable(environment.sessionStore.profile?.memberWalletAddress) == nil,
@@ -119,33 +118,13 @@ struct DepositAddressView: View {
             }
         }
         .task {
-            let model = preparedModel()
-            await model.load()
-            await model.observe()
-        }
-        .onScreenVisibilityChange { visible in
-            model?.setVisible(visible)
-        }
-        .onChange(of: model?.failureTick) { _, _ in
-            guard model?.balance != nil, let error = model?.lastError else { return }
-            toasts.current = MonacoToast(message: BalanceSource.message(for: error))
-        }
-        .onChange(of: model?.balance) { previous, current in
-            guard let current, let change = BalanceChange.detect(previous: previous, current: current) else { return }
-            toasts.show(success: change.message)
+            await environment.balance.load()
         }
     }
 
     private func copyAddress(_ address: String) {
         UIPasteboard.general.string = address
         toasts.show(success: "Address copied.")
-    }
-
-    private func preparedModel() -> BalanceSource {
-        if let model { return model }
-        let created = BalanceSource(api: environment.api, hints: environment.hints)
-        model = created
-        return created
     }
 }
 
