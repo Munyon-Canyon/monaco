@@ -135,6 +135,8 @@ private struct CabalSearchRowView: View {
     let open: () -> Void
     let enter: () -> Void
 
+    @Environment(\.accountRestricted) private var accountRestricted
+
     var body: some View {
         Button(action: open) {
             MonacoRow(title: row.name, subtitle: row.detail, isLast: isLast, trailingIsInteractive: true) {
@@ -173,7 +175,7 @@ private struct CabalSearchRowView: View {
             .buttonStyle(.monacoCompact)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
-            .disabled(isEntering)
+            .disabled(isEntering || accountRestricted)
             .accessibilityLabel(label)
             .accessibilityIdentifier("cabals-search-enter-\(row.id)")
     }

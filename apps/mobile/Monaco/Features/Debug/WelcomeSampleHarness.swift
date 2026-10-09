@@ -171,7 +171,7 @@ private struct EmptyStateSamples: View {
                         EmptyState(
                             title: "No cabals yet",
                             message: "Start one with friends or join an open one.",
-                            actionTitle: "Browse cabals"
+                            actionTitle: "Find a cabal"
                         ) {}
                     }
                 }

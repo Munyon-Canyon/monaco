@@ -202,12 +202,12 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         XCTAssertFalse(anyElement(app, "cabals-list-empty").exists, "the list is unknown, not empty")
 
         XCTAssertTrue(
-            reveal(app, "cabals-value-chart-loading").waitForExistence(timeout: 10),
-            "a value chart that has not arrived yet should show a placeholder"
-        )
-        XCTAssertTrue(
             reveal(app, "cabals-board-list-loading").waitForExistence(timeout: 10),
             "a board that has not arrived yet should show placeholder rows"
+        )
+        XCTAssertFalse(
+            anyElement(app, "cabals-value-chart-loading").exists,
+            "the return chart should stay hidden until it has loaded"
         )
         XCTAssertFalse(anyElement(app, "cabals-value-chart-error").exists, "the chart has not failed yet")
         XCTAssertFalse(anyElement(app, "cabals-board-list-error").exists, "the board has not failed yet")

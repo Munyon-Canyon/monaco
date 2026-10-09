@@ -49,5 +49,5 @@ The format of this doc is in [App journeys](../README.md).
 ## Not covered
 
 - Every target past S1.1 is a label, not an accessibility identifier: the screens do not exist yet, and their identifiers come with #613 (`apps/mobile/Monaco/Features/Proposals/ProposeFromAssetRoute.swift`). The Stocks search field has no identifier either (`apps/mobile/Monaco/Features/Assets/StocksTabView.swift`, `MonacoSearchField`), so S1.1 finds it by its placeholder.
-- One cabal (straight to Amount) and no cabal (the sheet "Join a cabal first" with "Browse cabals"). The QA account votes in many cabals, so neither state is reachable without a fresh account.
+- One cabal (straight to Amount) and no cabal (the sheet "Join a cabal first" with "Find a cabal"). The QA account votes in many cabals, so neither state is reachable without a fresh account.
 - "Can't buy right now" for a stock that cannot trade.

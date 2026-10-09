@@ -30,7 +30,7 @@ struct ProposeFromAssetScreen: View {
             case .loaded(let cabals):
                 if cabals.isEmpty {
                     framed {
-                        EmptyState(title: "Join a cabal first", actionTitle: "Browse cabals") {
+                        EmptyState(title: "Join a cabal first", actionTitle: "Find a cabal") {
                             environment.navigator.selectedTab = .cabals
                         }
                     }

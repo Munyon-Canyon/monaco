@@ -221,6 +221,8 @@ enum MonacoTheme {
 
     static let destructive = loss
 
+    static let onDestructive = Color.white
+
     static let accent = brand
 
     static let disabled = Color.adaptive(light: 0xCBD2CB, dark: 0x37453D)

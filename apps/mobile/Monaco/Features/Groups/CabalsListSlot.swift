@@ -19,19 +19,16 @@ private struct MyCabalsList: View {
 
     var body: some View {
         MyCabalsContent(model: model, standings: model?.standings ?? [:], open: open, create: { showsNewCabal = true })
-            .onAppear {
+            .task {
                 let model = preparedModel()
                 refresh?.register("cabals-list") {
                     await model.load()
                     await model.loadStandings()
                 }
-                model.setVisible(true)
-                Task {
-                    await model.load()
-                    await model.loadStandings()
-                }
+                await model.load()
+                await model.loadStandings()
             }
-            .onDisappear { model?.setVisible(false) }
+            .onScreenVisibilityChange { model?.setVisible($0) }
             .task { await preparedModel().observe(hints: environment.hints) }
             .newCabalSheet(isPresented: $showsNewCabal)
             .onChange(of: model?.failureTick) { _, _ in
@@ -53,13 +50,17 @@ private struct MyCabalsList: View {
     }
 }
 
-private struct MyCabalsContent: View {
+struct MyCabalsContent: View {
     let model: MonacoCore.CabalsTabModel?
     let standings: [String: PortfolioSummary.Row]
     let open: (Components.Schemas.MyCabal) -> Void
     let create: () -> Void
 
-    static let cardSize = CGSize(width: 168, height: 128)
+    @Environment(\.accountRestricted) private var accountRestricted
+    @ScaledMetric(relativeTo: .body) private var cardWidth: CGFloat = 168
+
+    static let cardHeight: CGFloat = 128
+    private var cardSize: CGSize { CGSize(width: cardWidth, height: Self.cardHeight) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -80,8 +81,14 @@ private struct MyCabalsContent: View {
                 Task { await model?.load() }
             }
         case .loaded(let cabals) where cabals.isEmpty:
-            EmptyState(title: "No cabals yet", message: "Search above or start one with the + button.")
-                .accessibilityIdentifier("cabals-list-empty")
+            EmptyState(
+                title: "No cabals yet",
+                message: accountRestricted
+                    ? "Search above to find one." : "Start one with friends, or search above to find one.",
+                actionTitle: accountRestricted ? nil : "Start a cabal",
+                action: accountRestricted ? nil : create
+            )
+            .accessibilityIdentifier("cabals-list-empty")
         case .loaded(let cabals):
             cards(cabals)
         }
@@ -94,16 +101,18 @@ private struct MyCabalsContent: View {
                     Button {
                         open(cabal)
                     } label: {
-                        MyCabalCard(cabal: cabal, standing: standings[cabal.id], size: Self.cardSize)
+                        MyCabalCard(cabal: cabal, standing: standings[cabal.id], size: cardSize)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("cabals-list-card-\(cabal.id)")
                 }
-                Button(action: create) {
-                    NewCabalCard(size: Self.cardSize)
+                if !accountRestricted {
+                    Button(action: create) {
+                        NewCabalCard(size: cardSize)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("cabals-list-new")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("cabals-list-new")
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.xs)
@@ -114,7 +123,7 @@ private struct MyCabalsContent: View {
         HStack(spacing: MonacoTheme.Space.s) {
             ForEach(0..<2, id: \.self) { _ in
                 SkeletonBlock(
-                    width: Self.cardSize.width, height: Self.cardSize.height, radius: MonacoTheme.Radius.card)
+                    width: cardSize.width, height: cardSize.height, radius: MonacoTheme.Radius.card)
             }
             Spacer(minLength: 0)
         }
@@ -130,6 +139,8 @@ private struct MyCabalCard: View {
     let standing: PortfolioSummary.Row?
     let size: CGSize
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var tint: MonacoTheme.CabalTint { .forGroupId(cabal.id) }
 
     var body: some View {
@@ -140,7 +151,7 @@ private struct MyCabalCard: View {
                 if let unread = CabalCopy.unreadBadge(cabal.unreadCount) {
                     Text(unread)
                         .font(MonacoTheme.Typo.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(MonacoTheme.onDestructive)
                         .padding(.horizontal, MonacoTheme.Space.s)
                         .frame(minWidth: 22, minHeight: 22)
                         .background(Capsule().fill(MonacoTheme.destructive))
@@ -161,7 +172,7 @@ private struct MyCabalCard: View {
             Text(cabal.name)
                 .font(MonacoTheme.Typo.rowTitle)
                 .foregroundStyle(MonacoTheme.ink)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, MonacoTheme.Space.xs)
