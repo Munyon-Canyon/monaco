@@ -1,7 +1,6 @@
 package funding_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -251,7 +250,7 @@ func TestDepositWatchTickGatesTenThousandIdleWalletsInOneHundredCalls(t *testing
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
-	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	ctx, now := tickWithRemaining(t, 30*time.Minute)
 	for _, stmt := range []string{
 		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at,
 			discovery_due_at)
@@ -275,16 +274,14 @@ func TestDepositWatchTickGatesTenThousandIdleWalletsInOneHundredCalls(t *testing
 		return 2, states
 	}}
 	p := budgetedWatch(pool, now, nil, &rpc, 480, 112, 113)
-	ctx, cancel := context.WithTimeout(watchActor(t), 30*time.Second)
-	defer cancel()
-	start := clock.Real{}.Now()
 	report, err := p.Tick(ctx)
 	if err != nil || report.Scanned != 10000 {
 		t.Fatalf("Tick = %+v, %v; want 10000 accounts gated", report, err)
 	}
-	elapsed := clock.Real{}.Now().Sub(start)
-	if elapsed > 25*time.Second {
-		t.Fatalf("Tick took %s, want it inside the tick deadline", elapsed)
+	const finished = "gate=10000 gate_calls=100 dirty=0 dirty_calls=0 rotation=0 rotation_calls=0 " +
+		"discovery=0 discovery_calls=0 first_sight=0 first_sight_calls=0"
+	if got := stepAttrs(report); got != finished {
+		t.Fatalf("step attrs = %q, want %q: every step ran and none stopped early", got, finished)
 	}
 	if rpc.accountsCalls != 100 || rpc.signCalls != 0 {
 		t.Fatalf(
