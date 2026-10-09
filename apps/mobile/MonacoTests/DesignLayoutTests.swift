@@ -158,3 +158,20 @@ struct SectionStackLayoutTests {
         #expect(size.height == 20 + SectionStackMetrics.spacing)
     }
 }
+
+@MainActor
+struct BottomCTALayoutTests {
+    private func height(at size: DynamicTypeSize) -> CGFloat {
+        let host = UIHostingController(
+            rootView: BottomCTA {
+                Button("Propose buy of this stock") {}.buttonStyle(.monacoPrimary)
+                Button("Propose sell of this stock") {}.buttonStyle(.monacoSecondary)
+            }
+            .dynamicTypeSize(size))
+        return host.sizeThatFits(in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude)).height
+    }
+
+    @Test func twoButtonsStackAtAccessibilitySizes() {
+        #expect(height(at: .accessibility3) >= height(at: .large) + MonacoButtonMetrics.minimumHeight)
+    }
+}
