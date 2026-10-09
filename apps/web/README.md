@@ -86,7 +86,7 @@ none is secret:
 |---|---|
 | `VITE_MONACO_API_URL` | The API base URL. The fund page's CSP allows only this API origin |
 | `VITE_PRIVY_APP_ID` | The Privy app id the iOS app uses |
-| `VITE_PRIVY_ENV` | `production` on Production, `sandbox` on Preview |
+| `VITE_PRIVY_ENV` | `production` on Production and on the staging project, `sandbox` on Preview. `just run` uses `sandbox` |
 
 Set all of them on both Production and Preview, then:
 
@@ -98,11 +98,12 @@ Set all of them on both Production and Preview, then:
 
 ### Fund page for staging
 
-One page at one URL carries one `VITE_PRIVY_APP_ID`, and staging and production use different Privy apps, so staging needs its own deployment of this project:
+One page at one URL carries one `VITE_PRIVY_APP_ID`, and staging and production use different Privy apps, so staging has its own Vercel project, `monaco-staging`, serving `https://monaco-staging.vercel.app/fund`:
 
-1. A second project (or a Vercel branch deployment with its own domain) built from `staging`, with `VITE_MONACO_API_URL` set to the staging API, `VITE_PRIVY_APP_ID` set to the staging Privy app id and `VITE_PRIVY_ENV=sandbox`.
-2. Staging's `FUND_PAGE_URL` set to that deployment's `/fund` URL, and its origin added to `WEB_ALLOWED_ORIGINS`.
-3. The staging domain allow-listed as an app domain in the staging Privy app.
+1. Root directory `apps/web`, production branch `staging`, deployment protection off (phones get 401 otherwise).
+2. `VITE_MONACO_API_URL` is the staging API, `VITE_PRIVY_APP_ID` is `PRIVY_APP_ID` from `.env.staging`, and `VITE_PRIVY_ENV=production`. Staging card deposits are real money; only a local run uses the sandbox on-ramp.
+3. `.env.staging` sets `FUND_PAGE_URL` to that `/fund` URL and adds its origin to `WEB_ALLOWED_ORIGINS`; `scripts/render-staging-env.sh` pushes them to Render.
+4. The staging Privy app has no allowed-domains list, so any origin may use it. If one is ever added, it must include this domain.
 
 `.github/workflows/web-deploy-check.yml` curls `/fund` on every successful Vercel deployment and fails unless it answers 200. Production builds from `main`, so `/fund` only exists there after the fund page is promoted from `staging`.
 
