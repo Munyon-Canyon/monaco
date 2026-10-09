@@ -15,6 +15,7 @@ struct ProposeFromAssetScreen: View {
     let symbol: String
     let kind: ProposeKind
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.hostMainTab) private var hostMainTab
     @State private var model: ProposeFromAssetModel?
 
     var body: some View {
@@ -24,16 +25,12 @@ struct ProposeFromAssetScreen: View {
             case .failed:
                 framed {
                     MonacoErrorRow(thing: "cabals", identifier: "propose-from-asset-error") {
-                        Task { await model?.load() }
+                        Task { await model?.load(kind: kind, symbol: symbol) }
                     }
                 }
             case .loaded(let cabals):
                 if cabals.isEmpty {
-                    framed {
-                        EmptyState(title: "Join a cabal first", actionTitle: "Find a cabal") {
-                            environment.navigator.selectedTab = .cabals
-                        }
-                    }
+                    framed { emptyState }
                 } else if cabals.count == 1 {
                     amount(cabals[0])
                 } else {
@@ -44,7 +41,20 @@ struct ProposeFromAssetScreen: View {
         .task {
             let created = model ?? ProposeFromAssetModel(api: environment.api)
             model = created
-            await created.load()
+            guard case .idle = created.state else { return }
+            await created.load(kind: kind, symbol: symbol)
+        }
+    }
+
+    @ViewBuilder private var emptyState: some View {
+        if model?.destination == .votersOnly {
+            EmptyState(title: "Only voters can propose")
+        } else {
+            EmptyState(title: "Join a cabal first", actionTitle: "Browse cabals") {
+                let tab = hostMainTab ?? environment.navigator.selectedTab
+                environment.navigator.closeProposeFlow(in: tab)
+                environment.navigator.selectedTab = .cabals
+            }
         }
     }
 
@@ -96,14 +106,29 @@ struct ProposeFromAssetScreen: View {
                 stock: ProposeStock(symbol: symbol))
         case .sell:
             CabalPotModelHost(cabalID: cabal.id) { pot in
-                ProposeSellView(pot: pot, initialSymbol: symbol)
+                sellAmount(cabal, pot: pot)
             }
         }
     }
-}
 
-nonisolated enum ProposeKind: Hashable, Sendable {
-    case buy, sell
+    @ViewBuilder
+    private func sellAmount(_ cabal: Components.Schemas.MyCabal, pot: CabalPotModel?) -> some View {
+        if let holding = pot?.summary?.sellable.first(where: {
+            $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame
+        }) {
+            ProposeAmountScreen(
+                service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
+                stock: ProposeStock(holding: holding), trade: .sell(holding))
+        } else if case .failed = pot?.state {
+            framed {
+                MonacoErrorRow(thing: "holdings", identifier: "propose-sell-error") { Task { await pot?.load() } }
+            }
+        } else if case .loaded = pot?.state {
+            framed { EmptyState(title: "Nothing to sell yet") }
+        } else {
+            framed { MonacoRowSkeleton(rows: 3, markShape: .tile, hasTrailing: false) }
+        }
+    }
 }
 
 private struct ProposePickCabalRow: View {
