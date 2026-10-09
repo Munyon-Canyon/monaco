@@ -6,6 +6,7 @@ public enum LinkError: Error, Equatable, Sendable {
     case invalidCode
     case cancelled
     case network
+    case rateLimited
     case unknown
     case unavailable
 }

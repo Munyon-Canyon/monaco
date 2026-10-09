@@ -324,14 +324,17 @@ actor FakeAccountLinking: AccountLinking {
     private(set) var calls: [Call] = []
     private let linkPhoneError: LinkError?
     private let linkXError: LinkError?
+    private let sendPhoneCodeError: LinkError?
 
-    init(linkPhoneError: LinkError? = nil, linkXError: LinkError? = nil) {
+    init(linkPhoneError: LinkError? = nil, linkXError: LinkError? = nil, sendPhoneCodeError: LinkError? = nil) {
+        self.sendPhoneCodeError = sendPhoneCodeError
         self.linkPhoneError = linkPhoneError
         self.linkXError = linkXError
     }
 
     func sendPhoneCode(e164: String) async throws {
         calls.append(.sendPhoneCode(e164))
+        if let sendPhoneCodeError { throw sendPhoneCodeError }
     }
 
     func linkPhone(code: String) async throws {
