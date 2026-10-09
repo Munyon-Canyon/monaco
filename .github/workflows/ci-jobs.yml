@@ -346,6 +346,7 @@ jobs:
           python3 scripts/qa/journey.py check
           python3 scripts/qa/test_journey.py
           python3 scripts/qa/test_skill_eval.py
+          scripts/qa/screens.sh --check
 
   mobile-core:
     needs: plan

@@ -4,12 +4,15 @@
 #   scripts/qa/screens.sh --check                       # manifest covers every harness?
 #   scripts/qa/screens.sh <sim udid> <Monaco.app> <dir> # install, launch each screen, shoot
 #
-# The manifest is the only list of screens. --check reads the app sources and fails when a
-# `-Monaco…Sample`/`…Gallery` launch flag, or a scenario of a Debug harness enum, has no
-# manifest line, so a new harness cannot silently drop out of the gallery. It also fails when
-# a `-MonacoFlow <id> <outcome>` line of the generated block has no SampleHarnessEntry that
-# reads Flow<id>Scenario.matching. Capture runs the check too and exits 1 when a screen
-# failed to launch or shoot, or the check failed.
+# The manifest is the only list of screens. --check reads the app sources and fails both ways.
+# Forward: a `-Monaco…Sample`/`…Gallery` or `-…Harness` launch flag, or a scenario of a
+# `…Sample…` enum in a file that declares a SampleHarnessEntry, has no manifest line. Reverse: a
+# manifest line (outside the generated block) launches a flag no harness file reads, a scenario
+# that file does not know, or a further -Monaco flag no app source reads, so the shot would be
+# the login screen. It also fails when a `-MonacoFlow <id> <outcome>` line of the generated block
+# has no SampleHarnessEntry that reads Flow<id>Scenario.matching. The Journeys CI job runs it.
+# Capture runs the check too and exits 1 when a screen failed to launch or shoot, or the check
+# failed.
 #
 # MONACO_QA_SCREEN_SETTLE: seconds to wait after launch before the shot (default 4).
 set -uo pipefail
@@ -17,6 +20,7 @@ set -uo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 manifest="$root/scripts/qa/sample-screens.txt"
 app_src="$root/apps/mobile/Monaco"
+core_src="$root/packages/mobile-core/Sources"
 settle="${MONACO_QA_SCREEN_SETTLE:-4}"
 
 entries() { # name<TAB>args, comments and blank lines dropped
@@ -30,15 +34,16 @@ in_manifest() { # every argument appears, in order, on one manifest line
   entries | cut -f2 | grep -qE "$pattern([[:space:]]|\$)"
 }
 
-# Cases of `enum X: String, CaseIterable` in one file, as their launch values.
+# Cases of `enum …Sample…: String, CaseIterable` in one file, as their launch values.
 enum_cases() {
   awk '
-    /enum [A-Za-z0-9_]+: String, CaseIterable/ { inside=1; depth=0 }
+    /enum [A-Za-z0-9_]*Sample[A-Za-z0-9_]*: String, CaseIterable/ { inside=1; depth=0 }
     inside {
       line=$0
+      before=depth
       opens=gsub(/\{/, "{", line); closes=gsub(/\}/, "}", line)
       depth += opens - closes
-      if ($1 == "case") {
+      if ($1 == "case") if (before == 1) {
         sub(/^[[:space:]]*case[[:space:]]+/, "")
         n=split($0, parts, ",")
         for (i=1; i<=n; i++) {
@@ -59,17 +64,30 @@ flow_scenarios() {
     inside && $2 == "-MonacoFlow" { print $3, $4 }' "$manifest"
 }
 
+# Manifest lines outside the generated flow block, as name<TAB>args.
+hand_entries() {
+  awk '
+    /^# BEGIN generated flow scenarios$/ { skip=1 }
+    /^# END generated flow scenarios$/ { skip=0 }
+    { sub(/#.*/, "") }
+    !skip && NF { name=$1; $1=""; sub(/^ +/, ""); print name "\t" $0 }' "$manifest"
+}
+
 check() {
-  local missing=0 flag file flags count scenario id outcome harnesses
+  local missing=0 flag file flags count scenario id outcome harnesses name args first second hits extra
+  harnesses="$(grep -rlE ':[[:space:]]*SampleHarnessEntry\b' "$app_src" --include='*.swift')"
+
   while read -r flag; do
     if ! in_manifest "$flag"; then
       echo "screens: $flag has no line in scripts/qa/sample-screens.txt" >&2
       missing=1
     fi
-  done < <(grep -rhoE '"-Monaco[A-Za-z]*(Sample|Gallery)[A-Za-z]*"' "$app_src" --include='*.swift' | tr -d '"' | sort -u)
+  done < <(grep -rhoE '"-(Monaco[A-Za-z]*(Sample|Gallery)[A-Za-z]*|[a-z][A-Za-z]*Harness)"' "$app_src" --include='*.swift' | tr -d '"' | sort -u)
 
+  # $harnesses is split on purpose: app source paths have no spaces.
+  # shellcheck disable=SC2086
   while read -r file; do
-    flags="$(grep -oE '"-Monaco[A-Za-z]*Sample[A-Za-z]*"' "$file" | tr -d '"' | sort -u)"
+    flags="$(grep -oE '"-(Monaco[A-Za-z]*(Sample|Gallery)[A-Za-z]*|[a-z][A-Za-z]*Harness)"' "$file" | tr -d '"' | sort -u)"
     count="$(printf '%s\n' "$flags" | grep -c .)"
     if [[ "$count" != 1 ]]; then
       echo "screens: $(basename "$file") has a scenario enum but $count sample flags; cannot pair them" >&2
@@ -82,11 +100,42 @@ check() {
         missing=1
       fi
     done < <(enum_cases "$file")
-  done < <(grep -lE 'enum [A-Za-z0-9_]+: String, CaseIterable' "$app_src"/Features/Debug/*.swift)
+  done < <(grep -lE 'enum [A-Za-z0-9_]*Sample[A-Za-z0-9_]*: String, CaseIterable' $harnesses)
 
-  harnesses="$(grep -rlE ':[[:space:]]*SampleHarnessEntry\b' "$app_src" --include='*.swift')"
+  # Reverse: the flag must be read by a harness file, the scenario by that file or the mobile-core
+  # preview sources it forwards to, and every further -Monaco flag by some app source.
+  while IFS=$'\t' read -r name args; do
+    # $args is split on purpose: it is a list of launch arguments with no spaces inside.
+    # shellcheck disable=SC2086
+    set -- $args
+    first="$1"; second="${2:-}"
+    # shellcheck disable=SC2086
+    hits="$(grep -lF "\"$first\"" $harnesses)"
+    if [[ -z "$hits" ]]; then
+      echo "screens: $name launches $args, which no harness reads" >&2
+      missing=1
+      continue
+    fi
+    if [[ -n "$second" && "$second" != -* ]]; then
+      # shellcheck disable=SC2086
+      if ! grep -qE "\"$second\"|case[[:space:]].*\b$second\b" $hits &&
+        ! grep -rqE "case[[:space:]]+$second\b" "$core_src" --include='*.swift'; then
+        echo "screens: $name launches $args, which no harness reads" >&2
+        missing=1
+        continue
+      fi
+    fi
+    for extra in "$@"; do
+      [[ "$extra" == -Monaco* && "$extra" != "$first" ]] || continue
+      if ! grep -rqF "\"$extra\"" "$app_src" --include='*.swift'; then
+        echo "screens: $name launches $args, which no harness reads" >&2
+        missing=1
+        break
+      fi
+    done
+  done < <(hand_entries)
+
   while read -r id outcome; do
-    # $harnesses is split on purpose: app source paths have no spaces.
     # shellcheck disable=SC2086
     if [[ -z "$harnesses" ]] || ! grep -qE "\bFlow${id}Scenario\.matching\(" $harnesses; then
       echo "screens: -MonacoFlow $id $outcome has no harness entry" >&2
@@ -136,7 +185,7 @@ capture() {
 
 case "${1:-}" in
   --check) check ;;
-  -h|--help|"") sed -n '2,14p' "$0"; [[ -n "${1:-}" ]] ;;
+  -h|--help|"") sed -n '2,17p' "$0"; [[ -n "${1:-}" ]] ;;
   *)
     [[ $# -eq 3 ]] || { echo "usage: $0 --check | <sim udid> <Monaco.app> <out dir>" >&2; exit 2; }
     capture "$@"
