@@ -133,7 +133,7 @@ func TestMigrate_runsThePinnedAtlasWithTheSubcommandArguments(t *testing.T) {
 		"apply":  {"apply", validMigrateEnviron(), lines("migrate", "apply", "--dir", "file://migrations", "--url", url)},
 		"status": {"status", validMigrateEnviron(), lines("migrate", "status", "--dir", "file://migrations", "--url", url)},
 		"lint without config": {"lint", nil, lines(
-			"migrate", "lint", "--dir", "file://migrations", "--dev-url", "docker://postgres/16/dev", "--latest", "1")},
+			"migrate", "lint", "--dir", "file://migrations", "--dev-url", "docker+postgres://public.ecr.aws/docker/library/postgres:16/dev", "--latest", "1")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

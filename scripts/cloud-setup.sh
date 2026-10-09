@@ -70,7 +70,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 # Optional warm-up: best effort, never fails setup
-docker pull postgres:16-alpine || true
+docker pull public.ecr.aws/docker/library/postgres:16-alpine || true
 if [[ -f /home/user/monaco/apps/backend/go.mod ]]; then
   (cd /home/user/monaco/apps/backend && go mod download) || true
 fi

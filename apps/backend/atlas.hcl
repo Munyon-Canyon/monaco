@@ -1,6 +1,6 @@
 env "local" {
   url = getenv("DATABASE_URL")
-  dev = "docker://postgres/16/dev"
+  dev = "docker+postgres://public.ecr.aws/docker/library/postgres:16/dev"
   migration {
     dir = "file://migrations"
   }
@@ -8,7 +8,7 @@ env "local" {
 
 env "test" {
   url = getenv("TEST_DATABASE_URL")
-  dev = "docker://postgres/16/dev"
+  dev = "docker+postgres://public.ecr.aws/docker/library/postgres:16/dev"
   migration {
     dir = "file://migrations"
   }

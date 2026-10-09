@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	PostgresImage   = "postgres:16-alpine"
+	PostgresImage   = "public.ecr.aws/docker/library/postgres:16-alpine"
 	ContainerPrefix = "monaco-verify-"
 	ContainerLabel  = "monaco.verify"
 )

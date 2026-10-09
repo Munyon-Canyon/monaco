@@ -38,7 +38,7 @@ type atlas struct {
 }
 
 const (
-	dockerDevURL   = "docker://postgres/16/dev"
+	dockerDevURL   = "docker+postgres://public.ecr.aws/docker/library/postgres:16/dev"
 	devConnectWait = 5 * time.Second
 )
 
