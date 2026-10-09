@@ -1,7 +1,7 @@
 ---
 id: money/fund-cabal
 title: Fund this cabal
-version: 2
+version: 3
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -36,7 +36,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA fund {QA.run}` | `cabal-header-name` reads `QA fund {QA.run}` within 15 s |
 | S1.2 | A | tap | `cabal-action-fund` "Add money" | | The screen titled "Fund this cabal" shows `amount-entry-field`, the presets "$25", "$50", "$100" and "Max", and `amount-entry-helper` reads "… available" within 15 s (old app: `FundCabalView.swift` amount and presets) |
-| S1.3 | A | wait | `fund-cabal-treasury-note` | | "The money leaves your account balance and joins the QA fund {QA.run} pot. Your slice grows by the same amount." and "To add money to this cabal, use Fund. Sending USDC straight to the treasury will be returned and pauses the cabal's trading." show within 5 s |
+| S1.3 | A | wait | `fund-cabal-treasury-note` | | "The money leaves your account balance and joins QA fund {QA.run}'s pot. Your slice grows by the same amount." and "Only fund this cabal from here. USDC sent straight to the cabal is returned and pauses its trading." show within 5 s |
 | S1.4 | A | tap | the preset "$100" | | `amount-entry-helper` reads "Not enough in your account balance." within 5 s |
 | S1.5 | A | tap, then type | `amount-entry-field` | clear, then `1` | The button reads "Add $1 to the pot" within 5 s (old app: `FundCabalView.swift` "Add $X to the pot") |
 
@@ -59,5 +59,5 @@ The format of this doc is in [App journeys](../README.md).
 ## Not covered
 
 - "Add money first" for a member with nothing in their balance (`fund-cabal-needs-money`). The journey's actor is funded; `FundCabalStageTests` covers the empty stage.
-- The "· $300.00 funding" helper while a fund is in flight. That needs a fund to be running, which S2 cannot start today.
+- The "· $300.00 funding a cabal" helper while a fund is in flight. That needs a fund to be running, which S2 cannot start today.
 - The pause notice on a paused cabal. It belongs to #651.

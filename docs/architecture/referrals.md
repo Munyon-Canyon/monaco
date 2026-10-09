@@ -42,7 +42,7 @@ Every user has a **random code** from account creation. After the unlock, their 
 
 Handle availability and changes are `identity` routes ([auth.md](auth.md#handle)).
 
-The app shows the handle link when it is unlocked and the random link otherwise. Both always work once unlocked. Before the first deposit, the referral screen shows "Make your first deposit to use @handle as your invite link" with a Deposit button, which doubles as a deposit nudge.
+The app shows the handle link when it is unlocked and the random link otherwise. Both always work once unlocked. Before the first deposit, the referral screen shows "Add money to use @handle as your invite link" with an Add money button, which doubles as a deposit nudge.
 
 ## Flow
 

@@ -25,7 +25,7 @@ public struct InviteLinks: Equatable, Sendable {
 
     public static func unlockCopy(handle: String?) -> String {
         let name = handle.map { "@\($0)" } ?? "your handle"
-        return "Make your first deposit to use \(name) as your invite link"
+        return "Add money to use \(name) as your invite link"
     }
 }
 

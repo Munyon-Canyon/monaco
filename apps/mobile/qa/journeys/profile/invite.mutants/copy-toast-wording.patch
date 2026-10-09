@@ -15,5 +15,5 @@ index 306f5cf71..c3bd50081 100644
 -    static let copied = "Link copied."
 +    static let copied = "Copied."
      static let codeLinkLabel = "Backup link"
-     static let deposit = "Deposit"
+     static let deposit = "Add money"
  }

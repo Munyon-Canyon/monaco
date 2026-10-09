@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyFundCabalJourney {
     static let id = "money/fund-cabal"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
 
@@ -69,11 +69,11 @@ enum MoneyFundCabalJourney {
 
         recorder.step("S1.3", "the notes under the pad") {
             let note =
-                "The money leaves your account balance and joins the \(name) pot. Your slice grows by the same amount."
+                "The money leaves your account balance and joins \(name)'s pot. Your slice grows by the same amount."
             XCTAssertTrue(app.staticTexts[note].waitForExistence(timeout: 5), "S1.3: no note naming \(name)")
             XCTAssertEqual(
                 app.element("fund-cabal-treasury-note").label,
-                "To add money to this cabal, use Fund. Sending USDC straight to the treasury will be returned and pauses the cabal's trading.",
+                "Only fund this cabal from here. USDC sent straight to the cabal is returned and pauses its trading.",
                 "S1.3: the treasury note"
             )
         }

@@ -168,7 +168,7 @@ struct DepositContent: View {
             .padding(.bottom, MonacoTheme.Space.xl)
         }
         .monacoCanvas()
-        .navigationTitle("Add money")
+        .navigationTitle("Crypto")
         .navigationBarTitleDisplayMode(.inline)
     }
 

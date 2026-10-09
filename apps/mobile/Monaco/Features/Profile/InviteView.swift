@@ -17,7 +17,7 @@ enum InviteCopy {
     static let shareMessage = "Join me on Monaco"
     static let copied = "Link copied."
     static let codeLinkLabel = "Backup link"
-    static let deposit = "Deposit"
+    static let deposit = "Add money"
 }
 
 struct InviteView: View {
