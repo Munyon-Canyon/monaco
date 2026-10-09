@@ -82,13 +82,21 @@ final class PushRouteTests: XCTestCase {
         }
     }
 
+    func testAMentionInAThreadOpensTheThread() {
+        let inThread = wire("chat_mention", ["cabal_id": cabal, "message_id": message, "parent_id": parent])
+        let inChannel = wire("chat_mention", ["cabal_id": cabal, "message_id": message])
+
+        XCTAssertEqual(PushRoute.parse(inThread), .chatThread(cabalID: cabal, parentID: parent))
+        XCTAssertEqual(PushRoute.parse(inChannel), .chat(cabalID: cabal))
+    }
+
     func testAnIDThatIsNotAUUIDSkipsItsRuleAndFallsToALaterOne() {
         let rows: [(kind: String, data: [String: Any], route: PushRoute)] = [
             ("new_follower", ["user_id": notAnID, "cabal_id": cabal], .cabal(cabalID: cabal)),
             ("new_follower", ["user_id": notAnID], .home),
             ("chat_mention", ["cabal_id": notAnID, "message_id": message], .home),
             ("chat_thread_reply", ["cabal_id": cabal, "parent_id": notAnID], .chat(cabalID: cabal)),
-            ("chat_mention", ["cabal_id": cabal, "parent_id": parent], .chat(cabalID: cabal)),
+            ("chat_mention", ["cabal_id": cabal, "parent_id": notAnID], .chat(cabalID: cabal)),
             ("trade_filled", ["cabal_id": cabal, "txn_id": notAnID], .cabal(cabalID: cabal)),
             ("trade_filled", ["cabal_id": notAnID, "txn_id": txn], .home),
             ("proposal_created", ["cabal_id": cabal, "proposal_id": notAnID], .cabal(cabalID: cabal)),
