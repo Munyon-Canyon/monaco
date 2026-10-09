@@ -96,6 +96,7 @@ func (m *Module) tradePorts() Ports {
 	return Ports{
 		Cabals: cabal.New(m.deps).Queries(), Assets: markets.Catalog(), Routes: markets.RouteChecker(),
 		Treasury: treasury.New(m.deps).Queries(), Balances: solana.New(deps.Config, deps.Clock),
+		USDC: chain.Mint{Address: chain.SolanaAddress(deps.Config.Solana.USDCMint), Decimals: 6},
 	}
 }
 

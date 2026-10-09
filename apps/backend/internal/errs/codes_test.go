@@ -176,6 +176,7 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		{CodeInsufficientFunds, KindBlocked, false, false},
 		{CodeTradeNotStarted, KindBlocked, false, false},
 		{CodeCabalSharesShort, KindBlocked, false, false},
+		{CodePotCashShort, KindBlocked, false, false},
 		{CodeDBUnavailable, KindUnavailable, true, false},
 		{CodeInvalidConfig, KindInternal, false, true},
 		{CodeDecodeFailed, KindInternal, false, true},

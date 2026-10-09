@@ -111,6 +111,7 @@ const (
 	PhotoInvalid ErrorCode = "photo_invalid"
 	PostHogRejected ErrorCode = "post_hog_rejected"
 	PostHogUnavailable ErrorCode = "post_hog_unavailable"
+	PotCashShort ErrorCode = "pot_cash_short"
 	PotExceeded ErrorCode = "pot_exceeded"
 	PotValueChanged ErrorCode = "pot_value_changed"
 	PotValueZero ErrorCode = "pot_value_zero"
@@ -364,6 +365,8 @@ func (e ErrorCode) Valid() bool {
 	case PostHogRejected:
 		return true
 	case PostHogUnavailable:
+		return true
+	case PotCashShort:
 		return true
 	case PotExceeded:
 		return true

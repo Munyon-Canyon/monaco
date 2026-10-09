@@ -56,7 +56,12 @@ type tradeWorld struct {
 	chain    *chainfake.Ledger
 }
 
-const treasuryAddress = chain.SolanaAddress("treasury-wallet")
+const (
+	treasuryAddress = chain.SolanaAddress("treasury-wallet")
+	usdcAddress     = chain.SolanaAddress("usdc-mint")
+)
+
+func usdcMint() chain.Mint { return chain.Mint{Address: usdcAddress, Decimals: 6} }
 
 func newTradeWorld(t *testing.T) *tradeWorld {
 	t.Helper()
@@ -90,8 +95,11 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 		{Mint: aapl.Mint.Address(), Units: money.NewBaseUnits(heldUnits, aapl.Decimals)},
 	})
 	w.holdOnChain(heldUnits)
+	w.holdCash(potMicros)
 	return w
 }
+
+func (w *tradeWorld) holdCash(micros uint64) { w.chain.SetTokens(treasuryAddress, usdcMint(), micros) }
 
 func (w *tradeWorld) holdOnChain(units uint64) {
 	aapl := marketfake.AAPLx()
@@ -108,5 +116,6 @@ func (w *tradeWorld) join(user ids.UserID, canVote bool) {
 func (w *tradeWorld) ports() app.TradePorts {
 	return app.TradePorts{
 		Cabals: w.cabals, Assets: w.catalog, Routes: w.routes, Treasury: w.treasury, Balances: w.chain,
+		USDC: usdcMint(),
 	}
 }

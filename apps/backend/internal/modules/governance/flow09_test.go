@@ -112,11 +112,11 @@ func TestFlow09_ProposeTrade_PotExceeded(t *testing.T) {
 	w.refused(t, w.asMember(), `{"kind":"buy","symbol":"AAPLx","usdc_micros":100000001}`, errs.CodePotExceeded)
 }
 
-func TestFlow09_ProposeTrade_InsufficientFunds(t *testing.T) {
+func TestFlow09_ProposeTrade_CabalSharesShort(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	w.refused(t, w.asMember(), `{"kind":"sell","symbol":"AAPLx","token_amount":500000001}`,
-		errs.CodeInsufficientFunds)
+		errs.CodeCabalSharesShort)
 }
 
 func TestFlow09_ProposeTrade_JupiterUnavailable(t *testing.T) {

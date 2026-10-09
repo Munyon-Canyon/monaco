@@ -39,6 +39,22 @@ func TestPreview_aBuyOverThePotAdvisesPotExceededAndWritesNothing(t *testing.T) 
 		Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
+func TestPreview_aBuyOverTheCashButWithinThePotAdvisesPotCashShort(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	w.holdCash(potMicros / 4)
+	w.scenario(t).Given(w.asMember()).
+		When(
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=50000000")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("advisory_code", "pot_cash_short"),
+			scenario.ExpectJSON("advisory_message", errs.Message(errs.CodePotCashShort)),
+			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectJSON("pot_value_micros", potMicros),
+		).
+		Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
 func TestPreview_answersEachCheckAsAnAdvisoryOrAProblem(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
@@ -49,7 +65,7 @@ func TestPreview_answersEachCheckAsAnAdvisoryOrAProblem(t *testing.T) {
 		}
 	}
 	steps := append(advises("kind=buy&symbol=AAPLx&usdc_micros=5000000", nil, quoteUnits),
-		advises("kind=sell&symbol=AAPLx&token_amount=500000001", "insufficient_funds", quoteUnits)...)
+		advises("kind=sell&symbol=AAPLx&token_amount=500000001", "cabal_shares_short", quoteUnits)...)
 	steps = append(steps, advises("kind=buy&symbol=NOPEx&usdc_micros=1", "asset_not_found", nil)...)
 	steps = append(steps, advises("kind=buy&symbol=TSLAx&usdc_micros=1", "no_route", nil)...)
 	steps = append(steps,

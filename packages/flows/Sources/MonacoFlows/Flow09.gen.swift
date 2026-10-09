@@ -2,7 +2,7 @@
 
 public enum Flow09Outcome: Sendable, Hashable, CaseIterable {
     case ok, invalidInput, unauthorized, notCabalMember, assetNotFound, assetUntradable, noRoute, potExceeded,
-        insufficientFunds, jupiterUnavailable, priceUnavailable, interrupted
+        cabalSharesShort, jupiterUnavailable, priceUnavailable, interrupted
 
     public static let flowID = "09"
     public static let commands: [String] = ["ProposeTrade"]
@@ -17,7 +17,7 @@ public enum Flow09Outcome: Sendable, Hashable, CaseIterable {
         case .assetUntradable: "asset_untradable"
         case .noRoute: "no_route"
         case .potExceeded: "pot_exceeded"
-        case .insufficientFunds: "insufficient_funds"
+        case .cabalSharesShort: "cabal_shares_short"
         case .jupiterUnavailable: "jupiter_unavailable"
         case .priceUnavailable: "price_unavailable"
         }
@@ -32,7 +32,7 @@ public enum Flow09Outcome: Sendable, Hashable, CaseIterable {
         case "asset_untradable": self = .assetUntradable
         case "no_route": self = .noRoute
         case "pot_exceeded": self = .potExceeded
-        case "insufficient_funds": self = .insufficientFunds
+        case "cabal_shares_short": self = .cabalSharesShort
         case "jupiter_unavailable": self = .jupiterUnavailable
         case "price_unavailable": self = .priceUnavailable
         default: return nil

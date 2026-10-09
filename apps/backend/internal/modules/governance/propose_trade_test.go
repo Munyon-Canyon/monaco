@@ -143,7 +143,7 @@ func (h proposeHarness) handlerWithHints(g ids.Generator, hints app.Hints) *app.
 	m := guardedMarket{Assets: p.Assets, Routes: p.Routes, g: h.guard}
 	return app.NewProposeTradeHandler(h.guard, g, clock.Real{}, app.TradePorts{
 		Cabals: guardedCabals{p.Cabals, h.guard}, Assets: m, Routes: m, Treasury: guardedTreasury{p.Treasury, h.guard},
-		Balances: guardedBalances{p.Balances, h.guard},
+		Balances: guardedBalances{p.Balances, h.guard}, USDC: p.USDC,
 	}, hints)
 }
 
@@ -193,8 +193,8 @@ func TestProposeTrade_sellAboveOnChainBalanceIsRefused(t *testing.T) {
 		sell            uint64
 		want            errs.Code
 	}{
-		"ledger short, on-chain enough": {heldUnits - 1, heldUnits, heldUnits, errs.CodeInsufficientFunds},
-		"on-chain short, ledger enough": {heldUnits, heldUnits - 1, heldUnits, errs.CodeInsufficientFunds},
+		"ledger short, on-chain enough": {heldUnits - 1, heldUnits, heldUnits, errs.CodeCabalSharesShort},
+		"on-chain short, ledger enough": {heldUnits, heldUnits - 1, heldUnits, errs.CodeCabalSharesShort},
 		"both enough":                   {heldUnits, heldUnits, heldUnits, ""},
 	} {
 		h.w = newTradeWorld(t)
@@ -290,8 +290,18 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 			func(w *tradeWorld) { w.treasury.Fail("PotValue", failed) }, buyAAPLFor(1),
 			errs.CodeUpstreamUnavailable,
 		},
-		"buy over the pot":  {func(*tradeWorld) {}, buyAAPLFor(potMicros + 1), errs.CodePotExceeded},
-		"sell over holding": {func(*tradeWorld) {}, sellAAPL(heldUnits + 1), errs.CodeInsufficientFunds},
+		"buy over the pot": {func(*tradeWorld) {}, buyAAPLFor(potMicros + 1), errs.CodePotExceeded},
+		"buy over the cash, within the pot": {
+			func(w *tradeWorld) { w.holdCash(potMicros / 4) }, buyAAPLFor(potMicros / 2), errs.CodePotCashShort,
+		},
+		"wallet unknown on a buy": {
+			func(w *tradeWorld) { w.cabals.current.Load().Fail("TreasuryWallet", failed) },
+			buyAAPLFor(1), errs.CodeUpstreamUnavailable,
+		},
+		"cash unknown": {
+			func(w *tradeWorld) { w.chain.Fail("TokenBalance", failed) }, buyAAPLFor(1), errs.CodeUpstreamUnavailable,
+		},
+		"sell over holding": {func(*tradeWorld) {}, sellAAPL(heldUnits + 1), errs.CodeCabalSharesShort},
 		"no route": {func(*tradeWorld) {}, domain.Trade{
 			Kind: domain.KindBuy, Symbol: "TSLAx", USDCMicros: money.MicrosFromUint64(1),
 		}, errs.CodeNoRoute},

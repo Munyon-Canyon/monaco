@@ -143,10 +143,10 @@ func F09ProposeTradePotExceeded(s *scenario.Scenario) {
 		Then(scenario.ExpectProblem(errs.CodePotExceeded), scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
-func F09ProposeTradeInsufficientFunds(s *scenario.Scenario) {
+func F09ProposeTradeCabalSharesShort(s *scenario.Scenario) {
 	c := seedF09(s, "aapl")
 	s.Given(f09Member(c)).When(scenario.Post(f09Path(c), `{"kind":"sell","symbol":"AAPLx","token_amount":11000001}`)).
-		Then(scenario.ExpectProblem(errs.CodeInsufficientFunds), scenario.ExpectEvents(events.TypeProposalCreated, 0))
+		Then(scenario.ExpectProblem(errs.CodeCabalSharesShort), scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
 func F09ProposeTradeJupiterUnavailable(s *scenario.Scenario) {

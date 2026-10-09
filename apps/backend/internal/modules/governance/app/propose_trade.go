@@ -51,6 +51,7 @@ type TradePorts struct {
 	Routes   market.Routes
 	Treasury Treasury
 	Balances Balances
+	USDC     chain.Mint
 }
 
 type Transactor interface {
@@ -208,7 +209,7 @@ func funds(
 		if trade.USDCMicros.Cmp(pot) > 0 {
 			return errs.New(errs.CodePotExceeded, op, slog.String("usdc_micros", trade.USDCMicros.String()))
 		}
-		return nil
+		return cashCovers(ctx, p, cabal, trade)
 	}
 	if err := ledgerHolds(ctx, p.Treasury, cabal, asset, trade); err != nil {
 		return err
@@ -223,7 +224,23 @@ func funds(
 		return err
 	}
 	if have.Uint64() < trade.TokenAmount {
-		return errs.New(errs.CodeInsufficientFunds, op, slog.String("symbol", asset.Symbol))
+		return errs.New(errs.CodeCabalSharesShort, op, slog.String("symbol", asset.Symbol))
+	}
+	return nil
+}
+
+func cashCovers(ctx context.Context, p TradePorts, cabal ids.CabalID, trade domain.Trade) error {
+	wallet, err := p.Cabals.TreasuryWallet(ctx, cabal)
+	if err != nil {
+		return err
+	}
+	cash, err := p.Balances.TokenBalance(ctx, wallet.Address, p.USDC)
+	if err != nil {
+		return err
+	}
+	if trade.USDCMicros.Uint64() > cash.Uint64() {
+		return errs.New(errs.CodePotCashShort, "governance.funds",
+			slog.String("usdc_micros", trade.USDCMicros.String()))
 	}
 	return nil
 }
@@ -249,7 +266,7 @@ func ledgerHolds(
 			return nil
 		}
 	}
-	return errs.New(errs.CodeInsufficientFunds, op, slog.String("symbol", asset.Symbol))
+	return errs.New(errs.CodeCabalSharesShort, op, slog.String("symbol", asset.Symbol))
 }
 
 func route(
