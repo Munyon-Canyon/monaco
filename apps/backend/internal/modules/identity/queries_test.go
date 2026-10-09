@@ -257,6 +257,10 @@ func portVisibleByMethod(
 		_, err := f.port.MemberWallet(ctx, id)
 		return portFound(t, err)
 	})
+	got["PrivyUserID"] = k.visible(func(id ids.UserID) bool {
+		_, err := f.port.PrivyUserID(ctx, id)
+		return portFound(t, err)
+	})
 	page, err := f.port.MemberWallets(ctx, ids.UserID{}, identity.MaxWalletPage)
 	portOK(t, err)
 	got["MemberWallets"] = k.visible(func(id ids.UserID) bool {
@@ -277,6 +281,7 @@ func TestQueries_eachMethodShowsOnlyTheUsersItsRuleAllows(t *testing.T) {
 		"UsersByPhoneHashes": {"active"},
 		"UsersByXUserIDs":    {"active"},
 		"MemberWallet":       {"active", "suspended", "banned"},
+		"PrivyUserID":        {"active", "suspended", "banned"},
 		"MemberWallets":      {"active", "suspended", "banned"},
 	}
 	if !maps.EqualFunc(got, want, slices.Equal) {
@@ -364,6 +369,9 @@ func TestQueries_memberWalletReadsTheWalletOfAKnownUser(t *testing.T) {
 	noWallet := f.seed(t, portSeed{})
 	ctx := t.Context()
 	want := identity.MemberWallet{UserID: owner.ID, PrivyWalletID: owner.PrivyWalletID, Address: owner.Address}
+	if got, err := f.port.PrivyUserID(ctx, owner.ID); err != nil || got != owner.PrivyUserID {
+		t.Fatalf("PrivyUserID = %q, %v, want %q", got, err, owner.PrivyUserID)
+	}
 	if got, err := f.port.MemberWallet(ctx, owner.ID); err != nil || got != want {
 		t.Fatalf("MemberWallet = %+v, %v, want %+v", got, err, want)
 	}
@@ -547,6 +555,10 @@ func TestQueries_everyMethodIsOneRoundTrip(t *testing.T) {
 	})
 	testkit.AssertQueries(t, "MemberWallet", func() {
 		_, err := f.port.MemberWallet(ctx, u.ID)
+		portOK(t, err)
+	})
+	testkit.AssertQueries(t, "PrivyUserID", func() {
+		_, err := f.port.PrivyUserID(ctx, u.ID)
 		portOK(t, err)
 	})
 	testkit.AssertQueries(t, "MemberWallets page of 500", func() {

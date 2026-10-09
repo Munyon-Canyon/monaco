@@ -3,6 +3,7 @@
   "queries": {
     "MemberWallet": 1,
     "MemberWallets page of 500": 1,
+    "PrivyUserID": 1,
     "UserByHandle": 1,
     "UserIDsByHandles 50 handles": 1,
     "UsersByID 500 ids": 1,

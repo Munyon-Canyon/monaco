@@ -131,6 +131,10 @@ func (w identityWorld) visibleByMethod(t *testing.T) map[string][]string {
 		_, err := w.fake.MemberWallet(ctx, id)
 		return err == nil
 	})
+	got["PrivyUserID"] = w.visible(func(id ids.UserID) bool {
+		_, err := w.fake.PrivyUserID(ctx, id)
+		return err == nil
+	})
 	page, err := w.fake.MemberWallets(ctx, ids.UserID{}, identity.MaxWalletPage)
 	if err != nil {
 		t.Fatal(err)
@@ -151,6 +155,7 @@ func TestIdentity_showsOnlyTheUsersEachMethodsRuleAllows(t *testing.T) {
 		"UsersByPhoneHashes": {"active"},
 		"UsersByXUserIDs":    {"active"},
 		"MemberWallet":       {"active", "suspended", "banned"},
+		"PrivyUserID":        {"active", "suspended", "banned"},
 		"MemberWallets":      {"active", "suspended", "banned"},
 	}
 	if got := w.visibleByMethod(t); !maps.EqualFunc(got, want, slices.Equal) {
