@@ -14,21 +14,23 @@ struct CabalPicturePicker: View {
     /// Only the creator is offered the controls. The server checks again anyway.
     let canEdit: Bool
     var size: CGFloat = 36
+    var showsRemoveButton = true
     /// Reports results so the host screen can toast them.
     var onResult: (MonacoToast) -> Void = { _ in }
 
     @ObservedObject var editor: CabalPictureEditor
 
     @State private var selection: PhotosPickerItem?
+    @State private var confirmingRemoval = false
 
     var body: some View {
         Group {
             if canEdit {
                 VStack(spacing: MonacoTheme.Space.s) {
                     editableMark
-                    if editor.pictureUrl != nil {
+                    if editor.pictureUrl != nil && showsRemoveButton {
                         Button {
-                            Task { await remove() }
+                            confirmingRemoval = true
                         } label: {
                             Text("Remove picture")
                                 .font(MonacoTheme.Typo.calloutStrong)
@@ -52,6 +54,12 @@ struct CabalPicturePicker: View {
         .onChange(of: selection) { _, item in
             guard let item else { return }
             Task { await upload(item) }
+        }
+        .confirmationDialog("Remove the cabal picture?", isPresented: $confirmingRemoval, titleVisibility: .visible) {
+            Button("Remove picture", role: .destructive) {
+                Task { await remove() }
+            }
+            .accessibilityIdentifier("cabal-picture-remove-confirm")
         }
     }
 
@@ -80,11 +88,16 @@ struct CabalPicturePicker: View {
         .contextMenu {
             if editor.pictureUrl != nil {
                 Button(role: .destructive) {
-                    Task { await remove() }
+                    confirmingRemoval = true
                 } label: {
                     Label("Remove picture", systemImage: "trash")
                 }
                 .accessibilityIdentifier("cabal-picture-remove")
+            }
+        }
+        .accessibilityActions {
+            if editor.pictureUrl != nil {
+                Button("Remove picture") { confirmingRemoval = true }
             }
         }
     }

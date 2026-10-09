@@ -147,6 +147,7 @@ private struct CreatorPictureTile: View {
             name: cabal.name,
             canEdit: true,
             size: 48,
+            showsRemoveButton: false,
             onResult: onResult,
             editor: editor
         )
