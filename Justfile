@@ -124,10 +124,33 @@ test app:
         ;;
     esac
 
-run *app:
+# just run [backend|mobile] [--env local|staging]. staging runs only the app, against the Render staging API.
+run *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [[ -z "{{app}}" ]]; then
+    app=""
+    env_name=local
+    set -- {{args}}
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --env) env_name="${2:-}"; shift 2 || { echo "error: --env needs local or staging" >&2; exit 1; } ;;
+        --env=*) env_name="${1#--env=}"; shift ;;
+        backend|mobile) app="$1"; shift ;;
+        *) echo "error: unknown argument '$1' (use backend, mobile, --env local|staging)" >&2; exit 1 ;;
+      esac
+    done
+    case "$env_name" in
+      local) ;;
+      staging)
+        if [[ "$app" == backend ]]; then
+          echo "error: the staging backend runs on Render (docs/how-to/deploy-staging.md); use just run mobile --env staging" >&2
+          exit 1
+        fi
+        app=mobile
+        ;;
+      *) echo "error: --env must be local or staging, not '$env_name'" >&2; exit 1 ;;
+    esac
+    if [[ -z "$app" ]]; then
       # Bash starts a background job with SIGINT ignored, so Ctrl-C never reaches the
       # backend. Stop it by name on every exit instead: Ctrl-C, a failed mobile build, or
       # the backend exiting on its own.
@@ -143,7 +166,7 @@ run *app:
       wait "$backend_pid"
       exit 0
     fi
-    case "{{app}}" in
+    case "$app" in
       backend)
         source ./scripts/run-with-logs.sh
         monaco_step "backend: building api, worker and monacoctl"
@@ -202,7 +225,7 @@ run *app:
         ;;
       mobile)
         if [[ "${MONACO_DOTENVX:-}" != "1" ]]; then
-          exec {{_dotenvx}} env MONACO_DOTENVX=1 just run mobile
+          exec {{_dotenvx}} env MONACO_DOTENVX=1 just run mobile --env "$env_name"
         fi
         if [[ ! -d apps/mobile ]]; then
           echo "error: apps/mobile is not scaffolded yet (M0-T4)."
@@ -211,10 +234,18 @@ run *app:
         # Privy: xcconfig + SIMCTL_CHILD_* via with-ios-privy-env, then scripts/ios-sim
         source ./scripts/run-with-logs.sh
         monaco_init_logs
+        if [[ "$env_name" == staging ]]; then
+          if [[ "${MONACO_STAGING_API_BASE_URL:-}" != https://* ]]; then
+            echo "error: MONACO_STAGING_API_BASE_URL in .env.local must be the https staging API" >&2
+            exit 1
+          fi
+          export MONACO_ENVIRONMENT=staging MONACO_API_BASE_URL="$MONACO_STAGING_API_BASE_URL"
+          monaco_step "mobile: Debug build against staging ${MONACO_API_BASE_URL}"
+        fi
         ./scripts/ios-sim 2>&1 | tee -a "${MONACO_LOG_DIR}/mobile.log"
         ;;
       *)
-        echo "error: unknown app '{{app}}' (use backend or mobile)"
+        echo "error: unknown app '$app' (use backend or mobile)"
         exit 1
         ;;
     esac
