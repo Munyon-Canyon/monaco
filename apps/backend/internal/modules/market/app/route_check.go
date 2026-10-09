@@ -14,6 +14,7 @@ import (
 const (
 	usdcMintAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 	usdcDecimals    = 6
+	probeUSDC       = 1_000_000
 	checkRouteOp    = "market.CheckRoute"
 )
 
@@ -79,8 +80,7 @@ func (r *RouteChecker) CheckRoute(
 		return RouteCheck{}, err
 	}
 	if !q.Routable {
-		return RouteCheck{}, errs.New(errs.CodeNoRoute, checkRouteOp,
-			slog.String("symbol", asset.Symbol), slog.String("side", string(side)))
+		return RouteCheck{}, r.unrouted(ctx, asset, side, amount, in, out)
 	}
 	return RouteCheck{
 		InAmount:       money.NewBaseUnits(q.InAmount.Uint64(), inDec),
@@ -88,6 +88,27 @@ func (r *RouteChecker) CheckRoute(
 		PriceImpactBps: q.PriceImpactBps,
 		QuotedAt:       r.clock.Now(),
 	}, nil
+}
+
+func (r *RouteChecker) unrouted(
+	ctx context.Context, asset domain.Asset, side Side, amount money.BaseUnits, in, out domain.Mint,
+) error {
+	probe := money.NewBaseUnits(probeUSDC, usdcDecimals)
+	if side == SideSell {
+		probe = money.NewBaseUnits(min(amount.Uint64(), money.OneWhole(asset.Decimals)), asset.Decimals)
+	}
+	attrs := []slog.Attr{slog.String("symbol", asset.Symbol), slog.String("side", string(side))}
+	if amount.Uint64() <= probe.Uint64() {
+		return errs.New(errs.CodeAssetPaused, checkRouteOp, attrs...)
+	}
+	q, err := r.quotes.Quote(ctx, in, out, probe)
+	switch {
+	case err != nil:
+		return err
+	case q.Routable:
+		return errs.New(errs.CodeNoRoute, checkRouteOp, attrs...)
+	}
+	return errs.New(errs.CodeAssetPaused, checkRouteOp, attrs...)
 }
 
 func (r *RouteChecker) legs(asset domain.Asset, side Side) (domain.Mint, domain.Mint, uint8, uint8, error) {

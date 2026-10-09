@@ -305,6 +305,9 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 		"no route": {func(*tradeWorld) {}, domain.Trade{
 			Kind: domain.KindBuy, Symbol: "TSLAx", USDCMicros: money.MicrosFromUint64(1),
 		}, errs.CodeNoRoute},
+		"paused stock": {func(w *tradeWorld) { w.routes.Paused(marketfake.TSLAx().ID) }, domain.Trade{
+			Kind: domain.KindBuy, Symbol: "TSLAx", USDCMicros: money.MicrosFromUint64(1),
+		}, errs.CodeAssetPaused},
 		"quote of nothing": {func(w *tradeWorld) {
 			w.routes.Ok(marketfake.AAPLx().ID, market.RouteCheck{OutAmount: money.NewBaseUnits(0, 6)})
 		}, sellAAPL(1), errs.CodeInvalidInput},

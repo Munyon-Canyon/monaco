@@ -9,6 +9,9 @@ extension Components.Schemas.TradePreview {
     public static let proposalPreviewNoRoute = Self(
         advisoryCode: "no_route", advisoryMessage: "No route.", potValueMicros: 100_000_000
     )
+    public static let proposalPreviewAssetPaused = Self(
+        advisoryCode: "asset_paused", advisoryMessage: "Paused.", potValueMicros: 100_000_000
+    )
     public static let proposalPreviewAssetUntradable = Self(
         advisoryCode: "asset_untradable", advisoryMessage: "Not tradable.", potValueMicros: 100_000_000
     )

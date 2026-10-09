@@ -19,6 +19,7 @@ const (
 	f09Buy            = `{"kind":"buy","symbol":"AAPLx","usdc_micros":25000000}`
 	f09NoRouteBuy     = `{"kind":"buy","symbol":"AAPLx","usdc_micros":24000000}`
 	f09UnavailableBuy = `{"kind":"buy","symbol":"AAPLx","usdc_micros":23000000}`
+	f09PausedBuy      = `{"kind":"buy","symbol":"AAPLx","usdc_micros":21000000}`
 	f09CrashBuy       = `{"kind":"buy","symbol":"AAPLx","usdc_micros":22000000}`
 )
 
@@ -135,6 +136,19 @@ func F09ProposeTradeNoRoute(s *scenario.Scenario) {
 	}).
 		When(scenario.Post(f09Path(c), f09NoRouteBuy)).
 		Then(scenario.ExpectProblem(errs.CodeNoRoute), scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
+func F09ProposeTradeAssetPaused(s *scenario.Scenario) {
+	c := seedF09(s, "100000000")
+	s.Given(f09Member(c), func(s *scenario.Scenario) {
+		f09Route(s, "21000000", fakes.ActionSucceed, "/jupiter/swap/v2/order/no-route")
+		scenario.FakeUpstream(fakes.Step{
+			Route: "/jupiter/swap/v2/order", Query: map[string]string{"amount": "1000000"},
+			Action: fakes.ActionSucceed, Fixture: "/jupiter/swap/v2/order/no-route",
+		})(s)
+	}).
+		When(scenario.Post(f09Path(c), f09PausedBuy)).
+		Then(scenario.ExpectProblem(errs.CodeAssetPaused), scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
 func F09ProposeTradePotExceeded(s *scenario.Scenario) {

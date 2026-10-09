@@ -27,6 +27,8 @@ const (
 	quotedOut       = 11_000_000
 	noRouteMicros   = 31_000_000
 	downMicros      = 32_000_000
+	pausedMicros    = 33_000_000
+	probeMicros     = 1_000_000
 	jupiterOrder    = "/jupiter/swap/v2/order"
 	jupiterAttempts = 3
 )
@@ -236,6 +238,12 @@ func F11ExecuteTradeNoRoute(s *scenario.Scenario) {
 	seedTrade(s, tradeOpts{micros: noRouteMicros}).blocks(s, errs.CodeNoRoute, quoteFails(noRouteMicros, fakes.Step{
 		Action: fakes.ActionSucceed, Fixture: jupiterOrder + "/no-route",
 	}))
+}
+
+func F11ExecuteTradeAssetPaused(s *scenario.Scenario) {
+	noRoute := fakes.Step{Action: fakes.ActionSucceed, Fixture: jupiterOrder + "/no-route"}
+	seedTrade(s, tradeOpts{micros: pausedMicros}).blocks(s, errs.CodeAssetPaused,
+		quoteFails(pausedMicros, noRoute), quoteFails(probeMicros, noRoute))
 }
 
 func F11ExecuteTradeCabalPaused(s *scenario.Scenario) {

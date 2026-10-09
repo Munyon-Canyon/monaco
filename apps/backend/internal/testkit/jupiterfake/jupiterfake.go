@@ -27,6 +27,7 @@ type Venue struct {
 	mu       sync.Mutex
 	orders   map[pair]jupiter.Order
 	quotes   map[pair]jupiter.Quote
+	limits   map[pair]uint64
 	slippage []int64
 	executes map[string][]jupiter.ExecuteResult
 	sent     map[string][][]byte
@@ -58,6 +59,15 @@ func (v *Venue) SetQuote(in, out jupiter.Mint, q jupiter.Quote) {
 		v.quotes = map[pair]jupiter.Quote{}
 	}
 	v.quotes[pair{in.Address, out.Address}] = q
+}
+
+func (v *Venue) SetQuoteLimit(in, out jupiter.Mint, maxIn uint64) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.limits == nil {
+		v.limits = map[pair]uint64{}
+	}
+	v.limits[pair{in.Address, out.Address}] = maxIn
 }
 
 func (v *Venue) SetExecute(requestID string, results ...jupiter.ExecuteResult) {
@@ -117,7 +127,11 @@ func (v *Venue) Quote(_ context.Context, spec jupiter.QuoteSpec) (jupiter.Quote,
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return v.quotes[pair{spec.In.Address, spec.Out.Address}], nil
+	key := pair{spec.In.Address, spec.Out.Address}
+	if limit, ok := v.limits[key]; ok && spec.Amount.Uint64() > limit {
+		return jupiter.Quote{}, nil
+	}
+	return v.quotes[key], nil
 }
 
 func (v *Venue) Execute(_ context.Context, requestID string, signed []byte) (jupiter.ExecuteResult, error) {

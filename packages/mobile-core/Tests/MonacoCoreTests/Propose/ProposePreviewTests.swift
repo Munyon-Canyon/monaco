@@ -40,11 +40,34 @@ final class ProposePreviewTests: XCTestCase {
             ProposePreview(.proposalPreviewClean).reviewEnabled(amountMicros: 1, isLoading: true, assetName: "Apple"))
     }
 
-    func testAssetUntradableUsesTheSameInlineCopy() {
+    func testNoRouteOnASellKeepsTheSmallerAmountLine() {
         XCTAssertEqual(
-            ProposePreview(.proposalPreviewAssetUntradable).message(assetName: "Apple"),
-            "Can't buy Apple right now. Try a smaller amount or another stock."
-        )
+            ProposePreview(.proposalPreviewNoRoute).message(assetName: "Apple", isSell: true),
+            "Can't sell Apple right now. Try a smaller amount.")
+    }
+
+    func testAssetPausedBuyTellsTheMemberToTryAnotherStockAndDisablesReview() {
+        let preview = ProposePreview(.proposalPreviewAssetPaused)
+
+        XCTAssertEqual(preview.message(assetName: "Starbucks"), "Can't buy Starbucks right now. Try another stock.")
+        XCTAssertFalse(preview.reviewEnabled(amountMicros: 2_000_000, isLoading: false, assetName: "Starbucks"))
+    }
+
+    func testAssetPausedSellTellsTheMemberToTryAgainLater() {
+        let preview = ProposePreview(.proposalPreviewAssetPaused)
+
+        XCTAssertEqual(
+            preview.message(assetName: "Starbucks", isSell: true), "Can't sell Starbucks right now. Try again later.")
+        XCTAssertFalse(
+            preview.reviewEnabled(amountMicros: 2_000_000, isLoading: false, assetName: "Starbucks", isSell: true))
+    }
+
+    func testAssetUntradableUsesTheAssetPausedCopy() {
+        let preview = ProposePreview(.proposalPreviewAssetUntradable)
+
+        XCTAssertEqual(preview.message(assetName: "Apple"), "Can't buy Apple right now. Try another stock.")
+        XCTAssertEqual(
+            preview.message(assetName: "Apple", isSell: true), "Can't sell Apple right now. Try again later.")
     }
 
     private func api(_ transport: StubTransport) -> APIClient {

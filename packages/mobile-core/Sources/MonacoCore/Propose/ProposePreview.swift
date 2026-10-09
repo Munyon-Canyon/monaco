@@ -20,7 +20,11 @@ public struct ProposePreview: Equatable, Sendable {
         switch advisoryCode {
         case "pot_exceeded": "More than the pot has"
         case "insufficient_funds" where isSell: "More than the cabal holds"
-        case "no_route", "asset_untradable":
+        case "asset_paused", "asset_untradable":
+            isSell
+                ? "Can't sell \(assetName) right now. Try again later."
+                : "Can't buy \(assetName) right now. Try another stock."
+        case "no_route":
             isSell
                 ? "Can't sell \(assetName) right now. Try a smaller amount."
                 : "Can't buy \(assetName) right now. Try a smaller amount or another stock."

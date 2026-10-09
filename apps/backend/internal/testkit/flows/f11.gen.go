@@ -9,6 +9,7 @@ func (defined) ScriptsF11() map[string]Script {
 		"F11ExecuteTradeInsufficientFunds":  F11ExecuteTradeInsufficientFunds,
 		"F11ExecuteTradePriceMoved":         F11ExecuteTradePriceMoved,
 		"F11ExecuteTradeNoRoute":            F11ExecuteTradeNoRoute,
+		"F11ExecuteTradeAssetPaused":        F11ExecuteTradeAssetPaused,
 		"F11ExecuteTradeCabalPaused":        F11ExecuteTradeCabalPaused,
 		"F11ExecuteTradeJupiterUnavailable": F11ExecuteTradeJupiterUnavailable,
 		"F11ExecuteTradeSwapFailed":         F11ExecuteTradeSwapFailed,

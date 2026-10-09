@@ -5119,6 +5119,7 @@ components:
         - apns_auth_failed
         - apns_unavailable
         - asset_not_found
+        - asset_paused
         - asset_untradable
         - auth_state_transition
         - bounce_failed
@@ -5912,7 +5913,7 @@ components:
           type: [string, "null"]
           description: >-
             The error code a proposal of this trade would fail with now: asset_not_found,
-            asset_untradable, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
+            asset_untradable, asset_paused, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
           examples: [null]
         advisory_message:
           type: [string, "null"]
