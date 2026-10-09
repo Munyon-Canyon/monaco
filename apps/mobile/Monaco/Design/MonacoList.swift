@@ -484,3 +484,28 @@ struct MonacoErrorRow: View {
         .accessibilityIdentifier(identifier == retryIdentifier ? "\(identifier.dropLast(6))-error" : identifier)
     }
 }
+
+struct SolscanLinkRow: View {
+    let url: URL
+    let identifier: String
+
+    var body: some View {
+        Link(destination: url) {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                Text("View on Solscan")
+                    .font(MonacoTheme.Typo.bodyStrong)
+                    .foregroundStyle(MonacoTheme.ink)
+                Spacer(minLength: MonacoTheme.Space.sm)
+                Image(systemName: "arrow.up.right")
+                    .font(MonacoTheme.Typo.captionStrong)
+                    .foregroundStyle(MonacoTheme.tertiaryText)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .frame(minHeight: MonacoRowLayout.minHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.monacoRow)
+        .accessibilityIdentifier(identifier)
+    }
+}

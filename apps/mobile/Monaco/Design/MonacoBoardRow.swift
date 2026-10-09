@@ -60,7 +60,7 @@ struct BoardRow<Leading: View>: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, 8)
+        .padding(.vertical, MonacoTheme.Space.s)
         .frame(minHeight: MonacoRowLayout.minHeight)
         .background(row.isViewer ? MonacoTheme.brandWash : Color.clear)
         .contentShape(Rectangle())
@@ -166,7 +166,7 @@ struct BoardRowSkeleton: View {
                     }
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.vertical, 8)
+                .padding(.vertical, MonacoTheme.Space.s)
                 .frame(minHeight: MonacoRowLayout.minHeight)
                 .overlay(alignment: .bottom) {
                     if index < rows - 1 {

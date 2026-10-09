@@ -29,7 +29,7 @@ struct AccountTxnReceiptSheet: View {
                             cabalRow(cabal)
                         }
                         if let url = row.solscanURL {
-                            solscanRow(url)
+                            SolscanLinkRow(url: url, identifier: "account-txn-receipt-solscan")
                         }
                     }
                 }
@@ -57,25 +57,5 @@ struct AccountTxnReceiptSheet: View {
         }
         .buttonStyle(.monacoRow)
         .accessibilityIdentifier("account-txn-receipt-cabal")
-    }
-
-    private func solscanRow(_ url: URL) -> some View {
-        Link(destination: url) {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                Text("View on Solscan")
-                    .font(MonacoTheme.Typo.bodyStrong)
-                    .foregroundStyle(MonacoTheme.ink)
-                Spacer(minLength: MonacoTheme.Space.sm)
-                Image(systemName: "arrow.up.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(MonacoTheme.tertiaryText)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.monacoRow)
-        .accessibilityIdentifier("account-txn-receipt-solscan")
     }
 }
