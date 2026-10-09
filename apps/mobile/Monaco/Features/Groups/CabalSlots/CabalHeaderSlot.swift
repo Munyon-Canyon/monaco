@@ -69,7 +69,7 @@ private struct CabalHero: View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.sm)
-            .padding(.bottom, MonacoTheme.Space.s)
+            .padding(.bottom, CabalInkBand<EmptyView>.rhythm)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(MonacoTheme.heroInk)
     }
