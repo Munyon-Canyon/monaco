@@ -24,7 +24,7 @@ const (
 )
 
 func healthzSettle(pool *pgxpool.Pool, lines ...string) (*driver, *Result) {
-	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}}}
+	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}, ProbeTimeout: unboundedProbe}}
 	res := &Result{
 		Unit:      Unit{Flow: tools.Flow{ID: "90", Trigger: "GET /healthz"}, Outcome: tools.OutcomeOK},
 		Exchanges: []scenario.Exchange{{Method: http.MethodGet, Path: "/healthz", Status: http.StatusOK}},
@@ -41,7 +41,7 @@ func TestSettle_passesOnARequiredLineThatLandsAfterTheLogCheckStarts(t *testing.
 	d, res := healthzSettle(testkit.DB(t))
 	ctx, cancel := context.WithTimeout(t.Context(), testBudget().Converge)
 	defer cancel()
-	time.AfterFunc(20*time.Millisecond, func() { d.env.Logs.add(procAPI, healthzRequest) })
+	landAtLogPoll(ctx, d, procAPI, healthzRequest)
 	if err := d.settle(ctx, res); err != nil || ctx.Err() != nil {
 		t.Fatalf("settle = %v, deadline passed %v; want a pass once the line lands 20ms in", err, ctx.Err() != nil)
 	}
@@ -119,8 +119,7 @@ func TestCrashRouteMismatch_explainsEachIncompleteRecovery(t *testing.T) {
 func TestSettle_failsOnARequiredLineThatNeverLandsOnceTheDeadlinePasses(t *testing.T) {
 	t.Parallel()
 	d, res := healthzSettle(testkit.DB(t))
-	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
-	defer cancel()
+	ctx := settleUntilLogPoll(t, d, 250*time.Millisecond)
 	if err := d.settle(ctx, res); err == nil || err.Error() != healthzMissing {
 		t.Fatalf("settle = %v, want %q", err, healthzMissing)
 	}
@@ -137,7 +136,9 @@ const (
 )
 
 func consumerSettle(pool *pgxpool.Pool) (*driver, *Result) {
-	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}, Subject: func(s string) string { return s }}}
+	d := &driver{clock: clock.Real{}, env: Env{
+		Pool: pool, Logs: &Logs{}, ProbeTimeout: unboundedProbe, Subject: func(s string) string { return s },
+	}}
 	res := &Result{
 		Unit: Unit{
 			Flow:    tools.Flow{ID: "96", Trigger: "consumer:system.pinged"},
@@ -153,7 +154,7 @@ func TestSettle_passesOnAConsumerDispatchThatLandsAfterTheLogCheckStarts(t *test
 	d, res := consumerSettle(testkit.DB(t))
 	ctx, cancel := context.WithTimeout(t.Context(), testBudget().Converge)
 	defer cancel()
-	time.AfterFunc(20*time.Millisecond, func() { d.env.Logs.add(procWorker, consumerAck) })
+	landAtLogPoll(ctx, d, procWorker, consumerAck)
 	if err := d.settle(ctx, res); err != nil || ctx.Err() != nil {
 		t.Fatalf("settle = %v, deadline passed %v; want a pass once the dispatch lands 20ms in", err, ctx.Err() != nil)
 	}
@@ -165,8 +166,7 @@ func TestSettle_passesOnAConsumerDispatchThatLandsAfterTheLogCheckStarts(t *test
 func TestSettle_failsOnAConsumerDispatchThatNeverLandsOnceTheDeadlinePasses(t *testing.T) {
 	t.Parallel()
 	d, res := consumerSettle(testkit.DB(t))
-	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
-	defer cancel()
+	ctx := settleUntilLogPoll(t, d, 250*time.Millisecond)
 	if err := d.settle(ctx, res); err == nil || err.Error() != consumerAckMissing {
 		t.Fatalf("settle = %v, want %q", err, consumerAckMissing)
 	}
@@ -175,26 +175,38 @@ func TestSettle_failsOnAConsumerDispatchThatNeverLandsOnceTheDeadlinePasses(t *t
 	}
 }
 
-func settleUntilLogPoll(t *testing.T, d *driver) context.Context {
-	t.Helper()
-	ctx, pass := context.WithCancel(t.Context())
+func atLogPoll(ctx context.Context, d *driver, poll func(*testkit.Clock)) {
 	clk := testkit.NewClock(time.Now())
 	polls := make(chan time.Duration, 1)
 	clk.NotifyTickers(polls)
 	go func() {
 		select {
 		case <-polls:
-			pass()
+			poll(clk)
 		case <-ctx.Done():
 		}
 	}()
 	d.clock = clk
-	d.env.ProbeTimeout = unboundedProbe
+}
+
+func settleUntilLogPoll(t *testing.T, d *driver, deadline time.Duration) context.Context {
+	t.Helper()
+	ctx, pass := context.WithCancel(t.Context())
+	atLogPoll(ctx, d, func(*testkit.Clock) { time.AfterFunc(deadline, pass) })
 	return ctx
 }
 
+func landAtLogPoll(ctx context.Context, d *driver, process, line string) {
+	atLogPoll(ctx, d, func(clk *testkit.Clock) {
+		time.AfterFunc(20*time.Millisecond, func() {
+			d.env.Logs.add(process, line)
+			clk.Advance(logPollEvery)
+		})
+	})
+}
+
 func priceSettle(pool *pgxpool.Pool, listed []string, lines ...string) (*driver, *Result) {
-	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}}}
+	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}, ProbeTimeout: unboundedProbe}}
 	res := &Result{
 		Unit: Unit{
 			Flow:    tools.Flow{ID: "18", Trigger: "poller:market.prices", Events: listed},
@@ -212,7 +224,7 @@ func TestSettle_skipsTheRelayTickWhenEveryListedEventIsCore(t *testing.T) {
 	t.Parallel()
 	const tick = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
 	d, res := priceSettle(testkit.DB(t), []string{"price.tick"}, tick)
-	ctx := settleUntilLogPoll(t, d)
+	ctx := settleUntilLogPoll(t, d, 0)
 	if err := d.settle(ctx, res); err != nil {
 		t.Fatalf("settle = %v, want a pass without bus.relay.tick", err)
 	}
@@ -222,7 +234,7 @@ func TestSettle_skipsTheRelayTickWhenNoListedDurableEventWasWritten(t *testing.T
 	t.Parallel()
 	const tick = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
 	d, res := priceSettle(testkit.DB(t), []string{"asset.price_moved"}, tick)
-	ctx := settleUntilLogPoll(t, d)
+	ctx := settleUntilLogPoll(t, d, 0)
 	if err := d.settle(ctx, res); err != nil {
 		t.Fatalf("settle = %v, want a pass without bus.relay.tick", err)
 	}
@@ -241,8 +253,7 @@ func TestSettle_requiresTheRelayTickWhenAListedDurableEventWasWritten(t *testing
 		uuid.New(), uuid.New(), res.startedAt.Add(time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
-	defer cancel()
+	ctx := settleUntilLogPoll(t, d, 250*time.Millisecond)
 	if err := d.settle(ctx, res); err == nil || err.Error() != want {
 		t.Fatalf("settle = %v, want %q", err, want)
 	}
@@ -299,8 +310,7 @@ func TestSettle_skipsAWatchingHandlerWhoseEventTheOutcomeNeverWrote(t *testing.T
 	t.Parallel()
 	const tick = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
 	d, res := blockedSettle(testkit.DB(t), tick)
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
+	ctx := settleUntilLogPoll(t, d, 0)
 	if err := d.settle(ctx, res); err != nil {
 		t.Fatalf("settle = %v, want a pass: no trade.blocked was written, so no handler of it dispatched", err)
 	}
@@ -314,7 +324,7 @@ func TestSettle_requiresAWatchingHandlerWhoseEventTheOutcomeWrote(t *testing.T) 
 		want  = "flow 18 ok invariant: no bus.dispatched log line with map[handler:governance.trade_outcome.blocked]"
 	)
 	d, res := blockedSettle(testkit.DB(t), tick, relay)
-	ctx := settleUntilLogPoll(t, d)
+	ctx := settleUntilLogPoll(t, d, 0)
 	if _, err := d.env.Pool.Exec(t.Context(), `INSERT INTO events (
 		id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at)
 		VALUES ($1, 'swap', $2, 'trade.blocked', '{"v":1}', 'system', 'test', $3)`,
@@ -327,7 +337,7 @@ func TestSettle_requiresAWatchingHandlerWhoseEventTheOutcomeWrote(t *testing.T) 
 }
 
 func retrySettle(pool *pgxpool.Pool, lines ...string) (*driver, *Result) {
-	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}}}
+	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}, ProbeTimeout: unboundedProbe}}
 	res := &Result{
 		Unit: Unit{
 			Flow: tools.Flow{
@@ -354,8 +364,7 @@ func TestSettle_passesAnAcceptedRequestWhoseConsumerReachedTheCode(t *testing.T)
 			`"outcome":"ack","code":"insufficient_funds"}`
 	)
 	d, res := retrySettle(testkit.DB(t), request, blocked)
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
+	ctx := settleUntilLogPoll(t, d, 0)
 	if err := d.settle(ctx, res); err != nil {
 		t.Fatalf("settle = %v, want a pass: the consumer recorded insufficient_funds", err)
 	}
@@ -369,8 +378,7 @@ func TestSettle_failsAnAcceptedRequestWhoseConsumerNeverReachedTheCode(t *testin
 			`want 422 code "insufficient_funds"`
 	)
 	d, res := retrySettle(testkit.DB(t), request)
-	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
-	defer cancel()
+	ctx := settleUntilLogPoll(t, d, 250*time.Millisecond)
 	if err := d.settle(ctx, res); err == nil || err.Error() != want {
 		t.Fatalf("settle = %v, want %q", err, want)
 	}
