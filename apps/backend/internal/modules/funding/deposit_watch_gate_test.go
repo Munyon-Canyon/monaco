@@ -206,7 +206,7 @@ func TestDepositWatchGateIgnoresAnObservationOlderThanTheStoredOneAndCountsIt(t 
 	p := app.NewDepositWatch(
 		pool, db.New(pool, testkit.NewIDs(108), testkit.NewClock(now)), testkit.NewIDs(109), testkit.NewClock(now),
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), 480, watchTuning(), counter,
+		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), 480, watchTuning(), counter, &stubLedger{},
 	)
 	if _, err := p.Tick(watchActor(t)); err != nil {
 		t.Fatal(err)
@@ -284,7 +284,7 @@ func TestDepositWatchTickGatesIdleWalletsInPagesOfOneHundred(t *testing.T) {
 		t.Fatalf("Tick = %+v, %v; want 250 accounts gated", report, err)
 	}
 	const finished = "gate=250 gate_calls=3 dirty=0 dirty_calls=0 rotation=0 rotation_calls=0 " +
-		"discovery=0 discovery_calls=0 first_sight=0 first_sight_calls=0"
+		"discovery=0 discovery_calls=0 first_sight=0 first_sight_calls=0 reconcile=0 reconcile_calls=0"
 	if got := stepAttrs(report); got != finished {
 		t.Fatalf("step attrs = %q, want %q: every step ran and none stopped early", got, finished)
 	}

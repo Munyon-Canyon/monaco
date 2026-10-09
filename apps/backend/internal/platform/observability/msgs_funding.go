@@ -30,6 +30,11 @@ var FundingCandidateUnresolved = Msg{
 	Required: []string{"wallet_address", "code"},
 }
 
+var FundingDepositResidual = Msg{
+	Name:     "funding.deposit.residual",
+	Required: []string{"wallet_address", "user_id", "residual_micros", "observed_micros", "ledger_micros"},
+}
+
 var FundingBalanceClamped = Msg{
 	Name:     "funding.balance.clamped",
 	Required: []string{"user_id", "on_chain_micros", "in_flight_fund_micros", "in_flight_withdrawal_micros"},

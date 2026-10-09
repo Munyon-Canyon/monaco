@@ -13,6 +13,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const depositSignature = "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"
@@ -91,4 +93,25 @@ func (b *rpcBudget) Wait(context.Context) error {
 	}
 	b.left--
 	return nil
+}
+
+type stubLedger struct {
+	mu      sync.Mutex
+	settled int64
+	pending int
+	err     error
+}
+
+func (l *stubLedger) set(settled int64, pending int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.settled, l.pending = settled, pending
+}
+
+func (l *stubLedger) WalletLedgerMicros(
+	context.Context, ids.UserID, chain.SolanaAddress,
+) (money.SignedMicros, int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return money.SignedMicrosFromInt64(l.settled), l.pending, l.err
 }

@@ -117,7 +117,7 @@ func testWatch(pool sqlc.DBTX, uow *db.UnitOfWork, rpc DepositWatchRPC, wallets 
 	}
 	return NewDepositWatch(
 		pool, uow, testkit.NewIDs(2), clock.Real{}, wallets, rpc, testkit.USDCMint, time.Second,
-		rate.NewLimiter(rate.Inf, 0), 480, testTuning(), nil,
+		rate.NewLimiter(rate.Inf, 0), 480, testTuning(), nil, zeroLedger{},
 	)
 }
 
@@ -148,7 +148,9 @@ func TestDepositWatchFetchesOnePageAndHonorsCancellation(t *testing.T) {
 
 func TestDepositWatchReportsItsNameAndInterval(t *testing.T) {
 	t.Parallel()
-	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, 0, DepositWatchTuning{}, nil)
+	p := NewDepositWatch(
+		nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, 0, DepositWatchTuning{}, nil, zeroLedger{},
+	)
 	if p.Interval() != time.Second || p.Name() != "funding.deposit_watch" {
 		t.Fatalf("name/interval = %q/%s", p.Name(), p.Interval())
 	}
@@ -311,7 +313,7 @@ func TestDepositWatchReturnsCommitFailuresWithoutAccountRows(t *testing.T) {
 	}
 	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
 	seeds := []watchSeed{{state: solana.TokenAccountState{Address: "account"}}}
-	if err := p.persistSeeds(ctx, wallet, "other", seeds, 1); err == nil {
+	if err := p.persistSeeds(ctx, wallet, "other", seeds, 1, "0"); err == nil {
 		t.Fatal("persistSeeds account error = nil")
 	}
 }
@@ -320,7 +322,7 @@ func TestDepositWatchReturnsSeedFailuresWithoutWalletRows(t *testing.T) {
 	t.Parallel()
 	p, ctx, user := watchWithDroppedTable(t, "deposit_watch_wallets")
 	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
-	if err := p.persistSeeds(ctx, wallet, "other", nil, 1); err == nil {
+	if err := p.persistSeeds(ctx, wallet, "other", nil, 1, "0"); err == nil {
 		t.Fatal("persistSeeds wallet error = nil")
 	}
 }
@@ -446,4 +448,12 @@ func TestDepositWatchReturnsACommitFailure(t *testing.T) {
 	if _, err := p.commitPage(t.Context(), row, recorded); err == nil {
 		t.Fatal("commitPage without an actor error = nil")
 	}
+}
+
+type zeroLedger struct{}
+
+func (zeroLedger) WalletLedgerMicros(
+	context.Context, ids.UserID, chain.SolanaAddress,
+) (money.SignedMicros, int, error) {
+	return money.SignedMicros{}, 0, nil
 }

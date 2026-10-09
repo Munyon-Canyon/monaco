@@ -167,6 +167,7 @@ func (m *Module) Pollers() []poller.Poller {
 	reconcileFailed, _ := meter.Int64Counter("funding_reconcile_failed_total")
 	regressed, _ := meter.Int64Counter("monaco_funding_watch_regressed_total")
 	app.ObservePausedCabals(meter, m.Pauses())
+	app.ObserveDepositWatch(meter, m.deps.Pool, m.deps.Clock)
 	withdrawals := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
 		Transfers: m.lazyTransfers(), Hints: m.deps.Bus, UnsentAge: cfg.Worker.WithdrawalUnsentAge,
@@ -181,7 +182,7 @@ func (m *Module) Pollers() []poller.Poller {
 				Discovery: cfg.Funding.DepositDiscovery,
 				Spread:    poller.Spread,
 			},
-			regressed,
+			regressed, treasury.New(m.deps).WalletLedger(),
 		),
 		app.NewOnrampExpiryPoller(m.deps.UoW, m.deps.Clock),
 		withdrawals,

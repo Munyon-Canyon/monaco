@@ -195,7 +195,7 @@ func watchFor(
 		limit,
 		480,
 		watchTuning(),
-		noop.Int64Counter{},
+		noop.Int64Counter{}, &stubLedger{},
 	)
 }
 
@@ -321,7 +321,7 @@ func TestDepositWatchCommitsCandidatesWithTheCheckpointOfAWholePage(t *testing.T
 	p := app.NewDepositWatch(
 		pool, db.New(pool, testkit.NewIDs(76), watchClock), testkit.NewIDs(77), watchClock,
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, 480, watchTuning(), noop.Int64Counter{},
+		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, 480, watchTuning(), noop.Int64Counter{}, &stubLedger{},
 	)
 	ctx := watchActor(t)
 	watchClock.Advance(time.Second)

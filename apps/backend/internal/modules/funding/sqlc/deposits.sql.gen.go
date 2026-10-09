@@ -134,6 +134,18 @@ func (q *Queries) CompleteDepositWatchRecovery(ctx context.Context, arg Complete
 	return err
 }
 
+const depositCandidatesPendingOldestSeconds = `-- name: DepositCandidatesPendingOldestSeconds :one
+SELECT coalesce(extract(epoch FROM ($1::timestamptz - min(seen_at))), 0)::bigint
+FROM deposit_candidates WHERE status = 'pending'
+`
+
+func (q *Queries) DepositCandidatesPendingOldestSeconds(ctx context.Context, now time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, depositCandidatesPendingOldestSeconds, now)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const depositCursorsToMigrate = `-- name: DepositCursorsToMigrate :many
 SELECT c.wallet_address, w.user_id, COALESCE(c.last_signature, '') AS last_signature, c.cursor_slot
 FROM deposit_cursors c
@@ -343,6 +355,76 @@ func (q *Queries) DepositWatchKnownWallets(ctx context.Context, walletAddresses 
 	return items, nil
 }
 
+const depositWatchReconcileWallets = `-- name: DepositWatchReconcileWallets :many
+SELECT w.wallet_address, w.user_id, coalesce(w.opening_micros::text, '')::text AS opening_micros, w.residual_streak,
+  coalesce(sum(a.last_amount) FILTER (WHERE a.state = 'open'), 0)::text AS observed,
+  coalesce(bool_or(a.dirty_gen > a.clean_gen), false)::boolean AS dirty,
+  EXISTS (
+    SELECT 1 FROM deposit_candidates c WHERE c.wallet_address = w.wallet_address AND c.status = 'pending'
+  )::boolean AS pending_candidates
+FROM deposit_watch_wallets w
+JOIN deposit_watch_accounts a ON a.wallet_address = w.wallet_address
+WHERE w.reconcile_due_at <= $1::timestamptz
+GROUP BY w.wallet_address
+HAVING bool_and(a.observed_slot > 0)
+ORDER BY w.reconcile_due_at, w.wallet_address
+LIMIT $2::int
+`
+
+type DepositWatchReconcileWalletsParams struct {
+	Now      time.Time
+	RowLimit int32
+}
+
+type DepositWatchReconcileWalletsRow struct {
+	WalletAddress     string
+	UserID            uuid.UUID
+	OpeningMicros     string
+	ResidualStreak    int32
+	Observed          string
+	Dirty             bool
+	PendingCandidates bool
+}
+
+func (q *Queries) DepositWatchReconcileWallets(ctx context.Context, arg DepositWatchReconcileWalletsParams) ([]DepositWatchReconcileWalletsRow, error) {
+	rows, err := q.db.Query(ctx, depositWatchReconcileWallets, arg.Now, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DepositWatchReconcileWalletsRow
+	for rows.Next() {
+		var i DepositWatchReconcileWalletsRow
+		if err := rows.Scan(
+			&i.WalletAddress,
+			&i.UserID,
+			&i.OpeningMicros,
+			&i.ResidualStreak,
+			&i.Observed,
+			&i.Dirty,
+			&i.PendingCandidates,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const depositWatchResidualWallets = `-- name: DepositWatchResidualWallets :one
+SELECT count(*)::bigint FROM deposit_watch_wallets WHERE residual_streak >= 2
+`
+
+func (q *Queries) DepositWatchResidualWallets(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, depositWatchResidualWallets)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const depositWatchRotationAccounts = `-- name: DepositWatchRotationAccounts :many
 SELECT a.token_account, a.wallet_address, w.user_id, w.first_seen_slot, a.high_slot, a.recovery_before
 FROM deposit_watch_accounts a
@@ -506,8 +588,10 @@ func (q *Queries) InsertDepositWatchAccount(ctx context.Context, arg InsertDepos
 }
 
 const insertDepositWatchWallet = `-- name: InsertDepositWatchWallet :execrows
-INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at)
-VALUES ($1, $2, $3, $4, $5::timestamptz)
+INSERT INTO deposit_watch_wallets (
+  wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at, opening_micros, reconcile_due_at
+) VALUES ($1, $2, $3, $4, $5::timestamptz,
+  NULLIF($6::text, '')::numeric, $7::timestamptz)
 ON CONFLICT (wallet_address) DO NOTHING
 `
 
@@ -517,6 +601,8 @@ type InsertDepositWatchWalletParams struct {
 	FirstSeenSlot  int64
 	FirstSeenAt    time.Time
 	DiscoveryDueAt time.Time
+	OpeningMicros  string
+	ReconcileDueAt time.Time
 }
 
 func (q *Queries) InsertDepositWatchWallet(ctx context.Context, arg InsertDepositWatchWalletParams) (int64, error) {
@@ -526,6 +612,8 @@ func (q *Queries) InsertDepositWatchWallet(ctx context.Context, arg InsertDeposi
 		arg.FirstSeenSlot,
 		arg.FirstSeenAt,
 		arg.DiscoveryDueAt,
+		arg.OpeningMicros,
+		arg.ReconcileDueAt,
 	)
 	if err != nil {
 		return 0, err
@@ -592,5 +680,30 @@ type SetDepositWatchDiscoveryParams struct {
 
 func (q *Queries) SetDepositWatchDiscovery(ctx context.Context, arg SetDepositWatchDiscoveryParams) error {
 	_, err := q.db.Exec(ctx, setDepositWatchDiscovery, arg.WalletAddress, arg.DiscoveryDueAt)
+	return err
+}
+
+const setDepositWatchReconcile = `-- name: SetDepositWatchReconcile :exec
+UPDATE deposit_watch_wallets
+SET opening_micros = NULLIF($2::text, '')::numeric,
+    residual_streak = $3::int,
+    reconcile_due_at = $4::timestamptz
+WHERE wallet_address = $1
+`
+
+type SetDepositWatchReconcileParams struct {
+	WalletAddress  string
+	OpeningMicros  string
+	ResidualStreak int32
+	ReconcileDueAt time.Time
+}
+
+func (q *Queries) SetDepositWatchReconcile(ctx context.Context, arg SetDepositWatchReconcileParams) error {
+	_, err := q.db.Exec(ctx, setDepositWatchReconcile,
+		arg.WalletAddress,
+		arg.OpeningMicros,
+		arg.ResidualStreak,
+		arg.ReconcileDueAt,
+	)
 	return err
 }

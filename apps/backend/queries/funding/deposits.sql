@@ -28,8 +28,10 @@ ORDER BY c.wallet_address
 LIMIT $2;
 
 -- name: InsertDepositWatchWallet :execrows
-INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at)
-VALUES ($1, $2, $3, $4, sqlc.arg(discovery_due_at)::timestamptz)
+INSERT INTO deposit_watch_wallets (
+  wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at, opening_micros, reconcile_due_at
+) VALUES ($1, $2, $3, $4, sqlc.arg(discovery_due_at)::timestamptz,
+  NULLIF(sqlc.arg(opening_micros)::text, '')::numeric, sqlc.arg(reconcile_due_at)::timestamptz)
 ON CONFLICT (wallet_address) DO NOTHING;
 
 -- name: InsertDepositWatchAccount :exec
@@ -128,3 +130,32 @@ LIMIT sqlc.arg(row_limit)::int;
 UPDATE deposit_watch_wallets
 SET discovery_due_at = sqlc.arg(discovery_due_at)::timestamptz
 WHERE wallet_address = $1;
+
+-- name: DepositWatchReconcileWallets :many
+SELECT w.wallet_address, w.user_id, coalesce(w.opening_micros::text, '')::text AS opening_micros, w.residual_streak,
+  coalesce(sum(a.last_amount) FILTER (WHERE a.state = 'open'), 0)::text AS observed,
+  coalesce(bool_or(a.dirty_gen > a.clean_gen), false)::boolean AS dirty,
+  EXISTS (
+    SELECT 1 FROM deposit_candidates c WHERE c.wallet_address = w.wallet_address AND c.status = 'pending'
+  )::boolean AS pending_candidates
+FROM deposit_watch_wallets w
+JOIN deposit_watch_accounts a ON a.wallet_address = w.wallet_address
+WHERE w.reconcile_due_at <= sqlc.arg(now)::timestamptz
+GROUP BY w.wallet_address
+HAVING bool_and(a.observed_slot > 0)
+ORDER BY w.reconcile_due_at, w.wallet_address
+LIMIT sqlc.arg(row_limit)::int;
+
+-- name: SetDepositWatchReconcile :exec
+UPDATE deposit_watch_wallets
+SET opening_micros = NULLIF(sqlc.arg(opening_micros)::text, '')::numeric,
+    residual_streak = sqlc.arg(residual_streak)::int,
+    reconcile_due_at = sqlc.arg(reconcile_due_at)::timestamptz
+WHERE wallet_address = $1;
+
+-- name: DepositWatchResidualWallets :one
+SELECT count(*)::bigint FROM deposit_watch_wallets WHERE residual_streak >= 2;
+
+-- name: DepositCandidatesPendingOldestSeconds :one
+SELECT coalesce(extract(epoch FROM (sqlc.arg(now)::timestamptz - min(seen_at))), 0)::bigint
+FROM deposit_candidates WHERE status = 'pending';

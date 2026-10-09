@@ -104,10 +104,12 @@ func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 	}
 	if _, err := s.DB().Exec(
 		s.Context(),
-		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at)
-		VALUES ($1, $2, 0, now(), now() + interval '1 day')
+		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at,
+			reconcile_due_at)
+		VALUES ($1, $2, 0, now(), now() + interval '1 day', now() + interval '1 day')
 		ON CONFLICT (wallet_address) DO UPDATE
-		SET user_id = EXCLUDED.user_id, first_seen_slot = 0, discovery_due_at = EXCLUDED.discovery_due_at`,
+		SET user_id = EXCLUDED.user_id, first_seen_slot = 0, discovery_due_at = EXCLUDED.discovery_due_at,
+			reconcile_due_at = EXCLUDED.reconcile_due_at`,
 		user.Address,
 		user.ID.UUID(),
 	); err != nil {

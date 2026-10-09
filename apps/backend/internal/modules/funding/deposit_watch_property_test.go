@@ -218,7 +218,7 @@ func (w *watchRun) start(run uint64) {
 			Rotation: 6 * time.Hour, RecoverySlots: 1 << 40, Discovery: 6 * time.Hour,
 			Spread: func(period time.Duration) time.Duration { return period / 2 },
 		},
-		noop.Int64Counter{},
+		noop.Int64Counter{}, &stubLedger{},
 	)
 	w.resolver = app.NewDepositCandidateResolver(
 		w.c, testkit.USDCMint, []fundingport.SignatureOwner{w.c},
