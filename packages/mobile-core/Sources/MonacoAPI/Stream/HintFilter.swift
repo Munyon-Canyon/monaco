@@ -4,12 +4,13 @@
 public enum HintFilter: Hashable, Sendable {
     case user(what: String?)
     case cabal(id: String, what: String?)
+    case anyCabal(what: String?)
     case global(what: String?)
 
     public func matches(_ hint: Hint) -> Bool {
         guard case .changed(let key, let what, _) = hint else { return true }
         switch (self, key) {
-        case (.user(let want), .user), (.global(let want), .global):
+        case (.user(let want), .user), (.anyCabal(let want), .cabal), (.global(let want), .global):
             return want == nil || want == what
         case (.cabal(let id, let want), .cabal(let hintID)):
             return id == hintID && (want == nil || want == what)

@@ -21,6 +21,16 @@ final class HintFilterTests: XCTestCase {
         XCTAssertFalse(HintFilter.cabal(id: "42", what: "updated").matches(hint(.cabal("42"), "voted")))
     }
 
+    func testAnyCabalFilterMatchesEveryCabalButNothingElse() {
+        let filter = HintFilter.anyCabal(what: "proposal_created")
+        XCTAssertTrue(filter.matches(hint(.cabal("42"), "proposal_created")))
+        XCTAssertTrue(filter.matches(hint(.cabal("7"), "proposal_created")))
+        XCTAssertFalse(filter.matches(hint(.cabal("42"), "proposal_updated")))
+        XCTAssertFalse(filter.matches(hint(.global, "proposal_created")))
+        XCTAssertFalse(filter.matches(hint(.user("9f2c"), "proposal_created")))
+        XCTAssertTrue(HintFilter.anyCabal(what: nil).matches(hint(.cabal("7"), "pause_changed")))
+    }
+
     func testUserFilterNeedsNoID() {
         XCTAssertTrue(HintFilter.user(what: nil).matches(hint(.user("9f2c"), "balance")))
         XCTAssertTrue(HintFilter.user(what: "balance").matches(hint(.user("9f2c"), "balance")))
@@ -28,7 +38,10 @@ final class HintFilterTests: XCTestCase {
     }
 
     func testResyncMatchesEveryFilter() {
-        for filter in [HintFilter.user(what: nil), .cabal(id: "42", what: "updated"), .global(what: "feed")] {
+        for filter in [
+            HintFilter.user(what: nil), .cabal(id: "42", what: "updated"), .anyCabal(what: "updated"),
+            .global(what: "feed"),
+        ] {
             XCTAssertTrue(filter.matches(.resync), "\(filter)")
         }
     }

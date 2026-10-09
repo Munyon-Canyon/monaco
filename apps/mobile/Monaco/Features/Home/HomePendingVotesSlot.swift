@@ -11,6 +11,7 @@ enum HomePendingVotesSlot: HomeSection {
 
 struct HomePendingVotes: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model: PendingVotesModel?
     @State private var voting: ProposalVoteModel?
     private let makeModel: @MainActor (AppEnvironment) -> PendingVotesModel
@@ -35,7 +36,13 @@ struct HomePendingVotes: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
             }
         }
-        .task { await preparedModel().load() }
+        .animation(reduceMotion ? nil : .snappy, value: model?.votes.map(\.id))
+        .task {
+            let model = preparedModel()
+            await model.load()
+            await model.observe()
+        }
+        .onScreenVisibilityChange { model?.setVisible($0) }
     }
 
     @ViewBuilder private func section(
@@ -51,7 +58,7 @@ struct HomePendingVotes: View {
                     asset: model.assets[detail.summary.symbol],
                     members: model.members[detail.summary.cabalID] ?? [],
                     paused: model.pausedCabals.contains(detail.summary.cabalID),
-                    onVoted: { await model.load(keeping: voting.votedIDs) })
+                    onVoted: { await model.load() })
             }
         }
     }

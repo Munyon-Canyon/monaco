@@ -22,7 +22,7 @@ final class ProposalTradingTests: XCTestCase {
     @MainActor
     func testPendingModelKeepsABuyThatPassedAndDropsOneThatSettled() async throws {
         for (status, kept) in [("passed", true), ("executed", false)] {
-            let model = try await Self.reloaded(settledAs: status, keeping: [])
+            let model = try await Self.reloaded(settledAs: status, ballot: nil)
             XCTAssertEqual(model.votes.map(\.id), kept ? ["p"] : [], status)
             XCTAssertEqual(model.details.keys.sorted(), kept ? ["p"] : [], status)
         }
@@ -30,8 +30,59 @@ final class ProposalTradingTests: XCTestCase {
 
     @MainActor
     func testPendingModelKeepsAnOpenBuyTheMemberJustVotedOn() async throws {
-        let model = try await Self.reloaded(settledAs: "open", keeping: ["p"])
+        let model = try await Self.reloaded(settledAs: "open", ballot: "yes")
         XCTAssertEqual(model.votes.map(\.id), ["p"])
+    }
+
+    @MainActor
+    func testPendingModelDropsAnOpenBuyTheMemberNeverVotedOn() async throws {
+        let model = try await Self.reloaded(settledAs: "open", ballot: nil)
+        XCTAssertTrue(model.votes.isEmpty)
+    }
+
+    @MainActor
+    func testAHintReloadKeepsTheBuyTheMemberJustVotedOn() async throws {
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, Self.pending), .json(.ok, "[]")],
+            "/v1/proposals/p": [.json(.ok, Self.detail("open")), .json(.ok, Self.detail("open", ballot: "yes"))],
+        ])
+        let hints = FakeHintStream()
+        let model = PendingVotesModel(repository: Self.repository(transport), hints: hints)
+        await model.load()
+        let observer = Task { await model.observe() }
+        addTeardownBlock { observer.cancel() }
+        for _ in 0..<2_000 where await hints.subscriberCount < 3 { await Task.yield() }
+        let subscribers = await hints.subscriberCount
+        XCTAssertEqual(subscribers, 3)
+
+        await hints.send(.changed(.cabal("c"), what: "proposal_updated", id: "1"))
+        for _ in 0..<2_000 where model.details["p"]?.summary.myBallot != "yes" { await Task.yield() }
+
+        XCTAssertEqual(model.details["p"]?.summary.myBallot, "yes")
+        XCTAssertEqual(model.votes.map(\.id), ["p"])
+    }
+
+    @MainActor
+    func testAProposalAnotherMemberOpensAppearsWithoutALeaveAndReturn() async throws {
+        for what in ["proposal_created", "swap_updated"] {
+            let transport = StubTransport(routes: [
+                "/v1/me/pending-votes": [.json(.ok, "[]"), .json(.ok, Self.pending)],
+                "/v1/proposals/p": [.json(.ok, Self.detail("open"))],
+            ])
+            let hints = FakeHintStream()
+            let model = PendingVotesModel(repository: Self.repository(transport), hints: hints)
+            await model.load()
+            let observer = Task { await model.observe() }
+            for _ in 0..<2_000 where await hints.subscriberCount < 3 { await Task.yield() }
+            let subscribers = await hints.subscriberCount
+            XCTAssertEqual(subscribers, 3, what)
+
+            await hints.send(.changed(.cabal("c"), what: what, id: "1"))
+            for _ in 0..<2_000 where model.votes.isEmpty { await Task.yield() }
+
+            XCTAssertEqual(model.votes.map(\.id), ["p"], what)
+            observer.cancel()
+        }
     }
 
     @MainActor
@@ -117,19 +168,19 @@ final class ProposalTradingTests: XCTestCase {
     }
 
     @MainActor
-    private static func reloaded(settledAs status: String, keeping: Set<String>) async throws -> PendingVotesModel {
-        let pending =
-            #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2099-01-01T00:00:00Z"}]"#
-        let transport = StubTransport(scripted: [
-            .json(.ok, pending), .json(.ok, detail("open")), .json(.ok, "{}"),
-            .failure(URLError(.notConnectedToInternet)), .failure(URLError(.notConnectedToInternet)),
-            .json(.ok, "[]"), .json(.ok, detail(status)),
+    private static func reloaded(settledAs status: String, ballot: String?) async throws -> PendingVotesModel {
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, pending), .json(.ok, "[]")],
+            "/v1/proposals/p": [.json(.ok, detail("open")), .json(.ok, detail(status, ballot: ballot))],
         ])
         let model = PendingVotesModel(repository: repository(transport), hints: FakeHintStream())
         await model.load()
-        await model.load(keeping: keeping)
+        await model.load()
         return model
     }
+
+    private static let pending =
+        #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2099-01-01T00:00:00Z"}]"#
 
     private static func repository(_ transport: StubTransport) -> ProposalsRepository {
         repository(transport: transport)
@@ -144,7 +195,7 @@ final class ProposalTradingTests: XCTestCase {
         #"{"id":"\#(id)","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"can_vote":true}"#
     }
 
-    private static func detail(_ status: String) -> String {
-        #"{"id":"p","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":null,"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":false,"can_withdraw":false,"swap":null}"#
+    static func detail(_ status: String, ballot: String? = nil) -> String {
+        #"{"id":"p","cabal_id":"c","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":0,"no":0,"voters":1,"needed":1},"my_ballot":\#(ballot.map { "\"\($0)\"" } ?? "null"),"voters":[{"user_id":"u","choice":null,"cast_at":null}],"can_vote":false,"can_withdraw":false,"swap":null}"#
     }
 }

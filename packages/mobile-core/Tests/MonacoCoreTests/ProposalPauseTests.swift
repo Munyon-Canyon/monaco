@@ -72,17 +72,43 @@ final class ProposalPauseModelTests: XCTestCase {
 
 @MainActor
 final class PendingVotesPauseTests: XCTestCase {
-    func testPendingVotesMarkPausedCabals() async {
-        let vote =
-            #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
-        let paused =
-            #"{"slice_micros":"1","share_units":"1","min_micros":"1","pause":{"reasons":["ops"],"since":"2026-01-01T00:00:00Z"}}"#
-        let transport = StubTransport(scripted: [
-            .json(.ok, vote), .failure(URLError(.badServerResponse)), .json(.ok, paused),
-        ])
+    private let vote =
+        #"[{"proposal_id":"p","cabal_id":"c","kind":"buy","symbol":"AAPLx","expires_at":"2026-01-01T00:00:00Z"}]"#
+    private let paused =
+        #"{"slice_micros":"1","share_units":"1","min_micros":"1","pause":{"reasons":["ops"],"since":"2026-01-01T00:00:00Z"}}"#
+
+    private func model(_ transport: StubTransport) -> PendingVotesModel {
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport)
-        let model = PendingVotesModel(repository: ProposalsRepository(api: api), hints: FakeHintStream())
+        return PendingVotesModel(repository: ProposalsRepository(api: api), hints: FakeHintStream())
+    }
+
+    func testPendingVotesMarkPausedCabals() async {
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, vote)],
+            "/v1/proposals/p": [.failure(URLError(.badServerResponse))],
+            "/v1/cabals/c/cashouts/preview": [.json(.ok, paused)],
+        ])
+        let model = model(transport)
         await model.load()
+        XCTAssertEqual(model.pausedCabals, ["c"])
+    }
+
+    func testPendingVotesAppearTogetherWithTheirPauseNotBefore() async {
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, vote)],
+            "/v1/proposals/p": [.json(.ok, ProposalTradingTests.detail("open"))],
+            "/v1/cabals/c/cashouts/preview": [.gate],
+        ])
+        let model = model(transport)
+        let loading = Task { await model.load() }
+        await transport.waitForRequests(3)
+        for _ in 0..<100 { await Task.yield() }
+        XCTAssertTrue(model.votes.isEmpty)
+        XCTAssertTrue(model.details.isEmpty)
+        await transport.releaseGate(.json(.ok, paused))
+        await loading.value
+        XCTAssertEqual(model.votes.map(\.id), ["p"])
+        XCTAssertEqual(model.details.keys.sorted(), ["p"])
         XCTAssertEqual(model.pausedCabals, ["c"])
     }
 }

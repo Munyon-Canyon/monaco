@@ -39,15 +39,9 @@ struct PassedProposalBuyingTests {
 
     @Test
     func homeKeepsAListedBuyThatPassedAndShowsItBuying() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, Self.pending),
-            .json(.ok, Self.detail(status: "open")),
-            .json(.ok, #"{"paused":false}"#),
-            .failure(URLError(.notConnectedToInternet)),
-            .failure(URLError(.notConnectedToInternet)),
-            .json(.ok, "[]"),
-            .json(.ok, Self.detail(status: "passed")),
-            .json(.ok, #"{"paused":false}"#),
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, Self.pending), .json(.ok, "[]")],
+            "/v1/proposals/p": [.json(.ok, Self.detail(status: "open")), .json(.ok, Self.detail(status: "passed"))],
         ])
         let model = PendingVotesModel(repository: Self.repository(transport), hints: FakeHintSource())
         await model.load()
@@ -65,38 +59,28 @@ struct PassedProposalBuyingTests {
 
     @Test
     func homeKeepsTheOpenBuyItsMemberJustVotedOn() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, Self.pending),
-            .json(.ok, Self.detail(status: "open")),
-            .json(.ok, #"{"paused":false}"#),
-            .failure(URLError(.notConnectedToInternet)),
-            .failure(URLError(.notConnectedToInternet)),
-            .json(.ok, "[]"),
-            .json(.ok, Self.detail(status: "open")),
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, Self.pending), .json(.ok, "[]")],
+            "/v1/proposals/p": [.json(.ok, Self.detail(status: "open")), .json(.ok, Self.detail(status: "open"))],
         ])
         let model = PendingVotesModel(repository: Self.repository(transport), hints: FakeHintSource())
         await model.load()
 
-        await model.load(keeping: ["p"])
+        await model.load()
 
         #expect(model.votes.map(\.id) == ["p"])
     }
 
     @Test
     func homeDropsAListedBuyOnceItIsNoLongerTrading() async throws {
-        let transport = StubTransport(scripted: [
-            .json(.ok, Self.pending),
-            .json(.ok, Self.detail(status: "open")),
-            .json(.ok, #"{"paused":false}"#),
-            .failure(URLError(.notConnectedToInternet)),
-            .failure(URLError(.notConnectedToInternet)),
-            .json(.ok, "[]"),
-            .json(.ok, Self.detail(status: "executed")),
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, Self.pending), .json(.ok, "[]")],
+            "/v1/proposals/p": [.json(.ok, Self.detail(status: "open")), .json(.ok, Self.detail(status: "executed"))],
         ])
         let model = PendingVotesModel(repository: Self.repository(transport), hints: FakeHintSource())
         await model.load()
 
-        await model.load(keeping: ["p"])
+        await model.load()
 
         #expect(model.votes.isEmpty)
         #expect(model.details.isEmpty)
@@ -111,19 +95,14 @@ struct PassedProposalBuyingTests {
             with:
                 #""swap":{"swap_id":"01890a5d-ac96-774b-bcce-b302099a8060","status":"failed","failure_code":"x","failure_message":"no","tx_signature":null,"retryable":true}"#
         )
-        let transport = StubTransport(scripted: [
-            .json(.ok, Self.pending),
-            .json(.ok, Self.detail(status: "open")),
-            .json(.ok, #"{"paused":false}"#),
-            .failure(URLError(.notConnectedToInternet)),
-            .failure(URLError(.notConnectedToInternet)),
-            .json(.ok, "[]"),
-            .json(.ok, failed),
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, Self.pending), .json(.ok, "[]")],
+            "/v1/proposals/p": [.json(.ok, Self.detail(status: "open")), .json(.ok, failed)],
         ])
         let model = PendingVotesModel(repository: Self.repository(transport), hints: FakeHintSource())
         await model.load()
 
-        await model.load(keeping: ["p"])
+        await model.load()
 
         #expect(model.inProgress.isEmpty)
         #expect(model.votes.isEmpty)
