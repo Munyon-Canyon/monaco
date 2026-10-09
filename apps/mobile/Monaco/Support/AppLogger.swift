@@ -11,5 +11,6 @@ enum AppLogger {
     /// One line per API request; see `APILogTelemetry`.
     nonisolated static let api = Logger(subsystem: subsystem, category: "api")
     /// Crash, hang, CPU and disk-write reports delivered by MetricKit.
+    nonisolated static let analytics = Logger(subsystem: subsystem, category: "analytics")
     nonisolated static let diagnostics = Logger(subsystem: subsystem, category: "diagnostics")
 }

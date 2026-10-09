@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -38,6 +39,7 @@ struct WithdrawView: View {
             },
             onRetry: { Task { await environment.balance.load() } }
         )
+        .analyticsScreen("withdraw", step: .withdraw(.withdrawOpened))
         .onChange(of: destinationAddress) { _, _ in refusedAddress = nil }
         .onChange(of: showConfirm) { _, shown in
             if !shown { frozen = nil }

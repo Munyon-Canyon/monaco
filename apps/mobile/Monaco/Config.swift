@@ -9,6 +9,15 @@ enum Config {
 
     /// Privy credentials and login flags for M1 auth (T9/T10).
     static let privy = PrivyAuthSettings.current
+
+    static var postHogAPIKey: String {
+        (Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
 }
 
 struct PrivyAuthSettings: Equatable {

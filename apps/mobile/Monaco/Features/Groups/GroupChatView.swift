@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -25,6 +26,7 @@ struct GroupChatView: View {
                     ChatThreadRoute(cabalID: cabalID, parentID: parentID), in: environment.navigator.selectedTab)
             }
         )
+        .analyticsScreen("chat", step: .chat(.chatOpened))
         .task {
             let model = preparedCabal()
             _ = preparedSession()

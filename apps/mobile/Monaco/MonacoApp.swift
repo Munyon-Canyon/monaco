@@ -31,6 +31,8 @@ struct MonacoApp: App {
                 .environment(appEnvironment)
                 .environment(appEnvironment.sessionStore)
                 .environmentObject(appEnvironment.auth)
+                .environment(\.analytics, appEnvironment.analytics)
+                .background(TapTrackingInstaller(analytics: appEnvironment.analytics))
                 .tint(MonacoTheme.ink)
                 .onChange(of: scenePhase) { _, phase in
                     Task { await appEnvironment.sceneDidChange(phase) }

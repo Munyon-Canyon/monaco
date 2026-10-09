@@ -5,13 +5,13 @@ Copy address toasts "Copied." S1.3 waits for "Address copied.", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Deposit/DepositView.swift b/apps/mobile/Monaco/Features/Deposit/DepositView.swift
-index df221b4c..8e825b8b 100644
+index 12fffd4ab..be60a586e 100644
 --- a/apps/mobile/Monaco/Features/Deposit/DepositView.swift
 +++ b/apps/mobile/Monaco/Features/Deposit/DepositView.swift
-@@ -124,7 +124,7 @@ struct DepositAddressView: View {
- 
+@@ -126,7 +126,7 @@ struct DepositAddressView: View {
      private func copyAddress(_ address: String) {
          UIPasteboard.general.string = address
+         AppAnalytics.current.step(.cryptoDeposit(.addressCopied))
 -        toasts.show(success: "Address copied.")
 +        toasts.show(success: "Copied.")
      }
