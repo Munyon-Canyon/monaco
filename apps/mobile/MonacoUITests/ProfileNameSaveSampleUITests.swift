@@ -2,7 +2,7 @@
 //  ProfileNameSaveSampleUITests.swift
 //  MonacoUITests
 //
-//  QA coverage for Profile → Edit profile against the debug sample harness
+//  QA coverage for Profile → Edit name against the debug sample harness
 //  (launch argument -MonacoProfileSample saveFailure). No sign-in and no backend, so a
 //  Save is always rejected — which is exactly the path that used to report nothing at all.
 //

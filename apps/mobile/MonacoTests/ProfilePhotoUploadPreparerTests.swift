@@ -105,7 +105,7 @@ nonisolated final class ProfilePhotoUploadPreparerTests: XCTestCase {
     func testFailureCopy_saysWhatToDoAndPassesTheMainFlowAudit() {
         XCTAssertEqual(
             ProfilePhotoUploadPreparer.Failure.unreadable.memberMessage,
-            "That photo could not be opened. Try another."
+            "Couldn't open that photo. Try another."
         )
         XCTAssertEqual(
             ProfilePhotoUploadPreparer.Failure.tooLarge.memberMessage,

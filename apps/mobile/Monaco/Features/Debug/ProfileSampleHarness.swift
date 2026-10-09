@@ -14,7 +14,7 @@ enum ProfileSampleScenario: String, CaseIterable {
     /// The face sheet open over the placeholder, so the grid and its ring can be screenshotted.
     case facePicker
     case validation
-    /// Edit profile open on a valid new name. There is no session here, so tapping Save is
+    /// Edit name open on a valid new name. There is no session here, so tapping Save is
     /// a rejected save — which is how the failure is meant to be readable inside the sheet.
     case saveFailure
     /// The same sheet with a store that accepts the save, so the other half of the fix — the

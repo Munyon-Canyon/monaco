@@ -5,15 +5,15 @@ The handle is a dead button. S4.1 expects the handle editor, so S4 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-index b5283216c..eee26a8a0 100644
+index f596d2d8a..c64eed330 100644
 --- a/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
 +++ b/apps/mobile/Monaco/Features/Profile/ProfileHeaderSlot.swift
-@@ -126,7 +126,7 @@ struct ProfileHeader: View {
-             }
+@@ -131,7 +131,7 @@ struct ProfileHeader: View {
+                 .padding(.horizontal, Self.pencilTarget)
  
              if let handle = session.profile?.handle {
 -                NavigationLink(value: AnyAppRoute(HandleEditRoute())) {
 +                Button {} label: {
-                     Text("@\(handle)")
-                         .font(MonacoTheme.Typo.rowTitle)
-                         .foregroundStyle(MonacoTheme.brand)
+                     HStack(spacing: MonacoTheme.Space.xs) {
+                         Text("@\(handle)")
+                             .font(MonacoTheme.Typo.rowTitle)

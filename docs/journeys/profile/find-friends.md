@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileFindFriendsJourney.swift, a
 
 # Find friends
 
-A member opens "Find friends" from the Profile tab, reads the contacts explainer, backs out with "Not now", then searches for another member by handle and by name and follows them. The design is `ProfileFindFriendsSlot` on the [Profile tab](../../screens.md#profile-tab): Row "Find friends" (contacts, plus search by name or handle from #2142), opening "Friends on Monaco". The old app's version is Profile -> Find friends at `c838bd24`.
+A member opens "Find friends" from the Profile tab, reads the contacts explainer, backs out with "Not now", then searches for another member by handle and by name and follows them. The design is the "Find friends" row of `ProfileLinksSlot` on the [Profile tab](../../screens.md#profile-tab): Row "Find friends" (contacts, plus search by name or handle from #2142), opening "Friends on Monaco". The old app's version is Profile -> Find friends at `c838bd24`.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 

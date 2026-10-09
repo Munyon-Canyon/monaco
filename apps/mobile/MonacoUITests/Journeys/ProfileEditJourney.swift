@@ -31,12 +31,12 @@ enum ProfileEditJourney {
         edit.tap()
         let field = app.textFields["profile-name-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5), "\(step): the name field did not show")
-        XCTAssertTrue(app.navigationBars["Edit profile"].exists, "\(step): the sheet is not titled 'Edit profile'")
+        XCTAssertTrue(app.navigationBars["Edit name"].exists, "\(step): the sheet is not titled 'Edit name'")
         return field
     }
 
     static func closeNameEditor(_ app: XCUIApplication) {
-        app.navigationBars["Edit profile"].buttons["Done"].tap()
+        app.navigationBars["Edit name"].buttons["Cancel"].tap()
     }
 
     static func clear(_ field: XCUIElement) {
@@ -94,7 +94,7 @@ enum ProfileEditJourney {
                 "S1.1: the header reads '\(since)', not 'Member since' with a month and year")
         }
 
-        recorder.step("S1.2", "open Edit profile") {
+        recorder.step("S1.2", "open Edit name") {
             let field = openNameEditor(app, step: "S1.2")
             XCTAssertEqual(field.value as? String, shown, "S1.2: the field does not hold the current name")
             closeNameEditor(app)
@@ -113,7 +113,7 @@ enum ProfileEditJourney {
         var before = ""
         let field = app.textFields["profile-name-field"]
 
-        recorder.step("S2.1", "open Edit profile") {
+        recorder.step("S2.1", "open Edit name") {
             openProfile(app, step: "S2.1")
             before = displayName(app)
             _ = openNameEditor(app, step: "S2.1")
@@ -129,7 +129,7 @@ enum ProfileEditJourney {
 
         recorder.step("S2.3", "back out") {
             closeNameEditor(app)
-            XCTAssertTrue(field.waitForNonExistence(timeout: 5), "S2.3: Done did not close Edit profile")
+            XCTAssertTrue(field.waitForNonExistence(timeout: 5), "S2.3: Cancel did not close Edit name")
             XCTAssertEqual(displayName(app), before, "S2.3: the header no longer shows '\(before)'")
         }
     }

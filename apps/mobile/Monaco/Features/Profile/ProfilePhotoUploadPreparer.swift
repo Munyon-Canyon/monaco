@@ -34,7 +34,7 @@ nonisolated enum ProfilePhotoUploadPreparer {
         /// can reach them.
         var memberMessage: String {
             switch self {
-            case .unreadable: return "That photo could not be opened. Try another."
+            case .unreadable: return "Couldn't open that photo. Try another."
             case .tooLarge: return "That photo is too big to upload. Try another."
             }
         }

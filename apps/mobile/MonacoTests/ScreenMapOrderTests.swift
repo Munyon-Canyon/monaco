@@ -45,7 +45,7 @@ struct ScreenMapOrderTests {
         #expect(
             names(ProfileScreen.sections) == [
                 "ProfileHeaderSlot", "ProfileFollowCountsSlot", "ProfileStatsSlot", "ProfileBalanceSlot",
-                "ProfileCabalsSlot", "ProfileInviteSlot", "ProfileFindFriendsSlot", "ProfileSettingsSlot",
+                "ProfileCabalsSlot", "ProfileLinksSlot",
             ])
     }
 

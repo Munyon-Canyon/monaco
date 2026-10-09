@@ -190,9 +190,7 @@ struct CabalScreen: View {
 | | `ProfileStatsSlot` | #2140 |
 | | `ProfileBalanceSlot` | #610 |
 | | `ProfileCabalsSlot` | #2140 |
-| | `ProfileInviteSlot` | #682 |
-| | `ProfileFindFriendsSlot` | #663 |
-| | `ProfileSettingsSlot` | #2139 |
+| | `ProfileLinksSlot` | #682, #663, #2139 |
 | `Features/Groups/CabalsTabScreen.swift` | `CabalsInvitesSlot` | #696 |
 | | `CabalsListSlot` | #606 |
 | | `CabalsJoinSlot` | #646 |
