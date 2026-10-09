@@ -1,0 +1,408 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+	"testing"
+	"time"
+
+	"golang.org/x/time/rate"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+)
+
+type watchWallets struct {
+	wallets []port.MemberWallet
+	pages   [][]port.MemberWallet
+	called  int
+	err     error
+}
+
+func (*watchWallets) MemberWallet(context.Context, ids.UserID) (port.MemberWallet, error) {
+	return port.MemberWallet{}, nil
+}
+
+func (w *watchWallets) MemberWallets(context.Context, ids.UserID, int) ([]port.MemberWallet, error) {
+	if w.err != nil {
+		return nil, w.err
+	}
+	if len(w.pages) > 0 {
+		page := w.pages[w.called]
+		w.called++
+		return page, nil
+	}
+	return w.wallets, nil
+}
+
+type watchRPC struct {
+	pages    [][]solana.SignatureInfo
+	sigErr   error
+	slot     uint64
+	tokenErr error
+	accounts []solana.TokenAccountState
+}
+
+func (r *watchRPC) SignaturesFor(
+	context.Context, chain.SolanaAddress, solana.SignaturesOpts,
+) ([]solana.SignatureInfo, error) {
+	if r.sigErr != nil {
+		return nil, r.sigErr
+	}
+	if len(r.pages) == 0 {
+		return nil, nil
+	}
+	page := r.pages[0]
+	r.pages = r.pages[1:]
+	return page, nil
+}
+
+func (r *watchRPC) TokenAccounts(
+	context.Context, chain.SolanaAddress, chain.Mint,
+) (uint64, []solana.TokenAccountState, error) {
+	return r.slot, r.accounts, r.tokenErr
+}
+
+func testWatch(pool sqlc.DBTX, uow *db.UnitOfWork, rpc DepositWatchRPC, wallets port.WalletReader) *DepositWatch {
+	return NewDepositWatch(
+		pool, uow, testkit.NewIDs(2), clock.Real{}, wallets, rpc, testkit.USDCMint, time.Second,
+		rate.NewLimiter(rate.Inf, 0),
+	)
+}
+
+func TestDepositWatchFetchesOnePageAndHonorsCancellation(t *testing.T) {
+	t.Parallel()
+	first := make([]solana.SignatureInfo, 1000)
+	first[999].Signature = "before"
+	p := &DepositWatch{rpc: &watchRPC{pages: [][]solana.SignatureInfo{first}}, limit: rate.NewLimiter(rate.Inf, 1)}
+	opts := solana.SignaturesOpts{Before: "before", Until: "until", Limit: 1000}
+	if got, err := p.signatures(t.Context(), "wallet", opts); err != nil || len(got) != 1000 {
+		t.Fatalf("signatures = %d, %v", len(got), err)
+	}
+	p.limit = rate.NewLimiter(rate.Limit(1), 0)
+	if _, err := p.signatures(t.Context(), "wallet", opts); !errors.Is(err, errRateBudgetSpent) {
+		t.Fatalf("signatures with a spent budget = %v, want errRateBudgetSpent", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := p.signatures(ctx, "wallet", opts); err == nil || errors.Is(err, errRateBudgetSpent) {
+		t.Fatalf("cancelled signatures error = %v, want a failure", err)
+	}
+	p.rpc = &watchRPC{sigErr: errs.New(errs.CodeInternal, "test.rpc")}
+	p.limit = rate.NewLimiter(rate.Inf, 0)
+	if _, err := p.signatures(t.Context(), "wallet", opts); errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("signatures rpc error = %v, want %s", err, errs.CodeRPCUnavailable)
+	}
+}
+
+func TestDepositWatchReportsItsNameAndInterval(t *testing.T) {
+	t.Parallel()
+	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil)
+	if p.Interval() != time.Second || p.Name() != "funding.deposit_watch" {
+		t.Fatalf("name/interval = %q/%s", p.Name(), p.Interval())
+	}
+}
+
+func TestDepositWatchFirstSightReadsKnownWalletsOncePerPage(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	other := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	for _, u := range []testkit.SeededUser{user, other} {
+		if _, err := pool.Exec(t.Context(),
+			`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
+			VALUES ($1, $2, 0, now())`, u.Address, u.ID.UUID()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page := []port.MemberWallet{{UserID: user.ID, Address: user.Address}, {UserID: other.ID, Address: other.Address}}
+	p := testWatch(pool, nil, &watchRPC{}, nil)
+	testkit.AssertQueries(t, "DepositWatch seedUnknown", func() {
+		if n, err := p.seedUnknown(t.Context(), page); err != nil || n != 0 {
+			t.Fatalf("seedUnknown = %d, %v; want every wallet known", n, err)
+		}
+	})
+}
+
+func TestDepositWatchFirstSightReportsAnUnreadableDatabase(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	pool.Close()
+	first := make([]port.MemberWallet, port.MaxWalletPage)
+	p := testWatch(pool, nil, &watchRPC{}, &watchWallets{pages: [][]port.MemberWallet{first, nil}})
+	if _, err := p.firstSight(t.Context()); err == nil {
+		t.Fatal("firstSight with an unreadable database error = nil")
+	}
+}
+
+func TestDepositWatchFirstSightPagesTheMemberWalletReader(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	known := make([]port.MemberWallet, port.MaxWalletPage)
+	for i := range known {
+		known[i] = port.MemberWallet{Address: chain.SolanaAddress("w")}
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot,
+		first_seen_at) VALUES ('w', $1, 0, now())`, testkit.SeedUser(t, pool, testkit.UserOpts{}).ID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	p := testWatch(pool, nil, &watchRPC{}, &watchWallets{pages: [][]port.MemberWallet{known, nil}})
+	if n, err := p.firstSight(t.Context()); err != nil || n != 0 {
+		t.Fatalf("firstSight = %d, %v; want two reader pages and no wallet seeded", n, err)
+	}
+	p = testWatch(pool, nil, &watchRPC{}, &watchWallets{err: errs.New(errs.CodeInternal, "test.wallets")})
+	if _, err := p.Tick(t.Context()); err == nil {
+		t.Fatal("Tick with a failing wallet reader error = nil")
+	}
+}
+
+func TestDepositWatchReportsAnUnreadableDirtyList(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	pool.Close()
+	p := testWatch(pool, nil, &watchRPC{}, &watchWallets{})
+	if _, _, err := p.catchUpDirty(t.Context()); err == nil {
+		t.Fatal("catchUpDirty error = nil")
+	}
+}
+
+func TestDepositWatchRejectsSlotsAboveInt64(t *testing.T) {
+	t.Parallel()
+	sig := solana.SignatureInfo{Slot: uint64(math.MaxInt64) + 1}
+	row := sqlc.DepositWatchDirtyAccountsRow{}
+	if _, err := watchCandidates(row, []solana.SignatureInfo{sig}); err == nil {
+		t.Fatal("watchCandidates overflow error = nil")
+	}
+	if _, err := watchCandidates(row, []solana.SignatureInfo{{Slot: 1}, {Slot: sig.Slot, Failed: true}}); err == nil {
+		t.Fatal("watchCandidates failed signature overflow error = nil")
+	}
+	p := testWatch(nil, nil, &watchRPC{slot: sig.Slot}, nil)
+	if err := p.seedWallet(t.Context(), port.MemberWallet{Address: testkit.USDCMint}); err == nil {
+		t.Fatal("seedWallet slot overflow error = nil")
+	}
+}
+
+func TestDepositWatchReportsSeedFailures(t *testing.T) {
+	t.Parallel()
+	wallet := port.MemberWallet{Address: testkit.USDCMint}
+	p := testWatch(nil, nil, &watchRPC{tokenErr: errs.New(errs.CodeInternal, "test.tokens")}, nil)
+	if err := p.seedWallet(t.Context(), wallet); errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("seedWallet token accounts error = %v, want %s", err, errs.CodeRPCUnavailable)
+	}
+	p = testWatch(nil, nil, &watchRPC{}, nil)
+	if err := p.seedWallet(
+		t.Context(),
+		port.MemberWallet{Address: "bad"},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeInvalidAddress {
+		t.Fatalf("seedWallet invalid address error = %v, want %s", err, errs.CodeInvalidAddress)
+	}
+	p = testWatch(nil, nil, &watchRPC{sigErr: errs.New(errs.CodeInternal, "test.sigs")}, nil)
+	if err := p.seedWallet(t.Context(), wallet); errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("seedWallet signatures error = %v, want %s", err, errs.CodeRPCUnavailable)
+	}
+	p.limit = rate.NewLimiter(rate.Limit(1), 0)
+	if err := p.seedWallet(t.Context(), wallet); !errors.Is(err, errRateBudgetSpent) {
+		t.Fatalf("seedWallet with a spent budget = %v, want errRateBudgetSpent", err)
+	}
+}
+
+func TestDepositWatchFirstSightSkipsSignaturesAboveTheContextSlotAcrossPages(t *testing.T) {
+	t.Parallel()
+	above := make([]solana.SignatureInfo, depositSignaturePageSize)
+	for i := range above {
+		above[i] = solana.SignatureInfo{Signature: "above", Slot: 9}
+	}
+	rpc := &watchRPC{
+		pages: [][]solana.SignatureInfo{above, {{Signature: "at", Slot: 5}, {Signature: "older", Slot: 4}}},
+	}
+	got, err := testWatch(nil, nil, rpc, nil).newestAtOrBelow(t.Context(), "account", 5)
+	if err != nil || got.Signature != "at" {
+		t.Fatalf("newestAtOrBelow = %+v, %v; want the newest signature at or below slot 5", got, err)
+	}
+	rpc = &watchRPC{pages: [][]solana.SignatureInfo{{{Signature: "above", Slot: 9}}}}
+	if got, err := testWatch(
+		nil,
+		nil,
+		rpc,
+		nil,
+	).newestAtOrBelow(t.Context(), "account", 5); err != nil ||
+		got.Signature != "" {
+		t.Fatalf("newestAtOrBelow = %+v, %v; want none", got, err)
+	}
+}
+
+func watchWithDroppedTable(t *testing.T, table string) (*DepositWatch, context.Context, testkit.SeededUser) {
+	t.Helper()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	if _, err := pool.Exec(t.Context(), `DROP TABLE `+table+` CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(91), clock.Real{}), &watchRPC{}, nil)
+	return p, observability.WithActor(t.Context(), "system:test"), user
+}
+
+func TestDepositWatchReturnsCommitFailuresWithoutAccountRows(t *testing.T) {
+	t.Parallel()
+	p, ctx, user := watchWithDroppedTable(t, "deposit_watch_accounts")
+	row := sqlc.DepositWatchDirtyAccountsRow{
+		TokenAccount: "account", WalletAddress: string(user.Address), UserID: user.ID.UUID(),
+	}
+	short := []solana.SignatureInfo{{Signature: "signature", Slot: 1, Failed: true}}
+	for name, page := range map[string][]solana.SignatureInfo{
+		"checkpoint": make([]solana.SignatureInfo, depositSignaturePageSize), "complete": nil, "short": short,
+	} {
+		if _, err := p.commitPage(ctx, row, page); err == nil {
+			t.Fatalf("commitPage %s error = nil", name)
+		}
+	}
+	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
+	seeds := []watchSeed{{state: solana.TokenAccountState{Address: "account"}}}
+	if err := p.persistSeeds(ctx, wallet, "other", seeds, 1); err == nil {
+		t.Fatal("persistSeeds account error = nil")
+	}
+}
+
+func TestDepositWatchReturnsSeedFailuresWithoutWalletRows(t *testing.T) {
+	t.Parallel()
+	p, ctx, user := watchWithDroppedTable(t, "deposit_watch_wallets")
+	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
+	if err := p.persistSeeds(ctx, wallet, "other", nil, 1); err == nil {
+		t.Fatal("persistSeeds wallet error = nil")
+	}
+}
+
+func seedWatchRows(t *testing.T, pool sqlc.DBTX, user testkit.SeededUser, high string) {
+	t.Helper()
+	ata, err := chain.AssociatedTokenAccount(user.Address, testkit.USDCMint, chain.SPLProgram)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
+		VALUES ($1, $2, 0, now())`, user.Address, user.ID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO deposit_watch_accounts (token_account, wallet_address, canonical, state, dirty_gen,
+			high_signature, recovery_due_at) VALUES ($1, $2, true, 'open', 1, NULLIF($3, ''), now())`,
+		ata, user.Address, high); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDepositWatchCatchesUpADirtyAccountPageByPage(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	seedWatchRows(t, pool, user, "baseline")
+	full := make([]solana.SignatureInfo, depositSignaturePageSize)
+	for i := range full {
+		full[i] = solana.SignatureInfo{Signature: chain.Signature(fmt.Sprintf("sig%d", 2000-i)), Slot: uint64(2000 - i)}
+	}
+	rpc := &watchRPC{pages: [][]solana.SignatureInfo{full, {{Signature: "last", Slot: 5}}}}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), rpc, &watchWallets{})
+	report, err := p.Tick(observability.WithActor(t.Context(), "system:test"))
+	if err != nil || report.Changed != 1001 || report.Scanned != 1 {
+		t.Fatalf("Tick = %+v, %v; want 1001 candidates from one dirty account", report, err)
+	}
+	var high string
+	var page *string
+	var clean, dirty int64
+	if err := pool.QueryRow(t.Context(),
+		`SELECT high_signature, page_before, clean_gen, dirty_gen FROM deposit_watch_accounts`,
+	).Scan(&high, &page, &clean, &dirty); err != nil || high != "sig2000" || page != nil || clean != dirty {
+		t.Fatalf("high/page/clean/dirty = %q/%v/%d/%d, %v; want sig2000, no page, clean", high, page, clean, dirty, err)
+	}
+}
+
+func TestDepositWatchFirstSightSeedsTheCanonicalAccountAndEveryReturnedOne(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	other := chain.SolanaAddress("Other111111111111111111111111111111111111111")
+	rpc := &watchRPC{slot: 9, accounts: []solana.TokenAccountState{{Address: other, Exists: true}}}
+	rpc.pages = [][]solana.SignatureInfo{{{Signature: "above", Slot: 12}, {Signature: "tip", Slot: 9}}, nil}
+	wallets := &watchWallets{wallets: []port.MemberWallet{{UserID: user.ID, Address: user.Address}}}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), rpc, wallets)
+	report, err := p.Tick(observability.WithActor(t.Context(), "system:test"))
+	if err != nil || report.Scanned != 1 || report.Changed != 0 {
+		t.Fatalf("Tick = %+v, %v; want one wallet seeded", report, err)
+	}
+	var accounts, withTip int
+	var firstSeen int64
+	if err := pool.QueryRow(t.Context(),
+		`SELECT count(*), count(*) FILTER (WHERE high_signature = 'tip'), min(w.first_seen_slot)
+		FROM deposit_watch_accounts a JOIN deposit_watch_wallets w USING (wallet_address)`,
+	).Scan(&accounts, &withTip, &firstSeen); err != nil || accounts != 2 || withTip != 1 || firstSeen != 9 {
+		t.Fatalf("accounts/withTip/firstSeen = %d/%d/%d, %v; want 2/1/9", accounts, withTip, firstSeen, err)
+	}
+}
+
+func TestDepositWatchTickEndsQuietlyWhenTheRateBudgetIsSpent(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	wallets := &watchWallets{wallets: []port.MemberWallet{{UserID: user.ID, Address: user.Address}}}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), &watchRPC{}, wallets)
+	p.limit = rate.NewLimiter(rate.Limit(1), 0)
+	if report, err := p.Tick(t.Context()); err != nil || report.Scanned != 0 {
+		t.Fatalf("Tick = %+v, %v; want no error and nothing scanned", report, err)
+	}
+}
+
+func TestDepositWatchStopsTheTickWhenADirtyAccountCannotBeScanned(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	seedWatchRows(t, pool, user, "baseline")
+	rpc := &watchRPC{sigErr: errs.New(errs.CodeInternal, "test.sigs")}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), rpc, &watchWallets{})
+	if _, err := p.Tick(t.Context()); errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("Tick = %v, want %s", err, errs.CodeRPCUnavailable)
+	}
+}
+
+func TestDepositWatchRejectsAPageWithASlotAboveInt64(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	seedWatchRows(t, pool, user, "baseline")
+	rpc := &watchRPC{pages: [][]solana.SignatureInfo{{{Signature: "huge", Slot: math.MaxInt64 + 1}}}}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), rpc, &watchWallets{})
+	if _, err := p.Tick(t.Context()); err == nil {
+		t.Fatal("Tick error = nil")
+	}
+}
+
+func TestDepositWatchReturnsACommitFailure(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	if _, err := pool.Exec(t.Context(), `DROP TABLE deposit_watch_accounts CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), &watchRPC{}, nil)
+	row := sqlc.DepositWatchDirtyAccountsRow{TokenAccount: "account", WalletAddress: string(user.Address)}
+	page := []solana.SignatureInfo{{Signature: "signature", Slot: 1, Failed: true}}
+	ctx := observability.WithActor(t.Context(), "system:test")
+	if _, err := p.commitPage(ctx, row, page); err == nil {
+		t.Fatal("commitPage error = nil")
+	}
+	recorded := []solana.SignatureInfo{{Signature: "signature", Slot: 1}}
+	if _, err := p.commitPage(t.Context(), row, recorded); err == nil {
+		t.Fatal("commitPage without an actor error = nil")
+	}
+}

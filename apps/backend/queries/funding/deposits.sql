@@ -75,3 +75,41 @@ INSERT INTO deposit_watch_accounts (
   sqlc.arg(dirty_gen)::bigint, sqlc.arg(dirty_slot)::bigint,
   NULLIF(sqlc.arg(high_signature)::text, ''), sqlc.arg(high_slot)::bigint, sqlc.arg(recovery_due_at)::timestamptz)
 ON CONFLICT (token_account) DO NOTHING;
+
+-- name: DepositWatchDirtyAccounts :many
+SELECT a.token_account, a.wallet_address, w.user_id, a.dirty_gen, a.dirty_slot, a.observed_slot,
+  a.high_signature, a.page_before
+FROM deposit_watch_accounts a
+JOIN deposit_watch_wallets w ON w.wallet_address = a.wallet_address
+WHERE a.dirty_gen > a.clean_gen AND a.state <> 'foreign'
+ORDER BY a.dirty_slot, a.token_account
+LIMIT $1;
+
+-- name: DepositWatchKnownWallets :many
+SELECT wallet_address
+FROM deposit_watch_wallets
+WHERE wallet_address = ANY(sqlc.arg(wallet_addresses)::text[]);
+
+-- name: MarkDepositWatchAccountDirty :execrows
+UPDATE deposit_watch_accounts
+SET dirty_gen = dirty_gen + 1, dirty_slot = GREATEST(dirty_slot, sqlc.arg(slot)::bigint)
+WHERE token_account = $1;
+
+-- name: CheckpointDepositWatchPage :exec
+UPDATE deposit_watch_accounts
+SET page_before = sqlc.arg(page_before)::text,
+    page_top_signature = COALESCE(page_top_signature, sqlc.arg(page_top_signature)::text),
+    page_top_slot = COALESCE(page_top_slot, sqlc.arg(page_top_slot)::bigint),
+    scanned_at = sqlc.arg(scanned_at)::timestamptz
+WHERE token_account = $1;
+
+-- name: CompleteDepositWatchPage :exec
+UPDATE deposit_watch_accounts
+SET high_signature = COALESCE(page_top_signature, high_signature),
+    high_slot = COALESCE(page_top_slot, high_slot),
+    page_before = NULL,
+    page_top_signature = NULL,
+    page_top_slot = NULL,
+    clean_gen = $2,
+    scanned_at = sqlc.arg(scanned_at)::timestamptz
+WHERE token_account = $1 AND clean_gen < $2;
