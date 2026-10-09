@@ -352,6 +352,36 @@ final class UserProfileListModelTests: XCTestCase {
         XCTAssertTrue(paths[2].contains("/following"))
     }
 
+    func testRefreshingFollowersKeepsTheRowsPagedPastTheFirstPage() async throws {
+        let page = Components.Schemas.FollowsPage.self
+        let transport = try StubTransport(scripted: [.page(.sampleFirst), .page(.sampleLast), .page(.sampleFirst)])
+        let model = UserProfileSupport.model(transport)
+
+        await model.loadFollowers()
+        await model.loadMoreFollowers()
+        await model.refreshFollowers()
+
+        XCTAssertEqual(model.followerRows.map(\.id), (page.sampleFirst.items + page.sampleLast.items).map(\.userId))
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 3)
+        XCTAssertEqual(paths[2], "/v1/users/\(UserProfileSupport.userID)/followers?limit=30")
+    }
+
+    func testRefreshingFollowingKeepsTheRowsPagedPastTheFirstPage() async throws {
+        let page = Components.Schemas.FollowsPage.self
+        let transport = try StubTransport(scripted: [.page(.sampleFirst), .page(.sampleLast), .page(.sampleFirst)])
+        let model = UserProfileSupport.model(transport)
+
+        await model.loadFollowing()
+        await model.loadMoreFollowing()
+        await model.refreshFollowing()
+
+        XCTAssertEqual(model.followingRows.map(\.id), (page.sampleFirst.items + page.sampleLast.items).map(\.userId))
+        let paths = await transport.sent.compactMap(\.path)
+        XCTAssertEqual(paths.count, 3)
+        XCTAssertEqual(paths[2], "/v1/users/\(UserProfileSupport.userID)/following?limit=30")
+    }
+
     func testAFailedFirstListLoadHasNoRowsAndNoToast() async throws {
         let transport = StubTransport(UserProfileSupport.problem(500, "internal", "Something went wrong."))
         let model = UserProfileSupport.model(transport)
