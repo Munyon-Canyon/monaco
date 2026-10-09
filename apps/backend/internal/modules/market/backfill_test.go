@@ -94,6 +94,10 @@ func (r *backfillRig) ctx(t *testing.T) context.Context {
 func (r *backfillRig) pend(t *testing.T, mints ...market.Mint) {
 	t.Helper()
 	for i, m := range mints {
+		r.exec(t, `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable,
+				company_key, first_seen_at, updated_at, chain_checked_at)
+			VALUES (('01920000-0000-7000-8000-' || substr(md5($1), 1, 12))::uuid, left($1, 10), $1, 8, 'xstocks', 'equity', $1, true, $1, $2, $2, $2)
+			ON CONFLICT (mint) DO NOTHING`, m.String(), r.clock.Now())
 		r.exec(t, `INSERT INTO price_backfills (mint, requested_at) VALUES ($1, $2)
 			ON CONFLICT (mint) DO UPDATE SET done_at = NULL, last_code = NULL`, m.String(),
 			r.clock.Now().Add(time.Duration(i)*time.Second))
@@ -358,16 +362,14 @@ func TestBackfill_aRateLimitStopsTheTickAndFreshMintsGoFirst(t *testing.T) {
 	}
 }
 
-func TestBackfill_aBadMintInTheTableIsRecordedNotFatal(t *testing.T) {
+func TestBackfill_aBadMintInARunIsRecordedNotFatal(t *testing.T) {
 	t.Parallel()
 	r := newBackfillRig(t)
 	aapl := marketfake.AAPLx().Mint
-	r.exec(t, `INSERT INTO price_backfills (mint, requested_at) VALUES ('not-a-mint', $1)`,
-		r.clock.Now().Add(-time.Hour))
 	r.pend(t, aapl)
-	_, err := r.tick(t)
+	_, err := r.poller.Run(r.ctx(t), []string{"not-a-mint", aapl.String()})
 	if errs.CodeOf(err) != errs.CodeInvalidAddress {
-		t.Fatalf("tick err = %v, want invalid_address", err)
+		t.Fatalf("run err = %v, want invalid_address", err)
 	}
 	if done, _ := r.status(t, aapl); !done {
 		t.Fatal("the good mint behind the bad one was not backfilled")
@@ -635,14 +637,65 @@ func TestBackfill_aSharedCooldownPausesEveryCoinGeckoPoller(t *testing.T) {
 	r.pend(t, marketfake.AAPLx().Mint)
 	cool := app.NewCooldown(r.clock)
 	r.poller.WithCooldown(cool)
-	rec := app.NewReconcile(r.uow, r.pool, r.clock, r.history).WithCooldown(cool)
-	r.history.FailOnce("MarketChart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
-	if _, err := r.tick(t); errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited {
-		t.Fatalf("tick err = %v, want coin_gecko_rate_limited", err)
+	cool.Trip(t.Context(), "market.reconcile", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+	if report, err := r.tick(t); err != nil || report.Scanned != 0 || len(r.history.Calls()) != 0 {
+		t.Fatalf("backfill in the cooldown = %+v, %v, %d calls, want none", report, err, len(r.history.Calls()))
 	}
-	calls := len(r.history.Calls())
-	if _, err := rec.Tick(r.ctx(t)); err != nil || len(r.history.Calls()) != calls {
-		t.Fatalf("reconcile in the cooldown made %d calls, err %v", len(r.history.Calls())-calls, err)
+	rec := app.NewReconcile(r.uow, r.pool, r.clock, r.history).WithCooldown(cool)
+	r.clock.Advance(time.Minute)
+	if _, err := rec.Tick(r.ctx(t)); err != nil {
+		t.Fatalf("reconcile after the cooldown: %v", err)
+	}
+}
+
+func TestBackfill_aCooldownAnotherPollerStartsMidMintStopsTheNextCallAndKeepsTheMintPending(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl, tsla := marketfake.AAPLx().Mint, marketfake.TSLAx().Mint
+	r.pend(t, aapl, tsla)
+	cool := app.NewCooldown(r.clock)
+	r.poller.WithCooldown(cool)
+	r.history.During(func() {
+		cool.Trip(t.Context(), "market.reconcile", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+	})
+	if _, err := r.tick(t); err != nil {
+		t.Fatalf("tick err = %v, want the cooldown to stop it quietly", err)
+	}
+	if n := len(r.history.Calls()); n != 1 {
+		t.Fatalf("%d calls, want the one in flight and no more", n)
+	}
+	if n := r.attempts(t, aapl); n != 0 {
+		t.Fatalf("attempts = %d, want the stopped mint not counted as a failure", n)
+	}
+	if done, code := r.status(t, aapl); done || code != "" {
+		t.Fatalf("mint done = %v, code %q, want it pending", done, code)
+	}
+}
+
+func TestBackfill_aDelistedOrUncheckedMintCostsNoCallsAndKeepsItsRow(t *testing.T) {
+	t.Parallel()
+	r := newBackfillRig(t)
+	aapl, tsla, jpst := marketfake.AAPLx().Mint, marketfake.TSLAx().Mint, marketfake.JPSTx().Mint
+	r.pend(t, aapl, tsla, jpst)
+	r.exec(t, `UPDATE assets SET tradable_override = false WHERE mint = $1`, aapl.String())
+	r.exec(t, `UPDATE assets SET chain_checked_at = NULL WHERE mint = $1`, tsla.String())
+	report, err := r.tick(t)
+	if err != nil || report.Scanned != 1 {
+		t.Fatalf("tick = %+v, %v, want only the listed mint", report, err)
+	}
+	for _, c := range r.history.Calls() {
+		if c.Mint != jpst {
+			t.Fatalf("call for %s, want the delisted and unchecked mints skipped", c.Mint)
+		}
+	}
+	want := mintStrings(aapl, tsla, jpst)
+	if got := queued(t, r.pool); !slices.Equal(got, want) {
+		t.Fatalf("queue = %v, want the rows kept: %v", got, want)
+	}
+	r.exec(t, `UPDATE assets SET tradable_override = NULL WHERE mint = $1`, aapl.String())
+	r.clock.Advance(time.Minute)
+	if report, err := r.tick(t); err != nil || report.Scanned != 1 {
+		t.Fatalf("tick after relisting = %+v, %v, want the kept row served", report, err)
 	}
 }
 
@@ -688,13 +741,15 @@ func TestBackfill_popularMintsGoBeforeOthers(t *testing.T) {
 	r := newBackfillRig(t)
 	aapl, tsla, jpst := marketfake.AAPLx(), marketfake.TSLAx(), marketfake.JPSTx()
 	aapl.PopularRank, tsla.PopularRank, jpst.PopularRank = 0, 2, 1
+	jpst.IssuerTradable = true
 	seedAssets(t, r.pool, r.clock.Now(), aapl, tsla, jpst)
 	r.pend(t, aapl.Mint, tsla.Mint, jpst.Mint)
 	other, err := market.ParseMint("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 	if err != nil {
 		t.Fatal(err)
 	}
-	r.exec(t, `INSERT INTO price_backfills (mint, requested_at) VALUES ($1, $2)`,
+	r.pend(t, other)
+	r.exec(t, `UPDATE price_backfills SET requested_at = $2 WHERE mint = $1`,
 		other.String(), r.clock.Now().Add(-time.Hour))
 
 	if _, err := r.tick(t); err != nil {

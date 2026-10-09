@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -156,4 +158,18 @@ func TestClockNotifyTickersReportsEachNewTickerInterval(t *testing.T) {
 			t.Fatalf("notified interval = %v, want %v", got, want)
 		}
 	}
+}
+
+func TestClockNotifyAftersFiresAfterTheTimerIsScheduled(t *testing.T) {
+	t.Parallel()
+	c := testkit.NewClock(epoch())
+	made := make(chan time.Duration, 1)
+	c.NotifyAfters(made)
+	var advance errgroup.Group
+	advance.Go(func() error {
+		c.Advance(<-made)
+		return nil
+	})
+	<-c.After(time.Minute)
+	_ = advance.Wait()
 }

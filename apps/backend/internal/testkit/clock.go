@@ -13,6 +13,7 @@ type Clock struct {
 	now     time.Time
 	pending []*timer
 	tickers chan<- time.Duration
+	afters  chan<- time.Duration
 }
 
 type timer struct {
@@ -33,13 +34,30 @@ func (c *Clock) Now() time.Time {
 }
 
 func (c *Clock) After(d time.Duration) <-chan time.Time {
-	return c.schedule(d, 0).ch
+	t := c.schedule(d, 0)
+	c.mu.Lock()
+	notify := c.afters
+	c.mu.Unlock()
+	if notify != nil {
+		select {
+		case notify <- d:
+		default:
+		}
+	}
+	return t.ch
+}
+
+func (c *Clock) NotifyAfters(ch chan<- time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.afters = ch
 }
 
 func (c *Clock) NewTicker(d time.Duration) clock.Ticker {
 	if d <= 0 {
 		panic("testkit.Clock.NewTicker: non-positive interval")
 	}
+	t := c.schedule(d, d)
 	c.mu.Lock()
 	notify := c.tickers
 	c.mu.Unlock()
@@ -49,7 +67,7 @@ func (c *Clock) NewTicker(d time.Duration) clock.Ticker {
 		default:
 		}
 	}
-	return c.schedule(d, d)
+	return t
 }
 
 func (c *Clock) NotifyTickers(ch chan<- time.Duration) {
