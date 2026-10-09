@@ -62,7 +62,7 @@ struct CommentComposer: View {
                         onCancelReply()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(MonacoTheme.Typo.captionStrong)
                             .foregroundStyle(MonacoTheme.muted)
                             .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
@@ -144,7 +144,7 @@ struct ComposerSendDisc: View {
                     .tint(MonacoTheme.onBrand)
             } else {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(MonacoTheme.Typo.subheadStrong)
                     .foregroundStyle(isLive ? MonacoTheme.onBrand : MonacoTheme.disabledLabel)
             }
         }

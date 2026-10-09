@@ -329,3 +329,18 @@ struct SunkenGlyphMark: View {
             .accessibilityHidden(true)
     }
 }
+
+struct CameraBadgeMark: View {
+    let diameter: CGFloat
+    let ring: CGFloat
+
+    var body: some View {
+        Image(systemName: "camera.fill")
+            .font(.system(size: diameter * 0.48, weight: .semibold))
+            .foregroundStyle(MonacoTheme.primaryButtonLabel)
+            .frame(width: diameter, height: diameter)
+            .background(MonacoTheme.primaryButtonFill, in: Circle())
+            .overlay { Circle().strokeBorder(MonacoTheme.canvas, lineWidth: ring) }
+            .accessibilityHidden(true)
+    }
+}
