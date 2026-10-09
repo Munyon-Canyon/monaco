@@ -32,6 +32,7 @@ type Order struct {
 	RequestID   string
 	Transaction []byte
 	OutAmount   uint64
+	MinOut      uint64
 }
 
 type ExecuteStatus uint8

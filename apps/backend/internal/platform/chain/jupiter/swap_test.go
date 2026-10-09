@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -37,7 +38,8 @@ func TestOrder_buySendsTakerAndReturnsTheUnsignedTransaction(t *testing.T) {
 	}
 	want := jupiter.Order{
 		RequestID: "req-buy-aaplx-1", Transaction: []byte("unsigned-buy-tx"), InMint: usdc(), OutMint: aaplx(),
-		InAmount: units(25_000_000, usdc()), OutAmount: units(11_000_000, aaplx()), Router: "iris",
+		InAmount: units(25_000_000, usdc()), OutAmount: units(11_000_000, aaplx()),
+		MinOut: units(10_945_000, aaplx()), Router: "iris",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Order = %+v, want %+v", got, want)
@@ -80,7 +82,8 @@ func TestOrder_sellParsesAmountsInEachMintsDecimals(t *testing.T) {
 		t.Fatalf("order query = %v, want no payer when the spec names none", q)
 	}
 	if got.RequestID != "req-sell-aaplx-1" || string(got.Transaction) != "unsigned-sell-tx" ||
-		got.InAmount != units(11_000_000, aaplx()) || got.OutAmount != units(24_870_000, usdc()) {
+		got.InAmount != units(11_000_000, aaplx()) || got.OutAmount != units(24_870_000, usdc()) ||
+		got.MinOut != units(24_621_300, usdc()) {
 		t.Fatalf("Order = %+v", got)
 	}
 }
@@ -118,11 +121,28 @@ func TestOrder_malformedResponsesAreDecodeFailures(t *testing.T) {
 		"bad base64":     `{"inAmount":"1","outAmount":"5",` + routed + `%%%"}`,
 		"bad in amount":  `{"inAmount":"-1","outAmount":"5",` + routed + tx + `}`,
 		"bad out amount": `{"inAmount":"1","outAmount":"5.5",` + routed + tx + `}`,
+		"no threshold":   `{"inAmount":"1","outAmount":"5",` + routed + tx + `}`,
+		"bad threshold":  `{"inAmount":"1","outAmount":"5","otherAmountThreshold":"4.5",` + routed + tx + `}`,
 	} {
 		_, err := client(replying(http.StatusOK, body)).Order(t.Context(),
 			jupiter.OrderSpec{In: usdc(), Out: aaplx(), Amount: units(1, usdc())})
 		if errs.CodeOf(err) != errs.CodeDecodeFailed {
 			t.Fatalf("%s: err = %v, want decode_failed", name, err)
+		}
+	}
+}
+
+func TestOrder_minOutIsTheThresholdJupiterEnforcesAtTheRequestedSlippage(t *testing.T) {
+	t.Parallel()
+	tx := base64.StdEncoding.EncodeToString([]byte("tx"))
+	for bps, threshold := range map[int64]uint64{30: 282_378, 100: 280_395} {
+		body := `{"inAmount":"1000000","outAmount":"283228","otherAmountThreshold":"` +
+			strconv.FormatUint(threshold, 10) + `","slippageBps":` + strconv.FormatInt(bps, 10) +
+			`,"mode":"manual","routePlan":[{}],"transaction":"` + tx + `"}`
+		got, err := client(replying(http.StatusOK, body)).Order(t.Context(),
+			jupiter.OrderSpec{In: usdc(), Out: aaplx(), Amount: units(1_000_000, usdc()), SlippageBps: bps})
+		if err != nil || got.OutAmount != units(283_228, aaplx()) || got.MinOut != units(threshold, aaplx()) {
+			t.Fatalf("at %d bps Order = %+v, %v, want min out %d", bps, got, err, threshold)
 		}
 	}
 }

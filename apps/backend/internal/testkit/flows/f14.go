@@ -341,7 +341,8 @@ func jupiterSells(script string, raised string) scenario.Step {
 		unsigned := chainfake.Unsigned(payer, chainfake.WalletAddress(treasuryWalletID(s)))
 		order, _ := json.Marshal(map[string]any{
 			"requestId": "req-f14-" + script, "inputMint": mint, "outputMint": testkit.USDCMint,
-			"inAmount": strconv.Itoa(f14StockUnits), "outAmount": strconv.Itoa(f14StockQuote), "router": "iris",
+			"inAmount": strconv.Itoa(f14StockUnits), "outAmount": strconv.Itoa(f14StockQuote),
+			"otherAmountThreshold": strconv.Itoa(f14StockQuote), "router": "iris",
 			"priceImpactPct": "0.01", "routePlan": []any{map[string]any{"percent": 100}},
 			"transaction": base64.StdEncoding.EncodeToString(unsigned),
 		})

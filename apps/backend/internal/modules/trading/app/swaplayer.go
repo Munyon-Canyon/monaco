@@ -130,19 +130,15 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 	if err != nil {
 		return err
 	}
-	var order Order
-	err = retryBriefly(ctx, l.d.Clock, func() (err error) {
-		order, err = l.d.Venue.Order(ctx, OrderSpec{
-			Taker: req.TreasuryWallet.Address, Payer: payer, InMint: req.InMint, OutMint: req.OutMint,
-			InAmount: req.InAmount, SlippageBps: req.SlippageBps,
-		})
-		return err
-	})
+	floor := domain.SlippageOf(int32(min(max(req.SlippageBps, 0), math.MaxInt32))).MinOut(req.QuoteOutAmount)
+	order, err := l.order(ctx, req, payer, req.SlippageBps)
+	if err == nil && order.OutAmount >= floor && order.MinOut < floor {
+		order, err = l.order(ctx, req, payer, domain.SlippageKeeping(order.OutAmount, floor))
+	}
 	if err != nil {
 		return l.orderFailed(ctx, req, id, err)
 	}
-	slippage := domain.SlippageOf(int32(min(max(req.SlippageBps, 0), math.MaxInt32)))
-	if slippage.MinOut(order.OutAmount) < slippage.MinOut(req.QuoteOutAmount) {
+	if order.OutAmount < floor || order.MinOut < floor {
 		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, orderBelowFloor))
 		return err
 	}
@@ -163,6 +159,19 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 	result, err := l.d.Venue.ExecuteUntilTerminal(ctx, order.RequestID, signed)
 	faultpoint.Hit(ctx, faultpoint.AfterExecute)
 	return l.settle(ctx, req, id, signature, result, err)
+}
+
+func (l *SwapLayer) order(
+	ctx context.Context, req SwapRequest, payer chain.SolanaAddress, slippageBps int64,
+) (order Order, err error) {
+	err = retryBriefly(ctx, l.d.Clock, func() (err error) {
+		order, err = l.d.Venue.Order(ctx, OrderSpec{
+			Taker: req.TreasuryWallet.Address, Payer: payer, InMint: req.InMint, OutMint: req.OutMint,
+			InAmount: req.InAmount, SlippageBps: slippageBps,
+		})
+		return err
+	})
+	return order, err
 }
 
 func (l *SwapLayer) settle(

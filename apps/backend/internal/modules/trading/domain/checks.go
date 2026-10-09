@@ -28,6 +28,11 @@ func (s Slippage) MinOut(quoteOut uint64) uint64 {
 	return out.Quo(out, big.NewInt(bpsScale)).Uint64()
 }
 
+func SlippageKeeping(out, floor uint64) int64 {
+	gap := new(big.Int).Mul(new(big.Int).SetUint64(out-floor), big.NewInt(bpsScale))
+	return gap.Quo(gap, new(big.Int).SetUint64(out)).Int64()
+}
+
 func FeeHeadroom(amount uint64, feeBps uint16, maxFee uint64) uint64 {
 	fee := new(big.Int).Mul(new(big.Int).SetUint64(amount), big.NewInt(int64(feeBps)))
 	fee.Add(fee, big.NewInt(bpsScale-1))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"math"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ type Venue struct {
 	mu       sync.Mutex
 	orders   map[pair]jupiter.Order
 	quotes   map[pair]jupiter.Quote
+	slippage []int64
 	executes map[string][]jupiter.ExecuteResult
 	sent     map[string][][]byte
 	sol      map[jupiter.SolanaAddress]uint64
@@ -73,12 +75,19 @@ func (v *Venue) Sent(requestID string) [][]byte {
 	return append([][]byte(nil), v.sent[requestID]...)
 }
 
+func (v *Venue) Slippages() []int64 {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return append([]int64(nil), v.slippage...)
+}
+
 func (v *Venue) Order(_ context.Context, spec jupiter.OrderSpec) (jupiter.Order, error) {
 	if err := v.Check("Order"); err != nil {
 		return jupiter.Order{}, err
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	v.slippage = append(v.slippage, spec.SlippageBps)
 	if spec.Payer == "" && v.sol[spec.Taker] == 0 {
 		return jupiter.Order{}, errs.New(errs.CodeJupiterRejected, "jupiterfake.Order",
 			slog.String("taker", string(spec.Taker)), slog.String("reason", "Failed to get quotes"))
@@ -91,7 +100,15 @@ func (v *Venue) Order(_ context.Context, spec jupiter.OrderSpec) (jupiter.Order,
 	if o.OutAmount == (money.BaseUnits{}) {
 		o.OutAmount = money.NewBaseUnits(math.MaxUint64, 0)
 	}
+	if o.MinOut == (money.BaseUnits{}) {
+		o.MinOut = minOut(o.OutAmount, spec.SlippageBps)
+	}
 	return o, nil
+}
+
+func minOut(out money.BaseUnits, slippageBps int64) money.BaseUnits {
+	n := new(big.Int).Mul(new(big.Int).SetUint64(out.Uint64()), big.NewInt(10_000-slippageBps))
+	return money.NewBaseUnits(n.Quo(n, big.NewInt(10_000)).Uint64(), out.Decimals())
 }
 
 func (v *Venue) Quote(_ context.Context, spec jupiter.QuoteSpec) (jupiter.Quote, error) {

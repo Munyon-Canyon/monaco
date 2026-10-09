@@ -40,6 +40,7 @@ type Order struct {
 	OutMint     Mint
 	InAmount    money.BaseUnits
 	OutAmount   money.BaseUnits
+	MinOut      money.BaseUnits
 	Router      string
 }
 

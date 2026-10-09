@@ -43,15 +43,16 @@ type swapOrder struct {
 }
 
 type orderReply struct {
-	RequestID      string           `json:"requestId"`
-	InputMint      string           `json:"inputMint"`
-	OutputMint     string           `json:"outputMint"`
-	InAmount       string           `json:"inAmount"`
-	OutAmount      string           `json:"outAmount"`
-	Router         string           `json:"router"`
-	PriceImpactPct string           `json:"priceImpactPct"`
-	RoutePlan      []map[string]any `json:"routePlan"`
-	Transaction    string           `json:"transaction"`
+	RequestID            string           `json:"requestId"`
+	InputMint            string           `json:"inputMint"`
+	OutputMint           string           `json:"outputMint"`
+	InAmount             string           `json:"inAmount"`
+	OutAmount            string           `json:"outAmount"`
+	OtherAmountThreshold string           `json:"otherAmountThreshold"`
+	Router               string           `json:"router"`
+	PriceImpactPct       string           `json:"priceImpactPct"`
+	RoutePlan            []map[string]any `json:"routePlan"`
+	Transaction          string           `json:"transaction"`
 }
 
 func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
@@ -64,8 +65,9 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in, okIn := new(big.Int).SetString(q.Get("amount"), 10)
+	bps, okBps := slippageBps(q.Get("slippageBps"))
 	signers, err := orderSigners(q.Get("payer"), taker)
-	if !okIn || in.Sign() <= 0 || err != nil {
+	if !okIn || in.Sign() <= 0 || err != nil || !okBps {
 		writeStatusJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid order", "errorCode": 400})
 		return
 	}
@@ -83,7 +85,8 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	writeJSON(w, orderReply{
 		RequestID: id, InputMint: q.Get("inputMint"), OutputMint: q.Get("outputMint"),
-		InAmount: in.String(), OutAmount: out, Router: "iris", PriceImpactPct: "0.12",
+		InAmount: in.String(), OutAmount: out, OtherAmountThreshold: threshold(out, bps),
+		Router: "iris", PriceImpactPct: "0.12",
 		RoutePlan:   []map[string]any{{"swapInfo": map[string]string{"label": "Meteora DLMM"}, "percent": 100}},
 		Transaction: base64.StdEncoding.EncodeToString(tx),
 	})
@@ -113,6 +116,20 @@ func scaled(in *big.Int, quoted orderReply) string {
 		return "0"
 	}
 	return new(big.Int).Quo(new(big.Int).Mul(in, num), den).String()
+}
+
+func slippageBps(raw string) (int64, bool) {
+	if raw == "" {
+		return 0, true
+	}
+	bps, err := strconv.ParseInt(raw, 10, 64)
+	return bps, err == nil && bps >= 0 && bps <= 10_000
+}
+
+func threshold(out string, bps int64) string {
+	n, _ := new(big.Int).SetString(out, 10)
+	n.Mul(n, big.NewInt(10_000-bps))
+	return n.Quo(n, big.NewInt(10_000)).String()
 }
 
 func orderSigners(payer, taker string) ([]chain.SolanaAddress, error) {

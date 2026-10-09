@@ -16,16 +16,17 @@ import (
 )
 
 type orderWire struct {
-	RequestID      string            `json:"requestId"`
-	Transaction    string            `json:"transaction"`
-	InAmount       string            `json:"inAmount"`
-	OutAmount      string            `json:"outAmount"`
-	Router         string            `json:"router"`
-	PriceImpactPct json.Number       `json:"priceImpactPct"`
-	RoutePlan      []json.RawMessage `json:"routePlan"`
-	ErrorCode      int               `json:"errorCode"`
-	ErrorMessage   string            `json:"errorMessage"`
-	Error          string            `json:"error"`
+	RequestID            string            `json:"requestId"`
+	Transaction          string            `json:"transaction"`
+	InAmount             string            `json:"inAmount"`
+	OutAmount            string            `json:"outAmount"`
+	OtherAmountThreshold string            `json:"otherAmountThreshold"`
+	Router               string            `json:"router"`
+	PriceImpactPct       json.Number       `json:"priceImpactPct"`
+	RoutePlan            []json.RawMessage `json:"routePlan"`
+	ErrorCode            int               `json:"errorCode"`
+	ErrorMessage         string            `json:"errorMessage"`
+	Error                string            `json:"error"`
 }
 
 func (w orderWire) routed() bool {
@@ -75,9 +76,13 @@ func (c *Client) Order(ctx context.Context, spec OrderSpec) (Order, error) {
 	if err != nil {
 		return Order{}, err
 	}
+	minOut, err := baseUnits(w.OtherAmountThreshold, spec.Out, op)
+	if err != nil {
+		return Order{}, err
+	}
 	return Order{
 		RequestID: w.RequestID, Transaction: tx, InMint: spec.In, OutMint: spec.Out,
-		InAmount: in, OutAmount: out, Router: w.Router,
+		InAmount: in, OutAmount: out, MinOut: minOut, Router: w.Router,
 	}, nil
 }
 

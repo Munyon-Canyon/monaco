@@ -44,15 +44,18 @@ func TestSwapLayer_RunSubmitsTheSignedTransaction(t *testing.T) {
 
 type orderLog struct {
 	app.Venue
-	mu    sync.Mutex
-	specs []app.OrderSpec
+	mu     sync.Mutex
+	specs  []app.OrderSpec
+	orders []app.Order
 }
 
 func (o *orderLog) Order(ctx context.Context, spec app.OrderSpec) (app.Order, error) {
+	order, err := o.Venue.Order(ctx, spec)
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.specs = append(o.specs, spec)
-	o.mu.Unlock()
-	return o.Venue.Order(ctx, spec)
+	o.orders = append(o.orders, order)
+	return order, err
 }
 
 func TestSwapLayer_TheRelayerPaysTheFeeAndCoSigns(t *testing.T) {
@@ -353,7 +356,7 @@ func TestSwapLayer_OrderBelowTheFloorFailsBeforeSigning(t *testing.T) {
 		},
 	)
 	req := e.request(e.source())
-	below := req.QuoteOutAmount - 1_000_000
+	below := req.QuoteOutAmount - req.QuoteOutAmount/50
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
 		RequestID: "req-1", Transaction: swapTx(), OutAmount: money.NewBaseUnits(below, 6),
 	})
@@ -361,8 +364,16 @@ func TestSwapLayer_OrderBelowTheFloorFailsBeforeSigning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != domain.StatusFailed || got.FailureCode != domain.FailureNeverSubmitted || signs.Load() != 0 {
-		t.Fatalf("view = %+v after %d signs, want failed never_submitted and no signing", got, signs.Load())
+	e.assertBelowFloor(t, got, signs.Load())
+	if want := []int64{100}; !slices.Equal(e.jup.Slippages(), want) {
+		t.Fatalf("order slippages = %v, want %v and no re-order", e.jup.Slippages(), want)
+	}
+}
+
+func (e *layerEnv) assertBelowFloor(t *testing.T, got app.SwapView, signs int64) {
+	t.Helper()
+	if got.Status != domain.StatusFailed || got.FailureCode != domain.FailureNeverSubmitted || signs != 0 {
+		t.Fatalf("view = %+v after %d signs, want failed never_submitted and no signing", got, signs)
 	}
 	if code := e.payload(t, got.ID.UUID(), "trade.failed")["jupiter_code"]; code != "order_below_floor" {
 		t.Fatalf("jupiter_code = %v", code)
@@ -387,6 +398,8 @@ func TestSwapLayer_OrderAtTheReviewQuoteIsSigned(t *testing.T) {
 func TestSwapLayer_OrderInsideTheCabalSlippageOfTheReviewQuoteIsSigned(t *testing.T) {
 	t.Parallel()
 	e := newLayerEnv(t)
+	orders := &orderLog{Venue: e.venue}
+	e.venue = orders
 	req := e.request(e.source())
 	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
@@ -396,6 +409,54 @@ func TestSwapLayer_OrderInsideTheCabalSlippageOfTheReviewQuoteIsSigned(t *testin
 	got, err := e.run(t, req)
 	if err != nil || got.Status != domain.StatusSubmitted {
 		t.Fatalf("view = %+v, %v, want submitted for an order 0.5%% under the quote at 100 bps", got, err)
+	}
+	floor := domain.SlippageOf(100).MinOut(req.QuoteOutAmount)
+	if signed := orders.orders[len(orders.orders)-1]; signed.MinOut < floor {
+		t.Fatalf("signed order min out %d, want at least the Review floor %d", signed.MinOut, floor)
+	}
+}
+
+func TestSwapLayer_OrderInsideToleranceBelowTheFloorAtCabalSlippageReordersOnceTighter(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	req := e.request(e.source())
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
+	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
+		RequestID: "req-1", Transaction: swapTx(), OutAmount: money.NewBaseUnits(104_790_000, 6),
+	})
+	got, err := e.run(t, req)
+	if err != nil || got.Status != domain.StatusSubmitted {
+		t.Fatalf("view = %+v, %v, want submitted", got, err)
+	}
+	if want := []int64{100, 80}; !slices.Equal(e.jup.Slippages(), want) {
+		t.Fatalf("order slippages = %v, want %v: floor((104790000 - 103950000) × 10000 / 104790000) = 80",
+			e.jup.Slippages(), want)
+	}
+}
+
+func TestSwapLayer_ReorderStillBelowTheFloorFailsBeforeSigning(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	var signs atomic.Int64
+	e.signer = signerFunc(
+		func(ctx context.Context, wallet string, unsigned []byte) ([]byte, platform.Signature, error) {
+			signs.Add(1)
+			return e.chainSigner().Sign(ctx, wallet, unsigned)
+		},
+	)
+	req := e.request(e.source())
+	floor := domain.SlippageOf(100).MinOut(req.QuoteOutAmount)
+	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
+		RequestID: "req-1", Transaction: swapTx(),
+		OutAmount: money.NewBaseUnits(req.QuoteOutAmount, 6), MinOut: money.NewBaseUnits(floor-1, 6),
+	})
+	got, err := e.run(t, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.assertBelowFloor(t, got, signs.Load())
+	if n := len(e.jup.Slippages()); n != 2 {
+		t.Fatalf("%d orders, want the first and one tighter re-order", n)
 	}
 }
 
