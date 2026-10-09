@@ -24,6 +24,36 @@ final class AssetChartSeriesTests: XCTestCase {
         return AssetChartSeries(range: range, points: points, previousCloseUsdcMicros: previousClose)
     }
 
+    func testPlotted_thinsALongSeriesToTheCapAndKeepsBothEnds() {
+        let prices = (0..<2_160).map { 100_000_000 + Int64($0) * 1_000 }
+        let chart = series(range: .threeMonths, prices: prices, stepSeconds: 3_600)
+
+        XCTAssertEqual(chart.points.count, 2_160)
+        XCTAssertEqual(chart.plotted.count, AssetChartSeries.maximumPlottedPoints)
+        XCTAssertEqual(chart.plotted.first?.date, chart.points.first?.date)
+        XCTAssertEqual(chart.plotted.last?.date, chart.points.last?.date)
+        XCTAssertEqual(chart.plotted.last?.value, chart.points.last?.chartValue)
+    }
+
+    func testPlotted_leavesAShortSeriesUnchanged() {
+        let chart = series(prices: (0..<100).map { 100_000_000 + Int64($0) * 1_000 })
+
+        XCTAssertEqual(chart.plotted.count, 100)
+        XCTAssertEqual(chart.plotted.map(\.date), chart.points.map(\.date))
+        XCTAssertEqual(chart.plotted.map(\.value), chart.points.map(\.chartValue))
+    }
+
+    func testPlotted_indicesStayInsidePlottedAndMatchTheReadout() throws {
+        let chart = series(range: .threeMonths, prices: (0..<2_160).map { 100_000_000 + Int64($0) }, stepSeconds: 3_600)
+
+        for offset in [-1, 0, 1_000_000, 3_600 * 1_080, 3_600 * 2_159, 3_600 * 5_000] {
+            let index = try XCTUnwrap(chart.nearestIndex(to: tuesday.addingTimeInterval(TimeInterval(offset))))
+            XCTAssertTrue(chart.plotted.indices.contains(index), "offset \(offset)")
+            XCTAssertEqual(try XCTUnwrap(chart.point(at: index)).date, chart.plotted[index].date)
+        }
+        XCTAssertNil(chart.point(at: chart.plotted.count))
+    }
+
     // MARK: - Nearest point
 
     func testNearestIndex_takesTheCloserNeighbourNotTheEarlierOne() {

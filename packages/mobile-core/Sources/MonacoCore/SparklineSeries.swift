@@ -56,10 +56,10 @@ public struct SparklineSeries: Equatable, Sendable {
 
     /// Evenly spaced samples that always keep the real first and last point, so the
     /// ends of the drawn line are the ends of the window rather than near them.
-    static func downsample(_ values: [Int64], to limit: Int) -> [Int64] {
+    static func downsample<Element>(_ values: [Element], to limit: Int) -> [Element] {
         guard limit >= 2, values.count > limit else { return values }
         let lastIndex = values.count - 1
-        var out: [Int64] = []
+        var out: [Element] = []
         out.reserveCapacity(limit)
         for step in 0..<limit {
             let position = Double(step) * Double(lastIndex) / Double(limit - 1)

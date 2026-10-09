@@ -188,7 +188,7 @@ struct AssetDetailClientView: View {
 
     private func scrubChart(_ chart: AssetChartSeries, isMarketLive: Bool) -> some View {
         MonacoScrubChart(
-            points: chart.points.map { .init(date: $0.date, value: $0.chartValue) },
+            points: chart.plotted,
             tint: chartTone(chart),
             baseline: chart.drawsBaselineRule ? chart.baselineValue : nil,
             isLive: isMarketLive && chart.range == .oneDay,

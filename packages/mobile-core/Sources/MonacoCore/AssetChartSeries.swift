@@ -21,12 +21,16 @@ public struct AssetChartSeries: Equatable, Sendable {
     /// repeats, because the drawing side keys its marks by timestamp and two
     /// samples at one instant are two marks with one identity.
     public let points: [MarketChartPoint]
+    public let plotted: [PlottedPoint]
+    private let thinned: [MarketChartPoint]
     /// The close of the regular session before this window, when the source knew
     /// one. Only the day chart has a use for it.
     public let previousCloseUsdcMicros: Int64?
     public let source: MarketChartSource?
     public let basis: MarketPriceBasis?
     public let basisSymbol: String?
+
+    public static let maximumPlottedPoints = 400
 
     public init(
         range: AssetChartRange,
@@ -37,7 +41,11 @@ public struct AssetChartSeries: Equatable, Sendable {
         basisSymbol: String? = nil
     ) {
         self.range = range
-        self.points = Self.canonical(points)
+        let canonical = Self.canonical(points)
+        self.points = canonical
+        let thinned = SparklineSeries.downsample(canonical, to: Self.maximumPlottedPoints)
+        self.thinned = thinned
+        self.plotted = thinned.map { PlottedPoint(date: $0.date, value: $0.chartValue) }
         self.previousCloseUsdcMicros = previousCloseUsdcMicros
         self.source = source
         self.basis = basis
@@ -79,7 +87,7 @@ public struct AssetChartSeries: Equatable, Sendable {
     public var lastPoint: MarketChartPoint? { points.last }
 
     public func point(at index: Int) -> MarketChartPoint? {
-        points.indices.contains(index) ? points[index] : nil
+        thinned.indices.contains(index) ? thinned[index] : nil
     }
 
     // MARK: - Baseline
@@ -168,23 +176,23 @@ public struct AssetChartSeries: Equatable, Sendable {
     /// neighbour is closer in time, so the dot the member drags never jumps a
     /// sample ahead of their finger.
     public func nearestIndex(to date: Date) -> Int? {
-        guard !points.isEmpty else { return nil }
+        guard !thinned.isEmpty else { return nil }
         let target = Int64(date.timeIntervalSince1970.rounded())
         var low = 0
-        var high = points.count - 1
-        if target <= points[low].timestamp { return low }
-        if target >= points[high].timestamp { return high }
+        var high = thinned.count - 1
+        if target <= thinned[low].timestamp { return low }
+        if target >= thinned[high].timestamp { return high }
         while low + 1 < high {
             let mid = (low + high) / 2
-            if points[mid].timestamp == target { return mid }
-            if points[mid].timestamp < target {
+            if thinned[mid].timestamp == target { return mid }
+            if thinned[mid].timestamp < target {
                 low = mid
             } else {
                 high = mid
             }
         }
-        let before = target - points[low].timestamp
-        let after = points[high].timestamp - target
+        let before = target - thinned[low].timestamp
+        let after = thinned[high].timestamp - target
         // A tie takes the earlier point, so the same x always resolves to the same
         // sample rather than flickering between two.
         return after < before ? high : low
@@ -210,6 +218,16 @@ public struct AssetChartSeries: Equatable, Sendable {
         case .token: return "\(basisSymbol) on Solana"
         case .unknown, nil: return nil
         }
+    }
+}
+
+public struct PlottedPoint: Equatable, Sendable {
+    public let date: Date
+    public let value: Double
+
+    public init(date: Date, value: Double) {
+        self.date = date
+        self.value = value
     }
 }
 
