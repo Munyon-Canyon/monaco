@@ -1,9 +1,9 @@
 import Foundation
 import MonacoCore
 
-enum DepositDeepLink: DeepLinkHandler {
-    static func route(for url: URL) -> (any AppRoute, MainTab)? {
+enum DepositDeepLink {
+    static func sessionID(in url: URL) -> String? {
         guard case .depositComplete(let sessionID) = DeepLink.parse(url) else { return nil }
-        return (DepositCompleteRoute(sessionID: sessionID), .home)
+        return sessionID
     }
 }
