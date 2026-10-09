@@ -30,6 +30,10 @@ MONACO_FEATURE_CONNECT_X = NO
 
 INFOPLIST_KEY_NSContactsUsageDescription = Find friends who are already on Monaco. Monaco hashes your contacts' phone numbers on your phone and sends only the hashes. Names and your address book stay on your phone.
 
+// Answers TestFlight's export compliance question, so an upload reaches testers without a
+// manual answer in App Store Connect. The app only uses exempt encryption (HTTPS).
+INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO
+
 CODE_SIGN_ENTITLEMENTS = Monaco/Monaco.entitlements
 
 // Gitignored, written by scripts/ensure-ios-privy-config.sh from .env.local:
