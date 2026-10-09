@@ -190,3 +190,34 @@ struct MonacoSegmentedLayoutTests {
         #expect(long > short)
     }
 }
+
+@MainActor
+struct BottomCTAStackingTests {
+    private func height<Content: View>(at size: DynamicTypeSize, @ViewBuilder _ content: () -> Content) -> CGFloat {
+        let host = UIHostingController(
+            rootView: BottomCTA(content: content).environment(\.dynamicTypeSize, size))
+        return host.sizeThatFits(in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude)).height
+    }
+
+    @Test func aPairIsOneButtonTallerThanALoneButtonAtAccessibilitySizes() {
+        let alone = height(at: .accessibility3) {
+            Button("Propose buy") {}.buttonStyle(.monacoPrimary)
+        }
+        let pair = height(at: .accessibility3) {
+            Button("Propose buy") {}.buttonStyle(.monacoPrimary)
+            Button("Propose sell") {}.buttonStyle(.monacoSecondary)
+        }
+        #expect(pair >= alone + MonacoButtonMetrics.minimumHeight)
+    }
+
+    @Test func twoButtonsStaySideBySideAtLargeSize() {
+        let alone = height(at: .large) {
+            Button("Propose buy") {}.buttonStyle(.monacoPrimary)
+        }
+        let pair = height(at: .large) {
+            Button("Propose buy") {}.buttonStyle(.monacoPrimary)
+            Button("Propose sell") {}.buttonStyle(.monacoSecondary)
+        }
+        #expect(pair == alone)
+    }
+}
