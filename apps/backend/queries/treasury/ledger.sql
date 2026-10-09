@@ -98,14 +98,23 @@ FROM user_positions
 WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND user_id = sqlc.arg(user_id)::uuid;
 
 -- name: UserStakes :many
-SELECT p.cabal_id, p.user_id, p.share_units::text AS share_units, p.contributed_micros::text AS contributed_micros,
-  p.withdrawn_micros::text AS withdrawn_micros,
-  coalesce((SELECT sum(all_positions.share_units) FROM user_positions AS all_positions
-    WHERE all_positions.cabal_id = p.cabal_id), 0)::text AS total_shares
-FROM user_positions AS p
-WHERE p.user_id = sqlc.arg(user_id)::uuid AND (p.share_units > 0 OR EXISTS (SELECT 1 FROM cash_out_jobs AS j
-  WHERE j.user_id = p.user_id AND j.cabal_id = p.cabal_id AND j.status IN ('started', 'selling', 'paying')))
-ORDER BY p.cabal_id;
+SELECT cabal_id FROM (
+  SELECT p.cabal_id FROM user_positions AS p WHERE p.user_id = sqlc.arg(user_id)::uuid AND p.share_units > 0
+  UNION
+  SELECT j.cabal_id FROM cash_out_jobs AS j
+  WHERE j.user_id = sqlc.arg(user_id)::uuid AND j.status IN ('started', 'selling', 'paying')
+  UNION
+  SELECT f.cabal_id FROM fund_transfers AS f
+  WHERE f.user_id = sqlc.arg(user_id)::uuid AND f.status IN ('created', 'submitted', 'landed')
+) AS cabals
+ORDER BY cabal_id;
+
+-- name: OpenFundTransfer :one
+SELECT EXISTS (
+  SELECT 1 FROM fund_transfers
+  WHERE user_id = sqlc.arg(user_id)::uuid AND cabal_id = sqlc.arg(cabal_id)::uuid
+    AND status IN ('created', 'submitted', 'landed')
+)::boolean AS open;
 
 -- name: CabalStakeSnapshot :many
 WITH stake AS (

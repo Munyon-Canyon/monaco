@@ -179,7 +179,7 @@ func TestMemberReadBranches(t *testing.T) {
 		t.Fatal("StakesOf query error = nil")
 	}
 	childFailure := stakeStore{
-		stakes:   []sqlc.UserStakesRow{{CabalID: cabal.UUID(), UserID: user.UUID()}},
+		stakes:   []uuid.UUID{cabal.UUID()},
 		stakeErr: errs.New(errs.CodeDBUnavailable, "test"),
 	}
 	if _, err := newTestQueries(childFailure, nil).StakesOf(t.Context(), user); err == nil {
@@ -194,9 +194,22 @@ func TestMemberReadBranches(t *testing.T) {
 		ShareUnits: "0", ContributedMicros: "1", WithdrawnMicros: "1", TotalShares: "1",
 	}}
 	if got, err := newTestQueries(stakeStore{
-		stake: zeroStake, stakes: []sqlc.UserStakesRow{{CabalID: cabal.UUID(), UserID: user.UUID()}},
+		stake: zeroStake, stakes: []uuid.UUID{cabal.UUID()},
 	}, nil).StakesOf(t.Context(), user); err != nil || len(got) != 1 {
 		t.Fatalf("StakesOf() = %#v, %v", got, err)
+	}
+}
+
+func TestOpenFund(t *testing.T) {
+	t.Parallel()
+	cabal, user := ids.CabalID{}, ids.UserID{}
+	if open, err := newTestQueries(stakeStore{openFund: true}, nil).OpenFund(t.Context(), cabal, user); err != nil ||
+		!open {
+		t.Fatalf("OpenFund() = %v, %v; want true", open, err)
+	}
+	failed := stakeStore{openFundErr: errs.New(errs.CodeDBUnavailable, "test")}
+	if _, err := newTestQueries(failed, nil).OpenFund(t.Context(), cabal, user); err == nil {
+		t.Fatal("OpenFund query error = nil")
 	}
 }
 
@@ -368,9 +381,15 @@ func TestHistoricalReadsSuccess(t *testing.T) {
 	}
 }
 
-func newTestQueries(store queryStore, prices app.PriceReader) *Queries {
+type testStore interface {
+	queryStore
+	fundStore
+}
+
+func newTestQueries(store testStore, prices app.PriceReader) *Queries {
 	return &Queries{
 		q:      store,
+		funds:  store,
 		prices: prices,
 		clock:  testkit.NewClock(time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)),
 		usdc:   usdcMint,
@@ -381,7 +400,9 @@ type stakeStore struct {
 	positions    []sqlc.CabalPositionsRow
 	positionsErr error
 	stake        []sqlc.CabalStakeSnapshotRow
-	stakes       []sqlc.UserStakesRow
+	stakes       []uuid.UUID
+	openFund     bool
+	openFundErr  error
 	position     sqlc.CabalUserPositionRow
 	positionErr  error
 	total        string
@@ -427,8 +448,12 @@ func (s stakeStore) CabalStakeSnapshot(
 	return s.stake, s.stakeErr
 }
 
-func (s stakeStore) UserStakes(context.Context, uuid.UUID) ([]sqlc.UserStakesRow, error) {
+func (s stakeStore) UserStakes(context.Context, uuid.UUID) ([]uuid.UUID, error) {
 	return s.stakes, s.stakesErr
+}
+
+func (s stakeStore) OpenFundTransfer(context.Context, sqlc.OpenFundTransferParams) (bool, error) {
+	return s.openFund, s.openFundErr
 }
 
 func (stakeStore) CabalUserShareUnitsAt(context.Context, sqlc.CabalUserShareUnitsAtParams) (string, error) {

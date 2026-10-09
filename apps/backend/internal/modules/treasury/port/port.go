@@ -68,6 +68,7 @@ type StakesReader interface {
 	ShareUnits(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
 	Stake(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (Stake, error)
 	StakesOf(ctx context.Context, user ids.UserID) ([]Stake, error)
+	OpenFund(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error)
 	ShareUnitsAt(ctx context.Context, cabalID ids.CabalID, user ids.UserID, t time.Time) (money.SharesUnits, error)
 }
 

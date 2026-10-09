@@ -277,6 +277,23 @@ func TestDeleteAccount_aRunningCashOutRefusesUntilItEnds(t *testing.T) {
 	}
 }
 
+func TestDeleteAccount_aFirstFundThatHasLandedRefusesUntilItEnds(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	f.stakes = treasury.New(module.Deps{Pool: f.pool, Clock: f.clock, Config: testkit.Config()}).Queries()
+	u := f.seedWithPII(t, "active")
+	testkit.SeedFund(t, f.pool, ids.CabalIDFrom(ids.Real{}.NewV7()), u.ID, "landed")
+	h := f.handler(adapters.Users{})
+	if err := h.Handle(asUser(t, u.ID), u.ID); errs.CodeOf(err) != errs.CodeAccountHasPositions {
+		t.Fatalf("DeleteAccount during the fund = %v, want AccountHasPositions", err)
+	}
+	f.expectUntouched(t, u)
+	f.exec(t, `UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_expired'`)
+	if err := h.Handle(asUser(t, u.ID), u.ID); err != nil {
+		t.Fatalf("DeleteAccount after the fund failed = %v, want it deleted", err)
+	}
+}
+
 type deletingUsers struct {
 	adapters.Users
 	status    domain.AccountStatus

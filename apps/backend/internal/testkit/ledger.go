@@ -163,3 +163,21 @@ func SeedCashOut(t SeedT, pool *pgxpool.Pool, cabal ids.CabalID, user ids.UserID
 		t.Fatalf("testkit.SeedCashOut: %v", err)
 	}
 }
+
+func SeedFund(t SeedT, pool *pgxpool.Pool, cabal ids.CabalID, user ids.UserID, status string) {
+	t.Helper()
+	id := ids.Real{}.NewV7()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO fund_transfers
+		(id, user_id, cabal_id, amount_micros, from_address, to_address, status, signed_tx, tx_signature,
+		last_valid_block_height, share_units, fail_code, created_at, submitted_at, landed_at, settled_at)
+		SELECT $1::uuid, $2::uuid, $3::uuid, 1000000, 'from', 'to', s.status,
+		CASE WHEN s.sent THEN '\x01'::bytea END, CASE WHEN s.sent THEN $1::uuid::text END,
+		CASE WHEN s.sent THEN 1 END, CASE WHEN s.status = 'settled' THEN 1 END,
+		CASE WHEN s.status = 'failed' THEN 'fund_not_sent' END, now(),
+		CASE WHEN s.sent THEN now() END, CASE WHEN s.status IN ('landed', 'settled') THEN now() END,
+		CASE WHEN s.status = 'settled' THEN now() END
+		FROM (SELECT $4::text AS status, $4::text NOT IN ('created', 'failed') AS sent) AS s`,
+		id, user.UUID(), cabal.UUID(), status); err != nil {
+		t.Fatalf("testkit.SeedFund: %v", err)
+	}
+}

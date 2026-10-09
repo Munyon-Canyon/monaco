@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -21,6 +23,7 @@ type Treasury struct {
 	potValues        map[ids.CabalID]money.Micros
 	totalShares      map[ids.CabalID]money.SharesUnits
 	stakes           []treasury.Stake
+	openFunds        map[[2]uuid.UUID]bool
 	cabalPositionsAt []treasury.CabalPositions
 	memberStakesAt   []treasury.MemberStake
 	memberFlows      []treasury.MemberFlow
@@ -50,6 +53,7 @@ func NewTreasury() *Treasury {
 	return &Treasury{
 		positions:     map[ids.CabalID][]treasury.Position{},
 		potValues:     map[ids.CabalID]money.Micros{},
+		openFunds:     map[[2]uuid.UUID]bool{},
 		totalShares:   map[ids.CabalID]money.SharesUnits{},
 		contributions: map[ids.CabalID][]port.ContributionPoint{},
 		stakeHistory:  map[ids.UserID][]port.StakePoint{},
@@ -84,6 +88,12 @@ func (f *Treasury) SetStake(stake treasury.Stake) {
 		return
 	}
 	f.stakes = append(f.stakes, stake)
+}
+
+func (f *Treasury) SetOpenFund(cabalID ids.CabalID, user ids.UserID, open bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.openFunds[[2]uuid.UUID{cabalID.UUID(), user.UUID()}] = open
 }
 
 func (f *Treasury) SetCabalPositionsAt(positions []treasury.CabalPositions) {
@@ -194,6 +204,15 @@ func (f *Treasury) StakesOf(_ context.Context, user ids.UserID) ([]treasury.Stak
 		}
 	}
 	return stakes, nil
+}
+
+func (f *Treasury) OpenFund(_ context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error) {
+	if err := f.Check("OpenFund"); err != nil {
+		return false, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.openFunds[[2]uuid.UUID{cabalID.UUID(), user.UUID()}], nil
 }
 
 func (f *Treasury) ShareUnitsAt(

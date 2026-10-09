@@ -662,6 +662,26 @@ func (q *Queries) MemberStakesAt(ctx context.Context, at time.Time) ([]MemberSta
 	return items, nil
 }
 
+const openFundTransfer = `-- name: OpenFundTransfer :one
+SELECT EXISTS (
+  SELECT 1 FROM fund_transfers
+  WHERE user_id = $1::uuid AND cabal_id = $2::uuid
+    AND status IN ('created', 'submitted', 'landed')
+)::boolean AS open
+`
+
+type OpenFundTransferParams struct {
+	UserID  uuid.UUID
+	CabalID uuid.UUID
+}
+
+func (q *Queries) OpenFundTransfer(ctx context.Context, arg OpenFundTransferParams) (bool, error) {
+	row := q.db.QueryRow(ctx, openFundTransfer, arg.UserID, arg.CabalID)
+	var open bool
+	err := row.Scan(&open)
+	return open, err
+}
+
 const ownsSignature = `-- name: OwnsSignature :one
 SELECT EXISTS (SELECT 1 FROM cabal_txns WHERE tx_signature = $1::text)
   OR EXISTS (SELECT 1 FROM user_txns WHERE tx_signature = $1::text)
@@ -708,45 +728,31 @@ func (q *Queries) SetTransferStatus(ctx context.Context, arg SetTransferStatusPa
 }
 
 const userStakes = `-- name: UserStakes :many
-SELECT p.cabal_id, p.user_id, p.share_units::text AS share_units, p.contributed_micros::text AS contributed_micros,
-  p.withdrawn_micros::text AS withdrawn_micros,
-  coalesce((SELECT sum(all_positions.share_units) FROM user_positions AS all_positions
-    WHERE all_positions.cabal_id = p.cabal_id), 0)::text AS total_shares
-FROM user_positions AS p
-WHERE p.user_id = $1::uuid AND (p.share_units > 0 OR EXISTS (SELECT 1 FROM cash_out_jobs AS j
-  WHERE j.user_id = p.user_id AND j.cabal_id = p.cabal_id AND j.status IN ('started', 'selling', 'paying')))
-ORDER BY p.cabal_id
+SELECT cabal_id FROM (
+  SELECT p.cabal_id FROM user_positions AS p WHERE p.user_id = $1::uuid AND p.share_units > 0
+  UNION
+  SELECT j.cabal_id FROM cash_out_jobs AS j
+  WHERE j.user_id = $1::uuid AND j.status IN ('started', 'selling', 'paying')
+  UNION
+  SELECT f.cabal_id FROM fund_transfers AS f
+  WHERE f.user_id = $1::uuid AND f.status IN ('created', 'submitted', 'landed')
+) AS cabals
+ORDER BY cabal_id
 `
 
-type UserStakesRow struct {
-	CabalID           uuid.UUID
-	UserID            uuid.UUID
-	ShareUnits        string
-	ContributedMicros string
-	WithdrawnMicros   string
-	TotalShares       string
-}
-
-func (q *Queries) UserStakes(ctx context.Context, userID uuid.UUID) ([]UserStakesRow, error) {
+func (q *Queries) UserStakes(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, userStakes, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []UserStakesRow
+	var items []uuid.UUID
 	for rows.Next() {
-		var i UserStakesRow
-		if err := rows.Scan(
-			&i.CabalID,
-			&i.UserID,
-			&i.ShareUnits,
-			&i.ContributedMicros,
-			&i.WithdrawnMicros,
-			&i.TotalShares,
-		); err != nil {
+		var cabal_id uuid.UUID
+		if err := rows.Scan(&cabal_id); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, cabal_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
