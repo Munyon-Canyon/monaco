@@ -14,6 +14,7 @@ struct FundCabalView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var balanceSource: BalanceSource?
     @State private var cabal: CabalActionsModel?
+    @State private var pauseState: CashOutModel?
     @State private var funding: Funding?
     @State private var amountText = ""
 
@@ -25,7 +26,8 @@ struct FundCabalView: View {
             isSubmitting: funding?.isSubmitting ?? false,
             onSubmit: { Task { await fund() } },
             onRetry: { Task { await balanceSource?.load() } },
-            onAddMoney: { openDeposit(prefillMicros: nil) }
+            onAddMoney: { openDeposit(prefillMicros: nil) },
+            pause: pauseState?.preview?.pause
         )
         .onChange(of: balanceSource?.failureTick) { _, _ in
             guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
@@ -41,12 +43,19 @@ struct FundCabalView: View {
             await cabal.load()
         }
         .task {
+            let model = pauseState ?? CashOutModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+            pauseState = model
+            await model.load()
+            await model.observe()
+        }
+        .task {
             let source = balanceSource ?? BalanceSource(api: environment.api, hints: environment.hints)
             balanceSource = source
             await source.load()
             await source.observe()
         }
         .onScreenVisibilityChange { visible in
+            pauseState?.setVisible(visible)
             balanceSource?.setVisible(visible)
         }
     }
@@ -190,6 +199,7 @@ struct FundCabalContent: View {
     let onSubmit: () -> Void
     let onRetry: () -> Void
     let onAddMoney: () -> Void
+    var pause: CabalPause?
 
     private var stage: FundCabalStage {
         .resolve(state: state)
@@ -270,22 +280,27 @@ struct FundCabalContent: View {
     }
 
     private var amountEntry: some View {
-        AmountEntry(
-            amountText: $amountText,
-            max: form.maxDollars,
-            presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
-            helper: form.availability,
-            problem: form.problem,
-            input: .keypad
-        ) {
-            VStack(spacing: MonacoTheme.Space.s) {
-                AmountEntryNote(FundCabalForm.note(into: cabalName))
-                Text(FundCabalForm.treasuryNote)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("fund-cabal-treasury-note")
+        VStack(spacing: MonacoTheme.Space.l) {
+            if let pause {
+                CabalPauseRow(pause: pause)
+            }
+            AmountEntry(
+                amountText: $amountText,
+                max: form.maxDollars,
+                presets: [.dollars(25), .dollars(50), .dollars(100), .fraction(1, label: "Max")],
+                helper: form.availability,
+                problem: form.problem,
+                input: .keypad
+            ) {
+                VStack(spacing: MonacoTheme.Space.s) {
+                    AmountEntryNote(FundCabalForm.note(into: cabalName))
+                    Text(FundCabalForm.treasuryNote)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("fund-cabal-treasury-note")
+                }
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)

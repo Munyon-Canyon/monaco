@@ -25,6 +25,7 @@ public struct PortfolioSummary: Equatable, Sendable {
         public let pictureURL: String?
         public let valueMicros: Int64
         public let value: String
+        public let pnlMicros: Int64
         public let pnl: String
         public let returnText: String
         public let returnBps: Int64?
@@ -38,6 +39,7 @@ public struct PortfolioSummary: Equatable, Sendable {
             pictureURL = cabal.cabal.pictureUrl
             valueMicros = cabal.valueMicros
             value = UsdAmountFormatter.format(micros: cabal.valueMicros)
+            pnlMicros = cabal.pnlMicros
             pnl = UsdAmountFormatter.format(signedMicros: cabal.pnlMicros)
             returnText = PortfolioSummary.percent(cabal.returnBps)
             returnBps = cabal.returnBps

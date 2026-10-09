@@ -18,12 +18,18 @@ private struct MyCabalsList: View {
     @State private var showsNewCabal = false
 
     var body: some View {
-        MyCabalsContent(model: model, open: open, create: { showsNewCabal = true })
+        MyCabalsContent(model: model, standings: model?.standings ?? [:], open: open, create: { showsNewCabal = true })
             .onAppear {
                 let model = preparedModel()
-                refresh?.register("cabals-list") { await model.load() }
+                refresh?.register("cabals-list") {
+                    await model.load()
+                    await model.loadStandings()
+                }
                 model.setVisible(true)
-                Task { await model.load() }
+                Task {
+                    await model.load()
+                    await model.loadStandings()
+                }
             }
             .onDisappear { model?.setVisible(false) }
             .task { await preparedModel().observe(hints: environment.hints) }
@@ -49,6 +55,7 @@ private struct MyCabalsList: View {
 
 private struct MyCabalsContent: View {
     let model: MonacoCore.CabalsTabModel?
+    let standings: [String: PortfolioSummary.Row]
     let open: (Components.Schemas.MyCabal) -> Void
     let create: () -> Void
 
@@ -87,7 +94,7 @@ private struct MyCabalsContent: View {
                     Button {
                         open(cabal)
                     } label: {
-                        MyCabalCard(cabal: cabal, size: Self.cardSize)
+                        MyCabalCard(cabal: cabal, standing: standings[cabal.id], size: Self.cardSize)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("cabals-list-card-\(cabal.id)")
@@ -120,6 +127,7 @@ private struct MyCabalsContent: View {
 
 private struct MyCabalCard: View {
     let cabal: Components.Schemas.MyCabal
+    let standing: PortfolioSummary.Row?
     let size: CGSize
 
     private var tint: MonacoTheme.CabalTint { .forGroupId(cabal.id) }
@@ -157,6 +165,14 @@ private struct MyCabalCard: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, MonacoTheme.Space.xs)
+            if let standing {
+                MoneyText(micros: standing.valueMicros, style: .row)
+                    .accessibilityIdentifier("cabals-list-card-pot")
+                if let bps = standing.returnBps {
+                    PnLBadge(signedMicros: standing.pnlMicros, basisPoints: bps)
+                        .accessibilityIdentifier("cabals-list-card-return")
+                }
+            }
             Spacer(minLength: 0)
         }
         .padding(MonacoTheme.Space.m)
