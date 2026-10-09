@@ -14,6 +14,7 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 ## Contents
 
 - [Prereqs](#prereqs)
+  - [Native SwiftLint](#native-swiftlint)
 - [Clone setup](#clone-setup)
 - [Privy test logins](#privy-test-logins)
 - [Backend tokens](#backend-tokens)
@@ -44,12 +45,16 @@ macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/ca
 
 The Xcode version in `.xcode-version` is required for journeys and MonacoTests; `just install --check` and `scripts/qa/journey.py run` warn when the installed Xcode differs.
 
+### Native SwiftLint
+
+`./scripts/install-swiftlint.sh` installs the SwiftLint version that `scripts/swiftlint-ratchet.sh` pins into `.bin/swiftlint` (checksummed, gitignored, universal for Intel and Apple silicon). `install-dev.sh` offers it. The lint hook and stage 0 then lint natively, so mobile-only work can quit Docker. Without it they start a Docker container. A linked worktree finds the primary checkout's `.bin/swiftlint`.
+
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
 2. Place the encrypted `.env.local` a teammate shares in the repo root. Give dotenvx its private key in one of these ways, which `scripts/with-dotenv-local.sh` tries in this order: gitignored `.env.keys` in the checkout, `.env.keys` in the primary clone (so worktrees under `.worktrees/` need no copy), `DOTENV_PRIVATE_KEY_LOCAL` or `DOTENV_PRIVATE_KEY` in the environment, then Dotenvx Armor (`dotenvx armor`).
 3. If you have no `.env.local` yet, copy `.env.example` to `.env.local` and set Privy plus relayer values with `dotenvx set KEY value -f .env.local`.
-4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, golangci-lint, jq, just, dotenvx, Graphite, optional SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
+4. Run `./scripts/install-dev.sh` (or `just install`). It asks before each install (Go, golangci-lint, jq, just, dotenvx, Graphite, optional native SwiftLint and SimSlim). `just install --check` only reports. Then run `gt auth --token <token>` with the token from https://app.graphite.com/activate, and `gt init --trunk main`.
 5. `just run` starts the iOS app. The backend is being rebuilt from scratch ([backend platform RFC](docs/architecture/backend-platform.md)), so until its routes return the app has no working backend; mobile UI work uses sample data. Privy is injected via `scripts/ensure-ios-privy-config.sh` and `SIMCTL_CHILD_*`. If SimSlim is missing, the scripts warn and boot a stock simulator.
 
 Do not wrap `just` with `dotenvx run` yourself. Recipes that need secrets re-exec under `scripts/with-dotenv-local.sh`.
@@ -213,7 +218,7 @@ Never `simctl erase` a sim you later want as gold. Never commit a UDID. Never ta
 **SimSlim** turns one iOS Simulator into a RAM-thin “gold” device (~0.9 GB vs ~4 GB stock). Pick **one** sim per machine, slim it, reuse it.
 
 1. **Xcode** with an **iOS 18.5+** simulator runtime (slim does not persist across reboot below 18.5).
-2. Install: `brew install mobai-app/tap/simslim`
+2. Install: `brew install mobai-app/tap/simslim` on Apple silicon. The formula is arm64 only, so an Intel Mac installs it with `go install github.com/mobai-app/simslim/cmd/simslim@v0.11.0` (`install-dev.sh` offers both). It lands in `$(go env GOPATH)/bin`, which must be on `PATH`.
 3. Create or pick one iPhone sim, copy the UDID:
 
    ```bash

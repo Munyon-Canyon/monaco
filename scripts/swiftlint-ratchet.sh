@@ -75,13 +75,18 @@ if [[ ${#heads[@]} -eq 0 ]]; then
   exit 0
 fi
 
-native=swiftlint
-if command -v "$native" >/dev/null 2>&1 && [[ "$("$native" version 2>/dev/null)" == "$version" ]]; then
-  lint=("$native")
-  mount="$root/"
-else
+primary="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$root/.git")")"
+lint=()
+for native in "$root/.bin/swiftlint" "$primary/.bin/swiftlint" swiftlint; do
+  if command -v "$native" >/dev/null 2>&1 && [[ "$("$native" version 2>/dev/null)" == "$version" ]]; then
+    lint=("$native")
+    mount="$root/"
+    break
+  fi
+done
+if [[ ${#lint[@]} -eq 0 ]]; then
   if ! "$root/scripts/require-docker.sh" >&2; then
-    echo "swiftlint skipped: start Docker (or install swiftlint $version)" >&2
+    echo "swiftlint skipped: start Docker (or run scripts/install-swiftlint.sh for swiftlint $version)" >&2
     exit 3
   fi
   lint=(docker run --rm -v "$root:/repo" -w /repo --entrypoint swiftlint "$image")

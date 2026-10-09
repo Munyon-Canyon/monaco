@@ -178,6 +178,22 @@ if [[ "$xcsift_have" != "$xcsift_want" ]]; then
   fi
 fi
 
+swiftlint_want="$(sed -n 's/^version=//p' scripts/swiftlint-ratchet.sh)"
+swiftlint_primary="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$repo_root/.git")")"
+swiftlint_have=""
+for swiftlint_bin in "$repo_root/.bin/swiftlint" "$swiftlint_primary/.bin/swiftlint"; do
+  swiftlint_have="$("$swiftlint_bin" version 2>/dev/null || true)"
+  [[ "$swiftlint_have" == "$swiftlint_want" ]] && break
+done
+if [[ "$swiftlint_have" == "$swiftlint_want" ]]; then
+  say "native SwiftLint ${swiftlint_want} is installed (.bin/swiftlint). Mobile-only work can skip Docker."
+else
+  say "Native SwiftLint ${swiftlint_want} is optional (found: ${swiftlint_have:-none}). Without it the lint hook and stage 0 start a Docker container."
+  if [[ "$(uname -s)" == "Darwin" ]] && ask_yes "Install SwiftLint ${swiftlint_want} natively (lets mobile work skip Docker)?"; then
+    ./scripts/install-swiftlint.sh || true
+  fi
+fi
+
 if ! have just; then
   missing_required=1
   say "just is missing (https://github.com/casey/just)."
@@ -216,10 +232,18 @@ fi
 # --- optional SimSlim ---
 if ! have simslim; then
   say "SimSlim is optional. Stock Xcode Simulator works. just run mobile falls back if slim is missing."
-  if ask_yes "Install SimSlim with Homebrew (mobai-app/tap/simslim)?"; then
-    if have brew; then
-      brew tap mobai-app/tap
-      brew install simslim || true
+  simslim_installed=0
+  if [[ "$(uname -m)" == "arm64" ]] && have brew && ask_yes "Install SimSlim with Homebrew (mobai-app/tap/simslim)?"; then
+    brew tap mobai-app/tap
+    if brew install simslim; then simslim_installed=1; fi
+  fi
+  if [[ "$simslim_installed" -eq 0 ]] && have go; then
+    if [[ "$(uname -m)" != "arm64" ]]; then
+      say "The SimSlim Homebrew formula is arm64 only, so an Intel Mac installs it with go."
+    fi
+    if ask_yes "Install SimSlim with go install (github.com/mobai-app/simslim/cmd/simslim@v0.11.0)?"; then
+      go install github.com/mobai-app/simslim/cmd/simslim@v0.11.0 || true
+      say "installed into $(go env GOPATH)/bin. That directory must be on PATH."
     fi
   fi
 fi
