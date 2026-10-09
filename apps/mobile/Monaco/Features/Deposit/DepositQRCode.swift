@@ -35,7 +35,7 @@ struct DepositQRCode: View {
                 .accessibilityHidden(true)
         }
         .frame(width: Self.side, height: Self.side)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.accessibilityLabelText)
         .accessibilityIdentifier("deposit-address-qr")

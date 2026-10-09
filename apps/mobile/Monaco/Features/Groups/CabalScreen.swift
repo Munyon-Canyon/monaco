@@ -112,8 +112,7 @@ struct CabalScreen: View {
                 SectionStack(context: context, sections: details)
                     .environment(\.cabalModel, cabal)
                     .environment(\.cabalPotModel, pot)
-                    .monacoCanvas()
-                    .navigationTitle("Cabal details")
+                    .monacoSheet(title: "Cabal details")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -126,7 +125,6 @@ struct CabalScreen: View {
                     .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
             }
             .presentationDetents([.medium, .large])
-            .presentationBackground(MonacoTheme.canvas)
             .monacoToastCenter(toasts)
         }
     }

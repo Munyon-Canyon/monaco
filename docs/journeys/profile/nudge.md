@@ -1,7 +1,7 @@
 ---
 id: profile/nudge
 title: Profile nudge and limits
-version: 1
+version: 2
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileNudgeJourney.swift, apps/mo
 
 # Profile nudge and limits
 
-A signed-in member hits the photo rate limit, sees the onboarding nudge for the step they skipped, sees no nudge once onboarding is complete, and opens the handle editor from the Profile tab's header. These scenarios were S5 to S8 of [profile/edit](edit.md) until that journey outgrew the runner's 300 s budget. The design is [Flow 23](../../architecture/auth.md#handle), and the banner copy comes from [`auth_state`](../../architecture/auth.md#auth_state).
+A signed-in member hits the photo rate limit, sees the onboarding nudge for the step they skipped, sees it on Home only, sees no nudge once onboarding is complete, and opens the handle editor from the Profile tab's header. These scenarios were S5 to S8 of [profile/edit](edit.md) until that journey outgrew the runner's 300 s budget. The design is [Flow 23](../../architecture/auth.md#handle), and the banner copy comes from [`auth_state`](../../architecture/auth.md#auth_state).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -39,11 +39,11 @@ Starts signed in (auth/sign-in), with A at `AWAITING_SOCIALS` (P3).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap | the Profile tab | | `onboarding-nudge` shows within 15 s and reads "Connect X to find people you follow" |
-| S2.2 | tap | the Home tab | | `onboarding-nudge` shows within 10 s |
-| S2.3 | tap, then tap | `onboarding-nudge-open`, then "Not now" | | `onboarding-socials-step` shows within 5 s. "Not now" closes it within 5 s |
+| S2.1 | tap | the Home tab | | `onboarding-nudge` shows within 15 s and `onboarding-nudge-open` reads "Connect X to find people you follow" |
+| S2.2 | tap | the Profile tab | | `profile-header` shows and `onboarding-nudge` does not |
+| S2.3 | tap, then tap, then tap | the Home tab, `onboarding-nudge-open`, then "Not now" | | `onboarding-socials-step` shows within 5 s. "Not now" closes it within 5 s |
 | S2.4 | tap | `onboarding-nudge-close` | | `onboarding-nudge` is gone within 5 s |
-| S2.5 | tap | the Profile tab | | `profile-header` shows and `onboarding-nudge` does not |
+| S2.5 | tap | the Profile tab, then the Home tab | | `onboarding-nudge` does not show on Home |
 
 ### S3 No banner once onboarding is complete
 

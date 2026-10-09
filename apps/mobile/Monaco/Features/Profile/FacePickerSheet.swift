@@ -18,6 +18,8 @@ struct FacePickerSheet: View {
     /// The sheet is as tall as the grid and the button. A medium detent left a blank third.
     @State private var contentHeight: CGFloat = 0
 
+    @ScaledMetric(relativeTo: .title) private var titleAllowance: CGFloat = 64
+
     private let columns = Array(
         repeating: GridItem(.flexible(), spacing: MonacoTheme.Space.m),
         count: 4
@@ -26,16 +28,9 @@ struct FacePickerSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    Text("Your face")
-                        .font(MonacoTheme.Typo.title)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .accessibilityAddTraits(.isHeader)
-                    Text("Pick an animal, or use a photo.")
-                        .font(MonacoTheme.Typo.body)
-                        .foregroundStyle(MonacoTheme.muted)
-                }
-                .padding(.top, MonacoTheme.Space.l)
+                Text("Pick an animal, or use a photo.")
+                    .font(MonacoTheme.Typo.body)
+                    .foregroundStyle(MonacoTheme.muted)
 
                 LazyVGrid(columns: columns, spacing: MonacoTheme.Space.m) {
                     ForEach(PixelAnimal.allCases, id: \.self) { animal in
@@ -59,9 +54,8 @@ struct FacePickerSheet: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .monacoCanvas()
-        .presentationDetents(contentHeight > 0 ? [.height(contentHeight)] : [.medium])
-        .presentationDragIndicator(.visible)
+        .monacoSheet(title: "Your face")
+        .presentationDetents(contentHeight > 0 ? [.height(contentHeight + titleAllowance)] : [.medium])
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("face-picker-sheet")
         .onChange(of: selection) { _, item in

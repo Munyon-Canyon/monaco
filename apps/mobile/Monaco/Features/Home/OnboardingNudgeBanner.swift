@@ -32,54 +32,42 @@ struct OnboardingNudgeBanner: View {
     @ViewBuilder
     private var content: some View {
         if let current {
-            HStack(spacing: MonacoTheme.Space.s) {
-                Button {
-                    opened = current
-                } label: {
-                    HStack(spacing: MonacoTheme.Space.sm) {
-                        Image(systemName: current.systemImage)
-                            .font(MonacoTheme.Typo.bodyStrong)
-                            .foregroundStyle(MonacoTheme.brandOnWash)
-                            .accessibilityHidden(true)
-                        Text(current.message)
-                            .font(MonacoTheme.Typo.bodyStrong)
-                            .foregroundStyle(MonacoTheme.ink)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
+            MonacoGroupedList {
+                HStack(spacing: 0) {
+                    Button {
+                        opened = current
+                    } label: {
+                        HStack(spacing: MonacoTheme.Space.sm) {
+                            Text(current.message)
+                                .font(MonacoTheme.Typo.rowTitle)
+                                .foregroundStyle(MonacoTheme.ink)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            MonacoRowChevron()
+                        }
+                        .padding(.leading, MonacoTheme.Space.gutter)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("onboarding-nudge-open")
+                    .buttonStyle(.monacoRow)
+                    .accessibilityIdentifier("onboarding-nudge-open")
 
-                Button {
-                    session.nudgeDismissed = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(MonacoTheme.Typo.captionStrong)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .frame(width: 44, height: 44)
+                    Button {
+                        session.nudgeDismissed = true
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(MonacoTheme.Typo.captionStrong)
+                            .foregroundStyle(MonacoTheme.muted)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Hide")
+                    .accessibilityIdentifier("onboarding-nudge-close")
                 }
-                .accessibilityLabel("Hide")
-                .accessibilityIdentifier("onboarding-nudge-close")
             }
-            .padding(.leading, MonacoTheme.Space.m)
-            .padding(.trailing, MonacoTheme.Space.xs)
-            .background(MonacoTheme.brandWash, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
-            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("onboarding-nudge")
-        }
-    }
-}
-
-extension OnboardingNudge {
-    fileprivate var systemImage: String {
-        switch self {
-        case .addPhone: "phone.fill"
-        case .linkX: "person.2.fill"
         }
     }
 }

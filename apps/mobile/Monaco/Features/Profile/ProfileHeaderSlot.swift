@@ -43,7 +43,6 @@ struct ProfileHeader: View {
 
     var body: some View {
         VStack(spacing: MonacoTheme.Space.m) {
-            OnboardingNudgeBanner()
             if session.profile != nil {
                 identity
             } else if session.isLoading {
@@ -66,8 +65,7 @@ struct ProfileHeader: View {
                         toasts.show(success: "Name updated.")
                     }
                 }
-                .monacoCanvas()
-                .navigationTitle("Edit name")
+                .monacoSheet(title: "Edit name")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

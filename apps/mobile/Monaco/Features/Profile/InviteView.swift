@@ -131,16 +131,7 @@ private struct InviteLinkCard: View {
             }
             .padding(.top, MonacoTheme.Space.xs)
         }
-        .padding(MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            MonacoTheme.surface,
-            in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
-        }
+        .monacoActionCard()
         .accessibilityElement(children: .contain)
     }
 

@@ -15,9 +15,8 @@ struct ChatSeenSheet: View {
         NavigationStack {
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .background(MonacoTheme.background)
-                .navigationTitle(ChatSeenCopy.sheetTitle)
-                .navigationBarTitleDisplayMode(.inline)
+                .monacoSheet(title: ChatSeenCopy.sheetTitle)
+                .toolbar(.hidden, for: .navigationBar)
         }
         .presentationDetents([.medium, .large])
         .task {

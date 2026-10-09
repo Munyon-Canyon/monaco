@@ -66,8 +66,7 @@ struct CabalTreasuryView: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            SkeletonBlock(height: 140, radius: MonacoTheme.Radius.card)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+            MonacoRowSkeleton(rows: 2, markShape: .none)
                 .accessibilityElement()
                 .accessibilityLabel(CabalTreasurySlotCopy.loading)
                 .accessibilityIdentifier("cabal-treasury-loading")
@@ -77,7 +76,6 @@ struct CabalTreasuryView: View {
             }
         case .loaded(let cabal):
             CabalTreasuryCard(address: cabal.treasuryAddress)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
         }
     }
 }
@@ -86,29 +84,28 @@ struct CabalTreasuryCard: View {
     let address: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             Text(CabalTreasurySlotCopy.warning)
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.ink)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.warning)
                 .fixedSize(horizontal: false, vertical: true)
-            MonacoWalletAddressText(address: address)
-                .accessibilityIdentifier("cabal-treasury-address")
-            if let url = CabalTreasurySlot.solscanURL(for: address) {
-                Link(CabalTreasurySlotCopy.solscan, destination: url)
-                    .font(MonacoTheme.Typo.subheadStrong)
-                    .frame(minHeight: 44)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .accessibilityIdentifier("cabal-treasury-warning")
+            MonacoGroupedList {
+                ReceiptLine(label: "Address", value: .address(address), isLast: solscan == nil)
+                    .accessibilityIdentifier("cabal-treasury-address")
+                if let solscan {
+                    Link(destination: solscan) {
+                        MonacoRow(title: CabalTreasurySlotCopy.solscan, chevron: true, isLast: true) {
+                            SunkenGlyphMark(systemImage: "safari")
+                        }
+                    }
+                    .buttonStyle(.monacoRow)
                     .accessibilityIdentifier("cabal-treasury-solscan")
+                }
             }
         }
-        .padding(MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            MonacoTheme.surface,
-            in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
-        }
     }
+
+    private var solscan: URL? { CabalTreasurySlot.solscanURL(for: address) }
 }

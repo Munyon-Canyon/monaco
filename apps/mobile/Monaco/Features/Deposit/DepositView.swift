@@ -285,7 +285,7 @@ struct DepositAddressCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .monacoSurfaceCard()
+        .monacoActionCard()
     }
 
     private func ready(_ address: String) -> some View {

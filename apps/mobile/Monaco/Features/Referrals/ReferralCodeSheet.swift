@@ -21,10 +21,6 @@ struct ReferralCodeSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            Text("Have an invite code?")
-                .font(MonacoTheme.Typo.title)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .accessibilityAddTraits(.isHeader)
             TextField(
                 "Code or invite link", text: $model.text,
                 prompt: Text("Code or invite link").foregroundStyle(MonacoTheme.disabledLabel)
@@ -51,7 +47,7 @@ struct ReferralCodeSheet: View {
         }
         .padding(MonacoTheme.Space.gutter)
         .frame(maxHeight: .infinity, alignment: .top)
-        .monacoCanvas()
+        .monacoSheet(title: "Have an invite code?")
         .monacoToastCenter(toasts)
         .presentationDetents([.medium])
         .onAppear { isFocused = true }

@@ -25,13 +25,8 @@ struct ProposePotTotalContent: View {
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.sm)
-        .background(MonacoTheme.surface, in: cardShape)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("propose-amount-pot-total")
-    }
-
-    private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
     }
 
     @ViewBuilder private var value: some View {

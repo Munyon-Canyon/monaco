@@ -189,11 +189,7 @@ private struct MyCabalCard: View {
         .padding(MonacoTheme.Space.m)
         .frame(width: size.width, alignment: .topLeading)
         .frame(minHeight: size.height, alignment: .topLeading)
-        .background(tint.soft, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                .strokeBorder(tint.fill.opacity(0.22), lineWidth: 1)
-        }
+        .monacoActionCard(fill: tint.soft, border: tint.fill.opacity(0.22), inset: 0, fillsWidth: false)
         .accessibilityElement(children: .combine)
     }
 }
@@ -211,10 +207,7 @@ private struct NewCabalCard: View {
                 .foregroundStyle(MonacoTheme.muted)
         }
         .frame(width: size.width, height: size.height)
-        .overlay {
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                .strokeBorder(MonacoTheme.hairline, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-        }
+        .monacoActionCard(fill: .clear, isDashed: true, inset: 0, fillsWidth: false)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("New cabal")
     }
