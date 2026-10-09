@@ -19,9 +19,10 @@ public final class CommentsModel {
     public static let pendingRetryDelay: Duration = .seconds(1)
     public static let pageSize = 50
 
-    public private(set) var canComment = true
+    public private(set) var canComment = false
     public private(set) var isPosting = false
-    private var canCommentKnown = false
+    public private(set) var lastPostedID: String?
+    public private(set) var canCommentKnown = false
     public private(set) var replyTarget: CommentThreadRow?
     public private(set) var notice: Notice?
     public private(set) var noticeTick = 0
@@ -63,12 +64,17 @@ public final class CommentsModel {
         if pager.items.isEmpty {
             await pager.loadFirst()
         } else {
-            await refresh()
+            await refreshFirstPage()
         }
         await loadCanComment()
     }
 
     public func refresh() async {
+        await refreshFirstPage()
+        await loadCanComment()
+    }
+
+    private func refreshFirstPage() async {
         await pager.refreshFirstPage()
         noteRefreshFailure()
     }
@@ -100,8 +106,9 @@ public final class CommentsModel {
         isPosting = true
         defer { isPosting = false }
         let parentID = replyTarget?.id
+        let created: Components.Schemas.Comment
         do {
-            _ = try await Self.retryingPending(clock: clock) {
+            created = try await Self.retryingPending(clock: clock) {
                 try await source.post(body: body, parentId: parentID, submission: postSubmission)
             }
         } catch {
@@ -110,6 +117,7 @@ public final class CommentsModel {
         }
         replyTarget = nil
         await refresh()
+        lastPostedID = created.id
         return true
     }
 

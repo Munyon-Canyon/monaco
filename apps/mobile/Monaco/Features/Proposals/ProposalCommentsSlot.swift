@@ -17,19 +17,14 @@ private struct ProposalCommentsSlotView: View {
     @Environment(\.proposalComments) private var model
     @Environment(\.sectionScrollProxy) private var scroll
 
-    private static let end = "proposal-comments-end"
-
     var body: some View {
         if let model {
-            VStack(spacing: 0) {
-                CommentThreadView(model: model)
-                Color.clear.frame(height: 1).id(Self.end)
-            }
-            .padding(.vertical, MonacoTheme.Space.m)
-            .onChange(of: model.isPosting) { _, posting in
-                guard !posting else { return }
-                withAnimation { scroll?.scrollTo(Self.end, anchor: .bottom) }
-            }
+            CommentThreadView(model: model)
+                .padding(.vertical, MonacoTheme.Space.m)
+                .onChange(of: model.lastPostedID) { _, id in
+                    guard let id else { return }
+                    withAnimation { scroll?.scrollTo(id, anchor: .center) }
+                }
         }
     }
 }

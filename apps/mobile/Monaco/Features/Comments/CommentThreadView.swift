@@ -1,9 +1,11 @@
 import MonacoAPI
 import MonacoCore
 import SwiftUI
+import UIKit
 
 struct CommentThreadView: View {
     let model: CommentsModel
+    @State private var deleting: CommentThreadRow?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -14,6 +16,15 @@ struct CommentThreadView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("comment-thread")
         .commentNotices(model)
+        .confirmationDialog(
+            "Delete this comment?",
+            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+            titleVisibility: .visible,
+            presenting: deleting
+        ) { row in
+            Button(CommentsCopy.delete, role: .destructive) { Task { await model.delete(row) } }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -47,24 +58,26 @@ struct CommentThreadView: View {
 
     private var loaded: some View {
         let rows = model.rows
-        return MonacoGroupedList {
+        return LazyVStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 CommentRow(
                     row: row,
                     hasReplies: CommentThreadLayout.hasReplies(rows, at: index),
                     isLast: index == rows.count - 1,
                     onReply: { model.beginReply(to: row) },
-                    onDelete: row.comment.isMine && !row.isDeleted ? { Task { await model.delete(row) } } : nil
+                    onDelete: row.comment.isMine && !row.isDeleted ? { deleting = row } : nil
                 )
-                .onAppear {
-                    guard index == rows.count - 1, model.hasMore else { return }
-                    Task { await model.loadMore() }
-                }
+                .id(row.id)
             }
             if model.isLoadingMore {
                 MonacoRowSkeleton(rows: 1, markShape: .circle)
             }
+            if model.hasMore {
+                Color.clear.frame(height: 1)
+                    .onAppear { Task { await model.loadMore() } }
+            }
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -107,25 +120,29 @@ struct CommentRow: View {
     var onDelete: (() -> Void)?
 
     @ScaledMetric(relativeTo: .footnote) private var replyLineHeight: CGFloat = 18
+    @ScaledMetric(relativeTo: .callout) private var nameLineHeight: CGFloat = 20
 
     private var level: Int { row.indentLevel }
 
     var body: some View {
         HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
-            authorLink(identifier: "comment-avatar-\(row.id)") {
+            authorLink(
+                identifier: "comment-avatar-\(row.id)", height: CommentThreadLayout.avatarSize,
+                widthOverhang: CommentRowMetrics.replyTarget - CommentThreadLayout.avatarSize
+            ) {
                 MonacoAvatar(
                     photoURL: row.comment.author.photoUrl, displayName: row.authorName,
                     size: CommentThreadLayout.avatarSize, seed: row.authorID)
             }
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-                    authorLink(identifier: "comment-author-\(row.id)") {
+                    authorLink(identifier: "comment-author-\(row.id)", height: nameLineHeight) {
                         Text(row.authorName)
                             .font(MonacoTheme.Typo.calloutStrong)
                             .foregroundStyle(MonacoTheme.ink)
                             .lineLimit(1)
                     }
-                    Text(row.comment.createdAt, format: .relative(presentation: .named, unitsStyle: .abbreviated))
+                    Text(RelativeTimeFormatter.label(date: row.comment.createdAt, now: Date()))
                         .font(MonacoTheme.Typo.stamp)
                         .foregroundStyle(MonacoTheme.tertiaryText)
                         .fixedSize()
@@ -134,7 +151,6 @@ struct CommentRow: View {
                     .font(MonacoTheme.Typo.body)
                     .foregroundStyle(row.isDeleted ? MonacoTheme.muted : MonacoTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
                     .accessibilityIdentifier("comment-body-\(row.id)")
                 if !row.isDeleted { replyButton }
             }
@@ -153,6 +169,8 @@ struct CommentRow: View {
         }
         .contentShape(Rectangle())
         .contextMenu {
+            Button("Copy") { UIPasteboard.general.string = row.text }
+                .accessibilityIdentifier("comment-copy-\(row.id)")
             if let onDelete {
                 Button(CommentsCopy.delete, role: .destructive, action: onDelete)
                     .accessibilityIdentifier("comment-delete-\(row.id)")
@@ -172,11 +190,22 @@ struct CommentRow: View {
         return text
     }
 
-    @ViewBuilder private func authorLink(identifier: String, @ViewBuilder label: () -> some View) -> some View {
+    @ViewBuilder private func authorLink(
+        identifier: String, height: CGFloat, widthOverhang: CGFloat = 0, @ViewBuilder label: () -> some View
+    ) -> some View {
         if row.opensAuthorProfile {
-            NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: row.authorID))) { label() }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier(identifier)
+            NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: row.authorID))) {
+                label()
+                    .frame(
+                        minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget,
+                        alignment: .leading
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, -CommentRowMetrics.replyOverhang(lineHeight: height))
+            .padding(.trailing, -widthOverhang)
+            .accessibilityIdentifier(identifier)
         } else {
             label()
         }

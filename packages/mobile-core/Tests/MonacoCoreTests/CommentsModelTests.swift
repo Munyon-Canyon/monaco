@@ -40,13 +40,56 @@ final class CommentsModelTests: XCTestCase {
             try Support.page(Thread.samples), try Support.detail(canComment: false),
         ])
         await model.load()
-        XCTAssertTrue(model.canComment)
+        XCTAssertFalse(model.canComment)
 
         await model.load()
 
         XCTAssertFalse(model.canComment)
         let paths = await transport.sent.compactMap(\.path)
         XCTAssertEqual(paths.suffix(1), ["/v1/feed/item-1"])
+    }
+
+    func testCanCommentIsFalseUntilTheCheckReturnsTrue() async throws {
+        let (model, _, _) = try make([try Support.page(Thread.samples), try Support.detail(canComment: true)])
+        XCTAssertFalse(model.canComment)
+        XCTAssertFalse(model.canCommentKnown)
+
+        await model.load()
+
+        XCTAssertTrue(model.canComment)
+        XCTAssertTrue(model.canCommentKnown)
+    }
+
+    func testARefreshRetriesACanCommentCheckThatFailed() async throws {
+        let (model, _, _) = try make([
+            try Support.page(Thread.samples), .json(.internalServerError, "{}"),
+            try Support.page(Thread.samples), try Support.detail(canComment: true),
+        ])
+        await model.load()
+        XCTAssertFalse(model.canComment)
+
+        await model.refresh()
+
+        XCTAssertTrue(model.canComment)
+    }
+
+    func testASuccessfulPostRecordsTheCreatedCommentAndAFailedOneLeavesItAlone() async throws {
+        let (model, _, _) = try make([
+            try Support.page(Thread.samples), try Support.detail(canComment: true),
+            .json(.created, try Support.encode(Components.Schemas.Comment.sample("c5", mine: true))),
+            try Support.page(Thread.samples),
+            .json(.internalServerError, "{}"),
+        ])
+        await model.load()
+        XCTAssertNil(model.lastPostedID)
+
+        let first = await model.post("hello")
+        XCTAssertTrue(first)
+        XCTAssertEqual(model.lastPostedID, "c5")
+
+        let second = await model.post("again")
+        XCTAssertFalse(second)
+        XCTAssertEqual(model.lastPostedID, "c5")
     }
 
     func testAnEmptyThreadIsEmpty() async throws {
