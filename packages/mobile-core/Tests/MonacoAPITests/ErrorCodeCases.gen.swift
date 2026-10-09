@@ -137,6 +137,7 @@ extension Components.Schemas.ErrorCode {
         case .swapFailed: true
         case .swapNotFound: true
         case .swapNotRetryable: true
+        case .swapNotSent: true
         case .swapNotStuck: true
         case .tooManyContactHashes: true
         case .tradeNotStarted: true

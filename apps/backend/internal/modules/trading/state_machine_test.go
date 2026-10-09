@@ -148,3 +148,19 @@ func TestParse_acceptsEachKnownValueAndRejectsTheRest(t *testing.T) {
 	checkParse(t, "ParseSourceKind", domain.ParseSourceKind, domain.SourceKinds())
 	checkParse(t, "ParseAction", domain.ParseAction, domain.Actions())
 }
+
+func TestSwapFailureMessage_saysTheTradeWasNotSentWhenNothingWasSubmitted(t *testing.T) {
+	t.Parallel()
+	for _, code := range domain.FailureCodes() {
+		want := errs.CodeSwapFailed
+		if code == domain.FailureNeverSubmitted {
+			want = errs.CodeSwapNotSent
+		}
+		if code == domain.FailurePriceMoved {
+			want = errs.CodePriceMoved
+		}
+		if got := errs.SwapFailureMessage(string(code)); got != errs.Message(want) {
+			t.Errorf("SwapFailureMessage(%s) = %q, want %q", code, got, errs.Message(want))
+		}
+	}
+}

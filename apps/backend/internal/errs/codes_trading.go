@@ -9,6 +9,7 @@ const (
 	CodeSwapFailed       Code = "swap_failed"
 	CodePriceMoved       Code = "price_moved"
 	CodeTradeNotStarted  Code = "trade_not_started"
+	CodeSwapNotSent      Code = "swap_not_sent"
 	CodeCabalSharesShort Code = "cabal_shares_short"
 )
 
@@ -39,6 +40,9 @@ func (codeFiles) Trading() map[Code]Row {
 			Name: "TradeNotStarted", Kind: KindBlocked,
 			Message: "This trade couldn't start. The money is still in the pot.",
 		},
+		CodeSwapNotSent: {
+			Name: "SwapNotSent", Kind: KindBlocked, Message: "The trade couldn't be sent.",
+		},
 		CodeCabalSharesShort: {
 			Name: "CabalSharesShort", Kind: KindBlocked, Message: "The cabal doesn't hold that many shares.",
 		},
@@ -48,6 +52,9 @@ func (codeFiles) Trading() map[Code]Row {
 func SwapFailureMessage(failureCode string) string {
 	if failureCode == string(CodePriceMoved) {
 		return Message(CodePriceMoved)
+	}
+	if failureCode == "never_submitted" {
+		return Message(CodeSwapNotSent)
 	}
 	return Message(CodeSwapFailed)
 }

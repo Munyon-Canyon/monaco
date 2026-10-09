@@ -161,6 +161,27 @@ func TestProposals_Detail_failures(t *testing.T) {
 	}
 }
 
+func TestHTTP_GetProposal_neverSubmittedSwapSaysTheTradeWasNotSent(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	p := d.proposedBy(t, d.caller, d.ids.NewV7())
+	d.swaps.Put(trading.SwapView{
+		ID: ids.SwapIDFrom(d.ids.NewV7()), Source: trading.Source{Kind: "proposal", ID: p}, Status: "failed",
+		FailureCode: "never_submitted", Retryable: true, CreatedAt: d.now,
+	})
+	d.setStatus(t, p, string(domain.StatusExecutionBlocked), string(errs.CodeSwapFailed))
+	h := adapters.HTTP{Reads: d.reads()}
+	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: d.caller.String()})
+	res, err := h.GetProposal(ctx, api.GetProposalRequestObject{Id: p})
+	got, ok := res.(api.GetProposal200JSONResponse)
+	if err != nil || !ok || got.Swap == nil || got.Swap.FailureMessage == nil {
+		t.Fatalf("GetProposal = %#v, %v, want a swap with a failure message", res, err)
+	}
+	if want := errs.Message(errs.CodeSwapNotSent); *got.Swap.FailureMessage != want {
+		t.Errorf("failure message = %q, want %q", *got.Swap.FailureMessage, want)
+	}
+}
+
 func TestHTTP_GetProposal(t *testing.T) {
 	t.Parallel()
 	d := newReadsDB(t)

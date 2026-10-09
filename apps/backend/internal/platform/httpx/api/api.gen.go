@@ -143,6 +143,7 @@ const (
 	SwapFailed ErrorCode = "swap_failed"
 	SwapNotFound ErrorCode = "swap_not_found"
 	SwapNotRetryable ErrorCode = "swap_not_retryable"
+	SwapNotSent ErrorCode = "swap_not_sent"
 	SwapNotStuck ErrorCode = "swap_not_stuck"
 	TooManyContactHashes ErrorCode = "too_many_contact_hashes"
 	TradeNotStarted ErrorCode = "trade_not_started"
@@ -430,6 +431,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotFound:
 		return true
 	case SwapNotRetryable:
+		return true
+	case SwapNotSent:
 		return true
 	case SwapNotStuck:
 		return true
