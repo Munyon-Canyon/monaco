@@ -69,7 +69,7 @@ private struct CabalHero: View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.sm)
-            .padding(.bottom, MonacoTheme.Space.l)
+            .padding(.bottom, MonacoTheme.Space.s)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(MonacoTheme.heroInk)
     }
@@ -108,12 +108,12 @@ private struct CabalHero: View {
                     accessibilityLabel: cabal.pictureUrl == nil ? nil : "\(cabal.name) picture"
                 )
             }
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(cabal.name)
                     .font(MonacoTheme.Typo.title)
                     .foregroundStyle(MonacoTheme.onHero)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.75)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("cabal-header-name")
                 HStack(spacing: MonacoTheme.Space.s) {
@@ -126,8 +126,9 @@ private struct CabalHero: View {
                     .accessibilityLabel("See the leaderboard")
                     .accessibilityIdentifier("cabal-header-faces")
                     Text(CabalCopy.memberCount(cabal.memberCount))
-                        .font(MonacoTheme.Typo.caption)
+                        .font(MonacoTheme.Typo.callout)
                         .foregroundStyle(MonacoTheme.onHeroMuted)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                         .onTapGesture(perform: showMemberBoard)
