@@ -64,6 +64,21 @@ final class HandleInputTests: XCTestCase {
     func testStepReasonPicksTheSubtext() {
         XCTAssertEqual(HandleStepReason.firstRun.subtext, "This is how people find you on Monaco.")
         XCTAssertEqual(HandleStepReason.revoked.subtext, "Your handle was removed. Pick a new one.")
+        XCTAssertEqual(HandleStepReason.edit.subtext, "You can change your handle once every 30 days.")
+    }
+
+    func testOnlyAllValidCharacterDraftsUnderThreeAreTooShort() {
+        for short in ["a", "ab", "_9"] { XCTAssertTrue(HandleInput.isShortButValid(short), short) }
+        for other in ["", "abc", "a-", "é", String(repeating: "a", count: 21)] {
+            XCTAssertFalse(HandleInput.isShortButValid(other), other)
+        }
+    }
+
+    func testChangeDialogCopyNamesTheLockAndTheFreedHandle() {
+        XCTAssertEqual(HandleCopy.changeTitle(to: "kai"), "Change your handle to @kai?")
+        XCTAssertEqual(
+            HandleCopy.changeMessage(from: "old"),
+            "You can change it again in 30 days. @old becomes free for anyone to take, and links with it stop working.")
     }
 
     func testOnlyAnAvailableStatusIsClaimable() {

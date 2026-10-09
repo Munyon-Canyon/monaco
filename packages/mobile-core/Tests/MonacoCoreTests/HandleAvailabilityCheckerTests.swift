@@ -27,16 +27,31 @@ final class HandleAvailabilityCheckerTests: XCTestCase {
         XCTAssertEqual(sent.map(\.path), ["/v1/handles/qa_ha/availability"])
     }
 
-    func testAnInvalidHandleSendsNoRequest() async throws {
-        let transport = StubTransport(.json(.ok, #"{"handle":"ad","available":true}"#))
+    func testAShortHandleStaysIdleAndSendsNoRequest() async throws {
+        let transport = StubTransport(.json(.ok, #"{"handle":"ab","available":true}"#))
         let clock = TestClock()
         let checker = HandleAvailabilityChecker(sessions: Self.sessions(transport), clock: clock)
 
-        await checker.update("ad")
+        await checker.update("ab")
         clock.advance(by: .seconds(5))
 
         let status = await checker.status
-        XCTAssertEqual(status, .unavailable("ad", .invalid))
+        XCTAssertEqual(status, .idle)
+        XCTAssertEqual(clock.state.current.requested, [])
+        let sent = await transport.sent
+        XCTAssertEqual(sent, [])
+    }
+
+    func testAnInvalidCharacterSendsNoRequestAndIsUnavailable() async throws {
+        let transport = StubTransport(.json(.ok, #"{"handle":"a-b","available":true}"#))
+        let clock = TestClock()
+        let checker = HandleAvailabilityChecker(sessions: Self.sessions(transport), clock: clock)
+
+        await checker.update("a-b")
+        clock.advance(by: .seconds(5))
+
+        let status = await checker.status
+        XCTAssertEqual(status, .unavailable("a-b", .invalid))
         XCTAssertEqual(clock.state.current.requested, [])
         let sent = await transport.sent
         XCTAssertEqual(sent, [])

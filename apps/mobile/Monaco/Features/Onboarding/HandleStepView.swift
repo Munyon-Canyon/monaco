@@ -44,6 +44,7 @@ private struct HandleStepForm: View {
     @State private var submissions: [String: IdempotentSubmission] = [:]
     @State private var offersReferralEntry = false
     @State private var isEnteringReferral = false
+    @State private var confirmingHandle: String?
     @FocusState private var isFocused: Bool
 
     init(
@@ -74,7 +75,8 @@ private struct HandleStepForm: View {
     }
 
     private var subtext: String {
-        guard mode == .onboarding, let profile else { return HandleStepReason.firstRun.subtext }
+        guard mode == .onboarding else { return HandleStepReason.edit.subtext }
+        guard let profile else { return HandleStepReason.firstRun.subtext }
         return HandleInput.stepReason(for: profile).subtext
     }
 
@@ -82,7 +84,7 @@ private struct HandleStepForm: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    Text(OnboardingCopy.handleTitle)
+                    Text(mode == .edit ? HandleCopy.editTitle : OnboardingCopy.handleTitle)
                         .font(MonacoTheme.Typo.display)
                         .foregroundStyle(MonacoTheme.ink)
                         .accessibilityAddTraits(.isHeader)
@@ -93,8 +95,10 @@ private struct HandleStepForm: View {
                 }
                 .fixedSize(horizontal: false, vertical: true)
 
-                field
-                statusLine
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    field
+                    statusLine
+                }
                 if offersReferralEntry {
                     Button {
                         isEnteringReferral = true
@@ -112,7 +116,7 @@ private struct HandleStepForm: View {
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) { BottomCTA { continueButton } }
         .monacoCanvas()
-        .navigationTitle(mode == .edit ? "Handle" : "")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             FirstRunToolbar(
@@ -140,6 +144,16 @@ private struct HandleStepForm: View {
             if mode == .edit, draft.isEmpty, let handle = profile?.handle { draft = handle }
             if !isLocked { isFocused = true }
             refreshReferralEntry()
+        }
+        .confirmationDialog(
+            HandleCopy.changeTitle(to: confirmingHandle ?? ""),
+            isPresented: Binding(get: { confirmingHandle != nil }, set: { if !$0 { confirmingHandle = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(HandleCopy.changeConfirm) { Task { await save() } }
+            Button(HandleCopy.cancel, role: .cancel) {}
+        } message: {
+            Text(HandleCopy.changeMessage(from: profile?.handle ?? ""))
         }
         .sheet(isPresented: $isEnteringReferral) {
             if let userID = profile?.userID {
@@ -169,28 +183,31 @@ private struct HandleStepForm: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.asciiCapable)
-                .submitLabel(.continue)
+                .submitLabel(mode == .edit ? .done : .continue)
                 .focused($isFocused)
-                .onSubmit { Task { await save() } }
+                .onSubmit { if mode == .onboarding { Task { await save() } } }
                 .accessibilityLabel("Handle")
                 .accessibilityIdentifier("handle-step-field")
         }
         .monacoFieldChrome(isFocused: isFocused, isInvalid: isInvalid, focus: { isFocused = true })
         .disabled(isLocked || isSaving)
-        .opacity(isLocked ? 0.6 : 1)
     }
 
     private var isInvalid: Bool {
-        if case .unavailable = status { return true }
-        return isLocked
+        if case .unavailable = status { return !isLocked }
+        return false
     }
 
     @ViewBuilder
     private var statusLine: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
+        HStack(alignment: .center, spacing: MonacoTheme.Space.xs) {
             switch shownStatus {
             case .idle:
-                Text(" ")
+                if HandleInput.isShortButValid(HandleInput.normalize(draft)) {
+                    Text(HandleCopy.invalid).foregroundStyle(MonacoTheme.secondaryText)
+                } else {
+                    Text(" ")
+                }
             case .checking:
                 ProgressView().controlSize(.mini)
                 Text(HandleCopy.checking).foregroundStyle(MonacoTheme.secondaryText)
@@ -198,44 +215,40 @@ private struct HandleStepForm: View {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(MonacoTheme.success)
                 Text(HandleCopy.available).foregroundStyle(MonacoTheme.success)
             case .unavailable(_, let reason):
-                Text(reason.message(changeableAt: profile?.handleChangeableAt)).foregroundStyle(MonacoTheme.loss)
+                Text(reason.message(changeableAt: profile?.handleChangeableAt))
+                    .foregroundStyle(reason == .tooSoon ? MonacoTheme.secondaryText : MonacoTheme.loss)
             case .slowDown:
                 Text(HandleCopy.slowDown).foregroundStyle(MonacoTheme.secondaryText)
             case .failed:
                 Text(HandleCopy.checkFailed).foregroundStyle(MonacoTheme.loss)
-                Button(HandleCopy.tryAgain) { Task { await checker.retry() } }
-                    .buttonStyle(.monacoText)
-                    .accessibilityIdentifier("handle-step-try-again")
+                Button {
+                    Task { await checker.retry() }
+                } label: {
+                    Text(HandleCopy.tryAgain).font(MonacoTheme.Typo.caption)
+                }
+                .buttonStyle(.monacoText)
+                .accessibilityIdentifier("handle-step-try-again")
             }
         }
         .font(MonacoTheme.Typo.caption)
         .fixedSize(horizontal: false, vertical: true)
-        .frame(minHeight: 44, alignment: .leading)
+        .frame(minHeight: 44, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(statusLabel)
         .accessibilityIdentifier("handle-step-status")
     }
 
-    private var shownStatus: HandleStatus {
-        isLocked ? .unavailable(profile?.handle ?? "", .tooSoon) : status
-    }
-
-    private var statusLabel: String {
-        switch shownStatus {
-        case .idle: ""
-        case .checking: HandleCopy.checking
-        case .available(let handle): "@\(handle) is available"
-        case .unavailable(_, let reason): reason.message(changeableAt: profile?.handleChangeableAt)
-        case .slowDown: HandleCopy.slowDown
-        case .failed: HandleCopy.checkFailed
-        }
-    }
-
     private var continueButton: some View {
         Button {
-            Task { await save() }
+            if mode == .edit {
+                confirmingHandle = claimable
+            } else {
+                Task { await save() }
+            }
         } label: {
-            SubmitLabel(isWorking: isSaving, idle: OnboardingCopy.continueLabel, working: HandleCopy.saving)
+            SubmitLabel(
+                isWorking: isSaving, idle: mode == .edit ? HandleCopy.save : OnboardingCopy.continueLabel,
+                working: HandleCopy.saving)
         }
         .buttonStyle(.monacoPrimary)
         .disabled(claimable == nil)
@@ -266,6 +279,25 @@ private struct HandleStepForm: View {
             case .toast(let message):
                 toasts.current = MonacoToast(message: message)
             }
+        }
+    }
+}
+
+extension HandleStepForm {
+    private var shownStatus: HandleStatus {
+        if isLocked { return .unavailable(profile?.handle ?? "", .tooSoon) }
+        if mode == .edit, HandleInput.normalize(draft) == profile?.handle { return .idle }
+        return status
+    }
+
+    private var statusLabel: String {
+        switch shownStatus {
+        case .idle: HandleInput.isShortButValid(HandleInput.normalize(draft)) ? HandleCopy.invalid : ""
+        case .checking: HandleCopy.checking
+        case .available(let handle): "@\(handle) is available"
+        case .unavailable(_, let reason): reason.message(changeableAt: profile?.handleChangeableAt)
+        case .slowDown: HandleCopy.slowDown
+        case .failed: HandleCopy.checkFailed
         }
     }
 }

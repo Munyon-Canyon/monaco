@@ -31,7 +31,7 @@ public actor HandleAvailabilityChecker {
         input = handle
         pending?.cancel()
         pending = nil
-        if handle.isEmpty {
+        if handle.isEmpty || HandleInput.isShortButValid(handle) {
             publish(.idle)
         } else if let reason = HandleInput.localReason(handle) {
             publish(.unavailable(handle, reason))
