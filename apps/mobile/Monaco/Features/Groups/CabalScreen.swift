@@ -35,6 +35,7 @@ struct CabalScreen: View {
     @State private var heroScrolledAway = false
     @State private var titleModel: CabalActionsModel?
     @State private var retryTick = 0
+    @State private var refresh = ScreenRefresh()
 
     init(
         cabalID: String,
@@ -54,6 +55,11 @@ struct CabalScreen: View {
                 NotMigratedView(screen: "Cabal")
             } else {
                 SectionStack(context: context, sections: sections)
+                    .environment(refresh)
+                    .refreshable {
+                        retryTick += 1
+                        await refresh.run()
+                    }
             }
         }
         .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })

@@ -14,6 +14,7 @@ struct CabalProposals: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.hostMainTab) private var hostMainTab
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: ProposalListModel?
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
@@ -42,7 +43,11 @@ struct CabalProposals: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .task { await preparedModel().load() }
+        .task {
+            let model = preparedModel()
+            refresh?.register("cabal-proposals") { await model.refresh() }
+            await model.load()
+        }
         .task(id: model?.pager.items.map(\.id)) { await context?.load(for: model?.pager.items ?? []) }
         .task { await preparedModel().observe(cabalID: cabalID) }
         .task {

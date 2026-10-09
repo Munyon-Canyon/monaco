@@ -86,6 +86,31 @@ struct CabalProposalsRefreshTests {
         #expect(segments.model(for: .executed).pager.items.map(\.id) == ["p"])
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func runningTheScreenRefreshRefetchesTheProposals() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, #"{"proposals":[],"next_cursor":null}"#),
+            .json(.ok, #"{"proposals":[\#(Self.proposalJSON(status: "open"))],"next_cursor":null}"#),
+        ])
+        let model = ProposalListModel(
+            cabalID: "cabal-1", filter: .open,
+            repository: ProposalsRepository(
+                api: APIClient(
+                    serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)),
+            hints: EmittingHintSource())
+        let refresh = ScreenRefresh()
+        let window = try ProposalTestWindow.hosting(
+            CabalProposals(cabalID: "cabal-1", makeModel: { _, _ in model }).environment(refresh))
+        defer { window.isHidden = true }
+        await ProposalTestWindow.until { model.pager.phase == .exhausted }
+        #expect(await listRequests(transport) == 1)
+
+        await refresh.run()
+
+        #expect(await listRequests(transport) == 2)
+        #expect(model.pager.items.map(\.id) == ["p"])
+    }
+
     private static func proposalJSON(status: String) -> String {
         #"{"id":"p","cabal_id":"cabal-1","proposer_id":"u","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":null,"status_message":null,"expires_at":"2099-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes","can_vote":true}"#
     }
