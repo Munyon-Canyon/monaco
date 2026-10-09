@@ -233,6 +233,8 @@ public final class PendingVotesModel {
     public private(set) var votes: [PendingVote] = []
     public private(set) var details: [String: ProposalDetail] = [:]
     public private(set) var pausedCabals: Set<String> = []
+    public private(set) var assets: [String: ProposalAsset] = [:]
+    public private(set) var members: [String: [ProposalMember]] = [:]
     private let repository: ProposalsRepository
     private let hints: any HintSource
     private let refresher: HintRefresher
@@ -262,6 +264,7 @@ public final class PendingVotesModel {
             details = fetched.filter { entry in votes.contains { $0.id == entry.key } }
             pausedCabals = await pausedAmong(Set(votes.map(\.cabalID)))
             phase = .loaded
+            await loadCardContext(for: fetched.values.map(\.summary))
         } catch {
             if phase != .loaded { phase = .failed }
         }
@@ -278,6 +281,29 @@ public final class PendingVotesModel {
             }
             return pairs
         }
+    }
+
+    private func loadCardContext(for summaries: [ProposalSummary]) async {
+        let symbols = Set(summaries.map(\.symbol)).subtracting(assets.keys)
+        let cabalIDs = Set(summaries.map(\.cabalID)).subtracting(members.keys)
+        async let fetchedAssets = withTaskGroup(of: (String, ProposalAsset?).self) { group in
+            for symbol in symbols {
+                group.addTask { (symbol, try? await self.repository.asset(symbol: symbol)) }
+            }
+            var pairs: [String: ProposalAsset] = [:]
+            for await (symbol, asset) in group { if let asset { pairs[symbol] = asset } }
+            return pairs
+        }
+        async let fetchedMembers = withTaskGroup(of: (String, [ProposalMember]?).self) { group in
+            for id in cabalIDs {
+                group.addTask { (id, try? await self.repository.members(cabalID: id)) }
+            }
+            var pairs: [String: [ProposalMember]] = [:]
+            for await (id, people) in group { if let people { pairs[id] = people } }
+            return pairs
+        }
+        assets.merge(await fetchedAssets) { _, new in new }
+        members.merge(await fetchedMembers) { _, new in new }
     }
 
     private func pausedAmong(_ cabalIDs: Set<String>) async -> Set<String> {

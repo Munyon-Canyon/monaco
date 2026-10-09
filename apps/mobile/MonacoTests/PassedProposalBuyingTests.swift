@@ -43,6 +43,8 @@ struct PassedProposalBuyingTests {
             .json(.ok, Self.pending),
             .json(.ok, Self.detail(status: "open")),
             .json(.ok, #"{"paused":false}"#),
+            .failure(URLError(.notConnectedToInternet)),
+            .failure(URLError(.notConnectedToInternet)),
             .json(.ok, "[]"),
             .json(.ok, Self.detail(status: "passed")),
             .json(.ok, #"{"paused":false}"#),
@@ -67,6 +69,8 @@ struct PassedProposalBuyingTests {
             .json(.ok, Self.pending),
             .json(.ok, Self.detail(status: "open")),
             .json(.ok, #"{"paused":false}"#),
+            .failure(URLError(.notConnectedToInternet)),
+            .failure(URLError(.notConnectedToInternet)),
             .json(.ok, "[]"),
             .json(.ok, Self.detail(status: "open")),
         ])
@@ -84,6 +88,8 @@ struct PassedProposalBuyingTests {
             .json(.ok, Self.pending),
             .json(.ok, Self.detail(status: "open")),
             .json(.ok, #"{"paused":false}"#),
+            .failure(URLError(.notConnectedToInternet)),
+            .failure(URLError(.notConnectedToInternet)),
             .json(.ok, "[]"),
             .json(.ok, Self.detail(status: "executed")),
         ])
@@ -109,6 +115,8 @@ struct PassedProposalBuyingTests {
             .json(.ok, Self.pending),
             .json(.ok, Self.detail(status: "open")),
             .json(.ok, #"{"paused":false}"#),
+            .failure(URLError(.notConnectedToInternet)),
+            .failure(URLError(.notConnectedToInternet)),
             .json(.ok, "[]"),
             .json(.ok, failed),
         ])
