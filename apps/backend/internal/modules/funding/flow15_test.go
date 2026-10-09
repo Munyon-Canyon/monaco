@@ -61,7 +61,7 @@ func TestWithdraw_aBannedMemberCanStillWithdraw(t *testing.T) {
 	}
 	s.Given(scenario.AsSeededUser("member", member.ID)).
 		When(scenario.Post("/v1/me/withdrawals",
-			`{"amount_micros":"2000000","to_address":"9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"}`)).
+			`{"amount_micros":"2000000","to_address":"`+string(withdrawTo)+`"}`)).
 		Then(scenario.ExpectStatus(http.StatusAccepted), scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 1))
 }
 

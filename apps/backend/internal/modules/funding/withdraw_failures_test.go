@@ -8,8 +8,42 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
+
+func TestWithdraw_RefusesAddressesThatCannotSpend(t *testing.T) {
+	t.Parallel()
+	for name, to := range map[string]func(*testing.T, *scenario.Scenario) chain.SolanaAddress{
+		"usdc token account": func(*testing.T, *scenario.Scenario) chain.SolanaAddress {
+			return "FGETo8T8wMcN2wCjav8VK6eh3dLk63evNDPxzLSJra8B"
+		},
+		"cabal treasury": func(t *testing.T, s *scenario.Scenario) chain.SolanaAddress {
+			t.Helper()
+			return testkit.NewCabal(t, s.DB()).TreasuryAddress
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s := flow15Scenario(t)
+			member := flows.SeedWithdrawer(s)
+			s.Given(scenario.AsSeededUser("member", member.ID)).
+				When(scenario.Post("/v1/me/withdrawals",
+					`{"amount_micros":"2000000","to_address":"`+string(to(t, s))+`"}`)).
+				Then(scenario.ExpectProblem(errs.CodeInvalidAddress),
+					scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 0))
+			var rows int
+			err := s.DB().QueryRow(t.Context(), `SELECT count(*) FROM withdrawals`).Scan(&rows)
+			if err != nil || rows != 0 {
+				t.Fatalf("withdrawal rows = %d, %v", rows, err)
+			}
+		})
+	}
+}
 
 const refuseWithdrawalWrites = `
 CREATE FUNCTION refuse_withdrawal_write() RETURNS trigger LANGUAGE plpgsql AS

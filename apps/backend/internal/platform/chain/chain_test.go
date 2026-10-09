@@ -5,6 +5,8 @@ import (
 	"crypto/ed25519"
 	"testing"
 
+	"pgregory.net/rapid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 )
@@ -66,8 +68,7 @@ func TestAssociatedTokenAccountMatchesMainnet(t *testing.T) {
 	if err != nil || got != "FGETo8T8wMcN2wCjav8VK6eh3dLk63evNDPxzLSJra8B" {
 		t.Fatalf("ATA = %q, %v", got, err)
 	}
-	b, _ := got.Bytes()
-	if chain.OnCurve(b) {
+	if got.OnCurve() {
 		t.Fatal("an ATA must be off the curve")
 	}
 	if _, err := chain.AssociatedTokenAccount(
@@ -83,13 +84,30 @@ func TestAssociatedTokenAccountMatchesMainnet(t *testing.T) {
 
 func TestOnCurve(t *testing.T) {
 	t.Parallel()
-	pub, _ := owner.Bytes()
-	if !chain.OnCurve(pub) {
+	if !owner.OnCurve() {
 		t.Fatal("a wallet public key is on the curve")
 	}
 	identity := make([]byte, 32)
 	identity[0] = 1
-	if !chain.OnCurve(identity) {
+	if !chain.AddressOf(identity).OnCurve() {
 		t.Fatal("the identity point (y=1, x=0) is on the curve")
 	}
+	if chain.SolanaAddress("not-an-address").OnCurve() {
+		t.Fatal("an address that does not decode is not on the curve")
+	}
+}
+
+func TestOnCurve_walletsAreOnItAndTheirTokenAccountsAreNot(t *testing.T) {
+	t.Parallel()
+	rapid.Check(t, func(t *rapid.T) {
+		seed := rapid.SliceOfN(rapid.Byte(), ed25519.SeedSize, ed25519.SeedSize).Draw(t, "seed")
+		wallet := chain.AddressOf(ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey))
+		if !wallet.OnCurve() {
+			t.Fatalf("wallet %s is off the curve", wallet)
+		}
+		ata, err := chain.AssociatedTokenAccount(wallet, usdcMint, chain.SPLProgram)
+		if err != nil || ata.OnCurve() {
+			t.Fatalf("ATA(%s) = %s on curve, %v", wallet, ata, err)
+		}
+	})
 }

@@ -1,7 +1,7 @@
 package testkit
 
 import (
-	"crypto/rand"
+	"crypto/ed25519"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -44,8 +44,7 @@ func SeedUser(t SeedT, pool *pgxpool.Pool, opts UserOpts) SeededUser {
 	if !opts.WithWallet {
 		return u
 	}
-	key := make([]byte, 32)
-	_, _ = rand.Read(key)
+	key, _, _ := ed25519.GenerateKey(nil)
 	u.PrivyWalletID, u.Address = "wallet-"+id.String(), chain.AddressOf(key)
 	if _, err := pool.Exec(t.Context(), `INSERT INTO user_wallets (user_id, privy_wallet_id, address, created_at)
 		VALUES ($1, $2, $3, $4)`, id.UUID(), u.PrivyWalletID, string(u.Address), now); err != nil {
