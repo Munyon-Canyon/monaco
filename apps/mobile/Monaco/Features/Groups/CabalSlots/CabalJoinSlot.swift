@@ -207,26 +207,49 @@ private struct CabalPendingRequestRow: View {
     @State private var canVote = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            NavigationLink(
-                value: AnyAppRoute(
-                    UserProfileRoute(
-                        userID: request.userID,
-                        preview: UserPreview(displayName: request.name, handle: nil, photoURL: request.photoURL)
-                    ))
-            ) {
-                HStack(spacing: MonacoTheme.Space.sm) {
-                    MonacoAvatar(photoURL: request.photoURL, displayName: request.name, seed: request.userID)
-                    Text(request.name)
-                        .font(MonacoTheme.Typo.rowTitle)
-                        .foregroundStyle(MonacoTheme.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                NavigationLink(
+                    value: AnyAppRoute(
+                        UserProfileRoute(
+                            userID: request.userID,
+                            preview: UserPreview(displayName: request.name, handle: nil, photoURL: request.photoURL)
+                        ))
+                ) {
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        MonacoAvatar(photoURL: request.photoURL, displayName: request.name, seed: request.userID)
+                        Text(request.name)
+                            .font(MonacoTheme.Typo.rowTitle)
+                            .foregroundStyle(MonacoTheme.ink)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("cabal-join-request-row")
+                HStack(spacing: MonacoTheme.Space.s) {
+                    Button {
+                        decide(false, false)
+                    } label: {
+                        Text("Deny")
+                            .font(MonacoTheme.Typo.calloutStrong)
+                            .foregroundStyle(MonacoTheme.muted)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Deny \(request.name)")
+                    .accessibilityIdentifier("cabal-join-deny")
+                    Button("Approve") { decide(true, offersVote && canVote) }
+                        .buttonStyle(.monacoCompactProminent)
+                        .accessibilityLabel("Approve \(request.name)")
+                        .accessibilityIdentifier("cabal-join-approve")
+                }
+                .disabled(isDeciding)
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("cabal-join-request-row")
             if offersVote {
                 Toggle(CabalJoinCopy.canVote, isOn: $canVote)
                     .font(MonacoTheme.Typo.rowTitle)
@@ -235,26 +258,9 @@ private struct CabalPendingRequestRow: View {
                     .disabled(isDeciding)
                     .accessibilityIdentifier("cabal-join-can-vote")
             }
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: MonacoTheme.Space.sm) { buttons }
-                VStack(spacing: MonacoTheme.Space.s) { buttons }
-            }
-            .disabled(isDeciding)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.m)
-    }
-
-    @ViewBuilder
-    private var buttons: some View {
-        Button("Approve") { decide(true, offersVote && canVote) }
-            .buttonStyle(.monacoPrimary)
-            .accessibilityLabel("Approve \(request.name)")
-            .accessibilityIdentifier("cabal-join-approve")
-        Button("Deny") { decide(false, false) }
-            .buttonStyle(.monacoSecondary)
-            .accessibilityLabel("Deny \(request.name)")
-            .accessibilityIdentifier("cabal-join-deny")
+        .padding(.vertical, MonacoTheme.Space.sm)
     }
 }
 

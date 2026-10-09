@@ -166,7 +166,7 @@ struct CashOutContent: View {
             for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros)
         return BottomCTA {
             Button(action: onSubmit) {
-                SubmitLabel(isWorking: isSubmitting, idle: title, working: title)
+                SubmitLabel(isWorking: isSubmitting, idle: title, working: "Cashing out…")
             }
             .buttonStyle(.monacoPrimary)
             .disabled(isSubmitting || !verdict.maySubmit)

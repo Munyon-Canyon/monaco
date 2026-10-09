@@ -5,15 +5,15 @@ Approve sends a deny. S2.2 waits for the toast "Approved." and 2 members, so it 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
-index 6db1fc56c..d797b2e35 100644
+index c11c19992..41b38c27c 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalJoinSlot.swift
-@@ -155,7 +155,7 @@ private struct CabalPendingRequestRow: View {
- 
-     @ViewBuilder
-     private var buttons: some View {
--        Button("Approve") { decide(true, offersVote && canVote) }
-+        Button("Approve") { decide(false, offersVote && canVote) }
-             .buttonStyle(.monacoPrimary)
-             .accessibilityLabel("Approve \(request.name)")
-             .accessibilityIdentifier("cabal-join-approve")
+@@ -243,7 +243,7 @@ private struct CabalPendingRequestRow: View {
+                     .buttonStyle(.plain)
+                     .accessibilityLabel("Deny \(request.name)")
+                     .accessibilityIdentifier("cabal-join-deny")
+-                    Button("Approve") { decide(true, offersVote && canVote) }
++                    Button("Approve") { decide(false, offersVote && canVote) }
+                         .buttonStyle(.monacoCompactProminent)
+                         .accessibilityLabel("Approve \(request.name)")
+                         .accessibilityIdentifier("cabal-join-approve")

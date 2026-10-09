@@ -107,10 +107,7 @@ struct ProposeAddAgentView: View {
                 Button {
                     Task { await send() }
                 } label: {
-                    ZStack {
-                        Text(ProposeFlowCopy.sendToCabal).opacity(isSending ? 0 : 1)
-                        if isSending { ProgressView().tint(MonacoTheme.primaryButtonLabel) }
-                    }
+                    SubmitLabel(isWorking: isSending, idle: ProposeFlowCopy.sendToCabal, working: "Sending…")
                 }
                 .buttonStyle(.monacoPrimary)
                 .disabled(!canSend)
@@ -243,10 +240,7 @@ struct ProposeAgentLifecycleView: View {
                 Button {
                     Task { await send() }
                 } label: {
-                    ZStack {
-                        Text(ProposeFlowCopy.sendToCabal).opacity(isSending ? 0 : 1)
-                        if isSending { ProgressView().tint(MonacoTheme.primaryButtonLabel) }
-                    }
+                    SubmitLabel(isWorking: isSending, idle: ProposeFlowCopy.sendToCabal, working: "Sending…")
                 }
                 .buttonStyle(.monacoPrimary)
                 .disabled(isSending)
