@@ -61,7 +61,7 @@ struct FriendsScreen: View {
                 } else if model.access == .granted {
                     FriendsOnMonacoView(model: model)
                 } else {
-                    ContactsExplainerView()
+                    ContactsExplainerView(isDenied: model.access == .denied)
                 }
             }
             .padding(.vertical, MonacoTheme.Space.m)
