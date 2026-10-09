@@ -20,7 +20,34 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-const depositWatchDirtyBatch = 500
+const (
+	depositWatchDirtyBatch = 500
+	depositWatchStopBefore = 5 * time.Second
+)
+
+type watchBudget struct {
+	left, used int
+	stopAt     time.Time
+}
+
+type watchBudgetKey struct{}
+
+func newWatchBudget(ctx context.Context, calls int) *watchBudget {
+	b := &watchBudget{left: calls}
+	if deadline, ok := ctx.Deadline(); ok {
+		b.stopAt = deadline.Add(-depositWatchStopBefore)
+	}
+	return b
+}
+
+func (b *watchBudget) spent(now time.Time) bool {
+	return b.left <= 0 || (!b.stopAt.IsZero() && !now.Before(b.stopAt))
+}
+
+type watchStep struct {
+	name string
+	run  func(context.Context) (scanned, recorded int, err error)
+}
 
 type DepositWatchRPC interface {
 	SignaturesFor(
@@ -41,15 +68,17 @@ type DepositWatch struct {
 	usdc    chain.SolanaAddress
 	period  time.Duration
 	limit   RPCLimiter
+	calls   int
 }
 
 func NewDepositWatch(
 	reads sqlc.DBTX, uow *db.UnitOfWork, g ids.Generator, c clock.Clock, wallets port.WalletReader,
 	rpc DepositWatchRPC, usdc chain.SolanaAddress, period time.Duration, limit RPCLimiter,
+	callBudget int,
 ) *DepositWatch {
 	return &DepositWatch{
 		reads: reads, uow: uow, ids: g, clock: c, wallets: wallets, rpc: rpc, usdc: usdc,
-		period: period, limit: limit,
+		period: period, limit: limit, calls: callBudget,
 	}
 }
 
@@ -58,20 +87,30 @@ func (*DepositWatch) Name() string { return "funding.deposit_watch" }
 func (p *DepositWatch) Interval() time.Duration { return p.period }
 
 func (p *DepositWatch) Tick(ctx context.Context) (poller.Report, error) {
-	var report poller.Report
-	dirty, recorded, dirtyErr := p.catchUpDirty(ctx)
-	seeded, seedErr := p.firstSight(ctx)
-	report.Scanned = dirty + seeded
-	report.Changed = recorded
-	report.Attrs = []slog.Attr{slog.Int("dirty", dirty), slog.Int("first_sight", seeded)}
-	return report, errors.Join(spentOK(dirtyErr), spentOK(seedErr))
-}
-
-func spentOK(err error) error {
-	if errors.Is(err, errRateBudgetSpent) {
-		return nil
+	budget := newWatchBudget(ctx, p.calls)
+	ctx = context.WithValue(ctx, watchBudgetKey{}, budget)
+	steps := []watchStep{
+		{"dirty", p.catchUpDirty},
+		{"first_sight", func(ctx context.Context) (int, int, error) {
+			seeded, err := p.firstSight(ctx)
+			return seeded, 0, err
+		}},
 	}
-	return err
+	var report poller.Report
+	var errList []error
+	for _, step := range steps {
+		before := budget.used
+		scanned, recorded, err := step.run(ctx)
+		report.Scanned += scanned
+		report.Changed += recorded
+		report.Attrs = append(report.Attrs,
+			slog.Int(step.name, scanned), slog.Int(step.name+"_calls", budget.used-before))
+		if errors.Is(err, errRateBudgetSpent) {
+			break
+		}
+		errList = append(errList, err)
+	}
+	return report, errors.Join(errList...)
 }
 
 func (p *DepositWatch) catchUpDirty(ctx context.Context) (int, int, error) {
@@ -318,8 +357,16 @@ func (p *DepositWatch) signatures(
 }
 
 func (p *DepositWatch) wait(ctx context.Context) error {
+	budget, _ := ctx.Value(watchBudgetKey{}).(*watchBudget)
+	if budget != nil && budget.spent(p.clock.Now()) {
+		return errRateBudgetSpent
+	}
 	err := p.limit.Wait(ctx)
 	if err == nil {
+		if budget != nil {
+			budget.left--
+			budget.used++
+		}
 		return nil
 	}
 	if ctx.Err() == nil {

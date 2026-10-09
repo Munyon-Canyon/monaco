@@ -76,7 +76,7 @@ func (r *watchRPC) TokenAccounts(
 func testWatch(pool sqlc.DBTX, uow *db.UnitOfWork, rpc DepositWatchRPC, wallets port.WalletReader) *DepositWatch {
 	return NewDepositWatch(
 		pool, uow, testkit.NewIDs(2), clock.Real{}, wallets, rpc, testkit.USDCMint, time.Second,
-		rate.NewLimiter(rate.Inf, 0),
+		rate.NewLimiter(rate.Inf, 0), 480,
 	)
 }
 
@@ -107,7 +107,7 @@ func TestDepositWatchFetchesOnePageAndHonorsCancellation(t *testing.T) {
 
 func TestDepositWatchReportsItsNameAndInterval(t *testing.T) {
 	t.Parallel()
-	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil)
+	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, 0)
 	if p.Interval() != time.Second || p.Name() != "funding.deposit_watch" {
 		t.Fatalf("name/interval = %q/%s", p.Name(), p.Interval())
 	}
