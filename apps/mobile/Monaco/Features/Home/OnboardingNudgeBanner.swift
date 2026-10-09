@@ -19,6 +19,14 @@ struct OnboardingNudgeBanner: View {
         if case .linkX = opened { LinkCopy.xTitle } else { LinkCopy.phoneTitle }
     }
 
+    init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-MonacoNudgeSheetOpen") {
+            _opened = State(initialValue: .linkX(""))
+        }
+        #endif
+    }
+
     var body: some View {
         content
             .sheet(isPresented: isOpen) {

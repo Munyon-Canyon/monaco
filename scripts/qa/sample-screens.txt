@@ -11,6 +11,10 @@ design-gallery-toast          -MonacoDesignGallery -MonacoDesignGalleryTab toast
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty
 home-loading                  -MonacoHomeSample loading
+home-nudge-x                  -MonacoHomeSample nudgeX -MonacoFeatureConnectX YES
+home-nudge-x-empty            -MonacoHomeSample nudgeXEmpty -MonacoFeatureConnectX YES
+home-nudge-sheet              -MonacoHomeSample nudgeX -MonacoNudgeSheetOpen -MonacoFeatureConnectX YES
+home-push-pre-prompt          -MonacoHomeSample prePrompt
 
 cabals-tab                    -MonacoCabalsTabSample
 

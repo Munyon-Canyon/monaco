@@ -9,6 +9,9 @@ enum HomeSampleScenario: String, CaseIterable {
     case populated
     case empty
     case loading
+    case nudgeX
+    case nudgeXEmpty
+    case prePrompt
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -24,7 +27,24 @@ extension HomeSampleScenario {
         case .populated: SampleAPIScript()
         case .empty: SampleAPIScript(mode: .empty)
         case .loading: SampleAPIScript(mode: .hang)
+        case .nudgeX: SampleAPIScript()
+        case .nudgeXEmpty: SampleAPIScript(mode: .empty)
+        case .prePrompt: SampleAPIScript()
         }
+    }
+}
+
+private struct SampleNotificationAuthorizing: NotificationAuthorizing {
+    func status() async -> PushAuthorization { .notDetermined }
+    func request() async -> Bool { false }
+}
+
+private enum SamplePushPrePrompt {
+    @MainActor static func make() -> PushPrePrompt {
+        PushPrePrompt(
+            authorization: SampleNotificationAuthorizing(),
+            defaults: UserDefaults(suiteName: "sample-push-pre-prompt") ?? .standard,
+            register: {})
     }
 }
 
@@ -33,7 +53,12 @@ struct HomeSampleHarness: View {
     @ObservedObject var auth: PrivyAuthService
 
     var body: some View {
-        SampleAppFrame(auth: auth, tab: .home, session: session)
+        SampleAppFrame(auth: auth, tab: .home, session: session, sheet: sheet)
+    }
+
+    private var sheet: (() -> AnyView)? {
+        guard scenario == .prePrompt else { return nil }
+        return { AnyView(PushPrePromptSheet(prompt: SamplePushPrePrompt.make())) }
     }
 
     private func session(_ store: AppSessionStore) {
@@ -41,6 +66,10 @@ struct HomeSampleHarness: View {
             SampleAppFrame.loading(store)
         } else {
             SampleAppFrame.signedIn(store)
+            let connectX = ProcessInfo.processInfo.arguments.contains("-MonacoFeatureConnectX")
+            if connectX && (scenario == .nudgeX || scenario == .nudgeXEmpty) {
+                store.profile?.authState = .awaitingSocials
+            }
         }
     }
 }
