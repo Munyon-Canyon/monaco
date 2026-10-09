@@ -174,60 +174,30 @@ struct ChatThreadList: View {
     let loadOlder: () -> Void
     let refresh: () async -> Void
 
-    private static let bottomAnchor = "thread-bottom"
-
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    ChatThreadParent(parent: parent, openProfile: openProfile)
-                    if hasOlder { loadEarlierButton }
-                    if rows.isEmpty {
-                        Text(ChatThreadCopy.noReplies)
-                            .font(MonacoTheme.Typo.callout)
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
-                            .accessibilityIdentifier("chat-thread-empty")
-                    }
-                    ForEach(rows) { row in
-                        GroupChatRowView(
-                            row: row, now: Date(), openProfile: openProfile, retry: retry,
-                            replyHere: replyHere, requestDelete: requestDelete
-                        )
-                        .id(row.id)
-                    }
-                    Color.clear.frame(height: 1).id(Self.bottomAnchor)
-                }
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.bottom, 12)
+        ChatList(
+            rows: rows, hasOlder: hasOlder, isLoadingOlder: isLoadingOlder,
+            loadEarlierID: "chat-thread-load-earlier", listID: "chat-thread-list",
+            loadOlder: loadOlder, refresh: refresh
+        ) {
+            ChatThreadParent(parent: parent, openProfile: openProfile)
+        } content: {
+            if rows.isEmpty {
+                Text(ChatThreadCopy.noReplies)
+                    .font(MonacoTheme.Typo.callout)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .accessibilityIdentifier("chat-thread-empty")
             }
-            .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            .scrollDismissesKeyboard(.interactively)
-            .refreshable { await refresh() }
-            .onChange(of: rows.last?.id) { _, _ in
-                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
-            }
-            .accessibilityIdentifier("chat-thread-list")
-        }
-    }
-
-    private var loadEarlierButton: some View {
-        Button {
-            loadOlder()
-        } label: {
-            if isLoadingOlder {
-                ProgressView().tint(MonacoTheme.accent)
-            } else {
-                Text(GroupChatCopy.loadEarlier).font(MonacoTheme.Typo.captionStrong)
+            ForEach(rows) { row in
+                GroupChatRowView(
+                    row: row, now: Date(), openProfile: openProfile, retry: retry,
+                    replyHere: replyHere, requestDelete: requestDelete
+                )
+                .id(row.id)
             }
         }
-        .buttonStyle(.borderless)
-        .foregroundStyle(MonacoTheme.accent)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .disabled(isLoadingOlder)
-        .accessibilityIdentifier("chat-thread-load-earlier")
     }
 }
 

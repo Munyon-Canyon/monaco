@@ -60,7 +60,7 @@ struct GroupChatRowView: View {
                         .lineLimit(1)
                 }
             }
-            .frame(minHeight: 28)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -144,7 +144,7 @@ struct GroupChatRowView: View {
                 }
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .frame(minHeight: 32)
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
