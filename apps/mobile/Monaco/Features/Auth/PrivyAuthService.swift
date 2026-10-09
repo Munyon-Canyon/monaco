@@ -66,13 +66,8 @@ class PrivyAuthService: ObservableObject {
     static var processInstance: PrivyAuthService?
     #endif
 
-    init(settings: PrivyAuthSettings) {
-        let config = PrivyConfig(
-            appId: settings.appID,
-            appClientId: settings.appClientID,
-            loggingConfig: .init(logLevel: .none)
-        )
-        privy = PrivySdk.initialize(config: config)
+    init(settings _: PrivyAuthSettings, privy: Privy) {
+        self.privy = privy
         flow = LoginFlow(phase: sessionStore.hasExplicitLogin ? .restoring : .idle)
 
         AccessTokenRefreshRegistry.shared.register { [weak self] rejectedToken in
@@ -83,8 +78,20 @@ class PrivyAuthService: ObservableObject {
         #endif
     }
 
+    convenience init(settings: PrivyAuthSettings) {
+        self.init(settings: settings, privy: PrivySdk.initialize(config: Self.privyConfig(settings)))
+    }
+
     convenience init() {
         self.init(settings: Config.privy)
+    }
+
+    static func privyConfig(_ settings: PrivyAuthSettings) -> PrivyConfig {
+        PrivyConfig(
+            appId: settings.appID,
+            appClientId: settings.appClientID,
+            loggingConfig: .init(logLevel: .none)
+        )
     }
 
     // MARK: Session restore
