@@ -60,20 +60,18 @@ extension AppSessionStore {
         if optimistic {
             profile = pending
         }
+        let saved: SessionProfile
         do {
-            let saved = try await sessions.updateDisplayName(normalized, submission: submission)
-            guard writeGeneration == profileWriteGenerationValue() else {
-                return .failed("Sign in again to edit your profile.")
-            }
-            profile = saved
-            noteProfileWrite()
+            saved = try await sessions.updateDisplayName(normalized, submission: submission)
         } catch {
             if profile == pending {
                 profile = current
             }
             return await failure(for: error, auth: auth, rejectedToken: token)
         }
-        return .saved
+        return await adopt(
+            saved, startedAs: current.userID, atGeneration: writeGeneration, auth: auth,
+            signedOut: "Sign in again to edit your profile.")
     }
 
     func saveProfilePhoto(
@@ -84,17 +82,34 @@ extension AppSessionStore {
         guard let sessions, let token = await accessToken(auth: auth), !token.isEmpty else {
             return .failed("Sign in again to change your photo.")
         }
+        let userID = profile?.userID
         noteProfileWrite()
         let writeGeneration = profileWriteGenerationValue()
+        let saved: SessionProfile
         do {
-            let saved = try await sessions.uploadProfilePhoto(photo, submission: submission)
-            guard writeGeneration == profileWriteGenerationValue() else {
-                return .failed("Sign in again to change your photo.")
-            }
-            profile = saved
-            noteProfileWrite()
+            saved = try await sessions.uploadProfilePhoto(photo, submission: submission)
         } catch {
             return await failure(for: error, auth: auth, rejectedToken: token)
+        }
+        return await adopt(
+            saved, startedAs: userID, atGeneration: writeGeneration, auth: auth,
+            signedOut: "Sign in again to change your photo.")
+    }
+
+    private func adopt(
+        _ saved: SessionProfile,
+        startedAs userID: String?,
+        atGeneration generation: Int,
+        auth: SessionAuthenticating,
+        signedOut: String
+    ) async -> ProfileSaveOutcome {
+        guard profile?.userID == userID else { return .failed(signedOut) }
+        let raced = generation != profileWriteGenerationValue()
+        noteProfileWrite()
+        if raced {
+            await reloadProfile(auth: auth)
+        } else {
+            profile = saved
         }
         return .saved
     }

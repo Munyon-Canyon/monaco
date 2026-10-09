@@ -19,7 +19,7 @@ struct ProfilePhotoPicker: View {
     var onResult: (MonacoToast) -> Void
 
     @State private var showFaces = false
-    @State private var isUploading = false
+    @State private var uploads = ProfilePhotoUploadGate()
     @State private var submission = IdempotentSubmission()
 
     var body: some View {
@@ -34,7 +34,7 @@ struct ProfilePhotoPicker: View {
                     seed: session.profile?.userID
                 )
                 .overlay {
-                    if isUploading {
+                    if uploads.isUploading {
                         Circle()
                             .fill(MonacoTheme.canvas.opacity(0.6))
                         ProgressView()
@@ -46,7 +46,7 @@ struct ProfilePhotoPicker: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(isUploading || (auth.accessToken == nil && !initiallyOpen))
+        .disabled(uploads.isUploading || (auth.accessToken == nil && !initiallyOpen))
         .accessibilityLabel(session.profile?.photoURL == nil ? "Choose your face" : "Change your face")
         .accessibilityIdentifier(accessibilityID)
         .sheet(isPresented: $showFaces) {
@@ -70,39 +70,41 @@ struct ProfilePhotoPicker: View {
     /// An animal is uploaded as a PNG straight from the catalog: the preparer's JPEG
     /// pass is for photos, and would only soften the pixels.
     private func wear(_ animal: PixelAnimal) async {
-        guard let data = UIImage(named: animal.imageName)?.pngData() else {
-            onResult(MonacoToast(message: "That face is missing. Try another.", isSuccess: false))
-            return
+        await uploads.run {
+            guard let data = UIImage(named: animal.imageName)?.pngData() else {
+                onResult(MonacoToast(message: "That face is missing. Try another.", isSuccess: false))
+                return
+            }
+            await save(data, success: "You're \(animal.withArticle) now.")
         }
-        await save(data, success: "You're \(animal.withArticle) now.")
     }
 
     private func upload(_ item: PhotosPickerItem) async {
-        let data: Data?
-        do {
-            data = try await item.loadTransferable(type: Data.self)
-        } catch {
-            data = nil
-        }
-        guard let data else {
-            onResult(MonacoToast(message: "Couldn't read that photo.", isSuccess: false))
-            return
-        }
-        let prepared: ProfilePhotoUploadPreparer.Prepared
-        switch await ProfilePhotoUploadPreparer.prepared(from: data) {
-        case .success(let ready):
-            prepared = ready
-        case .failure(let failure):
-            onResult(MonacoToast(message: failure.memberMessage, isSuccess: false))
-            return
-        }
+        await uploads.run {
+            let data: Data?
+            do {
+                data = try await item.loadTransferable(type: Data.self)
+            } catch {
+                data = nil
+            }
+            guard let data else {
+                onResult(MonacoToast(message: "Couldn't read that photo.", isSuccess: false))
+                return
+            }
+            let prepared: ProfilePhotoUploadPreparer.Prepared
+            switch await ProfilePhotoUploadPreparer.prepared(from: data) {
+            case .success(let ready):
+                prepared = ready
+            case .failure(let failure):
+                onResult(MonacoToast(message: failure.memberMessage, isSuccess: false))
+                return
+            }
 
-        await save(prepared.data, success: "Profile photo updated.")
+            await save(prepared.data, success: "Profile photo updated.")
+        }
     }
 
     private func save(_ data: Data, success: String) async {
-        isUploading = true
-        defer { isUploading = false }
         switch await session.saveProfilePhoto(data, auth: auth, submission: submission) {
         case .saved, .unchanged:
             onResult(MonacoToast(message: success, isSuccess: true))
