@@ -28,7 +28,8 @@ extension Components.Schemas.AssetSummary {
         priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
         changeBps: 125,
         sparklineMicros: [174_000_000, 175_420_000],
-        session: .open
+        session: .open,
+        tradable: true
     )
 
     public static let unpriced = Self(
@@ -54,7 +55,8 @@ extension Components.Schemas.AssetSummary {
         priceAsOf: Date(timeIntervalSince1970: 1_772_596_200),
         changeBps: 125,
         sparklineMicros: [40_000_000, 42_000_000],
-        session: .init(state: .open, continuous: true, holiday: "", earlyClose: false)
+        session: .init(state: .open, continuous: true, holiday: "", earlyClose: false),
+        tradable: true
     )
 }
 
