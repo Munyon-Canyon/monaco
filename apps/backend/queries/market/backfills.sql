@@ -4,7 +4,10 @@ SELECT a.mint, sqlc.arg(now)::timestamptz
 FROM assets AS a
 WHERE a.mint = ANY (sqlc.arg(mints)::text[])
   AND a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
-ON CONFLICT (mint) DO NOTHING;
+ON CONFLICT (mint) DO UPDATE
+SET requested_at = excluded.requested_at, done_at = NULL, last_code = NULL, attempts = 0, last_attempt_at = NULL
+WHERE price_backfills.last_code = 'coingecko_not_listed'
+  AND price_backfills.done_at <= excluded.requested_at - interval '7 days';
 
 -- name: PendingBackfills :many
 SELECT b.mint
@@ -23,6 +26,11 @@ LIMIT sqlc.arg(batch_limit)::integer;
 -- name: FinishBackfill :exec
 UPDATE price_backfills
 SET done_at = sqlc.arg(now)::timestamptz, last_code = NULL, attempts = 0, last_attempt_at = NULL
+WHERE mint = sqlc.arg(mint)::text;
+
+-- name: MarkBackfillUnlisted :exec
+UPDATE price_backfills
+SET done_at = sqlc.arg(now)::timestamptz, last_code = 'coingecko_not_listed', attempts = 0, last_attempt_at = NULL
 WHERE mint = sqlc.arg(mint)::text;
 
 -- name: FailBackfill :exec

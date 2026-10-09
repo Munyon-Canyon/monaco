@@ -81,7 +81,7 @@ func (c *Client) MarketChart(ctx context.Context, mint domain.Mint, days int) ([
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		return nil, nil
+		return nil, errs.New(errs.CodeNotFound, op, slog.Int("days", days))
 	default:
 		return nil, errs.New(errs.CodeUpstreamUnavailable, op, slog.Int("status", resp.StatusCode))
 	}

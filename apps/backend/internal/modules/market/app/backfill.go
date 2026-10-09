@@ -168,6 +168,9 @@ func (b *Backfill) backfill(ctx context.Context, raw string) (int, int, error) {
 		}
 		calls++
 		samples, err := b.history.MarketChart(ctx, mint, w.days)
+		if calls == 1 && errs.CodeOf(err) == errs.CodeNotFound {
+			return 0, calls, b.markUnlisted(ctx, raw)
+		}
 		if err != nil {
 			return 0, calls, b.fail(ctx, raw, errs.Wrap(err, errs.CodeOf(err), op, slog.Int("days", w.days)))
 		}
@@ -201,6 +204,19 @@ func insertParams(mint domain.Mint, w historyWindow, samples []Sample) sqlc.Inse
 		}
 	}
 	return p
+}
+
+func (b *Backfill) markUnlisted(ctx context.Context, mint string) error {
+	observability.Info(ctx, observability.MarketBackfillUnlisted, slog.String("mint", mint))
+	err := b.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		return sqlc.New(tx.Queries()).MarkBackfillUnlisted(ctx,
+			sqlc.MarkBackfillUnlistedParams{Mint: mint, Now: b.clock.Now()})
+	})
+	if err != nil {
+		return b.fail(ctx, mint,
+			errs.Wrap(err, errs.CodeOf(err), "market.Backfill.markUnlisted", slog.String("mint", mint)))
+	}
+	return nil
 }
 
 func (b *Backfill) fail(ctx context.Context, mint string, cause error) error {

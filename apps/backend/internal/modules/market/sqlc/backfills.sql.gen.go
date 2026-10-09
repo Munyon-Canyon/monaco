@@ -51,7 +51,10 @@ SELECT a.mint, $1::timestamptz
 FROM assets AS a
 WHERE a.mint = ANY ($2::text[])
   AND a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
-ON CONFLICT (mint) DO NOTHING
+ON CONFLICT (mint) DO UPDATE
+SET requested_at = excluded.requested_at, done_at = NULL, last_code = NULL, attempts = 0, last_attempt_at = NULL
+WHERE price_backfills.last_code = 'coingecko_not_listed'
+  AND price_backfills.done_at <= excluded.requested_at - interval '7 days'
 `
 
 type InsertPendingBackfillsParams struct {
@@ -65,6 +68,22 @@ func (q *Queries) InsertPendingBackfills(ctx context.Context, arg InsertPendingB
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const markBackfillUnlisted = `-- name: MarkBackfillUnlisted :exec
+UPDATE price_backfills
+SET done_at = $1::timestamptz, last_code = 'coingecko_not_listed', attempts = 0, last_attempt_at = NULL
+WHERE mint = $2::text
+`
+
+type MarkBackfillUnlistedParams struct {
+	Now  time.Time
+	Mint string
+}
+
+func (q *Queries) MarkBackfillUnlisted(ctx context.Context, arg MarkBackfillUnlistedParams) error {
+	_, err := q.db.Exec(ctx, markBackfillUnlisted, arg.Now, arg.Mint)
+	return err
 }
 
 const pendingBackfills = `-- name: PendingBackfills :many
