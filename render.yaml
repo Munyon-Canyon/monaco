@@ -1,0 +1,55 @@
+# Staging: api and worker from one image, both reading the monaco-staging env group.
+# Secrets live in the encrypted .env.staging and reach the group through the Render API, not this file.
+envVarGroups:
+  - name: monaco-staging
+    envVars:
+      - key: MONACO_ENV
+        value: staging
+      - key: APP_ENV
+        value: staging
+      - key: LOG_FORMAT
+        value: json
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: NATS_URL
+        value: tls://connect.ngs.global
+      - key: NATS_CREDS
+        value: /etc/secrets/nats.creds
+
+services:
+  - type: web
+    name: monaco-api
+    runtime: docker
+    repo: https://github.com/Munyon-Canyon/monaco
+    branch: staging
+    region: virginia
+    plan: starter
+    dockerfilePath: ./apps/backend/deployments/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    preDeployCommand: monacoctl migrate apply && monacoctl bus apply
+    buildFilter:
+      paths:
+        - apps/backend/**
+        - render.yaml
+    envVars:
+      - key: PORT
+        value: "8080"
+      - fromGroup: monaco-staging
+
+  - type: worker
+    name: monaco-worker
+    runtime: docker
+    repo: https://github.com/Munyon-Canyon/monaco
+    branch: staging
+    region: virginia
+    plan: starter
+    dockerfilePath: ./apps/backend/deployments/Dockerfile
+    dockerContext: .
+    dockerCommand: worker
+    buildFilter:
+      paths:
+        - apps/backend/**
+        - render.yaml
+    envVars:
+      - fromGroup: monaco-staging
