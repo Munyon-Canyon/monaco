@@ -331,6 +331,14 @@ extension UserProfileModel {
         await retry(.following, pager: followingPager)
     }
 
+    public func refreshFollowers() async {
+        await followersPager.refreshFirstPage()
+    }
+
+    public func refreshFollowing() async {
+        await followingPager.refreshFirstPage()
+    }
+
     private func retry(_ directory: Directory, pager: CursorPager<FollowListUser>) async {
         if firstPageFailed.contains(directory) {
             await pager.loadFirst()
