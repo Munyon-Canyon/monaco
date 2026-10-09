@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileFindFriendsJourney {
     static let id = "profile/find-friends"
-    static let version = 1
+    static let version = 2
 
     static let memberName = "Bartholomez"
     static let explainer =
@@ -39,8 +39,12 @@ enum ProfileFindFriendsJourney {
     static func openSearch(_ app: XCUIApplication, step: String) -> XCUIElement {
         openFindFriends(app, step: step)
         let field = app.element("friends-search-field")
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no search field on Find friends (#2142)")
-        XCTAssertTrue(field.isEnabled, "\(step): the search field is disabled (#2142)")
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "\(step): no search field on Find friends")
+        XCTAssertTrue(field.isEnabled, "\(step): the search field is disabled")
+        let text = app.staticTexts[explainer]
+        XCTAssertTrue(text.exists, "\(step): the contacts explainer is missing under the search field")
+        XCTAssertLessThanOrEqual(
+            field.frame.maxY, text.frame.minY, "\(step): the search field is not above the contacts explainer")
         field.tap()
         return field
     }
@@ -72,8 +76,8 @@ enum ProfileFindFriendsJourney {
 
     static func searchByHandle(_ app: XCUIApplication, member: Member, recorder: JourneyRecorder) {
         var field = app.element("friends-search-field")
-        let result = app.element("friends-result-\(member.id)")
-        let follow = app.buttons["friends-result-follow-\(member.id)"]
+        let result = app.element("friends-search-\(member.handle)")
+        let follow = app.buttons["friends-search-follow-\(member.id)"]
 
         recorder.step("S2.1", "open the search") {
             field = openSearch(app, step: "S2.1")
@@ -81,7 +85,7 @@ enum ProfileFindFriendsJourney {
 
         recorder.step("S2.2", "search by handle") {
             field.typeText(member.handle)
-            XCTAssertTrue(result.waitForExistence(timeout: 15), "S2.2: no result for @\(member.handle) (#2142)")
+            XCTAssertTrue(result.waitForExistence(timeout: 15), "S2.2: no result for @\(member.handle)")
             XCTAssertTrue(result.label.contains(memberName), "S2.2: the result reads '\(result.label)'")
             XCTAssertTrue(result.label.contains("@\(member.handle)"), "S2.2: the result has no '@\(member.handle)'")
         }
@@ -90,21 +94,25 @@ enum ProfileFindFriendsJourney {
             follow.tap()
             XCTAssertTrue(
                 waitUntil(10) { follow.label == "Following" },
-                "S2.3: the button reads '\(follow.label)', not 'Following' (#2142)")
+                "S2.3: the button reads '\(follow.label)', not 'Following'")
         }
     }
 
     static func searchByName(_ app: XCUIApplication, member: Member, recorder: JourneyRecorder) {
         var field = app.element("friends-search-field")
-        let result = app.element("friends-result-\(member.id)")
+        let result = app.element("friends-search-\(member.handle)")
 
-        recorder.step("S3.1", "open the search") {
+        recorder.step("S3.1", "open the search again") {
+            app.navigationBars["Friends on Monaco"].buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(
+                app.element("profile-header").waitForExistence(timeout: 10),
+                "S3.1: the back button did not return to Profile")
             field = openSearch(app, step: "S3.1")
         }
 
         recorder.step("S3.2", "search by name") {
             field.typeText(memberName)
-            XCTAssertTrue(result.waitForExistence(timeout: 15), "S3.2: no result for '\(memberName)' (#2142)")
+            XCTAssertTrue(result.waitForExistence(timeout: 15), "S3.2: no result for '\(memberName)'")
             XCTAssertTrue(result.label.contains(memberName), "S3.2: the result reads '\(result.label)'")
         }
     }
