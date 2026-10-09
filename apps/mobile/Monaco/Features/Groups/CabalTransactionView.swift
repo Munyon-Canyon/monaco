@@ -118,7 +118,7 @@ struct CabalTransactionView: View {
                 ReceiptLine(label: "When", value: .data(row.fullDate), isLast: solscanURL == nil)
                     .accessibilityIdentifier("cabal-txn-when")
                 if let url = solscanURL {
-                    solscanRow(url)
+                    SolscanLinkRow(url: url, identifier: "cabal-txn-solscan")
                 }
             }
             if swap?.retryable == true {
@@ -133,26 +133,6 @@ struct CabalTransactionView: View {
                 .accessibilityIdentifier("cabal-txn-retry")
             }
         }
-    }
-
-    private func solscanRow(_ url: URL) -> some View {
-        Link(destination: url) {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                Text("View on Solscan")
-                    .font(MonacoTheme.Typo.bodyStrong)
-                    .foregroundStyle(MonacoTheme.ink)
-                Spacer(minLength: MonacoTheme.Space.sm)
-                Image(systemName: "arrow.up.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(MonacoTheme.tertiaryText)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.monacoRow)
-        .accessibilityIdentifier("cabal-txn-solscan")
     }
 
     private func resolve() async {
