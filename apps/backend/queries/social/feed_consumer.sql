@@ -51,3 +51,9 @@ SELECT
   EXISTS(
     SELECT 1 FROM feed_objects WHERE ref_type = 'proposals' AND ref_id = sqlc.arg(proposal_id)::uuid AND kind = 'proposal'
   ) AS found;
+
+-- name: HideFeedCabal :execrows
+INSERT INTO feed_cabals (cabal_id, name, updated_at, hidden_at)
+VALUES (sqlc.arg(cabal_id)::uuid, '', sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz)
+ON CONFLICT (cabal_id) DO UPDATE SET hidden_at = excluded.hidden_at
+WHERE feed_cabals.hidden_at IS NULL;
