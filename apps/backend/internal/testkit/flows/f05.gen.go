@@ -4,8 +4,9 @@ package flows
 
 func (defined) ScriptsF05() map[string]Script {
 	return map[string]Script{
-		"F05CreditDepositOK":                F05CreditDepositOK,
-		"F05CreditDepositCrashBeforeCommit": F05CreditDepositCrashBeforeCommit,
-		"F05CreditDepositRPCUnavailable":    F05CreditDepositRPCUnavailable,
+		"F05CreditDepositOK":                  F05CreditDepositOK,
+		"F05CreditDepositCrashBeforeCommit":   F05CreditDepositCrashBeforeCommit,
+		"F05CreditDepositCrashAfterCandidate": F05CreditDepositCrashAfterCandidate,
+		"F05CreditDepositRPCUnavailable":      F05CreditDepositRPCUnavailable,
 	}
 }

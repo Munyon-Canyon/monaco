@@ -56,8 +56,8 @@ func TestModule(t *testing.T) {
 		names = append(names, p.Name()+"@"+p.Interval().String())
 	}
 	want := []string{
-		"funding.deposits@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s", "funding.bounce-sweeper@45s",
-		"funding.treasury-reconcile@2m0s",
+		"funding.deposit_watch@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s",
+		"funding.bounce-sweeper@45s", "funding.treasury-reconcile@2m0s",
 	}
 	if !slices.Equal(names, want) {
 		t.Fatalf("Pollers = %v, want %v", names, want)

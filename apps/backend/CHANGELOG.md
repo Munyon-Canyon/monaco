@@ -51,6 +51,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Changed
 
+- The deposit poller is now the `funding.deposit_watch` poller. It records a `deposit.candidate_seen` event for each successful signature in the same transaction as its checkpoint, and `funding.resolve_deposit_candidate` credits it. A new `after-candidate` crash point covers that transaction.
 - identity's query port moved to `internal/modules/identity/port`; `identity.Queries` and its types are aliases of it.
 - identity's Postgres query implementation moved from `identity/port` to `identity/adapters`, and `identity.Module.Queries()` returns the `port.Queries` interface. A `port` package may import only its own module's `domain`.
 - The `market.catalog` poller checks each new asset's decimals and Token-2022 UI multiplier against the chain (`SOLANA_RPC_URL`), up to 200 a tick, and stores the chain's values with `chain_checked_at`. An asset is tradable only once checked, a disagreement with the issuer's decimals logs `market.catalog.decimals_corrected`, and an RPC failure leaves that asset for the next tick and counts in `poller_errors_total`. `monacoctl market tradable` prints `chain_checked`.

@@ -33,7 +33,8 @@ func reason(t *testing.T, err error) string {
 func TestNames_listsTheRegisteredPointsSorted(t *testing.T) {
 	t.Parallel()
 	want := []faultpoint.Name{
-		faultpoint.AfterBroadcast, faultpoint.AfterCreate, faultpoint.AfterExecute, faultpoint.AfterPublish,
+		faultpoint.AfterBroadcast, faultpoint.AfterCandidate, faultpoint.AfterCreate, faultpoint.AfterExecute,
+		faultpoint.AfterPublish,
 		faultpoint.AfterSellConfirm, faultpoint.AfterSellRequest, faultpoint.AfterSign, faultpoint.BeforeCommit,
 	}
 	got := faultpoint.Names()

@@ -25,6 +25,7 @@ func registered() map[string]faultpoint.Name {
 		"AfterBroadcast":   faultpoint.AfterBroadcast,
 		"AfterExecute":     faultpoint.AfterExecute,
 		"BeforeCommit":     faultpoint.BeforeCommit,
+		"AfterCandidate":   faultpoint.AfterCandidate,
 		"AfterPublish":     faultpoint.AfterPublish,
 		"AfterSellRequest": faultpoint.AfterSellRequest,
 		"AfterSellConfirm": faultpoint.AfterSellConfirm,
