@@ -8,7 +8,13 @@ The staging backend runs on Render, with Postgres on Supabase and NATS JetStream
 | Postgres | Database `monaco_staging` in the Supabase project `monaco`, session pooler on port 5432 | `DATABASE_URL` in `.env.staging` |
 | NATS | Synadia Cloud, `tls://connect.ngs.global` | `NATS_CREDS` points at the Render secret file `/etc/secrets/nats.creds`, filled from `NATS_STAGING_CREDS` in `.env.staging` |
 
-Every push to `staging` that touches `apps/backend/**` or `render.yaml` redeploys both services. Before the api goes live, its pre-deploy command, `predeploy` (`apps/backend/deployments/predeploy.sh`), runs `monacoctl migrate apply` then `monacoctl bus apply`. Render runs that command without a shell, so `&&` or `sh -c "..."` in `render.yaml` does not work. The worker can start before that finishes. It then stops with `db_schema_behind`, and Render restarts it until the schema catches up.
+Staging has its own accounts and keys, separate from local development. All of them live in `.env.staging`:
+
+- A Privy app of its own (`PRIVY_APP_ID`, its secret, verification key, authorization key and the iOS client for `xyz.monacolabs.app`).
+- A Helius mainnet RPC (`SOLANA_RPC_URL`).
+- Its own relayer fee payer, `6zPvHbTHwVakhN3FiVmFqjUFhY5mdAAt865vUAZFFyVr`. The api and worker refuse to boot when it holds 0.001 SOL or less, so top it up with SOL from any wallet. Check it with `MONACO_ENV=local` and the staging `RELAYER_PRIVATE_KEY` and `SOLANA_RPC_URL` through `monacoctl relayer balance`.
+
+Render's GitHub app must be installed on the Munyon-Canyon org with access to this repo; without it Render never hears about pushes and nothing deploys on its own. Every push to `staging` that touches `apps/backend/**` or `render.yaml` redeploys both services. Before the api goes live, its pre-deploy command, `predeploy` (`apps/backend/deployments/predeploy.sh`), runs `monacoctl migrate apply` then `monacoctl bus apply`. Render runs that command without a shell, so `&&` or `sh -c "..."` in `render.yaml` does not work. The worker can start before that finishes. It then stops with `db_schema_behind`, and Render restarts it until the schema catches up.
 
 ## Use the session pooler
 
@@ -31,7 +37,7 @@ Each service opens at most this many connections:
 | worker | `MONACO_DB_MAX_CONNS` + 1. The extra one holds every poller's advisory lock, however many pollers there are. |
 | pre-deploy (`monacoctl migrate apply`, `bus apply`) | a few, only while it runs |
 
-`render.yaml` sets `MONACO_DB_MAX_CONNS` to 4, so the api and worker use 9 connections together. A deploy runs the old and new copy of each service side by side for a short time, which doubles that to 18, plus the pre-deploy step. A pool size of 25 covers it. When the pool is too small, the worker fails every poller and the api fails boot with `EMAXCONNSESSION max clients reached`. Set the pool size in the Supabase dashboard (Database, Connection pooling) or with `PATCH /v1/projects/<ref>/config/database/pooler` and `default_pool_size`. Postgres allows 60 connections in all.
+`render.yaml` sets `MONACO_DB_MAX_CONNS` to 4, so the api and worker use 9 connections together. A deploy runs the old and new copy of each service side by side for a short time, which doubles that to 18, plus the pre-deploy step. A pool size of 25 covers it; the project is set to 50. When the pool is too small, the worker fails every poller and the api fails boot with `EMAXCONNSESSION max clients reached`. Set the pool size in the Supabase dashboard (Database, Connection pooling) or with `PATCH /v1/projects/<ref>/config/database/pooler` and `default_pool_size`. Postgres allows 60 connections in all.
 
 ## Set up from scratch
 
