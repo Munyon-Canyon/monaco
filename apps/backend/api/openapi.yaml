@@ -5194,6 +5194,7 @@ components:
         - pot_exceeded
         - pot_value_changed
         - pot_value_zero
+        - price_moved
         - price_unavailable
         - prices_stale
         - privy_unavailable

@@ -1,4 +1,4 @@
-h1:tuhyqhHkwbyYab/C2+hrMXW8VsfDP4MKHDnY1kDNy/Q=
+h1:F4UIooC2dBG5MIhHMcR6TRdXlQCZTmndFKvQ+yIVums=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -69,3 +69,4 @@ h1:tuhyqhHkwbyYab/C2+hrMXW8VsfDP4MKHDnY1kDNy/Q=
 20261009090000_funding_deposit_residual.sql h1:+VWnqVq4wZWzWYN15M5KiAJJNXwEwL8QfngoOg2L9oo=
 20261009100000_funding_drop_deposit_cursors.sql h1:OsIYskix5MNGzjmXEGzhgmVzSxbcVSGvLrqxKgcDjoQ=
 20261009110000_funding_deposit_watch_history_floor.sql h1:42Gk+y9VLhuAOuItaC+8YmsXVfiU6C2KQPsAcFGV54Y=
+20261009142734_trading_price_moved_failure_code.sql h1:EHsmuVBgMEExezGjCq8gAlynjm4FfHZwBjF5vN9te+4=

@@ -27,8 +27,6 @@ import (
 
 const heartbeatEvery = 10 * time.Second
 
-const orderBelowFloor = "order_below_floor"
-
 const retryAttempts = 3
 
 type TreasuryWallet struct {
@@ -139,7 +137,7 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 		return l.orderFailed(ctx, req, id, err)
 	}
 	if order.OutAmount < floor || order.MinOut < floor {
-		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, orderBelowFloor))
+		_, err := l.move(ctx, req, id, failed(req, id, domain.FailurePriceMoved, ""))
 		return err
 	}
 	var signed []byte
@@ -375,12 +373,8 @@ func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmou
 }
 
 func failed(req SwapRequest, id uuid.UUID, code domain.FailureCode, jupiterCode string) step {
-	from := domain.StatusSubmitted
-	if code == domain.FailureNeverSubmitted {
-		from = domain.StatusCreated
-	}
 	return step{
-		id: id, from: from,
+		id: id, from: domain.FailsFrom(code),
 		status: domain.StatusFailed, failure: code,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
 			return q.FinishFailed(ctx, sqlc.FinishFailedParams{ID: id, FailureCode: string(code), FailedAt: at})

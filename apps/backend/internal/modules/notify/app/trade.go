@@ -59,6 +59,11 @@ func (k TradeFailed) Render(ctx context.Context, e events.TradeFailed, _ ids.Use
 	if err != nil {
 		return Message{}, err
 	}
+	if e.FailureCode == string(errs.CodePriceMoved) {
+		body := fmt.Sprintf("The price of %s moved since the vote. Open the proposal to buy at the current price.",
+			words.asset)
+		return tradeMessage(k.Name(), e.SwapID, e.CabalID, "Price moved", body), nil
+	}
 	body := fmt.Sprintf("Your cabal's %s of %s failed. No money moved.", words.noun, words.asset)
 	return tradeMessage(k.Name(), e.SwapID, e.CabalID, "Trade didn't go through", body), nil
 }

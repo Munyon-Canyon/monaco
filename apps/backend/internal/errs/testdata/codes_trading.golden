@@ -1,5 +1,6 @@
 cabal_shares_short
 no_route
+price_moved
 slippage_exceeded
 swap_failed
 swap_not_found

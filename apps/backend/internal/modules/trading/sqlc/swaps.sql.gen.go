@@ -70,7 +70,7 @@ SET status = 'failed', failure_code = $1::text,
   failed_at = $2::timestamptz, updated_at = $2::timestamptz
 WHERE id = $3
   AND CASE status
-    WHEN 'created' THEN $1::text IN ('never_submitted', 'source_cancelled')
+    WHEN 'created' THEN $1::text IN ('never_submitted', 'source_cancelled', 'price_moved')
     WHEN 'submitted' THEN $1::text IN ('blockhash_expired', 'jupiter_failed', 'force_resolved')
     ELSE false
   END

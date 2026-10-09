@@ -32,6 +32,7 @@ func wantNext() map[domain.Status]map[string]domain.Status {
 			"submit":                 domain.StatusSubmitted,
 			"fail(never_submitted)":  domain.StatusFailed,
 			"fail(source_cancelled)": domain.StatusFailed,
+			"fail(price_moved)":      domain.StatusFailed,
 		},
 		domain.StatusSubmitted: {
 			"confirm":                 domain.StatusConfirmed,
