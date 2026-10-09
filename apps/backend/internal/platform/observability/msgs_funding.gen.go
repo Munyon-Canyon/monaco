@@ -10,6 +10,7 @@ func init() {
 		FundingCandidateResolved,
 		FundingCandidateDismissed,
 		FundingCandidateUnresolved,
+		FundingDepositResidual,
 		FundingBalanceClamped,
 		FundingPauseChanged,
 		FundingWatchOwnTransfer,

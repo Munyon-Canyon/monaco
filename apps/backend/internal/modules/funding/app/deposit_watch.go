@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"math/big"
 	"slices"
 	"time"
 
@@ -94,6 +95,7 @@ type DepositWatch struct {
 	limit   RPCLimiter
 	calls   int
 	tuning  DepositWatchTuning
+	ledger  WalletLedger
 
 	regressed metric.Int64Counter
 }
@@ -101,12 +103,12 @@ type DepositWatch struct {
 func NewDepositWatch(
 	reads sqlc.DBTX, uow *db.UnitOfWork, g ids.Generator, c clock.Clock, wallets port.WalletReader,
 	rpc DepositWatchRPC, usdc chain.SolanaAddress, period time.Duration, limit RPCLimiter,
-	callBudget int, tuning DepositWatchTuning, regressed metric.Int64Counter,
+	callBudget int, tuning DepositWatchTuning, regressed metric.Int64Counter, ledger WalletLedger,
 ) *DepositWatch {
 	return &DepositWatch{
 		reads: reads, uow: uow, ids: g, clock: c, wallets: wallets, rpc: rpc, usdc: usdc,
 		period: period, limit: limit, calls: callBudget, tuning: tuning,
-		regressed: regressed,
+		regressed: regressed, ledger: ledger,
 	}
 }
 
@@ -126,6 +128,7 @@ func (p *DepositWatch) Tick(ctx context.Context) (poller.Report, error) {
 			seeded, err := p.firstSight(ctx)
 			return seeded, 0, err
 		}},
+		{"reconcile", func(ctx context.Context) (int, int, error) { return p.reconcile(ctx, budget) }},
 	}
 	var report poller.Report
 	var errList []error
@@ -320,7 +323,23 @@ func (p *DepositWatch) seedWallet(ctx context.Context, wallet port.MemberWallet)
 		}
 		seeds = append(seeds, watchSeed{state: state, high: high})
 	}
-	return p.persistSeeds(ctx, wallet, canonical, seeds, int64(slot))
+	opening, err := p.openingMicros(ctx, wallet, seeds)
+	if err != nil {
+		return err
+	}
+	return p.persistSeeds(ctx, wallet, canonical, seeds, int64(slot), opening)
+}
+
+func (p *DepositWatch) openingMicros(ctx context.Context, wallet port.MemberWallet, seeds []watchSeed) (string, error) {
+	total := new(big.Int)
+	for _, seed := range seeds {
+		total.Add(total, wholeMicros(seed.state.Amount.String()))
+	}
+	settled, _, err := p.ledger.WalletLedgerMicros(ctx, wallet.UserID, p.usdc)
+	if err != nil {
+		return "", errs.Wrap(err, errs.CodeOf(err), "funding.DepositWatch.opening")
+	}
+	return total.Sub(total, wholeMicros(settled.String())).String(), nil
 }
 
 func (p *DepositWatch) newestAtOrBelow(
@@ -345,13 +364,15 @@ func (p *DepositWatch) newestAtOrBelow(
 }
 
 func (p *DepositWatch) persistSeeds(
-	ctx context.Context, wallet port.MemberWallet, canonical chain.SolanaAddress, seeds []watchSeed, slot int64,
+	ctx context.Context, wallet port.MemberWallet, canonical chain.SolanaAddress, seeds []watchSeed,
+	slot int64, opening string,
 ) error {
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		if _, err := q.InsertDepositWatchWallet(ctx, sqlc.InsertDepositWatchWalletParams{
 			WalletAddress: string(wallet.Address), UserID: wallet.UserID.UUID(), FirstSeenSlot: slot,
 			FirstSeenAt: p.clock.Now(), DiscoveryDueAt: p.clock.Now().Add(p.tuning.Spread(p.tuning.Discovery)),
+			OpeningMicros: opening, ReconcileDueAt: p.clock.Now().Add(p.tuning.Spread(DepositResidualInterval)),
 		}); err != nil {
 			return err
 		}

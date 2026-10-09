@@ -53,7 +53,7 @@ func (m CursorMigrator) migrate(ctx context.Context, rows []sqlc.DepositCursorsT
 			}
 			n, err := q.InsertDepositWatchWallet(ctx, sqlc.InsertDepositWatchWalletParams{
 				WalletAddress: row.WalletAddress, UserID: row.UserID, FirstSeenSlot: row.CursorSlot,
-				FirstSeenAt: m.clock.Now(),
+				FirstSeenAt: m.clock.Now(), ReconcileDueAt: m.clock.Now(),
 			})
 			if err != nil {
 				return err
