@@ -151,7 +151,7 @@ func TestApprovals_Approve_NeedsADifferentOperator(t *testing.T) {
 	}
 	event := f.approvedEvent(t)
 	if event["approval_id"] != id || event["cabal_id"] != cabal.ID.String() || event["requested_by"] != operatorA ||
-		event["approved_by"] != operatorB || event["reason"] != "confirmed" {
+		event["approved_by"] != operatorB || event["reason"] != "scam cabal" {
 		t.Fatalf("event = %v", event)
 	}
 	wantCode(t, f.decide(t, id, "approve", "operator2", http.StatusConflict), errs.CodeApprovalNotPending)

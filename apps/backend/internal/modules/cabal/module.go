@@ -76,6 +76,9 @@ func (m *Module) http() adapters.HTTP {
 func (m *Module) Consumers() []bus.Consumer {
 	hints := adapters.Hints{Publish: m.deps.Bus}
 	return []bus.Consumer{{
+		Durable:  "cabal_ban",
+		Handlers: []bus.HandlerSpec{bus.Handle("cabal.ban", adapters.Ban{IDs: m.deps.IDs}.Handle)},
+	}, {
 		Durable: "cabal_hints",
 		Handlers: []bus.HandlerSpec{
 			bus.Handle("cabal.hints", hints.Handle),

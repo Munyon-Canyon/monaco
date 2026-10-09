@@ -30,6 +30,7 @@ type Cabals interface {
 	Rules(ctx context.Context, id ids.CabalID) (cabalport.Rules, error)
 	VoterSet(ctx context.Context, id ids.CabalID) ([]ids.UserID, error)
 	TreasuryWallet(ctx context.Context, id ids.CabalID) (cabalport.TreasuryWallet, error)
+	Status(ctx context.Context, id ids.CabalID) (cabalport.Status, error)
 }
 
 type Assets interface {
@@ -117,6 +118,9 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err := member(ctx, h.ports.Cabals, cmd.CabalID, cmd.ProposerID); err != nil {
 		return OpenedProposal{}, err
 	}
+	if err := notBanned(ctx, h.ports.Cabals, cmd.CabalID, op); err != nil {
+		return OpenedProposal{}, err
+	}
 	rules, err := h.ports.Cabals.Rules(ctx, cmd.CabalID)
 	if err != nil {
 		return OpenedProposal{}, err
@@ -188,6 +192,17 @@ func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (mar
 		return market.Asset{}, market.RouteCheck{}, err
 	}
 	return asset, quote, nil
+}
+
+func notBanned(ctx context.Context, cabals Cabals, cabal ids.CabalID, op string) error {
+	status, err := cabals.Status(ctx, cabal)
+	switch {
+	case errs.CodeOf(err) == errs.CodeCabalNotFound:
+		return nil
+	case err == nil && status == cabalport.StatusBanned:
+		return errs.New(errs.CodeCabalBanned, op)
+	}
+	return err
 }
 
 func member(ctx context.Context, cabals Cabals, cabal ids.CabalID, user ids.UserID) error {

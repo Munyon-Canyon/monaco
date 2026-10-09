@@ -110,6 +110,38 @@ paths:
           description: Current administrators.
           content: {application/json: {schema: {$ref: "#/components/schemas/Admins"}}}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/approvals:
+    get:
+      operationId: getAdminApprovals
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List approval requests.
+      description: >-
+        Returns the approval requests in one state, newest first. `status` defaults to `pending`.
+        `next_cursor` is the id of the last request on the page when the page holds `limit` requests, and null
+        otherwise. Send it back as `cursor` to read the next page.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Only requests in this state. Defaults to `pending`.
+          schema: {$ref: "#/components/schemas/AdminApprovalStatus"}
+        - name: cursor
+          in: query
+          required: false
+          description: The `next_cursor` of the previous page. Absent reads the first page.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a805a"]}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50 and cannot exceed 200.
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50, examples: [50]}
+      responses:
+        "200":
+          description: One page of requests, newest first.
+          content: {application/json: {schema: {$ref: "#/components/schemas/AdminApprovals"}}}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/admin/approvals/{id}/approve:
     post:
       operationId: approveAdminApproval
@@ -4069,6 +4101,24 @@ components:
       description: Where an approval request stands.
       enum: [pending, approved, rejected, expired]
       examples: [pending]
+    AdminApprovals:
+      type: object
+      description: One page of approval requests, newest first.
+      examples:
+        - items: []
+          next_cursor: null
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          description: The requests on this page.
+          items: {$ref: "#/components/schemas/AdminApproval"}
+        next_cursor:
+          type: [string, "null"]
+          format: uuid
+          description: Pass it as `cursor` to read the next page. Null on the last page.
+          examples: [null]
     AdminAuthState:
       type: string
       description: Where the user stands in onboarding.

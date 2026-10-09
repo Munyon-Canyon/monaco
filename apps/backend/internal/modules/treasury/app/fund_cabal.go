@@ -132,8 +132,7 @@ func (h *FundCabalHandler) admit(ctx context.Context, cmd FundCabal) (fundRoute,
 		return fundRoute{}, err
 	}
 	if status == cabalport.StatusBanned {
-		return fundRoute{}, errs.New(errs.CodeCabalPaused, op, slog.String("cabal_id", cmd.CabalID.String()),
-			slog.String("reason", "banned"))
+		return fundRoute{}, errs.New(errs.CodeCabalBanned, op, slog.String("cabal_id", cmd.CabalID.String()))
 	}
 	wallet, err := h.d.Wallets.MemberWallet(ctx, cmd.UserID)
 	if err != nil {

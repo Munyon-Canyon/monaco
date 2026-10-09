@@ -97,7 +97,7 @@ func refusalCases() []refusalCase {
 		}, errs.CodeNoRoute, "0", "0"},
 		{
 			"banned cabal", func(e *engineEnv, _ *app.ExecuteTrade) { e.seedCabal(cabal.StatusBanned, 100) },
-			errs.CodeCabalPaused, "0", "0",
+			errs.CodeCabalBanned, "0", "0",
 		},
 		{"funding pause", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.pauses.Pause(e.cabal, funding.PauseReasonExternalDeposit)
