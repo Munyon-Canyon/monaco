@@ -142,26 +142,6 @@ func TestFlow11_ExecuteTrade_OK(t *testing.T) {
 			scenario.ExpectEvents(busevents.TypeTradeBlocked, 0),
 		)
 	})
-	t.Run("buy after the price moved since the vote", func(t *testing.T) {
-		t.Parallel()
-		const nowOut = quotedOut * 95 / 100
-		f := newFlow11(t, func(e *engineEnv) {
-			e.quote(usdcToken(), aaplxToken(), nowOut, true)
-			e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
-				RequestID: "req-1", Transaction: swapTx(), OutAmount: money.NewBaseUnits(nowOut, aaplxToken().Decimals),
-			})
-		})
-		f.pass(
-			scenario.ExpectEvents(busevents.TypeTradeConfirmed, 1),
-			scenario.ExpectEvents(busevents.TypeTradeFailed, 0),
-			scenario.Eventually("the swap is held to the execution quote", func(s *scenario.Scenario) bool {
-				var got int64
-				const q = `SELECT quote_out_amount FROM swaps WHERE source_id = $1`
-				err := s.DB().QueryRow(s.Context(), q, f.proposal.UUID()).Scan(&got)
-				return err == nil && got == nowOut
-			}),
-		)
-	})
 	t.Run("sell", func(t *testing.T) {
 		t.Parallel()
 		f := newFlow11Of(t, "sell", holdsAAPLx(sellUnits))

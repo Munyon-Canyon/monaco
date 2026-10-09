@@ -220,7 +220,9 @@ func (h *ExecuteTradeHandler) price(ctx context.Context, cmd ExecuteTrade, req *
 	if !quote.Routable {
 		return refusal{code: errs.CodeNoRoute}, nil
 	}
-	req.QuoteOutAmount = quote.OutAmount
+	if cmd.Retry != nil && cmd.Retry.AtCurrentPrice {
+		req.QuoteOutAmount = quote.OutAmount
+	}
 	return refusal{}, nil
 }
 
