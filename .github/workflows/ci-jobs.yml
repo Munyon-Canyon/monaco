@@ -56,11 +56,11 @@ jobs:
       - name: OpenAPI spec lint
         run: |
           for attempt in 1 2 3; do
-            docker pull -q dshanley/vacuum:v0.30.6 && break
+            docker pull -q ghcr.io/daveshanley/vacuum:v0.30.6 && break
             [ "$attempt" = 3 ] && exit 1
             sleep 5
           done
-          docker run --rm -v "$PWD/api:/api:ro" dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
+          docker run --rm -v "$PWD/api:/api:ro" ghcr.io/daveshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml
 
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
@@ -661,7 +661,7 @@ jobs:
       # jobs a workflow defines stay off.
       - name: Lint workflows
         if: steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.workflows == 'true'
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
       - name: Required workflows have no workflow-level path filter
         if: steps.reuse.outputs.reuse != 'true' && steps.filter.outputs.workflows == 'true'
@@ -753,7 +753,7 @@ jobs:
     if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    container: swift:6.3-noble
+    container: public.ecr.aws/docker/library/swift:6.3-noble
     steps:
       - uses: actions/checkout@v4
         with:

@@ -28,7 +28,7 @@ jobs:
     name: Swift (mobile-core, Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    container: swift:6.3-noble
+    container: public.ecr.aws/docker/library/swift:6.3-noble
     steps:
       - uses: actions/checkout@v4
 

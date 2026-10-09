@@ -269,7 +269,7 @@ jobs:
     needs: changed
     if: needs.changed.outputs.run == 'true'
     runs-on: ubuntu-latest
-    container: swift:6.3-noble
+    container: public.ecr.aws/docker/library/swift:6.3-noble
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
