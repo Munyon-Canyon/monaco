@@ -95,13 +95,6 @@ func refusalCases() []refusalCase {
 		{"no route", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.quote(usdcToken(), aaplxToken(), 0, false)
 		}, errs.CodeNoRoute, "0", "0"},
-		{"fresh quote one unit under the tolerance", func(e *engineEnv, _ *app.ExecuteTrade) {
-			e.quote(usdcToken(), aaplxToken(), 20_789_999, true)
-		}, errs.CodeSlippageExceeded, "20789999", "20790000"},
-		{"tolerance over the platform cap is held at 300 bps", func(e *engineEnv, _ *app.ExecuteTrade) {
-			e.seedCabal(cabal.StatusActive, 900)
-			e.quote(usdcToken(), aaplxToken(), 20_369_999, true)
-		}, errs.CodeSlippageExceeded, "20369999", "20370000"},
 		{
 			"banned cabal", func(e *engineEnv, _ *app.ExecuteTrade) { e.seedCabal(cabal.StatusBanned, 100) },
 			errs.CodeCabalPaused, "0", "0",
@@ -382,4 +375,17 @@ func (e *engineEnv) handlerWith(ports app.EnginePorts) *app.ExecuteTradeHandler 
 	return app.NewExecuteTradeHandler(app.ExecuteTradeDeps{
 		Layer: e.layer(), UoW: e.uow, Reads: e.reads, Venue: e.venue, Ports: ports, USDC: usdcToken(),
 	})
+}
+
+func TestExecuteTrade_aToleranceOverThePlatformCapOrdersAt300Bps(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.seedCabal(cabal.StatusActive, 900)
+	cmd := e.buy()
+	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.jup.Slippages(); len(got) == 0 || got[0] != 300 {
+		t.Fatalf("order slippages = %v, want the first order at the 300 bps cap", got)
+	}
 }

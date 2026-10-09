@@ -225,8 +225,10 @@ func F11ExecuteTradeInsufficientFunds(s *scenario.Scenario) {
 	sellBlocked(s)
 }
 
-func F11ExecuteTradeSlippageExceeded(s *scenario.Scenario) {
-	seedTrade(s, tradeOpts{quoteOut: 2 * quotedOut}).blocks(s, errs.CodeSlippageExceeded)
+func F11ExecuteTradePriceMoved(s *scenario.Scenario) {
+	t := seedTrade(s, tradeOpts{quoteOut: 2 * quotedOut})
+	t.run(s, nil, events.TypeTradeFailed, map[events.Type]int{events.TypeTradeFailed: 1})
+	t.failedAs("price_moved")(s)
 }
 
 func F11ExecuteTradeNoRoute(s *scenario.Scenario) {

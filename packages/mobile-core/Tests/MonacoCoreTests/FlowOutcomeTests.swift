@@ -19,7 +19,7 @@ final class FlowOutcomeTests: XCTestCase {
 
     func testPlannedFlowCarriesItsRowCommandAndMapsItsWireCodes() {
         XCTAssertEqual(Flow11Outcome.commands, ["ExecuteTrade"])
-        XCTAssertEqual(Flow11Outcome(code: "slippage_exceeded"), .slippageExceeded)
+        XCTAssertEqual(Flow11Outcome(code: "price_moved"), .priceMoved)
         XCTAssertEqual(Flow11Outcome(code: "insufficient_funds"), .insufficientFunds)
         XCTAssertEqual(Flow11Outcome(code: "cabal_paused"), .cabalPaused)
         assertRoundTrip(Flow11Outcome.self)
