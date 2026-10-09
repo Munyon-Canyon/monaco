@@ -199,14 +199,12 @@ Pull to refresh, like Home.
 
 | Order | Slot | Owner | Shows |
 | --- | --- | --- | --- |
-| 1 | `ProfileHeaderSlot` | #644 | Centred: the photo picker (96 pt avatar with a camera badge, opens "Your face": eight animals and "Choose a photo"), the name with a pencil that opens "Edit profile", "@handle" (opens `HandleEditRoute`), "Member since Sep 2026" |
+| 1 | `ProfileHeaderSlot` | #644 | Centred: the photo picker (96 pt avatar with a camera badge, opens "Your face": eight animals and "Choose a photo"), the name, centred under the avatar, with a pencil beside it that opens "Edit name" (a sheet with "Cancel"), "@handle" with a pencil (opens `HandleEditRoute`), "Member since Sep 2026" |
 | 2 | `ProfileFollowCountsSlot` | #620 | "12 Followers · 8 Following", each opening the follow list |
 | 3 | `ProfileStatsSlot` | #2140 | Three columns between rules: "In cabals" (total slice value), "All time" (return), "Cabals" (count) |
 | 4 | `ProfileBalanceSlot` | #610 | The same balance row as Home, with "Add money" and "Withdraw" |
-| 5 | `ProfileCabalsSlot` | #2140 | "Your cabals", the same rows as Home's. Empty: "No cabals yet" / "Start a cabal or join one from the Cabals tab." |
-| 6 | `ProfileInviteSlot` | #682 | Row "Invite friends" |
-| 7 | `ProfileFindFriendsSlot` | #663 | Row "Find friends" (contacts, plus search by name or handle from #2142) |
-| 8 | `ProfileSettingsSlot` | #2139 | Row "Settings" |
+| 5 | `ProfileCabalsSlot` | #2140 | "Your cabals", the same rows as Home's. Empty: "No money in a cabal yet" / "Fund a cabal to see it here." with "Browse cabals", which opens the Cabals tab |
+| 6 | `ProfileLinksSlot` | #682, #663, #2139 | One list of three rows: "Invite friends", "Find friends" (contacts, plus search by name or handle from #2142) and "Settings" |
 
 **Settings** (`SettingsRoute`, #2139). Title "Settings". Rows: "Notifications" (On or Off; while permission is undecided a tap asks for it, otherwise it opens iOS notification settings, #2143), "Activity" (`AccountActivityRoute`), "Withdraw" (`WithdrawRoute`), "Blocked people", "Advanced" / "Block explorers", "Terms" and "Privacy" (open in Safari), and destructive "Delete account" (`DeleteAccountRoute`, #695). Blocked people lists who the viewer blocks (`GET /v1/me/blocks`): avatar, name and "@handle", and "No one blocked" / "People you block show up here." when empty. Last, in its own group, a destructive "Sign out" row with the confirm "Sign out of Monaco?" / "Your money stays where it is. You'll need a new code to sign back in." Footer: app version.
 
@@ -223,7 +221,7 @@ The slot tables above name each owner. Screens and controls added by this map:
 | #2136 | `GET /v1/cabals/{id}/pot` |
 | #2137 | `CabalPotSlot`, `CabalSliceSlot`, `CabalHoldingsSlot` |
 | #2138 | Account activity |
-| #2139 | Settings and `ProfileSettingsSlot` |
+| #2139 | Settings and the "Settings" row of `ProfileLinksSlot` |
 | #2140 | `ProfileStatsSlot`, `ProfileCabalsSlot` |
 | #2141, #2142 | People search |
 | #2143 | The push pre-prompt and the Notifications row |

@@ -34,7 +34,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Profile tab | | Within 15 s, `profile-header` shows the 96 pt `profile-photo-picker`, `profile-display-name`, `profile-handle` reading "@" and the handle, and `profile-member-since` reading "Member since" with a month and year |
-| S1.2 | tap | `profile-edit-button` | | "Edit profile" shows within 5 s, with the name from S1.1 in `profile-name-field`. "Done" closes it |
+| S1.2 | tap | `profile-edit-button` | | "Edit name" shows within 5 s, with the name from S1.1 in `profile-name-field`. "Cancel" closes it |
 | S1.3 | tap, type, then tap | `profile-edit-button`, `profile-name-field`, then `profile-name-save` | `Alfred {QA.run}` | `monaco-toast-banner` reads "Name updated." within 10 s, and `profile-display-name` reads "Alfred {QA.run}" when it shows |
 
 ### S2 An empty name is refused
@@ -43,9 +43,9 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap, then tap | the Profile tab, then `profile-edit-button` | | "Edit profile" shows within 5 s |
+| S2.1 | tap, then tap | the Profile tab, then `profile-edit-button` | | "Edit name" shows within 5 s |
 | S2.2 | clear | `profile-name-field` | | `profile-name-error` reads "Display name is required." within 2 s, and `profile-name-save` is disabled |
-| S2.3 | tap | "Done" | | "Edit profile" closes within 5 s, and `profile-display-name` reads what it read in S2.1: "Alfred {QA.run}" after S1 |
+| S2.3 | tap | "Cancel" | | "Edit name" closes within 5 s, and `profile-display-name` reads what it read in S2.1: "Alfred {QA.run}" after S1 |
 
 ### S3 Change the photo
 

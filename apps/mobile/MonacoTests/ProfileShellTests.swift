@@ -7,7 +7,7 @@ nonisolated final class ProfileShellTests: XCTestCase {
     @MainActor
     func testFollowCountsAndFindFriendsSlotsAreLive() {
         XCTAssertTrue(ProfileFollowCountsSlot.isLive)
-        XCTAssertTrue(ProfileFindFriendsSlot.isLive)
+        XCTAssertTrue(ProfileLinksSlot.isLive)
     }
 
     @MainActor

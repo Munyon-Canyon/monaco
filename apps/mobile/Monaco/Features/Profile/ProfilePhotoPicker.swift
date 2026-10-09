@@ -92,7 +92,7 @@ struct ProfilePhotoPicker: View {
             data = nil
         }
         guard let data else {
-            onResult(MonacoToast(message: "Could not read that photo.", isSuccess: false))
+            onResult(MonacoToast(message: "Couldn't read that photo.", isSuccess: false))
             return
         }
         let prepared: ProfilePhotoUploadPreparer.Prepared

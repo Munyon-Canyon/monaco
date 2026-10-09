@@ -55,8 +55,12 @@ struct ProfileCabals: View {
             }
         case .loaded(let summary) where summary.isEmpty:
             EmptyState(
-                title: "No cabals yet", message: "Start a cabal or join one from the Cabals tab.", actionTitle: nil
-            )
+                title: "No money in a cabal yet",
+                message: "Fund a cabal to see it here.",
+                actionTitle: "Browse cabals"
+            ) {
+                environment.navigator.selectedTab = .cabals
+            }
             .accessibilityIdentifier("profile-cabals-empty")
         case .loaded(let summary):
             MonacoGroupedList {

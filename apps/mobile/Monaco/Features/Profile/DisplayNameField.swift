@@ -4,7 +4,7 @@ import SwiftUI
 /// The one display-name input: an optional label with a live character counter, the
 /// field itself, and underneath it either the rule the draft breaks or a hint.
 ///
-/// `ProfileNameEditor` (Profile → Edit profile) builds on this. The field is
+/// `ProfileNameEditor` (Profile → Edit name) builds on this. The field is
 /// `MonacoFieldChrome`, the anatomy every other field in the app has.
 ///
 /// `identifierPrefix` names the three elements for UI tests: `<prefix>-field`,

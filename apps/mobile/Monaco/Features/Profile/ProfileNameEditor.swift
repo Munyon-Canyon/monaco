@@ -73,11 +73,14 @@ struct ProfileNameEditor: View {
                 Button {
                     Task { await save() }
                 } label: {
-                    if isSaving {
-                        ProgressView().tint(MonacoTheme.primaryButtonLabel)
-                    } else {
-                        Text("Save")
+                    Group {
+                        if isSaving {
+                            ProgressView().tint(MonacoTheme.primaryButtonLabel)
+                        } else {
+                            Text("Save")
+                        }
                     }
+                    .frame(minHeight: MonacoFieldChrome.height)
                 }
                 .buttonStyle(.monacoPrimary)
                 .fixedSize()

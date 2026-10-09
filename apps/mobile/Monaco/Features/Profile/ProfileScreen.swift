@@ -7,9 +7,7 @@ struct ProfileScreen: View {
         ProfileStatsSlot.self,
         ProfileBalanceSlot.self,
         ProfileCabalsSlot.self,
-        ProfileInviteSlot.self,
-        ProfileFindFriendsSlot.self,
-        ProfileSettingsSlot.self,
+        ProfileLinksSlot.self,
     ]
 
     let sections: [any ProfileSection.Type]

@@ -29,6 +29,8 @@ struct ProfileHeader: View {
 
     @State private var showEditProfile = false
 
+    private static let pencilTarget: CGFloat = 44
+
     private var displayName: String {
         let name = session.profile?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return name.isEmpty ? "Member" : name
@@ -65,11 +67,11 @@ struct ProfileHeader: View {
                     }
                 }
                 .monacoCanvas()
-                .navigationTitle("Edit profile")
+                .navigationTitle("Edit name")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { showEditProfile = false }
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showEditProfile = false }
                     }
                 }
             }
@@ -84,6 +86,8 @@ struct ProfileHeader: View {
         VStack(spacing: MonacoTheme.Space.s) {
             SkeletonBlock(width: 96, height: 96, radius: 48)
             SkeletonBlock(width: 168, height: 28)
+            SkeletonBlock(width: 96, height: 16)
+                .frame(minHeight: 44)
             SkeletonBlock(width: 112, height: 14)
         }
         .frame(maxWidth: .infinity)
@@ -104,35 +108,42 @@ struct ProfileHeader: View {
                 toasts.current = $0
             }
 
-            HStack(spacing: MonacoTheme.Space.xs) {
-                Text(displayName)
-                    .font(MonacoTheme.Typo.display)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .multilineTextAlignment(.center)
-                    .accessibilityIdentifier("profile-display-name")
-
-                Button {
-                    showEditProfile = true
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(MonacoTheme.Typo.captionStrong)
-                        .foregroundStyle(MonacoTheme.muted)
-                        .frame(width: 44, height: 44)
+            Text(displayName)
+                .font(MonacoTheme.Typo.display)
+                .foregroundStyle(MonacoTheme.ink)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("profile-display-name")
+                .overlay(alignment: .trailing) {
+                    Button {
+                        showEditProfile = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(MonacoTheme.Typo.captionStrong)
+                            .foregroundStyle(MonacoTheme.muted)
+                            .frame(width: Self.pencilTarget, height: Self.pencilTarget)
+                    }
+                    .accessibilityLabel("Edit name")
+                    .accessibilityIdentifier("profile-edit-button")
+                    .offset(x: Self.pencilTarget)
                 }
-                .accessibilityLabel("Edit profile")
-                .accessibilityIdentifier("profile-edit-button")
-            }
+                .padding(.horizontal, Self.pencilTarget)
 
             if let handle = session.profile?.handle {
                 NavigationLink(value: AnyAppRoute(HandleEditRoute())) {
-                    Text("@\(handle)")
-                        .font(MonacoTheme.Typo.rowTitle)
-                        .foregroundStyle(MonacoTheme.brand)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .frame(minHeight: 44)
+                    HStack(spacing: MonacoTheme.Space.xs) {
+                        Text("@\(handle)")
+                            .font(MonacoTheme.Typo.rowTitle)
+                            .foregroundStyle(MonacoTheme.brand)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Image(systemName: "pencil")
+                            .font(MonacoTheme.Typo.captionStrong)
+                            .foregroundStyle(MonacoTheme.muted)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Edit your handle")
