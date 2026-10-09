@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario of docs/journeys/governance/propose-buy.md with the scenario id.
-# S1 puts A and B on the cabal that monacoctl dev seed-scenario cabal-with-funded-pot makes: A created it,
-# B joined, and the ledger credits A $2.00 and B $1.00. S2 continues from the proposal S1 sent.
+# S1 makes the cabal through the API: A creates it and B joins it, with an empty pot. The app funds it in S1.
+# Every later scenario continues from the one before.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -12,9 +12,9 @@ source scripts/qa/seed.sh
 
 case "$scenario" in
   S1) ;;
-  S2)
+  S2 | S3 | S4 | S5)
     grep -q cabalName "$handoff" || {
-      echo "no cabalName in the hand-off: S2 continues from S1" >&2
+      echo "no cabalName in the hand-off: $scenario continues from S1" >&2
       exit 1
     }
     exit 0
@@ -45,12 +45,16 @@ SELECT count(*) FROM due
 SQL
 )"
 
-qa_seed_scenario cabal-with-funded-pot A B
-python3 - "$handoff" "$CABAL_NAME" <<'PY'
+name="QA buy ${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"
+id="$(qa_api A POST /v1/cabals \
+  "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+qa_admit B A "$id"
+python3 - "$handoff" "$name" <<'PY'
 import json, os, sys
 path, name = sys.argv[1:]
 values = json.load(open(path)) if os.path.exists(path) and os.path.getsize(path) else {}
 values["cabalName"] = name
 json.dump(values, open(path, "w"))
 PY
-echo "seeded S1: expired $expired open proposals of A or B, cabal '$CABAL_NAME' ($CABAL_ID) with a \$3.00 pot"
+echo "seeded S1: expired $expired open proposals of A or B, A created the cabal '$name' ($id) and B joined it"

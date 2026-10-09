@@ -1,0 +1,19 @@
+journey: governance/propose-buy
+expect-fail: S1
+
+Funding the pot toasts "Sent" instead of "Added". S1.1 waits for the toast "Added $2 to {cabalName}.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Funding/FundProgress.swift b/packages/mobile-core/Sources/MonacoCore/Funding/FundProgress.swift
+index 4a1a91e43..b2318d3d4 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Funding/FundProgress.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Funding/FundProgress.swift
+@@ -46,7 +46,7 @@ public enum FundProgress: Equatable, Sendable {
+         case .idle, .submitting: nil
+         case .submitted: Self.funding
+         case .settled(let transfer):
+-            "Added \(Self.amount(transfer.amountMicros)) to \(cabalName ?? "the cabal")."
++            "Sent \(Self.amount(transfer.amountMicros)) to \(cabalName ?? "the cabal")."
+         case .failed: Self.didNotGoThrough
+         }
+     }
