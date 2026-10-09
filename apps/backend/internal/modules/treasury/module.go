@@ -169,7 +169,7 @@ func (m *Module) Consumers() []bus.Consumer {
 		{
 			Durable: "treasury_trades",
 			Handlers: []bus.HandlerSpec{
-				bus.Handle("treasury.trades", adapters.Trades{Ledger: m.ledger()}.Handle),
+				bus.Handle("treasury.trades", adapters.Trades{Ledger: m.ledger(), Hints: m.deps.Bus}.Handle),
 			},
 		},
 		{
