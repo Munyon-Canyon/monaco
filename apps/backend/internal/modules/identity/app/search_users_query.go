@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"strings"
 
@@ -45,7 +46,7 @@ func searchUsers(
 		users = append(users, SearchUser{
 			ID:          ids.UserIDFrom(row.ID),
 			Handle:      row.Handle.String,
-			DisplayName: row.DisplayName,
+			DisplayName: cmp.Or(row.DisplayName, row.Handle.String),
 			PhotoURL:    row.PhotoUrl.String,
 		})
 	}
