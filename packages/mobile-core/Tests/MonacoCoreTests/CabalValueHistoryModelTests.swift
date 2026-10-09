@@ -79,14 +79,14 @@ final class CabalValueHistoryModelTests: XCTestCase {
         XCTAssertEqual(paths.filter { $0.hasSuffix("range=1W") }.count, 2)
     }
 
-    func testACabalCreatedTodayHasNoLineToDrawButTheOthersDo() async throws {
+    func testACabalCreatedTodayStillHasALineToDraw() async throws {
         let (model, _, _) = try make([.portfolio(.sample), .pot(Self.alpha), .short(Self.beta)])
 
         await model.load()
 
         XCTAssertEqual(model.phase, .loaded)
         XCTAssertTrue(model.hasEnoughHistory)
-        XCTAssertEqual(Set(model.lines.map(\.curve.hasEnoughHistory)), [true, false])
+        XCTAssertEqual(Set(model.lines.map(\.curve.hasEnoughHistory)), [true])
     }
 
     func testACabalJoinedAfterTheFirstLoadKeepsTheChartUpWhileItsLineLoads() async throws {

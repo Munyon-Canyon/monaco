@@ -69,12 +69,29 @@ final class ValueCurveTests: XCTestCase {
         XCTAssertNil(ValueCurve(MyHistory.sampleEmpty).nearestIndex(to: between))
     }
 
-    func testFewerThanTwoPointsIsNotEnoughHistoryAndFlat() {
+    func testOnePointDrawsAFlatLineEndingAtThatSample() {
         let short = ValueCurve(PotHistory.sampleShort())
+        let only = short.samples[0]
 
-        XCTAssertFalse(short.hasEnoughHistory)
+        XCTAssertTrue(short.hasEnoughHistory)
         XCTAssertEqual(short.direction, .flat)
-        XCTAssertFalse(ValueCurve(MyHistory.sampleEmpty).hasEnoughHistory)
+        XCTAssertEqual(short.drawnPoints.map(\.value), [only.value, only.value])
+        XCTAssertEqual(short.drawnPoints.map(\.at), [only.at.addingTimeInterval(-1), only.at])
+        XCTAssertEqual(short.drawnNavPoints.map(\.value), [1_000_000, 1_000_000])
+        XCTAssertEqual(short.readout()?.value, "$50.00")
+        XCTAssertEqual(short.nearestIndex(to: only.at.addingTimeInterval(-1)), 0)
+    }
+
+    func testTwoOrMorePointsAreDrawnAsTheyAre() {
+        XCTAssertEqual(mine.drawnPoints, mine.points)
+        XCTAssertEqual(pot.drawnNavPoints, pot.navPoints)
+    }
+
+    func testNoPointsIsNotEnoughHistory() {
+        let empty = ValueCurve(MyHistory.sampleEmpty)
+
+        XCTAssertFalse(empty.hasEnoughHistory)
+        XCTAssertTrue(empty.drawnPoints.isEmpty)
     }
 
     func testTheWindowDirectionFollowsTheServersPnLAtEachEnd() {

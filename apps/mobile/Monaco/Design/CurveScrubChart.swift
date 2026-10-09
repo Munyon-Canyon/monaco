@@ -20,7 +20,7 @@ struct CurveScrubChart: View {
 
     var body: some View {
         MonacoScrubChart(
-            points: curve.points.map { .init(date: $0.at, value: Double($0.value) / Self.unitsPerDollar) },
+            points: curve.drawnPoints.map { .init(date: $0.at, value: Double($0.value) / Self.unitsPerDollar) },
             tint: tint,
             baseline: nil,
             height: height,

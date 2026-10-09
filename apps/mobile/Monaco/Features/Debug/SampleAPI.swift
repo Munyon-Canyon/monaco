@@ -187,7 +187,8 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             return json(Components.Schemas.LeaderboardPage.samplePeople(count: empty ? 0 : 3))
         case "value-history":
             let history: Components.Schemas.CabalValueHistory =
-                range == "1D" ? .sampleShort(cabalID: id) : .sample(cabalID: id)
+                range == "1D"
+                ? .init(cabalId: id, range: ._1d, points: [], pricesAsOf: nil) : .sample(cabalID: id)
             return json(history)
         case "access-requests", "invites":
             return raw("[]")
