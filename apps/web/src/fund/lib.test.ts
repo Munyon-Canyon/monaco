@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  accountDecision,
   completeURL,
   errorCopy,
   failureFromProblem,
@@ -162,5 +163,29 @@ describe("state machine", () => {
     const exchanging: State = { step: "exchanging", token: "t" };
     expect(transition(exchanging, { type: "fund" })).toBe(exchanging);
     expect(transition(exchanging, { type: "reported" })).toBe(exchanging);
+  });
+});
+
+describe("account decision", () => {
+  const own = session.privy_user_id;
+  const signedInAs = (userId: string | undefined) => ({ ready: true, authenticated: true, userId });
+
+  it("never funds a different signed-in account", () => {
+    expect(accountDecision(signedInAs("did:privy:cm1someoneelse"), own)).toBe("wrong_account");
+    expect(accountDecision(signedInAs(undefined), own)).toBe("wrong_account");
+  });
+
+  it("funds the session's own account, and only once", () => {
+    const open: State = { step: "open", session };
+    expect(view(open, signedIn)).toBe("ready");
+    expect(accountDecision(signedInAs(own), own)).toBe("fund");
+    const funding = transition(open, { type: "fund" });
+    expect(view(funding, signedIn)).toBe("funding");
+  });
+
+  it("waits for Privy and asks for a login before it decides", () => {
+    expect(accountDecision({ ready: false, authenticated: false, userId: undefined }, own)).toBe("wait");
+    expect(accountDecision({ ready: false, authenticated: true, userId: own }, own)).toBe("wait");
+    expect(accountDecision({ ready: true, authenticated: false, userId: undefined }, own)).toBe("login");
   });
 });

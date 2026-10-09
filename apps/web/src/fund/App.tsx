@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import { useFiatOnramp, useLogout, usePrivy } from "@privy-io/react-auth";
 import { exchangeToken, FundError, reportStatus } from "./api";
-import { completeURL, errorCopy, fundOptions, statusFromError, statusFromResult, transition, view, type State } from "./lib";
+import { accountDecision, completeURL, errorCopy, fundOptions, statusFromError, statusFromResult, transition, view, type State } from "./lib";
 
 const api = import.meta.env.VITE_MONACO_API_URL;
 const environment = import.meta.env.VITE_PRIVY_ENV === "production" ? "production" : "sandbox";
@@ -37,12 +37,13 @@ export function App({ initial }: { initial: State }) {
       case "ready":
         if (state.step !== "open") return;
         started.current = { state, step };
-        // Safari can still be signed in as someone else: stop before the funding modal. After Log
-        // out and a new login the open state comes back here.
-        if (user?.id !== state.session.privy_user_id) {
+        // After Log out and a new login the open state comes back here.
+        const decision = accountDecision({ ready, authenticated, userId: user?.id }, state.session.privy_user_id);
+        if (decision === "wrong_account") {
           dispatch({ type: "failed", failure: "wrong_account" });
           return;
         }
+        if (decision !== "fund") return;
         dispatch({ type: "fund" });
         fund(fundOptions(state.session, environment)).then(
           (result) => dispatch({ type: "funded", report: { status: statusFromResult(result), idempotencyKey: crypto.randomUUID() } }),
@@ -67,7 +68,7 @@ export function App({ initial }: { initial: State }) {
         location.replace(completeURL(state.session.session_id));
         return;
     }
-  }, [state, step, user]);
+  }, [state, step, user, ready, authenticated]);
 
   return (
     <main>
