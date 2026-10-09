@@ -19,6 +19,8 @@ struct CabalProposals: View {
     @State private var pause: ProposalPauseModel?
     @State private var voting: ProposalVoteModel?
     @State private var context: ProposalCardContext?
+    @State private var expanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
 
     init(
@@ -67,32 +69,80 @@ struct CabalProposals: View {
         let inProgress = model.trading
         let recent = model.recentOutcomes(now: .now)
         if section == nil && inProgress.isEmpty && recent.isEmpty {
-            EmptyState(title: "No open votes", message: "Propose the first buy.")
-            if !model.pager.items.isEmpty {
-                MonacoSectionHeader("Proposals", trailing: "See all", action: openAll)
-            }
-        } else {
-            MonacoSectionHeader("Proposals", trailing: "See all", action: openAll)
-            Text(Self.context(needsVote: section?.count ?? 0, inProgress: inProgress.count))
+            MonacoSectionHeader("Proposals", trailing: model.pager.items.isEmpty ? nil : "See all", action: openAll)
+            Text("No open votes. Propose the first buy.")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
-                .accessibilityIdentifier("cabal-proposals-context")
+                .accessibilityIdentifier("cabal-proposals-empty")
+        } else {
+            let split = Self.split(section?.proposals ?? [])
+            let hidden = split.rest.count + inProgress.count + recent.count
+            MonacoSectionHeader("Proposals", count: section?.count, trailing: "See all", action: openAll)
+            Text(
+                Self.summary(
+                    needsVote: section?.count ?? 0, open: section?.proposals.count ?? 0,
+                    inProgress: inProgress.count, closed: recent.count)
+            )
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.muted)
+            .lineLimit(1)
+            .accessibilityIdentifier("cabal-proposals-context")
             if let section {
-                self.section(section.title == "Proposals" ? nil : section.title, section.proposals, model: model)
+                self.section(section.title == "Proposals" ? nil : section.title, split.preview, model: model)
             }
-            if !inProgress.isEmpty {
-                self.section("In progress", inProgress, model: model)
-            }
-            if !recent.isEmpty {
-                self.section("Recently closed", recent, model: model)
+            if hidden > 0 {
+                disclosure(hidden: hidden)
+                if expanded {
+                    self.section(nil, split.rest, model: model)
+                    if !inProgress.isEmpty {
+                        self.section("In progress", inProgress, model: model)
+                    }
+                    if !recent.isEmpty {
+                        self.section("Recently closed", recent, model: model)
+                    }
+                }
             }
         }
     }
 
-    private static func context(needsVote: Int, inProgress: Int) -> String {
-        if needsVote > 0 { return "\(needsVote) to vote on. Vote before they close." }
-        if inProgress > 0 { return "Passed proposals are trading now." }
-        return "Open votes and recent outcomes."
+    private func disclosure(hidden: Int) -> some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
+        } label: {
+            HStack(spacing: MonacoTheme.Space.s) {
+                Text(expanded ? "Show less" : "Show \(hidden) more")
+                Image(systemName: "chevron.down")
+                    .rotationEffect(.degrees(expanded ? 180 : 0))
+                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
+            }
+            .font(MonacoTheme.Typo.calloutStrong)
+            .foregroundStyle(MonacoTheme.brand)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("cabal-proposals-disclosure")
+        .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+        .accessibilityHint("Shows more proposals")
+    }
+
+    static let previewLimit = 2
+
+    static func split(_ open: [ProposalSummary]) -> (preview: [ProposalSummary], rest: [ProposalSummary]) {
+        (Array(open.prefix(previewLimit)), Array(open.dropFirst(previewLimit)))
+    }
+
+    static func summary(needsVote: Int, open: Int, inProgress: Int, closed: Int) -> String {
+        var parts: [String] = []
+        if needsVote > 0 {
+            parts.append("\(needsVote) to vote on")
+        } else if open > 0 {
+            parts.append("\(open) open")
+        }
+        if inProgress > 0 { parts.append("\(inProgress) trading") }
+        if closed > 0 { parts.append("\(closed) closed recently") }
+        return parts.joined(separator: " · ")
     }
 
     @ViewBuilder private func section(_ label: String?, _ proposals: [ProposalSummary], model: ProposalListModel)
