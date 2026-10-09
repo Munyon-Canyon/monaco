@@ -14,7 +14,13 @@ SECTIONS = ["TLDR", "Why", "What changed", "Proof", "What came up", "Reviewer fo
 ISSUE_PREFIX_RE = re.compile(r"^\s*#\d+")
 COMMIT_PREFIX_RE = re.compile(r"^\s*[a-z]+(\([^)]*\))?!?:\s")
 NEEDS = "Needs from Logan"
-LINK_RE = re.compile(r"(?i)\b(part of|close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b")
+PART_OF_RE = re.compile(r"(?i)\bpart of\s+#(\d+)\b")
+# GitHub closes a ticket for any of these keywords, with an optional colon, before #N, owner/repo#N or an issue URL.
+CLOSING_RE = re.compile(
+    r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s+"
+    r"(?:#\d+\b|[\w.-]+/[\w.-]+#\d+\b|https://github\.com/[\w.-]+/[\w.-]+/issues/\d+\b)"
+)
+CLOSES_LEAD_RE = re.compile(r"(?:Closes|Fixes|Resolves) #(\d+)\b")
 SHA_RE = re.compile(r"(?<![\w-])(?=[0-9a-f]*[0-9])(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}(?![\w-])")
 FENCE_RE = re.compile(r"(?ms)^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n(.*?)^\1[ \t]*$")
 SHELL_FENCES = {"", "sh", "bash", "shell", "console", "zsh"}
@@ -53,10 +59,25 @@ def section(body: str, name: str) -> str | None:
 
 
 def closes_by_ticket(body: str) -> dict[int, bool]:
-    found: dict[int, bool] = {}
-    for verb, number in LINK_RE.findall(section(body, "Why") or ""):
-        found[int(number)] = found.get(int(number), False) or verb.lower() != "part of"
+    found = {int(n): False for n in PART_OF_RE.findall(section(body, "Why") or "")}
+    for line in strip_comments(body).splitlines():
+        if m := CLOSES_LEAD_RE.match(line):
+            found[int(m.group(1))] = True
     return found
+
+
+def closing_errors(body: str) -> list[str]:
+    errors = []
+    for line in (body or "").splitlines():
+        lead = CLOSES_LEAD_RE.match(line)
+        rest = line[lead.end():] if lead else line
+        if CLOSING_RE.search(rest):
+            errors.append(
+                f'GitHub closes a ticket for a closing keyword anywhere in the body: "{line.strip()}". '
+                'Rephrase it as "Part of #n" or refer to the ticket without a closing verb; '
+                'a PR that closes its ticket starts one line with "Closes #n"'
+            )
+    return errors
 
 
 def ticket_errors(body: str, stacked_on: list[StackedPR], stacked_under: list[StackedPR]) -> list[str]:
@@ -195,6 +216,7 @@ def template_errors(env: dict[str, str], body: str) -> list[str]:
         title_errors(env.get("PR_TITLE", ""))
         + body_errors(body)
         + command_errors(body)
+        + closing_errors(body)
         + ticket_errors(body, *neighbours(env))
         + sha_errors(body, env["HEAD_SHA"])
     )

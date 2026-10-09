@@ -93,8 +93,8 @@ class TicketTest(unittest.TestCase):
         self.assertIn("#11 above it is part of #789", errors[0])
 
     def test_rejects_every_github_closing_keyword_on_a_non_last_pr(self):
-        for verb in ["Fixes", "resolves", "closed", "Fix"]:
-            errors = check.ticket_errors(pr(f"{verb} #789.", "Nothing."), [(11, pr("Part of #789."))], [])
+        for verb in ["Fixes", "Resolves", "Closes"]:
+            errors = check.ticket_errors(pr(f"{verb} #789", "Nothing."), [(11, pr("Part of #789."))], [])
             self.assertEqual(len(errors), 1, verb)
 
     def test_rejects_part_of_above_a_pr_that_closes_the_ticket(self):
@@ -114,6 +114,66 @@ class TicketTest(unittest.TestCase):
     def test_rejects_an_empty_needs_from_logan(self):
         errors = check.ticket_errors(pr("Closes #789.", "<!-- fill me -->"), [], [])
         self.assertEqual(errors, ['"## Needs from Logan" is empty; write "Nothing." or the checklist'])
+
+
+class ClosingKeywordTest(unittest.TestCase):
+    def test_rejects_the_sentences_that_closed_tickets_early(self):
+        for why in ["Part of #5.\n\nThis lands before the PR that closes #1942.", "Part of #5.\n\nThis PR doesn't close #4048."]:
+            errors = check.closing_errors(pr(why))
+            self.assertEqual(len(errors), 1, why)
+            self.assertIn(why.splitlines()[-1], errors[0])
+
+    def test_accepts_closes_alone_on_its_own_line(self):
+        body = pr("Closes #12", "Nothing.")
+        self.assertEqual(check.closing_errors(body), [])
+        self.assertEqual(check.ticket_errors(body, [], []), [])
+        self.assertEqual(check.closing_errors(pr("Fixes #12.", "Nothing.")), [])
+
+    def test_accepts_a_leading_closes_followed_by_prose(self):
+        body = pr("Closes #12. More prose here.", "Nothing.")
+        self.assertEqual(check.closing_errors(body), [])
+        self.assertEqual(check.ticket_errors(body, [], []), [])
+
+    def test_rejects_a_second_closing_reference_on_the_same_line(self):
+        for line in ["Closes #12. It also fixes #13.", "Closes #12 and closes #13."]:
+            self.assertEqual(len(check.closing_errors(pr(line))), 1, line)
+
+    def test_accepts_part_of(self):
+        body = pr("Part of #12.")
+        self.assertEqual(check.closing_errors(body), [])
+        self.assertEqual(check.ticket_errors(body, [], []), [])
+
+    def test_rejects_closes_in_prose_next_to_part_of(self):
+        body = pr("Part of #12, and closes #12 when it lands.")
+        self.assertEqual(len(check.closing_errors(body)), 1)
+
+    def test_rejects_a_keyword_in_any_section(self):
+        for name in ["TLDR", "Proof", "What came up", "Reviewer focus"]:
+            body = pr("Part of #12.").replace(f"Text for {name}.", "It also fixes #99 as a side effect.")
+            self.assertEqual(len(check.closing_errors(body)), 1, name)
+
+    def test_rejects_every_keyword_and_reference_form(self):
+        keywords = ["close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved", "CLOSES"]
+        refs = ["#7", "acme/app#7", "https://github.com/acme/app/issues/7"]
+        for keyword in keywords:
+            for ref in refs:
+                for sep in [" ", ": "]:
+                    self.assertEqual(len(check.closing_errors(f"see {keyword}{sep}{ref}")), 1, (keyword, ref, sep))
+
+    def test_rejects_a_line_that_does_not_start_with_the_exact_form(self):
+        for line in ["closes #12", "Closes: #12", "- Closes #12", "Closes acme/app#12"]:
+            self.assertEqual(len(check.closing_errors(pr(line))), 1, line)
+
+    def test_ignores_words_that_only_contain_a_keyword(self):
+        self.assertEqual(check.closing_errors(pr("Part of #12. The prefix fixture and disclose #3 are fine.")), [])
+
+    def test_template_check_reports_the_prose_keyword(self):
+        env = {"PR_TITLE": "Add thing", "HEAD_SHA": "0" * 40}
+        body = pr("Part of #12.\n\nThis PR doesn't close #4048.")
+        with mock.patch.object(check, "neighbours", return_value=([], [])):
+            errors = check.template_errors(env, body)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("doesn't close #4048", errors[0])
 
 
 class StackedTest(unittest.TestCase):
