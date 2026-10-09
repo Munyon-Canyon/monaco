@@ -133,18 +133,20 @@ func (f *flow12) retryLatest(t *testing.T, body string, want busevents.Type, cou
 func retryAtTheCurrentPrice(t *testing.T) {
 	t.Helper()
 	const fresh = 20_000_000
+	order := func(e *engineEnv, out uint64) {
+		e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
+			RequestID: "req-1", Transaction: swapTx(), OutAmount: money.NewBaseUnits(out, aaplxToken().Decimals),
+		})
+	}
 	f := &flow12{flow11: newFlow11(t, func(e *engineEnv) {
-		out := money.NewBaseUnits(fresh, aaplxToken().Decimals)
-		e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()),
-			jupiter.Order{RequestID: "req-1", Transaction: swapTx(), OutAmount: out})
 		e.quote(usdcToken(), aaplxToken(), fresh, true)
+		order(e, fresh*95/100)
 	})}
 	f.cabals = fakes.NewCabal([]fakes.CabalSeed{{
 		View:  cabal.View{ID: f.cabal, Status: cabal.StatusActive},
 		Rules: cabal.Rules{SlippageBps: 100}, Wallet: f.wallet,
 	}}, []fakes.CabalMember{{CabalID: f.cabal, Member: cabal.MemberView{UserID: f.voter}}})
 	f.pass(scenario.ExpectEvents(busevents.TypeTradeFailed, 1))
-	f.retryLatest(t, "", busevents.TypeTradeFailed, 2)
 	id, _ := f.latestSwap(t)
 	f.s.Given(scenario.AsSeededUser("alice", f.voter)).
 		When(
@@ -152,13 +154,15 @@ func retryAtTheCurrentPrice(t *testing.T) {
 			scenario.ExpectStatus(http.StatusBadRequest),
 			scenario.ExpectProblem(errs.CodeInvalidInput),
 		).
-		Then(scenario.ExpectAllEvents(busevents.TypeTradeRetryRequested, 1))
-	f.retryLatest(t, `{"at_current_price":true}`, busevents.TypeTradeConfirmed, 1)
+		Then(scenario.ExpectAllEvents(busevents.TypeTradeRetryRequested, 0))
+	f.retryLatest(t, `{"at_current_price":true}`, busevents.TypeTradeFailed, 2)
+	order(f.engineEnv, fresh)
+	f.retryLatest(t, "", busevents.TypeTradeConfirmed, 1)
 	if got := f.swapStatuses(t); len(got) != 3 || got[0] != "failed" || got[1] != "failed" || got[2] != "confirmed" {
 		t.Fatalf("swaps %v, want two price_moved swaps then a confirmed one", got)
 	}
 	if _, quote := f.latestSwap(t); quote != fresh {
-		t.Fatalf("held quote %d, want the fresh Jupiter quote %d and never a client number", quote, fresh)
+		t.Fatalf("held quote %d, want the execution-time Jupiter quote %d and never a client number", quote, fresh)
 	}
 }
 

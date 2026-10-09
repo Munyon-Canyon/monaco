@@ -39,12 +39,11 @@ type trade struct {
 }
 
 type tradeOpts struct {
-	symbol   string
-	micros   int64
-	quoteOut int64
-	usdc     uint64
-	sell     bool
-	held     uint64
+	symbol string
+	micros int64
+	usdc   uint64
+	sell   bool
+	held   uint64
 }
 
 func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
@@ -53,9 +52,6 @@ func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
 	}
 	if opts.micros == 0 {
 		opts.micros = tradeMicros
-	}
-	if opts.quoteOut == 0 {
-		opts.quoteOut = quotedOut
 	}
 	if opts.usdc == 0 {
 		opts.usdc = fundedMicros
@@ -78,7 +74,7 @@ func seedTrade(s *scenario.Scenario, opts tradeOpts) trade {
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: opts.symbol,
 		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: opts.micros, Valid: true},
-		QuoteOutAmount: opts.quoteOut, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
+		QuoteOutAmount: quotedOut, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 		VoterIds: []uuid.UUID{c.Creator.ID.UUID()},
 	}
 	if opts.sell {
@@ -226,8 +222,13 @@ func F11ExecuteTradeInsufficientFunds(s *scenario.Scenario) {
 }
 
 func F11ExecuteTradePriceMoved(s *scenario.Scenario) {
-	t := seedTrade(s, tradeOpts{quoteOut: 2 * quotedOut})
-	t.run(s, nil, events.TypeTradeFailed, map[events.Type]int{events.TypeTradeFailed: 1})
+	t := seedTrade(s, tradeOpts{})
+	movedOrder := scenario.FakeUpstream(fakes.Step{
+		Route: jupiterOrder, Method: http.MethodGet, Action: fakes.ActionSucceed,
+		Fixture: jupiterOrder + "/price-moved",
+		Query:   map[string]string{"amount": strconv.Itoa(tradeMicros), "taker": t.treasury},
+	})
+	t.run(s, []scenario.Step{movedOrder}, events.TypeTradeFailed, map[events.Type]int{events.TypeTradeFailed: 1})
 	t.failedAs("price_moved")(s)
 }
 

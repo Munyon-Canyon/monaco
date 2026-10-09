@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -20,14 +21,16 @@ func withGovernance() scenario.Option {
 	})
 }
 
+func withFakes() scenario.Option { return scenario.WithPrivy(fakes.New(), "governance") }
+
 func TestFlow10_CastVote_OK(t *testing.T) {
 	t.Parallel()
-	flows.F10CastVoteOK(scenario.New(t, withGovernance(), scenario.WithPostHog(t)))
+	flows.F10CastVoteOK(scenario.New(t, withGovernance(), withFakes(), scenario.WithPostHog(t)))
 }
 
 func TestProposalHints_MemberReceives_NonMemberDoesNot(t *testing.T) {
 	t.Parallel()
-	flows.F10CastVoteOK(scenario.New(t, withGovernance(), scenario.WithPostHog(t)))
+	flows.F10CastVoteOK(scenario.New(t, withGovernance(), withFakes(), scenario.WithPostHog(t)))
 }
 
 func TestFlow10_CastVote_Unauthorized(t *testing.T) {
