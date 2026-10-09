@@ -89,6 +89,147 @@ struct ChatSkeleton: View {
     }
 }
 
+struct ChatLoadEarlierButton: View {
+    let isLoading: Bool
+    let identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            if isLoading {
+                ProgressView().tint(MonacoTheme.accent)
+            } else {
+                Text(GroupChatCopy.loadEarlier).font(MonacoTheme.Typo.calloutStrong)
+            }
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(MonacoTheme.brand)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .contentShape(Rectangle())
+        .disabled(isLoading)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+struct ChatList<Header: View, Content: View>: View {
+    let rows: [ChatRow]
+    let hasOlder: Bool
+    let isLoadingOlder: Bool
+    let loadEarlierID: String
+    let listID: String
+    let loadOlder: () -> Void
+    let refresh: () async -> Void
+    @ViewBuilder let header: Header
+    @ViewBuilder let content: Content
+
+    @State private var tracker = ChatScrollTracker()
+    @State private var scrollToBottomRequests = 0
+    @State private var rowToKeepInView: String?
+    @State private var topRowBeforeLoadingOlder: String?
+
+    private static var bottomAnchor: String { "chat-bottom" }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    header
+                    if hasOlder {
+                        ChatLoadEarlierButton(isLoading: isLoadingOlder, identifier: loadEarlierID) {
+                            topRowBeforeLoadingOlder = rows.first?.id
+                            tracker.historyRequested()
+                            loadOlder()
+                        }
+                    }
+                    content
+                    Color.clear.frame(height: 1).id(Self.bottomAnchor)
+                }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.bottom, MonacoTheme.Space.sm)
+            }
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            .scrollDismissesKeyboard(.interactively)
+            .refreshable { await refresh() }
+            .onScrollGeometryChange(for: ChatScrollTracker.Position.self, of: Self.position) { _, updated in
+                tracker.positionChanged(updated)
+            }
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentSize.height }) { old, new in
+                guard new > old, tracker.isFollowingThread else { return }
+                proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
+            }
+            .onScrollPhaseChange { _, phase in track(phase) }
+            .onChange(of: rows) { old, new in rowsChanged(from: old, to: new) }
+            .onChange(of: isLoadingOlder) { _, loading in
+                if !loading, rows.first?.id == topRowBeforeLoadingOlder { topRowBeforeLoadingOlder = nil }
+            }
+            .onChange(of: scrollToBottomRequests) { _, _ in
+                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+            }
+            .onChange(of: rowToKeepInView) { _, rowID in
+                guard let rowID else { return }
+                proxy.scrollTo(rowID, anchor: .top)
+                rowToKeepInView = nil
+            }
+            .accessibilityIdentifier(listID)
+            .overlay(alignment: .bottom) {
+                ZStack(alignment: .bottom) {
+                    if tracker.unreadCount > 0 { newMessagesPill }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .animation(.snappy, value: tracker.unreadCount)
+            }
+        }
+    }
+
+    private static func position(_ geometry: ScrollGeometry) -> ChatScrollTracker.Position {
+        let bottom = geometry.contentOffset.y + geometry.containerSize.height
+        return .init(
+            offset: geometry.contentOffset.y,
+            isAtEnd: bottom >= geometry.contentSize.height - ChatScrollTracker.pinnedSlack
+        )
+    }
+
+    private func track(_ phase: ScrollPhase) {
+        switch phase {
+        case .interacting: tracker.dragBegan()
+        case .idle: tracker.scrollSettled()
+        default: return
+        }
+    }
+
+    private func rowsChanged(from old: [ChatRow], to new: [ChatRow]) {
+        if let kept = topRowBeforeLoadingOlder, new.first?.id != kept {
+            rowToKeepInView = kept
+            topRowBeforeLoadingOlder = nil
+        }
+        if tracker.arrived(ChatArrivals.added(from: old, to: new)) { scrollToBottomRequests += 1 }
+    }
+
+    private var newMessagesPill: some View {
+        Button {
+            tracker.followRequested()
+            scrollToBottomRequests += 1
+        } label: {
+            HStack(spacing: MonacoTheme.Space.s) {
+                Image(systemName: "arrow.down").font(.caption.weight(.bold))
+                Text(GroupChatCopy.newMessagesPill(count: tracker.unreadCount))
+                    .font(MonacoTheme.Typo.captionStrong)
+            }
+            .foregroundStyle(MonacoTheme.primaryButtonLabel)
+            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.vertical, MonacoTheme.Space.sm)
+            .background(Capsule().fill(MonacoTheme.primaryButtonFill))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.bottom, MonacoTheme.Space.sm)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .accessibilityIdentifier("chat-new-messages")
+    }
+}
+
 struct ChatComposerBar: View {
     var focus: FocusState<Bool>.Binding
     var placeholder = GroupChatCopy.composerPlaceholder

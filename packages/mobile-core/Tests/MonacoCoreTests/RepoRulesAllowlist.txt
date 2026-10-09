@@ -31,9 +31,8 @@ gutter	apps/mobile/Monaco/Features/Auth/SessionGateView.swift	1
 gutter	apps/mobile/Monaco/Features/Comments/CommentComposer.swift	1
 gutter	apps/mobile/Monaco/Features/Groups/CabalRulesSection.swift	1
 gutter	apps/mobile/Monaco/Features/Groups/CabalsJoinSlot.swift	1
-gutter	apps/mobile/Monaco/Features/Groups/GroupChatParts.swift	1
+gutter	apps/mobile/Monaco/Features/Groups/GroupChatParts.swift	2
 gutter	apps/mobile/Monaco/Features/Groups/GroupChatRowView.swift	1
-gutter	apps/mobile/Monaco/Features/Groups/GroupChatThreadView.swift	1
 nonisolated-unsafe	apps/mobile/MonacoTests/MonacoRemoteImageStoreTests.swift	1
 nonisolated-unsafe	packages/mobile-core/Sources/MonacoCore/SharedFormatters.swift	2
 observable-object	apps/mobile/Monaco/Features/Auth/PrivyAuthService.swift	4
