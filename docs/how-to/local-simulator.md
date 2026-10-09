@@ -103,6 +103,10 @@ longer slim (recreated or erased) it re-runs `simslim on` once. A missing `simsl
 warns on stderr and the simulator stays stock; nothing fails. `MONACO_NO_SIMSLIM=1`
 opts out.
 
+The Homebrew formula (`mobai-app/tap/simslim`) is arm64 only. On an Intel Mac install it with
+`go install github.com/mobai-app/simslim/cmd/simslim@v0.11.0`, which lands in
+`$(go env GOPATH)/bin`; that directory must be on `PATH`. `scripts/install-dev.sh` offers this.
+
 `ci/profiles/base-slim.json` keeps `siri` on. Slimming it away leaves UIKit's dictation
 availability handler spinning the app's main thread as soon as a text field takes focus, so
 XCUITest never sees the app idle (#3224).

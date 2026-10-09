@@ -20,6 +20,22 @@ type ratchetRepo struct {
 	headCSV string
 	baseCSV string
 	args    string
+	who     string
+}
+
+// ratchetSwiftlintStub is a fake swiftlint that prints version and records tag in STUB_WHO each time it lints.
+func ratchetSwiftlintStub(tag, version string) string {
+	return `#!/bin/sh
+if [ "$1" = version ]; then echo "` + version + `"; exit 0; fi
+echo "$@" >> "$STUB_ARGS"
+echo "` + tag + `" >> "$STUB_WHO"
+` + ratchetBaseDir + `
+case "$*" in
+  *.build/swiftlint-base*) sed "s#@BASE@#$base#" "$STUB_BASE_CSV" ;;
+  *) cat "$STUB_CSV" ;;
+esac
+exit 2
+`
 }
 
 func newRatchetRepo(t *testing.T) ratchetRepo {
@@ -45,18 +61,10 @@ func newRatchetRepo(t *testing.T) ratchetRepo {
 		headCSV: filepath.Join(stubs, "head.csv"),
 		baseCSV: filepath.Join(stubs, "base.csv"),
 		args:    filepath.Join(stubs, "args"),
+		who:     filepath.Join(stubs, "who"),
 	}
 	writeRatchetFile(t, r.baseCSV, ratchetCSVHeader)
-	writeRatchetFile(t, filepath.Join(r.bin, "swiftlint"), `#!/bin/sh
-if [ "$1" = version ]; then echo "${STUB_SWIFTLINT_VERSION:-0.65.0}"; exit 0; fi
-echo "$@" >> "$STUB_ARGS"
-`+ratchetBaseDir+`
-case "$*" in
-  *.build/swiftlint-base*) sed "s#@BASE@#$base#" "$STUB_BASE_CSV" ;;
-  *) cat "$STUB_CSV" ;;
-esac
-exit 2
-`)
+	writeRatchetFile(t, filepath.Join(r.bin, "swiftlint"), ratchetSwiftlintStub("path", `${STUB_SWIFTLINT_VERSION:-0.65.0}`))
 	writeRatchetFile(t, filepath.Join(r.bin, "docker"), `#!/bin/sh
 [ "$1" = info ] && exit 0
 echo "$@" >> "$STUB_ARGS"
@@ -69,6 +77,13 @@ sed -e "s#@BASE@#$base#" -e "s#^$STUB_ROOT/#/repo/#" "$csv"
 exit 2
 `)
 	return r
+}
+
+// withoutDocker makes docker unusable on any host: a stub that fails every call shadows a
+// real /usr/bin/docker (CI runners have one), so require-docker.sh reports no daemon.
+func (r ratchetRepo) withoutDocker(t *testing.T) {
+	t.Helper()
+	writeRatchetFile(t, filepath.Join(r.bin, "docker"), "#!/bin/sh\nexit 1\n")
 }
 
 func writeRatchetFile(t *testing.T, path, body string) {
@@ -110,6 +125,7 @@ func (r ratchetRepo) run(t *testing.T, env []string, args ...string) (int, strin
 		"STUB_CSV="+r.headCSV,
 		"STUB_BASE_CSV="+r.baseCSV,
 		"STUB_ARGS="+r.args,
+		"STUB_WHO="+r.who,
 		"STUB_ROOT="+r.dir,
 		"PR_LABELS=",
 	)
@@ -285,5 +301,105 @@ func TestSwiftlintRatchet_aBaseWithNoMergeBaseFailsClearly(t *testing.T) {
 	code, out := r.run(t, nil, "--base", "origin/staging")
 	if code != 64 || !strings.Contains(out, "no merge base") {
 		t.Fatalf("expected exit 64 naming the missing merge base, code=%d out=%s", code, out)
+	}
+}
+
+func (r ratchetRepo) lintedBy(t *testing.T) []string {
+	t.Helper()
+	b, err := os.ReadFile(r.who)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(b)), "\n")
+}
+
+func (r ratchetRepo) withChangedFile(t *testing.T) {
+	t.Helper()
+	r.edit(t, aSwift, "let a = [1].first!\nlet b = [2].first!\n// note\nlet d = 4\n")
+	r.baseFinds(t, unwrapA1, unwrapA2, commentA3)
+	r.headFinds(t, unwrapA1, unwrapA2, commentA3)
+}
+
+func (r ratchetRepo) linkedWorktree(t *testing.T) ratchetRepo {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wt := filepath.Join(dir, "wt")
+	git(t, r.dir, "worktree", "add", "-q", "--detach", wt, "HEAD")
+	linked := r
+	linked.dir = wt
+	return linked
+}
+
+func TestSwiftlintRatchet_theCheckoutsDotBinSwiftlintWinsOverTheOtherCopies(t *testing.T) {
+	r := newRatchetRepo(t)
+	w := r.linkedWorktree(t)
+	writeRatchetFile(t, filepath.Join(w.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.65.0"))
+	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("primary", "0.65.0"))
+	w.withChangedFile(t)
+	if code, out := w.run(t, nil); code != 0 {
+		t.Fatalf("expected a pass, code=%d out=%s", code, out)
+	}
+	for _, who := range w.lintedBy(t) {
+		if who != "root" {
+			t.Fatalf("linted by %q, want only the checkout's .bin/swiftlint", w.lintedBy(t))
+		}
+	}
+}
+
+func TestSwiftlintRatchet_aLinkedWorktreeFallsBackToThePrimaryCheckoutsDotBinWithoutDocker(t *testing.T) {
+	r := newRatchetRepo(t)
+	w := r.linkedWorktree(t)
+	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("primary", "0.65.0"))
+	r.withoutDocker(t)
+	w.withChangedFile(t)
+	if code, out := w.run(t, nil); code != 0 {
+		t.Fatalf("expected a pass without docker, code=%d out=%s", code, out)
+	}
+	for _, who := range w.lintedBy(t) {
+		if who != "primary" {
+			t.Fatalf("linted by %q, want only the primary checkout's .bin/swiftlint", w.lintedBy(t))
+		}
+	}
+}
+
+func TestSwiftlintRatchet_aDotBinSwiftlintOfTheWrongVersionIsSkippedForTheNextCopy(t *testing.T) {
+	r := newRatchetRepo(t)
+	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.1.0"))
+	r.withChangedFile(t)
+	if code, out := r.run(t, nil); code != 0 {
+		t.Fatalf("expected a pass, code=%d out=%s", code, out)
+	}
+	for _, who := range r.lintedBy(t) {
+		if who != "path" {
+			t.Fatalf("linted by %q, want only the swiftlint on PATH", r.lintedBy(t))
+		}
+	}
+}
+
+func TestSwiftlintRatchet_noMatchingVersionAndNoDockerNamesTheInstaller(t *testing.T) {
+	r := newRatchetRepo(t)
+	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.1.0"))
+	r.withoutDocker(t)
+	r.withChangedFile(t)
+	code, out := r.run(t, []string{"STUB_SWIFTLINT_VERSION=0.1.0"})
+	if code != 3 || !strings.Contains(out, "swiftlint skipped: start Docker (or run scripts/install-swiftlint.sh for swiftlint 0.65.0)") {
+		t.Fatalf("expected exit 3 naming the installer, code=%d out=%s", code, out)
+	}
+}
+
+func TestSwiftlintRatchet_aDotBinSwiftlintOfTheWrongVersionFallsBackToTheDockerImage(t *testing.T) {
+	r := newRatchetRepo(t)
+	writeRatchetFile(t, filepath.Join(r.dir, ".bin/swiftlint"), ratchetSwiftlintStub("root", "0.1.0"))
+	r.withChangedFile(t)
+	if code, out := r.run(t, []string{"STUB_SWIFTLINT_VERSION=0.1.0"}); code != 0 {
+		t.Fatalf("expected a pass through docker, code=%d out=%s", code, out)
+	}
+	for _, call := range r.lintCalls(t) {
+		if !strings.Contains(call, "ghcr.io/realm/swiftlint:0.65.0 lint") {
+			t.Fatalf("expected the pinned image, call=%s", call)
+		}
 	}
 }
