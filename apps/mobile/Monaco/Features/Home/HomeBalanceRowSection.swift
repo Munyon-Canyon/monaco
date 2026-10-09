@@ -23,6 +23,7 @@ struct HomeBalanceRowSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(\.homeReads) private var reads
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: BalanceSource?
@@ -34,7 +35,7 @@ struct HomeBalanceRowSection: View {
 
     var body: some View {
         MonacoGroupedList {
-            if let model, Self.showsRetryRow(model.state) {
+            if let model, Self.showsRetryRow(model.state), reads.showsOwnRow(.balance) {
                 retryRow(model)
             } else {
                 PlatformBalanceCard(
@@ -45,6 +46,9 @@ struct HomeBalanceRowSection: View {
                 .padding(.leading, PlatformBalanceCard.leadingInset)
                 .padding(.trailing, MonacoTheme.Space.gutter)
                 .padding(.bottom, MonacoTheme.Space.sm)
+        }
+        .onChange(of: HomeReadStatus(model?.state ?? .loading), initial: true) { _, status in
+            reads?.report(.balance, status)
         }
         .task {
             let model = preparedModel()
