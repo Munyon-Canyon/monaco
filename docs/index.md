@@ -31,6 +31,7 @@ Read these in order to understand the repo:
 | [Ship a ticket](how-to/ship-a-ticket.md) | Taking one ticket from its issue to a merge on `staging`, as a person or an agent owner |
 | [Run a milestone](how-to/run-a-milestone.md) | Orchestrating a milestone: tickets, batches, owners and verifiers, landing, restacks and the promotion of `staging` into `main` |
 | [Connect a trading agent](how-to/connect-an-agent.md) | Hooking up ClawPump or any LLM agent |
+| [Deploy staging](how-to/deploy-staging.md) | The Render, Supabase and Synadia staging backend, and how to change its secrets |
 | [Demo checklist](how-to/demo-checklist.md) | A manual end-to-end pass before a demo |
 | [Run on the local simulator](how-to/local-simulator.md) | Simulator signing and keychain issues |
 | [Add a mobile feature](how-to/mobile-feature.md) | Layout, model shape and host tests for a screen on the generated client. Copy `SystemPingModel` |

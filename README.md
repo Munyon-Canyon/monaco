@@ -110,8 +110,8 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | Command                      | What it does                                                                                                                                                           |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `just install`               | Ask before installing missing tools. `just install --check` reports only                                                                                               |
-| `just encrypt`               | `dotenvx encrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
-| `just decrypt`               | `dotenvx decrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
+| `just encrypt`               | `dotenvx encrypt` on `.env.local` (and `.env.production`, `.env.staging` if present)                                                                                                 |
+| `just decrypt`               | `dotenvx decrypt` on `.env.local` (and `.env.production`, `.env.staging` if present)                                                                                                 |
 | `just show-env`              | Print decrypted `.env.local` keys/values via dotenvx (`export KEY='value'` lines; `.env.production` omitted). Needs `.env.local`, dotenvx, and `.env.keys` or Keychain |
 | `just run`                   | `just run backend` in the background, then `just run mobile`; prints a `==>` line per step. Ctrl+C or a failed build stops both                                        |
 | `just run backend`           | `bin/api` on `MONACO_HTTP_ADDR` (default `:8080`) and `bin/worker` on `MONACO_WORKER_HEALTH_ADDR` (default `:8081`); both serve `GET /healthz`. Also serves the card fund page (`apps/web`) on `:5173` |
@@ -146,7 +146,7 @@ brew tap dotenvx/brew && brew trust dotenvx/brew && brew install dotenvx
 Or `curl -sfS https://dotenvx.sh | sh`. See [install docs](https://dotenvx.com/docs/install).
 
 1. Copy `.env.example` → `.env.local` for local dev. Optionally add `.env.production`.
-2. Encrypt: `just encrypt` (or `dotenvx encrypt -f .env.local`; also encrypts `.env.production` when that file exists). Decrypt: `just decrypt`.
+2. Encrypt: `just encrypt` (or `dotenvx encrypt -f .env.local`; also encrypts `.env.production` and `.env.staging` when they exist). Decrypt: `just decrypt`.
 3. Inspect: `just show-env` prints decrypted `.env.local` as `export KEY='value'` lines via dotenvx (`.env.production` omitted). Needs `.env.local`, dotenvx, and `.env.keys` or Keychain.
 4. Set values: `dotenvx set KEY value -f .env.local` (encrypts by default; `--plain` for non-secrets).
 
@@ -161,7 +161,7 @@ Or `curl -sfS https://dotenvx.sh | sh`. See [install docs](https://dotenvx.com/d
 
 Justfile `dotenv-load` only reads plain `.env` — not dotenvx ciphertext. Recipes that need secrets re-exec once under `dotenvx run -f .env.local` (via `scripts/with-dotenv-local.sh`). Mobile Privy uses `scripts/ensure-ios-privy-config.sh` (xcconfig) + `SIMCTL_CHILD_*` at sim launch.
 
-Private keys: `DOTENV_PRIVATE_KEY` for `.env` / `.env.local`; `DOTENV_PRIVATE_KEY_PRODUCTION` for `.env.production`. On macOS, new keys often land in Keychain, not `.env.keys`. Export with `dotenvx native pull` or `dotenvx keypair -f .env.local`.
+Private keys: `DOTENV_PRIVATE_KEY` for `.env` / `.env.local`; `DOTENV_PRIVATE_KEY_PRODUCTION` for `.env.production`; `DOTENV_PRIVATE_KEY_STAGING` for `.env.staging`. On macOS, new keys often land in Keychain, not `.env.keys`. Export with `dotenvx native pull` or `dotenvx keypair -f .env.local`.
 
 Encrypted `.env*` files (public key in repo) may be committed. Never commit `.env.keys`, `.env.local`, or private keys. `.gitignore` covers `.env`; keep `.env.keys` and `.env.local` out of git locally.
 

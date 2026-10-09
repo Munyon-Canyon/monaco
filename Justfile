@@ -26,9 +26,11 @@ encrypt:
       exit 1
     fi
     dotenvx encrypt -f .env.local
-    if [[ -f .env.production ]]; then
-      dotenvx encrypt -f .env.production
-    fi
+    for f in .env.production .env.staging; do
+      if [[ -f "$f" ]]; then
+        dotenvx encrypt -f "$f"
+      fi
+    done
 
 decrypt:
     #!/usr/bin/env bash
@@ -42,9 +44,11 @@ decrypt:
       exit 1
     fi
     dotenvx decrypt -f .env.local
-    if [[ -f .env.production ]]; then
-      dotenvx decrypt -f .env.production
-    fi
+    for f in .env.production .env.staging; do
+      if [[ -f "$f" ]]; then
+        dotenvx decrypt -f "$f"
+      fi
+    done
 
 # Print decrypted .env.local keys/values (.env.production omitted).
 show-env:
