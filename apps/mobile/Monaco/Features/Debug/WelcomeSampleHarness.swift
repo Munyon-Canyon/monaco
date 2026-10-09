@@ -1,6 +1,7 @@
 #if DEBUG
 import Combine
 import MonacoCore
+import PrivySDK
 import SwiftUI
 
 /// Debug-only: the way in (sign-in, the restore, the session gate) against canned state, so QA
@@ -43,21 +44,11 @@ enum WelcomeSampleScenario: String, CaseIterable {
 
 struct WelcomeSampleHarness: View {
     let scenario: WelcomeSampleScenario
-    @StateObject private var signIn: SampleSignIn
-
-    init(scenario: WelcomeSampleScenario) {
-        self.scenario = scenario
-        _signIn = StateObject(wrappedValue: SampleSignIn(scenario: scenario))
-    }
 
     var body: some View {
         switch scenario {
-        case .signedOut, .code:
-            LoginView(auth: signIn, methods: [.sms, .email])
-        case .codeRejected:
-            LoginView(auth: signIn, methods: [.sms, .email], initialCode: "465354")
-        case .emailCode:
-            LoginView(auth: signIn, methods: [.sms, .email], initialMethod: .email)
+        case .signedOut, .code, .codeRejected, .emailCode:
+            SampleLoginScreen(scenario: scenario)
         case .restoring:
             SessionRestoringView()
         case .restoreFailed:
@@ -83,12 +74,37 @@ struct WelcomeSampleHarness: View {
     }
 }
 
+private struct SampleLoginScreen: View {
+    let scenario: WelcomeSampleScenario
+    @StateObject private var signIn: SampleSignIn
+
+    init(scenario: WelcomeSampleScenario) {
+        self.scenario = scenario
+        _signIn = StateObject(wrappedValue: SampleSignIn(scenario: scenario))
+    }
+
+    var body: some View {
+        switch scenario {
+        case .codeRejected:
+            LoginView(auth: signIn, methods: [.sms, .email], initialCode: "465354")
+        case .emailCode:
+            LoginView(auth: signIn, methods: [.sms, .email], initialMethod: .email)
+        default:
+            LoginView(auth: signIn, methods: [.sms, .email])
+        }
+    }
+}
+
 /// A canned sign-in: the real service with the network taken out. Sending a code always goes
 /// through after a beat; checking one always fails as a wrong code, so a sample never leaves
 /// the login screen.
 final class SampleSignIn: PrivyAuthService {
     init(scenario: WelcomeSampleScenario) {
-        super.init(settings: Config.privy)
+        super.init(
+            settings: Config.privy,
+            privy: PrivyAuthService.processInstance?.privy
+                ?? PrivySdk.initialize(config: PrivyAuthService.privyConfig(Config.privy))
+        )
         switch scenario {
         case .signedOut:
             flow = LoginFlow()
