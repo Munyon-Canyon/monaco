@@ -26,6 +26,7 @@ struct SectionStack<Context>: View {
                     }
                 }
             }
+            .contentMargins(.bottom, MonacoTheme.Space.l, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .environment(\.sectionScrollProxy, proxy)
             .background { if !insideSheet { MonacoCanvasBackground() } }
