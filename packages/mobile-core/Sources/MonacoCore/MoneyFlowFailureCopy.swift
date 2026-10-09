@@ -111,7 +111,7 @@ public enum MoneyFlowCopy {
             return .toast(ToastCopy.message(for: error))
         }
         switch code {
-        case .invalidAddress: return .address("That isn't a Solana address.")
+        case .invalidAddress: return .address("Paste a wallet address. That one can't receive USDC from here.")
         case .withdrawToOwnWallet:
             return .address("That's your own deposit address. Paste the address you want to send to.")
         case .insufficientFunds: return .toast("Not enough in your account balance.")
