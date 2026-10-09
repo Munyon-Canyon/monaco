@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	codegen "github.com/monaco/monaco/apps/backend/internal/tools/gen"
 )
@@ -20,6 +22,90 @@ func fakeAtlas(name string) atlas {
 		bin:         filepath.Join(dir, name),
 		versionFile: filepath.Join(dir, "pinned-version"),
 		beforeDB:    func(context.Context, string) error { return nil },
+		dev:         func(context.Context, []string) (string, func()) { return dockerDevURL, func() {} },
+	}
+}
+
+type fakeDevAdmin struct {
+	execs     []string
+	createErr error
+	closed    bool
+}
+
+func (f *fakeDevAdmin) Exec(_ context.Context, sql string, _ ...any) (pgconn.CommandTag, error) {
+	f.execs = append(f.execs, sql)
+	if strings.HasPrefix(sql, "CREATE") {
+		return pgconn.CommandTag{}, f.createErr
+	}
+	return pgconn.CommandTag{}, nil
+}
+
+func (f *fakeDevAdmin) Close(context.Context) error {
+	f.closed = true
+	return nil
+}
+
+func connectingTo(admin *fakeDevAdmin, err error) func(context.Context, string) (devAdmin, error) {
+	return func(context.Context, string) (devAdmin, error) {
+		if err != nil {
+			return nil, err
+		}
+		return admin, nil
+	}
+}
+
+func TestMigrateLint_usesAThrowawayDatabaseOnTheSharedTestPostgresAndDropsItWhenAtlasFails(t *testing.T) {
+	t.Parallel()
+	for _, bin := range []string{"pinned", "failing"} {
+		admin := &fakeDevAdmin{}
+		a := fakeAtlas(bin)
+		a.dev = func(ctx context.Context, _ []string) (string, func()) {
+			return devDatabase(ctx, "postgres://monaco@localhost:54323/monaco?sslmode=disable",
+				"atlas_dev_7_ab", connectingTo(admin, nil))
+		}
+		var stdout, stderr bytes.Buffer
+		migrateTool(a, nil)([]string{"lint"}, &stdout, &stderr)
+
+		want := "--dev-url\npostgres://monaco@localhost:54323/atlas_dev_7_ab?sslmode=disable\n"
+		if !strings.Contains(stdout.String(), want) && bin == "pinned" {
+			t.Fatalf("stdout = %q, want %q", stdout.String(), want)
+		}
+		if len(admin.execs) != 2 || admin.execs[0] != `CREATE DATABASE "atlas_dev_7_ab"` ||
+			admin.execs[1] != `DROP DATABASE IF EXISTS "atlas_dev_7_ab" WITH (FORCE)` || !admin.closed {
+			t.Fatalf("%s: execs=%q closed=%v", bin, admin.execs, admin.closed)
+		}
+	}
+}
+
+func TestDevDatabase_fallsBackToDockerWhenTheSharedPostgresCannotServeIt(t *testing.T) {
+	t.Parallel()
+	const raw = "postgres://monaco@localhost:54323/monaco"
+	broken := &fakeDevAdmin{createErr: errors.New("permission denied")}
+	for name, tc := range map[string]struct {
+		raw     string
+		connect func(context.Context, string) (devAdmin, error)
+	}{
+		"unreachable":  {raw, connectingTo(nil, errors.New("refused"))},
+		"bad url":      {"://", connectingTo(&fakeDevAdmin{}, nil)},
+		"create fails": {raw, connectingTo(broken, nil)},
+	} {
+		got, cleanup := devDatabase(context.Background(), tc.raw, "atlas_dev_1_a", tc.connect)
+		cleanup()
+		if got != dockerDevURL {
+			t.Fatalf("%s: url = %q, want %q", name, got, dockerDevURL)
+		}
+	}
+	if !broken.closed {
+		t.Fatal("connection not closed after a failed create")
+	}
+}
+
+func TestSharedDev_fallsBackToDockerWhenNothingListensOnTheTestPort(t *testing.T) {
+	t.Parallel()
+	got, cleanup := sharedDev(context.Background(), []string{"TEST_DATABASE_URL=postgres://monaco@127.0.0.1:1/monaco"})
+	cleanup()
+	if got != dockerDevURL {
+		t.Fatalf("url = %q, want %q", got, dockerDevURL)
 	}
 }
 

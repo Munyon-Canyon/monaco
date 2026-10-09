@@ -3,13 +3,17 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -30,6 +34,59 @@ WHERE r.version = n.legacy`
 type atlas struct {
 	dir, bin, versionFile string
 	beforeDB              func(ctx context.Context, url string) error
+	dev                   func(ctx context.Context, environ []string) (string, func())
+}
+
+const (
+	dockerDevURL   = "docker://postgres/16/dev"
+	devConnectWait = 5 * time.Second
+)
+
+type devAdmin interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Close(ctx context.Context) error
+}
+
+func sharedDev(ctx context.Context, environ []string) (string, func()) {
+	suffix := make([]byte, 4)
+	_, _ = rand.Read(suffix)
+	name := fmt.Sprintf("atlas_dev_%d_%s", os.Getpid(), hex.EncodeToString(suffix))
+	connect := func(ctx context.Context, rawURL string) (devAdmin, error) {
+		ctx, cancel := context.WithTimeout(ctx, devConnectWait)
+		defer cancel()
+		conn, err := pgx.Connect(ctx, rawURL)
+		if err != nil {
+			return nil, fmt.Errorf("connect: %w", err)
+		}
+		return conn, nil
+	}
+	return devDatabase(ctx, config.TestDBURL(environ), name, connect)
+}
+
+func devDatabase(
+	ctx context.Context, rawURL, name string,
+	connect func(ctx context.Context, url string) (devAdmin, error),
+) (string, func()) {
+	noop := func() {}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return dockerDevURL, noop
+	}
+	admin, err := connect(ctx, rawURL)
+	if err != nil {
+		return dockerDevURL, noop
+	}
+	ident := pgx.Identifier{name}.Sanitize()
+	drop := func() {
+		_, _ = admin.Exec(context.WithoutCancel(ctx), "DROP DATABASE IF EXISTS "+ident+" WITH (FORCE)")
+		_ = admin.Close(context.WithoutCancel(ctx))
+	}
+	if _, err := admin.Exec(ctx, "CREATE DATABASE "+ident); err != nil {
+		drop()
+		return dockerDevURL, noop
+	}
+	u.Path = "/" + name
+	return u.String(), drop
 }
 
 func atlasAt(root string) atlas {
@@ -38,6 +95,7 @@ func atlasAt(root string) atlas {
 		bin:         filepath.Join(root, "..", "..", ".bin", "atlas"),
 		versionFile: filepath.Join(root, ".atlas-version"),
 		beforeDB:    renameLegacy,
+		dev:         sharedDev,
 	}
 }
 
@@ -107,9 +165,11 @@ func migrateTool(a atlas, environ []string) tool {
 		if len(args) != 0 {
 			return migrateUsage(stderr)
 		}
+		devURL, cleanup := a.dev(context.Background(), environ)
+		defer cleanup()
 		return a.run([]string{
 			"migrate", "lint", "--dir", "file://migrations",
-			"--dev-url", "docker://postgres/16/dev", "--latest", "1",
+			"--dev-url", devURL, "--latest", "1",
 		}, stdout, stderr)
 	}
 	order := func(args []string, stdout, stderr io.Writer) int {
