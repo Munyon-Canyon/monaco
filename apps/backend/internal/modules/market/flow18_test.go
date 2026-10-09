@@ -13,7 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-func priceScenario(t *testing.T) *scenario.Scenario {
+func priceScenario(t *testing.T, quote ...time.Duration) *scenario.Scenario {
 	t.Helper()
 	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
@@ -28,8 +28,11 @@ func priceScenario(t *testing.T) *scenario.Scenario {
 			cfg.Tessera.BaseURL = srv.URL + "/tessera"
 			cfg.PreStocks.BaseURL = srv.URL + "/prestocks"
 			cfg.Jupiter.APIKey = "test-key"
-			cfg.Market.PricePollInterval = time.Second
-			cfg.Timeouts.JupiterQuote = 200 * time.Millisecond
+			cfg.Market.PricePollInterval = 30 * time.Second
+			cfg.Timeouts.JupiterQuote = 10 * time.Second
+			if len(quote) > 0 {
+				cfg.Timeouts.JupiterQuote = quote[0]
+			}
 			d.Config = cfg
 			d.HTTPClient = httpclient.New
 			return market.New(d)
@@ -49,5 +52,5 @@ func TestFlow18_SamplePrices_JupiterUnavailable(t *testing.T) {
 
 func TestFlow18_SamplePrices_UpstreamTimeout(t *testing.T) {
 	t.Parallel()
-	flows.F18SamplePricesUpstreamTimeout(priceScenario(t))
+	flows.F18SamplePricesUpstreamTimeout(priceScenario(t, 200*time.Millisecond))
 }
