@@ -6,14 +6,12 @@ struct AccountActivityView: View {
     @State private var model: AccountActivityModel?
 
     var body: some View {
-        AccountActivityList(model: model) { route in
-            environment.navigator.open(route, in: environment.navigator.selectedTab)
-        }
-        .task {
-            let model = preparedModel()
-            await model.load()
-            await model.observe()
-        }
+        AccountActivityList(model: model)
+            .task {
+                let model = preparedModel()
+                await model.load()
+                await model.observe()
+            }
     }
 
     private func preparedModel() -> AccountActivityModel {
@@ -26,11 +24,8 @@ struct AccountActivityView: View {
 
 struct AccountActivityList: View {
     let model: AccountActivityModel?
-    let open: (any AppRoute) -> Void
 
     @Environment(ToastCenter.self) private var toasts
-    @State private var receipt: AccountActivityRow?
-    @State private var cabalToOpen: String?
 
     var body: some View {
         ScrollView {
@@ -46,12 +41,6 @@ struct AccountActivityList: View {
             model.dismissToast()
         }
         .onScreenVisibilityChange { model?.setVisible($0) }
-        .sheet(item: $receipt, onDismiss: openPendingCabal) { row in
-            AccountTxnReceiptSheet(row: row) { cabalID in
-                cabalToOpen = cabalID
-                receipt = nil
-            }
-        }
     }
 
     @ViewBuilder private var content: some View {
@@ -81,9 +70,7 @@ struct AccountActivityList: View {
         return MonacoGroupedList {
             LazyVStack(spacing: 0) {
                 ForEach(rows) { row in
-                    Button {
-                        receipt = row
-                    } label: {
+                    NavigationLink(value: AnyAppRoute(AccountTxnReceiptRoute(row: row))) {
                         AccountActivityRowView(row: row, isLast: row.id == rows.last?.id)
                     }
                     .buttonStyle(.monacoRow)
@@ -98,12 +85,6 @@ struct AccountActivityList: View {
                 MonacoRowSkeleton(rows: 1, markShape: .tile)
             }
         }
-    }
-
-    private func openPendingCabal() {
-        guard let cabalID = cabalToOpen else { return }
-        cabalToOpen = nil
-        open(CabalRoute(id: cabalID))
     }
 }
 
@@ -212,7 +193,7 @@ private struct AccountActivityHarnessScreen: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            AccountActivityList(model: model) { path.append(AnyAppRoute($0)) }
+            AccountActivityList(model: model)
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
                 .task {
                     let created = await makeModel()
