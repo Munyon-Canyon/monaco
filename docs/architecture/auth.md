@@ -138,6 +138,7 @@ The `social` module owns contact matching, `contact_matches` and the `/v1/me/con
 1. With the user's permission (iOS Contacts prompt, with Monaco's own explainer screen first), the app reads phone numbers from the address book.
 2. The app normalises each to E.164 and hashes it with SHA-256 before upload. Raw numbers and names never leave the device.
 3. `POST /v1/me/contacts/match` with the hash list. The backend compares against the hashes of **verified** phone numbers of Monaco users (`users.phone_hash`) and stores matches in `contact_matches (user_id, matched_user_id, source = 'phone')`.
+    The route allows 10 posts an hour per user, so the app posts an unchanged address book at most once an hour per account. It keeps a SHA-256 of the sorted hashes and the post time on the device, never sends it, and loads the stored matches without posting while the fingerprint and the hour hold. A 429 on the post still loads them. A contact who joined since is found on the next post.
 4. The app shows "Friends on Monaco" with Follow buttons.
 5. Unmatched hashes are not stored (default 2026-09-27). When a new user verifies their phone later, existing users who had them in contacts are not told. Less growth, less stored PII.
 

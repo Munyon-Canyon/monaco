@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 final class FriendsOnMonacoModelTests: XCTestCase {
-    private static let rawNumber = "+14155550123"
+    static let rawNumber = "+14155550123"
     private static let contactName = "Ada Lovelace"
     private static let friendID = Components.Schemas.ContactMatch.sample.userId
 
@@ -194,7 +194,7 @@ final class FriendsOnMonacoModelTests: XCTestCase {
         XCTAssertEqual(model.toast, "Slow down.")
     }
 
-    private static func paths(_ sent: [HTTPRequest]) -> [String] {
+    static func paths(_ sent: [HTTPRequest]) -> [String] {
         sent.map { request in
             let path = request.path ?? ""
             guard let query = path.firstIndex(of: "?") else { return path }
@@ -209,7 +209,8 @@ final class FriendsOnMonacoModelTests: XCTestCase {
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
             contacts: contacts,
             defaultRegion: "US",
-            chunkSize: chunkSize
+            chunkSize: chunkSize,
+            now: { Date() }
         )
     }
 
@@ -225,12 +226,12 @@ final class FriendsOnMonacoModelTests: XCTestCase {
         XCTAssertFalse(text.contains("Ada"))
     }
 
-    private static let page =
+    static let page =
         #"{"items":[{"user_id":"\#(friendID)","handle":"maya","display_name":"Maya","photo_url":null,"followed_by_me":false}],"next_cursor":null}"#
 
     private static let emptyPage = #"{"items":[],"next_cursor":null}"#
 
-    private static func problem(_ status: Int, _ code: String, _ message: String) -> StubTransport.Reply {
+    static func problem(_ status: Int, _ code: String, _ message: String) -> StubTransport.Reply {
         let body =
             #"{"type":"about:blank","title":"Error","status":\#(status),"code":"\#(code)","message":"\#(message)","#
             + #""trace_id":"00000000000000000000000000000000","retryable":false}"#
@@ -241,7 +242,7 @@ final class FriendsOnMonacoModelTests: XCTestCase {
 }
 
 @MainActor
-private final class FakeContacts: ContactsSource {
+final class FakeContacts: ContactsSource {
     var access: ContactsAccess
     var requestResult: ContactsAccess
     var numbers: [String]

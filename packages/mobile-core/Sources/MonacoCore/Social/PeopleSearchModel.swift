@@ -41,6 +41,11 @@ public final class PeopleSearchModel {
         schedule(after: nil)
     }
 
+    public func refresh() {
+        guard hasRows else { return }
+        schedule(after: nil)
+    }
+
     public func isToggling(_ userID: String) -> Bool {
         toggling.contains(userID)
     }
