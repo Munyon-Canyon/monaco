@@ -1,19 +1,19 @@
 journey: governance/propose-buy
-expect-fail: S2
+expect-fail: S3
 
-A passed buy that is waiting on the trade engine shows the chip "Passed" instead of "Buying". S2.4 checks that the card chip `proposal-status-chip` reads "Buying", so it must fail.
+A bought proposal shows the chip "Passed" instead of "Bought". S3.4 checks that the `proposal-status-chip` reads "Bought" within 120 s, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift
-index e6341ec4c..4856a3ae0 100644
+index d02574956..2b332087f 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift
-@@ -4,7 +4,7 @@ public enum ProposalChip {
-         if swapFailed || status == .executionBlocked { return "Couldn't \(action)" }
+@@ -7,7 +7,7 @@ public enum ProposalChip {
          return switch status {
          case .open: nil
--        case .passed: isSell ? "Selling" : "Buying"
-+        case .passed: "Passed"
-         case .executed: isSell ? "Sold" : "Bought"
+         case .passed: isSell ? "Selling" : "Buying"
+-        case .executed: isSell ? "Sold" : "Bought"
++        case .executed: "Passed"
          case .failed: "Didn't pass"
          case .expired: "Expired"
+         case .withdrawn: "Withdrawn"

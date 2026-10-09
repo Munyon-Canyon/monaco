@@ -1,7 +1,7 @@
 journey: governance/propose-buy
-expect-fail: S1
+expect-fail: S2
 
-A voter's Propose action is disabled. S1.1 checks it is enabled, so it must fail.
+A voter's Propose action is disabled. S2.1 checks it is enabled, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalActionsSlot.swift
