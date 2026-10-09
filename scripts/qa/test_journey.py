@@ -201,6 +201,65 @@ class Check(Tree):
                       self.problems())
 
 
+MIGRATIONS = """CREATE TABLE widgets (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  note text,
+  size int NOT NULL DEFAULT 1,
+  PRIMARY KEY (id)
+);
+ALTER TABLE widgets ADD COLUMN colour text NOT NULL;
+ALTER TABLE widgets
+  ADD COLUMN weight int NOT NULL,
+  ALTER COLUMN size DROP DEFAULT;
+ALTER TABLE widgets ALTER COLUMN weight SET DEFAULT 0;
+"""
+
+
+class SetupInserts(Tree):
+    def setUp(self):
+        super().setUp()
+        self.write("apps/backend/migrations/20260101000000_widgets.sql", MIGRATIONS)
+
+    def insert(self, columns):
+        self.write(
+            "apps/mobile/qa/journeys/x/y.setup.sh",
+            "psql <<SQL\nINSERT INTO widgets (%s)\nVALUES (1);\nSQL\n" % columns)
+        return journey.check_setup_inserts()
+
+    def test_an_insert_that_omits_a_required_column_is_named(self):
+        problems = self.insert("id, name, colour")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("apps/mobile/qa/journeys/x/y.setup.sh", problems[0])
+        self.assertIn("widgets", problems[0])
+        self.assertIn("size", problems[0])
+
+    def test_an_insert_that_omits_a_primary_key_without_a_default_is_named(self):
+        problems = self.insert("name, size, colour")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("column id", problems[0])
+
+    def test_a_table_level_primary_key_makes_its_columns_required(self):
+        self.write("apps/backend/migrations/20260102000000_pairs.sql",
+                   "CREATE TABLE pairs (a int, b int, PRIMARY KEY (a, b));\n")
+        self.write("apps/mobile/qa/journeys/x/z.setup.sh", "INSERT INTO pairs (a)\nVALUES (1);\n")
+        problems = journey.check_setup_inserts()
+        self.assertEqual(len(problems), 1)
+        self.assertIn("column b", problems[0])
+
+    def test_an_insert_that_omits_only_nullable_or_defaulted_columns_passes(self):
+        self.assertEqual(self.insert("id, name, size, colour"), [])
+
+    def test_an_insert_without_a_column_list_is_skipped(self):
+        self.write("apps/mobile/qa/journeys/x/y.truth.sh", "INSERT INTO widgets VALUES (1);\n")
+        self.assertEqual(journey.check_setup_inserts(), [])
+
+
+class RealSetupInserts(unittest.TestCase):
+    def test_every_setup_insert_in_the_tree_names_its_required_columns(self):
+        self.assertEqual(journey.check_setup_inserts(), [])
+
+
 class Coverage(Tree):
     def test_lists_backend_and_app_statuses_and_uncovered_flows(self):
         self.write("packages/flows/app/01.tsv", "id\tscreen\tstatus\n01\tSignIn\tplanned\n")
