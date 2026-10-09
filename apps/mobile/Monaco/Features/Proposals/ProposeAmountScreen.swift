@@ -21,37 +21,55 @@ struct ProposeAmountScreen: View {
                 service: service, cabalID: cabalID, trade: trade, clock: ContinuousClock()))
     }
 
+    private static let amountEntryID = "propose-amount-entry"
+
+    private struct AmountAnchor: Equatable {
+        let text: String
+        let helper: String?
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    operationLabel
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                    MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
-                    ProposePotTotalRow(cabalID: cabalID)
-                }
-                AmountEntry(
-                    amountText: $amountText, max: max, presets: presets, helper: model.helperText,
-                    overLimitHelper: model.overLimitHelper, problem: model.message(assetName: stock.name),
-                    input: .keypad, showsKeypad: false
-                ) {
-                    VStack(spacing: MonacoTheme.Space.s) {
-                        if let note = model.sellQuantityNote { AmountEntryNote(note) }
-                        reasonSection
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                        operationLabel
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
+                        MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
+                        ProposePotTotalRow(cabalID: cabalID)
+                    }
+                    AmountEntry(
+                        amountText: $amountText, max: max, presets: presets, helper: model.helperText,
+                        overLimitHelper: model.overLimitHelper, problem: model.message(assetName: stock.name),
+                        input: .keypad
+                    ) {
+                        VStack(spacing: MonacoTheme.Space.s) {
+                            if let note = model.sellQuantityNote { AmountEntryNote(note) }
+                            reasonSection
+                        }
+                    }
+                    .id(Self.amountEntryID)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .onChange(of: amountText) { _, value in
+                        model.setAmount(micros: AmountEntryText.micros(value) ?? 0)
+                    }
+                    if model.previewFailed {
+                        MonacoErrorRow(thing: "the price", identifier: "propose-amount-price-error") {
+                            model.retryPreview()
+                        }
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
-                if model.previewFailed {
-                    MonacoErrorRow(thing: "the price", identifier: "propose-amount-price-error") {
-                        model.retryPreview()
-                    }
-                }
+                .padding(.top, MonacoTheme.Space.s)
+                .padding(.bottom, MonacoTheme.Space.s)
             }
-            .padding(.top, MonacoTheme.Space.s)
-            .padding(.bottom, MonacoTheme.Space.s)
+            .scrollBounceBehavior(.basedOnSize)
+            .onTapGesture { reasonFocused = false }
+            .revealsWhileActive(
+                Self.amountEntryID, isActive: !reasonFocused,
+                tracking: AmountAnchor(text: amountText, helper: model.helperText), proxy: proxy, anchor: .top
+            )
+            .onAppear { proxy.scrollTo(Self.amountEntryID, anchor: .top) }
         }
-        .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .task { await model.load() }
         .task {
@@ -130,6 +148,13 @@ struct ProposeAmountScreen: View {
         .foregroundStyle(MonacoTheme.ink)
         .tint(MonacoTheme.ink)
         .focused($reasonFocused)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { reasonFocused = false }
+                    .accessibilityIdentifier("propose-amount-reason-done")
+            }
+        }
         .padding(.vertical, MonacoTheme.Space.sm)
         .monacoFieldChrome(isFocused: reasonFocused, focus: { reasonFocused = true })
         .accessibilityLabel(model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?")

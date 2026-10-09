@@ -147,8 +147,7 @@ struct CashOutContent: View {
                 minimumMicros: preview.minMicros),
             overLimitHelper: "More than your slice",
             problem: CashOutAmountRule.problem(for: verdict, minimumMicros: preview.minMicros),
-            input: .keypad,
-            showsKeypad: false
+            input: .keypad
         ) {
             AmountEntryNote(CashOutAmountRule.explainer(for: verdict))
                 .accessibilityIdentifier("cash-out-explainer")
