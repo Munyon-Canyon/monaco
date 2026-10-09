@@ -229,10 +229,9 @@ func TestDeleteCabalMemberMe_answersNoContentOrTheRefusal(t *testing.T) {
 	}
 }
 
-func TestModule_leavesThroughTheTreasuryReadsItIsGiven(t *testing.T) {
-	t.Parallel()
-	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+func (f accessFixture) leaveThroughModule(
+	ctx context.Context, user ids.UserID, c ids.CabalID, opts ...cabal.Option,
+) error {
 	m := cabal.New(module.Deps{
 		Pool:  f.pool,
 		UoW:   f.uow,
@@ -242,8 +241,29 @@ func TestModule_leavesThroughTheTreasuryReadsItIsGiven(t *testing.T) {
 			Privy:    config.Privy{BaseURL: "http://127.0.0.1", VerificationKey: fakes.PrivyVerificationKey()},
 			Timeouts: config.Timeouts{Privy: time.Second},
 		},
-	}, cabal.WithTreasuryReads(&treasuryStub{shares: shares(1)}))
-	_, err := cabal.HTTPOf(m).DeleteCabalMemberMe(as(t.Context(), c.Members[1].ID),
-		api.DeleteCabalMemberMeRequestObject{Id: c.ID.UUID()})
+	}, opts...)
+	_, err := cabal.HTTPOf(m).DeleteCabalMemberMe(as(ctx, user), api.DeleteCabalMemberMeRequestObject{Id: c.UUID()})
+	return err
+}
+
+func TestModule_leavesThroughTheTreasuryReadsItIsGiven(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	err := f.leaveThroughModule(t.Context(), c.Members[1].ID, c.ID,
+		cabal.WithTreasuryReads(&treasuryStub{shares: shares(1)}))
 	wantErr(t, err, errs.CodeLeaveHoldsShares)
+}
+
+func TestModule_refusesTheLeaveUntilTheMembersCashOutEnds(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	member := c.Members[1].ID
+	testkit.SeedCashOut(t, f.pool, c.ID, member, 5, "paying")
+	wantErr(t, f.leaveThroughModule(t.Context(), member, c.ID), errs.CodeLeaveHoldsShares)
+	f.exec(t, `UPDATE cash_out_jobs SET status = 'completed' WHERE user_id = $1`, member.UUID())
+	if err := f.leaveThroughModule(t.Context(), member, c.ID); err != nil {
+		t.Fatalf("leave after the cash out completed = %v, want it allowed", err)
+	}
 }
