@@ -487,8 +487,40 @@ final class LoginFailureCopyTests: XCTestCase {
         XCTAssertEqual(failure, .other(detail: " Invalid phone number "))
         XCTAssertEqual(
             LoginFailureCopy.message(for: failure, step: .sendCode),
-            "Couldn't send the code. Try again. Invalid phone number"
+            "Invalid phone number. Try again."
         )
+    }
+
+    func testQuota_andDisabledMethod_haveTheirOwnCopy_onEveryStep() {
+        for step in [LoginStep.authorize, .sendCode, .verifyCode] {
+            let quota = LoginFailureCopy.failure(
+                forHTTPStatus: 400, step: step, detail: "User limit reached", errorCode: "max_accounts_reached")
+            XCTAssertEqual(quota, .signUpsPaused)
+            XCTAssertFalse(quota.keepsCodeEntry)
+            XCTAssertEqual(
+                LoginFailureCopy.message(for: quota, step: step), "Sign-ups are paused right now. Try again later.")
+
+            let method = LoginFailureCopy.failure(
+                forHTTPStatus: 403, step: step, detail: nil, errorCode: "disallowed_login_method")
+            XCTAssertEqual(method, .methodUnavailable)
+            XCTAssertEqual(LoginFailureCopy.message(for: method, step: step), "This sign-in method isn't available.")
+        }
+    }
+
+    func testVerify_onlyInvalidCredentialsIsAWrongCode() {
+        XCTAssertEqual(
+            LoginFailureCopy.failure(
+                forHTTPStatus: 422, step: .verifyCode, detail: nil, errorCode: "invalid_credentials"),
+            .codeRejected)
+        XCTAssertEqual(
+            LoginFailureCopy.failure(forHTTPStatus: 400, step: .verifyCode, detail: "Nope", errorCode: "other_code"),
+            .other(detail: "Nope"))
+    }
+
+    func testProviderReason_comesFirst_andGetsAFullStop() {
+        XCTAssertEqual(
+            LoginFailureCopy.message(for: .other(detail: "Already linked."), step: .verifyCode),
+            "Already linked. Try again.")
     }
 
     func testServerError_fallsBackToGenericCopy() {

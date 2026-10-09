@@ -367,8 +367,9 @@ class PrivyAuthService: ObservableObject {
         }
         if let apiError = error as? ApiError {
             switch apiError {
-            case .apiError(let httpCode, _, let description):
-                return LoginFailureCopy.failure(forHTTPStatus: httpCode, step: step, detail: description)
+            case .apiError(let httpCode, let errorCode, let description):
+                return LoginFailureCopy.failure(
+                    forHTTPStatus: httpCode, step: step, detail: description, errorCode: errorCode)
             case .networkError(let responseCode, let description):
                 // Privy reports transport failures with a non-HTTP response code.
                 guard (400..<600).contains(responseCode) else { return .offline }

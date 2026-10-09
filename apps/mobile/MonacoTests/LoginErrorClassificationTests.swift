@@ -41,6 +41,32 @@ struct LoginErrorClassificationTests {
         #expect(failure.keepsCodeEntry)
     }
 
+    @Test func aFullUserQuotaIsNotAWrongCode() {
+        let error = ApiError.apiError(
+            httpCode: 400, errorCode: "max_accounts_reached", description: "User limit reached")
+        let failure = PrivyAuthService.loginFailure(from: error, step: .verifyCode)
+        #expect(failure == .signUpsPaused)
+        #expect(!failure.keepsCodeEntry)
+        #expect(
+            LoginFailureCopy.message(for: failure, step: .verifyCode)
+                == "Sign-ups are paused right now. Try again later.")
+    }
+
+    @Test func aDisallowedLoginMethodIsReportedOnEveryStep() {
+        let error = ApiError.apiError(
+            httpCode: 403, errorCode: "disallowed_login_method", description: "Login with Apple not allowed")
+        for step in [LoginStep.authorize, .sendCode, .verifyCode] {
+            let failure = PrivyAuthService.loginFailure(from: error, step: step)
+            #expect(failure == .methodUnavailable)
+            #expect(LoginFailureCopy.message(for: failure, step: step) == "This sign-in method isn't available.")
+        }
+    }
+
+    @Test func aSpentCodeIsOnlyWrongWhenPrivyCallsItInvalidCredentials() {
+        let other = ApiError.apiError(httpCode: 400, errorCode: "something_else", description: "Nope")
+        #expect(PrivyAuthService.loginFailure(from: other, step: .verifyCode) == .other(detail: "Nope"))
+    }
+
     @Test func malformedProviderResponseFallsBackToGenericCopy() {
         let failure = PrivyAuthService.loginFailure(from: ApiError.malformedResponse, step: .verifyCode)
         #expect(failure == .other(detail: nil))
