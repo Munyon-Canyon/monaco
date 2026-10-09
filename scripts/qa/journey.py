@@ -1225,12 +1225,99 @@ def pick(journeys, journey_id):
     return journeys[journey_id]
 
 
+# ---------------------------------------------------------------- setup inserts
+
+CONSTRAINT_WORDS = {"primary", "constraint", "unique", "check", "foreign", "exclude", "like"}
+
+
+def split_top_level(text):
+    """Split on commas that sit outside parentheses."""
+    parts, depth, start = [], 0, 0
+    for i, char in enumerate(text):
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif char == "," and depth == 0:
+            parts.append(text[start:i])
+            start = i + 1
+    parts.append(text[start:])
+    return [part.strip() for part in parts if part.strip()]
+
+
+def column_state(definition):
+    """Whether a column is NOT NULL and whether the database fills it when an INSERT omits it."""
+    low = definition.lower()
+    return {
+        "not_null": bool(re.search(r"not null|primary\s+key", low)),
+        "filled": bool(re.search(r"\bdefault\b|\bgenerated\b|serial", low)),
+    }
+
+
+def required_columns(migrations):
+    """Table -> columns an INSERT must name, after replaying the migrations in filename order."""
+    tables = {}
+    for path in sorted(migrations.glob("*.sql")):
+        text = re.sub(r"--[^\n]*", "", path.read_text())
+        for statement in text.split(";"):
+            statement = " ".join(statement.split())
+            create = re.match(r"CREATE TABLE (\w+) \((.*)\)$", statement, re.I)
+            alter = re.match(r"ALTER TABLE (\w+) (.*)$", statement, re.I)
+            if create:
+                columns = {}
+                for item in split_top_level(create.group(2)):
+                    name, _, rest = item.partition(" ")
+                    if name.lower() not in CONSTRAINT_WORDS:
+                        columns[name] = column_state(rest)
+                    primary = re.match(r"(?:CONSTRAINT \w+ )?PRIMARY KEY \(([^)]*)\)", item, re.I)
+                    for key in primary.group(1).split(",") if primary else []:
+                        columns[key.strip()]["not_null"] = True
+                tables[create.group(1)] = columns
+            elif alter and alter.group(1) in tables:
+                columns = tables[alter.group(1)]
+                for clause in split_top_level(alter.group(2)):
+                    add = re.match(r"ADD COLUMN (?:IF NOT EXISTS )?(\w+) (.*)$", clause, re.I)
+                    drop = re.match(r"DROP COLUMN (?:IF EXISTS )?(\w+)", clause, re.I)
+                    change = re.match(r"ALTER COLUMN (\w+) (SET|DROP) (NOT NULL|DEFAULT)", clause, re.I)
+                    if add:
+                        columns[add.group(1)] = column_state(add.group(2))
+                    elif drop:
+                        columns.pop(drop.group(1), None)
+                    elif change and change.group(1) in columns:
+                        column = columns[change.group(1)]
+                        verb, what = change.group(2).upper(), change.group(3).upper()
+                        if what == "NOT NULL":
+                            column["not_null"] = verb == "SET"
+                        else:
+                            column["filled"] = verb == "SET"
+    return tables
+
+
+def check_setup_inserts(root=None):
+    """Problems for journey scripts whose INSERT column list omits a NOT NULL column with no default."""
+    root = root or ROOT
+    tables = required_columns(root / "apps" / "backend" / "migrations")
+    problems = []
+    scripts = sorted((root / "apps" / "mobile" / "qa" / "journeys").rglob("*.sh"))
+    for script in scripts:
+        if not script.name.endswith((".setup.sh", ".truth.sh")):
+            continue
+        for table, listed in re.findall(r"INSERT\s+INTO\s+(\w+)\s*\(([^)]*)\)", script.read_text(), re.I):
+            named = {name.strip().strip('"') for name in listed.split(",")}
+            for column, state in tables.get(table, {}).items():
+                if state["not_null"] and not state["filled"] and column not in named:
+                    problems.append("%s: INSERT INTO %s omits required column %s (NOT NULL, no default)" % (
+                        script.relative_to(root), table, column))
+    return problems
+
+
 # ---------------------------------------------------------------- commands
 
 
 def cmd_check(args):
     journeys = load_journeys()
     problems = check_journeys(journeys, load_accounts(), git_apply_check)
+    problems.extend(check_setup_inserts())
     for problem in problems:
         print(problem)
     if problems:
