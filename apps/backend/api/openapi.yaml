@@ -5012,6 +5012,7 @@ components:
         - cabal_banned
         - cabal_not_found
         - cabal_paused
+        - cabal_shares_short
         - cabal_still_paused
         - calendar_expired
         - cannot_block_self
@@ -5118,6 +5119,7 @@ components:
         - swap_not_retryable
         - swap_not_stuck
         - too_many_contact_hashes
+        - trade_not_started
         - txn_not_found
         - unauthorized
         - unknown_asset

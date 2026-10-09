@@ -36,6 +36,7 @@ const (
 	CabalBanned ErrorCode = "cabal_banned"
 	CabalNotFound ErrorCode = "cabal_not_found"
 	CabalPaused ErrorCode = "cabal_paused"
+	CabalSharesShort ErrorCode = "cabal_shares_short"
 	CabalStillPaused ErrorCode = "cabal_still_paused"
 	CalendarExpired ErrorCode = "calendar_expired"
 	CannotBlockSelf ErrorCode = "cannot_block_self"
@@ -142,6 +143,7 @@ const (
 	SwapNotRetryable ErrorCode = "swap_not_retryable"
 	SwapNotStuck ErrorCode = "swap_not_stuck"
 	TooManyContactHashes ErrorCode = "too_many_contact_hashes"
+	TradeNotStarted ErrorCode = "trade_not_started"
 	TxnNotFound ErrorCode = "txn_not_found"
 	Unauthorized ErrorCode = "unauthorized"
 	UnknownAsset ErrorCode = "unknown_asset"
@@ -212,6 +214,8 @@ func (e ErrorCode) Valid() bool {
 	case CabalNotFound:
 		return true
 	case CabalPaused:
+		return true
+	case CabalSharesShort:
 		return true
 	case CabalStillPaused:
 		return true
@@ -424,6 +428,8 @@ func (e ErrorCode) Valid() bool {
 	case SwapNotStuck:
 		return true
 	case TooManyContactHashes:
+		return true
+	case TradeNotStarted:
 		return true
 	case TxnNotFound:
 		return true

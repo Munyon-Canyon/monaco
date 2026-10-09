@@ -30,6 +30,7 @@ extension Components.Schemas.ErrorCode {
         case .cabalBanned: true
         case .cabalNotFound: true
         case .cabalPaused: true
+        case .cabalSharesShort: true
         case .cabalStillPaused: true
         case .calendarExpired: true
         case .cannotBlockSelf: true
@@ -136,6 +137,7 @@ extension Components.Schemas.ErrorCode {
         case .swapNotRetryable: true
         case .swapNotStuck: true
         case .tooManyContactHashes: true
+        case .tradeNotStarted: true
         case .txnNotFound: true
         case .unauthorized: true
         case .unknownAsset: true

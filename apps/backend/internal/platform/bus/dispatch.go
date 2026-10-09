@@ -63,7 +63,7 @@ func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.M
 	default:
 		ctx = observability.WithEventID(ctx, id)
 		for _, h := range handlers {
-			results = append(results, r.handle(ctx, h, id, ev))
+			results = append(results, r.handle(ctx, h, id, ev, delivery >= MaxDeliver))
 		}
 	}
 	r.respond(ctx, durable, msg, delivery, results)
@@ -177,11 +177,11 @@ func flow(handler string) string {
 	}
 }
 
-func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event) result {
+func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event, final bool) result {
 	began := r.clock.Now()
 	ctx = observability.WithActor(ctx, "system:"+h.Name)
 	ctx = faultpoint.WithFlow(ctx, flow(h.Name))
-	duplicate, code, err := r.run(ctx, h, id, ev)
+	duplicate, code, err := r.run(ctx, h, id, ev, final)
 	res := result{handler: h.Name, outcome: OutcomeAck, code: code}
 	switch {
 	case err != nil:
@@ -198,7 +198,7 @@ func (r *Registry) handle(ctx context.Context, h HandlerSpec, id ids.EventID, ev
 }
 
 func (r *Registry) run(
-	ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event,
+	ctx context.Context, h HandlerSpec, id ids.EventID, ev events.Event, final bool,
 ) (_ bool, code string, err error) {
 	code = deliveryOK
 	if h.own == nil {
@@ -206,13 +206,15 @@ func (r *Registry) run(
 		return duplicate, code, err
 	}
 	defer recoverPanic(&err)
-	return false, code, h.own(ctx, Delivery{Handler: h.Name, EventID: id, At: r.clock.Now(), recorded: &code}, ev)
+	d := Delivery{Handler: h.Name, EventID: id, At: r.clock.Now(), Final: final, recorded: &code}
+	return false, code, h.own(ctx, d, ev)
 }
 
 type Delivery struct {
 	Handler  string
 	EventID  ids.EventID
 	At       time.Time
+	Final    bool
 	recorded *string
 }
 
