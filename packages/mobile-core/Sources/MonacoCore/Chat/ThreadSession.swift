@@ -192,12 +192,10 @@ public actor ThreadSession {
             if send.alsoInChannel { await chat.receiveReply(stored) }
         } catch {
             let failure = APIError(error)
+            state.timeline.setFailed(key: key, true)
             if ChatSession.isClosed(failure) {
-                submissions[key] = nil
                 state.isClosed = true
-                state.timeline.dropUnsent(key: key)
             } else {
-                state.timeline.setFailed(key: key, true)
                 notify(failure)
             }
         }
@@ -217,11 +215,13 @@ public actor ThreadSession {
 
     private func fail(_ error: any Error, firstLoad: Bool) {
         let failure = APIError(error)
-        let closed = ChatSession.isClosed(failure)
-        if closed { state.isClosed = true }
+        if ChatSession.isClosed(failure) {
+            state.isClosed = true
+            return
+        }
         if firstLoad {
             state.load = .failed(failure)
-        } else if !closed {
+        } else {
             notify(failure)
         }
     }

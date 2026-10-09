@@ -109,11 +109,12 @@ struct GroupChatScreen: View {
     }
 
     @ViewBuilder private var bottomBar: some View {
-        if closedWithoutMessages {
+        switch chat?.footer ?? .none {
+        case .none:
             EmptyView()
-        } else if chat?.isClosed == true {
+        case .closedNotice:
             GroupChatClosedNotice()
-        } else {
+        case .composer:
             ChatComposerBar(
                 focus: $composerFocused, members: cabal?.members ?? [], viewerID: viewerID
             ) { body in

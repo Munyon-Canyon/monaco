@@ -199,7 +199,7 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&limit=50")
     }
 
-    func testARefusedHistoryReadClosesTheChatAndShowsTheFailure() async throws {
+    func testARefusedHistoryReadClosesTheChatWithoutFailingTheLoad() async throws {
         let transport = StubTransport(scripted: [
             Fixtures.problem(403, "not_cabal_member", "You are not in this cabal.")
         ])
@@ -210,7 +210,7 @@ final class ChatSessionTests: XCTestCase {
 
         let state = await Fixtures.state(session)
         XCTAssertTrue(state.isClosed)
-        guard case .failed = state.load else { return XCTFail("expected a failed load") }
+        if case .failed = state.load { XCTFail("a refusal closes the chat, it is not a failed load to retry") }
         XCTAssertEqual(realtime.detached, [Fixtures.cabalID])
     }
 

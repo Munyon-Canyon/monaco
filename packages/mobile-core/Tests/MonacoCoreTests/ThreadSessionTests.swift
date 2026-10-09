@@ -232,9 +232,10 @@ final class ThreadSessionTests: XCTestCase {
 
         let current = await state(thread)
         XCTAssertTrue(current.isClosed)
+        if case .failed = current.load { XCTFail("a refusal closes the thread, it is not a failed load to retry") }
     }
 
-    func testARefusedSendClosesTheThreadAndDropsThePendingReply() async throws {
+    func testARefusedSendClosesTheThreadAndKeepsThePendingReplyAsNotSent() async throws {
         let transport = StubTransport(scripted: [
             try Fixtures.thread(parent: parent, replies: []),
             Fixtures.problem(403, "not_cabal_member", "You are not in this cabal."),
@@ -246,7 +247,34 @@ final class ThreadSessionTests: XCTestCase {
 
         let current = await state(thread)
         XCTAssertTrue(current.isClosed)
-        XCTAssertEqual(ids(current), [])
+        XCTAssertEqual(ids(current), ["key-1"])
+        XCTAssertEqual(current.timeline.rows.last?.delivery, .failed)
+        XCTAssertEqual(current.timeline.rows.last?.message.body, "agree")
+        XCTAssertNil(current.notice)
+    }
+
+    func testAReplyRefusedBecauseTheViewerLeftIsRefusedAgainOnRetryAndDeleteRemovesIt() async throws {
+        let transport = StubTransport(scripted: [
+            try Fixtures.thread(parent: parent, replies: []),
+            Fixtures.problem(403, "not_cabal_member", "You are not in this cabal."),
+            Fixtures.problem(403, "not_cabal_member", "You are not in this cabal."),
+        ])
+        let thread = await Fixtures.session(transport).thread(parentId: "p1")
+        await thread.open()
+        await thread.send(body: "agree")
+
+        await thread.retry(key: "key-1")
+
+        let refused = await state(thread)
+        XCTAssertEqual(ids(refused), ["key-1"])
+        XCTAssertEqual(refused.timeline.rows.last?.delivery, .failed)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 3)
+
+        await thread.discard(key: "key-1")
+
+        let after = await state(thread)
+        XCTAssertEqual(ids(after), [])
     }
 
     func testTheChannelKeepsListeningWhileAThreadIsOpen() async throws {

@@ -8,6 +8,12 @@ public enum ChatLoad: Equatable, Sendable {
     case failed(APIError)
 }
 
+public enum ChatFooter: Equatable, Sendable {
+    case none
+    case closedNotice
+    case composer
+}
+
 public actor ChatSession {
     public struct Notice: Equatable, Sendable {
         public let serial: Int
@@ -240,12 +246,10 @@ public actor ChatSession {
             state.timeline.settle(stored, key: key)
         } catch {
             let failure = APIError(error)
+            state.timeline.setFailed(key: key, true)
             if Self.isClosed(failure) {
-                submissions[key] = nil
                 state.isClosed = true
-                state.timeline.dropUnsent(key: key)
             } else {
-                state.timeline.setFailed(key: key, true)
                 notify(failure)
             }
         }
@@ -254,11 +258,13 @@ public actor ChatSession {
 
     private func fail(_ error: any Error, firstLoad: Bool) {
         let failure = APIError(error)
-        let closed = Self.isClosed(failure)
-        if closed { state.isClosed = true }
+        if Self.isClosed(failure) {
+            state.isClosed = true
+            return
+        }
         if firstLoad {
             state.load = .failed(failure)
-        } else if !closed {
+        } else {
             notify(failure)
         }
     }
@@ -288,5 +294,12 @@ extension ChatSession {
         submissions[key] = nil
         state.timeline.dropUnsent(key: key)
         publish()
+    }
+}
+
+extension ChatSession.State {
+    public var footer: ChatFooter {
+        guard timeline.hasLoadedNewest else { return .none }
+        return isClosed ? .closedNotice : .composer
     }
 }

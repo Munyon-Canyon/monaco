@@ -193,8 +193,34 @@ final class ChatSessionSendTests: XCTestCase {
 
         let state = await Fixtures.state(session)
         XCTAssertTrue(state.isClosed)
-        XCTAssertEqual(Fixtures.ids(state), ["m1"])
+        XCTAssertEqual(Fixtures.ids(state), ["m1", "key-1"])
+        XCTAssertEqual(state.timeline.rows.last?.delivery, .failed)
+        XCTAssertEqual(state.timeline.rows.last?.message.body, "still here?")
         XCTAssertNil(state.notice)
+    }
+
+    func testAMessageRefusedBecauseTheViewerLeftIsRefusedAgainOnRetryAndDeleteRemovesIt() async throws {
+        let transport = StubTransport(scripted: [
+            try Fixtures.page([Fixtures.message("m1")]),
+            Fixtures.problem(403, "not_cabal_member", "You are not in this cabal."),
+            Fixtures.problem(403, "not_cabal_member", "You are not in this cabal."),
+        ])
+        let session = Fixtures.session(transport)
+        await session.open()
+        await session.send(body: "still here?")
+
+        await session.retry(key: "key-1")
+
+        let refused = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(refused), ["m1", "key-1"])
+        XCTAssertEqual(refused.timeline.rows.last?.delivery, .failed)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 3)
+
+        await session.discard(key: "key-1")
+
+        let after = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(after), ["m1"])
     }
 
     func testAReloadThatReopensARefusedChatSubscribes() async throws {
