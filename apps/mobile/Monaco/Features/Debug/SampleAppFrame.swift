@@ -7,8 +7,11 @@ import UIKit
 struct SampleAppFrame: View {
     @ObservedObject var auth: PrivyAuthService
     let sheet: (() -> AnyView)?
-    private let makeEnvironment: @MainActor () -> AppEnvironment
-    @State private var environment = SampleEnvironment()
+    private let tab: MainTab
+    private let routes: [any AppRoute]
+    private let store: AppSessionStore
+    private let session: @MainActor (AppSessionStore) -> Void
+    @State private var environment: AppEnvironment?
     @State private var showsSheet: Bool
 
     init(
@@ -20,31 +23,45 @@ struct SampleAppFrame: View {
         sheet: (() -> AnyView)? = nil
     ) {
         self.auth = auth
+        self.tab = tab
+        self.routes = routes
+        self.store = store
+        self.session = session
         self.sheet = sheet
-        makeEnvironment = {
-            session(store)
-            let environment = AppEnvironment(
-                auth: auth,
-                tokens: SessionTokens(privyToken: { "sample-token" }, refresh: { _ in nil }),
-                hints: SampleSilentHints(),
-                sessionStore: store,
-                isAuthenticated: { true },
-                endAuthSession: {}
-            )
-            environment.navigator.selectedTab = tab
-            for route in routes { environment.navigator.open(route, in: tab) }
-            return environment
-        }
         _showsSheet = State(initialValue: sheet != nil)
     }
 
     var body: some View {
-        let environment = environment.value(makeEnvironment)
-        MainTabView()
-            .modifier(SampleScrollModifier(anchor: SampleScrollAnchor.requested(by: SampleScrollAnchor.flag)))
-            .environment(environment)
-            .environment(environment.sessionStore)
-            .sheet(isPresented: $showsSheet) { sheet?() }
+        Group {
+            if let environment {
+                MainTabView()
+                    .modifier(SampleScrollModifier(anchor: SampleScrollAnchor.requested(by: SampleScrollAnchor.flag)))
+                    .environment(environment)
+                    .environment(environment.sessionStore)
+                    .sheet(isPresented: $showsSheet) { sheet?() }
+            } else {
+                MonacoTheme.canvas.ignoresSafeArea()
+            }
+        }
+        .onAppear {
+            guard environment == nil else { return }
+            environment = makeEnvironment()
+        }
+    }
+
+    private func makeEnvironment() -> AppEnvironment {
+        session(store)
+        let made = AppEnvironment(
+            auth: auth,
+            tokens: SessionTokens(privyToken: { "sample-token" }, refresh: { _ in nil }),
+            hints: SampleSilentHints(),
+            sessionStore: store,
+            isAuthenticated: { true },
+            endAuthSession: {}
+        )
+        made.navigator.selectedTab = tab
+        for route in routes { made.navigator.open(route, in: tab) }
+        return made
     }
 
     @MainActor static func signedIn(_ store: AppSessionStore) {
@@ -71,18 +88,6 @@ private struct SampleScrollModifier: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-@MainActor
-final class SampleEnvironment {
-    private var built: AppEnvironment?
-
-    func value(_ make: () -> AppEnvironment) -> AppEnvironment {
-        if let built { return built }
-        let made = make()
-        built = made
-        return made
     }
 }
 

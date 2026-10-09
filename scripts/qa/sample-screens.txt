@@ -29,8 +29,8 @@ profile-placeholder           -MonacoProfileSample placeholder
 profile-photo                 -MonacoProfileSample photo
 profile-face-picker           -MonacoProfileSample facePicker
 profile-validation            -MonacoProfileSample validation
-profile-cabals                -MonacoProfileSample cabals
-profile-empty                 -MonacoProfileSample empty
+profile-cabals                -MonacoProfileSample cabals -MonacoSampleScroll bottom
+profile-empty                 -MonacoProfileSample empty -MonacoSampleScroll bottom
 profile-loading               -MonacoProfileSample loading
 profile-error                 -MonacoProfileSample error
 

@@ -25,6 +25,7 @@ struct ProfileNameEditor: View {
     /// Stands in for the store call. Nil in the app; the debug harnesses use it to exercise
     /// this screen against a backend that answers.
     var saveName: (any DisplayNameSaving)?
+    private let savesOnOpen: Bool
 
     @State private var draft: String
     @State private var isSaving = false
@@ -36,10 +37,12 @@ struct ProfileNameEditor: View {
         auth: PrivyAuthService,
         initialDraft: String? = nil,
         saveName: (any DisplayNameSaving)? = nil,
+        savesOnOpen: Bool = false,
         onSaved: @escaping () -> Void
     ) {
         self.auth = auth
         self.saveName = saveName
+        self.savesOnOpen = savesOnOpen
         self.onSaved = onSaved
         _draft = State(initialValue: initialDraft ?? "")
     }
@@ -94,6 +97,11 @@ struct ProfileNameEditor: View {
             if draft.isEmpty {
                 draft = savedName
             }
+        }
+        .task {
+            guard savesOnOpen else { return }
+            try? await Task.sleep(for: .seconds(1))
+            await save()
         }
         .onChange(of: draft) { _, _ in
             // Editing is the retry: the last rejection no longer describes what is typed.
