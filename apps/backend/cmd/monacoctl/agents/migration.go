@@ -1,10 +1,12 @@
 package agents
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -109,7 +111,17 @@ func (env *Env) restackMigrations(ctx context.Context, dir string, stack []stack
 	return []string{fmt.Sprintf(line, top.Number)}, true, nil
 }
 
+type restackError string
+
+func (e restackError) Error() string { return string(e) }
+
 func (env *Env) regenMigrations(ctx context.Context, dir string, stack []stackPR, mine [][]string, trunk string) error {
+	root := filepath.Dir(env.Common)
+	top := stack[len(stack)-1]
+	if dir == root {
+		return restackError(fmt.Sprintf("no worktree holds %s and the record's worktree is not on this machine; "+
+			"refusing to restack in the primary checkout", top.Head))
+	}
 	for _, step := range [][]string{{"gt", "sync", "--no-interactive", "--no-restack"}, {"bash", "scripts/restack-regen.sh"}} {
 		if _, err := env.Run(ctx, dir, "", step[0], step[1:]...); err != nil {
 			return err
@@ -126,19 +138,40 @@ func (env *Env) regenMigrations(ctx context.Context, dir string, stack []stackPR
 		}
 	}
 	for i, p := range stack {
-		if _, err := env.Run(ctx, dir, "", "gt", "checkout", "--no-interactive", p.Head); err != nil {
-			return err
-		}
-		if newest, err = env.renumber(ctx, dir, mine[i], newest); err != nil {
-			return err
-		}
-		stage0 := []string{"run", "./cmd/monacoctl", "agents", "check"}
-		if _, err := env.Run(ctx, path.Join(dir, "apps/backend"), "", "go", stage0...); err != nil {
+		wd := cmp.Or(env.checkout(ctx, root, p.Head), dir)
+		if newest, err = env.restackBranch(ctx, wd, p, mine[i], newest); err != nil {
 			return err
 		}
 	}
-	_, err = env.Run(ctx, dir, "", "gt", "submit", "--stack", "--no-interactive", "--draft")
+	submit := cmp.Or(env.checkout(ctx, root, top.Head), dir)
+	_, err = env.Run(ctx, submit, "", "gt", "submit", "--stack", "--no-interactive", "--draft")
 	return err
+}
+
+func (env *Env) restackBranch(
+	ctx context.Context,
+	wd string,
+	p stackPR,
+	files []string,
+	newest string,
+) (string, error) {
+	if _, err := env.Run(ctx, wd, "", "gt", "checkout", "--no-interactive", p.Head); err != nil {
+		return "", err
+	}
+	newest, err := env.renumber(ctx, wd, files, newest)
+	if err != nil {
+		return "", err
+	}
+	dirty, err := env.Run(ctx, wd, "", "git", "status", "--porcelain")
+	if err != nil {
+		return "", err
+	}
+	if left := strings.TrimSpace(string(dirty)); left != "" {
+		return "", restackError(fmt.Sprintf("%s left uncommitted files in %s:\n%s", p.Head, wd, left))
+	}
+	stage0 := []string{"run", "./cmd/monacoctl", "agents", "check"}
+	_, err = env.Run(ctx, path.Join(wd, "apps/backend"), "", "go", stage0...)
+	return newest, err
 }
 
 func (env *Env) renumber(ctx context.Context, dir string, files []string, newest string) (string, error) {
