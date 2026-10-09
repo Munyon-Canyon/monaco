@@ -59,17 +59,17 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         XCTAssertTrue(deposit.waitForExistence(timeout: 15))
         deposit.tap()
 
-        let done = element(app, "account-txn-receipt-done")
-        XCTAssertTrue(done.waitForExistence(timeout: 10), "the receipt opens with a Done button")
-        XCTAssertEqual(element(app, "account-txn-receipt-amount").label, "+$25.00")
+        let amount = element(app, "account-txn-receipt-amount")
+        XCTAssertTrue(amount.waitForExistence(timeout: 10), "the receipt is pushed")
+        XCTAssertEqual(amount.label, "+$25.00")
         XCTAssertTrue(element(app, "account-txn-receipt-status").label.contains("Done"))
         XCTAssertTrue(element(app, "account-txn-receipt-time").exists)
         XCTAssertTrue(element(app, "account-txn-receipt-solscan").exists, "a sent transaction links to Solscan")
         XCTAssertFalse(element(app, "account-txn-receipt-cabal").exists, "a deposit names no cabal")
         screenshot(app, "account-activity-receipt")
 
-        done.tap()
-        XCTAssertTrue(done.waitForNonExistence(timeout: 10), "Done closes the receipt")
+        app.navigationBars.buttons["Activity"].tap()
+        XCTAssertTrue(amount.waitForNonExistence(timeout: 10), "Back returns to the list")
     }
 
     @MainActor
@@ -79,14 +79,14 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         XCTAssertTrue(pending.waitForExistence(timeout: 15))
         pending.tap()
 
-        XCTAssertTrue(element(app, "account-txn-receipt-done").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "account-txn-receipt-amount").waitForExistence(timeout: 10))
         XCTAssertTrue(element(app, "account-txn-receipt-status").label.contains("Pending"))
         XCTAssertFalse(element(app, "account-txn-receipt-solscan").exists, "nothing was sent yet")
         screenshot(app, "account-activity-receipt-pending")
     }
 
     @MainActor
-    func testAFundReceiptOpensItsCabalAndClosesTheSheet() {
+    func testAFundReceiptPushesItsCabalOverTheReceipt() {
         let app = launch("full")
         let fund = row(app, containing: "Funded QA pot")
         XCTAssertTrue(fund.waitForExistence(timeout: 15))
@@ -98,9 +98,9 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         screenshot(app, "account-activity-receipt-cabal")
         cabal.tap()
 
-        XCTAssertTrue(element(app, "account-txn-receipt-done").waitForNonExistence(timeout: 10), "the sheet closes")
         XCTAssertTrue(
-            app.navigationBars.buttons["Activity"].waitForExistence(timeout: 10), "the cabal opens over Activity")
+            app.navigationBars.buttons["Funded QA pot"].waitForExistence(timeout: 10),
+            "the cabal opens over the receipt")
         screenshot(app, "account-activity-cabal-opened")
     }
 

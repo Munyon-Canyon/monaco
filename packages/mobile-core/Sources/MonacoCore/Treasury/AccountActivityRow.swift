@@ -1,8 +1,8 @@
 import Foundation
 import MonacoAPI
 
-public struct AccountActivityRow: Identifiable, Equatable, Sendable {
-    public enum Status: Equatable, Sendable {
+public struct AccountActivityRow: Identifiable, Hashable, Sendable {
+    public enum Status: Hashable, Sendable {
         case pending
         case settled
         case failed
@@ -24,7 +24,7 @@ public struct AccountActivityRow: Identifiable, Equatable, Sendable {
         }
     }
 
-    public struct Cabal: Equatable, Sendable {
+    public struct Cabal: Hashable, Sendable {
         public let id: String
         public let name: String
     }

@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `settings-activity` | | The screen titled "Activity" shows `account-activity-row-<deposit-txn>`, which reads "Deposit" and "$1.23", within 15 s (old app: `TransactionDetailView.swift` list) |
 | S1.2 | A | tap | `account-activity-row-<deposit-txn>` | | The receipt titled "Deposit" shows `account-txn-receipt-amount` with "$1.23", `account-txn-receipt-status` with "Done", `account-txn-receipt-time`, and `account-txn-receipt-solscan` "View on Solscan" within 10 s (old app: the receipt's Solscan link) |
-| S1.3 | A | tap | `account-txn-receipt-done` "Done" | | The receipt closes and `account-activity-row-<deposit-txn>` shows within 5 s |
+| S1.3 | A | tap | the "Activity" Back button | | The receipt pops and `account-activity-row-<deposit-txn>` shows within 5 s |
 
 ### S2 Open a cabal move
 

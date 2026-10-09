@@ -62,12 +62,12 @@ enum MoneyActivityJourney {
             JoinJourney.snap(app, "S1-A-receipt")
         }
 
-        recorder.step("S1.3", "close the receipt") {
-            app.buttons["account-txn-receipt-done"].tap()
+        recorder.step("S1.3", "go back from the receipt") {
+            app.navigationBars.buttons["Activity"].tap()
             let gone = NSPredicate(format: "exists == false")
             let closed = XCTNSPredicateExpectation(predicate: gone, object: app.element("account-txn-receipt-amount"))
-            XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "S1.3: the receipt did not close")
-            XCTAssertTrue(row.waitForExistence(timeout: 5), "S1.3: the deposit row is gone after the receipt closed")
+            XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 5), .completed, "S1.3: Back did not pop")
+            XCTAssertTrue(row.waitForExistence(timeout: 5), "S1.3: the deposit row is gone after Back")
         }
     }
 
