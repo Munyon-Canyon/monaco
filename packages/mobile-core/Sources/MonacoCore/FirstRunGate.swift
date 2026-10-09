@@ -28,8 +28,10 @@ public enum FirstRunGate {
     }
 
     public static func destination(
-        for profile: SessionProfile?, onboardingCursor: OnboardingCursor, contactsPromptSeen: Bool = true
+        for profile: SessionProfile?, onboardingCursor: OnboardingCursor, contactsPromptSeen: Bool = true,
+        connectX: Bool = true
     ) -> FirstRunDestination {
+        let onboardingCursor = connectX || onboardingCursor != .socials ? onboardingCursor : .finished
         let next = route(for: profile, onboardingCursor: onboardingCursor)
         guard case .app = next, onboardingCursor == .finished, profile?.phoneLinked == true, !contactsPromptSeen
         else { return next }

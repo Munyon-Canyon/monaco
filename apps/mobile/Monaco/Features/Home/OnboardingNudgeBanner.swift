@@ -8,7 +8,7 @@ struct OnboardingNudgeBanner: View {
 
     private var current: OnboardingNudge? {
         guard !session.nudgeDismissed, let profile = session.profile else { return nil }
-        return nudge(for: profile)
+        return nudge(for: profile, connectX: AppFeatures.current.connectX)
     }
 
     private var isOpen: Binding<Bool> {

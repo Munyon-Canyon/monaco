@@ -12,8 +12,8 @@ index 2c53d9f6..c0b6d441 100644
  
      private var current: OnboardingNudge? {
          guard !session.nudgeDismissed, let profile = session.profile else { return nil }
--        return nudge(for: profile)
-+        return nudge(for: profile) ?? .addPhone("Add your number to find friends")
+-        return nudge(for: profile, connectX: AppFeatures.current.connectX)
++        return nudge(for: profile, connectX: AppFeatures.current.connectX) ?? .addPhone("Add your number to find friends")
      }
  
      private var isOpen: Binding<Bool> {

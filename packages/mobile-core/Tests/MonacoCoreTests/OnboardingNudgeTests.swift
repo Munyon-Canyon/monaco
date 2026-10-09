@@ -27,6 +27,16 @@ final class OnboardingNudgeTests: XCTestCase {
         }
     }
 
+    func testTheXNudgeIsHiddenWhenConnectXIsOff() {
+        var profile = SessionProfile(Components.Schemas.Me.sample)
+        profile.authState = .awaitingSocials
+        profile.accountStatus = .active
+        XCTAssertEqual(nudge(for: profile, connectX: true), .linkX("Connect X to find people you follow"))
+        XCTAssertNil(nudge(for: profile, connectX: false))
+        profile.authState = .awaitingPhone
+        XCTAssertEqual(nudge(for: profile, connectX: false), .addPhone("Add your number to find friends"))
+    }
+
     func testTheMessageIsTheBannerCopy() {
         let phone = "Add your number to find friends"
         let x = "Connect X to find people you follow"

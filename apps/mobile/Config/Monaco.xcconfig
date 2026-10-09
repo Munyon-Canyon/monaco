@@ -24,6 +24,10 @@ MONACO_APS_ENVIRONMENT_Debug = sandbox
 MONACO_APS_ENVIRONMENT_Release = production
 MONACO_APS_ENVIRONMENT = $(MONACO_APS_ENVIRONMENT_$(CONFIGURATION))
 
+// Connect X is hidden in every build until X's API access is sorted (#4581). Turn it on per
+// build with  xcodebuild ... MONACO_FEATURE_CONNECT_X=YES  or per launch with -MonacoFeatureConnectX YES.
+MONACO_FEATURE_CONNECT_X = NO
+
 INFOPLIST_KEY_NSContactsUsageDescription = Find friends who are already on Monaco. Monaco hashes your contacts' phone numbers on your phone and sends only the hashes. Names and your address book stay on your phone.
 
 CODE_SIGN_ENTITLEMENTS = Monaco/Monaco.entitlements
