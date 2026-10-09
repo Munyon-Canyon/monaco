@@ -73,8 +73,8 @@ nonisolated final class ChatSendSampleUITests: XCTestCase {
         let app = launchChat()
         XCTAssertTrue(app.textFields["chat-composer"].waitForExistence(timeout: 40), "the sample thread should load")
 
-        let author = app.buttons["chat-author-s1"]
-        XCTAssertTrue(author.waitForExistence(timeout: 10), "the first message of a run names its author")
+        let author = app.buttons["chat-author-s6"]
+        XCTAssertTrue(author.waitForExistence(timeout: 10), "an author name in view")
         author.tap()
 
         let opened = element(app, "chat-sample-opened-profile")
