@@ -30,7 +30,6 @@ struct InviteView: View {
             handle: environment.viewer?.handle,
             toast: model?.toast,
             retry: { Task { await model?.load() } },
-            deposit: { environment.navigator.open(DepositRoute(), in: environment.navigator.selectedTab) },
             dismissToast: { model?.dismissToast() }
         )
         .refreshable { await model?.load() }
@@ -55,7 +54,6 @@ struct InviteContent: View {
     let handle: String?
     let toast: String?
     let retry: () -> Void
-    let deposit: () -> Void
     let dismissToast: () -> Void
 
     @Environment(ToastCenter.self) private var toasts
@@ -97,7 +95,7 @@ struct InviteContent: View {
                 InviteCodeLinkRow(url: codeURL)
             }
             if links.showsUnlockPrompt {
-                InviteUnlockPrompt(handle: handle, deposit: deposit)
+                InviteUnlockPrompt(handle: handle)
             }
         }
     }
@@ -159,7 +157,6 @@ private struct InviteCodeLinkRow: View {
 
 private struct InviteUnlockPrompt: View {
     let handle: String?
-    let deposit: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
@@ -168,7 +165,7 @@ private struct InviteUnlockPrompt: View {
                 .foregroundStyle(MonacoTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("invite-unlock")
-            Button(InviteCopy.deposit, action: deposit)
+            NavigationLink(InviteCopy.deposit, value: AnyAppRoute(DepositRoute()))
                 .buttonStyle(.monacoSecondary)
                 .accessibilityIdentifier("invite-deposit")
         }
@@ -209,7 +206,7 @@ private struct InviteHarnessScreen: View {
 
     var body: some View {
         InviteContent(
-            state: .loaded(links), handle: "kaicenat", toast: nil, retry: {}, deposit: {}, dismissToast: {})
+            state: .loaded(links), handle: "kaicenat", toast: nil, retry: {}, dismissToast: {})
     }
 
     private var links: InviteLinks {
