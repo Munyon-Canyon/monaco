@@ -19,6 +19,17 @@ func TestLoad_apnsKeyIsOptionalInLocalAndTest(t *testing.T) {
 	}
 }
 
+func TestLoad_apnsKeyIsOptionalInStaging(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(append(required(), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key", agentKeyEnv))
+	if err != nil {
+		t.Fatalf("MONACO_ENV=staging without an APNs key: %v", err)
+	}
+	if cfg.APNs.KeyP8 != "" {
+		t.Fatalf("APNs.KeyP8 = %q, want empty so the worker sends nothing", cfg.APNs.KeyP8)
+	}
+}
+
 func TestLoad_apnsBaseURLIsAllowedOutsideProduction(t *testing.T) {
 	t.Parallel()
 	const base = "http://127.0.0.1:8099/apns"
