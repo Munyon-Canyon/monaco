@@ -180,7 +180,7 @@ public final class FeedModel {
     private func noteFailure(of pager: CursorPager<Components.Schemas.FeedItem>) {
         guard pager === self.pager, case .failed(let error) = pager.phase else { return }
         lastError = error
-        if !pager.items.isEmpty { failureTick += 1 }
+        if !pager.items.isEmpty, !BackgroundRefresh.isActive { failureTick += 1 }
     }
 
     private static func pager(api: APIClient, query: FeedQuery) -> CursorPager<Components.Schemas.FeedItem> {

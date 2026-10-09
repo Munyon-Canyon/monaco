@@ -210,7 +210,7 @@ public final class StocksTabModel {
     }
     private func note(_ error: APIError, section: Section?, empty: Bool) {
         lastError = error
-        if !empty { failureTick += 1 }
+        if !empty, !BackgroundRefresh.isActive { failureTick += 1 }
         self[section].phase = empty ? .failed(error) : .loaded
     }
     private static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }

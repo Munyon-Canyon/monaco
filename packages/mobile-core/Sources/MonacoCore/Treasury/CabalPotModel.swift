@@ -47,7 +47,7 @@ public final class CabalPotModel {
             let error = APIError(error)
             if summary == nil {
                 state = .failed(error)
-            } else {
+            } else if !BackgroundRefresh.isActive {
                 toast = ToastCopy.message(for: error)
             }
         }

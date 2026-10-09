@@ -38,6 +38,22 @@ final class PortfolioModelTests: XCTestCase {
         XCTAssertNil(model.toast)
     }
 
+    func testAHintDrivenRefreshThatFailsKeepsTheContentAndStaysSilent() async throws {
+        let (model, transport, hints) = try make([.portfolio(.sample), .failure, .portfolio(.sampleLoss)])
+        await model.load()
+        let task = Task { await model.observe() }
+        while await hints.subscriberCount < 2 { await Task.yield() }
+
+        await hints.send(.changed(.user("u1"), what: "balance", id: "1"))
+        await transport.waitForRequests(2)
+        await hints.send(.changed(.user("u1"), what: "balance", id: "2"))
+        await transport.waitForRequests(3)
+        while model.summary != PortfolioSummary(.sampleLoss) { await Task.yield() }
+
+        XCTAssertNil(model.toast)
+        task.cancel()
+    }
+
     func testAnEmptyPortfolioIsLoadedAndEmpty() async throws {
         let (model, _, _) = try make([.portfolio(.sampleEmpty)])
 
