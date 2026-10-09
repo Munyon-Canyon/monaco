@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -56,8 +57,36 @@ func fixtureP256(label string) *ecdsa.PrivateKey {
 }
 
 type privyCreatedUser struct {
-	ID    string
-	Email string
+	ID        string
+	Email     string
+	CreatedAt time.Time
+}
+
+func (s *Server) privyListUsers(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data := make([]map[string]any, 0, len(s.createdUsers))
+	for _, u := range s.createdUsers {
+		data = append(data, map[string]any{
+			"id": u.ID, "created_at": u.CreatedAt.Unix(),
+			"linked_accounts": []map[string]string{{"type": "email", "address": u.Email}},
+		})
+	}
+	sort.Slice(data, func(i, j int) bool { return data[i]["id"].(string) < data[j]["id"].(string) })
+	writeJSON(w, map[string]any{"data": data})
+}
+
+func (s *Server) privyDeleteUser(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.mu.Lock()
+	_, ok := s.createdUsers[id]
+	delete(s.createdUsers, id)
+	s.mu.Unlock()
+	if !ok {
+		privyError(w, http.StatusNotFound, "User not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) privyUser(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +128,7 @@ func (s *Server) privyCreateUser(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.nextUser++
 	id := "did:privy:fake-" + strconv.Itoa(s.nextUser)
-	s.createdUsers[id] = privyCreatedUser{ID: id, Email: req.LinkedAccounts[0].Address}
+	s.createdUsers[id] = privyCreatedUser{ID: id, Email: req.LinkedAccounts[0].Address, CreatedAt: time.Now()}
 	s.mu.Unlock()
 	writeJSON(w, map[string]string{"id": id})
 }

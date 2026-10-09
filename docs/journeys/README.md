@@ -116,6 +116,10 @@ funds:
 
 `scripts/qa/journey.py run` prints the amounts before it starts and the refund reminder when it ends. Keep amounts small: a few dollars covers every journey.
 
+## Dev users and the Privy cap
+
+Every dev user is a real user on the dev Privy app, which caps its users. A setup that needs a throwaway counterpart (a host, an inviter) must not mint one per run: it passes `monacoctl dev token --user new --pool <name>`, a stable name for that seed role of at most 16 characters (`browse-host`, `vote-host`). The first use creates `dev-<name>@example.com` and every later run gets the same user back, so repeated runs create nothing new. Two journeys need a user the app has never seen, `onboarding/first-run` (S5) and `settings/delete-account`. They mint with plain `--user new`, and their truth check deletes the user once it has read it, with `monacoctl dev user delete <id>`, which removes the Privy user and the local row. When Privy answers a create with `privy_user_limit`, the cap is full. `monacoctl dev users prune --dry-run` lists the dev-only Privy users older than a day and `--apply` deletes them. Run it by hand, never from a script. It refuses in staging and production. It also takes the pooled users, which then fail on their next use because Privy no longer has them. Run `monacoctl dev user delete <id>` on each pool user's id to drop its row, and the next run mints it again.
+
 ## Versions
 
 Git keeps the history. There are no `V2` copies of a doc or a test.

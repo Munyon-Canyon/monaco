@@ -55,5 +55,11 @@ else
   check "dev user $dev_user_id's auth_state" "${state:-}" ONBOARDING_COMPLETED
 fi
 
+# S5's dev user is a never-seen user, so it goes once the checks have read it: Privy caps the dev app's users.
+if [[ -n "$dev_user_id" ]]; then
+  bin/monacoctl dev user delete "$dev_user_id" > /dev/null ||
+    echo "warning: could not delete dev user $dev_user_id; clear it with monacoctl dev users prune" >&2
+fi
+
 [[ $failed -eq 0 ]] || exit 1
 echo "actor C is @qa_cayman with {L.phone} at AWAITING_SOCIALS, and dev user $dev_user_id linked a dev_x_ account"

@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
+	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -33,6 +36,17 @@ type DevUsers interface {
 	UpdateAuthState(
 		ctx context.Context, q sqlc.DBTX, id ids.UserID, expected, next domain.AuthState, at time.Time,
 	) error
+	DevUserByHandle(ctx context.Context, q sqlc.DBTX, handle string) (DevUserRow, bool, error)
+}
+
+type DevUserEraser interface {
+	DevUserPrivyID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (string, error)
+	DeleteDevUser(ctx context.Context, q sqlc.DBTX, id ids.UserID) error
+}
+
+type DevUserRow struct {
+	ID      ids.UserID
+	PrivyID string
 }
 
 type CreateDevUserDeps struct {
@@ -45,18 +59,81 @@ type CreateDevUserDeps struct {
 	Clock   clock.Clock
 	Hints   Hints
 	Rand    io.Reader
+	Pool    string
 }
+
+var poolName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+const maxPoolName = 16
 
 func CreateDevUser(ctx context.Context, d CreateDevUserDeps) (DevUser, error) {
 	const op = "identity.CreateDevUser"
 	if d.Env == config.EnvProduction {
 		return DevUser{}, errs.New(errs.CodeInvalidInput, op)
 	}
+	if d.Pool != "" {
+		return poolDevUser(ctx, d)
+	}
 	suffix, err := devSuffix(d.Rand)
 	if err != nil {
 		return DevUser{}, err
 	}
 	return settleDevUser(ctx, d, suffix)
+}
+
+func poolDevUser(ctx context.Context, d CreateDevUserDeps) (DevUser, error) {
+	const op = "identity.CreateDevUser"
+	if len(d.Pool) > maxPoolName || !poolName.MatchString(d.Pool) {
+		return DevUser{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "pool_name"))
+	}
+	handle := devHandle(d.Pool)
+	var row DevUserRow
+	var found bool
+	err := d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) (err error) {
+		row, found, err = d.Users.DevUserByHandle(ctx, tx.Queries(), handle)
+		return err
+	})
+	if err != nil {
+		return DevUser{}, err
+	}
+	if !found {
+		return settleDevUser(ctx, d, d.Pool)
+	}
+	wallet, err := d.Wallets.FindOrCreate(ctx, PrivyUserID(row.PrivyID))
+	if err != nil {
+		return DevUser{}, err
+	}
+	return DevUser{UserID: row.ID, Handle: handle, WalletAddress: wallet.Address}, nil
+}
+
+func devHandle(suffix string) string { return "dev_" + strings.ReplaceAll(suffix, "-", "_") }
+
+type DeleteDevUserDeps struct {
+	Env   config.Env
+	UoW   *db.UnitOfWork
+	Users DevUserEraser
+	Privy PrivyUsers
+}
+
+func DeleteDevUser(ctx context.Context, d DeleteDevUserDeps, id ids.UserID) error {
+	const op = "identity.DeleteDevUser"
+	if d.Env.Deployed() {
+		return errs.New(errs.CodeInvalidInput, op)
+	}
+	var privyID string
+	err := d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) (err error) {
+		privyID, err = d.Users.DevUserPrivyID(ctx, tx.Queries(), id)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	if err := d.Privy.Delete(ctx, PrivyUserID(privyID)); err != nil && errs.CodeOf(err) != errs.CodeNotFound {
+		return err
+	}
+	return d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		return d.Users.DeleteDevUser(ctx, tx.Queries(), id)
+	})
 }
 
 func devSuffix(r io.Reader) (string, error) {
@@ -68,7 +145,7 @@ func devSuffix(r io.Reader) (string, error) {
 }
 
 func settleDevUser(ctx context.Context, d CreateDevUserDeps, suffix string) (DevUser, error) {
-	handle := "dev_" + suffix
+	handle := devHandle(suffix)
 	privyID, err := d.Privy.Create(ctx, domain.DevEmail(suffix))
 	if err != nil {
 		return DevUser{}, err

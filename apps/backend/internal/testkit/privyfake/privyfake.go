@@ -64,6 +64,19 @@ func (u *Users) Create(_ context.Context, email string) (app.PrivyUserID, error)
 	return id, nil
 }
 
+func (u *Users) Delete(_ context.Context, id app.PrivyUserID) error {
+	if err := u.Check("Delete"); err != nil {
+		return err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if _, ok := u.users[id]; !ok {
+		return errs.New(errs.CodeNotFound, "privyfake.Users.Delete")
+	}
+	delete(u.users, id)
+	return nil
+}
+
 func (u *Users) User(_ context.Context, id app.PrivyUserID) (app.PrivyUser, error) {
 	if err := u.Check("User"); err != nil {
 		return app.PrivyUser{}, err

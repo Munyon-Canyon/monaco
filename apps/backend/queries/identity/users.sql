@@ -119,3 +119,13 @@ SET first_deposit_at = LEAST(COALESCE(first_deposit_at, sqlc.arg(deposited_at)::
     updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL
   AND (first_deposit_at IS NULL OR first_deposit_at > sqlc.arg(deposited_at)::timestamptz);
+
+-- name: DevUserByHandle :one
+SELECT id, privy_user_id FROM users WHERE handle = sqlc.arg(handle) AND deleted_at IS NULL;
+
+-- name: DevUserPrivyID :one
+SELECT privy_user_id FROM users WHERE id = sqlc.arg(id);
+
+-- name: DeleteDevUserRows :execrows
+WITH wallet AS (DELETE FROM user_wallets WHERE user_id = sqlc.arg(id))
+DELETE FROM users WHERE id = sqlc.arg(id);

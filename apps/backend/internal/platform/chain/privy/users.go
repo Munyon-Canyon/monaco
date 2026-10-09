@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -59,6 +60,54 @@ func (c *Client) CreateUser(ctx context.Context, email string) (UserID, error) {
 		return "", errs.New(errs.CodeDecodeFailed, "privy.CreateUser", slog.String("reason", "no_id"))
 	}
 	return out.ID, nil
+}
+
+func (c *Client) DeleteUser(ctx context.Context, id UserID) error {
+	return c.do(ctx, call{
+		op: "privy.DeleteUser", method: http.MethodDelete, path: "/v1/users/" + url.PathEscape(string(id)),
+	}, nil)
+}
+
+type ListedUser struct {
+	ID        UserID
+	CreatedAt time.Time
+	Accounts  int
+	Email     string
+}
+
+func (c *Client) ListUsers(ctx context.Context) ([]ListedUser, error) {
+	var all []ListedUser
+	cursor := ""
+	for {
+		var page struct {
+			Data []struct {
+				ID             UserID          `json:"id"`
+				CreatedAt      int64           `json:"created_at"`
+				LinkedAccounts []linkedAccount `json:"linked_accounts"`
+			} `json:"data"`
+			NextCursor string `json:"next_cursor"`
+		}
+		path := "/v1/users"
+		if cursor != "" {
+			path += "?cursor=" + url.QueryEscape(cursor)
+		}
+		if err := c.do(ctx, call{op: "privy.ListUsers", method: http.MethodGet, path: path}, &page); err != nil {
+			return nil, err
+		}
+		for _, w := range page.Data {
+			u := User{ID: w.ID}
+			for _, a := range w.LinkedAccounts {
+				u.link(a)
+			}
+			all = append(all, ListedUser{
+				ID: w.ID, CreatedAt: time.Unix(w.CreatedAt, 0).UTC(), Accounts: len(w.LinkedAccounts), Email: u.Email,
+			})
+		}
+		if page.NextCursor == "" {
+			return all, nil
+		}
+		cursor = page.NextCursor
+	}
 }
 
 func (c *Client) GetUser(ctx context.Context, id UserID) (User, error) {

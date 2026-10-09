@@ -32,4 +32,12 @@ for scenario in S1 S2 S3; do
     echo "S2's dev user $id is deleted, scrubbed, and keeps its handle"
   fi
 done
+# Each scenario's dev user is a never-seen user, so it goes once the checks have read it: Privy caps the dev
+# app's users.
+for scenario in S1 S2 S3; do
+  id="$(handed "devUser$scenario")"
+  [[ -n "$id" ]] || continue
+  scripts/with-dotenv-local.sh bin/monacoctl dev user delete "$id" > /dev/null 2> >(grep -v -e '^with-dotenv-local:' -e 'injected env' >&2) ||
+    echo "warning: could not delete dev user $id; clear it with monacoctl dev users prune" >&2
+done
 exit "$status"

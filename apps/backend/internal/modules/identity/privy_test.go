@@ -204,6 +204,9 @@ func TestPrivyUsers_createsAnEmailUser(t *testing.T) {
 	if _, err := users.Create(t.Context(), ""); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("empty email = %v, want invalid_input", err)
 	}
+	if err := users.Delete(t.Context(), id); err != nil || u.requests()[2] != "DELETE /privy/v1/users/"+string(id) {
+		t.Fatalf("Delete = %v, requests %v", err, u.requests())
+	}
 }
 
 func TestPrivyWallets_reusesTheWalletPrivyHoldsAndReportsItsSigner(t *testing.T) {

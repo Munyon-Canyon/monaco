@@ -116,12 +116,28 @@ func (c *Client) do(ctx context.Context, in call, into any) error {
 		return errs.New(errs.CodePrivyUnavailable, in.op, slog.Int("status", resp.StatusCode))
 	}
 	if code, failed := statusCode(resp.StatusCode); failed {
-		return errs.New(code, in.op, slog.Int("status", resp.StatusCode))
+		attrs := []slog.Attr{slog.Int("status", resp.StatusCode)}
+		if limit, detail := userLimit(raw); limit && code == errs.CodeInvalidInput {
+			code, attrs = errs.CodePrivyUserLimit, append(attrs, slog.String("detail", detail))
+		}
+		return errs.New(code, in.op, attrs...)
+	}
+	if into == nil {
+		return nil
 	}
 	if err := json.Unmarshal(raw, into); err != nil {
 		return errs.Wrap(err, errs.CodeDecodeFailed, in.op, slog.Int("status", resp.StatusCode))
 	}
 	return nil
+}
+
+func userLimit(raw []byte) (bool, string) {
+	var body struct {
+		Error string `json:"error"`
+		Code  string `json:"code"`
+	}
+	_ = json.Unmarshal(raw, &body)
+	return body.Code == "max_accounts_reached", body.Error
 }
 
 func statusCode(status int) (errs.Code, bool) {

@@ -42,7 +42,7 @@ call() {
 dev_token() {
   local unset_qa=(-u MONACO_API_BASE_URL)
   while read -r name; do unset_qa+=(-u "$name"); done < <(compgen -e | grep '^MONACO_QA_')
-  env "${unset_qa[@]}" bin/monacoctl dev token --user "$1" --ttl 1h 2>/dev/null || fail "monacoctl dev token --user $1 failed"
+  env "${unset_qa[@]}" bin/monacoctl dev token --user "$1" "${@:2}" --ttl 1h 2>/dev/null || fail "monacoctl dev token --user $1 failed"
 }
 
 [[ -x bin/monacoctl ]] || fail "bin/monacoctl is missing: run just build backend"
@@ -63,7 +63,7 @@ for invite in json.load(sys.stdin):
   call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$token_b" '{"decision":"deny"}' >/dev/null
 done
 
-host="$(dev_token new)"
+host="$(dev_token new --pool push-host)"
 call PATCH /v1/me "$host" '{"display_name":"QA push host"}' >/dev/null || fail "could not name the dev host"
 name="QA push $run"
 cabal="$(call POST /v1/cabals "$host" \

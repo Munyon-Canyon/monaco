@@ -65,7 +65,7 @@ func seedSignedIn(ctx context.Context, env SeedEnv) (SeedResult, error) {
 	if err != nil {
 		return SeedResult{}, err
 	}
-	user, err := NewDevUser(ctx, cfg)
+	user, err := NewDevUser(ctx, cfg, "")
 	if err != nil {
 		return SeedResult{}, err
 	}
@@ -80,27 +80,60 @@ func seedAnonymous(context.Context, SeedEnv) (SeedResult, error) {
 	return SeedResult{IDs: map[string]string{}}, nil
 }
 
-func NewDevUser(ctx context.Context, cfg config.Config) (app.DevUser, error) {
+func NewDevUser(ctx context.Context, cfg config.Config, pool string) (app.DevUser, error) {
+	env, err := openDevEnv(ctx, cfg)
+	if err != nil {
+		return app.DevUser{}, err
+	}
+	defer env.close(ctx)
+	return app.CreateDevUser(ctx, app.CreateDevUserDeps{
+		Env: cfg.Env, UoW: env.uow, Users: adapters.Users{},
+		Privy: privyadapter.Users{Client: env.privy}, Wallets: privyadapter.Wallets{Client: env.privy},
+		IDs: ids.Real{}, Clock: clock.Real{}, Hints: env.conn, Rand: rand.Reader, Pool: pool,
+	})
+}
+
+func DeleteDevUser(ctx context.Context, cfg config.Config, id ids.UserID) error {
+	env, err := openDevEnv(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer env.close(ctx)
+	return app.DeleteDevUser(ctx, app.DeleteDevUserDeps{
+		Env: cfg.Env, UoW: env.uow, Users: adapters.Users{}, Privy: privyadapter.Users{Client: env.privy},
+	}, id)
+}
+
+type devEnv struct {
+	uow   *db.UnitOfWork
+	pool  *pgxpool.Pool
+	conn  *bus.Conn
+	privy *chainprivy.Client
+}
+
+func (e devEnv) close(ctx context.Context) {
+	e.conn.Close(ctx)
+	e.pool.Close()
+}
+
+func openDevEnv(ctx context.Context, cfg config.Config) (devEnv, error) {
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
-		return app.DevUser{}, err
+		return devEnv{}, err
 	}
-	defer pool.Close()
 	conn, err := bus.Connect(ctx, cfg.NATS, bus.ProcessMonacoctl)
 	if err != nil {
-		return app.DevUser{}, err
+		pool.Close()
+		return devEnv{}, err
 	}
-	defer conn.Close(ctx)
 	clk := clock.Real{}
 	client, err := chainprivy.New(cfg, clk)
 	if err != nil {
-		return app.DevUser{}, err
+		conn.Close(ctx)
+		pool.Close()
+		return devEnv{}, err
 	}
-	return app.CreateDevUser(ctx, app.CreateDevUserDeps{
-		Env: cfg.Env, UoW: db.New(pool, ids.Real{}, clk), Users: adapters.Users{},
-		Privy: privyadapter.Users{Client: client}, Wallets: privyadapter.Wallets{Client: client},
-		IDs: ids.Real{}, Clock: clk, Hints: conn, Rand: rand.Reader,
-	})
+	return devEnv{uow: db.New(pool, ids.Real{}, clk), pool: pool, conn: conn, privy: client}, nil
 }
 
 func seedSignedInWith(arrange func(t testkit.SeedT, pool *pgxpool.Pool, user ids.UserID) map[string]string) Seeder {

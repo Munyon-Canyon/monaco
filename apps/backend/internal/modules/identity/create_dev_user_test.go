@@ -194,6 +194,7 @@ func (c *countUsers) Create(ctx context.Context, email string) (app.PrivyUserID,
 }
 
 type devStore struct {
+	adapters.Users
 	insertErr error
 	attachErr error
 	attached  bool

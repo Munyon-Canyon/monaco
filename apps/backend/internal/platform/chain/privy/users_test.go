@@ -3,8 +3,11 @@ package privy_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -197,4 +200,75 @@ func TestGetUser_aPrivyTransportFailureStaysPrivyUnavailable(t *testing.T) {
 	_, err := client(down).GetUser(t.Context(), "did:privy:member")
 
 	wantCode(t, err, errs.CodePrivyUnavailable)
+}
+
+func TestCreateUser_namesTheUserLimit(t *testing.T) {
+	t.Parallel()
+	body := `{"error":"User limit reached","code":"max_accounts_reached"}`
+	_, err := client(replying(http.StatusBadRequest, body)).CreateUser(t.Context(), "dev-ab@example.com")
+	wantCode(t, err, errs.CodePrivyUserLimit)
+	if !strings.Contains(fmt.Sprint(errs.Detail(err)), "User limit reached") {
+		t.Fatalf("detail = %v, want Privy's message", errs.Detail(err))
+	}
+	_, err = client(replying(http.StatusBadRequest, `{"error":"bad email"}`)).CreateUser(t.Context(), "x@example.com")
+	wantCode(t, err, errs.CodeInvalidInput)
+	_, err = client(replying(http.StatusInternalServerError, body)).CreateUser(t.Context(), "x@example.com")
+	wantCode(t, err, errs.CodePrivyUnavailable)
+}
+
+func TestDeleteUser_deletesByID(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	id, err := c.CreateUser(t.Context(), "dev-ab@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.DeleteUser(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	req := u.requests()[1]
+	if req.method != http.MethodDelete || req.path != "/privy/v1/users/"+string(id) {
+		t.Fatalf("request = %s %s", req.method, req.path)
+	}
+	wantCode(t, c.DeleteUser(t.Context(), id), errs.CodeNotFound)
+}
+
+func TestListUsers_followsTheCursorAndReadsAgeAndAccounts(t *testing.T) {
+	t.Parallel()
+	pages := map[string]string{
+		"": `{"data":[{"id":"did:privy:a","created_at":1760000000,"linked_accounts":[{"type":"email","address":"dev-a@example.com"}]}],
+			"next_cursor":"c 2"}`,
+		"c 2": `{"data":[{"id":"did:privy:b","created_at":1760000100,"linked_accounts":[{"type":"phone","number":"+1"},` +
+			`{"type":"email","address":"b@example.com"}]}]}`,
+	}
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, pages[r.URL.Query().Get("cursor")])
+	})}
+	got, err := client(u).ListUsers(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []privy.ListedUser{
+		{ID: "did:privy:a", CreatedAt: time.Unix(1760000000, 0).UTC(), Accounts: 1, Email: "dev-a@example.com"},
+		{ID: "did:privy:b", CreatedAt: time.Unix(1760000100, 0).UTC(), Accounts: 2, Email: "b@example.com"},
+	}
+	if !reflect.DeepEqual(got, want) || u.requests()[1].query != "cursor=c+2" {
+		t.Fatalf("ListUsers = %+v, query %q", got, u.requests()[1].query)
+	}
+	_, err = client(replying(http.StatusInternalServerError, `{}`)).ListUsers(t.Context())
+	wantCode(t, err, errs.CodePrivyUnavailable)
+}
+
+func TestListUsers_overTheFakesListsWhatWasCreated(t *testing.T) {
+	t.Parallel()
+	c, _, _ := overFakes(t)
+	for _, email := range []string{"dev-ab@example.com", "dev-cd@example.com"} {
+		if _, err := c.CreateUser(t.Context(), email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := c.ListUsers(t.Context())
+	if err != nil || len(got) != 2 || got[0].Email != "dev-ab@example.com" || got[1].ID != "did:privy:fake-2" {
+		t.Fatalf("ListUsers = %+v, %v", got, err)
+	}
 }

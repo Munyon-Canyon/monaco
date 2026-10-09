@@ -38,6 +38,10 @@ func (u Users) Create(ctx context.Context, email string) (app.PrivyUserID, error
 	return app.PrivyUserID(id), nil
 }
 
+func (u Users) Delete(ctx context.Context, id app.PrivyUserID) error {
+	return u.Client.DeleteUser(ctx, chainprivy.UserID(id))
+}
+
 func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, error) {
 	got, err := u.Client.GetUser(ctx, chainprivy.UserID(id))
 	if err != nil {

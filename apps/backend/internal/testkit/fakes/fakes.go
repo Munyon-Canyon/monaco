@@ -118,6 +118,8 @@ func newFrom(fsys fs.FS, root string) *Server {
 	s.live.HandleFunc("POST "+executeRoute, s.jupiterExecute)
 	s.live.HandleFunc("GET /privy/v1/users/{id}", s.privyUser)
 	s.live.HandleFunc("POST /privy/v1/users", s.privyCreateUser)
+	s.live.HandleFunc("GET /privy/v1/users", s.privyListUsers)
+	s.live.HandleFunc("DELETE /privy/v1/users/{id}", s.privyDeleteUser)
 	s.live.HandleFunc("GET /privy/v1/wallets", s.privyWallets)
 	s.live.HandleFunc("POST /privy/v1/wallets", s.privyCreateWallet)
 	s.live.HandleFunc("POST /privy/v1/wallets/{id}/rpc", s.privySign)
