@@ -17,7 +17,7 @@ struct SessionGateView: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.scenePhase) private var scenePhase
     @State private var onboardingCursor = OnboardingCursor.start
-    @State private var contactsPromptSeen = FirstRunGate.contactsPromptSeen()
+    @State private var contactsPromptSeen = true
 
     private var debugDetail: String? {
         #if DEBUG
@@ -55,6 +55,9 @@ struct SessionGateView: View {
             guard let notice else { return }
             toasts.current = MonacoToast(message: notice.message, isSuccess: notice.isSuccess)
         }
+        .onChange(of: session.profile?.userID, initial: true) { _, userID in
+            contactsPromptSeen = userID.map { FirstRunGate.contactsPromptSeen(userID: $0) } ?? true
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task { await attachReferral() }
@@ -85,7 +88,7 @@ struct SessionGateView: View {
         case .findFriends:
             NavigationStack {
                 FriendsScreen(onSkip: {
-                    FirstRunGate.markContactsPromptSeen()
+                    FirstRunGate.markContactsPromptSeen(userID: profile.userID)
                     contactsPromptSeen = true
                 })
                 .navigationDestination(for: AnyAppRoute.self) { $0.destination() }

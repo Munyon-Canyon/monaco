@@ -36,7 +36,7 @@ The channel is text message unless the run sets `MONACO_QA_CHANNEL=email`. For e
 | S1.2 | type, then tap | `smsPhoneField`, then `smsSendCodeButton` | `{A.phone}` | The button reads "Send code" and is enabled before the tap |
 | S1.3 | type | `smsCodeField` | `{A.code}` | The field shows within 20 s of S1.2. The sixth digit submits the code. Continue (`smsVerifyButton`) is not tapped |
 | S1.4 | wait | the session-opening screen | | The backend session opens. Within 30 s the tab bar or the Find friends step shows, not the handle or phone step |
-| S1.5 | tap, only when the Find friends step shows | `friends-not-now` (Not now) | | The tab bar shows within 30 s and `smsCodeField` is gone. An account without a linked phone goes straight to the tab bar and the step does nothing |
+| S1.5 | tap, only when the Find friends step shows | `friends-not-now` (Skip, in the toolbar) | | The tab bar shows within 30 s and `smsCodeField` is gone. An account without a linked phone goes straight to the tab bar and the step does nothing |
 | S1.6 | wait | the tab bar | | Home, Feed, Cabals, Stocks and Profile tabs show |
 
 ### S2 The session survives a relaunch

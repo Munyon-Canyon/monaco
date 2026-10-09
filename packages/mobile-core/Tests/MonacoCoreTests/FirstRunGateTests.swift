@@ -225,27 +225,39 @@ final class FirstRunGateTests: XCTestCase {
             .app(restricted: true))
     }
 
-    func testNotNowHidesFindFriendsOnTheNextLaunch() {
+    func testFindFriendsNeedsAFirstRunThatWalkedTheSteps() {
+        let verified = me(handle: "ana", authState: .onboardingCompleted, accountStatus: .active, phoneLinked: true)
+        XCTAssertEqual(
+            FirstRunGate.destination(for: verified, onboardingCursor: .start, contactsPromptSeen: false),
+            .app(restricted: false))
+        XCTAssertEqual(
+            FirstRunGate.destination(for: verified, onboardingCursor: .socials, contactsPromptSeen: false),
+            .app(restricted: false))
+        XCTAssertEqual(
+            FirstRunGate.destination(for: verified, onboardingCursor: .finished, contactsPromptSeen: false),
+            .findFriends)
+    }
+
+    func testNotNowHidesFindFriendsOnTheNextLaunchForThatUserOnly() {
         let suite = "find-friends-gate-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suite) else {
             XCTFail("the contacts prompt suite did not open")
             return
         }
         defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
         let verified = me(handle: "ana", authState: .onboardingCompleted, accountStatus: .active, phoneLinked: true)
-        XCTAssertFalse(FirstRunGate.contactsPromptSeen(in: defaults))
-        XCTAssertEqual(
+        func destination(forUser userID: String) -> FirstRunDestination {
             FirstRunGate.destination(
-                for: verified, onboardingCursor: .start,
-                contactsPromptSeen: FirstRunGate.contactsPromptSeen(in: defaults)),
-            .findFriends)
-        FirstRunGate.markContactsPromptSeen(in: defaults)
-        XCTAssertEqual(
-            FirstRunGate.destination(
-                for: verified, onboardingCursor: .start,
-                contactsPromptSeen: FirstRunGate.contactsPromptSeen(in: defaults)),
-            .app(restricted: false))
-        defaults.removePersistentDomain(forName: suite)
+                for: verified, onboardingCursor: .finished,
+                contactsPromptSeen: FirstRunGate.contactsPromptSeen(userID: userID, in: defaults))
+        }
+        XCTAssertFalse(FirstRunGate.contactsPromptSeen(userID: "user-a", in: defaults))
+        XCTAssertEqual(destination(forUser: "user-a"), .findFriends)
+        FirstRunGate.markContactsPromptSeen(userID: "user-a", in: defaults)
+        XCTAssertEqual(destination(forUser: "user-a"), .app(restricted: false))
+        XCTAssertEqual(destination(forUser: "user-b"), .findFriends)
+        XCTAssertTrue(defaults.bool(forKey: "contactsPromptSeen.user-a"))
     }
 
     func testCopy_passesTheMainFlowAudit() {

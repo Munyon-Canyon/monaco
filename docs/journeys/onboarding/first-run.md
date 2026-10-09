@@ -1,7 +1,7 @@
 ---
 id: onboarding/first-run
 title: First run
-version: 3
+version: 4
 milestone: M9
 requires: [auth/sign-in]
 actors: [C, B]
@@ -70,7 +70,7 @@ Starts from S1 (P6), with `{L.phone}` free (P3).
 | --- | --- | --- | --- | --- | --- |
 | S4.1 | tap, then tap | the Home tab, then `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number" | None, new in spec (#694) |
 | S4.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{L.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s | None, new in spec (#694) |
-| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", the Find friends step shows and `friends-not-now` skips it, and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
+| S4.3 | type | `phone-step-code-field` | `{L.code}` | The sixth digit submits the code. The sheet closes within 20 s, `monaco-toast-banner` reads "Number added.", the tab bar and the Home tab stay and no Find friends screen shows (`friends-not-now` does not exist), and `onboarding-nudge` reads "Connect X to find people you follow" | None, new in spec (#694) |
 
 ### S5 Link X as a new dev user
 
