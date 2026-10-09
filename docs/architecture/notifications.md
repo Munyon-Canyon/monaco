@@ -53,7 +53,7 @@ func application(_ app: UIApplication, didFailToRegisterForRemoteNotificationsWi
 
 The app re-registers on every launch, because APNs can rotate tokens. Registration is an upsert, so repeating it costs nothing.
 
-A `UNUserNotificationCenterDelegate` handles two things: showing a banner while the app is in the foreground (`willPresent`), and routing a tap to the right screen (`didReceive`) using the ids in the payload (`cabal_id`, `proposal_id`, `txn_id`).
+A `UNUserNotificationCenterDelegate` handles two things: showing a banner while the app is in the foreground (`willPresent`, except for `deposit_credited`, which the in-app toast announces), and routing a tap to the right screen (`didReceive`) using the ids in the payload (`cabal_id`, `proposal_id`, `txn_id`).
 
 ### API
 

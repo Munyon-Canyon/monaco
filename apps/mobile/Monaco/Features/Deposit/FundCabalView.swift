@@ -5,14 +5,13 @@ import SwiftUI
 
 /// Fund this cabal: move account balance into one cabal's pot.
 ///
-/// Owns the balance, the cabal's name, the fund in flight and its toasts. `FundCabalContent` is the layout.
+/// Owns the cabal's name, the fund in flight and its toasts. `FundCabalContent` is the layout.
 struct FundCabalView: View {
     let cabalID: String
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.dismiss) private var dismiss
-    @State private var balanceSource: BalanceSource?
     @State private var cabal: CabalActionsModel?
     @State private var pauseState: CashOutModel?
     @State private var funding: Funding?
@@ -20,19 +19,15 @@ struct FundCabalView: View {
 
     var body: some View {
         FundCabalContent(
-            state: balanceSource?.state ?? .loading,
+            state: environment.balance.state,
             cabalName: cabal?.cabalName,
             amountText: $amountText,
             isSubmitting: funding?.isSubmitting ?? false,
             onSubmit: { Task { await fund() } },
-            onRetry: { Task { await balanceSource?.load() } },
+            onRetry: { Task { await environment.balance.load() } },
             onAddMoney: { openDeposit(prefillMicros: nil) },
             pause: pauseState?.preview?.pause
         )
-        .onChange(of: balanceSource?.failureTick) { _, _ in
-            guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
-            toasts.current = MonacoToast(message: BalanceSource.message(for: error))
-        }
         .task {
             if funding == nil {
                 funding = Funding(cabalID: cabalID, source: FundSource(api: environment.api), hints: environment.hints)
@@ -49,14 +44,10 @@ struct FundCabalView: View {
             await model.observe()
         }
         .task {
-            let source = balanceSource ?? BalanceSource(api: environment.api, hints: environment.hints)
-            balanceSource = source
-            await source.load()
-            await source.observe()
+            await environment.balance.load()
         }
         .onScreenVisibilityChange { visible in
             pauseState?.setVisible(visible)
-            balanceSource?.setVisible(visible)
         }
     }
 
@@ -83,7 +74,7 @@ struct FundCabalView: View {
                 }
             }
         case .refused(.needsMoney(let message)):
-            let shortfall = max(micros - (balanceSource?.balance?.availableMicros ?? 0), 0)
+            let shortfall = max(micros - (environment.balance.balance?.availableMicros ?? 0), 0)
             toasts.current = MonacoToast(
                 message: message,
                 action: MonacoToastAction(title: "Add money") { openDeposit(prefillMicros: shortfall) })

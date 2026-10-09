@@ -38,6 +38,7 @@ struct MainTabView: View {
             }
         }
         .tint(MonacoTheme.ink)
+        .modifier(AccountBalanceHost())
         .preference(key: TabToastHostKey.self, value: true)
         // Each stack knows its tab (`hostMainTab`) and which one is showing, so screens in a tab
         // the member switched away from stop polling. See `pollWhileVisible`.
@@ -48,6 +49,34 @@ struct MainTabView: View {
         .sheet(isPresented: $pushPrePrompt.isPresented, onDismiss: pushPrePrompt.notNow) {
             PushPrePromptSheet(prompt: pushPrePrompt)
         }
+    }
+}
+
+struct AccountBalanceHost: ViewModifier {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.scenePhase) private var scenePhase
+
+    func body(content: Content) -> some View {
+        content
+            .task {
+                await environment.balance.load()
+                await environment.balance.observe()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                environment.balance.setVisible(phase == .active)
+            }
+            .onChange(of: environment.balance.balance) { previous, current in
+                guard let current, let change = BalanceChange.detect(previous: previous, current: current) else {
+                    return
+                }
+                environment.cardDeposit.balanceChanged(change)
+                toasts.show(success: change.message)
+            }
+            .onChange(of: environment.balance.failureTick) { _, _ in
+                guard environment.balance.balance != nil, let error = environment.balance.lastError else { return }
+                toasts.current = MonacoToast(message: BalanceSource.message(for: error))
+            }
     }
 }
 

@@ -6,7 +6,6 @@ struct WithdrawView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.dismiss) private var dismiss
-    @State private var balanceSource: BalanceSource?
     @State private var withdrawing: Withdrawing?
     @State private var destinationAddress = ""
     @State private var amount = WithdrawAmount()
@@ -24,26 +23,22 @@ struct WithdrawView: View {
 
     var body: some View {
         WithdrawContent(
-            state: balanceSource?.state ?? .loading,
+            state: environment.balance.state,
             amountText: amountText,
             destinationAddress: $destinationAddress,
             onMax: { amount.tapMax() },
             refusedAddress: refusedAddress,
             onContinue: {
-                frozen = amount.frozen(availableMicros: balanceSource?.balance?.availableMicros)
+                frozen = amount.frozen(availableMicros: environment.balance.balance?.availableMicros)
                 showConfirm = true
             },
             onAddMoney: {
                 environment.navigator.open(
                     DepositRoute(prefillMicros: nil, cabalID: nil), in: environment.navigator.selectedTab)
             },
-            onRetry: { Task { await balanceSource?.load() } }
+            onRetry: { Task { await environment.balance.load() } }
         )
         .onChange(of: destinationAddress) { _, _ in refusedAddress = nil }
-        .onChange(of: balanceSource?.failureTick) { _, _ in
-            guard balanceSource?.balance != nil, let error = balanceSource?.lastError else { return }
-            toasts.current = MonacoToast(message: BalanceSource.message(for: error))
-        }
         .onChange(of: showConfirm) { _, shown in
             if !shown { frozen = nil }
         }
@@ -61,13 +56,7 @@ struct WithdrawView: View {
             if withdrawing == nil {
                 withdrawing = Withdrawing(source: WithdrawSource(api: environment.api), hints: environment.hints)
             }
-            let source = balanceSource ?? BalanceSource(api: environment.api, hints: environment.hints)
-            balanceSource = source
-            await source.load()
-            await source.observe()
-        }
-        .onScreenVisibilityChange { visible in
-            balanceSource?.setVisible(visible)
+            await environment.balance.load()
         }
     }
 

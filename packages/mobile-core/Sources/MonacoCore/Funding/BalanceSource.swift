@@ -41,6 +41,8 @@ public struct AccountBalance: Equatable, Sendable {
 public enum BalanceChange: Equatable, Sendable {
     case deposited(Int64)
 
+    public static let minimumDepositMicros: Int64 = 10_000
+
     public var message: String {
         switch self {
         case .deposited(let micros): "Deposit received: \(UsdAmountFormatter.format(micros: micros))"
@@ -49,7 +51,7 @@ public enum BalanceChange: Equatable, Sendable {
 
     public static func detect(previous: AccountBalance?, current: AccountBalance) -> BalanceChange? {
         guard let previous, current.inFlightMicros == previous.inFlightMicros,
-            current.availableMicros > previous.availableMicros
+            current.availableMicros - previous.availableMicros >= minimumDepositMicros
         else { return nil }
         return .deposited(current.availableMicros - previous.availableMicros)
     }
@@ -85,6 +87,12 @@ public final class BalanceSource {
 
     public func load() async {
         await read(quietly: false)
+    }
+
+    public func reset() {
+        generation += 1
+        state = .idle
+        lastError = nil
     }
 
     private func read(quietly: Bool) async {

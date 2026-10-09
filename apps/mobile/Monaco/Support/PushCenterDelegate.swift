@@ -12,7 +12,11 @@ final class PushCenterDelegate: NSObject, @preconcurrency UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        Self.presentation(for: notification.request.content.userInfo)
+    }
+
+    static func presentation(for userInfo: [AnyHashable: Any]) -> UNNotificationPresentationOptions {
+        userInfo["kind"] as? String == "deposit_credited" ? [] : [.banner, .list, .sound]
     }
 
     func userNotificationCenter(
