@@ -39,7 +39,7 @@ npx wrangler pages dev --binding SUPABASE_URL=… SUPABASE_ANON_KEY=… IP_HASH_
 
 ### Fund page against a local backend
 
-The backend sends the app to `http://localhost:5173/fund` outside staging and production, unless `FUND_PAGE_URL` is set. `just run` does not start that page. Start it with Vite:
+The backend sends the app to `http://localhost:5173/fund` outside staging and production, unless `FUND_PAGE_URL` is set. `just run backend` (and so `just run`) starts that page on `:5173` against the local API, installing `apps/web` dependencies first if they are missing. `just stop backend`, `just killports` and Ctrl-C on `just run` stop it. If `:5173` is already taken the page is skipped, and without Node it prints a warning and the backend still starts. To run it alone, start it with Vite:
 
 ```bash
 cd apps/web && npm ci && VITE_MONACO_API_URL=http://localhost:8080 VITE_PRIVY_APP_ID=<PRIVY_APP_ID from just show-env> VITE_PRIVY_ENV=sandbox npx vite --port 5173
@@ -49,7 +49,7 @@ Or copy `.env.example` to `.env.local` and fill in `VITE_PRIVY_APP_ID`. Vite rea
 
 `/fund` works directly in Vite dev: the dev server rewrites it, and `/fund?…`, to the fund page, as `vercel.json` does in production. No `FUND_PAGE_URL` override is needed.
 
-Without the page, **Pay with card or Apple Pay** opens a URL nothing serves.
+Without the page (Node missing, or `:5173` held by something else), **Pay with card or Apple Pay** opens a URL nothing serves.
 
 CORS needs no setup. `WEB_ALLOWED_ORIGINS` already allows `http://localhost:5173` outside staging and production. If you set it yourself, include that origin.
 

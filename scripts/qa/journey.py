@@ -548,6 +548,8 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     api_port, worker_port = SLOT_PORTS[slot]
     env["MONACO_HTTP_ADDR"] = ":%d" % api_port
     env["MONACO_WORKER_HEALTH_ADDR"] = ":%d" % worker_port
+    # Slots would fight over the fund page port (and a fresh worktree would npm ci); none needs the page.
+    env["MONACO_FUND_PAGE_PORT"] = "off"
     # run-with-logs.sh names its folder after the second, so two backends started together would share one:
     # each slot logs api.log and worker.log under its own folder.
     log_dir = OUT / ("backend-slot%d-%s" % (slot, stamp()))

@@ -409,6 +409,21 @@ class JourneyTradeEngine(unittest.TestCase):
                     journey.start_backend("http://127.0.0.1:1")
             self.assertEqual(seen["TRADE_ENGINE"], want)
 
+    def test_start_backend_does_not_start_a_fund_page(self):
+        seen = {}
+
+        def popen(_args, **kwargs):
+            seen.update(kwargs["env"])
+            raise RuntimeError("stop")
+
+        with unittest.mock.patch.dict(os.environ, {"MONACO_FUND_PAGE_PORT": "5173"}, clear=True), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
+                unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
+            with self.assertRaises(RuntimeError):
+                journey.start_backend("http://127.0.0.1:1")
+        self.assertEqual(seen["MONACO_FUND_PAGE_PORT"], "off")
+
 
 class Slots(unittest.TestCase):
     def setUp(self):

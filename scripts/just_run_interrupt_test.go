@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -37,6 +38,7 @@ for name in api worker monacoctl; do cp "$SLEEPER" "$out/$name"; done
 // either keeps building (MOBILE_EXIT unset) or fails with MOBILE_EXIT.
 const iosSimStub = `#!/usr/bin/env bash
 until pgrep -f "^$PWD/bin/worker$" >/dev/null; do sleep 0.05; done
+if [[ "${NPM_EXIT:-0}" == 0 ]]; then until (exec 3<>"/dev/tcp/127.0.0.1/$MONACO_FUND_PAGE_PORT") 2>/dev/null; do sleep 0.05; done; touch "$FUND_SEEN"; fi
 touch "$MOBILE_STARTED"
 if [[ -n "${MOBILE_EXIT:-}" ]]; then exit "$MOBILE_EXIT"; fi
 while :; do sleep 0.1; done
@@ -46,7 +48,9 @@ type justRun struct {
 	cmd     *exec.Cmd
 	done    chan error
 	backend string // pgrep pattern for this sandbox's api and worker
+	fund    int    // the fund page port
 	started string
+	seen    string // touched by the mobile stub once the fund page accepted a connection
 	output  *strings.Builder
 }
 
@@ -55,6 +59,12 @@ type justRun struct {
 func startJustRun(t *testing.T, env ...string) *justRun {
 	t.Helper()
 	s := newRecipeSandbox(t)
+	npmFails := slices.Contains(env, "NPM_EXIT=1")
+	if npmFails {
+		if err := os.Remove(filepath.Join(s.root, "apps", "web", "node_modules")); err != nil {
+			t.Fatal(err)
+		}
+	}
 	sleeper := filepath.Join(t.TempDir(), "sleeper")
 	src := filepath.Join(t.TempDir(), "main.go")
 	if err := os.WriteFile(src, []byte(sleeperSource), 0o600); err != nil {
@@ -76,13 +86,15 @@ func startJustRun(t *testing.T, env ...string) *justRun {
 	}
 	r := &justRun{
 		done:    make(chan error, 1),
+		fund:    s.fundPort,
 		backend: "^" + root + "/bin/(api|worker)$",
 		started: filepath.Join(t.TempDir(), "mobile.started"),
+		seen:    filepath.Join(t.TempDir(), "fund.seen"),
 		output:  &strings.Builder{},
 	}
 	r.cmd = exec.Command("just", "run")
 	r.cmd.Dir = s.root
-	r.cmd.Env = append(append(s.env, "SLEEPER="+sleeper, "MOBILE_STARTED="+r.started), env...)
+	r.cmd.Env = append(append(s.env, "SLEEPER="+sleeper, "MOBILE_STARTED="+r.started, "FUND_SEEN="+r.seen), env...)
 	for i, kv := range r.cmd.Env {
 		if path, ok := strings.CutPrefix(kv, "PATH="); ok {
 			r.cmd.Env[i] = "PATH=" + fakebin + string(os.PathListSeparator) + path
@@ -105,6 +117,12 @@ func startJustRun(t *testing.T, env ...string) *justRun {
 		_, err := os.Stat(r.started)
 		return err == nil
 	})
+	if !npmFails {
+		waitFor(t, "the fund page to have listened", func() bool {
+			_, err := os.Stat(r.seen)
+			return err == nil
+		})
+	}
 	return r
 }
 
@@ -118,6 +136,7 @@ func (r *justRun) waitExit(t *testing.T) {
 	waitFor(t, "api and worker to exit", func() bool {
 		return exec.Command("pgrep", "-f", r.backend).Run() != nil
 	})
+	waitFor(t, "nothing to listen on the fund page port", func() bool { return !listening(r.fund) })
 }
 
 func TestJustRun_ctrlCStopsTheBackend(t *testing.T) {
@@ -135,6 +154,16 @@ func TestJustRun_ctrlCStopsTheBackend(t *testing.T) {
 func TestJustRun_failedMobileBuildStopsTheBackend(t *testing.T) {
 	r := startJustRun(t, "MOBILE_EXIT=65")
 
+	r.waitExit(t)
+}
+
+// A failed fund page install must not strand api and worker.
+func TestJustRun_failedFundPageInstallStillStopsTheBackendOnCtrlC(t *testing.T) {
+	r := startJustRun(t, "NPM_EXIT=1")
+
+	if err := syscall.Kill(-r.cmd.Process.Pid, syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
 	r.waitExit(t)
 }
 
