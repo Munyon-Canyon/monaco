@@ -122,7 +122,7 @@ public enum MoneyFlowCopy {
 
     public static func pendingKeyLine(_ error: APIError) -> String {
         switch error {
-        case .transport, .decoding, .inFlight: unconfirmed.summary
+        case .transport, .decoding, .inFlight, .cancelled: unconfirmed.summary
         case .problem, .signedOut, .missingAccessToken, .accountDeleted: ToastCopy.message(for: error)
         }
     }

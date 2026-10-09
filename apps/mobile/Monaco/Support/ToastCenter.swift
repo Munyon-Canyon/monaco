@@ -9,6 +9,7 @@ final class ToastCenter {
     var bottomCTAs = 0
 
     func show(_ error: APIError) {
+        if case .cancelled = error { return }
         current = MonacoToast(message: ToastCopy.message(for: error))
     }
 
