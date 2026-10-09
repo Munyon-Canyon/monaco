@@ -2,11 +2,11 @@ import XCTest
 
 enum ProfileFindFriendsJourney {
     static let id = "profile/find-friends"
-    static let version = 2
+    static let version = 3
 
     static let memberName = "Bartholomez"
     static let explainer =
-        "See which of your contacts are already on Monaco. Only scrambled numbers leave your phone, never your address book."
+        "See which of your contacts are already on Monaco. Monaco hashes their phone numbers on your phone and sends only the hashes. Names and your address book stay on your phone."
 
     struct Member {
         let id: String

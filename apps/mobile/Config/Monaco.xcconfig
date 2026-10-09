@@ -24,7 +24,7 @@ MONACO_APS_ENVIRONMENT_Debug = sandbox
 MONACO_APS_ENVIRONMENT_Release = production
 MONACO_APS_ENVIRONMENT = $(MONACO_APS_ENVIRONMENT_$(CONFIGURATION))
 
-INFOPLIST_KEY_NSContactsUsageDescription = Monaco checks which of your contacts are on Monaco. Numbers are hashed on your phone and never uploaded.
+INFOPLIST_KEY_NSContactsUsageDescription = Find friends who are already on Monaco. Monaco hashes your contacts' phone numbers on your phone and sends only the hashes. Names and your address book stay on your phone.
 
 CODE_SIGN_ENTITLEMENTS = Monaco/Monaco.entitlements
 

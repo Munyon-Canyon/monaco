@@ -1,7 +1,7 @@
 ---
 id: profile/find-friends
 title: Find friends
-version: 2
+version: 3
 milestone: M22
 requires: [auth/sign-in]
 actors: [A]
@@ -32,7 +32,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap, then scroll to | the Profile tab, then `profile-find-friends` | | The row reads "Find friends" | The "Find friends" row on Profile |
-| S1.2 | tap | `profile-find-friends` | | The "Friends on Monaco" screen shows within 10 s, with "See which of your contacts are already on Monaco. Only scrambled numbers leave your phone, never your address book." | The contacts explainer |
+| S1.2 | tap | `profile-find-friends` | | The "Friends on Monaco" screen shows within 10 s, with "See which of your contacts are already on Monaco. Monaco hashes their phone numbers on your phone and sends only the hashes. Names and your address book stay on your phone." | The contacts explainer |
 | S1.3 | tap | `friends-not-now` | | `profile-header` shows again within 10 s | "Not now" |
 
 ### S2 Search by handle and follow
