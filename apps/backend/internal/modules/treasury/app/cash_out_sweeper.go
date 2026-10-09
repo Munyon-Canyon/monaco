@@ -11,7 +11,7 @@ import (
 
 const (
 	CashOutSweepInterval = 30 * time.Second
-	CashOutSweepStale    = 2 * time.Minute
+	CashOutSweepStale    = 30 * time.Second
 	cashOutSweepBatch    = 50
 )
 
