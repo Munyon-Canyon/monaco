@@ -66,6 +66,33 @@ final class CabalInvitesModelTests: XCTestCase {
         XCTAssertEqual(try JSONSerialization.jsonObject(with: body) as? [String: String], ["decision": "deny"])
     }
 
+    func testEachInviteKeepsItsOwnIdempotencyKeyAcrossAnotherAnswer() async throws {
+        let samples = Components.Schemas.CabalInvite.samples
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.encode(samples)),
+            .failure(URLError(.notConnectedToInternet)),
+            .json(.ok, #"{"id":"r","direction":"invite","status":"denied"}"#),
+            .json(.ok, try Self.encode([samples[0]])),
+            .json(.ok, #"{"id":"r","direction":"invite","status":"approved"}"#),
+            .json(.ok, "[]"),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        let a = try XCTUnwrap(model.invites.first)
+        let b = try XCTUnwrap(model.invites.last)
+        _ = await model.accept(a)
+        await model.decline(b)
+        _ = await model.accept(a)
+        let sent = await transport.sent
+        let header = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        let firstA = try XCTUnwrap(sent[1].headerFields[header])
+        let forB = try XCTUnwrap(sent[2].headerFields[header])
+        let retryA = try XCTUnwrap(sent[4].headerFields[header])
+        XCTAssertEqual(sent[4].path, sent[1].path)
+        XCTAssertEqual(retryA, firstA)
+        XCTAssertNotEqual(forB, firstA)
+    }
+
     func testAnExpiredInviteLeavesTheListWithTheServerMessage() async throws {
         let transport = StubTransport(scripted: [
             .json(.ok, try Self.encode(Components.Schemas.CabalInvite.samples)),

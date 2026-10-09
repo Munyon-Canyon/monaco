@@ -29,8 +29,7 @@ final class CabalSearchModelTests: XCTestCase {
         XCTAssertEqual(
             rows.map(\.detail),
             [
-                "3 members · Approval required", "1 member · Approval required",
-                "5 members · Approval required", "2 members · Approval required",
+                "3 members", "1 member", "5 members", "2 members",
             ]
         )
         XCTAssertEqual(rows.map(\.action), [.request, .request, .requested, .member])
@@ -54,6 +53,57 @@ final class CabalSearchModelTests: XCTestCase {
         await model.search()
         model.query = "zzqqx"
         XCTAssertEqual(model.state, .loading)
+    }
+
+    func testTheOldRowsStayWhileANewQueryLoads() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(samples)),
+            .gate,
+        ])
+        let model = makeModel(transport)
+        model.query = "sun"
+        await model.search()
+        let before = rows(model)
+        XCTAssertFalse(before.isEmpty)
+        model.query = "sund"
+        XCTAssertEqual(rows(model), before)
+        let searching = Task { await model.search() }
+        let sent = await waitUntil { await transport.sent.count == 2 }
+        XCTAssertTrue(sent)
+        XCTAssertEqual(rows(model), before)
+        await transport.releaseGate(.json(.ok, try Self.page([])))
+        await searching.value
+        XCTAssertEqual(model.state, .empty("sund"))
+    }
+
+    func testASearchTheQueryMovedPastKeepsTheCurrentRows() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(samples)),
+            .gate,
+        ])
+        let model = makeModel(transport)
+        model.query = "sun"
+        await model.search()
+        let before = rows(model)
+        model.query = "sund"
+        let searching = Task { await model.search() }
+        let sent = await waitUntil { await transport.sent.count == 2 }
+        XCTAssertTrue(sent)
+        model.query = "sunda"
+        await transport.releaseGate(.json(.ok, try Self.page([])))
+        await searching.value
+        XCTAssertEqual(model.searched, "sun")
+        XCTAssertEqual(rows(model), before)
+    }
+
+    func testASearchedQueryIsMarkedSoAReappearDoesNotRefetch() async throws {
+        let transport = StubTransport(.json(.ok, try Self.page(samples)))
+        let model = makeModel(transport)
+        model.query = " sun "
+        await model.search()
+        XCTAssertEqual(model.searched, model.trimmedQuery)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 1)
     }
 
     func testAFailedFirstPageIsAnError() async {

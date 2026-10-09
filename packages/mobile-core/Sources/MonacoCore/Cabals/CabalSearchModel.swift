@@ -25,7 +25,7 @@ public struct CabalSearchRow: Identifiable, Equatable, Sendable {
         name = item.name
         pictureURL = item.pictureUrl
         joinPolicy = CabalJoinPolicy(wire: item.joinMode)
-        detail = "\(CabalCopy.memberCount(item.memberCount)) · \(joinPolicy.label)"
+        detail = CabalCopy.memberCount(item.memberCount)
         action = Self.action(item)
     }
 
@@ -79,10 +79,12 @@ public final class CabalSearchModel {
     public var isActive: Bool { !trimmedQuery.isEmpty }
 
     public var state: CabalSearchState {
-        guard isActive, let pager, searched == trimmedQuery else { return isActive ? .loading : .idle }
+        guard isActive else { return .idle }
+        guard let pager else { return .loading }
         if !pager.items.isEmpty {
             return .rows(pager.items.map(overlaid))
         }
+        guard searched == trimmedQuery else { return .loading }
         switch pager.phase {
         case .idle, .loadingFirst, .loadingMore: return .loading
         case .exhausted: return .empty(searched)
@@ -114,10 +116,11 @@ public final class CabalSearchModel {
             }
             return (page.items.map(CabalSearchRow.init), page.nextCursor)
         }
+        await pager.loadFirst()
+        guard trimmedQuery == text else { return }
         self.pager = pager
         searched = text
         entered = [:]
-        await pager.loadFirst()
     }
 
     public func loadMore() async {
