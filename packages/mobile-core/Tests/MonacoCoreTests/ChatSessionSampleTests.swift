@@ -108,7 +108,7 @@ final class ChatSessionSampleTests: XCTestCase {
 
         let closed = await state(session)
         XCTAssertTrue(closed.isClosed)
-        XCTAssertEqual(closed.timeline.rows.count, 8)
+        XCTAssertEqual(closed.timeline.rows.count, 9)
     }
 }
 #endif
