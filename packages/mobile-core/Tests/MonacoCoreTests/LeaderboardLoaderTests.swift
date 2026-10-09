@@ -5,11 +5,11 @@ import XCTest
 
 @testable import MonacoCore
 
+private typealias Page = Components.Schemas.LeaderboardPage
+private typealias Row = Components.Schemas.LeaderboardRow
+
 @MainActor
 final class LeaderboardLoaderTests: XCTestCase {
-    private typealias Page = Components.Schemas.LeaderboardPage
-    private typealias Row = Components.Schemas.LeaderboardRow
-
     func testLoadReadsTheFirstPageOfTheBoard() async throws {
         let (loader, transport, _) = try make(.people, [.page(.samplePeople())])
 
@@ -242,31 +242,143 @@ final class LeaderboardLoaderTests: XCTestCase {
         count = await transport.sent.count
         XCTAssertEqual(count, 3)
     }
+}
 
-    private enum Script {
-        case page(Page)
-        case failure
+@MainActor
+final class LeaderboardLoaderRefreshTests: XCTestCase {
+    func testALoadedBoardRefreshesInPlaceOnAppear() async throws {
+        try await assertFortyRowsRefreshInPlace { await $0.load() }
+    }
 
-        func reply() throws -> StubTransport.Reply {
-            switch self {
-            case .page(let page):
-                let encoder = JSONEncoder()
-                encoder.dateEncodingStrategy = .iso8601
-                return .json(.ok, String(decoding: try encoder.encode(page), as: UTF8.self))
-            case .failure:
-                return .failure(URLError(.notConnectedToInternet))
-            }
+    func testPullToRefreshRefreshesInPlace() async throws {
+        try await assertFortyRowsRefreshInPlace { await $0.reload() }
+    }
+
+    func testARefreshThatFailsOnPageTwoKeepsTheOldBoardAndItsFreshnessLine() async throws {
+        let (loader, transport, _) = try fortyRows(then: [.page(Self.reordered(Self.firstPage)), .failure])
+        await loader.load()
+        await loader.loadMore()
+        let before = loader.rows.map(\.id)
+
+        await loader.load()
+
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 4)
+        XCTAssertEqual(loader.rows.map(\.id), before)
+        XCTAssertEqual(loader.moves, [:])
+        XCTAssertNil(loader.toast)
+    }
+
+    func testAFailedRefreshOnAppearKeepsTheRowsAndSetsNoToast() async throws {
+        let (loader, _, _) = try make(.people, [.page(.samplePeople()), .failure])
+        await loader.load()
+
+        await loader.load()
+
+        XCTAssertEqual(loader.rows.count, 3)
+        XCTAssertEqual(loader.phase, .loaded)
+        XCTAssertFalse(loader.isLoading)
+        XCTAssertNil(loader.toast)
+    }
+
+    func testAFailedPullToRefreshKeepsTheRowsAndToasts() async throws {
+        let (loader, _, _) = try make(.people, [.page(.samplePeople()), .failure])
+        await loader.load()
+
+        await loader.reload()
+
+        XCTAssertEqual(loader.rows.count, 3)
+        XCTAssertEqual(loader.phase, .loaded)
+        XCTAssertEqual(loader.toast, "You're offline. Try again.")
+    }
+
+    func testChangingTheRangeStillFadesTheBoardWhileTheNewRangeLoads() async throws {
+        let (loader, transport, _) = try make(.people, [.page(.samplePeople()), .gate])
+        await loader.load()
+
+        loader.select(range: .oneDay)
+        await transport.waitForRequests(2)
+
+        XCTAssertTrue(loader.isLoading)
+        await transport.releaseGate(try Script.page(.samplePeople(range: ._1d, count: 2)).reply())
+        while loader.isLoading { await Task.yield() }
+        XCTAssertEqual(loader.rows.count, 2)
+    }
+
+    private static let firstPage = Page.samplePeople(count: 20, nextCursor: "c2")
+    private static let secondPage = Page.samplePeople(firstRank: 21, count: 20)
+
+    private static func reordered(_ page: Page) -> Page {
+        page.with(rows: [page.rows[1].ranked(1), page.rows[0].ranked(2)] + page.rows[2...])
+    }
+
+    private func fortyRows(then script: [Script]) throws -> (LeaderboardLoader, StubTransport, FakeHintStream) {
+        try make(.people, [.page(Self.firstPage), .page(Self.secondPage)] + script)
+    }
+
+    private func assertFortyRowsRefreshInPlace(
+        _ trigger: @escaping @MainActor (LeaderboardLoader) async -> Void
+    ) async throws {
+        let (loader, transport, _) = try fortyRows(then: [.gate, .gate])
+        await loader.load()
+        await loader.loadMore()
+        let before = loader.rows.map(\.id)
+        XCTAssertEqual(before.count, 40)
+
+        let refresh = Task { await trigger(loader) }
+        await transport.waitForRequests(3)
+        XCTAssertFalse(loader.isLoading)
+        XCTAssertEqual(loader.rows.map(\.id), before)
+        await transport.releaseGate(try Script.page(Self.reordered(Self.firstPage)).reply())
+        await transport.waitForRequests(4)
+        XCTAssertFalse(loader.isLoading)
+        XCTAssertEqual(loader.rows.map(\.id), before)
+        await transport.releaseGate(try Script.page(Self.secondPage).reply())
+        await refresh.value
+
+        XCTAssertFalse(loader.isLoading)
+        XCTAssertEqual(loader.rows.count, 40)
+        XCTAssertEqual(Array(loader.rows.map(\.id).prefix(3)), ["user-2", "user-1", "user-3"])
+        XCTAssertEqual(loader.moves, ["user-2": 1, "user-1": -1])
+        XCTAssertFalse(loader.hasMore)
+        XCTAssertNil(loader.toast)
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(
+            paths.suffix(2),
+            [
+                "/v1/leaderboards/people?range=ALL&filter=all",
+                "/v1/leaderboards/people?range=ALL&cursor=c2&filter=all",
+            ])
+    }
+}
+
+private enum Script {
+    case page(Page)
+    case failure
+    case gate
+
+    func reply() throws -> StubTransport.Reply {
+        switch self {
+        case .page(let page):
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            return .json(.ok, String(decoding: try encoder.encode(page), as: UTF8.self))
+        case .failure:
+            return .failure(URLError(.notConnectedToInternet))
+        case .gate:
+            return .gate
         }
     }
+}
 
-    private func make(
-        _ board: LeaderboardBoard, _ script: [Script]
-    ) throws -> (LeaderboardLoader, StubTransport, FakeHintStream) {
-        let transport = StubTransport(scripted: try script.map { try $0.reply() })
-        let hints = FakeHintStream()
-        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        return (LeaderboardLoader(board: board, api: api, hints: hints), transport, hints)
-    }
+@MainActor
+private func make(
+    _ board: LeaderboardBoard, _ script: [Script]
+) throws -> (LeaderboardLoader, StubTransport, FakeHintStream) {
+    let transport = StubTransport(scripted: try script.map { try $0.reply() })
+    let hints = FakeHintStream()
+    let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+    return (LeaderboardLoader(board: board, api: api, hints: hints), transport, hints)
 }
 
 extension Components.Schemas.LeaderboardPage {
