@@ -282,28 +282,12 @@ enum MonacoTheme {
         static let micro = captionStrong
         /// The SF Mono market voice is gone: a ticker sets in SF Pro.
         static var ticker: Font { headline }
-        static let quoteHero = Font.largeTitle.bold().monospacedDigit()
         static let quote = Font.subheadline.weight(.semibold).monospacedDigit()
         static let data = Font.subheadline.monospacedDigit()
         static let dataStrong = Font.subheadline.weight(.semibold).monospacedDigit()
         static let dataCaption = Font.subheadline.weight(.medium).monospacedDigit()
         static let dataMicro = Font.footnote.weight(.semibold).monospacedDigit()
         static let stamp = Font.footnote.weight(.medium).monospacedDigit()
-
-        // MARK: Money statics for older call sites
-
-        /// Prefer `.moneyFont(_:)`. These statics pre-scale with `UIFontMetrics`, so they ignore a
-        /// `.dynamicTypeSize` cap on the view tree and do not re-render when the text size changes.
-        static var moneyHero: Font { money(size: 48, weight: .bold, relativeTo: .largeTitle) }
-        static var moneyLarge: Font { money(size: 32, weight: .bold, relativeTo: .title1) }
-        static var moneyRow: Font { money(size: 18, weight: .semibold, relativeTo: .body) }
-        static var moneyCaption: Font { money(size: 15, weight: .semibold, relativeTo: .subheadline) }
-
-        /// Tabular SF Pro pre-scaled against the process-wide content size category.
-        /// Prefer `.moneyFont(_:)`, which scales inside the view tree.
-        static func money(size: CGFloat, weight: Font.Weight, relativeTo style: UIFont.TextStyle) -> Font {
-            scaled(size: size, weight: weight, relativeTo: style).monospacedDigit()
-        }
 
         /// SF Pro at a size no system text style has, pre-scaled against the process-wide content
         /// size category. SwiftUI scales only a custom-named font with `relativeTo:`, never the

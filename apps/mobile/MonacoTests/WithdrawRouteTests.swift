@@ -32,6 +32,12 @@ struct WithdrawRouteTests {
         #expect(toast.link == nil)
     }
 
+    @Test func confirmShowsTheFlooredBalanceWithAFullBalanceCaption() {
+        #expect(WithdrawConfirmView.fullBalanceFigure(1_234_569_999) == 1_234_560_000)
+        #expect(UsdAmountFormatter.format(micros: WithdrawConfirmView.fullBalanceFigure(1_234_569_999)) == "$1,234.56")
+        #expect(WithdrawConfirmView.fullBalanceCaption == "Full balance")
+    }
+
     @Test func nothingSettledToastsNothing() {
         #expect(WithdrawView.toast(for: .submitting) == nil)
         #expect(WithdrawView.toast(for: .idle) == nil)

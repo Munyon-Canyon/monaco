@@ -160,7 +160,7 @@ struct AmountEntry<Accessory: View>: View {
         ZStack {
             HStack(alignment: .center, spacing: 2) {
                 // `moneyFont` scales inside the view tree, so the cap below reaches the figure;
-                // the pre-scaled `Typo.moneyHero` it used to set ignored it.
+                // a pre-scaled font would ignore it.
                 Text(AmountEntryText.display(amountText))
                     .moneyFont(.hero)
                     .foregroundStyle(figureColor)

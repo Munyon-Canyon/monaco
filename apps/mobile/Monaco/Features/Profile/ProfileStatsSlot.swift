@@ -118,7 +118,7 @@ private struct ProfileStatColumn: View {
     private func figures(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 0) {
             Text(value)
-                .font(MonacoTheme.Typo.moneyRow)
+                .moneyFont(.row)
                 .foregroundStyle(tone ?? MonacoTheme.ink)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)

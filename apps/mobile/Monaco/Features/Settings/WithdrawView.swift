@@ -40,7 +40,7 @@ struct WithdrawView: View {
             WithdrawConfirmView(
                 destinationAddress: trimmedAddress,
                 amountText: amount.text,
-                fullBalanceLabel: amount.fullBalanceLabel(availableMicros: balanceSource?.balance?.availableMicros),
+                fullBalanceMicros: amount.withdrawAll ? balanceSource?.balance?.availableMicros : nil,
                 isSubmitting: withdrawing?.isSubmitting ?? false,
                 onWithdraw: { Task { await withdraw() } }
             )
