@@ -70,6 +70,7 @@ private actor SampleChatStore {
     private var listCalls = 0
     private var postCalls = 0
     private var arrivals = 0
+    private var listeners: [UUID: AsyncStream<ChatRealtimeEvent>.Continuation] = [:]
     static let threadRootID = "root-1"
 
     init(scenario: ChatSampleScenario) {
@@ -116,8 +117,21 @@ private actor SampleChatStore {
         if let parentID, let index = messages.firstIndex(where: { $0.id == parentID }) {
             messages[index].replyCount += 1
             messages[index].lastReplyAt = message.createdAt
+            let update = ChatRealtimeEvent.threadUpdated(
+                id: parentID, replyCount: messages[index].replyCount, lastReplyAt: message.createdAt)
+            for listener in listeners.values { listener.yield(update) }
         }
         return message
+    }
+
+    func listen(_ continuation: AsyncStream<ChatRealtimeEvent>.Continuation) -> UUID {
+        let id = UUID()
+        listeners[id] = continuation
+        return id
+    }
+
+    func stopListening(_ id: UUID) {
+        listeners[id] = nil
     }
 
     func arrival() -> ChatMessage {
@@ -178,7 +192,11 @@ private struct SampleChatRealtime: ChatRealtime {
                     continuation.yield(.messageCreated(await store.arrival()))
                 }
             }
-            continuation.onTermination = { _ in arrivals.cancel() }
+            let listening = Task { await store.listen(continuation) }
+            continuation.onTermination = { _ in
+                arrivals.cancel()
+                Task { await store.stopListening(await listening.value) }
+            }
         }
     }
 

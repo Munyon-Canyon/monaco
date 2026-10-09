@@ -9,6 +9,7 @@ public enum ChatThreadCopy {
     public static let cancel = "Cancel"
     public static let composerPlaceholder = "Reply in thread"
     public static let alsoInChannel = "Also send to channel"
+    public static let parentDeleted = "This message was deleted."
     public static let noReplies = "No replies yet. Start the thread."
     public static let loadFailure = "Couldn't load this thread."
     public static let headerPrefix = "replied to a thread"
@@ -26,7 +27,8 @@ public enum ChatThreadCopy {
         guard let snippet = parentBody?.trimmingCharacters(in: .whitespacesAndNewlines), !snippet.isEmpty else {
             return headerPrefix
         }
-        return "\(headerPrefix): \(String(snippet.prefix(snippetLength)))"
+        let cut = snippet.count > snippetLength
+        return "\(headerPrefix): \(String(snippet.prefix(snippetLength)))\(cut ? "…" : "")"
     }
 
     private static func age(of date: Date, now: Date, calendar: Calendar) -> String {

@@ -47,7 +47,9 @@ public enum MentionInsertion {
         guard let at = MentionQuery.atOffset(in: text, cursor: cursor) else { return (text, cursor) }
         let chars = Array(text)
         let inserted = "@\(handle) "
-        let result = String(chars[..<at]) + inserted + String(chars[cursor...])
+        var end = cursor
+        while end < chars.count, isHandleCharacter(chars[end]) { end += 1 }
+        let result = String(chars[..<at]) + inserted + String(chars[end...])
         return (result, at + inserted.count)
     }
 

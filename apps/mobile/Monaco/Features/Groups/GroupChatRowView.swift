@@ -91,7 +91,8 @@ struct GroupChatRowView: View {
                 .foregroundStyle(textColor)
         } else {
             ChatMessageText(
-                text: message.body ?? "", members: members, color: textColor, openProfile: openProfile)
+                text: message.body ?? "", members: members, color: textColor,
+                mentionColor: row.isMine ? nil : MonacoTheme.brand, openProfile: openProfile)
         }
     }
 
