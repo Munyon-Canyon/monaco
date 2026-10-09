@@ -66,7 +66,7 @@ The status is a state machine with a `transitions` table and guarded updates ([S
 - Holds no secrets. It talks only to the Monaco API (token exchange, status report) and Privy.
 - CSP limits scripts and frames to Privy and its providers. Page is never framed (`X-Frame-Options: DENY` already set).
 - Privy dashboard: enable fiat on-ramp, allow-list `monacolabs.xyz` as an app domain.
-- `environment: 'sandbox'` in dev, `production` in prod, chosen at build time.
+- `environment: 'sandbox'` in local dev, `production` on staging and prod (real money), chosen at build time by `VITE_PRIVY_ENV`.
 
 ## Crypto deposit flow
 
