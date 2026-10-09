@@ -102,6 +102,7 @@ chat-loading                      -MonacoChatSampleQA -MonacoChatSampleLoading
 chat-thread-toggle            -MonacoChatThreadSampleQA
 proposal-detail-retryable     -MonacoProposalDetailSample failedRetryable
 proposal-detail-final-failure -MonacoProposalDetailSample failedFinal
+proposal-detail-price-moved   -MonacoProposalDetailSample priceMoved
 propose-amount-sample         -MonacoProposeAmountSample
 stocks-sections               -MonacoStocksSectionsSample
 

@@ -57,7 +57,7 @@ public struct ProposalStepper: Equatable, Sendable {
 
     public static func make(
         status: ProposalStatus, isSell: Bool, swapFailed: Bool = false, expiresAt: Date,
-        failureMessage: String? = nil, statusMessage: String? = nil
+        failureMessage: String? = nil, statusMessage: String? = nil, priceMoved: Bool = false
     ) -> Self {
         let action = isSell ? "sell" : "buy"
         let doing = isSell ? "Selling" : "Buying"
@@ -77,7 +77,9 @@ public struct ProposalStepper: Equatable, Sendable {
             let note: String?
             if swapFailed {
                 let kept = isSell ? "The shares are still in the pot." : "The money is still in the pot."
-                if let message = failureMessage ?? statusMessage {
+                if priceMoved {
+                    note = "The price moved past the cabal's limit since the vote. " + kept
+                } else if let message = failureMessage ?? statusMessage {
                     note = (message.hasSuffix(".") ? message : message + ".") + " " + kept
                 } else {
                     note = kept

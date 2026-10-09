@@ -4,12 +4,17 @@ import MonacoAPI
 public struct ProposalSwap: Equatable, Sendable {
     public let status: String
     public let id: String?
+    public let failureCode: String?
     public let failureMessage: String?
     public let retryable: Bool
+
+    public static let priceMovedCode = "price_moved"
+    public var isPriceMoved: Bool { status == "failed" && failureCode == Self.priceMovedCode }
 
     init(_ swap: Components.Schemas.ProposalDetail.SwapPayload?) {
         status = swap?.status.rawValue ?? ""
         id = swap?.swapId
+        failureCode = swap?.failureCode
         failureMessage = swap?.failureMessage
         retryable = swap?.retryable ?? false
     }
@@ -265,10 +270,26 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
-    public func retrySwap(id: String, submission: IdempotentSubmission) async throws {
-        try await api.submit(submission, payload: id, operation: "postSwapRetry") { client, key in
-            _ = try await client.postSwapRetry(path: .init(id: id), headers: .init(idempotencyKey: key))
-                .accepted.body.json
+    public func retrySwap(id: String, atCurrentPrice: Bool = false, submission: IdempotentSubmission) async throws {
+        let body = atCurrentPrice ? Components.Schemas.SwapRetryRequest(atCurrentPrice: true) : nil
+        try await api.submit(
+            submission, payload: SwapRetryPayload(id: id, atCurrentPrice: atCurrentPrice), operation: "postSwapRetry"
+        ) { client, key in
+            _ = try await client.postSwapRetry(
+                path: .init(id: id), headers: .init(idempotencyKey: key), body: body.map { .json($0) }
+            ).accepted.body.json
+        }
+    }
+
+    public func liveQuote(for proposal: ProposalSummary) async throws -> Int64? {
+        let isSell = proposal.kind == "sell"
+        return try await api.read { client in
+            try await client.getCabalProposalPreview(
+                path: .init(id: proposal.cabalID),
+                query: .init(
+                    kind: isSell ? .sell : .buy, symbol: proposal.symbol,
+                    usdcMicros: isSell ? nil : proposal.usdcMicros, tokenAmount: isSell ? proposal.tokenAmount : nil)
+            ).ok.body.json.quoteOutAmount
         }
     }
 
@@ -305,4 +326,9 @@ public struct ProposalsRepository: Sendable {
             try await client.getMyPendingVotes().ok.body.json.map(PendingVote.init)
         }
     }
+}
+
+private struct SwapRetryPayload: Encodable, Sendable {
+    let id: String
+    let atCurrentPrice: Bool
 }
