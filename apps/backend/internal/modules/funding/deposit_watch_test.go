@@ -146,6 +146,7 @@ func watchFor(
 		testkit.USDCMint,
 		app.DepositPollInterval,
 		limit,
+		480,
 	)
 }
 
@@ -270,7 +271,7 @@ func TestDepositWatchCommitsCandidatesWithTheCheckpointOfAWholePage(t *testing.T
 	p := app.NewDepositWatch(
 		pool, db.New(pool, testkit.NewIDs(76), watchClock), testkit.NewIDs(77), watchClock,
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, budget,
+		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, 480,
 	)
 	ctx := watchActor(t)
 	watchClock.Advance(time.Second)

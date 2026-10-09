@@ -153,6 +153,7 @@ type Market struct {
 type Funding struct {
 	DepositPollInterval       time.Duration
 	DepositRPCRate            int32
+	DepositTickBudget         int32
 	TreasuryReconcileInterval time.Duration
 	BounceSweepInterval       time.Duration
 	BounceSweepAge            time.Duration
@@ -456,6 +457,7 @@ func fundingFields() []field {
 		duration("FUNDING_DEPOSIT_POLL_INTERVAL", 30*time.Second,
 			func(c *Config) *time.Duration { return &c.Funding.DepositPollInterval }),
 		count("FUNDING_DEPOSIT_RPC_RATE", 20, func(c *Config) *int32 { return &c.Funding.DepositRPCRate }),
+		count("FUNDING_DEPOSIT_TICK_BUDGET", 480, func(c *Config) *int32 { return &c.Funding.DepositTickBudget }),
 		duration("FUNDING_TREASURY_RECONCILE_INTERVAL", 60*time.Second,
 			func(c *Config) *time.Duration { return &c.Funding.TreasuryReconcileInterval }),
 		duration("FUNDING_BOUNCE_SWEEP_INTERVAL", 30*time.Second,
