@@ -4,6 +4,7 @@ import Foundation
 extension Components.Schemas.CabalPot {
     public static let sampleInvested = sample(
         potValueMicros: 1_000_000_000, cashMicros: 750_000_000, cashWeightBps: 7500, pnlMicros: 730_000,
+        returnBps: 7,
         holdings: [
             Components.Schemas.CabalHolding(
                 symbol: "GOOGLx", displayName: "Alphabet", kind: .equity, units: "0.7300", tokenAmount: 73_000_000,
@@ -30,12 +31,12 @@ extension Components.Schemas.CabalPot {
         holdings: sampleInvested.holdings, me: nil)
 
     public static func sample(
-        potValueMicros: Int64, cashMicros: Int64, cashWeightBps: Int32, pnlMicros: Int64,
+        potValueMicros: Int64, cashMicros: Int64, cashWeightBps: Int32, pnlMicros: Int64, returnBps: Int32? = nil,
         holdings: [Components.Schemas.CabalHolding], me: MePayload?
     ) -> Self {
         Self(
             cabalId: "01890a5d-ac96-774b-bcce-b302099a8059", potValueMicros: potValueMicros, cashMicros: cashMicros,
-            cashWeightBps: cashWeightBps, pnlMicros: pnlMicros, returnBps: nil,
+            cashWeightBps: cashWeightBps, pnlMicros: pnlMicros, returnBps: returnBps,
             pricesAsOf: Date(timeIntervalSince1970: 1_790_996_400), holdings: holdings, me: me)
     }
 }
