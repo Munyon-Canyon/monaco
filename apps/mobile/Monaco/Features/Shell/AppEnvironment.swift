@@ -27,6 +27,7 @@ final class AppEnvironment {
 
     private let privyAuthenticated: @MainActor () -> Bool
     private let endAuthSession: @MainActor () async -> Void
+    private let endExpiredSession: @MainActor () async -> Void
     private var isSigningOut = false
     private var sceneIsActive = false
 
@@ -46,7 +47,8 @@ final class AppEnvironment {
         hints: any HintConnecting,
         sessionStore: AppSessionStore? = nil,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
-        endAuthSession: (@MainActor () async -> Void)? = nil
+        endAuthSession: (@MainActor () async -> Void)? = nil,
+        endExpiredSession: (@MainActor () async -> Void)? = nil
     ) {
         let tokens = tokens ?? SessionTokens(auth: auth)
         self.auth = auth
@@ -79,12 +81,14 @@ final class AppEnvironment {
             )
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }
+        self.endExpiredSession =
+            endExpiredSession ?? { await auth.logout(reason: LoginFailureCopy.sessionExpired) }
         self.sessionStore.onProfileChange = { [weak self] next in
             self?.sessionDidChange(next)
         }
         tokens.onSignedOut { [weak self] in
             Task { @MainActor in
-                await self?.signOut()
+                await self?.signOut(expired: true)
             }
         }
         auth.pushRegistrar = push
@@ -145,7 +149,7 @@ final class AppEnvironment {
     }
     #endif
 
-    func signOut() async {
+    func signOut(expired: Bool = false) async {
         guard !isSigningOut else { return }
         isSigningOut = true
         defer { isSigningOut = false }
@@ -155,7 +159,7 @@ final class AppEnvironment {
         #if DEBUG
         tokens.use(nil)
         #endif
-        await endAuthSession()
+        await (expired ? endExpiredSession : endAuthSession)()
         viewer = nil
     }
 
