@@ -21,7 +21,8 @@ struct AssetDetailClientView: View {
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await start()
-                await model?.loadHeldByVotingCabal()
+                await model?.loadStats()
+                await model?.loadCabalPositions()
                 await model?.observe()
             }
             .onScreenVisibilityChange { model?.setVisible($0) }
@@ -71,6 +72,8 @@ struct AssetDetailClientView: View {
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
+                stats(detail, model: model)
+                cabalPositions(model.positions)
                 otherListings(detail.otherListings)
             }
             .padding(.vertical, MonacoTheme.Space.m)
@@ -211,7 +214,7 @@ struct AssetDetailClientView: View {
                                 title: listing.name, subtitle: listing.ticker, chevron: true,
                                 isLast: listing.id == listings.last?.id
                             ) {
-                                EmptyView()
+                                StockMark(symbol: listing.symbol, displayName: listing.name, assetKind: listing.kind)
                             } trailing: {
                                 if let issuer = listing.issuer.displayName {
                                     Text(issuer).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.muted)
@@ -238,6 +241,73 @@ struct AssetDetailClientView: View {
 }
 
 extension AssetDetailClientView {
+    @ViewBuilder
+    fileprivate func stats(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
+        if let stats = model.stats {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                MonacoSectionHeader("Stats")
+                MonacoGroupedList {
+                    let rows = Self.statRows(stats)
+                    ForEach(rows, id: \.label) { row in
+                        ReceiptLine(label: row.label, value: .data(row.value), isLast: row.label == rows.last?.label)
+                    }
+                }
+                if let basisPoints = stats.yearRangeBasisPoints(priceMicros: detail.priceMicros),
+                    let low = stats.yearLow, let high = stats.yearHigh
+                {
+                    YearRangeBar(low: low, high: high, basisPoints: basisPoints)
+                }
+            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("asset-stats")
+        }
+    }
+
+    fileprivate static func statRows(_ stats: AssetStats) -> [(label: String, value: String)] {
+        [
+            ("Open", stats.open), ("Day high", stats.dayHigh), ("Day low", stats.dayLow),
+            ("Previous close", stats.previousClose), ("52-week high", stats.yearHigh), ("52-week low", stats.yearLow),
+        ].compactMap { label, micros in micros.map { (label, UsdAmountFormatter.format(micros: $0)) } }
+    }
+
+    @ViewBuilder
+    fileprivate func cabalPositions(_ positions: [AssetCabalPosition]) -> some View {
+        if !positions.isEmpty {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                MonacoSectionHeader("Your cabals' position")
+                MonacoGroupedList {
+                    ForEach(positions) { position in
+                        Button {
+                            environment.navigator.open(CabalRoute(id: position.cabalID), in: hostMainTab ?? .stocks)
+                        } label: {
+                            MonacoRow(
+                                title: position.cabalName, subtitle: position.sharesLabel, chevron: true,
+                                isLast: position.id == positions.last?.id
+                            ) {
+                                CabalMark(
+                                    groupId: position.cabalID, name: position.cabalName,
+                                    pictureUrl: position.pictureURL)
+                            } trailing: {
+                                VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
+                                    MoneyText(micros: position.valueMicros, style: .row)
+                                    if let bps = position.returnBasisPoints {
+                                        PnLBadge(signedMicros: position.pnlMicros, basisPoints: bps)
+                                    }
+                                }
+                            }
+                        }
+                        .buttonStyle(.monacoRow)
+                        .accessibilityIdentifier("asset-position-\(position.cabalID)")
+                    }
+                }
+            }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("asset-cabal-positions")
+        }
+    }
+
     fileprivate func proposeBar(_ detail: AssetDetailPresentation, model: AssetDetailClientModel) -> some View {
         BottomCTA {
             VStack(spacing: MonacoTheme.Space.xs) {
@@ -265,6 +335,39 @@ extension AssetDetailClientView {
                     .foregroundStyle(MonacoTheme.muted)
             }
         }
+    }
+}
+
+private struct YearRangeBar: View {
+    let low: Int64
+    let high: Int64
+    let basisPoints: Int64
+
+    var body: some View {
+        VStack(spacing: MonacoTheme.Space.xs) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(MonacoTheme.surfaceSunken)
+                    Circle()
+                        .fill(MonacoTheme.brand)
+                        .frame(width: 12, height: 12)
+                        .offset(x: (proxy.size.width - 12) * CGFloat(basisPoints) / 10_000)
+                }
+            }
+            .frame(height: 12)
+            HStack {
+                Text(UsdAmountFormatter.format(micros: low))
+                Spacer()
+                Text(UsdAmountFormatter.format(micros: high))
+            }
+            .font(MonacoTheme.Typo.dataCaption)
+            .foregroundStyle(MonacoTheme.muted)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "52-week range, \(UsdAmountFormatter.format(micros: low)) to \(UsdAmountFormatter.format(micros: high))"
+        )
+        .accessibilityIdentifier("asset-year-range")
     }
 }
 
