@@ -38,7 +38,7 @@ user_id() {
 token() {
   local error_file out
   error_file="$(mktemp)"
-  if ! out="$(scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h 2>"$error_file")"; then
+  if ! out="$(scripts/qa/monacoctl.sh dev token --user "$1" "${@:2}" --ttl 1h 2>"$error_file")"; then
     grep -v -e '^with-dotenv-local:' -e 'injected env' "$error_file" >&2 || true
     echo "monacoctl dev token --user $1 failed" >&2
     rm -f "$error_file"
@@ -103,7 +103,7 @@ fi
 decline_all "$token_a"
 decline_all "$token_b"
 
-host_token="$(token new)"
+host_token="$(token new --pool invite-host)"
 call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
 name="QA pot $(date +%H%M%S)"
 cabal="$(call POST /v1/cabals "$host_token" \

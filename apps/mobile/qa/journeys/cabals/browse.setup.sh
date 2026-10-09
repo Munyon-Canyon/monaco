@@ -38,7 +38,7 @@ user_id() {
 token() {
   local error_file out
   error_file="$(mktemp)"
-  if ! out="$(scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h 2>"$error_file")"; then
+  if ! out="$(scripts/qa/monacoctl.sh dev token --user "$1" "${@:2}" --ttl 1h 2>"$error_file")"; then
     grep -v -e '^with-dotenv-local:' -e 'injected env' "$error_file" >&2 || true
     echo "monacoctl dev token --user $1 failed" >&2
     rm -f "$error_file"
@@ -87,7 +87,7 @@ token_a="$(token "$id_a")"
 ready_actor A "$token_a"
 host() {
   local bearer
-  bearer="$(token new)"
+  bearer="$(token new --pool browse-host)"
   call PATCH /v1/me "$bearer" '{"display_name":"QA host"}' >/dev/null
   echo "$bearer"
 }

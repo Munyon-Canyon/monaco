@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario of docs/journeys/governance/vote.md with the scenario id.
-# Every scenario gets its own cabal from a new "QA host" user, with A and B as members and one open
+# Every scenario gets its own cabal from the pooled "QA host" user, with A and B as members and one open
 # buy proposal by the host. S3 adds an expired proposal. The proposal rows are written the way
 # governance.ProposeTrade writes them, because the propose route needs a Jupiter route and pot funds.
 set -euo pipefail
@@ -54,7 +54,7 @@ user_id() {
 }
 
 token() {
-  scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h || fail "monacoctl dev token --user $1 failed"
+  scripts/qa/monacoctl.sh dev token --user "$1" "${@:2}" --ttl 1h || fail "monacoctl dev token --user $1 failed"
 }
 
 call() {
@@ -183,14 +183,9 @@ ready_actor B "$token_b"
 
 closed="$(expire_open_proposals "$id_a" "$id_b")"
 
-# Reuse the newest QA host: Privy caps the app's users, so a new one per scenario eventually fails.
-host_user="$(sql <<<"SELECT id FROM users WHERE display_name = 'QA host' ORDER BY id DESC LIMIT 1")"
-if [[ -n "$host_user" ]]; then
-  host_token="$(token "$host_user")"
-else
-  host_token="$(token new)"
-  call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
-fi
+# The host is the same pooled dev user every run: Privy caps the app's users.
+host_token="$(token new --pool vote-host)"
+call PATCH /v1/me "$host_token" '{"display_name":"QA host"}' >/dev/null
 host_id="$(call GET /v1/me "$host_token" | field id)"
 cabal_name="QA vote $run $scenario"
 cabal_id="$(call POST /v1/cabals "$host_token" \

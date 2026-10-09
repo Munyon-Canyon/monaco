@@ -40,7 +40,7 @@ call() {
 }
 
 dev_token() {
-  scripts/qa/monacoctl.sh dev token --user "$1" --ttl 1h \
+  scripts/qa/monacoctl.sh dev token --user "$1" "${@:2}" --ttl 1h \
     2> >(grep -v -e '^with-dotenv-local:' -e 'injected env' >&2) || fail "monacoctl dev token --user $1 failed"
 }
 
@@ -61,7 +61,7 @@ for invite in json.load(sys.stdin):
   call POST "/v1/cabals/$cabal/access-requests/$request/decision" "$token_b" '{"decision":"deny"}' >/dev/null
 done
 
-host="$(dev_token new)"
+host="$(dev_token new --pool push-host)"
 call PATCH /v1/me "$host" '{"display_name":"QA push host"}' >/dev/null || fail "could not name the dev host"
 name="QA push $run"
 cabal="$(call POST /v1/cabals "$host" \
