@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -69,6 +70,19 @@ func seedProposal(s *scenario.Scenario, members int, sell bool) openProposal {
 	return p
 }
 
+func (p openProposal) emptyTreasury() scenario.Step {
+	return func(s *scenario.Scenario) {
+		var address string
+		if err := s.DB().QueryRow(s.Context(), `SELECT address FROM treasury_wallets WHERE cabal_id = $1`,
+			p.cabalID.UUID()).Scan(&address); err != nil {
+			s.Fatalf("flows: read the treasury address: %v", err)
+		}
+		scenario.FakeBalance(fakes.SetBalance{
+			Owner: address, Mint: string(testkit.USDCMint), Amount: 0, Decimals: 6,
+		})(s)
+	}
+}
+
 func seedFeedCabal(s *scenario.Scenario, cabal ids.CabalID) {
 	s.Helper()
 	if _, err := s.DB().Exec(s.Context(), `INSERT INTO feed_cabals (cabal_id, name, updated_at)
@@ -103,7 +117,7 @@ func passedProposal(p openProposal) events.ProposalPassed {
 
 func F10CastVoteOK(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 3)
-	s.Given(scenario.AsUser("mallory"), scenario.AsSeededUser("alice", p.voters[0])).
+	s.Given(p.emptyTreasury(), scenario.AsUser("mallory"), scenario.AsSeededUser("alice", p.voters[0])).
 		When(
 			scenario.Post(p.votes, no),
 			scenario.ExpectStatus(http.StatusOK),
@@ -180,7 +194,7 @@ func F10CastVoteProposalClosed(s *scenario.Scenario) {
 
 func F10CastVoteCrashAfterPublish(s *scenario.Scenario) {
 	p := seedOpenProposal(s, 1)
-	s.Given(scenario.AsSeededUser("alice", p.voters[0]), scenario.HoldRelay()).
+	s.Given(p.emptyTreasury(), scenario.AsSeededUser("alice", p.voters[0]), scenario.HoldRelay()).
 		When(
 			scenario.Post(p.votes, yes),
 			scenario.ExpectStatus(http.StatusOK),

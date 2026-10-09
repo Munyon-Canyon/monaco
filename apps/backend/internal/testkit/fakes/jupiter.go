@@ -60,36 +60,49 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 	taker := q.Get("taker")
 	quoted, ok := s.quotedOrder()
 	walletID, held := s.walletAt(taker)
-	if !ok || !held {
+	if !ok || taker != "" && !held {
 		s.serveFixture(w, []string{orderRoute})
 		return
 	}
 	in, okIn := new(big.Int).SetString(q.Get("amount"), 10)
 	bps, okBps := slippageBps(q.Get("slippageBps"))
-	signers, err := orderSigners(q.Get("payer"), taker)
-	if !okIn || in.Sign() <= 0 || err != nil || !okBps {
-		writeStatusJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid order", "errorCode": 400})
+	if !okIn || in.Sign() <= 0 || !okBps {
+		rejectOrder(w)
 		return
 	}
 	out := scaled(in, quoted)
+	reply := orderReply{
+		RequestID: quoted.RequestID, InputMint: q.Get("inputMint"), OutputMint: q.Get("outputMint"),
+		InAmount: in.String(), OutAmount: out, OtherAmountThreshold: threshold(out, bps),
+		Router: "iris", PriceImpactPct: "0.12",
+		RoutePlan: []map[string]any{{"swapInfo": map[string]string{"label": "Meteora DLMM"}, "percent": 100}},
+	}
+	if taker == "" {
+		writeJSON(w, reply)
+		return
+	}
+	signers, err := orderSigners(q.Get("payer"), taker)
+	if err != nil {
+		rejectOrder(w)
+		return
+	}
 	s.mu.Lock()
 	s.orderCount++
 	n := s.orderCount
-	id := "req-" + strconv.FormatUint(n, 10)
-	s.orders[id] = swapOrder{taker: taker, outMint: q.Get("outputMint"), in: in.String(), out: out}
+	reply.RequestID = "req-" + strconv.FormatUint(n, 10)
+	s.orders[reply.RequestID] = swapOrder{taker: taker, outMint: reply.OutputMint, in: reply.InAmount, out: out}
 	tx := unsignedTx(signers, n)
 	s.blockhashes[blockhashOf(tx)] = true
 	if sig, ok := expectedSignature(walletID, tx); ok {
 		s.unexecuted[sig] = true
 	}
 	s.mu.Unlock()
-	writeJSON(w, orderReply{
-		RequestID: id, InputMint: q.Get("inputMint"), OutputMint: q.Get("outputMint"),
-		InAmount: in.String(), OutAmount: out, OtherAmountThreshold: threshold(out, bps),
-		Router: "iris", PriceImpactPct: "0.12",
-		RoutePlan:   []map[string]any{{"swapInfo": map[string]string{"label": "Meteora DLMM"}, "percent": 100}},
-		Transaction: base64.StdEncoding.EncodeToString(tx),
-	})
+	reply.Transaction = base64.StdEncoding.EncodeToString(tx)
+	writeJSON(w, reply)
+}
+
+func rejectOrder(w http.ResponseWriter) {
+	writeStatusJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid order", "errorCode": 400})
 }
 
 func (s *Server) quotedOrder() (orderReply, bool) {

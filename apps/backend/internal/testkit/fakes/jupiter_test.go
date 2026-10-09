@@ -288,3 +288,26 @@ func TestJupiter_anOrderRefusesASlippageOutsideZeroToTenThousandBps(t *testing.T
 		}
 	}
 }
+
+func TestJupiter_aQuoteScalesWithTheAmountUnlessAFixtureIsScripted(t *testing.T) {
+	t.Parallel()
+	h := newSwapHarness(t)
+	spec := func(amount uint64) jupiter.QuoteSpec {
+		return jupiter.QuoteSpec{
+			In:     jupiter.Mint{Address: string(usdcMint), Decimals: 6},
+			Out:    jupiter.Mint{Address: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", Decimals: 8},
+			Amount: money.NewBaseUnits(amount, 6),
+		}
+	}
+	for amount, want := range map[uint64]uint64{5_000_000: 2_200_000, 25_000_000: 11_000_000, 50_000_000: 22_000_000} {
+		got, err := h.jup.Quote(t.Context(), spec(amount))
+		if err != nil || !got.Routable || got.InAmount.Uint64() != amount || got.OutAmount.Uint64() != want {
+			t.Fatalf("Quote(%d) = %+v, %v, want %d in and %d out", amount, got, err, amount, want)
+		}
+	}
+	h.post("/_script", `{"route":"/jupiter/swap/v2/order","query":{"amount":"7000000"},"action":"succeed",`+
+		`"fixture":"/jupiter/swap/v2/order/no-route"}`)
+	if got, err := h.jup.Quote(t.Context(), spec(7_000_000)); err != nil || got.Routable {
+		t.Fatalf("Quote with the no-route fixture scripted = %+v, %v, want unroutable", got, err)
+	}
+}

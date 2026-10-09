@@ -11,5 +11,5 @@ import (
 
 func TestFlow10_CastVote_CrashAfterPublish(t *testing.T) {
 	t.Parallel()
-	flows.F10CastVoteCrashAfterPublish(scenario.New(t, withGovernance()))
+	flows.F10CastVoteCrashAfterPublish(scenario.New(t, withGovernance(), withFakes()))
 }
