@@ -155,7 +155,7 @@ func TestFeedStoreUpsertItem_refreshesTheSnapshotAndKeepsIdentityAndStatus(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 1 || title != "A member proposed buying $500.00 of AAPLx in Bravo" || name != "Bravo" ||
+	if count != 1 || title != "A member proposed buying $500.00 of Apple in Bravo" || name != "Bravo" ||
 		status != "open" ||
 		!createdAt.Equal(created) ||
 		!updated.Equal(f.clock.Now()) {

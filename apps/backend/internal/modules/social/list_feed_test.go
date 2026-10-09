@@ -182,7 +182,7 @@ func TestFeedQuery_rendersEachItemFromItsSnapshot(t *testing.T) {
 	got := f.list(t, app.FeedQuery{}).Items
 	want := app.FeedItem{
 		ID: id, Kind: feed.KindPriceMove, RefType: feed.RefAssetPriceMoves, RefID: ref, CabalID: cabal, ActorID: bob,
-		Symbol: "TSLAx", Title: "TSLAx is down 5.07% today", Detail: "$250.00, previous close $263.40", Body: "why",
+		Symbol: "TSLAx", Title: "Tesla is down 5.07% today", Detail: "$250.00, previous close $263.40", Body: "why",
 		Tone: feed.ToneNegative, CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
 	}
 	if len(got) != 1 || got[0] != want {
