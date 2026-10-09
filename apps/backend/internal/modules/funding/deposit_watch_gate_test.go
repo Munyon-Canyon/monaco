@@ -207,7 +207,7 @@ func TestDepositWatchGateIgnoresAnObservationOlderThanTheStoredOneAndCountsIt(t 
 	p := app.NewDepositWatch(
 		pool, db.New(pool, testkit.NewIDs(108), testkit.NewClock(now)), testkit.NewIDs(109), testkit.NewClock(now),
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), 480, counter,
+		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), 480, watchTuning(), counter,
 	)
 	if _, err := p.Tick(watchActor(t)); err != nil {
 		t.Fatal(err)
@@ -253,8 +253,9 @@ func TestDepositWatchTickGatesTenThousandIdleWalletsInOneHundredCalls(t *testing
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	for _, stmt := range []string{
-		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
-		SELECT 'idle-w' || i, $1, 0, now() FROM generate_series(1, 10000) i`,
+		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at,
+			discovery_due_at)
+		SELECT 'idle-w' || i, $1, 0, now(), now() + interval '1 day' FROM generate_series(1, 10000) i`,
 		`INSERT INTO deposit_watch_accounts (token_account, wallet_address, canonical, state, observed_slot,
 			high_signature, recovery_due_at)
 		SELECT 'idle-a' || i, 'idle-w' || i, true, 'open', 1, 'baseline', now() FROM generate_series(1, 10000) i`,

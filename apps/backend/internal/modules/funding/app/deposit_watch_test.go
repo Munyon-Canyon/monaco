@@ -104,13 +104,20 @@ func (r *watchRPC) TokenAccounts(
 	return r.slot, r.accounts, r.tokenErr
 }
 
+func testTuning() DepositWatchTuning {
+	return DepositWatchTuning{
+		Rotation: 6 * time.Hour, RecoverySlots: 1000, Discovery: 6 * time.Hour,
+		Spread: func(period time.Duration) time.Duration { return period / 2 },
+	}
+}
+
 func testWatch(pool sqlc.DBTX, uow *db.UnitOfWork, rpc DepositWatchRPC, wallets port.WalletReader) *DepositWatch {
 	if fake, ok := rpc.(*watchRPC); ok {
 		fake.reads = pool
 	}
 	return NewDepositWatch(
 		pool, uow, testkit.NewIDs(2), clock.Real{}, wallets, rpc, testkit.USDCMint, time.Second,
-		rate.NewLimiter(rate.Inf, 0), 480, nil,
+		rate.NewLimiter(rate.Inf, 0), 480, testTuning(), nil,
 	)
 }
 
@@ -141,7 +148,7 @@ func TestDepositWatchFetchesOnePageAndHonorsCancellation(t *testing.T) {
 
 func TestDepositWatchReportsItsNameAndInterval(t *testing.T) {
 	t.Parallel()
-	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, 0, nil)
+	p := NewDepositWatch(nil, nil, nil, nil, nil, nil, "usdc", time.Second, nil, 0, DepositWatchTuning{}, nil)
 	if p.Interval() != time.Second || p.Name() != "funding.deposit_watch" {
 		t.Fatalf("name/interval = %q/%s", p.Name(), p.Interval())
 	}
@@ -154,8 +161,8 @@ func TestDepositWatchFirstSightReadsKnownWalletsOncePerPage(t *testing.T) {
 	other := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	for _, u := range []testkit.SeededUser{user, other} {
 		if _, err := pool.Exec(t.Context(),
-			`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
-			VALUES ($1, $2, 0, now())`, u.Address, u.ID.UUID()); err != nil {
+			`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at,
+				discovery_due_at) VALUES ($1, $2, 0, now(), now() + interval '1 day')`, u.Address, u.ID.UUID()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -187,7 +194,7 @@ func TestDepositWatchFirstSightPagesTheMemberWalletReader(t *testing.T) {
 		known[i] = port.MemberWallet{Address: chain.SolanaAddress("w")}
 	}
 	if _, err := pool.Exec(t.Context(), `INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot,
-		first_seen_at) VALUES ('w', $1, 0, now())`, testkit.SeedUser(t, pool, testkit.UserOpts{}).ID.UUID()); err != nil {
+		first_seen_at, discovery_due_at) VALUES ('w', $1, 0, now(), now() + interval '1 day')`, testkit.SeedUser(t, pool, testkit.UserOpts{}).ID.UUID()); err != nil {
 		t.Fatal(err)
 	}
 	p := testWatch(pool, nil, &watchRPC{}, &watchWallets{pages: [][]port.MemberWallet{known, nil}})
@@ -325,13 +332,13 @@ func seedWatchRows(t *testing.T, pool sqlc.DBTX, user testkit.SeededUser, high s
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(t.Context(),
-		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
-		VALUES ($1, $2, 0, now())`, user.Address, user.ID.UUID()); err != nil {
+		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at)
+		VALUES ($1, $2, 0, now(), now() + interval '1 day')`, user.Address, user.ID.UUID()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(t.Context(),
 		`INSERT INTO deposit_watch_accounts (token_account, wallet_address, canonical, state, dirty_gen,
-			high_signature, recovery_due_at) VALUES ($1, $2, true, 'open', 1, NULLIF($3, ''), now())`,
+			high_signature, recovery_due_at) VALUES ($1, $2, true, 'open', 1, NULLIF($3, ''), now() + interval '1 day')`,
 		ata, user.Address, high); err != nil {
 		t.Fatal(err)
 	}

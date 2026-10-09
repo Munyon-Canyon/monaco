@@ -97,6 +97,13 @@ func (r *watchRPC) TokenAccounts(
 	return r.slot, r.accounts, nil
 }
 
+func watchTuning() app.DepositWatchTuning {
+	return app.DepositWatchTuning{
+		Rotation: 6 * time.Hour, RecoverySlots: 1000, Discovery: 6 * time.Hour,
+		Spread: func(period time.Duration) time.Duration { return period / 2 },
+	}
+}
+
 func watchActor(t *testing.T) context.Context {
 	t.Helper()
 	return observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
@@ -116,8 +123,8 @@ func seedWatchAccount(t *testing.T, pool *pgxpool.Pool, user testkit.SeededUser)
 	ata := canonicalAccount(t, user.Address)
 	if _, err := pool.Exec(
 		t.Context(),
-		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
-		VALUES ($1, $2, 0, now())`, user.Address, user.ID.UUID(),
+		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at)
+		VALUES ($1, $2, 0, now(), now() + interval '1 day')`, user.Address, user.ID.UUID(),
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +132,7 @@ func seedWatchAccount(t *testing.T, pool *pgxpool.Pool, user testkit.SeededUser)
 		t.Context(),
 		`INSERT INTO deposit_watch_accounts (
 			token_account, wallet_address, canonical, state, dirty_gen, high_signature, recovery_due_at)
-		VALUES ($1, $2, true, 'open', 1, 'baseline', now())`, ata, user.Address,
+		VALUES ($1, $2, true, 'open', 1, 'baseline', now() + interval '1 day')`, ata, user.Address,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -187,6 +194,7 @@ func watchFor(
 		app.DepositPollInterval,
 		limit,
 		480,
+		watchTuning(),
 		noop.Int64Counter{},
 	)
 }
@@ -313,7 +321,7 @@ func TestDepositWatchCommitsCandidatesWithTheCheckpointOfAWholePage(t *testing.T
 	p := app.NewDepositWatch(
 		pool, db.New(pool, testkit.NewIDs(76), watchClock), testkit.NewIDs(77), watchClock,
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, 480, noop.Int64Counter{},
+		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, 480, watchTuning(), noop.Int64Counter{},
 	)
 	ctx := watchActor(t)
 	watchClock.Advance(time.Second)

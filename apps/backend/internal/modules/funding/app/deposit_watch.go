@@ -74,6 +74,7 @@ type DepositWatch struct {
 	period  time.Duration
 	limit   RPCLimiter
 	calls   int
+	tuning  DepositWatchTuning
 
 	regressed metric.Int64Counter
 }
@@ -81,11 +82,11 @@ type DepositWatch struct {
 func NewDepositWatch(
 	reads sqlc.DBTX, uow *db.UnitOfWork, g ids.Generator, c clock.Clock, wallets port.WalletReader,
 	rpc DepositWatchRPC, usdc chain.SolanaAddress, period time.Duration, limit RPCLimiter,
-	callBudget int, regressed metric.Int64Counter,
+	callBudget int, tuning DepositWatchTuning, regressed metric.Int64Counter,
 ) *DepositWatch {
 	return &DepositWatch{
 		reads: reads, uow: uow, ids: g, clock: c, wallets: wallets, rpc: rpc, usdc: usdc,
-		period: period, limit: limit, calls: callBudget,
+		period: period, limit: limit, calls: callBudget, tuning: tuning,
 		regressed: regressed,
 	}
 }
@@ -100,6 +101,8 @@ func (p *DepositWatch) Tick(ctx context.Context) (poller.Report, error) {
 	steps := []watchStep{
 		{"gate", p.gate},
 		{"dirty", p.catchUpDirty},
+		{"rotation", p.rotate},
+		{"discovery", p.discover},
 		{"first_sight", func(ctx context.Context) (int, int, error) {
 			seeded, err := p.firstSight(ctx)
 			return seeded, 0, err
@@ -152,6 +155,9 @@ func (p *DepositWatch) catchUpAccount(ctx context.Context, row sqlc.DepositWatch
 		if err != nil {
 			return recorded, err
 		}
+		if !row.HighSignature.Valid {
+			page, _ = cutBelow(page, row.FirstSeenSlot)
+		}
 		n, err := p.commitPage(ctx, row, page)
 		recorded += n
 		if err != nil || len(page) < depositSignaturePageSize {
@@ -200,6 +206,12 @@ func (p *DepositWatch) commitPage(
 }
 
 func watchCandidates(row sqlc.DepositWatchDirtyAccountsRow, page []solana.SignatureInfo) ([]DepositCandidate, error) {
+	return candidatesFor(row.WalletAddress, ids.UserIDFrom(row.UserID), depositCandidateSourcePoller, page)
+}
+
+func candidatesFor(
+	wallet string, user ids.UserID, source string, page []solana.SignatureInfo,
+) ([]DepositCandidate, error) {
 	candidates := make([]DepositCandidate, 0, len(page))
 	for _, sig := range page {
 		if sig.Slot > math.MaxInt64 {
@@ -209,9 +221,8 @@ func watchCandidates(row sqlc.DepositWatchDirtyAccountsRow, page []solana.Signat
 			continue
 		}
 		candidates = append(candidates, DepositCandidate{
-			Signature: sig.Signature, Wallet: chain.SolanaAddress(row.WalletAddress),
-			UserID: ids.UserIDFrom(row.UserID), Slot: int64(sig.Slot), BlockTime: sig.BlockTime,
-			Source: depositCandidateSourcePoller,
+			Signature: sig.Signature, Wallet: chain.SolanaAddress(wallet),
+			UserID: user, Slot: int64(sig.Slot), BlockTime: sig.BlockTime, Source: source,
 		})
 	}
 	return candidates, nil
@@ -321,7 +332,7 @@ func (p *DepositWatch) persistSeeds(
 		q := sqlc.New(tx.Queries())
 		if _, err := q.InsertDepositWatchWallet(ctx, sqlc.InsertDepositWatchWalletParams{
 			WalletAddress: string(wallet.Address), UserID: wallet.UserID.UUID(), FirstSeenSlot: slot,
-			FirstSeenAt: p.clock.Now(),
+			FirstSeenAt: p.clock.Now(), DiscoveryDueAt: p.clock.Now().Add(p.tuning.Spread(p.tuning.Discovery)),
 		}); err != nil {
 			return err
 		}
@@ -339,7 +350,7 @@ func (p *DepositWatch) persistSeeds(
 				ObservedSlot:  slot,
 				HighSignature: string(seed.high.Signature),
 				HighSlot:      int64(min(seed.high.Slot, math.MaxInt64)),
-				RecoveryDueAt: p.clock.Now(),
+				RecoveryDueAt: p.clock.Now().Add(p.tuning.Spread(p.tuning.Rotation)),
 			}); err != nil {
 				return err
 			}

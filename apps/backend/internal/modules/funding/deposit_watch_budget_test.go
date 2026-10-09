@@ -36,6 +36,7 @@ func budgetedWatch(
 		app.DepositPollInterval,
 		unlimited(),
 		calls,
+		watchTuning(),
 		noop.Int64Counter{},
 	)
 }
@@ -101,7 +102,8 @@ func TestDepositWatchRunsFirstSightAfterTheDirtyCatchUpsAndReportsCallsPerStep(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "gate=1 gate_calls=1 dirty=1 dirty_calls=1 first_sight=1 first_sight_calls=2"
+	want := "gate=1 gate_calls=1 dirty=1 dirty_calls=1 rotation=0 rotation_calls=0 " +
+		"discovery=0 discovery_calls=0 first_sight=1 first_sight_calls=2"
 	if got := stepAttrs(report); got != want {
 		t.Fatalf("step attrs = %q, want %q", got, want)
 	}

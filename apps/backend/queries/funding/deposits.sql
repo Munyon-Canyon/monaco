@@ -63,8 +63,8 @@ ORDER BY c.wallet_address
 LIMIT $2;
 
 -- name: InsertDepositWatchWallet :execrows
-INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at)
+VALUES ($1, $2, $3, $4, sqlc.arg(discovery_due_at)::timestamptz)
 ON CONFLICT (wallet_address) DO NOTHING;
 
 -- name: InsertDepositWatchAccount :exec
@@ -77,7 +77,7 @@ INSERT INTO deposit_watch_accounts (
 ON CONFLICT (token_account) DO NOTHING;
 
 -- name: DepositWatchDirtyAccounts :many
-SELECT a.token_account, a.wallet_address, w.user_id, a.dirty_gen, a.dirty_slot, a.observed_slot,
+SELECT a.token_account, a.wallet_address, w.user_id, w.first_seen_slot, a.dirty_gen, a.dirty_slot, a.observed_slot,
   a.high_signature, a.page_before
 FROM deposit_watch_accounts a
 JOIN deposit_watch_wallets w ON w.wallet_address = a.wallet_address
@@ -130,3 +130,36 @@ SET state = sqlc.arg(state)::text,
     dirty_slot = CASE WHEN sqlc.arg(dirty)::bool THEN GREATEST(dirty_slot, sqlc.arg(observed_slot)::bigint)
       ELSE dirty_slot END
 WHERE token_account = $1 AND observed_slot <= sqlc.arg(observed_slot)::bigint AND state <> 'foreign';
+
+-- name: DepositWatchRotationAccounts :many
+SELECT a.token_account, a.wallet_address, w.user_id, w.first_seen_slot, a.high_slot, a.recovery_before
+FROM deposit_watch_accounts a
+JOIN deposit_watch_wallets w ON w.wallet_address = a.wallet_address
+WHERE a.recovery_due_at <= sqlc.arg(now)::timestamptz AND a.state <> 'foreign'
+ORDER BY a.recovery_due_at, a.token_account
+LIMIT sqlc.arg(row_limit)::int;
+
+-- name: CheckpointDepositWatchRecovery :exec
+UPDATE deposit_watch_accounts
+SET recovery_before = sqlc.arg(recovery_before)::text,
+    scanned_at = sqlc.arg(scanned_at)::timestamptz
+WHERE token_account = $1;
+
+-- name: CompleteDepositWatchRecovery :exec
+UPDATE deposit_watch_accounts
+SET recovery_before = NULL,
+    recovery_due_at = sqlc.arg(recovery_due_at)::timestamptz,
+    scanned_at = sqlc.arg(scanned_at)::timestamptz
+WHERE token_account = $1;
+
+-- name: DepositWatchDiscoveryWallets :many
+SELECT wallet_address, user_id
+FROM deposit_watch_wallets
+WHERE discovery_due_at IS NULL OR discovery_due_at <= sqlc.arg(now)::timestamptz
+ORDER BY discovery_due_at NULLS FIRST, wallet_address
+LIMIT sqlc.arg(row_limit)::int;
+
+-- name: SetDepositWatchDiscovery :exec
+UPDATE deposit_watch_wallets
+SET discovery_due_at = sqlc.arg(discovery_due_at)::timestamptz
+WHERE wallet_address = $1;
