@@ -41,12 +41,12 @@ struct OnboardingNudgeBanner: View {
                             Text(current.message)
                                 .font(MonacoTheme.Typo.rowTitle)
                                 .foregroundStyle(MonacoTheme.ink)
-                                .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             MonacoRowChevron()
                         }
                         .padding(.leading, MonacoTheme.Space.gutter)
+                        .padding(.vertical, MonacoTheme.Space.sm)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }

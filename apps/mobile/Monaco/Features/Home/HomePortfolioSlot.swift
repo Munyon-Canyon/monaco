@@ -86,9 +86,7 @@ private struct HomePortfolioHero: View {
                     }
                     chip(summary)
                 }
-                if summary.isEmpty {
-                    hairline.frame(height: 160, alignment: .center)
-                } else {
+                if !summary.isEmpty {
                     curve
                 }
             }
