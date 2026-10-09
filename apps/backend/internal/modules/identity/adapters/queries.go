@@ -141,6 +141,18 @@ func (r Postgres) MemberWallet(ctx context.Context, id ids.UserID) (port.MemberW
 	return walletOf(id, row.PrivyWalletID, row.Address), nil
 }
 
+func (r Postgres) PrivyUserID(ctx context.Context, id ids.UserID) (string, error) {
+	const op = "identity.PrivyUserID"
+	privy, err := r.q.PrivyUserIDByUserID(ctx, id.UUID())
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", errs.New(errs.CodeUserNotFound, op)
+	case err != nil:
+		return "", errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return privy, nil
+}
+
 func (r Postgres) MemberWallets(ctx context.Context, after ids.UserID, limit int) ([]port.MemberWallet, error) {
 	const op = "identity.MemberWallets"
 	if err := sized(op, limit, 1, port.MaxWalletPage); err != nil {

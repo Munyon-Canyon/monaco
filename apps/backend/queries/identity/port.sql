@@ -51,3 +51,6 @@ SELECT auth_state, account_status, count(*)::bigint AS users
 FROM users
 GROUP BY auth_state, account_status
 ORDER BY auth_state, account_status;
+
+-- name: PrivyUserIDByUserID :one
+SELECT privy_user_id FROM users WHERE id = $1::uuid AND deleted_at IS NULL;

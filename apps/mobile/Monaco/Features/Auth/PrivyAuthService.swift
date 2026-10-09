@@ -310,6 +310,7 @@ class PrivyAuthService: ObservableObject {
         isSigningOut = true
         endSession(reason: reason)
         onSessionEnded?()
+        Task { await SafariPrivyLogin.clearOnSignOut() }
 
         let privy = self.privy
         let epoch = signInEpoch

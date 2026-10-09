@@ -1,5 +1,6 @@
 export type Session = {
   session_id: string;
+  privy_user_id: string;
   wallet_address: string;
   suggested_amount_micros: string | null;
   usdc_mint: string;

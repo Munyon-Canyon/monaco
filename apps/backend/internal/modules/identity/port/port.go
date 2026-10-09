@@ -54,8 +54,13 @@ type WalletReader interface {
 	MemberWallets(ctx context.Context, after ids.UserID, limit int) ([]MemberWallet, error)
 }
 
+type PrivyUserReader interface {
+	PrivyUserID(ctx context.Context, id ids.UserID) (string, error)
+}
+
 type Queries interface {
 	UserReader
+	PrivyUserReader
 	ContactMatcher
 	WalletReader
 }

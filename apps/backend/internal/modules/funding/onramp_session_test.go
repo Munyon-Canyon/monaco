@@ -54,7 +54,8 @@ func newOnrampFixture(t *testing.T) onrampFixture {
 		user:   testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}),
 		create: app.NewCreateOnrampSessionHandler(uow, c, fundPage),
 		exchange: app.NewExchangeOnrampTokenHandler(uow, c,
-			app.WalletReader{Reader: identity.New(module.Deps{Pool: pool}).Queries()}, usdcMint),
+			app.WalletReader{Reader: identity.New(module.Deps{Pool: pool}).Queries()},
+			identity.New(module.Deps{Pool: pool}).Queries(), usdcMint),
 		report: app.NewReportOnrampStatusHandler(uow, c, h),
 		expiry: app.NewOnrampExpiryPoller(uow, c),
 	}
@@ -217,7 +218,8 @@ func TestExchangeOnrampToken_opensTheSessionOnceAndReturnsTheWallet(t *testing.T
 		t.Fatal(err)
 	}
 	want := app.OnrampExchange{
-		SessionID: created.ID, WalletAddress: f.user.Address, SuggestedAmount: &suggested, USDCMint: usdcMint,
+		SessionID: created.ID, PrivyUserID: f.user.PrivyUserID, WalletAddress: f.user.Address,
+		SuggestedAmount: &suggested, USDCMint: usdcMint,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("exchange = %+v, want %+v", got, want)
@@ -323,6 +325,7 @@ func TestExchangeOnrampToken_rollsBackTheOpenWhenAStepFails(t *testing.T) {
 		setup string
 		want  errs.Code
 	}{
+		{"a deleted member", `UPDATE users SET deleted_at = now()`, errs.CodeUserNotFound},
 		{"no member wallet", `DELETE FROM user_wallets`, errs.CodeUserNotFound},
 		{
 			"an amount past uint64", `UPDATE onramp_sessions SET suggested_amount_micros = 99999999999999999999`,

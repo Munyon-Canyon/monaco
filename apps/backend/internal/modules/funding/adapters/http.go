@@ -147,7 +147,7 @@ func (h HTTP) ExchangeOnrampToken(
 		return nil, err
 	}
 	return api.ExchangeOnrampToken200JSONResponse{
-		SessionId: out.SessionID, WalletAddress: string(out.WalletAddress),
+		SessionId: out.SessionID, PrivyUserId: out.PrivyUserID, WalletAddress: string(out.WalletAddress),
 		SuggestedAmountMicros: microsWire(out.SuggestedAmount), UsdcMint: out.USDCMint,
 	}, nil
 }

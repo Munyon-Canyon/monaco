@@ -156,6 +156,19 @@ func (f *Identity) MemberWallet(_ context.Context, id ids.UserID) (identity.Memb
 	return f.wallets[i], nil
 }
 
+func (f *Identity) PrivyUserID(_ context.Context, id ids.UserID) (string, error) {
+	const op = "PrivyUserID"
+	if err := f.Check(op); err != nil {
+		return "", err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !slices.ContainsFunc(f.cards, func(c identity.UserCard) bool { return c.ID == id && !c.Deleted }) {
+		return "", errs.New(errs.CodeUserNotFound, "fakes.Identity."+op)
+	}
+	return "did:privy:" + id.String(), nil
+}
+
 func (f *Identity) MemberWallets(_ context.Context, after ids.UserID, limit int) ([]identity.MemberWallet, error) {
 	if err := f.begin("MemberWallets", limit, 1, identity.MaxWalletPage); err != nil {
 		return nil, err

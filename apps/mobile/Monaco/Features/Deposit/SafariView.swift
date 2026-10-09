@@ -12,3 +12,10 @@ struct SafariView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }
+
+enum SafariPrivyLogin {
+    @MainActor
+    static func clearOnSignOut() async {
+        await SFSafariViewController.DataStore.default.clearWebsiteData()
+    }
+}

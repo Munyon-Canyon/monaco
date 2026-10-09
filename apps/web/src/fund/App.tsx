@@ -12,7 +12,7 @@ function failureOf(error: unknown) {
 
 export function App({ initial }: { initial: State }) {
   const [state, dispatch] = useReducer(transition, initial);
-  const { ready, authenticated, login, getAccessToken } = usePrivy();
+  const { ready, authenticated, user, login, getAccessToken } = usePrivy();
   const { logout } = useLogout();
   const { fund } = useFiatOnramp();
   const step = view(state, { ready, authenticated });
@@ -37,6 +37,12 @@ export function App({ initial }: { initial: State }) {
       case "ready":
         if (state.step !== "open") return;
         started.current = { state, step };
+        // Safari can still be signed in as someone else: stop before the funding modal. After Log
+        // out and a new login the open state comes back here.
+        if (user?.id !== state.session.privy_user_id) {
+          dispatch({ type: "failed", failure: "wrong_account" });
+          return;
+        }
         dispatch({ type: "fund" });
         fund(fundOptions(state.session, environment)).then(
           (result) => dispatch({ type: "funded", report: { status: statusFromResult(result), idempotencyKey: crypto.randomUUID() } }),
@@ -61,7 +67,7 @@ export function App({ initial }: { initial: State }) {
         location.replace(completeURL(state.session.session_id));
         return;
     }
-  }, [state, step]);
+  }, [state, step, user]);
 
   return (
     <main>
