@@ -120,12 +120,10 @@ set_up_after_first_run() {
 }
 
 set_up_dev_user() {
-  local token user_id log updated unset_qa=(-u MONACO_API_BASE_URL)
-  [[ -x bin/monacoctl ]] || fail "bin/monacoctl is missing: run just build backend"
+  local token user_id log updated
   log="$(mktemp)"
   trap 'rm -f "$log"' RETURN
-  while read -r name; do unset_qa+=(-u "$name"); done < <(compgen -e | grep '^MONACO_QA_')
-  token="$(env "${unset_qa[@]}" bin/monacoctl dev token --user new 2> "$log")" ||
+  token="$(scripts/qa/monacoctl.sh dev token --user new 2> "$log")" ||
     fail "monacoctl dev token --user new failed: $(cat "$log")"
   user_id="$(awk '$1 == "dev" && $2 == "user" { print $3 }' "$log")"
   [[ -n "$user_id" ]] || fail "monacoctl dev token did not name the new dev user: $(cat "$log")"

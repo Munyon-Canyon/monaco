@@ -36,10 +36,7 @@ fi
 
 token_file="$(mktemp)"
 trap 'rm -f "$token_file"' EXIT
-for name in $(compgen -e | grep '^MONACO_QA_'); do unset "$name"; done
-# shellcheck disable=SC2016 # $1 expands in the bash -c child, not here.
-mint='cd apps/backend && exec go run ./cmd/monacoctl dev token --user "$1"'
-if ! scripts/with-dotenv-local.sh bash -c "$mint" bash "$user_id" >"$token_file" 2>/dev/null; then
+if ! scripts/qa/monacoctl.sh dev token --user "$user_id" >"$token_file" 2>/dev/null; then
   echo "monacoctl dev token failed for actor A" >&2
   exit 2
 fi

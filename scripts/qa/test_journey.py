@@ -260,6 +260,34 @@ class RealSetupInserts(unittest.TestCase):
         self.assertEqual(journey.check_setup_inserts(), [])
 
 
+class SetupMonacoctl(Tree):
+    def test_a_setup_that_calls_bin_monacoctl_directly_is_named(self):
+        self.write("qa/auth/sign-in.setup.sh", "token=$(env -u FOO bin/monacoctl dev token --user new)\n")
+        problems = journey.check_setup_monacoctl()
+        self.assertEqual(len(problems), 1)
+        self.assertIn("qa/auth/sign-in.setup.sh:1: runs monacoctl itself", problems[0])
+
+    def test_a_truth_script_that_runs_it_through_with_dotenv_is_named(self):
+        self.write("qa/auth/sign-in.truth.sh", "scripts/with-dotenv-local.sh bin/monacoctl dev token\n")
+        self.assertEqual(len(journey.check_setup_monacoctl()), 1)
+
+    def test_a_call_through_a_variable_path_or_go_run_is_named(self):
+        self.write("qa/auth/sign-in.setup.sh", '"$root/bin/monacoctl" dev token\n./bin/monacoctl dev token\n')
+        self.write("qa/auth/sign-in.truth.sh", "go run ./cmd/monacoctl dev token\n")
+        self.assertEqual(len(journey.check_setup_monacoctl()), 3)
+
+    def test_the_wrapper_and_a_comment_pass(self):
+        self.write(
+            "qa/auth/sign-in.setup.sh",
+            "# not bin/monacoctl itself\ntoken=$(scripts/qa/monacoctl.sh dev token --user new)\n",
+        )
+        self.assertEqual(journey.check_setup_monacoctl(), [])
+
+    def test_the_checked_in_scripts_pass(self):
+        journey.ROOT, journey.QA = self.saved[0], self.saved[2]
+        self.assertEqual(journey.check_setup_monacoctl(), [])
+
+
 class Coverage(Tree):
     def test_lists_backend_and_app_statuses_and_uncovered_flows(self):
         self.write("packages/flows/app/01.tsv", "id\tscreen\tstatus\n01\tSignIn\tplanned\n")
@@ -1751,6 +1779,8 @@ class Seed(unittest.TestCase):
             (root / name).parent.mkdir(parents=True, exist_ok=True)
             (root / name).write_text("#!/bin/bash\n%s\n" % body)
             (root / name).chmod(0o755)
+        (root / "scripts/qa").mkdir(parents=True, exist_ok=True)
+        shutil.copy(str(journey.ROOT / "scripts/qa/monacoctl.sh"), str(root / "scripts/qa/monacoctl.sh"))
         script = 'source scripts/qa/seed.sh; QA_ROOT=%s; qa_flow_seed f ok' % root
         env = dict(os.environ, MONACO_API_BASE_URL="http://127.0.0.1:1")
         done = subprocess.run(["bash", "-c", script], cwd=str(journey.ROOT), env=env,

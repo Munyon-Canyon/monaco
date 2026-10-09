@@ -37,17 +37,7 @@ _qa_quiet() {
 }
 
 _qa_monacoctl() {
-  if [[ ! -x "$QA_ROOT/bin/monacoctl" ]]; then
-    echo "bin/monacoctl is missing: run just build backend first" >&2
-    return 1
-  fi
-  # monacoctl refuses unknown MONACO_ variables: a run's account overrides are MONACO_QA_, and
-  # MONACO_API_BASE_URL is the journey runner's, which this file reads as QA_API.
-  local name unset=(-u MONACO_API_BASE_URL)
-  while read -r name; do
-    unset+=(-u "$name")
-  done < <(compgen -e | grep '^MONACO_QA_' || true)
-  (cd "$QA_ROOT" && env ${unset[@]+"${unset[@]}"} scripts/with-dotenv-local.sh bin/monacoctl "$@" 2> >(_qa_quiet))
+  "$QA_ROOT/scripts/qa/monacoctl.sh" "$@" 2> >(_qa_quiet)
 }
 
 qa_api_ready() {
