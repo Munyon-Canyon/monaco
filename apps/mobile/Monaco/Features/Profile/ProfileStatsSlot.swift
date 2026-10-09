@@ -124,7 +124,7 @@ private struct ProfileStatColumn: View {
                 .minimumScaleFactor(0.8)
             if let detail {
                 Text(detail)
-                    .font(MonacoTheme.Typo.moneyCaption)
+                    .moneyFont(.caption)
                     .foregroundStyle(tone ?? MonacoTheme.ink)
                     .lineLimit(1)
             }
