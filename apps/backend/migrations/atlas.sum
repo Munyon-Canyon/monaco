@@ -1,4 +1,4 @@
-h1:/wtrxRsW0CpF95uN/gqgTUcAfz4UjcLBqjMTx4iezpU=
+h1:4uB9NVgeZOm2cLEKap8bJdo2+kCH3n4DvD11D6MsDG0=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -72,3 +72,4 @@ h1:/wtrxRsW0CpF95uN/gqgTUcAfz4UjcLBqjMTx4iezpU=
 20261009142734_trading_price_moved_failure_code.sql h1:EHsmuVBgMEExezGjCq8gAlynjm4FfHZwBjF5vN9te+4=
 20261009150001_admin_approvals.sql h1:nbd/AM/b5CZvfBld1SzJqSnncVNnnT/g16gvAwJi6mo=
 20261009150002_social_feed_hidden.sql h1:Eh5I8jgAMW7dwg+L98EOkcpg9ZNq92l/RXKrxiggLxY=
+20261009150003_treasury_winddown.sql h1:POAkoxcn99sfe/YXHkwfeOjXOFkIPR9mPSpFDRYvBr4=

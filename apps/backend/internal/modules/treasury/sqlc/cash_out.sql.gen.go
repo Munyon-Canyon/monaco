@@ -146,10 +146,12 @@ func (q *Queries) CashOutShortfall(ctx context.Context, arg CashOutShortfallPara
 
 const insertCashOutJob = `-- name: InsertCashOutJob :exec
 INSERT INTO cash_out_jobs
-  (id, cabal_id, user_id, share_units, payout_micros, slice_micros, sell_usdc_micros, status, created_at, updated_at)
+  (id, cabal_id, user_id, share_units, payout_micros, slice_micros, sell_usdc_micros, status, cause, created_at,
+  updated_at)
 VALUES ($1::uuid, $2::uuid, $3::uuid,
   $4::text::numeric, $5::text::numeric, $5::text::numeric,
-  $6::text::numeric, 'started', $7::timestamptz, $7::timestamptz)
+  $6::text::numeric, $7::text, $8::text, $9::timestamptz,
+  $9::timestamptz)
 `
 
 type InsertCashOutJobParams struct {
@@ -159,6 +161,8 @@ type InsertCashOutJobParams struct {
 	ShareUnits     string
 	PayoutMicros   string
 	SellUsdcMicros string
+	Status         string
+	Cause          string
 	At             time.Time
 }
 
@@ -170,6 +174,8 @@ func (q *Queries) InsertCashOutJob(ctx context.Context, arg InsertCashOutJobPara
 		arg.ShareUnits,
 		arg.PayoutMicros,
 		arg.SellUsdcMicros,
+		arg.Status,
+		arg.Cause,
 		arg.At,
 	)
 	return err
@@ -204,7 +210,7 @@ func (q *Queries) InsertCashOutSell(ctx context.Context, arg InsertCashOutSellPa
 }
 
 const lockCashOutJob = `-- name: LockCashOutJob :one
-SELECT status, user_id, share_units::text AS share_units, slice_micros::text AS slice_micros
+SELECT status, user_id, cause, share_units::text AS share_units, slice_micros::text AS slice_micros
 FROM cash_out_jobs
 WHERE id = $1::uuid AND cabal_id = $2::uuid
 FOR UPDATE
@@ -218,6 +224,7 @@ type LockCashOutJobParams struct {
 type LockCashOutJobRow struct {
 	Status      string
 	UserID      uuid.UUID
+	Cause       string
 	ShareUnits  string
 	SliceMicros string
 }
@@ -228,6 +235,7 @@ func (q *Queries) LockCashOutJob(ctx context.Context, arg LockCashOutJobParams) 
 	err := row.Scan(
 		&i.Status,
 		&i.UserID,
+		&i.Cause,
 		&i.ShareUnits,
 		&i.SliceMicros,
 	)

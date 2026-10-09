@@ -127,20 +127,21 @@ func (m *Module) Mount(r api.Mount) {
 		UserTxns:  app.NewUserTxnReads(m.deps.Pool, m.cabals, m.withdrawals, usdc(m.deps.Config)),
 		FundReads: m.deps.Pool,
 		Fund:      m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),
-		CashOut: app.NewCashOutHandler(
-			m.deps.UoW,
-			m.ledger(),
-			m.reads(),
-			m.pauses,
-			m.deps.Clock,
-			m.deps.IDs,
-			m.deps.Pool,
-			m.deps.Bus,
-		),
-		Pot:     m.reads(),
-		Cabals:  m.cabals,
-		Members: m.members,
+		CashOut:   m.cashOutHandler(),
+		Pot:       m.reads(),
+		Cabals:    m.cabals,
+		Members:   m.members,
 	}, r)
+}
+
+func (m *Module) cashOutHandler() *app.CashOutHandler {
+	return app.NewCashOutHandler(
+		m.deps.UoW, m.ledger(), m.reads(), m.pauses, m.deps.Clock, m.deps.IDs, m.deps.Pool, m.deps.Bus,
+	)
+}
+
+func (m *Module) windDown() *app.WindDown {
+	return app.NewWindDown(m.deps.UoW, m.cashOutHandler(), m.deps.Pool, m.deps.Clock)
 }
 
 func (m *Module) fundCabalHandler(transfers app.FundTransfers) *app.FundCabalHandler {
@@ -193,6 +194,10 @@ func (m *Module) Consumers() []bus.Consumer {
 			},
 		},
 		{
+			Durable:  "treasury_winddown",
+			Handlers: []bus.HandlerSpec{bus.Handle("treasury.winddown", m.windDown().Start)},
+		},
+		{
 			Durable:  "treasury_cashout_payout",
 			Handlers: []bus.HandlerSpec{bus.HandleOwn("treasury.cashout_payout", payout.Handle)},
 		},
@@ -216,6 +221,7 @@ func (m *Module) Pollers() []poller.Poller {
 			SendWindow: cfg.Worker.FundSendWindow,
 		})},
 		adapters.CashOutSweeper{Payouts: m.payouts()},
+		adapters.WindDownPoller{WindDown: m.windDown()},
 	}
 }
 

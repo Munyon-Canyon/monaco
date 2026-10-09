@@ -14,5 +14,9 @@ func init() {
 		TreasuryCashOutSaleSettled,
 		TreasuryCashOutMoved,
 		TreasuryCashOutBroadcastFailed,
+		TreasuryWindDownStarted,
+		TreasuryWindDownCompleted,
+		TreasuryWindDownStuck,
+		TreasuryWindDownMemberFailed,
 	)
 }

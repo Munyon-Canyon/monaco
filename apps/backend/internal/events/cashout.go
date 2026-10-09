@@ -17,6 +17,7 @@ type CashOutStarted struct {
 	ShareUnits   uint64       `json:"share_units,string"`
 	PayoutMicros money.Micros `json:"payout_micros"`
 	SellUSDC     money.Micros `json:"sell_usdc_micros"`
+	Cause        string       `json:"cause,omitempty"`
 }
 
 func (CashOutStarted) Type() Type { return TypeCashOutStarted }
@@ -39,6 +40,7 @@ type CashOutCompleted struct {
 	ShareUnits   uint64          `json:"share_units,string"`
 	PayoutMicros money.Micros    `json:"payout_micros"`
 	Signature    chain.Signature `json:"signature"`
+	Cause        string          `json:"cause,omitempty"`
 }
 
 func (CashOutCompleted) Type() Type { return TypeCashOutCompleted }
@@ -54,6 +56,7 @@ type CashOutFailed struct {
 	UserID     uuid.UUID `json:"user_id"            pii:"true"`
 	ShareUnits uint64    `json:"share_units,string"`
 	Code       string    `json:"code"`
+	Cause      string    `json:"cause,omitempty"`
 }
 
 func (CashOutFailed) Type() Type { return TypeCashOutFailed }
@@ -71,6 +74,7 @@ type CashOutPartial struct {
 	ShareUnitsReturned uint64          `json:"share_units_returned,string"`
 	PayoutMicros       money.Micros    `json:"payout_micros"`
 	Signature          chain.Signature `json:"signature"`
+	Cause              string          `json:"cause,omitempty"`
 }
 
 func (CashOutPartial) Type() Type { return TypeCashOutPartial }

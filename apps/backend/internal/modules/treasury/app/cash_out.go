@@ -29,6 +29,7 @@ type CashOut struct {
 	UserID         ids.UserID
 	PayoutMicros   money.Micros
 	All            bool
+	Cause          domain.CashOutCause
 }
 type CashOutResult struct {
 	ID           uuid.UUID
@@ -298,15 +299,21 @@ func (h *CashOutHandler) record(
 	units money.SharesUnits,
 	payout money.Micros,
 ) (CashOutResult, error) {
-	short, err := q.CashOutShortfall(ctx, sqlc.CashOutShortfallParams{
-		CabalID: cmd.CabalID.UUID(), Asset: string(h.usdc), PayoutMicros: payout.String(),
-	})
-	if err != nil {
-		return CashOutResult{}, err
+	sell := money.Micros{}
+	if !payout.IsZero() {
+		short, err := q.CashOutShortfall(ctx, sqlc.CashOutShortfallParams{
+			CabalID: cmd.CabalID.UUID(), Asset: string(h.usdc), PayoutMicros: payout.String(),
+		})
+		if err != nil {
+			return CashOutResult{}, err
+		}
+		if sell, err = money.ParseMicros(short); err != nil {
+			return CashOutResult{}, err
+		}
 	}
-	sell, err := money.ParseMicros(short)
-	if err != nil {
-		return CashOutResult{}, err
+	status := domain.CashOutStarted
+	if payout.IsZero() {
+		status = domain.CashOutCompleted
 	}
 	result := CashOutResult{
 		ID:           h.ids.NewV7(),
@@ -316,49 +323,72 @@ func (h *CashOutHandler) record(
 	}
 	if err := q.InsertCashOutJob(ctx, sqlc.InsertCashOutJobParams{
 		ID: result.ID, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(), ShareUnits: units.String(),
-		PayoutMicros: payout.String(), SellUsdcMicros: sell.String(), At: result.CreatedAt,
+		PayoutMicros: payout.String(), SellUsdcMicros: sell.String(), Status: string(status),
+		Cause: string(cmd.Cause.OrMember()), At: result.CreatedAt,
 	}); err != nil {
 		return CashOutResult{}, err
 	}
-	paid, err := payout.Delta(money.Micros{})
+	entries, err := h.cashOutEntries(cmd.CabalID, units, payout)
 	if err != nil {
 		return CashOutResult{}, err
 	}
-	shares := money.MicrosFromUint64(units.Uint64())
-	burned, err := money.Micros{}.Delta(shares)
-	if err != nil {
-		return CashOutResult{}, err
+	txnStatus := domain.TxnPending
+	if payout.IsZero() {
+		txnStatus = domain.TxnSettled
 	}
 	txn, err := domain.NewUserTxn(domain.UserTxnHeader{
 		ID: h.ids.NewV7(), UserID: cmd.UserID, CabalID: cmd.CabalID, Kind: domain.UserCashOut,
-		Status: domain.TxnPending, TransferID: result.ID,
-	}, []domain.UserEntry{
-		{Account: domain.UserCabal, Asset: h.usdc, Amount: money.SignedMicrosFromInt64(-paid.Int64())},
-		{Account: domain.UserWallet, Asset: h.usdc, Amount: paid},
-		{Account: domain.UserHolder, Asset: domain.SharesAsset(cmd.CabalID), Amount: burned},
-		{
-			Account: domain.UserIssuer, Asset: domain.SharesAsset(cmd.CabalID),
-			Amount: money.SignedMicrosFromInt64(-burned.Int64()),
-		},
-	})
+		Status: txnStatus, TransferID: result.ID,
+	}, entries)
 	if err != nil {
 		return CashOutResult{}, err
 	}
 	if err := h.post(ctx, tx, txn); err != nil {
 		return CashOutResult{}, err
 	}
-	err = tx.Events.Append(
-		ctx,
-		events.CashOutStarted{
-			V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(),
-			UserID: cmd.UserID.UUID(), ShareUnits: units.Uint64(), PayoutMicros: payout, SellUSDC: sell,
-		},
-	)
-	if err != nil {
+	var event events.Event = events.CashOutStarted{
+		V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(),
+		UserID: cmd.UserID.UUID(), ShareUnits: units.Uint64(), PayoutMicros: payout, SellUSDC: sell,
+		Cause: string(cmd.Cause.OrMember()),
+	}
+	if payout.IsZero() {
+		event = events.CashOutCompleted{
+			V: 1, JobID: result.ID, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(),
+			ShareUnits: units.Uint64(), PayoutMicros: payout, Cause: string(cmd.Cause.OrMember()),
+		}
+	}
+	if err := tx.Events.Append(ctx, event); err != nil {
 		return result, err
 	}
 	h.hintStart(tx, cmd, result.ID)
 	return result, nil
+}
+
+func (h *CashOutHandler) cashOutEntries(
+	cabal ids.CabalID, units money.SharesUnits, payout money.Micros,
+) ([]domain.UserEntry, error) {
+	paid, err := payout.Delta(money.Micros{})
+	if err != nil {
+		return nil, err
+	}
+	burned, err := money.Micros{}.Delta(money.MicrosFromUint64(units.Uint64()))
+	if err != nil {
+		return nil, err
+	}
+	entries := []domain.UserEntry{
+		{Account: domain.UserHolder, Asset: domain.SharesAsset(cabal), Amount: burned},
+		{
+			Account: domain.UserIssuer, Asset: domain.SharesAsset(cabal),
+			Amount: money.SignedMicrosFromInt64(-burned.Int64()),
+		},
+	}
+	if payout.IsZero() {
+		return entries, nil
+	}
+	return append([]domain.UserEntry{
+		{Account: domain.UserCabal, Asset: h.usdc, Amount: money.SignedMicrosFromInt64(-paid.Int64())},
+		{Account: domain.UserWallet, Asset: h.usdc, Amount: paid},
+	}, entries...), nil
 }
 
 func (h *CashOutHandler) hintStart(tx db.Tx, cmd CashOut, job uuid.UUID) {
@@ -372,6 +402,10 @@ func (h *CashOutHandler) hintStart(tx db.Tx, cmd CashOut, job uuid.UUID) {
 func cashOutAmount(
 	cmd CashOut, member, total money.SharesUnits, pot money.Micros,
 ) (money.SharesUnits, money.Micros, error) {
+	if cmd.Cause == domain.CashOutWindDown {
+		payout, err := domain.PayoutFor(member, total, pot)
+		return member, payout, err
+	}
 	if pot.IsZero() {
 		return money.SharesUnits{}, money.Micros{}, errs.New(errs.CodePriceUnavailable, "treasury.CashOut")
 	}
