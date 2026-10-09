@@ -27,12 +27,16 @@ struct CabalActionsRetryTests {
         let window = try Self.window(hosting: RetryHost(tick: tick, model: model))
         defer { window.isHidden = true }
         await Self.until { model.actions == .hidden }
+        await transport.waitForRequests(2)
 
         tick.value += 1
 
-        await Self.until { model.actions == .member(canPropose: true) }
         await transport.waitForRequests(4)
-        #expect(await transport.sent.count == 4)
+        let paths = await transport.sent.map { $0.path ?? "?" }
+        #expect(
+            paths == ["/v1/cabals/cabal-1", "/v1/me/cabals", "/v1/cabals/cabal-1", "/v1/me/cabals"],
+            "requests sent: \(paths), actions = \(model.actions)")
+        await Self.until { model.actions == .member(canPropose: true) }
     }
 
     private static let noUnread = StubTransport.Reply.response(
