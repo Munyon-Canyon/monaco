@@ -6,7 +6,7 @@
 set -euo pipefail
 
 gt=${GT:-gt}
-generate=${GENERATE:-"cd apps/backend && go generate ./..."}
+generate=${GENERATE:-"cd apps/backend && GOTOOLCHAIN=\$(sed -n 's/^toolchain //p' go.mod) && test -n \"\$GOTOOLCHAIN\" && export GOTOOLCHAIN && go generate ./..."}
 # The paths .gitattributes marks linguist-generated, plus atlas.sum.
 generated=${GENERATED_GLOBS:-"apps/backend/api/openapi.yaml
 apps/backend/internal/platform/httpx/api/*.gen.go

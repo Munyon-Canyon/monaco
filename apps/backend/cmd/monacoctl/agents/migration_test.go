@@ -1,6 +1,8 @@
 package agents
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -29,6 +31,14 @@ func migrationStacks(t *testing.T) (*fixture, *stackGH) {
 	s.gitOut["ls-tree --name-only origin/fb "+migrationsDir] = migrationsDir + "atlas.sum\n" + newestOnTrunk + "\n"
 	s.gitOut["mv "+oldMigration+" "+renamedAddedBy] = ""
 	f.noFailures()
+	backend := filepath.Join(f.dir, "apps", "backend")
+	if err := os.MkdirAll(backend, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	gomod := "module example.com/m\n\ngo 1.26\n\ntoolchain go1.26.9\n"
+	if err := os.WriteFile(filepath.Join(backend, "go.mod"), []byte(gomod), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return f, s
 }
 
@@ -73,6 +83,44 @@ func TestMigrationWait_restacksRenumbersAndResubmitsOnceTheOtherStackLanded(t *t
 		if !s.ran(call) {
 			t.Errorf("never ran %q", call)
 		}
+	}
+}
+
+func TestMigrationWait_generatesOnTheToolchainGoModPins(t *testing.T) {
+	t.Parallel()
+	f, s := migrationStacks(t)
+	heldFor(t, f, s, "waiting on queued stack #7")
+	s.prs[7].Labels.Nodes = nil
+	s.gitOut[migrationsDiff] = migrationsDir + "atlas.sum\n" + newestOnTrunk + "\n"
+	code, stdout, stderr := f.agents(t, "watch", "--once")
+	if code != 0 || !s.ran("env GOTOOLCHAIN=go1.26.9 go generate ./...") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestMigrationWait_aGoModWithoutAToolchainDisarmsBeforeGenerating(t *testing.T) {
+	t.Parallel()
+	for name, gomod := range map[string]*string{"missing": nil, "no toolchain line": new("module example.com/m\n\ngo 1.26\n")} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f, s := migrationStacks(t)
+			heldFor(t, f, s, "waiting on queued stack #7")
+			s.prs[7].Labels.Nodes = nil
+			s.gitOut[migrationsDiff] = newestOnTrunk + "\n"
+			path := filepath.Join(f.dir, "apps", "backend", "go.mod")
+			if gomod == nil {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(path, []byte(*gomod), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			code, stdout, _ := f.agents(t, "watch", "--once")
+			disarmed := strings.Contains(stdout, "disarmed: migration restack:")
+			if !disarmed || s.ran("go generate") || len(f.owned(t).Armed) > 0 {
+				t.Fatalf("%d %q", code, stdout)
+			}
+		})
 	}
 }
 
@@ -145,7 +193,7 @@ func TestMigrationWait_aFailedStepDisarmsAndNamesTheReason(t *testing.T) {
 		{name: "list", gitFail: "ls-tree"},
 		{name: "checkout", fail: "gt checkout"},
 		{name: "mv", gitFail: "mv"},
-		{name: "generate", fail: "go generate"},
+		{name: "generate", fail: "env GOTOOLCHAIN=go1.26.9 go generate"},
 		{name: "modify", fail: "gt modify"},
 		{name: "stage 0", fail: "go run"},
 		{name: "submit", fail: "gt submit"},
