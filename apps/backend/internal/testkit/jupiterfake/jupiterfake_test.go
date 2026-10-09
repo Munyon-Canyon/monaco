@@ -45,7 +45,10 @@ func aaplx() jupiter.Mint {
 func TestVenue_ordersAndQuotesArePerPair(t *testing.T) {
 	t.Parallel()
 	var v jupiterfake.Venue
-	buy := jupiter.Order{RequestID: "req-buy", Transaction: []byte("tx"), InMint: usdc(), OutMint: aaplx()}
+	buy := jupiter.Order{
+		RequestID: "req-buy", Transaction: []byte("tx"), InMint: usdc(), OutMint: aaplx(),
+		OutAmount: money.NewBaseUnits(7, 8),
+	}
 	v.SetOrder(usdc(), aaplx(), buy)
 	v.SetQuote(usdc(), aaplx(), jupiter.Quote{Routable: true, PriceImpactBps: 7})
 
