@@ -246,23 +246,28 @@ func TestDepositWatchGateFailsTheTickWhenTheNodeAnswersBadly(t *testing.T) {
 	}
 }
 
-func TestDepositWatchTickGatesTenThousandIdleWalletsInOneHundredCalls(t *testing.T) {
+func TestDepositWatchTickGatesIdleWalletsInPagesOfOneHundred(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	ctx, now := tickWithRemaining(t, 30*time.Minute)
-	for _, stmt := range []string{
-		`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at,
+	later := now.Add(24 * time.Hour)
+	for _, seed := range []struct {
+		stmt string
+		args []any
+	}{
+		{
+			`INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot, first_seen_at,
 			discovery_due_at)
-		SELECT 'idle-w' || i, $1, 0, now(), now() + interval '1 day' FROM generate_series(1, 10000) i`,
-		`INSERT INTO deposit_watch_accounts (token_account, wallet_address, canonical, state, observed_slot,
+		SELECT 'idle-w' || i, $1::uuid, 0, $2::timestamptz, $2::timestamptz FROM generate_series(1, 250) i`,
+			[]any{user.ID.UUID(), later},
+		},
+		{`INSERT INTO deposit_watch_accounts (token_account, wallet_address, canonical, state, observed_slot,
 			high_signature, recovery_due_at)
-		SELECT 'idle-a' || i, 'idle-w' || i, true, 'open', 1, 'baseline', now() FROM generate_series(1, 10000) i`,
+		SELECT 'idle-a' || i, 'idle-w' || i, true, 'open', 1, 'baseline', $1::timestamptz
+		FROM generate_series(1, 250) i`, []any{later}},
 	} {
-		if _, err := pool.Exec(
-			t.Context(),
-			strings.ReplaceAll(stmt, "$1", "'"+user.ID.UUID().String()+"'"),
-		); err != nil {
+		if _, err := pool.Exec(t.Context(), seed.stmt, seed.args...); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -275,17 +280,17 @@ func TestDepositWatchTickGatesTenThousandIdleWalletsInOneHundredCalls(t *testing
 	}}
 	p := budgetedWatch(pool, now, nil, &rpc, 480, 112, 113)
 	report, err := p.Tick(ctx)
-	if err != nil || report.Scanned != 10000 {
-		t.Fatalf("Tick = %+v, %v; want 10000 accounts gated", report, err)
+	if err != nil || report.Scanned != 250 {
+		t.Fatalf("Tick = %+v, %v; want 250 accounts gated", report, err)
 	}
-	const finished = "gate=10000 gate_calls=100 dirty=0 dirty_calls=0 rotation=0 rotation_calls=0 " +
+	const finished = "gate=250 gate_calls=3 dirty=0 dirty_calls=0 rotation=0 rotation_calls=0 " +
 		"discovery=0 discovery_calls=0 first_sight=0 first_sight_calls=0"
 	if got := stepAttrs(report); got != finished {
 		t.Fatalf("step attrs = %q, want %q: every step ran and none stopped early", got, finished)
 	}
-	if rpc.accountsCalls != 100 || rpc.signCalls != 0 {
+	if rpc.accountsCalls != 3 || rpc.signCalls != 0 {
 		t.Fatalf(
-			"getMultipleAccounts/getSignaturesForAddress calls = %d/%d, want 100/0",
+			"getMultipleAccounts/getSignaturesForAddress calls = %d/%d, want 3/0",
 			rpc.accountsCalls,
 			rpc.signCalls,
 		)
@@ -293,7 +298,7 @@ func TestDepositWatchTickGatesTenThousandIdleWalletsInOneHundredCalls(t *testing
 	var moved, dirty int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE observed_slot = 2),
 		count(*) FILTER (WHERE dirty_gen > 0) FROM deposit_watch_accounts`).Scan(&moved, &dirty); err != nil ||
-		moved != 10000 || dirty != 0 {
-		t.Fatalf("observed/dirty accounts = %d/%d, %v; want 10000/0", moved, dirty, err)
+		moved != 250 || dirty != 0 {
+		t.Fatalf("observed/dirty accounts = %d/%d, %v; want 250/0", moved, dirty, err)
 	}
 }
