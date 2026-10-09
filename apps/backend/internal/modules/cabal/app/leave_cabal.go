@@ -17,6 +17,7 @@ const leaveCabalOp = "cabal.LeaveCabal"
 
 type TreasuryReads interface {
 	ShareUnits(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
+	OpenFund(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error)
 	PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
 }
 
@@ -49,6 +50,13 @@ func (h *LeaveCabalHandler) Handle(ctx context.Context, cmd LeaveCabal) error {
 	i := slices.IndexFunc(members, func(m sqlc.ListMembersRow) bool { return m.UserID == cmd.ActorID.UUID() })
 	if i < 0 {
 		return errs.New(errs.CodeNotCabalMember, leaveCabalOp)
+	}
+	open, err := h.treasury.OpenFund(ctx, cmd.CabalID, cmd.ActorID)
+	if err != nil {
+		return err
+	}
+	if open {
+		return errs.New(errs.CodeLeaveHoldsShares, leaveCabalOp)
 	}
 	shares, err := h.treasury.ShareUnits(ctx, cmd.CabalID, cmd.ActorID)
 	if err != nil {

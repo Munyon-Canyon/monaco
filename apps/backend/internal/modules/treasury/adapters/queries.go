@@ -31,6 +31,7 @@ type Queries struct {
 	pot       potStore
 	history   historyStore
 	flows     flowStore
+	funds     fundStore
 	reserved  reservationStore
 	signature signatureStore
 	wallet    walletLedgerStore
@@ -45,7 +46,11 @@ type queryStore interface {
 	CabalTotalShares(context.Context, uuid.UUID) (string, error)
 	CabalUserPosition(context.Context, sqlc.CabalUserPositionParams) (sqlc.CabalUserPositionRow, error)
 	CabalStakeSnapshot(context.Context, sqlc.CabalStakeSnapshotParams) ([]sqlc.CabalStakeSnapshotRow, error)
-	UserStakes(context.Context, uuid.UUID) ([]sqlc.UserStakesRow, error)
+	UserStakes(context.Context, uuid.UUID) ([]uuid.UUID, error)
+}
+
+type fundStore interface {
+	OpenFundTransfer(context.Context, sqlc.OpenFundTransferParams) (bool, error)
 }
 
 type historyStore interface {
@@ -85,6 +90,7 @@ func NewQueries(
 		pot:       queries,
 		history:   queries,
 		flows:     queries,
+		funds:     queries,
 		reserved:  queries,
 		signature: queries,
 		wallet:    queries,
@@ -342,15 +348,24 @@ func (q *Queries) StakesOf(ctx context.Context, userID ids.UserID) ([]port.Stake
 		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.StakesOf")
 	}
 	out := make([]port.Stake, 0, len(rows))
-	for _, row := range rows {
-		cabalID := ids.CabalIDFrom(row.CabalID)
-		stake, err := q.Stake(ctx, cabalID, userID)
+	for _, id := range rows {
+		stake, err := q.Stake(ctx, ids.CabalIDFrom(id), userID)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, stake)
 	}
 	return out, nil
+}
+
+func (q *Queries) OpenFund(ctx context.Context, cabalID ids.CabalID, userID ids.UserID) (bool, error) {
+	open, err := q.funds.OpenFundTransfer(ctx, sqlc.OpenFundTransferParams{
+		UserID: userID.UUID(), CabalID: cabalID.UUID(),
+	})
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeInternal, "treasury.Queries.OpenFund")
+	}
+	return open, nil
 }
 
 func (q *Queries) ShareUnitsAt(

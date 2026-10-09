@@ -26,6 +26,8 @@ type treasuryStub struct {
 	pot       money.Micros
 	sharesErr error
 	potErr    error
+	open      bool
+	openErr   error
 	read      func()
 	potReads  atomic.Int32
 }
@@ -35,6 +37,10 @@ func (s *treasuryStub) ShareUnits(context.Context, ids.CabalID, ids.UserID) (mon
 		s.read()
 	}
 	return s.shares, s.sharesErr
+}
+
+func (s *treasuryStub) OpenFund(context.Context, ids.CabalID, ids.UserID) (bool, error) {
+	return s.open, s.openErr
 }
 
 func (s *treasuryStub) PotValue(context.Context, ids.CabalID) (money.Micros, error) {
@@ -266,4 +272,35 @@ func TestModule_refusesTheLeaveUntilTheMembersCashOutEnds(t *testing.T) {
 	if err := f.leaveThroughModule(t.Context(), member, c.ID); err != nil {
 		t.Fatalf("leave after the cash out completed = %v, want it allowed", err)
 	}
+}
+
+func TestModule_refusesTheLeaveWhileTheMembersFundIsOpen(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	member := c.Members[1].ID
+	testkit.SeedFund(t, f.pool, c.ID, member, "landed")
+	wantErr(t, f.leaveThroughModule(t.Context(), member, c.ID), errs.CodeLeaveHoldsShares)
+	f.exec(
+		t,
+		`UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_expired' WHERE user_id = $1`,
+		member.UUID(),
+	)
+	if err := f.leaveThroughModule(t.Context(), member, c.ID); err != nil {
+		t.Fatalf("leave after the fund failed = %v, want it allowed", err)
+	}
+}
+
+func TestLeaveCabal_refusesAnOpenFundBeforeAnyOtherCheck(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	member := c.Members[1].ID
+	tr := &treasuryStub{open: true}
+	wantErr(t, f.leave(t.Context(), tr, member, c.ID), errs.CodeLeaveHoldsShares)
+	if _, ok := f.membership(t, c.ID, member); !ok {
+		t.Fatal("the member left with a fund open")
+	}
+	tr = &treasuryStub{openErr: errs.New(errs.CodeDBUnavailable, "test")}
+	wantErr(t, f.leave(t.Context(), tr, member, c.ID), errs.CodeDBUnavailable)
 }

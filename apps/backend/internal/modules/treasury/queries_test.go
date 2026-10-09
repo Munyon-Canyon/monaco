@@ -312,6 +312,63 @@ func TestShareUnits_countsUnitsAPayingCashOutReturnedOnce(t *testing.T) {
 	}
 }
 
+func TestStakesOfAndOpenFund_followAFundUntilItEnds(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	q := newQueries(f)
+	user, other := f.user(t), f.user(t)
+	open := map[ids.CabalID]bool{}
+	for _, tt := range []struct {
+		status string
+		open   bool
+	}{{"created", true}, {"submitted", true}, {"landed", true}, {"settled", false}, {"failed", false}} {
+		cabal := f.cabal(t)
+		testkit.SeedFund(t, f.pool, cabal, user, tt.status)
+		testkit.SeedFund(t, f.pool, cabal, other, "landed")
+		if tt.open {
+			open[cabal] = true
+		}
+		got, err := q.OpenFund(t.Context(), cabal, user)
+		if err != nil || got != tt.open {
+			t.Errorf("OpenFund() with a %s fund = %v, %v; want %t", tt.status, got, err, tt.open)
+		}
+		if got, err := q.OpenFund(t.Context(), f.cabal(t), user); err != nil || got {
+			t.Errorf("OpenFund() into another cabal = %v, %v; want false", got, err)
+		}
+	}
+	stakes, err := q.StakesOf(t.Context(), user)
+	if err != nil || len(stakes) != len(open) {
+		t.Fatalf("StakesOf() = %#v, %v; want the %d cabals with an open fund", stakes, err, len(open))
+	}
+	for _, stake := range stakes {
+		if !open[stake.CabalID] || !stake.ShareUnits.IsZero() {
+			t.Errorf("StakesOf() lists %#v, want only open-fund cabals at zero units", stake)
+		}
+	}
+}
+
+func TestStakesOf_dropsACabalOnceItsLandedFundSettlesOrFails(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	q := newQueries(f)
+	user, cabal := f.user(t), f.cabal(t)
+	for _, end := range []string{
+		`status = 'settled', share_units = 1, settled_at = now()`,
+		`status = 'failed', fail_code = 'fund_expired'`,
+	} {
+		testkit.SeedFund(t, f.pool, cabal, user, "landed")
+		if stakes, err := q.StakesOf(t.Context(), user); err != nil || len(stakes) != 1 {
+			t.Fatalf("StakesOf() with a landed fund = %#v, %v; want the cabal", stakes, err)
+		}
+		if _, err := f.pool.Exec(t.Context(), `UPDATE fund_transfers SET `+end+` WHERE status = 'landed'`); err != nil {
+			t.Fatal(err)
+		}
+		if stakes, err := q.StakesOf(t.Context(), user); err != nil || len(stakes) != 0 {
+			t.Fatalf("StakesOf() after %s = %#v, %v; want none", end, stakes, err)
+		}
+	}
+}
+
 func TestPositions_InvalidStoredMintFailsDecode(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -340,6 +397,7 @@ func TestQueries_CanceledReadsFail(t *testing.T) {
 		func() error { _, err := q.ShareUnits(ctx, cabal, user); return err },
 		func() error { _, err := q.Stake(ctx, cabal, user); return err },
 		func() error { _, err := q.StakesOf(ctx, user); return err },
+		func() error { _, err := q.OpenFund(ctx, cabal, user); return err },
 	} {
 		if call() == nil {
 			t.Fatal("error = nil")
