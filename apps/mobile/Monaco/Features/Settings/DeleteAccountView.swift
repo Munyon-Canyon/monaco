@@ -189,15 +189,14 @@ private struct ChecklistStep<Content: View>: View {
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            content
-        }
-        .padding(.vertical, isHighlighted ? MonacoTheme.Space.s : 0)
-        .background {
             if isHighlighted {
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                    .fill(MonacoTheme.lossWash)
-                    .padding(.horizontal, MonacoTheme.Space.xs)
+                Text("Do this first.")
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.destructive)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .accessibilityIdentifier("delete-account-step-highlight")
             }
+            content
         }
         .accessibilityElement(children: .contain)
     }

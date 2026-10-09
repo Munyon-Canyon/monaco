@@ -29,7 +29,6 @@ struct ProposeAmountScreen: View {
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                     MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
                     ProposePotTotalRow(cabalID: cabalID)
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
                 }
                 AmountEntry(
                     amountText: $amountText, max: max, presets: presets, helper: model.helperText,

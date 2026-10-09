@@ -11,6 +11,7 @@ enum SectionStackMetrics {
 struct SectionStack<Context>: View {
     let context: Context
     let sections: [any ScreenSection<Context>.Type]
+    @Environment(\.insideMonacoSheet) private var insideSheet
 
     static func live(_ sections: [any ScreenSection<Context>.Type]) -> [any ScreenSection<Context>.Type] {
         sections.filter { $0.isLive }
@@ -27,7 +28,7 @@ struct SectionStack<Context>: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .environment(\.sectionScrollProxy, proxy)
-            .monacoCanvas()
+            .background { if !insideSheet { MonacoCanvasBackground() } }
         }
     }
 }

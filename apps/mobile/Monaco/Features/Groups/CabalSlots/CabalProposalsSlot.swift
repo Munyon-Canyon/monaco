@@ -303,12 +303,7 @@ private struct ProposalCardSkeleton: View {
                 SkeletonBlock(width: 64, height: 11)
             }
         }
-        .padding(MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay {
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
-        }
+        .monacoActionCard()
         .accessibilityHidden(true)
     }
 }

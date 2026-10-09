@@ -5,19 +5,22 @@ struct CabalPauseRow: View {
     let pause: CabalPause
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
-            Image(systemName: "pause.circle.fill")
-                .font(.body)
-                .foregroundStyle(MonacoTheme.warning)
-                .accessibilityHidden(true)
-            Text(pause.message)
-                .font(MonacoTheme.Typo.callout)
-                .foregroundStyle(MonacoTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: 0) {
+            MonacoRule()
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.sm) {
+                Image(systemName: "pause.circle.fill")
+                    .font(.body)
+                    .foregroundStyle(MonacoTheme.warning)
+                    .accessibilityHidden(true)
+                Text(pause.message)
+                    .font(MonacoTheme.Typo.callout)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: MonacoRowLayout.minHeight)
+            MonacoRule()
         }
-        .padding(MonacoTheme.Space.m)
-        .background(MonacoTheme.goldWash, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("cabal-pause-banner")
     }

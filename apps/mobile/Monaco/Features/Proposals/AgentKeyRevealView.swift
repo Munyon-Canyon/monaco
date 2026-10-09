@@ -58,16 +58,7 @@ struct AgentKeyRevealView: View {
                 .accessibilityIdentifier("agent-key-copy")
             }
         }
-        .padding(MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            MonacoTheme.surface,
-            in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
-        }
+        .monacoActionCard()
     }
 
     /// Device-only and expiring: both texts carry the bot's key.

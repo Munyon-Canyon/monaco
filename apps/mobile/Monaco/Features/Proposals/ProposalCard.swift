@@ -77,18 +77,7 @@ struct ProposalCard: View {
             }
             actions
         }
-        .padding(isDetail ? 0 : MonacoTheme.Space.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isDetail ? Color.clear : MonacoTheme.surface,
-            in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card)
-        )
-        .overlay {
-            if !isDetail {
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                    .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
-            }
-        }
+        .monacoActionCard(isCard: !isDetail)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("proposal-card-\(summary.id)")
     }

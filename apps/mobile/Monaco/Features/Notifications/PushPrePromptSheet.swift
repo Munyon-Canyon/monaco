@@ -10,19 +10,13 @@ struct PushPrePromptSheet: View {
         ScrollView {
             VStack(spacing: MonacoTheme.Space.m) {
                 SunkenGlyphMark(systemImage: "bell", size: 64)
-                Text("Know when your cabal votes and trades")
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("push-pre-prompt-title")
                 Text("We'll tell you when a vote opens or passes, when a trade fills, and when a cabal lets you in.")
                     .font(MonacoTheme.Typo.body)
                     .foregroundStyle(MonacoTheme.muted)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.xl)
+            .padding(.top, MonacoTheme.Space.m)
             .padding(.bottom, MonacoTheme.Space.l)
         }
         .scrollBounceBehavior(.basedOnSize)
@@ -40,9 +34,8 @@ struct PushPrePromptSheet: View {
                 .accessibilityIdentifier("push-pre-prompt-turn-on")
             }
         }
-        .monacoCanvas()
+        .monacoSheet(title: "Know when your cabal votes and trades", titleIdentifier: "push-pre-prompt-title")
         .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium])
-        .presentationDragIndicator(.visible)
         .accessibilityIdentifier("push-pre-prompt")
     }
 }

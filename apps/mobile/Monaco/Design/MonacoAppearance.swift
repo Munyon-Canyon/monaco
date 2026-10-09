@@ -94,6 +94,10 @@ struct MonacoRootAppearanceModifier: ViewModifier {
     }
 }
 
+extension EnvironmentValues {
+    @Entry var insideMonacoSheet = false
+}
+
 extension View {
     /// Flat paper canvas. Apply once at a screen root.
     func monacoCanvas() -> some View {
@@ -105,18 +109,51 @@ extension View {
         modifier(MonacoRootAppearanceModifier())
     }
 
-    /// Card-style container on the app canvas.
-    func monacoSurfaceCard() -> some View {
-        self
-            .padding(MonacoTheme.Space.m)
-            .background(
-                MonacoTheme.surface,
-                in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-                    .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
+    @ViewBuilder
+    func monacoActionCard(
+        isCard: Bool = true,
+        fill: Color = MonacoTheme.surface,
+        border: Color = MonacoTheme.hairline,
+        isDashed: Bool = false,
+        inset: CGFloat = MonacoTheme.Space.m,
+        fillsWidth: Bool = true
+    ) -> some View {
+        if isCard {
+            let shape = RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+            self
+                .padding(inset)
+                .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
+                .background(fill, in: shape)
+                .overlay {
+                    shape.strokeBorder(border, style: StrokeStyle(lineWidth: 1, dash: isDashed ? [6, 4] : []))
+                }
+        } else {
+            self.frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    func monacoSheet(title: String, titleIdentifier: String? = nil) -> some View {
+        let heading = Text(title)
+            .font(MonacoTheme.Typo.title)
+            .foregroundStyle(MonacoTheme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.top, MonacoTheme.Space.m)
+            .padding(.bottom, MonacoTheme.Space.s)
+            .accessibilityAddTraits(.isHeader)
+        return VStack(alignment: .leading, spacing: 0) {
+            if let titleIdentifier {
+                heading.accessibilityIdentifier(titleIdentifier)
+            } else {
+                heading
             }
+            self
+                .environment(\.insideMonacoSheet, true)
+        }
+        .background(MonacoTheme.surface)
+        .presentationBackground(MonacoTheme.surface)
+        .presentationCornerRadius(MonacoTheme.Radius.sheet)
+        .presentationDragIndicator(.visible)
     }
 
     func monacoTopLevelHeader(title: String) -> some View {
