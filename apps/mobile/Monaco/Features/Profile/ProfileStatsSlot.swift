@@ -11,41 +11,20 @@ enum ProfileStatsSlot: ProfileSection {
 }
 
 struct ProfileStatsBand: View {
-    @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
-    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var model: PortfolioModel?
-
-    init(model: PortfolioModel? = nil) {
-        _model = State(initialValue: model)
-    }
 
     var body: some View {
         content
-            .task {
-                let model = preparedModel()
-                refresh?.register("profile-stats") { await model.load() }
-                await withTaskGroup(of: Void.self) { group in
-                    group.addTask { await model.load() }
-                    group.addTask { await model.observe() }
-                }
-            }
-            .onScreenVisibilityChange { model?.setVisible($0) }
-            .onChange(of: model?.toast) { _, message in
-                guard let message else { return }
-                toasts.current = MonacoToast(message: message)
-                model?.dismissToast()
-            }
     }
 
     @ViewBuilder private var content: some View {
-        switch model?.state ?? .loading {
+        switch portfolio?.state ?? .loading {
         case .idle, .loading:
             skeleton
         case .failed:
-            MonacoErrorRow(thing: "your stats", identifier: "profile-stats-retry") {
-                Task { await model?.load() }
+            MonacoErrorRow(thing: "your portfolio", identifier: "profile-stats-retry") {
+                Task { await portfolio?.load() }
             }
         case .loaded(let summary):
             band(summary.stats)
@@ -95,13 +74,6 @@ struct ProfileStatsBand: View {
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
-
-    private func preparedModel() -> PortfolioModel {
-        if let model { return model }
-        let created = PortfolioModel(api: environment.api, hints: environment.hints)
-        model = created
-        return created
-    }
 }
 
 private struct ProfileStatColumn: View {
@@ -146,9 +118,11 @@ private struct ProfilePortfolioHarness: View {
     let portfolio: Components.Schemas.MyPortfolio
     @State private var environment: AppEnvironment
     @State private var toasts = ToastCenter()
+    @State private var model: PortfolioModel
 
     init(portfolio: Components.Schemas.MyPortfolio, auth: PrivyAuthService) {
         self.portfolio = portfolio
+        _model = State(initialValue: .preview(portfolio))
         _environment = State(
             initialValue: AppEnvironment(
                 auth: auth, hints: SilentHints(), isAuthenticated: { true }, endAuthSession: {}))
@@ -158,8 +132,8 @@ private struct ProfilePortfolioHarness: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                    ProfileStatsBand(model: .preview(portfolio))
-                    ProfileCabals(model: .preview(portfolio))
+                    ProfileStatsBand()
+                    ProfileCabals()
                 }
             }
             .monacoCanvas()
@@ -167,6 +141,8 @@ private struct ProfilePortfolioHarness: View {
         }
         .environment(environment)
         .environment(toasts)
+        .environment(model)
+        .task { await model.load() }
     }
 }
 
