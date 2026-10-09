@@ -32,7 +32,7 @@ const (
 	excerptLines = 8
 	packageKind  = "package"
 	openAPISpec  = "apps/backend/api/openapi.yaml"
-	vacuumLint   = "dshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml"
+	vacuumLint   = "ghcr.io/daveshanley/vacuum:v0.30.6 lint -b -q -n warn -r /api/.vacuum.yaml /api/openapi.yaml"
 )
 
 var (
