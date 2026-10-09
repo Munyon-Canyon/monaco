@@ -9,7 +9,7 @@ enum MonacoAppearance {
         let muted = UIColor(MonacoTheme.muted)
         let hairline = UIColor(MonacoTheme.hairline)
         let titleFont = UIFont.systemFont(ofSize: 17, weight: .semibold)
-        let largeTitleFont = UIFont.systemFont(ofSize: 34, weight: .bold)
+        let largeTitleFont = UIFont.systemFont(ofSize: 36, weight: .bold)
         let titleAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: primaryText,
             .font: UIFontMetrics(forTextStyle: .headline).scaledFont(for: titleFont, maximumPointSize: 22),

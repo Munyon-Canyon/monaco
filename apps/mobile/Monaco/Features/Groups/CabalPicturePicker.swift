@@ -194,12 +194,7 @@ private struct CabalPictureLabel: View {
     /// The camera on the mark's corner, in the brand fill.
     private var cameraBadge: some View {
         let diameter = max(18, size * 0.44)
-        return Image(systemName: "camera.fill")
-            .font(.system(size: max(9, size * 0.22), weight: .semibold))
-            .foregroundStyle(MonacoTheme.primaryButtonLabel)
-            .frame(width: diameter, height: diameter)
-            .background(MonacoTheme.primaryButtonFill, in: Circle())
-            .overlay { Circle().strokeBorder(MonacoTheme.canvas, lineWidth: 1.5) }
+        return CameraBadgeMark(diameter: diameter, ring: 1.5)
             .offset(x: 5, y: 5)
     }
 }

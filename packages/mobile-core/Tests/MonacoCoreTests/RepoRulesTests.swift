@@ -319,11 +319,16 @@ enum DesignScaleRules {
     static let fixedFont = RepoRule(
         name: "fixed-font",
         roots: ["apps/mobile/Monaco"],
-        pattern: #"\.system\(size:"#,
+        pattern: #"\.system\(\s*size:"#,
         message: "Text uses a text style or a MonacoTheme font so it scales with Dynamic Type.",
         failing: [
             ".font(.system(size: 14))",
             ".font(.system(size: 17, weight: .semibold))",
+            ".font(.system(size: 8))",
+            ".font(.system(size: max(11, size * 0.14), weight: .semibold))",
+            ".font(.system(size: size * 0.425, weight: .medium))",
+            ".font(Font.system(size: 12, weight: .semibold))",
+            ".font(.system(\n    size: 12,\n    weight: .semibold\n))",
         ],
         passing: [
             ".font(.body)",

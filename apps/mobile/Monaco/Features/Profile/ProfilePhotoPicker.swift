@@ -42,14 +42,7 @@ struct ProfilePhotoPicker: View {
                     }
                 }
 
-                Image(systemName: "camera.fill")
-                    .font(.system(size: max(11, size * 0.14), weight: .semibold))
-                    .foregroundStyle(MonacoTheme.primaryButtonLabel)
-                    .frame(width: max(24, size * 0.3), height: max(24, size * 0.3))
-                    .background(MonacoTheme.primaryButtonFill, in: Circle())
-                    .overlay {
-                        Circle().strokeBorder(MonacoTheme.canvas, lineWidth: 2)
-                    }
+                CameraBadgeMark(diameter: max(24, size * 0.3), ring: 2)
             }
         }
         .buttonStyle(.plain)

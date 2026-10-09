@@ -80,7 +80,8 @@ struct MarketSessionDot: View {
 
     var body: some View {
         Image(systemName: isLive ? "circle.fill" : "moon.fill")
-            .font(.system(size: 8))
+            .font(MonacoTheme.Typo.dataMicro)
+            .imageScale(.small)
             .foregroundStyle(isLive ? MonacoTheme.profit : MonacoTheme.warning)
             .opacity(isLive && isPulsing ? 0.45 : 1)
             .animation(
