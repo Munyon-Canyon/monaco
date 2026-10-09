@@ -555,6 +555,7 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     log_dir = OUT / ("backend-slot%d-%s" % (slot, stamp()))
     log_dir.mkdir(parents=True, exist_ok=True)
     env["MONACO_LOG_DIR"] = str(log_dir)
+    os.environ["QA_API_LOG"] = str(log_dir / "api.log")
     # Slot backends must not spend the shared CoinGecko key on price history.
     env["MARKET_HISTORY_ENABLED"] = "false"
     if env.get("QA_FAKE_RPC") == "1":
@@ -1076,6 +1077,8 @@ def run_session(journey, scenarios, sim, accounts, channel, run_dir, api_base_ur
     env["TEST_RUNNER_MONACO_QA_HANDOFF"] = str(handoff)
     env["TEST_RUNNER_MONACO_QA_API_BASE_URL"] = api_base_url
     env["TEST_RUNNER_MONACO_QA_LAST_SCENARIO"] = last
+    if os.environ.get("QA_API_LOG"):
+        env["TEST_RUNNER_MONACO_QA_API_LOG"] = os.environ["QA_API_LOG"]
     setup_env = dict(os.environ)
     setup_env.update(actor_environment(accounts, channel, run_id))
     setup_env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)

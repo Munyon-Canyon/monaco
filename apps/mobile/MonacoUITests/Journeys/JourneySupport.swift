@@ -52,6 +52,32 @@ enum JourneyRun {
     }
 }
 
+enum JourneyDiagnostics {
+    static func wait(for element: XCUIElement, in app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        let found = element.waitForExistence(timeout: timeout)
+        if !found {
+            attach(app)
+        }
+        return found
+    }
+
+    static func attach(_ app: XCUIApplication, logLines: Int = 50) {
+        XCTContext.runActivity(named: "diagnostics") { activity in
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "app.debugDescription"
+            tree.lifetime = .keepAlways
+            activity.add(tree)
+            guard let path = ProcessInfo.processInfo.environment["MONACO_QA_API_LOG"], !path.isEmpty,
+                let log = try? String(contentsOfFile: path, encoding: .utf8)
+            else { return }
+            let tail = XCTAttachment(string: log.split(separator: "\n").suffix(logLines).joined(separator: "\n"))
+            tail.name = "api.log (last \(logLines) lines)"
+            tail.lifetime = .keepAlways
+            activity.add(tail)
+        }
+    }
+}
+
 final class JourneyRecorder {
     let journey: String
     let version: Int
