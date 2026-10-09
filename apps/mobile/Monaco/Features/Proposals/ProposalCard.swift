@@ -8,6 +8,7 @@ struct ProposalCard: View {
     private let paused: Bool
     private let showsThesis: Bool
     private let isDetail: Bool
+    private let showsTracker: Bool
     private let openRoute: AnyAppRoute?
     private let vote: (String) -> Void
 
@@ -17,6 +18,7 @@ struct ProposalCard: View {
         proposal: ProposalSummary, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
         showsThesis: Bool = true,
         isDetail: Bool = false,
+        showsTracker: Bool = true,
         openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
@@ -26,6 +28,7 @@ struct ProposalCard: View {
         self.paused = paused
         self.showsThesis = showsThesis
         self.isDetail = isDetail
+        self.showsTracker = showsTracker
         self.openRoute = openRoute
         self.vote = vote
     }
@@ -34,6 +37,7 @@ struct ProposalCard: View {
         proposal: ProposalDetail, asset: ProposalAsset?, members: [ProposalMember], paused: Bool = false,
         showsThesis: Bool = true,
         isDetail: Bool = false,
+        showsTracker: Bool = true,
         openRoute: AnyAppRoute? = nil,
         vote: @escaping (String) -> Void = { _ in }
     ) {
@@ -43,6 +47,7 @@ struct ProposalCard: View {
         self.paused = paused
         self.showsThesis = showsThesis
         self.isDetail = isDetail
+        self.showsTracker = showsTracker
         self.openRoute = openRoute
         self.vote = vote
     }
@@ -63,7 +68,7 @@ struct ProposalCard: View {
                     .foregroundStyle(MonacoTheme.muted)
                     .lineLimit(3)
             }
-            tracker
+            if showsTracker { tracker }
             if paused && summary.status == .open {
                 Text(ProposalCardCopy.pausedCaption(isSell: isSell))
                     .font(MonacoTheme.Typo.caption)

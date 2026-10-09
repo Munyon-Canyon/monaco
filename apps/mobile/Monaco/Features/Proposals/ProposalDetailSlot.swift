@@ -16,7 +16,6 @@ struct ProposalDetailSlotView: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var model: ProposalDetailModel?
     @State private var pause: ProposalPauseModel?
-    @State private var priorStatus: ProposalStatus?
     @State private var showBurst = false
     @State private var confirmingWithdrawal = false
 
@@ -28,12 +27,13 @@ struct ProposalDetailSlotView: View {
     var body: some View {
         Group {
             if let detail = model?.value, let summary = model?.summary {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.gutter) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                     ProposalCard(
                         proposal: summary, asset: model?.asset, members: model?.members ?? [],
                         paused: pause?.isPaused == true,
                         showsThesis: false,
-                        isDetail: true
+                        isDetail: true,
+                        showsTracker: false
                     ) {
                         choice in
                         Task {
@@ -46,6 +46,10 @@ struct ProposalDetailSlotView: View {
                     }
                     .disabled(model?.isVoting == true)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
+                    votes(detail)
+                    reason(detail)
+                    expected(summary)
+                    status(summary)
                     if model?.canWithdraw == true {
                         Button("Withdraw proposal", role: .destructive) {
                             confirmingWithdrawal = true
@@ -54,10 +58,6 @@ struct ProposalDetailSlotView: View {
                         .accessibilityIdentifier("proposal-withdraw")
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                     }
-                    votes(detail)
-                    reason(detail)
-                    expected(summary)
-                    status(summary)
                 }
                 .padding(.top, MonacoTheme.Space.m)
             } else if model?.errorMessage != nil {
@@ -74,13 +74,14 @@ struct ProposalDetailSlotView: View {
             }
         }
         .task {
-            if model?.value != nil { return }
             let model = preparedModel()
-            await model.load()
+            if model.value == nil { await model.load() }
             guard let cabalID = model.value?.summary.cabalID else { return }
             async let detailHints: Void = model.observe()
-            let pause = ProposalPauseModel(
-                cabalID: cabalID, repository: ProposalsRepository(api: environment.api), hints: environment.hints)
+            let pause =
+                self.pause
+                ?? ProposalPauseModel(
+                    cabalID: cabalID, repository: ProposalsRepository(api: environment.api), hints: environment.hints)
             self.pause = pause
             await pause.load()
             await pause.observe()
@@ -91,8 +92,7 @@ struct ProposalDetailSlotView: View {
             pause?.setVisible($0)
         }
         .onChange(of: model?.value?.summary.status) { old, new in
-            priorStatus = old
-            showBurst = old == .open && new == .executed && model?.value?.summary.kind == "buy"
+            showBurst = new == .executed && old != nil && old != .executed && model?.value?.summary.kind == "buy"
         }
         .confirmationDialog("Withdraw this proposal?", isPresented: $confirmingWithdrawal, titleVisibility: .visible) {
             Button("Withdraw", role: .destructive) {
@@ -125,8 +125,6 @@ struct ProposalDetailSlotView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 Text("\(groups.yes.count) yes · \(groups.no.count) no · \(groups.notVoted.count) not voted")
                     .font(MonacoTheme.Typo.calloutStrong)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
                 ProgressView(value: CGFloat(min(groups.yes.count, needed)), total: CGFloat(needed))
                     .tint(MonacoTheme.brandFill)
                     .accessibilityLabel("\(groups.yes.count) of \(tally.needed) yes votes to pass")
@@ -142,7 +140,7 @@ struct ProposalDetailSlotView: View {
                     }
                     Spacer(minLength: MonacoTheme.Space.s)
                     NavigationLink {
-                        ProposalVotersView(groups: groups)
+                        ProposalVotersView(model: model)
                     } label: {
                         Text("See all")
                             .font(MonacoTheme.Typo.calloutStrong)
@@ -214,6 +212,10 @@ struct ProposalDetailSlotView: View {
             if let swapID = summary.swap?.id {
                 NavigationLink(value: AnyAppRoute(TransactionRoute(cabalID: summary.cabalID, transactionID: swapID))) {
                     Label("View transaction", systemImage: "arrow.up.right.square")
+                        .font(MonacoTheme.Typo.calloutStrong)
+                        .foregroundStyle(MonacoTheme.brand)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
             }
             if showBurst { ProposalCoinBurst() }
