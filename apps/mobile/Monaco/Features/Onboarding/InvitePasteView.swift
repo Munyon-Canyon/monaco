@@ -28,7 +28,7 @@ struct InviteGatedLoginView: View {
                 onPaste: { url in
                     let result = model.paste(url)
                     toasts.current = MonacoToast(message: result.toast, isSuccess: result == .added)
-                    step = .login
+                    if result == .added { step = .login }
                 },
                 onSkip: {
                     model.skip()
@@ -53,6 +53,12 @@ struct InvitePasteView: View {
     let onPaste: (URL) -> Void
     let onSkip: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var pasteTint: Color {
+        colorScheme == .dark ? MonacoTheme.surfaceSunken : MonacoTheme.brandFill
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -60,7 +66,7 @@ struct InvitePasteView: View {
                     .font(MonacoTheme.Typo.display)
                     .foregroundStyle(MonacoTheme.ink)
                     .accessibilityAddTraits(.isHeader)
-                Text("Paste your invite link to join from your friend's invite.")
+                Text("Paste the link your friend sent you.")
                     .font(MonacoTheme.Typo.callout)
                     .foregroundStyle(MonacoTheme.secondaryText)
             }
@@ -76,10 +82,15 @@ struct InvitePasteView: View {
                         guard let url = urls.first else { return }
                         Task { @MainActor in onPaste(url) }
                     }
-                    .tint(MonacoTheme.heroInk)
+                    .tint(pasteTint)
                     .labelStyle(.titleOnly)
                     .buttonBorderShape(.capsule)
                     .controlSize(.large)
+                    .background {
+                        if colorScheme == .dark {
+                            Capsule().strokeBorder(MonacoTheme.secondaryText, lineWidth: 1).padding(-1)
+                        }
+                    }
                     .accessibilityLabel("Paste invite")
                     .accessibilityIdentifier("invite-paste-button")
 

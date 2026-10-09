@@ -5,7 +5,7 @@ enum SettingsNotificationsJourney {
     static let version = 4
 
     static let title = "Know when your cabal votes and trades"
-    static let body = "We'll tell you when a vote opens, passes, or a trade fills."
+    static let body = "We'll tell you when a vote opens or passes, when a trade fills, and when a cabal lets you in."
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
