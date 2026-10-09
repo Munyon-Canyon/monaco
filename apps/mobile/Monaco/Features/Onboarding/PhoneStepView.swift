@@ -254,7 +254,7 @@ private struct PhoneStepForm: View {
         Button {
             Task { await skip() }
         } label: {
-            Text(skipTitle).frame(maxWidth: .infinity)
+            Text(skipTitle)
         }
         .buttonStyle(.monacoPrimary)
         .disabled(model.isBusy)

@@ -110,7 +110,6 @@ struct LoginView: View {
                 EmailLoginView(auth: auth, scroll: scroll, initialCode: initialCode)
             }
         }
-        .monacoFullWidthButtons()
     }
 
     private var effectiveMethod: LoginMethod {

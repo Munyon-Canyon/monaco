@@ -47,7 +47,6 @@ struct FacePickerSheet: View {
                     Text("Choose a photo")
                 }
                 .buttonStyle(.monacoSecondary)
-                .monacoFullWidthButtons()
                 .accessibilityIdentifier("face-choose-photo")
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)

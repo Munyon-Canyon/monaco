@@ -25,7 +25,7 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// `false` sizes `.monacoPrimary` / `.monacoSecondary` / `.monacoDestructive` to their label.
+    /// Full width is the default for the monaco button styles; `false` opts out and sizes the capsule to its label.
     func monacoFullWidthButtons(_ enabled: Bool = true) -> some View {
         environment(\.monacoButtonFullWidth, enabled)
     }
@@ -185,7 +185,6 @@ struct BottomCTA<Content: View>: View {
         layout {
             content
         }
-        .monacoFullWidthButtons()
         .frame(maxWidth: .infinity)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.sm)

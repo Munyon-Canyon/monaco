@@ -44,7 +44,6 @@ struct ReferralCodeSheet: View {
                 Task { await submit() }
             } label: {
                 Text(model.isSubmitting ? "Adding" : "Add code")
-                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.monacoPrimary)
             .disabled(!model.canSubmit)

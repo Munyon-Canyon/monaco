@@ -39,7 +39,6 @@ struct AgentKeyRevealView: View {
                     copy(connectText, message: ProposeFlowCopy.connectCopied)
                 }
                 .buttonStyle(.monacoPrimary)
-                .monacoFullWidthButtons()
                 .accessibilityIdentifier("agent-connect-copy")
             }
 
@@ -50,14 +49,12 @@ struct AgentKeyRevealView: View {
                     copy(apiKey, message: ProposeFlowCopy.keyCopied)
                 }
                 .buttonStyle(.monacoSecondary)
-                .monacoFullWidthButtons()
                 .accessibilityIdentifier("agent-key-copy")
             } else {
                 Button(ProposeFlowCopy.copyKey) {
                     copy(apiKey, message: ProposeFlowCopy.keyCopied)
                 }
                 .buttonStyle(.monacoPrimary)
-                .monacoFullWidthButtons()
                 .accessibilityIdentifier("agent-key-copy")
             }
         }

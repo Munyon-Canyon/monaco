@@ -28,14 +28,14 @@ struct RestrictedAccountView: View {
                         Button {
                             path.append(AnyAppRoute(WithdrawRoute()))
                         } label: {
-                            Text(OnboardingCopy.withdraw).frame(maxWidth: .infinity)
+                            Text(OnboardingCopy.withdraw)
                         }
                         .buttonStyle(.monacoPrimary)
                         .accessibilityIdentifier("restricted-withdraw")
                         Button {
                             path.append(AnyAppRoute(RestrictedCabalsRoute()))
                         } label: {
-                            Text(OnboardingCopy.cashOut).frame(maxWidth: .infinity)
+                            Text(OnboardingCopy.cashOut)
                         }
                         .buttonStyle(.monacoSecondary)
                         .accessibilityIdentifier("restricted-cash-out")
