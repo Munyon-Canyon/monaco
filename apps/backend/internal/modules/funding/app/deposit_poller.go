@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"math"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
-	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -19,8 +17,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -28,6 +26,8 @@ const (
 	DepositPollInterval        = 30 * time.Second
 	depositSignaturePageSize   = 1000
 	bootstrapSignaturePageSize = 1
+
+	depositCandidateSourcePoller = "poller"
 )
 
 var errRateBudgetSpent = errs.New(errs.CodeInternal, "funding.DepositPoller.rateBudgetSpent")
@@ -36,9 +36,6 @@ type DepositRPC interface {
 	SignaturesFor(
 		context.Context, chain.SolanaAddress, solana.SignaturesOpts,
 	) ([]solana.SignatureInfo, error)
-	InboundTransfersForMint(
-		context.Context, chain.Signature, chain.SolanaAddress, chain.SolanaAddress,
-	) ([]solana.Transfer, error)
 }
 
 type RPCLimiter interface {
@@ -61,9 +58,7 @@ type DepositPoller struct {
 	rpc     DepositRPC
 	usdc    chain.SolanaAddress
 	period  time.Duration
-	hints   HintPublisher
 	limit   RPCLimiter
-	owner   fundingport.SignatureOwner
 }
 
 type memberWallet struct {
@@ -75,33 +70,21 @@ type backfillCursor struct {
 	before    chain.Signature
 	until     chain.Signature
 	head      chain.Signature
-	slot      uint64
+	slot      int64
 	completed bool
 }
 
 func NewDepositPoller(
 	reads sqlc.DBTX, uow *db.UnitOfWork, g ids.Generator, c clock.Clock, wallets port.WalletReader,
-	rpc DepositRPC, usdc chain.SolanaAddress, period time.Duration, limit RPCLimiter, hints HintPublisher,
+	rpc DepositRPC, usdc chain.SolanaAddress, period time.Duration, limit RPCLimiter,
 ) *DepositPoller {
 	return &DepositPoller{
 		reads: reads, uow: uow, ids: g, clock: c, wallets: wallets, rpc: rpc, usdc: usdc,
-		period: period, hints: hints, limit: limit,
+		period: period, limit: limit,
 	}
 }
 
-func (p *DepositPoller) SkipOwned(owner fundingport.SignatureOwner) *DepositPoller {
-	p.owner = owner
-	return p
-}
-
-func (p *DepositPoller) owns(ctx context.Context, sig chain.Signature) (bool, error) {
-	if p.owner == nil {
-		return false, nil
-	}
-	return p.owner.OwnsSignature(ctx, sig)
-}
-
-func (*DepositPoller) Name() string { return "funding.deposits" }
+func (*DepositPoller) Name() string { return "funding.deposit_watch" }
 
 func (p *DepositPoller) Interval() time.Duration { return p.period }
 
@@ -208,7 +191,7 @@ func newBackfillCursor(cursor sqlc.DepositCursorsForWalletsRow) (backfillCursor,
 	if backfill.head == "" || cursor.BackfillHeadSlot < 0 {
 		return backfillCursor{}, errs.New(errs.CodeInternal, "funding.DepositPoller.backfill")
 	}
-	backfill.slot = uint64(cursor.BackfillHeadSlot)
+	backfill.slot = cursor.BackfillHeadSlot
 	backfill.completed = backfill.until == backfill.head
 	return backfill, nil
 }
@@ -232,31 +215,86 @@ func (p *DepositPoller) walkBackfill(
 func (p *DepositPoller) processBackfillPage(
 	ctx context.Context, wallet port.MemberWallet, page []solana.SignatureInfo, backfill *backfillCursor,
 ) (int, error) {
-	changed := 0
+	candidates, err := pageCandidates(wallet, page)
+	if err != nil {
+		return 0, err
+	}
 	if backfill.head == "" {
-		backfill.head, backfill.slot = page[0].Signature, page[0].Slot
+		backfill.head, backfill.slot = page[0].Signature, candidates.headSlot
 	}
-	for _, sig := range page {
-		added, err := p.scanSignature(ctx, wallet, sig)
-		if err != nil {
-			return changed, err
+	backfill.before = page[len(page)-1].Signature
+	recorder := NewCandidateRecorder(p.ids, p.clock.Now)
+	var recorded int
+	err = p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		if recorded, err = recorder.Record(ctx, tx, candidates.list); err != nil {
+			return err
 		}
-		changed += added
-		if err := p.checkpointBackfill(ctx, wallet.Address, sig.Signature, backfill); err != nil {
-			return changed, err
+		faultpoint.Hit(ctx, faultpoint.AfterCandidate)
+		q := sqlc.New(tx.Queries())
+		if len(page) < depositSignaturePageSize {
+			return p.completeBackfill(ctx, q, wallet.Address, *backfill)
 		}
+		return p.checkpointBackfill(ctx, q, wallet.Address, *backfill)
+	})
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeOf(err), "funding.DepositPoller.processBackfillPage")
 	}
-	if len(page) == depositSignaturePageSize {
-		return changed, nil
+	return recorded, nil
+}
+
+type pageCandidateSet struct {
+	list     []DepositCandidate
+	headSlot int64
+}
+
+func pageCandidates(wallet port.MemberWallet, page []solana.SignatureInfo) (pageCandidateSet, error) {
+	set := pageCandidateSet{list: make([]DepositCandidate, 0, len(page))}
+	for i, sig := range page {
+		if sig.Slot > math.MaxInt64 {
+			return pageCandidateSet{}, errs.New(errs.CodeInternal, "funding.DepositPoller.pageCandidates")
+		}
+		slot := int64(sig.Slot)
+		if i == 0 {
+			set.headSlot = slot
+		}
+		if sig.Failed {
+			continue
+		}
+		set.list = append(set.list, DepositCandidate{
+			Signature: sig.Signature, Wallet: wallet.Address, UserID: wallet.UserID,
+			Slot: slot, BlockTime: sig.BlockTime, Source: depositCandidateSourcePoller,
+		})
 	}
-	return changed, p.finishBackfill(ctx, wallet.Address, *backfill)
+	return set, nil
 }
 
 func (p *DepositPoller) checkpointBackfill(
-	ctx context.Context, address chain.SolanaAddress, before chain.Signature, backfill *backfillCursor,
+	ctx context.Context, q *sqlc.Queries, address chain.SolanaAddress, backfill backfillCursor,
 ) error {
-	backfill.before = before
-	return p.setBackfill(ctx, address, backfill.before, backfill.head, backfill.slot)
+	if err := q.SetDepositBackfill(ctx, sqlc.SetDepositBackfillParams{
+		WalletAddress: string(address), BeforeSignature: string(backfill.before),
+		HeadSignature: string(backfill.head), HeadSlot: backfill.slot,
+	}); err != nil {
+		return err
+	}
+	return q.TouchDepositCursor(ctx, sqlc.TouchDepositCursorParams{
+		WalletAddress: string(address), ScannedAt: p.clock.Now(),
+	})
+}
+
+func (p *DepositPoller) completeBackfill(
+	ctx context.Context, q *sqlc.Queries, address chain.SolanaAddress, backfill backfillCursor,
+) error {
+	if err := q.AdvanceDepositCursor(ctx, sqlc.AdvanceDepositCursorParams{
+		WalletAddress: string(address), LastSignature: string(backfill.head), CursorSlot: backfill.slot,
+		ScannedAt: p.clock.Now(),
+	}); err != nil {
+		return err
+	}
+	return q.SetDepositBackfill(ctx, sqlc.SetDepositBackfillParams{
+		WalletAddress: string(address), BeforeSignature: "", HeadSignature: "", HeadSlot: 0,
+	})
 }
 
 func (p *DepositPoller) finishBackfill(
@@ -265,49 +303,13 @@ func (p *DepositPoller) finishBackfill(
 	if backfill.head == "" {
 		return p.touch(ctx, address)
 	}
-	if backfill.slot > math.MaxInt64 {
-		return errs.New(errs.CodeInternal, "funding.DepositPoller.finishBackfill")
-	}
-	slot := int64(backfill.slot)
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		if err := q.AdvanceDepositCursor(ctx, sqlc.AdvanceDepositCursorParams{
-			WalletAddress: string(address), LastSignature: string(backfill.head), CursorSlot: slot,
-			ScannedAt: p.clock.Now(),
-		}); err != nil {
-			return err
-		}
-		return q.SetDepositBackfill(ctx, sqlc.SetDepositBackfillParams{
-			WalletAddress: string(address), BeforeSignature: "", HeadSignature: "", HeadSlot: 0,
-		})
+		return p.completeBackfill(ctx, sqlc.New(tx.Queries()), address, backfill)
 	})
 	if err != nil {
 		return errs.Wrap(err, errs.CodeOf(err), "funding.DepositPoller.finishBackfill")
 	}
 	return nil
-}
-
-func (p *DepositPoller) setBackfill(
-	ctx context.Context, address chain.SolanaAddress, before, head chain.Signature, slot uint64,
-) error {
-	if slot > math.MaxInt64 {
-		return errs.New(errs.CodeInternal, "funding.DepositPoller.setBackfill")
-	}
-	slotInt := int64(slot)
-	return p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		if err := q.SetDepositBackfill(ctx, sqlc.SetDepositBackfillParams{
-			WalletAddress:   string(address),
-			BeforeSignature: string(before),
-			HeadSignature:   string(head),
-			HeadSlot:        slotInt,
-		}); err != nil {
-			return err
-		}
-		return q.TouchDepositCursor(ctx, sqlc.TouchDepositCursorParams{
-			WalletAddress: string(address), ScannedAt: p.clock.Now(),
-		})
-	})
 }
 
 func (p *DepositPoller) bootstrap(ctx context.Context, ata, address chain.SolanaAddress) error {
@@ -355,81 +357,6 @@ func (p *DepositPoller) waitRPC(ctx context.Context) error {
 		return errRateBudgetSpent
 	}
 	return errs.Wrap(err, errs.CodeInternal, "funding.DepositPoller.waitRPC")
-}
-
-func (p *DepositPoller) scanSignature(
-	ctx context.Context, wallet port.MemberWallet, sig solana.SignatureInfo,
-) (int, error) {
-	if sig.Failed {
-		return 0, nil
-	}
-	owned, err := p.owns(ctx, sig.Signature)
-	if err != nil || owned {
-		return 0, err
-	}
-	if err := p.waitRPC(ctx); err != nil {
-		return 0, fmt.Errorf("funding.DepositPoller.scanSignature: %w", err)
-	}
-	transfers, err := p.rpc.InboundTransfersForMint(ctx, sig.Signature, wallet.Address, p.usdc)
-	if err != nil {
-		return 0, err
-	}
-	amount, err := p.amountFor(transfers)
-	if err != nil {
-		return 0, err
-	}
-	if amount.IsZero() {
-		return 0, nil
-	}
-	credited, err := p.credit(ctx, wallet, sig, amount)
-	if err != nil {
-		return 0, err
-	}
-	if credited {
-		return 1, nil
-	}
-	return 0, nil
-}
-
-func (p *DepositPoller) amountFor(transfers []solana.Transfer) (money.Micros, error) {
-	amount := money.Micros{}
-	for _, transfer := range transfers {
-		if transfer.Mint.Address != p.usdc || transfer.Net.Decimals() != 6 || transfer.Net.IsZero() {
-			continue
-		}
-		micros := money.MicrosFromUint64(transfer.Net.Uint64())
-		next, err := amount.Add(micros)
-		if err != nil {
-			return money.Micros{}, err
-		}
-		amount = next
-	}
-	return amount, nil
-}
-
-func (p *DepositPoller) credit(
-	ctx context.Context,
-	wallet port.MemberWallet,
-	sig solana.SignatureInfo,
-	amount money.Micros,
-) (bool, error) {
-	if sig.Slot > math.MaxInt64 {
-		return false, errs.New(errs.CodeInternal, "funding.DepositPoller.credit")
-	}
-	credited, err := NewCreditDepositHandler(p.uow, p.hints).Handle(ctx, CreditDeposit{
-		ID:            p.ids.NewV7(),
-		UserID:        wallet.UserID,
-		WalletAddress: wallet.Address,
-		TxSignature:   sig.Signature,
-		Amount:        amount,
-		Slot:          int64(sig.Slot),
-		BlockTime:     sig.BlockTime,
-		CreditedAt:    p.clock.Now(),
-	})
-	if err != nil {
-		return false, errs.Wrap(err, errs.CodeOf(err), "funding.DepositPoller.credit")
-	}
-	return credited, nil
 }
 
 func (p *DepositPoller) advance(

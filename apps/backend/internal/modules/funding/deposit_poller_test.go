@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -12,13 +13,13 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -30,14 +31,11 @@ func depositBlockTime() time.Time { return time.Unix(1_790_000_000, 0).UTC() }
 
 type depositRPC struct {
 	signatures      []solana.SignatureInfo
-	transfers       []solana.Transfer
 	err             error
 	signErr         error
-	transferErr     error
 	signaturesFor   func(chain.Signature, chain.Signature, int) []solana.SignatureInfo
 	signCalls       int
 	signatureLimits []int
-	transferCalls   int
 }
 
 func signaturesFromHistory(
@@ -91,17 +89,13 @@ func TestDepositPollerStartsNewWalletsAtTheChainTip(t *testing.T) {
 			}
 			return []solana.SignatureInfo{old}
 		},
-		transfers: []solana.Transfer{{
-			Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6},
-			Net:  money.NewBaseUnits(1, 6),
-		}},
 	}
 	p := app.NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(70), testkit.NewClock(now)), testkit.NewIDs(71), testkit.NewClock(now),
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), &hints{},
+		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(),
 	)
-	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 	if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
 		t.Fatalf("first Tick = %+v, %v", report, err)
 	}
@@ -111,13 +105,16 @@ func TestDepositPollerStartsNewWalletsAtTheChainTip(t *testing.T) {
 	if got, want := fmt.Sprint(rpc.signatureLimits), "[1 1000]"; got != want {
 		t.Fatalf("signature limits = %s, want %s", got, want)
 	}
-	var count int
+	var candidates, deposits int
+	var source string
 	if err := pool.QueryRow(
 		ctx,
-		`SELECT count(*) FROM deposits WHERE tx_signature = 'later'`,
-	).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("later deposits = %d, %v", count, err)
+		`SELECT count(*), coalesce(min(source), ''), (SELECT count(*) FROM deposits)
+		FROM deposit_candidates WHERE wallet_address = $1`, user.Address,
+	).Scan(&candidates, &source, &deposits); err != nil || candidates != 1 || source != "poller" || deposits != 0 {
+		t.Fatalf("candidates/source/deposits = %d/%q/%d, %v; want 1/poller/0", candidates, source, deposits, err)
 	}
+	assertCandidateSignatures(ctx, t, pool, user.Address, "later")
 }
 
 func TestDepositPollerResumesBackfillOnePageAtATime(t *testing.T) {
@@ -139,9 +136,9 @@ func TestDepositPollerResumesBackfillOnePageAtATime(t *testing.T) {
 	p := app.NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(72), testkit.NewClock(now)), testkit.NewIDs(73), testkit.NewClock(now),
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, &hints{},
+		&rpc, testkit.USDCMint, app.DepositPollInterval, budget,
 	)
-	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 	for _, allowance := range []int{3, 3, 2} {
 		budget.refill(allowance)
 		if _, err := p.Tick(ctx); err != nil {
@@ -151,7 +148,7 @@ func TestDepositPollerResumesBackfillOnePageAtATime(t *testing.T) {
 	assertBackfillProgress(ctx, t, pool, user.Address, rpc.signCalls, *beforeCalls, *untilCalls)
 }
 
-func TestDepositPollerCheckpointsCompletedSignaturesWhenTheTickEndsMidPage(t *testing.T) {
+func TestDepositPollerCommitsCandidatesWithTheCheckpointOfAWholePage(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
@@ -178,32 +175,69 @@ func TestDepositPollerCheckpointsCompletedSignaturesWhenTheTickEndsMidPage(t *te
 		signaturesFor: func(before, until chain.Signature, limit int) []solana.SignatureInfo {
 			return signaturesFromHistory(history, before, until, limit)
 		},
-		transfers: []solana.Transfer{{
-			Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6},
-			Net:  money.NewBaseUnits(1, 6),
-		}},
 	}
-	budget := &deadlineBudget{}
 	pollerClock := testkit.NewClock(now)
 	p := app.NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(76), pollerClock), testkit.NewIDs(77), pollerClock,
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, budget, &hints{},
+		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(),
 	)
-	ctx, cancel := context.WithCancel(observability.WithActor(t.Context(), "system:poller.funding.deposits"))
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 	pollerClock.Advance(time.Second)
-	budget.left, budget.cancel = 3, cancel
-	if _, err := p.Tick(ctx); err == nil {
-		t.Fatal("Tick deadline error = nil")
+	if report, err := p.Tick(ctx); err != nil || report.Changed != 3 {
+		t.Fatalf("first Tick = %+v, %v; want three candidates", report, err)
 	}
-	resumeCtx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
-	assertBackfillFrontier(resumeCtx, t, pool, user.Address, "sig999", "sig1000")
-	assertCursorScannedAt(resumeCtx, t, pool, user.Address, now.Add(time.Second))
-	budget.left = 2
-	if _, err := p.Tick(resumeCtx); err != nil {
+	assertBackfillFrontier(ctx, t, pool, user.Address, "sig1", "sig1000")
+	assertCursorScannedAt(ctx, t, pool, user.Address, now.Add(time.Second))
+	assertCandidateSignatures(ctx, t, pool, user.Address, "sig1000", "sig999", "sig998")
+	if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
+		t.Fatalf("second Tick = %+v, %v; want the walk finished", report, err)
+	}
+	assertFinishedWalk(ctx, t, pool, user.Address)
+}
+
+func assertFinishedWalk(ctx context.Context, t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress) {
+	t.Helper()
+	var deposits int
+	var cursor, before string
+	err := pool.QueryRow(
+		ctx,
+		`SELECT (SELECT count(*) FROM deposits WHERE wallet_address = $1), last_signature, backfill_before_signature
+		FROM deposit_cursors WHERE wallet_address = $1`, address,
+	).Scan(&deposits, &cursor, &before)
+	if err != nil || deposits != 0 || cursor != "sig1000" || before != "" {
+		t.Fatalf("deposits/cursor/before = %d/%q/%q, %v; want 0/sig1000/empty", deposits, cursor, before, err)
+	}
+}
+
+func assertCandidateSignatures(
+	ctx context.Context, t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, want ...string,
+) {
+	t.Helper()
+	rows, err := pool.Query(
+		ctx,
+		`SELECT tx_signature FROM deposit_candidates WHERE wallet_address = $1 AND status = 'pending'
+		ORDER BY tx_signature`, address,
+	)
+	if err != nil {
 		t.Fatal(err)
 	}
-	assertMidPageProgress(resumeCtx, t, pool, user.Address, rpc.transferCalls)
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var signature string
+		if err := rows.Scan(&signature); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, signature)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("pending candidates = %v, want %v", got, want)
+	}
 }
 
 func assertBackfillFrontier(
@@ -234,29 +268,6 @@ func assertCursorScannedAt(
 	}
 }
 
-func assertMidPageProgress(
-	ctx context.Context, t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, transferCalls int,
-) {
-	t.Helper()
-	if transferCalls != 3 {
-		t.Fatalf("transfer calls = %d, want 3", transferCalls)
-	}
-	var deposits int
-	err := pool.QueryRow(
-		ctx, `SELECT count(*) FROM deposits WHERE wallet_address = $1`, address,
-	).Scan(&deposits)
-	if err != nil || deposits != 3 {
-		t.Fatalf("deposits = %d, %v; want 3", deposits, err)
-	}
-	var cursor string
-	err = pool.QueryRow(
-		ctx, `SELECT last_signature FROM deposit_cursors WHERE wallet_address = $1`, address,
-	).Scan(&cursor)
-	if err != nil || cursor != "sig1000" {
-		t.Fatalf("cursor = %q, %v; want sig1000", cursor, err)
-	}
-}
-
 func TestDepositPollerDoesNotCreditBeforeTheCursorAfterACompletedBackfillCrash(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
@@ -284,17 +295,13 @@ func TestDepositPollerDoesNotCreditBeforeTheCursorAfterACompletedBackfillCrash(t
 		signaturesFor: func(before, until chain.Signature, limit int) []solana.SignatureInfo {
 			return signaturesFromHistory(history, before, until, limit)
 		},
-		transfers: []solana.Transfer{{
-			Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6},
-			Net:  money.NewBaseUnits(1, 6),
-		}},
 	}
 	p := app.NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(74), testkit.NewClock(now)), testkit.NewIDs(75), testkit.NewClock(now),
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), &hints{},
+		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(),
 	)
-	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 	for range 3 {
 		if _, err := p.Tick(ctx); err != nil {
 			t.Fatal(err)
@@ -309,6 +316,7 @@ func TestDepositPollerDoesNotCreditBeforeTheCursorAfterACompletedBackfillCrash(t
 	if deposits != 0 {
 		t.Fatalf("deposits before the cursor = %d, want 0", deposits)
 	}
+	assertCandidateSignatures(ctx, t, pool, user.Address)
 }
 
 func pagedBackfillRPC() (depositRPC, *[]chain.Signature, *[]chain.Signature) {
@@ -350,10 +358,6 @@ func pagedBackfillRPC() (depositRPC, *[]chain.Signature, *[]chain.Signature) {
 			}
 			return page
 		},
-		transfers: []solana.Transfer{{
-			Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6},
-			Net:  money.NewBaseUnits(1, 6),
-		}},
 	}
 	return rpc, &beforeCalls, &untilCalls
 }
@@ -379,7 +383,7 @@ func assertBackfillProgress(
 	}
 	rows, err := pool.Query(
 		ctx,
-		`SELECT tx_signature, count(*) FROM deposits WHERE wallet_address = $1 GROUP BY tx_signature`,
+		`SELECT tx_signature, count(*) FROM deposit_candidates WHERE wallet_address = $1 GROUP BY tx_signature`,
 		address,
 	)
 	if err != nil {
@@ -402,7 +406,7 @@ func assertBackfillProgress(
 	}
 	want := map[string]int{"sig2500": 1, "sig1501": 1, "sig1500": 1, "sig501": 1, "sig1": 1}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("deposits = %v, want %v", got, want)
+		t.Fatalf("candidates = %v, want %v", got, want)
 	}
 	var cursor string
 	if err := pool.QueryRow(
@@ -414,27 +418,14 @@ func assertBackfillProgress(
 	}
 }
 
-func (r *depositRPC) InboundTransfersForMint(
-	context.Context,
-	chain.Signature,
-	chain.SolanaAddress,
-	chain.SolanaAddress,
-) ([]solana.Transfer, error) {
-	r.transferCalls++
-	if r.transferErr != nil {
-		return nil, r.transferErr
-	}
-	return r.transfers, r.err
-}
-
-func TestDepositPollerReportsSignatureAndTransferFailures(t *testing.T) {
+func TestDepositPollerReportsSignatureAndSlotFailures(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		rpc  depositRPC
 	}{
 		{"signatures", depositRPC{signErr: errs.New(errs.CodeRPCUnavailable, "test.rpc")}},
-		{"transfers", depositRPC{signatures: []solana.SignatureInfo{{Signature: depositSignature, Slot: 42, BlockTime: depositBlockTime()}}, transferErr: errs.New(errs.CodeRPCUnavailable, "test.rpc")}},
+		{"slot", depositRPC{signatures: []solana.SignatureInfo{{Signature: depositSignature, Slot: math.MaxInt64 + 1}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -454,20 +445,6 @@ func unlimited() *rate.Limiter { return rate.NewLimiter(rate.Inf, 0) }
 type rpcBudget struct {
 	mu   sync.Mutex
 	left int
-}
-
-type deadlineBudget struct {
-	left   int
-	cancel context.CancelFunc
-}
-
-func (b *deadlineBudget) Wait(context.Context) error {
-	if b.left == 0 {
-		b.cancel()
-		return context.Canceled
-	}
-	b.left--
-	return nil
 }
 
 func (b *rpcBudget) refill(n int) {
@@ -508,11 +485,11 @@ func newDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(uowID), testkit.NewClock(now)),
 		testkit.NewIDs(pollerID), testkit.NewClock(now),
 		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
-		rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(), &hints{},
+		rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(),
 	)
 }
 
-func TestDepositPollerAdvancesFailedSignatureAndRejectsOverflow(t *testing.T) {
+func TestDepositPollerFixtureI17_FailedTransactionRecordsNoCandidate(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
@@ -521,29 +498,41 @@ func TestDepositPollerAdvancesFailedSignatureAndRejectsOverflow(t *testing.T) {
 		Signature: depositSignature, Slot: 42, Failed: true, BlockTime: depositBlockTime(),
 	}}}
 	p := newDepositPoller(t, pool, user, now, &rpc, 33, 34)
-	if report, err := p.Tick(t.Context()); err != nil || report.Changed != 0 {
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
+	if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
 		t.Fatalf("failed Tick = %+v, %v", report, err)
 	}
-	rpc.signatures = []solana.SignatureInfo{{Signature: "overflow", Slot: 43, BlockTime: depositBlockTime()}}
-	rpc.transfers = []solana.Transfer{
-		{Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(math.MaxUint64, 6)},
-		{Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(1, 6)},
+	var candidates, seen int
+	if err := pool.QueryRow(
+		ctx,
+		`SELECT (SELECT count(*) FROM deposit_candidates),
+		(SELECT count(*) FROM events WHERE type = 'deposit.candidate_seen')`,
+	).Scan(&candidates, &seen); err != nil || candidates != 0 || seen != 0 {
+		t.Fatalf("candidates/seen events = %d/%d, %v; want 0/0", candidates, seen, err)
 	}
-	if _, err := p.Tick(t.Context()); err == nil {
-		t.Fatal("overflow Tick error = nil")
+	assertCursorSignature(ctx, t, pool, user.Address, depositSignature)
+}
+
+func assertCursorSignature(
+	ctx context.Context, t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, want string,
+) {
+	t.Helper()
+	var cursor string
+	err := pool.QueryRow(
+		ctx, `SELECT last_signature FROM deposit_cursors WHERE wallet_address = $1`, address,
+	).Scan(&cursor)
+	if err != nil || cursor != want {
+		t.Fatalf("cursor = %q, %v; want %q", cursor, err, want)
 	}
 }
 
-func TestDepositPollerReportsCreditFailureWithoutActor(t *testing.T) {
+func TestDepositPollerReportsRecordFailureWithoutActor(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	rpc := depositRPC{
 		signatures: []solana.SignatureInfo{{Signature: depositSignature, Slot: 42, BlockTime: depositBlockTime()}},
-		transfers: []solana.Transfer{
-			{Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(1, 6)},
-		},
 	}
 	p := newDepositPoller(t, pool, user, now, &rpc, 35, 36)
 	if _, err := p.Tick(t.Context()); err == nil {
@@ -558,7 +547,7 @@ func TestDepositPollerTouchesCursorAfterAnEmptyScan(t *testing.T) {
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	rpc := depositRPC{}
 	p := newDepositPoller(t, pool, user, now, &rpc, 37, 38)
-	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 	if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
 		t.Fatalf("Tick = %+v, %v", report, err)
 	}
@@ -570,83 +559,102 @@ func TestDepositPollerTouchesCursorAfterAnEmptyScan(t *testing.T) {
 	}
 }
 
-func TestDepositPoller_creditsUSDCAndAdvancesPastOtherTokens(t *testing.T) {
+func TestDepositPoller_recordsEverySignatureAndLeavesTokenChecksToTheResolver(t *testing.T) {
 	t.Parallel()
-	testDepositPollerAdvancesPastOtherTokens(t)
-}
-
-func testDepositPollerAdvancesPastOtherTokens(t *testing.T) {
-	t.Helper()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	now := clock.Real{}.Now().UTC()
 	rpc := depositRPC{
 		signatures: []solana.SignatureInfo{{Signature: depositSignature, Slot: 42, BlockTime: depositBlockTime()}},
-		transfers: []solana.Transfer{{
-			Mint: chain.Mint{Address: "not-usdc", Decimals: 6}, Net: money.NewBaseUnits(4, 6),
-		}},
 	}
 	p := newDepositPoller(t, pool, user, now, &rpc, 11, 12)
-	report, err := p.Tick(t.Context())
-	if err != nil || report.Scanned != 1 || report.Changed != 0 {
-		t.Fatalf("Tick = %+v, %v calls=%d/%d", report, err, rpc.signCalls, rpc.transferCalls)
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
+	report, err := p.Tick(ctx)
+	if err != nil || report.Scanned != 1 || report.Changed != 1 {
+		t.Fatalf("Tick = %+v, %v calls=%d", report, err, rpc.signCalls)
 	}
-	var cursor string
-	const readCursor = `SELECT last_signature FROM deposit_cursors WHERE wallet_address = $1`
-	err = pool.QueryRow(t.Context(), readCursor, user.Address).Scan(&cursor)
-	if err != nil || cursor != depositSignature {
-		t.Fatalf("cursor = %q, %v", cursor, err)
-	}
+	assertCursorSignature(ctx, t, pool, user.Address, depositSignature)
+	assertCandidateSignatures(ctx, t, pool, user.Address, depositSignature)
 }
 
-func TestDepositPoller_creditsOneDepositOnlyOnce(t *testing.T) {
+func TestDepositPoller_recordsOneCandidateOnlyOnce(t *testing.T) {
 	t.Parallel()
-	testDepositPollerCreditsOneDepositOnlyOnce(t)
-}
-
-func testDepositPollerCreditsOneDepositOnlyOnce(t *testing.T) {
-	t.Helper()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	now := clock.Real{}.Now().UTC()
 	rpc := depositRPC{
 		signatures: []solana.SignatureInfo{{Signature: depositSignature, Slot: 42, BlockTime: depositBlockTime()}},
-		transfers: []solana.Transfer{{
-			Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(25_000_000, 6),
-		}},
 	}
 	p := newDepositPoller(t, pool, user, now, &rpc, 13, 14)
-	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 	if report, err := p.Tick(ctx); err != nil || report.Changed != 1 {
-		t.Fatalf("first Tick = %+v, %v calls=%d/%d", report, err, rpc.signCalls, rpc.transferCalls)
+		t.Fatalf("first Tick = %+v, %v calls=%d", report, err, rpc.signCalls)
 	}
 	if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
 		t.Fatalf("second Tick = %+v, %v", report, err)
 	}
-	var count int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM deposits`).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("deposits = %d, %v", count, err)
+	var candidates, seen, deposits int
+	if err := pool.QueryRow(ctx,
+		`SELECT (SELECT count(*) FROM deposit_candidates), (SELECT count(*) FROM events WHERE type = $1),
+		(SELECT count(*) FROM deposits)`, events.TypeDepositCandidateSeen,
+	).Scan(&candidates, &seen, &deposits); err != nil || candidates != 1 || seen != 1 || deposits != 0 {
+		t.Fatalf("candidates/seen/deposits = %d/%d/%d, %v; want 1/1/0", candidates, seen, deposits, err)
 	}
 }
 
-func TestDepositPoller_creditsWhenRPCOmitsBlockTime(t *testing.T) {
+func TestDepositPollerFixtureI18_ReusedWalletRecordsNoCandidatesAtFirstSight(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	history := make([]solana.SignatureInfo, 0, 200)
+	for i := 200; i > 0; i-- {
+		history = append(history, solana.SignatureInfo{
+			Signature: chain.Signature(fmt.Sprintf("hist%d", i)), Slot: uint64(i), BlockTime: depositBlockTime(),
+		})
+	}
+	rpc := depositRPC{signaturesFor: func(before, until chain.Signature, limit int) []solana.SignatureInfo {
+		return signaturesFromHistory(history, before, until, limit)
+	}}
+	p := app.NewDepositPoller(
+		pool, db.New(pool, testkit.NewIDs(78), testkit.NewClock(now)), testkit.NewIDs(79), testkit.NewClock(now),
+		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
+		&rpc, testkit.USDCMint, app.DepositPollInterval, unlimited(),
+	)
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
+	for range 2 {
+		if _, err := p.Tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+		assertCandidateSignatures(ctx, t, pool, user.Address)
+	}
+	var credited, deposits int
+	var firstDeposit *time.Time
+	if err := pool.QueryRow(ctx,
+		`SELECT (SELECT count(*) FROM events WHERE type = $1), (SELECT count(*) FROM deposits),
+		(SELECT first_deposit_at FROM users WHERE id = $2)`, events.TypeDepositCredited, user.ID.UUID(),
+	).Scan(&credited, &deposits, &firstDeposit); err != nil || credited != 0 || deposits != 0 || firstDeposit != nil {
+		t.Fatalf("credited/deposits/first_deposit_at = %d/%d/%v, %v; want 0/0/nil",
+			credited, deposits, firstDeposit, err)
+	}
+	assertCursorSignature(ctx, t, pool, user.Address, "hist200")
+}
+
+func TestDepositPoller_recordsACandidateWhenRPCOmitsBlockTime(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	rpc := depositRPC{
 		signatures: []solana.SignatureInfo{{Signature: depositSignature, Slot: 42}},
-		transfers: []solana.Transfer{{
-			Mint: chain.Mint{Address: testkit.USDCMint, Decimals: 6}, Net: money.NewBaseUnits(1, 6),
-		}},
 	}
 	p := newDepositPoller(t, pool, user, now, &rpc, 39, 40)
-	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
+	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 	if report, err := p.Tick(ctx); err != nil || report.Changed != 1 {
 		t.Fatalf("Tick = %+v, %v", report, err)
 	}
 	var blockTime *time.Time
-	err := pool.QueryRow(ctx, `SELECT block_time FROM deposits WHERE tx_signature = $1`, depositSignature).
+	err := pool.QueryRow(ctx, `SELECT block_time FROM deposit_candidates WHERE tx_signature = $1`, depositSignature).
 		Scan(&blockTime)
 	if err != nil {
 		t.Fatal(err)
@@ -666,12 +674,6 @@ func (emptyRPC) SignaturesFor(
 	return nil, nil
 }
 
-func (emptyRPC) InboundTransfersForMint(
-	context.Context, chain.Signature, chain.SolanaAddress, chain.SolanaAddress,
-) ([]solana.Transfer, error) {
-	return nil, nil
-}
-
 func TestDepositPollerDefersWalletsPastTheRateBudgetWithoutFailingTheTick(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
@@ -686,12 +688,12 @@ func TestDepositPollerDefersWalletsPastTheRateBudgetWithoutFailingTheTick(t *tes
 	budget := &rpcBudget{}
 	p := app.NewDepositPoller(
 		pool, db.New(pool, testkit.NewIDs(51), testkit.NewClock(now)), testkit.NewIDs(52), testkit.NewClock(now),
-		fakes.NewIdentity(nil, wallets), emptyRPC{}, testkit.USDCMint, app.DepositPollInterval, budget, &hints{},
+		fakes.NewIdentity(nil, wallets), emptyRPC{}, testkit.USDCMint, app.DepositPollInterval, budget,
 	)
 	tick := func() {
 		t.Helper()
 		budget.refill(1)
-		ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
+		ctx := observability.WithActor(t.Context(), "system:poller.funding.deposit_watch")
 		if report, err := p.Tick(ctx); err != nil || report.Scanned != 1 {
 			t.Fatalf("Tick = %+v, %v; want one wallet scanned and no error", report, err)
 		}

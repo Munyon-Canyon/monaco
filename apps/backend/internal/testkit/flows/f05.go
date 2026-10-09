@@ -16,7 +16,10 @@ import (
 
 const (
 	depositWallet = "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP"
-	depositPoller = "funding.deposits"
+	depositPoller = "funding.deposit_watch"
+
+	depositCreditWithin = 10 * time.Second
+	depositCreditPoll   = 50 * time.Millisecond
 )
 
 func scannedBeforeEveryWallet() time.Time { return time.Unix(-1, 0).UTC() }
@@ -51,9 +54,17 @@ func oneInboundTransfer(user testkit.SeededUser) []scenario.Step {
 }
 
 func F05CreditDepositCrashBeforeCommit(s *scenario.Scenario) {
+	depositCrashes(s, faultpoint.BeforeCommit)
+}
+
+func F05CreditDepositCrashAfterCandidate(s *scenario.Scenario) {
+	depositCrashes(s, faultpoint.AfterCandidate)
+}
+
+func depositCrashes(s *scenario.Scenario, point faultpoint.Name) {
 	user := seedDepositWallet(s)
 	s.Given(oneInboundTransfer(user)...).When(
-		scenario.TickCrashingAt(depositPoller, faultpoint.BeforeCommit),
+		scenario.TickCrashingAt(depositPoller, point),
 		scenario.AwaitTick(depositPoller),
 		scenario.AwaitTick(depositPoller),
 		expectDeposit(user),
@@ -114,13 +125,20 @@ func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 
 func expectDeposit(user testkit.SeededUser) scenario.Step {
 	return func(s *scenario.Scenario) {
+		deadline := time.Now().Add(depositCreditWithin)
 		var count int
-		if err := s.DB().QueryRow(
-			s.Context(),
-			`SELECT count(*) FROM deposits WHERE user_id = $1`,
-			user.ID.UUID(),
-		).Scan(&count); err != nil {
-			s.Fatalf("flows: count deposits: %v", err)
+		for {
+			if err := s.DB().QueryRow(
+				s.Context(),
+				`SELECT count(*) FROM deposits WHERE user_id = $1`,
+				user.ID.UUID(),
+			).Scan(&count); err != nil {
+				s.Fatalf("flows: count deposits: %v", err)
+			}
+			if count != 0 || time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(depositCreditPoll)
 		}
 		if count != 1 {
 			s.Fatalf("flows: deposits = %d, want 1", count)

@@ -14,3 +14,4 @@ Dated record of changes to [deposits-withdrawals.md](../deposits-withdrawals.md)
 - 2026-09-26: Site domain is `monacolabs.xyz`. `apps/web` README still says `trymonaco.xyz`.
 - 2026-09-26: Initial decision. Card deposits via Privy fiat on-ramp on a Monaco-hosted web page, landing in the same member wallet; crypto deposits and withdrawals unchanged. Web-side Privy auth flagged as the blocking question.
 - 2026-10-07: Fund-to-cabal and withdraw each publish the user's `balance_changed` hint when submitted, not only when they settle, so Home shows the in-flight amount at once.
+- 2026-10-09: Detection is split from crediting. The deposit watcher records `deposit.candidate_seen` with its checkpoint, and `funding.resolve_deposit_candidate` credits it or dismisses it as `ours` or `not_deposit`. A new wallet starts at the chain tip. Fund and withdraw still spend only the canonical USDC account.

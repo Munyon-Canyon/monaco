@@ -146,7 +146,7 @@ func deadlineAsTimeout(err error) error {
 
 func flow(poller string) string {
 	switch poller {
-	case "funding.deposits":
+	case "funding.deposit_watch":
 		return "05"
 	case "funding.withdrawals":
 		return "15"
