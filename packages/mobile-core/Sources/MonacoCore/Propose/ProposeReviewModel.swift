@@ -21,7 +21,7 @@ public final class ProposeReviewModel {
     public let cabal: ProposeCabalInfo
     private let service: ProposeService
     private let cabalID: String
-    private let draft: ProposalDraft
+    public let draft: ProposalDraft
     private let preview: ProposePreview
     private let trade: ProposeTrade
     private let submission: IdempotentSubmission
@@ -120,7 +120,7 @@ public final class ProposeReviewModel {
     public var successToast: String { "Proposal sent to \(cabal.name)" }
 
     public func send() async {
-        guard !isSending else { return }
+        guard !isSending, proposalID == nil else { return }
         isSending = true
         errorMessage = nil
         defer { isSending = false }
@@ -148,5 +148,22 @@ public final class ProposeReviewModel {
         let pot = preview.potValueMicros
         guard pot > 0, draft.amount <= Int64.max / 100 else { return nil }
         return (draft.amount * 100 + pot / 2) / pot
+    }
+}
+
+@MainActor
+public final class ProposeReviewMemory {
+    private var held: ProposeReviewModel?
+
+    public init() {}
+
+    public func model(for draft: ProposalDraft) -> ProposeReviewModel? {
+        held?.draft == draft ? held : nil
+    }
+
+    public func hold(_ model: ProposeReviewModel) -> ProposeReviewModel {
+        if let existing = self.model(for: model.draft) { return existing }
+        held = model
+        return model
     }
 }

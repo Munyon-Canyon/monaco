@@ -91,6 +91,65 @@ final class ProposeReviewModelTests: XCTestCase {
         XCTAssertEqual(model.proposalID, "proposal-1")
     }
 
+    func testSecondSendAfterSuccessMakesNoSecondRequest() async {
+        let service = ReviewService()
+        let model = makeModel(kind: .stock, service: service)
+
+        await model.send()
+        await model.send()
+
+        let submissions = await service.submissions
+        XCTAssertEqual(submissions.count, 1)
+        XCTAssertEqual(model.proposalID, "proposal-1")
+    }
+
+    func testReopeningReviewMidSendFindsTheSameSendAndMakesNoSecondRequest() async {
+        let service = ReviewService(holdsFirst: true)
+        let memory = ProposeReviewMemory()
+        let first = memory.hold(makeModel(kind: .stock, service: service))
+        let sending = Task { await first.send() }
+        await service.waitUntilHeld()
+
+        let reopened = memory.hold(makeModel(kind: .stock, service: service))
+        XCTAssertTrue(reopened === first)
+        XCTAssertTrue(reopened.isSending)
+        await reopened.send()
+        await service.release()
+        await sending.value
+
+        let submissions = await service.submissions
+        XCTAssertEqual(submissions.count, 1)
+        XCTAssertEqual(first.proposalID, "proposal-1")
+        XCTAssertEqual(memory.model(for: first.draft)?.proposalID, "proposal-1")
+    }
+
+    func testChangedAmountGetsANewModelAndSubmission() async {
+        let service = ReviewService()
+        let memory = ProposeReviewMemory()
+        let first = memory.hold(makeModel(kind: .stock, service: service, amount: 250_000_000))
+        let other = makeModel(kind: .stock, service: service, amount: 300_000_000)
+
+        XCTAssertNil(memory.model(for: other.draft))
+        let second = memory.hold(other)
+        XCTAssertTrue(second === other)
+        XCTAssertNil(memory.model(for: first.draft))
+        await first.send()
+        await second.send()
+
+        let submissions = await service.submissions
+        XCTAssertEqual(submissions.count, 2)
+        XCTAssertFalse(submissions[0] === submissions[1])
+    }
+
+    func testChangedReasonGetsANewModel() {
+        let memory = ProposeReviewMemory()
+        let first = memory.hold(makeModel(kind: .stock, service: ReviewService(), thesis: "Earnings next week."))
+        let other = makeModel(kind: .stock, service: ReviewService(), thesis: "Cloud is growing.")
+
+        XCTAssertNil(memory.model(for: other.draft))
+        XCTAssertFalse(memory.hold(other) === first)
+    }
+
     func testSellSaysSharesRaisesAndWhatTheCabalKeeps() {
         let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678)
         let model = makeSellModel(apple, selling: 60_172_839)
@@ -151,9 +210,23 @@ final class ProposeReviewModelTests: XCTestCase {
 private actor ReviewService: ProposeService {
     struct Failure: Error {}
     private var failures: Int
+    private var holdsFirst: Bool
+    private var held: CheckedContinuation<Void, Never>?
     private(set) var submissions: [IdempotentSubmission] = []
 
-    init(failures: Int = 0) { self.failures = failures }
+    init(failures: Int = 0, holdsFirst: Bool = false) {
+        self.failures = failures
+        self.holdsFirst = holdsFirst
+    }
+
+    func waitUntilHeld() async {
+        while held == nil { await Task.yield() }
+    }
+
+    func release() {
+        held?.resume()
+        held = nil
+    }
 
     func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview { throw Failure() }
 
@@ -161,6 +234,10 @@ private actor ReviewService: ProposeService {
 
     func propose(cabalID _: String, draft _: ProposalDraft, submission: IdempotentSubmission) async throws -> String {
         submissions.append(submission)
+        if holdsFirst {
+            holdsFirst = false
+            await withCheckedContinuation { held = $0 }
+        }
         if failures > 0 {
             failures -= 1
             throw Failure()
