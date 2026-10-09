@@ -199,6 +199,29 @@ func TestFlowGate_aQueuedStackThatLeavesWithoutLandingLetsTheWaitingStackLand(t 
 	}
 }
 
+func TestFlowGate_aQueuedStackWhoseHeadWasDeletedAfterItLandedIsSkipped(t *testing.T) {
+	t.Parallel()
+	f, s := queuedSharingStack(t)
+	s.gitGone = "fetch --no-tags origin q2"
+	f.hub.on(get("/pulls/7"), PR{Number: 7, State: "closed"})
+	code, stdout, stderr := f.agents(t, "land-stack", "2")
+	if code != 0 || strings.Contains(stdout, "queued stack #7") || strings.Contains(stderr, "remote ref") ||
+		!s.prs[2].labeled("merge-queue") {
+		t.Fatalf("%d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestFlowGate_aQueuedStackWhoseHeadIsMissingButStillOpenSurfacesTheError(t *testing.T) {
+	t.Parallel()
+	f, s := queuedSharingStack(t)
+	s.gitGone = "fetch --no-tags origin q2"
+	f.hub.on(get("/pulls/7"), PR{Number: 7, State: "open"})
+	code, _, stderr := f.agents(t, "land-stack", "2")
+	if code == 0 || s.prs[2].labeled("merge-queue") || !strings.Contains(stderr, "couldn't find remote ref q2") {
+		t.Fatalf("%d %q", code, stderr)
+	}
+}
+
 func TestFlowGate_aWaitingStackDisarmsWhenFlowsVerifyFailsAfterTheOtherLands(t *testing.T) {
 	t.Parallel()
 	f, s := queuedSharingStack(t)
