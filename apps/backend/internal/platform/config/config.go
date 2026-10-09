@@ -442,7 +442,7 @@ func platformFields() []field {
 		text("APNS_KEY_P8", "", func(c *Config) *string { return &c.APNs.KeyP8 }).secret(),
 		text("APNS_KEY_ID", "", func(c *Config) *string { return &c.APNs.KeyID }),
 		text("APNS_TEAM_ID", "", func(c *Config) *string { return &c.APNs.TeamID }),
-		text("APNS_TOPIC", "com.monaco.app", func(c *Config) *string { return &c.APNs.Topic }),
+		text("APNS_TOPIC", "xyz.monacolabs.app", func(c *Config) *string { return &c.APNs.Topic }),
 		text("APNS_BASE_URL", "", func(c *Config) *string { return &c.APNs.BaseURL }),
 		text("POSTHOG_API_KEY", "", func(c *Config) *string { return &c.PostHog.APIKey }).secret().
 			requiredIn(EnvProduction),

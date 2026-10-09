@@ -24,7 +24,7 @@ Pushes are always side effects of events on the NATS bus ([event-bus.md](event-b
    - `APNS_KEY_P8`: the `.p8` file contents
    - `APNS_KEY_ID`
    - `APNS_TEAM_ID`
-   - `APNS_TOPIC=com.monaco.app` (the bundle id)
+   - `APNS_TOPIC=xyz.monacolabs.app` (the bundle id)
 
 One key works for both sandbox and production, and for every app on the team.
 
@@ -180,7 +180,7 @@ Onboarding nudges follow a fixed cadence (default 2026-10-03, #640). The `identi
 
 A user who stays stuck gets a nudge on days 1, 8 and 15, and then no more. Every `auth_state` change sets the count back to 0, so a user who unlinks later starts the cadence again. The event's `nudge_number` (1 to 3) says which nudge it is.
 
-- The Simulator cannot reliably get a real remote device token. To test how a push looks and where a tap goes, drag a `.apns` file onto the Simulator, or run `xcrun simctl push <udid> com.monaco.app payload.json`.
+- The Simulator cannot reliably get a real remote device token. To test how a push looks and where a tap goes, drag a `.apns` file onto the Simulator, or run `xcrun simctl push <udid> xyz.monacolabs.app payload.json`.
 - To test end to end (backend → APNs → phone), use a physical device running a debug build, which gets a sandbox token.
 - `just test backend` never calls APNs. The push tests use the `testkit` fake `Sender`, and the flow 24 tests send through `*apns.Client` to an in-process fakes server. Every consumer test runs through the chaos dispatcher, so duplicate and reordered deliveries are tested, not assumed ([Keeping it deterministic](backend-platform.md#keeping-it-deterministic)).
 - `monacoctl verify flow 24` drives the flow against real binaries. The worker sends through `*apns.Client` to the fakes server's `/apns` route, and the flow's outcomes cover a `429`, a `403` and a crash before commit.

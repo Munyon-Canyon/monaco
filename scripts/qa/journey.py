@@ -37,7 +37,7 @@ QA = ROOT / "apps" / "mobile" / "qa" / "journeys"
 OUT = ROOT / ".logs" / "qa" / "journeys"
 DERIVED = OUT / "derived"
 RESULTS = OUT / "results.tsv"
-BUNDLE_ID = "com.monaco.app"
+BUNDLE_ID = "xyz.monacolabs.app"
 DRIVER = "xcuitest"
 
 COLUMNS = [

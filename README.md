@@ -56,7 +56,7 @@ Local DB is Docker Compose Postgres only (`monaco`, host port `54322`), next to 
 
 ## Privy test logins
 
-Fixed OTP. Dashboard Login Methods must have **Email** and **SMS** on. Product path is OTP, not a password field. iOS bundle `com.monaco.app` must be on the Privy iOS client or `sendCode` returns 403 `invalid_native_app_id`. Sign out in-app to switch users.
+Fixed OTP. Dashboard Login Methods must have **Email** and **SMS** on. Product path is OTP, not a password field. iOS bundle `xyz.monacolabs.app` must be on the Privy iOS client or `sendCode` returns 403 `invalid_native_app_id`. Sign out in-app to switch users.
 
 | Name        | Phone Number       | Login                                     | OTP      |
 | ----------- | ------------ | ----------------------------------------- | -------- |

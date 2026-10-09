@@ -47,7 +47,7 @@ Then the app calls `POST /v1/auth/session` with the Privy access token. The rout
 
 In the rewrite this is [flow 1](backend-platform.md#flows), owned by the `identity` module. A first sign-in appends `user.created`; every state change appends `user.auth_state_changed`. Both go through `uow.Do` in the same transaction as the row ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). The `analytics`, `referrals` and `social` consumers react.
 
-Privy dashboard: enable SMS, email, Apple and Google as **login** methods on both Privy apps. Bundle `com.monaco.app` stays on both Privy iOS clients, and each iOS client allows the `monaco` app URL scheme, which the Apple and Google sheets redirect to.
+Privy dashboard: enable SMS, email, Apple and Google as **login** methods on both Privy apps. Bundle `xyz.monacolabs.app` stays on both Privy iOS clients, and each iOS client allows the `monaco` app URL scheme, which the Apple and Google sheets redirect to.
 
 ## Onboarding
 

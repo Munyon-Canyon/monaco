@@ -34,14 +34,14 @@ fi
 # Fresh launch against the demo backend, Privy creds the way scripts/ios-sim passes them.
 export MONACO_API_BASE_URL="$api"
 export MONACO_SIM_UDID="$udid"
-xcrun simctl terminate "$udid" com.monaco.app >/dev/null 2>&1 || true
+xcrun simctl terminate "$udid" xyz.monacolabs.app >/dev/null 2>&1 || true
 (
   cd "$root"
   # shellcheck source=/dev/null
   source scripts/ensure-ios-privy-config.sh
   generate_xcconfig
   export_launch_env
-  xcrun simctl launch "$udid" com.monaco.app >/dev/null
+  xcrun simctl launch "$udid" xyz.monacolabs.app >/dev/null
 )
 
 file="$out/$name.mov"

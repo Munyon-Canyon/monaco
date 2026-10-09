@@ -1,5 +1,5 @@
 {
-  "Simulator Target Bundle": "com.monaco.app",
+  "Simulator Target Bundle": "xyz.monacolabs.app",
   "aps": {
     "alert": {
       "title": "Deposit received",

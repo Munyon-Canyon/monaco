@@ -135,7 +135,7 @@ The handle unlock is `users.first_deposit_at`, owned by `identity` ([Codes](#cod
 
 - `monacolabs.xyz/r/<code>` is a server-rendered route in `apps/web` (Cloudflare function): looks up the referrer's display name and photo from the API with `GET /v1/referrals/{code}`, renders the page, and sets Open Graph tags so the link preview in Messages shows "Alex invited you to Monaco" with their photo.
 - Unknown code: generic "Get Monaco" page, still links to the App Store, copies nothing.
-- `apple-app-site-association` lists `/r/*` for `com.monaco.app`. The app declares `applinks:monacolabs.xyz` in its entitlements.
+- `apple-app-site-association` lists `/r/*` for `xyz.monacolabs.app`. The app declares `applinks:monacolabs.xyz` in its entitlements.
 
 ## Analytics
 

@@ -26,7 +26,7 @@ const (
 	testToken = "a1b2c3d4e5f60718293a4b5c6d7e8f9001122334455667788990aabbccddeeff"
 	keyID     = "ABC123DEFG"
 	teamID    = "TEAM123456"
-	topic     = "com.monaco.app"
+	topic     = "xyz.monacolabs.app"
 	apnsID    = "eabeae54-14a8-11e5-b60b-1697f925ec7b"
 )
 

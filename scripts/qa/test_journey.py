@@ -748,7 +748,7 @@ class Simulators(Tree):
         self.assertEqual(calls, [
             ["xcrun", "simctl", "boot", "journey"],
             ["xcrun", "simctl", "bootstatus", "journey", "-b"],
-            ["xcrun", "simctl", "uninstall", "journey", "com.monaco.app"],
+            ["xcrun", "simctl", "uninstall", "journey", "xyz.monacolabs.app"],
         ])
 
     def test_fresh_resets_an_explicit_simulator(self):
@@ -758,7 +758,7 @@ class Simulators(Tree):
         self.assertEqual(calls, [
             ["xcrun", "simctl", "boot", "gold"],
             ["xcrun", "simctl", "bootstatus", "gold", "-b"],
-            ["xcrun", "simctl", "uninstall", "gold", "com.monaco.app"],
+            ["xcrun", "simctl", "uninstall", "gold", "xyz.monacolabs.app"],
         ])
 
 

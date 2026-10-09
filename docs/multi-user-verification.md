@@ -44,7 +44,7 @@ Accounts:
 | User B (joiner) | A second Privy login: the Privy dashboard test phone number, or a teammate's real email/SMS | Must be a different Privy user, which gives a different `users.privy_user_id` and member wallet, so a separate account balance |
 | User C (outsider, optional) | Any third Privy login | Only needed for step 11 |
 
-To switch accounts on one simulator, use **Settings → Sign out**, then sign in again. `just stop mobile` also uninstalls `com.monaco.app` to clear the Privy session. For side-by-side sessions, clone the slimmed gold simulator once (see the skill) and sign in as B on the clone. MobAI Free drives one device at a time.
+To switch accounts on one simulator, use **Settings → Sign out**, then sign in again. `just stop mobile` also uninstalls `xyz.monacolabs.app` to clear the Privy session. For side-by-side sessions, clone the slimmed gold simulator once (see the skill) and sign in as B on the clone. MobAI Free drives one device at a time.
 
 ## Checklist
 

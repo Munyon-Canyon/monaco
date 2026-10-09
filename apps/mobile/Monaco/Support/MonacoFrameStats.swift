@@ -25,12 +25,12 @@ enum MonacoFrameStats {
     static let isEnabled = ProcessInfo.processInfo.arguments.contains("-MonacoFrameStats")
 
     static let log = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.monaco.app",
+        subsystem: Bundle.main.bundleIdentifier ?? "xyz.monacolabs.app",
         category: "frame-stats"
     )
 
     static let signposter = OSSignposter(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.monaco.app",
+        subsystem: Bundle.main.bundleIdentifier ?? "xyz.monacolabs.app",
         category: "frame-stats"
     )
 }

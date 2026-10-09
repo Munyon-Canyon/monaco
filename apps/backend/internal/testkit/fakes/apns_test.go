@@ -55,7 +55,7 @@ func scriptFixture(t *testing.T, srv *fakes.Server, fixture string) {
 func TestApnsRoute_acceptsAPushWithTheOKFixture(t *testing.T) {
 	t.Parallel()
 
-	got := pushTo(t, fakes.New(), "com.monaco.app")
+	got := pushTo(t, fakes.New(), "xyz.monacolabs.app")
 
 	if got.status != http.StatusOK || got.body != "" ||
 		got.header.Get("apns-id") != "eabeae54-14a8-11e5-b60b-1697f925ec7b" {
@@ -93,7 +93,7 @@ func TestApnsRoute_servesEachScriptedFixtureOnceThenTheDefaultAgain(t *testing.T
 			srv := fakes.New()
 			scriptFixture(t, srv, "/apns/"+tt.fixture)
 
-			got := pushTo(t, srv, "com.monaco.app")
+			got := pushTo(t, srv, "xyz.monacolabs.app")
 
 			var body struct {
 				Reason string `json:"reason"`
@@ -105,7 +105,7 @@ func TestApnsRoute_servesEachScriptedFixtureOnceThenTheDefaultAgain(t *testing.T
 				t.Fatalf("push = %d %q Retry-After %q, want %d %s Retry-After %q",
 					got.status, got.body, got.header.Get("Retry-After"), tt.status, tt.reason, tt.retryAfter)
 			}
-			if again := pushTo(t, srv, "com.monaco.app"); again.status != http.StatusOK {
+			if again := pushTo(t, srv, "xyz.monacolabs.app"); again.status != http.StatusOK {
 				t.Fatalf("next push = %d, want the default 200 after the scripted fixture", again.status)
 			}
 		})
