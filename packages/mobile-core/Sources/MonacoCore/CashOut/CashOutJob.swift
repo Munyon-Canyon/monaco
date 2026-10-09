@@ -20,11 +20,10 @@ public struct CabalPause: Equatable, Sendable {
     public var message: String {
         switch cause {
         case .externalDeposit:
-            "Trading is paused. Someone sent money straight to this cabal's treasury, and it's being returned. "
-                + "Funding and cash outs resume after. Passed votes won't trade until trading resumes."
+            "Trading is paused. Someone sent money straight to this cabal, and it's being returned. "
+                + "Funding, cash outs and trades resume once it's back."
         case .ops:
-            "Trading is paused by Monaco. Funding and cash outs resume when it's lifted. "
-                + "Passed votes won't trade until trading resumes."
+            "Trading is paused by Monaco. Funding, cash outs and trades resume when the pause is lifted."
         }
     }
 }
@@ -126,7 +125,7 @@ public struct CashOutJob: Equatable, Sendable {
 
     static func failure(_ code: String?) -> String {
         switch code {
-        case "sale_short": "Your cash out didn't go through. The sale fell short, so your stake stays in the cabal."
+        case "sale_short": "Your cash out didn't go through. The sale fell short, so your slice stays in the cabal."
         default: "Your cash out didn't go through."
         }
     }

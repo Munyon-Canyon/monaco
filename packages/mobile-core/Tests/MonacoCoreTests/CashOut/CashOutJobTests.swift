@@ -30,7 +30,7 @@ final class CashOutJobTests: XCTestCase {
             job(.failed, resultCode: "sale_short").outcome,
             CashOutNotice(
                 jobID: "j",
-                message: "Your cash out didn't go through. The sale fell short, so your stake stays in the cabal.",
+                message: "Your cash out didn't go through. The sale fell short, so your slice stays in the cabal.",
                 isSuccess: false))
         XCTAssertEqual(
             job(.failed, resultCode: "payout_failed").outcome?.message, "Your cash out didn't go through.")
@@ -44,12 +44,16 @@ final class CashOutJobTests: XCTestCase {
         XCTAssertEqual(job(.started).startedToast, "Cashing out $1.00. It lands in your balance in about a minute")
     }
 
-    func testBothPauseRowsEndWithTheVotesLine() {
-        let votes = "Passed votes won't trade until trading resumes."
-        XCTAssertTrue(CabalPause(cause: .ops).message.hasSuffix(votes))
-        XCTAssertTrue(CabalPause(cause: .externalDeposit).message.hasSuffix(votes))
-        XCTAssertTrue(CabalPause(cause: .ops).message.hasPrefix("Trading is paused by Monaco."))
-        XCTAssertTrue(
-            CabalPause(cause: .externalDeposit).message.contains("sent money straight to this cabal's treasury"))
+    func testPauseRowsAreCompleteSentencesInProductWords() {
+        XCTAssertEqual(
+            CabalPause(cause: .externalDeposit).message,
+            "Trading is paused. Someone sent money straight to this cabal, and it's being returned. "
+                + "Funding, cash outs and trades resume once it's back.")
+        XCTAssertEqual(
+            CabalPause(cause: .ops).message,
+            "Trading is paused by Monaco. Funding, cash outs and trades resume when the pause is lifted.")
+        for cause in [CabalPause.Cause.ops, .externalDeposit] {
+            XCTAssertFalse(CabalPause(cause: cause).message.lowercased().contains("treasury"))
+        }
     }
 }
