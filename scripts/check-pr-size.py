@@ -34,6 +34,7 @@ IGNORED = [
     "*.gen.go",
     "*_gen.go",
     "apps/backend/api/openapi.yaml",
+    "packages/mobile-core/Sources/MonacoAPI/openapi.yaml",
     "apps/backend/.golangci.yml",
     "*.pb.go",
     "go.sum",
