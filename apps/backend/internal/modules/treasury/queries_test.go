@@ -265,6 +265,53 @@ func TestQueries_EmptyMemberReadsZero(t *testing.T) {
 	}
 }
 
+func TestShareUnitsAndStakesOf_countTheSharesALiveCashOutHolds(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	q := newQueries(f)
+	user, other := f.user(t), f.user(t)
+	live := map[ids.CabalID]bool{}
+	for _, tt := range []struct {
+		status string
+		units  uint64
+	}{{"started", 5}, {"selling", 5}, {"paying", 5}, {"completed", 0}, {"partial", 0}, {"failed", 0}} {
+		cabal := f.cabal(t)
+		testkit.SeedCashOut(t, f.pool, cabal, user, 5, tt.status)
+		testkit.SeedCashOut(t, f.pool, cabal, other, 7, "started")
+		if tt.units > 0 {
+			live[cabal] = true
+		}
+		units, err := q.ShareUnits(t.Context(), cabal, user)
+		if err != nil || units.Uint64() != tt.units {
+			t.Errorf("ShareUnits() with a %s cash out of 5 = %v, %v; want %d", tt.status, units, err, tt.units)
+		}
+	}
+	stakes, err := q.StakesOf(t.Context(), user)
+	if err != nil || len(stakes) != len(live) {
+		t.Fatalf("StakesOf() = %#v, %v; want the %d cabals with a live cash out", stakes, err, len(live))
+	}
+	for _, stake := range stakes {
+		if !live[stake.CabalID] {
+			t.Errorf("StakesOf() lists %s, whose cash out has ended", stake.CabalID)
+		}
+	}
+}
+
+func TestShareUnits_countsUnitsAPayingCashOutReturnedOnce(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	user, cabal := f.user(t), f.cabal(t)
+	testkit.SeedCashOut(t, f.pool, cabal, user, 5, "paying")
+	if _, err := f.pool.Exec(t.Context(), `WITH job AS (UPDATE cash_out_jobs SET returned_units = 2 WHERE user_id = $1)
+		UPDATE user_positions SET share_units = 2 WHERE user_id = $1`, user.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	units, err := newQueries(f).ShareUnits(t.Context(), cabal, user)
+	if err != nil || units.Uint64() != 5 {
+		t.Fatalf("ShareUnits() = %v, %v; want the 2 returned plus the 3 still paying out", units, err)
+	}
+}
+
 func TestPositions_InvalidStoredMintFailsDecode(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

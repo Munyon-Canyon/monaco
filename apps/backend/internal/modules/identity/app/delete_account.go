@@ -83,7 +83,8 @@ func (h *DeleteAccount) empty(ctx context.Context, id ids.UserID) error {
 	if err != nil {
 		return err
 	}
-	if !balance.AvailableMicros.IsZero() {
+	if !balance.OnChainMicros.IsZero() || !balance.InFlightFundMicros.IsZero() ||
+		!balance.InFlightWithdrawalMicros.IsZero() {
 		return errs.New(errs.CodeAccountHasBalance, op)
 	}
 	return nil

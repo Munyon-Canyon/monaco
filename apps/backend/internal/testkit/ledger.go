@@ -150,3 +150,16 @@ func (l *Ledger) do(ctx context.Context, fn func(ctx context.Context, tx db.Tx) 
 		l.t.Fatalf("testkit.Ledger: %v", err)
 	}
 }
+
+func SeedCashOut(t SeedT, pool *pgxpool.Pool, cabal ids.CabalID, user ids.UserID, units int64, status string) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `WITH burned AS (
+		INSERT INTO user_positions (user_id, cabal_id, share_units, contributed_micros, withdrawn_micros, updated_at)
+		VALUES ($1, $2, 0, 0, 0, now()) ON CONFLICT (user_id, cabal_id) DO UPDATE SET share_units = 0)
+		INSERT INTO cash_out_jobs
+		(id, cabal_id, user_id, share_units, payout_micros, slice_micros, status, created_at, updated_at)
+		VALUES ($3, $2, $1, $4::bigint, 1, 1, $5, now(), now())`,
+		user.UUID(), cabal.UUID(), ids.Real{}.NewV7(), units, status); err != nil {
+		t.Fatalf("testkit.SeedCashOut: %v", err)
+	}
+}
