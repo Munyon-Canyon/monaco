@@ -115,7 +115,18 @@ chat-thread-toggle            -MonacoChatThreadSampleQA
 proposal-detail-retryable     -MonacoProposalDetailSample failedRetryable
 proposal-detail-final-failure -MonacoProposalDetailSample failedFinal
 proposal-detail-price-moved   -MonacoProposalDetailSample priceMoved
-propose-amount-sample         -MonacoProposeAmountSample
+propose-chooser               -MonacoProposeSample chooser
+propose-chooser-cash-only     -MonacoProposeSample chooserCashOnly
+propose-buy-list              -MonacoProposeSample buyList
+propose-amount                -MonacoProposeSample amount
+propose-pot-failed            -MonacoProposeSample potFailed
+propose-pick-cabal            -MonacoProposeSample pickCabal
+propose-no-cabal              -MonacoProposeSample noCabal
+propose-sell                  -MonacoProposeSample sell
+propose-review                -MonacoProposeSample review
+propose-sell-review           -MonacoProposeSample sellReview
+propose-amount-large-text     -MonacoProposeSample amount -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+propose-review-large-text     -MonacoProposeSample review -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 
 # Harnesses that take a `-…Harness` flag; the word after it is the mode.
 feed-items                    -feedHarness items

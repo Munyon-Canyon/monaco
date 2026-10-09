@@ -141,12 +141,3 @@ struct ProposeAmountScreen: View {
 
     private var max: Decimal? { model.maxMicros.flatMap(ProposeMath.usd(fromMicros:)) }
 }
-
-#if DEBUG
-final class ProposeAmountSampleHarnessEntry: SampleHarnessEntry {
-    @MainActor override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
-        guard arguments.contains("-MonacoProposeAmountSample") else { return nil }
-        return AnyView(NavigationStack { Text("Amount sample") })
-    }
-}
-#endif
