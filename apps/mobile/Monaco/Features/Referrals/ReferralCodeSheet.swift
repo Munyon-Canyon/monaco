@@ -21,7 +21,7 @@ struct ReferralCodeSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            Text("Have a referral code?")
+            Text("Have an invite code?")
                 .font(MonacoTheme.Typo.title)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .accessibilityAddTraits(.isHeader)
@@ -43,7 +43,7 @@ struct ReferralCodeSheet: View {
             Button {
                 Task { await submit() }
             } label: {
-                Text(model.isSubmitting ? "Adding" : "Add code")
+                Text(model.isSubmitting ? "Adding…" : "Add code")
             }
             .buttonStyle(.monacoPrimary)
             .disabled(!model.canSubmit)

@@ -43,7 +43,7 @@ Starts signed in (auth/sign-in), with an invite to `cabalName` waiting (P3).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | tap | the Cabals tab | | `cabal-invite-row` for `cabalName` shows within 15 s | None, new in spec |
-| S2.2 | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s. Once it goes, `push-pre-prompt` shows within 15 s with `push-pre-prompt-title` reading "Know when your cabal votes and trades", "We'll tell you when a vote opens, passes, or a trade fills.", `push-pre-prompt-turn-on` ("Turn on notifications") and `push-pre-prompt-not-now` ("Not now") | None, new in spec |
+| S2.2 | tap | `cabal-invite-accept` | | The toast "You're in." shows within 10 s. Once it goes, `push-pre-prompt` shows within 15 s with `push-pre-prompt-title` reading "Know when your cabal votes and trades", "We'll tell you when a vote opens or passes, when a trade fills, and when a cabal lets you in.", `push-pre-prompt-turn-on` ("Turn on notifications") and `push-pre-prompt-not-now` ("Not now") | None, new in spec |
 | S2.3 | tap | `push-pre-prompt-turn-on` | | The iOS alert asking to send notifications shows, the test taps "Allow" on it through springboard (P5), and `push-pre-prompt` closes within 15 s | None, new in spec |
 
 ### S3 Settings reads On and opens iOS settings

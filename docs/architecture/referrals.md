@@ -4,7 +4,7 @@
 
 ## Decision
 
-Every user has a referral link, `https://monacolabs.xyz/r/<code>`, with a random code from signup. After their first deposit of $10 or more, their handle also works as a code (`/r/kaicenat`). If the recipient has the app, the link opens it straight into the app (Universal Link). If they do not, the link's landing page **copies the link to the clipboard** when they tap "Get Monaco", then sends them to the App Store. On first launch the app offers a one-tap **Paste invite** button, reads the link, and attaches the referral to the new account. A manual "Have a referral code?" field in onboarding catches anything the clipboard misses.
+Every user has a referral link, `https://monacolabs.xyz/r/<code>`, with a random code from signup. After their first deposit of $10 or more, their handle also works as a code (`/r/kaicenat`). If the recipient has the app, the link opens it straight into the app (Universal Link). If they do not, the link's landing page **copies the link to the clipboard** when they tap "Get Monaco", then sends them to the App Store. On first launch the app offers a one-tap **Paste invite** button, reads the link, and attaches the referral to the new account. A manual "Have an invite code?" field in onboarding catches anything the clipboard misses.
 
 Referrals carry **no reward** for now (decided 2026-09-27). The system attributes each new user to a referrer and tracks whether the referral qualifies, so the funnel is measurable and a reward can be added later without new data.
 
@@ -85,7 +85,7 @@ Details that matter:
 
 ### Manual fallback
 
-Onboarding has a "Have a referral code?" field (also reachable from the paste screen's Skip). Same attach call with `source: "manual"`. This catches clipboard overwrites (user copied something else before opening the app), a different device, or a friend reading the code aloud.
+Onboarding has a "Have an invite code?" field (also reachable from the paste screen's Skip). Same attach call with `source: "manual"`. This catches clipboard overwrites (user copied something else before opening the app), a different device, or a friend reading the code aloud.
 
 ## Attaching a referral
 
