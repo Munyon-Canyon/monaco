@@ -31,6 +31,9 @@ struct CabalHoldingsSection: View {
     let open: (any AppRoute) -> Void
 
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.cabalModel) private var cabalModel
+
+    private var canPropose: Bool { cabalModel?.cabal?.me?.canVote == true }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -66,10 +69,10 @@ struct CabalHoldingsSection: View {
     private func loaded(_ summary: CabalPotSummary) -> some View {
         switch summary.state {
         case .zero:
-            note("Fund, then propose the first buy.", id: "cabal-holdings-empty")
+            note(Self.zeroPotNote(canPropose: canPropose), id: "cabal-holdings-empty")
         case .cashOnly:
             MonacoGroupedList { cashRow(summary.cash) }
-            note("Nothing bought yet. Propose the first buy.", id: "cabal-holdings-nothing-bought")
+            note(Self.cashOnlyNote(canPropose: canPropose), id: "cabal-holdings-nothing-bought")
         case .invested:
             AllocationBar(legend: summary.legend, tint: .forGroupId(cabalID))
                 .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -88,6 +91,14 @@ struct CabalHoldingsSection: View {
                 cashRow(summary.cash)
             }
         }
+    }
+
+    private static func zeroPotNote(canPropose: Bool) -> String {
+        canPropose ? "Fund, then propose the first buy." : "Nothing in the pot yet."
+    }
+
+    private static func cashOnlyNote(canPropose: Bool) -> String {
+        canPropose ? "Nothing bought yet. Propose the first buy." : "No stocks right now."
     }
 
     private func cashRow(_ cash: String) -> some View {

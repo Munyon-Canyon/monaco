@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -13,6 +14,7 @@ struct CabalProposals: View {
     let cabalID: String
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.cabalModel) private var cabalModel
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var model: ProposalListModel?
@@ -74,9 +76,8 @@ struct CabalProposals: View {
         let recent = model.recentOutcomes(now: .now)
         if section == nil && inProgress.isEmpty && recent.isEmpty {
             MonacoSectionHeader("Proposals", trailing: model.pager.items.isEmpty ? nil : "See all", action: openAll)
-            Text("No open votes. Propose the first buy.")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
+            let canPropose = cabalModel?.cabal?.me?.canVote == true
+            EmptyState(title: "No open votes", message: canPropose ? "Propose the first buy." : nil)
                 .accessibilityIdentifier("cabal-proposals-empty")
         } else {
             let split = Self.split(section?.proposals ?? [])

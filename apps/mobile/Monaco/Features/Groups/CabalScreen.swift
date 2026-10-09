@@ -55,6 +55,12 @@ struct CabalScreen: View {
         Group {
             if SectionStack<CabalContext>.live(sections).isEmpty {
                 NotMigratedView(screen: "Cabal")
+            } else if cabal.cabal == nil, case .failed = cabal.state {
+                ScrollView {
+                    MonacoErrorRow(thing: "this cabal", identifier: "cabal-failed") { retryTick += 1 }
+                        .padding(.top, MonacoTheme.Space.m)
+                }
+                .monacoCanvas()
             } else {
                 SectionStack(context: context, sections: sections)
                     .environment(\.cabalModel, cabal)

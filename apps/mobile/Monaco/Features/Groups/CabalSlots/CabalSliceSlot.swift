@@ -15,12 +15,18 @@ enum CabalSliceSlot: CabalSection {
 struct CabalSliceBand: View {
     let model: CabalPotModel?
 
+    @Environment(\.cabalModel) private var cabalModel
+
     var body: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            band {
-                SkeletonBlock(width: 140, height: 28)
-                SkeletonBlock(width: 100, height: 14)
+            if let cabal = cabalModel?.cabal, cabal.me == nil {
+                Color.clear.frame(height: 0)
+            } else {
+                band {
+                    SkeletonBlock(width: 140, height: 28)
+                    SkeletonBlock(width: 100, height: 14)
+                }
             }
         case .loaded(let summary):
             if let slice = summary.slice {
