@@ -99,7 +99,14 @@ private struct SocialsStepForm: View {
             .accessibilityIdentifier("socials-step-skip")
         } else {
             Button {
-                Task { handle(await model.connect()) }
+                Task {
+                    let result = await model.connect()
+                    if model.linkUnavailable {
+                        await leaveUnavailableStep()
+                    } else {
+                        handle(result)
+                    }
+                }
             } label: {
                 SubmitLabel(
                     isWorking: model.activity == .connecting, idle: LinkCopy.connectX, working: LinkCopy.connecting)
@@ -118,6 +125,11 @@ private struct SocialsStepForm: View {
             return
         }
         handle(await model.skip())
+    }
+
+    private func leaveUnavailableStep() async {
+        session.nudgeDismissed = true
+        await skip()
     }
 
     private func handle(_ result: LinkStepResult) {
