@@ -244,3 +244,43 @@ func TestRetryTrade_failedAppendRollsBack(t *testing.T) {
 		t.Fatalf("appended %d trade.retry_requested, want none", n)
 	}
 }
+
+func (e *retryEnv) retryAtCurrentPrice(ctx context.Context, swap uuid.UUID) error {
+	uow := db.New(e.pool, e.ids, testkit.NewClock(e.now))
+	return app.NewRetryTradeHandler(uow, e.pool, e.cabals, e.proposals).
+		Handle(ctx, app.RetryTrade{SwapID: ids.SwapIDFrom(swap), ActorID: e.member, AtCurrentPrice: true})
+}
+
+func (e *retryEnv) priceMovedSwap(t *testing.T) uuid.UUID {
+	t.Helper()
+	row := e.created(e.failed.SourceID, usdcMint)
+	row.CabalID, row.CreatedAt = e.failed.CabalID, e.now.Add(1)
+	e.insert(t, row)
+	e.fail(t, row.ID, string(domain.FailurePriceMoved))
+	return row.ID
+}
+
+func TestRetryTrade_AtCurrentPrice_RidesTheEventAndKeepsTheVotedQuote(t *testing.T) {
+	t.Parallel()
+	e := newRetryEnv(t)
+	swap := e.priceMovedSwap(t)
+	if err := e.retryAtCurrentPrice(memberContext(t.Context(), e.member), swap); err != nil {
+		t.Fatal(err)
+	}
+	got := e.requests(t, swap)
+	if len(got) != 1 || !got[0].AtCurrentPrice || got[0].QuoteOutAmount == 0 {
+		t.Fatalf("requests = %+v, want one flagged at_current_price that keeps the stored voted quote", got)
+	}
+}
+
+func TestRetryTrade_AtCurrentPrice_RefusedUnlessThePriceMoved(t *testing.T) {
+	t.Parallel()
+	e := newRetryEnv(t)
+	if err := e.retryAtCurrentPrice(memberContext(t.Context(), e.member), e.failed.ID); errs.CodeOf(err) !=
+		errs.CodeSwapNotRetryable {
+		t.Fatalf("err = %v, want swap_not_retryable for a jupiter_failed swap", err)
+	}
+	if n := len(e.requests(t, e.failed.ID)); n != 0 {
+		t.Fatalf("appended %d trade.retry_requested, want none", n)
+	}
+}

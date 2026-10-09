@@ -17,8 +17,9 @@ import (
 )
 
 type RetryTrade struct {
-	SwapID  ids.SwapID
-	ActorID ids.UserID
+	SwapID         ids.SwapID
+	ActorID        ids.UserID
+	AtCurrentPrice bool
 }
 
 type RetryTradeHandler struct {
@@ -75,6 +76,10 @@ func (h *RetryTradeHandler) check(ctx context.Context, cmd RetryTrade) (events.T
 		return events.TradeRetryRequested{}, errs.New(errs.CodeSwapNotRetryable, op,
 			slog.Bool("proposal_retryable", false))
 	}
+	if cmd.AtCurrentPrice && row.FailureCode.String != string(domain.FailurePriceMoved) {
+		return events.TradeRetryRequested{}, errs.New(errs.CodeSwapNotRetryable, op,
+			slog.String("failure_code", row.FailureCode.String), slog.Bool("at_current_price", true))
+	}
 	in, inErr := domain.ParseAmount(row.InAmount)
 	quote, quoteErr := domain.ParseAmount(row.QuoteOutAmount.Int64)
 	if err := errors.Join(inErr, quoteErr); err != nil {
@@ -86,5 +91,6 @@ func (h *RetryTradeHandler) check(ctx context.Context, cmd RetryTrade) (events.T
 		Action: row.Action, Symbol: row.Symbol,
 		InMint: chain.SolanaAddress(row.InMint), OutMint: chain.SolanaAddress(row.OutMint),
 		InAmount: in, QuoteOutAmount: quote, SlippageBps: row.SlippageBps, RequestedBy: cmd.ActorID.UUID(),
+		AtCurrentPrice: cmd.AtCurrentPrice,
 	}, nil
 }

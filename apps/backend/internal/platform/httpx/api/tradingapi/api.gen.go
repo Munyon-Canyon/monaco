@@ -9,7 +9,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -220,11 +222,22 @@ type SwapRetryAccepted struct {
 // Examples: retry_requested
 type SwapRetryAcceptedStatus string
 
+// SwapRetryRequest How to retry a swap that failed because the price moved.
+type SwapRetryRequest struct {
+	// AtCurrentPrice Hold the retry to the cabal's slippage around the current quote. Only for a `price_moved` swap.
+	//
+	// Examples: true
+	AtCurrentPrice *bool `json:"at_current_price,omitempty"`
+}
+
 // PostSwapRetryParams defines parameters for PostSwapRetry.
 type PostSwapRetryParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
+
+// PostSwapRetryJSONRequestBody defines body for PostSwapRetry for application/json ContentType.
+type PostSwapRetryJSONRequestBody = SwapRetryRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -493,6 +506,7 @@ func (response GetSwapdefaultApplicationProblemPlusJSONResponse) VisitGetSwapRes
 type PostSwapRetryRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params PostSwapRetryParams
+	Body   *PostSwapRetryJSONRequestBody
 }
 
 type PostSwapRetryResponseObject interface {
@@ -611,6 +625,16 @@ func (sh *strictHandler) PostSwapRetry(w http.ResponseWriter, r *http.Request, i
 
 	request.Id = id
 	request.Params = params
+
+	var body PostSwapRetryJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.PostSwapRetry(ctx, request.(PostSwapRetryRequestObject))
