@@ -40,11 +40,17 @@ func (q *Queries) CabalPot(
 	if err != nil {
 		return port.CabalPot{}, err
 	}
-	if pot.CashMicros, err = subtractCashOutReservation(pot.CashMicros, head.CashOutReservedMicros); err != nil {
+	reserved, err := micros(head.CashOutReservedMicros)
+	if err != nil {
 		return port.CabalPot{}, err
 	}
+	short := floorSub(reserved, pot.CashMicros)
+	pot.CashMicros = floorSub(pot.CashMicros, reserved)
 	if err := pot.total(); err != nil {
 		return port.CabalPot{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	if pot.PotValueMicros, err = pot.PotValueMicros.Sub(short); err != nil {
+		return port.CabalPot{}, errs.Wrap(err, errs.CodePotValueChanged, op)
 	}
 	net, err := signed(head.NetContributedMicros)
 	if err != nil {
@@ -228,6 +234,13 @@ func displayUnits(units money.BaseUnits, num, den int64) string {
 	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(units.Decimals())), nil)
 	scaled.Quo(scaled, divisor.Mul(divisor, big.NewInt(den)))
 	return new(big.Rat).SetFrac(scaled, big.NewInt(10_000)).FloatString(unitsDisplayDecimals)
+}
+
+func floorSub(a, b money.Micros) money.Micros {
+	if d, err := a.Sub(b); err == nil {
+		return d
+	}
+	return money.Micros{}
 }
 
 func microsInt(m money.Micros) *big.Int { return new(big.Int).SetUint64(m.Uint64()) }

@@ -2,11 +2,13 @@ package adapters
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"pgregory.net/rapid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -89,9 +91,9 @@ func TestCabalPot_refusesBadReadsAndOverflows(t *testing.T) {
 			pricesErr: errs.New(errs.CodeInternal, "test"),
 		},
 		"holding pnl overflows": {store: potFake{snapshot: []sqlc.CabalPotSnapshotRow{potRow(aapl, "1", maxUint64)}}},
-		"reservation over cash": {
+		"bad reservation": {
 			store: potFake{
-				snapshot: withRow(func(r *sqlc.CabalPotSnapshotRow) { r.CashOutReservedMicros = "101" }, usdc),
+				snapshot: withRow(func(r *sqlc.CabalPotSnapshotRow) { r.CashOutReservedMicros = "bad" }, usdc),
 			},
 		},
 		"pot overflows": {
@@ -174,6 +176,84 @@ func TestCabalPot_refusesBadReadsAndOverflows(t *testing.T) {
 			}
 		})
 	}
+}
+
+func waitingCashOut(cash, held, reserved uint64) *Queries {
+	aapl := marketfake.AAPLx().Mint.String()
+	owed := strconv.FormatUint(reserved, 10)
+	snapshot := []sqlc.CabalPotSnapshotRow{
+		potRow(aapl, strconv.FormatUint(held, 10), "0"), potRow(usdcMint, strconv.FormatUint(cash, 10), "0"),
+	}
+	positions := make([]sqlc.CabalPositionsRow, len(snapshot))
+	for i := range snapshot {
+		snapshot[i].NetContributedMicros, snapshot[i].CashOutReservedMicros = "100000000", owed
+		positions[i] = sqlc.CabalPositionsRow{
+			Asset:                 snapshot[i].Asset.String,
+			Units:                 snapshot[i].Units,
+			CostBasisMicros:       "0",
+			CashOutReservedMicros: owed,
+		}
+	}
+	members := []sqlc.CabalMemberSharesRow{member("10", "100000000", "0")}
+	q := potQueries(potFake{snapshot: snapshot, members: members}, nil)
+	q.q = stakeStore{positions: positions}
+	return q
+}
+
+func TestCabalPot_aCashOutWaitingOnItsSaleTakesTheCashThenThePot(t *testing.T) {
+	t.Parallel()
+	type view struct {
+		cash, value, me     money.Micros
+		cashBps, holdingBps int32
+		pnl, mePnL          int64
+		returnBps           int32
+	}
+	q := waitingCashOut(10_000_000, 90_000_000, 50_000_000)
+	pot, err := q.CabalPot(t.Context(), ids.CabalID{}, potViewer(), true)
+	if err != nil {
+		t.Fatalf("CabalPot() error = %v, want the pot while the sale runs", err)
+	}
+	got := view{
+		pot.CashMicros, pot.PotValueMicros, pot.Me.ValueMicros, pot.CashWeightBps, pot.Holdings[0].WeightBps,
+		pot.PnLMicros.Int64(), pot.Me.PnLMicros.Int64(), *pot.ReturnBps,
+	}
+	fifty := money.MicrosFromUint64(50_000_000)
+	if want := (view{money.Micros{}, fifty, fifty, 0, 10000, -50_000_000, -50_000_000, -5000}); got != want {
+		t.Fatalf("pot = %+v, want %+v: no cash, and the 100 USDC pot less the 50 USDC payout", got, want)
+	}
+	if value, err := q.PotValue(t.Context(), ids.CabalID{}); err != nil || value != pot.PotValueMicros {
+		t.Fatalf("PotValue() = %v, %v, want CabalPot's %v", value, err, pot.PotValueMicros)
+	}
+}
+
+func TestCabalPot_agreesWithPotValueWhileCashOutsWait(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	rapid.Check(t, func(t *rapid.T) {
+		cash := rapid.Uint64Range(1, 1e12).Draw(t, "cash")
+		held := rapid.Uint64Range(1, 1e12).Draw(t, "held")
+		reserved := rapid.Uint64Range(0, 3e12).Draw(t, "reserved")
+		q := waitingCashOut(cash, held, reserved)
+		pot, err := q.CabalPot(ctx, ids.CabalID{}, potViewer(), true)
+		value, valueErr := q.PotValue(ctx, ids.CabalID{})
+		if reserved > cash+held {
+			if errs.CodeOf(err) != errs.CodePotValueChanged || errs.CodeOf(valueErr) != errs.CodePotValueChanged {
+				t.Fatalf("CabalPot() = %v, PotValue() = %v, want pot_value_changed from both", err, valueErr)
+			}
+			return
+		}
+		if err != nil || valueErr != nil || pot.PotValueMicros != value || value.Uint64() != cash+held-reserved {
+			t.Fatalf("CabalPot() = %v, %v, PotValue() = %v, %v, want both at %d",
+				pot.PotValueMicros, err, value, valueErr, cash+held-reserved)
+		}
+		if pot.CashMicros.Uint64() != cash-min(cash, reserved) || pot.Me.ValueMicros != value {
+			t.Fatalf("cash = %v, me = %v, want the cash less what it pays and the sole member on the pot",
+				pot.CashMicros, pot.Me.ValueMicros)
+		}
+		if pot.CashWeightBps+pot.Holdings[0].WeightBps != 10000 {
+			t.Fatalf("weights = %d + %d, want 10000", pot.CashWeightBps, pot.Holdings[0].WeightBps)
+		}
+	})
 }
 
 func TestCabalPot_anEmptyPotHasZeroWeightsAndNoReturn(t *testing.T) {
