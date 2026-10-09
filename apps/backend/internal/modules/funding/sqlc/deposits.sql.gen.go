@@ -13,33 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const advanceDepositCursor = `-- name: AdvanceDepositCursor :exec
-INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
-VALUES ($1, $4::text, $2, $3)
-ON CONFLICT (wallet_address) DO UPDATE
-SET last_signature = EXCLUDED.last_signature,
-    cursor_slot = EXCLUDED.cursor_slot,
-    scanned_at = EXCLUDED.scanned_at
-WHERE EXCLUDED.cursor_slot >= deposit_cursors.cursor_slot
-`
-
-type AdvanceDepositCursorParams struct {
-	WalletAddress string
-	CursorSlot    int64
-	ScannedAt     time.Time
-	LastSignature string
-}
-
-func (q *Queries) AdvanceDepositCursor(ctx context.Context, arg AdvanceDepositCursorParams) error {
-	_, err := q.db.Exec(ctx, advanceDepositCursor,
-		arg.WalletAddress,
-		arg.CursorSlot,
-		arg.ScannedAt,
-		arg.LastSignature,
-	)
-	return err
-}
-
 const applyDepositWatchObservation = `-- name: ApplyDepositWatchObservation :execrows
 UPDATE deposit_watch_accounts
 SET state = $2::text,
@@ -159,61 +132,6 @@ type CompleteDepositWatchRecoveryParams struct {
 func (q *Queries) CompleteDepositWatchRecovery(ctx context.Context, arg CompleteDepositWatchRecoveryParams) error {
 	_, err := q.db.Exec(ctx, completeDepositWatchRecovery, arg.TokenAccount, arg.RecoveryDueAt, arg.ScannedAt)
 	return err
-}
-
-const depositCursorsForWallets = `-- name: DepositCursorsForWallets :many
-WITH wallets AS (SELECT unnest($1::text[])::text AS wallet_address)
-SELECT wallets.wallet_address,
-  COALESCE(deposit_cursors.last_signature, '') AS last_signature,
-  COALESCE(deposit_cursors.cursor_slot, 0) AS cursor_slot,
-  COALESCE(deposit_cursors.backfill_before_signature, '') AS backfill_before_signature,
-  COALESCE(deposit_cursors.backfill_head_signature, '') AS backfill_head_signature,
-  COALESCE(deposit_cursors.backfill_head_slot, 0) AS backfill_head_slot,
-  COALESCE(deposit_cursors.scanned_at, to_timestamp(0)) AS scanned_at,
-  (deposit_cursors.wallet_address IS NOT NULL)::bool AS exists
-FROM wallets
-LEFT JOIN deposit_cursors ON deposit_cursors.wallet_address = wallets.wallet_address
-ORDER BY COALESCE(deposit_cursors.scanned_at, to_timestamp(0))
-`
-
-type DepositCursorsForWalletsRow struct {
-	WalletAddress           string
-	LastSignature           string
-	CursorSlot              int64
-	BackfillBeforeSignature string
-	BackfillHeadSignature   string
-	BackfillHeadSlot        int64
-	ScannedAt               time.Time
-	Exists                  bool
-}
-
-func (q *Queries) DepositCursorsForWallets(ctx context.Context, walletAddresses []string) ([]DepositCursorsForWalletsRow, error) {
-	rows, err := q.db.Query(ctx, depositCursorsForWallets, walletAddresses)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []DepositCursorsForWalletsRow
-	for rows.Next() {
-		var i DepositCursorsForWalletsRow
-		if err := rows.Scan(
-			&i.WalletAddress,
-			&i.LastSignature,
-			&i.CursorSlot,
-			&i.BackfillBeforeSignature,
-			&i.BackfillHeadSignature,
-			&i.BackfillHeadSlot,
-			&i.ScannedAt,
-			&i.Exists,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const depositCursorsToMigrate = `-- name: DepositCursorsToMigrate :many
@@ -661,31 +579,6 @@ func (q *Queries) ResolveDepositCandidate(ctx context.Context, arg ResolveDeposi
 	return result.RowsAffected(), nil
 }
 
-const setDepositBackfill = `-- name: SetDepositBackfill :exec
-UPDATE deposit_cursors
-SET backfill_before_signature = $2::text,
-    backfill_head_signature = $3::text,
-    backfill_head_slot = $4::bigint
-WHERE wallet_address = $1
-`
-
-type SetDepositBackfillParams struct {
-	WalletAddress   string
-	BeforeSignature string
-	HeadSignature   string
-	HeadSlot        int64
-}
-
-func (q *Queries) SetDepositBackfill(ctx context.Context, arg SetDepositBackfillParams) error {
-	_, err := q.db.Exec(ctx, setDepositBackfill,
-		arg.WalletAddress,
-		arg.BeforeSignature,
-		arg.HeadSignature,
-		arg.HeadSlot,
-	)
-	return err
-}
-
 const setDepositWatchDiscovery = `-- name: SetDepositWatchDiscovery :exec
 UPDATE deposit_watch_wallets
 SET discovery_due_at = $2::timestamptz
@@ -699,21 +592,5 @@ type SetDepositWatchDiscoveryParams struct {
 
 func (q *Queries) SetDepositWatchDiscovery(ctx context.Context, arg SetDepositWatchDiscoveryParams) error {
 	_, err := q.db.Exec(ctx, setDepositWatchDiscovery, arg.WalletAddress, arg.DiscoveryDueAt)
-	return err
-}
-
-const touchDepositCursor = `-- name: TouchDepositCursor :exec
-INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
-VALUES ($1, '', 0, $2)
-ON CONFLICT (wallet_address) DO UPDATE SET scanned_at = EXCLUDED.scanned_at
-`
-
-type TouchDepositCursorParams struct {
-	WalletAddress string
-	ScannedAt     time.Time
-}
-
-func (q *Queries) TouchDepositCursor(ctx context.Context, arg TouchDepositCursorParams) error {
-	_, err := q.db.Exec(ctx, touchDepositCursor, arg.WalletAddress, arg.ScannedAt)
 	return err
 }

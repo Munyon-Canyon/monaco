@@ -1,7 +1,6 @@
 {
   "allocs": {},
   "queries": {
-    "DepositPoller memberWallets": 1,
     "DepositWatch seedUnknown": 1
   }
 }

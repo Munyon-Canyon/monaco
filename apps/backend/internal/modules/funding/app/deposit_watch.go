@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
+	"golang.org/x/time/rate"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
@@ -23,11 +24,27 @@ import (
 )
 
 const (
-	depositWatchDirtyBatch = 500
-	depositWatchStopBefore = 5 * time.Second
+	DepositPollInterval      = 30 * time.Second
+	depositSignaturePageSize = 1000
+	depositWatchDirtyBatch   = 500
+	depositWatchStopBefore   = 5 * time.Second
+	depositWatchStopDivisor  = 5
 
-	depositWatchStopDivisor = 5
+	depositCandidateSourcePoller = "poller"
 )
+
+var errRateBudgetSpent = errs.New(errs.CodeInternal, "funding.DepositWatch.rateBudgetSpent")
+
+type RPCLimiter interface {
+	Wait(context.Context) error
+}
+
+func NewRPCLimiter(perSecond int32) *rate.Limiter {
+	if perSecond <= 0 {
+		perSecond = 20
+	}
+	return rate.NewLimiter(rate.Limit(perSecond), int(perSecond))
+}
 
 type watchBudget struct {
 	left, used int
