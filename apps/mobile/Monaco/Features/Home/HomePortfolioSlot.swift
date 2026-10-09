@@ -21,7 +21,7 @@ private struct HomePortfolioHero: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var portfolio: PortfolioModel?
+    @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @State private var chart: ValueChartModel?
     @State private var selection: Int?
 
@@ -41,23 +41,14 @@ private struct HomePortfolioHero: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-portfolio")
         .task {
-            let (portfolio, chart) = preparedModels()
-            refresh?.register("home-portfolio") { await reload(portfolio, chart) }
+            let chart = preparedChart()
+            refresh?.register("home-portfolio-chart") { await chart.load() }
             await withTaskGroup(of: Void.self) { group in
-                group.addTask { await reload(portfolio, chart) }
-                group.addTask { await portfolio.observe() }
+                group.addTask { await chart.load() }
                 group.addTask { await chart.observe() }
             }
         }
-        .onScreenVisibilityChange { visible in
-            portfolio?.setVisible(visible)
-            chart?.setVisible(visible)
-        }
-        .onChange(of: portfolio?.toast) { _, message in
-            guard let message else { return }
-            toasts.current = MonacoToast(message: message)
-            portfolio?.dismissToast()
-        }
+        .onScreenVisibilityChange { chart?.setVisible($0) }
         .onChange(of: chart?.toast) { _, message in
             guard let message else { return }
             toasts.current = MonacoToast(message: message)
@@ -72,8 +63,8 @@ private struct HomePortfolioHero: View {
         case .failed:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 title
-                MonacoErrorRow(thing: "your money in cabals", identifier: "home-portfolio-failed", inset: false) {
-                    retry()
+                MonacoErrorRow(thing: "your portfolio", identifier: "home-portfolio-failed", inset: false) {
+                    Task { await portfolio?.load() }
                 }
             }
         case .loaded(let summary):
@@ -174,27 +165,13 @@ private struct HomePortfolioHero: View {
         }
     }
 
-    private func retry() {
-        guard let portfolio, let chart else { return }
-        Task { await reload(portfolio, chart) }
-    }
-
-    private func reload(_ portfolio: PortfolioModel, _ chart: ValueChartModel) async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await portfolio.load() }
-            group.addTask { await chart.load() }
-        }
-    }
-
-    private func preparedModels() -> (PortfolioModel, ValueChartModel) {
-        if let portfolio, let chart { return (portfolio, chart) }
-        let portfolio = PortfolioModel(api: environment.api, hints: environment.hints)
+    private func preparedChart() -> ValueChartModel {
+        if let chart { return chart }
         let chart = ValueChartModel(
             subjects: [.me], ranges: LeaderboardRange.allCases, range: .oneDay, api: environment.api,
             hints: environment.hints)
-        self.portfolio = portfolio
         self.chart = chart
-        return (portfolio, chart)
+        return chart
     }
 }
 

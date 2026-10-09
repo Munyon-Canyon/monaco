@@ -12,9 +12,7 @@ enum HomeCabalsSlot: HomeSection {
 
 private struct HomeCabals: View {
     @Environment(AppEnvironment.self) private var environment
-    @Environment(ToastCenter.self) private var toasts
-    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var model: PortfolioModel?
+    @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -22,33 +20,17 @@ private struct HomeCabals: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
             content
         }
-        .task {
-            let model = preparedModel()
-            refresh?.register("home-cabals") { await model.load() }
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await model.load() }
-                group.addTask { await model.observe() }
-            }
-        }
-        .onScreenVisibilityChange { model?.setVisible($0) }
-        .onChange(of: model?.toast) { _, message in
-            guard let message else { return }
-            toasts.current = MonacoToast(message: message)
-            model?.dismissToast()
-        }
     }
 
     @ViewBuilder private var content: some View {
-        switch model?.state ?? .loading {
+        switch portfolio?.state ?? .loading {
         case .idle, .loading:
             MonacoRowSkeleton(rows: 3, markShape: .tile)
                 .accessibilityElement()
                 .accessibilityLabel("Loading your cabals")
                 .accessibilityIdentifier("home-cabals-loading")
         case .failed:
-            MonacoErrorRow(thing: "your cabals", identifier: "home-cabals-retry") {
-                Task { await model?.load() }
-            }
+            EmptyView()
         case .loaded(let summary) where summary.isEmpty:
             EmptyState(
                 title: "No cabals yet",
@@ -65,12 +47,5 @@ private struct HomeCabals: View {
                 }
             }
         }
-    }
-
-    private func preparedModel() -> PortfolioModel {
-        if let model { return model }
-        let created = PortfolioModel(api: environment.api, hints: environment.hints)
-        model = created
-        return created
     }
 }

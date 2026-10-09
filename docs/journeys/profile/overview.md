@@ -95,7 +95,7 @@ Signing out ends the session the run opened, and nothing on A's account changes.
 
 ## Not covered
 
-- The error state "Couldn't load your stats." / "Couldn't load your cabals." with "Try again" (old app: `profile-error`). The local backend cannot be made to fail one read on cue. `ProfileStatsSlot` and `ProfileCabalsSlot` share `CabalsTabModel`, whose failed state `CabalsTabModelTests` covers.
+- The error state "Couldn't load your portfolio." with "Try again" (old app: `profile-error`). `ProfileScreen` owns one `PortfolioModel` that `ProfileStatsSlot` and `ProfileCabalsSlot` read, so a failed read draws one row in the stats slot and nothing in the cabals slot. The local backend cannot be made to fail one read on cue; `PortfolioModelTests` covers the failed state.
 - A value that changes between two loads on pull to refresh. Steps run one at a time, so nothing writes to the backend while the scenario runs. S2 proves the refresh keeps every section on screen.
 - "Your cabals" when empty ("No cabals yet" / "Start a cabal or join one from the Cabals tab."). P3 makes A a member, and A cannot leave every cabal without changing other journeys' starting state.
 - The follow counts, the balance row, "Invite friends" and "Find friends". Their own journeys cover them.
