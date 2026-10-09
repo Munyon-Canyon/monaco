@@ -46,11 +46,11 @@ final class CabalAccessModelTests: XCTestCase {
         XCTAssertEqual(model.standing, .requested(requestID: "r1"))
     }
 
-    func testAPendingInviteLeavesTheSlotToTheInbox() async throws {
+    func testAPendingInviteOffersAcceptAndDecline() async throws {
         let cabal = Self.cabal(role: nil, mode: "request", request: ("i1", "invite"))
         let model = makeModel(StubTransport(.json(.ok, try Self.encode(cabal))))
         await model.load()
-        XCTAssertEqual(model.standing, .hidden)
+        XCTAssertEqual(model.standing, .invited(requestID: "i1"))
     }
 
     func testAMemberWhoIsNotTheCreatorSeesNothing() async throws {

@@ -25,6 +25,7 @@ public enum CabalAccessStanding: Equatable, Sendable {
     case hidden
     case join
     case requested(requestID: String)
+    case invited(requestID: String)
     case declined
     case pending([CabalPendingRequest])
 
@@ -39,6 +40,7 @@ public final class CabalAccessModel {
     public static let joinedToast = CabalEntry.joinedToast
     public static let approvedToast = "Approved."
     public static let deniedToast = "Denied."
+    public static let inviteDeclinedToast = "Invite declined."
     public static let approvedWithoutVoteToast = "Approved. Add them as a voter in Cabal settings."
 
     public private(set) var standing: CabalAccessStanding = .hidden
@@ -48,6 +50,7 @@ public final class CabalAccessModel {
     public private(set) var picksVoters = false
     public private(set) var joinPolicy: CabalJoinPolicy = .request
     public private(set) var membershipChanges = 0
+    public private(set) var loadFailed = false
 
     public let cabalID: String
     private let api: APIClient
@@ -55,6 +58,8 @@ public final class CabalAccessModel {
     private let refresher: HintRefresher
     private let entry = IdempotentSubmission()
     private let cancellation = IdempotentSubmission()
+    private let accepting = IdempotentSubmission()
+    private let declining = IdempotentSubmission()
     private var decisions: [String: IdempotentSubmission] = [:]
     private var grants: [String: IdempotentSubmission] = [:]
     private var generation = 0
@@ -80,8 +85,9 @@ public final class CabalAccessModel {
                 try await client.getCabal(path: .init(id: cabalID)).ok.body.json
             }
             await settle(cabal, generation: mine)
+            if mine == generation { loadFailed = false }
         } catch {
-            return
+            if mine == generation { loadFailed = true }
         }
     }
 
@@ -102,7 +108,7 @@ public final class CabalAccessModel {
             guard let request = cabal.myAccessRequest else { return .join }
             switch (request.status, request.direction) {
             case ("pending", "request"): return .requested(requestID: request.id)
-            case ("pending", _): return .hidden
+            case ("pending", _): return .invited(requestID: request.id)
             case ("denied", "request"): return .declined
             default: return .join
             }
@@ -159,6 +165,36 @@ public final class CabalAccessModel {
             }
         }
         await load()
+    }
+
+    public func accept() async {
+        await answerInvite(approve: true, submission: accepting)
+    }
+
+    public func decline() async {
+        await answerInvite(approve: false, submission: declining)
+    }
+
+    private func answerInvite(approve: Bool, submission: IdempotentSubmission) async {
+        guard case .invited(let requestID) = standing, !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await api.decideAccessRequest(
+                cabalID: cabalID, requestID: requestID, approve: approve, submission: submission)
+        } catch {
+            let failure = APIError(error)
+            show(ToastCopy.message(for: failure), success: false)
+            if APIClient.flow03Outcome(failure) == .accessRequestNotPending { await load() }
+            return
+        }
+        if approve {
+            show(Self.joinedToast, success: true)
+            membershipChanges += 1
+        } else {
+            show(Self.inviteDeclinedToast, success: true)
+            await load()
+        }
     }
 
     public func decide(_ request: CabalPendingRequest, approve: Bool, canVote: Bool = false) async {
