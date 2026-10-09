@@ -33,9 +33,9 @@ private struct HomeCabals: View {
             EmptyView()
         case .loaded(let summary) where summary.isEmpty:
             EmptyState(
-                title: "No cabals yet",
-                message: "Start one with friends or join an open one.",
-                actionTitle: "Find a cabal"
+                title: "No money in a cabal yet",
+                message: "Cabals you fund show up here with their value. Fund one you're in, or find one to join.",
+                actionTitle: "Go to Cabals"
             ) {
                 environment.navigator.selectedTab = .cabals
             }
