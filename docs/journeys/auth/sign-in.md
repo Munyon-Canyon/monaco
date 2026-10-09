@@ -1,7 +1,7 @@
 ---
 id: auth/sign-in
 title: Sign in
-version: 7
+version: 8
 milestone: M9
 requires: []
 actors: [A]
@@ -19,7 +19,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Id | What must be true |
 | --- | --- |
-| P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first: with S3 from the tab bar (Profile, then Settings), or with `onboarding-handle-step-sign-out` or `onboarding-phone-step-sign-out` from a first-run step |
+| P1 | The app is installed from a Debug build and shows the login form. A test that finds a saved session signs out first: with S3 from the tab bar (Profile, then Settings), or with `onboarding-handle-step-sign-out` or `onboarding-phone-step-sign-out` from a first-run step. The invite gate (`invite-paste-screen`) is skipped with `invite-skip-button`, and the push pre-prompt is dismissed with `push-pre-prompt-not-now` when present |
 | P2 | Actors A to C use the Privy test logins in `apps/mobile/qa/journeys/accounts.tsv` |
 | P3 | The simulator can reach `auth.privy.io`. The dev database is migrated (`just migrate db`). `journey.py` starts the local backend, which answers `GET http://127.0.0.1:8080/healthz` |
 | P4 | Actor A's `users` row has a handle and an `auth_state` past `CREATED`, so the first-run gate opens the tab bar and not the handle or phone step. On a fresh dev database, sign in once, then run `update users set handle = 'qa_alfred', auth_state = 'ONBOARDING_COMPLETED' where privy_user_id = '<A.privy_user_id>'` |

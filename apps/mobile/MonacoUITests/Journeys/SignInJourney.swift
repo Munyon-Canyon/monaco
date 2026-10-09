@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 7
+    static let version = 8
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -10,6 +10,7 @@ enum SignInJourney {
 
     enum Screen {
         case login
+        case invite
         case firstRunStep
         case findFriends
         case tabs
@@ -36,6 +37,7 @@ enum SignInJourney {
             (app.buttons["friends-not-now"], .findFriends),
             (app.textFields["smsPhoneField"], .login),
             (app.textFields["emailAddressField"], .login),
+            (app.element("invite-paste-screen"), .invite),
         ]
         guard let index = app.waitForFirst(of: candidates.map(\.0), timeout: timeout) else { return nil }
         return candidates[index].1
@@ -49,9 +51,13 @@ enum SignInJourney {
     }
 
     private static func reachLogin(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        app.dismissPushPrePromptIfShown(timeout: 1)
         switch currentScreen(app) {
         case .login:
             return
+        case .invite:
+            app.buttons["invite-skip-button"].tap()
+            reachLogin(app, recorder: recorder)
         case .findFriends:
             app.buttons["friends-not-now"].tap()
             reachLogin(app, recorder: recorder)
@@ -155,6 +161,7 @@ enum SignInJourney {
 
     static func signOut(_ app: XCUIApplication, recorder: JourneyRecorder) {
         let signOut = app.buttons["profileSignOutButton"]
+        app.dismissPushPrePromptIfShown()
 
         recorder.step("S3.1", "open Settings") {
             app.waitForToastGone()
