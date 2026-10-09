@@ -22,7 +22,8 @@ struct EditCabalView: View {
 
     @StateObject private var pictureEditor: CabalPictureEditor
     @State private var edited: CabalSettings
-    @State private var toast: MonacoToast?
+    @Environment(ToastCenter.self) private var toasts: ToastCenter?
+    @Environment(\.dismiss) private var dismiss
 
     init(model: CabalEditModel, cabal: Components.Schemas.Cabal, pictureWriter: any CabalPictureWriting) {
         self.model = model
@@ -41,7 +42,7 @@ struct EditCabalView: View {
                     name: edited.name,
                     canEdit: true,
                     size: 88,
-                    onResult: { toast = $0 },
+                    onResult: { toasts?.current = $0 },
                     editor: pictureEditor
                 )
                 .frame(maxWidth: .infinity)
@@ -88,25 +89,37 @@ struct EditCabalView: View {
                 .accessibilityIdentifier("edit-cabal-save")
             }
         }
-        .monacoToast($toast, placement: .aboveBottomCTA)
     }
 
     private var nameField: some View {
-        MonacoTextField(
-            CabalRulesCopy.namePlaceholder,
-            text: $edited.name,
-            capitalization: .words,
-            autocorrects: false
-        )
-        .submitLabel(.done)
-        .disabled(model.isSaving)
-        .accessibilityIdentifier("edit-cabal-name")
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            MonacoTextField(
+                CabalRulesCopy.namePlaceholder,
+                text: $edited.name,
+                isInvalid: CreateCabalForm(name: edited.name).nameProblem?.isHard == true,
+                capitalization: .words,
+                autocorrects: false
+            )
+            .submitLabel(.done)
+            .disabled(model.isSaving)
+            .accessibilityIdentifier("edit-cabal-name")
+            if let problem = nameProblemMessage {
+                Text(problem)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.loss)
+                    .accessibilityIdentifier("edit-cabal-name-problem")
+            }
+        }
+    }
+
+    private var nameProblemMessage: String? {
+        CreateCabalForm(name: edited.name).nameProblem?.message
     }
 
     static func showsThreshold(memberCount: Int) -> Bool { memberCount > 1 }
 
     private var canSave: Bool {
-        guard !model.isSaving, !edited.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !model.isSaving, CreateCabalForm(name: edited.name).nameProblem == nil else {
             return false
         }
         return model.patch(for: edited)?.isEmpty == false
@@ -116,11 +129,12 @@ struct EditCabalView: View {
         switch await model.save(edited) {
         case .saved:
             if let saved = model.settings { edited = saved }
-            toast = MonacoToast(message: EditCabalCopy.saved, isSuccess: true)
+            toasts?.show(success: EditCabalCopy.saved)
+            dismiss()
         case .unchanged:
             break
         case .failed(let message):
-            toast = MonacoToast(message: message)
+            toasts?.current = MonacoToast(message: message)
         }
     }
 
@@ -145,7 +159,7 @@ struct EditCabalView: View {
 
     private var voteExpiry: Binding<CabalProposalExpiry> {
         Binding(
-            get: { CabalProposalExpiry(rawValue: edited.proposalExpirySeconds) ?? .oneDay },
+            get: { CabalProposalExpiry(rawValue: edited.proposalExpirySeconds) ?? CreateCabalForm.defaultExpiry },
             set: { edited.proposalExpirySeconds = $0.rawValue }
         )
     }
