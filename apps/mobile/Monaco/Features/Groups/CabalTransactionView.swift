@@ -64,22 +64,28 @@ struct CabalTransactionView: View {
     }
 
     private func receipt(_ row: ActivityRow) -> some View {
+        let row = model?.rows.first { $0.id == row.id } ?? row
         let swap = row.kind.isSwap ? model?.openSwap : nil
         let solscanURL = swap?.solscanURL ?? row.solscanURL
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                HStack(spacing: MonacoTheme.Space.sm) {
+            VStack(spacing: MonacoTheme.Space.s) {
+                if row.kind.isSwap, let symbol = row.symbol {
+                    StockMark(symbol: symbol)
+                } else {
                     SunkenGlyphMark(systemImage: row.glyph)
-                    Text(row.title)
-                        .font(MonacoTheme.Typo.rowTitle)
-                        .foregroundStyle(MonacoTheme.ink)
                 }
+                Text(row.title)
+                    .font(MonacoTheme.Typo.rowTitle)
+                    .foregroundStyle(MonacoTheme.ink)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                 if let amount = swap?.amount ?? row.amount {
                     Text(amount)
-                        .moneyFont(.large)
+                        .moneyFont(.hero)
                         .foregroundStyle(MonacoTheme.ink)
                         .lineLimit(1)
-                        .minimumScaleFactor(MoneyStyle.large.minimumScaleFactor)
+                        .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+                        .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("cabal-txn-amount")
                 }
             }
