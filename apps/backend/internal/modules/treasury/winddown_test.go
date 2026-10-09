@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -18,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 type deposit struct{ micros, shares int64 }
@@ -29,6 +33,7 @@ type windDownRig struct {
 	paused  *atomic.Bool
 	pot     *atomic.Pointer[error]
 	empty   *atomic.Bool
+	prices  *marketfake.PricesFake
 	wd      *app.WindDown
 	poller  adapters.WindDownPoller
 }
@@ -46,6 +51,7 @@ func newWindDownRigOn(t *testing.T, f fixture, deposits ...deposit) windDownRig 
 		paused: &atomic.Bool{},
 		pot:    &atomic.Pointer[error]{},
 		empty:  &atomic.Bool{},
+		prices: &marketfake.PricesFake{},
 	}
 	for _, d := range deposits {
 		user := f.user(t)
@@ -58,7 +64,7 @@ func newWindDownRigOn(t *testing.T, f fixture, deposits ...deposit) windDownRig 
 	pauses := app.CashOutPauseFunc(func(context.Context, ids.CabalID) (app.CashOutPause, error) {
 		return app.CashOutPause{Paused: r.paused.Load()}, nil
 	})
-	values := failingPot{PositionsReader: newQueries(f), fail: r.pot, empty: r.empty}
+	values := failingPot{PositionsReader: adapterQueries(f, r.prices), fail: r.pot, empty: r.empty}
 	handler := app.NewCashOutHandler(f.uow, f.ledger, values, pauses, f.clock, f.ids, f.pool, &hints{})
 	r.wd = app.NewWindDown(f.uow, handler, f.pool, f.clock)
 	r.poller = adapters.WindDownPoller{WindDown: r.wd}
@@ -445,5 +451,180 @@ func (f fixture) exec(t *testing.T, query string) {
 	t.Helper()
 	if _, err := f.pool.Exec(t.Context(), query); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWindDown_Poller_ReissuesAMemberWhoseCashOutCameBackPartial(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, thirds()...)
+	if err := r.start(); err != nil {
+		t.Fatal(err)
+	}
+	r.f.exec(t, `UPDATE cash_out_jobs SET status = 'partial' WHERE id = (
+		SELECT id FROM cash_out_jobs WHERE cause = 'wind_down' ORDER BY created_at LIMIT 1)`)
+	r.f.exec(
+		t,
+		`INSERT INTO user_positions (cabal_id, user_id, share_units, contributed_micros, withdrawn_micros, updated_at)
+		SELECT cabal_id, user_id, 50, 0, 0, now() FROM cash_out_jobs WHERE status = 'partial'
+		ON CONFLICT (cabal_id, user_id) DO UPDATE SET share_units = excluded.share_units`,
+	)
+	if _, changed := r.tick(t); changed != 1 || r.jobs(t) != 4 || r.attempts(t) != 1 {
+		t.Fatalf(
+			"tick: changed %d, %d jobs, %d attempts, want the partial member cashed out again",
+			changed,
+			r.jobs(t),
+			r.attempts(t),
+		)
+	}
+	r.finish(t)
+	if _, changed := r.tick(t); changed != 1 || r.wound(t)["members_paid"] != 3.0 {
+		t.Fatalf("wound down = %v, want the three members paid", r.wound(t))
+	}
+}
+
+func (r windDownRig) job(t *testing.T, where string) (id uuid.UUID) {
+	t.Helper()
+	query := `SELECT id FROM cash_out_jobs WHERE cabal_id = $1 AND ` + where + ` ORDER BY created_at, id LIMIT 1`
+	if err := r.f.pool.QueryRow(t.Context(), query, r.cabal.UUID()).Scan(&id); err != nil {
+		t.Fatalf("job where %s: %v", where, err)
+	}
+	return id
+}
+
+func (r windDownRig) started(t *testing.T, job uuid.UUID) events.CashOutStarted {
+	t.Helper()
+	var user uuid.UUID
+	var units, payout, sell string
+	err := r.f.pool.QueryRow(t.Context(), `SELECT user_id, share_units::text, payout_micros::text,
+		sell_usdc_micros::text FROM cash_out_jobs WHERE id = $1`, job).Scan(&user, &units, &payout, &sell)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, uerr := money.ParseSharesUnits(units)
+	p, perr := money.ParseMicros(payout)
+	v, verr := money.ParseMicros(sell)
+	if err := errors.Join(uerr, perr, verr); err != nil {
+		t.Fatal(err)
+	}
+	return events.CashOutStarted{
+		V: 1, JobID: job, CabalID: r.cabal.UUID(), UserID: user, ShareUnits: u.Uint64(), PayoutMicros: p,
+		SellUSDC: v, Cause: "wind_down",
+	}
+}
+
+func (r windDownRig) sale(t *testing.T, job uuid.UUID) *saleRig {
+	t.Helper()
+	started := r.started(t, job)
+	return &saleRig{
+		f: r.f, alice: ids.UserIDFrom(started.UserID), cabal: r.cabal, job: job, started: started,
+	}
+}
+
+func (r windDownRig) payout(job uuid.UUID, user ids.UserID) *payoutRig {
+	return (&payoutRig{f: r.f, alice: user, cabal: r.cabal, job: job}).stubs()
+}
+
+func (r windDownRig) markAAPL() {
+	r.prices.Set(marketfake.AAPLx().ID, money.MicrosFromUint64(30_000_000), r.f.clock.Now())
+}
+
+func (r windDownRig) shortSale(t *testing.T) ids.UserID {
+	t.Helper()
+	const oneToken = 100_000_000
+	if err := r.f.confirm(t, buy(r.cabal, r.f.ids.NewV7(), 30_000_000, oneToken, 0)); err != nil {
+		t.Fatal(err)
+	}
+	r.markAAPL()
+	if err := r.start(); err != nil || r.jobs(t) != 2 || r.held(t) != 0 {
+		t.Fatalf("start = %v with %d jobs, %d shares held, want both members cashed out", err, r.jobs(t), r.held(t))
+	}
+	plain, selling := r.job(t, `sell_usdc_micros = 0`), r.job(t, `sell_usdc_micros > 0`)
+	r.payout(plain, ids.UserIDFrom(r.started(t, plain).UserID)).pay(t, 1)
+
+	s := r.sale(t, selling)
+	s.deliver(t, s.started)
+	s.deliver(t, s.sold(r.f.ids.NewV7(), 60_000_000, 18_000_000, 2))
+	s.deliver(t, s.unsold(r.f.ids.NewV7(), 40_000_000, 2))
+	p := r.payout(selling, s.alice)
+	p.pay(t, 2)
+	p.wantJob(t, "partial", "sale_short")
+	if p.shares(t, s.alice) == 0 {
+		t.Fatal("a short sale returned no units")
+	}
+	return s.alice
+}
+
+func (r windDownRig) reissueShortSale(t *testing.T, member ids.UserID) {
+	t.Helper()
+	r.markAAPL()
+	if scanned, changed := r.tick(t); scanned != 1 || changed != 1 || r.jobs(t) != 3 || r.attempts(t) != 1 {
+		t.Fatalf("tick: scanned %d changed %d, %d jobs, %d attempts, want one re-issue",
+			scanned, changed, r.jobs(t), r.attempts(t))
+	}
+	again := r.job(t, `status = 'started' AND user_id = '`+member.String()+`'`)
+	s := r.sale(t, again)
+	s.deliver(t, s.started)
+	s.deliver(t, s.sold(r.f.ids.NewV7(), 40_000_000, 12_000_000, 1))
+	r.payout(again, member).pay(t, 3)
+}
+
+func TestWindDown_PartialSaleIsFinishedByThePoller(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, deposit{50_000_000, 50}, deposit{50_000_000, 50})
+	member := r.shortSale(t)
+	r.reissueShortSale(t, member)
+	if _, changed := r.tick(t); changed != 1 {
+		t.Fatal("tick did not complete the wind-down")
+	}
+	got := r.scalar(
+		t,
+		`SELECT sum(payout_micros)::bigint FROM cash_out_jobs WHERE user_id = $1 AND status IN ('completed', 'partial')`,
+		member.UUID(),
+	)
+	if got > 50_000_000 || got < 50_000_000-1 {
+		t.Fatalf("member was paid %d across the two cash outs, want their 50000000 slice", got)
+	}
+	wound := r.wound(t)
+	if wound["members_paid"] != 2.0 || wound["usdc_returned_micros"] != "100000000" {
+		t.Fatalf("cabal.wound_down = %v, want 2 members and the whole pot returned", wound)
+	}
+	if held := r.held(t); held != 0 {
+		t.Fatalf("%d shares still held", held)
+	}
+	if drift := r.f.drift(t); len(drift) != 0 {
+		t.Fatalf("ledger drift = %v", drift)
+	}
+}
+
+func (r *payoutRig) pay(t *testing.T, n int) {
+	t.Helper()
+	r.f.exec(t, fmt.Sprintf(`UPDATE cash_out_jobs SET status = 'paying' WHERE id = '%s' AND status = 'started'`, r.job))
+	r.payLandedAs(t, seededSig(n))
+}
+
+func TestWindDown_CashOutByAMemberKeepsTheMemberCause(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, thirds()...)
+	handler := cashOutHandler(r.f, false)
+	ctx := observability.WithActor(r.f.ctx(), "user:"+r.members[0].String())
+	if _, err := handler.Handle(ctx, app.CashOut{CabalID: r.cabal, UserID: r.members[0], All: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.scalar(t, `SELECT count(*) FROM cash_out_jobs WHERE cause = 'member'`); got != 1 {
+		t.Fatalf("member jobs = %d, want 1", got)
+	}
+	if got := r.scalar(t, `SELECT count(*) FROM events WHERE payload->>'cause' = 'member'`); got != 1 {
+		t.Fatalf("member cause events = %d, want 1", got)
+	}
+}
+
+func TestWindDown_MemberCashOutsKeepTheMinimum(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, deposit{99_000_000, 1_000_000}, deposit{1_000_000, 1})
+	handler := cashOutHandler(r.f, false)
+	ctx := observability.WithActor(r.f.ctx(), "user:"+r.members[1].String())
+	_, err := handler.Handle(ctx, app.CashOut{CabalID: r.cabal, UserID: r.members[1], All: true})
+	if errs.CodeOf(err) != errs.CodePotValueChanged {
+		t.Fatalf("a member cashing out under the minimum = %v, want pot_value_changed", err)
 	}
 }

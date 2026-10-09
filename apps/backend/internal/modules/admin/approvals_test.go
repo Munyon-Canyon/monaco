@@ -260,7 +260,7 @@ func (e commandEnv) request(ctx context.Context, cabals app.CabalStatuses) (app.
 
 func (e commandEnv) approve(ctx context.Context, id uuid.UUID) error {
 	a := app.NewApprovals(e.f.uow, e.f.cabal, e.f.ids, e.f.clock)
-	_, err := a.Approve(ctx, app.DecideApproval{ID: id, AdminID: ids.UserIDFrom(e.f.ids.NewV7()), Reason: e.reason})
+	_, err := a.Approve(ctx, app.ApproveCabalBan{ID: id, AdminID: ids.UserIDFrom(e.f.ids.NewV7()), Reason: e.reason})
 	return err
 }
 
