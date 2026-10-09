@@ -30,6 +30,7 @@ const (
 	tradeActor   = "system:trading.engine"
 	proposalKind = "proposal"
 	cashOutKind  = "cashout"
+	agentKind    = "agent"
 	fiftyUSDC    = 50_000_000
 )
 
@@ -37,7 +38,7 @@ type tradeLeg struct{ source, action, symbol string }
 
 type tradeRun struct {
 	delivery bus.Delivery
-	swap     uuid.UUID
+	subject  uuid.UUID
 	err      error
 }
 
@@ -53,6 +54,7 @@ type (
 
 type tradeKind struct {
 	name, kind, action, title, body, unnamedBody string
+	collapse, idKey                              string
 
 	event  tradeEventFunc
 	handle tradeHandleFunc
@@ -62,13 +64,13 @@ func (k tradeKind) run(t *testing.T, r *pushRig, ports tradePorts, cabalID ids.C
 	t.Helper()
 	e := k.event(t, r, cabalID, leg)
 	d := r.emit(t, tradeActor, e)
-	return tradeRun{delivery: d, swap: e.AggregateID(), err: k.handle(t, r, ports, d, e)}
+	return tradeRun{delivery: d, subject: e.AggregateID(), err: k.handle(t, r, ports, d, e)}
 }
 
 func filledKind(action, body, unnamedBody string) tradeKind {
 	return tradeKind{
 		name: action, kind: "trade_filled", action: action, title: "Trade filled", body: body,
-		unnamedBody: unnamedBody,
+		unnamedBody: unnamedBody, collapse: "trade-", idKey: "txn_id",
 		event: func(t *testing.T, r *pushRig, cabalID ids.CabalID, leg tradeLeg) events.Event {
 			t.Helper()
 			e := goldenEvent(t, events.TypeTradeConfirmed).(events.TradeConfirmed)
@@ -87,7 +89,7 @@ func filledKind(action, body, unnamedBody string) tradeKind {
 func failedKind(action, body, unnamedBody string) tradeKind {
 	return tradeKind{
 		name: action, kind: "trade_failed", action: action, title: "Trade didn't go through", body: body,
-		unnamedBody: unnamedBody,
+		unnamedBody: unnamedBody, collapse: "trade-", idKey: "txn_id",
 		event: func(t *testing.T, r *pushRig, cabalID ids.CabalID, leg tradeLeg) events.Event {
 			t.Helper()
 			e := goldenEvent(t, events.TypeTradeFailed).(events.TradeFailed)
@@ -103,6 +105,25 @@ func failedKind(action, body, unnamedBody string) tradeKind {
 	}
 }
 
+func blockedKind(action string, code errs.Code, body, unnamedBody string) tradeKind {
+	return tradeKind{
+		name: action, kind: "trade_blocked", action: action, title: "Trade didn't go through", body: body,
+		unnamedBody: unnamedBody, collapse: "proposal-", idKey: "proposal_id",
+		event: func(t *testing.T, r *pushRig, cabalID ids.CabalID, leg tradeLeg) events.Event {
+			t.Helper()
+			e := goldenEvent(t, events.TypeTradeBlocked).(events.TradeBlocked)
+			e.Source.ID, e.CabalID, e.Source.Kind = r.ids.NewV7(), cabalID.UUID(), leg.source
+			e.Action, e.Symbol, e.Code = leg.action, leg.symbol, code
+			return e
+		},
+		handle: func(t *testing.T, r *pushRig, ports tradePorts, d bus.Delivery, e events.Event) error {
+			t.Helper()
+			kind := app.TradeBlocked{Cabals: ports.cabals, Assets: ports.assets}
+			return handleKinds(t, r, r.sender, d, e.(events.TradeBlocked), kind)
+		},
+	}
+}
+
 func tradeKinds() []tradeKind {
 	return []tradeKind{
 		filledKind("buy", "Your cabal bought $50.00 of Apple", "Your cabal bought $50.00 of a stock"),
@@ -111,6 +132,16 @@ func tradeKinds() []tradeKind {
 			"Your cabal's buy of a stock failed. No money moved."),
 		failedKind("sell", "Your cabal's sell of Apple failed. No money moved.",
 			"Your cabal's sell of a stock failed. No money moved."),
+		blockedKind("buy", errs.CodeInsufficientFunds,
+			"Your cabal's buy of Apple didn't go through: There isn't enough USDC for that. "+
+				"The money is still in the pot.",
+			"Your cabal's buy of a stock didn't go through: There isn't enough USDC for that. "+
+				"The money is still in the pot."),
+		blockedKind("sell", errs.CodeNoRoute,
+			"Your cabal's sell of Apple didn't go through: No route for this trade right now. Try a smaller amount. "+
+				"The shares are still in the pot.",
+			"Your cabal's sell of a stock didn't go through: No route for this trade right now. Try a smaller amount. "+
+				"The shares are still in the pot."),
 	}
 }
 
@@ -142,8 +173,8 @@ func wantTradePushedToEveryMember(t *testing.T, k tradeKind) {
 		states[member] = "delivered"
 		want = append(want, apns.Push{
 			UserID: member, Token: token(byte('a' + i)), Environment: apns.Sandbox,
-			CollapseID: "trade-" + run.swap.String(), Title: k.title, Body: k.body,
-			Data: map[string]string{"kind": k.kind, "cabal_id": w.id.String(), "txn_id": run.swap.String()},
+			CollapseID: k.collapse + run.subject.String(), Title: k.title, Body: k.body,
+			Data: map[string]string{"kind": k.kind, "cabal_id": w.id.String(), k.idKey: run.subject.String()},
 		})
 	}
 	sent := r.sender.Sent()
@@ -179,25 +210,37 @@ func TestNotify_TradeFailed_AllMembers(t *testing.T) {
 	}
 }
 
-func TestNotify_Trade_ACashOutNotifiesNobodyAndReadsNoPort(t *testing.T) {
+func TestNotify_TradeBlocked_AllMembers(t *testing.T) {
 	t.Parallel()
-	for _, k := range tradeKinds() {
-		t.Run(k.kind+"/"+k.name, func(t *testing.T) {
+	for _, k := range tradeKindsWhere(func(k tradeKind) bool { return k.kind == "trade_blocked" }) {
+		t.Run(k.name, func(t *testing.T) {
 			t.Parallel()
-			r := newPushRig(t)
-			w := r.cabalOf(t, 2)
-			down := errs.New(errs.CodeDBUnavailable, "test.port")
-			w.cabals.Fail("Members", down)
-			w.cabals.Fail("Cabal", down)
-			assets := fixtureCatalog()
-			assets.Fail("AssetBySymbol", down)
-
-			run := k.run(t, r, tradePorts{w.cabals, assets}, w.id, tradeLeg{cashOutKind, k.action, "AAPLx"})
-
-			wantVerdict(t, run.err, "", errs.VerdictAck)
-			r.wantNothingPushed(t, run)
-			r.wantRecorded(t, run.delivery, 1)
+			wantTradePushedToEveryMember(t, k)
 		})
+	}
+}
+
+func TestNotify_Trade_ANonProposalSourceNotifiesNobodyAndReadsNoPort(t *testing.T) {
+	t.Parallel()
+	for _, source := range []string{cashOutKind, agentKind} {
+		for _, k := range tradeKinds() {
+			t.Run(source+"/"+k.kind+"/"+k.name, func(t *testing.T) {
+				t.Parallel()
+				r := newPushRig(t)
+				w := r.cabalOf(t, 2)
+				down := errs.New(errs.CodeDBUnavailable, "test.port")
+				w.cabals.Fail("Members", down)
+				w.cabals.Fail("Cabal", down)
+				assets := fixtureCatalog()
+				assets.Fail("AssetBySymbol", down)
+
+				run := k.run(t, r, tradePorts{w.cabals, assets}, w.id, tradeLeg{source, k.action, "AAPLx"})
+
+				wantVerdict(t, run.err, "", errs.VerdictAck)
+				r.wantNothingPushed(t, run)
+				r.wantRecorded(t, run.delivery, 1)
+			})
+		}
 	}
 }
 
@@ -285,18 +328,22 @@ func TestNotify_TradeRecipients_AreTheMembersInPortOrderForAProposalOnly(t *test
 	want := []ids.UserID{third, second, first}
 	confirmed := goldenEvent(t, events.TypeTradeConfirmed).(events.TradeConfirmed)
 	failed := goldenEvent(t, events.TypeTradeFailed).(events.TradeFailed)
-	confirmed.CabalID, failed.CabalID = cabalID.UUID(), cabalID.UUID()
+	blocked := goldenEvent(t, events.TypeTradeBlocked).(events.TradeBlocked)
+	confirmed.CabalID, failed.CabalID, blocked.CabalID = cabalID.UUID(), cabalID.UUID(), cabalID.UUID()
 
-	for source, expected := range map[string][]ids.UserID{proposalKind: want, cashOutKind: nil} {
-		confirmed.Source.Kind, failed.Source.Kind = source, source
+	for source, expected := range map[string][]ids.UserID{proposalKind: want, cashOutKind: nil, agentKind: nil} {
+		confirmed.Source.Kind, failed.Source.Kind, blocked.Source.Kind = source, source, source
 		filledTo, filledErr := app.TradeFilled{Cabals: cabals}.Recipients(t.Context(), confirmed)
 		failedTo, failedErr := app.TradeFailed{Cabals: cabals}.Recipients(t.Context(), failed)
+		blockedTo, blockedErr := app.TradeBlocked{Cabals: cabals}.Recipients(t.Context(), blocked)
 
-		if filledErr != nil || failedErr != nil {
-			t.Fatalf("%s source: Recipients = %v and %v, want no error", source, filledErr, failedErr)
+		if filledErr != nil || failedErr != nil || blockedErr != nil {
+			t.Fatalf("%s source: Recipients = %v, %v and %v, want no error", source, filledErr, failedErr, blockedErr)
 		}
-		if !slices.Equal(filledTo, expected) || !slices.Equal(failedTo, expected) {
-			t.Errorf("%s source: filled to %v and failed to %v, want %v for both", source, filledTo, failedTo, expected)
+		if !slices.Equal(filledTo, expected) || !slices.Equal(failedTo, expected) ||
+			!slices.Equal(blockedTo, expected) {
+			t.Errorf("%s source: filled to %v, failed to %v and blocked to %v, want %v for all",
+				source, filledTo, failedTo, blockedTo, expected)
 		}
 	}
 }

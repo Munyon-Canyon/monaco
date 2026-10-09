@@ -652,6 +652,9 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets) map[string
 		"trade_failed": {
 			events.TypeTradeFailed, renderer[events.TradeFailed](app.TradeFailed{Cabals: cabals, Assets: assets}),
 		},
+		"trade_blocked": {
+			events.TypeTradeBlocked, renderer[events.TradeBlocked](app.TradeBlocked{Cabals: cabals, Assets: assets}),
+		},
 		"proposal_created": {
 			events.TypeProposalCreated,
 			renderer[events.ProposalCreated](app.ProposalCreated{Cabals: cabals, Users: users, Assets: assets}),
