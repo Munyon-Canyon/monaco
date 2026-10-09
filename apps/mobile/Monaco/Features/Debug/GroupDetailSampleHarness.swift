@@ -11,6 +11,12 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case noPicture
     case pictureNotCreator
     case pictureUploadFailure
+    case paused
+    case outsider
+    case invited
+    case requests
+    case cashOnly
+    case votes
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
@@ -34,12 +40,31 @@ extension GroupDetailSampleScenario {
         case .pictureNotCreator: SampleAPIScript(role: "member", pictureURL: GroupDetailSampleData.pictureURL)
         case .pictureUploadFailure:
             SampleAPIScript(role: "creator", pictureURL: GroupDetailSampleData.pictureURL, pictureWriteFails: true)
+        case .paused: SampleAPIScript(role: "member", cashOut: .sampleOpsPause)
+        case .outsider: SampleAPIScript(role: nil, cabalCount: 0, pot: .sampleOutsider)
+        case .invited:
+            SampleAPIScript(role: nil, cabalCount: 0, pot: .sampleOutsider, invites: [GroupDetailSampleData.invite])
+        case .requests:
+            SampleAPIScript(role: "creator", accessRequests: Components.Schemas.CabalAccessRequest.samples)
+        case .cashOnly: SampleAPIScript(role: "member", pot: .sampleCashOnly)
+        case .votes:
+            SampleAPIScript(
+                role: "member", proposal: .sample(canVote: true),
+                pendingVotes: [Components.Schemas.PendingVote.samples[0]], viewerCanVote: true)
         }
     }
 }
 
 enum GroupDetailSampleData {
     static let cabalID = Components.Schemas.Cabal.sample(role: nil).id
+
+    static var invite: Components.Schemas.CabalInvite {
+        var invite = Components.Schemas.CabalInvite.sample
+        let cabal = Components.Schemas.Cabal.sample(role: nil)
+        invite.cabal.id = cabal.id
+        invite.cabal.name = cabal.name
+        return invite
+    }
 
     @MainActor
     static var pictureURL: String? {

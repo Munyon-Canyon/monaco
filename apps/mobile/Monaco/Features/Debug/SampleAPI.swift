@@ -16,7 +16,7 @@ nonisolated struct SampleAPIScript: Sendable {
     }
 
     var mode = Mode.populated
-    var role = "creator"
+    var role: String? = "creator"
     var pictureURL: String?
     var pictureWriteFails = false
     var balance = Components.Schemas.Balance.sample
@@ -26,6 +26,10 @@ nonisolated struct SampleAPIScript: Sendable {
     var pot = Components.Schemas.CabalPot.sampleInvested
     var proposal: Components.Schemas.ProposalDetail?
     var pendingVotes: [Components.Schemas.PendingVote] = []
+    var cashOut = Components.Schemas.CashOutPreview.sample
+    var invites: [Components.Schemas.CabalInvite] = []
+    var accessRequests: [Components.Schemas.CabalAccessRequest] = []
+    var viewerCanVote = false
 }
 
 nonisolated final class SampleAPIProtocol: URLProtocol {
@@ -189,7 +193,7 @@ nonisolated extension SampleAPIProtocol {
         case "/v1/me/pending-votes":
             return json(script.pendingVotes)
         case "/v1/me/cabal-invites":
-            return raw("[]")
+            return json(script.invites)
         default:
             return problem(404, "not_found", "Not in the sample data.")
         }
@@ -303,7 +307,8 @@ nonisolated extension SampleAPIProtocol {
         id: String, name: String = "QA pot", _ script: SampleAPIScript
     ) -> Components.Schemas.MyCabal {
         Components.Schemas.MyCabal(
-            id: id, name: name, pictureUrl: script.pictureURL, role: script.role, canVote: true, memberCount: 3,
+            id: id, name: name, pictureUrl: script.pictureURL, role: script.role ?? "member", canVote: true,
+            memberCount: 3,
             joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0, unreadCount: 0)
     }
 
@@ -317,34 +322,45 @@ nonisolated extension SampleAPIProtocol {
         return reply
     }
 
+    private static func cabalRead(id: String, script: SampleAPIScript) -> Components.Schemas.Cabal {
+        var cabal = Components.Schemas.Cabal.sampleWithMembers(role: script.role)
+        cabal.id = id
+        cabal.pictureUrl = script.pictureURL
+        if let invite = script.invites.first(where: { $0.cabal.id == id }) {
+            cabal.myAccessRequest = .init(id: invite.requestId, direction: "invite", status: "pending")
+        }
+        if id == CabalsTabSampleData.createdCabalID, let name = createdName.withLock({ $0 }) { cabal.name = name }
+        return cabal
+    }
+
     private static func cabalReply(id: String, tail: [String], range: String?, script: SampleAPIScript) -> Reply {
         let empty = script.mode == .empty
         switch tail.first {
         case nil:
-            var cabal = Components.Schemas.Cabal.sampleWithMembers(role: script.role)
-            cabal.id = id
-            cabal.pictureUrl = script.pictureURL
-            if id == CabalsTabSampleData.createdCabalID, let name = createdName.withLock({ $0 }) { cabal.name = name }
-            return json(cabal)
+            return json(cabalRead(id: id, script: script))
         case "pot":
             if script.mode == .potUnavailable { return problem(503, "unavailable", "The pot can't be read right now.") }
             var pot = empty ? Components.Schemas.CabalPot.sampleZero : script.pot
             pot.cabalId = id
             return json(pot)
         case "proposals":
-            return json(
-                Components.Schemas.ProposalList(
-                    proposals: empty ? [] : [Components.Schemas.Proposal.sample()], nextCursor: nil))
+            var proposal = Components.Schemas.Proposal.sample()
+            proposal.canVote = script.viewerCanVote
+            return json(Components.Schemas.ProposalList(proposals: empty ? [] : [proposal], nextCursor: nil))
         case "activity":
             return json(empty ? Components.Schemas.CabalActivityPage.sampleEmpty : .sampleFirst)
         case "leaderboard":
             return json(Components.Schemas.LeaderboardPage.samplePeople(count: empty ? 0 : 3))
         case "value-history":
             let history: Components.Schemas.CabalValueHistory =
-                range == "1D"
+                empty || range == "1D"
                 ? .init(cabalId: id, range: ._1d, points: [], pricesAsOf: nil) : .sample(cabalID: id)
             return json(history)
-        case "access-requests", "invites":
+        case "cashouts" where tail.last == "preview":
+            return json(script.cashOut)
+        case "access-requests":
+            return json(script.accessRequests)
+        case "invites":
             return raw("[]")
         default:
             return problem(404, "not_found", "Not in the sample data.")
