@@ -108,7 +108,8 @@ type DB struct {
 }
 
 type NATS struct {
-	URL string
+	URL   string
+	Creds string
 }
 
 type Bus struct {
@@ -399,6 +400,7 @@ func platformFields() []field {
 		text("DATABASE_URL", "", func(c *Config) *string { return &c.DB.URL }).required().secret(),
 		count("MONACO_DB_MAX_CONNS", 11, func(c *Config) *int32 { return &c.DB.MaxConns }),
 		text("NATS_URL", "", func(c *Config) *string { return &c.NATS.URL }).required().secret(),
+		text("NATS_CREDS", "", func(c *Config) *string { return &c.NATS.Creds }),
 		text("OTEL_EXPORTER_OTLP_ENDPOINT", "", func(c *Config) *string { return &c.OTel.Endpoint }),
 		text("OTEL_EXPORTER_OTLP_HEADERS", "", func(c *Config) *string { return &c.OTel.Headers }).secret(),
 		text("OTEL_SERVICE_NAME", "monaco", func(c *Config) *string { return &c.OTel.ServiceName }),

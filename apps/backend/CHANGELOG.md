@@ -8,6 +8,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Added
 
+- `NATS_CREDS` names a NATS `.creds` file the api, worker and monacoctl connect with, as Synadia Cloud requires.
 - The `agents` module.
 - The `ranking` module values every cabal on a 1 s poller, `ranking.valuation`, that runs every 2 minutes and 1 s after a
   trade, a funding or a cash-out, and exports `ranking.Port` with `LatestRun` and `LatestCabalValues`.
