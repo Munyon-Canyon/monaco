@@ -89,6 +89,11 @@ check_archived_plist() {
     echo "error: archive Info.plist MONACO_API_BASE_URL must be an https:// URL, got ${got_url:-missing}" >&2
     return 1
   fi
+  # Without it, TestFlight holds the build at MISSING_EXPORT_COMPLIANCE and no tester gets it.
+  if [[ "$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$plist" 2>/dev/null)" != false ]]; then
+    echo "error: archive Info.plist must set ITSAppUsesNonExemptEncryption to NO" >&2
+    return 1
+  fi
 }
 
 run_xcodebuild() {
