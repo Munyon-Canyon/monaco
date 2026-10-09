@@ -362,6 +362,11 @@ nonisolated extension SampleAPIProtocol {
             return json(script.accessRequests)
         case "invites":
             return raw("[]")
+        case "picture":
+            var cabal = Components.Schemas.Cabal.sampleWithMembers(role: script.role)
+            cabal.id = id
+            cabal.pictureUrl = nil
+            return json(cabal)
         default:
             return problem(404, "not_found", "Not in the sample data.")
         }
