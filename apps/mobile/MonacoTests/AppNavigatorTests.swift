@@ -89,6 +89,28 @@ struct AppNavigatorTests {
             navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: "c-1")), AnyAppRoute(ProposalRoute(proposalID: "p-1"))])
     }
 
+    @Test func openingTheSameRouteTwiceLeavesOne() {
+        let navigator = AppNavigator()
+
+        navigator.open(ProbeRoute(marker: "stock"), in: .stocks)
+        navigator.open(ProbeRoute(marker: "stock"), in: .stocks)
+
+        #expect(navigator.stocksPath.count == 1)
+        navigator.open(ProbeRoute(marker: "other"), in: .stocks)
+        navigator.open(ProbeRoute(marker: "stock"), in: .stocks)
+        #expect(navigator.stocksPath.count == 3)
+    }
+
+    @Test func aPushForACabalAlreadyInThePathGivesCabalThenTarget() {
+        let navigator = AppNavigator()
+        navigator.open(CabalRoute(id: "c-1"), in: .cabals)
+        navigator.open(cabalID: "c-1", then: ChatRoute(cabalID: "c-1"), in: .cabals)
+        navigator.open(cabalID: "c-1", then: ChatRoute(cabalID: "c-1"), in: .cabals)
+
+        #expect(
+            navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: "c-1")), AnyAppRoute(ChatRoute(cabalID: "c-1"))])
+    }
+
     @Test func tappingTheTabThatIsShowingPopsItToItsRoot() {
         let navigator = AppNavigator()
         navigator.open(ProbeRoute(marker: "cabal"), in: .cabals)
