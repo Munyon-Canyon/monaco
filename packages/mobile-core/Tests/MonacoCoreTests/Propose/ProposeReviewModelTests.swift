@@ -157,6 +157,8 @@ private actor ReviewService: ProposeService {
 
     func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview { throw Failure() }
 
+    func potValue(cabalID _: String) async throws -> Int64 { throw Failure() }
+
     func propose(cabalID _: String, draft _: ProposalDraft, submission: IdempotentSubmission) async throws -> String {
         submissions.append(submission)
         if failures > 0 {

@@ -126,6 +126,81 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertEqual(sell.trade, .sell(apple))
     }
 
+    func testMaxAndHelperAreAvailableBeforeTyping() async {
+        let model = ProposeAmountModel(service: PreviewService(), cabalID: "cabal", trade: Self.buy, clock: TestClock())
+        XCTAssertNil(model.maxMicros)
+        XCTAssertNil(model.helperText)
+
+        await model.load()
+
+        XCTAssertEqual(model.maxMicros, 500_000_000)
+        XCTAssertEqual(model.helperText, "The pot has $500.00")
+    }
+
+    func testHelperKeepsItsTextWhileANewPreviewLoads() async {
+        let clock = TestClock()
+        let service = PreviewService()
+        let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: Self.buy, clock: clock)
+        await model.load()
+
+        model.setAmount(micros: 25_000_000)
+
+        XCTAssertTrue(model.isLoading)
+        XCTAssertEqual(model.helperText, "The pot has $500.00")
+        XCTAssertEqual(model.maxMicros, 500_000_000)
+    }
+
+    func testReviewStaysDisabledWhileThePreviewIsForAnOlderAmount() async {
+        let clock = TestClock()
+        let service = PreviewService()
+        let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: Self.buy, clock: clock)
+        model.setAmount(micros: 25_000_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+        XCTAssertTrue(model.reviewEnabled(assetName: "Alphabet"))
+
+        await service.hold()
+        model.setAmount(micros: 50_000_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+
+        XCTAssertNotNil(model.preview)
+        XCTAssertEqual(model.previewAmountMicros, 25_000_000)
+        XCTAssertFalse(model.reviewEnabled(assetName: "Alphabet"))
+        await service.release()
+        await settle()
+        XCTAssertEqual(model.previewAmountMicros, 50_000_000)
+        XCTAssertTrue(model.reviewEnabled(assetName: "Alphabet"))
+    }
+
+    func testAFailedPreviewIsFlaggedAndRetryRecovers() async {
+        let clock = TestClock()
+        let service = PreviewService()
+        let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: Self.buy, clock: clock)
+        await service.setFailing(true)
+
+        model.setAmount(micros: 30_000_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+
+        XCTAssertTrue(model.previewFailed)
+        XCTAssertFalse(model.isLoading)
+        XCTAssertFalse(model.reviewEnabled(assetName: "Alphabet"))
+
+        await service.setFailing(false)
+        model.retryPreview()
+        XCTAssertFalse(model.previewFailed)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+
+        XCTAssertFalse(model.previewFailed)
+        XCTAssertTrue(model.reviewEnabled(assetName: "Alphabet"))
+    }
+
     private static let buy = ProposeTrade.buy(symbol: "GOOGLx", kind: .stock, tokenDecimals: 8)
 
     private func settle() async {
@@ -134,13 +209,29 @@ final class ProposeAmountModelTests: XCTestCase {
 }
 
 private actor PreviewService: ProposeService {
+    struct Failure: Error {}
     let code: String?
     var amounts: [Int64] = []
+    private var failing = false
+    private var holding = false
+    private var held: [CheckedContinuation<Void, Never>] = []
 
     init(code: String? = nil) { self.code = code }
 
+    func setFailing(_ value: Bool) { failing = value }
+    func hold() { holding = true }
+    func release() {
+        holding = false
+        for continuation in held { continuation.resume() }
+        held = []
+    }
+
+    func potValue(cabalID _: String) async throws -> Int64 { 500_000_000 }
+
     func preview(cabalID _: String, draft: ProposalDraft) async throws -> ProposePreview {
         amounts.append(draft.amount)
+        if failing { throw Failure() }
+        if holding { await withCheckedContinuation { held.append($0) } }
         return ProposePreview(
             .init(quoteOutAmount: nil, advisoryCode: code, advisoryMessage: nil, potValueMicros: 500_000_000))
     }

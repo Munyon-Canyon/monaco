@@ -5,6 +5,9 @@ import Observation
 public final class ProposeAmountModel {
     public private(set) var amountMicros: Int64 = 0
     public private(set) var preview: ProposePreview?
+    public private(set) var potMicros: Int64?
+    public private(set) var previewAmountMicros: Int64?
+    public private(set) var previewFailed = false
     public private(set) var isLoading = false
     public private(set) var thesis = ""
     public private(set) var trade: ProposeTrade
@@ -23,14 +26,14 @@ public final class ProposeAmountModel {
 
     public var maxMicros: Int64? {
         switch trade {
-        case .buy: preview?.maxMicros
+        case .buy: preview?.potValueMicros ?? potMicros
         case .sell(let holding): holding.valueMicros
         }
     }
 
     public var helperText: String? {
         switch trade {
-        case .buy: preview?.potHelperText
+        case .buy: (preview?.potValueMicros ?? potMicros).map { "The pot has \(UsdAmountFormatter.format(micros: $0))" }
         case .sell(let holding): holding.helperText
         }
     }
@@ -54,6 +57,11 @@ public final class ProposeAmountModel {
         return amountMicros > holding.valueMicros
     }
 
+    public func load() async {
+        guard !trade.isSell else { return }
+        potMicros = try? await service.potValue(cabalID: cabalID)
+    }
+
     public func setThesis(_ text: String) { thesis = ProposeReasonRules.limited(text) }
 
     public func resolveAsset(kind: AssetKind, decimals: Int) {
@@ -64,10 +72,11 @@ public final class ProposeAmountModel {
     public func setAmount(micros: Int64) {
         amountMicros = max(0, micros)
         previewTask?.cancel()
-        preview = nil
+        previewFailed = false
         isLoading = amountMicros > 0
         guard amountMicros > 0 else { return }
         let draft = self.draft
+        let amount = amountMicros
         previewTask = Task { [clock, service, cabalID] in
             do {
                 try await clock.sleep(for: .milliseconds(400))
@@ -75,14 +84,18 @@ public final class ProposeAmountModel {
                 let preview = try await service.preview(cabalID: cabalID, draft: draft)
                 guard !Task.isCancelled else { return }
                 self.preview = preview
+                self.previewAmountMicros = amount
                 self.isLoading = false
             } catch is CancellationError {
             } catch {
                 guard !Task.isCancelled else { return }
                 self.isLoading = false
+                self.previewFailed = true
             }
         }
     }
+
+    public func retryPreview() { setAmount(micros: amountMicros) }
 
     public func useMax() {
         guard let maxMicros else { return }
@@ -90,7 +103,8 @@ public final class ProposeAmountModel {
     }
 
     public func reviewEnabled(assetName: String) -> Bool {
-        guard let preview, !isOverLimit, draft.amount > 0, maxMicros != 0 else { return false }
+        guard let preview, previewAmountMicros == amountMicros, !isOverLimit, draft.amount > 0, maxMicros != 0
+        else { return false }
         return preview.reviewEnabled(
             amountMicros: amountMicros, isLoading: isLoading, assetName: assetName, isSell: trade.isSell)
     }
