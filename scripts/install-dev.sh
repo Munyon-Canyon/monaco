@@ -71,6 +71,15 @@ if ! have xcodebuild; then
   say "xcodebuild is missing. Install Xcode from the App Store, open it once, then rerun."
 fi
 
+if have xcodebuild && [[ -f .xcode-version ]]; then
+  xcode_want="$(tr -d '[:space:]' < .xcode-version)"
+  xcode_have="$(xcodebuild -version 2>/dev/null | head -1 | sed 's/^Xcode //' || true)"
+  if [[ -n "$xcode_have" && "$xcode_have" != "$xcode_want" ]]; then
+    missing_required=1
+    say "Xcode ${xcode_have} is installed; the repo pins ${xcode_want} (.xcode-version). Install it from Apple's developer downloads or with xcodes."
+  fi
+fi
+
 if ! have docker; then
   missing_required=1
   say "Docker is missing (needed for local Postgres)."

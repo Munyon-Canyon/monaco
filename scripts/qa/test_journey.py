@@ -1815,5 +1815,27 @@ class StartBackend(unittest.TestCase):
         self.assertEqual(env["SOLANA_RPC_URL"], "https://mainnet")
 
 
+class XcodeVersionWarning(unittest.TestCase):
+    def warning_for(self, pinned, installed):
+        with tempfile.TemporaryDirectory() as repo:
+            if pinned is not None:
+                (Path(repo) / ".xcode-version").write_text(pinned + "\n")
+            with unittest.mock.patch.object(journey, "ROOT", Path(repo)):
+                return journey.xcode_version_warning(lambda: installed)
+
+    def test_a_different_xcode_returns_the_message(self):
+        self.assertEqual(
+            self.warning_for("26.4.1", "26.3"),
+            "Xcode 26.3 is installed; the repo pins 26.4.1 (.xcode-version). "
+            "Install it from Apple's developer downloads or with xcodes.")
+
+    def test_the_pinned_xcode_returns_none(self):
+        self.assertIsNone(self.warning_for("26.4.1", "26.4.1"))
+
+    def test_a_missing_pin_or_missing_xcodebuild_returns_none(self):
+        self.assertIsNone(self.warning_for(None, "26.3"))
+        self.assertIsNone(self.warning_for("26.4.1", None))
+
+
 if __name__ == "__main__":
     unittest.main()

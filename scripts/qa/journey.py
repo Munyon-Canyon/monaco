@@ -1389,6 +1389,9 @@ def cmd_run(args):
         raise JourneyError("name one journey, or pass --all")
     if args.all and args.scenario:
         raise JourneyError("--scenario names one journey's scenarios: drop it with --all")
+    warning = xcode_version_warning()
+    if warning:
+        print(warning, file=sys.stderr)
     builder = once_builder(args)
     os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
     with simulator_shutdown(args.keep_sims), journey_backend(args.slot) as api_base_url:
@@ -1404,6 +1407,29 @@ def backend_trade_engine(args):
     moves_money = any(journey.funds for journey in picked) and (
         not args.all or bool(os.environ.get("MONACO_QA_REFUND_ADDRESS")))
     return "live" if moves_money else "stub"
+
+
+def installed_xcode_version():
+    """The version `xcodebuild -version` reports (26.4.1), or None when xcodebuild is missing."""
+    try:
+        out = sh(["xcodebuild", "-version"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout or ""
+    except OSError:
+        return None
+    first = out.splitlines()[0] if out else ""
+    return first.removeprefix("Xcode ").strip() or None
+
+
+def xcode_version_warning(read_installed=installed_xcode_version):
+    """The message when the installed Xcode differs from .xcode-version, else None."""
+    try:
+        want = (ROOT / ".xcode-version").read_text().strip()
+    except OSError:
+        return None
+    have = read_installed()
+    if not want or not have or have == want:
+        return None
+    return ("Xcode %s is installed; the repo pins %s (.xcode-version). "
+            "Install it from Apple's developer downloads or with xcodes." % (have, want))
 
 
 def once_builder(args):
