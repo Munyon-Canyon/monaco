@@ -99,28 +99,47 @@ private struct CabalHero: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityIdentifier("cabal-header-name")
-                HStack(spacing: MonacoTheme.Space.s) {
-                    Button(action: showMemberBoard) {
-                        MemberFaces(members: Array(cabal.members.prefix(Self.visibleFaces)))
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("See the leaderboard")
-                    .accessibilityIdentifier("cabal-header-faces")
-                    Text(CabalCopy.memberCount(cabal.memberCount))
-                        .font(MonacoTheme.Typo.callout)
-                        .foregroundStyle(MonacoTheme.onHeroMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                        .onTapGesture(perform: showMemberBoard)
-                        .accessibilityIdentifier("cabal-member-count")
-                }
+                memberRow(cabal)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabal-header")
+    }
+
+    private func memberRow(_ cabal: Components.Schemas.Cabal) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                memberFaces(cabal)
+                memberCount(cabal)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                memberFaces(cabal)
+                memberCount(cabal)
+            }
+        }
+    }
+
+    private func memberFaces(_ cabal: Components.Schemas.Cabal) -> some View {
+        Button(action: showMemberBoard) {
+            MemberFaces(members: Array(cabal.members.prefix(Self.visibleFaces)))
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("See the leaderboard")
+        .accessibilityIdentifier("cabal-header-faces")
+    }
+
+    private func memberCount(_ cabal: Components.Schemas.Cabal) -> some View {
+        Text(CabalCopy.memberCount(cabal.memberCount))
+            .font(MonacoTheme.Typo.callout)
+            .foregroundStyle(MonacoTheme.onHeroMuted)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: true)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: showMemberBoard)
+            .accessibilityIdentifier("cabal-member-count")
     }
 
     private func showMemberBoard() {
