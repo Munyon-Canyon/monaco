@@ -23,7 +23,14 @@ final class LeaderboardFreshnessTests: XCTestCase {
     func testAnHourOnIsHours() {
         XCTAssertEqual(label(minutesAgo: 60), "Updated 1 h ago")
         XCTAssertEqual(label(minutesAgo: 150), "Updated 2 h ago")
-        XCTAssertEqual(label(minutesAgo: 60 * 30), "Updated 30 h ago")
+        XCTAssertEqual(label(minutesAgo: 60 * 23), "Updated 23 h ago")
+    }
+
+    func testADayOnIsDays() {
+        XCTAssertEqual(label(minutesAgo: 60 * 24), "Updated 1 day ago")
+        XCTAssertEqual(label(minutesAgo: 60 * 47 + 59), "Updated 1 day ago")
+        XCTAssertEqual(label(minutesAgo: 60 * 48), "Updated 2 days ago")
+        XCTAssertEqual(label(minutesAgo: 60 * 134), "Updated 5 days ago")
     }
 
     func testAComputedAtInTheFutureIsLive() {
