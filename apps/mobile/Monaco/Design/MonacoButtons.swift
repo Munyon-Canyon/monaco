@@ -184,6 +184,7 @@ struct BottomCTA<Content: View>: View {
             content
         }
         .monacoFullWidthButtons()
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.sm)
         .padding(.bottom, MonacoTheme.Space.s)

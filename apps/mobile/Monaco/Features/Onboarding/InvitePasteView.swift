@@ -89,6 +89,7 @@ struct InvitePasteView: View {
                     .buttonStyle(.monacoText)
                     .accessibilityIdentifier("invite-skip-button")
                 }
+                .frame(maxWidth: .infinity)
             }
         }
         .monacoCanvas()

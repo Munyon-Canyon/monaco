@@ -158,3 +158,12 @@ struct SectionStackLayoutTests {
         #expect(size.height == 44)
     }
 }
+
+@MainActor
+struct BottomCTALayoutTests {
+    @Test func theBarSpansTheContainerWhateverItsContent() {
+        let host = UIHostingController(rootView: BottomCTA { Text("x") })
+        let size = host.sizeThatFits(in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude))
+        #expect(size.width == 390)
+    }
+}
