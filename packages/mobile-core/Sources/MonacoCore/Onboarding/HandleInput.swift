@@ -35,11 +35,13 @@ public enum HandleStatus: Equatable, Sendable {
 public enum HandleStepReason: Equatable, Sendable {
     case firstRun
     case revoked
+    case edit
 
     public var subtext: String {
         switch self {
         case .firstRun: HandleCopy.firstRunSubtext
         case .revoked: HandleCopy.revokedSubtext
+        case .edit: HandleCopy.editSubtext
         }
     }
 }
@@ -78,6 +80,11 @@ public enum HandleInput {
         return nil
     }
 
+    public static func isShortButValid(_ handle: String) -> Bool {
+        let scalars = handle.unicodeScalars
+        return !scalars.isEmpty && scalars.count < lengths.lowerBound && scalars.allSatisfy(isHandleScalar)
+    }
+
     public static func stepReason(for profile: SessionProfile) -> HandleStepReason {
         profile.authState == .created ? .firstRun : .revoked
     }
@@ -98,6 +105,11 @@ public enum HandleInput {
 public enum HandleCopy {
     public static let firstRunSubtext = "This is how people find you on Monaco."
     public static let revokedSubtext = "Your handle was removed. Pick a new one."
+    public static let editTitle = "Change your handle"
+    public static let editSubtext = "You can change your handle once every 30 days."
+    public static let save = "Save"
+    public static let changeConfirm = "Change handle"
+    public static let cancel = "Cancel"
     public static let taken = "That handle is taken."
     public static let reserved = "That handle isn't available."
     public static let invalid = "Use 3 to 20 letters, numbers or underscores."
@@ -109,6 +121,14 @@ public enum HandleCopy {
     public static let tryAgain = "Try again"
     public static let saving = "Saving…"
     public static let updated = "Handle updated."
+
+    public static func changeTitle(to handle: String) -> String {
+        "Change your handle to @\(handle)?"
+    }
+
+    public static func changeMessage(from handle: String) -> String {
+        "You can change it again in 30 days. @\(handle) becomes free for anyone to take, and links with it stop working."
+    }
 
     public static func tooSoon(on date: String) -> String {
         "You can change your handle again on \(date)."
