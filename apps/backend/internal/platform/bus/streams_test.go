@@ -245,6 +245,15 @@ func TestConnect_failsWhenNATSIsUnreachable(t *testing.T) {
 	}
 }
 
+func TestConnect_presentsTheCredsFile(t *testing.T) {
+	t.Parallel()
+	missing := t.TempDir() + "/missing.creds"
+	_, err := bus.Connect(t.Context(), config.NATS{URL: testkit.NATSURL(), Creds: missing}, bus.ProcessAPI)
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || !strings.Contains(err.Error(), "missing.creds") {
+		t.Fatalf("Connect with an unreadable creds file = %v, want upstream_unavailable naming the file", err)
+	}
+}
+
 func freshConn(t *testing.T) *bus.Conn {
 	t.Helper()
 	admin := testkit.NATS(t).JS

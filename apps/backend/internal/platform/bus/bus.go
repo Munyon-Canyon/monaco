@@ -55,7 +55,11 @@ func Connect(ctx context.Context, cfg config.NATS, proc Process, opts ...Option)
 	for _, opt := range opts {
 		opt(&o)
 	}
-	nc, err := nats.Connect(cfg.URL, nats.Name("monaco-"+string(proc)))
+	natsOpts := []nats.Option{nats.Name("monaco-" + string(proc))}
+	if cfg.Creds != "" {
+		natsOpts = append(natsOpts, nats.UserCredentials(cfg.Creds))
+	}
+	nc, err := nats.Connect(cfg.URL, natsOpts...)
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, slog.String("process", string(proc)))
 	}
