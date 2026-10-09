@@ -125,7 +125,7 @@ public final class BalanceSource {
 
     public static func message(for error: APIError) -> String {
         if case .problem(let problem) = error, problem.code == .known(.rpcUnavailable) {
-            return "Balance is temporarily unavailable. Pull to refresh."
+            return "Balance is temporarily unavailable. Try again in a moment."
         }
         return ToastCopy.message(for: error)
     }

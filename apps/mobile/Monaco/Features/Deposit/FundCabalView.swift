@@ -70,6 +70,7 @@ struct FundCabalView: View {
         let cabalName = cabal?.cabalName
         switch await funding.submit(micros: micros) {
         case .accepted:
+            Haptics.success()
             if let line = funding.progress.toast(cabalName: cabalName) { toasts.show(success: line) }
             dismiss()
             Task { [toasts] in
@@ -121,6 +122,8 @@ enum FundCabalStage: Equatable {
     }
 
     var showsDepositAction: Bool { showsAmountEntry }
+
+    var showsAddMoneyCTA: Bool { self == .needsMoney }
 }
 
 /// What Fund this cabal says and allows for the amount typed against the balance it has.
@@ -222,7 +225,13 @@ struct FundCabalContent: View {
         .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
-            if stage.showsAmountEntry {
+            if stage.showsAddMoneyCTA {
+                BottomCTA {
+                    Button("Add money", action: onAddMoney)
+                        .buttonStyle(.monacoPrimary)
+                        .accessibilityIdentifier("fund-cabal-add-money-button")
+                }
+            } else if stage.showsAmountEntry {
                 BottomCTA {
                     VStack(spacing: MonacoTheme.Space.s) {
                         if stage.showsDepositAction {
@@ -259,9 +268,7 @@ struct FundCabalContent: View {
         case .needsMoney:
             EmptyState(
                 title: "Add money first",
-                message: "Send USDC on Solana to your deposit address, then fund this cabal.",
-                actionTitle: "Add money",
-                action: onAddMoney
+                message: "Send USDC on Solana to your deposit address, then fund this cabal."
             )
             .accessibilityIdentifier("fund-cabal-needs-money")
         case .amount:

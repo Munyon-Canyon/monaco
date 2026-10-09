@@ -137,6 +137,8 @@ struct FundCabalStageTests {
     @Test func anEmptyBalanceAsksForMoneyFirst() {
         #expect(FundCabalStage.resolve(state: .loaded(Fixture.balance(0))) == .needsMoney)
         #expect(!FundCabalStage.needsMoney.showsAmountEntry)
+        #expect(FundCabalStage.needsMoney.showsAddMoneyCTA)
+        #expect(!FundCabalStage.resolve(state: .loaded(Fixture.balance(248_500_000))).showsAddMoneyCTA)
     }
 
     @Test func aBalanceShowsTheAmountPad() {

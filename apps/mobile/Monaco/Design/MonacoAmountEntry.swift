@@ -227,8 +227,13 @@ struct AmountEntry<Accessory: View>: View {
             Text(label(for: preset)).monacoChipLabel(isSelected: selected, isPreset: true)
         }
         .buttonStyle(.plain)
-        .disabled(target == nil)
+        .disabled(target == nil || isOverMax(target))
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func isOverMax(_ target: Decimal?) -> Bool {
+        guard let target, let max else { return false }
+        return target > max
     }
 
     private func amount(for preset: AmountPreset) -> Decimal? {

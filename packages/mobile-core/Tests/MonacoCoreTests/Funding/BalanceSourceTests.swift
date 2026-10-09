@@ -166,7 +166,7 @@ final class BalanceSourceTests: XCTestCase {
         await model.load()
 
         let error = try XCTUnwrap(model.lastError)
-        XCTAssertEqual(BalanceSource.message(for: error), "Balance is temporarily unavailable. Pull to refresh.")
+        XCTAssertEqual(BalanceSource.message(for: error), "Balance is temporarily unavailable. Try again in a moment.")
     }
 
     func testAnyOtherProblemShowsTheServerMessage() async throws {
