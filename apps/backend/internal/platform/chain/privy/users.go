@@ -62,16 +62,29 @@ func (c *Client) CreateUser(ctx context.Context, email string) (UserID, error) {
 }
 
 func (c *Client) GetUser(ctx context.Context, id UserID) (User, error) {
+	return c.readUser(ctx, call{
+		op: "privy.GetUser", method: http.MethodGet, path: "/v1/users/" + url.PathEscape(string(id)),
+	})
+}
+
+func (c *Client) UserByEmail(ctx context.Context, email string) (User, error) {
+	if email == "" {
+		return User{}, errs.New(errs.CodeInvalidInput, "privy.UserByEmail")
+	}
+	return c.readUser(ctx, call{
+		op: "privy.UserByEmail", method: http.MethodPost, path: "/v1/users/email/address",
+		body: struct {
+			Address string `json:"address"`
+		}{Address: email},
+	})
+}
+
+func (c *Client) readUser(ctx context.Context, in call) (User, error) {
 	var w struct {
 		ID             UserID          `json:"id"`
 		LinkedAccounts []linkedAccount `json:"linked_accounts"`
 	}
-	err := c.do(
-		ctx,
-		call{op: "privy.GetUser", method: http.MethodGet, path: "/v1/users/" + url.PathEscape(string(id))},
-		&w,
-	)
-	if err != nil {
+	if err := c.do(ctx, in, &w); err != nil {
 		return User{}, err
 	}
 	u := User{ID: w.ID}

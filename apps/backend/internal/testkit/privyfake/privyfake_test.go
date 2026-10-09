@@ -1,6 +1,7 @@
 package privyfake_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -84,5 +85,28 @@ func TestWallets_reusesSeededWalletsAndCountsCreates(t *testing.T) {
 	}
 	if _, err := w.FindOrCreate(t.Context(), "did:privy:other"); err != nil || w.Creates() != 2 {
 		t.Fatalf("after FailOnce = %v with %d creates", err, w.Creates())
+	}
+}
+
+func TestUsers_findsByEmailAndRefusesADuplicate(t *testing.T) {
+	t.Parallel()
+	var u privyfake.Users
+	if _, found, err := u.ByEmail(t.Context(), "dev-ab@example.com"); found || err != nil {
+		t.Fatalf("ByEmail before Create = %v, %v", found, err)
+	}
+	id, err := u.Create(t.Context(), "dev-ab@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, found, err := u.ByEmail(t.Context(), "dev-ab@example.com"); got != id || !found || err != nil {
+		t.Fatalf("ByEmail = %q, %v, %v, want %q", got, found, err, id)
+	}
+	if _, err := u.Create(t.Context(), "dev-ab@example.com"); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("duplicate Create = %v, want invalid_input", err)
+	}
+	down := errs.New(errs.CodePrivyUnavailable, "test")
+	u.Fail("ByEmail", down)
+	if _, _, err := u.ByEmail(t.Context(), "x@example.com"); !errors.Is(err, down) {
+		t.Fatalf("ByEmail with a scripted fault = %v", err)
 	}
 }
