@@ -93,11 +93,28 @@ final class CabalPotSummaryTests: XCTestCase {
         XCTAssertEqual(summary.slice, .stake(value: "$90.00", ofPot: "100% of the pot", gain: "\u{2212}$10.00"))
     }
 
-    private func holding(_ symbol: String, units: String, weightBps: Int32, pnlMicros: Int64)
-        -> Components.Schemas.CabalHolding
-    {
+    func testAPreIpoHoldingReadsInTokensAndAStockInShares() {
+        let summary = CabalPotSummary(
+            Pot.sample(
+                potValueMicros: 30_000_000, cashMicros: 0, cashWeightBps: 0, pnlMicros: 0,
+                holdings: [
+                    holding("OPENAIx", units: "12.5000", weightBps: 3000, pnlMicros: 0, kind: .preIpo),
+                    holding("ANTHx", units: "1.0000", weightBps: 3000, pnlMicros: 0, kind: .preIpo),
+                    holding("AAPLx", units: "12.5000", weightBps: 4000, pnlMicros: 0),
+                ],
+                me: nil))
+
+        XCTAssertEqual(
+            summary.holdings.map(\.detail), ["12.5 tokens · $10.00", "1 token · $10.00", "12.5 shares · $10.00"])
+        XCTAssertEqual(CabalPotSummary.shares("2.0000", kind: .preIpo), "2 tokens")
+    }
+
+    private func holding(
+        _ symbol: String, units: String, weightBps: Int32, pnlMicros: Int64,
+        kind: Components.Schemas.CabalHolding.KindPayload = .equity
+    ) -> Components.Schemas.CabalHolding {
         .init(
-            symbol: symbol, displayName: symbol, kind: .equity, units: units, tokenAmount: 100_000_000,
+            symbol: symbol, displayName: symbol, kind: kind, units: units, tokenAmount: 100_000_000,
             priceMicros: 10_000_000, valueMicros: 10_000_000, weightBps: weightBps,
             costBasisMicros: 10_000_000 - pnlMicros, pnlMicros: pnlMicros)
     }

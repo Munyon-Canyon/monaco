@@ -141,7 +141,8 @@ public final class AssetDetailClientModel {
                     return .holds(
                         AssetCabalPosition(
                             cabalID: cabal.id, cabalName: cabal.name, pictureURL: cabal.pictureUrl,
-                            canVote: cabal.canVote, units: holding.units, valueMicros: holding.valueMicros,
+                            canVote: cabal.canVote, units: holding.units, kind: AssetKind(raw: holding.kind.rawValue),
+                            valueMicros: holding.valueMicros,
                             pnlMicros: holding.pnlMicros, costBasisMicros: holding.costBasisMicros))
                 }
             }

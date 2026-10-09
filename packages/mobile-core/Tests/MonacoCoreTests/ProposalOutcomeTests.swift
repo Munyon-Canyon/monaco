@@ -36,19 +36,61 @@ final class ProposalOutcomeTests: XCTestCase {
     }
 
     @MainActor
-    func testNoOutcomeWithoutAVoteOrWithoutAPassedStartOrForABuy() async throws {
+    func testNoOutcomeWithoutAVoteOrWithoutAStatusChange() async throws {
         var outcomes: [ProposalOutcome] = []
         for (before, after) in [
             (Self.sell("passed", ballot: nil), Self.sell("executed", ballot: nil)),
-            (Self.sell("open"), Self.sell("executed")),
+            (Self.sell("open", ballot: nil), Self.sell("executed", ballot: nil)),
             (Self.sell("passed"), Self.sell("passed")),
-            (Self.sell("passed", kind: "buy"), Self.sell("executed", kind: "buy")),
+            (Self.sell("executed"), Self.sell("executed")),
+            (Self.sell("passed", kind: "buy"), Self.sell("passed", kind: "buy")),
         ] {
             let model = try await loaded([before], then: [after])
             model.onOutcome = { outcomes.append($0) }
             await model.refresh()
         }
         XCTAssertEqual(outcomes, [])
+    }
+
+    @MainActor
+    func testAVotedBuyThatExecutesFiresBought() async throws {
+        let model = try await loaded([Self.sell("passed", kind: "buy")], then: [Self.sell("executed", kind: "buy")])
+        var outcomes: [ProposalOutcome] = []
+        model.onOutcome = { outcomes.append($0) }
+
+        await model.refresh()
+
+        XCTAssertEqual(outcomes.map(\.proposal.id), ["p"])
+        XCTAssertEqual(outcomes.first?.toast(asset: Self.amazon), "Bought $250.00 of Amazon")
+        XCTAssertEqual(outcomes.first?.toast(asset: nil), "Bought $250.00 of AMZN")
+    }
+
+    @MainActor
+    func testAVotedSellThatGoesFromOpenToExecutedFiresSold() async throws {
+        let model = try await loaded([Self.sell("open")], then: [Self.sell("executed")])
+        var outcomes: [ProposalOutcome] = []
+        model.onOutcome = { outcomes.append($0) }
+
+        await model.refresh()
+
+        XCTAssertEqual(outcomes.map(\.proposal.id), ["p"])
+        XCTAssertEqual(outcomes.first?.toast(asset: Self.amazon), "Sold 0.2161 shares of Amazon")
+    }
+
+    @MainActor
+    func testABlockedBuyFiresCouldntBuyWithTheStatusMessage() async throws {
+        let blocked = Self.sell("execution_blocked", kind: "buy", message: "The price moved too far.")
+        let model = try await loaded([Self.sell("open", kind: "buy")], then: [blocked])
+        var outcomes: [ProposalOutcome] = []
+        model.onOutcome = { outcomes.append($0) }
+
+        await model.refresh()
+
+        XCTAssertEqual(outcomes.first?.toast(asset: Self.amazon), "Couldn't buy: The price moved too far.")
+        XCTAssertEqual(
+            ProposalOutcome(
+                from: .passed, to: ProposalSummary(try Self.proposal(status: "execution_blocked", kind: "buy"))
+            )?.toast(asset: nil), "Couldn't buy")
     }
 
     @MainActor
@@ -150,7 +192,8 @@ final class ProposalOutcomeTests: XCTestCase {
         let reason = message == nil ? "null" : #""InsufficientFunds""#
         let expiry = ISO8601DateFormatter().string(from: expires)
         let tokens = kind == "sell" ? "216100" : "null"
+        let usdc = kind == "sell" ? "null" : "250000000"
         return
-            #"{"id":"\#(id)","cabal_id":"c","proposer_id":"u","kind":"\#(kind)","symbol":"AMZNx","usdc_micros":null,"token_amount":\#(tokens),"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":\#(reason),"status_message":\#(text),"expires_at":"\#(expiry)","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":\#(mine),"can_vote":false}"#
+            #"{"id":"\#(id)","cabal_id":"c","proposer_id":"u","kind":"\#(kind)","symbol":"AMZNx","usdc_micros":\#(usdc),"token_amount":\#(tokens),"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":\#(reason),"status_message":\#(text),"expires_at":"\#(expiry)","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":\#(mine),"can_vote":false}"#
     }
 }

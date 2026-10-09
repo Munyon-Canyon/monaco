@@ -18,12 +18,8 @@ private struct CabalMemberBoard: View {
         LeaderboardHost(board: .cabalMembers(id: cabalID), refreshKey: "cabal-member-board", reloadID: retry.tick) {
             loader in
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    MonacoSectionHeader("Leaderboard")
-                    LeaderboardFreshnessText(
-                        loader: loader, identifier: "cabal-member-board-freshness", font: MonacoTheme.Typo.callout)
-                }
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+                MonacoSectionHeader("Leaderboard")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 LeaderboardBoardList(
                     loader: loader, skeletonRows: 3, failureThing: "the leaderboard",
                     identifier: "cabal-member-board", showsEmpty: false,
@@ -44,6 +40,10 @@ private struct CabalMemberBoard: View {
                         .buttonStyle(.monacoRow)
                         .accessibilityIdentifier("cabal-member-\(row.id)")
                     })
+                LeaderboardFreshnessText(
+                    loader: loader, identifier: "cabal-member-board-freshness", font: MonacoTheme.Typo.callout
+                )
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)

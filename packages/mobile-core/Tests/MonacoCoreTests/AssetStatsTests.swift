@@ -47,7 +47,18 @@ final class AssetStatsTests: XCTestCase {
     func testPositionReturnIsPnlOverCostBasis() {
         let position = AssetCabalPosition(
             cabalID: "c", cabalName: "N", pictureURL: nil, canVote: true, units: "1.0000",
-            valueMicros: 120_000_000, pnlMicros: 20_000_000, costBasisMicros: 100_000_000)
+            kind: .stock, valueMicros: 120_000_000, pnlMicros: 20_000_000, costBasisMicros: 100_000_000)
         XCTAssertEqual(position.returnBasisPoints, 2000)
+    }
+
+    func testPositionLabelFollowsTheAssetKind() {
+        func label(_ kind: AssetKind) -> String {
+            AssetCabalPosition(
+                cabalID: "c", cabalName: "N", pictureURL: nil, canVote: true, units: "2.5000", kind: kind,
+                valueMicros: 0, pnlMicros: 0, costBasisMicros: 0
+            ).sharesLabel
+        }
+        XCTAssertEqual(label(.stock), "2.5 shares")
+        XCTAssertEqual(label(.preIpo), "2.5 tokens")
     }
 }
