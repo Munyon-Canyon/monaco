@@ -64,6 +64,7 @@ public enum CommentDraft: Equatable {
 public enum CommentsCopy {
     public static let title = "Comments"
     public static let empty = "No comments yet"
+    public static let emptyMessage = "Be the first to comment."
     public static let placeholder = "Add a comment"
     public static let membersOnly = "Only members of this cabal can comment."
     public static let deleted = "Comment deleted"
