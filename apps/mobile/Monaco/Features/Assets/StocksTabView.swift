@@ -141,6 +141,7 @@ private struct StocksAssetRow: View {
             isAvailable: asset.isTradable,
             isLast: isLast
         ) {
+            if asset.isPaused { PausedTag() }
             HStack(spacing: MonacoTheme.Space.xs) {
                 if !asset.session.isRegularSession {
                     Image(systemName: "moon.fill").font(MonacoTheme.Typo.caption)

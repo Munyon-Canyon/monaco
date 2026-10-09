@@ -84,15 +84,15 @@ struct ProposeBuyStockView: View {
             if model.rows.isEmpty, !trimmedQuery.isEmpty {
                 EmptyState(title: "No stocks match “\(trimmedQuery)”")
             } else if trimmedQuery.isEmpty {
-                let popular = model.popular.rows
+                let popular = model.popular.rows.pausedLast
                 let ranked = Set(popular.map(\.symbol))
-                let rest = model.rows.filter { !ranked.contains($0.symbol) }
+                let rest = model.rows.filter { !ranked.contains($0.symbol) }.pausedLast
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
                     if !popular.isEmpty { stocks(popular, under: "Popular") }
                     if !rest.isEmpty { stocks(rest, under: "All stocks") }
                 }
             } else {
-                stocks(model.rows)
+                stocks(model.rows.pausedLast)
             }
         }
     }
@@ -127,7 +127,7 @@ enum ProposeBuyStockSelection {
         pick(
             ProposeStock(
                 symbol: asset.symbol, name: asset.name, priceMicros: asset.priceMicros,
-                isTradable: asset.isTradable, assetKind: asset.kind
+                isTradable: asset.isTradable, isQuotable: asset.isQuotable, assetKind: asset.kind
             ))
     }
 }
@@ -137,7 +137,7 @@ extension ProposeStock {
         self.init(
             symbol: asset.symbol, name: asset.name, priceMicros: asset.priceMicros,
             change24h: asset.changeBasisPoints.map(Self.ratio(basisPoints:)),
-            isTradable: asset.isTradable, assetKind: asset.kind)
+            isTradable: asset.isTradable, isQuotable: asset.isQuotable, assetKind: asset.kind)
     }
 
     private static func ratio(basisPoints: Int64) -> String {
