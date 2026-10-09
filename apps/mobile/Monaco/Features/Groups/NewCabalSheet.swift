@@ -39,13 +39,6 @@ struct NewCabalSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                Text("New cabal")
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.top, MonacoTheme.Space.l)
-                    .accessibilityAddTraits(.isHeader)
-
                 MonacoGroupedList {
                     Button(action: onCreate) {
                         MonacoRow(
@@ -70,8 +63,7 @@ struct NewCabalSheet: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .monacoCanvas()
+        .monacoSheet(title: "New cabal")
         .presentationDetents(contentHeight > 0 ? [.height(contentHeight)] : [.medium])
-        .presentationDragIndicator(.visible)
     }
 }
