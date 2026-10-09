@@ -7,7 +7,7 @@ final class ProposeReviewModelTests: XCTestCase {
     func testBuyRowsSayShares() {
         let model = makeModel(kind: .stock, service: ReviewService())
 
-        XCTAssertEqual(model.title, "Buy $250.00 of GOOGL")
+        XCTAssertEqual(model.title, "Buy $250.00 of Alphabet")
         XCTAssertEqual(
             model.rows,
             [
@@ -112,7 +112,17 @@ final class ProposeReviewModelTests: XCTestCase {
         let model = makeSellModel(spacex, selling: 2_000_000_000)
 
         XCTAssertEqual(model.title, "Sell 2 tokens of SPACEX")
-        XCTAssertEqual(model.rows[1], .init(label: "Cabal keeps", value: "0 tokens"))
+        XCTAssertEqual(
+            model.rows,
+            [.init(label: "Raises", value: "about $139.00"), .init(label: "Who votes", value: "All 3 members")])
+    }
+
+    func testTinyBuyOfALargePotSaysLessThanOnePercent() {
+        let model = makeModel(kind: .stock, service: ReviewService(), amount: 2_000_000, pot: 5_000_000_000)
+
+        XCTAssertEqual(model.title, "Buy $2.00 of Alphabet")
+        XCTAssertTrue(model.rows.contains(.init(label: "Pot", value: "Less than 1% of $5,000.00")))
+        XCTAssertFalse(model.rows.contains { $0.value.hasPrefix("0%") })
     }
 
     private func makeSellModel(_ holding: ProposeHolding, selling amount: Int64) -> ProposeReviewModel {
@@ -126,14 +136,15 @@ final class ProposeReviewModelTests: XCTestCase {
 
     private func makeModel(
         kind: AssetKind, service: ReviewService, thesis: String = "Earnings next week.",
-        quoteOut: Int64 = 73_000_000, tokenDecimals: Int? = 8
+        quoteOut: Int64 = 73_000_000, tokenDecimals: Int? = 8, amount: Int64 = 250_000_000,
+        pot: Int64 = 500_000_000
     ) -> ProposeReviewModel {
         let preview = ProposePreview(
-            .init(quoteOutAmount: quoteOut, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
+            .init(quoteOutAmount: quoteOut, advisoryCode: nil, advisoryMessage: nil, potValueMicros: pot))
         return ProposeReviewModel(
             service: service, cabalID: "cabal", cabal: .init(name: "Sunday Investors", voters: "All 3 members"),
-            draft: .buy(symbol: "GOOGL", usdcMicros: 250_000_000, thesis: thesis), preview: preview,
-            trade: .buy(symbol: "GOOGL", kind: kind, tokenDecimals: tokenDecimals))
+            draft: .buy(symbol: "GOOGL", usdcMicros: amount, thesis: thesis), preview: preview,
+            trade: .buy(symbol: "GOOGL", kind: kind, tokenDecimals: tokenDecimals), buyName: "Alphabet")
     }
 }
 

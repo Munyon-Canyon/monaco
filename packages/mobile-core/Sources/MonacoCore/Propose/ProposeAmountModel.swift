@@ -35,6 +35,20 @@ public final class ProposeAmountModel {
         }
     }
 
+    public var overLimitHelper: String {
+        guard case .sell(let holding) = trade else { return "More than the pot has" }
+        return holding.valueMicros > 0 ? "More than the cabal holds" : ProposeHolding.noPriceHelper
+    }
+
+    public var sellQuantityNote: String? {
+        guard case .sell(let holding) = trade, amountMicros > 0, holding.valueMicros > 0 else { return nil }
+        return "About \(holding.quantity(of: holding.tokenAmount(forMicros: amountMicros)))"
+    }
+
+    public var reviewTitle: String {
+        amountMicros > 0 ? "Review \(UsdAmountFormatter.format(micros: amountMicros))" : "Review"
+    }
+
     public var isOverLimit: Bool {
         guard case .sell(let holding) = trade else { return false }
         return amountMicros > holding.valueMicros
@@ -76,7 +90,7 @@ public final class ProposeAmountModel {
     }
 
     public func reviewEnabled(assetName: String) -> Bool {
-        guard let preview, !isOverLimit, draft.amount > 0 else { return false }
+        guard let preview, !isOverLimit, draft.amount > 0, maxMicros != 0 else { return false }
         return preview.reviewEnabled(
             amountMicros: amountMicros, isLoading: isLoading, assetName: assetName, isSell: trade.isSell)
     }

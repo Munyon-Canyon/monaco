@@ -55,7 +55,10 @@ final class ProposeAmountModelTests: XCTestCase {
         let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: .sell(apple), clock: clock)
 
         XCTAssertEqual(model.maxMicros, 278_470_000)
-        XCTAssertEqual(model.helperText, "The cabal holds $278.47")
+        XCTAssertEqual(model.helperText, "The cabal holds 1.2034 shares · $278.47")
+        XCTAssertNil(model.sellQuantityNote)
+        XCTAssertEqual(model.reviewTitle, "Review")
+        XCTAssertEqual(model.overLimitHelper, "More than the cabal holds")
         model.setAmount(micros: 278_470_000)
         await settle()
         clock.advance(by: .milliseconds(400))
@@ -71,6 +74,41 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertFalse(model.reviewEnabled(assetName: "Apple"))
         let amounts = await service.recordedAmounts()
         XCTAssertEqual(amounts.first, 120_345_678)
+    }
+
+    func testSellShowsTheShareCountBeforeReview() {
+        let apple = ProposeHoldingTests.holding(
+            name: "Apple", units: "1.0000", tokenAmount: 100_000_000, valueMicros: 100_000_000)
+        let model = ProposeAmountModel(
+            service: PreviewService(), cabalID: "cabal", trade: .sell(apple), clock: TestClock())
+
+        model.setAmount(micros: 25_000_000)
+
+        XCTAssertEqual(model.sellQuantityNote, "About 0.25 shares")
+        XCTAssertEqual(model.reviewTitle, "Review $25.00")
+    }
+
+    func testUnpricedHoldingSaysSoAndCannotBeReviewed() async {
+        let clock = TestClock()
+        let apple = ProposeHoldingTests.holding(name: "Apple", valueMicros: 0)
+        let model = ProposeAmountModel(
+            service: PreviewService(), cabalID: "cabal", trade: .sell(apple), clock: clock)
+
+        XCTAssertEqual(model.helperText, "No price for this stock right now")
+        model.setAmount(micros: 1_000_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+        XCTAssertEqual(model.overLimitHelper, "No price for this stock right now")
+        XCTAssertNil(model.sellQuantityNote)
+        XCTAssertFalse(model.reviewEnabled(assetName: "Apple"))
+    }
+
+    func testBuyOverTheLimitSaysThePot() {
+        let model = ProposeAmountModel(
+            service: PreviewService(), cabalID: "cabal", trade: Self.buy, clock: TestClock())
+
+        XCTAssertEqual(model.overLimitHelper, "More than the pot has")
     }
 
     func testResolveAssetFixesABuyAndLeavesASellAlone() {

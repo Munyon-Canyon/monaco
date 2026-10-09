@@ -25,10 +25,15 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     }
 
     public var detail: String {
-        "\(quantity(of: tokenAmount)) · \(UsdAmountFormatter.format(micros: priceMicros))"
+        "\(name) · \(quantity(of: tokenAmount))"
     }
 
-    public var helperText: String { "The cabal holds \(UsdAmountFormatter.format(micros: valueMicros))" }
+    public static let noPriceHelper = "No price for this stock right now"
+
+    public var helperText: String {
+        guard valueMicros > 0 else { return Self.noPriceHelper }
+        return "The cabal holds \(quantity(of: tokenAmount)) · \(UsdAmountFormatter.format(micros: valueMicros))"
+    }
 
     public func tokenAmount(forMicros micros: Int64) -> Int64 {
         guard micros > 0 else { return 0 }

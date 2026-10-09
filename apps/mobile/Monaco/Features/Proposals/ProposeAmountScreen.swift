@@ -25,22 +25,24 @@ struct ProposeAmountScreen: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     operationLabel
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                     MonacoGroupedList { ProposeStockRow(stock: stock, logoURL: nil, isLast: true) }
                     ProposePotTotalRow(cabalID: cabalID)
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                 }
                 AmountEntry(
                     amountText: $amountText, max: max, presets: presets, helper: model.helperText,
-                    overLimitHelper: "More than the cabal holds", input: .keypad,
-                    showsKeypad: !reasonFocused
+                    overLimitHelper: model.overLimitHelper, problem: model.message(assetName: stock.name),
+                    input: .keypad, showsKeypad: !reasonFocused
                 ) {
-                    reasonSection
+                    VStack(spacing: MonacoTheme.Space.s) {
+                        if let note = model.sellQuantityNote { AmountEntryNote(note) }
+                        reasonSection
+                    }
                 }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .onChange(of: amountText) { _, value in model.setAmount(micros: AmountEntryText.micros(value) ?? 0) }
-                if let message = model.message(assetName: stock.name) {
-                    Text(message).foregroundStyle(MonacoTheme.loss)
-                }
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.s)
             .padding(.bottom, MonacoTheme.Space.s)
         }
@@ -56,7 +58,7 @@ struct ProposeAmountScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {
-                Button("Review") { showsReview = true }.buttonStyle(.monacoPrimary)
+                Button(model.reviewTitle) { showsReview = true }.buttonStyle(.monacoPrimary)
                     .disabled(!model.reviewEnabled(assetName: stock.name))
                     .accessibilityIdentifier("propose-amount-review")
             }
@@ -65,7 +67,8 @@ struct ProposeAmountScreen: View {
             if let preview = model.preview {
                 ProposeReviewScreen(
                     service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabalID,
-                    draft: model.draft, preview: preview, trade: model.trade)
+                    draft: model.draft, preview: preview, trade: model.trade,
+                    buyName: stock.name)
             }
         }
         .accessibilityElement(children: .contain)

@@ -40,6 +40,20 @@ final class ProposeHoldingTests: XCTestCase {
         XCTAssertEqual(spacex.quantity(of: 500_000_000), "0.5 tokens")
     }
 
+    func testDetailNamesTheStockAndTheShareCount() {
+        let apple = Self.holding(name: "Apple", units: "0.7300", tokenAmount: 73_000_000)
+
+        XCTAssertEqual(apple.detail, "Apple · 0.73 shares")
+    }
+
+    func testHelperSaysWhatTheCabalHoldsInSharesAndDollars() {
+        let apple = Self.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678, valueMicros: 278_470_000)
+        let unpriced = Self.holding(name: "Apple", valueMicros: 0)
+
+        XCTAssertEqual(apple.helperText, "The cabal holds 1.2034 shares · $278.47")
+        XCTAssertEqual(unpriced.helperText, "No price for this stock right now")
+    }
+
     func testReadsTheTickerWithoutTheTokenSuffix() {
         XCTAssertEqual(Self.holding(name: "Apple").ticker, "AAPL")
     }

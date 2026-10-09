@@ -11,11 +11,13 @@ struct ProposeReviewScreen: View {
     private let draft: MonacoCore.ProposalDraft
     private let preview: MonacoCore.ProposePreview
     private let trade: MonacoCore.ProposeTrade
+    private let buyName: String?
 
     init(
         service: MonacoCore.ProposeService, cabalID: String, draft: MonacoCore.ProposalDraft,
-        preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade
+        preview: MonacoCore.ProposePreview, trade: MonacoCore.ProposeTrade, buyName: String? = nil
     ) {
+        self.buyName = buyName
         self.service = service
         self.cabalID = cabalID
         self.draft = draft
@@ -88,7 +90,8 @@ struct ProposeReviewScreen: View {
         do {
             let cabal = try await MonacoCore.ProposeCabalInfo.load(api: environment.api, cabalID: cabalID)
             model = MonacoCore.ProposeReviewModel(
-                service: service, cabalID: cabalID, cabal: cabal, draft: draft, preview: preview, trade: trade)
+                service: service, cabalID: cabalID, cabal: cabal, draft: draft, preview: preview, trade: trade,
+                buyName: buyName)
         } catch {
             cabalFailed = true
         }
