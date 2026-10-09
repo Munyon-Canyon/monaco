@@ -50,7 +50,6 @@ func TestCreditDeposit_writesOneDepositEventAndHintWithoutMovingTheCursor(t *tes
 			25_000_000,
 		), Slot: 123, BlockTime: now, CreditedAt: now,
 	}
-	seedDepositCursor(t, pool, user.Address, now)
 	ctx := observability.WithActor(t.Context(), "system:poller.funding.deposits")
 	credited, err := handler.Handle(ctx, cmd)
 	if err != nil || !credited {
@@ -71,37 +70,8 @@ func TestCreditDeposit_writesOneDepositEventAndHintWithoutMovingTheCursor(t *tes
 	if deposits != 1 || eventCount != 1 || len(h.keys) != 1 {
 		t.Fatalf("deposits=%d events=%d hints=%v, want 1 1 one", deposits, eventCount, h.keys)
 	}
-	assertDepositCursor(t, pool, user.Address, seededCursor)
 	assertDepositHint(t, h, user.ID)
 	assertDepositPayload(t, pool, cmd)
-}
-
-const seededCursor chain.Signature = "seeded-cursor"
-
-func seedDepositCursor(t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, at time.Time) {
-	t.Helper()
-	if _, err := pool.Exec(
-		t.Context(),
-		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at) VALUES ($1, $2, 7, $3)`,
-		address, string(seededCursor), at,
-	); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func assertDepositCursor(t *testing.T, pool *pgxpool.Pool, address chain.SolanaAddress, want chain.Signature) {
-	t.Helper()
-	var got string
-	if err := pool.QueryRow(
-		t.Context(),
-		`SELECT last_signature FROM deposit_cursors WHERE wallet_address = $1`,
-		address,
-	).Scan(&got); err != nil {
-		t.Fatal(err)
-	}
-	if got != string(want) {
-		t.Fatalf("cursor = %q, want %q", got, want)
-	}
 }
 
 func assertDepositHint(t *testing.T, h *hints, userID ids.UserID) {
@@ -152,7 +122,6 @@ func TestCreditDeposit_duplicateLeavesTheCursorUntouched(t *testing.T) {
 		BlockTime:  now,
 		CreditedAt: now,
 	}
-	seedDepositCursor(t, pool, user.Address, now)
 	if _, err := handler.Handle(ctx, newer); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +130,6 @@ func TestCreditDeposit_duplicateLeavesTheCursorUntouched(t *testing.T) {
 	if credited, err := handler.Handle(ctx, duplicate); err != nil || credited {
 		t.Fatalf("duplicate = %v, %v", credited, err)
 	}
-	assertDepositCursor(t, pool, user.Address, seededCursor)
 }
 
 func TestCreditDeposit_rollsBackOnEachWriteFailure(t *testing.T) {

@@ -1,11 +1,14 @@
 package funding_test
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -23,29 +26,20 @@ func TestDepositCursorMigration_ReplaysFromTheOldCursorAndCreditsEachDepositOnce
 	f := newCandidateFixture(t)
 	ctx := t.Context()
 	const cursorSlot = 100
-	if _, err := f.pool.Exec(
-		ctx,
-		`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
-		VALUES ($1, 'cursor', $2, now())`, f.user.Address, cursorSlot,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.pool.Exec(
-		ctx,
-		`INSERT INTO deposits (id, user_id, wallet_address, tx_signature, amount_micros, slot, credited_at)
-		VALUES (gen_random_uuid(), $1, $2, 'sigCredited', 5000000, 120, now())`, f.user.ID.UUID(), f.user.Address,
-	); err != nil {
-		t.Fatal(err)
-	}
+	execAll(t, f.pool,
+		`CREATE TABLE IF NOT EXISTS deposit_cursors (
+			wallet_address text PRIMARY KEY, last_signature text, cursor_slot bigint NOT NULL DEFAULT 0,
+			scanned_at timestamptz NOT NULL)`,
+		fmt.Sprintf(`INSERT INTO deposit_cursors (wallet_address, last_signature, cursor_slot, scanned_at)
+			VALUES ('%s', 'cursor', %d, now())`, f.user.Address, cursorSlot),
+		fmt.Sprintf(`INSERT INTO deposits (id, user_id, wallet_address, tx_signature, amount_micros, slot, credited_at)
+			VALUES (gen_random_uuid(), '%s', '%s', 'sigCredited', 5000000, 120, now())`, f.user.ID.UUID(), f.user.Address),
+	)
 	migration, err := os.ReadFile("../../../migrations/20261009000000_funding_copy_deposit_cursors.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 2 {
-		if _, err := f.pool.Exec(ctx, string(migration)); err != nil {
-			t.Fatal(err)
-		}
-	}
+	execAll(t, f.pool, string(migration), string(migration))
 	if n := f.count(t, `SELECT count(*) FROM deposit_watch_wallets WHERE first_seen_slot = $1`, cursorSlot); n != 1 {
 		t.Fatalf("watch wallets at the cursor slot = %d, want 1 after running the migration twice", n)
 	}
@@ -114,6 +108,15 @@ func resolveAllSeen(t *testing.T, f candidateFixture) {
 		d.reg.Dispatch(observability.WithActor(t.Context(), "system:worker"), "funding", m)
 		if m.outcome != bus.OutcomeAck {
 			t.Fatalf("delivery = %q, want ack", m.outcome)
+		}
+	}
+}
+
+func execAll(t *testing.T, pool *pgxpool.Pool, statements ...string) {
+	t.Helper()
+	for _, statement := range statements {
+		if _, err := pool.Exec(context.Background(), statement); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

@@ -19,14 +19,6 @@ SET status = $1,
     resolved_at = NULLIF(sqlc.arg(resolved_at)::timestamptz, '0001-01-01T00:00:00Z'::timestamptz)
 WHERE tx_signature = $2 AND wallet_address = $3 AND status = 'pending';
 
--- name: DepositCursorsToMigrate :many
-SELECT c.wallet_address, w.user_id, COALESCE(c.last_signature, '') AS last_signature, c.cursor_slot
-FROM deposit_cursors c
-JOIN user_wallets w ON w.address = c.wallet_address
-WHERE c.wallet_address > $1
-ORDER BY c.wallet_address
-LIMIT $2;
-
 -- name: InsertDepositWatchWallet :execrows
 INSERT INTO deposit_watch_wallets (
   wallet_address, user_id, first_seen_slot, first_seen_at, discovery_due_at, opening_micros, reconcile_due_at
