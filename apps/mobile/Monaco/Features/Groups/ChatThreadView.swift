@@ -10,17 +10,31 @@ struct ChatThreadView: View {
     @State private var thread: ThreadSession?
     @State private var chat: ChatSession?
     @State private var channelParent: ChatMessage?
+    @State private var cabal: CabalModel?
 
     var body: some View {
         ChatThreadScreen(
             thread: thread,
             loadingParent: channelParent,
+            members: cabal?.cabal?.members ?? [],
+            viewerID: environment.viewer?.userID ?? "",
             deleteMessage: { id in await chat?.delete(messageId: id) },
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
             }
         )
-        .task { _ = await preparedThread() }
+        .task {
+            let model = preparedCabal()
+            _ = await preparedThread()
+            await model.load()
+        }
+    }
+
+    private func preparedCabal() -> CabalModel {
+        if let cabal { return cabal }
+        let created = CabalModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        cabal = created
+        return created
     }
 
     private func preparedThread() async -> ThreadSession {
@@ -52,6 +66,8 @@ struct ChatThreadView: View {
 struct ChatThreadScreen: View {
     let thread: ThreadSession?
     var loadingParent: ChatMessage?
+    var members: [Components.Schemas.CabalMember] = []
+    var viewerID = ""
     let deleteMessage: (String) async -> APIError?
     let openProfile: (String) -> Void
 
@@ -87,6 +103,7 @@ struct ChatThreadScreen: View {
         if let state, let parent = state.parent {
             ChatThreadList(
                 parent: parent,
+                members: members,
                 rows: state.timeline.rows,
                 hasOlder: state.timeline.hasOlder,
                 isLoadingOlder: state.isLoadingOlder,
@@ -103,7 +120,7 @@ struct ChatThreadScreen: View {
             Spacer()
         } else if let loadingParent {
             VStack(alignment: .leading, spacing: 0) {
-                ChatThreadParent(parent: loadingParent, openProfile: openProfile)
+                ChatThreadParent(parent: loadingParent, members: members, openProfile: openProfile)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 ChatSkeleton(bottomAligned: false)
             }
@@ -115,7 +132,7 @@ struct ChatThreadScreen: View {
     @ViewBuilder private var bottomBar: some View {
         if state?.isClosed == true {
             GroupChatClosedNotice()
-        } else if state?.parent != nil {
+        } else if let parent = state?.parent, !parent.deleted {
             VStack(spacing: 0) {
                 Toggle(ChatThreadCopy.alsoInChannel, isOn: $alsoInChannel)
                     .font(MonacoTheme.Typo.callout)
@@ -124,12 +141,22 @@ struct ChatThreadScreen: View {
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.vertical, MonacoTheme.Space.s)
                     .accessibilityIdentifier("chat-thread-also-in-channel")
-                ChatComposerBar(focus: $composerFocused, placeholder: ChatThreadCopy.composerPlaceholder) { body in
+                ChatComposerBar(
+                    focus: $composerFocused, placeholder: ChatThreadCopy.composerPlaceholder,
+                    members: members, viewerID: viewerID
+                ) { body in
                     let alsoInChannel = alsoInChannel
                     self.alsoInChannel = false
                     Task { await thread?.send(body: body, alsoInChannel: alsoInChannel) }
                 }
             }
+        } else if state?.parent != nil {
+            Text(ChatThreadCopy.parentDeleted)
+                .font(MonacoTheme.Typo.callout)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, MonacoTheme.Space.m)
+                .accessibilityIdentifier("chat-thread-parent-deleted")
         }
     }
 
@@ -164,6 +191,7 @@ struct ChatThreadScreen: View {
 
 struct ChatThreadList: View {
     let parent: ChatMessage
+    let members: [Components.Schemas.CabalMember]
     let rows: [ChatRow]
     let hasOlder: Bool
     let isLoadingOlder: Bool
@@ -180,7 +208,7 @@ struct ChatThreadList: View {
             loadEarlierID: "chat-thread-load-earlier", listID: "chat-thread-list",
             loadOlder: loadOlder, refresh: refresh
         ) {
-            ChatThreadParent(parent: parent, openProfile: openProfile)
+            ChatThreadParent(parent: parent, members: members, openProfile: openProfile)
         } content: {
             if rows.isEmpty {
                 Text(ChatThreadCopy.noReplies)
@@ -192,7 +220,7 @@ struct ChatThreadList: View {
             }
             ForEach(rows) { row in
                 GroupChatRowView(
-                    row: row, now: Date(), openProfile: openProfile, retry: retry,
+                    row: row, now: Date(), members: members, openProfile: openProfile, retry: retry,
                     replyHere: replyHere, requestDelete: requestDelete
                 )
                 .id(row.id)
@@ -203,6 +231,7 @@ struct ChatThreadList: View {
 
 struct ChatThreadParent: View {
     let parent: ChatMessage
+    let members: [Components.Schemas.CabalMember]
     let openProfile: (String) -> Void
 
     var body: some View {
@@ -225,15 +254,25 @@ struct ChatThreadParent: View {
             .buttonStyle(.plain)
             .disabled(parent.author.displayName.isEmpty)
             .accessibilityIdentifier("chat-thread-parent-author")
-            Text(parent.deleted ? GroupChatCopy.deleted : (parent.body ?? ""))
-                .font(MonacoTheme.Typo.body)
-                .italic(parent.deleted)
-                .foregroundStyle(parent.deleted ? MonacoTheme.muted : MonacoTheme.ink)
+            parentBody
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("chat-thread-parent-body")
             MonacoRule().padding(.top, MonacoTheme.Space.s)
         }
         .padding(.top, MonacoTheme.Space.s)
         .padding(.bottom, MonacoTheme.Space.s)
+    }
+
+    @ViewBuilder private var parentBody: some View {
+        if parent.deleted {
+            Text(GroupChatCopy.deleted)
+                .font(MonacoTheme.Typo.body)
+                .italic()
+                .foregroundStyle(MonacoTheme.muted)
+        } else {
+            ChatMessageText(
+                text: parent.body ?? "", members: members, color: MonacoTheme.ink,
+                mentionColor: MonacoTheme.brand, openProfile: openProfile)
+        }
     }
 }

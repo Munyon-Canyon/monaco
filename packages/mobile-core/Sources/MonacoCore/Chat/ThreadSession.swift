@@ -184,7 +184,6 @@ public actor ThreadSession {
             state.timeline.settle(stored, key: key)
             publish()
             if send.alsoInChannel { await chat.receiveReply(stored) }
-            await loadNewest()
         } catch {
             let failure = APIError(error)
             if ChatSession.isClosed(failure) {

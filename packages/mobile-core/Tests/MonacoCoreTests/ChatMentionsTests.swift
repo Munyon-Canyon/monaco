@@ -66,6 +66,16 @@ final class ChatMentionsTests: XCTestCase {
         XCTAssertEqual(none.text, "hi")
     }
 
+    func testInsertInsideAHandleReplacesTheWholeHandle() {
+        let result = MentionInsertion.insert(handle: "kai", into: "hi @ka", cursor: 5)
+        XCTAssertEqual(result.text, "hi @kai ")
+        let mid = MentionInsertion.insert(handle: "kai", into: "@kai", cursor: 3)
+        XCTAssertEqual(mid.text, "@kai ")
+        XCTAssertEqual(mid.cursor, 5)
+        let beforeSpace = MentionInsertion.insert(handle: "kai", into: "@ka there", cursor: 3)
+        XCTAssertEqual(beforeSpace.text, "@kai  there")
+    }
+
     func testInsertKeepsCombiningAndJoinedCharactersWhole() {
         let eAcute = "e\u{301}"
         let family = "\u{1F469}\u{200D}\u{1F4BB}"

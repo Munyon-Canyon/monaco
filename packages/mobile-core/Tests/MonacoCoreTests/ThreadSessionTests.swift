@@ -124,18 +124,38 @@ final class ThreadSessionTests: XCTestCase {
         XCTAssertEqual(current.timeline.rows.map(\.delivery), [.sent])
     }
 
+    func testAReplyThatSentRaisesNoErrorEvenIfAFollowUpFetchWouldFail() async throws {
+        let stored = reply("r1", minutes: 2, mine: true)
+        let transport = StubTransport(scripted: [
+            try Fixtures.thread(parent: parent, replies: []),
+            try Fixtures.created(stored),
+            .failure(URLError(.notConnectedToInternet)),
+        ])
+        let thread = await Fixtures.session(transport).thread(parentId: "p1")
+        await thread.open()
+
+        await thread.send(body: "agree")
+
+        let current = await state(thread)
+        XCTAssertEqual(ids(current), ["r1"])
+        XCTAssertEqual(current.timeline.rows.map(\.delivery), [.sent])
+        XCTAssertNil(current.notice)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 2)
+    }
+
     func testAnAlsoInChannelReplyShowsInTheChannelToo() async throws {
         let stored = Fixtures.message(
             "r1", author: Fixtures.viewerID, minutes: 2, parentID: "p1", alsoInChannel: true)
         let transport = StubTransport(scripted: [
             try Fixtures.page([parent]),
             try Fixtures.created(stored),
-            try Fixtures.thread(parent: Fixtures.message("p1", minutes: 1, replyCount: 3), replies: [stored]),
         ])
         let session = Fixtures.session(transport)
         await session.open()
 
         await session.send(body: "ship it", parentId: "p1", alsoInChannel: true)
+        await session.apply(.threadUpdated(id: "p1", replyCount: 3, lastReplyAt: stored.createdAt))
 
         let channel = await Fixtures.state(session)
         XCTAssertEqual(Fixtures.ids(channel), ["p1", "r1"])
