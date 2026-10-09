@@ -49,4 +49,4 @@ None.
 ## Not covered
 
 - A holding without a price, which takes a "Shares" or "Tokens" quantity. Flow 09's outcomes cover the server side.
-- "Propose sell" from the asset screen (`asset-detail-sell`). `governance/propose-from-asset` covers the buy entry; the sell entry is the same route with the sell kind.
+- "Propose sell" from the asset screen (`asset-detail-propose-sell`). `governance/propose-from-asset` covers the buy entry; the sell entry is the same route with the sell kind.

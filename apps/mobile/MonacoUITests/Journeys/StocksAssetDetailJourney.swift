@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 4
+    static let version = 5
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -37,13 +37,16 @@ enum StocksAssetDetailJourney {
     }
 
     static func scrollToText(_ app: XCUIApplication, _ text: String, step: String) {
-        let element = app.staticTexts[text]
+        scrollTo(app, app.staticTexts[text], named: "'\(text)'", step: step)
+    }
+
+    static func scrollTo(_ app: XCUIApplication, _ element: XCUIElement, named name: String, step: String) {
         var swipes = 0
         while !element.exists && swipes < 6 {
             app.element("asset-detail-root").swipeUp()
             swipes += 1
         }
-        XCTAssertTrue(element.waitForExistence(timeout: 10), "\(step): no '\(text)' on the asset screen (#577)")
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "\(step): no \(name) on the asset screen")
     }
 
     static func rangeChange(_ app: XCUIApplication) -> String {
@@ -142,11 +145,14 @@ enum StocksAssetDetailJourney {
         }
 
         recorder.step("S2.2", "scroll to Stats") {
-            scrollToText(app, "Stats", step: "S2.2")
+            scrollTo(app, app.element("asset-stats"), named: "asset-stats", step: "S2.2")
         }
 
         recorder.step("S2.3", "see the 52-week bar") {
-            scrollToText(app, "52-week range", step: "S2.3")
+            let bar = app.element("asset-year-range")
+            scrollTo(app, bar, named: "asset-year-range", step: "S2.3")
+            XCTAssertTrue(
+                bar.label.hasPrefix("52-week range"), "S2.3: the 52-week bar reads '\(bar.label)', not '52-week range'")
         }
     }
 
@@ -186,15 +192,15 @@ enum StocksAssetDetailJourney {
         }
 
         recorder.step("S4.2", "see Your cabals' position") {
-            scrollToText(app, "Your cabals' position", step: "S4.2")
+            scrollTo(app, app.element("asset-cabal-positions"), named: "asset-cabal-positions", step: "S4.2")
             let holding = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'asset-position-holding-'")).firstMatch
-            XCTAssertTrue(holding.exists, "S4.2: no cabal row under 'Your cabals' position' (#2136)")
+                .matching(NSPredicate(format: "identifier BEGINSWITH 'asset-position-'")).firstMatch
+            XCTAssertTrue(holding.exists, "S4.2: no cabal row under 'Your cabals' position'")
         }
 
         recorder.step("S4.3", "tap Propose sell") {
-            let sell = app.buttons["asset-detail-sell"]
-            XCTAssertTrue(sell.waitForExistence(timeout: 5), "S4.3: no Propose sell (#577)")
+            let sell = app.buttons["asset-detail-propose-sell"]
+            XCTAssertTrue(sell.waitForExistence(timeout: 5), "S4.3: no Propose sell")
             sell.tap()
             XCTAssertTrue(
                 app.navigationBars["Propose sell"].waitForExistence(timeout: 10),
