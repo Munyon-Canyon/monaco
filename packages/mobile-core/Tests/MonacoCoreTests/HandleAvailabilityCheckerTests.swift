@@ -146,6 +146,25 @@ final class HandleAvailabilityCheckerTests: XCTestCase {
         XCTAssertTrue(available)
     }
 
+    func testAScreenThatReturnsHearsTheCurrentStatusAndTheNextVerdict() async throws {
+        let transport = StubTransport(.json(.ok, #"{"handle":"qa_ha","available":true}"#))
+        let clock = TestClock()
+        let checker = HandleAvailabilityChecker(sessions: Self.sessions(transport), clock: clock)
+        let leftScreen = Task { for await _ in await checker.statuses() {} }
+        leftScreen.cancel()
+        await leftScreen.value
+
+        await checker.update("qa_ha")
+        await settle(clock)
+        var returned = await checker.statuses().makeAsyncIterator()
+        let current = await returned.next()
+        clock.advance(by: HandleAvailabilityChecker.debounce)
+        let verdict = await returned.next()
+
+        XCTAssertEqual(current, .checking("qa_ha"))
+        XCTAssertEqual(verdict, .available("qa_ha"))
+    }
+
     func testClearingTheFieldReturnsToIdle() async throws {
         let checker = HandleAvailabilityChecker(
             sessions: Self.sessions(StubTransport(.hang)), clock: TestClock())
@@ -162,7 +181,7 @@ final class HandleAvailabilityCheckerTests: XCTestCase {
     }
 
     private func reaches(_ checker: HandleAvailabilityChecker, _ expected: HandleStatus) async -> Bool {
-        await checker.statuses.first { $0 == expected } != nil
+        await checker.statuses().first { $0 == expected } != nil
     }
 
     private func staysUnchanged(_ checker: HandleAvailabilityChecker, _ expected: HandleStatus) async -> Bool {

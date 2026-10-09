@@ -37,12 +37,10 @@ private struct HandleStepForm: View {
     let onSignOut: () async -> Void
 
     @State private var checker: HandleAvailabilityChecker
-    @State private var typed = AsyncStream.makeStream(of: String.self)
     @State private var draft: String
     @State private var status = HandleStatus.idle
     @State private var isSaving = false
     @State private var submissions: [String: IdempotentSubmission] = [:]
-    @State private var offersReferralEntry = false
     @State private var isEnteringReferral = false
     @State private var confirmingHandle: String?
     @FocusState private var isFocused: Bool
@@ -129,13 +127,10 @@ private struct HandleStepForm: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-handle-step")
-        .task { for await next in checker.statuses { status = next } }
-        .task {
-            for await text in typed.stream { await checker.update(text) }
-        }
-        .onChange(of: draft, initial: true) { _, text in
+        .task { for await next in await checker.statuses() { status = next } }
+        .task(id: draft) {
             guard !isLocked else { return }
-            typed.continuation.yield(text)
+            await checker.update(draft)
         }
         .onChange(of: status) { _, _ in
             if continuesWhenAvailable, claimable != nil { Task { await save() } }
@@ -143,7 +138,6 @@ private struct HandleStepForm: View {
         .onAppear {
             if mode == .edit, draft.isEmpty, let handle = profile?.handle { draft = handle }
             if !isLocked { isFocused = true }
-            refreshReferralEntry()
         }
         .confirmationDialog(
             HandleCopy.changeTitle(to: confirmingHandle ?? ""),
@@ -157,17 +151,13 @@ private struct HandleStepForm: View {
         }
         .sheet(isPresented: $isEnteringReferral) {
             if let userID = profile?.userID {
-                ReferralCodeSheet(attacher: referrals, userID: userID, onAttached: refreshReferralEntry)
+                ReferralCodeSheet(attacher: referrals, userID: userID, onAttached: {})
             }
         }
     }
 
-    private func refreshReferralEntry() {
-        guard mode == .onboarding, let userID = profile?.userID else {
-            offersReferralEntry = false
-            return
-        }
-        offersReferralEntry = referrals.offersManualEntry(userID: userID)
+    private var offersReferralEntry: Bool {
+        mode == .onboarding && profile.map { referrals.offersManualEntry(userID: $0.userID) } == true
     }
 
     private var field: some View {

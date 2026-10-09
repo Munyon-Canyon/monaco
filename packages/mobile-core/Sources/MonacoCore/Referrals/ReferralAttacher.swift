@@ -1,5 +1,6 @@
 import Foundation
 import MonacoAPI
+import Observation
 
 public struct ReferralAttachResult: Equatable, Sendable {
     public let outcome: ReferralAttachOutcome
@@ -16,6 +17,7 @@ private struct AttachPayload: Encodable, Sendable {
     let source: ReferralSource
 }
 
+@Observable
 @MainActor
 public final class ReferralAttacher {
     public static let attachedUserKey = "monaco.referralAttachedUser"
@@ -26,6 +28,7 @@ public final class ReferralAttacher {
     private let now: @Sendable () -> Date
     private var submissions: [String: IdempotentSubmission] = [:]
     private var isAttaching = false
+    private var revision = 0
 
     public init(api: APIClient, store: any KeyValueStoring, now: @escaping @Sendable () -> Date) {
         self.api = api
@@ -41,7 +44,8 @@ public final class ReferralAttacher {
     }
 
     public func offersManualEntry(userID: String) -> Bool {
-        !hasPending && !hasAttached(userID: userID)
+        _ = revision
+        return !hasPending && !hasAttached(userID: userID)
     }
 
     public func attachPending(userID: String) async -> ReferralAttachResult? {
@@ -51,6 +55,7 @@ public final class ReferralAttacher {
         let result = await send(referral.code, source: referral.source, userID: userID)
         guard result.outcome != .retryLater else { return nil }
         pending.clear()
+        revision += 1
         return result
     }
 
@@ -86,6 +91,7 @@ public final class ReferralAttacher {
 
     private func markAttached(_ userID: String) {
         store.set(Data(userID.utf8), forKey: Self.attachedUserKey)
+        revision += 1
     }
 
     private static func wire(_ source: ReferralSource) -> Components.Schemas.ReferralSource {

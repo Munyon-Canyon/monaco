@@ -6,23 +6,29 @@ public actor HandleAvailabilityChecker {
     static let fallbackRetryAfter = Duration.seconds(1)
 
     public private(set) var status = HandleStatus.idle
-    public nonisolated let statuses: AsyncStream<HandleStatus>
 
     private let check: @Sendable (String) async throws -> HandleStatus
     private let sleep: @Sendable (Duration) async throws -> Void
-    private let continuation: AsyncStream<HandleStatus>.Continuation
+    private var continuation: AsyncStream<HandleStatus>.Continuation?
     private var input = ""
     private var pending: Task<Void, Never>?
 
     public init(sessions: SessionAPI, clock: some Clock<Duration>) {
         self.check = { try await sessions.handleAvailability($0) }
         self.sleep = { try await clock.sleep(for: $0) }
-        (statuses, continuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(1))
     }
 
     deinit {
         pending?.cancel()
-        continuation.finish()
+        continuation?.finish()
+    }
+
+    public func statuses() -> AsyncStream<HandleStatus> {
+        continuation?.finish()
+        let (stream, next) = AsyncStream.makeStream(of: HandleStatus.self, bufferingPolicy: .bufferingNewest(1))
+        continuation = next
+        next.yield(status)
+        return stream
     }
 
     public func update(_ raw: String) {
@@ -75,6 +81,6 @@ public actor HandleAvailabilityChecker {
 
     private func publish(_ next: HandleStatus) {
         status = next
-        continuation.yield(next)
+        continuation?.yield(next)
     }
 }
