@@ -63,6 +63,13 @@ func (h TradeOutcome) Retried(ctx context.Context, tx db.Tx, e events.TradeRetry
 	if e.Source.Kind != proposalSource {
 		return nil
 	}
+	failedAgain, err := app.RetryAlreadyFailed(ctx, h.Swaps, e.Source.ID, ids.SwapIDFrom(e.SwapID))
+	if err != nil {
+		return err
+	}
+	if failedAgain {
+		return nil
+	}
 	moved, err := sqlc.New(tx.Queries()).Reopen(ctx, sqlc.ReopenParams{ID: e.Source.ID, At: at})
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInternal, op)
