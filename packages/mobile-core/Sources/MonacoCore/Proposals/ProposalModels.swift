@@ -162,8 +162,8 @@ public final class ProposalDetailModel {
             async let members = try? repository.members(cabalID: detail.summary.cabalID)
             async let asset = try? repository.asset(symbol: detail.summary.symbol)
             value = detail
-            self.members = await members ?? []
-            self.asset = await asset
+            if let members = await members { self.members = members }
+            if let asset = await asset { self.asset = asset }
             errorMessage = nil
         } catch {
             errorMessage = ToastCopy.message(for: APIError(error))

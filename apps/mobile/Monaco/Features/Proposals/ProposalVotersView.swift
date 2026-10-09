@@ -30,25 +30,33 @@ struct ProposalVoterGroups: Equatable {
 }
 
 struct ProposalVotersView: View {
-    let groups: ProposalVoterGroups
+    let model: ProposalDetailModel?
+
+    private var groups: ProposalVoterGroups {
+        ProposalVoterGroups(voters: model?.value?.voters ?? [], members: model?.members ?? [])
+    }
 
     var body: some View {
-        ScrollView {
+        let groups = groups
+        return ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-                group("Yes", groups.yes, vote: "Voted yes")
-                group("No", groups.no, vote: "Voted no")
-                group("Not voted", groups.notVoted, vote: "Hasn't voted")
+                group("Yes", groups.yes)
+                group("No", groups.no)
+                group("Not voted", groups.notVoted)
             }
             .padding(.vertical, MonacoTheme.Space.m)
         }
+        .task {
+            model?.setVisible(true)
+            await model?.observe()
+        }
+        .onScreenVisibilityChange { model?.setVisible($0) }
         .navigationTitle("Votes")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("proposal-voters")
     }
 
-    @ViewBuilder private func group(_ title: String, _ entries: [ProposalVoterGroups.Entry], vote: String)
-        -> some View
-    {
+    @ViewBuilder private func group(_ title: String, _ entries: [ProposalVoterGroups.Entry]) -> some View {
         if !entries.isEmpty {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader(title, count: nil, trailing: "\(entries.count)")
@@ -57,7 +65,7 @@ struct ProposalVotersView: View {
                     ForEach(entries) { entry in
                         NavigationLink(value: AnyAppRoute(UserProfileRoute(userID: entry.id))) {
                             MonacoRow(
-                                title: entry.name, subtitle: vote, isLast: entry.id == entries.last?.id,
+                                title: entry.name, isLast: entry.id == entries.last?.id,
                                 leading: {
                                     MonacoAvatar(
                                         photoURL: entry.photoURL?.absoluteString, displayName: entry.name,

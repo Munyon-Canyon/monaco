@@ -446,6 +446,31 @@ extension ProposalsRepositoryMappingTests {
         XCTAssertTrue(context.assets.isEmpty)
     }
 
+    @MainActor
+    func testDetailModelKeepsItsMembersAndAssetWhenAReloadCannotReadThem() async throws {
+        let offline = StubTransport.Reply.failure(URLError(.notConnectedToInternet))
+        let transport = StubTransport(
+            scripted: [.json(.ok, detailBody), .gate, .gate, .json(.ok, detailBody), offline, offline])
+        let model = ProposalDetailModel(
+            id: "p", cabalID: "c", repository: repository(transport), hints: FakeHintStream())
+        let loading = Task { await model.load() }
+        let issued = await eventArrives(within: 30) { await transport.waitForRequests(3) }
+        XCTAssertTrue(issued)
+        for path in await transport.sent.compactMap(\.path) where path != "/v1/proposals/p" {
+            await transport.releaseGate(.json(.ok, path.contains("/v1/cabals/") ? cabalBody : assetBody))
+        }
+        await loading.value
+        XCTAssertEqual(model.members.map(\.name), ["Jordan"])
+        XCTAssertEqual(model.asset?.displayName, "Apple")
+
+        await model.load()
+
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(model.value?.id, "p")
+        XCTAssertEqual(model.members.map(\.name), ["Jordan"])
+        XCTAssertEqual(model.asset?.displayName, "Apple")
+    }
+
     private func proposal(symbol: String) -> ProposalSummary {
         var proposal = Components.Schemas.Proposal.sample()
         proposal.symbol = symbol
