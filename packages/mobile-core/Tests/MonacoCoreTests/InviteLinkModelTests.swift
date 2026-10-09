@@ -80,8 +80,23 @@ final class InviteLinkModelTests: XCTestCase {
         XCTAssertNotNil(model.links)
     }
 
-    func testPendingTwiceFailsWithTheServerMessageAndRetriesOnlyOnce() async throws {
-        let (model, transport, _, sleeps) = try make([try Self.pending(), try Self.pending()])
+    func testAMintTakingSixSecondsEndsOnTheLink() async throws {
+        let (model, transport, _, sleeps) = try make([
+            try Self.pending(), try Self.pending(), try Self.pending(), .json(.ok, Self.locked),
+        ])
+
+        await model.load()
+
+        guard case .loaded = model.state else { return XCTFail("want .loaded, got \(model.state)") }
+        XCTAssertNil(model.toast)
+        let durations = await sleeps.durations
+        XCTAssertEqual(durations, Array(repeating: .seconds(2), count: 3))
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 4)
+    }
+
+    func testPendingFourTimesFailsWithoutAToastAfterThreeRetries() async throws {
+        let (model, transport, _, sleeps) = try make(try (0..<4).map { _ in try Self.pending() })
 
         await model.load()
 
@@ -89,14 +104,14 @@ final class InviteLinkModelTests: XCTestCase {
             return XCTFail("want a problem failure, got \(model.state)")
         }
         XCTAssertEqual(problem.code, .known(.referralCodePending))
-        XCTAssertEqual(model.toast, "Your invite code is on its way.")
+        XCTAssertNil(model.toast)
         let sleepCount = await sleeps.durations.count
-        XCTAssertEqual(sleepCount, 1)
+        XCTAssertEqual(sleepCount, 3)
         let count = await transport.sent.count
-        XCTAssertEqual(count, 2)
+        XCTAssertEqual(count, 4)
     }
 
-    func testAFailedFirstLoadToastsAndTheNextLoadRecovers() async throws {
+    func testAFailedFirstLoadShowsTheErrorRowWithoutAToastAndTheNextLoadRecovers() async throws {
         let (model, _, _, _) = try make([.failure(URLError(.notConnectedToInternet)), .json(.ok, Self.locked)])
 
         await model.load()
@@ -104,7 +119,7 @@ final class InviteLinkModelTests: XCTestCase {
         guard case .failed(.transport) = model.state else {
             return XCTFail("want a transport failure, got \(model.state)")
         }
-        XCTAssertEqual(model.toast, "You're offline. Try again.")
+        XCTAssertNil(model.toast)
 
         await model.load()
 

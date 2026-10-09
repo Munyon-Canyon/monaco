@@ -14,6 +14,6 @@ index 306f5cf71..c3bd50081 100644
      static let shareMessage = "Join me on Monaco"
 -    static let copied = "Link copied."
 +    static let copied = "Copied."
-     static let codeLinkLabel = "This link works too"
+     static let codeLinkLabel = "Backup link"
      static let deposit = "Deposit"
  }

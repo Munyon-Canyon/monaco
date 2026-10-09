@@ -16,7 +16,7 @@ enum InviteCopy {
     static let share = "Share"
     static let shareMessage = "Join me on Monaco"
     static let copied = "Link copied."
-    static let codeLinkLabel = "This link works too"
+    static let codeLinkLabel = "Backup link"
     static let deposit = "Deposit"
 }
 
@@ -163,7 +163,6 @@ private struct InviteCodeLinkRow: View {
             InviteLinkText(url: url, font: MonacoTheme.Typo.dataCaption, color: MonacoTheme.muted)
                 .accessibilityIdentifier("invite-code-link")
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .combine)
     }
 }
@@ -197,8 +196,9 @@ private struct InviteLinkText: View {
         Text(verbatim: InviteLinks.withoutScheme(url))
             .font(font)
             .foregroundStyle(color)
-            .lineLimit(1)
-            .minimumScaleFactor(0.4)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+            .truncationMode(.middle)
             .textSelection(.enabled)
     }
 }
