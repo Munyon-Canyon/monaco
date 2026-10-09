@@ -29,10 +29,10 @@ public struct PortfolioSummary: Equatable, Sendable {
         public let returnText: String
         public let returnBps: Int64?
         public let slice: String
-        public var share: String { "\(slice) of your money" }
+        public let share: String?
         public let direction: Direction
 
-        init(_ cabal: Components.Schemas.PortfolioCabal) {
+        init(_ cabal: Components.Schemas.PortfolioCabal, cabalCount: Int) {
             id = cabal.cabal.id
             name = cabal.cabal.name
             pictureURL = cabal.cabal.pictureUrl
@@ -42,6 +42,10 @@ public struct PortfolioSummary: Equatable, Sendable {
             returnText = PortfolioSummary.percent(cabal.returnBps)
             returnBps = cabal.returnBps
             slice = PercentFormatter.format(basisPoints: cabal.sliceBps, signed: false)
+            share =
+                cabalCount > 1
+                ? "\(PercentFormatter.format(basisPoints: cabal.sliceBps, signed: false, fractionDigits: 0)) of your cabals"
+                : nil
             direction = Direction(signedMicros: cabal.pnlMicros)
         }
     }
@@ -58,7 +62,7 @@ public struct PortfolioSummary: Equatable, Sendable {
     public var isEmpty: Bool { rows.isEmpty }
 
     public init(_ portfolio: Components.Schemas.MyPortfolio) {
-        rows = portfolio.cabals.map(Row.init)
+        rows = portfolio.cabals.map { Row($0, cabalCount: portfolio.cabals.count) }
         stats = ProfileStats(portfolio)
         totalMicros = portfolio.totalValueMicros
         total = UsdAmountFormatter.format(micros: portfolio.totalValueMicros)
@@ -76,6 +80,6 @@ public struct PortfolioSummary: Equatable, Sendable {
 
     static func percent(_ basisPoints: Int64?, signed: Bool = true) -> String {
         guard let basisPoints else { return "—" }
-        return PercentFormatter.format(basisPoints: basisPoints, signed: signed)
+        return PercentFormatter.format(basisPoints: basisPoints, signed: signed, fractionDigits: 1)
     }
 }

@@ -8,7 +8,7 @@ final class ProfileStatsTests: XCTestCase {
         let stats = ProfileStats(.sample)
 
         XCTAssertEqual(stats.inCabals, "$1,000.00")
-        XCTAssertEqual(stats.allTime, "+$14.00 · +1.42%")
+        XCTAssertEqual(stats.allTime, "+$14.00 · +1.4%")
         XCTAssertEqual(stats.allTimePnl, "+$14.00")
         XCTAssertEqual(stats.cabals, "2")
     }
@@ -32,7 +32,7 @@ final class ProfileStatsTests: XCTestCase {
         let stats = ProfileStats(.sampleLoss)
 
         XCTAssertEqual(stats.inCabals, "$949.00")
-        XCTAssertEqual(stats.allTime, "\u{2212}$1.00 · \u{2212}0.11%")
+        XCTAssertEqual(stats.allTime, "\u{2212}$1.00 · \u{2212}0.1%")
         XCTAssertEqual(stats.allTimePnl, "\u{2212}$1.00")
         XCTAssertFalse(stats.allTime.contains("-"))
     }

@@ -10,7 +10,7 @@ struct HomePortfolioSlotsTests {
         let summary = PortfolioSummary(.sample)
         let row = summary.rows[0]
 
-        #expect(row.share == "60.00% of your money")
+        #expect(row.share == "60% of your cabals")
         #expect(row.valueMicros == 600_000_000)
         #expect(row.returnBps == 169)
     }

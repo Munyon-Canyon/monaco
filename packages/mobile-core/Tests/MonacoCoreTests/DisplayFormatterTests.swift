@@ -202,6 +202,17 @@ final class DisplayFormatterTests: XCTestCase {
         XCTAssertEqual(PercentFormatter.format(basisPoints: 123_456, signed: true), "+1,234.56%")
     }
 
+    func testPercentFormatter_fractionDigitsRoundHalfAwayFromZero() {
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 960, signed: true, fractionDigits: 1), "+9.6%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 965, signed: true, fractionDigits: 1), "+9.7%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: -1234, signed: true, fractionDigits: 1), "\u{2212}12.3%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: -965, signed: true, fractionDigits: 1), "\u{2212}9.7%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 0, signed: true, fractionDigits: 1), "0.0%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: -4, signed: true, fractionDigits: 1), "0.0%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 3333, signed: false, fractionDigits: 0), "33%")
+        XCTAssertEqual(PercentFormatter.format(basisPoints: 3350, signed: false, fractionDigits: 0), "34%")
+    }
+
     func testPercentFormatter_largeBasisPointsAndIntMin() {
         XCTAssertEqual(
             PercentFormatter.format(basisPoints: Int64.min, signed: true), "\u{2212}92,233,720,368,547,758.08%")

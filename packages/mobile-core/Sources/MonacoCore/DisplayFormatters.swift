@@ -35,15 +35,28 @@ public enum PercentReturnFormatter {
 }
 
 public enum PercentFormatter {
-    public static func format(basisPoints: Int64, signed: Bool) -> String {
+    public static func format(basisPoints: Int64, signed: Bool, fractionDigits: Int = 2) -> String {
         let negative = basisPoints < 0
-        let magnitude = negative ? magnitude(of: basisPoints) : UInt64(basisPoints)
-        let whole = magnitude / 100
-        let fraction = magnitude % 100
-        let body = "\(grouped(whole)).\(twoDigits(fraction))%"
-        if negative { return "\(typographicMinus)\(body)" }
+        var magnitude = negative ? magnitude(of: basisPoints) : UInt64(basisPoints)
+        let body: String
+        switch fractionDigits {
+        case 0:
+            magnitude = rounded(magnitude, step: 100)
+            body = "\(grouped(magnitude / 100))%"
+        case 1:
+            magnitude = rounded(magnitude, step: 10)
+            body = "\(grouped(magnitude / 100)).\((magnitude % 100) / 10)%"
+        default:
+            body = "\(grouped(magnitude / 100)).\(twoDigits(magnitude % 100))%"
+        }
+        if negative, magnitude != 0 { return "\(typographicMinus)\(body)" }
         if signed, magnitude != 0 { return "+\(body)" }
         return body
+    }
+
+    private static func rounded(_ magnitude: UInt64, step: UInt64) -> UInt64 {
+        let (quotient, remainder) = (magnitude / step, magnitude % step)
+        return (quotient + (remainder * 2 >= step ? 1 : 0)) * step
     }
 
     private static func magnitude(of value: Int64) -> UInt64 {
