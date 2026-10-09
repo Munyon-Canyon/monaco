@@ -27,16 +27,18 @@ struct SkeletonBlock: View {
     private let width: CGFloat?
     private let height: CGFloat
     private let radius: CGFloat
+    private let onInk: Bool
 
-    init(width: CGFloat? = nil, height: CGFloat, radius: CGFloat = MonacoTheme.Radius.field) {
+    init(width: CGFloat? = nil, height: CGFloat, radius: CGFloat = MonacoTheme.Radius.field, onInk: Bool = false) {
         self.width = width
         self.height = height
         self.radius = radius
+        self.onInk = onInk
     }
 
     var body: some View {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .fill(MonacoTheme.surfaceSunken)
+            .fill(onInk ? MonacoTheme.onHeroHairline : MonacoTheme.surfaceSunken)
             .frame(width: width, height: height)
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
             .modifier(SkeletonPulse(active: true))

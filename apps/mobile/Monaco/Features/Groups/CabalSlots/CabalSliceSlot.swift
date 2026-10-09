@@ -19,8 +19,8 @@ struct CabalSliceBand: View {
         switch model?.state ?? .loading {
         case .idle, .loading:
             band {
-                SkeletonBlock(width: 140, height: 28)
-                SkeletonBlock(width: 100, height: 14)
+                SkeletonBlock(width: 140, height: 28, onInk: true)
+                SkeletonBlock(width: 100, height: 14, onInk: true)
             }
         case .loaded(let summary):
             if let slice = summary.slice {

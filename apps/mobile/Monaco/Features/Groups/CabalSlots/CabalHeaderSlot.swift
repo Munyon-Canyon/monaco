@@ -78,10 +78,10 @@ private struct CabalHero: View {
         switch model?.state ?? .loading {
         case .idle, .loading:
             HStack(spacing: MonacoTheme.Space.sm) {
-                SkeletonBlock(width: 48, height: 48, radius: MonacoTheme.Radius.card)
+                SkeletonBlock(width: 48, height: 48, radius: MonacoTheme.Radius.card, onInk: true)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    SkeletonBlock(width: 160, height: 22)
-                    SkeletonBlock(width: 96, height: 14)
+                    SkeletonBlock(width: 160, height: 22, onInk: true)
+                    SkeletonBlock(width: 96, height: 14, onInk: true)
                 }
             }
             .accessibilityElement()

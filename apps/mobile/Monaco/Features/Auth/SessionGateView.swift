@@ -192,46 +192,23 @@ struct SessionGateSkeleton: View {
     }
 }
 
-/// The loading shape Home and the gate share: the figure, the past hour's slot, the balance
-/// line, three cabal rows. One view, so the rows do not visibly change as the gate hands over
-/// to Home.
+/// The loading shape Home and the gate share: `HomePortfolioSkeleton` for the money, then the
+/// balance line and three cabal rows. The figure is the very view Home draws while it loads, so
+/// the launch does not jump as the gate hands over to Home.
 struct HomeShapedSkeleton: View {
     /// Where a row's rule starts: under the text, past the 44pt mark (see `MonacoRow`).
     private static let rowRuleInset = MonacoTheme.Space.gutter + 44 + MonacoTheme.Space.sm
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xl) {
-            figure
+            HomePortfolioSkeleton()
             balance
             cabals
         }
-        .padding(.top, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading")
         .monacoCanvas()
-    }
-
-    /// "Your money in cabals", the figure and its badge, each block centred in the line its
-    /// text will take; then the past hour's slot, edge to edge, with its stamp.
-    private var figure: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                SkeletonBlock(width: 140, height: 14)
-                    .frame(height: 18)
-                SkeletonBlock(width: 200, height: 44)
-                    .frame(height: 60)
-                SkeletonBlock(width: 120, height: 26, radius: 13)
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                SkeletonBlock(height: 92, radius: 0)
-                SkeletonBlock(width: 72, height: 12)
-                    .frame(height: 16)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-            }
-        }
     }
 
     /// The account balance: one ruled line with its coin, and the two text actions under it.
