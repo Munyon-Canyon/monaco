@@ -516,3 +516,19 @@ func TestDepositWatchFixtureI18_ReusedWalletRecordsNoCandidatesAtFirstSight(t *t
 	}
 	assertHighSignature(t, pool, user.Address, "hist200")
 }
+
+func TestDepositWatchStampsTheScanTimeAfterAnEmptyScan(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	rpc := watchRPC{}
+	p := newDepositWatch(t, pool, user, now, &rpc, 37, 38)
+	if report, err := p.Tick(watchActor(t)); err != nil || report.Changed != 0 {
+		t.Fatalf("Tick = %+v, %v; want no candidates", report, err)
+	}
+	got := loadAccount(t, pool, canonicalAccount(t, user.Address))
+	if got.ScannedAt == nil || !got.ScannedAt.Equal(now) || got.CleanGen != got.DirtyGen {
+		t.Fatalf("account = %+v, want scanned at %s and clean", got, now)
+	}
+}
