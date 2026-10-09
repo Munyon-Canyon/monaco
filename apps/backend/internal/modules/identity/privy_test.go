@@ -262,3 +262,22 @@ func TestPrivyWallets_passesAPrivyRefusalThrough(t *testing.T) {
 		t.Fatalf("FindOrCreate = %+v, %v, want invalid_input", got, err)
 	}
 }
+
+func TestPrivyUsers_byEmailFindsTheUserOrSaysNone(t *testing.T) {
+	t.Parallel()
+	c, _, _ := overPrivyFakes(t)
+	users := privyadapter.Users{Client: c}
+	if _, found, err := users.ByEmail(t.Context(), "dev-ab@example.com"); found || err != nil {
+		t.Fatalf("ByEmail before create = %v, %v", found, err)
+	}
+	id, err := users.Create(t.Context(), "dev-ab@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, found, err := users.ByEmail(t.Context(), "dev-ab@example.com"); got != id || !found || err != nil {
+		t.Fatalf("ByEmail = %q, %v, %v, want %q", got, found, err, id)
+	}
+	if _, _, err := users.ByEmail(t.Context(), ""); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("empty email = %v, want invalid_input", err)
+	}
+}

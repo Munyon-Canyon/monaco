@@ -54,6 +54,9 @@ func (u *Users) Create(_ context.Context, email string) (app.PrivyUserID, error)
 	}
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	if _, taken := u.withEmail(email); taken {
+		return "", errs.New(errs.CodeInvalidInput, "privyfake.Users.Create", slog.String("reason", "email_taken"))
+	}
 	if u.users == nil {
 		u.users = map[app.PrivyUserID]app.PrivyUser{}
 	}
@@ -62,6 +65,25 @@ func (u *Users) Create(_ context.Context, email string) (app.PrivyUserID, error)
 	user := app.PrivyUser{ID: id, Email: email}
 	u.users[id] = user
 	return id, nil
+}
+
+func (u *Users) ByEmail(_ context.Context, email string) (app.PrivyUserID, bool, error) {
+	if err := u.Check("ByEmail"); err != nil {
+		return "", false, err
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	id, ok := u.withEmail(email)
+	return id, ok, nil
+}
+
+func (u *Users) withEmail(email string) (app.PrivyUserID, bool) {
+	for id, user := range u.users {
+		if user.Email == email {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 func (u *Users) User(_ context.Context, id app.PrivyUserID) (app.PrivyUser, error) {

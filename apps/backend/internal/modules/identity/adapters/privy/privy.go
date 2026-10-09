@@ -38,6 +38,17 @@ func (u Users) Create(ctx context.Context, email string) (app.PrivyUserID, error
 	return app.PrivyUserID(id), nil
 }
 
+func (u Users) ByEmail(ctx context.Context, email string) (app.PrivyUserID, bool, error) {
+	got, err := u.Client.UserByEmail(ctx, email)
+	if errs.CodeOf(err) == errs.CodeNotFound {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return app.PrivyUserID(got.ID), true, nil
+}
+
 func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, error) {
 	got, err := u.Client.GetUser(ctx, chainprivy.UserID(id))
 	if err != nil {

@@ -214,3 +214,27 @@ func TestCreateUser_namesTheUserLimit(t *testing.T) {
 	_, err = client(replying(http.StatusInternalServerError, body)).CreateUser(t.Context(), "x@example.com")
 	wantCode(t, err, errs.CodePrivyUnavailable)
 }
+
+func TestUserByEmail_findsACreatedUserAndRefusesADuplicate(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	_, err := c.UserByEmail(t.Context(), "dev-ab@example.com")
+	wantCode(t, err, errs.CodeNotFound)
+	id, err := c.CreateUser(t.Context(), "dev-ab@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.UserByEmail(t.Context(), "dev-ab@example.com")
+	if err != nil || got.ID != id || got.Email != "dev-ab@example.com" {
+		t.Fatalf("UserByEmail = %+v, %v", got, err)
+	}
+	req := u.requests()[2]
+	if req.method != http.MethodPost || req.path != "/privy/v1/users/email/address" ||
+		req.body != `{"address":"dev-ab@example.com"}` {
+		t.Fatalf("request = %s %s %s", req.method, req.path, req.body)
+	}
+	_, err = c.CreateUser(t.Context(), "dev-ab@example.com")
+	wantCode(t, err, errs.CodeInvalidInput)
+	_, err = c.UserByEmail(t.Context(), "")
+	wantCode(t, err, errs.CodeInvalidInput)
+}
