@@ -78,7 +78,11 @@ nonisolated final class ChatSendSampleUITests: XCTestCase {
         author.tap()
 
         let opened = element(app, "chat-sample-opened-profile")
-        XCTAssertTrue(opened.waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            opened.waitForExistence(timeout: 10),
+            "tapping an author's name should open their profile. "
+                + "Texts: \(app.staticTexts.allElementsBoundByIndex.map(\.label))"
+        )
         XCTAssertTrue(opened.label.contains("u-ana"), "it should open the author's profile: \(opened.label)")
         XCTAssertFalse(app.buttons["chat-author-s7"].exists, "the viewer's own messages show no author")
     }

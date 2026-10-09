@@ -82,6 +82,7 @@ struct GroupChatScreen: View {
             }
         } else if closedWithoutMessages {
             EmptyState(title: GroupChatCopy.closed, isOnlyContent: true)
+                .accessibilityIdentifier("chat-closed")
         } else if case .failed = chat?.load {
             GroupChatLoadFailureView { Task { await session?.reload() } }
         } else {
