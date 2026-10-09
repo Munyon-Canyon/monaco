@@ -63,6 +63,31 @@ func (k TradeFailed) Render(ctx context.Context, e events.TradeFailed, _ ids.Use
 	return tradeMessage(k.Name(), e.SwapID, e.CabalID, "Trade didn't go through", body), nil
 }
 
+type TradeBlocked struct {
+	Cabals Cabals
+	Assets Assets
+}
+
+func (TradeBlocked) Name() string { return "trade_blocked" }
+
+func (k TradeBlocked) Recipients(ctx context.Context, e events.TradeBlocked) ([]ids.UserID, error) {
+	return tradeRecipients(ctx, k.Cabals, e.Source, e.CabalID)
+}
+
+func (k TradeBlocked) Render(ctx context.Context, e events.TradeBlocked, _ ids.UserID) (Message, error) {
+	words, err := wordsFor(ctx, k.Assets, e.Action, e.Symbol)
+	if err != nil {
+		return Message{}, err
+	}
+	kept := "money is"
+	if words.noun == "sell" {
+		kept = "shares are"
+	}
+	body := fmt.Sprintf("Your cabal's %s of %s didn't go through: %s The %s still in the pot.",
+		words.noun, words.asset, errs.Message(e.Code), kept)
+	return proposalMessage(k.Name(), e.CabalID, e.Source.ID, "Trade didn't go through", body), nil
+}
+
 func tradeRecipients(
 	ctx context.Context, cabals Cabals, source events.TradeSource, cabalID uuid.UUID,
 ) ([]ids.UserID, error) {
