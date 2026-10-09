@@ -40,7 +40,8 @@ public final class AssetDetailClientModel {
     public private(set) var selectedRange: AssetChartRange = .oneDay
     public private(set) var lastError: APIError?
     public private(set) var failureTick = 0
-    public private(set) var heldByVotingCabal = false
+    public private(set) var positions: [AssetCabalPosition] = []
+    public private(set) var stats: AssetStats?
     private var chartGeneration = 0
     private let api: APIClient?
     private let symbol: String
@@ -48,6 +49,8 @@ public final class AssetDetailClientModel {
     private let refresher: HintRefresher
 
     public var phase: Phase { detailPhase }
+
+    public var heldByVotingCabal: Bool { positions.contains { $0.canVote } }
 
     public var rangeChange: AssetRangeChange? {
         guard let detail else { return nil }
@@ -111,17 +114,40 @@ public final class AssetDetailClientModel {
         }
     }
 
-    public func loadHeldByVotingCabal() async {
+    public func loadCabalPositions() async {
         guard let api else { return }
         guard let cabals = try? await api.read({ try await $0.getMyCabals().ok.body.json }) else { return }
-        for cabal in cabals where cabal.canVote {
-            let pot = try? await api.read { try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json }
-            if pot?.holdings.contains(where: { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame }) == true {
-                heldByVotingCabal = true
-                return
-            }
+        var found: [AssetCabalPosition] = []
+        for cabal in cabals {
+            guard let pot = try? await api.read({ try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json }),
+                let holding = pot.holdings.first(where: { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame })
+            else { continue }
+            found.append(
+                AssetCabalPosition(
+                    cabalID: cabal.id, cabalName: cabal.name, pictureURL: cabal.pictureUrl, canVote: cabal.canVote,
+                    units: holding.units, valueMicros: holding.valueMicros, pnlMicros: holding.pnlMicros,
+                    costBasisMicros: holding.costBasisMicros))
         }
-        heldByVotingCabal = false
+        positions = found.sorted { $0.valueMicros > $1.valueMicros }
+    }
+
+    public func loadStats() async {
+        guard let api, let detail else { return }
+        async let day = try? await fetchChart(api: api, range: .oneDay)
+        async let year = try? await fetchChart(api: api, range: .oneYear)
+        let built = AssetStats(
+            day: await day, year: await year, priceMicros: detail.priceMicros,
+            changeBasisPoints: detail.changeBasisPoints)
+        stats = built.isEmpty ? nil : built
+    }
+
+    private func fetchChart(api: APIClient, range: AssetChartRange) async throws -> AssetChartSeries {
+        let symbol = symbol
+        let response = try await api.read { client in
+            try await client.getAssetChart(path: .init(symbol: symbol), query: .init(range: Self.wireRange(range)))
+                .ok.body.json
+        }
+        return MarketMapping.chart(response)
     }
 
     public func observe() async {

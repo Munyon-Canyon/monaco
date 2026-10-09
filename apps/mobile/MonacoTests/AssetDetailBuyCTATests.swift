@@ -46,12 +46,14 @@ struct AssetDetailBuyCTATests {
     @Test func proposeSellShowsWhenAVotingCabalHoldsTheAsset() async {
         let model = Self.model(
             .json(.ok, Self.cabals([("c-1", false), ("c-2", true)])),
+            .json(.ok, Self.pot(holding: "AAPLx")),
             .json(.ok, Self.pot(holding: "GOOGLx"))
         )
 
-        await model.loadHeldByVotingCabal()
+        await model.loadCabalPositions()
 
         #expect(model.heldByVotingCabal)
+        #expect(model.positions.map(\.cabalID) == ["c-2"])
     }
 
     @Test func proposeSellHidesWhenNoVotingCabalHoldsTheAsset() async {
@@ -60,19 +62,23 @@ struct AssetDetailBuyCTATests {
             .json(.ok, Self.pot(holding: "AAPLx"))
         )
 
-        await model.loadHeldByVotingCabal()
+        await model.loadCabalPositions()
 
         #expect(!model.heldByVotingCabal)
     }
 
     @Test func proposeSellHidesWhenOnlyANonVotingCabalHoldsTheAsset() async {
-        let transport = StubTransport(scripted: [.json(.ok, Self.cabals([("c-1", false)]))])
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.cabals([("c-1", false)])), .json(.ok, Self.pot(holding: "GOOGLx")),
+        ])
         let model = Self.model(transport: transport)
 
-        await model.loadHeldByVotingCabal()
+        await model.loadCabalPositions()
 
         #expect(!model.heldByVotingCabal)
-        #expect(await transport.sent.count == 1)
+        #expect(model.positions.map(\.cabalID) == ["c-1"])
+        #expect(model.positions.first?.valueMicros == 60_000_000)
+        #expect(await transport.sent.count == 2)
     }
 
     private static func model(_ replies: StubTransport.Reply...) -> AssetDetailClientModel {

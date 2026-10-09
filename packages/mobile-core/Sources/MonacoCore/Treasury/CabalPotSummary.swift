@@ -108,7 +108,7 @@ public struct CabalPotSummary: Equatable, Sendable {
         return "\((basisPoints + 50) / 100)%"
     }
 
-    static func shares(_ units: String) -> String {
+    public static func shares(_ units: String) -> String {
         var trimmed = Substring(units)
         if trimmed.contains(".") {
             while trimmed.last == "0" { trimmed = trimmed.dropLast() }
