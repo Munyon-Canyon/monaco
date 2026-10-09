@@ -199,11 +199,14 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		}
 	}
 	if s := got.Swap; s != nil {
+		pr := got.Proposal
+		retryable := pr.Status == domain.StatusPassed ||
+			(pr.Status == domain.StatusExecutionBlocked && pr.StatusReason == errs.CodeSwapFailed)
 		out.Swap = &api.LinkedSwap{
-			SwapId: s.ID.UUID(), Status: api.ProposalDetailSwapStatus(s.Status), Retryable: s.Retryable,
+			SwapId: s.ID.UUID(), Status: api.ProposalDetailSwapStatus(s.Status), Retryable: s.Retryable && retryable,
 			FailureCode: present(string(s.FailureCode)), TxSignature: present(string(s.TxSignature)),
 		}
-		if s.Status == "failed" {
+		if s.Status == "failed" && retryable {
 			out.Swap.FailureMessage = ptr(errs.Message(errs.CodeSwapFailed))
 		}
 	}
