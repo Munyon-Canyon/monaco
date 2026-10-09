@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -138,7 +139,7 @@ func (r Postgres) MemberWallet(ctx context.Context, id ids.UserID) (port.MemberW
 	case err != nil:
 		return port.MemberWallet{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return walletOf(id, row.PrivyWalletID, row.Address), nil
+	return walletOf(id, row.PrivyWalletID, row.Address, row.CreatedAt), nil
 }
 
 func (r Postgres) PrivyUserID(ctx context.Context, id ids.UserID) (string, error) {
@@ -168,7 +169,7 @@ func (r Postgres) MemberWallets(ctx context.Context, after ids.UserID, limit int
 		if err != nil {
 			return nil, err
 		}
-		page = append(page, walletOf(id, row.PrivyWalletID, row.Address))
+		page = append(page, walletOf(id, row.PrivyWalletID, row.Address, row.CreatedAt))
 	}
 	return page, nil
 }
@@ -223,6 +224,8 @@ func cardOf(id ids.UserID, row sqlc.UserCardsByIDRow) port.UserCard {
 	return card
 }
 
-func walletOf(id ids.UserID, privyWalletID, address string) port.MemberWallet {
-	return port.MemberWallet{UserID: id, PrivyWalletID: privyWalletID, Address: chain.SolanaAddress(address)}
+func walletOf(id ids.UserID, privyWalletID, address string, createdAt time.Time) port.MemberWallet {
+	return port.MemberWallet{
+		UserID: id, PrivyWalletID: privyWalletID, Address: chain.SolanaAddress(address), CreatedAt: createdAt.UTC(),
+	}
 }

@@ -182,13 +182,28 @@ func watchFor(
 	pool *pgxpool.Pool, user testkit.SeededUser, now time.Time, rpc *watchRPC, limit app.RPCLimiter,
 	uowID, watchID uint64,
 ) *app.DepositWatch {
+	return watchForWallet(
+		pool,
+		identity.MemberWallet{UserID: user.ID, Address: user.Address},
+		now,
+		rpc,
+		limit,
+		uowID,
+		watchID,
+	)
+}
+
+func watchForWallet(
+	pool *pgxpool.Pool, wallet identity.MemberWallet, now time.Time, rpc *watchRPC, limit app.RPCLimiter,
+	uowID, watchID uint64,
+) *app.DepositWatch {
 	rpc.pool = pool
 	return app.NewDepositWatch(
 		pool,
 		db.New(pool, testkit.NewIDs(uowID), testkit.NewClock(now)),
 		testkit.NewIDs(watchID),
 		testkit.NewClock(now),
-		fakes.NewIdentity(nil, []identity.MemberWallet{{UserID: user.ID, Address: user.Address}}),
+		fakes.NewIdentity(nil, []identity.MemberWallet{wallet}),
 		rpc,
 		testkit.USDCMint,
 		app.DepositPollInterval,

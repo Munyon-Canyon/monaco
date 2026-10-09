@@ -29,15 +29,19 @@ ON CONFLICT (wallet_address) DO NOTHING;
 -- name: InsertDepositWatchAccount :exec
 INSERT INTO deposit_watch_accounts (
   token_account, wallet_address, canonical, state, last_amount, observed_slot,
-  dirty_gen, dirty_slot, high_signature, high_slot, recovery_due_at
+  dirty_gen, dirty_slot, high_signature, high_slot, recovery_due_at,
+  page_before, page_top_signature, page_top_slot, history_floor
 ) VALUES ($1, $2, $3, $4, sqlc.arg(last_amount)::text::numeric, sqlc.arg(observed_slot)::bigint,
   sqlc.arg(dirty_gen)::bigint, sqlc.arg(dirty_slot)::bigint,
-  NULLIF(sqlc.arg(high_signature)::text, ''), sqlc.arg(high_slot)::bigint, sqlc.arg(recovery_due_at)::timestamptz)
+  NULLIF(sqlc.arg(high_signature)::text, ''), sqlc.arg(high_slot)::bigint, sqlc.arg(recovery_due_at)::timestamptz,
+  NULLIF(sqlc.arg(page_before)::text, ''), NULLIF(sqlc.arg(page_top_signature)::text, ''),
+  NULLIF(sqlc.arg(page_top_slot)::bigint, 0),
+  NULLIF(sqlc.arg(history_floor)::timestamptz, '0001-01-01 00:00:00+00'::timestamptz))
 ON CONFLICT (token_account) DO NOTHING;
 
 -- name: DepositWatchDirtyAccounts :many
 SELECT a.token_account, a.wallet_address, w.user_id, w.first_seen_slot, a.dirty_gen, a.dirty_slot, a.observed_slot,
-  a.high_signature, a.page_before
+  a.high_signature, a.page_before, a.history_floor
 FROM deposit_watch_accounts a
 JOIN deposit_watch_wallets w ON w.wallet_address = a.wallet_address
 WHERE a.dirty_gen > a.clean_gen AND a.state <> 'foreign'
@@ -69,6 +73,7 @@ SET high_signature = COALESCE(page_top_signature, high_signature),
     page_before = NULL,
     page_top_signature = NULL,
     page_top_slot = NULL,
+    history_floor = NULL,
     clean_gen = $2,
     scanned_at = sqlc.arg(scanned_at)::timestamptz
 WHERE token_account = $1 AND clean_gen < $2;

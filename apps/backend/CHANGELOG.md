@@ -123,6 +123,7 @@ A checkpoint PR into `main` must change this file, and `## [Unreleased]` must ho
 
 ### Fixed
 
+- A deposit made between a wallet's creation and the deposit watcher's first sight is credited, not treated as history.
 - Three flaky bus tests that hung, leaked a drain goroutine or read duplicates, and a race between stream creates and the shared test nats-server's cleanup.
 - The scripts CI job, which failed on every PR once `scripts/cloud-setup.sh` came over from `main`.
 - Flakes that ejected merge queue entries: `ETXTBSY` in the monacoctl migrate and bench tests, and the bus apply stream test on repeated runs.

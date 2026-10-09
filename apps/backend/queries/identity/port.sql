@@ -33,13 +33,13 @@ FROM users
 WHERE x_user_id = ANY(sqlc.arg(x_user_ids)::text[]) AND account_status = 'active' AND deleted_at IS NULL;
 
 -- name: MemberWalletByUserID :one
-SELECT w.privy_wallet_id, w.address
+SELECT w.privy_wallet_id, w.address, w.created_at
 FROM user_wallets w
 JOIN users u ON u.id = w.user_id
 WHERE w.user_id = sqlc.arg(user_id)::uuid AND u.deleted_at IS NULL;
 
 -- name: MemberWalletsAfter :many
-SELECT w.user_id, w.privy_wallet_id, w.address
+SELECT w.user_id, w.privy_wallet_id, w.address, w.created_at
 FROM user_wallets w
 JOIN users u ON u.id = w.user_id
 WHERE w.user_id > sqlc.arg(after)::uuid AND u.deleted_at IS NULL

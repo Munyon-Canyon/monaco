@@ -36,6 +36,7 @@ type MemberWallet struct {
 	UserID        ids.UserID
 	PrivyWalletID string
 	Address       chain.SolanaAddress
+	CreatedAt     time.Time
 }
 
 type UserReader interface {

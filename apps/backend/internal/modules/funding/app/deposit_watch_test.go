@@ -270,19 +270,104 @@ func TestDepositWatchFirstSightSkipsSignaturesAboveTheContextSlotAcrossPages(t *
 	rpc := &watchRPC{
 		pages: [][]solana.SignatureInfo{above, {{Signature: "at", Slot: 5}, {Signature: "older", Slot: 4}}},
 	}
-	got, err := testWatch(nil, nil, rpc, nil).newestAtOrBelow(t.Context(), "account", 5)
-	if err != nil || got.Signature != "at" {
-		t.Fatalf("newestAtOrBelow = %+v, %v; want the newest signature at or below slot 5", got, err)
+	got, err := testWatch(nil, nil, rpc, nil).scanFromTip(t.Context(), "account", 5, time.Time{})
+	if err != nil || got.high.Signature != "at" || len(got.window) != 2 || got.resume != "" {
+		t.Fatalf("scanFromTip = %+v, %v; want the newest signature at or below slot 5 and no resume", got, err)
 	}
 	rpc = &watchRPC{pages: [][]solana.SignatureInfo{{{Signature: "above", Slot: 9}}}}
-	if got, err := testWatch(
-		nil,
-		nil,
-		rpc,
-		nil,
-	).newestAtOrBelow(t.Context(), "account", 5); err != nil ||
-		got.Signature != "" {
-		t.Fatalf("newestAtOrBelow = %+v, %v; want none", got, err)
+	if got, err := testWatch(nil, nil, rpc, nil).scanFromTip(t.Context(), "account", 5, time.Time{}); err != nil ||
+		got.high.Signature != "" || len(got.window) != 0 {
+		t.Fatalf("scanFromTip = %+v, %v; want none", got, err)
+	}
+}
+
+func TestDepositWatchFirstSightStopsAtTheCreationFloorAndResumesPastAFullPage(t *testing.T) {
+	t.Parallel()
+	floor := clock.Real{}.Now().Add(-time.Hour)
+	inside, before := floor.Add(time.Minute), floor.Add(-time.Minute)
+	rpc := &watchRPC{pages: [][]solana.SignatureInfo{{
+		{Signature: "new", Slot: 5, BlockTime: inside},
+		{Signature: "edge", Slot: 4, BlockTime: floor},
+		{Signature: "old", Slot: 3, BlockTime: before},
+		{Signature: "older", Slot: 2, BlockTime: before},
+	}}}
+	got, err := testWatch(nil, nil, rpc, nil).scanFromTip(t.Context(), "account", 5, floor)
+	if err != nil || got.high.Signature != "new" || len(got.window) != 2 || got.resume != "" {
+		t.Fatalf("scanFromTip = %+v, %v; want new and edge in the window, none resumed", got, err)
+	}
+	full := make([]solana.SignatureInfo, depositSignaturePageSize)
+	for i := range full {
+		full[i] = solana.SignatureInfo{Signature: chain.Signature(fmt.Sprintf("s%d", i)), Slot: 5, BlockTime: inside}
+	}
+	rpc = &watchRPC{pages: [][]solana.SignatureInfo{full}}
+	got, err = testWatch(nil, nil, rpc, nil).scanFromTip(t.Context(), "account", 5, floor)
+	if err != nil || got.high.Signature != "s0" || len(got.window) != len(full) || got.resume != "s999" {
+		t.Fatalf("scanFromTip = %d in window, resume %q, %v; want a full window resuming at s999",
+			len(got.window), got.resume, err)
+	}
+	rpc = &watchRPC{sigErr: errs.New(errs.CodeInternal, "test.down")}
+	if _, err := testWatch(nil, nil, rpc, nil).scanFromTip(t.Context(), "account", 5, floor); err == nil {
+		t.Fatal("scanFromTip with a failing RPC = nil")
+	}
+}
+
+func TestDepositWatchResumedFirstSightFinishesFromTheCheckpoint(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	floor := clock.Real{}.Now().Add(-time.Hour).UTC().Truncate(time.Microsecond)
+	canonical, err := chain.AssociatedTokenAccount(user.Address, testkit.USDCMint, chain.SPLProgram)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := watchSeed{
+		state: solana.TokenAccountState{Address: canonical, Exists: true},
+		tipScan: tipScan{
+			high:   solana.SignatureInfo{Signature: "tip", Slot: 7},
+			resume: "cursor",
+		},
+	}
+	rpc := &watchRPC{pages: [][]solana.SignatureInfo{{
+		{Signature: "inside", Slot: 6, BlockTime: floor.Add(time.Minute)},
+		{Signature: "outside", Slot: 5, BlockTime: floor.Add(-time.Minute)},
+	}}}
+	p := testWatch(pool, db.New(pool, testkit.NewIDs(1), clock.Real{}), rpc, nil)
+	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
+	plan := seedPlan{canonical: canonical, seeds: []watchSeed{seed}, slot: 7, floor: floor}
+	if err := p.persistSeeds(t.Context(), wallet, plan); err != nil {
+		t.Fatal(err)
+	}
+	assertResumeCheckpoint(t, pool)
+	scanned, recorded, err := p.catchUpDirty(observability.WithActor(t.Context(), "system:test"))
+	if err != nil || scanned != 1 || recorded != 1 {
+		t.Fatalf("catchUpDirty = %d/%d, %v; want 1/1", scanned, recorded, err)
+	}
+	assertResumeCompleted(t, pool)
+}
+
+func assertResumeCheckpoint(t *testing.T, pool sqlc.DBTX) {
+	t.Helper()
+	var before, top string
+	var opening *string
+	if err := pool.QueryRow(t.Context(), `SELECT page_before, page_top_signature, opening_micros::text
+		FROM deposit_watch_accounts a JOIN deposit_watch_wallets w USING (wallet_address)`).
+		Scan(&before, &top, &opening); err != nil || before != "cursor" || top != "tip" || opening != nil {
+		t.Fatalf("checkpoint = %q/%q/%v, %v; want cursor/tip/NULL", before, top, opening, err)
+	}
+}
+
+func assertResumeCompleted(t *testing.T, pool sqlc.DBTX) {
+	t.Helper()
+	var high string
+	var pending *string
+	var clean, dirty int64
+	var floor *time.Time
+	if err := pool.QueryRow(t.Context(),
+		`SELECT high_signature, page_before, history_floor, clean_gen, dirty_gen FROM deposit_watch_accounts`).
+		Scan(&high, &pending, &floor, &clean, &dirty); err != nil ||
+		high != "tip" || pending != nil || floor != nil || clean != dirty {
+		t.Fatalf("after catch-up = %q/%v/%v/%d/%d, %v; want tip, cleared, clean",
+			high, pending, floor, clean, dirty, err)
 	}
 }
 
@@ -313,7 +398,11 @@ func TestDepositWatchReturnsCommitFailuresWithoutAccountRows(t *testing.T) {
 	}
 	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
 	seeds := []watchSeed{{state: solana.TokenAccountState{Address: "account"}}}
-	if err := p.persistSeeds(ctx, wallet, "other", seeds, 1, "0"); err == nil {
+	if err := p.persistSeeds(
+		ctx,
+		wallet,
+		seedPlan{canonical: "other", seeds: seeds, slot: 1, opening: "0"},
+	); err == nil {
 		t.Fatal("persistSeeds account error = nil")
 	}
 }
@@ -322,8 +411,20 @@ func TestDepositWatchReturnsSeedFailuresWithoutWalletRows(t *testing.T) {
 	t.Parallel()
 	p, ctx, user := watchWithDroppedTable(t, "deposit_watch_wallets")
 	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
-	if err := p.persistSeeds(ctx, wallet, "other", nil, 1, "0"); err == nil {
+	if err := p.persistSeeds(ctx, wallet, seedPlan{canonical: "other", slot: 1, opening: "0"}); err == nil {
 		t.Fatal("persistSeeds wallet error = nil")
+	}
+}
+
+func TestDepositWatchReturnsCandidateFailuresFromFirstSight(t *testing.T) {
+	t.Parallel()
+	p, ctx, user := watchWithDroppedTable(t, "deposit_candidates")
+	wallet := port.MemberWallet{UserID: user.ID, Address: user.Address}
+	plan := seedPlan{candidates: []DepositCandidate{{
+		Signature: "sig", Wallet: user.Address, UserID: user.ID, Slot: 1, Source: depositCandidateSourcePoller,
+	}}}
+	if err := p.persistSeeds(ctx, wallet, plan); err == nil {
+		t.Fatal("persistSeeds candidate error = nil")
 	}
 }
 
