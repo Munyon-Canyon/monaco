@@ -115,6 +115,7 @@ const (
 	PotExceeded ErrorCode = "pot_exceeded"
 	PotValueChanged ErrorCode = "pot_value_changed"
 	PotValueZero ErrorCode = "pot_value_zero"
+	PriceMoved ErrorCode = "price_moved"
 	PriceUnavailable ErrorCode = "price_unavailable"
 	PricesStale ErrorCode = "prices_stale"
 	PrivyUnavailable ErrorCode = "privy_unavailable"
@@ -373,6 +374,8 @@ func (e ErrorCode) Valid() bool {
 	case PotValueChanged:
 		return true
 	case PotValueZero:
+		return true
+	case PriceMoved:
 		return true
 	case PriceUnavailable:
 		return true

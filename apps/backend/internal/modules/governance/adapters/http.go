@@ -209,7 +209,7 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 			FailureCode: present(string(s.FailureCode)), TxSignature: present(string(s.TxSignature)),
 		}
 		if s.Status == "failed" && retryable {
-			out.Swap.FailureMessage = ptr(errs.Message(errs.CodeSwapFailed))
+			out.Swap.FailureMessage = ptr(errs.SwapFailureMessage(string(s.FailureCode)))
 		}
 	}
 	return out, nil

@@ -62,7 +62,7 @@ func wireSwap(d app.SwapDetail) api.SwapDetail {
 	}
 	if s.FailureCode.Valid {
 		out.FailureCode = &s.FailureCode.String
-		out.FailureMessage = ptr(errs.Message(errs.CodeSwapFailed))
+		out.FailureMessage = ptr(errs.SwapFailureMessage(s.FailureCode.String))
 	}
 	if s.ConfirmedAt.Valid {
 		out.ConfirmedAt = &s.ConfirmedAt.Time

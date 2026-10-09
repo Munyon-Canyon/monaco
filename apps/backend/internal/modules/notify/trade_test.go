@@ -105,6 +105,19 @@ func failedKind(action, body, unnamedBody string) tradeKind {
 	}
 }
 
+func priceMovedKind(body, unnamedBody string) tradeKind {
+	k := failedKind("buy", body, unnamedBody)
+	k.name, k.title = "buy price moved", "Price moved"
+	inner := k.event
+	k.event = func(t *testing.T, r *pushRig, cabalID ids.CabalID, leg tradeLeg) events.Event {
+		t.Helper()
+		e := inner(t, r, cabalID, leg).(events.TradeFailed)
+		e.FailureCode = string(errs.CodePriceMoved)
+		return e
+	}
+	return k
+}
+
 func blockedKind(action string, code errs.Code, body, unnamedBody string) tradeKind {
 	return tradeKind{
 		name: action, kind: "trade_blocked", action: action, title: "Trade didn't go through", body: body,
@@ -132,6 +145,8 @@ func tradeKinds() []tradeKind {
 			"Your cabal's buy of a stock failed. No money moved."),
 		failedKind("sell", "Your cabal's sell of Apple failed. No money moved.",
 			"Your cabal's sell of a stock failed. No money moved."),
+		priceMovedKind("The price of Apple moved since the vote. Open the proposal to buy at the current price.",
+			"The price of a stock moved since the vote. Open the proposal to buy at the current price."),
 		blockedKind("buy", errs.CodeInsufficientFunds,
 			"Your cabal's buy of Apple didn't go through: There isn't enough USDC for that. "+
 				"The money is still in the pot.",

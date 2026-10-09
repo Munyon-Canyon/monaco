@@ -124,3 +124,13 @@ func TestDetailCollectsAttrsFromEveryCodedErrorInTheChain(t *testing.T) {
 		t.Errorf("Detail of an uncoded error = %v, want none", d)
 	}
 }
+
+func TestSwapFailureMessage_namesAMovedPriceAndNothingElse(t *testing.T) {
+	t.Parallel()
+	if got, want := SwapFailureMessage("price_moved"), Message(CodePriceMoved); got != want {
+		t.Errorf("price_moved message = %q, want %q", got, want)
+	}
+	if got, want := SwapFailureMessage("jupiter_failed"), Message(CodeSwapFailed); got != want {
+		t.Errorf("jupiter_failed message = %q, want %q", got, want)
+	}
+}

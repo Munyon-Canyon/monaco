@@ -372,11 +372,11 @@ func TestSwapLayer_OrderBelowTheFloorFailsBeforeSigning(t *testing.T) {
 
 func (e *layerEnv) assertBelowFloor(t *testing.T, got app.SwapView, signs int64) {
 	t.Helper()
-	if got.Status != domain.StatusFailed || got.FailureCode != domain.FailureNeverSubmitted || signs != 0 {
-		t.Fatalf("view = %+v after %d signs, want failed never_submitted and no signing", got, signs)
+	if got.Status != domain.StatusFailed || got.FailureCode != domain.FailurePriceMoved || signs != 0 {
+		t.Fatalf("view = %+v after %d signs, want failed price_moved and no signing", got, signs)
 	}
-	if code := e.payload(t, got.ID.UUID(), "trade.failed")["jupiter_code"]; code != "order_below_floor" {
-		t.Fatalf("jupiter_code = %v", code)
+	if code := e.payload(t, got.ID.UUID(), "trade.failed")["failure_code"]; code != "price_moved" {
+		t.Fatalf("failure_code = %v", code)
 	}
 }
 

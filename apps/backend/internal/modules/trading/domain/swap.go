@@ -37,6 +37,7 @@ const (
 	FailureJupiterFailed    FailureCode = "jupiter_failed"
 	FailureForceResolved    FailureCode = "force_resolved"
 	FailureSourceCancelled  FailureCode = "source_cancelled"
+	FailurePriceMoved       FailureCode = "price_moved"
 )
 
 func FailureCodes() []FailureCode {
@@ -46,6 +47,7 @@ func FailureCodes() []FailureCode {
 		FailureJupiterFailed,
 		FailureForceResolved,
 		FailureSourceCancelled,
+		FailurePriceMoved,
 	}
 }
 
@@ -71,6 +73,10 @@ func transitions() map[Status]map[EventKind]Status {
 	}
 }
 
+func FailsFrom(code FailureCode) Status {
+	return failsFrom()[code]
+}
+
 func failsFrom() map[FailureCode]Status {
 	return map[FailureCode]Status{
 		FailureNeverSubmitted:   StatusCreated,
@@ -78,6 +84,7 @@ func failsFrom() map[FailureCode]Status {
 		FailureJupiterFailed:    StatusSubmitted,
 		FailureForceResolved:    StatusSubmitted,
 		FailureSourceCancelled:  StatusCreated,
+		FailurePriceMoved:       StatusCreated,
 	}
 }
 
