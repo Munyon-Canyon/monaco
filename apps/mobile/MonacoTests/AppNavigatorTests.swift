@@ -22,9 +22,34 @@ struct AppNavigatorTests {
         navigator.open(ProbeRoute(marker: "cabal"), in: .cabals)
         navigator.open(ProposeRoute(cabalID: "cabal"), in: .cabals)
 
-        navigator.closeProposeFlow()
+        navigator.closeProposeFlow(in: .cabals)
 
         #expect(navigator.path(for: .cabals).count == 1)
+    }
+
+    @Test func closingTheProposeFlowTrimsItsOwnTabWhileAnotherIsSelected() {
+        let navigator = AppNavigator()
+        navigator.open(ProbeRoute(marker: "cabal"), in: .cabals)
+        navigator.open(ProposeRoute(cabalID: "cabal"), in: .cabals)
+        navigator.open(ProbeRoute(marker: "home"), in: .home)
+
+        navigator.closeProposeFlow(in: .cabals)
+
+        #expect(navigator.cabalsPath == [AnyAppRoute(ProbeRoute(marker: "cabal"))])
+        #expect(navigator.homePath == [AnyAppRoute(ProbeRoute(marker: "home"))])
+        #expect(navigator.selectedTab == .home)
+    }
+
+    @Test func closingTheProposeFlowLeavesAnotherTabsFlowOpen() {
+        let navigator = AppNavigator()
+        navigator.open(ProposeRoute(cabalID: "cabal"), in: .cabals)
+        navigator.open(ProposeFromAssetRoute(symbol: "AAPL", kind: .buy), in: .stocks)
+        navigator.selectedTab = .stocks
+
+        navigator.closeProposeFlow(in: .cabals)
+
+        #expect(navigator.cabalsPath.isEmpty)
+        #expect(navigator.stocksPath == [AnyAppRoute(ProposeFromAssetRoute(symbol: "AAPL", kind: .buy))])
     }
 
     @Test func closingACabalPopsItAndWhatIsAboveKeepingWhatIsBelow() {

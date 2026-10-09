@@ -4,6 +4,7 @@ import SwiftUI
 struct ProposeReviewScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.hostMainTab) private var hostMainTab
     @State private var model: MonacoCore.ProposeReviewModel?
     @State private var cabalFailed = false
     private let service: MonacoCore.ProposeService
@@ -73,7 +74,7 @@ struct ProposeReviewScreen: View {
                 BottomCTA {
                     Button(model.sendTitle) { Task { await send(model) } }
                         .buttonStyle(.monacoPrimary)
-                        .disabled(model.isSending)
+                        .disabled(model.isSending || model.proposalID != nil)
                         .accessibilityIdentifier("propose-review-send")
                 }
             }
@@ -86,6 +87,7 @@ struct ProposeReviewScreen: View {
     }
 
     private func load() async {
+        guard model == nil else { return }
         cabalFailed = false
         do {
             let cabal = try await MonacoCore.ProposeCabalInfo.load(api: environment.api, cabalID: cabalID)
@@ -101,7 +103,7 @@ struct ProposeReviewScreen: View {
         await model.send()
         if model.proposalID != nil {
             toasts.show(success: model.successToast)
-            environment.navigator.closeProposeFlow()
+            environment.navigator.closeProposeFlow(in: hostMainTab ?? environment.navigator.selectedTab)
         } else if let message = model.errorMessage {
             toasts.current = MonacoToast(message: message)
         }

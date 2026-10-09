@@ -67,8 +67,8 @@ final class AppNavigator {
         }
     }
 
-    func closeProposeFlow() {
-        let path = binding(for: selectedTab)
+    func closeProposeFlow(in tab: MainTab) {
+        let path = binding(for: tab)
         guard
             let start = path.wrappedValue.lastIndex(where: {
                 $0.is(ProposeRoute.self) || $0.is(ProposeFromAssetRoute.self)
