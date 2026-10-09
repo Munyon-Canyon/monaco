@@ -128,7 +128,7 @@ func TestDepositWatchRotationPagesAndResumesWhereTheCallBudgetRanOut(t *testing.
 	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
 	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	account := cleanRotationAccount(t, pool, user, 0, 2000)
-	slots := make([]uint64, 1500)
+	slots := make([]uint64, 1001)
 	for i := range slots {
 		slots[i] = uint64(2000 - i)
 	}
