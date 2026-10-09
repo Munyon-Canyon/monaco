@@ -43,11 +43,11 @@ struct MonacoApp: App {
                         Task { await appEnvironment.cardDeposit.redirected(sessionID: id) }
                         return
                     }
-                    DeepLinkRouter.handle(url, navigator: appEnvironment.navigator)
+                    Task { await DeepLinkRouter.handle(url, navigator: appEnvironment.navigator) }
                 }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                     guard let url = activity.webpageURL else { return }
-                    DeepLinkRouter.handle(url, navigator: appEnvironment.navigator)
+                    Task { await DeepLinkRouter.handle(url, navigator: appEnvironment.navigator) }
                 }
         }
     }
