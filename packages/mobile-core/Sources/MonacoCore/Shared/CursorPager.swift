@@ -96,6 +96,10 @@ public final class CursorPager<Item: Identifiable & Sendable> {
         phase = settled(nextCursor)
     }
 
+    public func append(_ item: Item) {
+        appendDeduped([item])
+    }
+
     public func remove(where shouldRemove: (Item) -> Bool) {
         items.removeAll(where: shouldRemove)
     }

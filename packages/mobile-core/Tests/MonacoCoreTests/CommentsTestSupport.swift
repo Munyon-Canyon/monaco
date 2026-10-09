@@ -39,13 +39,14 @@ enum CommentsTestSupport {
         return String(decoding: try encoder.encode(value), as: UTF8.self)
     }
 
-    static func page(_ threads: [Thread], feedObjectID: String? = nil) throws -> Reply {
+    static func page(_ threads: [Thread], feedObjectID: String? = nil, nextCursor: String? = nil) throws -> Reply {
         let json =
             if let feedObjectID {
                 try encode(
-                    Components.Schemas.ProposalCommentPage(feedObjectId: feedObjectID, items: threads, nextCursor: nil))
+                    Components.Schemas.ProposalCommentPage(
+                        feedObjectId: feedObjectID, items: threads, nextCursor: nextCursor))
             } else {
-                try encode(Components.Schemas.CommentPage(items: threads, nextCursor: nil))
+                try encode(Components.Schemas.CommentPage(items: threads, nextCursor: nextCursor))
             }
         return .json(.ok, json)
     }

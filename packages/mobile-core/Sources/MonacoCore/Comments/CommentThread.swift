@@ -61,6 +61,12 @@ public enum CommentDraft: Equatable {
     }
 }
 
+extension CommentDraft {
+    public static func field(_ field: String, afterPosting body: String) -> String {
+        CommentDraft(text: field).body == body ? "" : field
+    }
+}
+
 public enum CommentsCopy {
     public static let title = "Comments"
     public static let empty = "No comments yet"
