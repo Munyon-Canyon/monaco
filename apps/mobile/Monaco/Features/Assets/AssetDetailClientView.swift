@@ -21,8 +21,6 @@ struct AssetDetailClientView: View {
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await start()
-                await model?.loadStats()
-                await model?.loadCabalPositions()
                 await model?.observe()
             }
             .onScreenVisibilityChange { model?.setVisible($0) }
@@ -40,7 +38,7 @@ struct AssetDetailClientView: View {
                 loading
             case .failed:
                 MonacoErrorRow(thing: "this stock", identifier: "asset-detail-failed") {
-                    Task { await model.load() }
+                    Task { await model.start() }
                 }
             case .loaded:
                 if let detail = model.detail { loaded(detail, model: model) }
@@ -107,6 +105,8 @@ struct AssetDetailClientView: View {
                         expand: MonacoTheme.Space.xs
                     )
                     .accessibilityIdentifier("asset-detail-price")
+            } else {
+                Text("—").font(MonacoTheme.Typo.quoteHero).foregroundStyle(MonacoTheme.muted)
             }
             if let scrub = scrubHeader(model) {
                 HStack(spacing: MonacoTheme.Space.xs) {
@@ -120,16 +120,16 @@ struct AssetDetailClientView: View {
                 .accessibilityIdentifier("asset-detail-range-change")
             } else if let change = model.rangeChange {
                 HStack(spacing: MonacoTheme.Space.xs) {
-                    if let basisPoints = change.basisPoints {
-                        PercentText(basisPoints: basisPoints, style: .row)
-                    }
+                    PercentText(basisPoints: change.basisPoints ?? 0, style: .row)
                     Text(change.label)
                         .font(MonacoTheme.Typo.dataCaption)
                         .foregroundStyle(MonacoTheme.muted)
                 }
+                .opacity(change.basisPoints == nil ? 0 : 1)
+                .accessibilityHidden(change.basisPoints == nil)
                 .accessibilityIdentifier("asset-detail-range-change")
             }
-            if let session = MarketSessionCopy.chip(for: detail.market.status) {
+            if detail.market.showsSessionChip, let session = MarketSessionCopy.chip(for: detail.market.status) {
                 MarketSessionChip(session: session)
                     .accessibilityIdentifier("asset-detail-session")
             }
@@ -169,9 +169,10 @@ struct AssetDetailClientView: View {
                 scrubChart(chart, isMarketLive: detail.session == .open)
             } else {
                 EmptyState(
-                    title: "Price history builds up over time.",
-                    message: "The curve draws as the token trades."
+                    title: PreIpoCopy.chartEmpty,
+                    message: detail.kind == .preIpo ? PreIpoCopy.chartEmptyMessage : "The curve draws as it trades."
                 )
+                .frame(height: 200)
                 .accessibilityIdentifier("asset-detail-chart-empty")
             }
         }
@@ -205,6 +206,7 @@ struct AssetDetailClientView: View {
         if !listings.isEmpty {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Also available from")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     ForEach(listings) { listing in
                         Button {
@@ -226,7 +228,6 @@ struct AssetDetailClientView: View {
                     }
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("asset-other-listings")
         }
@@ -236,7 +237,7 @@ struct AssetDetailClientView: View {
         if model == nil {
             model = AssetDetailClientModel(api: environment.api, symbol: symbol, hints: environment.hints)
         }
-        await model?.load()
+        await model?.start()
     }
 }
 
@@ -330,7 +331,7 @@ extension AssetDetailClientView {
                         .accessibilityIdentifier("asset-detail-propose-sell")
                     }
                 }
-                Text("Your cabal votes before anything is bought")
+                Text(AssetDetailBuyCTA.caption(tradable: detail.isTradable, canSell: model.heldByVotingCabal))
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
             }
@@ -374,6 +375,12 @@ private struct YearRangeBar: View {
 enum AssetDetailBuyCTA {
     static func title(tradable: Bool) -> String {
         tradable ? "Propose buy" : "Can't buy right now"
+    }
+
+    static func caption(tradable: Bool, canSell: Bool) -> String {
+        if !tradable { return "Not available to buy yet." }
+        if canSell { return "Your cabal votes before anything is bought or sold" }
+        return "Your cabal votes before anything is bought"
     }
 
     static func open(

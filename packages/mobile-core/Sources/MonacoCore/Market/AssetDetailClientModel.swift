@@ -55,7 +55,7 @@ public final class AssetDetailClientModel {
     public var rangeChange: AssetRangeChange? {
         guard let detail else { return nil }
         return AssetRangeChange(
-            basisPoints: Self.basisPoints(for: chart),
+            basisPoints: chart?.range == selectedRange ? Self.basisPoints(for: chart) : nil,
             label: "\(selectedRange.moveLabel) · \(detail.ticker)"
         )
     }
@@ -105,7 +105,7 @@ public final class AssetDetailClientModel {
             detail = Self.presentation(response)
             detailPhase = .loaded
             lastError = nil
-            await loadChart()
+            await loadChart(range: selectedRange)
         } catch {
             let error = APIError(error)
             lastError = error
@@ -114,40 +114,78 @@ public final class AssetDetailClientModel {
         }
     }
 
+    public func start() async {
+        async let cabalPositions: Void = loadCabalPositions()
+        await load()
+        await loadStats()
+        await cabalPositions
+    }
+
     public func loadCabalPositions() async {
         guard let api else { return }
         guard let cabals = try? await api.read({ try await $0.getMyCabals().ok.body.json }) else { return }
-        var found: [AssetCabalPosition] = []
-        for cabal in cabals {
-            guard let pot = try? await api.read({ try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json }),
-                let holding = pot.holdings.first(where: { $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame })
-            else { continue }
-            found.append(
-                AssetCabalPosition(
-                    cabalID: cabal.id, cabalName: cabal.name, pictureURL: cabal.pictureUrl, canVote: cabal.canVote,
-                    units: holding.units, valueMicros: holding.valueMicros, pnlMicros: holding.pnlMicros,
-                    costBasisMicros: holding.costBasisMicros))
+        let symbol = symbol
+        let reads = await withTaskGroup(of: PotRead.self) { group in
+            for cabal in cabals {
+                group.addTask {
+                    guard
+                        let pot = try? await api.read({
+                            try await $0.getCabalPot(path: .init(id: cabal.id)).ok.body.json
+                        })
+                    else { return .failed(cabalID: cabal.id) }
+                    guard
+                        let holding = pot.holdings.first(where: {
+                            $0.symbol.caseInsensitiveCompare(symbol) == .orderedSame
+                        })
+                    else { return .lacks }
+                    return .holds(
+                        AssetCabalPosition(
+                            cabalID: cabal.id, cabalName: cabal.name, pictureURL: cabal.pictureUrl,
+                            canVote: cabal.canVote, units: holding.units, valueMicros: holding.valueMicros,
+                            pnlMicros: holding.pnlMicros, costBasisMicros: holding.costBasisMicros))
+                }
+            }
+            var results: [PotRead] = []
+            for await result in group { results.append(result) }
+            return results
         }
-        positions = found.sorted { $0.valueMicros > $1.valueMicros }
+        var found: [AssetCabalPosition] = []
+        for read in reads {
+            switch read {
+            case .holds(let position): found.append(position)
+            case .failed(let cabalID): found += positions.filter { $0.cabalID == cabalID }
+            case .lacks: break
+            }
+        }
+        positions = found.sorted {
+            $0.valueMicros == $1.valueMicros ? $0.cabalID < $1.cabalID : $0.valueMicros > $1.valueMicros
+        }
     }
 
     public func loadStats() async {
         guard let api, let detail else { return }
-        async let day = try? await fetchChart(api: api, range: .oneDay)
-        async let year = try? await fetchChart(api: api, range: .oneYear)
+        async let day = try? await chartSeries(api: api, range: .oneDay)
+        async let year = try? await chartSeries(api: api, range: .oneYear)
         let built = AssetStats(
             day: await day, year: await year, priceMicros: detail.priceMicros,
             changeBasisPoints: detail.changeBasisPoints)
         stats = built.isEmpty ? nil : built
     }
 
-    private func fetchChart(api: APIClient, range: AssetChartRange) async throws -> AssetChartSeries {
+    private func chartSeries(api: APIClient, range: AssetChartRange) async throws -> AssetChartSeries {
+        if let chart, chart.range == range { return chart }
         let symbol = symbol
         let response = try await api.read { client in
             try await client.getAssetChart(path: .init(symbol: symbol), query: .init(range: Self.wireRange(range)))
                 .ok.body.json
         }
         return MarketMapping.chart(response)
+    }
+
+    private enum PotRead: Sendable {
+        case holds(AssetCabalPosition)
+        case lacks
+        case failed(cabalID: String)
     }
 
     public func observe() async {
@@ -178,8 +216,9 @@ public final class AssetDetailClientModel {
     public func loadChart(range: AssetChartRange = .oneDay) async {
         guard let api else { return }
         selectedRange = range
-        chartPhase = .loading
-        await readChart(api: api, range: range, replacesChartPhase: true)
+        let isDrawn = chart?.range == range
+        chartPhase = isDrawn ? .loaded : .loading
+        await readChart(api: api, range: range, replacesChartPhase: !isDrawn)
     }
 
     private func refreshChart() async {
