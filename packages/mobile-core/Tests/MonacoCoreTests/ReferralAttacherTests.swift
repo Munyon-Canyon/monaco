@@ -2,6 +2,8 @@ import Foundation
 import MonacoAPI
 import MonacoCore
 import MonacoTestSupport
+import Observation
+import Synchronization
 import XCTest
 
 private final class MemoryStore: KeyValueStoring {
@@ -142,6 +144,39 @@ final class ReferralAttacherTests: XCTestCase {
 
         XCTAssertFalse(withPending.offersManualEntry(userID: userID))
         XCTAssertTrue(without.offersManualEntry(userID: userID))
+    }
+
+    func testARefusedPendingCodeOffersTheManualFieldAndSaysSo() async throws {
+        let (attacher, _, _) = try make([try Self.problem(404, .referralCodeUnknown)], pending: .clipboard)
+        XCTAssertFalse(attacher.offersManualEntry(userID: userID))
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = attacher.offersManualEntry(userID: userID)
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+
+        _ = await attacher.attachPending(userID: userID)
+
+        XCTAssertTrue(changed.withLock { $0 })
+        XCTAssertTrue(attacher.offersManualEntry(userID: userID))
+    }
+
+    func testAManualAttachHidesTheManualFieldAndSaysSo() async throws {
+        let (attacher, _, _) = try make([.json(.created, Self.created)], pending: nil)
+        let code = try XCTUnwrap(ReferralCode("k7m4qx2p"))
+        XCTAssertTrue(attacher.offersManualEntry(userID: userID))
+        let changed = Mutex(false)
+        withObservationTracking {
+            _ = attacher.offersManualEntry(userID: userID)
+        } onChange: {
+            changed.withLock { $0 = true }
+        }
+
+        _ = await attacher.attach(code, userID: userID)
+
+        XCTAssertTrue(changed.withLock { $0 })
+        XCTAssertFalse(attacher.offersManualEntry(userID: userID))
     }
 
     private func make(
