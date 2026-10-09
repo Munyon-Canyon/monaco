@@ -331,7 +331,7 @@ func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string) []string {
 			top = stackTop(prs, p)
 		}
 		out = append(out, fmt.Sprintf("#%d is stuck on %s (a restack that never retargeted); owner: dequeue %d, "+
-			"gt sync, gt restack, gt submit --stack --draft, land-stack %d; %s", p.Number, p.BaseRefName, top, top, who))
+			"gt restack, gt submit --stack --draft, land-stack %d; %s", p.Number, p.BaseRefName, top, top, who))
 	}
 	return out
 }
