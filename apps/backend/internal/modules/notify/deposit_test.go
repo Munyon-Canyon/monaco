@@ -47,7 +47,6 @@ func TestNotify_DepositCredited_BodyShowsTruncatedDollars(t *testing.T) {
 		27_500_000:     "$27.50 is in your account balance.",
 		25_009_999:     "$25.00 is in your account balance.",
 		10_000:         "$0.01 is in your account balance.",
-		9_999:          "$0.00 is in your account balance.",
 		1_234_560_000:  "$1234.56 is in your account balance.",
 		math.MaxUint64: "$18446744073709.55 is in your account balance.",
 	} {
@@ -57,4 +56,42 @@ func TestNotify_DepositCredited_BodyShowsTruncatedDollars(t *testing.T) {
 			t.Errorf("%d micros: body %q, %v, want %q", micros, msg.Body, err, want)
 		}
 	}
+}
+
+func TestNotify_DepositCredited_UnderOneCentPushesNobody(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	depositor := r.user(t, "active")
+	r.device(t, depositor, token('a'))
+	e := goldenEvent(t, events.TypeDepositCredited).(events.DepositCredited)
+	e.UserID = depositor.UUID()
+	e.AmountMicros = money.MicrosFromUint64(9_999)
+	d := r.emit(t, pollerActor, e)
+
+	wantVerdict(t, handleKinds(t, r, r.sender, d, e, app.DepositCredited{}), "", errs.VerdictAck)
+
+	if sent := r.sender.Sent(); len(sent) != 0 {
+		t.Fatalf("sent %+v, want nothing", sent)
+	}
+	r.wantStates(t, d, map[ids.UserID]string{})
+	r.wantSentEvents(t, d, 0)
+}
+
+func TestNotify_DepositCredited_OneCentPushes(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	depositor := r.user(t, "active")
+	r.device(t, depositor, token('a'))
+	e := goldenEvent(t, events.TypeDepositCredited).(events.DepositCredited)
+	e.UserID = depositor.UUID()
+	e.AmountMicros = money.MicrosFromUint64(10_000)
+	d := r.emit(t, pollerActor, e)
+
+	wantVerdict(t, handleKinds(t, r, r.sender, d, e, app.DepositCredited{}), "", errs.VerdictAck)
+
+	sent := r.sender.Sent()
+	if len(sent) != 1 || sent[0].Body != "$0.01 is in your account balance." {
+		t.Fatalf("sent %+v, want one push saying $0.01", sent)
+	}
+	r.wantStates(t, d, map[ids.UserID]string{depositor: "delivered"})
 }

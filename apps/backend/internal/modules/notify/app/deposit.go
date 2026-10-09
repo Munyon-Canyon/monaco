@@ -12,6 +12,9 @@ type DepositCredited struct{}
 func (DepositCredited) Name() string { return "deposit_credited" }
 
 func (DepositCredited) Recipients(_ context.Context, e events.DepositCredited) ([]ids.UserID, error) {
+	if e.AmountMicros.Uint64() < microsPerCent {
+		return nil, nil
+	}
 	return []ids.UserID{ids.UserIDFrom(e.UserID)}, nil
 }
 
