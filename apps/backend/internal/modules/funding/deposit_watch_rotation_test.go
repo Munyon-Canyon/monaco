@@ -338,8 +338,9 @@ func TestDepositWatchDiscoveryRespectsTheCallBudget(t *testing.T) {
 			VALUES ($1, $2, 0, now())`, wallet, user.ID.UUID())
 	}
 	report, err := budgetedWatch(pool, now, nil, &watchRPC{}, 1, 140, 141).Tick(watchActor(t))
-	if err != nil || stepAttrs(report) != "gate=0 gate_calls=0 dirty=0 dirty_calls=0 rotation=0 rotation_calls=0 "+
-		"discovery=1 discovery_calls=1" {
+	if err != nil ||
+		stepAttrs(report) != "gate=0 gate_calls=0 dirty=0 dirty_calls=0 first_sight=0 first_sight_calls=0 "+
+			"rotation=0 rotation_calls=0 discovery=1 discovery_calls=1" {
 		t.Fatalf("Tick = %q, %v; want one wallet discovered and the tick stopped", stepAttrs(report), err)
 	}
 	var pending int

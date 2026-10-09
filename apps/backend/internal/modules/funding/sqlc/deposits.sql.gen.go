@@ -99,6 +99,7 @@ SET high_signature = COALESCE(page_top_signature, high_signature),
     page_before = NULL,
     page_top_signature = NULL,
     page_top_slot = NULL,
+    history_floor = NULL,
     clean_gen = $2,
     scanned_at = $3::timestamptz
 WHERE token_account = $1 AND clean_gen < $2
@@ -148,7 +149,7 @@ func (q *Queries) DepositCandidatesPendingOldestSeconds(ctx context.Context, now
 
 const depositWatchDirtyAccounts = `-- name: DepositWatchDirtyAccounts :many
 SELECT a.token_account, a.wallet_address, w.user_id, w.first_seen_slot, a.dirty_gen, a.dirty_slot, a.observed_slot,
-  a.high_signature, a.page_before
+  a.high_signature, a.page_before, a.history_floor
 FROM deposit_watch_accounts a
 JOIN deposit_watch_wallets w ON w.wallet_address = a.wallet_address
 WHERE a.dirty_gen > a.clean_gen AND a.state <> 'foreign'
@@ -166,6 +167,7 @@ type DepositWatchDirtyAccountsRow struct {
 	ObservedSlot  int64
 	HighSignature pgtype.Text
 	PageBefore    pgtype.Text
+	HistoryFloor  pgtype.Timestamptz
 }
 
 func (q *Queries) DepositWatchDirtyAccounts(ctx context.Context, limit int32) ([]DepositWatchDirtyAccountsRow, error) {
@@ -187,6 +189,7 @@ func (q *Queries) DepositWatchDirtyAccounts(ctx context.Context, limit int32) ([
 			&i.ObservedSlot,
 			&i.HighSignature,
 			&i.PageBefore,
+			&i.HistoryFloor,
 		); err != nil {
 			return nil, err
 		}
@@ -503,25 +506,33 @@ func (q *Queries) InsertDepositCandidate(ctx context.Context, arg InsertDepositC
 const insertDepositWatchAccount = `-- name: InsertDepositWatchAccount :exec
 INSERT INTO deposit_watch_accounts (
   token_account, wallet_address, canonical, state, last_amount, observed_slot,
-  dirty_gen, dirty_slot, high_signature, high_slot, recovery_due_at
+  dirty_gen, dirty_slot, high_signature, high_slot, recovery_due_at,
+  page_before, page_top_signature, page_top_slot, history_floor
 ) VALUES ($1, $2, $3, $4, $5::text::numeric, $6::bigint,
   $7::bigint, $8::bigint,
-  NULLIF($9::text, ''), $10::bigint, $11::timestamptz)
+  NULLIF($9::text, ''), $10::bigint, $11::timestamptz,
+  NULLIF($12::text, ''), NULLIF($13::text, ''),
+  NULLIF($14::bigint, 0),
+  NULLIF($15::timestamptz, '0001-01-01 00:00:00+00'::timestamptz))
 ON CONFLICT (token_account) DO NOTHING
 `
 
 type InsertDepositWatchAccountParams struct {
-	TokenAccount  string
-	WalletAddress string
-	Canonical     bool
-	State         string
-	LastAmount    string
-	ObservedSlot  int64
-	DirtyGen      int64
-	DirtySlot     int64
-	HighSignature string
-	HighSlot      int64
-	RecoveryDueAt time.Time
+	TokenAccount     string
+	WalletAddress    string
+	Canonical        bool
+	State            string
+	LastAmount       string
+	ObservedSlot     int64
+	DirtyGen         int64
+	DirtySlot        int64
+	HighSignature    string
+	HighSlot         int64
+	RecoveryDueAt    time.Time
+	PageBefore       string
+	PageTopSignature string
+	PageTopSlot      int64
+	HistoryFloor     time.Time
 }
 
 func (q *Queries) InsertDepositWatchAccount(ctx context.Context, arg InsertDepositWatchAccountParams) error {
@@ -537,6 +548,10 @@ func (q *Queries) InsertDepositWatchAccount(ctx context.Context, arg InsertDepos
 		arg.HighSignature,
 		arg.HighSlot,
 		arg.RecoveryDueAt,
+		arg.PageBefore,
+		arg.PageTopSignature,
+		arg.PageTopSlot,
+		arg.HistoryFloor,
 	)
 	return err
 }

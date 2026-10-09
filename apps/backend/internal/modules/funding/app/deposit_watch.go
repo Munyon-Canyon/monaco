@@ -30,6 +30,7 @@ const (
 	depositWatchDirtyBatch   = 500
 	depositWatchStopBefore   = 5 * time.Second
 	depositWatchStopDivisor  = 5
+	depositWatchClockSkew    = 5 * time.Minute
 
 	depositCandidateSourcePoller = "poller"
 )
@@ -122,12 +123,12 @@ func (p *DepositWatch) Tick(ctx context.Context) (poller.Report, error) {
 	steps := []watchStep{
 		{"gate", p.gate},
 		{"dirty", p.catchUpDirty},
-		{"rotation", p.rotate},
-		{"discovery", p.discover},
 		{"first_sight", func(ctx context.Context) (int, int, error) {
 			seeded, err := p.firstSight(ctx)
 			return seeded, 0, err
 		}},
+		{"rotation", p.rotate},
+		{"discovery", p.discover},
 		{"reconcile", func(ctx context.Context) (int, int, error) { return p.reconcile(ctx, budget) }},
 	}
 	var report poller.Report
@@ -177,7 +178,9 @@ func (p *DepositWatch) catchUpAccount(ctx context.Context, row sqlc.DepositWatch
 		if err != nil {
 			return recorded, err
 		}
-		if !row.HighSignature.Valid {
+		if row.HistoryFloor.Valid {
+			page, _ = cutBeforeTime(page, row.HistoryFloor.Time)
+		} else if !row.HighSignature.Valid {
 			page, _ = cutBelow(page, row.FirstSeenSlot)
 		}
 		n, err := p.commitPage(ctx, row, page)
@@ -291,7 +294,13 @@ func (p *DepositWatch) seedUnknown(ctx context.Context, page []port.MemberWallet
 
 type watchSeed struct {
 	state solana.TokenAccountState
-	high  solana.SignatureInfo
+	tipScan
+}
+
+type tipScan struct {
+	high   solana.SignatureInfo
+	window []solana.SignatureInfo
+	resume chain.Signature
 }
 
 func (p *DepositWatch) seedWallet(ctx context.Context, wallet port.MemberWallet) error {
@@ -315,19 +324,47 @@ func (p *DepositWatch) seedWallet(ctx context.Context, wallet port.MemberWallet)
 	for _, account := range accounts {
 		states[account.Address] = account
 	}
-	seeds := make([]watchSeed, 0, len(states))
-	for _, state := range states {
-		high, err := p.newestAtOrBelow(ctx, state.Address, slot)
-		if err != nil {
-			return err
-		}
-		seeds = append(seeds, watchSeed{state: state, high: high})
-	}
-	opening, err := p.openingMicros(ctx, wallet, seeds)
+	floor := p.firstSightFloor(wallet)
+	seeds, candidates, pending, err := p.scanStates(ctx, wallet, states, slot, floor)
 	if err != nil {
 		return err
 	}
-	return p.persistSeeds(ctx, wallet, canonical, seeds, int64(slot), opening)
+	opening := ""
+	if !pending {
+		if opening, err = p.openingMicros(ctx, wallet, seeds); err != nil {
+			return err
+		}
+	}
+	return p.persistSeeds(ctx, wallet, seedPlan{
+		canonical: canonical, seeds: seeds, candidates: candidates, slot: int64(slot), opening: opening, floor: floor,
+	})
+}
+
+func (p *DepositWatch) firstSightFloor(wallet port.MemberWallet) time.Time {
+	if wallet.CreatedAt.IsZero() {
+		return p.clock.Now()
+	}
+	return wallet.CreatedAt.Add(-depositWatchClockSkew)
+}
+
+func (p *DepositWatch) scanStates(
+	ctx context.Context, wallet port.MemberWallet, states map[chain.SolanaAddress]solana.TokenAccountState,
+	slot uint64, floor time.Time,
+) ([]watchSeed, []DepositCandidate, bool, error) {
+	seeds := make([]watchSeed, 0, len(states))
+	var candidates []DepositCandidate
+	pending := false
+	for _, state := range states {
+		scan, err := p.scanFromTip(ctx, state.Address, slot, floor)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		found := windowCandidates(wallet, scan.window)
+		candidates = append(candidates, found...)
+		pending = pending || len(found) > 0 || scan.resume != ""
+		seeds = append(seeds, watchSeed{state: state, tipScan: scan})
+	}
+	return seeds, candidates, pending, nil
 }
 
 func (p *DepositWatch) openingMicros(ctx context.Context, wallet port.MemberWallet, seeds []watchSeed) (string, error) {
@@ -342,59 +379,116 @@ func (p *DepositWatch) openingMicros(ctx context.Context, wallet port.MemberWall
 	return total.Sub(total, wholeMicros(settled.String())).String(), nil
 }
 
-func (p *DepositWatch) newestAtOrBelow(
-	ctx context.Context, account chain.SolanaAddress, slot uint64,
-) (solana.SignatureInfo, error) {
+func (p *DepositWatch) scanFromTip(
+	ctx context.Context, account chain.SolanaAddress, slot uint64, floor time.Time,
+) (tipScan, error) {
+	var scan tipScan
 	opts := solana.SignaturesOpts{Limit: depositSignaturePageSize, MinContextSlot: slot}
 	for {
 		page, err := p.signatures(ctx, account, opts)
 		if err != nil {
-			return solana.SignatureInfo{}, err
+			return tipScan{}, err
 		}
-		for _, sig := range page {
-			if sig.Slot <= slot {
-				return sig, nil
-			}
+		atOrBelow := slices.DeleteFunc(slices.Clone(page), func(sig solana.SignatureInfo) bool {
+			return sig.Slot > slot
+		})
+		if scan.high.Signature == "" && len(atOrBelow) > 0 {
+			scan.high = atOrBelow[0]
 		}
-		if len(page) < depositSignaturePageSize {
-			return solana.SignatureInfo{}, nil
+		window, cut := cutBeforeTime(atOrBelow, floor)
+		scan.window = append(scan.window, window...)
+		if cut || len(page) < depositSignaturePageSize {
+			return scan, nil
 		}
 		opts.Before = page[len(page)-1].Signature
+		if scan.high.Signature != "" {
+			scan.resume = opts.Before
+			return scan, nil
+		}
 	}
 }
 
-func (p *DepositWatch) persistSeeds(
-	ctx context.Context, wallet port.MemberWallet, canonical chain.SolanaAddress, seeds []watchSeed,
-	slot int64, opening string,
-) error {
+func windowCandidates(wallet port.MemberWallet, window []solana.SignatureInfo) []DepositCandidate {
+	candidates := make([]DepositCandidate, 0, len(window))
+	for _, sig := range window {
+		if sig.Failed {
+			continue
+		}
+		candidates = append(candidates, DepositCandidate{
+			Signature: sig.Signature, Wallet: wallet.Address, UserID: wallet.UserID,
+			Slot: int64(min(sig.Slot, math.MaxInt64)), BlockTime: sig.BlockTime, Source: depositCandidateSourcePoller,
+		})
+	}
+	return candidates
+}
+
+func cutBeforeTime(page []solana.SignatureInfo, floor time.Time) ([]solana.SignatureInfo, bool) {
+	i := slices.IndexFunc(page, func(sig solana.SignatureInfo) bool { return sig.BlockTime.Before(floor) })
+	if i < 0 {
+		return page, false
+	}
+	return page[:i], true
+}
+
+type seedPlan struct {
+	canonical  chain.SolanaAddress
+	seeds      []watchSeed
+	candidates []DepositCandidate
+	slot       int64
+	opening    string
+	floor      time.Time
+}
+
+func (p *DepositWatch) seedAccount(
+	wallet port.MemberWallet, plan seedPlan, seed watchSeed,
+) sqlc.InsertDepositWatchAccountParams {
+	state := "missing"
+	if seed.state.Exists {
+		state = "open"
+	}
+	params := sqlc.InsertDepositWatchAccountParams{
+		TokenAccount:  string(seed.state.Address),
+		WalletAddress: string(wallet.Address),
+		Canonical:     seed.state.Address == plan.canonical,
+		State:         state,
+		LastAmount:    seed.state.Amount.String(),
+		ObservedSlot:  plan.slot,
+		HighSignature: string(seed.high.Signature),
+		HighSlot:      int64(min(seed.high.Slot, math.MaxInt64)),
+		RecoveryDueAt: p.clock.Now().Add(p.tuning.Spread(p.tuning.Rotation)),
+	}
+	if seed.resume != "" {
+		params.HighSignature, params.HighSlot = "", 0
+		params.DirtyGen, params.DirtySlot = 1, plan.slot
+		params.PageBefore = string(seed.resume)
+		params.PageTopSignature = string(seed.high.Signature)
+		params.PageTopSlot = int64(min(seed.high.Slot, math.MaxInt64))
+		params.HistoryFloor = plan.floor
+	}
+	return params
+}
+
+func (p *DepositWatch) persistSeeds(ctx context.Context, wallet port.MemberWallet, plan seedPlan) error {
+	slot := plan.slot
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		if _, err := q.InsertDepositWatchWallet(ctx, sqlc.InsertDepositWatchWalletParams{
 			WalletAddress: string(wallet.Address), UserID: wallet.UserID.UUID(), FirstSeenSlot: slot,
 			FirstSeenAt: p.clock.Now(), DiscoveryDueAt: p.clock.Now().Add(p.tuning.Spread(p.tuning.Discovery)),
-			OpeningMicros: opening, ReconcileDueAt: p.clock.Now().Add(p.tuning.Spread(DepositResidualInterval)),
+			OpeningMicros: plan.opening, ReconcileDueAt: p.clock.Now().Add(p.tuning.Spread(DepositResidualInterval)),
 		}); err != nil {
 			return err
 		}
-		for _, seed := range seeds {
-			state := "missing"
-			if seed.state.Exists {
-				state = "open"
-			}
-			if err := q.InsertDepositWatchAccount(ctx, sqlc.InsertDepositWatchAccountParams{
-				TokenAccount:  string(seed.state.Address),
-				WalletAddress: string(wallet.Address),
-				Canonical:     seed.state.Address == canonical,
-				State:         state,
-				LastAmount:    seed.state.Amount.String(),
-				ObservedSlot:  slot,
-				HighSignature: string(seed.high.Signature),
-				HighSlot:      int64(min(seed.high.Slot, math.MaxInt64)),
-				RecoveryDueAt: p.clock.Now().Add(p.tuning.Spread(p.tuning.Rotation)),
-			}); err != nil {
+		for _, seed := range plan.seeds {
+			if err := q.InsertDepositWatchAccount(ctx, p.seedAccount(wallet, plan, seed)); err != nil {
 				return err
 			}
 		}
+		if _, err := NewCandidateRecorder(p.ids, p.clock.Now).Record(ctx, tx, plan.candidates); err != nil {
+			return err
+		}
+		faultpoint.Hit(ctx, faultpoint.AfterCandidate)
+		tx.AfterCommit(func(ctx context.Context) { faultpoint.Hit(ctx, faultpoint.AfterCandidate) })
 		return nil
 	})
 	if err != nil {

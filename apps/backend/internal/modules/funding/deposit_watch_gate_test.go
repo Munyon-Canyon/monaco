@@ -283,8 +283,8 @@ func TestDepositWatchTickGatesIdleWalletsInPagesOfOneHundred(t *testing.T) {
 	if err != nil || report.Scanned != 250 {
 		t.Fatalf("Tick = %+v, %v; want 250 accounts gated", report, err)
 	}
-	const finished = "gate=250 gate_calls=3 dirty=0 dirty_calls=0 rotation=0 rotation_calls=0 " +
-		"discovery=0 discovery_calls=0 first_sight=0 first_sight_calls=0 reconcile=0 reconcile_calls=0"
+	const finished = "gate=250 gate_calls=3 dirty=0 dirty_calls=0 first_sight=0 first_sight_calls=0 " +
+		"rotation=0 rotation_calls=0 discovery=0 discovery_calls=0 reconcile=0 reconcile_calls=0"
 	if got := stepAttrs(report); got != finished {
 		t.Fatalf("step attrs = %q, want %q: every step ran and none stopped early", got, finished)
 	}
