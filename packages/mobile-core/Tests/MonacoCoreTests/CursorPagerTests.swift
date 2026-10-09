@@ -296,6 +296,49 @@ final class CursorPagerTests: XCTestCase {
 }
 
 @MainActor
+final class CursorPagerReplaceTests: XCTestCase {
+    func testReplaceSwapsTheListAtOnceAndSettlesByTheNewCursor() async {
+        let pager = CursorPager<PageRow> { _ in throw PagerTestError.boom }
+        pager.replace(items: [PageRow(id: "a"), PageRow(id: "b")], nextCursor: "2")
+        XCTAssertEqual(pager.items.map(\.id), ["a", "b"])
+        XCTAssertEqual(pager.phase, .idle)
+
+        pager.replace(items: [PageRow(id: "x")], nextCursor: nil)
+
+        XCTAssertEqual(pager.items.map(\.id), ["x"])
+        XCTAssertEqual(pager.phase, .exhausted)
+    }
+
+    func testReplaceDropsAnInFlightLoadMoreAndLetsTheNextOneRun() async {
+        let probe = FetchProbe()
+        let pager = CursorPager<PageRow> { cursor in
+            if cursor == nil {
+                return ([PageRow(id: "a")], "2")
+            }
+            return await probe.more()
+        }
+        await pager.loadFirst()
+
+        async let stale: Void = pager.loadMore()
+        var spins = 0
+        while probe.callCount < 1, spins < 1_000 {
+            await Task.yield()
+            spins += 1
+        }
+        pager.replace(items: [PageRow(id: "x")], nextCursor: "n2")
+        XCTAssertEqual(pager.phase, .idle)
+        probe.release()
+        await stale
+
+        XCTAssertEqual(pager.items.map(\.id), ["x"])
+        XCTAssertEqual(pager.phase, .idle)
+        await pager.loadMore()
+        XCTAssertEqual(pager.items.map(\.id), ["x", "b"])
+        XCTAssertEqual(probe.callCount, 2)
+    }
+}
+
+@MainActor
 final class CursorPagerTestsLoadFirst: XCTestCase {
     func testRefreshDuringLoadFirstLeavesTheReloadInCharge() async {
         let holdReload = Mutex(false)

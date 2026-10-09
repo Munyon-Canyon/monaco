@@ -22,7 +22,7 @@ struct LeaderboardHost<Content: View>: View {
         }
         .task(id: reloadID) {
             let loader = preparedLoader()
-            refresh?.register(refreshKey) { await loader.load() }
+            refresh?.register(refreshKey) { await loader.reload() }
             await loader.load()
             await loader.observe()
         }

@@ -113,6 +113,10 @@ public final class LeaderboardLoader {
         }
     }
 
+    public func reload() async {
+        await refresh(toastsFailure: true)
+    }
+
     public func loadMore() async {
         await pager.loadMore()
     }
@@ -159,17 +163,34 @@ public final class LeaderboardLoader {
         }
     }
 
-    private func refresh() async {
-        let depth = pager.items.count
+    private func refresh(toastsFailure: Bool = false) async {
         let before = pager.items.map(\.key)
         let issued = query
-        await pager.loadFirst()
-        while pager.items.count < depth, pager.phase == .idle, issued == query {
-            let count = pager.items.count
-            await pager.loadMore()
-            if pager.items.count == count { break }
+        do {
+            let read = try await readRows(upTo: before.count, for: issued)
+            guard issued == query else { return }
+            notePage(read.lastPage, for: issued)
+            pager.replace(items: read.rows, nextCursor: read.nextCursor)
+            moves = rankChanges(old: before, new: read.rows.map(\.key))
+        } catch {
+            guard toastsFailure, issued == query, !Task.isCancelled else { return }
+            toast = ToastCopy.message(for: APIError(error))
         }
-        if issued == query { moves = rankChanges(old: before, new: pager.items.map(\.key)) }
+    }
+
+    private func readRows(upTo depth: Int, for issued: LeaderboardQuery) async throws -> (
+        rows: [LeaderboardRowView], nextCursor: String?, lastPage: Components.Schemas.LeaderboardPage
+    ) {
+        var rows: [LeaderboardRowView] = []
+        var seen: Set<String> = []
+        var cursor: String?
+        while true {
+            let page = try await Self.page(issued, cursor: cursor, api: api)
+            let added = page.rows.map(LeaderboardRowView.init).filter { seen.insert($0.id).inserted }
+            rows += added
+            cursor = page.nextCursor
+            guard rows.count < depth, cursor != nil, !added.isEmpty else { return (rows, cursor, page) }
+        }
     }
 
     private func notePage(_ page: Components.Schemas.LeaderboardPage, for fetched: LeaderboardQuery) {

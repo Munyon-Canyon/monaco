@@ -69,11 +69,7 @@ public final class CursorPager<Item: Identifiable & Sendable> {
             guard mine == listGeneration, phase != .loadingFirst else { return }
             let pageIDs = Set(page.items.map(\.id))
             if !items.isEmpty && !items.contains(where: { pageIDs.contains($0.id) }) {
-                items = page.items
-                nextCursor = page.nextCursor
-                listGeneration += 1
-                loadingMore = false
-                phase = settled(nextCursor)
+                replace(items: page.items, nextCursor: page.nextCursor)
                 return
             }
             let tail = items.filter { !pageIDs.contains($0.id) }
@@ -90,6 +86,14 @@ public final class CursorPager<Item: Identifiable & Sendable> {
                 phase = .failed(APIError(error))
             }
         }
+    }
+
+    public func replace(items: [Item], nextCursor: String?) {
+        listGeneration += 1
+        loadingMore = false
+        self.items = items
+        self.nextCursor = nextCursor
+        phase = settled(nextCursor)
     }
 
     public func remove(where shouldRemove: (Item) -> Bool) {
