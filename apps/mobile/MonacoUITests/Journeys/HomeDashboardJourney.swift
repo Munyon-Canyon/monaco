@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 2
+    static let version = 3
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -72,8 +72,8 @@ enum HomeDashboardJourney {
             openHome(app)
             app.swipeDown()
             XCTAssertTrue(
-                text(app, "all time").waitForExistence(timeout: 10),
-                "S1.7: no total or \"all time\" chip in the hero within 10 s (known failure, #660)")
+                text(app, "All time").waitForExistence(timeout: 10),
+                "S1.7: no total or \"All time\" chip in the hero within 10 s (known failure, #660)")
         }
 
         recorder.step("S1.8", "the hero shows the P&L chart and its range chips") {
