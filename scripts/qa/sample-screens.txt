@@ -65,13 +65,25 @@ cabal-no-picture              -MonacoGroupDetailSample noPicture
 cabal-picture-not-creator     -MonacoGroupDetailSample pictureNotCreator
 cabal-picture-upload-failure  -MonacoGroupDetailSample pictureUploadFailure
 
+stocks-tab-full               -MonacoStocksTabSample full
+stocks-tab-loading            -MonacoStocksTabSample loading
+stocks-tab-failed             -MonacoStocksTabSample failed
+stocks-tab-empty              -MonacoStocksTabSample empty
+stocks-tab-full-large-text    -MonacoStocksTabSample full -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 asset-open                    -MonacoAssetDetailSample open
-asset-sparse                  -MonacoAssetDetailSample sparse
+asset-not-held                -MonacoAssetDetailSample notHeld
+asset-pre-market              -MonacoAssetDetailSample preMarket
+asset-after-hours             -MonacoAssetDetailSample afterHours
+asset-closed                  -MonacoAssetDetailSample closed
+asset-pre-ipo                 -MonacoAssetDetailSample preIpo
 asset-untradable              -MonacoAssetDetailSample untradable
-asset-fallback-series         -MonacoAssetDetailSample fallbackSeries
 asset-empty-chart             -MonacoAssetDetailSample emptyChart
 asset-chart-failed            -MonacoAssetDetailSample chartFailed
 asset-loading                 -MonacoAssetDetailSample loading
+asset-failed                  -MonacoAssetDetailSample failed
+asset-open-bottom             -MonacoAssetDetailSample open -MonacoSampleScroll bottom
+asset-pre-ipo-bottom          -MonacoAssetDetailSample preIpo -MonacoSampleScroll bottom
+asset-open-large-text         -MonacoAssetDetailSample open -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 
 # Screens around the cabal screen: start, join, and the New cabal sheet.
 group-nav-start               -MonacoGroupNavSample start
@@ -103,7 +115,6 @@ chat-thread-toggle            -MonacoChatThreadSampleQA
 proposal-detail-retryable     -MonacoProposalDetailSample failedRetryable
 proposal-detail-final-failure -MonacoProposalDetailSample failedFinal
 propose-amount-sample         -MonacoProposeAmountSample
-stocks-sections               -MonacoStocksSectionsSample
 
 # Harnesses that take a `-…Harness` flag; the word after it is the mode.
 feed-items                    -feedHarness items

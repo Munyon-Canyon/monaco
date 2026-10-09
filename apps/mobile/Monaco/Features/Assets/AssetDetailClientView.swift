@@ -398,62 +398,6 @@ enum AssetDetailBuyCTA {
     }
 }
 
-#if DEBUG
-private enum AssetDetailClientSampleScenario: String {
-    case open, previousClose, sparse, untradable, fallbackSeries, emptyChart, chartFailed
-    static func matching(_ arguments: [String]) -> Self? {
-        guard let index = arguments.firstIndex(of: "-MonacoAssetDetailSample"), arguments.indices.contains(index + 1)
-        else { return nil }
-        return Self(rawValue: arguments[index + 1])
-    }
-}
-final class AssetDetailClientSampleHarnessEntry: SampleHarnessEntry {
-    @MainActor
-    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = AssetDetailClientSampleScenario.matching(arguments) else { return nil }
-        return AnyView(AssetDetailClientSampleHarness(scenario: scenario))
-    }
-}
-private struct AssetDetailClientSampleHarness: View {
-    let scenario: AssetDetailClientSampleScenario
-    @State private var model: AssetDetailClientModel
-    init(scenario: AssetDetailClientSampleScenario) {
-        self.scenario = scenario
-        let isPreIpo = scenario == .sparse
-        var detail = isPreIpo ? Components.Schemas.AssetDetail.spaceX : .googl
-        if scenario == .untradable { detail.tradable = false }
-        let range: AssetChartRange = scenario == .fallbackSeries ? .oneYear : .oneDay
-        let previousClose: Int64? = scenario == .previousClose ? 176_000_000 : nil
-        let chart =
-            scenario == .emptyChart || scenario == .chartFailed
-            ? nil : Self.chart(range: range, previousClose: previousClose)
-        _model = State(
-            initialValue: AssetDetailClientModel(
-                sampleDetail: detail,
-                chart: chart,
-                selectedRange: range,
-                chartPhase: scenario == .chartFailed ? .failed(APIError(URLError(.cannotLoadFromNetwork))) : .loaded
-            ))
-    }
-
-    var body: some View {
-        NavigationStack { AssetDetailClientView(symbol: model.detail?.symbol ?? "", model: model) }
-            .tint(MonacoTheme.ink)
-    }
-
-    private static func chart(range: AssetChartRange, previousClose: Int64?) -> AssetChartSeries {
-        AssetChartSeries(
-            range: range,
-            points: [
-                .init(timestamp: 1_772_596_200, priceUsdcMicros: 174_000_000),
-                .init(timestamp: 1_772_614_200, priceUsdcMicros: 175_420_000),
-            ],
-            previousCloseUsdcMicros: previousClose
-        )
-    }
-}
-#endif
-
 struct AssetScrubHeader: Equatable {
     let price: String
     let basisPoints: Int64?
