@@ -38,7 +38,7 @@ struct CabalSliceBand: View {
             Rectangle()
                 .fill(MonacoTheme.onHeroHairline)
                 .frame(height: 1)
-                .padding(.bottom, MonacoTheme.Space.s)
+                .padding(.vertical, MonacoTheme.Space.s)
                 .accessibilityHidden(true)
             content()
         }
@@ -61,7 +61,8 @@ struct CabalSliceBand: View {
     private func value(_ slice: CabalPotSummary.Slice) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             Text("Your slice")
-                .font(MonacoTheme.Typo.caption)
+                .font(MonacoTheme.Typo.callout)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(MonacoTheme.onHero)
                 .accessibilityAddTraits(.isHeader)
             Text(slice.value)
@@ -78,13 +79,15 @@ struct CabalSliceBand: View {
         switch slice {
         case .none:
             Text("Fund to get a slice")
-                .font(MonacoTheme.Typo.caption)
+                .font(MonacoTheme.Typo.callout)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(MonacoTheme.onHeroMuted)
                 .accessibilityIdentifier("cabal-slice-none")
         case .stake(_, let ofPot, let gain):
             VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
                 Text(ofPot)
-                    .font(MonacoTheme.Typo.caption)
+                    .font(MonacoTheme.Typo.callout)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(MonacoTheme.onHeroMuted)
                     .accessibilityIdentifier("cabal-slice-share")
                 PnLText(dollarPnl: gain, style: .caption, onInk: true)

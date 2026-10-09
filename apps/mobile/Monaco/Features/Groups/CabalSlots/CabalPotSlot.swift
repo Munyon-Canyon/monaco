@@ -45,7 +45,8 @@ struct CabalPotBand: View {
     var body: some View {
         CabalInkBand {
             Text("In the pot")
-                .font(MonacoTheme.Typo.caption)
+                .font(MonacoTheme.Typo.callout)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(MonacoTheme.onHero)
                 .accessibilityAddTraits(.isHeader)
             content
@@ -94,8 +95,9 @@ private struct AllTimeChip: View {
         Text(label)
             .moneyFont(.caption, weight: .semibold)
             .foregroundStyle(tone.inkCardColor)
-            .lineLimit(1)
-            .padding(.horizontal, MonacoTheme.Space.s)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, MonacoTheme.Space.sm)
             .padding(.vertical, MonacoTheme.Space.xs)
             .background(Capsule().fill(tone.inkCardWash))
             .accessibilityElement(children: .ignore)
@@ -132,8 +134,9 @@ struct CabalInkCaption: View {
 
     var body: some View {
         Text(text)
-            .font(MonacoTheme.Typo.caption)
+            .font(MonacoTheme.Typo.callout)
             .foregroundStyle(MonacoTheme.onHeroMuted)
+            .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier(id)
     }
 }
