@@ -87,16 +87,18 @@ enum HomeDashboardJourney {
     static func emptySendsToBrowse(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S2.1", "no cabal shows the empty state") {
             openHome(app)
-            let title = text(app, "No cabals yet")
+            let title = text(app, "No money in a cabal yet")
             app.scrollIntoReach(title)
-            XCTAssertTrue(title.waitForExistence(timeout: 15), "S2.1: no \"No cabals yet\" within 15 s")
+            XCTAssertTrue(title.waitForExistence(timeout: 15), "S2.1: no \"No money in a cabal yet\" within 15 s")
             XCTAssertTrue(
-                text(app, "Start one with friends or join an open one.").exists,
-                "S2.1: no \"Start one with friends or join an open one.\"")
+                text(
+                    app, "Cabals you fund show up here with their value. Fund one you're in, or find one to join."
+                ).exists,
+                "S2.1: no \"Cabals you fund show up here with their value. Fund one you're in, or find one to join.\"")
         }
 
-        recorder.step("S2.2", "Find a cabal selects the Cabals tab") {
-            let browse = app.buttons["Find a cabal"].firstMatch
+        recorder.step("S2.2", "Go to Cabals selects the Cabals tab") {
+            let browse = app.buttons["Go to Cabals"].firstMatch
             app.scrollIntoReach(browse)
             browse.tap()
             XCTAssertTrue(app.element("cabals-root").waitForExistence(timeout: 10), "S2.2: the Cabals tab did not show")
