@@ -1,4 +1,5 @@
 apps/backend/api/openapi.yaml linguist-generated
+packages/mobile-core/Sources/MonacoAPI/openapi.yaml linguist-generated
 apps/backend/internal/platform/httpx/api/**/*.gen.go linguist-generated
 apps/backend/internal/modules/*/sqlc/*.gen.go
 apps/backend/internal/platform/db/sqlc/*.go
