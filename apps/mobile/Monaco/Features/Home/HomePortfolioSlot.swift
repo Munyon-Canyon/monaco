@@ -38,7 +38,6 @@ private struct HomePortfolioHero: View {
                 content
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.top, MonacoTheme.Space.sm)
-                    .padding(.bottom, MonacoTheme.Space.l)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -95,7 +94,7 @@ private struct HomePortfolioHero: View {
 
     @ViewBuilder private func chip(_ summary: PortfolioSummary) -> some View {
         if summary.isEmpty {
-            Text("\(summary.chip) · all time")
+            Text("\(summary.chip) (0.0%) All time")
                 .moneyFont(.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("home-portfolio-chip")
@@ -103,7 +102,7 @@ private struct HomePortfolioHero: View {
             HStack(spacing: MonacoTheme.Space.s) {
                 PnLBadge(dollarPnl: summary.pnl, percentReturn: summary.returnText)
                     .accessibilityIdentifier("home-portfolio-chip")
-                Text("all time")
+                Text("All time")
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
             }
@@ -203,7 +202,6 @@ struct HomePortfolioSkeleton: View {
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.sm)
-        .padding(.bottom, MonacoTheme.Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement()
         .accessibilityLabel("Loading your money in cabals")

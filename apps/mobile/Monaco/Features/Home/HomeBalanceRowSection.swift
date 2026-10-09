@@ -45,7 +45,6 @@ struct HomeBalanceRowSection: View {
             actions
                 .padding(.leading, PlatformBalanceCard.leadingInset)
                 .padding(.trailing, MonacoTheme.Space.gutter)
-                .padding(.bottom, MonacoTheme.Space.sm)
         }
         .onChange(of: HomeReadStatus(model?.state ?? .loading), initial: true) { _, status in
             reads?.report(.balance, status)

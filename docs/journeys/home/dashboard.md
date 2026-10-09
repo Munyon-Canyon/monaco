@@ -1,7 +1,7 @@
 ---
 id: home/dashboard
 title: The Home dashboard
-version: 2
+version: 3
 milestone: M16
 requires: [auth/sign-in]
 actors: [A, C]
@@ -37,7 +37,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the row for `QA home {QA.run}` are still there within 15 s (screens.md Home: "Pull to refresh."; old app: `HomeView` `.refreshable`) |
 | S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `QA home {QA.run}` within 15 s (screens.md `HomeCabalsSlot`: "Row opens `CabalRoute`"; old app: `HomeView` cabal row opens `GroupDetailView`) |
 | S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-header` shows within 15 s (screens.md Home: "the viewer's avatar at the top right opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
-| S1.7 | A | tap, then read | the Home tab, then the hero | | The hero shows a total in dollars and the chip's "all time" within 10 s (screens.md `HomePortfolioSlot`: "the total in `moneyFont(.hero)`", "a chip "▲ $0.14 · 0.1%" and "all time""; old app: `HomeView` hero total and gain chip) |
+| S1.7 | A | tap, then read | the Home tab, then the hero | | The hero shows a total in dollars and the chip's "All time" within 10 s (screens.md `HomePortfolioSlot`: "the total in `moneyFont(.hero)`", "a chip "▲ $0.14 · 0.1%" and "All time""; old app: `HomeView` hero total and gain chip) |
 | S1.8 | A | read | the hero chart | | `home-pnl-chart` and the range chip "1D" show within 10 s (screens.md `HomePortfolioSlot`: "an area chart of `GET /v1/me/pnl-history` with range chips 1H to All (default 1D)"; old app: `HomeView` P&L chart and range chips) |
 
 ### S2 A member with no cabal is sent to browse
