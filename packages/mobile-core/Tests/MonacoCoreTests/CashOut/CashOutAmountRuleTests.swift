@@ -21,21 +21,23 @@ final class CashOutAmountRuleTests: XCTestCase {
     func testNothingTypedIsNotASale() {
         XCTAssertEqual(verdict(0), .noAmount)
         XCTAssertFalse(CashOutAmountRule.Verdict.noAmount.maySubmit)
-        XCTAssertNil(CashOutAmountRule.problem(for: .noAmount))
+        XCTAssertNil(CashOutAmountRule.problem(for: .noAmount, minimumMicros: floor))
         XCTAssertEqual(CashOutAmountRule.submitTitle(for: .noAmount, enteredMicros: 0, sliceMicros: slice), "Cash out")
     }
 
     func testUnderTheFloorIsTooSmall() {
         XCTAssertEqual(verdict(50_000), .belowMinimum)
         XCTAssertFalse(CashOutAmountRule.Verdict.belowMinimum.maySubmit)
-        XCTAssertEqual(CashOutAmountRule.problem(for: .belowMinimum), "Too small to cash out")
+        XCTAssertEqual(
+            CashOutAmountRule.problem(for: .belowMinimum, minimumMicros: floor), "The minimum is $0.10.")
+        XCTAssertEqual(CashOutAmountRule.tooSmall, "Too small to cash out")
         XCTAssertNil(CashOutAmountRule.sale(for: .belowMinimum, enteredMicros: 50_000))
     }
 
     func testOverTheSliceIsRefusedWithoutAProblemLine() {
         XCTAssertEqual(verdict(slice + 1), .overSlice)
         XCTAssertFalse(CashOutAmountRule.Verdict.overSlice.maySubmit)
-        XCTAssertNil(CashOutAmountRule.problem(for: .overSlice))
+        XCTAssertNil(CashOutAmountRule.problem(for: .overSlice, minimumMicros: floor))
         XCTAssertNil(CashOutAmountRule.sale(for: .overSlice, enteredMicros: slice + 1))
     }
 
@@ -50,13 +52,18 @@ final class CashOutAmountRuleTests: XCTestCase {
         XCTAssertEqual(
             CashOutAmountRule.submitTitle(for: promoted, enteredMicros: entered, sliceMicros: slice), "Cash out $50.00")
         XCTAssertEqual(
-            CashOutAmountRule.helper(for: promoted, sliceMicros: slice), "We'll cash out your whole slice, $50.00")
+            CashOutAmountRule.helper(
+                for: promoted, enteredMicros: entered, sliceMicros: slice, minimumMicros: floor),
+            "That leaves less than $0.10, so this cashes out all of it")
         XCTAssertTrue(CashOutAmountRule.explainer(for: promoted).contains("your whole slice"))
+        XCTAssertTrue(CashOutAmountRule.explainer(for: promoted).hasSuffix("and you stay in the cabal with no slice."))
     }
 
     func testARemainderExactlyAtTheFloorStaysPartial() {
         XCTAssertEqual(verdict(slice - floor), .ok)
-        XCTAssertEqual(CashOutAmountRule.helper(for: .ok, sliceMicros: slice), "Your slice is worth $50.00")
+        XCTAssertEqual(
+            CashOutAmountRule.helper(for: .ok, enteredMicros: slice - floor, sliceMicros: slice, minimumMicros: floor),
+            "Your slice is worth $50.00")
         XCTAssertTrue(CashOutAmountRule.explainer(for: .ok).contains("this much of your slice"))
     }
 
@@ -65,13 +72,31 @@ final class CashOutAmountRuleTests: XCTestCase {
         let all: Int64 = 12_340_000
         let whole = CashOutAmountRule.verdict(enteredMicros: all, sliceMicros: fractional, minimumMicros: floor)
 
-        XCTAssertEqual(CashOutAmountRule.helper(for: .ok, sliceMicros: fractional), "Your slice is worth $12.34")
+        XCTAssertEqual(
+            CashOutAmountRule.helper(for: .ok, enteredMicros: 1_000_000, sliceMicros: fractional, minimumMicros: floor),
+            "Your slice is worth $12.34")
         XCTAssertEqual(whole, .sellsWholeSlice)
         XCTAssertEqual(
-            CashOutAmountRule.helper(for: whole, sliceMicros: fractional), "We'll cash out your whole slice, $12.34")
+            CashOutAmountRule.helper(
+                for: whole, enteredMicros: all, sliceMicros: fractional, minimumMicros: floor),
+            "We'll cash out your whole slice, $12.34")
         XCTAssertEqual(
             CashOutAmountRule.submitTitle(for: whole, enteredMicros: all, sliceMicros: fractional), "Cash out $12.34")
         XCTAssertEqual(CashOutAmountRule.sale(for: whole, enteredMicros: all), .all)
+    }
+
+    func testTypingJustUnderTheSliceExplainsWhyTheButtonFlips() {
+        let slice: Int64 = 10_500_000
+        let entered: Int64 = 9_750_000
+        let flipped = CashOutAmountRule.verdict(enteredMicros: entered, sliceMicros: slice, minimumMicros: 1_000_000)
+
+        XCTAssertEqual(flipped, .sellsWholeSlice)
+        XCTAssertEqual(
+            CashOutAmountRule.helper(
+                for: flipped, enteredMicros: entered, sliceMicros: slice, minimumMicros: 1_000_000),
+            "That leaves less than $1.00, so this cashes out all of it")
+        XCTAssertEqual(
+            CashOutAmountRule.submitTitle(for: flipped, enteredMicros: entered, sliceMicros: slice), "Cash out $10.50")
     }
 
     func testTheWholeSliceIsAFullExit() {

@@ -16,7 +16,8 @@ struct CashOutView: View {
             model: model,
             runningJob: environment.cashOuts.job(for: cabalID),
             amountText: $amountText,
-            onSubmit: { Task { await submit() } }
+            onSubmit: { Task { await submit() } },
+            onFund: { environment.navigator.open(FundRoute(cabalID: cabalID), in: environment.navigator.selectedTab) }
         )
         .task {
             let model = self.model ?? CashOutModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
@@ -48,20 +49,20 @@ struct CashOutContent: View {
     let runningJob: CashOutJob?
     @Binding var amountText: String
     let onSubmit: () -> Void
+    let onFund: () -> Void
 
     private var enteredMicros: Int64 { AmountEntryText.micros(amountText) ?? 0 }
 
     var body: some View {
         ScrollView {
             content
-                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.top, MonacoTheme.Space.s)
                 .padding(.bottom, MonacoTheme.Space.s)
         }
         .scrollBounceBehavior(.basedOnSize)
         .monacoCanvas()
         .safeAreaInset(edge: .bottom) {
-            if runningJob == nil, let preview = model?.preview, canEnterAmount(preview) {
+            if runningJob == nil, let preview = model?.preview, Self.canEnterAmount(preview) {
                 submitBar(preview)
             }
         }
@@ -79,6 +80,7 @@ struct CashOutContent: View {
                     .foregroundStyle(MonacoTheme.ink)
             }
             .frame(maxWidth: .infinity)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.xl)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("cash-out-progress")
@@ -86,6 +88,7 @@ struct CashOutContent: View {
             switch model?.state ?? .loading {
             case .idle, .loading:
                 AmountEntrySkeleton()
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .accessibilityIdentifier("cash-out-loading")
             case .failed:
                 MonacoErrorRow(thing: "your slice", identifier: "cash-out-error") {
@@ -101,11 +104,13 @@ struct CashOutContent: View {
         VStack(spacing: MonacoTheme.Space.l) {
             if let pause = preview.pause {
                 CabalPauseRow(pause: pause)
-            }
-            if !preview.hasStake {
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+            } else if !preview.hasStake {
                 EmptyState(
                     title: "Nothing to cash out yet",
-                    message: "Add money to this cabal first. Your slice shows up here."
+                    message: "Fund this cabal first. Your slice shows up here.",
+                    actionTitle: "Fund",
+                    action: onFund
                 )
                 .accessibilityIdentifier("cash-out-empty")
             } else if preview.sliceIsBelowMinimum {
@@ -116,6 +121,7 @@ struct CashOutContent: View {
                 .accessibilityIdentifier("cash-out-below-minimum")
             } else {
                 amountEntry(preview)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
             }
         }
     }
@@ -136,9 +142,11 @@ struct CashOutContent: View {
                 .fraction(0.5, label: "50%"),
                 .fraction(1, label: "All"),
             ],
-            helper: CashOutAmountRule.helper(for: verdict, sliceMicros: preview.sliceMicros),
+            helper: CashOutAmountRule.helper(
+                for: verdict, enteredMicros: enteredMicros, sliceMicros: preview.sliceMicros,
+                minimumMicros: preview.minMicros),
             overLimitHelper: "More than your slice",
-            problem: CashOutAmountRule.problem(for: verdict),
+            problem: CashOutAmountRule.problem(for: verdict, minimumMicros: preview.minMicros),
             input: .keypad
         ) {
             AmountEntryNote(CashOutAmountRule.explainer(for: verdict))
@@ -147,8 +155,8 @@ struct CashOutContent: View {
         .accessibilityIdentifier("cash-out-amount")
     }
 
-    private func canEnterAmount(_ preview: CashOutPreview) -> Bool {
-        preview.hasStake && !preview.sliceIsBelowMinimum
+    static func canEnterAmount(_ preview: CashOutPreview) -> Bool {
+        preview.pause == nil && preview.hasStake && !preview.sliceIsBelowMinimum
     }
 
     private func submitBar(_ preview: CashOutPreview) -> some View {
@@ -161,7 +169,7 @@ struct CashOutContent: View {
                 SubmitLabel(isWorking: isSubmitting, idle: title, working: title)
             }
             .buttonStyle(.monacoPrimary)
-            .disabled(isSubmitting || !verdict.maySubmit || preview.pause != nil)
+            .disabled(isSubmitting || !verdict.maySubmit)
             .accessibilityIdentifier("cash-out-submit")
         }
     }
@@ -200,7 +208,7 @@ private struct CashOutHarnessScreen: View {
 
     var body: some View {
         NavigationStack {
-            CashOutContent(model: model, runningJob: runningJob, amountText: $amountText, onSubmit: {})
+            CashOutContent(model: model, runningJob: runningJob, amountText: $amountText, onSubmit: {}, onFund: {})
                 .task {
                     let created = model ?? CashOutModel.preview(preview)
                     model = created

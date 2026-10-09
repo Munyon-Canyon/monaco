@@ -59,5 +59,5 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Not covered
 
-- "Too small to cash out" under $0.10, and "Nothing to cash out yet" / "Add money to this cabal first. Your slice shows up here." for a member with no slice. Both need the live screen (#657).
+- "Too small to cash out" under $0.10, and "Nothing to cash out yet" / "Fund this cabal first. Your slice shows up here." for a member with no slice. Both need the live screen (#657).
 - Inline address errors on Withdraw. `WithdrawRouteTests` covers them.
