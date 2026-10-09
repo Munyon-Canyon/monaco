@@ -11,9 +11,8 @@ struct SettingsCopyTests {
     @Test func theRowsReadInScreenOrder() {
         #expect(
             SettingsRow.allCases.map(\.title) == [
-                "Notifications", "Activity", "Withdraw", "Blocked people", "Advanced", "Delete account",
+                "Notifications", "Activity", "Withdraw", "Blocked people", "Block explorers", "Delete account",
             ])
-        #expect(SettingsRow.advanced.subtitle == "Block explorers")
     }
 
     @Test func theBlockedPeopleRowOpensItsScreen() {

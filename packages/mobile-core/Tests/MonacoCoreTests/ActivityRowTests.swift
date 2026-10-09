@@ -22,6 +22,12 @@ final class ActivityRowTests: XCTestCase {
         }
     }
 
+    func testTheTimeFollowsA24HourLocale() throws {
+        let gb = Locale(identifier: "en_GB")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:05:00Z", locale: gb).age, "3 Oct at 15:05")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:05:00Z", locale: gb).fullDate, "3 Oct 2026 at 15:05")
+    }
+
     func testATradeWithoutAKnownAssetSaysOnlyWhatHappened() throws {
         XCTAssertEqual(try makeRow(kind: .buy, asset: nil).title, "Bought")
         XCTAssertEqual(try makeRow(kind: .sell, asset: nil).title, "Sold")
@@ -62,9 +68,9 @@ final class ActivityRowTests: XCTestCase {
     }
 
     func testTheAgeShowsTheTimeThisYearAndTheYearOtherwise() throws {
-        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z").age, "Oct 3, 3:00 PM")
+        XCTAssertEqual(try makeRow(at: "2026-10-03T15:00:00Z").age, "Oct 3 at 3:00\u{202F}PM")
         XCTAssertEqual(try makeRow(at: "2025-10-03T15:00:00Z").age, "Oct 3, 2025")
-        XCTAssertEqual(try makeRow(at: "2025-10-03T15:00:00Z").fullDate, "Oct 3, 2025 at 3:00 PM")
+        XCTAssertEqual(try makeRow(at: "2025-10-03T15:00:00Z").fullDate, "Oct 3, 2025 at 3:00\u{202F}PM")
     }
 
     func testSolscanLinksTheTransactionOnlyOnceItWasSent() throws {
@@ -96,14 +102,15 @@ final class ActivityRowTests: XCTestCase {
         micros: Int64? = 25_000_000,
         actor: Activity.ActorPayload? = nil,
         signature: String? = "signature-1",
-        at occurred: String = "2026-10-03T15:00:00Z"
+        at occurred: String = "2026-10-03T15:00:00Z",
+        locale: Locale = Locale(identifier: "en_US_POSIX")
     ) throws -> ActivityRow {
         let activity = Activity(
             id: "activity-1", kind: kind, status: status, asset: asset, usdcMicros: micros, units: nil, actor: actor,
             txSignature: signature, occurredAt: try Self.date(occurred))
         return ActivityRow(
             activity, now: try Self.date("2026-10-04T12:00:00Z"),
-            timeZone: try XCTUnwrap(TimeZone(secondsFromGMT: 0)))
+            timeZone: try XCTUnwrap(TimeZone(secondsFromGMT: 0)), locale: locale)
     }
 
     private static func date(_ iso: String) throws -> Date {

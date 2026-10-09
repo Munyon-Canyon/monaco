@@ -43,6 +43,11 @@ struct DeleteAccountContent: View {
 
     private var isDeleting: Bool { model?.isDeleting ?? false }
 
+    private var canDelete: Bool {
+        if case .loaded(let checklist) = model?.state { return checklist.isCashedOut && checklist.isWithdrawn }
+        return false
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
@@ -68,7 +73,7 @@ struct DeleteAccountContent: View {
                     }
                 }
                 .buttonStyle(.monacoDestructive)
-                .disabled(isDeleting)
+                .disabled(isDeleting || !canDelete)
                 .accessibilityIdentifier("delete-account-button")
                 .confirmationDialog(AccountCopy.confirmTitle, isPresented: $confirming, titleVisibility: .visible) {
                     Button(AccountCopy.confirmDelete, role: .destructive) {
@@ -128,7 +133,7 @@ struct DeleteAccountContent: View {
                     NavigationLink(value: AnyAppRoute(WithdrawRoute())) {
                         MonacoRow(
                             title: AccountCopy.accountBalance, chevron: true, isLast: true,
-                            leading: { StockMark(systemImage: "arrow.down.left") },
+                            leading: { StockMark(systemImage: "arrow.up.right") },
                             trailing: {
                                 Text(amount)
                                     .moneyFont(.row)

@@ -13,20 +13,16 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .activity: "Activity"
         case .withdraw: "Withdraw"
         case .blockedPeople: "Blocked people"
-        case .advanced: "Advanced"
+        case .advanced: "Block explorers"
         case .deleteAccount: "Delete account"
         }
-    }
-
-    var subtitle: String? {
-        self == .advanced ? "Block explorers" : nil
     }
 
     var systemImage: String {
         switch self {
         case .notifications: "bell"
         case .activity: "clock.arrow.circlepath"
-        case .withdraw: "arrow.down.left"
+        case .withdraw: "arrow.up.right"
         case .blockedPeople: "hand.raised"
         case .advanced: "link"
         case .deleteAccount: "trash"
@@ -211,7 +207,6 @@ struct SettingsList: View {
         MonacoRow(
             title: row.title,
             titleColor: row == .deleteAccount ? MonacoTheme.destructive : MonacoTheme.ink,
-            subtitle: row.subtitle,
             chevron: row != .deleteAccount,
             isLast: row == SettingsRow.allCases.last,
             leading: { StockMark(systemImage: row.systemImage) }

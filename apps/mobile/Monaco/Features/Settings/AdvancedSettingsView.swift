@@ -5,8 +5,6 @@ struct AdvancedSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                MonacoSectionHeader("Block explorers")
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
                     ForEach(SettingsAdvancedLinks.explorerLinks) { link in
                         Link(destination: link.url) {
@@ -35,7 +33,7 @@ struct AdvancedSettingsView: View {
             .padding(.vertical, MonacoTheme.Space.m)
         }
         .monacoCanvas()
-        .navigationTitle("Advanced")
+        .navigationTitle("Block explorers")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

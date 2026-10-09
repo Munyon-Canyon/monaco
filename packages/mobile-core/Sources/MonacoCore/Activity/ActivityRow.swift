@@ -47,7 +47,10 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
     public let actorHandle: String?
     public let solscanURL: URL?
 
-    public init(_ activity: Components.Schemas.CabalActivity, now: Date, timeZone: TimeZone = .current) {
+    public init(
+        _ activity: Components.Schemas.CabalActivity, now: Date, timeZone: TimeZone = .current,
+        locale: Locale = .autoupdatingCurrent
+    ) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let sameYear = calendar.component(.year, from: activity.occurredAt) == calendar.component(.year, from: now)
@@ -59,8 +62,9 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         self.title = headline.title
         self.status = Status(activity.status)
         self.offersRetry = status == .failed && kind.isSwap
-        self.age = Self.string(activity.occurredAt, sameYear ? "MMM d, h:mm a" : "MMM d, yyyy", calendar)
-        self.fullDate = Self.string(activity.occurredAt, "MMM d, yyyy 'at' h:mm a", calendar)
+        let short: SharedFormatters.DatePattern = sameYear ? .template("MMMdjmm") : .template("yMMMd")
+        self.age = Self.string(activity.occurredAt, short, calendar, locale)
+        self.fullDate = Self.string(activity.occurredAt, .template("yMMMdjmm"), calendar, locale)
         self.amount = activity.usdcMicros.map { UsdAmountFormatter.format(micros: $0) }
         self.assetLine = activity.asset.map { "\($0.name) · \(AssetSymbolFormatter.display($0.symbol))" }
         self.actorName = activity.actor.map { $0.displayName.isEmpty ? "@\($0.handle)" : $0.displayName }
@@ -69,7 +73,10 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         self.solscanURL = activity.txSignature.flatMap { URL(string: "https://solscan.io/tx/\($0)") }
     }
 
-    public init(_ swap: Components.Schemas.SwapDetail, now: Date, timeZone: TimeZone = .current) {
+    public init(
+        _ swap: Components.Schemas.SwapDetail, now: Date, timeZone: TimeZone = .current,
+        locale: Locale = .autoupdatingCurrent
+    ) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let at = swap.confirmedAt ?? swap.createdAt
@@ -87,8 +94,9 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
             case .failed: .failed
             }
         self.offersRetry = false
-        self.age = Self.string(at, sameYear ? "MMM d, h:mm a" : "MMM d, yyyy", calendar)
-        self.fullDate = Self.string(at, "MMM d, yyyy 'at' h:mm a", calendar)
+        let short: SharedFormatters.DatePattern = sameYear ? .template("MMMdjmm") : .template("yMMMd")
+        self.age = Self.string(at, short, calendar, locale)
+        self.fullDate = Self.string(at, .template("yMMMdjmm"), calendar, locale)
         self.amount = swap.usdcMicros.map { UsdAmountFormatter.format(micros: $0) }
         self.assetLine = "\(swap.assetName) · \(AssetSymbolFormatter.display(swap.symbol))"
         self.actorName = nil
@@ -108,9 +116,10 @@ public struct ActivityRow: Identifiable, Equatable, Sendable {
         }
     }
 
-    private static func string(_ date: Date, _ pattern: String, _ calendar: Calendar) -> String {
-        SharedFormatters.string(
-            from: date, pattern: .fixed(pattern), locale: Locale(identifier: "en_US_POSIX"), calendar: calendar)
+    private static func string(
+        _ date: Date, _ pattern: SharedFormatters.DatePattern, _ calendar: Calendar, _ locale: Locale
+    ) -> String {
+        SharedFormatters.string(from: date, pattern: pattern, locale: locale, calendar: calendar)
     }
 }
 
