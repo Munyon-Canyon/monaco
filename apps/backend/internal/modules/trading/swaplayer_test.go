@@ -384,6 +384,21 @@ func TestSwapLayer_OrderAtTheReviewQuoteIsSigned(t *testing.T) {
 	}
 }
 
+func TestSwapLayer_OrderInsideTheCabalSlippageOfTheReviewQuoteIsSigned(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	req := e.request(e.source())
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
+	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
+		RequestID: "req-1", Transaction: swapTx(),
+		OutAmount: money.NewBaseUnits(req.QuoteOutAmount-req.QuoteOutAmount/200, 6),
+	})
+	got, err := e.run(t, req)
+	if err != nil || got.Status != domain.StatusSubmitted {
+		t.Fatalf("view = %+v, %v, want submitted for an order 0.5%% under the quote at 100 bps", got, err)
+	}
+}
+
 func TestSwapLayer_ForeignRowIsReturnedWithoutAnEvent(t *testing.T) {
 	t.Parallel()
 	e := newLayerEnv(t)
