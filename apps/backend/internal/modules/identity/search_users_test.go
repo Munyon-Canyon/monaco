@@ -87,6 +87,25 @@ func TestSearchUsers_AtAndCase(t *testing.T) {
 	}
 }
 
+func TestSearchUsers_nameFallsBackToTheHandle(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	caller := f.seed(t, portSeed{handle: "caller"})
+	quiet := f.seed(t, portSeed{handle: "quietkai"})
+	named := f.seed(t, portSeed{handle: "quietmaya", name: "Maya Lin"})
+	users, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, "quiet")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[ids.UserID]string{}
+	for _, user := range users {
+		got[user.ID] = user.DisplayName
+	}
+	if len(got) != 2 || got[quiet.ID] != "quietkai" || got[named.ID] != "Maya Lin" {
+		t.Fatalf("display names = %v, want the handle for %s and %q for %s", got, quiet.ID, "Maya Lin", named.ID)
+	}
+}
+
 func TestSearchUsers_FollowFailureFails(t *testing.T) {
 	t.Parallel()
 	f := newPortFixture(t)
