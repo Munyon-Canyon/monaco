@@ -141,6 +141,7 @@ public final class FeedModel {
             return nil
         }
         pager.remove { FeedMuteMatcher.removes(option.target, $0) }
+        if pager.items.isEmpty, pager.phase == .idle { await reload() }
         return FeedMuteReceipt(target: option.target, message: option.toast)
     }
 

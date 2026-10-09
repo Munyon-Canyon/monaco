@@ -148,7 +148,62 @@ final class FeedModelTests: XCTestCase {
         XCTAssertEqual(sent, 1)
     }
 
+    func testMutingEveryLoadedItemLoadsTheNextItemsInsteadOfASkeleton() async throws {
+        let trades = Self.trades(count: FeedModel.pageSize)
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(trades, next: "c2")),
+            .json(.noContent, ""),
+            .json(.ok, try Self.page([samples[0], samples[2]])),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        let receipt = await model.mute(try muteTradesOption(model, trades[0]))
+        XCTAssertNotNil(receipt)
+        XCTAssertEqual(model.phase, .loaded)
+        XCTAssertEqual(model.items.map(\.id), [samples[0].id, samples[2].id])
+        let sent = await queries(transport)
+        XCTAssertEqual(sent.count, 3)
+        XCTAssertNil(sent.last?["cursor"])
+    }
+
+    func testMutingEveryLoadedItemWithNothingLeftOnTheServerIsEmpty() async throws {
+        let trades = Self.trades(count: FeedModel.pageSize)
+        let transport = StubTransport(scripted: [.json(.ok, try Self.page(trades)), .json(.noContent, "")])
+        let model = makeModel(transport)
+        await model.load()
+        _ = await model.mute(try muteTradesOption(model, trades[0]))
+        XCTAssertEqual(model.phase, .empty(query: nil))
+        let sent = await transport.sent.count
+        XCTAssertEqual(sent, 2)
+    }
+
+    func testMutingSomeLoadedItemsKeepsTheRestWithoutReloading() async throws {
+        let trades = Self.trades(count: FeedModel.pageSize - 1)
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(trades + [samples[0]], next: "c2")),
+            .json(.noContent, ""),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        _ = await model.mute(try muteTradesOption(model, trades[0]))
+        XCTAssertEqual(model.items.map(\.id), [samples[0].id])
+        let sent = await transport.sent.count
+        XCTAssertEqual(sent, 2)
+    }
+
     private static let viewerID = "01890a5d-ac96-774b-bcce-b302099a8058"
+
+    private static func trades(count: Int) -> [Components.Schemas.FeedItem] {
+        (0..<count).map { index in
+            var item = Components.Schemas.FeedItem.samples[1]
+            item.id = "trade-\(index)"
+            return item
+        }
+    }
+
+    private func muteTradesOption(_ model: FeedModel, _ item: Components.Schemas.FeedItem) throws -> FeedMuteOption {
+        try XCTUnwrap(model.muteOptions(for: item).first { $0.menuTitle == "Mute Trades" })
+    }
 
     private static func profile(followingCount: Int) -> String {
         """
