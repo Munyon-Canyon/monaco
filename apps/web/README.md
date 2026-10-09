@@ -96,6 +96,16 @@ Set all of them on both Production and Preview, then:
 2. Check `https://monacolabs.xyz/api/health` returns `"status": "ok"`.
 3. Sign up once and confirm the row lands in `waitlist`.
 
+### Fund page for staging
+
+One page at one URL carries one `VITE_PRIVY_APP_ID`, and staging and production use different Privy apps, so staging needs its own deployment of this project:
+
+1. A second project (or a Vercel branch deployment with its own domain) built from `staging`, with `VITE_MONACO_API_URL` set to the staging API, `VITE_PRIVY_APP_ID` set to the staging Privy app id and `VITE_PRIVY_ENV=sandbox`.
+2. Staging's `FUND_PAGE_URL` set to that deployment's `/fund` URL, and its origin added to `WEB_ALLOWED_ORIGINS`.
+3. The staging domain allow-listed as an app domain in the staging Privy app.
+
+`.github/workflows/web-deploy-check.yml` curls `/fund` on every successful Vercel deployment and fails unless it answers 200. Production builds from `main`, so `/fund` only exists there after the fund page is promoted from `staging`.
+
 Notes:
 
 - `public/_headers` replaces `vercel.json`'s headers. Keep the two in sync while both hosts
