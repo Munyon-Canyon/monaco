@@ -16,13 +16,11 @@ public enum AccountCopy {
     public static let cancel = "Cancel"
     public static let deleting = "Deleting…"
     public static let deleted = "Your account was deleted."
-    public static let loadFailed = "Couldn't load your account."
-    public static let tryAgain = "Try again"
     public static let cashOutFirst = "Cash out of every cabal first."
     public static let withdrawFirst = "Withdraw your balance first."
 
     public static let auditedStrings = [
         deleteTitle, explainer, cashOutStep, yourSlice("$0.00"), noCabalMoney, withdrawStep, accountBalance, done,
-        confirmTitle, confirmDelete, cancel, deleting, deleted, loadFailed, tryAgain, cashOutFirst, withdrawFirst,
+        confirmTitle, confirmDelete, cancel, deleting, deleted, cashOutFirst, withdrawFirst,
     ]
 }
