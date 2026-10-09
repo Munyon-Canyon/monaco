@@ -213,7 +213,7 @@ struct ProposalCard: View {
                         .font(MonacoTheme.Typo.calloutStrong)
                         .foregroundStyle(MonacoTheme.brand)
                     Spacer()
-                    Button("Change") { changing = true }.buttonStyle(.monacoSecondary)
+                    Button("Change") { changing = true }.buttonStyle(.monacoSecondary).monacoFullWidthButtons(false)
                 }
             } else {
                 HStack(spacing: MonacoTheme.Space.s) {
@@ -228,7 +228,6 @@ struct ProposalCard: View {
                     }.buttonStyle(.monacoSecondary)
                         .accessibilityAddTraits(ballot == "no" ? .isSelected : [])
                 }
-                .monacoFullWidthButtons()
             }
         }
     }

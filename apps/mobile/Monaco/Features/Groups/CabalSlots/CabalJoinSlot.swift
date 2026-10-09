@@ -136,7 +136,6 @@ struct CabalJoinSection: View {
                 isWorking: model.isBusy, idle: idle, working: model.joinPolicy == .open ? "Joining…" : "Sending…")
         }
         .buttonStyle(.monacoPrimary)
-        .monacoFullWidthButtons()
         .disabled(model.isBusy)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityIdentifier("cabal-join-button")

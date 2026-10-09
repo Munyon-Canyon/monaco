@@ -129,7 +129,6 @@ private struct InviteLinkCard: View {
                 .buttonStyle(.monacoSecondary)
                 .accessibilityIdentifier("invite-copy")
             }
-            .monacoFullWidthButtons()
             .padding(.top, MonacoTheme.Space.xs)
         }
         .padding(MonacoTheme.Space.m)
@@ -180,7 +179,6 @@ private struct InviteUnlockPrompt: View {
                 .accessibilityIdentifier("invite-unlock")
             Button(InviteCopy.deposit, action: deposit)
                 .buttonStyle(.monacoSecondary)
-                .monacoFullWidthButtons()
                 .accessibilityIdentifier("invite-deposit")
         }
         .padding(.top, MonacoTheme.Space.s)

@@ -60,7 +60,6 @@ struct CabalLeaveSection: View {
                 if offersCashOut {
                     Button("Cash out") { cashOut() }
                         .buttonStyle(.monacoSecondary)
-                        .monacoFullWidthButtons()
                         .accessibilityIdentifier("cabalLeaveCashOutButton")
                 }
             }
@@ -77,7 +76,6 @@ struct CabalLeaveSection: View {
     private func leaveButton(_ standing: LeaveStanding) -> some View {
         Button("Leave cabal", role: .destructive) { confirming = true }
             .buttonStyle(.monacoDestructive)
-            .monacoFullWidthButtons()
             .disabled(model?.isLeaving ?? false)
             .accessibilityIdentifier("cabalLeaveButton")
             .confirmationDialog("Leave \(standing.cabalName)?", isPresented: $confirming, titleVisibility: .visible) {

@@ -272,7 +272,6 @@ struct DepositAddressCard: View {
                     onCopy(address)
                 }
                 .buttonStyle(.monacoPrimary)
-                .monacoFullWidthButtons()
                 .accessibilityIdentifier(copyIdentifier)
 
                 HStack(spacing: MonacoTheme.Space.s) {

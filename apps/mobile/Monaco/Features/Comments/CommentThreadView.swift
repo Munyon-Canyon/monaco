@@ -35,6 +35,7 @@ struct CommentThreadView: View {
                 Spacer(minLength: MonacoTheme.Space.s)
                 Button(CommentsCopy.tryAgain) { Task { await model.load() } }
                     .buttonStyle(.monacoSecondary)
+                    .monacoFullWidthButtons(false)
                     .accessibilityIdentifier("comment-thread-retry")
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
