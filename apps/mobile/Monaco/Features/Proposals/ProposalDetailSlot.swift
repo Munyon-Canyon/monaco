@@ -92,7 +92,7 @@ struct ProposalDetailSlotView: View {
             pause?.setVisible($0)
         }
         .onChange(of: model?.value?.summary.status) { old, new in
-            showBurst = new == .executed && old != nil && old != .executed && model?.value?.summary.kind == "buy"
+            showBurst = bursts(from: old, to: new)
         }
         .confirmationDialog("Withdraw this proposal?", isPresented: $confirmingWithdrawal, titleVisibility: .visible) {
             Button("Withdraw", role: .destructive) {
@@ -220,6 +220,11 @@ struct ProposalDetailSlotView: View {
             }
             if showBurst { ProposalCoinBurst() }
         }
+    }
+
+    private func bursts(from old: ProposalStatus?, to new: ProposalStatus?) -> Bool {
+        guard let old, let new else { return false }
+        return new == .executed && old != .executed && model?.value?.summary.kind == "buy"
     }
 
     private func preparedModel() -> ProposalDetailModel {
