@@ -72,7 +72,7 @@ private struct CabalHero: View {
             .accessibilityLabel("Loading this cabal")
             .accessibilityIdentifier("cabal-header-loading")
         case .failed:
-            MonacoErrorRow(thing: "this cabal", identifier: "cabal-header-failed", retry: retry)
+            MonacoErrorRow(thing: "this cabal", identifier: "cabal-header-failed", inset: false, retry: retry)
         case .loaded(let cabal):
             identity(cabal)
         }

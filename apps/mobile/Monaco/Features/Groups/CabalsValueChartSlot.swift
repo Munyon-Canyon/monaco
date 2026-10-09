@@ -26,10 +26,10 @@ private struct CabalsValueChart: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             if CabalsValueChartSlot.shows(phase) {
                 MonacoSectionHeader("Your cabals' return")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                 content
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabals-value-chart")
@@ -53,6 +53,7 @@ private struct CabalsValueChart: View {
         switch phase {
         case .loading, .hidden:
             SkeletonBlock(height: 160, radius: 12)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("cabals-value-chart-loading")
         case .failed:
             MonacoErrorRow(thing: "your cabals' return", identifier: "cabals-value-chart-error") {
@@ -60,7 +61,10 @@ private struct CabalsValueChart: View {
             }
         case .loaded:
             if let model {
-                loaded(model)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    loaded(model)
+                }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             }
         }
     }

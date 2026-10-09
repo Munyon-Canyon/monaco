@@ -458,6 +458,7 @@ struct EmptyState: View {
 struct MonacoErrorRow: View {
     let thing: String
     let identifier: String
+    var inset = true
     let retry: () -> Void
 
     private var retryIdentifier: String {
@@ -477,7 +478,7 @@ struct MonacoErrorRow: View {
                 .buttonStyle(.monacoText)
                 .accessibilityIdentifier(retryIdentifier)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.horizontal, inset ? MonacoTheme.Space.gutter : 0)
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: MonacoRowLayout.minHeight)
         .accessibilityElement(children: .contain)

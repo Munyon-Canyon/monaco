@@ -37,18 +37,22 @@ struct CabalProposals: View {
                 switch model.pager.phase {
                 case .loadingFirst where model.pager.items.isEmpty:
                     ProposalCardSkeleton()
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                 case .failed where model.pager.items.isEmpty:
                     MonacoErrorRow(thing: "votes", identifier: "cabal-votes-error") { Task { await model.load() } }
                 default:
                     if !model.pager.items.isEmpty, context?.hasLoaded != true {
                         ProposalCardSkeleton()
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
                     } else {
-                        content(model)
+                        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                            content(model)
+                        }
+                        .padding(.horizontal, MonacoTheme.Space.gutter)
                     }
                 }
             }
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
         .task {
             let model = preparedModel()
             refresh?.register("cabal-proposals") { await model.refresh() }
@@ -259,12 +263,14 @@ private struct CabalProposalSegmentList: View {
                     switch model.pager.phase {
                     case .idle, .loadingFirst:
                         ProposalCardSkeleton()
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
                     case .failed:
                         MonacoErrorRow(thing: "proposals", identifier: "cabal-proposals-error") {
                             Task { await model.load() }
                         }
                     default:
                         EmptyState(title: segment.emptyTitle)
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
                     }
                 }
                 ForEach(model.pager.items) { proposal in
@@ -272,12 +278,12 @@ private struct CabalProposalSegmentList: View {
                         proposal: proposal, voting: voting, asset: context.assets[proposal.symbol],
                         members: context.members, onVoted: onVoted
                     )
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
                     .onAppear {
                         if proposal.id == model.pager.items.last?.id { Task { await model.pager.loadMore() } }
                     }
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.m)
         }
         .task { await model.load() }

@@ -50,7 +50,7 @@ private struct CabalValueChart: View {
                 SkeletonBlock(height: 160, radius: 12)
                     .accessibilityIdentifier("cabal-value-chart-loading")
             case .failed:
-                MonacoErrorRow(thing: "the pot's history", identifier: "cabal-value-chart-failed") {
+                MonacoErrorRow(thing: "the pot's history", identifier: "cabal-value-chart-failed", inset: false) {
                     Task { await model.load() }
                 }
             case .loaded:
