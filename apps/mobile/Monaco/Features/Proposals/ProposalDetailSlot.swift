@@ -54,10 +54,10 @@ struct ProposalDetailSlotView: View {
                         .accessibilityIdentifier("proposal-withdraw")
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                     }
-                    votes(detail).padding(.horizontal, MonacoTheme.Space.gutter)
+                    votes(detail)
                     reason(detail)
                     expected(detail)
-                    status(detail).padding(.horizontal, MonacoTheme.Space.gutter)
+                    status(detail)
                 }
                 .padding(.top, MonacoTheme.Space.m)
             } else if model?.errorMessage != nil {
@@ -120,6 +120,7 @@ struct ProposalDetailSlotView: View {
         let needed = max(tally.needed, 1)
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Votes")
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule()
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 Text("\(groups.yes.count) yes · \(groups.no.count) no · \(groups.notVoted.count) not voted")
@@ -153,6 +154,7 @@ struct ProposalDetailSlotView: View {
                 }
                 .frame(height: 44)
             }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule()
         }
         .accessibilityIdentifier("proposal-votes")
@@ -166,9 +168,11 @@ struct ProposalDetailSlotView: View {
 
     @ViewBuilder private func expected(_ detail: ProposalDetail) -> some View {
         let summary = detail.summary
-        if let line = ProposalCardCopy.expected(
-            isSell: summary.kind == "sell", quoteOut: summary.quoteOutAmount, usdcMicros: summary.usdcMicros,
-            decimals: model?.asset?.decimals ?? AssetCatalogDefaults.decimals, kind: model?.asset?.kind ?? .stock)
+        let isPending = summary.status == .open || summary.status == .passed
+        if isPending, summary.swap?.status != "failed",
+            let line = ProposalCardCopy.expected(
+                isSell: summary.kind == "sell", quoteOut: summary.quoteOutAmount, usdcMicros: summary.usdcMicros,
+                decimals: model?.asset?.decimals ?? AssetCatalogDefaults.decimals, kind: model?.asset?.kind ?? .stock)
         {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 MonacoSectionHeader("Expected")
@@ -189,8 +193,10 @@ struct ProposalDetailSlotView: View {
             statusMessage: summary.statusMessage)
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoSectionHeader("Status")
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule()
             ProposalStepperView(stepper: stepper)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule()
             if model?.retryableSwapID != nil {
                 Button("Retry") {
