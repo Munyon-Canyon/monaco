@@ -126,6 +126,22 @@ func (q *Queries) PendingBackfills(ctx context.Context, arg PendingBackfillsPara
 	return items, nil
 }
 
+const queueAllListedBackfills = `-- name: QueueAllListedBackfills :execrows
+INSERT INTO price_backfills (mint, requested_at)
+SELECT a.mint, $1::timestamptz
+FROM assets AS a
+WHERE a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
+ON CONFLICT (mint) DO NOTHING
+`
+
+func (q *Queries) QueueAllListedBackfills(ctx context.Context, now time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, queueAllListedBackfills, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const queueNewListingBackfills = `-- name: QueueNewListingBackfills :execrows
 INSERT INTO price_backfills (mint, requested_at)
 SELECT a.mint, $1::timestamptz

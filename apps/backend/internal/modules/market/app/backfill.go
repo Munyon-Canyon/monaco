@@ -115,6 +115,19 @@ func (b *Backfill) RunAll(ctx context.Context) (BackfillResult, error) {
 	return b.Run(ctx, mints)
 }
 
+func (b *Backfill) QueueAll(ctx context.Context) (int, error) {
+	var queued int64
+	err := b.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		queued, err = sqlc.New(tx.Queries()).QueueAllListedBackfills(ctx, b.clock.Now())
+		return err
+	})
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeOf(err), "market.Backfill.QueueAll")
+	}
+	return int(queued), nil
+}
+
 func (b *Backfill) hotListed(ctx context.Context) ([]string, error) {
 	all, err := b.catalog.ListAll(ctx)
 	if err != nil {

@@ -100,7 +100,13 @@ func TestBackfillPrices_refusesBadArgumentsAndAMissingKeyBeforeTouchingTheDataba
 	environ := opsEnv(unreachable)
 	aapl := marketfake.AAPLx().Mint.String()
 	for _, args := range [][]string{
-		{}, {"--all", "--mint", aapl}, {"--mint", aapl, "extra"}, {"--bogus"}, {"--all", "extra"},
+		{},
+		{"--all", "--mint", aapl},
+		{"--mint", aapl, "extra"},
+		{"--bogus"},
+		{"--all", "extra"},
+		{"--queue-all", "--all"},
+		{"--queue-all", "--mint", aapl},
 	} {
 		code, stdout, stderr := pricesRun(environ, &marketfake.PriceHistoryFake{}, args...)
 		if code != 2 || stdout != "" || stderr != backfillPricesUsage+"\n" {
@@ -141,5 +147,60 @@ func TestBackfillPrices_theRealToolRoutesPricesAndNeverPollsWithoutAKey(t *testi
 	code, stdout, stderr := runOps(environ, "backfill", "prices", "--all")
 	if code != 1 || stdout != "" || stderr != "monacoctl: COINGECKO_API_KEY is not set\n" {
 		t.Fatalf("backfill prices --all with no key = %d, %q, %q, want 1 and the missing key", code, stdout, stderr)
+	}
+}
+
+func TestBackfillPrices_queueAllQueuesListedTradableMintsAndLeavesExistingRowsAlone(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	const aapl, tsla, jpst, nvda = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+		"XsCAXu7xTaZMG9b9KJhNWYapuvNjxPuE4SysZq8uvMq", "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh"
+	_, err := pool.Exec(t.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
+		issuer_tradable, tradable_override, company_key, first_seen_at, updated_at, chain_checked_at)
+		VALUES ('01920000-0000-7000-8000-000000000001', 'AAPLx', '`+aapl+`', 8, 'xstocks', 'equity', 'Apple xStock', true, NULL, 'apple', now(), now(), now()),
+		('01920000-0000-7000-8000-000000000002', 'TSLAx', '`+tsla+`', 8, 'xstocks', 'equity', 'Tesla xStock', false, true, 'tesla', now(), now(), now()),
+		('01920000-0000-7000-8000-000000000003', 'JPSTx', '`+jpst+`', 8, 'xstocks', 'equity', 'JPMorgan xStock', true, false, 'jpm', now(), now(), now()),
+		('01920000-0000-7000-8000-000000000004', 'NVDAx', '`+nvda+`', 8, 'xstocks', 'equity', 'Nvidia xStock', true, NULL, 'nvidia', now(), now(), NULL);
+		INSERT INTO price_backfills (mint, requested_at, done_at) VALUES ('`+aapl+`', now() - interval '2 days', now() - interval '1 day')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	history := &marketfake.PriceHistoryFake{}
+	history.WithoutKey()
+	code, stdout, stderr := pricesRun(opsEnv(pool.Config().ConnString()), history, "--queue-all")
+	if want := "backfill prices: queued 1 mints\n"; code != 0 || stdout != want || stderr != "" {
+		t.Fatalf("backfill prices --queue-all = %d, stdout %q, stderr %q, want %q", code, stdout, stderr, want)
+	}
+	rows := map[string]bool{}
+	r, err := pool.Query(t.Context(), `SELECT mint, done_at IS NOT NULL FROM price_backfills`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for r.Next() {
+		var mint string
+		var done bool
+		if err := r.Scan(&mint, &done); err != nil {
+			t.Fatal(err)
+		}
+		rows[mint] = done
+	}
+	if want := map[string]bool{aapl: true, tsla: false}; !maps.Equal(rows, want) {
+		t.Fatalf("price_backfills = %v, want the old AAPLx row still done and TSLAx newly pending", rows)
+	}
+	if len(history.Calls()) != 0 {
+		t.Fatalf("CoinGecko calls = %d, want none", len(history.Calls()))
+	}
+}
+
+func TestBackfillPrices_queueAllFailsWhenTheQueueCannotBeWritten(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `DROP TABLE price_backfills`); err != nil {
+		t.Fatal(err)
+	}
+	code, stdout, stderr := pricesRun(opsEnv(pool.Config().ConnString()), &marketfake.PriceHistoryFake{}, "--queue-all")
+	if code != 1 || stdout != "" || stderr == "" {
+		t.Fatalf("backfill prices --queue-all = %d, %q, %q, want 1, no stdout and an error", code, stdout, stderr)
 	}
 }
