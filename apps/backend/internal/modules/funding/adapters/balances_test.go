@@ -107,6 +107,8 @@ func (o balanceOutflows) InFlightMicros(context.Context, ids.UserID) (money.Micr
 	return o.amount, o.err
 }
 
+func (o balanceOutflows) LastChange(context.Context, ids.UserID) (time.Time, error) { return time.Time{}, nil }
+
 func TestBalancesAvailableReturnsDependenciesErrors(t *testing.T) {
 	t.Parallel()
 	boom := errs.New(errs.CodeInternal, "test")
@@ -210,9 +212,11 @@ func (r *flakyRPC) TokenBalance(context.Context, chain.SolanaAddress, chain.Mint
 }
 
 type mutableOutflows struct {
-	mu     sync.Mutex
-	amount money.Micros
-	err    error
+	mu        sync.Mutex
+	amount    money.Micros
+	err       error
+	changed   time.Time
+	changeErr error
 }
 
 func (o *mutableOutflows) set(amount money.Micros, err error) {
@@ -227,25 +231,39 @@ func (o *mutableOutflows) InFlightMicros(context.Context, ids.UserID) (money.Mic
 	return o.amount, o.err
 }
 
+func (o *mutableOutflows) change(at time.Time, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.changed, o.changeErr = at, err
+}
+
+func (o *mutableOutflows) LastChange(context.Context, ids.UserID) (time.Time, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.changed, o.changeErr
+}
+
 type displayRig struct {
-	b     *adapters.Balances
-	rpc   *flakyRPC
-	funds *mutableOutflows
-	clock *testkit.Clock
-	user  ids.UserID
-	start time.Time
+	b           *adapters.Balances
+	rpc         *flakyRPC
+	funds       *mutableOutflows
+	withdrawals *mutableOutflows
+	clock       *testkit.Clock
+	user        ids.UserID
+	start       time.Time
 }
 
 func newDisplayRig() displayRig {
 	rpc := &flakyRPC{amount: money.NewBaseUnits(10, 6)}
-	funds := &mutableOutflows{}
+	funds, withdrawals := &mutableOutflows{}, &mutableOutflows{amount: money.MicrosFromUint64(2)}
 	start := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
 	clk := testkit.NewClock(start)
 	return displayRig{
 		b: adapters.NewBalances(balanceWallets{address: "wallet"}, func() adapters.TokenBalances { return rpc },
-			adapters.Outflows{Funds: funds, Withdrawals: balanceOutflows{amount: money.MicrosFromUint64(2)}},
+			adapters.Outflows{Funds: funds, Withdrawals: withdrawals},
 			clk, chain.Mint{Address: "usdc", Decimals: 6}),
-		rpc: rpc, funds: funds, clock: clk, user: ids.UserIDFrom(ids.Real{}.NewV7()), start: start,
+		rpc: rpc, funds: funds, withdrawals: withdrawals, clock: clk, user: ids.UserIDFrom(ids.Real{}.NewV7()),
+		start: start,
 	}
 }
 
@@ -295,7 +313,19 @@ func TestBalance_ForDisplayWithoutFreshReadingFails(t *testing.T) {
 			t.Fatalf("Available error = %v", err)
 		}
 		r.rpc.fail(errs.New(errs.CodeInternal, "test"))
-		if _, err := r.b.ForDisplay(t.Context(), r.user); errs.CodeOf(err) != errs.CodeInternal {
+		if _, err := r.b.ForDisplay(t.Context(), r.user); err == nil || errs.CodeOf(err) != errs.CodeInternal {
+			t.Fatalf("ForDisplay error = %v", err)
+		}
+	})
+	t.Run("last change read fails on the cached path", func(t *testing.T) {
+		t.Parallel()
+		r := newDisplayRig()
+		if _, err := r.b.Available(t.Context(), r.user); err != nil {
+			t.Fatalf("Available error = %v", err)
+		}
+		r.rpc.fail(down)
+		r.withdrawals.change(time.Time{}, errs.New(errs.CodeInternal, "test"))
+		if _, err := r.b.ForDisplay(t.Context(), r.user); err == nil || errs.CodeOf(err) != errs.CodeInternal {
 			t.Fatalf("ForDisplay error = %v", err)
 		}
 	})
@@ -307,7 +337,7 @@ func TestBalance_ForDisplayWithoutFreshReadingFails(t *testing.T) {
 		}
 		r.rpc.fail(down)
 		r.funds.set(money.Micros{}, errs.New(errs.CodeInternal, "test"))
-		if _, err := r.b.ForDisplay(t.Context(), r.user); errs.CodeOf(err) != errs.CodeInternal {
+		if _, err := r.b.ForDisplay(t.Context(), r.user); err == nil || errs.CodeOf(err) != errs.CodeInternal {
 			t.Fatalf("ForDisplay error = %v", err)
 		}
 	})
@@ -322,5 +352,83 @@ func TestBalance_AvailableIgnoresCachedReading(t *testing.T) {
 	r.rpc.fail(errs.New(errs.CodeRPCUnavailable, "test"))
 	if _, err := r.b.Available(t.Context(), r.user); errs.CodeOf(err) != errs.CodeRPCUnavailable {
 		t.Fatalf("Available error = %v, want rpc_unavailable", err)
+	}
+}
+
+func TestBalance_ForDisplayServesTheReadingOnlyWhenNoOutflowMovedSince(t *testing.T) {
+	t.Parallel()
+	for _, outflow := range []string{"fund", "withdrawal"} {
+		for name, tc := range map[string]struct {
+			since  time.Duration
+			served bool
+		}{
+			"moved before the reading": {since: -time.Minute, served: true},
+			"moved at the reading":     {since: 0, served: false},
+			"moved after the reading":  {since: time.Minute, served: false},
+		} {
+			t.Run(outflow+" "+name, func(t *testing.T) {
+				t.Parallel()
+				r := newDisplayRig()
+				if _, err := r.b.ForDisplay(t.Context(), r.user); err != nil {
+					t.Fatalf("live ForDisplay error = %v", err)
+				}
+				moved := map[string]*mutableOutflows{"fund": r.funds, "withdrawal": r.withdrawals}[outflow]
+				moved.change(r.start.Add(tc.since), nil)
+				r.clock.Advance(2 * time.Minute)
+				r.rpc.fail(errs.New(errs.CodeRPCUnavailable, "test"))
+				got, err := r.b.ForDisplay(t.Context(), r.user)
+				if tc.served && (err != nil || !got.AsOf.Equal(r.start) || got.AvailableMicros.String() != "8") {
+					t.Fatalf("ForDisplay = %+v, %v, want the reading from %s", got, err, r.start)
+				}
+				if !tc.served && errs.CodeOf(err) != errs.CodeRPCUnavailable {
+					t.Fatalf("ForDisplay = %+v, %v, want rpc_unavailable", got, err)
+				}
+			})
+		}
+	}
+}
+
+type commitmentRPC map[string]money.BaseUnits
+
+func (r commitmentRPC) TokenBalance(context.Context, chain.SolanaAddress, chain.Mint) (money.BaseUnits, error) {
+	return r["confirmed"], nil
+}
+
+func (r commitmentRPC) TokenBalanceAt(
+	_ context.Context, _ chain.SolanaAddress, _ chain.Mint, commitment string,
+) (money.BaseUnits, error) {
+	return r[commitment], nil
+}
+
+func TestBalance_AvailableSubtractsALandedOutflowOnce(t *testing.T) {
+	t.Parallel()
+	usd := func(dollars uint64) money.Micros { return money.MicrosFromUint64(dollars * 1_000_000) }
+	for name, tc := range map[string]struct{ confirmed, fund, withdrawal, want uint64 }{
+		"fund 40 of 100":           {confirmed: 60, fund: 40, want: 60},
+		"withdraw 40 of 100":       {confirmed: 60, withdrawal: 40, want: 60},
+		"max withdrawal of 100":    {confirmed: 0, withdrawal: 100, want: 0},
+		"fund 40 then withdraw 60": {confirmed: 0, fund: 40, withdrawal: 60, want: 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			logs := &testkit.Logs{}
+			ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+			rpc := commitmentRPC{
+				"confirmed": money.NewBaseUnits(usd(tc.confirmed).Uint64(), 6),
+				"finalized": money.NewBaseUnits(usd(100).Uint64(), 6),
+			}
+			b := adapters.NewBalances(balanceWallets{address: "wallet"}, func() adapters.TokenBalances { return rpc },
+				adapters.Outflows{
+					Funds: balanceOutflows{amount: usd(tc.fund)}, Withdrawals: balanceOutflows{amount: usd(tc.withdrawal)},
+				},
+				testkit.NewClock(time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)), chain.Mint{Address: "usdc", Decimals: 6})
+			got, err := b.Available(ctx, ids.UserIDFrom(ids.Real{}.NewV7()))
+			if err != nil || got.OnChainMicros != usd(100) || got.AvailableMicros != usd(tc.want) {
+				t.Fatalf("Available = %+v, %v, want 100 on chain and %d available", got, err, tc.want)
+			}
+			if len(logs.Bytes()) != 0 {
+				t.Fatalf("logs = %s, want no funding.balance.clamped while the outflow settles", logs.Bytes())
+			}
+		})
 	}
 }
