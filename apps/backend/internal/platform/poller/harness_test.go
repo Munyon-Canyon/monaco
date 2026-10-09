@@ -64,6 +64,22 @@ func (l lines) expect(t *testing.T, msg string) map[string]any {
 	}
 }
 
+func (l lines) take(t *testing.T, n int) map[string]int {
+	t.Helper()
+	counts := map[string]int{}
+	deadline := time.NewTimer(30 * time.Second)
+	defer deadline.Stop()
+	for range n {
+		select {
+		case line := <-l:
+			counts[line["msg"].(string)]++
+		case <-deadline.C:
+			t.Fatalf("got %v within 30s, want %d log lines", counts, n)
+		}
+	}
+	return counts
+}
+
 type harness struct {
 	pool   *pgxpool.Pool
 	clock  *testkit.Clock

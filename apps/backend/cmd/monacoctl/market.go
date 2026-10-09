@@ -26,12 +26,13 @@ func marketTool(environ []string, clk clock.Clock) tool {
 }
 
 func holdRetention(ctx context.Context, pool *pgxpool.Pool) (bool, func(), error) {
-	lock := db.NewLock(pool, "poller:market.retention")
-	held, err := lock.Hold(ctx)
+	const key = "poller:market.retention"
+	locks := db.NewLocks(pool)
+	held, err := locks.Hold(ctx, key)
 	if err != nil || !held {
 		return held, nil, err
 	}
-	return true, func() { _ = lock.Release(ctx) }, nil
+	return true, func() { _ = locks.Release(ctx, key) }, nil
 }
 
 func marketToolWithLock(environ []string, clk clock.Clock, lock retentionLock) tool {

@@ -35,8 +35,8 @@ func TestAttempt_logsAndRepanicsAFaultpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lock := db.NewLock(pool, "poller:faultpoint")
-	t.Cleanup(func() { _ = lock.Release(t.Context()) })
+	locks := db.NewLocks(pool)
+	t.Cleanup(func() { _ = locks.Release(t.Context(), "poller:fixture.crash") })
 	var logs bytes.Buffer
 	ctx := observability.WithLogger(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)))
 	defer func() {
@@ -48,7 +48,7 @@ func TestAttempt_logsAndRepanicsAFaultpoint(t *testing.T) {
 			t.Fatalf("logs = %s", got)
 		}
 	}()
-	runner.attempt(ctx, crashingPoller{}, lock)
+	runner.attempt(ctx, crashingPoller{}, locks)
 }
 
 func TestTick_repanicsAFaultpoint(t *testing.T) {

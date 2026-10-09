@@ -65,14 +65,11 @@ func (r *Runner) Run(ctx context.Context, pollers ...Poller) error {
 		}
 		seen[p.Name()] = true
 	}
-	if maxConns := int(r.pool.Config().MaxConns); maxConns <= len(pollers) {
-		panic(fmt.Sprintf("poller.Runner.Run: pool MaxConns %d must exceed the %d pollers that each hold a connection",
-			maxConns, len(pollers)))
-	}
+	locks := db.NewLocks(r.pool)
 	released := make([]error, len(pollers))
 	var wg sync.WaitGroup
 	for i, p := range pollers {
-		wg.Go(func() { released[i] = r.loop(ctx, p) })
+		wg.Go(func() { released[i] = r.loop(ctx, p, locks) })
 	}
 	wg.Wait()
 	return errors.Join(released...)
@@ -84,27 +81,28 @@ func (r *Runner) LastTick(name string) time.Time {
 	return r.last[name]
 }
 
-func (r *Runner) loop(ctx context.Context, p Poller) error {
-	lock := db.NewLock(r.pool, "poller:"+p.Name())
+func (r *Runner) loop(ctx context.Context, p Poller, locks *db.Locks) error {
 	ticker := r.clock.NewTicker(p.Interval())
 	defer ticker.Stop()
 	for {
-		r.attempt(ctx, p, lock)
+		r.attempt(ctx, p, locks)
 		select {
 		case <-ctx.Done():
-			return lock.Release(ctx)
+			return locks.Release(ctx, lockKey(p))
 		case <-ticker.C():
 		}
 	}
 }
 
-func (r *Runner) attempt(ctx context.Context, p Poller, lock *db.Lock) {
+func lockKey(p Poller) string { return "poller:" + p.Name() }
+
+func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks) {
 	name := p.Name()
 	ctx = faultpoint.WithFlow(ctx, flow(name))
 	defer recoverAttempt(ctx, name)
 	r.mark(name, r.clock.Now())
 	lockCtx, cancelLock := context.WithTimeout(ctx, lockTimeout)
-	held, err := lock.Hold(lockCtx)
+	held, err := locks.Hold(lockCtx, lockKey(p))
 	cancelLock()
 	if err != nil {
 		r.fail(ctx, name, err)

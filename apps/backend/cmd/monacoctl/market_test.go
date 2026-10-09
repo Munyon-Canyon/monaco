@@ -147,12 +147,12 @@ func TestMarketThinPrices_skipsWhenTheWorkerHoldsTheLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lock := db.NewLock(pool, "poller:market.retention")
-	held, err := lock.Hold(t.Context())
+	locks := db.NewLocks(pool)
+	held, err := locks.Hold(t.Context(), "poller:market.retention")
 	if err != nil || !held {
 		t.Fatalf("Hold = %v, %v, want the worker's lock", held, err)
 	}
-	t.Cleanup(func() { _ = lock.Release(context.Background()) })
+	t.Cleanup(func() { _ = locks.Release(context.Background(), "poller:market.retention") })
 	environ := []string{"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=nats://unused"}
 	var stdout, stderr bytes.Buffer
 	code := marketTool(environ, testkit.NewClock(now))([]string{"thin-prices"}, &stdout, &stderr)
