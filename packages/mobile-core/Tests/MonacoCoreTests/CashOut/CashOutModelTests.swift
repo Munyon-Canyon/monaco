@@ -48,7 +48,7 @@ final class CashOutModelTests: XCTestCase {
         guard case .started(let job) = result else {
             return XCTFail("expected a job, got \(String(describing: result))")
         }
-        XCTAssertEqual(job.startedToast, "Cashing out $200.15. It lands in your balance in about a minute")
+        XCTAssertEqual(job.startedToast, "Cashing out $200.15. It lands in your balance in about a minute.")
         let sent = await transport.sent
         XCTAssertEqual(sent.last?.method, .post)
         XCTAssertEqual(sent.last?.path, cashOutsPath)

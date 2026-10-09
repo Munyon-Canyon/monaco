@@ -101,7 +101,7 @@ public struct CashOutJob: Equatable, Sendable {
     }
 
     public var startedToast: String {
-        "Cashing out \(amount). It lands in your balance in about a minute"
+        "Cashing out \(amount). It lands in your balance in about a minute."
     }
 
     public var outcome: CashOutNotice? {
@@ -121,7 +121,7 @@ public struct CashOutJob: Equatable, Sendable {
         }
     }
 
-    private var amount: String { UsdAmountFormatter.format(micros: payoutMicros) }
+    private var amount: String { UsdAmountFormatter.format(flooredMicros: payoutMicros) }
 
     static func failure(_ code: String?) -> String {
         switch code {

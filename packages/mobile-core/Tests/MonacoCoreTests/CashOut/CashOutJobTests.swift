@@ -41,7 +41,21 @@ final class CashOutJobTests: XCTestCase {
     }
 
     func testTheStartedToastNamesTheJobsAmount() {
-        XCTAssertEqual(job(.started).startedToast, "Cashing out $1.00. It lands in your balance in about a minute")
+        XCTAssertEqual(job(.started).startedToast, "Cashing out $1.00. It lands in your balance in about a minute.")
+    }
+
+    func testEveryToastFloorsThePayoutToTheCentsTheButtonNames() {
+        let payout: Int64 = 10_505_000
+        XCTAssertEqual(
+            CashOutAmountRule.submitTitle(for: .ok, enteredMicros: payout, sliceMicros: 20_000_000), "Cash out $10.50")
+        func job(_ status: CashOutJob.Status) -> CashOutJob {
+            CashOutJob(id: "j", cabalID: "c", status: status, payoutMicros: payout, resultCode: nil)
+        }
+        XCTAssertEqual(job(.started).startedToast, "Cashing out $10.50. It lands in your balance in about a minute.")
+        XCTAssertEqual(job(.completed).outcome?.message, "Cashed out $10.50. It's in your balance.")
+        XCTAssertEqual(
+            job(.partial).outcome?.message,
+            "Cashed out $10.50, what the sale raised. You keep the shares it didn't cover.")
     }
 
     func testPauseRowsAreCompleteSentencesInProductWords() {
