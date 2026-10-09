@@ -67,10 +67,13 @@ final class CommentsModelTests: XCTestCase {
         ])
         await model.load()
         XCTAssertFalse(model.canComment)
+        XCTAssertFalse(model.canCommentKnown)
+        XCTAssertTrue(model.canCommentFailed)
 
         await model.refresh()
 
         XCTAssertTrue(model.canComment)
+        XCTAssertFalse(model.canCommentFailed)
     }
 
     func testASuccessfulPostRecordsTheCreatedCommentAndAFailedOneLeavesItAlone() async throws {

@@ -6,7 +6,13 @@ struct CommentComposerBar: View {
     var onDidStandDown: () -> Void = {}
 
     var body: some View {
-        if !model.canCommentKnown {
+        if model.canCommentFailed {
+            MonacoErrorRow(thing: "the comment box", identifier: "comment-composer-error") {
+                Task { await model.retryCanComment() }
+            }
+            .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) { MonacoRule() }
+        } else if !model.canCommentKnown {
             EmptyView()
         } else if model.canComment {
             CommentComposer(

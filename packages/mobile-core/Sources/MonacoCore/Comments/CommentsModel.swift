@@ -23,6 +23,7 @@ public final class CommentsModel {
     public private(set) var isPosting = false
     public private(set) var lastPostedID: String?
     public private(set) var canCommentKnown = false
+    public private(set) var canCommentFailed = false
     public private(set) var replyTarget: CommentThreadRow?
     public private(set) var notice: Notice?
     public private(set) var noticeTick = 0
@@ -46,6 +47,8 @@ public final class CommentsModel {
     }
 
     public var rows: [CommentThreadRow] { CommentThreadRow.rows(from: pager.items) }
+
+    public var commentCount: Int { rows.filter { !$0.isDeleted }.count }
 
     public var hasMore: Bool { pager.phase != .exhausted && !pager.items.isEmpty }
 
@@ -158,11 +161,21 @@ public final class CommentsModel {
         }
     }
 
+    public func retryCanComment() async {
+        await loadCanComment()
+    }
+
     private func loadCanComment() async {
         guard !canCommentKnown else { return }
-        guard let allowed = try? await source.canComment() else { return }
-        canComment = allowed
-        canCommentKnown = true
+        do {
+            canComment = try await source.canComment()
+            canCommentKnown = true
+            canCommentFailed = false
+        } catch is FeedItemNotLoaded {
+            return
+        } catch {
+            if !Task.isCancelled { canCommentFailed = true }
+        }
     }
 
     private func noteRefreshFailure() {
