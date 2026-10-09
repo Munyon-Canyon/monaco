@@ -86,15 +86,39 @@ func (d DeleteDevUserDeps) checkDevUser(ctx context.Context, row DevUserDeletion
 	if privyFound && !devOnly {
 		return "", false, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "privy_user_is_not_dev_only"))
 	}
-	if row.WalletAddress == "" {
-		return privyID, privyFound, nil
-	}
-	usdc, lamports, err := d.Balances.Balances(ctx, chain.SolanaAddress(row.WalletAddress))
-	if err != nil {
+	if err := d.checkFunds(ctx, row, privyID, privyFound); err != nil {
 		return "", false, err
 	}
-	if usdc > 0 || lamports > DustLamports {
-		return "", false, &FundedError{Address: row.WalletAddress, USDCMicros: usdc, Lamports: lamports}
-	}
 	return privyID, privyFound, nil
+}
+
+func (d DeleteDevUserDeps) checkFunds(
+	ctx context.Context,
+	row DevUserDeletion,
+	privyID PrivyUserID,
+	privyFound bool,
+) error {
+	addresses := []chain.SolanaAddress{chain.SolanaAddress(row.WalletAddress)}
+	if row.WalletAddress == "" {
+		if !privyFound {
+			return nil
+		}
+		var err error
+		if addresses, err = d.Privy.Wallets(ctx, privyID); err != nil {
+			return err
+		}
+		if len(addresses) == 0 {
+			return errs.New(errs.CodeInvalidInput, "identity.DeleteDevUser", slog.String("reason", "no_wallet_found"))
+		}
+	}
+	for _, address := range addresses {
+		usdc, lamports, err := d.Balances.Balances(ctx, address)
+		if err != nil {
+			return err
+		}
+		if usdc > 0 || lamports > DustLamports {
+			return &FundedError{Address: string(address), USDCMicros: usdc, Lamports: lamports}
+		}
+	}
+	return nil
 }

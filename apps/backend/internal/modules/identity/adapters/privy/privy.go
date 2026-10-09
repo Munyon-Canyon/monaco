@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	chainprivy "github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 )
 
@@ -68,6 +69,10 @@ func (u Users) Delete(ctx context.Context, id app.PrivyUserID) error {
 		return nil
 	}
 	return err
+}
+
+func (u Users) Wallets(ctx context.Context, id app.PrivyUserID) ([]chain.SolanaAddress, error) {
+	return u.Client.ListUserWallets(ctx, chainprivy.UserID(id))
 }
 
 func (u Users) User(ctx context.Context, id app.PrivyUserID) (app.PrivyUser, error) {
