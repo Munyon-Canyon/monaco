@@ -87,10 +87,11 @@ private struct ProfileFollowCountLinks: View {
 
     private func link(_ count: String, _ word: String, _ kind: FollowListKind, id: String) -> some View {
         NavigationLink(value: AnyAppRoute(FollowListRoute(userID: userID, kind: kind))) {
-            (Text(count).font(MonacoTheme.Typo.rowTitle).foregroundStyle(MonacoTheme.ink)
-                + Text(" \(word)").font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.secondaryText))
-                .lineLimit(1)
-                .frame(minHeight: 44)
+            Text(
+                "\(Text(count).font(MonacoTheme.Typo.rowTitle).foregroundStyle(MonacoTheme.ink)) \(Text(word).font(MonacoTheme.Typo.callout).foregroundStyle(MonacoTheme.secondaryText))"
+            )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)
