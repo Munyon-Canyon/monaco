@@ -31,19 +31,18 @@ final class AppNavigator {
 
     func open(_ route: some AppRoute, in tab: MainTab) {
         selectedTab = tab
+        let path = binding(for: tab)
         let wrapped = AnyAppRoute(route)
-        switch tab {
-        case .home: homePath.append(wrapped)
-        case .feed: feedPath.append(wrapped)
-        case .cabals: cabalsPath.append(wrapped)
-        case .stocks: stocksPath.append(wrapped)
-        case .profile: profilePath.append(wrapped)
-        }
+        guard path.wrappedValue.last != wrapped else { return }
+        path.wrappedValue.append(wrapped)
+    }
+
+    func open(cabalID: String, then route: some AppRoute, in tab: MainTab) {
+        open(chain: [CabalRoute(id: cabalID), route], in: tab)
     }
 
     func openTransaction(cabalID: String, transactionID: String, in tab: MainTab) {
-        open(
-            chain: [CabalRoute(id: cabalID), TransactionRoute(cabalID: cabalID, transactionID: transactionID)], in: tab)
+        open(cabalID: cabalID, then: TransactionRoute(cabalID: cabalID, transactionID: transactionID), in: tab)
     }
 
     func open(chain: [any AppRoute], in tab: MainTab) {
