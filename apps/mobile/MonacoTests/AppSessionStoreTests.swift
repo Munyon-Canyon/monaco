@@ -335,6 +335,113 @@ struct AppSessionStorePhotoTests {
         #expect(outcome == .failed("Slow down. Try again soon."))
         #expect(auth.rejectedTokens.isEmpty)
     }
+
+    @Test func aPhotoSaveOverlappingANameSaveStillSaves() async throws {
+        let both = SessionWire.member(name: "New name", photo: true)
+        let transport = StubTransport(scripted: [
+            .json(.ok, SessionWire.me), .gate, .gate, .json(.ok, both), .json(.ok, both),
+        ])
+        let store = AppSessionStore(sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let photo = Task { await savePhoto(store, auth: auth) }
+        await transport.waitForRequests(2)
+        let name = Task { await saveNewName(store, auth: auth) }
+        await transport.waitForRequests(3)
+        await transport.releaseGate(.json(.ok, SessionWire.member(photo: true)))
+        #expect(await photo.value == .saved)
+        await transport.releaseGate(.json(.ok, both))
+        #expect(await name.value == .saved)
+
+        #expect(store.profile?.displayName == "New name")
+        #expect(store.profile?.photoURL?.absoluteString == SessionWire.photoURL)
+    }
+
+    @Test func anOverlappingSavesOlderReplyNeverReplacesTheLatestProfile() async throws {
+        let both = SessionWire.member(name: "New name", photo: true)
+        let transport = StubTransport(scripted: [
+            .json(.ok, SessionWire.me), .gate, .gate, .gate, .json(.ok, both),
+        ])
+        let store = AppSessionStore(sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let photo = Task { await savePhoto(store, auth: auth) }
+        await transport.waitForRequests(2)
+        let name = Task { await saveNewName(store, auth: auth) }
+        await transport.waitForRequests(3)
+        await transport.releaseGate(.json(.ok, both))
+        try #require(await requestArrived(4, on: transport), "the photo save did not reload the profile")
+        await transport.releaseGate(.json(.ok, SessionWire.member(name: "New name")))
+        #expect(await name.value == .saved)
+        await transport.releaseGate(.json(.ok, both))
+        #expect(await photo.value == .saved)
+
+        #expect(store.profile?.displayName == "New name")
+        #expect(store.profile?.photoURL?.absoluteString == SessionWire.photoURL)
+    }
+
+    @Test func aPhotoSaveThatOutlivesSignOutSaysSignInAgainAndWritesNothing() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate])
+        let store = AppSessionStore(sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let photo = Task { await savePhoto(store, auth: auth) }
+        await transport.waitForRequests(2)
+        store.reset()
+        await transport.releaseGate(.json(.ok, SessionWire.member(photo: true)))
+
+        #expect(await photo.value == .failed("Sign in again to change your photo."))
+        #expect(store.profile == nil)
+    }
+
+    @Test func aNameSaveThatOutlivesSignOutSaysSignInAgainAndWritesNothing() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate])
+        let store = AppSessionStore(sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let name = Task { await saveNewName(store, auth: auth) }
+        await transport.waitForRequests(2)
+        store.reset()
+        await transport.releaseGate(.json(.ok, SessionWire.member(name: "New name")))
+
+        #expect(await name.value == .failed("Sign in again to edit your profile."))
+        #expect(store.profile == nil)
+    }
+
+    @Test func aPhotoSaveThatOutlivesASignInAsSomeoneElseLeavesTheirProfileAlone() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, SessionWire.me), .gate, .json(.ok, SessionWire.next)])
+        let store = AppSessionStore(sessions: sessionAPI(transport))
+        let auth = StubAuth()
+        await store.bootstrap(auth: auth)
+
+        let photo = Task { await savePhoto(store, auth: auth) }
+        await transport.waitForRequests(2)
+        store.reset()
+        await store.bootstrap(auth: auth)
+        await transport.releaseGate(.json(.ok, SessionWire.member(photo: true)))
+
+        #expect(await photo.value == .failed("Sign in again to change your photo."))
+        #expect(store.profile?.userID == "01890a5d-ac96-774b-bcce-b302099a9999")
+        #expect(store.profile?.photoURL == nil)
+    }
+}
+
+private func requestArrived(_ count: Int, on transport: StubTransport) async -> Bool {
+    var yields = 0
+    while await transport.sent.count < count, yields < 1000 {
+        yields += 1
+        await Task.yield()
+    }
+    return await transport.sent.count >= count
+}
+
+@MainActor
+private func savePhoto(_ store: AppSessionStore, auth: SessionAuthenticating) async -> ProfileSaveOutcome {
+    await store.saveProfilePhoto(Data([0xFF, 0xD8, 0xFF]), auth: auth, submission: IdempotentSubmission())
 }
 
 @MainActor
@@ -355,6 +462,14 @@ private enum SessionWire {
         "auth_state":"ONBOARDING_COMPLETED","account_status":"active",\
         "member_wallet_address":"wallet-1","phone_linked":true,"created_at":"2026-09-30T12:00:00Z"}
         """
+    static let photoURL = "https://cdn.test/kai.jpg"
+
+    static func member(name: String = "Kai Cenat", photo: Bool = false) -> String {
+        let renamed = me.replacingOccurrences(of: "Kai Cenat", with: name)
+        guard photo else { return renamed }
+        return renamed.replacingOccurrences(
+            of: #""display_name":"\#(name)","#, with: #""display_name":"\#(name)","photo_url":"\#(photoURL)","#)
+    }
     static let next =
         #"{"id":"01890a5d-ac96-774b-bcce-b302099a9999","handle":"bee","display_name":"Bee","auth_state":"CREATED","account_status":"active","member_wallet_address":"wallet-b","phone_linked":false,"created_at":"2026-09-30T12:00:00Z"}"#
     static let deleted =
