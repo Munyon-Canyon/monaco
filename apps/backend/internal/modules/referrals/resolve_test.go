@@ -120,7 +120,7 @@ func TestResolve_givesTheSameUnknownCodeWhateverTheReason(t *testing.T) {
 			got, err := referrals.New(module.Deps{Pool: pool}).Resolver().Resolve(t.Context(), tt.input)
 			want, code := errs.New(errs.CodeReferralCodeUnknown, "referrals.Resolve"), errs.CodeOf(err)
 			if got != (app.Resolved{}) || err == nil || err.Error() != want.Error() ||
-				errs.KindOf(code) != errs.KindNotFound || errs.Message(code) != "That code isn't valid" {
+				errs.KindOf(code) != errs.KindNotFound || errs.Message(code) != "That code isn't valid." {
 				t.Fatalf("Resolve(%q) = %+v, %v; want only %v", tt.input, got, err, want)
 			}
 		})

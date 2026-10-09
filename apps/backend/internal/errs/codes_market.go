@@ -13,7 +13,7 @@ func (codeFiles) Market() map[Code]Row {
 		},
 		CodeAssetUntradable: {
 			Name: "AssetUntradable", Kind: KindBlocked,
-			Message: "This asset can't be traded right now",
+			Message: "This asset can't be traded right now.",
 		},
 		CodeCalendarExpired: {
 			Name: "CalendarExpired", Kind: KindInternal, Alert: true, Message: "Something went wrong.",
