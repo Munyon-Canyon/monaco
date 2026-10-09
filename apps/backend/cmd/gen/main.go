@@ -38,6 +38,7 @@ func steps(ctx context.Context) []step {
 			return genErrors("../../packages/mobile-core/Tests/MonacoAPITests/ErrorCodeCases.gen.swift")
 		}},
 		{"openapi", func() error { return genOpenAPI(specDir, "api/openapi.yaml") }},
+		{"clientspec", func() error { return genClientSpec(clientSpecIn, clientSpecOut) }},
 		{"httpapi", func() error { return genAPIs(specDir, apiDir, backendModule+"/"+apiDir, errs.All()) }},
 		{"flows", func() error { return genFlows("../..") }},
 		{"docs", func() error { return genDocs("../../docs/reference") }},

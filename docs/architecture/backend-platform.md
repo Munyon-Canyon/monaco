@@ -648,6 +648,7 @@ The iOS app renders; the server decides.
 - Server-sent events (`/v1/stream`) push "this changed, re-fetch" hints from core NATS. The app never polls on a timer except as SSE-reconnect fallback. Fan-out is in-process (see [SSE hub](#sse-hub)), never one NATS subscription per phone.
 - Errors carry a stable `code` and user-facing `message`. The app shows `message` in a toast; it switches on `code` only for flows that branch.
 - Swift client is generated from `api/openapi.yaml`. A route change that breaks the client fails `oasdiff breaking` in CI.
+- Server schemas stay strict (`additionalProperties: false`) for request validation and contract tests, but the Swift client is generated from `packages/mobile-core/Sources/MonacoAPI/openapi.yaml`, a copy of the bundle that `cmd/gen clientspec` writes with every `additionalProperties: false` removed, so the iOS client ignores keys it does not know. Adding a response field is therefore safe for builds already shipped; removing or renaming one is not, and still needs a new build. `go generate` rewrites the copy and the ready check fails when it is stale.
 
 ## NATS hosting and budget
 
