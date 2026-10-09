@@ -96,14 +96,19 @@ struct ProposeAmountScreen: View {
     private var reasonSection: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             if !showsReason {
-                Button("Add a reason") { showsReason = true }.buttonStyle(.monacoSecondary)
-                    .accessibilityIdentifier("propose-amount-add-reason")
+                Button("Add a reason") {
+                    showsReason = true
+                    Task { @MainActor in reasonFocused = true }
+                }
+                .buttonStyle(.monacoSecondary)
+                .accessibilityIdentifier("propose-amount-add-reason")
             } else {
                 reasonField
                 if ProposeReasonRules.showsCounter(for: model.thesis) {
                     Text("\(model.thesis.count)/\(ProposeReasonRules.thesisLimit)")
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
@@ -111,14 +116,22 @@ struct ProposeAmountScreen: View {
 
     private var reasonField: some View {
         TextField(
-            model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?",
-            text: Binding(get: { model.thesis }, set: { model.setThesis($0) }), axis: .vertical
+            "",
+            text: Binding(get: { model.thesis }, set: { model.setThesis($0) }),
+            prompt: Text(model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?")
+                .foregroundStyle(MonacoTheme.disabledLabel),
+            axis: .vertical
         )
+        .lineLimit(1...6)
         .font(MonacoTheme.Typo.body)
         .foregroundStyle(MonacoTheme.ink)
         .tint(MonacoTheme.ink)
         .focused($reasonFocused)
+        .padding(.vertical, MonacoTheme.Space.sm)
         .monacoFieldChrome(isFocused: reasonFocused)
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture().onEnded { reasonFocused = true })
+        .accessibilityLabel(model.trade.isSell ? "Why should the cabal sell this?" : "Why should the cabal buy this?")
         .accessibilityIdentifier("propose-amount-reason")
     }
 
