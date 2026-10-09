@@ -47,17 +47,17 @@ private struct CabalValueChart: View {
         if let model {
             switch model.state {
             case .idle, .loading:
-                SkeletonBlock(height: 160, radius: 12, onInk: true)
+                SkeletonBlock(height: 160, radius: 12)
                     .accessibilityIdentifier("cabal-value-chart-loading")
             case .failed:
-                MonacoErrorRow(thing: "the pot's history", identifier: "cabal-value-chart-failed", onHero: true) {
+                MonacoErrorRow(thing: "the pot's history", identifier: "cabal-value-chart-failed") {
                     Task { await model.load() }
                 }
             case .loaded:
                 loaded(model)
             }
         } else {
-            SkeletonBlock(height: 160, radius: 12, onInk: true)
+            SkeletonBlock(height: 160, radius: 12)
         }
     }
 

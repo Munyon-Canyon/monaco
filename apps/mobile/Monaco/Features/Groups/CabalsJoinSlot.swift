@@ -173,8 +173,6 @@ private struct CabalSearchRowView: View {
     private func rowButton(_ title: String, label: String) -> some View {
         Button(title, action: enter)
             .buttonStyle(.monacoCompact)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
             .disabled(isEntering || accountRestricted)
             .accessibilityLabel(label)
             .accessibilityIdentifier("cabals-search-enter-\(row.id)")

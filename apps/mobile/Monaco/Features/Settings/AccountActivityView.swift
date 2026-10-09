@@ -78,7 +78,7 @@ struct AccountActivityList: View {
     private var list: some View {
         let rows = model?.rows ?? []
         let loadingMore = model?.isLoadingMore == true
-        return MonacoGroupedList(rules: loadingMore ? .top : .both) {
+        return MonacoGroupedList {
             LazyVStack(spacing: 0) {
                 ForEach(rows) { row in
                     Button {
@@ -122,7 +122,7 @@ private struct AccountActivityRowView: View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.s)
-            .frame(minHeight: 60)
+            .frame(minHeight: MonacoRowLayout.minHeight)
             .contentShape(Rectangle())
             .overlay(alignment: .bottom) {
                 if !isLast {

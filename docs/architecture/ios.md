@@ -85,6 +85,9 @@ No Clean Architecture use-case layer, MVC, TCA, reducers or coordinator framewor
 | `raw-color` | `Color(hex:`, `Color(red:` or `UIColor(red:` under `apps/mobile/Monaco` outside `Design/` | Colours are `MonacoTheme` tokens, which adapt to light and dark mode. Shrink-only |
 | `fixed-font` | `.system(size:` under `apps/mobile/Monaco` outside `Design/` | A fixed point size does not scale with Dynamic Type. Shrink-only |
 | `gutter` | `.padding(.horizontal, MonacoTheme.Space.m)` under `apps/mobile/Monaco/Features` | Every screen edge inset is `Space.gutter`, so headers, rows and pinned bars share one left edge. Inner spacing in a pill or bubble is allow-listed. Shrink-only |
+| `row-height` | `minHeight: 60` or `minHeight: 64` under `apps/mobile/Monaco/Features` | A row is `MonacoRowLayout.minHeight` (64) tall, so a retune moves every row at once |
+| `compact-target` | `minHeight: 36` under `apps/mobile/Monaco/Features` | A compact button is `.monacoCompact`: 36pt visible on a 44pt target |
+| `no-weight-on-role` | `Typo.<role>.weight(` under `apps/mobile/Monaco` | A role carries its weight. Use `headline`, `subheadStrong` or `captionStrong` |
 | `flow-switch` | `default:` or `@unknown default:` in a `switch` over a `Flow<id>Outcome` value, under `apps/mobile/Monaco` and `packages/mobile-core/Sources` | A default hides a new backend outcome. The enum comes from `cmd/gen flows`, so a new outcome breaks the build until the app handles it |
 
 Log: [log/ios.md](log/ios.md).

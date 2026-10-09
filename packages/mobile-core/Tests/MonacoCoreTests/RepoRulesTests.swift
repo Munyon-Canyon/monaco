@@ -274,26 +274,14 @@ enum RepoRules {
             ],
             applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
         ),
-        RepoRule(
-            name: "fixed-font",
-            roots: ["apps/mobile/Monaco"],
-            pattern: #"\.system\(size:"#,
-            message: "Text uses a text style or a MonacoTheme font so it scales with Dynamic Type.",
-            failing: [
-                ".font(.system(size: 14))",
-                ".font(.system(size: 17, weight: .semibold))",
-            ],
-            passing: [
-                ".font(.body)",
-                ".font(MonacoTheme.Typo.body)",
-                ".font(.system(.body, design: .monospaced))",
-            ],
-            applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
-        ),
+        DesignScaleRules.fixedFont,
         DesignScaleRules.spacing,
         roundedBorderField,
         seeAll,
         gutter,
+        DesignTokenRules.rowHeight,
+        DesignTokenRules.compactTarget,
+        DesignTokenRules.noWeightOnRole,
         RepoRule(
             name: "flow-switch",
             roots: productCode,
@@ -327,6 +315,23 @@ enum RepoRules {
 }
 
 enum DesignScaleRules {
+    static let fixedFont = RepoRule(
+        name: "fixed-font",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"\.system\(size:"#,
+        message: "Text uses a text style or a MonacoTheme font so it scales with Dynamic Type.",
+        failing: [
+            ".font(.system(size: 14))",
+            ".font(.system(size: 17, weight: .semibold))",
+        ],
+        passing: [
+            ".font(.body)",
+            ".font(MonacoTheme.Typo.body)",
+            ".font(.system(.body, design: .monospaced))",
+        ],
+        applies: { path, _ in !path.hasPrefix("apps/mobile/Monaco/Design/") }
+    )
+
     static let spacing = RepoRule(
         name: "spacing-scale",
         roots: ["apps/mobile/Monaco"],
@@ -744,5 +749,37 @@ extension RepoRules {
         failing: [#"NavigationLink("See all", value: route)"#, #"Text("See all")"#],
         passing: [#"MonacoSectionHeader("Activity", trailing: "See all") { open() }"#],
         applies: { path, _ in !path.hasSuffix("Proposals/ProposalDetailSlot.swift") }
+    )
+}
+
+enum DesignTokenRules {
+    static let rowHeight = RepoRule(
+        name: "row-height",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"minHeight:\s*(?:60|64)\b"#,
+        message: "A row is MonacoRowLayout.minHeight tall. Use the token, not a literal.",
+        failing: [".frame(minHeight: 60)", ".frame(maxWidth: .infinity, minHeight: 64)"],
+        passing: [".frame(minHeight: MonacoRowLayout.minHeight)", ".frame(minHeight: 44)", ".frame(minHeight: 640)"]
+    )
+
+    static let compactTarget = RepoRule(
+        name: "compact-target",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"minHeight:\s*36\b"#,
+        message: "A compact button is .monacoCompact, 36pt visible on a 44pt target. Do not draw the capsule by hand.",
+        failing: [".frame(minHeight: 36)", ".frame(maxWidth: .infinity, minHeight: 36)"],
+        passing: [".buttonStyle(.monacoCompact)", ".frame(minHeight: 44)", "SkeletonBlock(width: 140, height: 36)"]
+    )
+
+    static let noWeightOnRole = RepoRule(
+        name: "no-weight-on-role",
+        roots: ["apps/mobile/Monaco"],
+        pattern: #"Typo\.\w+\.weight\("#,
+        message: "A Typo role carries its weight. Use the strong role (headline, subheadStrong, captionStrong).",
+        failing: [
+            ".font(MonacoTheme.Typo.caption.weight(.semibold))",
+            ".font(MonacoTheme.Typo.subhead.weight(.bold).monospacedDigit())",
+        ],
+        passing: [".font(MonacoTheme.Typo.captionStrong)", ".font(.subheadline.weight(.semibold))"]
     )
 }
