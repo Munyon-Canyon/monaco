@@ -14,8 +14,11 @@ struct StocksTabView: View {
 
     var body: some View {
         ZStack {
-            Color.clear
-            if let model { StocksTabScreen(model: model, open: open) }
+            if let model {
+                StocksTabScreen(model: model, open: open)
+            } else {
+                StockRowSkeleton().frame(maxHeight: .infinity, alignment: .top)
+            }
         }
         .monacoTopLevelHeader(title: StocksTab.title)
         .accessibilityElement(children: .contain)
@@ -67,6 +70,7 @@ private struct StocksTabScreen: View {
                 Task { await model.show(browse) }
             }
             ScrollView { content }
+                .scrollDismissesKeyboard(.interactively)
                 .refreshable { await model.load() }
                 .accessibilityIdentifier(model.isSearching ? "assets-grid-search" : "assets-grid")
         }
@@ -88,13 +92,18 @@ private struct StocksTabScreen: View {
                 MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
             case .loaded:
                 if model.isSearching {
-                    EmptyState(title: "No stocks match “\(query)”")
+                    EmptyState(title: searchEmptyTitle)
                         .accessibilityIdentifier("assets-search-empty")
                 } else {
                     EmptyState(title: "No stocks to show")
                 }
             }
         }
+    }
+
+    private var searchEmptyTitle: String {
+        guard model.browse != .all else { return "No stocks match “\(query)”" }
+        return "No \(model.browse.title) stocks match “\(query)”"
     }
 
     private func rows(_ assets: [MarketAsset], loadsMore: Bool = false) -> some View {
@@ -124,11 +133,11 @@ private struct StocksTabScreen: View {
 private struct StocksAssetRow: View {
     let asset: MarketAsset
     var isLast = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            wide
-            stacked
+        Group {
+            if dynamicTypeSize.isAccessibilitySize { stacked } else { wide }
         }
         .padding(.horizontal, StockListRow.horizontalPadding).padding(.vertical, MonacoTheme.Space.s).frame(
             minHeight: MonacoRowLayout.minHeight

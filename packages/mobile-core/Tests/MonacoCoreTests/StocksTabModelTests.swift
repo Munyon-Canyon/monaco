@@ -175,7 +175,19 @@ final class StocksTabModelTests: XCTestCase {
         XCTAssertEqual(model.rows.map(\.ticker), ["AAPL"])
         XCTAssertEqual(model.all.phase, .loaded)
         XCTAssertTrue(model.refreshFailed)
-        XCTAssertGreaterThan(model.failureTick, 0)
+        XCTAssertEqual(model.failureTick, 1)
+    }
+    func testFailedFirstLoadShowsTheRowAndDoesNotTick() async throws {
+        let transport = StubTransport(.failure(URLError(.cannotConnectToHost)))
+        let model = makeModel(transport)
+        await model.load()
+        guard case .failed = model.phase else {
+            XCTFail("expected a failed phase, got \(model.phase)")
+            return
+        }
+        XCTAssertTrue(model.rows.isEmpty)
+        XCTAssertTrue(model.refreshFailed)
+        XCTAssertEqual(model.failureTick, 0)
     }
     private func makeModel(
         _ transport: StubTransport,
