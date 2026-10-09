@@ -42,6 +42,8 @@ Monaco lets you create a hedge fund with friends by pooling money to buy stocks 
 
 macOS, Xcode (iOS 18+ simulator), Docker, Go 1.25+, [just](https://github.com/casey/just), [jq](https://jqlang.org), [dotenvx CLI](https://dotenvx.com/docs/install), [Graphite CLI](https://graphite.dev/docs/install-the-cli) (`gt`). SimSlim is optional.
 
+The Xcode version in `.xcode-version` is required for journeys and MonacoTests; `just install --check` and `scripts/qa/journey.py run` warn when the installed Xcode differs.
+
 ## Clone setup
 
 1. Clone this repo. `cd` into the clone. Do not hard-code another machine's home path.
