@@ -27,6 +27,29 @@ func (c *Cooldown) Active() bool {
 	return c.clock.Now().Before(c.until)
 }
 
+func (c *Cooldown) Wait(ctx context.Context) error {
+	for {
+		c.mu.Lock()
+		left := c.until.Sub(c.clock.Now())
+		c.mu.Unlock()
+		if left <= 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return errs.Wrap(ctx.Err(), errs.CodeUpstreamTimeout, "market.Cooldown.Wait")
+		case <-c.clock.After(left):
+		}
+	}
+}
+
+func laterOf(a, b time.Time) time.Time {
+	if b.After(a) {
+		return b
+	}
+	return a
+}
+
 func (c *Cooldown) Trip(ctx context.Context, poller string, err error) bool {
 	if errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited {
 		return false
@@ -38,7 +61,7 @@ func (c *Cooldown) Trip(ctx context.Context, poller string, err error) bool {
 		}
 	}
 	c.mu.Lock()
-	c.until = c.clock.Now().Add(after)
+	c.until = laterOf(c.until, c.clock.Now().Add(after))
 	until := c.until
 	c.mu.Unlock()
 	observability.Degraded(ctx, observability.MarketHistoryCooldown, slog.String("poller", poller),

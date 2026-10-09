@@ -70,8 +70,9 @@ func (q *Queries) InsertPendingBackfills(ctx context.Context, arg InsertPendingB
 const pendingBackfills = `-- name: PendingBackfills :many
 SELECT b.mint
 FROM price_backfills AS b
-LEFT JOIN assets AS a ON a.mint = b.mint
+JOIN assets AS a ON a.mint = b.mint
 WHERE b.done_at IS NULL
+  AND a.chain_checked_at IS NOT NULL AND coalesce(a.tradable_override, a.issuer_tradable)
   AND (
     b.last_attempt_at IS NULL
     OR b.last_attempt_at + LEAST(interval '5 minutes' * power(2, LEAST(b.attempts, 12)), interval '24 hours')

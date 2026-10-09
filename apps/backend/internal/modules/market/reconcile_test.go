@@ -2,9 +2,12 @@ package market_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -208,17 +211,6 @@ func TestReconcile_aFailedMintDoesNotStopTheRest(t *testing.T) {
 	}
 }
 
-func TestReconcile_aRateLimitStopsTheTick(t *testing.T) {
-	t.Parallel()
-	r := newReconcileRig(t, marketfake.AAPLx(), marketfake.TSLAx())
-	r.history.Fail("MarketChart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
-	report, err := r.tick(t)
-	if errs.CodeOf(err) != errs.CodeCoinGeckoRateLimited || len(r.history.Calls()) != 1 || report.Scanned != 1 {
-		t.Fatalf("tick = %+v, %v with %d calls, want one rate limited call and a stop",
-			report, err, len(r.history.Calls()))
-	}
-}
-
 func TestReconcile_databaseFailuresAreReported(t *testing.T) {
 	t.Parallel()
 	r := newReconcileRig(t, marketfake.AAPLx())
@@ -237,5 +229,122 @@ func TestReconcile_isNamedAndRunsEveryDay(t *testing.T) {
 	p := app.NewReconcile(nil, nil, nil, &marketfake.PriceHistoryFake{})
 	if p.Name() != "market.reconcile" || p.Interval() != 24*time.Hour {
 		t.Fatalf("Reconcile = %s every %v, want market.reconcile every 24h", p.Name(), p.Interval())
+	}
+}
+
+type heldTick struct {
+	r      *reconcileRig
+	afters chan time.Duration
+	done   chan struct{}
+	run    errgroup.Group
+	report poller.Report
+	err    error
+}
+
+func (r *reconcileRig) startTick(t *testing.T) *heldTick {
+	t.Helper()
+	h := &heldTick{r: r, afters: make(chan time.Duration, 8), done: make(chan struct{})}
+	r.clock.NotifyAfters(h.afters)
+	h.run.Go(func() error {
+		defer close(h.done)
+		h.report, h.err = r.reconcile.Tick(r.ctx(t))
+		return nil
+	})
+	return h
+}
+
+func (h *heldTick) waitsFor(t *testing.T) time.Duration {
+	t.Helper()
+	select {
+	case d := <-h.afters:
+		return d
+	case <-h.done:
+		t.Fatalf("tick returned %+v, %v without waiting out the cooldown", h.report, h.err)
+	}
+	return 0
+}
+
+func (h *heldTick) finish(t *testing.T, wait time.Duration) {
+	t.Helper()
+	h.r.clock.Advance(wait)
+	<-h.done
+	_ = h.run.Wait()
+}
+
+func tripCooldown(t *testing.T, c *app.Cooldown) {
+	t.Helper()
+	c.Trip(t.Context(), "market.backfill", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+}
+
+func TestReconcile_aCooldownMidTickHoldsTheRestOfTheNightUntilItEnds(t *testing.T) {
+	t.Parallel()
+	r := newReconcileRig(t, marketfake.AAPLx(), marketfake.TSLAx())
+	cool := app.NewCooldown(r.clock)
+	r.reconcile.WithCooldown(cool)
+	r.history.During(func() {
+		if len(r.history.Calls()) == 1 {
+			tripCooldown(t, cool)
+		}
+	})
+	h := r.startTick(t)
+	wait := h.waitsFor(t)
+	if n := len(r.history.Calls()); n != 1 {
+		t.Fatalf("%d calls while the cooldown runs, want the one before it started", n)
+	}
+	h.finish(t, wait)
+	if h.err != nil || h.report.Scanned != 2 || len(r.history.Calls()) != 2 {
+		t.Fatalf("tick = %+v, %v with %d calls, want both mints done the same night",
+			h.report, h.err, len(r.history.Calls()))
+	}
+}
+
+func TestReconcile_aTickThatStartsInACooldownRunsOnceItEnds(t *testing.T) {
+	t.Parallel()
+	r := newReconcileRig(t, marketfake.AAPLx())
+	cool := app.NewCooldown(r.clock)
+	r.reconcile.WithCooldown(cool)
+	tripCooldown(t, cool)
+	h := r.startTick(t)
+	wait := h.waitsFor(t)
+	if n := len(r.history.Calls()); n != 0 {
+		t.Fatalf("%d calls inside the cooldown, want none", n)
+	}
+	h.finish(t, wait)
+	if h.err != nil || h.report.Scanned != 1 || len(r.history.Calls()) != 1 {
+		t.Fatalf("tick = %+v, %v with %d calls, want the night's mint filled after the cooldown",
+			h.report, h.err, len(r.history.Calls()))
+	}
+}
+
+func TestReconcile_itsOwn429HoldsTheRestOfTheNightInsteadOfEndingIt(t *testing.T) {
+	t.Parallel()
+	r := newReconcileRig(t, marketfake.AAPLx(), marketfake.TSLAx())
+	r.history.FailOnce("MarketChart", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+	h := r.startTick(t)
+	wait := h.waitsFor(t)
+	if n := len(r.history.Calls()); n != 1 {
+		t.Fatalf("%d calls while the cooldown runs, want only the one that was limited", n)
+	}
+	h.finish(t, wait)
+	if errs.CodeOf(h.err) != errs.CodeCoinGeckoRateLimited || h.report.Scanned != 2 || len(r.history.Calls()) != 2 {
+		t.Fatalf("tick = %+v, %v with %d calls, want the second mint tried after the cooldown",
+			h.report, h.err, len(r.history.Calls()))
+	}
+}
+
+func TestReconcile_aTickCancelledInACooldownStopsWaiting(t *testing.T) {
+	t.Parallel()
+	r := newReconcileRig(t, marketfake.AAPLx(), marketfake.TSLAx())
+	cool := app.NewCooldown(r.clock)
+	r.reconcile.WithCooldown(cool)
+	ctx, cancel := context.WithCancel(r.ctx(t))
+	r.history.During(func() {
+		cool.Trip(t.Context(), "market.backfill", errs.New(errs.CodeCoinGeckoRateLimited, "test"))
+		cancel()
+	})
+	_, err := r.reconcile.Tick(ctx)
+	if !errors.Is(err, context.Canceled) || len(r.history.Calls()) != 1 {
+		t.Fatalf("tick err = %v with %d calls, want the cancel reported and no second call",
+			err, len(r.history.Calls()))
 	}
 }

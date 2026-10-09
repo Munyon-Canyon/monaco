@@ -48,9 +48,6 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 		observability.Degraded(ctx, observability.MarketReconcileSkippedNoKey)
 		return poller.Report{}, nil
 	}
-	if r.cool.Active() {
-		return poller.Report{}, nil
-	}
 	assets, err := r.nightly(ctx)
 	if err != nil {
 		return poller.Report{}, err
@@ -58,15 +55,17 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 	var report poller.Report
 	var failed []error
 	for _, a := range assets {
+		if err := r.cool.Wait(ctx); err != nil {
+			failed = append(failed, err)
+			break
+		}
 		rows, err := r.fill(ctx, a.Mint)
 		report.Scanned++
 		report.Changed += rows
 		if err != nil {
 			failed = append(failed, err)
 		}
-		if r.cool.Trip(ctx, r.Name(), err) {
-			break
-		}
+		r.cool.Trip(ctx, r.Name(), err)
 	}
 	report.Attrs = []slog.Attr{slog.Int("calls", report.Scanned), slog.Int("failed", len(failed))}
 	return report, errors.Join(failed...)

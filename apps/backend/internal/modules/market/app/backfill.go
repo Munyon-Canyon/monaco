@@ -20,6 +20,8 @@ const (
 	backfillBatch    = 10
 )
 
+var errStoppedByCooldown = errs.New(errs.CodeUpstreamUnavailable, "market.Backfill.backfill")
+
 type historyWindow struct {
 	days   int
 	bucket time.Duration
@@ -138,6 +140,9 @@ func (b *Backfill) Drain(ctx context.Context, mints []string) (BackfillResult, e
 		rows, calls, err := b.backfill(ctx, raw)
 		res.Calls += calls
 		res.Rows += rows
+		if errors.Is(err, errStoppedByCooldown) {
+			break
+		}
 		res.Mints++
 		if err != nil {
 			failed = append(failed, err)
@@ -158,6 +163,9 @@ func (b *Backfill) backfill(ctx context.Context, raw string) (int, int, error) {
 	answers := make([][]Sample, 0, len(finestFirstWindows()))
 	calls := 0
 	for _, w := range finestFirstWindows() {
+		if b.cool.Active() {
+			return 0, calls, errStoppedByCooldown
+		}
 		calls++
 		samples, err := b.history.MarketChart(ctx, mint, w.days)
 		if err != nil {

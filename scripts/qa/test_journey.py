@@ -482,6 +482,18 @@ class Slots(unittest.TestCase):
         self.assertEqual(popen[0]["MONACO_WORKER_HEALTH_ADDR"], ":8181")
         self.assertRegex(popen[0]["MONACO_LOG_DIR"], r"backend-slot1-\d{8}T\d{6}Z$")
 
+    def test_a_slot_backend_leaves_price_history_off(self):
+        popen = []
+        with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
+                                        type("P", (), {"poll": lambda self: None})()), \
+                unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                unittest.mock.patch.object(journey, "backend_is_running", lambda url: True), \
+                unittest.mock.patch.dict(os.environ, {"MARKET_HISTORY_ENABLED": "true"}):
+            for slot in (0, 1):
+                journey.start_backend(journey.slot_base_url(slot), slot=slot)
+        self.assertEqual([env["MARKET_HISTORY_ENABLED"] for env in popen], ["false", "false"])
+
     def test_the_same_login_does_not_run_twice(self):
         logins = ["A", "B", "C", "L"]
         mapping, handles = journey.claim_logins(["A", "B"], logins)
