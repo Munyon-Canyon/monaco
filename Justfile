@@ -155,6 +155,23 @@ run *app:
         worker_pid=$!
         api_port="${MONACO_HTTP_ADDR:-:8080}"; api_port="${api_port##*:}"
         worker_port="${MONACO_WORKER_HEALTH_ADDR:-:8081}"; worker_port="${worker_port##*:}"
+        # Card deposits open the fund page on this port (apps/web/README.md). Skipped when the port
+        # is taken or Node is missing; the backend starts either way.
+        fund_port="${MONACO_FUND_PAGE_PORT:-5173}"
+        fund_pid=""
+        if lsof -nP -iTCP:"$fund_port" -sTCP:LISTEN -t >/dev/null 2>&1; then
+          monaco_step "fund page: port ${fund_port} is taken; not started"
+        elif ! command -v npx >/dev/null 2>&1; then
+          echo "fund page not started: Node is not installed; card deposits will not open"
+        else
+          if [[ ! -d apps/web/node_modules ]]; then
+            monaco_step "fund page: installing apps/web dependencies"
+            (cd apps/web && npm ci)
+          fi
+          monaco_step "fund page: starting on http://localhost:${fund_port}/fund"
+          env -u MONACO_LOG_DIR -u MONACO_DOTENVX {{_dotenvx}} bash -c 'cd apps/web && VITE_MONACO_API_URL="http://localhost:$1" VITE_PRIVY_APP_ID="$PRIVY_APP_ID" VITE_PRIVY_ENV=sandbox exec npx vite --port "$2" --strictPort' _ "$api_port" "$fund_port" > >(tee -a "${MONACO_LOG_DIR}/fund.log") 2>&1 &
+          fund_pid=$!
+        fi
         (
           for _ in $(seq 1 120); do
             if curl -fsS -o /dev/null "http://localhost:${api_port}/healthz" 2>/dev/null &&
@@ -169,7 +186,8 @@ run *app:
         ready_pid=$!
         # By name, not by pid: the pids are the dotenvx wrappers, and the INT trap never
         # fires when `just run` started this as a background job (SIGINT ignored).
-        trap 'kill "$ready_pid" 2>/dev/null || true; pkill -TERM -f "^${PWD}/bin/(api|worker)$" || true' INT TERM EXIT
+        trap 'kill "$ready_pid" 2>/dev/null || true; pkill -TERM -f "^${PWD}/bin/(api|worker)$" || true
+          if [[ -n "$fund_pid" ]]; then kill "$fund_pid" 2>/dev/null || true; ./scripts/kill-listeners.sh "$fund_port" >/dev/null || true; fi' INT TERM EXIT
         wait "$api_pid" "$worker_pid"
         ;;
       mobile)
@@ -203,6 +221,7 @@ stop *app:
       backend)
         pattern="^${PWD}/bin/(api|worker)$"
         pkill -TERM -f "$pattern" || true
+        ./scripts/kill-listeners.sh "${MONACO_FUND_PAGE_PORT:-5173}" >/dev/null || true
         for _ in $(seq 1 50); do
           pgrep -f "$pattern" >/dev/null || exit 0
           sleep 0.2
@@ -317,7 +336,7 @@ gen target *args:
 killports:
     #!/usr/bin/env bash
     set -euo pipefail
-    # App dev ports only (api and worker health); Postgres stays up (just reset db wipes it).
+    # App dev ports only (api, worker health and the fund page); Postgres stays up (just reset db wipes it).
     port_of() {
       local key=$1 addr="${!1:-}"
       if [[ -z "$addr" ]] && command -v dotenvx >/dev/null 2>&1 && [[ -f .env.local ]]; then
@@ -325,7 +344,7 @@ killports:
       fi
       if [[ -n "$addr" ]]; then echo "${addr##*:}"; else echo "$2"; fi
     }
-    ./scripts/kill-listeners.sh "$(port_of MONACO_HTTP_ADDR 8080)" "$(port_of MONACO_WORKER_HEALTH_ADDR 8081)"
+    ./scripts/kill-listeners.sh "$(port_of MONACO_HTTP_ADDR 8080)" "$(port_of MONACO_WORKER_HEALTH_ADDR 8081)" "${MONACO_FUND_PAGE_PORT:-5173}"
 
 # Overnight QA loop: backend, host tests, app unit tests, then each sample UI test class
 # one at a time on a slimmed simulator. Report lands in .logs/qa/<timestamp>/report.md.

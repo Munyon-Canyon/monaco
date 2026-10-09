@@ -94,7 +94,7 @@ You can fund a group from **personal Phantom** (iOS app or browser extension). T
 
 ### Card and Apple Pay (local)
 
-**Add money** → **Pay with card or Apple Pay** opens the fund page. Locally that is `http://localhost:5173/fund`, and `just run` does not serve it. Start it first, or the button opens a page that does not load.
+**Add money** → **Pay with card or Apple Pay** opens the fund page. Locally that is `http://localhost:5173/fund`, which `just run backend` serves (it needs Node; `just install` offers it). If something else holds `:5173`, the page is skipped and the button opens a page that does not load.
 
 1. In a second terminal, start the fund page with Vite on port 5173. Use `PRIVY_APP_ID` from `just show-env`:
 
@@ -118,7 +118,7 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just decrypt`               | `dotenvx decrypt` on `.env.local` (and `.env.production` if present)                                                                                                   |
 | `just show-env`              | Print decrypted `.env.local` keys/values via dotenvx (`export KEY='value'` lines; `.env.production` omitted). Needs `.env.local`, dotenvx, and `.env.keys` or Keychain |
 | `just run`                   | `just run backend` in the background, then `just run mobile`; prints a `==>` line per step. Ctrl+C or a failed build stops both                                        |
-| `just run backend`           | `bin/api` on `MONACO_HTTP_ADDR` (default `:8080`) and `bin/worker` on `MONACO_WORKER_HEALTH_ADDR` (default `:8081`); both serve `GET /healthz`                         |
+| `just run backend`           | `bin/api` on `MONACO_HTTP_ADDR` (default `:8080`) and `bin/worker` on `MONACO_WORKER_HEALTH_ADDR` (default `:8081`); both serve `GET /healthz`. Also serves the card fund page (`apps/web`) on `:5173` |
 | `just run mobile`            | iOS with Privy xcconfig + `SIMCTL_CHILD_*` via `./scripts/ios-sim`                                                                                                     |
 | Logs                         | `just run*` tee stdout/stderr to `.logs/<timestamp>/` (`api.log`, `worker.log`, `mobile.log`, `xcodebuild.log`)                                                        |
 | `just stop`                  | `just stop backend`, then `just stop mobile`                                                                                                                           |
@@ -129,7 +129,7 @@ To get QA cash back out: **Cash out** of the cabal (USDC returns to the account 
 | `just reset mobile`          | Stop app + `xcodebuild clean` on the resolved sim                                                                                                                      |
 | `just reset db`              | Wipe the local Docker Postgres volume only and start it empty; NATS data is kept (localhost only, dotenvx)                                                             |
 | `just migrate db`            | Apply pending migrations to the `.env.local` database, print its revision, then apply the NATS stream config. `just run backend` does neither; a behind database stops boot with `db_schema_behind`, a stale stream with `config differs from the declared one` |
-| `just killports`             | Kill listeners on the api and worker ports (default 8080 and 8081; not Postgres 54322)                                                                                 |
+| `just killports`             | Kill listeners on the api, worker and fund page ports (default 8080, 8081 and 5173; not Postgres 54322)                                                                                 |
 | `just test backend`          | `go test -race -shuffle=on -short ./...` in `apps/backend`, the slowest-ten report and 90 s budget, then the `scripts/` Go tests                                       |
 | `just test mobile`           | Host `swift test` in `packages/mobile-core` — fast, no secrets                                                                                                         |
 | `just build backend`         | `go build` of `bin/api`, `bin/worker`, `bin/monacoctl`                                                                                                                 |

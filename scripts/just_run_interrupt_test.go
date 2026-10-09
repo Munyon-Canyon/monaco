@@ -37,6 +37,7 @@ for name in api worker monacoctl; do cp "$SLEEPER" "$out/$name"; done
 // either keeps building (MOBILE_EXIT unset) or fails with MOBILE_EXIT.
 const iosSimStub = `#!/usr/bin/env bash
 until pgrep -f "^$PWD/bin/worker$" >/dev/null; do sleep 0.05; done
+until (exec 3<>"/dev/tcp/127.0.0.1/$MONACO_FUND_PAGE_PORT") 2>/dev/null; do sleep 0.05; done
 touch "$MOBILE_STARTED"
 if [[ -n "${MOBILE_EXIT:-}" ]]; then exit "$MOBILE_EXIT"; fi
 while :; do sleep 0.1; done
@@ -46,6 +47,7 @@ type justRun struct {
 	cmd     *exec.Cmd
 	done    chan error
 	backend string // pgrep pattern for this sandbox's api and worker
+	fund    int    // the fund page port
 	started string
 	output  *strings.Builder
 }
@@ -76,6 +78,7 @@ func startJustRun(t *testing.T, env ...string) *justRun {
 	}
 	r := &justRun{
 		done:    make(chan error, 1),
+		fund:    s.fundPort,
 		backend: "^" + root + "/bin/(api|worker)$",
 		started: filepath.Join(t.TempDir(), "mobile.started"),
 		output:  &strings.Builder{},
@@ -105,6 +108,7 @@ func startJustRun(t *testing.T, env ...string) *justRun {
 		_, err := os.Stat(r.started)
 		return err == nil
 	})
+	waitFor(t, "the fund page to listen", func() bool { return listening(r.fund) })
 	return r
 }
 
@@ -118,6 +122,7 @@ func (r *justRun) waitExit(t *testing.T) {
 	waitFor(t, "api and worker to exit", func() bool {
 		return exec.Command("pgrep", "-f", r.backend).Run() != nil
 	})
+	waitFor(t, "nothing to listen on the fund page port", func() bool { return !listening(r.fund) })
 }
 
 func TestJustRun_ctrlCStopsTheBackend(t *testing.T) {

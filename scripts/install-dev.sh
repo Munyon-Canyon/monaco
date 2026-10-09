@@ -40,7 +40,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 dev_tools=(
   apt-get awk basename bc benchstat brew caffeinate cat chmod cp curl cut date dirname
   docker dotenvx du ffmpeg ffprobe find gh git go golangci-lint grep gt hdiutil head id
-  install jq just kill ln ls lsof magick mdutil mkdir mktemp mv npm oasdiff open pgrep
+  install jq just kill ln ls lsof magick mdutil mkdir mktemp mv npm npx oasdiff open pgrep
   pkill ps python3 rm sed seq sha256sum shasum simslim sleep sort swift sysctl tail
   tar tee touch tr uname uuidgen wc xcode-select xcodebuild xcrun
 )
@@ -84,6 +84,15 @@ if ! have go; then
   say "Go is missing (1.23+)."
   if ask_yes "Install Go with Homebrew (go)?"; then
     run_brew go || missing_required=1
+  fi
+fi
+
+if ! have npx; then
+  say "Node is missing. just run backend serves the card fund page (apps/web) with it."
+  if ask_yes "Install Node with Homebrew (node)?"; then
+    run_brew node || missing_required=1
+  else
+    missing_required=1
   fi
 fi
 
