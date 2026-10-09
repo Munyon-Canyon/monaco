@@ -155,13 +155,20 @@ func (m *Module) Pollers() []poller.Poller {
 	)
 	facts := mintfacts.New(solana.New(cfg, m.deps.Clock))
 	history := m.priceHistory()
-	return []poller.Poller{
+	pollers := make([]poller.Poller, 0, 5)
+	pollers = append(pollers,
 		app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts),
 		m.samplePrices(),
 		app.NewRetention(m.deps.UoW, m.deps.Clock),
-		m.Backfill(history),
-		app.NewReconcile(m.deps.UoW, m.deps.Pool, m.deps.Clock, history, m.hot...),
+	)
+	if !cfg.CoinGecko.HistoryEnabled {
+		return pollers
 	}
+	cooldown := app.NewCooldown(m.deps.Clock)
+	return append(pollers,
+		m.Backfill(history).WithCooldown(cooldown),
+		app.NewReconcile(m.deps.UoW, m.deps.Pool, m.deps.Clock, history, m.hot...).WithCooldown(cooldown),
+	)
 }
 
 func (m *Module) Backfill(history app.PriceHistory) *app.Backfill {

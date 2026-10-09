@@ -25,12 +25,18 @@ type Reconcile struct {
 	history PriceHistory
 	clock   clock.Clock
 	hot     []HotMints
+	cool    *Cooldown
 }
 
 func NewReconcile(
 	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, history PriceHistory, hot ...HotMints,
 ) *Reconcile {
-	return &Reconcile{uow: uow, catalog: NewCatalog(reads), history: history, clock: c, hot: hot}
+	return &Reconcile{uow: uow, catalog: NewCatalog(reads), history: history, clock: c, hot: hot, cool: NewCooldown(c)}
+}
+
+func (r *Reconcile) WithCooldown(c *Cooldown) *Reconcile {
+	r.cool = c
+	return r
 }
 
 func (*Reconcile) Name() string { return "market.reconcile" }
@@ -40,6 +46,9 @@ func (*Reconcile) Interval() time.Duration { return ReconcileInterval }
 func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 	if !r.history.Configured() {
 		observability.Degraded(ctx, observability.MarketReconcileSkippedNoKey)
+		return poller.Report{}, nil
+	}
+	if r.cool.Active() {
 		return poller.Report{}, nil
 	}
 	assets, err := r.nightly(ctx)
@@ -55,7 +64,7 @@ func (r *Reconcile) Tick(ctx context.Context) (poller.Report, error) {
 		if err != nil {
 			failed = append(failed, err)
 		}
-		if errs.CodeOf(err) == errs.CodeCoinGeckoRateLimited {
+		if r.cool.Trip(ctx, r.Name(), err) {
 			break
 		}
 	}

@@ -40,10 +40,18 @@ type Backfill struct {
 	clock   clock.Clock
 	history PriceHistory
 	hot     []HotMints
+	cool    *Cooldown
 }
 
 func NewBackfill(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, history PriceHistory, hot ...HotMints) *Backfill {
-	return &Backfill{uow: uow, reads: reads, catalog: NewCatalog(reads), clock: c, history: history, hot: hot}
+	return &Backfill{
+		uow: uow, reads: reads, catalog: NewCatalog(reads), clock: c, history: history, hot: hot, cool: NewCooldown(c),
+	}
+}
+
+func (b *Backfill) WithCooldown(c *Cooldown) *Backfill {
+	b.cool = c
+	return b
 }
 
 func (*Backfill) Name() string { return "market.backfill" }
@@ -57,6 +65,9 @@ type BackfillResult struct {
 func (b *Backfill) Tick(ctx context.Context) (poller.Report, error) {
 	if !b.history.Configured() {
 		observability.Degraded(ctx, observability.MarketBackfillSkippedNoKey)
+		return poller.Report{}, nil
+	}
+	if b.cool.Active() {
 		return poller.Report{}, nil
 	}
 	hot, err := b.hotListed(ctx)
@@ -131,7 +142,7 @@ func (b *Backfill) Drain(ctx context.Context, mints []string) (BackfillResult, e
 		if err != nil {
 			failed = append(failed, err)
 		}
-		if errs.CodeOf(err) == errs.CodeCoinGeckoRateLimited {
+		if b.cool.Trip(ctx, b.Name(), err) {
 			break
 		}
 	}
@@ -189,7 +200,6 @@ func (b *Backfill) fail(ctx context.Context, mint string, cause error) error {
 		return sqlc.New(tx.Queries()).FailBackfill(ctx,
 			sqlc.FailBackfillParams{
 				Mint: mint, Code: string(errs.CodeOf(cause)), Now: b.clock.Now(),
-				BackOff: errs.CodeOf(cause) != errs.CodeCoinGeckoRateLimited,
 			})
 	})
 	return errors.Join(cause, err)

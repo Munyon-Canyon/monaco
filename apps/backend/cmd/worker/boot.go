@@ -113,6 +113,9 @@ func startWork(
 	}
 	set := mods.Build(d)
 	pollers := set.Pollers()
+	if !d.Config.CoinGecko.HistoryEnabled {
+		observability.Info(ctx, observability.MarketHistoryDisabled)
+	}
 	locks, err := openLockPool(ctx, d.Config.DB, pollers)
 	if err != nil {
 		return health{}, err

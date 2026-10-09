@@ -130,8 +130,9 @@ type Jupiter struct {
 }
 
 type CoinGecko struct {
-	BaseURL string
-	APIKey  string
+	BaseURL        string
+	APIKey         string
+	HistoryEnabled bool
 }
 
 type XStocks struct {
@@ -374,6 +375,7 @@ func marketFields() []field {
 		text("COINGECKO_BASE_URL", "https://api.coingecko.com/api/v3",
 			func(c *Config) *string { return &c.CoinGecko.BaseURL }),
 		text("COINGECKO_API_KEY", "", func(c *Config) *string { return &c.CoinGecko.APIKey }).secret(),
+		deployedByDefault("MARKET_HISTORY_ENABLED", func(c *Config) *bool { return &c.CoinGecko.HistoryEnabled }),
 		text("XSTOCKS_BASE_URL", "https://api.xstocks.fi", func(c *Config) *string { return &c.XStocks.BaseURL }),
 		text("TESSERA_API_BASE_URL", "https://rest-api.tessera.pe",
 			func(c *Config) *string { return &c.Tessera.BaseURL }),
@@ -590,6 +592,24 @@ func boolean(key string, at func(*Config) *bool) field {
 		fallback: "false",
 		want:     "true or false",
 		set: func(c *Config, v string) bool {
+			b, err := strconv.ParseBool(v)
+			*at(c) = b
+			return err == nil
+		},
+		get: func(c *Config) string { return strconv.FormatBool(*at(c)) },
+	}
+}
+
+func deployedByDefault(key string, at func(*Config) *bool) field {
+	return field{
+		key:      key,
+		fallback: "default",
+		want:     "true or false",
+		set: func(c *Config, v string) bool {
+			if v == "default" {
+				*at(c) = c.Env.Deployed()
+				return true
+			}
 			b, err := strconv.ParseBool(v)
 			*at(c) = b
 			return err == nil
