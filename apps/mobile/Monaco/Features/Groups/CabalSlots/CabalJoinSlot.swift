@@ -57,7 +57,13 @@ struct CabalJoinSection: View {
     private func content(_ model: CabalAccessModel) -> some View {
         switch model.standing {
         case .hidden:
-            EmptyView()
+            if model.loadFailed {
+                MonacoErrorRow(thing: "your invite", identifier: "cabal-join-failed") {
+                    Task { await model.load() }
+                }
+            }
+        case .invited:
+            CabalInviteAnswer(model: model)
         case .join:
             policyNote(model.joinPolicy)
             enterButton(model, idle: model.joinPolicy == .open ? "Join" : "Request to join")
@@ -156,6 +162,33 @@ struct CabalJoinSection: View {
         }
         if shared == nil { await model.load() }
         await model.observe()
+    }
+}
+
+private struct CabalInviteAnswer: View {
+    let model: CabalAccessModel
+
+    var body: some View {
+        Button {
+            Task { await model.accept() }
+        } label: {
+            SubmitLabel(isWorking: model.isBusy, idle: "Accept invite", working: "Joining…")
+        }
+        .buttonStyle(.monacoPrimary)
+        .disabled(model.isBusy)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityIdentifier("cabal-join-accept")
+        Button("Decline") {
+            Task { await model.decline() }
+        }
+        .buttonStyle(.plain)
+        .font(MonacoTheme.Typo.rowTitle)
+        .foregroundStyle(MonacoTheme.muted)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .contentShape(Rectangle())
+        .disabled(model.isBusy)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityIdentifier("cabal-join-decline")
     }
 }
 
