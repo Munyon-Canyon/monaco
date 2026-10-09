@@ -61,6 +61,7 @@ struct CabalActionsRow: View {
     let open: (any AppRoute) -> Void
 
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.cabalModel) private var cabalModel
 
     var body: some View {
         content
@@ -75,16 +76,17 @@ struct CabalActionsRow: View {
     @ViewBuilder private var content: some View {
         switch model?.actions ?? .loading {
         case .loading:
-            VStack(spacing: MonacoTheme.Space.gutter) {
+            if cabalModel?.cabal?.me == nil, cabalModel?.cabal != nil {
+                Color.clear.frame(height: 0)
+            } else {
                 HStack(spacing: 0) {
                     ForEach(0..<4, id: \.self) { _ in
                         SkeletonBlock(width: 56, height: 56, radius: 28)
                             .frame(maxWidth: .infinity)
                     }
                 }
-                MonacoRowSkeleton(rows: 3, markShape: .tile)
+                .accessibilityHidden(true)
             }
-            .accessibilityHidden(true)
         case .hidden, .failed:
             Color.clear.frame(height: 0)
         case .member(let canPropose):
