@@ -36,6 +36,8 @@ services:
     envVars:
       - key: PORT
         value: "8080"
+      - key: MONACO_DB_MAX_CONNS
+        value: "4"
       - fromGroup: monaco-staging
 
   - type: worker
@@ -53,4 +55,6 @@ services:
         - apps/backend/**
         - render.yaml
     envVars:
+      - key: MONACO_DB_MAX_CONNS
+        value: "4"
       - fromGroup: monaco-staging
