@@ -62,6 +62,12 @@ final class AppNavigator {
         path.wrappedValue.removeSubrange(start...)
     }
 
+    func closeCabal(id: String, in tab: MainTab) {
+        let path = binding(for: tab)
+        guard let cabal = path.wrappedValue.lastIndex(of: AnyAppRoute(CabalRoute(id: id))) else { return }
+        path.wrappedValue.removeSubrange(cabal...)
+    }
+
     func binding(for tab: MainTab) -> Binding<[AnyAppRoute]> {
         switch tab {
         case .home:
