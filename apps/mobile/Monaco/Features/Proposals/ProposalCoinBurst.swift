@@ -7,7 +7,7 @@ struct ProposalCoinBurst: View {
         ZStack {
             ForEach(0..<6, id: \.self) { index in
                 Image(systemName: "circle.fill")
-                    .foregroundStyle(MonacoTheme.warning)
+                    .foregroundStyle(MonacoTheme.goldGlyph)
                     .offset(x: expanded ? CGFloat(index - 3) * 18 : 0, y: expanded ? -28 : 0)
                     .opacity(expanded ? 0 : 1)
             }

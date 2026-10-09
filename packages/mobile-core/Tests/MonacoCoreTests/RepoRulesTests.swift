@@ -279,6 +279,7 @@ enum RepoRules {
         DesignScaleRules.spacing,
         roundedBorderField,
         seeAll,
+        coinGlyph,
         gutter,
         DesignTokenRules.rowHeight,
         DesignTokenRules.compactTarget,
@@ -742,6 +743,18 @@ extension RepoRules {
         message: "A text field draws with monacoFieldChrome, not the system rounded box.",
         failing: [".textFieldStyle(.roundedBorder)"],
         passing: [".monacoFieldChrome(isFocused: focused)", ".textFieldStyle(.plain)"]
+    )
+
+    static let coinGlyph = RepoRule(
+        name: "coin-glyph",
+        roots: ["apps/mobile/Monaco/Features"],
+        pattern: #"StockMark\(systemImage:"#,
+        message: "The gold coin is for stocks. A row that leads with a glyph uses SunkenGlyphMark(systemImage:).",
+        failing: [#"leading: { StockMark(systemImage: "gearshape") }"#],
+        passing: [
+            #"leading: { SunkenGlyphMark(systemImage: "gearshape") }"#,
+            "StockMark(symbol: row.symbol, size: 40)",
+        ]
     )
 
     static let gutter = RepoRule(

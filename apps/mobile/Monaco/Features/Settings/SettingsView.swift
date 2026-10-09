@@ -116,7 +116,7 @@ struct SettingsList: View {
                     titleColor: MonacoTheme.destructive,
                     chevron: false,
                     isLast: true,
-                    leading: { StockMark(systemImage: "rectangle.portrait.and.arrow.right") }
+                    leading: { SunkenGlyphMark(systemImage: "rectangle.portrait.and.arrow.right") }
                 )
             }
             .buttonStyle(.monacoRow)
@@ -162,7 +162,7 @@ struct SettingsList: View {
             } label: {
                 MonacoRow(
                     title: row.title,
-                    leading: { StockMark(systemImage: row.systemImage) },
+                    leading: { SunkenGlyphMark(systemImage: row.systemImage) },
                     trailing: {
                         Text(status.map { $0 == .authorized ? "On" : "Off" } ?? "")
                             .font(MonacoTheme.Typo.body)
@@ -209,7 +209,7 @@ struct SettingsList: View {
             titleColor: row == .deleteAccount ? MonacoTheme.destructive : MonacoTheme.ink,
             chevron: row != .deleteAccount,
             isLast: row == SettingsRow.allCases.last,
-            leading: { StockMark(systemImage: row.systemImage) }
+            leading: { SunkenGlyphMark(systemImage: row.systemImage) }
         )
     }
 }

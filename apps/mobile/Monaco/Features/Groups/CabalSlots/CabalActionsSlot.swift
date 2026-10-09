@@ -136,7 +136,7 @@ private struct UnreadDot: View {
 
     var body: some View {
         Circle()
-            .fill(MonacoTheme.destructive)
+            .fill(MonacoTheme.brand)
             .frame(width: 8, height: 8)
             .overlay(Circle().strokeBorder(MonacoTheme.background, lineWidth: 1.5))
             .offset(x: CircleActionMetrics.discSize(scaled: scaledDiscSize) / 2 - 6, y: 2)

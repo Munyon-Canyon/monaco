@@ -19,7 +19,7 @@ private struct ProfileLinks: View {
                 MonacoRow(
                     title: InviteCopy.title,
                     chevron: true,
-                    leading: { StockMark(systemImage: "person.badge.plus") }
+                    leading: { SunkenGlyphMark(systemImage: "person.badge.plus") }
                 )
             }
             .buttonStyle(.monacoRow)
@@ -29,7 +29,7 @@ private struct ProfileLinks: View {
                 MonacoRow(
                     title: "Find friends",
                     chevron: true,
-                    leading: { StockMark(systemImage: "person.2") }
+                    leading: { SunkenGlyphMark(systemImage: "person.2") }
                 )
             }
             .buttonStyle(.monacoRow)
@@ -42,7 +42,7 @@ private struct ProfileLinks: View {
                     title: "Settings",
                     chevron: true,
                     isLast: true,
-                    leading: { StockMark(systemImage: "gearshape") }
+                    leading: { SunkenGlyphMark(systemImage: "gearshape") }
                 )
             }
             .buttonStyle(.monacoRow)

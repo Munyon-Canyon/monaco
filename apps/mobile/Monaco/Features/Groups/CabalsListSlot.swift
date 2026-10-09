@@ -150,11 +150,11 @@ private struct MyCabalCard: View {
                 Spacer(minLength: 0)
                 if let unread = CabalCopy.unreadBadge(cabal.unreadCount) {
                     Text(unread)
-                        .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
-                        .foregroundStyle(MonacoTheme.onDestructive)
+                        .font(MonacoTheme.Typo.dataMicro)
+                        .foregroundStyle(MonacoTheme.onBrand)
                         .padding(.horizontal, MonacoTheme.Space.s)
                         .frame(minWidth: 22, minHeight: 22)
-                        .background(Capsule().fill(MonacoTheme.destructive))
+                        .background(Capsule().fill(MonacoTheme.brandFill))
                         .accessibilityLabel(CabalCopy.unreadLabel(cabal.unreadCount))
                         .accessibilityIdentifier("cabals-list-card-unread")
                 }

@@ -96,27 +96,20 @@ struct SessionGateView: View {
             }
         case .restricted(.banned): RestrictedAccountView()
         case .app(let restricted):
-            VStack(spacing: 0) {
-                if restricted { AccountUnderReviewNotice() }
-                MainTabView()
-            }
-            .environment(\.accountRestricted, restricted)
+            MainTabView()
+                .environment(\.accountRestricted, restricted)
         }
     }
 }
 
-private struct AccountUnderReviewNotice: View {
+struct AccountUnderReviewNotice: View {
     var body: some View {
-        Text(OnboardingCopy.underReviewNotice)
-            .font(MonacoTheme.Typo.callout)
-            .foregroundStyle(MonacoTheme.primaryText)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.sm)
-            .background(MonacoTheme.goldWash)
-            .accessibilityIdentifier("accountUnderReviewNotice")
+        WarningNoticeRow(
+            message: OnboardingCopy.underReviewNotice, identifier: "accountUnderReviewNotice",
+            systemImage: "exclamationmark.circle.fill"
+        )
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .background(MonacoTheme.canvas)
     }
 }
 

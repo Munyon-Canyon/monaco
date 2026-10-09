@@ -12,7 +12,7 @@ struct AdvancedSettingsView: View {
                                 title: link.title,
                                 subtitle: link.url.host() ?? link.url.absoluteString,
                                 isLast: link.id == SettingsAdvancedLinks.explorerLinks.last?.id,
-                                leading: { StockMark(systemImage: "safari") },
+                                leading: { SunkenGlyphMark(systemImage: "safari") },
                                 trailing: {
                                     Image(systemName: "arrow.up.right")
                                         .font(MonacoTheme.Typo.captionStrong)
