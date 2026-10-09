@@ -26,14 +26,19 @@ struct DepositAddressCardTests {
     private let wallet = "7Yk3Qn5wF2cXe9Lp4RtUv8Hs6JdBm1ZaNq3GfKyWo2Tc"
 
     @Test func theAddressComesFromTheProfileNotTheBalance() {
-        #expect(DepositAddressCard.Content.resolve(address: wallet) == .ready(wallet))
+        #expect(DepositAddressCard.Content.resolve(address: wallet, gaveUp: false) == .ready(wallet))
     }
 
-    @Test func anEmptyProfileAddressIsUnavailable() {
-        let unavailable = DepositAddressCard.Content.unavailable
-        #expect(DepositAddressCard.Content.resolve(address: "") == unavailable)
-        #expect(DepositAddressCard.Content.resolve(address: nil) == unavailable)
-        #expect(DepositAddressCard.Content.resolve(address: "FAKE_WALLET_123") == unavailable)
+    @Test func aWalletStillBeingMadeLoadsUntilWeGiveUp() {
+        typealias Content = DepositAddressCard.Content
+        #expect(Content.resolve(address: nil, gaveUp: false) == .loading)
+        #expect(Content.resolve(address: "", gaveUp: false) == .loading)
+        #expect(Content.resolve(address: nil, gaveUp: true) == .unavailable)
+        #expect(Content.resolve(address: "", gaveUp: true) == .unavailable)
+    }
+
+    @Test func aPlaceholderAddressIsUnavailableAtOnce() {
+        #expect(DepositAddressCard.Content.resolve(address: "FAKE_WALLET_123", gaveUp: false) == .unavailable)
     }
 
     @Test func aFailedBalanceDoesNotHideTheAddress() {
@@ -41,7 +46,7 @@ struct DepositAddressCardTests {
             address: wallet, state: .failed(.transport(URLError(.cannotConnectToHost))),
             onCopy: { _ in }, onRetryAddress: {}, onRetryBalance: {})
         #expect(content.address == wallet)
-        #expect(DepositAddressCard.Content.resolve(address: content.address) == .ready(wallet))
+        #expect(DepositAddressCard.Content.resolve(address: content.address, gaveUp: false) == .ready(wallet))
         #expect(PlatformBalanceCard(state: content.state).display == .unavailable)
     }
 }

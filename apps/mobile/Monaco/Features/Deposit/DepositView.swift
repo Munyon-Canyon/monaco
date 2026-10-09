@@ -33,11 +33,13 @@ struct DepositChooser: View {
     let creating: Bool
     let onCard: () -> Void
 
+    static let cardHint = "Card or Apple Pay. You choose the amount next."
+
     var body: some View {
         ScrollView {
             MonacoGroupedList {
                 Button(action: onCard) {
-                    MonacoRow(title: "Card", subtitle: "Pay with card or Apple Pay", chevron: !creating) {
+                    MonacoRow(title: "Card", subtitle: Self.cardHint, chevron: !creating) {
                         SunkenGlyphMark(systemImage: "creditcard")
                     } trailing: {
                         if creating {
@@ -50,7 +52,7 @@ struct DepositChooser: View {
                 .buttonStyle(.monacoRow)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Card")
-                .accessibilityHint("Pay with card or Apple Pay")
+                .accessibilityHint(Self.cardHint)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier("deposit-card-row")
 
@@ -76,22 +78,45 @@ struct DepositChooser: View {
     }
 }
 
+private struct AddressPoll: Hashable {
+    let address: String?
+    let retry: Int
+}
+
 struct DepositAddressView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var model: BalanceSource?
+    @State private var addressAttempts = 0
+    @State private var addressRetry = 0
+
+    private static let maxAddressAttempts = 5
 
     var body: some View {
         DepositContent(
             address: environment.sessionStore.profile?.memberWalletAddress,
+            gaveUp: addressAttempts >= Self.maxAddressAttempts,
             state: model?.state ?? .loading,
             onCopy: copyAddress,
-            onRetryAddress: { Task { await environment.sessionStore.reloadProfile(auth: environment.auth) } },
+            onRetryAddress: {
+                addressAttempts = 0
+                addressRetry += 1
+            },
             onRetryBalance: { Task { await model?.load() } }
         )
         .refreshable {
             await environment.sessionStore.reloadProfile(auth: environment.auth)
             await model?.load()
+        }
+        .task(id: AddressPoll(address: environment.sessionStore.profile?.memberWalletAddress, retry: addressRetry)) {
+            while DepositAddress.usable(environment.sessionStore.profile?.memberWalletAddress) == nil,
+                addressAttempts < Self.maxAddressAttempts
+            {
+                await environment.sessionStore.reloadProfile(auth: environment.auth)
+                addressAttempts += 1
+                try? await Task.sleep(for: .seconds(2))
+                if Task.isCancelled { return }
+            }
         }
         .task {
             let model = preparedModel()
@@ -102,7 +127,7 @@ struct DepositAddressView: View {
             model?.setVisible(visible)
         }
         .onChange(of: model?.failureTick) { _, _ in
-            guard let error = model?.lastError else { return }
+            guard model?.balance != nil, let error = model?.lastError else { return }
             toasts.current = MonacoToast(message: BalanceSource.message(for: error))
         }
         .onChange(of: model?.balance) { previous, current in
@@ -126,6 +151,7 @@ struct DepositAddressView: View {
 
 struct DepositContent: View {
     let address: String?
+    var gaveUp = false
     let state: LoadState<AccountBalance>
     let onCopy: (String) -> Void
     let onRetryAddress: () -> Void
@@ -155,10 +181,15 @@ struct DepositContent: View {
                             }
                         }
                     case .address:
-                        DepositAddressCard(
-                            content: .resolve(address: address), onCopy: onCopy, onRetry: onRetryAddress
-                        )
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
+                        let content = DepositAddressCard.Content.resolve(address: address, gaveUp: gaveUp)
+                        if content == .unavailable {
+                            MonacoErrorRow(
+                                thing: "your deposit address", identifier: "deposit-address-error",
+                                retry: onRetryAddress)
+                        } else {
+                            DepositAddressCard(content: content, onCopy: onCopy)
+                                .padding(.horizontal, MonacoTheme.Space.gutter)
+                        }
                     case .howItWorks:
                         howItWorks
                     }
@@ -205,7 +236,7 @@ struct DepositContent: View {
                 .font(MonacoTheme.Typo.captionStrong)
                 .foregroundStyle(MonacoTheme.ink)
                 .frame(width: 24, height: 24)
-                .background(Circle().fill(MonacoTheme.muted.opacity(0.15)))
+                .background(Circle().fill(MonacoTheme.surfaceSunken))
                 .accessibilityHidden(true)
             Text(label)
                 .font(MonacoTheme.Typo.caption)
@@ -224,8 +255,10 @@ struct DepositAddressCard: View {
         case ready(String)
         case unavailable
 
-        static func resolve(address: String?) -> Content {
-            DepositAddress.usable(address).map(Content.ready) ?? .unavailable
+        static func resolve(address: String?, gaveUp: Bool) -> Content {
+            if let usable = DepositAddress.usable(address) { return .ready(usable) }
+            let placeholder = address?.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("FAKE") == true
+            return placeholder || gaveUp ? .unavailable : .loading
         }
     }
 
@@ -233,7 +266,6 @@ struct DepositAddressCard: View {
     var addressIdentifier = "deposit-address-value"
     var copyIdentifier = "deposit-address-copy-button"
     let onCopy: (String) -> Void
-    let onRetry: () -> Void
 
     static let networkNote = "Only send USDC on Solana to this address."
 
@@ -249,7 +281,7 @@ struct DepositAddressCard: View {
             case .ready(let address):
                 ready(address)
             case .unavailable:
-                unavailable
+                EmptyView()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -303,9 +335,5 @@ struct DepositAddressCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading your deposit address")
         .accessibilityIdentifier("deposit-address-loading")
-    }
-
-    private var unavailable: some View {
-        MonacoErrorRow(thing: "your deposit address", identifier: "deposit-address-error", retry: onRetry)
     }
 }
