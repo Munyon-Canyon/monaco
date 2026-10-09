@@ -288,7 +288,7 @@ func (env *Env) pullBlocker(ctx context.Context, n int) error {
 	if err != nil {
 		return err
 	}
-	landed, err := env.landed(ctx, pr.closed())
+	sha, landed, err := env.landedCommit(ctx, pr)
 	if err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (env *Env) pullBlocker(ctx context.Context, n int) error {
 			fmt.Sprintf("blocker #%d is not merged", n),
 		)
 	}
-	return env.mergedIn(ctx, n, pr.landedSHA())
+	return env.mergedIn(ctx, n, sha)
 }
 
 func (env *Env) issueBlocker(ctx context.Context, n int) error {
@@ -311,14 +311,14 @@ func (env *Env) issueBlocker(ctx context.Context, n int) error {
 		if pr.Base.Ref != env.Config.FeatureBranch || !closes(pr.Body, n) {
 			continue
 		}
-		landed, err := env.landed(ctx, pr.closed())
+		sha, landed, err := env.landedCommit(ctx, pr)
 		if err != nil {
 			return err
 		}
 		if !landed {
 			continue
 		}
-		ok, err := env.ancestor(ctx, pr.landedSHA())
+		ok, err := env.ancestor(ctx, sha)
 		if err != nil {
 			return err
 		}
