@@ -49,7 +49,7 @@ feed_objects
 
 feed_comments
   id, feed_object_id, author_id, parent_comment_id?, reply_to_user_id?, body (1 to 1000 chars), created_at,
-  deleted_at?, deleted_by?
+  deleted_at?, deleted_by?, deleted_by_kind (author | admin, default author)
 
 feed_mutes
   user_id, target_type (kind | cabal | asset | user | item), target_id, label?, created_at
