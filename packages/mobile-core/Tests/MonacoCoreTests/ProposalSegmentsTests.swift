@@ -27,6 +27,43 @@ final class ProposalSegmentsTests: XCTestCase {
     }
 
     @MainActor
+    func testLoadingASegmentAgainKeepsTheRowsAlreadyPaged() async throws {
+        let (first, second) = Self.executedPages()
+        let transport = StubTransport(scripted: [.json(.ok, first), .json(.ok, second), .json(.ok, first)])
+        let executed = Self.segments(transport).model(for: .executed)
+        await executed.load()
+        await executed.pager.loadMore()
+
+        await executed.load()
+
+        XCTAssertEqual(executed.pager.items.count, 25)
+        XCTAssertEqual(executed.pager.phase, .exhausted)
+    }
+
+    @MainActor
+    func testAVoteRefreshKeepsEverySegmentsPagedRows() async throws {
+        let (first, second) = Self.executedPages()
+        let transport = StubTransport(scripted: [
+            .json(.ok, Self.page([Self.proposal("open", id: "p")])),
+            .json(.ok, first),
+            .json(.ok, second),
+            .json(.ok, Self.page([Self.proposal("open", id: "p")])),
+            .json(.ok, first),
+        ])
+        let segments = Self.segments(transport)
+        let open = segments.model(for: .open)
+        let executed = segments.model(for: .executed)
+        await open.load()
+        await executed.load()
+        await executed.pager.loadMore()
+
+        await segments.refreshLoaded()
+
+        XCTAssertEqual(open.pager.items.map(\.id), ["p"])
+        XCTAssertEqual(executed.pager.items.count, 25)
+    }
+
+    @MainActor
     func testEachSegmentOwnsOneModelWithItsFilter() {
         let segments = Self.segments(StubTransport(.json(.ok, "{}")))
         for segment in ProposalSegment.allCases {
@@ -172,6 +209,14 @@ final class ProposalSegmentsTests: XCTestCase {
         for (filter, statuses) in expected {
             XCTAssertEqual(Set(ProposalStatus.allCases.filter(filter.includes)), statuses, filter.rawValue)
         }
+    }
+
+    private static func executedPages() -> (first: String, second: String) {
+        let page1 = (0..<20).map { Self.proposal("executed", id: "e\($0)") }.joined(separator: ",")
+        let page2 = (20..<25).map { Self.proposal("executed", id: "e\($0)") }.joined(separator: ",")
+        return (
+            #"{"proposals":[\#(page1)],"next_cursor":"next"}"#, #"{"proposals":[\#(page2)],"next_cursor":null}"#
+        )
     }
 
     @MainActor
