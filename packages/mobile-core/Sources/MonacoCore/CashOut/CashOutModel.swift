@@ -55,7 +55,10 @@ public final class CashOutModel {
     }
 
     public func observe() async {
-        await refresher.observe(hints.hints(matching: .cabal(id: cabalID, what: Self.pauseHint)))
+        await refresher.observe([
+            hints.hints(matching: .cabal(id: cabalID, what: Self.pauseHint)),
+            hints.hints(matching: .user(what: CashOutJobWatcher.changedHint)),
+        ])
     }
 
     public func setVisible(_ visible: Bool) {

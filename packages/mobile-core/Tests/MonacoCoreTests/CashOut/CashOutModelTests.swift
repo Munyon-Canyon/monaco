@@ -178,7 +178,7 @@ final class CashOutModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.cabal("01890a5d-ac96-774b-bcce-b302099a8061"), what: "pause_changed", id: "1"))
@@ -201,7 +201,7 @@ final class CashOutModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
 
         await hints.send(.resync)
 
