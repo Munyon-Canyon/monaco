@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -93,4 +94,25 @@ func TestUserTxns_listOpenFundsAsPendingOrFailed(t *testing.T) {
 			t.Fatalf("txns = %v, want %v (pending %s, settled %s)", got, want, pending, settledID)
 		}
 	}
+}
+
+func TestUserTxns_aSettledFundKeepsItsPendingRowID(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	id, sig := h.submitted(t, 7_000_000)
+	reads := app.NewUserTxnReads(h.pool, namedCabals{}, noWithdrawals{}, h.usdc())
+	want := func(status domain.TxnStatus) {
+		t.Helper()
+		page, err := reads.List(h.ctx(), app.ListUserTxns{UserID: h.user})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) != 1 || page.Items[0].Status != status || page.Items[0].ID != id {
+			t.Fatalf("txns = %+v, want one %s fund with id %s", page.Items, status, id)
+		}
+	}
+	want(domain.TxnPending)
+	h.finalize(sig)
+	h.tick(t)
+	want(domain.TxnSettled)
 }
