@@ -21,14 +21,15 @@ import (
 )
 
 type Comment struct {
-	ID            uuid.UUID
-	FeedObjectID  uuid.UUID
-	AuthorID      ids.UserID
-	ParentID      uuid.UUID
-	ReplyToUserID ids.UserID
-	Body          string
-	CreatedAt     time.Time
-	Deleted       bool
+	ID             uuid.UUID
+	FeedObjectID   uuid.UUID
+	AuthorID       ids.UserID
+	ParentID       uuid.UUID
+	ReplyToUserID  ids.UserID
+	Body           string
+	CreatedAt      time.Time
+	Deleted        bool
+	RemovedByAdmin bool
 }
 
 type CreateComment struct {
@@ -136,6 +137,7 @@ func commentOf(row sqlc.FeedComment) Comment {
 		ID: row.ID, FeedObjectID: row.FeedObjectID, AuthorID: ids.UserIDFrom(row.AuthorID),
 		ParentID: row.ParentCommentID.Bytes, ReplyToUserID: ids.UserIDFrom(row.ReplyToUserID.Bytes),
 		Body: row.Body, CreatedAt: row.CreatedAt.UTC(), Deleted: row.DeletedAt.Valid,
+		RemovedByAdmin: row.DeletedByKind == CommentDeletedByAdmin,
 	}
 }
 

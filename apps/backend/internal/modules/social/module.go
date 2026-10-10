@@ -153,6 +153,7 @@ func (m *Module) http() adapters.HTTP {
 		Token:         app.NewRealtimeTokenHandler(m.members, m.realtime),
 		CreateComment: app.NewCreateCommentHandler(comments),
 		DeleteComment: app.NewDeleteCommentHandler(comments),
+		Removal:       app.NewRemoveCommentHandler(comments),
 		Match: app.NewMatchContactsHandler(app.MatchContactsDeps{
 			UoW: m.deps.UoW, Users: m.users, Clock: m.deps.Clock,
 		}),

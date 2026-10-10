@@ -15,6 +15,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
+const (
+	CommentDeletedByAuthor = "author"
+	CommentDeletedByAdmin  = "admin"
+)
+
 type DeleteComment struct {
 	CommentID uuid.UUID
 	Caller    ids.UserID
@@ -44,7 +49,7 @@ func (h *DeleteCommentHandler) Handle(ctx context.Context, cmd DeleteComment) er
 			return nil
 		}
 		if _, err := q.SoftDeleteComment(ctx, sqlc.SoftDeleteCommentParams{
-			At: h.d.Clock.Now().UTC(), By: cmd.Caller.UUID(), ID: cmd.CommentID,
+			At: h.d.Clock.Now().UTC(), By: cmd.Caller.UUID(), Kind: CommentDeletedByAuthor, ID: cmd.CommentID,
 		}); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
@@ -54,6 +59,7 @@ func (h *DeleteCommentHandler) Handle(ctx context.Context, cmd DeleteComment) er
 		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
 		return tx.Events.Append(ctx, events.CommentDeleted{
 			V: 1, CommentID: row.ID, FeedObjectID: row.FeedObjectID, DeletedBy: cmd.Caller.UUID(),
+			DeletedByKind: CommentDeletedByAuthor,
 		})
 	})
 }

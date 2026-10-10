@@ -30,6 +30,7 @@ type HTTP struct {
 	Token         *app.RealtimeTokenHandler
 	CreateComment *app.CreateCommentHandler
 	DeleteComment *app.DeleteCommentHandler
+	Removal       *app.RemoveCommentHandler
 	Match         *app.MatchContactsHandler
 	Members       app.Members
 	Reads         sqlc.DBTX
@@ -218,4 +219,20 @@ func caller(ctx context.Context) (ids.UserID, error) {
 		return ids.UserID{}, errs.Wrap(err, errs.CodeUnauthorized, op)
 	}
 	return user, nil
+}
+
+func adminCaller(ctx context.Context) (ids.UserID, error) {
+	const op = "social.adminCaller"
+	actor, ok := auth.ActorFrom(ctx)
+	switch {
+	case !ok:
+		return ids.UserID{}, errs.New(errs.CodeUnauthorized, op)
+	case actor.Kind != auth.ActorAdmin:
+		return ids.UserID{}, errs.New(errs.CodeForbidden, op, slog.String("actor_kind", string(actor.Kind)))
+	}
+	admin, err := ids.ParseUserID(actor.ID)
+	if err != nil {
+		return ids.UserID{}, errs.Wrap(err, errs.CodeAdminForbidden, op)
+	}
+	return admin, nil
 }

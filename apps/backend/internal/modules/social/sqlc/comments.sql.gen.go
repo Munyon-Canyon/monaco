@@ -132,7 +132,8 @@ VALUES (
   NULLIF($5::uuid, '00000000-0000-0000-0000-000000000000'),
   $6, $7
 )
-RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by
+RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
+  deleted_by_kind
 `
 
 type InsertCommentParams struct {
@@ -166,6 +167,7 @@ func (q *Queries) InsertComment(ctx context.Context, arg InsertCommentParams) (F
 		&i.CreatedAt,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.DeletedByKind,
 	)
 	return i, err
 }
@@ -187,7 +189,7 @@ WITH tops AS (
   LIMIT $6::int
 )
 SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.body, c.created_at,
-  c.deleted_at, c.deleted_by
+  c.deleted_at, c.deleted_by, c.deleted_by_kind
 FROM feed_comments c
 WHERE (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (
@@ -231,6 +233,7 @@ func (q *Queries) ListCommentThreads(ctx context.Context, arg ListCommentThreads
 			&i.CreatedAt,
 			&i.DeletedAt,
 			&i.DeletedBy,
+			&i.DeletedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -270,18 +273,25 @@ func (q *Queries) LockComment(ctx context.Context, id uuid.UUID) (LockCommentRow
 
 const softDeleteComment = `-- name: SoftDeleteComment :execrows
 UPDATE feed_comments
-SET deleted_at = $1::timestamptz, deleted_by = $2::uuid
-WHERE id = $3 AND deleted_at IS NULL
+SET deleted_at = $1::timestamptz, deleted_by = $2::uuid,
+  deleted_by_kind = $3::text
+WHERE id = $4 AND deleted_at IS NULL
 `
 
 type SoftDeleteCommentParams struct {
-	At time.Time
-	By uuid.UUID
-	ID uuid.UUID
+	At   time.Time
+	By   uuid.UUID
+	Kind string
+	ID   uuid.UUID
 }
 
 func (q *Queries) SoftDeleteComment(ctx context.Context, arg SoftDeleteCommentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, softDeleteComment, arg.At, arg.By, arg.ID)
+	result, err := q.db.Exec(ctx, softDeleteComment,
+		arg.At,
+		arg.By,
+		arg.Kind,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

@@ -480,7 +480,7 @@ type Comment struct {
 	// Examples: nice
 	Body *string `json:"body"`
 
-	// BodyDisplay The body, or `Comment deleted` once it is deleted.
+	// BodyDisplay The body, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.
 	//
 	// Examples: nice
 	BodyDisplay string `json:"body_display"`
@@ -902,6 +902,12 @@ type ChatCabalId = openapi_types.UUID
 // ChatMessageId Examples: 01920000-0000-7000-8000-000000000007
 type ChatMessageId = openapi_types.UUID
 
+// RemoveCommentParams defines parameters for RemoveComment.
+type RemoveCommentParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetAdminReportsParams defines parameters for GetAdminReports.
 type GetAdminReportsParams struct {
 	// Status Which reports to list. Defaults to open.
@@ -1136,6 +1142,9 @@ type GetUserFollowingParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// RemoveCommentJSONRequestBody defines body for RemoveComment for application/json ContentType.
+type RemoveCommentJSONRequestBody = externalRef0.ReasonBody
+
 // PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
 type PostChatMessageJSONRequestBody = PostChatMessageRequest
 
@@ -1159,6 +1168,9 @@ type PostUserFollowJSONRequestBody = FollowRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// RemoveComment Remove a comment.
+	// (DELETE /v1/admin/comments/{id})
+	RemoveComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RemoveCommentParams)
 	// GetAdminReports List reports for moderators.
 	// (GET /v1/admin/reports)
 	GetAdminReports(w http.ResponseWriter, r *http.Request, params GetAdminReportsParams)
@@ -1253,6 +1265,60 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// RemoveComment operation middleware
+func (siw *ServerInterfaceWrapper) RemoveComment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RemoveCommentParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveComment(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // GetAdminReports operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminReports(w http.ResponseWriter, r *http.Request) {
@@ -2911,6 +2977,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/admin/comments/{id}", wrapper.RemoveComment)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/reports", wrapper.GetAdminReports)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.GetChatSeenBy)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.MarkChatSeen)
@@ -2941,6 +3008,41 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
+}
+
+type RemoveCommentRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RemoveCommentParams
+	Body   *RemoveCommentJSONRequestBody
+}
+
+type RemoveCommentResponseObject interface {
+	VisitRemoveCommentResponse(w http.ResponseWriter) error
+}
+
+type RemoveComment204Response struct {
+}
+
+func (response RemoveComment204Response) VisitRemoveCommentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveCommentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response RemoveCommentdefaultApplicationProblemPlusJSONResponse) VisitRemoveCommentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetAdminReportsRequestObject struct {
@@ -4028,6 +4130,9 @@ func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// RemoveComment Remove a comment.
+	// (DELETE /v1/admin/comments/{id})
+	RemoveComment(ctx context.Context, request RemoveCommentRequestObject) (RemoveCommentResponseObject, error)
 	// GetAdminReports List reports for moderators.
 	// (GET /v1/admin/reports)
 	GetAdminReports(ctx context.Context, request GetAdminReportsRequestObject) (GetAdminReportsResponseObject, error)
@@ -4151,6 +4256,40 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// RemoveComment operation middleware
+func (sh *strictHandler) RemoveComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RemoveCommentParams) {
+	var request RemoveCommentRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RemoveCommentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveComment(ctx, request.(RemoveCommentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveComment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveCommentResponseObject); ok {
+		if err := validResponse.VisitRemoveCommentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // GetAdminReports operation middleware

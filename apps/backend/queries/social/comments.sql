@@ -21,7 +21,8 @@ VALUES (
   NULLIF(sqlc.arg(reply_to_user_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   sqlc.arg(body), sqlc.arg(created_at)
 )
-RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by;
+RETURNING id, feed_object_id, author_id, parent_comment_id, reply_to_user_id, body, created_at, deleted_at, deleted_by,
+  deleted_by_kind;
 
 -- name: BumpCommentCount :execrows
 UPDATE feed_objects
@@ -36,7 +37,8 @@ FOR UPDATE;
 
 -- name: SoftDeleteComment :execrows
 UPDATE feed_comments
-SET deleted_at = sqlc.arg(at)::timestamptz, deleted_by = sqlc.arg(by)::uuid
+SET deleted_at = sqlc.arg(at)::timestamptz, deleted_by = sqlc.arg(by)::uuid,
+  deleted_by_kind = sqlc.arg(kind)::text
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
 -- name: ListCommentThreads :many
@@ -56,7 +58,7 @@ WITH tops AS (
   LIMIT sqlc.arg(row_limit)::int
 )
 SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.body, c.created_at,
-  c.deleted_at, c.deleted_by
+  c.deleted_at, c.deleted_by, c.deleted_by_kind
 FROM feed_comments c
 WHERE (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM tops))
   AND NOT EXISTS (
