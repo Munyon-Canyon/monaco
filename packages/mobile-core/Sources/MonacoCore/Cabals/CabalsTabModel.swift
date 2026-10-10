@@ -17,14 +17,17 @@ public final class CabalsTabModel {
         self.api = api
     }
 
-    public func load() async {
+    public func load(withStandings: Bool = false) async {
         generation += 1
         let issued = generation
         if case .loaded = state {} else { state = .loading }
+        async let read = withStandings ? readStandings() : nil
         do {
             let cabals = try await api.read { try await $0.getMyCabals().ok.body.json }
+            let rows = await read
             guard issued > settled else { return }
             settled = issued
+            if let rows { standings = rows }
             state = .loaded(cabals)
             lastError = nil
         } catch {
@@ -40,9 +43,9 @@ public final class CabalsTabModel {
         }
     }
 
-    public func loadStandings() async {
-        guard let portfolio = try? await api.read({ try await $0.getMyPortfolio().ok.body.json }) else { return }
-        standings = Dictionary(
+    private func readStandings() async -> [String: PortfolioSummary.Row]? {
+        guard let portfolio = try? await api.read({ try await $0.getMyPortfolio().ok.body.json }) else { return nil }
+        return Dictionary(
             PortfolioSummary(portfolio).rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
