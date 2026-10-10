@@ -5,17 +5,21 @@ import Observation
 @MainActor
 public final class CashOutJobWatcher {
     public static let changedHint = "cashout_changed"
+    public static let pollInterval: Duration = .seconds(15)
 
     public private(set) var notice: CashOutNotice?
     private var running: [String: CashOutJob] = [:]
 
     private let api: APIClient
     private let hints: any HintSource
+    private let clock: any Clock<Duration>
     @ObservationIgnored private var observer: Task<Void, Never>?
+    @ObservationIgnored private var poller: Task<Void, Never>?
 
-    public init(api: APIClient, hints: any HintSource) {
+    public init(api: APIClient, hints: any HintSource, clock: any Clock<Duration> = CashOutJobWatcher.systemClock) {
         self.api = api
         self.hints = hints
+        self.clock = clock
     }
 
     public func job(for cabalID: String) -> CashOutJob? {
@@ -26,25 +30,40 @@ public final class CashOutJobWatcher {
 
     public func track(_ job: CashOutJob) {
         settle(job)
-        guard job.isRunning, observer == nil else { return }
-        let changes = hints.hints(matching: .user(what: Self.changedHint))
-        observer = Task { [weak self] in
-            await self?.refresh()
-            if self?.running.isEmpty == false {
-                for await _ in changes {
-                    guard let self else { return }
+        guard job.isRunning else { return }
+        if observer == nil {
+            let changes = hints.hints(matching: .user(what: Self.changedHint))
+            observer = Task { [weak self] in
+                await self?.refresh()
+                if self?.running.isEmpty == false {
+                    for await _ in changes {
+                        guard let self else { return }
+                        await self.refresh()
+                        if self.running.isEmpty { break }
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                self?.observer = nil
+            }
+        }
+        if poller == nil {
+            poller = Task { [weak self, clock] in
+                while (try? await clock.sleep(for: Self.pollInterval)) != nil {
+                    guard let self, !self.running.isEmpty else { break }
                     await self.refresh()
                     if self.running.isEmpty { break }
                 }
+                guard !Task.isCancelled else { return }
+                self?.poller = nil
             }
-            guard !Task.isCancelled else { return }
-            self?.observer = nil
         }
     }
 
     public func reset() {
         observer?.cancel()
         observer = nil
+        poller?.cancel()
+        poller = nil
         running = [:]
         notice = nil
     }
