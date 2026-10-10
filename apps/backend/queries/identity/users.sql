@@ -145,3 +145,18 @@ DELETE FROM users WHERE id = sqlc.arg(id);
 
 -- name: LockUserStatus :one
 SELECT id, account_status FROM users WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: LockUserHandle :one
+SELECT id, handle, account_status FROM users WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: LockHandleParties :many
+SELECT id, handle, account_status FROM users
+WHERE id = sqlc.arg(target)::uuid OR handle = sqlc.arg(handle)::text
+ORDER BY id
+FOR UPDATE;
+
+-- name: ClearUserHandle :execrows
+UPDATE users SET handle = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND handle IS NOT NULL;
+
+-- name: AssignUserHandle :execrows
+UPDATE users SET handle = sqlc.arg(handle)::text, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);

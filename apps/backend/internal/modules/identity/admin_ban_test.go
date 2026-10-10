@@ -408,3 +408,10 @@ func TestAdminBanUser_AnUnreadableRowIsInternal(t *testing.T) {
 		t.Fatalf("Ban on an unreadable row = %v, want %s", err, errs.CodeInternal)
 	}
 }
+
+func apiCode(code errs.Code) apibase.ErrorCode { return apibase.ErrorCode(code) }
+
+func userCtx(t *testing.T, user ids.UserID) context.Context {
+	t.Helper()
+	return auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: user.String()})
+}

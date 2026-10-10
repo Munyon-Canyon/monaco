@@ -24,6 +24,7 @@ type HTTP struct {
 	Delete    *app.DeleteAccount
 	DevX      *app.DevXLink
 	Status    *app.AdminAccountStatus
+	Handles   *app.AdminHandles
 	Reads     sqlc.DBTX
 	Clock     clock.Clock
 	Cards     app.UserCards
