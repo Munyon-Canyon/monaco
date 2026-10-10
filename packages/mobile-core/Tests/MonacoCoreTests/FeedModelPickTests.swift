@@ -94,6 +94,89 @@ final class FeedModelPickTests: XCTestCase {
         await pick.value
     }
 
+    func testTypingAgainWhileASearchLoadsKeepsTheLoadedRows() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page(samples)), .hang, .json(.ok, try Self.page([samples[0]])),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        await model.load()
+        await search("zz", in: model, clock: clock, transport: transport, requests: 2)
+        model.setSearch("zzz")
+        await settle()
+        XCTAssertEqual(model.items.count, samples.count)
+        XCTAssertEqual(model.phase, .loaded)
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: FeedModel.searchDebounce)
+        let expected = [samples[0].id]
+        let replaced = await waitUntil { model.items.map(\.id) == expected }
+        XCTAssertTrue(replaced, "\(model.phase)")
+        XCTAssertEqual(model.query.search, "zzz")
+    }
+
+    func testTappingTheSelectedChipWhileASearchLoadsKeepsTheLoadedRows() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, try Self.page(samples)), .hang, .gate])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        await model.load()
+        await search("zz", in: model, clock: clock, transport: transport, requests: 2)
+        let tap = Task { await model.select(.all) }
+        await transport.waitForRequests(3)
+        await settle()
+        XCTAssertEqual(model.items.count, samples.count)
+        XCTAssertEqual(model.phase, .loaded)
+        await transport.releaseGate(.json(.ok, try Self.page([samples[0]])))
+        await tap.value
+        XCTAssertEqual(model.items.map(\.id), [samples[0].id])
+    }
+
+    func testATypedSpaceWhileASearchLoadsStillShowsThatSearch() async throws {
+        let transport = StubTransport(scripted: [.json(.ok, try Self.page(samples)), .gate])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        await model.load()
+        await search("zz", in: model, clock: clock, transport: transport, requests: 2)
+        model.setSearch("zz ")
+        await settle()
+        await transport.releaseGate(.json(.ok, try Self.page([samples[0]])))
+        let expected = [samples[0].id]
+        let landed = await waitUntil { model.items.map(\.id) == expected }
+        XCTAssertTrue(landed, "\(model.phase)")
+        XCTAssertEqual(model.query.search, "zz")
+    }
+
+    func testTypingAgainWhileASearchLoadsOnAnEmptyFeedKeepsTheSkeleton() async throws {
+        let transport = StubTransport(scripted: [
+            .json(.ok, try Self.page([])), .hang, .json(.ok, try Self.page([samples[0]])),
+        ])
+        let clock = TestClock()
+        let model = makeModel(transport, clock: clock)
+        await model.load()
+        await search("zz", in: model, clock: clock, transport: transport, requests: 2)
+        XCTAssertEqual(model.phase, .loading)
+        model.setSearch("zzz")
+        await settle()
+        XCTAssertEqual(model.phase, .loading)
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: FeedModel.searchDebounce)
+        let expected = [samples[0].id]
+        let replaced = await waitUntil { model.items.map(\.id) == expected }
+        XCTAssertTrue(replaced, "\(model.phase)")
+    }
+
+    private func search(
+        _ text: String, in model: FeedModel, clock: TestClock, transport: StubTransport, requests: Int
+    ) async {
+        model.setSearch(text)
+        _ = await clock.state.until { $0.pending == 1 }
+        clock.advance(by: FeedModel.searchDebounce)
+        await transport.waitForRequests(requests)
+    }
+
+    private func settle() async {
+        for _ in 0..<200 { await Task.yield() }
+    }
+
     private func makeModel(_ transport: StubTransport, clock: any Clock<Duration> = TestClock()) -> FeedModel {
         FeedModel(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
