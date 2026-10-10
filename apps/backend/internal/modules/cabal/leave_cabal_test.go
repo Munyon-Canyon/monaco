@@ -24,27 +24,33 @@ import (
 )
 
 type treasuryStub struct {
-	shares     money.SharesUnits
-	pot        money.Micros
-	sharesErr  error
-	potErr     error
-	open       bool
-	openErr    error
-	lateOpen   bool
-	lateShares *money.SharesUnits
-	shareReads atomic.Int32
-	lateErr    error
-	openReads  atomic.Int32
-	read       func()
-	potReads   atomic.Int32
+	shares        money.SharesUnits
+	pot           money.Micros
+	sharesErr     error
+	potErr        error
+	open          bool
+	openErr       error
+	lateOpen      bool
+	lateShares    *money.SharesUnits
+	shareReads    atomic.Int32
+	lateSharesErr error
+	lateErr       error
+	openReads     atomic.Int32
+	read          func()
+	potReads      atomic.Int32
 }
 
 func (s *treasuryStub) ShareUnits(context.Context, ids.CabalID, ids.UserID) (money.SharesUnits, error) {
 	if s.read != nil {
 		s.read()
 	}
-	if s.shareReads.Add(1) > 1 && s.lateShares != nil {
-		return *s.lateShares, s.sharesErr
+	if s.shareReads.Add(1) > 1 {
+		if s.lateSharesErr != nil {
+			return money.SharesUnits{}, s.lateSharesErr
+		}
+		if s.lateShares != nil {
+			return *s.lateShares, s.sharesErr
+		}
 	}
 	return s.shares, s.sharesErr
 }
@@ -341,7 +347,8 @@ func TestLeaveCabal_rereadsTheSharesUnderTheMemberLocks(t *testing.T) {
 	if got := f.lefts(t); len(got) != 0 {
 		t.Fatalf("member_left events = %+v, want none", got)
 	}
-	wantErr(t, f.leave(t.Context(), &treasuryStub{sharesErr: errs.New(errs.CodeDBUnavailable, "test")}, member, c.ID),
+	broken := &treasuryStub{lateSharesErr: errs.New(errs.CodeDBUnavailable, "test")}
+	wantErr(t, f.leave(t.Context(), broken, member, c.ID),
 		errs.CodeDBUnavailable)
 }
 
