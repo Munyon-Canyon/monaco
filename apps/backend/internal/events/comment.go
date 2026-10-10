@@ -34,10 +34,11 @@ func (CommentCreated) AggregateType() string { return commentAggregate }
 func (e CommentCreated) AggregateID() uuid.UUID { return e.CommentID }
 
 type CommentDeleted struct {
-	V            int       `json:"v"`
-	CommentID    uuid.UUID `json:"comment_id"`
-	FeedObjectID uuid.UUID `json:"feed_object_id"`
-	DeletedBy    uuid.UUID `json:"deleted_by"     pii:"true"`
+	V             int       `json:"v"`
+	CommentID     uuid.UUID `json:"comment_id"`
+	FeedObjectID  uuid.UUID `json:"feed_object_id"`
+	DeletedBy     uuid.UUID `json:"deleted_by"      pii:"true"`
+	DeletedByKind string    `json:"deleted_by_kind"`
 }
 
 func (CommentDeleted) Type() Type { return TypeCommentDeleted }

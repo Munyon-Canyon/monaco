@@ -35,6 +35,7 @@ type FeedComment struct {
 	CreatedAt       time.Time
 	DeletedAt       pgtype.Timestamptz
 	DeletedBy       pgtype.UUID
+	DeletedByKind   string
 }
 
 type Report struct {

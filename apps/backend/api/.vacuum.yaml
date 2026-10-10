@@ -10,3 +10,11 @@ rules:
     then:
       field: default
       function: truthy
+  no-request-body:
+    description: GET and HEAD operations carry no request body. DELETE may carry a reason.
+    message: "{{property}} operation must not have a requestBody."
+    severity: warn
+    given: $.paths[*][get,head]
+    then:
+      field: requestBody
+      function: falsy

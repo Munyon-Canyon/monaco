@@ -434,6 +434,7 @@ Subject `events.comment.deleted`, version 1.
 | `comment_id` | `uuid.UUID` |
 | `feed_object_id` | `uuid.UUID` |
 | `deleted_by` | `uuid.UUID` |
+| `deleted_by_kind` | `string` |
 
 ## `deposit.candidate_dismissed`
 

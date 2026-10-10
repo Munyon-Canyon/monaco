@@ -7,13 +7,17 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-const commentDeletedDisplay = "Comment deleted"
+const (
+	commentDeletedDisplay = "Comment deleted"
+	commentRemovedDisplay = "Removed by Monaco"
+)
 
 func (h HTTP) PostFeedComment(
 	ctx context.Context, req api.PostFeedCommentRequestObject,
@@ -83,9 +87,12 @@ func wireComment(c app.Comment, viewer ids.UserID, cards map[ids.UserID]app.User
 	if card, ok := cards[c.ReplyToUserID]; ok && !card.Deleted {
 		out.ReplyToHandle = optionalWireText(card.Handle)
 	}
-	if c.Deleted {
+	switch {
+	case c.Deleted && c.RemovedByAdmin:
+		out.BodyDisplay = commentRemovedDisplay
+	case c.Deleted:
 		out.BodyDisplay = commentDeletedDisplay
-	} else {
+	default:
 		out.Body = &c.Body
 	}
 	return out
@@ -185,4 +192,21 @@ func (h HTTP) DeleteFeedComment(
 		return nil, err
 	}
 	return api.DeleteFeedComment204Response{}, nil
+}
+
+func (h HTTP) RemoveComment(
+	ctx context.Context, req api.RemoveCommentRequestObject,
+) (api.RemoveCommentResponseObject, error) {
+	admin, err := adminCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reason, err := events.NewReason(req.Body.Reason)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Removal.Handle(ctx, app.RemoveComment{CommentID: req.Id, Reason: reason, Admin: admin}); err != nil {
+		return nil, err
+	}
+	return api.RemoveComment204Response{}, nil
 }

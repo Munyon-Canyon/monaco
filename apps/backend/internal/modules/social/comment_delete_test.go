@@ -65,7 +65,9 @@ func TestDeleteComment_softDeletesDecrementsTheCountAndAppendsTheEvent(t *testin
 	if stored, counted := f.count(t, item); stored != 2 || counted != 1 {
 		t.Fatalf("stored %d, comment_count %d, want 2 and 1", stored, counted)
 	}
-	want := []events.CommentDeleted{{V: 1, CommentID: top.ID, FeedObjectID: item, DeletedBy: author.UUID()}}
+	want := []events.CommentDeleted{{
+		V: 1, CommentID: top.ID, FeedObjectID: item, DeletedBy: author.UUID(), DeletedByKind: "author",
+	}}
 	if got := f.deleted(t); !reflect.DeepEqual(got, want) {
 		t.Fatalf("events = %+v, want %+v", got, want)
 	}
