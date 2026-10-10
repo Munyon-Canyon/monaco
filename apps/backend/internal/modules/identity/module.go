@@ -124,6 +124,9 @@ func (m *Module) Mount(r api.Mount) {
 			Hints: hints,
 		}),
 		DevX: m.devXLink(),
+		Status: app.NewAdminAccountStatus(app.AdminAccountStatusDeps{
+			UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock, Hints: hints,
+		}),
 	}, r)
 }
 

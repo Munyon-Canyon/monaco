@@ -142,3 +142,6 @@ FOR UPDATE OF u;
 WITH x_link AS (DELETE FROM dev_x_links WHERE user_id = sqlc.arg(id)),
 wallet AS (DELETE FROM user_wallets WHERE user_id = sqlc.arg(id))
 DELETE FROM users WHERE id = sqlc.arg(id);
+
+-- name: LockUserStatus :one
+SELECT id, account_status FROM users WHERE id = sqlc.arg(id) FOR UPDATE;

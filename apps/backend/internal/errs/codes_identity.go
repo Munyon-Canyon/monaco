@@ -23,6 +23,9 @@ const (
 	CodePhotoInvalid            Code = "photo_invalid"
 	CodeAuthStateTransition     Code = "auth_state_transition"
 	CodeWalletMismatch          Code = "wallet_mismatch"
+	CodeAlreadyBanned           Code = "already_banned"
+	CodeNotBanned               Code = "not_banned"
+	CodeUserDeleted             Code = "user_deleted"
 )
 
 func (codeFiles) Identity() map[Code]Row {
@@ -81,6 +84,9 @@ func (codeFiles) Identity() map[Code]Row {
 			Name: "AuthStateTransition", Kind: KindInternal, Retryable: true,
 			Message: "Something went wrong. Try again.",
 		},
+		CodeAlreadyBanned:  {Name: "AlreadyBanned", Kind: KindConflict, Message: "This user is already banned."},
+		CodeNotBanned:      {Name: "NotBanned", Kind: KindConflict, Message: "This user is not banned."},
+		CodeUserDeleted:    {Name: "UserDeleted", Kind: KindConflict, Message: "This user was deleted."},
 		CodeWalletMismatch: {Name: "WalletMismatch", Kind: KindInternal, Alert: true, Message: "Something went wrong."},
 	}
 }

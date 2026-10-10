@@ -831,6 +831,19 @@ Subject `events.trade.submitted`, version 1.
 | `in_amount` | `uint64` |
 | `tx_signature` | `chain.Signature` |
 
+## `user.account_status_changed`
+
+Subject `events.user.account_status_changed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `from` | `string` |
+| `to` | `string` |
+| `cause` | `string` |
+| `at` | `time.Time` |
+
 ## `user.auth_state_changed`
 
 Subject `events.user.auth_state_changed`, version 1.

@@ -17,6 +17,7 @@ extension Components.Schemas.ErrorCode {
         case .agentNotFound: true
         case .agentPaused: true
         case .agentWrongStatus: true
+        case .alreadyBanned: true
         case .alreadyFlagged: true
         case .alreadyMember: true
         case .alreadyPaused: true
@@ -93,6 +94,7 @@ extension Components.Schemas.ErrorCode {
         case .noRealtimeChannels: true
         case .noRoute: true
         case .notAVoter: true
+        case .notBanned: true
         case .notCabalCreator: true
         case .notCabalMember: true
         case .notFound: true
@@ -150,6 +152,7 @@ extension Components.Schemas.ErrorCode {
         case .upstreamTimeout: true
         case .upstreamUnavailable: true
         case .userBanned: true
+        case .userDeleted: true
         case .userNotFound: true
         case .versionConflict: true
         case .walletMismatch: true
