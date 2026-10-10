@@ -41,6 +41,24 @@ final class ProposalTradingTests: XCTestCase {
     }
 
     @MainActor
+    func testPendingModelCountsOnlyTheVotesStillWaitingOnTheMember() async throws {
+        let transport = StubTransport(routes: [
+            "/v1/me/pending-votes": [.json(.ok, Self.pending)],
+            "/v1/proposals/p": [.json(.ok, Self.detail("open"))],
+        ])
+        let waiting = PendingVotesModel(repository: Self.repository(transport), hints: FakeHintStream())
+        await waiting.load()
+
+        XCTAssertEqual(waiting.waitingCount(votedThisSession: []), 1)
+        XCTAssertEqual(waiting.waitingCount(votedThisSession: ["p"]), 0)
+
+        let kept = try await Self.reloaded(settledAs: "open", ballot: "yes")
+
+        XCTAssertEqual(kept.votes.map(\.id), ["p"])
+        XCTAssertEqual(kept.waitingCount(votedThisSession: []), 0)
+    }
+
+    @MainActor
     func testAHintReloadKeepsTheBuyTheMemberJustVotedOn() async throws {
         let transport = StubTransport(routes: [
             "/v1/me/pending-votes": [.json(.ok, Self.pending), .json(.ok, "[]")],
