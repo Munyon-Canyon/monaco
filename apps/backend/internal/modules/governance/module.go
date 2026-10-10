@@ -128,6 +128,7 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("governance.trade_outcome.blocked", outcomes.Blocked),
 				bus.Handle("governance.trade_outcome.failed", outcomes.Failed),
 				bus.Handle("governance.trade_outcome.retried", outcomes.Retried),
+				bus.Handle("governance.ban_voids", adapters.BanVoids{Voids: m.voidProposal(hints)}.Handle),
 			},
 		},
 	}
@@ -164,4 +165,10 @@ func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason strin
 		adapters.Hints{Publish: m.deps.Bus},
 	)
 	return voids.Handle(ctx, app.VoidProposal{ProposalID: id, Reason: reason})
+}
+
+func (m *Module) voidProposal(hints app.Hints) *app.VoidProposalHandler {
+	return app.NewVoidProposalHandler(
+		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
+	)
 }

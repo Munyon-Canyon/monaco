@@ -329,6 +329,32 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 	return result.RowsAffected(), nil
 }
 
+const proposalsToVoidForBan = `-- name: ProposalsToVoidForBan :many
+SELECT id FROM proposals
+WHERE proposer_id = $1 AND status IN ('open', 'passed')
+ORDER BY id
+`
+
+func (q *Queries) ProposalsToVoidForBan(ctx context.Context, proposerID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, proposalsToVoidForBan, proposerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const proposerOfProposal = `-- name: ProposerOfProposal :one
 SELECT proposer_id FROM proposals WHERE id = $1
 `
