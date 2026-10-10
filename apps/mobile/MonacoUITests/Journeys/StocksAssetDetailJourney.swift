@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 5
+    static let version = 6
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -134,7 +134,9 @@ enum StocksAssetDetailJourney {
             XCTAssertTrue(
                 app.element("propose-amount-screen").waitForExistence(timeout: 10),
                 "S1.9: the cabal row did not open the Amount screen (#613)")
-            XCTAssertTrue(app.navigationBars["Amount"].exists, "S1.9: the screen is not titled 'Amount'")
+            XCTAssertTrue(
+                app.navigationBars["Buy \(alpha.ticker)"].exists, "S1.9: the screen is not titled 'Buy \(alpha.ticker)'"
+            )
             XCTAssertTrue(app.staticTexts[alpha.ticker].exists, "S1.9: no \(alpha.ticker) row on Amount")
         }
     }

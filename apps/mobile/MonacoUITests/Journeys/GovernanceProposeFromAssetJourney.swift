@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeFromAssetJourney {
     static let id = "governance/propose-from-asset"
-    static let version = 2
+    static let version = 3
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -42,7 +42,7 @@ enum GovernanceProposeFromAssetJourney {
             app.scrollIntoReach(row)
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.3: no \(name) in the picker")
             row.tap()
-            buy.expectTitle(app, "Amount", step: "S1.3")
+            buy.expectTitle(app, "Buy GOOGL", step: "S1.3")
         }
 
         recorder.step("S1.4", "review $25 of GOOGL") {

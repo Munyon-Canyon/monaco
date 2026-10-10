@@ -78,7 +78,7 @@ struct ProposeAmountScreen: View {
             else { return }
             model.resolveAsset(kind: asset.kind, decimals: asset.decimals)
         }
-        .navigationTitle("Amount")
+        .navigationTitle(model.trade.isSell ? "Sell \(stock.ticker)" : "Buy \(stock.ticker)")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             BottomCTA {

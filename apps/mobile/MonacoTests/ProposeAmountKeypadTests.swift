@@ -64,6 +64,17 @@ struct ProposeAmountKeypadTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(1)))
+    func theTitleNamesTheTrade() async throws {
+        let trades: [(MonacoCore.ProposeTrade?, String)] = [(nil, "Buy GOOGL"), (.sell(Self.holding), "Sell GOOGL")]
+        for (trade, title) in trades {
+            let (window, navigation) = try Self.window(trade: trade)
+            defer { window.isHidden = true }
+            _ = await Self.eventually { navigation.navigationBar.topItem?.title == title }
+            #expect(navigation.navigationBar.topItem?.title == title)
+        }
+    }
+
     private struct UnansweredProposeService: MonacoCore.ProposeService {
         func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview {
             throw CancellationError()
@@ -85,7 +96,13 @@ struct ProposeAmountKeypadTests {
         unsafeBitCast(symbol, to: (@convention(c) (Int32) -> Void).self)(enabled ? 1 : 0)
     }
 
-    private static func window(textSize: DynamicTypeSize = .large) throws -> (UIWindow, UINavigationController) {
+    private static var holding: ProposeHolding {
+        ProposeHolding(Components.Schemas.CabalPot.sampleInvested.holdings[0])
+    }
+
+    private static func window(
+        textSize: DynamicTypeSize = .large, trade: MonacoCore.ProposeTrade? = nil
+    ) throws -> (UIWindow, UINavigationController) {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene"
@@ -96,7 +113,8 @@ struct ProposeAmountKeypadTests {
             auth: PrivyAuthService.processInstance ?? PrivyAuthService(), api: api, hints: FakeHintSource(),
             isAuthenticated: { true }, endAuthSession: {})
         let screen = ProposeAmountScreen(
-            service: UnansweredProposeService(), cabalID: "cabal-1", stock: ProposeStock(symbol: "GOOGLx"))
+            service: UnansweredProposeService(), cabalID: "cabal-1", stock: ProposeStock(symbol: "GOOGLx"),
+            trade: trade)
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(
             rootView: NavigationStack { screen }
@@ -146,6 +164,17 @@ struct ProposeAmountKeypadTests {
             return nil
         }
         return element.value(forKey: "accessibilityIdentifier") as? String
+    }
+
+    private static func eventually(within seconds: Double = 3, _ predicate: () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while !predicate() {
+            if Date() > deadline { return false }
+            await withCheckedContinuation { continuation in
+                RunLoop.main.perform { continuation.resume() }
+            }
+        }
+        return true
     }
 
     private static func until(_ predicate: () -> Bool) async {
