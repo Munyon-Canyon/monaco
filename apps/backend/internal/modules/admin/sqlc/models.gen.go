@@ -23,3 +23,17 @@ type AdminAction struct {
 	ApprovedBy pgtype.UUID
 	CreatedAt  time.Time
 }
+
+type AdminApproval struct {
+	ID            uuid.UUID
+	Action        string
+	TargetID      uuid.UUID
+	RequestedBy   uuid.UUID
+	Reason        string
+	Status        string
+	DecidedBy     pgtype.UUID
+	DecidedReason pgtype.Text
+	CreatedAt     time.Time
+	DecidedAt     pgtype.Timestamptz
+	ExpiresAt     time.Time
+}

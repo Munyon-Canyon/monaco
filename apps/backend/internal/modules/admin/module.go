@@ -87,13 +87,14 @@ func (m *Module) queues() app.Queues {
 
 func (m *Module) Mount(mount api.Mount) {
 	adminapi.Mount(adapters.HTTP{
-		Pool:    m.deps.Pool,
-		Users:   m.userLookup(),
-		Cabals:  m.cabalLookup(),
-		Txns:    m.txnLookup(),
-		Queues:  m.queues(),
-		Redrive: app.NewRedriveDeadLetterHandler(m.deps.UoW, m.deps.Pool, m.deps.Bus, m.deps.Clock),
-		Discard: app.NewDiscardDeadLetterHandler(m.deps.UoW, m.deps.Clock),
+		Pool:      m.deps.Pool,
+		Users:     m.userLookup(),
+		Cabals:    m.cabalLookup(),
+		Txns:      m.txnLookup(),
+		Queues:    m.queues(),
+		Redrive:   app.NewRedriveDeadLetterHandler(m.deps.UoW, m.deps.Pool, m.deps.Bus, m.deps.Clock),
+		Discard:   app.NewDiscardDeadLetterHandler(m.deps.UoW, m.deps.Clock),
+		Approvals: app.NewApprovals(m.deps.UoW, m.cabals, m.deps.IDs, m.deps.Clock),
 	}, mount)
 }
 
@@ -116,5 +117,6 @@ func (m *Module) Pollers() []poller.Poller {
 			Meter:    meter,
 			Interval: m.deps.Config.Admin.DeadLettersInterval,
 		}),
+		app.NewApprovalsExpirePoller(m.deps.UoW, m.deps.Clock),
 	}
 }

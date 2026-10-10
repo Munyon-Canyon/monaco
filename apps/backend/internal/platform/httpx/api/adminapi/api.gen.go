@@ -47,46 +47,85 @@ func (e AdminAccountStatus) Valid() bool {
 
 // Defines values for AdminActionKind.
 const (
-	CabalBan       AdminActionKind = "cabal_ban"
-	CommentRemove  AdminActionKind = "comment_remove"
-	GlobalPause    AdminActionKind = "global_pause"
-	GlobalResume   AdminActionKind = "global_resume"
-	HandleReassign AdminActionKind = "handle_reassign"
-	HandleRevoke   AdminActionKind = "handle_revoke"
-	OpsPause       AdminActionKind = "ops_pause"
-	OpsResume      AdminActionKind = "ops_resume"
-	PingFlag       AdminActionKind = "ping_flag"
-	ProposalVoid   AdminActionKind = "proposal_void"
-	UserBan        AdminActionKind = "user_ban"
-	UserUnban      AdminActionKind = "user_unban"
+	AdminActionKindCabalBan       AdminActionKind = "cabal_ban"
+	AdminActionKindCommentRemove  AdminActionKind = "comment_remove"
+	AdminActionKindGlobalPause    AdminActionKind = "global_pause"
+	AdminActionKindGlobalResume   AdminActionKind = "global_resume"
+	AdminActionKindHandleReassign AdminActionKind = "handle_reassign"
+	AdminActionKindHandleRevoke   AdminActionKind = "handle_revoke"
+	AdminActionKindOpsPause       AdminActionKind = "ops_pause"
+	AdminActionKindOpsResume      AdminActionKind = "ops_resume"
+	AdminActionKindPingFlag       AdminActionKind = "ping_flag"
+	AdminActionKindProposalVoid   AdminActionKind = "proposal_void"
+	AdminActionKindUserBan        AdminActionKind = "user_ban"
+	AdminActionKindUserUnban      AdminActionKind = "user_unban"
 )
 
 // Valid indicates whether the value is a known member of the AdminActionKind enum.
 func (e AdminActionKind) Valid() bool {
 	switch e {
-	case CabalBan:
+	case AdminActionKindCabalBan:
 		return true
-	case CommentRemove:
+	case AdminActionKindCommentRemove:
 		return true
-	case GlobalPause:
+	case AdminActionKindGlobalPause:
 		return true
-	case GlobalResume:
+	case AdminActionKindGlobalResume:
 		return true
-	case HandleReassign:
+	case AdminActionKindHandleReassign:
 		return true
-	case HandleRevoke:
+	case AdminActionKindHandleRevoke:
 		return true
-	case OpsPause:
+	case AdminActionKindOpsPause:
 		return true
-	case OpsResume:
+	case AdminActionKindOpsResume:
 		return true
-	case PingFlag:
+	case AdminActionKindPingFlag:
 		return true
-	case ProposalVoid:
+	case AdminActionKindProposalVoid:
 		return true
-	case UserBan:
+	case AdminActionKindUserBan:
 		return true
-	case UserUnban:
+	case AdminActionKindUserUnban:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminApprovalAction.
+const (
+	AdminApprovalActionCabalBan AdminApprovalAction = "cabal_ban"
+)
+
+// Valid indicates whether the value is a known member of the AdminApprovalAction enum.
+func (e AdminApprovalAction) Valid() bool {
+	switch e {
+	case AdminApprovalActionCabalBan:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdminApprovalStatus.
+const (
+	Approved AdminApprovalStatus = "approved"
+	Expired  AdminApprovalStatus = "expired"
+	Pending  AdminApprovalStatus = "pending"
+	Rejected AdminApprovalStatus = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the AdminApprovalStatus enum.
+func (e AdminApprovalStatus) Valid() bool {
+	switch e {
+	case Approved:
+		return true
+	case Expired:
+		return true
+	case Pending:
+		return true
+	case Rejected:
 		return true
 	default:
 		return false
@@ -344,6 +383,76 @@ type AdminActions struct {
 	// Examples: null
 	NextCursor *openapi_types.UUID `json:"next_cursor"`
 }
+
+// AdminApproval A request that needs a second operator before it takes effect.
+//
+// Examples: {"action":"cabal_ban","created_at":"2026-10-08T12:00:00Z","decided_at":null,"decided_by":null,"decided_reason":null,"expires_at":"2026-10-09T12:00:00Z","id":"01890a5d-ac96-774b-bcce-b302099a805a","reason":"scam cabal","requested_by":"01890a5d-ac96-774b-bcce-b302099a805b","status":"pending","target_id":"01890a5d-ac96-774b-bcce-b302099a8059"}
+type AdminApproval struct {
+	// Action What the request asks for.
+	//
+	// Examples: cabal_ban
+	Action AdminApprovalAction `json:"action"`
+
+	// CreatedAt When the request was made.
+	//
+	// Examples: 2026-10-08T12:00:00Z
+	CreatedAt time.Time `json:"created_at"`
+
+	// DecidedAt When it was approved, rejected or expired.
+	//
+	// Examples: null
+	DecidedAt *time.Time `json:"decided_at"`
+
+	// DecidedBy The operator who approved or rejected it. Null while pending or expired.
+	//
+	// Examples: null
+	DecidedBy *openapi_types.UUID `json:"decided_by"`
+
+	// DecidedReason Why that operator decided.
+	//
+	// Examples: null
+	DecidedReason *string `json:"decided_reason"`
+
+	// ExpiresAt When an undecided request expires.
+	//
+	// Examples: 2026-10-09T12:00:00Z
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Id The id of the request.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a805a
+	Id openapi_types.UUID `json:"id"`
+
+	// Reason Why the requester asked.
+	//
+	// Examples: scam cabal
+	Reason string `json:"reason"`
+
+	// RequestedBy The operator who asked.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a805b
+	RequestedBy openapi_types.UUID `json:"requested_by"`
+
+	// Status Where an approval request stands.
+	//
+	// Examples: pending
+	Status AdminApprovalStatus `json:"status"`
+
+	// TargetId The id of the cabal the request targets.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8059
+	TargetId openapi_types.UUID `json:"target_id"`
+}
+
+// AdminApprovalAction What the request asks for.
+//
+// Examples: cabal_ban
+type AdminApprovalAction string
+
+// AdminApprovalStatus Where an approval request stands.
+//
+// Examples: pending
+type AdminApprovalStatus string
 
 // AdminAuthState Where the user stands in onboarding.
 //
@@ -1156,6 +1265,24 @@ type GetAdminActionsParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ApproveAdminApprovalParams defines parameters for ApproveAdminApproval.
+type ApproveAdminApprovalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// RejectAdminApprovalParams defines parameters for RejectAdminApproval.
+type RejectAdminApprovalParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// RequestCabalBanParams defines parameters for RequestCabalBan.
+type RequestCabalBanParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetDeadLettersParams defines parameters for GetDeadLetters.
 type GetDeadLettersParams struct {
 	// Status Only letters in this state. Defaults to `open`.
@@ -1213,6 +1340,15 @@ type FindAdminUserParams struct {
 	Handle string `form:"handle" json:"handle"`
 }
 
+// ApproveAdminApprovalJSONRequestBody defines body for ApproveAdminApproval for application/json ContentType.
+type ApproveAdminApprovalJSONRequestBody = externalRef0.ReasonBody
+
+// RejectAdminApprovalJSONRequestBody defines body for RejectAdminApproval for application/json ContentType.
+type RejectAdminApprovalJSONRequestBody = externalRef0.ReasonBody
+
+// RequestCabalBanJSONRequestBody defines body for RequestCabalBan for application/json ContentType.
+type RequestCabalBanJSONRequestBody = externalRef0.ReasonBody
+
 // DiscardDeadLetterJSONRequestBody defines body for DiscardDeadLetter for application/json ContentType.
 type DiscardDeadLetterJSONRequestBody = externalRef0.ReasonBody
 
@@ -1227,9 +1363,18 @@ type ServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(w http.ResponseWriter, r *http.Request)
+	// ApproveAdminApproval Approve a request.
+	// (POST /v1/admin/approvals/{id}/approve)
+	ApproveAdminApproval(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveAdminApprovalParams)
+	// RejectAdminApproval Reject a request.
+	// (POST /v1/admin/approvals/{id}/reject)
+	RejectAdminApproval(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectAdminApprovalParams)
 	// GetAdminCabal Look up a cabal by id.
 	// (GET /v1/admin/cabals/{id})
 	GetAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// RequestCabalBan Ask to ban a cabal.
+	// (POST /v1/admin/cabals/{id}/ban-requests)
+	RequestCabalBan(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RequestCabalBanParams)
 	// GetDeadLetters List dead letters.
 	// (GET /v1/admin/dead-letters)
 	GetDeadLetters(w http.ResponseWriter, r *http.Request, params GetDeadLettersParams)
@@ -1386,6 +1531,114 @@ func (siw *ServerInterfaceWrapper) GetAdmins(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ApproveAdminApproval operation middleware
+func (siw *ServerInterfaceWrapper) ApproveAdminApproval(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ApproveAdminApprovalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ApproveAdminApproval(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RejectAdminApproval operation middleware
+func (siw *ServerInterfaceWrapper) RejectAdminApproval(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RejectAdminApprovalParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RejectAdminApproval(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetAdminCabal operation middleware
 func (siw *ServerInterfaceWrapper) GetAdminCabal(w http.ResponseWriter, r *http.Request) {
 
@@ -1403,6 +1656,60 @@ func (siw *ServerInterfaceWrapper) GetAdminCabal(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminCabal(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestCabalBan operation middleware
+func (siw *ServerInterfaceWrapper) RequestCabalBan(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RequestCabalBanParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestCabalBan(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1952,7 +2259,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/actions", wrapper.GetAdminActions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/admins", wrapper.GetAdmins)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/approvals/{id}/approve", wrapper.ApproveAdminApproval)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/approvals/{id}/reject", wrapper.RejectAdminApproval)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/cabals/{id}", wrapper.GetAdminCabal)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/cabals/{id}/ban-requests", wrapper.RequestCabalBan)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/dead-letters", wrapper.GetDeadLetters)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/discard", wrapper.DiscardDeadLetter)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/redrive", wrapper.RedriveDeadLetter)
@@ -2045,6 +2355,88 @@ func (response GetAdminsdefaultApplicationProblemPlusJSONResponse) VisitGetAdmin
 	return err
 }
 
+type ApproveAdminApprovalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ApproveAdminApprovalParams
+	Body   *ApproveAdminApprovalJSONRequestBody
+}
+
+type ApproveAdminApprovalResponseObject interface {
+	VisitApproveAdminApprovalResponse(w http.ResponseWriter) error
+}
+
+type ApproveAdminApproval200JSONResponse AdminApproval
+
+func (response ApproveAdminApproval200JSONResponse) VisitApproveAdminApprovalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveAdminApprovaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ApproveAdminApprovaldefaultApplicationProblemPlusJSONResponse) VisitApproveAdminApprovalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectAdminApprovalRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RejectAdminApprovalParams
+	Body   *RejectAdminApprovalJSONRequestBody
+}
+
+type RejectAdminApprovalResponseObject interface {
+	VisitRejectAdminApprovalResponse(w http.ResponseWriter) error
+}
+
+type RejectAdminApproval200JSONResponse AdminApproval
+
+func (response RejectAdminApproval200JSONResponse) VisitRejectAdminApprovalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RejectAdminApprovaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response RejectAdminApprovaldefaultApplicationProblemPlusJSONResponse) VisitRejectAdminApprovalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetAdminCabalRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -2073,6 +2465,47 @@ type GetAdminCabaldefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAdminCabaldefaultApplicationProblemPlusJSONResponse) VisitGetAdminCabalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestCabalBanRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RequestCabalBanParams
+	Body   *RequestCabalBanJSONRequestBody
+}
+
+type RequestCabalBanResponseObject interface {
+	VisitRequestCabalBanResponse(w http.ResponseWriter) error
+}
+
+type RequestCabalBan200JSONResponse AdminApproval
+
+func (response RequestCabalBan200JSONResponse) VisitRequestCabalBanResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestCabalBandefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response RequestCabalBandefaultApplicationProblemPlusJSONResponse) VisitRequestCabalBanResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2511,9 +2944,18 @@ type StrictServerInterface interface {
 	// GetAdmins List current administrators.
 	// (GET /v1/admin/admins)
 	GetAdmins(ctx context.Context, request GetAdminsRequestObject) (GetAdminsResponseObject, error)
+	// ApproveAdminApproval Approve a request.
+	// (POST /v1/admin/approvals/{id}/approve)
+	ApproveAdminApproval(ctx context.Context, request ApproveAdminApprovalRequestObject) (ApproveAdminApprovalResponseObject, error)
+	// RejectAdminApproval Reject a request.
+	// (POST /v1/admin/approvals/{id}/reject)
+	RejectAdminApproval(ctx context.Context, request RejectAdminApprovalRequestObject) (RejectAdminApprovalResponseObject, error)
 	// GetAdminCabal Look up a cabal by id.
 	// (GET /v1/admin/cabals/{id})
 	GetAdminCabal(ctx context.Context, request GetAdminCabalRequestObject) (GetAdminCabalResponseObject, error)
+	// RequestCabalBan Ask to ban a cabal.
+	// (POST /v1/admin/cabals/{id}/ban-requests)
+	RequestCabalBan(ctx context.Context, request RequestCabalBanRequestObject) (RequestCabalBanResponseObject, error)
 	// GetDeadLetters List dead letters.
 	// (GET /v1/admin/dead-letters)
 	GetDeadLetters(ctx context.Context, request GetDeadLettersRequestObject) (GetDeadLettersResponseObject, error)
@@ -2638,6 +3080,74 @@ func (sh *strictHandler) GetAdmins(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ApproveAdminApproval operation middleware
+func (sh *strictHandler) ApproveAdminApproval(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ApproveAdminApprovalParams) {
+	var request ApproveAdminApprovalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ApproveAdminApprovalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ApproveAdminApproval(ctx, request.(ApproveAdminApprovalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApproveAdminApproval")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ApproveAdminApprovalResponseObject); ok {
+		if err := validResponse.VisitApproveAdminApprovalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RejectAdminApproval operation middleware
+func (sh *strictHandler) RejectAdminApproval(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RejectAdminApprovalParams) {
+	var request RejectAdminApprovalRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RejectAdminApprovalJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RejectAdminApproval(ctx, request.(RejectAdminApprovalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RejectAdminApproval")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RejectAdminApprovalResponseObject); ok {
+		if err := validResponse.VisitRejectAdminApprovalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetAdminCabal operation middleware
 func (sh *strictHandler) GetAdminCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	var request GetAdminCabalRequestObject
@@ -2657,6 +3167,40 @@ func (sh *strictHandler) GetAdminCabal(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminCabalResponseObject); ok {
 		if err := validResponse.VisitGetAdminCabalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RequestCabalBan operation middleware
+func (sh *strictHandler) RequestCabalBan(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RequestCabalBanParams) {
+	var request RequestCabalBanRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RequestCabalBanJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestCabalBan(ctx, request.(RequestCabalBanRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestCabalBan")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestCabalBanResponseObject); ok {
+		if err := validResponse.VisitRequestCabalBanResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

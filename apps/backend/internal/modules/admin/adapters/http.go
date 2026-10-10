@@ -20,13 +20,14 @@ import (
 const defaultActionsPage = 50
 
 type HTTP struct {
-	Pool    *pgxpool.Pool
-	Users   app.UserLookup
-	Cabals  app.CabalLookup
-	Txns    app.TxnLookup
-	Queues  app.Queues
-	Redrive *app.RedriveDeadLetterHandler
-	Discard *app.DiscardDeadLetterHandler
+	Pool      *pgxpool.Pool
+	Users     app.UserLookup
+	Cabals    app.CabalLookup
+	Txns      app.TxnLookup
+	Queues    app.Queues
+	Redrive   *app.RedriveDeadLetterHandler
+	Discard   *app.DiscardDeadLetterHandler
+	Approvals *app.Approvals
 }
 
 var _ api.StrictServerInterface = HTTP{}
