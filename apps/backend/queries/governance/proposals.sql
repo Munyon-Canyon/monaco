@@ -137,3 +137,8 @@ SET status = @to_status::text, void_reason = @reason::text, updated_at = @at::ti
 FROM prior
 WHERE proposals.id = prior.id AND prior.status = ANY(@from_statuses::text[])
 RETURNING proposals.cabal_id, prior.status AS from_status;
+
+-- name: ProposalsToVoidForBan :many
+SELECT id FROM proposals
+WHERE proposer_id = @proposer_id AND status IN ('open', 'passed')
+ORDER BY id;

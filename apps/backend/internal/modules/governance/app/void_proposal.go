@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
@@ -43,25 +45,13 @@ func NewVoidProposalHandler(
 }
 
 func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) error {
-	const op = "governance.VoidProposal"
-	actor, err := voider(ctx)
+	actor, audit, err := h.prepare(ctx, cmd)
 	if err != nil {
 		return err
 	}
-	audit, err := h.audit(actor, cmd)
+	cabal, err := h.guard(ctx, h.reads, cmd)
 	if err != nil {
 		return err
-	}
-	cabal, err := sqlc.New(h.reads).CabalOfProposal(ctx, cmd.ProposalID.UUID())
-	if err != nil {
-		return lookupFailed(err, op)
-	}
-	live, err := h.swaps.HasLiveSwap(ctx, trading.Source{Kind: "proposal", ID: cmd.ProposalID.UUID()})
-	if err != nil {
-		return err
-	}
-	if live {
-		return errs.New(errs.CodeLiveSwapExists, op)
 	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error { return h.void(ctx, tx, cmd, actor, audit) })
 	if err != nil {
@@ -69,6 +59,49 @@ func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) erro
 	}
 	h.hints.ProposalUpdated(ctx, ids.CabalIDFrom(cabal), cmd.ProposalID)
 	return nil
+}
+
+func (h *VoidProposalHandler) guard(ctx context.Context, q sqlc.DBTX, cmd VoidProposal) (uuid.UUID, error) {
+	const op = "governance.VoidProposal"
+	cabal, err := sqlc.New(q).CabalOfProposal(ctx, cmd.ProposalID.UUID())
+	if err != nil {
+		return uuid.Nil, lookupFailed(err, op)
+	}
+	live, err := h.swaps.HasLiveSwap(ctx, trading.Source{Kind: "proposal", ID: cmd.ProposalID.UUID()})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if live {
+		return uuid.Nil, errs.New(errs.CodeLiveSwapExists, op)
+	}
+	return cabal, nil
+}
+
+func (h *VoidProposalHandler) Within(ctx context.Context, tx db.Tx, cmd VoidProposal) error {
+	actor, audit, err := h.prepare(ctx, cmd)
+	if err != nil {
+		return err
+	}
+	cabal, err := h.guard(ctx, tx.Queries(), cmd)
+	if err != nil {
+		return err
+	}
+	if err := h.void(ctx, tx, cmd, actor, audit); err != nil {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		h.hints.ProposalUpdated(ctx, ids.CabalIDFrom(cabal), cmd.ProposalID)
+	})
+	return nil
+}
+
+func (h *VoidProposalHandler) prepare(ctx context.Context, cmd VoidProposal) (auth.Actor, voidAudit, error) {
+	actor, err := voider(ctx)
+	if err != nil {
+		return auth.Actor{}, voidAudit{}, err
+	}
+	audit, err := h.audit(actor, cmd)
+	return actor, audit, err
 }
 
 func voider(ctx context.Context) (auth.Actor, error) {
