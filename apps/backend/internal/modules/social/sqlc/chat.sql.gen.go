@@ -177,14 +177,19 @@ func (q *Queries) GetChatMessage(ctx context.Context, arg GetChatMessageParams) 
 }
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
-SELECT id FROM cabal_messages WHERE id = $1
+SELECT id, cabal_id FROM cabal_messages WHERE id = $1
 `
 
-func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+type GetChatMessageByIDRow struct {
+	ID      uuid.UUID
+	CabalID uuid.UUID
+}
+
+func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (GetChatMessageByIDRow, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByID, id)
-	var id_2 uuid.UUID
-	err := row.Scan(&id_2)
-	return id_2, err
+	var i GetChatMessageByIDRow
+	err := row.Scan(&i.ID, &i.CabalID)
+	return i, err
 }
 
 const insertChatMessage = `-- name: InsertChatMessage :one
@@ -240,14 +245,21 @@ func (q *Queries) InsertChatMessage(ctx context.Context, arg InsertChatMessagePa
 }
 
 const listChatChannel = `-- name: ListChatChannel :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+  blocked_author.hit AS blocked
 FROM cabal_messages
-WHERE cabal_id = $1
+CROSS JOIN LATERAL (
+  SELECT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE b.blocker_id = $1::uuid AND b.blocked_id = cabal_messages.author_id
+  ) AS hit
+) AS blocked_author
+WHERE cabal_id = $2
   AND (parent_id IS NULL OR also_in_channel)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
-  AND NOT EXISTS (
-    SELECT 1 FROM user_blocks b
-    WHERE b.blocker_id = $2::uuid AND b.blocked_id = cabal_messages.author_id
+  AND (
+    NOT blocked_author.hit
+    OR (parent_id IS NULL AND reply_count > 0)
   )
   AND (
     NOT $3::bool
@@ -258,18 +270,33 @@ LIMIT $6::int
 `
 
 type ListChatChannelParams struct {
-	CabalID   uuid.UUID
 	Viewer    uuid.UUID
+	CabalID   uuid.UUID
 	HasBefore bool
 	BeforeAt  time.Time
 	BeforeID  uuid.UUID
 	RowLimit  int32
 }
 
-func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams) ([]CabalMessage, error) {
+type ListChatChannelRow struct {
+	ID            uuid.UUID
+	CabalID       uuid.UUID
+	AuthorID      uuid.UUID
+	Body          string
+	CreatedAt     time.Time
+	ParentID      pgtype.UUID
+	AlsoInChannel bool
+	ReplyCount    int32
+	LastReplyAt   pgtype.Timestamptz
+	ProposalID    pgtype.UUID
+	DeletedAt     pgtype.Timestamptz
+	Blocked       bool
+}
+
+func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams) ([]ListChatChannelRow, error) {
 	rows, err := q.db.Query(ctx, listChatChannel,
-		arg.CabalID,
 		arg.Viewer,
+		arg.CabalID,
 		arg.HasBefore,
 		arg.BeforeAt,
 		arg.BeforeID,
@@ -279,9 +306,9 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CabalMessage
+	var items []ListChatChannelRow
 	for rows.Next() {
-		var i CabalMessage
+		var i ListChatChannelRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CabalID,
@@ -294,6 +321,7 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 			&i.LastReplyAt,
 			&i.ProposalID,
 			&i.DeletedAt,
+			&i.Blocked,
 		); err != nil {
 			return nil, err
 		}
@@ -306,14 +334,21 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 }
 
 const listChatChannelAfter = `-- name: ListChatChannelAfter :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+  blocked_author.hit AS blocked
 FROM cabal_messages
-WHERE cabal_id = $1
+CROSS JOIN LATERAL (
+  SELECT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE b.blocker_id = $1::uuid AND b.blocked_id = cabal_messages.author_id
+  ) AS hit
+) AS blocked_author
+WHERE cabal_id = $2
   AND (parent_id IS NULL OR also_in_channel)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
-  AND NOT EXISTS (
-    SELECT 1 FROM user_blocks b
-    WHERE b.blocker_id = $2::uuid AND b.blocked_id = cabal_messages.author_id
+  AND (
+    NOT blocked_author.hit
+    OR (parent_id IS NULL AND reply_count > 0)
   )
   AND (created_at, id) > ($3::timestamptz, $4::uuid)
 ORDER BY created_at, id
@@ -321,17 +356,32 @@ LIMIT $5::int
 `
 
 type ListChatChannelAfterParams struct {
-	CabalID  uuid.UUID
 	Viewer   uuid.UUID
+	CabalID  uuid.UUID
 	AfterAt  time.Time
 	AfterID  uuid.UUID
 	RowLimit int32
 }
 
-func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelAfterParams) ([]CabalMessage, error) {
+type ListChatChannelAfterRow struct {
+	ID            uuid.UUID
+	CabalID       uuid.UUID
+	AuthorID      uuid.UUID
+	Body          string
+	CreatedAt     time.Time
+	ParentID      pgtype.UUID
+	AlsoInChannel bool
+	ReplyCount    int32
+	LastReplyAt   pgtype.Timestamptz
+	ProposalID    pgtype.UUID
+	DeletedAt     pgtype.Timestamptz
+	Blocked       bool
+}
+
+func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelAfterParams) ([]ListChatChannelAfterRow, error) {
 	rows, err := q.db.Query(ctx, listChatChannelAfter,
-		arg.CabalID,
 		arg.Viewer,
+		arg.CabalID,
 		arg.AfterAt,
 		arg.AfterID,
 		arg.RowLimit,
@@ -340,9 +390,9 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CabalMessage
+	var items []ListChatChannelAfterRow
 	for rows.Next() {
-		var i CabalMessage
+		var i ListChatChannelAfterRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CabalID,
@@ -355,6 +405,7 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 			&i.LastReplyAt,
 			&i.ProposalID,
 			&i.DeletedAt,
+			&i.Blocked,
 		); err != nil {
 			return nil, err
 		}
@@ -604,6 +655,10 @@ SELECT c.id::uuid AS cabal_id, (
       AND (m.parent_id IS NULL OR m.also_in_channel)
       AND m.deleted_at IS NULL
       AND m.author_id <> $1
+      AND NOT EXISTS (
+        SELECT 1 FROM user_blocks b
+        WHERE b.blocker_id = $1::uuid AND b.blocked_id = m.author_id
+      )
       AND m.created_at > coalesce(s.last_seen_at, '-infinity'::timestamptz)
     LIMIT 100
   ) AS capped

@@ -24,6 +24,10 @@ func MutuallyFollowable(ctx context.Context, users Users, a, b ids.UserID) (bool
 func FollowEachOther(
 	ctx context.Context, tx db.Tx, gen ids.Generator, at time.Time, referrer, referee ids.UserID,
 ) error {
+	blocked, err := blockedEitherWay(ctx, tx, referrer, referee)
+	if err != nil || blocked {
+		return err
+	}
 	for _, cmd := range []Follow{
 		{Follower: referee, Followee: referrer, Source: domain.SourceReferral},
 		{Follower: referrer, Followee: referee, Source: domain.SourceReferral},

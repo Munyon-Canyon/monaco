@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -293,5 +294,33 @@ func TestReferralFollows_aTransientDatabaseFailureNaksInsteadOfTerming(t *testin
 	}
 	if got := f.followRows(t.Context(), t); len(got) != 0 {
 		t.Fatalf("follows = %+v after a rolled back delivery, want none", got)
+	}
+}
+
+func TestReferralFollows_skipsAPairBlockedInEitherDirection(t *testing.T) {
+	t.Parallel()
+	for _, blocker := range []int{0, 1} {
+		t.Run(strconv.Itoa(blocker), func(t *testing.T) {
+			t.Parallel()
+			skipsBlockedReferral(t, blocker)
+		})
+	}
+}
+
+func skipsBlockedReferral(t *testing.T, blocker int) {
+	t.Helper()
+	f := newFixture(t)
+	pair := [2]ids.UserID{f.alice, f.bob}
+	if err := f.block(t, pair[blocker], pair[1-blocker]); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.deliver(t, f.attributed(f.alice, f.bob)); err != nil {
+		t.Fatalf("deliver: %v, want the event acked", err)
+	}
+	if rows := f.followRows(t.Context(), t); len(rows) != 0 {
+		t.Fatalf("follows = %v, want none next to a block", rows)
+	}
+	if n := f.eventCount(t, events.TypeFollowCreated); n != 0 {
+		t.Fatalf("follow.created events = %d, want 0", n)
 	}
 }

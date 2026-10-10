@@ -121,3 +121,17 @@ func (q *Queries) ListUserBlocks(ctx context.Context, blockerID uuid.UUID) ([]uu
 	}
 	return items, nil
 }
+
+const lockUserPair = `-- name: LockUserPair :exec
+SELECT pg_advisory_xact_lock(hashtextextended('user-pair:' || least($1::uuid, $2::uuid)::text || greatest($1::uuid, $2::uuid)::text, 0))
+`
+
+type LockUserPairParams struct {
+	UserA uuid.UUID
+	UserB uuid.UUID
+}
+
+func (q *Queries) LockUserPair(ctx context.Context, arg LockUserPairParams) error {
+	_, err := q.db.Exec(ctx, lockUserPair, arg.UserA, arg.UserB)
+	return err
+}

@@ -43,17 +43,35 @@ func (h *FollowHandler) Handle(ctx context.Context, cmd Follow) error {
 		return err
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		blocked, err := sqlc.New(tx.Queries()).IsBlockedEitherWay(ctx, sqlc.IsBlockedEitherWayParams{
-			UserA: cmd.Follower.UUID(), UserB: cmd.Followee.UUID(),
-		})
+		blocked, err := blockedEitherWay(ctx, tx, cmd.Follower, cmd.Followee)
 		if err != nil {
-			return errs.Wrap(err, errs.CodeInternal, "social.Follow")
+			return err
 		}
 		if blocked {
 			return errs.New(errs.CodeFollowBlocked, "social.Follow")
 		}
 		return CreateFollow(ctx, tx, h.d.IDs, h.d.Clock.Now().UTC(), cmd)
 	})
+}
+
+func lockPair(ctx context.Context, queries *sqlc.Queries, a, b ids.UserID) error {
+	err := queries.LockUserPair(ctx, sqlc.LockUserPairParams{UserA: a.UUID(), UserB: b.UUID()})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "social.LockUserPair")
+	}
+	return nil
+}
+
+func blockedEitherWay(ctx context.Context, tx db.Tx, a, b ids.UserID) (bool, error) {
+	queries := sqlc.New(tx.Queries())
+	if err := lockPair(ctx, queries, a, b); err != nil {
+		return false, err
+	}
+	blocked, err := queries.IsBlockedEitherWay(ctx, sqlc.IsBlockedEitherWayParams{UserA: a.UUID(), UserB: b.UUID()})
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeInternal, "social.Follow")
+	}
+	return blocked, nil
 }
 
 func CreateFollow(ctx context.Context, tx db.Tx, gen ids.Generator, at time.Time, cmd Follow) error {

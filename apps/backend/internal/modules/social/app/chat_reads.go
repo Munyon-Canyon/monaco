@@ -52,14 +52,22 @@ func ListChatChannel(ctx context.Context, db sqlc.DBTX, members Members, q ChatC
 		return nil, err
 	}
 	reads := sqlc.New(db)
-	var rows []sqlc.CabalMessage
+	var rows []channelRow
 	if q.After != nil {
 		var at domain.Keyset
 		if at, err = chatCursor(ctx, reads, q.CabalID, *q.After); err != nil {
 			return nil, err
 		}
-		rows, err = reads.ListChatChannelAfter(ctx, sqlc.ListChatChannelAfterParams{
+		var after []sqlc.ListChatChannelAfterRow
+		after, err = reads.ListChatChannelAfter(ctx, sqlc.ListChatChannelAfterParams{
 			CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), AfterAt: at.At, AfterID: at.ID, RowLimit: limit,
+		})
+		rows = channelRows(after, func(r sqlc.ListChatChannelAfterRow) channelRow {
+			return channelRow{sqlc.CabalMessage{
+				ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
+				ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
+				LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt,
+			}, r.Blocked}
 		})
 	} else {
 		params := sqlc.ListChatChannelParams{CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), RowLimit: limit}
@@ -68,12 +76,26 @@ func ListChatChannel(ctx context.Context, db sqlc.DBTX, members Members, q ChatC
 		); err != nil {
 			return nil, err
 		}
-		rows, err = reads.ListChatChannel(ctx, params)
+		var before []sqlc.ListChatChannelRow
+		before, err = reads.ListChatChannel(ctx, params)
+		rows = channelRows(before, func(r sqlc.ListChatChannelRow) channelRow {
+			return channelRow{sqlc.CabalMessage{
+				ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
+				ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
+				LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt,
+			}, r.Blocked}
+		})
 	}
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	page := storedMessages(rows)
+	page := make([]ChatMessage, len(rows))
+	for i, row := range rows {
+		page[i] = storedMessage(row.CabalMessage)
+		if row.blocked {
+			page[i].Deleted, page[i].Body = true, ""
+		}
+	}
 	if q.Before != nil {
 		return page, nil
 	}
@@ -169,6 +191,19 @@ func cursorError(err error, id uuid.UUID) error {
 		return errs.New(errs.CodeChatMessageNotFound, op, slog.String("cursor", id.String()))
 	}
 	return errs.Wrap(err, errs.CodeInternal, op)
+}
+
+type channelRow struct {
+	sqlc.CabalMessage
+	blocked bool
+}
+
+func channelRows[T any](rows []T, to func(T) channelRow) []channelRow {
+	out := make([]channelRow, len(rows))
+	for i, r := range rows {
+		out[i] = to(r)
+	}
+	return out
 }
 
 func storedMessages(rows []sqlc.CabalMessage) []ChatMessage {
