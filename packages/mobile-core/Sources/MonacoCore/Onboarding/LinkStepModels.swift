@@ -66,8 +66,13 @@ public enum LinkCopy {
 
     static func result(for error: any Error) -> (LinkStepResult, LinkStepCaption?) {
         let apiError = APIError(error)
-        if case .problem(let problem) = apiError, notLinkedCodes.contains(problem.code.wire) {
-            return (.toast(problem.message), nil)
+        if case .problem(let problem) = apiError {
+            if notLinkedCodes.contains(problem.code.wire) { return (.toast(problem.message), nil) }
+            switch problem.code {
+            case .known(.phoneLinkedElsewhere): return (.stay, .error(phoneLinkedElsewhere))
+            case .known(.xLinkedElsewhere): return (.stay, .error(xLinkedElsewhere))
+            default: break
+            }
         }
         return (.stay, .error(ToastCopy.message(for: apiError)))
     }
@@ -224,7 +229,8 @@ public final class PhoneLinkModel {
             if LinkCopy.isNotLinked(error) {
                 signInPhoneUnavailable = true
             } else {
-                caption = LinkCopy.result(for: error).1
+                show(LinkCopy.result(for: error).1)
+                signInPhoneUnavailable = linkedElsewhere
             }
             return .stay
         }
@@ -242,8 +248,13 @@ public final class PhoneLinkModel {
 
     private func store(waits: [Duration] = [], _ call: () async throws -> SessionProfile) async -> LinkStepResult {
         let (result, caption) = await LinkCopy.store(waits: waits, sleep: sleep, call)
-        self.caption = caption
+        show(caption)
         return result
+    }
+
+    private func show(_ caption: LinkStepCaption?) {
+        self.caption = caption
+        if caption == .error(LinkCopy.phoneLinkedElsewhere) { linkedElsewhere = true }
     }
 
     private func fail(_ error: any Error) {
@@ -321,6 +332,7 @@ public final class XLinkModel {
     private func store(waits: [Duration] = [], _ call: () async throws -> SessionProfile) async -> LinkStepResult {
         let (result, caption) = await LinkCopy.store(waits: waits, sleep: sleep, call)
         self.caption = caption
+        if caption == .error(LinkCopy.xLinkedElsewhere) { linkedElsewhere = true }
         return result
     }
 }
