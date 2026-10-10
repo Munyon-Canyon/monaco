@@ -238,6 +238,37 @@ final class ActivityModelTests: XCTestCase {
         XCTAssertEqual(paths, ["/v1/swaps/swap-1", "/v1/swaps/swap-1"])
     }
 
+    func testARetriedSwapHidesRetryUntilANewSwapLoads() async throws {
+        let failed = Self.buy(1, .failed)
+        let (model, _, _) = try make([
+            .page(Page(items: [failed], nextCursor: nil)), .accepted(failed.id),
+            .swap(retryable: true), .swap(retryable: false),
+        ])
+        await model.load()
+        XCTAssertFalse(model.isRetrying(failed.id))
+
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+        XCTAssertTrue(model.isRetrying(failed.id))
+
+        await model.loadSwap(id: failed.id)
+        XCTAssertEqual(model.openSwap?.retryable, true)
+        XCTAssertTrue(model.isRetrying(failed.id))
+
+        await model.loadSwap(id: failed.id)
+        XCTAssertEqual(model.openSwap?.retryable, false)
+        XCTAssertFalse(model.isRetrying(failed.id))
+    }
+
+    func testARefusedRetryIsNotRetrying() async throws {
+        let failed = Self.buy(1, .failed)
+        let (model, _, _) = try make([.page(Page(items: [failed], nextCursor: nil)), .notRetryable])
+        await model.load()
+
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+
+        XCTAssertFalse(model.isRetrying(failed.id))
+    }
+
     private static func buy(_ number: Int, _ status: Activity.StatusPayload) -> Activity {
         Activity.sample(
             number, kind: .buy, status: status, asset: .init(symbol: "AAPLx", name: "Apple"), micros: 25_000_000,
