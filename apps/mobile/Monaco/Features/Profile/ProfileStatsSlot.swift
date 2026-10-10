@@ -83,7 +83,7 @@ struct ProfileStatsBand: View {
     }
 }
 
-private struct ProfileStatColumn: View {
+struct ProfileStatColumn: View {
     let value: String
     let detail: String?
     let label: String
@@ -92,10 +92,16 @@ private struct ProfileStatColumn: View {
 
     var body: some View {
         if stacked {
-            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.m) {
-                labelText
-                Spacer(minLength: MonacoTheme.Space.s)
-                figures(alignment: .trailing)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.m) {
+                    labelText
+                    Spacer(minLength: MonacoTheme.Space.s)
+                    figures(alignment: .trailing)
+                }
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    labelText
+                    figures(alignment: .trailing).frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
             .accessibilityElement(children: .combine)
         } else {
@@ -108,25 +114,26 @@ private struct ProfileStatColumn: View {
         }
     }
 
-    private var labelText: some View {
+    var labelText: some View {
         Text(label)
             .font(MonacoTheme.Typo.callout)
             .foregroundStyle(MonacoTheme.secondaryText)
             .multilineTextAlignment(stacked ? .leading : .center)
     }
 
-    private func figures(alignment: HorizontalAlignment) -> some View {
+    func figures(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 0) {
             Text(value)
                 .moneyFont(.row)
                 .foregroundStyle(tone ?? MonacoTheme.ink)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
             if let detail {
                 Text(detail)
                     .moneyFont(.caption)
                     .foregroundStyle(tone ?? MonacoTheme.ink)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
         }
         .multilineTextAlignment(alignment == .trailing ? .trailing : .center)
