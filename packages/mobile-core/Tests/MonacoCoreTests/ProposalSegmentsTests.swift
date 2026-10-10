@@ -93,8 +93,39 @@ final class ProposalSegmentsTests: XCTestCase {
         XCTAssertEqual(needing.proposals.map(\.id), ["todo", "voted"])
 
         let allVoted = try XCTUnwrap(model.cabalSection(votedThisSession: ["todo"]))
-        XCTAssertEqual(allVoted.title, "Needs your vote")
+        XCTAssertEqual(allVoted.title, "Proposals")
+        XCTAssertNil(allVoted.count)
         XCTAssertEqual(allVoted.proposals.map(\.id), ["todo", "voted"])
+    }
+
+    @MainActor
+    func testTheCabalSectionCountsOnlyProposalsStillWaitingOnTheMember() async throws {
+        let transport = StubTransport(
+            .json(
+                .ok,
+                Self.page([
+                    Self.proposal("open", id: "a"),
+                    Self.proposal("open", id: "b"),
+                    Self.proposal("open", id: "voted", ballot: "yes"),
+                ])))
+        let model = ProposalListModel(
+            cabalID: "c", filter: .all, repository: Self.repository(transport), hints: FakeHintStream())
+        await model.load()
+
+        let section = try XCTUnwrap(model.cabalSection(votedThisSession: ["a"]))
+
+        XCTAssertEqual(section.count, 1)
+        XCTAssertEqual(section.proposals.map(\.id), ["a", "b", "voted"])
+    }
+
+    func testTheNeedsVoteHeaderNamesItselfOnlyWhileAVoteIsWaiting() {
+        let waiting = NeedsVoteHeader(waiting: 2)
+        XCTAssertEqual(waiting.title, "Needs your vote")
+        XCTAssertEqual(waiting.count, 2)
+
+        let settled = NeedsVoteHeader(waiting: 0)
+        XCTAssertEqual(settled.title, "Proposals")
+        XCTAssertNil(settled.count)
     }
 
     @MainActor
