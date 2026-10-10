@@ -124,17 +124,21 @@ struct CabalTransactionView: View {
                 }
             }
             if swap?.retryable == true, !isRetrying {
-                Button(CabalActivityCopy.retrySwap) {
-                    Task {
-                        await model?.retrySwap(row)
-                        await model?.loadSwap(id: row.id)
-                    }
-                }
-                .buttonStyle(.monacoPrimary)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .accessibilityIdentifier("cabal-txn-retry")
+                retryButton(row)
             }
         }
+    }
+
+    private func retryButton(_ row: ActivityRow) -> some View {
+        Button(CabalActivityCopy.retrySwap) {
+            Task {
+                await model?.retrySwap(row)
+                await model?.loadSwap(id: row.id)
+            }
+        }
+        .buttonStyle(.monacoPrimary)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityIdentifier("cabal-txn-retry")
     }
 
     private func resolve() async {
