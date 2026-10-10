@@ -66,6 +66,7 @@ public final class LeaveCabalModel {
             standing = .loaded(cabals.first { $0.id == cabalID }.map(LeaveStanding.init))
         } catch {
             guard mine == generation else { return }
+            if case .loaded = standing { return }
             standing = .failed(APIError(error))
         }
     }
