@@ -17,13 +17,13 @@ struct ScreenMapOrderTests {
     @Test func cabalsTabFollowsTheScreenMap() {
         #expect(
             names(CabalsTabScreen.sections) == [
-                "CabalsJoinSlot", "CabalsInvitesSlot", "CabalsListSlot", "CabalsValueChartSlot", "CabalsBoardSlot",
+                "CabalsJoinSlot", "CabalsInvitesSlot", "CabalsListSlot", "CabalsBoardSlot",
             ])
     }
 
     @Test func aTypedSearchHidesEverythingBelowIt() {
         #expect(names(CabalsTabScreen.visible(CabalsTabScreen.sections, searching: true)) == ["CabalsJoinSlot"])
-        #expect(names(CabalsTabScreen.visible(CabalsTabScreen.sections, searching: false)).count == 5)
+        #expect(names(CabalsTabScreen.visible(CabalsTabScreen.sections, searching: false)).count == 4)
     }
 
     @Test func cabalScreenFollowsTheScreenMap() {

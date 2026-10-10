@@ -4,6 +4,7 @@ import SwiftUI
 
 enum CabalValueChartSlot: CabalSection {
     static let isLive = true
+    static let ranges: [LeaderboardRange] = [.oneDay, .oneWeek, .oneMonth, .all]
 
     static func body(for context: CabalContext) -> some View {
         CabalValueChart(cabalID: context.cabalID)
@@ -69,7 +70,7 @@ private struct CabalValueChart: View {
         CurveReadoutLine(readout: nil)
         SkeletonBlock(height: 160, radius: 12)
             .accessibilityIdentifier("cabal-value-chart-loading")
-        MonacoRangeChipsSkeleton(ranges: CabalValueHistoryModel.ranges)
+        MonacoRangeChipsSkeleton(ranges: CabalValueChartSlot.ranges)
     }
 
     @ViewBuilder private func loaded(_ model: ValueChartModel) -> some View {
@@ -93,7 +94,7 @@ private struct CabalValueChart: View {
     private func prepared() -> ValueChartModel {
         if let model { return model }
         let created = ValueChartModel(
-            subjects: [.cabal(id: cabalID)], ranges: CabalValueHistoryModel.ranges, range: .oneMonth,
+            subjects: [.cabal(id: cabalID)], ranges: CabalValueChartSlot.ranges, range: .oneMonth,
             api: environment.api, hints: environment.hints)
         model = created
         return created

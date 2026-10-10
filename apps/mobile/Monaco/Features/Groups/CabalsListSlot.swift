@@ -128,6 +128,7 @@ struct MyCabalsContent: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.vertical, MonacoTheme.Space.xs)
         .accessibilityElement()
         .accessibilityLabel("Loading your cabals")
         .accessibilityIdentifier("cabals-list-loading")

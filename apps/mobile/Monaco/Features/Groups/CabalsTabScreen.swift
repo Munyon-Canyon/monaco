@@ -6,7 +6,6 @@ struct CabalsTabScreen: View {
         CabalsJoinSlot.self,
         CabalsInvitesSlot.self,
         CabalsListSlot.self,
-        CabalsValueChartSlot.self,
         CabalsBoardSlot.self,
     ]
 

@@ -8,16 +8,8 @@ import UIKit
 
 @MainActor
 struct CabalsTabComingSlotsTests {
-    @Test func bothSlotsAreLive() {
-        #expect(CabalsValueChartSlot.isLive)
+    @Test func boardSlotIsLive() {
         #expect(CabalsBoardSlot.isLive)
-    }
-
-    @Test func returnSlotShowsOnlyOnceTheAnswerIsIn() {
-        #expect(!CabalsValueChartSlot.shows(.hidden))
-        #expect(!CabalsValueChartSlot.shows(.loading))
-        #expect(CabalsValueChartSlot.shows(.failed))
-        #expect(CabalsValueChartSlot.shows(.loaded))
     }
 
     @Test(.timeLimit(.minutes(1)))
