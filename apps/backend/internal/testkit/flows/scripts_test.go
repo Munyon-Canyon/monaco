@@ -97,6 +97,15 @@ func TestAlone_marksOnlyTheDeclaredScripts(t *testing.T) {
 	if flows.Alone(flows.F14CashOutPayoutsPrivyUnavailable) {
 		t.Error("flow 14 PrivyUnavailable scripts its own treasury wallet route, want it to run with others")
 	}
+	if !flows.Alone(flows.F11ExecuteTradeAssetPaused) {
+		t.Error("flow 11 AssetPaused queues a no-route reply on the shared 1 USDC probe quote, want it to run alone")
+	}
+	if !flows.Alone(flows.F09ProposeTradeAssetPaused) {
+		t.Error("flow 09 AssetPaused queues a no-route reply on the shared 1 USDC probe quote, want it to run alone")
+	}
+	if flows.Alone(flows.F11ExecuteTradeNoRoute) {
+		t.Error("flow 11 NoRoute scripts only its own 31 USDC quote, want it to run with others")
+	}
 }
 
 func TestLettersOf_returnsTheLettersADeclaredScriptExpectsAndNothingForAnyOther(t *testing.T) {

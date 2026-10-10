@@ -151,6 +151,8 @@ func F09ProposeTradeAssetPaused(s *scenario.Scenario) {
 		Then(scenario.ExpectProblem(errs.CodeAssetPaused), scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
+func (defined) AloneF09() []Script { return []Script{F09ProposeTradeAssetPaused} }
+
 func F09ProposeTradePotExceeded(s *scenario.Scenario) {
 	c := seedF09(s, "100000000")
 	s.Given(f09Member(c)).When(scenario.Post(f09Path(c), `{"kind":"buy","symbol":"AAPLx","usdc_micros":100000001}`)).
