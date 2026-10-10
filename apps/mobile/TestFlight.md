@@ -6,6 +6,11 @@ The build number is `git rev-list --count HEAD`. It grows along one branch. Chec
 
 ## Prerequisites
 
+- The Apple side, once per app. These are done for `xyz.monacolabs.app`:
+
+  - Team `8Q2V9WHNNT` owns the bundle id `xyz.monacolabs.app` (registered as "Invest with friends"), and the project's `DEVELOPMENT_TEAM` must match it. The App Store Connect API key belongs to the same team.
+  - The bundle id has the capabilities `Monaco.entitlements` asks for: Push Notifications, Sign in with Apple and Associated Domains. Without them, automatic signing finds no profile.
+  - App Store Connect has an app record for the bundle id ("Monaco - Invest with Friends", app id `6820853661`). The API cannot create one; it is **Apps → + → New App**.
 - Xcode, and a clean tree whose `HEAD` is already on a remote branch. The script refuses a dirty tree and a commit no remote branch contains.
 - An App Store Connect API key with the App Manager role. Put these three in `.env.local` with dotenvx (the names are in `.env.example`; the values stay out of git):
 
@@ -43,6 +48,10 @@ git rev-parse ios/staging/<n>
 ```
 
 Use `ios/production/<n>` for a production build. `<n>` is the TestFlight build number.
+
+## Export compliance
+
+The app only uses standard HTTPS, which is exempt. Each new build asks once: answer **None of the algorithms mentioned above** in TestFlight, or set `usesNonExemptEncryption` to `false` on the build through the App Store Connect API.
 
 ## Invite testers
 
