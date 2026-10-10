@@ -165,13 +165,13 @@ func TestLinkPhone_aPrivyOutageIsPrivyUnavailable(t *testing.T) {
 	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), apibase.PrivyUnavailable)
 }
 
-func TestLinkPhone_aNumberAnotherUserHoldsIsPhoneNotLinkedAndLoggedWithoutTheNumber(t *testing.T) {
+func TestLinkPhone_aNumberAnotherUserHoldsIsPhoneLinkedElsewhereAndLoggedWithoutTheNumber(t *testing.T) {
 	t.Parallel()
 	f := newHTTPFixture(t)
 	sum := sha256.Sum256([]byte(onboardNo))
 	f.seed(t, portSeed{phoneHash: sum[:], phoneVerified: true})
 	u := f.onboardingUser(t, "phone_clash", app.PrivyUser{PhoneE164: onboardNo})
-	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), apibase.PhoneNotLinked)
+	wantProblem(t, f.onboard(t, u.ID, "phone", ``, "p1"), apibase.PhoneLinkedElsewhere)
 	logs := f.logs.Bytes()
 	if !bytes.Contains(logs, []byte("identity.phone.conflict")) {
 		t.Fatalf("logs lack identity.phone.conflict:\n%s", logs)
@@ -194,7 +194,7 @@ func TestOnboardAdapter_passesOtherUniqueViolationsThrough(t *testing.T) {
 	x := &domain.XAccount{UserID: "x-free", Username: "held"}
 	sync := domain.LinkSync{X: domain.Write[*domain.XAccount]{Changed: true, Value: x}}
 	err := adapters.Users{}.Onboard(t.Context(), f.pool, u.ID, sync, f.now)
-	if err == nil || errs.CodeOf(err) == errs.CodeXNotLinked {
+	if err == nil || errs.CodeOf(err) == errs.CodeXNotLinked || errs.CodeOf(err) == errs.CodeXLinkedElsewhere {
 		t.Fatalf("Onboard = %v, want the raw unique violation", err)
 	}
 	_, err = adapters.Users{}.LockByID(t.Context(), f.pool, ids.UserID{})
@@ -350,7 +350,7 @@ func TestLinkSocials_refusesWhatItCannotLink(t *testing.T) {
 	wantProblem(t, f.onboard(t, bare.ID, "socials", ``, "x1"), apibase.XNotLinked)
 	f.seed(t, portSeed{xUserID: onboardX})
 	clash := f.onboardingUser(t, "x_clash", app.PrivyUser{Email: "clash@example.com", X: xUser()})
-	wantProblem(t, f.onboard(t, clash.ID, "socials", ``, "x1"), apibase.XNotLinked)
+	wantProblem(t, f.onboard(t, clash.ID, "socials", ``, "x1"), apibase.XLinkedElsewhere)
 	logs := f.logs.Bytes()
 	if !bytes.Contains(logs, []byte("identity.x.conflict")) {
 		t.Fatalf("logs lack identity.x.conflict:\n%s", logs)

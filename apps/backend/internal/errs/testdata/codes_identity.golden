@@ -12,9 +12,11 @@ handle_reserved
 handle_taken
 handle_too_soon
 login_method_not_allowed
+phone_linked_elsewhere
 phone_not_linked
 photo_invalid
 session_required
 user_not_found
 wallet_mismatch
+x_linked_elsewhere
 x_not_linked

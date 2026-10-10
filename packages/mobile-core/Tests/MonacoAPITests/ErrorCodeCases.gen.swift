@@ -102,6 +102,7 @@ extension Components.Schemas.ErrorCode {
         case .onrampLinkInvalid: true
         case .panic: true
         case .payoutFailed: true
+        case .phoneLinkedElsewhere: true
         case .phoneNotLinked: true
         case .photoInvalid: true
         case .postHogRejected: true
@@ -154,6 +155,7 @@ extension Components.Schemas.ErrorCode {
         case .walletMismatch: true
         case .withdrawNotAllowed: true
         case .withdrawToOwnWallet: true
+        case .xLinkedElsewhere: true
         case .xNotLinked: true
         }
     }

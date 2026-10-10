@@ -12,7 +12,9 @@ const (
 	CodeHandleReserved          Code = "handle_reserved"
 	CodeHandleTooSoon           Code = "handle_too_soon"
 	CodePhoneNotLinked          Code = "phone_not_linked"
+	CodePhoneLinkedElsewhere    Code = "phone_linked_elsewhere"
 	CodeXNotLinked              Code = "x_not_linked"
+	CodeXLinkedElsewhere        Code = "x_linked_elsewhere"
 	CodeAccountHasBalance       Code = "account_has_balance"
 	CodeAccountHasPositions     Code = "account_has_positions"
 	CodeAccountStatusTransition Code = "account_status_transition"
@@ -48,7 +50,13 @@ func (codeFiles) Identity() map[Code]Row {
 			Message: "You can change your handle once every 30 days.",
 		},
 		CodePhoneNotLinked: {Name: "PhoneNotLinked", Kind: KindBlocked, Message: "Add your phone number first."},
-		CodeXNotLinked:     {Name: "XNotLinked", Kind: KindBlocked, Message: "Connect your X account first."},
+		CodePhoneLinkedElsewhere: {
+			Name: "PhoneLinkedElsewhere", Kind: KindBlocked, Message: "This number is linked to another account.",
+		},
+		CodeXNotLinked: {Name: "XNotLinked", Kind: KindBlocked, Message: "Connect your X account first."},
+		CodeXLinkedElsewhere: {
+			Name: "XLinkedElsewhere", Kind: KindBlocked, Message: "This X account is linked to another account.",
+		},
 		CodeAccountHasBalance: {
 			Name: "AccountHasBalance", Kind: KindBlocked,
 			Message: "Withdraw your balance before you delete your account.",
