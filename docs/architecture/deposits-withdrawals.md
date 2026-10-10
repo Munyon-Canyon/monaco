@@ -167,6 +167,8 @@ Behavior unchanged for the user. Both are rebuilt in Rollout step 5. A banned or
 
 Flow 14 start errors: `invalid_input` means a malformed request (both `all` and `usdc_micros`, `all: false`, or an amount under the minimum payout). `pot_value_changed` (409, retryable) means the pot moved since the preview: in-flight cash-out reservations exceed the live pot, or the whole stake no longer clears the minimum payout. The app reloads the preview and asks the member to check the amount. `insufficient_shares`, `price_unavailable` and `cash_out_in_progress` are unchanged.
 
+A sale that can't start (the swap venue refuses the quote, or the last retry fails) ends as `trade.blocked`. The cash out then settles on the cash on hand: partial when the pot had some cash, otherwise failed with every share unit returned.
+
 ### Withdraw
 
 [Flow 15](backend-platform.md#flows), `funding` module: `Withdraw` sends platform balance to any Solana address the user pastes, from `POST /v1/me/withdrawals` with an `Idempotency-Key`. Events `withdrawal.submitted`, then `withdrawal.confirmed` or `withdrawal.failed`. These replace `withdrawal.sent` in [event-bus.md](event-bus.md#who-publishes-who-subscribes). `treasury` consumes `withdrawal.confirmed` and writes the `user_txns` withdrawal entry.

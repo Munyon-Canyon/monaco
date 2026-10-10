@@ -15,6 +15,11 @@ var TradingEngineBlocked = Msg{
 	Required: []string{"proposal_id", "cabal_id", "code", "have", "need"},
 }
 
+var TradingCashOutSellBlocked = Msg{
+	Name:     "trading.cashout_sell.blocked",
+	Required: []string{"job_id", "cabal_id", "code", "final"},
+}
+
 var TradingRetryRequested = Msg{
 	Name:     "trading.retry.requested",
 	Required: []string{"swap_id", "cabal_id", "proposal_id", "requested_by"},

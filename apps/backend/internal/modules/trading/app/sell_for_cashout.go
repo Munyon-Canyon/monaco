@@ -11,12 +11,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const cashOutSlippageBps = 100
@@ -52,6 +54,55 @@ type storedLeg struct {
 	Symbol    string              `json:"symbol"`
 	Units     uint64              `json:"units"`
 	QuoteUSDC uint64              `json:"quote_usdc"`
+}
+
+func cashOutBlocked(cabal ids.CabalID, src domain.Source, code errs.Code) events.TradeBlocked {
+	return events.TradeBlocked{
+		V: 1, CabalID: cabal.UUID(), Action: string(domain.ActionSell), Code: code,
+		Source: events.TradeSource{Kind: string(src.Kind), ID: src.ID},
+	}
+}
+
+func (h *SellForCashOutHandler) HandleDelivery(
+	ctx context.Context, d bus.Delivery, cmd SellForCashOut, heartbeat func(),
+) error {
+	recorded, err := sqlc.New(h.d.Reads).DeliveryRecorded(ctx, sqlc.DeliveryRecordedParams{
+		Handler: d.Handler, EventID: d.EventID.UUID(),
+	})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "trading.SellForCashOut.HandleDelivery")
+	}
+	if recorded {
+		return nil
+	}
+	cause := h.Handle(ctx, cmd, heartbeat)
+	if cause == nil {
+		return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			_, err := d.Record(ctx, tx)
+			return err
+		})
+	}
+	code := errs.CodeOf(cause)
+	if errs.Retryable(code) && !d.Final {
+		return cause
+	}
+	gaveUp := false
+	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		gaveUp = false
+		inserted, err := d.RecordAs(ctx, tx, string(code))
+		if err != nil || !inserted {
+			return err
+		}
+		gaveUp = true
+		return tx.Events.Append(ctx, cashOutBlocked(cmd.CabalID, cmd.Source, code))
+	})
+	if err != nil || !gaveUp {
+		return err
+	}
+	observability.Alert(ctx, observability.TradingCashOutSellBlocked,
+		slog.String("job_id", cmd.Source.ID.String()), slog.String("cabal_id", cmd.CabalID.String()),
+		slog.String("code", string(code)), slog.Any("err", cause), slog.Bool("final", d.Final))
+	return nil
 }
 
 func (h *SellForCashOutHandler) Handle(ctx context.Context, cmd SellForCashOut, heartbeat func()) error {
@@ -127,10 +178,7 @@ func (h *SellForCashOutHandler) plan(ctx context.Context, cmd SellForCashOut) ([
 		if err != nil || n == 0 || len(legs) > 0 {
 			return err
 		}
-		return tx.Events.Append(ctx, events.TradeBlocked{
-			V: 1, CabalID: cmd.CabalID.UUID(), Action: string(domain.ActionSell), Code: errs.CodeAssetUntradable,
-			Source: events.TradeSource{Kind: string(cmd.Source.Kind), ID: cmd.Source.ID},
-		})
+		return tx.Events.Append(ctx, cashOutBlocked(cmd.CabalID, cmd.Source, errs.CodeAssetUntradable))
 	})
 	if err != nil {
 		return nil, err
