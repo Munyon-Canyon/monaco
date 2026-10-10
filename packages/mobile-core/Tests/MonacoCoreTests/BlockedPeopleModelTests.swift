@@ -8,7 +8,7 @@ final class BlockedPeopleModelTests: XCTestCase {
     private func model(_ replies: StubTransport.Reply...) -> (BlockedPeopleModel, StubTransport) {
         let transport = StubTransport(scripted: replies)
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        return (BlockedPeopleModel(api: api), transport)
+        return (BlockedPeopleModel(api: api, hints: FakeHintStream()), transport)
     }
 
     func testListsTheBlockedUsersNewestFirst() async {

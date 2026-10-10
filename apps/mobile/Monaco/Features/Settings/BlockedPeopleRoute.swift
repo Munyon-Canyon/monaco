@@ -20,7 +20,7 @@ struct BlockedPeopleView: View {
         .navigationTitle("Blocked people")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            let created = model ?? BlockedPeopleModel(api: environment.api)
+            let created = model ?? BlockedPeopleModel(api: environment.api, hints: environment.hints)
             model = created
             await created.load()
         }
