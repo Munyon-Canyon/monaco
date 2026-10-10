@@ -57,16 +57,18 @@ public struct ValueCurve: Equatable, Sendable {
         samples.compactMap { sample in sample.nav.map { CurvePoint(at: sample.at, value: $0) } }
     }
 
-    public var drawnPoints: [CurvePoint] { Self.drawable(points) }
+    private var drawnSamples: [Sample] {
+        guard samples.count == 1, let only = samples.first else { return samples }
+        return [Sample(at: only.at.addingTimeInterval(-1), value: only.value, pnl: only.pnl, nav: only.nav), only]
+    }
 
-    public var drawnNavPoints: [CurvePoint] { Self.drawable(navPoints) }
+    public var drawnPoints: [CurvePoint] { drawnSamples.map { CurvePoint(at: $0.at, value: $0.value) } }
+
+    public var drawnNavPoints: [CurvePoint] {
+        drawnSamples.compactMap { sample in sample.nav.map { CurvePoint(at: sample.at, value: $0) } }
+    }
 
     public var hasEnoughHistory: Bool { !samples.isEmpty }
-
-    private static func drawable(_ points: [CurvePoint]) -> [CurvePoint] {
-        guard points.count == 1, let only = points.first else { return points }
-        return [CurvePoint(at: only.at.addingTimeInterval(-1), value: only.value), only]
-    }
 
     public var direction: PortfolioSummary.Direction {
         guard let first = samples.first, let last = samples.last, samples.count >= 2 else { return .flat }
@@ -77,7 +79,8 @@ public struct ValueCurve: Equatable, Sendable {
     public func readout(at index: Int? = nil) -> Readout? {
         let sample: Sample?
         if let index {
-            sample = samples.indices.contains(index) ? samples[index] : nil
+            let drawn = drawnSamples
+            sample = drawn.indices.contains(index) ? drawn[index] : nil
         } else {
             sample = samples.last
         }
@@ -90,8 +93,9 @@ public struct ValueCurve: Equatable, Sendable {
     }
 
     public func nearestIndex(to date: Date) -> Int? {
-        samples.indices.min {
-            abs(samples[$0].at.timeIntervalSince(date)) < abs(samples[$1].at.timeIntervalSince(date))
+        let drawn = drawnSamples
+        return drawn.indices.min {
+            abs(drawn[$0].at.timeIntervalSince(date)) < abs(drawn[$1].at.timeIntervalSince(date))
         }
     }
 }

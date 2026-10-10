@@ -82,6 +82,20 @@ final class ValueCurveTests: XCTestCase {
         XCTAssertEqual(short.nearestIndex(to: only.at.addingTimeInterval(-1)), 0)
     }
 
+    func testAOnePointCurveAnswersForEveryDrawnPoint() {
+        let only = ValueCurve.Sample(at: Date(timeIntervalSince1970: 1_790_931_600), value: 50_000_000, pnl: 1_500_000)
+        let short = ValueCurve(samples: [only])
+
+        XCTAssertEqual(short.drawnPoints.count, 2)
+        for index in short.drawnPoints.indices {
+            XCTAssertEqual(short.readout(at: index)?.value, "$50.00", "readout at \(index)")
+            XCTAssertEqual(short.readout(at: index)?.pnl, "+$1.50", "readout at \(index)")
+        }
+        XCTAssertEqual(short.readout(at: 1)?.at, only.at)
+        XCTAssertNil(short.readout(at: 2))
+        XCTAssertEqual(short.nearestIndex(to: only.at), 1)
+    }
+
     func testTwoOrMorePointsAreDrawnAsTheyAre() {
         XCTAssertEqual(mine.drawnPoints, mine.points)
         XCTAssertEqual(pot.drawnNavPoints, pot.navPoints)

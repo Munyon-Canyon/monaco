@@ -38,6 +38,7 @@ struct CurveScrubChart: View {
 
 struct CurveReadoutLine: View {
     let readout: ValueCurve.Readout?
+    var range: LeaderboardRange = .oneDay
 
     var body: some View {
         Text(text)
@@ -51,6 +52,7 @@ struct CurveReadoutLine: View {
 
     private var text: String {
         guard let readout else { return " " }
-        return "\(readout.value) · \(readout.pnl) · \(readout.at.formatted(.dateTime.month().day().hour().minute()))"
+        let date = ChartScrubLabel.caption(for: readout.at, range: range.scrubLabelRange)
+        return "\(readout.value) · \(readout.pnl) · \(date)"
     }
 }
