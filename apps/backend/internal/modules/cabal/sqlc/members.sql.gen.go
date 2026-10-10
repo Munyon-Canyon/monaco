@@ -208,6 +208,24 @@ func (q *Queries) ListVoterIDs(ctx context.Context, cabalID uuid.UUID) ([]uuid.U
 	return items, nil
 }
 
+const lockMember = `-- name: LockMember :one
+SELECT 1 FROM cabal_members
+WHERE cabal_id = $1 AND user_id = $2
+FOR KEY SHARE
+`
+
+type LockMemberParams struct {
+	CabalID uuid.UUID
+	UserID  uuid.UUID
+}
+
+func (q *Queries) LockMember(ctx context.Context, arg LockMemberParams) (int32, error) {
+	row := q.db.QueryRow(ctx, lockMember, arg.CabalID, arg.UserID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const lockMembers = `-- name: LockMembers :many
 SELECT user_id, role FROM cabal_members
 WHERE cabal_id = $1

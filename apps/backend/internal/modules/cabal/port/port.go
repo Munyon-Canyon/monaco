@@ -6,6 +6,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -63,6 +64,10 @@ type MemberReader interface {
 	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
 }
 
+type MemberLocker interface {
+	LockMember(ctx context.Context, q dbsqlc.DBTX, id ids.CabalID, user ids.UserID) (bool, error)
+}
+
 type BatchReader interface {
 	AllCabals(ctx context.Context) ([]CabalView, error)
 	MembersOf(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.CabalID][]MemberView, error)
@@ -76,6 +81,7 @@ type TreasuryReader interface {
 type Queries interface {
 	ViewReader
 	MemberReader
+	MemberLocker
 	BatchReader
 	TreasuryReader
 }

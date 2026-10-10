@@ -7,6 +7,11 @@ ON CONFLICT (cabal_id, user_id) DO NOTHING;
 SELECT role, can_vote, joined_at FROM cabal_members
 WHERE cabal_id = $1 AND user_id = $2;
 
+-- name: LockMember :one
+SELECT 1 FROM cabal_members
+WHERE cabal_id = $1 AND user_id = $2
+FOR KEY SHARE;
+
 -- name: ListMembers :many
 SELECT user_id, role, can_vote, joined_at FROM cabal_members
 WHERE cabal_id = $1

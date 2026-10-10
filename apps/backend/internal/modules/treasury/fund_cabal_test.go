@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -32,6 +33,7 @@ const (
 
 type fundStubs struct {
 	member      bool
+	lockMember  bool
 	status      cabalport.Status
 	paused      bool
 	onChain     money.Micros
@@ -59,6 +61,10 @@ func (s *fundStubs) err(method string) error {
 
 func (s *fundStubs) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, error) {
 	return s.member, s.err("IsMember")
+}
+
+func (s *fundStubs) LockMember(_ context.Context, _ dbsqlc.DBTX, _ ids.CabalID, _ ids.UserID) (bool, error) {
+	return s.lockMember, s.err("LockMember")
 }
 
 func (s *fundStubs) Status(context.Context, ids.CabalID) (cabalport.Status, error) {
@@ -150,7 +156,7 @@ func newFundHarnessHinting(t *testing.T, sent *hints) *fundHarness {
 	f := newFixture(t)
 	usdcAddress := chain.SolanaAddress(f.cfg.Solana.USDCMint)
 	s := &fundStubs{
-		member: true, status: cabalport.StatusActive, onChain: money.MicrosFromUint64(100_000_000),
+		member: true, lockMember: true, status: cabalport.StatusActive, onChain: money.MicrosFromUint64(100_000_000),
 		reads: adapters.NewFundOutflows(f.pool), owner: adapters.NewQueries(f.pool, nil, nil, f.clock, usdcAddress),
 	}
 	h := app.NewFundCabalHandler(app.FundCabalDeps{
@@ -226,6 +232,11 @@ func TestFundCabal_refusals(t *testing.T) {
 			s.totalShares = money.SharesUnitsFromUint64(10)
 		}, errs.CodePotValueZero},
 		{"membership read fails", 5_000_000, func(s *fundStubs) { s.failOn = "IsMember" }, errs.CodeInternal},
+		{"member lock read fails", 5_000_000, func(s *fundStubs) { s.failOn = "LockMember" }, errs.CodeInternal},
+		{
+			"member left before the lock", 5_000_000,
+			func(s *fundStubs) { s.lockMember = false }, errs.CodeNotCabalMember,
+		},
 		{"status read fails", 5_000_000, func(s *fundStubs) { s.failOn = "Status" }, errs.CodeInternal},
 		{"member wallet read fails", 5_000_000, func(s *fundStubs) { s.failOn = "MemberWallet" }, errs.CodeInternal},
 		{
