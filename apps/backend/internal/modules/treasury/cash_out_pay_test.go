@@ -2,6 +2,7 @@ package treasury_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -9,12 +10,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -358,6 +362,58 @@ func TestCashOutPayout_aFailedPayoutAfterAShortSaleReturnsTheRestOfTheUnits(t *t
 	r.wantJob(t, "failed", "payout_failed")
 	if r.shares(t, s.alice) != 100 {
 		t.Fatalf("alice holds %d shares, want every unit back", r.shares(t, s.alice))
+	}
+	r.noDrift(t)
+}
+
+func TestCashOutPayouts_aCabalLockThatTimesOutLeavesThePayoutUntouched(t *testing.T) {
+	t.Parallel()
+	r := newPayoutRig(t)
+	r.seed(t, 1, domain.PayoutBroadcast)
+	r.chain.set(seededSig(1), landed())
+	before := r.attempts(t)
+	cfg := r.f.pool.Config()
+	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "300ms"
+	waiter, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(waiter.Close)
+	blocked := *r
+	blocked.f.pool, blocked.f.uow = waiter, db.New(waiter, r.f.ids, r.f.clock)
+	held, release, holderDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	var holder sync.WaitGroup
+	t.Cleanup(holder.Wait)
+	t.Cleanup(unblock)
+	holder.Go(func() {
+		holderDone <- r.f.do(func(ctx context.Context, tx db.Tx) error {
+			if err := r.f.ledger.LockCabal(ctx, tx, r.cabal); err != nil {
+				return err
+			}
+			close(held)
+			<-release
+			return nil
+		})
+	})
+	select {
+	case <-held:
+	case err := <-holderDone:
+		t.Fatalf("lock holder ended before holding the cabal lock: %v", err)
+	}
+	err = blocked.advance(t, 0)
+	unblock()
+	if err := <-holderDone; err != nil {
+		t.Fatalf("lock holder = %v", err)
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "55P03" {
+		t.Fatalf("advance = %v, want the lock_not_available error the cabal lock failed with", err)
+	}
+	r.wantJob(t, "paying", "")
+	if got := r.attempts(t); !slices.Equal(got, before) {
+		t.Fatalf("attempts = %v, want %v as before the refused lock", got, before)
 	}
 	r.noDrift(t)
 }

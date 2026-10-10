@@ -205,7 +205,8 @@ func TestCashOutPayout_aHeldLedgerLockTimesOut(t *testing.T) {
 		advanced = r.payouts().Advance(ctx, r.job, 0, nil)
 		return nil
 	})
-	waiting := `SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`
+	waiting := `SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted
+		AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`
 	testkit.Eventually(t, func() bool {
 		var n int
 		if err := r.f.pool.QueryRow(t.Context(), waiting).Scan(&n); err != nil {
