@@ -178,7 +178,7 @@ final class CashOutModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.cabal("01890a5d-ac96-774b-bcce-b302099a8061"), what: "pause_changed", id: "1"))
@@ -201,12 +201,33 @@ final class CashOutModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 1 }
+        _ = await waitUntil { await hints.subscriberCount == 2 }
 
         await hints.send(.resync)
 
         let refetched = await waitUntil { model.preview?.hasStake == false }
         XCTAssertTrue(refetched)
+    }
+
+    func testCashoutChangedRefetchesThePreview() async throws {
+        let transport = StubTransport(scripted: [
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sampleNoStake),
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
+        ])
+        let hints = FakeHintStream()
+        let model = makeModel(transport, hints: hints)
+        await model.load()
+        let observer = Task { await model.observe() }
+        addTeardownBlock { observer.cancel() }
+        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        XCTAssertTrue(subscribed)
+
+        await hints.send(.changed(.user("me"), what: "cashout_changed", id: "1"))
+
+        let refetched = await waitUntil { model.preview?.sliceMicros == 200_150_000 }
+        XCTAssertTrue(refetched)
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 2)
     }
 
     func testAFailedFirstLoadFails() async throws {
