@@ -27,10 +27,14 @@ struct HomePendingVotes: View {
                 let inProgress = model.inProgress
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                     if !needsVote.isEmpty {
-                        section("Needs your vote", needsVote, showsSeeAll: true, model: model)
+                        let header = NeedsVoteHeader(
+                            waiting: model.waitingCount(votedThisSession: voting?.votedIDs ?? []))
+                        section(header.title, needsVote, count: header.count, showsSeeAll: true, model: model)
                     }
                     if !inProgress.isEmpty {
-                        section("In progress", inProgress, showsSeeAll: needsVote.isEmpty, model: model)
+                        section(
+                            "In progress", inProgress, count: inProgress.count, showsSeeAll: needsVote.isEmpty,
+                            model: model)
                     }
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -46,9 +50,9 @@ struct HomePendingVotes: View {
     }
 
     @ViewBuilder private func section(
-        _ title: String, _ votes: [PendingVote], showsSeeAll: Bool, model: PendingVotesModel
+        _ title: String, _ votes: [PendingVote], count: Int?, showsSeeAll: Bool, model: PendingVotesModel
     ) -> some View {
-        MonacoSectionHeader(title, count: votes.count, trailing: showsSeeAll ? "See all" : nil) {
+        MonacoSectionHeader(title, count: count, trailing: showsSeeAll ? "See all" : nil) {
             environment.navigator.open(PendingVotesRoute(), in: .home)
         }
         ForEach(votes.prefix(3)) { vote in

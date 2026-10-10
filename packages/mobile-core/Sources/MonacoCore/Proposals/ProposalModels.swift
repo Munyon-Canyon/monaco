@@ -57,9 +57,19 @@ public final class ProposalListModel {
         let voted = pager.items.filter { $0.status == .open && $0.myBallot != nil && !needsIDs.contains($0.id) }
         let proposals = needs + voted
         guard !proposals.isEmpty else { return nil }
-        return CabalProposalsSection(
-            title: needs.isEmpty ? "Proposals" : "Needs your vote", count: needs.isEmpty ? nil : needs.count,
-            proposals: proposals)
+        let waiting = needs.filter { $0.myBallot == nil && !votedThisSession.contains($0.id) }.count
+        let header = NeedsVoteHeader(waiting: waiting)
+        return CabalProposalsSection(title: header.title, count: header.count, proposals: proposals)
+    }
+}
+
+public struct NeedsVoteHeader: Equatable, Sendable {
+    public let title: String
+    public let count: Int?
+
+    public init(waiting: Int) {
+        title = waiting > 0 ? ProposalFeedCopy.needsYourVote : ProposalFeedCopy.feedTitle
+        count = waiting > 0 ? waiting : nil
     }
 }
 
@@ -277,6 +287,10 @@ public final class PendingVotesModel {
 
     public var needsVote: [PendingVote] { votes.filter { details[$0.id]?.summary.isTradeInProgress != true } }
     public var inProgress: [PendingVote] { votes.filter { details[$0.id]?.summary.isTradeInProgress == true } }
+
+    public func waitingCount(votedThisSession: Set<String>) -> Int {
+        needsVote.filter { !votedThisSession.contains($0.id) && details[$0.id]?.summary.myBallot == nil }.count
+    }
 
     public init(repository: ProposalsRepository, hints: any HintSource) {
         self.repository = repository
