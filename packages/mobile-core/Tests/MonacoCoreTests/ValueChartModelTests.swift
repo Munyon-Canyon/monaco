@@ -82,6 +82,31 @@ final class ValueChartModelTests: XCTestCase {
         task.cancel()
     }
 
+    func testARefreshReadsTheCurveAgainAndShowsTheNewOne() async throws {
+        let (model, transport, _) = try make([.curve(._1d), .curve(._1d, shifted: true)])
+        await model.load()
+        let before = model.curve
+
+        await model.refresh()
+
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 2)
+        XCTAssertNotEqual(model.curve, before)
+        XCTAssertEqual(model.curve, ValueCurve(Self.shifted(MyHistory.sample(range: ._1d))))
+    }
+
+    func testAFailedRefreshKeepsTheCurveAndToasts() async throws {
+        let (model, _, _) = try make([.curve(._1d), .failure])
+        await model.load()
+        let shown = model.curve
+
+        await model.refresh()
+
+        XCTAssertEqual(model.curve, shown)
+        XCTAssertEqual(model.range, .oneDay)
+        XCTAssertEqual(model.toast, "You're offline. Try again.")
+    }
+
     func testChangingTheSubjectsReloadsTheChart() async throws {
         let (model, transport, _) = try make([.curve(._1d), .cabal(._1d)])
         await model.load()
@@ -145,6 +170,12 @@ final class ValueChartModelTests: XCTestCase {
         XCTAssertEqual(model.curves?.keys.count, 2)
     }
 
+    private nonisolated static func shifted(_ history: MyHistory) -> MyHistory {
+        var history = history
+        history.points[3].equityMicros += 1_000_000
+        return history
+    }
+
     private enum Script {
         case curve(MyHistory.RangePayload, shifted: Bool = false)
         case cabal(Components.Schemas.CabalValueHistory.RangePayload, id: String = "cabal-1")
@@ -157,7 +188,7 @@ final class ValueChartModelTests: XCTestCase {
             switch self {
             case .curve(let range, let shifted):
                 var history = MyHistory.sample(range: range)
-                if shifted { history.points[3].equityMicros += 1_000_000 }
+                if shifted { history = ValueChartModelTests.shifted(history) }
                 return .json(.ok, String(decoding: try encoder.encode(history), as: UTF8.self))
             case .cabal(let range, let id):
                 let history = Components.Schemas.CabalValueHistory.sample(cabalID: id, range: range)

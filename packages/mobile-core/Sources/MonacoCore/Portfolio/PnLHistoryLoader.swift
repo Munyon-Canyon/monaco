@@ -45,20 +45,22 @@ public actor PnLHistoryLoader {
         cache[Key(subject: subject, range: range)]
     }
 
-    public func show(_ subject: Subject, range: LeaderboardRange) async throws -> ValueCurve? {
-        try await show([subject], range: range)?[subject]
+    public func show(_ subject: Subject, range: LeaderboardRange, force: Bool = false) async throws -> ValueCurve? {
+        try await show([subject], range: range, force: force)?[subject]
     }
 
-    public func show(_ subjects: [Subject], range: LeaderboardRange) async throws -> [Subject: ValueCurve]? {
+    public func show(
+        _ subjects: [Subject], range: LeaderboardRange, force: Bool = false
+    ) async throws -> [Subject: ValueCurve]? {
         let keys = subjects.map { Key(subject: $0, range: range) }
         visible = keys
         generation += 1
-        if keys.allSatisfy({ cache[$0] != nil }) {
+        if !force, keys.allSatisfy({ cache[$0] != nil }) {
             var curves: [Subject: ValueCurve] = [:]
             for key in keys { curves[key.subject] = cache[key] }
             return curves
         }
-        return try await queued(keys, issued: generation, force: false)
+        return try await queued(keys, issued: generation, force: force)
     }
 
     public func setVisible(_ isVisible: Bool) async {

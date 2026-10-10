@@ -18,6 +18,7 @@ private struct CabalValueChart: View {
     @Environment(\.cabalRetry) private var retry
     @State private var model: ValueChartModel?
     @State private var selection: Int?
+    @State private var refreshedTick = 0
 
     var body: some View {
         CabalInkBand {
@@ -30,8 +31,12 @@ private struct CabalValueChart: View {
         }
         .task(id: retry.tick) {
             let model = prepared()
+            let pulled = retry.tick > refreshedTick
+            refreshedTick = retry.tick
             await withTaskGroup(of: Void.self) { group in
-                group.addTask { await model.load() }
+                group.addTask {
+                    if pulled { await model.refresh() } else { await model.load() }
+                }
                 group.addTask { await model.observe() }
             }
         }
