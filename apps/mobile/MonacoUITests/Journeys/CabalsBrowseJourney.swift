@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
 
@@ -68,18 +68,6 @@ enum CabalsBrowseJourney {
             XCTAssertTrue(
                 app.element("cabals-search-requested").waitForExistence(timeout: 10),
                 "S1.4: the row does not read Request sent"
-            )
-        }
-    }
-
-    static func seesReturnChart(_ app: XCUIApplication, recorder: JourneyRecorder) {
-        recorder.step("S2.1", "the return chart draws your cabals") {
-            app.tab("Cabals").tap()
-            let chart = app.element("cabals-value-chart")
-            XCTAssertTrue(chart.waitForExistence(timeout: screenTimeout), "S2.1: no Your cabals' return section")
-            XCTAssertFalse(
-                app.element("cabals-value-chart-coming").exists,
-                "S2.1: the chart reads Your cabals' return shows up here soon. (known failure, #660)"
             )
         }
     }

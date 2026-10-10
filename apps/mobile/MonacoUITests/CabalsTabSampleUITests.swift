@@ -61,7 +61,7 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testOverviewShowsYourCabalsChartAndBoard() throws {
+    func testOverviewShowsYourCabalsAndBoard() throws {
         let app = launchApp()
 
         let root = anyElement(app, "cabals-root")
@@ -73,12 +73,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
             "the QA pot card should exist in your cabals"
         )
         XCTAssertTrue(anyElement(app, "cabals-list-new").exists, "the New cabal card should sit after the cabals")
-
-        XCTAssertTrue(
-            reveal(app, "cabals-value-chart").waitForExistence(timeout: 10), "the value chart section should exist")
-        XCTAssertTrue(
-            reveal(app, "cabals-value-chart-lines").waitForExistence(timeout: 10), "the value chart should render")
-        XCTAssertTrue(anyElement(app, "cabals-value-chart-range-1M").exists, "range chips should exist")
 
         XCTAssertTrue(reveal(app, "cabals-board").waitForExistence(timeout: 10), "the board should exist")
 
@@ -105,38 +99,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testPickingADayWithThinHistoryKeepsTheRangePicker() throws {
-        let app = launchApp()
-
-        let chart = reveal(app, "cabals-value-chart")
-        XCTAssertTrue(chart.waitForExistence(timeout: 10), "the value chart should exist on the default range")
-        XCTAssertTrue(
-            reveal(app, "cabals-value-chart-lines").waitForExistence(timeout: 10),
-            "the default range should draw the chart"
-        )
-
-        let oneDay = reveal(app, "cabals-value-chart-range-1D")
-        XCTAssertTrue(oneDay.waitForExistence(timeout: 5), "1D chip should exist")
-        oneDay.tap()
-
-        XCTAssertTrue(
-            anyElement(app, "cabals-value-chart-short").waitForExistence(timeout: 5),
-            "a range with thin history should say so inside the card"
-        )
-        XCTAssertTrue(chart.exists, "the value chart section should survive a thin range")
-
-        let oneMonth = anyElement(app, "cabals-value-chart-range-1M")
-        XCTAssertTrue(oneMonth.exists, "the range picker should still be on screen")
-        oneMonth.tap()
-        XCTAssertTrue(
-            anyElement(app, "cabals-value-chart-lines").waitForExistence(timeout: 5),
-            "switching back to 1M should draw the chart again"
-        )
-
-        attachScreenshot(app, name: "06-value-chart-thin-range")
-    }
-
-    @MainActor
     func testUnloadedCabalsDoNotClaimTheMemberHasNone() throws {
         let app = launchApp(scenario: "cabalsUnavailable")
 
@@ -153,10 +115,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
             "an unloaded cabals list must not claim 'No cabals yet'"
         )
 
-        XCTAssertTrue(
-            reveal(app, "cabals-value-chart-error").waitForExistence(timeout: 10),
-            "an unloaded value chart should offer a retry"
-        )
         XCTAssertTrue(
             reveal(app, "cabals-board-list-error").waitForExistence(timeout: 10),
             "an unloaded board should offer a retry"
@@ -205,11 +163,6 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
             reveal(app, "cabals-board-list-loading").waitForExistence(timeout: 10),
             "a board that has not arrived yet should show placeholder rows"
         )
-        XCTAssertFalse(
-            anyElement(app, "cabals-value-chart-loading").exists,
-            "the return chart should stay hidden until it has loaded"
-        )
-        XCTAssertFalse(anyElement(app, "cabals-value-chart-error").exists, "the chart has not failed yet")
         XCTAssertFalse(anyElement(app, "cabals-board-list-error").exists, "the board has not failed yet")
         XCTAssertFalse(anyElement(app, "cabals-board-empty").exists, "the board is unknown, not empty")
 

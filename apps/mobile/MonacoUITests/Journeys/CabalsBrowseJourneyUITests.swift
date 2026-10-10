@@ -18,12 +18,6 @@ nonisolated final class CabalsBrowseJourneyUITests: XCTestCase {
             attachScreenshot(of: app, named: "S1-A-requested")
         }
 
-        try session.scenario("S2") {
-            try session.act(as: "A")
-            CabalsBrowseJourney.seesReturnChart(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S2-A-return-chart")
-        }
-
         try session.scenario("S3") {
             try session.act(as: "A")
             CabalsBrowseJourney.seesTopCabals(app, recorder: recorder)

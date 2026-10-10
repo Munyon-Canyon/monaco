@@ -1,7 +1,7 @@
 ---
 id: cabals/browse
 title: Browse and search cabals
-version: 3
+version: 4
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -11,9 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsBrowseJourney.swift, apps/mo
 
 # Browse and search cabals
 
-A member opens the Cabals tab, sees their cabals as cards, opens one, then searches by name and asks to join a cabal from the search rows. The tab's return chart and Top cabals board are checked in their own scenarios, since both wait on backend routes. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
+A member opens the Cabals tab, sees their cabals as cards, opens one, then searches by name and asks to join a cabal from the search rows. The tab's Top cabals board is checked in its own scenario, since it waits on backend routes. The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
 
-Old app (`c838bd24`): the Cabals tab (`Groups/CabalsTabView.swift`): "Your cabals" cards (`CabalsStripSection.swift`) -> cabal; "Find a cabal by name" -> results (`CabalsSearchResultsSection.swift`) -> Join or Request; "Top cabals" (`CabalsLeaderboardSection.swift`); the return chart (`CabalsPnLChartSection.swift`). Spec: the Cabals tab, `CabalsListSlot`, `CabalsJoinSlot`, `CabalsValueChartSlot` and `CabalsBoardSlot` in [screens.md](../../screens.md#cabals-tab).
+Old app (`c838bd24`): the Cabals tab (`Groups/CabalsTabView.swift`): "Your cabals" cards (`CabalsStripSection.swift`) -> cabal; "Find a cabal by name" -> results (`CabalsSearchResultsSection.swift`) -> Join or Request; "Top cabals" (`CabalsLeaderboardSection.swift`); the return chart (`CabalsPnLChartSection.swift`). Spec: the Cabals tab, `CabalsListSlot`, `CabalsJoinSlot` and `CabalsBoardSlot` in [screens.md](../../screens.md#cabals-tab).
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -36,12 +36,6 @@ The format of this doc is in [App journeys](../README.md).
 | S1.3 | A | wait for the toast to close, clear the field, then type | `cabals-search-field` | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member · Approval required", and its `cabals-search-enter-<id>` is labelled "Ask to join QA ask {QA.run}" within 10 s |
 | S1.4 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request sent" |
 
-### S2 Your cabals' return
-
-| Step | Actor | Action | Target | Input | Expect |
-| --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap | the Cabals tab | | `cabals-value-chart` has the header "Your cabals' return" and draws a line for `QA mine {QA.run}`, with no `cabals-value-chart-coming`, within 15 s |
-
 ### S3 Top cabals
 
 | Step | Actor | Action | Target | Input | Expect |
@@ -54,7 +48,6 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S2.1: the return chart reads "Your cabals' return shows up here soon." (`cabals-value-chart-coming`). Blocked by #660.
 - S3.1: Top cabals reads "Rankings show up here soon." (`cabals-board-coming`). Blocked by #699 and #617.
 
 ## Not covered
