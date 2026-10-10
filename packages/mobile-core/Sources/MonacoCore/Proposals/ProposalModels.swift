@@ -20,7 +20,13 @@ public final class ProposalListModel {
         hook.run = { [weak self] in await self?.refresh() }
     }
 
-    public func load() async { await pager.loadFirst() }
+    public func load() async {
+        if pager.items.isEmpty {
+            await pager.loadFirst()
+        } else {
+            await refresh()
+        }
+    }
 
     public func refresh() async {
         let before = Dictionary(pager.items.map { ($0.id, $0.status) }, uniquingKeysWith: { first, _ in first })
@@ -114,7 +120,7 @@ public final class ProposalSegmentsModel {
     public var loaded: [ProposalListModel] { ProposalSegment.allCases.compactMap { models[$0] } }
 
     public func refreshLoaded() async {
-        for model in loaded { await model.pager.loadFirst() }
+        for model in loaded { await model.refresh() }
     }
 }
 
