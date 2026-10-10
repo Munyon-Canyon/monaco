@@ -14,7 +14,9 @@ struct CabalInvitesSection: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model: CabalInvitesModel?
+    @State private var showsInvites = false
 
     init(model: CabalInvitesModel? = nil) {
         _model = State(initialValue: model)
@@ -26,7 +28,7 @@ struct CabalInvitesSection: View {
                 MonacoErrorRow(thing: "your invites", identifier: "cabals-invites-failed") {
                     Task { await model.load() }
                 }
-            } else if let model, !model.invites.isEmpty {
+            } else if let model, showsInvites, !model.invites.isEmpty {
                 MonacoSectionHeader("Cabal invites", count: model.invites.count)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 MonacoGroupedList {
@@ -47,6 +49,9 @@ struct CabalInvitesSection: View {
         .task { await start() }
         .onScreenVisibilityChange { visible in
             model?.setVisible(visible)
+        }
+        .onChange(of: !(model?.invites.isEmpty ?? true), initial: true) { _, shows in
+            withAnimation(reduceMotion ? nil : .snappy) { showsInvites = shows }
         }
         .onChange(of: model?.toast) { _, toast in
             guard let toast else { return }

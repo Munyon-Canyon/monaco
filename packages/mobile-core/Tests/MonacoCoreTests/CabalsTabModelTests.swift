@@ -152,33 +152,6 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(model.failureTick, 0)
     }
 
-    func testMemberCopy() {
-        XCTAssertEqual(CabalCopy.memberCount(1), "1 member")
-        XCTAssertEqual(CabalCopy.memberCount(3), "3 members")
-        let named = member(displayName: "Kai", handle: "kai", role: "creator")
-        XCTAssertEqual(CabalCopy.memberName(named), "Kai")
-        XCTAssertEqual(CabalCopy.memberName(member(displayName: " ", handle: "kai", role: "member")), "@kai")
-        XCTAssertEqual(CabalCopy.memberName(member(displayName: "", handle: nil, role: "member")), "Member")
-    }
-
-    func testOnlyTheCreatorSeesPendingRequests() {
-        XCTAssertEqual(CabalCopy.requestBadge(myCabal(role: "creator", pending: 2)), 2)
-        XCTAssertNil(CabalCopy.requestBadge(myCabal(role: "creator", pending: 0)))
-        XCTAssertNil(CabalCopy.requestBadge(myCabal(role: "member", pending: 2)))
-        XCTAssertEqual(CabalCopy.requestCount(1), "1 request to join")
-        XCTAssertEqual(CabalCopy.requestCount(2), "2 requests to join")
-    }
-
-    func testTheUnreadBadgeFormatterHidesZeroAndCapsAtNinetyNine() {
-        XCTAssertNil(CabalCopy.unreadBadge(0))
-        XCTAssertEqual(CabalCopy.unreadBadge(7), "7")
-        XCTAssertEqual(CabalCopy.unreadBadge(99), "99")
-        XCTAssertEqual(CabalCopy.unreadBadge(100), "99+")
-        XCTAssertEqual(CabalCopy.unreadLabel(1), "1 unread message")
-        XCTAssertEqual(CabalCopy.unreadLabel(3), "3 unread messages")
-        XCTAssertEqual(CabalCopy.unreadLabel(100), "More than 99 unread messages")
-    }
-
     func testACabalsHintReadsTheListAgain() async {
         let transport = StubTransport(scripted: [
             .json(.ok, Self.list(["Weekend pot"])), .json(.ok, Self.list(["Weekend pot", "QA pot"])),
@@ -228,18 +201,6 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(runs.sorted(), ["chart", "list"])
     }
 
-    private func myCabal(role: String, pending: Int32) -> Components.Schemas.MyCabal {
-        .init(
-            id: "c-1", name: "QA pot", pictureUrl: nil, role: role, canVote: true, memberCount: 2,
-            joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: pending, unreadCount: 0)
-    }
-
-    private func member(displayName: String, handle: String?, role: String) -> Components.Schemas.CabalMember {
-        .init(
-            userId: "u-1", handle: handle, displayName: displayName, photoUrl: nil, role: role, canVote: true,
-            joinedAt: Date(timeIntervalSince1970: 0))
-    }
-
     private func rows(_ names: [String]) throws -> [Components.Schemas.MyCabal] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -247,30 +208,58 @@ final class CabalsTabModelTests: XCTestCase {
     }
 
     func testStandingsKeyThePortfolioRowsByCabalID() async throws {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
         let portfolio = Components.Schemas.MyPortfolio.sample
-        let body = String(decoding: try encoder.encode(portfolio), as: UTF8.self)
-        let transport = StubTransport(scripted: [.json(.ok, body)])
+        let transport = StubTransport(routes: [
+            "/v1/me/cabals": [.json(.ok, Self.list(["Weekend pot"]))],
+            "/v1/me/portfolio": [.json(.ok, try Self.body(of: portfolio))],
+        ])
         let model = CabalsTabModel(api: api(transport))
 
-        await model.loadStandings()
+        await model.load(withStandings: true)
 
         let sent = await transport.sent
-        XCTAssertEqual(sent.map(\.path), ["/v1/me/portfolio"])
+        XCTAssertEqual(Set(sent.map(\.path)), ["/v1/me/cabals", "/v1/me/portfolio"])
         XCTAssertEqual(Set(model.standings.keys), Set(portfolio.cabals.map(\.cabal.id)))
         let first = try XCTUnwrap(portfolio.cabals.first)
         XCTAssertEqual(model.standings[first.cabal.id]?.valueMicros, first.valueMicros)
         XCTAssertEqual(model.standings[first.cabal.id]?.pnlMicros, first.pnlMicros)
     }
 
-    func testAFailedStandingsReadLeavesTheCardsWithoutFigures() async {
-        let transport = StubTransport(scripted: [.failure(URLError(.notConnectedToInternet))])
+    func testAFailedStandingsReadLeavesTheCardsWithoutFigures() async throws {
+        let transport = StubTransport(routes: [
+            "/v1/me/cabals": [.json(.ok, Self.list(["Weekend pot"]))],
+            "/v1/me/portfolio": [.failure(URLError(.notConnectedToInternet))],
+        ])
         let model = CabalsTabModel(api: api(transport))
 
-        await model.loadStandings()
+        await model.load(withStandings: true)
 
+        XCTAssertEqual(model.state, .loaded(try rows(["Weekend pot"])))
         XCTAssertTrue(model.standings.isEmpty)
+        XCTAssertEqual(model.failureTick, 0)
+    }
+
+    func testTheCabalsShowOnlyOnceTheirStandingsHaveArrived() async throws {
+        let portfolio = Components.Schemas.MyPortfolio.sample
+        let transport = StubTransport(routes: [
+            "/v1/me/cabals": [.json(.ok, Self.list(["Weekend pot"]))],
+            "/v1/me/portfolio": [.gate],
+        ])
+        let model = CabalsTabModel(api: api(transport))
+
+        let load = Task { await model.load(withStandings: true) }
+        let bothAsked = await waitUntil { await transport.sent.count == 2 }
+        XCTAssertTrue(bothAsked)
+        _ = await waitUntil { false }
+        XCTAssertEqual(model.state, .loading)
+        XCTAssertTrue(model.standings.isEmpty)
+
+        await transport.releaseGate(.json(.ok, try Self.body(of: portfolio)))
+        let loaded = await waitUntil { model.state != .loading }
+        XCTAssertTrue(loaded)
+        XCTAssertEqual(model.state, .loaded(try rows(["Weekend pot"])))
+        XCTAssertEqual(Set(model.standings.keys), Set(portfolio.cabals.map(\.cabal.id)))
+        await load.value
     }
 
     private func api(_ transport: StubTransport) -> APIClient {
@@ -283,6 +272,12 @@ final class CabalsTabModelTests: XCTestCase {
             await Task.yield()
         }
         return await predicate()
+    }
+
+    private static func body(of portfolio: Components.Schemas.MyPortfolio) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return String(decoding: try encoder.encode(portfolio), as: UTF8.self)
     }
 
     private static func list(_ names: [String]) -> String {

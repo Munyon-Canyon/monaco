@@ -21,12 +21,8 @@ private struct MyCabalsList: View {
         MyCabalsContent(model: model, standings: model?.standings ?? [:], open: open, create: { showsNewCabal = true })
             .task {
                 let model = preparedModel()
-                refresh?.register("cabals-list") {
-                    await model.load()
-                    await model.loadStandings()
-                }
-                await model.load()
-                await model.loadStandings()
+                refresh?.register("cabals-list") { await model.load(withStandings: true) }
+                await model.load(withStandings: true)
             }
             .onScreenVisibilityChange { model?.setVisible($0) }
             .task { await preparedModel().observe(hints: environment.hints) }
