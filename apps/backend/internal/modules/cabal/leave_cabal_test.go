@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -23,22 +24,33 @@ import (
 )
 
 type treasuryStub struct {
-	shares    money.SharesUnits
-	pot       money.Micros
-	sharesErr error
-	potErr    error
-	open      bool
-	openErr   error
-	lateOpen  bool
-	lateErr   error
-	openReads atomic.Int32
-	read      func()
-	potReads  atomic.Int32
+	shares        money.SharesUnits
+	pot           money.Micros
+	sharesErr     error
+	potErr        error
+	open          bool
+	openErr       error
+	lateOpen      bool
+	lateShares    *money.SharesUnits
+	shareReads    atomic.Int32
+	lateSharesErr error
+	lateErr       error
+	openReads     atomic.Int32
+	read          func()
+	potReads      atomic.Int32
 }
 
 func (s *treasuryStub) ShareUnits(context.Context, ids.CabalID, ids.UserID) (money.SharesUnits, error) {
 	if s.read != nil {
 		s.read()
+	}
+	if s.shareReads.Add(1) > 1 {
+		if s.lateSharesErr != nil {
+			return money.SharesUnits{}, s.lateSharesErr
+		}
+		if s.lateShares != nil {
+			return *s.lateShares, s.sharesErr
+		}
 	}
 	return s.shares, s.sharesErr
 }
@@ -48,6 +60,16 @@ func (s *treasuryStub) OpenFund(context.Context, ids.CabalID, ids.UserID) (bool,
 		return s.lateOpen, s.lateErr
 	}
 	return s.open, s.openErr
+}
+
+func (s *treasuryStub) ShareUnitsOn(
+	ctx context.Context, _ dbsqlc.DBTX, c ids.CabalID, u ids.UserID,
+) (money.SharesUnits, error) {
+	return s.ShareUnits(ctx, c, u)
+}
+
+func (s *treasuryStub) OpenFundOn(ctx context.Context, _ dbsqlc.DBTX, c ids.CabalID, u ids.UserID) (bool, error) {
+	return s.OpenFund(ctx, c, u)
 }
 
 func (s *treasuryStub) PotValue(context.Context, ids.CabalID) (money.Micros, error) {
@@ -310,6 +332,24 @@ func TestLeaveCabal_refusesAnOpenFundBeforeAnyOtherCheck(t *testing.T) {
 	}
 	tr = &treasuryStub{openErr: errs.New(errs.CodeDBUnavailable, "test")}
 	wantErr(t, f.leave(t.Context(), tr, member, c.ID), errs.CodeDBUnavailable)
+}
+
+func TestLeaveCabal_rereadsTheSharesUnderTheMemberLocks(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	member := c.Members[1].ID
+	settled := shares(1)
+	wantErr(t, f.leave(t.Context(), &treasuryStub{lateShares: &settled}, member, c.ID), errs.CodeLeaveHoldsShares)
+	if _, ok := f.membership(t, c.ID, member); !ok {
+		t.Fatal("the member left holding shares that settled after the first read")
+	}
+	if got := f.lefts(t); len(got) != 0 {
+		t.Fatalf("member_left events = %+v, want none", got)
+	}
+	broken := &treasuryStub{lateSharesErr: errs.New(errs.CodeDBUnavailable, "test")}
+	wantErr(t, f.leave(t.Context(), broken, member, c.ID),
+		errs.CodeDBUnavailable)
 }
 
 func TestLeaveCabal_rechecksTheOpenFundUnderTheMemberLocks(t *testing.T) {
