@@ -342,6 +342,42 @@ func TestFundSettler_keepsALandedTransferWhenItCannotMint(t *testing.T) {
 	}
 }
 
+func TestFundSettler_aFundThatCannotSettleDoesNotHoldBackOthers(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	stuck := h.landed(t, "5000000")
+	h.seedShares(10)
+	zero := money.Micros{}
+	h.chain.pot = &zero
+	h.clock.Advance(time.Second)
+	healthy := h.fundTransferIn(t, h.user, domain.FundLanded, 5_000_000)
+	wantCode(t, h.tickErr(), errs.CodePotValueZero)
+	if status, _, _ := h.status(t, stuck); status != "landed" {
+		t.Fatalf("stuck fund status = %s, want landed", status)
+	}
+	if status, units, _ := h.status(t, healthy); status != "settled" || units != "5000000" {
+		t.Fatalf("healthy fund status = %s, units = %s, want settled 5000000", status, units)
+	}
+}
+
+func TestFundSettler_waitsWhileACashOutReservationExceedsThePot(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	id := h.landed(t, "5000000")
+	h.chain.potErr = errs.New(errs.CodePotValueChanged, "stub")
+	if err := h.tickErr(); err != nil {
+		t.Fatalf("Tick while the reservation exceeds the pot = %v, want nil", err)
+	}
+	if status, _, _ := h.status(t, id); status != "landed" {
+		t.Fatalf("status while waiting = %s, want landed", status)
+	}
+	h.chain.potErr = nil
+	h.tick(t)
+	if status, units, _ := h.status(t, id); status != "settled" || units != "5000000" {
+		t.Fatalf("status once the reservation clears = %s/%s, want settled 5000000", status, units)
+	}
+}
+
 func (h *settleHarness) seedShares(units int64) {
 	t := h.t
 	t.Helper()
