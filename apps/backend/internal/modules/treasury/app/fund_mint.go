@@ -101,7 +101,7 @@ func (s *FundSettler) post(ctx context.Context, tx db.Tx, m fundMint, units mone
 	usdc, shares, sig := s.d.USDC, domain.SharesAsset(m.cabal), chain.Signature(m.transfer.TxSignature)
 	in, minted, err := ledgerAmounts(m.amount, units)
 	u, userErr := domain.NewUserTxn(domain.UserTxnHeader{
-		ID: s.d.IDs.NewV7(), UserID: m.user, CabalID: m.cabal, Kind: domain.UserFund, Status: domain.TxnSettled,
+		ID: m.transfer.ID, UserID: m.user, CabalID: m.cabal, Kind: domain.UserFund, Status: domain.TxnSettled,
 		TransferID: m.transfer.ID, TxSignature: sig,
 	}, []domain.UserEntry{
 		{Account: domain.UserWallet, Asset: usdc, Amount: neg(in)},
