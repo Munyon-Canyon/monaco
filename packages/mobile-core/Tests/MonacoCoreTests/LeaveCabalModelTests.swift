@@ -81,6 +81,58 @@ final class LeaveCabalModelTests: XCTestCase {
         XCTAssertEqual(model.standing, .loaded(LeaveStanding(cabalName: "QA pot", canLeave: true)))
     }
 
+    func testAFailedBackgroundReloadKeepsTheLoadedStanding() async {
+        let transport = StubTransport(scripted: [
+            myCabals(role: "member", members: 3), .failure(URLError(.networkConnectionLost)),
+        ])
+        let model = makeModel(transport)
+
+        await model.load()
+        await model.load()
+
+        XCTAssertEqual(model.standing, .loaded(LeaveStanding(cabalName: "QA pot", canLeave: true)))
+    }
+
+    func testACancelledBackgroundReloadKeepsTheLoadedStanding() async {
+        let transport = StubTransport(scripted: [
+            myCabals(role: "member", members: 3), .failure(URLError(.cancelled)),
+        ])
+        let model = makeModel(transport)
+
+        await model.load()
+        await model.load()
+
+        XCTAssertEqual(model.standing, .loaded(LeaveStanding(cabalName: "QA pot", canLeave: true)))
+    }
+
+    func testALeaveStillWorksAfterAFailedBackgroundReload() async {
+        let transport = StubTransport(scripted: [
+            myCabals(role: "member", members: 3), .failure(URLError(.networkConnectionLost)), deleted(),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        await model.load()
+
+        let outcome = await model.leave()
+
+        XCTAssertEqual(outcome, .left(cabalName: "QA pot"))
+    }
+
+    func testARetryAfterAFailedFirstLoadLoads() async {
+        let transport = StubTransport(scripted: [
+            .failure(URLError(.networkConnectionLost)), myCabals(role: "member", members: 3),
+        ])
+        let model = makeModel(transport)
+
+        await model.load()
+        guard case .failed = model.standing else {
+            return XCTFail("expected the first load to fail, got \(model.standing)")
+        }
+        await model.load()
+
+        XCTAssertEqual(model.standing, .loaded(LeaveStanding(cabalName: "QA pot", canLeave: true)))
+    }
+
     func testLeaveDeletesTheMembershipOnceAndNamesTheCabal() async throws {
         let transport = StubTransport(scripted: [myCabals(role: "member", members: 2), deleted()])
         let model = makeModel(transport)
