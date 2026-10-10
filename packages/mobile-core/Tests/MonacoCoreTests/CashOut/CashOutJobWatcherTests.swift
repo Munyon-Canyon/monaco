@@ -1,6 +1,7 @@
 import Foundation
 import MonacoAPI
 import MonacoCore
+import MonacoTestClock
 import MonacoTestSupport
 import XCTest
 
@@ -104,10 +105,85 @@ final class CashOutJobWatcherTests: XCTestCase {
         XCTAssertFalse(watcher.isObserving)
     }
 
-    private func makeWatcher(_ transport: StubTransport, hints: FakeHintStream) -> CashOutJobWatcher {
+    func testAFailedReadIsReadAgainOnThePoll() async throws {
+        let transport = StubTransport(scripted: [
+            try CashOutModelTests.json(.ok, Components.Schemas.CashOutJob.sample(status: .started)),
+            .failure(URLError(.timedOut)),
+            try CashOutModelTests.json(.ok, Components.Schemas.CashOutJob.sample(status: .completed)),
+        ])
+        let hints = FakeHintStream()
+        let clock = TestClock()
+        let watcher = makeWatcher(transport, hints: hints, clock: clock)
+        watcher.track(started)
+        let subscribed = await waitUntil { await hints.subscriberCount == 1 }
+        XCTAssertTrue(subscribed)
+        await hints.send(.changed(.user("me"), what: "cashout_changed", id: "1"))
+        await transport.waitForRequests(2)
+        _ = await clock.state.until { $0.pending == 1 }
+        XCTAssertNotNil(watcher.job(for: started.cabalID))
+
+        clock.advance(by: CashOutJobWatcher.pollInterval)
+
+        let done = await waitUntil { watcher.notice != nil }
+        XCTAssertTrue(done)
+        XCTAssertEqual(watcher.notice?.message, "Cashed out $1.00. It's in your balance.")
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 3)
+    }
+
+    func testAnEndingWithNoHintIsFoundByThePoll() async throws {
+        let transport = StubTransport(scripted: [
+            try CashOutModelTests.json(.ok, Components.Schemas.CashOutJob.sample(status: .started)),
+            try CashOutModelTests.json(
+                .ok, Components.Schemas.CashOutJob.sample(status: .failed, resultCode: "sale_short")),
+        ])
+        let clock = TestClock()
+        let watcher = makeWatcher(transport, hints: FakeHintStream(), clock: clock)
+        watcher.track(started)
+        await transport.waitForRequests(1)
+        _ = await clock.state.until { $0.pending == 1 }
+
+        clock.advance(by: CashOutJobWatcher.pollInterval)
+
+        let done = await waitUntil { watcher.notice != nil }
+        XCTAssertTrue(done)
+        XCTAssertEqual(watcher.notice?.isSuccess, false)
+        XCTAssertNil(watcher.job(for: started.cabalID))
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertEqual(clock.state.current.requested, [CashOutJobWatcher.pollInterval])
+        clock.advance(by: CashOutJobWatcher.pollInterval)
+        for _ in 0..<50 { await Task.yield() }
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths, [jobPath, jobPath])
+    }
+
+    func testResetStopsThePoll() async throws {
+        let transport = StubTransport(scripted: [
+            try CashOutModelTests.json(.ok, Components.Schemas.CashOutJob.sample(status: .started))
+        ])
+        let clock = TestClock()
+        let watcher = makeWatcher(transport, hints: FakeHintStream(), clock: clock)
+        watcher.track(started)
+        await transport.waitForRequests(1)
+        _ = await clock.state.until { $0.pending == 1 }
+
+        watcher.reset()
+
+        XCTAssertEqual(clock.state.current.pending, 0)
+        clock.advance(by: CashOutJobWatcher.pollInterval)
+        clock.advance(by: CashOutJobWatcher.pollInterval)
+        for _ in 0..<50 { await Task.yield() }
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 1)
+    }
+
+    private func makeWatcher(
+        _ transport: StubTransport, hints: FakeHintStream, clock: any Clock<Duration> = TestClock()
+    ) -> CashOutJobWatcher {
         CashOutJobWatcher(
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
-            hints: hints
+            hints: hints,
+            clock: clock
         )
     }
 
