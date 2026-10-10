@@ -58,8 +58,9 @@ struct CabalPotBand: View {
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            SkeletonBlock(width: 180, height: 44)
-            SkeletonBlock(width: 120, height: 24, radius: 12)
+            Text("$0.00").moneyFont(.hero).skeletonBar(width: 180)
+            Text(" ").moneyFont(.caption).skeletonBar(width: 120, radius: 12)
+            Text(" ").font(MonacoTheme.Typo.callout).skeletonBar(width: 220)
         case .failed:
             MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed", inset: false) {
                 Task { await model?.load() }

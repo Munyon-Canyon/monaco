@@ -63,9 +63,9 @@ private struct CabalHero: View {
         case .idle, .loading:
             HStack(spacing: MonacoTheme.Space.sm) {
                 SkeletonBlock(width: 48, height: 48, radius: MonacoTheme.Radius.card)
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    SkeletonBlock(width: 160, height: 22)
-                    SkeletonBlock(width: 96, height: 14)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    Text("Cabal").font(MonacoTheme.Typo.title).skeletonBar(width: 160)
+                    SkeletonBlock(width: 96, height: 14).frame(height: 44, alignment: .leading)
                 }
             }
             .accessibilityElement()
