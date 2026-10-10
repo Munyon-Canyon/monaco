@@ -7,6 +7,7 @@ func init() {
 		TradingSwapFinished,
 		TradingSwapForceResolved,
 		TradingEngineBlocked,
+		TradingCashOutSellBlocked,
 		TradingRetryRequested,
 		TradingEngineStubbed,
 		TradingCashOutSellStubbed,

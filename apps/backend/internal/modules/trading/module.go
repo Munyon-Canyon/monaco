@@ -138,7 +138,7 @@ func (m *Module) cashOutSell(ctx context.Context, d bus.Delivery, ev events.Cash
 		return adapters.StubEngine{UoW: m.deps.UoW}.HandleCashOut(ctx, d, ev)
 	}
 	m.once.Do(m.build)
-	return adapters.CashOutSell{Sells: m.sells, UoW: m.deps.UoW}.Handle(ctx, d, ev)
+	return adapters.CashOutSell{Sells: m.sells}.Handle(ctx, d, ev)
 }
 
 func (m *Module) execute(ctx context.Context, d bus.Delivery, ev events.ProposalPassed) error {
