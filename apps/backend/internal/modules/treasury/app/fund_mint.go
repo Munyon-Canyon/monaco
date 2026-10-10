@@ -41,7 +41,7 @@ func (s *FundSettler) mint(ctx context.Context, r openFund) (bool, error) {
 	switch {
 	case err == nil && !settled:
 		return false, nil
-	case errs.CodeOf(err) == errs.CodePriceUnavailable:
+	case errs.CodeOf(err) == errs.CodePriceUnavailable, errs.CodeOf(err) == errs.CodePotValueChanged:
 		observability.Info(ctx, observability.TreasuryFundMintWaiting, slog.String("transfer_id", r.ID.String()),
 			slog.String("cabal_id", m.cabal.String()))
 		return false, nil

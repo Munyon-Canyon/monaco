@@ -83,16 +83,18 @@ func (s *FundSettler) Tick(ctx context.Context) (FundTick, error) {
 	if err != nil {
 		return tick, err
 	}
+	var failed []error
 	for _, r := range append(landed, confirmed...) {
 		ok, err := s.mint(ctx, r)
 		if err != nil {
-			return tick, err
+			failed = append(failed, err)
+			continue
 		}
 		if ok {
 			tick.Minted++
 		}
 	}
-	return tick, nil
+	return tick, errors.Join(failed...)
 }
 
 func (s *FundSettler) confirm(ctx context.Context, rows []openFund) ([]openFund, int, error) {
