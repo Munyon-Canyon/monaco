@@ -45,9 +45,12 @@ type Option func(*Module)
 
 func WithPorts(p Ports) Option { return func(m *Module) { m.ports = &p } }
 
+func WithSwaps(s app.Swaps) Option { return func(m *Module) { m.swaps = s } }
+
 type Module struct {
 	deps  module.Deps
 	ports *Ports
+	swaps app.Swaps
 }
 
 func New(d module.Deps, opts ...Option) *Module {
@@ -112,7 +115,11 @@ func (m *Module) tradePorts() Ports {
 
 func (m *Module) Consumers() []bus.Consumer {
 	hints := adapters.Hints{Publish: m.deps.Bus}
-	outcomes := adapters.TradeOutcome{Hints: hints}
+	swaps := m.swaps
+	if swaps == nil {
+		swaps = trading.New(m.deps).Queries()
+	}
+	outcomes := adapters.TradeOutcome{Hints: hints, Swaps: swaps}
 	return []bus.Consumer{
 		{
 			Durable: "governance",

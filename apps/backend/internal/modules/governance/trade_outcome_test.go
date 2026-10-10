@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -19,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
 type delivery struct {
@@ -45,20 +47,23 @@ func (m *delivery) NakWithDelay(d time.Duration) error {
 
 type outcomeDB struct {
 	voteDB
-	conn *bus.Conn
-	reg  *bus.Registry
+	conn  *bus.Conn
+	reg   *bus.Registry
+	swaps *fakes.Trading
 }
 
 func newOutcomeDB(t *testing.T) outcomeDB {
 	t.Helper()
 	d := newVoteDB(t)
 	conn := testkit.NATS(t).Conn
-	consumers := governance.New(module.Deps{Pool: d.pool, IDs: d.ids, Clock: d.clk, Bus: conn}).Consumers()
+	swaps := fakes.NewTrading()
+	deps := module.Deps{Pool: d.pool, IDs: d.ids, Clock: d.clk, Bus: conn}
+	consumers := governance.New(deps, governance.WithSwaps(swaps)).Consumers()
 	reg, err := bus.NewRegistry(conn, d.uow, d.clk, consumers)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return outcomeDB{voteDB: d, conn: conn, reg: reg}
+	return outcomeDB{voteDB: d, conn: conn, reg: reg, swaps: swaps}
 }
 
 func (d outcomeDB) proposal(t *testing.T, status string) uuid.UUID {
@@ -306,6 +311,91 @@ func TestTradeOutcome_Retried_DuplicateReopensOnce(t *testing.T) {
 	if n := len(d.payloads(t, p, events.TypeProposalReopened)); n != 1 {
 		t.Fatalf("%d proposal.reopened events after two deliveries, want 1", n)
 	}
+}
+
+func (d outcomeDB) seed(proposal uuid.UUID, s trading.SwapView) trading.SwapView {
+	s.ID, s.Source = ids.SwapIDFrom(d.ids.NewV7()), trading.Source{Kind: "proposal", ID: proposal}
+	d.swaps.Put(s)
+	return s
+}
+
+func (d outcomeDB) blockedBySwap(t *testing.T) uuid.UUID {
+	t.Helper()
+	p := d.proposal(t, "passed")
+	d.block(t, p, string(errs.CodeSwapFailed))
+	return p
+}
+
+func (d outcomeDB) retriedFrom(proposal uuid.UUID, swap trading.SwapView) events.TradeRetryRequested {
+	ev := d.retried(proposal, "proposal")
+	ev.SwapID = swap.ID.UUID()
+	return ev
+}
+
+func (d outcomeDB) wantReopened(t *testing.T, proposal uuid.UUID, want int) {
+	t.Helper()
+	if n := len(d.payloads(t, proposal, events.TypeProposalReopened)); n != want {
+		t.Errorf("%d proposal.reopened events, want %d", n, want)
+	}
+}
+
+func TestTradeOutcome_Retried_KeepsAProposalBlockedWhenTheRetryAlreadyFailed(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.blockedBySwap(t)
+	first := d.seed(p, trading.SwapView{Status: "failed", CreatedAt: d.now})
+	d.seed(p, trading.SwapView{Status: "failed", CreatedAt: d.now.Add(time.Minute)})
+	for _, ev := range []events.Event{d.failed(p, "proposal"), d.retriedFrom(p, first)} {
+		if got := d.deliver(t, d.publish(t, ev)); got != bus.OutcomeAck {
+			t.Fatalf("%s = %s, want ack", ev.Type(), got)
+		}
+	}
+	d.wantRow(t, p, "execution_blocked", string(errs.CodeSwapFailed))
+	d.wantReopened(t, p, 0)
+}
+
+func TestTradeOutcome_Retried_ReopensWhileTheRetryIsStillRunning(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.blockedBySwap(t)
+	first := d.seed(p, trading.SwapView{Status: "failed", CreatedAt: d.now})
+	d.seed(p, trading.SwapView{Status: "submitted", CreatedAt: d.now.Add(time.Minute)})
+	if got := d.deliver(t, d.publish(t, d.retriedFrom(p, first))); got != bus.OutcomeAck {
+		t.Fatalf("trade.retry_requested = %s, want ack", got)
+	}
+	d.wantRow(t, p, "passed", "")
+	d.wantReopened(t, p, 1)
+}
+
+func TestTradeOutcome_Retried_ReopensBeforeTheRetrySwapExists(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.blockedBySwap(t)
+	first := d.seed(p, trading.SwapView{Status: "failed", CreatedAt: d.now})
+	if got := d.deliver(t, d.publish(t, d.retriedFrom(p, first))); got != bus.OutcomeAck {
+		t.Fatalf("trade.retry_requested = %s, want ack", got)
+	}
+	d.wantRow(t, p, "passed", "")
+	d.wantReopened(t, p, 1)
+}
+
+func TestTradeOutcome_Retried_NaksWhenTheSwapReadFails(t *testing.T) {
+	t.Parallel()
+	d := newOutcomeDB(t)
+	p := d.blockedBySwap(t)
+	first := d.seed(p, trading.SwapView{Status: "failed", CreatedAt: d.now})
+	d.swaps.FailOnce(errs.New(errs.CodeDBUnavailable, "test"))
+	m := d.publish(t, d.retriedFrom(p, first))
+	if got := d.deliver(t, m); got != bus.OutcomeNak {
+		t.Fatalf("trade.retry_requested with the swap read down = %s, want nak", got)
+	}
+	d.wantRow(t, p, "execution_blocked", string(errs.CodeSwapFailed))
+	d.wantReopened(t, p, 0)
+	if got := d.deliver(t, m); got != bus.OutcomeAck {
+		t.Fatalf("redelivery once the swap read works = %s, want ack", got)
+	}
+	d.wantRow(t, p, "passed", "")
+	d.wantReopened(t, p, 1)
 }
 
 func TestTradeOutcome_Duplicate_OneEvent(t *testing.T) {

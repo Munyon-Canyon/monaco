@@ -19,7 +19,10 @@ import (
 
 const proposalSource = "proposal"
 
-type TradeOutcome struct{ Hints app.Hints }
+type TradeOutcome struct {
+	Hints app.Hints
+	Swaps app.Swaps
+}
 
 func (h TradeOutcome) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirmed, at time.Time) error {
 	if e.Source.Kind != proposalSource {
@@ -58,6 +61,13 @@ func (h TradeOutcome) block(
 func (h TradeOutcome) Retried(ctx context.Context, tx db.Tx, e events.TradeRetryRequested, at time.Time) error {
 	const op = "governance.TradeOutcome.Retried"
 	if e.Source.Kind != proposalSource {
+		return nil
+	}
+	failedAgain, err := app.RetryAlreadyFailed(ctx, h.Swaps, e.Source.ID, ids.SwapIDFrom(e.SwapID))
+	if err != nil {
+		return err
+	}
+	if failedAgain {
 		return nil
 	}
 	moved, err := sqlc.New(tx.Queries()).Reopen(ctx, sqlc.ReopenParams{ID: e.Source.ID, At: at})
