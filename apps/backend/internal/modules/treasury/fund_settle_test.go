@@ -2,6 +2,7 @@ package treasury_test
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -248,6 +249,24 @@ func TestFundSettler_failsUnsentRejectedAndExpiredTransfers(t *testing.T) {
 	}
 	if n := h.count(t, "user_txns"); n != 0 {
 		t.Fatalf("user_txns = %d, want none for failed funds", n)
+	}
+}
+
+func TestFundSettler_expiringAnUnsentFundHintsTheBalance(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	other := h.fixture.user(t)
+	h.fundTransferIn(t, h.user, domain.FundCreated, 5_000_000)
+	h.fundTransferIn(t, h.user, domain.FundCreated, 5_000_000)
+	h.fundTransferIn(t, other, domain.FundCreated, 5_000_000)
+	h.clock.Advance(fundSendWindow + time.Second)
+	h.tick(t)
+	want := []string{events.UserBalanceChangedHint(h.user), events.UserBalanceChangedHint(other)}
+	slices.Sort(want)
+	got := slices.Clone(h.chain.hints)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("hints = %v, want one balance hint per member: %v", got, want)
 	}
 }
 
