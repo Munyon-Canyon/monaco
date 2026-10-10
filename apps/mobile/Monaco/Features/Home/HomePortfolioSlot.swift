@@ -48,7 +48,7 @@ private struct HomePortfolioHero: View {
         }
         .task {
             let chart = preparedChart()
-            refresh?.register("home-portfolio-chart") { await chart.load() }
+            refresh?.register("home-portfolio-chart") { await chart.refresh() }
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { await chart.load() }
                 group.addTask { await chart.observe() }

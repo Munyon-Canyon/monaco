@@ -37,6 +37,10 @@ public final class ValueChartModel {
         await show(range)
     }
 
+    public func refresh() async {
+        await show(range, force: true)
+    }
+
     public func select(_ next: LeaderboardRange) async {
         guard ranges.contains(next) else { return }
         range = next
@@ -64,12 +68,13 @@ public final class ValueChartModel {
         toast = nil
     }
 
-    private func show(_ wanted: LeaderboardRange) async {
+    private func show(_ wanted: LeaderboardRange, force: Bool = false) async {
         generation += 1
         let issued = generation
         if curves == nil { state = .loading }
         do {
-            guard let curves = try await loader.show(subjects, range: wanted), issued == generation else { return }
+            let shown = try await loader.show(subjects, range: wanted, force: force)
+            guard let curves = shown, issued == generation else { return }
             state = .loaded(curves)
             shownRange = wanted
         } catch {
