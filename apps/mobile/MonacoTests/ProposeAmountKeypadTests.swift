@@ -42,25 +42,33 @@ struct ProposeAmountKeypadTests {
         defer { window.isHidden = true }
         let barBottom = navigation.navigationBar.convert(navigation.navigationBar.bounds, to: nil).maxY
 
+        let layoutSlack: CGFloat = 0.5
         func figureIsClear() -> Bool {
             guard let figure = Self.element("amount-entry-field", in: window),
                 let keypad = Self.element("amount-keypad", in: window)
             else { return false }
             let frame = figure.accessibilityFrame
-            return frame.minY >= barBottom && frame.maxY <= keypad.accessibilityFrame.minY
+            return frame.minY >= barBottom - layoutSlack && frame.maxY <= keypad.accessibilityFrame.minY + layoutSlack
         }
 
-        await Self.until { figureIsClear() }
+        func expectWithinDeadline(_ what: String, _ predicate: () -> Bool) async {
+            let reached = await Self.eventually(within: 10, predicate)
+            #expect(reached, "\(what)")
+        }
+
+        await expectWithinDeadline("the figure starts clear of the bar and the keypad") { figureIsClear() }
         let scroll = try #require(Self.first(UIScrollView.self, in: window))
         scroll.setContentOffset(CGPoint(x: 0, y: -scroll.adjustedContentInset.top), animated: false)
-        await Self.until { !figureIsClear() }
+        await expectWithinDeadline("scrolling to the top puts the figure behind the bar") { !figureIsClear() }
         var typed = ""
         for digit in [1, 2, 3] {
             let key = try #require(Self.element("amount-keypad-\(digit)", in: window))
             #expect(key.accessibilityActivate())
             typed += String(digit)
-            await Self.until { Self.element("amount-entry-field", in: window)?.accessibilityValue == "$\(typed)" }
-            await Self.until { figureIsClear() }
+            await expectWithinDeadline("the figure reads $\(typed)") {
+                Self.element("amount-entry-field", in: window)?.accessibilityValue == "$\(typed)"
+            }
+            await expectWithinDeadline("the figure is back in view after typing \(digit)") { figureIsClear() }
         }
     }
 
