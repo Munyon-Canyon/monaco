@@ -116,7 +116,7 @@ func (m *Module) Mount(r api.Mount) {
 	ports := m.modulePorts()
 	tradingapi.Mount(adapters.HTTP{
 		Retry: app.NewRetryTradeHandler(m.deps.UoW, m.deps.Pool, ports.Cabals, ports.Proposals),
-		Swaps: app.NewSwapDetailReads(m.deps.Pool, ports.Cabals, ports.Catalog),
+		Swaps: app.NewSwapDetailReads(m.deps.Pool, ports.Cabals, ports.Catalog, ports.Proposals),
 	}, r)
 }
 

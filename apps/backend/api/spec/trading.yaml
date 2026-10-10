@@ -9,8 +9,9 @@ paths:
         members of the swap's cabal can read it, except a confirmed proposal trade, which any signed-in
         user can read because the Feed publishes it; anyone else gets `not_cabal_member`. The asset name
         and decimals come from the catalog, and raw mints are never returned. `retryable` is always false
-        for a non-member; otherwise it is true only for
-        the latest swap of a proposal when that swap failed.
+        for a non-member; otherwise it is true only for the latest swap of a proposal when that swap
+        failed and the proposal can still be retried: it is `passed`, or `execution_blocked` by
+        `swap_failed`. A proposal blocked for another reason, or voided, leaves it false.
       parameters:
         - name: id
           in: path

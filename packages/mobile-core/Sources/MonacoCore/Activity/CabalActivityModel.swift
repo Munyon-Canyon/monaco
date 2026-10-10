@@ -47,6 +47,7 @@ public final class CabalActivityModel {
     public private(set) var failureTick = 0
     public private(set) var toast: Toast?
     public private(set) var openSwap: SwapReceipt?
+    public private(set) var retryingIDs: Set<String> = []
 
     private let api: APIClient
     private let hints: any HintSource
@@ -124,6 +125,7 @@ public final class CabalActivityModel {
         do {
             let swap = try await api.read { client in try await client.getSwap(path: .init(id: id)).ok.body.json }
             openSwap = SwapReceipt(swap)
+            if !swap.retryable { retryingIDs.remove(id) }
         } catch {
             if !Task.isCancelled, openSwap != nil { noteFailure(APIError(error)) }
         }
@@ -133,6 +135,7 @@ public final class CabalActivityModel {
         guard row.kind.isSwap, retries[row.id] == nil else { return }
         let submission = submissions[row.id] ?? IdempotentSubmission()
         submissions[row.id] = submission
+        retryingIDs.insert(row.id)
         do {
             _ = try await api.submit(submission, payload: row.id, operation: "postSwapRetry") { client, key in
                 try await client.postSwapRetry(path: .init(id: row.id), headers: .init(idempotencyKey: key))
@@ -141,8 +144,13 @@ public final class CabalActivityModel {
             retries[row.id] = Retry(kind: row.kind, symbol: row.symbol, seen: Set(pager.items.map(\.id)))
             show(ToastText.retrying, isSuccess: true)
         } catch {
+            retryingIDs.remove(row.id)
             show(ToastCopy.message(for: APIError(error)), isSuccess: false)
         }
+    }
+
+    public func isRetrying(_ id: String) -> Bool {
+        retryingIDs.contains(id)
     }
 
     public func loadMore() async {

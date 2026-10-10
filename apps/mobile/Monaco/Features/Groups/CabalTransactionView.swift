@@ -66,6 +66,8 @@ struct CabalTransactionView: View {
     private func receipt(_ row: ActivityRow) -> some View {
         let row = model?.rows.first { $0.id == row.id } ?? row
         let swap = row.kind.isSwap ? model?.openSwap : nil
+        let isRetrying = model?.isRetrying(row.id) == true
+        let status = isRetrying ? "Retrying" : swap?.statusLabel ?? row.status.receiptLabel
         let solscanURL = swap?.solscanURL ?? row.solscanURL
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             VStack(spacing: MonacoTheme.Space.s) {
@@ -91,7 +93,7 @@ struct CabalTransactionView: View {
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoGroupedList {
-                ReceiptLine(label: "Status", value: .words(swap?.statusLabel ?? row.status.receiptLabel))
+                ReceiptLine(label: "Status", value: .words(status))
                     .accessibilityIdentifier("cabal-txn-status")
                 if let reason = swap?.failureMessage {
                     ReceiptLine(label: "Why", value: .words(reason))
@@ -121,18 +123,22 @@ struct CabalTransactionView: View {
                     SolscanLinkRow(url: url, identifier: "cabal-txn-solscan")
                 }
             }
-            if swap?.retryable == true {
-                Button(CabalActivityCopy.retrySwap) {
-                    Task {
-                        await model?.retrySwap(row)
-                        await model?.loadSwap(id: row.id)
-                    }
-                }
-                .buttonStyle(.monacoPrimary)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .accessibilityIdentifier("cabal-txn-retry")
+            if swap?.retryable == true, !isRetrying {
+                retryButton(row)
             }
         }
+    }
+
+    private func retryButton(_ row: ActivityRow) -> some View {
+        Button(CabalActivityCopy.retrySwap) {
+            Task {
+                await model?.retrySwap(row)
+                await model?.loadSwap(id: row.id)
+            }
+        }
+        .buttonStyle(.monacoPrimary)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityIdentifier("cabal-txn-retry")
     }
 
     private func resolve() async {

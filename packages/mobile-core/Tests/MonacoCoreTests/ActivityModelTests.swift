@@ -313,3 +313,36 @@ final class ActivityModelTests: XCTestCase {
         return await predicate()
     }
 }
+
+extension ActivityModelTests {
+    func testARetriedSwapHidesRetryUntilANewSwapLoads() async throws {
+        let failed = Self.buy(1, .failed)
+        let (model, _, _) = try make([
+            .page(Page(items: [failed], nextCursor: nil)), .accepted(failed.id),
+            .swap(retryable: true), .swap(retryable: false),
+        ])
+        await model.load()
+        XCTAssertFalse(model.isRetrying(failed.id))
+
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+        XCTAssertTrue(model.isRetrying(failed.id))
+
+        await model.loadSwap(id: failed.id)
+        XCTAssertEqual(model.openSwap?.retryable, true)
+        XCTAssertTrue(model.isRetrying(failed.id))
+
+        await model.loadSwap(id: failed.id)
+        XCTAssertEqual(model.openSwap?.retryable, false)
+        XCTAssertFalse(model.isRetrying(failed.id))
+    }
+
+    func testARefusedRetryIsNotRetrying() async throws {
+        let failed = Self.buy(1, .failed)
+        let (model, _, _) = try make([.page(Page(items: [failed], nextCursor: nil)), .notRetryable])
+        await model.load()
+
+        await model.retrySwap(try XCTUnwrap(model.rows.first))
+
+        XCTAssertFalse(model.isRetrying(failed.id))
+    }
+}
