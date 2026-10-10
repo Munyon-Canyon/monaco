@@ -24,6 +24,7 @@ public final class CashOutModel {
     private let hints: any HintSource
     private let submission = IdempotentSubmission()
     private var generation = 0
+    @ObservationIgnored private var unconfirmed: (enteredMicros: Int64, request: Components.Schemas.CashOutRequest)?
 
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
 
@@ -65,13 +66,25 @@ public final class CashOutModel {
         refresher.setVisible(visible)
     }
 
+    public func maySubmit(enteredMicros: Int64) -> Bool {
+        guard let preview, preview.pause == nil else { return false }
+        return preview.verdict(enteredMicros: enteredMicros).maySubmit
+            || (submission.hasPendingKey && unconfirmed?.enteredMicros == enteredMicros)
+    }
+
     public func submit(enteredMicros: Int64) async -> CashOutSubmitResult? {
         guard !isSubmitting, let preview, preview.pause == nil else { return nil }
-        let verdict = preview.verdict(enteredMicros: enteredMicros)
-        guard let sale = CashOutAmountRule.sale(for: verdict, enteredMicros: enteredMicros) else { return nil }
+        let request: Components.Schemas.CashOutRequest
+        if submission.hasPendingKey, let unconfirmed {
+            guard unconfirmed.enteredMicros == enteredMicros else { return .refused(MoneyFlowCopy.unconfirmed.summary) }
+            request = unconfirmed.request
+        } else {
+            let verdict = preview.verdict(enteredMicros: enteredMicros)
+            guard let sale = CashOutAmountRule.sale(for: verdict, enteredMicros: enteredMicros) else { return nil }
+            request = sale.request
+        }
         isSubmitting = true
         defer { isSubmitting = false }
-        let request = sale.request
         let cabalID = cabalID
         do {
             let job = try await api.submit(submission, payload: request, operation: "postCashOut") { client, key in
@@ -81,8 +94,10 @@ public final class CashOutModel {
                     body: .json(request)
                 ).accepted.body.json
             }
+            unconfirmed = nil
             return .started(CashOutJob(job))
         } catch {
+            unconfirmed = submission.hasPendingKey ? (enteredMicros, request) : nil
             return .refused(await refusal(APIError(error)))
         }
     }

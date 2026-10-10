@@ -171,7 +171,7 @@ struct CashOutContent: View {
                     SubmitLabel(isWorking: isSubmitting, idle: title, working: "Cashing out…")
                 }
                 .buttonStyle(.monacoPrimary)
-                .disabled(isSubmitting || !verdict.maySubmit)
+                .disabled(isSubmitting || !(model?.maySubmit(enteredMicros: enteredMicros) ?? false))
                 .accessibilityIdentifier("cash-out-submit")
             }
         }

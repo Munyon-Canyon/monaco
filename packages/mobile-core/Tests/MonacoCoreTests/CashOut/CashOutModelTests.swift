@@ -254,7 +254,7 @@ final class CashOutModelTests: XCTestCase {
         return try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? NSDictionary)
     }
 
-    private func makeModel(_ transport: StubTransport, hints: FakeHintStream = FakeHintStream()) -> CashOutModel {
+    func makeModel(_ transport: StubTransport, hints: FakeHintStream = FakeHintStream()) -> CashOutModel {
         CashOutModel(
             cabalID: cabalID,
             api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
@@ -268,7 +268,7 @@ final class CashOutModelTests: XCTestCase {
         return .json(status, String(decoding: try encoder.encode(value), as: UTF8.self))
     }
 
-    private func problem(_ code: Components.Schemas.ErrorCode, status: Int, _ message: String) throws
+    func problem(_ code: Components.Schemas.ErrorCode, status: Int, _ message: String) throws
         -> StubTransport.Reply
     {
         try .problem(
@@ -278,7 +278,7 @@ final class CashOutModelTests: XCTestCase {
             ))
     }
 
-    private func idempotencyKey() throws -> HTTPField.Name {
+    func idempotencyKey() throws -> HTTPField.Name {
         try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
     }
 
