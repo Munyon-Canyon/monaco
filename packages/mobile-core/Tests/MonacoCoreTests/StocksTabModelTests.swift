@@ -226,7 +226,7 @@ final class StocksTabModelTests: XCTestCase {
             {"state":"open","continuous":\(continuous),"holiday":"","early_close":false,"next_state":null,"next_transition":null}
             """
         let asset = """
-            {"symbol":"\(symbol)","display_name":"\(name)","issuer":"\(issuer)","kind":"\(kind)","logo_url":null,"price_micros":\(price),"price_as_of":null,"change_bps":\(change),"sparkline_micros":\(spark),"session":\(session)}
+            {"symbol":"\(symbol)","display_name":"\(name)","issuer":"\(issuer)","kind":"\(kind)","logo_url":null,"price_micros":\(price),"price_as_of":null,"change_bps":\(change),"sparkline_micros":\(spark),"quotable":true,"session":\(session)}
             """
         return #"{"assets":[\#(asset)],"next_cursor":\#(next)}"#
     }

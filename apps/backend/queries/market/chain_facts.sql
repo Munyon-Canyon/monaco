@@ -1,5 +1,5 @@
 -- name: AssetsDueForChainCheck :many
-SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at FROM assets
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
 WHERE chain_checked_at IS NULL OR chain_checked_at < sqlc.arg(stale_before)::timestamptz
 ORDER BY chain_checked_at NULLS FIRST, coalesce(tradable_override, issuer_tradable) DESC, popular_rank NULLS LAST, symbol
 LIMIT sqlc.arg(max_assets);

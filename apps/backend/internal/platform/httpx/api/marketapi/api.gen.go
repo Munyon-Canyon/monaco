@@ -231,7 +231,7 @@ type AssetChartRange string
 
 // AssetDetail One asset, the list fields plus the chain facts and the other listings.
 //
-// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1}}
+// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1}}
 type AssetDetail struct {
 	// Attribution The data source line the asset screen shows.
 	//
@@ -283,6 +283,11 @@ type AssetDetail struct {
 	// Examples: 110000000
 	PriceMicros *int64 `json:"price_micros"`
 
+	// Quotable False when Jupiter has not priced this asset in the last 15 minutes, so a buy would find no route. The app marks it Paused and disables Buy.
+	//
+	// Examples: true
+	Quotable bool `json:"quotable"`
+
 	// Session The session this asset is in.
 	//
 	// Examples: {"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"}
@@ -321,7 +326,7 @@ type AssetKind string
 
 // AssetList One page of the tradable catalog.
 //
-// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}],"next_cursor":null}
+// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx"}],"next_cursor":null}
 type AssetList struct {
 	// Assets The page, in the filter's order.
 	//
@@ -371,7 +376,7 @@ type AssetListing struct {
 
 // AssetSummary One tradable asset as the list draws it, with the price already chosen.
 //
-// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true}
+// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true}
 type AssetSummary struct {
 	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
 	//
@@ -407,6 +412,11 @@ type AssetSummary struct {
 	//
 	// Examples: 110000000
 	PriceMicros *int64 `json:"price_micros"`
+
+	// Quotable False when Jupiter has not priced this asset in the last 15 minutes, so a buy would find no route. The app marks it Paused and disables Buy.
+	//
+	// Examples: true
+	Quotable bool `json:"quotable"`
 
 	// Session The session this asset is in.
 	//

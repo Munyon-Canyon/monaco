@@ -118,8 +118,15 @@ type Asset struct {
 	Override         Override
 	PopularRank      int16
 	CompanyKey       string
+	LastQuotedAt     time.Time
 	FirstSeenAt      time.Time
 	UpdatedAt        time.Time
+}
+
+const QuotableWindow = 15 * time.Minute
+
+func (a Asset) Quotable(now time.Time) bool {
+	return !a.LastQuotedAt.IsZero() && now.Sub(a.LastQuotedAt) <= QuotableWindow
 }
 
 func (a Asset) Tradable() bool {

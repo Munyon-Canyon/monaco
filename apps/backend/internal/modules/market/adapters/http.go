@@ -36,7 +36,7 @@ func (h HTTP) GetAssets(
 	if err != nil {
 		return nil, err
 	}
-	body, err := wirePage(page)
+	body, err := wirePage(page, h.Clock.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -107,10 +107,10 @@ func caller(ctx context.Context) error {
 	return nil
 }
 
-func wirePage(page app.Page) (api.AssetList, error) {
+func wirePage(page app.Page, now time.Time) (api.AssetList, error) {
 	assets := make([]api.AssetSummary, len(page.Items))
 	for i, item := range page.Items {
-		wired, err := wireSummary(item)
+		wired, err := wireSummary(item, now)
 		if err != nil {
 			return api.AssetList{}, err
 		}
@@ -119,12 +119,13 @@ func wirePage(page app.Page) (api.AssetList, error) {
 	return api.AssetList{Assets: assets, NextCursor: present(page.NextCursor)}, nil
 }
 
-func wireSummary(item app.Summary) (api.AssetSummary, error) {
+func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 	tradable := item.Asset.Tradable()
 	out := api.AssetSummary{
 		Symbol: item.Asset.Symbol, DisplayName: item.Asset.DisplayName,
 		Issuer: api.AssetIssuer(item.Asset.Issuer), Kind: api.AssetKind(item.Asset.Kind),
 		LogoUrl: present(item.Asset.LogoURL), Session: wireSession(item.Session), Tradable: &tradable,
+		Quotable: item.Asset.Quotable(now),
 	}
 	if !item.Priced {
 		return out, nil
@@ -146,7 +147,7 @@ func wireSummary(item app.Summary) (api.AssetSummary, error) {
 }
 
 func wireDetail(view app.AssetView, now time.Time) (api.AssetDetail, error) {
-	summary, err := wireSummary(view.Summary)
+	summary, err := wireSummary(view.Summary, now)
 	if err != nil {
 		return api.AssetDetail{}, err
 	}
@@ -162,6 +163,7 @@ func wireDetail(view app.AssetView, now time.Time) (api.AssetDetail, error) {
 		ChangeBps:       summary.ChangeBps,
 		SparklineMicros: summary.SparklineMicros,
 		Session:         summary.Session,
+		Quotable:        summary.Quotable,
 		Decimals:        int(view.Summary.Asset.Decimals),
 		UiMultiplier:    api.UiMultiplier{Num: multiplier.Num, Den: multiplier.Den},
 		Tradable:        view.Summary.Asset.Tradable(),

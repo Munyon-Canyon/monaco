@@ -6139,6 +6139,7 @@ components:
           price_as_of: "2026-03-04T14:30:00Z"
           change_bps: 1000
           sparkline_micros: [100000000, 110000000]
+          quotable: true
           session:
             state: open
             continuous: false
@@ -6164,6 +6165,7 @@ components:
         - change_bps
         - sparkline_micros
         - session
+        - quotable
         - decimals
         - ui_multiplier
         - tradable
@@ -6216,6 +6218,12 @@ components:
             format: int64
             examples: [110000000]
           examples: [[100000000, 110000000]]
+        quotable:
+          type: boolean
+          description: >-
+            False when Jupiter has not priced this asset in the last 15 minutes, so a buy would find
+            no route. The app marks it Paused and disables Buy.
+          examples: [true]
         session:
           $ref: "#/components/schemas/MarketSession"
           description: The session this asset is in.
@@ -6282,6 +6290,7 @@ components:
               price_as_of: "2026-03-04T14:30:00Z"
               change_bps: 1000
               sparkline_micros: [100000000, 110000000]
+              quotable: true
               session:
                 state: open
                 continuous: false
@@ -6351,6 +6360,7 @@ components:
           price_as_of: "2026-03-04T14:30:00Z"
           change_bps: 1000
           sparkline_micros: [100000000, 110000000]
+          quotable: true
           session:
             state: open
             continuous: false
@@ -6370,6 +6380,7 @@ components:
         - change_bps
         - sparkline_micros
         - session
+        - quotable
       properties:
         symbol:
           type: string
@@ -6417,6 +6428,12 @@ components:
             format: int64
             examples: [110000000]
           examples: [[100000000, 110000000]]
+        quotable:
+          type: boolean
+          description: >-
+            False when Jupiter has not priced this asset in the last 15 minutes, so a buy would find
+            no route. The app marks it Paused and disables Buy.
+          examples: [true]
         session:
           $ref: "#/components/schemas/MarketSession"
           description: The session this asset is in.

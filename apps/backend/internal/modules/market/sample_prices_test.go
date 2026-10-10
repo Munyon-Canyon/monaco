@@ -697,3 +697,40 @@ func TestSamplePrices_aCappedSourceGetsTheHotMintsAndARotatingColdSlot(t *testin
 			len(seen), listed, ticks, len(src.asked[0]), limit, src.window)
 	}
 }
+
+func TestSamplePrices_recordsLastQuotedAtAndASilentMintStopsBeingQuotable(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	q := &quotes{}
+	q.quote(aapl, 200_000_000)
+	q.quote(tsla, 300_000_000)
+	r := newSampleRig(t, fixed(q), aapl, tsla)
+	catalog := app.NewCatalog(r.pool)
+	want := func(step string, a market.Asset, quotable bool) {
+		t.Helper()
+		got, err := catalog.AssetByID(t.Context(), a.ID)
+		if err != nil || got.Quotable(r.clock.Now()) != quotable {
+			t.Fatalf("%s: %s quotable = %v (%v), want %v", step, a.Symbol, !quotable, err, quotable)
+		}
+	}
+	tick := func(after time.Duration) {
+		t.Helper()
+		r.clock.Advance(after)
+		if _, err := r.poller.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want("before any tick", aapl, false)
+	tick(0)
+	want("after a priced tick", aapl, true)
+	want("after a priced tick", tsla, true)
+	delete(q.prices, tsla.Mint)
+	tick(14 * time.Minute)
+	want("14 minutes silent", tsla, true)
+	tick(2 * time.Minute)
+	want("16 minutes silent", tsla, false)
+	want("16 minutes silent", aapl, true)
+	q.quote(tsla, 301_000_000)
+	tick(time.Minute)
+	want("first price back", tsla, true)
+}

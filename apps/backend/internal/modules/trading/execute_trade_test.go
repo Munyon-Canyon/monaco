@@ -99,11 +99,16 @@ func refusalCases() []refusalCase {
 		{"paused: no route at the probe either", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.quote(usdcToken(), aaplxToken(), 0, false)
 		}, errs.CodeAssetPaused, "0", "0"},
-		{"paused sell of less than one token", func(e *engineEnv, cmd *app.ExecuteTrade) {
+		{"no route for a sell of less than one token", func(e *engineEnv, cmd *app.ExecuteTrade) {
 			*cmd = e.sell(40_000_000)
 			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 40_000_000)
 			e.quote(aaplxToken(), usdcToken(), 0, false)
-		}, errs.CodeAssetPaused, "0", "0"},
+		}, errs.CodeNoRoute, "0", "0"},
+		{"no route for a sell of exactly one token", func(e *engineEnv, cmd *app.ExecuteTrade) {
+			*cmd = e.sell(100_000_000)
+			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 100_000_000)
+			e.quote(aaplxToken(), usdcToken(), 0, false)
+		}, errs.CodeNoRoute, "0", "0"},
 		{
 			"banned cabal", func(e *engineEnv, _ *app.ExecuteTrade) { e.seedCabal(cabal.StatusBanned, 100) },
 			errs.CodeCabalPaused, "0", "0",

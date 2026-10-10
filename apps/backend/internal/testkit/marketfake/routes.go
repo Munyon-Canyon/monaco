@@ -16,6 +16,7 @@ var _ market.Routes = (*RoutesFake)(nil)
 type scriptedRoute struct {
 	ok    bool
 	code  errs.Code
+	probe bool
 	check market.RouteCheck
 }
 
@@ -36,6 +37,10 @@ func (f *RoutesFake) NoRoute(id market.AssetID) {
 
 func (f *RoutesFake) Paused(id market.AssetID) {
 	f.put(id, scriptedRoute{code: errs.CodeAssetPaused})
+}
+
+func (f *RoutesFake) ProbeFails(id market.AssetID) {
+	f.put(id, scriptedRoute{code: errs.CodeJupiterUnavailable, probe: true})
 }
 
 func (f *RoutesFake) Untradable(id market.AssetID) {
@@ -65,7 +70,11 @@ func (f *RoutesFake) CheckRoute(
 			errs.CodeAssetNotFound, "marketfake.CheckRoute", slog.String("id", id.String()))
 	}
 	if !script.ok {
-		return market.RouteCheck{}, errs.New(script.code, "marketfake.CheckRoute", slog.String("id", id.String()))
+		err := errs.New(script.code, "marketfake.CheckRoute", slog.String("id", id.String()))
+		if script.probe {
+			return market.RouteCheck{}, market.ProbeFailure(err)
+		}
+		return market.RouteCheck{}, err
 	}
 	return script.check, nil
 }

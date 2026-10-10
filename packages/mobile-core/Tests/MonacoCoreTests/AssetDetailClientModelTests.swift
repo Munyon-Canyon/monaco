@@ -156,6 +156,7 @@ final class AssetDetailClientModelTests: XCTestCase {
             let detail = Components.Schemas.AssetDetail(
                 symbol: "GOOGLx", displayName: "Alphabet xStock", issuer: .xstocks, kind: .equity,
                 logoUrl: nil, priceMicros: 1, priceAsOf: nil, changeBps: nil, sparklineMicros: [],
+                quotable: true,
                 session: .init(
                     state: marketState(for: session), continuous: false,
                     holiday: "", earlyClose: false),
@@ -248,7 +249,7 @@ final class AssetDetailClientModelTests: XCTestCase {
     }
 
     private let detail = #"""
-        {"symbol":"AAPLx","display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":110000000,"price_as_of":null,"change_bps":1000,"sparkline_micros":[],"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":"after_hours","next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"tradable":true,"other_listings":[{"symbol":"AAPLx","display_name":"Apple xStock","issuer":"prestocks","kind":"equity","logo_url":null,"tradable":false}],"attribution":"Data provided by CoinGecko"}
+        {"symbol":"AAPLx","display_name":"Apple xStock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":110000000,"price_as_of":null,"change_bps":1000,"sparkline_micros":[],"quotable":true,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":"after_hours","next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"tradable":true,"other_listings":[{"symbol":"AAPLx","display_name":"Apple xStock","issuer":"prestocks","kind":"equity","logo_url":null,"tradable":false}],"attribution":"Data provided by CoinGecko"}
         """#
 
     private let chart = #"""
