@@ -209,6 +209,27 @@ final class CashOutModelTests: XCTestCase {
         XCTAssertTrue(refetched)
     }
 
+    func testCashoutChangedRefetchesThePreview() async throws {
+        let transport = StubTransport(scripted: [
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sampleNoStake),
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
+        ])
+        let hints = FakeHintStream()
+        let model = makeModel(transport, hints: hints)
+        await model.load()
+        let observer = Task { await model.observe() }
+        addTeardownBlock { observer.cancel() }
+        let subscribed = await waitUntil { await hints.subscriberCount == 2 }
+        XCTAssertTrue(subscribed)
+
+        await hints.send(.changed(.user("me"), what: "cashout_changed", id: "1"))
+
+        let refetched = await waitUntil { model.preview?.sliceMicros == 200_150_000 }
+        XCTAssertTrue(refetched)
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 2)
+    }
+
     func testAFailedFirstLoadFails() async throws {
         let model = makeModel(StubTransport(scripted: [.failure(URLError(.notConnectedToInternet))]))
 
