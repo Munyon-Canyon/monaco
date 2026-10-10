@@ -242,6 +242,37 @@ func TestIdempotency_aHandlerThatWritesNothingReplaysAs200(t *testing.T) {
 	sameResponse(t, first, second)
 }
 
+func TestIdempotency_aClientDropRunsTheHandlerToItsRealAnswer(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	ctx, drop := context.WithCancel(t.Context())
+	next := &countingHandler{}
+	next.serve = func(w http.ResponseWriter, r *http.Request) {
+		if next.calls.Load() == 1 {
+			drop()
+			if err := r.Context().Err(); err != nil {
+				Problem(w, r, err)
+				return
+			}
+		}
+		createsThing(w, r)
+	}
+	handler := idempotent(h, realStore(t, h), next)
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/things", strings.NewReader(`{"amount":5}`))
+	req.Header.Set(IdempotencyKeyHeader, "k1")
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(first, req)
+	if first.Code != http.StatusCreated || first.Body.String() != `{"echo":{"amount":5}}` {
+		t.Fatalf("hung-up request = %d %q, want the handler's real 201", first.Code, first.Body)
+	}
+	second := send(t, handler, http.MethodPost, "/v1/things", "k1", `{"amount":5}`)
+	sameResponse(t, first, second)
+	if next.calls.Load() != 1 {
+		t.Fatalf("handler ran %d times, want 1", next.calls.Load())
+	}
+}
+
 func TestIdempotency_aDifferentRequestUnderTheSameKeyIsAMismatch(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ target, body string }{

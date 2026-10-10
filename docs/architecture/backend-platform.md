@@ -139,7 +139,7 @@ Patterns deliberately left out: abstract factory, builder for domain objects, ge
 2. Never store a context in a struct (`containedctx`). Never pass `nil` (`staticcheck SA1012`).
 3. `context.Background()` / `TODO()` only in `main`, tests and `platform/bus` consumer roots (`forbidigo`).
 4. Every outbound call gets a deadline at the adapter: RPC 5 s, Privy 10 s, Jupiter quote 5 s, `/execute` 2 min. Set in config, not literals.
-5. HTTP request context dies with the client. Work that must finish after the response (nothing, ideally; the event does it) uses `context.WithoutCancel(ctx)` plus its own timeout, never `Background`.
+5. HTTP request context dies with the client. Work that must finish after the response (nothing, ideally; the event does it) uses `context.WithoutCancel(ctx)` plus its own timeout, never `Background`. A request that has claimed its `Idempotency-Key` is the exception: the `Idempotency` middleware runs its handler on `context.WithoutCancel`, so a hang-up cannot cancel it and the answer it stores and replays is the handler's own, never a 499. Only the outbound deadlines of rule 4 bound it.
 6. Values in context are limited to request-scoped metadata: trace span, actor (`user`/`agent`/`admin`/`system`), request id. Typed unexported keys. Never dependencies, never optional parameters.
 7. Cancellation propagates into every goroutine. Every `select` that sends or receives also selects `<-ctx.Done()`.
 8. Use `context.WithCancelCause` / `context.Cause` so logs say why work stopped.
