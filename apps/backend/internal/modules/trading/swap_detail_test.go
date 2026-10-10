@@ -116,10 +116,20 @@ func TestSwapDetail_offersRetryOnlyWhileTheProposalCanRetry(t *testing.T) {
 		arrange func(p *proposalsFake)
 		want    bool
 	}{
-		"proposal passed":                     {arrange: func(*proposalsFake) {}, want: true},
-		"proposal blocked by the swap":        {arrange: func(p *proposalsFake) { p.block("swap_failed") }, want: true},
-		"proposal blocked for another reason": {arrange: func(p *proposalsFake) { p.block("cabal_paused") }, want: false},
-		"proposal voided":                     {arrange: func(p *proposalsFake) { p.set(governance.Status("voided")) }, want: false},
+		"proposal passed": {
+			arrange: func(*proposalsFake) {},
+			want:    true,
+		},
+		"proposal blocked by the swap": {
+			arrange: func(p *proposalsFake) { p.block("swap_failed") },
+			want:    true,
+		},
+		"proposal blocked for another reason": {
+			arrange: func(p *proposalsFake) { p.block("cabal_paused") },
+		},
+		"proposal voided": {
+			arrange: func(p *proposalsFake) { p.set(governance.Status("voided")) },
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -274,7 +284,8 @@ func TestSwapDetailReads_failures(t *testing.T) {
 			t.Parallel()
 			e := newRetryEnv(t)
 			ctx := tc.arrange(t, e)
-			reads := app.NewSwapDetailReads(e.pool, e.cabals, marketfake.NewCatalog(marketfake.Fixtures()...), e.proposals)
+			catalog := marketfake.NewCatalog(marketfake.Fixtures()...)
+			reads := app.NewSwapDetailReads(e.pool, e.cabals, catalog, e.proposals)
 			if _, err := reads.Swap(ctx, ids.SwapIDFrom(e.failed.ID), e.member); errs.CodeOf(err) != tc.want {
 				t.Fatalf("err = %v, want %s", err, tc.want)
 			}
