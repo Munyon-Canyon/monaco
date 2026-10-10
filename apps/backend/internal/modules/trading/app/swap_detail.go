@@ -18,13 +18,14 @@ type SwapDetail struct {
 }
 
 type SwapDetailReads struct {
-	reads   sqlc.DBTX
-	cabals  Cabals
-	catalog Catalog
+	reads     sqlc.DBTX
+	cabals    Cabals
+	catalog   Catalog
+	proposals Proposals
 }
 
-func NewSwapDetailReads(reads sqlc.DBTX, cabals Cabals, catalog Catalog) SwapDetailReads {
-	return SwapDetailReads{reads: reads, cabals: cabals, catalog: catalog}
+func NewSwapDetailReads(reads sqlc.DBTX, cabals Cabals, catalog Catalog, proposals Proposals) SwapDetailReads {
+	return SwapDetailReads{reads: reads, cabals: cabals, catalog: catalog, proposals: proposals}
 }
 
 func (r SwapDetailReads) Swap(ctx context.Context, id ids.SwapID, user ids.UserID) (SwapDetail, error) {
@@ -44,6 +45,13 @@ func (r SwapDetailReads) Swap(ctx context.Context, id ids.SwapID, user ids.UserI
 		return SwapDetail{}, errs.New(errs.CodeNotCabalMember, op)
 	}
 	row.Retryable = row.Retryable && member
+	if row.Retryable {
+		ok, err := r.proposals.Retryable(ctx, ids.ProposalIDFrom(row.SourceID))
+		if err != nil {
+			return SwapDetail{}, err
+		}
+		row.Retryable = ok
+	}
 	mint, err := market.ParseMint(row.TokenMint)
 	if err != nil {
 		return SwapDetail{}, errs.Wrap(err, errs.CodeDecodeFailed, op)

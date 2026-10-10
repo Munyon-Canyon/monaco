@@ -274,7 +274,7 @@ func TestSwapDetailReads_failures(t *testing.T) {
 			t.Parallel()
 			e := newRetryEnv(t)
 			ctx := tc.arrange(t, e)
-			reads := app.NewSwapDetailReads(e.pool, e.cabals, marketfake.NewCatalog(marketfake.Fixtures()...))
+			reads := app.NewSwapDetailReads(e.pool, e.cabals, marketfake.NewCatalog(marketfake.Fixtures()...), e.proposals)
 			if _, err := reads.Swap(ctx, ids.SwapIDFrom(e.failed.ID), e.member); errs.CodeOf(err) != tc.want {
 				t.Fatalf("err = %v, want %s", err, tc.want)
 			}
