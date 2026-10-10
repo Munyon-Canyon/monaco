@@ -6,6 +6,7 @@ import UIKit
 struct CommentThreadView: View {
     let model: CommentsModel
     @State private var deleting: CommentThreadRow?
+    @State private var reporting: ReportTarget?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -16,6 +17,10 @@ struct CommentThreadView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("comment-thread")
         .commentNotices(model)
+        .reportSheet($reporting)
+        .onReceive(NotificationCenter.default.publisher(for: .monacoBlocksChanged)) { _ in
+            Task { await model.refresh() }
+        }
         .confirmationDialog(
             "Delete this comment?",
             isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
@@ -55,7 +60,9 @@ struct CommentThreadView: View {
                     hasReplies: CommentThreadLayout.hasReplies(rows, at: index),
                     isLast: index == rows.count - 1,
                     onReply: { model.beginReply(to: row) },
-                    onDelete: row.comment.isMine && !row.isDeleted ? { deleting = row } : nil
+                    onDelete: row.comment.isMine && !row.isDeleted ? { deleting = row } : nil,
+                    onReport: !row.comment.isMine && !row.isDeleted
+                        ? { reporting = ReportTarget(kind: .comment, targetID: row.id) } : nil
                 )
                 .id(row.id)
             }
@@ -108,6 +115,7 @@ struct CommentRow: View {
     var isLast = false
     let onReply: () -> Void
     var onDelete: (() -> Void)?
+    var onReport: (() -> Void)?
 
     @ScaledMetric(relativeTo: .footnote) private var replyLineHeight: CGFloat = 18
     @ScaledMetric(relativeTo: .callout) private var nameLineHeight: CGFloat = 20
@@ -161,6 +169,12 @@ struct CommentRow: View {
         .contextMenu {
             Button("Copy") { UIPasteboard.general.string = row.text }
                 .accessibilityIdentifier("comment-copy-\(row.id)")
+            if let onReport {
+                Button(action: onReport) {
+                    Label("Report", systemImage: "exclamationmark.bubble")
+                }
+                .accessibilityIdentifier("comment-report-\(row.id)")
+            }
             if let onDelete {
                 Button(CommentsCopy.delete, role: .destructive, action: onDelete)
                     .accessibilityIdentifier("comment-delete-\(row.id)")

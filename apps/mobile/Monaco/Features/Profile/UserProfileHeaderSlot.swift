@@ -102,7 +102,11 @@ private struct UserProfileHeader: View {
             }
             counts
             if !isViewer, let model {
-                followButton(model)
+                if model.blockedByMe {
+                    UserProfileUnblockButton(model: model)
+                } else {
+                    followButton(model)
+                }
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)

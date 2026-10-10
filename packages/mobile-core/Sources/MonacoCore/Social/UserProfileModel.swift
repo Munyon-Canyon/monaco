@@ -67,6 +67,8 @@ public final class UserProfileModel {
 
     public var handle: String { profile?.handle ?? "" }
 
+    public var blockedByMe: Bool { profile?.blockedByMe ?? false }
+
     public var photoURL: String? { profile?.photoUrl }
 
     public var followerCount: Int { profile?.followerCount ?? 0 }

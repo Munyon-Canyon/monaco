@@ -37,10 +37,10 @@ nonisolated final class ProfileShellTests: XCTestCase {
 
 nonisolated final class UserProfileMoreMenuTests: XCTestCase {
     @MainActor
-    func testReportAndBlockAreDestructiveWithIcons() {
-        XCTAssertEqual(UserProfileMoreMenu.SafetyAction.allCases.map(\.title), ["Report", "Block"])
+    func testOnlyBlockIsDestructiveAndEveryActionHasAnIcon() {
+        XCTAssertEqual(UserProfileMoreMenu.SafetyAction.allCases.map(\.title), ["Report", "Block", "Unblock"])
         for action in UserProfileMoreMenu.SafetyAction.allCases {
-            XCTAssertEqual(action.role, .destructive, action.title)
+            XCTAssertEqual(action.role, action == .block ? .destructive : nil, action.title)
             XCTAssertFalse(action.systemImage.isEmpty, action.title)
         }
     }

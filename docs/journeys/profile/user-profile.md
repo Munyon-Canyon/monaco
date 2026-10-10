@@ -59,7 +59,7 @@ Starts signed in (auth/sign-in). Fails on staging until the route lands (Known f
 
 ### S4 Report and block
 
-Starts signed in (auth/sign-in). Fails on staging until the routes land (Known failures).
+Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
@@ -84,7 +84,6 @@ S2 follows B and then unfollows B through `POST` and `DELETE /v1/users/{id}/foll
 | --- | --- | --- |
 | S3.2 | "Cabals you share" shows "Shared cabals show up here soon.", because no route serves the cabals two members share | #2145 |
 | S3.3 | No shared cabal row to tap, for the same reason | #2145 |
-| S4.2 | "Report" and "Block" are disabled under "Report and block open soon.", because no route reports or blocks a user | #2144, #2145 |
 
 ## Not covered
 

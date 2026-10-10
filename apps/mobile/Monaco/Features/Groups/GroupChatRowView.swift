@@ -16,6 +16,7 @@ struct GroupChatRowView: View {
     var openSeen: (() -> Void)?
 
     @Environment(ToastCenter.self) private var toasts
+    @State private var reporting: ReportTarget?
 
     private var message: ChatMessage { row.message }
 
@@ -41,8 +42,11 @@ struct GroupChatRowView: View {
                                     UIPasteboard.general.string = message.body
                                     toasts.show(success: "Copied")
                                 },
-                                delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil)
+                                delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil,
+                                report: row.isMine
+                                    ? nil : { reporting = ReportTarget(kind: .message, targetID: row.id) })
                         )
+                        .reportSheet($reporting)
                         .modifier(
                             ChatFailedMenu(
                                 enabled: row.delivery == .failed, retry: { retry(row.id) },
@@ -271,6 +275,7 @@ struct ChatMessageMenu: ViewModifier {
     let reply: () -> Void
     let copy: () -> Void
     let delete: (() -> Void)?
+    var report: (() -> Void)?
 
     @ViewBuilder func body(content: Content) -> some View {
         if enabled {
@@ -284,6 +289,11 @@ struct ChatMessageMenu: ViewModifier {
                     copy()
                 } label: {
                     Label(GroupChatCopy.copy, systemImage: "doc.on.doc")
+                }
+                if let report {
+                    Button(action: report) {
+                        Label("Report", systemImage: "exclamationmark.bubble")
+                    }
                 }
                 if let delete {
                     Button(role: .destructive, action: delete) {

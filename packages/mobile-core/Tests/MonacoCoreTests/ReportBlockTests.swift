@@ -179,6 +179,20 @@ final class ReportBlockTests: XCTestCase {
         XCTAssertTrue(rows.isEmpty)
     }
 
+    func testTheProfileReadsBlockedByMe() async {
+        let body =
+            #"{"id":"u-1","handle":"qa_b","display_name":"QA Bea","photo_url":null,"follower_count":0,"#
+            + #""following_count":0,"followed_by_me":false,"blocked_by_me":true}"#
+        let transport = StubTransport(scripted: [.json(.ok, body)])
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        let profile = UserProfileModel(userID: "u-1", api: api)
+        XCTAssertFalse(profile.blockedByMe)
+
+        await profile.load()
+
+        XCTAssertTrue(profile.blockedByMe)
+    }
+
     #if DEBUG
     func testTheFixtureListsTwoBlockedUsers() {
         XCTAssertEqual(Components.Schemas.BlockedUsers.sample.users.map(\.handle), ["qa_b", "kai"])
