@@ -27,6 +27,10 @@ The model imports neither SwiftUI nor Privy. The view calls no `APIClient` metho
 
 One GET per screen. A hint means re-fetch, not a patch applied on the client.
 
+## Analytics
+
+Each rewire adds `.analyticsScreen` and its flow's step calls (`AppAnalytics.current.step(...)`) to the screens it lights up. Step names live in `AnalyticsStep` and the table in `docs/architecture/analytics-admin.md`, so a new step edits both.
+
 ## Tests
 
 Host tests use `StubTransport` and `FakeHintStream` (`packages/mobile-core/Sources/MonacoTestSupport/FakeHintStream.swift`). `await FakeHintStream.send(_:)` delivers a hint to subscribers whose filter matches, including `.resync`. Take time from an injected clock; tests pass `TestClock` (#944). Fixtures live in `Sources/MonacoAPI/Fixtures/<Domain>+Sample.swift` (#944). Do not call live Jupiter.

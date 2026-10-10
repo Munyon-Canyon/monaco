@@ -1,3 +1,4 @@
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -9,6 +10,7 @@ struct ProposalVoteCard: View {
     var paused = false
     var onVoted: () async -> Void = {}
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.analytics) private var analytics
 
     var body: some View {
         ProposalCard(
@@ -17,6 +19,7 @@ struct ProposalVoteCard: View {
         ) { choice in
             Task {
                 if await voting.vote(choice, on: proposal) {
+                    analytics.step(.vote(.voteCast))
                     toasts.show(success: "Vote recorded.")
                     await onVoted()
                 } else if let message = voting.errorMessage {

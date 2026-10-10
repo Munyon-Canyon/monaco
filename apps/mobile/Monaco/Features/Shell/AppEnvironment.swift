@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 import os
@@ -21,6 +22,8 @@ final class AppEnvironment {
     let push: PushRegistrar
     let referrals: ReferralAttacher
     let pushPrePrompt: PushPrePrompt
+    let analytics: Analytics
+    private let analyticsObserver: AnalyticsSessionObserver
     var viewer: Viewer?
     #if DEBUG
     private(set) var devSessionActive = false
@@ -47,6 +50,7 @@ final class AppEnvironment {
         api: APIClient? = nil,
         hints: any HintConnecting,
         sessionStore: AppSessionStore? = nil,
+        analytics: Analytics? = nil,
         isAuthenticated: (@MainActor () -> Bool)? = nil,
         endAuthSession: (@MainActor () async -> Void)? = nil,
         endExpiredSession: (@MainActor (String) async -> Void)? = nil
@@ -81,6 +85,15 @@ final class AppEnvironment {
             ?? AppSessionStore(
                 sessions: SessionAPI(api: api)
             )
+        let analytics = analytics ?? AppAnalytics.makeDefault()
+        self.analytics = analytics
+        AppAnalytics.current = analytics
+        self.analyticsObserver = AnalyticsSessionObserver(
+            sessionStore: self.sessionStore,
+            analytics: analytics,
+            cabalCount: { try? await api.read { try await $0.getMyCabals().ok.body.json }.count }
+        )
+        self.analyticsObserver.start()
         self.privyAuthenticated = isAuthenticated ?? Self.privyIsAuthenticated(auth)
         self.endAuthSession = endAuthSession ?? { await auth.logout() }
         self.endExpiredSession = endExpiredSession ?? { await auth.logout(reason: $0) }

@@ -1,3 +1,4 @@
+import MonacoAnalytics
 import SwiftUI
 
 nonisolated struct ProposalRoute: AppRoute {
@@ -5,5 +6,6 @@ nonisolated struct ProposalRoute: AppRoute {
 
     @MainActor func destination() -> some View {
         ProposalScreen(proposalID: proposalID)
+            .analyticsScreen("proposal", step: .vote(.proposalViewed))
     }
 }

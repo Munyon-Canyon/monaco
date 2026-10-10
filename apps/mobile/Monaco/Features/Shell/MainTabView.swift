@@ -19,6 +19,7 @@ struct MainTabView: View {
                             if accountRestricted { AccountUnderReviewNotice() }
                         }
                         .hardBottomScrollEdge()
+                        .analyticsScreen(String(describing: tab))
                         .navigationDestination(for: AnyAppRoute.self) { route in
                             route.destination()
                                 .monacoCanvas()
