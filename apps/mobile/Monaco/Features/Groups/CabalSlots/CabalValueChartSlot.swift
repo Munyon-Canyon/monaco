@@ -74,13 +74,13 @@ private struct CabalValueChart: View {
     }
 
     @ViewBuilder private func loaded(_ model: ValueChartModel) -> some View {
-        CurveReadoutLine(readout: model.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } })
+        let shown = model.shownRange ?? model.range
+        CurveReadoutLine(
+            readout: model.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } }, range: shown)
         if let curve = model.curve, curve.hasEnoughHistory {
-            CurveScrubChart(
-                curve: curve, range: model.shownRange ?? model.range, selection: $selection,
-                identifier: "cabal-value-chart")
+            CurveScrubChart(curve: curve, range: shown, selection: $selection, identifier: "cabal-value-chart")
         } else {
-            CabalInkCaption(model.range.shortHistoryLine, id: "cabal-value-chart-short")
+            CabalInkCaption(shown.shortHistoryLine, id: "cabal-value-chart-short")
                 .frame(height: 160, alignment: .center)
         }
         MonacoRangeChips(

@@ -27,6 +27,15 @@ public enum LeaderboardRange: String, CaseIterable, Sendable {
         }
     }
 
+    public var scrubLabelRange: AssetChartRange {
+        switch self {
+        case .oneHour, .oneDay: .oneDay
+        case .oneWeek: .oneWeek
+        case .oneMonth: .oneMonth
+        case .all: .all
+        }
+    }
+
     public init(_ generated: Components.Parameters.LeaderboardRange) {
         switch generated {
         case ._1h: self = .oneHour

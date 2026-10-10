@@ -137,15 +137,15 @@ private struct HomePortfolioHero: View {
                 Task { await chart.load() }
             }
         case .loaded:
-            CurveReadoutLine(readout: chart.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } })
+            let shown = chart.shownRange ?? chart.range
+            CurveReadoutLine(
+                readout: chart.curve.flatMap { curve in selection.flatMap { curve.readout(at: $0) } }, range: shown)
             if let curve = chart.curve, curve.hasEnoughHistory {
-                CurveScrubChart(
-                    curve: curve, range: chart.shownRange ?? chart.range, selection: $selection,
-                    identifier: "home-pnl-chart")
+                CurveScrubChart(curve: curve, range: shown, selection: $selection, identifier: "home-pnl-chart")
             } else {
                 VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
                     hairline
-                    Text(chart.range.shortHistoryLine)
+                    Text(shown.shortHistoryLine)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
                         .accessibilityIdentifier("home-portfolio-short")
