@@ -50,6 +50,9 @@ func (h *BlockUserHandler) Handle(ctx context.Context, cmd BlockUser) error {
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		now := h.d.Clock.Now().UTC()
 		queries := sqlc.New(tx.Queries())
+		if err := lockPair(ctx, queries, cmd.Blocker, cmd.Blocked); err != nil {
+			return err
+		}
 		id, err := queries.InsertUserBlock(ctx, sqlc.InsertUserBlockParams{
 			ID: h.d.IDs.NewV7(), BlockerID: cmd.Blocker.UUID(), BlockedID: cmd.Blocked.UUID(), CreatedAt: now,
 		})
@@ -59,10 +62,8 @@ func (h *BlockUserHandler) Handle(ctx context.Context, cmd BlockUser) error {
 		if err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
-		for _, pair := range [][2]ids.UserID{{cmd.Blocker, cmd.Blocked}, {cmd.Blocked, cmd.Blocker}} {
-			if err := removeFollow(ctx, tx, queries, pair[0], pair[1], now); err != nil {
-				return err
-			}
+		if err := removeFollows(ctx, tx, queries, cmd, now); err != nil {
+			return err
 		}
 		if err := tx.Events.Append(ctx, events.BlockCreated{
 			V: 1, BlockID: id, BlockerID: cmd.Blocker.UUID(), BlockedID: cmd.Blocked.UUID(), CreatedAt: now,
@@ -72,6 +73,15 @@ func (h *BlockUserHandler) Handle(ctx context.Context, cmd BlockUser) error {
 		faultpoint.Hit(ctx, faultpoint.BeforeCommit)
 		return nil
 	})
+}
+
+func removeFollows(ctx context.Context, tx db.Tx, queries *sqlc.Queries, cmd BlockUser, at time.Time) error {
+	for _, pair := range [][2]ids.UserID{{cmd.Blocker, cmd.Blocked}, {cmd.Blocked, cmd.Blocker}} {
+		if err := removeFollow(ctx, tx, queries, pair[0], pair[1], at); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func removeFollow(

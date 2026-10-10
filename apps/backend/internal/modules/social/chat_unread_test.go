@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func (f chatFixture) unread(t *testing.T, user ids.UserID, cabals ...ids.CabalID) map[ids.CabalID]int {
@@ -79,4 +80,19 @@ func TestUnreadCounts_aDatabaseFailureIsInternal(t *testing.T) {
 	}
 	_, err := app.NewUnread(f.pool).UnreadCounts(t.Context(), f.member(1), []ids.CabalID{f.cabal.ID})
 	wantCode(t, err, errs.CodeInternal)
+}
+
+func TestUnreadCounts_skipsBlockedAuthors(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	f.mustSend(t, f.member(0), "from the blocked", nil)
+	f.clock.Advance(time.Second)
+	f.mustSend(t, f.member(2), "from the third", nil)
+	insertBlock(t, f.pool, testkit.NewIDs(701).NewV7(), f.member(1), f.member(0))
+	if got := f.unread(t, f.member(1), f.cabal.ID)[f.cabal.ID]; got != 1 {
+		t.Fatalf("unread = %d, want only the third member's message", got)
+	}
+	if got := f.unread(t, f.member(2), f.cabal.ID)[f.cabal.ID]; got != 1 {
+		t.Fatalf("a third member's unread = %d, want the unblocked message", got)
+	}
 }

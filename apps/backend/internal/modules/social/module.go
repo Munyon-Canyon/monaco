@@ -142,7 +142,8 @@ func (m *Module) http() adapters.HTTP {
 		}),
 		Unblock: app.NewUnblockUserHandler(m.deps.UoW, m.deps.Clock),
 		Report: app.NewCreateReportHandler(app.CreateReportDeps{
-			UoW: m.deps.UoW, Reads: m.deps.Pool, Users: m.users, Cabals: m.cabals, IDs: m.deps.IDs, Clock: m.deps.Clock,
+			UoW: m.deps.UoW, Reads: m.deps.Pool, Users: m.users, Cabals: m.cabals, Members: m.members,
+			IDs: m.deps.IDs, Clock: m.deps.Clock,
 		}),
 		Mute:          app.NewMuteHandler(m.deps.UoW, m.deps.Clock),
 		Unmute:        app.NewUnmuteHandler(m.deps.UoW),

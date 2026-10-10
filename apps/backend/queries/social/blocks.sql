@@ -27,3 +27,6 @@ SELECT EXISTS (
   SELECT 1 FROM user_blocks
   WHERE blocker_id = sqlc.arg(blocker)::uuid AND blocked_id = sqlc.arg(blocked)::uuid
 );
+
+-- name: LockUserPair :exec
+SELECT pg_advisory_xact_lock(hashtextextended('user-pair:' || least(sqlc.arg(user_a)::uuid, sqlc.arg(user_b)::uuid)::text || greatest(sqlc.arg(user_a)::uuid, sqlc.arg(user_b)::uuid)::text, 0));

@@ -69,7 +69,8 @@ func newReportFixture(t *testing.T) reportFixture {
 
 func (f reportFixture) handler(cabals app.Cabals) *app.CreateReportHandler {
 	return app.NewCreateReportHandler(app.CreateReportDeps{
-		UoW: db.New(f.pool, f.gen, f.clock), Reads: f.pool, Users: f.users, Cabals: cabals, IDs: f.gen, Clock: f.clock,
+		UoW: db.New(f.pool, f.gen, f.clock), Reads: f.pool, Users: f.users, Cabals: cabals,
+		Members: cabal.New(module.Deps{Pool: f.pool}).Queries(), IDs: f.gen, Clock: f.clock,
 	})
 }
 
@@ -306,4 +307,37 @@ func TestCreateReport_failsWhenTheOpenReportCannotBeRead(t *testing.T) {
 	}
 	_, err := f.file(t, f.reporter, domain.ReportUser, f.target.UUID())
 	wantCode(t, err, errs.CodeInternal)
+}
+
+func TestCreateReport_aTargetTheReporterCannotSeeIsNotFound(t *testing.T) {
+	t.Parallel()
+	f := newReportFixture(t)
+	outsider := ids.NewUserID(f.gen)
+	proposal := f.mustComment(t, f.item(t, feed.KindProposal), f.reporter, "vote yes", uuid.Nil).ID
+	for kind, target := range map[domain.ReportKind]uuid.UUID{
+		domain.ReportMessage: f.message, domain.ReportComment: proposal,
+	} {
+		_, err := f.file(t, outsider, kind, target)
+		wantCode(t, err, errs.CodeReportTargetNotFound)
+		if _, err := f.file(t, f.reporter, kind, target); err != nil {
+			t.Fatalf("member report of %s: %v", kind, err)
+		}
+	}
+	if _, err := f.file(t, outsider, domain.ReportComment, f.comment); err != nil {
+		t.Fatalf("a comment on a public item: %v", err)
+	}
+	if n := f.reports(t); n != 3 {
+		t.Fatalf("reports = %d, want 3", n)
+	}
+}
+
+func TestCreateReport_aMembershipLookupFailureReadsAsNotFound(t *testing.T) {
+	t.Parallel()
+	f := newReportFixture(t)
+	f.report = app.NewCreateReportHandler(app.CreateReportDeps{
+		UoW: db.New(f.pool, f.gen, f.clock), Reads: f.pool, Users: f.users, Cabals: f.cabals,
+		Members: failingMembers{errs.New(errs.CodeUpstreamUnavailable, "test")}, IDs: f.gen, Clock: f.clock,
+	})
+	_, err := f.file(t, f.reporter, domain.ReportMessage, f.message)
+	wantCode(t, err, errs.CodeReportTargetNotFound)
 }

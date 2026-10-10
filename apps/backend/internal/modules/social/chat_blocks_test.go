@@ -66,15 +66,19 @@ func TestChatMessages_HidesBlockedAuthor(t *testing.T) {
 	f := newBlockedChat(t)
 	blocker, third := f.member(0), f.member(2)
 
-	wantIDs(t, f.channelAs(t, blocker, api.GetChatMessagesParams{}), f.thirdTop, f.top)
+	channel := f.channelAs(t, blocker, api.GetChatMessagesParams{})
+	wantIDs(t, channel, f.thirdTop, f.blockedTop, f.top)
+	if !channel[1].Deleted || channel[1].Body != nil || channel[1].ReplyCount != 1 {
+		t.Fatalf("blocked parent = %+v, want a deleted placeholder with its reply still counted", channel[1])
+	}
 	wantIDs(t, f.channelAs(t, third, api.GetChatMessagesParams{}),
 		f.lone, f.blockedAlso, f.thirdTop, f.blockedTop, f.top)
 
 	after := api.GetChatMessagesParams{After: &f.top.Id}
-	wantIDs(t, f.channelAs(t, blocker, after), f.thirdTop)
+	wantIDs(t, f.channelAs(t, blocker, after), f.blockedTop, f.thirdTop)
 	wantIDs(t, f.channelAs(t, third, after), f.blockedTop, f.thirdTop, f.blockedAlso, f.lone)
 	paged := api.GetChatMessagesParams{After: &f.top.Id, Limit: ptr(1)}
-	wantIDs(t, f.channelAs(t, blocker, paged), f.thirdTop)
+	wantIDs(t, f.channelAs(t, blocker, paged), f.blockedTop)
 	wantIDs(t, f.channelAs(t, third, paged), f.blockedTop)
 
 	hidden, err := f.thread(t, blocker, f.top.Id, api.GetChatThreadParams{})

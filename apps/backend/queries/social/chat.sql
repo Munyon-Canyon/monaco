@@ -35,14 +35,21 @@ FROM cabal_messages
 WHERE id = sqlc.arg(id) AND cabal_id = sqlc.arg(cabal_id);
 
 -- name: ListChatChannel :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+  blocked_author.hit AS blocked
 FROM cabal_messages
+CROSS JOIN LATERAL (
+  SELECT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = cabal_messages.author_id
+  ) AS hit
+) AS blocked_author
 WHERE cabal_id = sqlc.arg(cabal_id)
   AND (parent_id IS NULL OR also_in_channel)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
-  AND NOT EXISTS (
-    SELECT 1 FROM user_blocks b
-    WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = cabal_messages.author_id
+  AND (
+    NOT blocked_author.hit
+    OR (parent_id IS NULL AND reply_count > 0)
   )
   AND (
     NOT sqlc.arg(has_before)::bool
@@ -52,14 +59,21 @@ ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: ListChatChannelAfter :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+  blocked_author.hit AS blocked
 FROM cabal_messages
+CROSS JOIN LATERAL (
+  SELECT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = cabal_messages.author_id
+  ) AS hit
+) AS blocked_author
 WHERE cabal_id = sqlc.arg(cabal_id)
   AND (parent_id IS NULL OR also_in_channel)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
-  AND NOT EXISTS (
-    SELECT 1 FROM user_blocks b
-    WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = cabal_messages.author_id
+  AND (
+    NOT blocked_author.hit
+    OR (parent_id IS NULL AND reply_count > 0)
   )
   AND (created_at, id) > (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_id)::uuid)
 ORDER BY created_at, id
@@ -161,6 +175,10 @@ SELECT c.id::uuid AS cabal_id, (
       AND (m.parent_id IS NULL OR m.also_in_channel)
       AND m.deleted_at IS NULL
       AND m.author_id <> sqlc.arg(user_id)
+      AND NOT EXISTS (
+        SELECT 1 FROM user_blocks b
+        WHERE b.blocker_id = sqlc.arg(user_id)::uuid AND b.blocked_id = m.author_id
+      )
       AND m.created_at > coalesce(s.last_seen_at, '-infinity'::timestamptz)
     LIMIT 100
   ) AS capped
@@ -180,4 +198,4 @@ WHERE (id = sqlc.arg(parent_id) OR parent_id = sqlc.arg(parent_id))
 ORDER BY author_id;
 
 -- name: GetChatMessageByID :one
-SELECT id FROM cabal_messages WHERE id = sqlc.arg(id);
+SELECT id, cabal_id FROM cabal_messages WHERE id = sqlc.arg(id);

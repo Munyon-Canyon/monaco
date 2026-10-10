@@ -65,4 +65,7 @@ WHERE (c.id IN (SELECT id FROM tops) OR c.parent_comment_id IN (SELECT id FROM t
 ORDER BY c.created_at, c.id;
 
 -- name: GetComment :one
-SELECT id FROM feed_comments WHERE id = sqlc.arg(id);
+SELECT c.id, o.kind, o.cabal_id
+FROM feed_comments c
+JOIN feed_objects o ON o.id = c.feed_object_id
+WHERE c.id = sqlc.arg(id);
