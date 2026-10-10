@@ -50,7 +50,7 @@ WHERE user_id = $1;
 -- name: ExpireCreatedFundTransfers :many
 UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_not_sent'
 WHERE status = 'created' AND created_at < sqlc.arg(cutoff)::timestamptz
-RETURNING id;
+RETURNING id, user_id;
 
 -- name: ListOpenFundTransfers :many
 SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
