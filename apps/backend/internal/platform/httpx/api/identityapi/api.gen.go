@@ -332,6 +332,18 @@ type UserSummary struct {
 	UserId       openapi_types.UUID `json:"user_id"`
 }
 
+// BanUserParams defines parameters for BanUser.
+type BanUserParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// UnbanUserParams defines parameters for UnbanUser.
+type UnbanUserParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // PostAuthSessionParams defines parameters for PostAuthSession.
 type PostAuthSessionParams struct {
 	// Authorization The Privy access token as `Bearer <token>`. The route is public because no account exists on the first call, so the server verifies this header itself and answers unauthorized when it is missing or invalid.
@@ -404,6 +416,12 @@ type SearchUsersParams struct {
 	Query string `form:"query" json:"query"`
 }
 
+// BanUserJSONRequestBody defines body for BanUser for application/json ContentType.
+type BanUserJSONRequestBody = externalRef0.ReasonBody
+
+// UnbanUserJSONRequestBody defines body for UnbanUser for application/json ContentType.
+type UnbanUserJSONRequestBody = externalRef0.ReasonBody
+
 // PostDevXLinkJSONRequestBody defines body for PostDevXLink for application/json ContentType.
 type PostDevXLinkJSONRequestBody = DevXLink
 
@@ -421,6 +439,12 @@ type PostProfilePhotoMultipartRequestBody PostProfilePhotoMultipartBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// BanUser Ban a user.
+	// (POST /v1/admin/users/{id}/ban)
+	BanUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params BanUserParams)
+	// UnbanUser Lift a ban.
+	// (POST /v1/admin/users/{id}/unban)
+	UnbanUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params UnbanUserParams)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(w http.ResponseWriter, r *http.Request, params PostAuthSessionParams)
@@ -473,6 +497,114 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// BanUser operation middleware
+func (siw *ServerInterfaceWrapper) BanUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params BanUserParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.BanUser(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnbanUser operation middleware
+func (siw *ServerInterfaceWrapper) UnbanUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UnbanUserParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnbanUser(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // PostAuthSession operation middleware
 func (siw *ServerInterfaceWrapper) PostAuthSession(w http.ResponseWriter, r *http.Request) {
@@ -1139,6 +1271,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/users/{id}/ban", wrapper.BanUser)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/users/{id}/unban", wrapper.UnbanUser)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dev/me/x-link", wrapper.DeleteDevXLink)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/dev/me/x-link", wrapper.PostDevXLink)
@@ -1155,6 +1289,76 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}", wrapper.GetUser)
 
 	return m
+}
+
+type BanUserRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params BanUserParams
+	Body   *BanUserJSONRequestBody
+}
+
+type BanUserResponseObject interface {
+	VisitBanUserResponse(w http.ResponseWriter) error
+}
+
+type BanUser204Response struct {
+}
+
+func (response BanUser204Response) VisitBanUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type BanUserdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response BanUserdefaultApplicationProblemPlusJSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnbanUserRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params UnbanUserParams
+	Body   *UnbanUserJSONRequestBody
+}
+
+type UnbanUserResponseObject interface {
+	VisitUnbanUserResponse(w http.ResponseWriter) error
+}
+
+type UnbanUser204Response struct {
+}
+
+func (response UnbanUser204Response) VisitUnbanUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UnbanUserdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response UnbanUserdefaultApplicationProblemPlusJSONResponse) VisitUnbanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type PostAuthSessionRequestObject struct {
@@ -1691,6 +1895,12 @@ func (response GetUserdefaultApplicationProblemPlusJSONResponse) VisitGetUserRes
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// BanUser Ban a user.
+	// (POST /v1/admin/users/{id}/ban)
+	BanUser(ctx context.Context, request BanUserRequestObject) (BanUserResponseObject, error)
+	// UnbanUser Lift a ban.
+	// (POST /v1/admin/users/{id}/unban)
+	UnbanUser(ctx context.Context, request UnbanUserRequestObject) (UnbanUserResponseObject, error)
 	// PostAuthSession Open a session from a Privy access token.
 	// (POST /v1/auth/session)
 	PostAuthSession(ctx context.Context, request PostAuthSessionRequestObject) (PostAuthSessionResponseObject, error)
@@ -1772,6 +1982,74 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// BanUser operation middleware
+func (sh *strictHandler) BanUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params BanUserParams) {
+	var request BanUserRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body BanUserJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.BanUser(ctx, request.(BanUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BanUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(BanUserResponseObject); ok {
+		if err := validResponse.VisitBanUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnbanUser operation middleware
+func (sh *strictHandler) UnbanUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params UnbanUserParams) {
+	var request UnbanUserRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body UnbanUserJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnbanUser(ctx, request.(UnbanUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnbanUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnbanUserResponseObject); ok {
+		if err := validResponse.VisitUnbanUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // PostAuthSession operation middleware

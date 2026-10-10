@@ -23,6 +23,7 @@ type HTTP struct {
 	Photo     app.UploadProfilePhotoHandler
 	Delete    *app.DeleteAccount
 	DevX      *app.DevXLink
+	Status    *app.AdminAccountStatus
 	Reads     sqlc.DBTX
 	Clock     clock.Clock
 	Cards     app.UserCards

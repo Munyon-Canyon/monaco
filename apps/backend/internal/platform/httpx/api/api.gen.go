@@ -23,6 +23,7 @@ const (
 	AgentNotFound ErrorCode = "agent_not_found"
 	AgentPaused ErrorCode = "agent_paused"
 	AgentWrongStatus ErrorCode = "agent_wrong_status"
+	AlreadyBanned ErrorCode = "already_banned"
 	AlreadyFlagged ErrorCode = "already_flagged"
 	AlreadyMember ErrorCode = "already_member"
 	AlreadyPaused ErrorCode = "already_paused"
@@ -99,6 +100,7 @@ const (
 	NoRealtimeChannels ErrorCode = "no_realtime_channels"
 	NoRoute ErrorCode = "no_route"
 	NotAVoter ErrorCode = "not_a_voter"
+	NotBanned ErrorCode = "not_banned"
 	NotCabalCreator ErrorCode = "not_cabal_creator"
 	NotCabalMember ErrorCode = "not_cabal_member"
 	NotFound ErrorCode = "not_found"
@@ -156,6 +158,7 @@ const (
 	UpstreamTimeout ErrorCode = "upstream_timeout"
 	UpstreamUnavailable ErrorCode = "upstream_unavailable"
 	UserBanned ErrorCode = "user_banned"
+	UserDeleted ErrorCode = "user_deleted"
 	UserNotFound ErrorCode = "user_not_found"
 	VersionConflict ErrorCode = "version_conflict"
 	WalletMismatch ErrorCode = "wallet_mismatch"
@@ -195,6 +198,8 @@ func (e ErrorCode) Valid() bool {
 	case AgentPaused:
 		return true
 	case AgentWrongStatus:
+		return true
+	case AlreadyBanned:
 		return true
 	case AlreadyFlagged:
 		return true
@@ -348,6 +353,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case NotAVoter:
 		return true
+	case NotBanned:
+		return true
 	case NotCabalCreator:
 		return true
 	case NotCabalMember:
@@ -461,6 +468,8 @@ func (e ErrorCode) Valid() bool {
 	case UpstreamUnavailable:
 		return true
 	case UserBanned:
+		return true
+	case UserDeleted:
 		return true
 	case UserNotFound:
 		return true

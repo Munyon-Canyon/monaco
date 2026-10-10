@@ -4,6 +4,7 @@ account_has_balance
 account_has_positions
 account_status_transition
 account_suspended
+already_banned
 auth_state_transition
 display_name_invalid
 handle_invalid
@@ -12,10 +13,12 @@ handle_reserved
 handle_taken
 handle_too_soon
 login_method_not_allowed
+not_banned
 phone_linked_elsewhere
 phone_not_linked
 photo_invalid
 session_required
+user_deleted
 user_not_found
 wallet_mismatch
 x_linked_elsewhere

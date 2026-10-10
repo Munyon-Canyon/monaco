@@ -353,6 +353,54 @@ paths:
           description: The caller has no fake X account.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/admin/users/{id}/ban:
+    post:
+      operationId: banUser
+      tags: [identity]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Ban a user.
+      description: >-
+        Moves an `active` or `suspended` account to `banned` and appends `user.account_status_changed` and `admin.action` in one transaction. A banned user can still withdraw and cash out. A user already banned answers already_banned, a deleted one answers user_deleted, an unknown one answers user_not_found, and a reason shorter than 3 characters answers reason_required. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        description: Why the moderator takes this action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: fraud}
+      responses:
+        "204": {description: The user is banned.}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/users/{id}/unban:
+    post:
+      operationId: unbanUser
+      tags: [identity]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Lift a ban.
+      description: >-
+        Moves a `banned` account back to `active` and appends `user.account_status_changed` and `admin.action` in one transaction. A user who is not banned answers not_banned, a deleted one answers user_deleted, and an unknown one answers user_not_found. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        description: Why the moderator takes this action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: appeal upheld}
+      responses:
+        "204": {description: The ban is lifted.}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   schemas:
     UserSearchResult:

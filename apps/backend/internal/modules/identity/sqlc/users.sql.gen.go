@@ -367,6 +367,22 @@ func (q *Queries) LockUserByPrivyUserID(ctx context.Context, privyUserID string)
 	return i, err
 }
 
+const lockUserStatus = `-- name: LockUserStatus :one
+SELECT id, account_status FROM users WHERE id = $1 FOR UPDATE
+`
+
+type LockUserStatusRow struct {
+	ID            uuid.UUID
+	AccountStatus string
+}
+
+func (q *Queries) LockUserStatus(ctx context.Context, id uuid.UUID) (LockUserStatusRow, error) {
+	row := q.db.QueryRow(ctx, lockUserStatus, id)
+	var i LockUserStatusRow
+	err := row.Scan(&i.ID, &i.AccountStatus)
+	return i, err
+}
+
 const markPhotoPurged = `-- name: MarkPhotoPurged :execrows
 UPDATE users SET photo_purged_at = $1::timestamptz
 WHERE id = $2 AND account_status = 'deleted' AND photo_purged_at IS NULL

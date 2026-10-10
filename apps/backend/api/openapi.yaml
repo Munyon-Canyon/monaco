@@ -1625,6 +1625,54 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/identity.yaml
+  /v1/admin/users/{id}/ban:
+    post:
+      operationId: banUser
+      tags: [identity]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Ban a user.
+      description: >-
+        Moves an `active` or `suspended` account to `banned` and appends `user.account_status_changed` and `admin.action` in one transaction. A banned user can still withdraw and cash out. A user already banned answers already_banned, a deleted one answers user_deleted, an unknown one answers user_not_found, and a reason shorter than 3 characters answers reason_required. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        description: Why the moderator takes this action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: fraud}
+      responses:
+        "204": {description: The user is banned.}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/users/{id}/unban:
+    post:
+      operationId: unbanUser
+      tags: [identity]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Lift a ban.
+      description: >-
+        Moves a `banned` account back to `active` and appends `user.account_status_changed` and `admin.action` in one transaction. A user who is not banned answers not_banned, a deleted one answers user_deleted, and an unknown one answers user_not_found. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        description: Why the moderator takes this action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: appeal upheld}
+      responses:
+        "204": {description: The ban is lifted.}
+        default: {$ref: "#/components/responses/Problem"}
   /v1/auth/session:
     post:
       operationId: postAuthSession
@@ -5115,6 +5163,7 @@ components:
         - agent_not_found
         - agent_paused
         - agent_wrong_status
+        - already_banned
         - already_flagged
         - already_member
         - already_paused
@@ -5191,6 +5240,7 @@ components:
         - no_realtime_channels
         - no_route
         - not_a_voter
+        - not_banned
         - not_cabal_creator
         - not_cabal_member
         - not_found
@@ -5248,6 +5298,7 @@ components:
         - upstream_timeout
         - upstream_unavailable
         - user_banned
+        - user_deleted
         - user_not_found
         - version_conflict
         - wallet_mismatch
