@@ -1,7 +1,7 @@
 ---
 id: governance/propose-from-asset
 title: Propose a buy from a stock
-version: 2
+version: 3
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Stocks tab, the search "Search Apple, Tesla, NVDA…", then `assets-row-GOOGL…` | `GOOGL` | `asset-detail-root` shows, and `asset-detail-propose-buy` reads "Propose buy" over "Your cabal votes before anything is bought", within 15 s |
 | S1.2 | A | tap | `asset-detail-propose-buy` | | The picker titled "Pick a cabal" asks "Which cabal should buy GOOGL?" and lists `QA asset {QA.run}` within 10 s (old app: `GroupPickerForProposalView`) |
-| S1.3 | A | tap | the `QA asset {QA.run}` row | | The screen titled "Amount" shows the chips "$25", "$50", "$100", "Max" within 10 s, with no Buy search step (old app: `ProposeAmountView`) |
+| S1.3 | A | tap | the `QA asset {QA.run}` row | | The screen titled "Buy GOOGL" shows the chips "$25", "$50", "$100", "Max" within 10 s, with no Buy search step (old app: `ProposeAmountView`) |
 | S1.4 | A | tap, then tap | "$25", then "Review" | | The screen titled "Review" reads "Buy $25.00 of GOOGL" within 10 s (old app: `ProposeReviewView`) |
 | S1.5 | A | tap | "Send to cabal" | | The toast "Proposal sent to QA asset {QA.run}" shows and the flow closes within 10 s |
 
