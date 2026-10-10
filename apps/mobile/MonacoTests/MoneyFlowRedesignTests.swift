@@ -119,10 +119,20 @@ struct FundCabalFormTests {
         #expect(FundCabalForm.note(into: "") == FundCabalForm.note(into: nil))
     }
 
-    @Test func maxIsTheWholeBalanceAndNothingWhenEmpty() {
+    @Test func maxIsTheWholeBalanceAndZeroWhenEmpty() {
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).maxDollars == Decimal(string: "248.5"))
-        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(0)).maxDollars == nil)
+        #expect(FundCabalForm(amountText: "", balance: Fixture.balance(0)).maxDollars == 0)
+    }
+
+    @Test func everythingOnItsWayToACabalLeavesNothingToFundWith() {
+        let funding = FundCabalForm(amountText: "", balance: Fixture.balance(0, pending: 50_000_000))
+        #expect(funding.maxDollars == 0)
+        #expect(funding.availability == "$0.00 available · $50.00 funding a cabal")
+    }
+
+    @Test func maxIsNilUntilTheBalanceLoads() {
+        #expect(FundCabalForm(amountText: "", balance: nil).maxDollars == nil)
     }
 }
 
