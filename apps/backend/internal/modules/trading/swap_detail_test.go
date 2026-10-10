@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
@@ -106,6 +107,52 @@ func TestGetSwap_neverSubmittedSwapSaysTheTradeWasNotSent(t *testing.T) {
 	if got.FailureCode == nil || *got.FailureCode != "never_submitted" ||
 		got.FailureMessage == nil || *got.FailureMessage != "The trade couldn't be sent." {
 		t.Fatalf("swap = %+v, want never_submitted with the message %q", got, "The trade couldn't be sent.")
+	}
+}
+
+func TestSwapDetail_offersRetryOnlyWhileTheProposalCanRetry(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		arrange func(p *proposalsFake)
+		want    bool
+	}{
+		"proposal passed":                     {arrange: func(*proposalsFake) {}, want: true},
+		"proposal blocked by the swap":        {arrange: func(p *proposalsFake) { p.block("swap_failed") }, want: true},
+		"proposal blocked for another reason": {arrange: func(p *proposalsFake) { p.block("cabal_paused") }, want: false},
+		"proposal voided":                     {arrange: func(p *proposalsFake) { p.set(governance.Status("voided")) }, want: false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s := newRetryServer(t)
+			tc.arrange(s.proposals)
+			if got := s.swap(t, s.failed.ID); got.Status != "failed" || got.Retryable != tc.want {
+				t.Fatalf("swap = %+v, want a failed swap with retryable %t", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSwapDetail_proposalReadFailureIsTheResponseError(t *testing.T) {
+	t.Parallel()
+	s := newRetryServer(t)
+	s.proposals.Fail("Retryable", errs.New(errs.CodeUpstreamUnavailable, "test"))
+	if rec := s.get(t, s.failed.ID, s.token()); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d %s, want 503", rec.Code, rec.Body)
+	}
+}
+
+func TestSwapDetail_confirmedSwapReadsWithoutAskingTheProposal(t *testing.T) {
+	t.Parallel()
+	s := newRetryServer(t)
+	confirmed := s.created(s.ids.NewV7(), usdcMint)
+	confirmed.CabalID = s.failed.CabalID
+	s.insert(t, confirmed)
+	s.submit(t, confirmed.ID, "req-confirmed", "sig-confirmed")
+	s.confirm(t, confirmed.ID)
+	s.proposals.Fail("Retryable", errs.New(errs.CodeUpstreamUnavailable, "test"))
+	if got := s.swap(t, confirmed.ID); got.Status != "confirmed" || got.Retryable {
+		t.Fatalf("swap = %+v, want a confirmed swap that is not retryable", got)
 	}
 }
 
