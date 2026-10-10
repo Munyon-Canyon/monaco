@@ -486,6 +486,44 @@ func TestAuth_bannedActorMayReadUserTransactions(t *testing.T) {
 	}
 }
 
+func TestAuth_bannedActorMayReadItsCabalsAndPotsButNotFund(t *testing.T) {
+	t.Parallel()
+	const cabal = "01890a5d-ac96-774b-bcce-b302099a8059"
+	for _, tc := range []struct {
+		method, route, path string
+		status              int
+		code                string
+	}{
+		{http.MethodGet, "/v1/me/cabals", "/v1/me/cabals", http.StatusOK, ""},
+		{http.MethodGet, "/v1/cabals/{id}/pot", "/v1/cabals/" + cabal + "/pot", http.StatusOK, ""},
+		{http.MethodPost, "/v1/cabals/{id}/fund", "/v1/cabals/" + cabal + "/fund", http.StatusForbidden, "account_banned"},
+	} {
+		t.Run(tc.method+" "+tc.route, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			c, err := LoadContract(openapi.Spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+			v := stubVerifier(func(context.Context, string) (auth.Actor, error) {
+				return auth.Actor{Kind: auth.ActorUser, ID: "u-1", Standing: auth.StandingBanned}, nil
+			})
+			mux := http.NewServeMux()
+			mux.Handle(tc.method+" "+tc.route, c.resolve(Auth(v)(next)))
+			rec := serveRaw(t, h.deps.wrap(mux), tc.method, tc.path, bearer("any"))
+			if rec.Code != tc.status {
+				t.Fatalf("got status %d, want %d", rec.Code, tc.status)
+			}
+			if tc.code != "" {
+				if p := decodeProblem(t, rec); string(p.Code) != tc.code {
+					t.Fatalf("got problem %+v, want %s", p, tc.code)
+				}
+			}
+		})
+	}
+}
+
 func TestHandler_requiresAVerifier(t *testing.T) {
 	t.Parallel()
 	d := newHarness(t).deps

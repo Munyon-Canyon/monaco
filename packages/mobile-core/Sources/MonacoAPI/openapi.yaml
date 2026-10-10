@@ -942,6 +942,7 @@ paths:
     get:
       operationId: getMyCabals
       tags: [cabal]
+      x-allow-restricted: true
       summary: List the caller's cabals.
       description: >-
         Returns every cabal the caller belongs to, most recently joined first. Each row carries the
@@ -3637,6 +3638,7 @@ paths:
     get:
       operationId: getCabalPot
       tags: [treasury]
+      x-allow-restricted: true
       summary: Read a cabal's pot, its holdings and the caller's slice.
       description: >-
         Returns the pot value, its all-time gain, every holding at the latest market price and the caller's

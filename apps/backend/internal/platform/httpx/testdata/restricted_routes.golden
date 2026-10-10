@@ -1,8 +1,10 @@
 DELETE /v1/me
 GET /v1/cabals/{id}/cashouts/preview
 GET /v1/cabals/{id}/cashouts/{job_id}
+GET /v1/cabals/{id}/pot
 GET /v1/me
 GET /v1/me/balance
+GET /v1/me/cabals
 GET /v1/me/txns
 GET /v1/me/withdrawals/{id}
 GET /v1/stream
