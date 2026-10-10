@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
@@ -154,6 +155,35 @@ func (b *cashOutBus) confirmed(t *testing.T) []cashOutTrade {
 	return out
 }
 
+func (b *cashOutBus) blocked(t *testing.T) []busevents.TradeBlocked {
+	t.Helper()
+	rows, err := b.pool.Query(t.Context(), `SELECT payload FROM events WHERE type = 'trade.blocked'
+		AND aggregate_id = $1 ORDER BY id`, b.job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := pgx.CollectRows(rows, pgx.RowTo[busevents.TradeBlocked])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func (b *cashOutBus) assertGaveUp(t *testing.T, msg *engineMsg, code errs.Code) {
+	t.Helper()
+	want := busevents.TradeBlocked{
+		V: 1, CabalID: b.cabal.UUID(), Source: busevents.TradeSource{Kind: "cashout", ID: b.job}, Action: "sell",
+		Code: code,
+	}
+	got := b.blocked(t)
+	if msg.verdict != "ack" || b.recordedAs(t, msg, string(code)) != 1 || len(got) != 1 || got[0] != want ||
+		len(b.legs(t)) != 0 {
+		t.Fatalf("verdict %q, %d recorded as %s, blocked %+v, legs %+v; want an ack, one delivery under that "+
+			"code, one block %+v and no sale", msg.verdict, b.recordedAs(t, msg, string(code)), code, got, b.legs(t),
+			want)
+	}
+}
+
 func TestCashOutSell_StartedWithAShortfall_SellsAndConfirmsEachLegAsOneBatch(t *testing.T) {
 	t.Parallel()
 	b := newCashOutBus(t)
@@ -231,20 +261,20 @@ func TestCashOutSell_PortFailures_NakOrTermBeforeAnySale(t *testing.T) {
 	cases := []struct {
 		name    string
 		arrange func(*config.Config, *app.EnginePorts)
-		verdict string
+		gaveUp  errs.Code
 	}{
-		{"positions unwired", func(_ *config.Config, p *app.EnginePorts) { p.Positions = nil }, "nak"},
+		{"positions unwired", func(_ *config.Config, p *app.EnginePorts) { p.Positions = nil }, ""},
 		{"stored mint is not an address", func(_ *config.Config, p *app.EnginePorts) {
 			p.Positions = ledgerPositions{{Mint: "not-a-mint", Units: money.NewBaseUnits(1, 8)}}
-		}, "term"},
+		}, errs.CodeDecodeFailed},
 		{"mint missing from the catalog", func(_ *config.Config, p *app.EnginePorts) {
 			p.Catalog = marketfake.NewCatalog()
-		}, "term"},
+		}, errs.CodeAssetNotFound},
 		{"cabal port down", func(_ *config.Config, p *app.EnginePorts) {
 			cabals := fakes.NewCabal(nil, nil)
 			cabals.Fail("TreasuryWallet", down)
 			p.Cabals = cabals
-		}, "nak"},
+		}, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -253,10 +283,58 @@ func TestCashOutSell_PortFailures_NakOrTermBeforeAnySale(t *testing.T) {
 			msg := b.started(t, 60_000_000)
 
 			b.dispatch(t, msg)
-			if msg.verdict != tc.verdict || b.recorded(t, msg) != 0 || len(b.legs(t)) != 0 {
-				t.Fatalf("verdict %q, %d recorded, legs %+v; want %s with no sale and no delivery", msg.verdict,
-					b.recorded(t, msg), b.legs(t), tc.verdict)
+			if tc.gaveUp != "" {
+				b.assertGaveUp(t, msg, tc.gaveUp)
+				return
+			}
+			if msg.verdict != "nak" || b.recorded(t, msg) != 0 || len(b.blocked(t)) != 0 || len(b.legs(t)) != 0 {
+				t.Fatalf("verdict %q, %d recorded, %d blocked, legs %+v; want a nak with no sale, no block and no "+
+					"delivery", msg.verdict, b.recorded(t, msg), len(b.blocked(t)), b.legs(t))
 			}
 		})
+	}
+}
+
+func TestCashOutSell_GivingUpBlocksTheSaleOnce(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		code      errs.Code
+		delivered uint64
+	}{
+		{"the venue refuses the quote", errs.CodeJupiterRejected, 1},
+		{"the venue is down on the last delivery", errs.CodeJupiterUnavailable, bus.MaxDeliver},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			b := newCashOutBus(t)
+			b.jup.Fail("Quote", errs.New(tc.code, "test"))
+			msg := b.started(t, 60_000_000)
+			msg.delivered = tc.delivered
+
+			b.dispatch(t, msg)
+			b.assertGaveUp(t, msg, tc.code)
+
+			b.jup.Fail("Quote", nil)
+			again := b.redeliver(msg)
+			b.dispatch(t, again)
+			b.assertGaveUp(t, again, tc.code)
+		})
+	}
+}
+
+func TestCashOutSell_RetryableFailureBeforeTheLastDelivery_NaksAndRecordsNothing(t *testing.T) {
+	t.Parallel()
+	b := newCashOutBus(t)
+	b.jup.Fail("Quote", errs.New(errs.CodeJupiterUnavailable, "test"))
+	msg := b.started(t, 60_000_000)
+	msg.delivered = bus.MaxDeliver - 1
+
+	b.dispatch(t, msg)
+	if msg.verdict != "nak" || b.recordedAs(t, msg, string(errs.CodeJupiterUnavailable)) != 0 ||
+		len(b.blocked(t)) != 0 || len(b.legs(t)) != 0 {
+		t.Fatalf("verdict %q, %d recorded, %d blocked, legs %+v; want a nak with nothing recorded and no block",
+			msg.verdict, b.recordedAs(t, msg, string(errs.CodeJupiterUnavailable)), len(b.blocked(t)), b.legs(t))
 	}
 }
