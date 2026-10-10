@@ -133,9 +133,9 @@ struct FundCabalForm: Equatable {
         inFlightMicros = balance?.inFlightMicros ?? 0
     }
 
-    /// The most the pad takes: the whole balance. Nil while there is nothing to fund with.
+    /// The most the pad takes: the whole balance, $0 when it is all on its way to a cabal. Nil until it loads.
     var maxDollars: Decimal? {
-        guard let availableMicros, availableMicros > 0 else { return nil }
+        guard let availableMicros else { return nil }
         return Decimal(availableMicros) / Decimal(1_000_000)
     }
 
