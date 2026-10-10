@@ -7,6 +7,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
@@ -65,6 +67,13 @@ type FundTick struct {
 func (s *FundSettler) Tick(ctx context.Context) (FundTick, error) {
 	q := sqlc.New(s.d.Reads)
 	expired, expireErr := q.ExpireCreatedFundTransfers(ctx, s.d.Clock.Now().Add(-s.d.SendWindow))
+	hinted := map[uuid.UUID]bool{}
+	for _, e := range expired {
+		if !hinted[e.UserID] {
+			hinted[e.UserID] = true
+			s.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(ids.UserIDFrom(e.UserID)), nil)
+		}
+	}
 	rows, listErr := q.ListOpenFundTransfers(ctx, fundBatch)
 	if err := errors.Join(expireErr, listErr); err != nil {
 		return FundTick{}, err

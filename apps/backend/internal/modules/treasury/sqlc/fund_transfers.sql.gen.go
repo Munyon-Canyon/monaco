@@ -15,22 +15,27 @@ import (
 const expireCreatedFundTransfers = `-- name: ExpireCreatedFundTransfers :many
 UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_not_sent'
 WHERE status = 'created' AND created_at < $1::timestamptz
-RETURNING id
+RETURNING id, user_id
 `
 
-func (q *Queries) ExpireCreatedFundTransfers(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error) {
+type ExpireCreatedFundTransfersRow struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) ExpireCreatedFundTransfers(ctx context.Context, cutoff time.Time) ([]ExpireCreatedFundTransfersRow, error) {
 	rows, err := q.db.Query(ctx, expireCreatedFundTransfers, cutoff)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []ExpireCreatedFundTransfersRow
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i ExpireCreatedFundTransfersRow
+		if err := rows.Scan(&i.ID, &i.UserID); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
