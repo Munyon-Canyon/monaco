@@ -256,7 +256,7 @@ final class ProposalsRepositoryMappingTests: XCTestCase {
     }
 
     private var assetBody: String {
-        #"{"symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":null,"price_as_of":null,"change_bps":null,"sparkline_micros":null,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":null,"next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"tradable":true,"other_listings":[],"attribution":"test"}"#
+        #"{"symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":null,"price_as_of":null,"change_bps":null,"sparkline_micros":null,"quotable":true,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":null,"next_transition":null},"decimals":8,"ui_multiplier":{"num":1,"den":1},"tradable":true,"other_listings":[],"attribution":"test"}"#
     }
 
     private var detailBody: String {

@@ -230,7 +230,7 @@ func (h *ExecuteTradeHandler) unrouted(ctx context.Context, req *SwapRequest) (r
 		probe = min(req.InAmount, money.OneWhole(req.InMint.Decimals))
 	}
 	if req.InAmount <= probe {
-		return refusal{code: errs.CodeAssetPaused}, nil
+		return refusal{code: errs.CodeNoRoute}, nil
 	}
 	quote, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: req.InMint, OutMint: req.OutMint, InAmount: probe})
 	switch {

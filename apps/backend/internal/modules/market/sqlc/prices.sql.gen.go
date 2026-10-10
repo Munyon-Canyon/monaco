@@ -70,6 +70,25 @@ func (q *Queries) InsertPricePoints(ctx context.Context, arg InsertPricePointsPa
 	return result.RowsAffected(), nil
 }
 
+const markAssetsQuoted = `-- name: MarkAssetsQuoted :execrows
+UPDATE assets SET last_quoted_at = $1::timestamptz
+WHERE mint = ANY ($2::text[])
+  AND (last_quoted_at IS NULL OR last_quoted_at < $1::timestamptz)
+`
+
+type MarkAssetsQuotedParams struct {
+	At    time.Time
+	Mints []string
+}
+
+func (q *Queries) MarkAssetsQuoted(ctx context.Context, arg MarkAssetsQuotedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markAssetsQuoted, arg.At, arg.Mints)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const recentPriceSamples = `-- name: RecentPriceSamples :many
 SELECT a.id AS asset_id, p.ts, p.price_micros
 FROM assets AS a

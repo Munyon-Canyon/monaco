@@ -161,7 +161,7 @@ func TestAssets_cachesTheFullQuery(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(marketWhen())
 	fake := &countingList{}
-	h := HTTP{List: CacheList(fake, NewCache(clk))}
+	h := HTTP{List: CacheList(fake, NewCache(clk)), Clock: clk}
 	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
 	if _, err := h.GetAssets(user, api.GetAssetsRequestObject{}); err != nil {
 		t.Fatal(err)
@@ -193,7 +193,7 @@ func TestAssets_cachesTheFullQuery(t *testing.T) {
 func TestAssets_aCanceledReadDoesNotCallNext(t *testing.T) {
 	t.Parallel()
 	fake := &countingList{}
-	h := HTTP{List: CacheList(fake, NewCache(testkit.NewClock(marketWhen())))}
+	h := HTTP{List: CacheList(fake, NewCache(testkit.NewClock(marketWhen()))), Clock: testkit.NewClock(marketWhen())}
 	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
 	ctx, cancel := context.WithCancel(user)
 	cancel()

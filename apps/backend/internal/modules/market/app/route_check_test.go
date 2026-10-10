@@ -37,7 +37,7 @@ func TestCheckRoute_badUSDCMint(t *testing.T) {
 		ID: id, Symbol: "AAPLx", Mint: mint, Decimals: 8,
 		ChainChecked: true, IssuerTradable: true, Override: domain.OverrideAuto,
 	}
-	checker := NewRouteChecker(listedAsset{asset}, refuseQuote{t}, clock.Real{})
+	checker := NewRouteChecker(listedAsset{asset}, nil, refuseQuote{t}, clock.Real{})
 	checker.usdcAddress = "not-a-mint"
 	_, err = checker.CheckRoute(t.Context(), id, SideBuy, money.NewBaseUnits(1, usdcDecimals))
 	if errs.CodeOf(err) != errs.CodeInvalidAddress {

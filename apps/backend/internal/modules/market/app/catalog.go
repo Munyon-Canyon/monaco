@@ -122,6 +122,7 @@ func toAsset(row sqlc.Asset) (domain.Asset, error) {
 		Override:         override,
 		PopularRank:      row.PopularRank.Int16,
 		CompanyKey:       row.CompanyKey,
+		LastQuotedAt:     row.LastQuotedAt.Time,
 		FirstSeenAt:      row.FirstSeenAt,
 		UpdatedAt:        row.UpdatedAt,
 	}, nil

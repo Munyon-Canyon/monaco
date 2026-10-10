@@ -38,7 +38,7 @@ struct ProposeBuyStockTapTests {
     }
 
     private static let alphabet = #"""
-        {"assets":[{"symbol":"GOOGLx","display_name":"Alphabet xStock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":347430000,"price_as_of":null,"change_bps":-89,"sparkline_micros":null,"tradable":true,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":null,"next_transition":null}}],"next_cursor":null}
+        {"assets":[{"symbol":"GOOGLx","display_name":"Alphabet xStock","issuer":"xstocks","kind":"equity","logo_url":null,"price_micros":347430000,"price_as_of":null,"change_bps":-89,"sparkline_micros":null,"quotable":true,"tradable":true,"session":{"state":"open","continuous":false,"holiday":"","early_close":false,"next_state":null,"next_transition":null}}],"next_cursor":null}
         """#
 
     private static func setAutomation(enabled: Bool) throws {
