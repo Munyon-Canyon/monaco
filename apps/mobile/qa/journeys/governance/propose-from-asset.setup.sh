@@ -13,6 +13,15 @@ if [[ "$scenario" != S1 ]]; then
 fi
 
 qa_api_ready
+quotable=false
+for _ in $(seq 1 24); do
+  if [[ "$(qa_api A GET /v1/assets/GOOGLx | python3 -c 'import json,sys; print(json.load(sys.stdin)["quotable"])')" == True ]]; then
+    quotable=true
+    break
+  fi
+  sleep 5
+done
+[[ "$quotable" == true ]] || { echo "GOOGLx is not quotable after 120 s: is the worker running?" >&2; exit 1; }
 did="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 qa_sql -v did="$did" >/dev/null \
   <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"

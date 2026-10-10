@@ -7,6 +7,7 @@ enum ProposeSampleScenario: String, CaseIterable {
     case chooser
     case chooserCashOnly
     case buyList
+    case buyListPaused
     case amount
     case potFailed
     case pickCabal
@@ -31,6 +32,7 @@ enum ProposeSampleScenario: String, CaseIterable {
         case .potFailed: script.mode = .potUnavailable
         case .pickCabal: script.cabalCount = 2
         case .noCabal: script.cabalCount = 0
+        case .buyListPaused: script.includesPausedStock = true
         default: break
         }
         return script
@@ -46,7 +48,7 @@ enum ProposeSampleScenario: String, CaseIterable {
     var route: any AppRoute {
         switch self {
         case .chooser, .chooserCashOnly: ProposeRoute(cabalID: GroupDetailSampleData.cabalID)
-        case .buyList: SampleScreenRoute(screen: .proposeBuy, arguments: [])
+        case .buyList, .buyListPaused: SampleScreenRoute(screen: .proposeBuy, arguments: [])
         case .amount, .potFailed, .pickCabal, .noCabal: ProposeFromAssetRoute(symbol: "GOOGLx", kind: .buy)
         case .sell: ProposeFromAssetRoute(symbol: "GOOGLx", kind: .sell)
         case .review: SampleScreenRoute(screen: .proposeReview(.buy), arguments: [])

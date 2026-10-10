@@ -327,7 +327,7 @@ extension AssetDetailClientView {
                         }
                     }
                     .buttonStyle(.monacoPrimary)
-                    .disabled(!detail.isTradable)
+                    .disabled(!AssetDetailBuyCTA.canBuy(tradable: detail.isTradable, quotable: detail.isQuotable))
                     .accessibilityIdentifier("asset-detail-propose-buy")
                     if model.heldByVotingCabal {
                         Button("Propose sell") {
@@ -339,9 +339,12 @@ extension AssetDetailClientView {
                         .accessibilityIdentifier("asset-detail-propose-sell")
                     }
                 }
-                Text(AssetDetailBuyCTA.caption(tradable: detail.isTradable, canSell: model.heldByVotingCabal))
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.muted)
+                Text(
+                    AssetDetailBuyCTA.caption(
+                        tradable: detail.isTradable, quotable: detail.isQuotable, canSell: model.heldByVotingCabal)
+                )
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
             }
         }
     }
@@ -385,8 +388,11 @@ enum AssetDetailBuyCTA {
         tradable ? "Propose buy" : "Can't buy right now"
     }
 
-    static func caption(tradable: Bool, canSell: Bool) -> String {
+    static func canBuy(tradable: Bool, quotable: Bool) -> Bool { tradable && quotable }
+
+    static func caption(tradable: Bool, quotable: Bool = true, canSell: Bool) -> String {
         if !tradable { return "Not available to buy yet." }
+        if !quotable { return "Trading paused right now" }
         if canSell { return "Your cabal votes before anything is bought or sold" }
         return "Your cabal votes before anything is bought"
     }

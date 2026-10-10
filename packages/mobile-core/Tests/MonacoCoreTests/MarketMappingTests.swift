@@ -7,6 +7,24 @@ final class MarketMappingTests: XCTestCase {
     private let sampledAt = Date(timeIntervalSince1970: 1_772_596_200)
     private let nextBell = Date(timeIntervalSince1970: 1_772_619_600)
 
+    func testQuotableMapsFromTheListAndTheDetail() {
+        let listed = MarketMapping.asset(.paused)
+        XCTAssertFalse(listed.isQuotable)
+        XCTAssertTrue(listed.isPaused)
+        XCTAssertTrue(MarketMapping.asset(.googl).isQuotable)
+        XCTAssertFalse(MarketMapping.asset(.googl).isPaused)
+        XCTAssertFalse(MarketMapping.detail(.paused).asset.isQuotable)
+        XCTAssertTrue(MarketMapping.detail(.googl).asset.isQuotable)
+    }
+
+    func testPausedLastKeepsEachGroupInItsOrder() {
+        let rows = [
+            MarketMapping.asset(.paused), MarketMapping.asset(.googl),
+            MarketMapping.asset(.unpriced), MarketMapping.asset(.spaceX),
+        ]
+        XCTAssertEqual(rows.pausedLast.map(\.symbol), ["GOOGLx", "NEWCO", "tSpaceX", "SBUXx"])
+    }
+
     func testPricedEquityMapsNamePriceChangeAndSparkline() {
         let asset = MarketMapping.asset(
             summary(

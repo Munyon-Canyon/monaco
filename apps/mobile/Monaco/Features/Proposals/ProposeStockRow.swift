@@ -16,6 +16,7 @@ struct ProposeStockRow: View {
             isAvailable: stock.isTradable,
             isLast: isLast
         ) {
+            if stock.isPaused { PausedTag() }
             if let micros = stock.priceMicros {
                 MoneyText(micros: micros, style: .row)
                 if stock.isTradable, stock.change24h != nil {
