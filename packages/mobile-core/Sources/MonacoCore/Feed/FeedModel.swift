@@ -89,7 +89,7 @@ public final class FeedModel {
                 return
             }
             guard !Task.isCancelled else { return }
-            await self?.apply(next)
+            Task { await self?.apply(next) }
         }
     }
 
