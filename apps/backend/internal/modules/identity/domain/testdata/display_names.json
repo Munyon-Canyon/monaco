@@ -17,7 +17,7 @@
   {"input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","normalized":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
   {"input":"❤️","reason":"needs_letter_or_number"},
   {"input":"👍🏽 Kai","normalized":"👍🏽 Kai"},
-  {"input":"👨‍👩‍👧","reason":"invalid_characters"},
+  {"input":"👨‍👩‍👧","reason":"needs_letter_or_number"},
   {"input":"\tKai","normalized":"Kai"},
   {"input":"Kai­Q","reason":"invalid_characters"},
   {"input":"é́́","normalized":"é́́"},
@@ -27,5 +27,16 @@
   {"input":"Kai⠀","reason":"invalid_characters"},
   {"input":"Kai͏","reason":"invalid_characters"},
   {"input":"Kai឴","reason":"invalid_characters"},
-  {"input":"Kai឵","reason":"invalid_characters"}
+  {"input":"Kai឵","reason":"invalid_characters"},
+  {"input":"Kai 👨‍👩‍👧","normalized":"Kai 👨‍👩‍👧"},
+  {"input":"Kai 🏳\ufe0f‍🌈","normalized":"Kai 🏳\ufe0f‍🌈"},
+  {"input":"Kai 👩🏽‍💻","normalized":"Kai 👩🏽‍💻"},
+  {"input":"Kai‍Q","reason":"invalid_characters"},
+  {"input":"‍Kai","reason":"invalid_characters"},
+  {"input":"Kai‍","reason":"invalid_characters"},
+  {"input":"‍","reason":"invalid_characters"},
+  {"input":"Kai 👨‍","reason":"invalid_characters"},
+  {"input":"Kai 👨‍‍👩","reason":"invalid_characters"},
+  {"input":"Kai 👨 ‍👩","reason":"invalid_characters"},
+  {"input":"Kai 👨‍ 👩","reason":"invalid_characters"}
 ]

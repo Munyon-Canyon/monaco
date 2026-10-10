@@ -23,11 +23,12 @@ public enum DisplayNameValidationError: Error, Equatable, Sendable {
 }
 
 /// Client copy of the `PATCH /v1/me` display name rules
-/// (`apps/backend/internal/app/display_name.go`). The server stays authoritative.
+/// (`apps/backend/internal/modules/identity/domain/display_name.go`). The server stays authoritative.
 public enum DisplayNameRules {
     public static let minLength = 1
     public static let maxLength = 32
     static let maxConsecutiveMarks = 2
+    static let zeroWidthJoiner: UInt32 = 0x200D
 
     /// Scalars that render as empty space and are used to fake blank names.
     static let blankLookingScalars: Set<UInt32> = [
@@ -43,9 +44,24 @@ public enum DisplayNameRules {
         var pendingSpace = false
         var consecutiveMarks = 0
         var hasLetterOrNumber = false
+        var lastIsSymbol = false
+        var joinerPending = false
 
         for scalar in trimmed.unicodeScalars {
             let category = scalar.properties.generalCategory
+            if joinerPending && !isSymbol(category) {
+                return .failure(.invalidCharacters)
+            }
+            joinerPending = false
+            if scalar.value == zeroWidthJoiner {
+                if scalars.isEmpty || pendingSpace || !lastIsSymbol {
+                    return .failure(.invalidCharacters)
+                }
+                scalars.append(scalar)
+                joinerPending = true
+                consecutiveMarks = 0
+                continue
+            }
             if scalar == " " || category == .spaceSeparator {
                 pendingSpace = !scalars.isEmpty
                 consecutiveMarks = 0
@@ -61,6 +77,7 @@ public enum DisplayNameRules {
                 }
             } else {
                 consecutiveMarks = 0
+                lastIsSymbol = isSymbol(category)
             }
             if pendingSpace {
                 scalars.append(" ")
@@ -72,12 +89,23 @@ public enum DisplayNameRules {
             scalars.append(scalar)
         }
 
+        return finish(scalars, joinerPending: joinerPending, hasLetterOrNumber: hasLetterOrNumber)
+    }
+
+    private static func finish(
+        _ scalars: String.UnicodeScalarView,
+        joinerPending: Bool,
+        hasLetterOrNumber: Bool
+    ) -> Result<String, DisplayNameValidationError> {
         let count = scalars.count
         if count < minLength {
             return .failure(.required)
         }
         if count > maxLength {
             return .failure(.tooLong)
+        }
+        if joinerPending {
+            return .failure(.invalidCharacters)
         }
         if !hasLetterOrNumber {
             return .failure(.needsLetterOrNumber)

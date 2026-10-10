@@ -37,6 +37,8 @@ func normalizeDisplayName(name string) (string, string) {
 		return "", "required"
 	case count > 32:
 		return "", "too_long"
+	case n.joiner:
+		return "", "invalid_characters"
 	case !n.word:
 		return "", "needs_letter_or_number"
 	}
@@ -44,13 +46,24 @@ func normalizeDisplayName(name string) (string, string) {
 }
 
 type displayNameNormalizer struct {
-	out   strings.Builder
-	space bool
-	marks int
-	word  bool
+	out    strings.Builder
+	space  bool
+	marks  int
+	word   bool
+	last   rune
+	joiner bool
 }
 
+const zeroWidthJoiner = '\u200D'
+
 func (n *displayNameNormalizer) add(r rune) string {
+	switch {
+	case n.joiner && !unicode.IsSymbol(r):
+		return "invalid_characters"
+	case r == zeroWidthJoiner:
+		return n.join()
+	}
+	n.joiner = false
 	if r == ' ' || unicode.Is(unicode.Zs, r) {
 		n.space, n.marks = n.out.Len() > 0, 0
 		return ""
@@ -58,13 +71,8 @@ func (n *displayNameNormalizer) add(r rune) string {
 	if !allowedDisplayNameRune(r) {
 		return "invalid_characters"
 	}
-	if unicode.IsMark(r) {
-		n.marks++
-		if n.marks > 2 || n.out.Len() == 0 {
-			return "invalid_characters"
-		}
-	} else {
-		n.marks = 0
+	if reason := n.track(r); reason != "" {
+		return reason
 	}
 	if n.space {
 		n.out.WriteByte(' ')
@@ -72,6 +80,27 @@ func (n *displayNameNormalizer) add(r rune) string {
 	}
 	n.word = n.word || unicode.IsLetter(r) || unicode.IsNumber(r)
 	n.out.WriteRune(r)
+	return ""
+}
+
+func (n *displayNameNormalizer) track(r rune) string {
+	if !unicode.IsMark(r) {
+		n.marks, n.last = 0, r
+		return ""
+	}
+	n.marks++
+	if n.marks > 2 || n.out.Len() == 0 {
+		return "invalid_characters"
+	}
+	return ""
+}
+
+func (n *displayNameNormalizer) join() string {
+	if n.out.Len() == 0 || n.space || !unicode.IsSymbol(n.last) {
+		return "invalid_characters"
+	}
+	n.out.WriteRune(zeroWidthJoiner)
+	n.joiner, n.marks = true, 0
 	return ""
 }
 
