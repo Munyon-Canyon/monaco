@@ -22,6 +22,9 @@ cabals-tab                    -MonacoCabalsTabSample
 cabal-leave-member            -MonacoCabalLeaveSample member
 cabal-leave-creator           -MonacoCabalLeaveSample creator
 
+blocked-people                -MonacoBlockedPeopleSample people
+blocked-people-empty          -MonacoBlockedPeopleSample empty
+
 group-nav-root                -MonacoGroupNavSample root
 group-nav-list                -MonacoGroupNavSample list
 group-nav-create              -MonacoGroupNavSample create
@@ -197,4 +200,10 @@ flow-04-leave-last-member-pot-not-empty -MonacoFlow 04 leaveLastMemberPotNotEmpt
 flow-04-leave-creator-with-members -MonacoFlow 04 leaveCreatorWithMembers
 flow-04-price-unavailable     -MonacoFlow 04 priceUnavailable
 flow-04-interrupted           -MonacoFlow 04 interrupted
+flow-20a-cannot-block-self    -MonacoFlow 20a cannotBlockSelf
+flow-20a-user-not-found       -MonacoFlow 20a userNotFound
+flow-20a-report-target-not-found -MonacoFlow 20a reportTargetNotFound
+flow-20a-rate-limited         -MonacoFlow 20a rateLimited
+flow-20a-unauthorized         -MonacoFlow 20a unauthorized
+flow-20a-interrupted          -MonacoFlow 20a interrupted
 # END generated flow scenarios
