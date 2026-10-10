@@ -275,6 +275,8 @@ func (defined) WorkerEnvF11() []string {
 	return []string{"TRADE_SWAP_SWEEP_INTERVAL=1s", "TRADE_SWAP_SWEEP_AGE=2s"}
 }
 
+func (defined) AloneF11() []Script { return []Script{F11ExecuteTradeAssetPaused} }
+
 func (t trade) crashes(s *scenario.Scenario, point faultpoint.Name, end events.Type, want map[events.Type]int) {
 	s.Given(t.given...).
 		When(append(t.pass(), scenario.PublishCrashingAt(point))...).
