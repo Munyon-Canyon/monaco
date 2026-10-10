@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -28,6 +29,9 @@ type treasuryStub struct {
 	potErr    error
 	open      bool
 	openErr   error
+	lateOpen  bool
+	lateErr   error
+	openReads atomic.Int32
 	read      func()
 	potReads  atomic.Int32
 }
@@ -40,6 +44,9 @@ func (s *treasuryStub) ShareUnits(context.Context, ids.CabalID, ids.UserID) (mon
 }
 
 func (s *treasuryStub) OpenFund(context.Context, ids.CabalID, ids.UserID) (bool, error) {
+	if s.openReads.Add(1) > 1 {
+		return s.lateOpen, s.lateErr
+	}
 	return s.open, s.openErr
 }
 
@@ -303,4 +310,49 @@ func TestLeaveCabal_refusesAnOpenFundBeforeAnyOtherCheck(t *testing.T) {
 	}
 	tr = &treasuryStub{openErr: errs.New(errs.CodeDBUnavailable, "test")}
 	wantErr(t, f.leave(t.Context(), tr, member, c.ID), errs.CodeDBUnavailable)
+}
+
+func TestLeaveCabal_rechecksTheOpenFundUnderTheMemberLocks(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	member := c.Members[1].ID
+	wantErr(t, f.leave(t.Context(), &treasuryStub{lateOpen: true}, member, c.ID), errs.CodeLeaveHoldsShares)
+	if _, ok := f.membership(t, c.ID, member); !ok {
+		t.Fatal("the member left although a fund opened after the first read")
+	}
+	late := &treasuryStub{lateErr: errs.New(errs.CodeDBUnavailable, "test")}
+	wantErr(t, f.leave(t.Context(), late, member, c.ID), errs.CodeDBUnavailable)
+	if got := f.lefts(t); len(got) != 0 {
+		t.Fatalf("member_left events = %+v, want none", got)
+	}
+}
+
+func TestLockMember_wrapsABrokenRead(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	c := testkit.NewCabal(t, pool, testkit.WithMembers(2))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := adapters.NewQueries(pool).LockMember(ctx, pool, c.ID, c.Members[1].ID)
+	wantErr(t, err, errs.CodeInternal)
+}
+
+func TestLockMember_answersWhetherTheMemberRowExists(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	q := adapters.NewQueries(f.pool)
+	err := f.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		if got, err := q.LockMember(ctx, tx.Queries(), c.ID, c.Members[1].ID); err != nil || !got {
+			t.Errorf("LockMember(member) = %v, %v; want true", got, err)
+		}
+		if got, err := q.LockMember(ctx, tx.Queries(), c.ID, ids.UserIDFrom(ids.Real{}.NewV7())); err != nil || got {
+			t.Errorf("LockMember(stranger) = %v, %v; want false", got, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }

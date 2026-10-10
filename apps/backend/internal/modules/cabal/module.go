@@ -67,7 +67,7 @@ func (m *Module) http() adapters.HTTP {
 		Decide:  app.NewDecideAccessHandler(m.deps.UoW, m.deps.Clock),
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
-		Leave:   app.NewLeaveCabalHandler(m.deps.UoW, m.deps.Pool, m.treasury),
+		Leave:   m.LeaveCabalHandler(),
 		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, m.deps.IDs, m.deps.Clock),
 		DB:      m.deps.Pool, Users: users, Unread: unread, Clock: m.deps.Clock,
 	}
@@ -96,6 +96,10 @@ func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool
 
 func (*Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard { return adapters.NewDashboard(db) }
 
+func (m *Module) LeaveCabalHandler() *app.LeaveCabalHandler {
+	return app.NewLeaveCabalHandler(m.deps.UoW, m.deps.Pool, m.treasury)
+}
+
 func (m *Module) CreateCabalHandler() *app.CreateCabalHandler {
 	wallets := m.wallets
 	if wallets == nil {
@@ -111,15 +115,17 @@ func (m *Module) CreateCabalHandler() *app.CreateCabalHandler {
 }
 
 type (
-	View           = port.CabalView
-	MemberView     = port.MemberView
-	Rules          = port.Rules
-	TreasuryWallet = port.TreasuryWallet
-	Status         = port.Status
-	JoinMode       = domain.JoinMode
-	VoterMode      = domain.VoterMode
-	Threshold      = domain.Threshold
-	Role           = domain.Role
+	View              = port.CabalView
+	LeaveCabal        = app.LeaveCabal
+	LeaveCabalHandler = app.LeaveCabalHandler
+	MemberView        = port.MemberView
+	Rules             = port.Rules
+	TreasuryWallet    = port.TreasuryWallet
+	Status            = port.Status
+	JoinMode          = domain.JoinMode
+	VoterMode         = domain.VoterMode
+	Threshold         = domain.Threshold
+	Role              = domain.Role
 )
 
 const (

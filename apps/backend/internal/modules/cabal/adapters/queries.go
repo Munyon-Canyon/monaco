@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -74,6 +75,20 @@ func (r Postgres) Cabals(ctx context.Context, cabalIDs []ids.CabalID) (map[ids.C
 func (r Postgres) IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error) {
 	const op = "cabal.IsMember"
 	_, err := r.q.FindMember(ctx, sqlc.FindMemberParams{CabalID: id.UUID(), UserID: user.UUID()})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return false, nil
+	case err != nil:
+		return false, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return true, nil
+}
+
+func (r Postgres) LockMember(
+	ctx context.Context, q dbsqlc.DBTX, id ids.CabalID, user ids.UserID,
+) (bool, error) {
+	const op = "cabal.LockMember"
+	_, err := sqlc.New(q).LockMember(ctx, sqlc.LockMemberParams{CabalID: id.UUID(), UserID: user.UUID()})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return false, nil

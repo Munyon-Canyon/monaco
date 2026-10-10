@@ -83,6 +83,13 @@ func (h *LeaveCabalHandler) leave(ctx context.Context, tx db.Tx, cmd LeaveCabal,
 	if i < 0 {
 		return errs.New(errs.CodeNotCabalMember, leaveCabalOp)
 	}
+	open, err := h.treasury.OpenFund(ctx, cmd.CabalID, cmd.ActorID)
+	if err != nil {
+		return err
+	}
+	if open {
+		return errs.New(errs.CodeLeaveHoldsShares, leaveCabalOp)
+	}
 	check.in.IsCreator, check.in.MemberCount = locked[i].Role == string(domain.RoleCreator), len(locked)
 	if err := h.check(ctx, check); err != nil {
 		return err

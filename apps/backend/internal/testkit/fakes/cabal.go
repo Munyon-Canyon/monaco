@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -103,6 +104,15 @@ func (f *Cabal) IsMember(_ context.Context, id ids.CabalID, user ids.UserID) (bo
 	return slices.ContainsFunc(f.members, func(m CabalMember) bool {
 		return m.CabalID == id && m.Member.UserID == user
 	}), nil
+}
+
+func (f *Cabal) LockMember(
+	ctx context.Context, _ dbsqlc.DBTX, id ids.CabalID, user ids.UserID,
+) (bool, error) {
+	if err := f.Check("LockMember"); err != nil {
+		return false, err
+	}
+	return f.IsMember(ctx, id, user)
 }
 
 func (f *Cabal) Member(_ context.Context, id ids.CabalID, user ids.UserID) (cabal.MemberView, error) {

@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -33,6 +34,7 @@ type FundCabal struct {
 
 type FundCabals interface {
 	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
+	LockMember(ctx context.Context, q dbsqlc.DBTX, id ids.CabalID, user ids.UserID) (bool, error)
 	Status(ctx context.Context, id ids.CabalID) (cabalport.Status, error)
 	TreasuryWallet(ctx context.Context, id ids.CabalID) (cabalport.TreasuryWallet, error)
 }
@@ -151,6 +153,13 @@ func (h *FundCabalHandler) admit(ctx context.Context, cmd FundCabal) (fundRoute,
 
 func (h *FundCabalHandler) create(ctx context.Context, tx db.Tx, id uuid.UUID, cmd FundCabal, route fundRoute) error {
 	const op = "treasury.FundCabal"
+	member, err := h.d.Cabals.LockMember(ctx, tx.Queries(), cmd.CabalID, cmd.UserID)
+	if err != nil {
+		return err
+	}
+	if !member {
+		return errs.New(errs.CodeNotCabalMember, op, slog.String("cabal_id", cmd.CabalID.String()))
+	}
 	q := sqlc.New(tx.Queries())
 	lockErr := q.LockWalletOutflow(ctx, cmd.UserID.UUID())
 	pause, pauseErr := h.d.Pauses(tx).IsPaused(ctx, cmd.CabalID)
