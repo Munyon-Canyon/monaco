@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -14,13 +15,16 @@ struct SocialsStepView: View {
             model: XLinkModel(
                 linking: environment.linking, onboarding: OnboardingAPI(api: environment.api), clock: ContinuousClock()),
             onContinue: onContinue,
-            onSignOut: { await environment.signOut() })
+            onSignOut: { await environment.signOut() }
+        )
+        .analyticsScreen("onboarding_socials", step: mode == .onboarding ? .onboarding(.xShown) : nil)
     }
 }
 
 private struct SocialsStepForm: View {
     @Environment(AppSessionStore.self) private var session
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.analytics) private var analytics
     @Environment(\.dismiss) private var dismiss
 
     let mode: LinkStepMode
@@ -106,7 +110,7 @@ private struct SocialsStepForm: View {
                     if model.linkUnavailable {
                         await leaveUnavailableStep()
                     } else {
-                        handle(result)
+                        handle(result, linked: true)
                     }
                 }
             } label: {
@@ -126,6 +130,7 @@ private struct SocialsStepForm: View {
             dismiss()
             return
         }
+        analytics.step(.onboarding(.xSkipped))
         handle(await model.skip())
     }
 
@@ -134,7 +139,8 @@ private struct SocialsStepForm: View {
         await skip()
     }
 
-    private func handle(_ result: LinkStepResult) {
+    private func handle(_ result: LinkStepResult, linked: Bool = false) {
+        if linked, case .finished = result { analytics.step(.onboarding(.xLinked)) }
         switch result {
         case .stay:
             break

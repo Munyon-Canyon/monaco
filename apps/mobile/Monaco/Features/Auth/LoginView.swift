@@ -65,6 +65,7 @@ struct LoginView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .authScreenBackground()
+        .analyticsScreen("login")
         .tint(MonacoTheme.accent)
         .foregroundStyle(MonacoTheme.primaryText)
         .onChange(of: selectedMethod) { _, _ in

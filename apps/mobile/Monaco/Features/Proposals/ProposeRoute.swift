@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -7,6 +8,7 @@ nonisolated struct ProposeRoute: AppRoute {
 
     @MainActor func destination() -> some View {
         ProposeChooserScreen(cabalID: cabalID)
+            .analyticsScreen("propose", step: .propose(.proposeOpened))
     }
 }
 

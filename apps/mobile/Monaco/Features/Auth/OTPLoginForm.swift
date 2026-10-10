@@ -117,6 +117,7 @@ struct OTPLoginForm: View {
     @State private var addressHintArmed = false
     @FocusState private var focusedField: Field?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.analytics) private var analytics
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private enum Field {
@@ -140,6 +141,7 @@ struct OTPLoginForm: View {
     // handed it: the stored `(String) async -> Void` went through reabstraction thunks that
     // crashed with a bus error in `swift_retain` on the first send.
     private func send(_ address: String) async {
+        analytics.loginStarted()
         switch destination.channel {
         case .sms: await auth.sendSMSCode(to: address)
         case .email: await auth.sendEmailCode(to: address)

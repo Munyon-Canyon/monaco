@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 import UIKit
@@ -124,6 +125,7 @@ struct DepositAddressView: View {
 
     private func copyAddress(_ address: String) {
         UIPasteboard.general.string = address
+        AppAnalytics.current.step(.cryptoDeposit(.addressCopied))
         toasts.show(success: "Address copied.")
     }
 }
