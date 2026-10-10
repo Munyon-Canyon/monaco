@@ -401,6 +401,58 @@ paths:
       responses:
         "204": {description: The ban is lifted.}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/users/{id}/handle/revoke:
+    post:
+      operationId: revokeHandle
+      tags: [identity]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Revoke a handle.
+      description: >-
+        Sets the user's handle to null and appends `user.profile_updated` and `admin.action` in one transaction. The freed handle can be claimed again, and the app sends the user to the handle screen on next launch. A user with no handle is left as is. A deleted user answers user_deleted, an unknown one answers user_not_found, and a reason shorter than 3 characters answers reason_required. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        description: Why the moderator takes this action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: impersonation}
+      responses:
+        "204": {description: The handle is revoked.}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/handles/{handle}/reassign:
+    post:
+      operationId: reassignHandle
+      tags: [identity]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Reassign a handle.
+      description: >-
+        Moves the handle to a verified owner in one transaction, bypassing the 30-day change limit. The current holder, if any, loses the handle and picks a new one. The target's previous handle is freed. Appends `user.profile_updated` for each user changed and one `admin.action`. A target who already holds the handle is left as is. A deleted or unknown target answers user_deleted or user_not_found, a malformed handle answers handle_invalid, and a reason shorter than 3 characters answers reason_required. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: handle
+          in: path
+          required: true
+          description: The handle to move.
+          schema: {type: string, minLength: 1, maxLength: 64, examples: [kai_one]}
+      requestBody:
+        description: Why the moderator takes this action.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReassignHandleBody"
+            example: {to_user_id: 01890a5d-ac96-774b-bcce-b302099a8058, reason: verified owner}
+      responses:
+        "204": {description: The handle is reassigned.}
+        default: {$ref: "#/components/responses/Problem"}
 components:
   schemas:
     UserSearchResult:
@@ -608,3 +660,20 @@ components:
           examples: [kai_one]
           minLength: 1
           maxLength: 64
+    ReassignHandleBody:
+      type: object
+      description: The user who receives a handle, and why.
+      additionalProperties: false
+      required: [to_user_id, reason]
+      properties:
+        to_user_id:
+          type: string
+          format: uuid
+          description: The user who receives the handle.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8058]
+        reason:
+          type: string
+          description: >-
+            Free text. The server trims it and requires 3 to 500 characters, otherwise it answers
+            reason_required.
+          examples: [verified owner]

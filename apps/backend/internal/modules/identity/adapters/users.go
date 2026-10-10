@@ -31,6 +31,18 @@ func (Users) SetHandle(ctx context.Context, q sqlc.DBTX, id ids.UserID, handle s
 	return err
 }
 
+func (Users) AssignHandle(ctx context.Context, q sqlc.DBTX, id ids.UserID, handle string, at time.Time) error {
+	_, err := sqlc.New(q).AssignUserHandle(ctx, sqlc.AssignUserHandleParams{ID: id.UUID(), Handle: handle, Now: at})
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return errs.New(errs.CodeHandleTaken, "identity.ReassignHandle")
+	}
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "identity.ReassignHandle")
+	}
+	return nil
+}
+
 func (Users) Create(ctx context.Context, q sqlc.DBTX, u domain.NewUser, at time.Time) (bool, error) {
 	n, err := sqlc.New(q).CreateUser(ctx, sqlc.CreateUserParams{
 		ID: u.ID.UUID(), PrivyUserID: u.PrivyUserID, LoginProvider: string(u.LoginProvider), Now: at,

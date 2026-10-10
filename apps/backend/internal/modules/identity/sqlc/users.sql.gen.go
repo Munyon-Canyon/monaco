@@ -13,6 +13,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const assignUserHandle = `-- name: AssignUserHandle :execrows
+UPDATE users SET handle = $1::text, updated_at = $2 WHERE id = $3
+`
+
+type AssignUserHandleParams struct {
+	Handle string
+	Now    time.Time
+	ID     uuid.UUID
+}
+
+func (q *Queries) AssignUserHandle(ctx context.Context, arg AssignUserHandleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, assignUserHandle, arg.Handle, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const attachUserWallet = `-- name: AttachUserWallet :execrows
 INSERT INTO user_wallets (user_id, privy_wallet_id, address, created_at)
 VALUES ($1, $2, $3, $4)
@@ -33,6 +51,23 @@ func (q *Queries) AttachUserWallet(ctx context.Context, arg AttachUserWalletPara
 		arg.Address,
 		arg.CreatedAt,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const clearUserHandle = `-- name: ClearUserHandle :execrows
+UPDATE users SET handle = NULL, updated_at = $1 WHERE id = $2 AND handle IS NOT NULL
+`
+
+type ClearUserHandleParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) ClearUserHandle(ctx context.Context, arg ClearUserHandleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearUserHandle, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -287,6 +322,44 @@ func (q *Queries) LockDevHandle(ctx context.Context, handle string) error {
 	return err
 }
 
+const lockHandleParties = `-- name: LockHandleParties :many
+SELECT id, handle, account_status FROM users
+WHERE id = $1::uuid OR handle = $2::text
+ORDER BY id
+FOR UPDATE
+`
+
+type LockHandlePartiesParams struct {
+	Target uuid.UUID
+	Handle string
+}
+
+type LockHandlePartiesRow struct {
+	ID            uuid.UUID
+	Handle        pgtype.Text
+	AccountStatus string
+}
+
+func (q *Queries) LockHandleParties(ctx context.Context, arg LockHandlePartiesParams) ([]LockHandlePartiesRow, error) {
+	rows, err := q.db.Query(ctx, lockHandleParties, arg.Target, arg.Handle)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockHandlePartiesRow
+	for rows.Next() {
+		var i LockHandlePartiesRow
+		if err := rows.Scan(&i.ID, &i.Handle, &i.AccountStatus); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockUserByID = `-- name: LockUserByID :one
 SELECT u.id, u.privy_user_id, u.handle, u.auth_state, u.account_status, u.phone_e164, u.x_user_id, u.x_username,
   w.privy_wallet_id, w.address
@@ -364,6 +437,23 @@ func (q *Queries) LockUserByPrivyUserID(ctx context.Context, privyUserID string)
 		&i.PrivyWalletID,
 		&i.Address,
 	)
+	return i, err
+}
+
+const lockUserHandle = `-- name: LockUserHandle :one
+SELECT id, handle, account_status FROM users WHERE id = $1 FOR UPDATE
+`
+
+type LockUserHandleRow struct {
+	ID            uuid.UUID
+	Handle        pgtype.Text
+	AccountStatus string
+}
+
+func (q *Queries) LockUserHandle(ctx context.Context, id uuid.UUID) (LockUserHandleRow, error) {
+	row := q.db.QueryRow(ctx, lockUserHandle, id)
+	var i LockUserHandleRow
+	err := row.Scan(&i.ID, &i.Handle, &i.AccountStatus)
 	return i, err
 }
 

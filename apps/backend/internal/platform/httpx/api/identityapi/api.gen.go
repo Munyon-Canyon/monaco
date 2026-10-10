@@ -288,6 +288,19 @@ type PublicProfile struct {
 	PhotoUrl *string `json:"photo_url"`
 }
 
+// ReassignHandleBody The user who receives a handle, and why.
+type ReassignHandleBody struct {
+	// Reason Free text. The server trims it and requires 3 to 500 characters, otherwise it answers reason_required.
+	//
+	// Examples: verified owner
+	Reason string `json:"reason"`
+
+	// ToUserId The user who receives the handle.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ToUserId openapi_types.UUID `json:"to_user_id"`
+}
+
 // SetHandle A handle to claim for the caller.
 type SetHandle struct {
 	// Handle Examples: kai_one
@@ -332,8 +345,20 @@ type UserSummary struct {
 	UserId       openapi_types.UUID `json:"user_id"`
 }
 
+// ReassignHandleParams defines parameters for ReassignHandle.
+type ReassignHandleParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // BanUserParams defines parameters for BanUser.
 type BanUserParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// RevokeHandleParams defines parameters for RevokeHandle.
+type RevokeHandleParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
@@ -416,8 +441,14 @@ type SearchUsersParams struct {
 	Query string `form:"query" json:"query"`
 }
 
+// ReassignHandleJSONRequestBody defines body for ReassignHandle for application/json ContentType.
+type ReassignHandleJSONRequestBody = ReassignHandleBody
+
 // BanUserJSONRequestBody defines body for BanUser for application/json ContentType.
 type BanUserJSONRequestBody = externalRef0.ReasonBody
+
+// RevokeHandleJSONRequestBody defines body for RevokeHandle for application/json ContentType.
+type RevokeHandleJSONRequestBody = externalRef0.ReasonBody
 
 // UnbanUserJSONRequestBody defines body for UnbanUser for application/json ContentType.
 type UnbanUserJSONRequestBody = externalRef0.ReasonBody
@@ -439,9 +470,15 @@ type PostProfilePhotoMultipartRequestBody PostProfilePhotoMultipartBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ReassignHandle Reassign a handle.
+	// (POST /v1/admin/handles/{handle}/reassign)
+	ReassignHandle(w http.ResponseWriter, r *http.Request, handle string, params ReassignHandleParams)
 	// BanUser Ban a user.
 	// (POST /v1/admin/users/{id}/ban)
 	BanUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params BanUserParams)
+	// RevokeHandle Revoke a handle.
+	// (POST /v1/admin/users/{id}/handle/revoke)
+	RevokeHandle(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params RevokeHandleParams)
 	// UnbanUser Lift a ban.
 	// (POST /v1/admin/users/{id}/unban)
 	UnbanUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params UnbanUserParams)
@@ -498,6 +535,60 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// ReassignHandle operation middleware
+func (siw *ServerInterfaceWrapper) ReassignHandle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "handle" -------------
+	var handle string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "handle", r.PathValue("handle"), &handle, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "handle", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReassignHandleParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReassignHandle(w, r, handle, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // BanUser operation middleware
 func (siw *ServerInterfaceWrapper) BanUser(w http.ResponseWriter, r *http.Request) {
 
@@ -543,6 +634,60 @@ func (siw *ServerInterfaceWrapper) BanUser(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.BanUser(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeHandle operation middleware
+func (siw *ServerInterfaceWrapper) RevokeHandle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id externalRef0.UserId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RevokeHandleParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeHandle(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1271,7 +1416,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/handles/{handle}/reassign", wrapper.ReassignHandle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/users/{id}/ban", wrapper.BanUser)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/users/{id}/handle/revoke", wrapper.RevokeHandle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/users/{id}/unban", wrapper.UnbanUser)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/auth/session", wrapper.PostAuthSession)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/dev/me/x-link", wrapper.DeleteDevXLink)
@@ -1289,6 +1436,41 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}", wrapper.GetUser)
 
 	return m
+}
+
+type ReassignHandleRequestObject struct {
+	Handle string `json:"handle"`
+	Params ReassignHandleParams
+	Body   *ReassignHandleJSONRequestBody
+}
+
+type ReassignHandleResponseObject interface {
+	VisitReassignHandleResponse(w http.ResponseWriter) error
+}
+
+type ReassignHandle204Response struct {
+}
+
+func (response ReassignHandle204Response) VisitReassignHandleResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ReassignHandledefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ReassignHandledefaultApplicationProblemPlusJSONResponse) VisitReassignHandleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type BanUserRequestObject struct {
@@ -1315,6 +1497,41 @@ type BanUserdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response BanUserdefaultApplicationProblemPlusJSONResponse) VisitBanUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeHandleRequestObject struct {
+	Id     externalRef0.UserId `json:"id"`
+	Params RevokeHandleParams
+	Body   *RevokeHandleJSONRequestBody
+}
+
+type RevokeHandleResponseObject interface {
+	VisitRevokeHandleResponse(w http.ResponseWriter) error
+}
+
+type RevokeHandle204Response struct {
+}
+
+func (response RevokeHandle204Response) VisitRevokeHandleResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeHandledefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response RevokeHandledefaultApplicationProblemPlusJSONResponse) VisitRevokeHandleResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1895,9 +2112,15 @@ func (response GetUserdefaultApplicationProblemPlusJSONResponse) VisitGetUserRes
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ReassignHandle Reassign a handle.
+	// (POST /v1/admin/handles/{handle}/reassign)
+	ReassignHandle(ctx context.Context, request ReassignHandleRequestObject) (ReassignHandleResponseObject, error)
 	// BanUser Ban a user.
 	// (POST /v1/admin/users/{id}/ban)
 	BanUser(ctx context.Context, request BanUserRequestObject) (BanUserResponseObject, error)
+	// RevokeHandle Revoke a handle.
+	// (POST /v1/admin/users/{id}/handle/revoke)
+	RevokeHandle(ctx context.Context, request RevokeHandleRequestObject) (RevokeHandleResponseObject, error)
 	// UnbanUser Lift a ban.
 	// (POST /v1/admin/users/{id}/unban)
 	UnbanUser(ctx context.Context, request UnbanUserRequestObject) (UnbanUserResponseObject, error)
@@ -1984,6 +2207,40 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// ReassignHandle operation middleware
+func (sh *strictHandler) ReassignHandle(w http.ResponseWriter, r *http.Request, handle string, params ReassignHandleParams) {
+	var request ReassignHandleRequestObject
+
+	request.Handle = handle
+	request.Params = params
+
+	var body ReassignHandleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReassignHandle(ctx, request.(ReassignHandleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReassignHandle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReassignHandleResponseObject); ok {
+		if err := validResponse.VisitReassignHandleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // BanUser operation middleware
 func (sh *strictHandler) BanUser(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params BanUserParams) {
 	var request BanUserRequestObject
@@ -2011,6 +2268,40 @@ func (sh *strictHandler) BanUser(w http.ResponseWriter, r *http.Request, id exte
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(BanUserResponseObject); ok {
 		if err := validResponse.VisitBanUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeHandle operation middleware
+func (sh *strictHandler) RevokeHandle(w http.ResponseWriter, r *http.Request, id externalRef0.UserId, params RevokeHandleParams) {
+	var request RevokeHandleRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RevokeHandleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeHandle(ctx, request.(RevokeHandleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeHandle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeHandleResponseObject); ok {
+		if err := validResponse.VisitRevokeHandleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
