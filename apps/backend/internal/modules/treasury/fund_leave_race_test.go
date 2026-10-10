@@ -105,7 +105,8 @@ func (r *fundLeaveRace) waitForBlockedLeave(t *testing.T) {
 	testkit.Eventually(t, func() bool {
 		var n int
 		if err := r.pool.QueryRow(t.Context(),
-			`SELECT count(*) FROM pg_locks WHERE NOT granted AND locktype IN ('tuple', 'transactionid')`,
+			`SELECT count(*) FROM pg_locks WHERE NOT granted AND locktype IN ('tuple', 'transactionid')
+				AND pid IN (SELECT pid FROM pg_stat_activity WHERE datname = current_database())`,
 		).Scan(&n); err != nil {
 			t.Fatal(err)
 		}

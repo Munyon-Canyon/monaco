@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -19,6 +20,8 @@ type TreasuryReads interface {
 	ShareUnits(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
 	OpenFund(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error)
 	PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
+	ShareUnitsOn(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
+	OpenFundOn(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (bool, error)
 }
 
 type LeaveCabal struct {
@@ -83,13 +86,18 @@ func (h *LeaveCabalHandler) leave(ctx context.Context, tx db.Tx, cmd LeaveCabal,
 	if i < 0 {
 		return errs.New(errs.CodeNotCabalMember, leaveCabalOp)
 	}
-	open, err := h.treasury.OpenFund(ctx, cmd.CabalID, cmd.ActorID)
+	open, err := h.treasury.OpenFundOn(ctx, tx.Queries(), cmd.CabalID, cmd.ActorID)
 	if err != nil {
 		return err
 	}
 	if open {
 		return errs.New(errs.CodeLeaveHoldsShares, leaveCabalOp)
 	}
+	shares, err := h.treasury.ShareUnitsOn(ctx, tx.Queries(), cmd.CabalID, cmd.ActorID)
+	if err != nil {
+		return err
+	}
+	check.in.ShareUnits = shares
 	check.in.IsCreator, check.in.MemberCount = locked[i].Role == string(domain.RoleCreator), len(locked)
 	if err := h.check(ctx, check); err != nil {
 		return err

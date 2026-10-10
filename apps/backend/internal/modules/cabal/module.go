@@ -1,6 +1,8 @@
 package cabal
 
 import (
+	"context"
+
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
@@ -12,7 +14,9 @@ import (
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -21,6 +25,38 @@ type Module struct {
 	wallets  app.TreasuryWallets
 	treasury app.TreasuryReads
 	unread   app.UnreadCounter
+}
+
+type liveReads struct {
+	reads interface {
+		ShareUnits(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
+		OpenFund(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error)
+		PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
+	}
+	sharesOn func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
+	openOn   func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (bool, error)
+}
+
+func (l liveReads) ShareUnits(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error) {
+	return l.reads.ShareUnits(ctx, cabalID, user)
+}
+
+func (l liveReads) OpenFund(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error) {
+	return l.reads.OpenFund(ctx, cabalID, user)
+}
+
+func (l liveReads) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error) {
+	return l.reads.PotValue(ctx, cabalID)
+}
+
+func (l liveReads) ShareUnitsOn(
+	ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID,
+) (money.SharesUnits, error) {
+	return l.sharesOn(ctx, db, cabalID, user)
+}
+
+func (l liveReads) OpenFundOn(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (bool, error) {
+	return l.openOn(ctx, db, cabalID, user)
 }
 
 type Option func(*Module)
@@ -34,7 +70,16 @@ func WithTreasuryReads(reads app.TreasuryReads) Option {
 }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{deps: d, treasury: treasury.New(d).Queries()}
+	reads := treasury.New(d).LiveReads()
+	m := &Module{deps: d, treasury: liveReads{
+		reads: reads,
+		sharesOn: func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error) {
+			return reads.On(db).ShareUnits(ctx, cabalID, user)
+		},
+		openOn: func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (bool, error) {
+			return reads.On(db).OpenFund(ctx, cabalID, user)
+		},
+	}}
 	for _, opt := range opts {
 		opt(m)
 	}

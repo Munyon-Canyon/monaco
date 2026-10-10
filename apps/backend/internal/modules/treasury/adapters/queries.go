@@ -101,6 +101,14 @@ func NewQueries(
 	}
 }
 
+func (q *Queries) On(db sqlc.DBTX) *Queries {
+	on := *q
+	queries := sqlc.New(db)
+	on.q, on.pot, on.history, on.flows, on.funds = queries, queries, queries, queries, queries
+	on.reserved, on.signature, on.wallet = queries, queries, queries
+	return &on
+}
+
 func (q *Queries) CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error) {
 	rows, err := q.reserved.CashOutReservations(ctx)
 	if err != nil {
