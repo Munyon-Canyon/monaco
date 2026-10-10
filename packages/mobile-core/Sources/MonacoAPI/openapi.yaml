@@ -5141,6 +5141,7 @@ components:
         - onramp_link_invalid
         - panic
         - payout_failed
+        - phone_linked_elsewhere
         - phone_not_linked
         - photo_invalid
         - post_hog_rejected
@@ -5193,6 +5194,7 @@ components:
         - wallet_mismatch
         - withdraw_not_allowed
         - withdraw_to_own_wallet
+        - x_linked_elsewhere
         - x_not_linked
   # api/spec/funding.yaml
     Balance:

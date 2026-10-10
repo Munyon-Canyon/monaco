@@ -22,9 +22,9 @@ extension OnboardingFlowTests {
         XCTAssertEqual(sent.map(\.path), ["/v1/me/onboarding/phone"])
     }
 
-    func testASignInNumberAnotherUserHoldsFallsBackToTheForm() async throws {
+    func testASignInNumberAnotherUserHoldsFallsBackToTheFormWithTheLinkedElsewhereLine() async throws {
         let refusal = try StubTransport.Reply.problem(
-            Self.problem(code: .phoneNotLinked, message: "Link a phone first."))
+            Self.problem(code: .phoneLinkedElsewhere, message: "Server wording."))
         let transport = StubTransport(scripted: [refusal])
         let linking = FakeAccountLinking()
         let model = PhoneLinkModel(linking: linking, onboarding: Self.onboarding(transport), clock: TestClock())
@@ -33,9 +33,25 @@ extension OnboardingFlowTests {
 
         XCTAssertEqual(result, .stay)
         XCTAssertTrue(model.signInPhoneUnavailable)
-        XCTAssertNil(model.caption)
+        XCTAssertTrue(model.linkedElsewhere)
+        XCTAssertEqual(model.caption, .error(LinkCopy.phoneLinkedElsewhere))
         let calls = await linking.calls
         XCTAssertEqual(calls, [])
+    }
+
+    func testASignInNumberPrivyDoesNotHaveFallsBackToTheFormWithNoLine() async throws {
+        let refusal = try StubTransport.Reply.problem(
+            Self.problem(code: .phoneNotLinked, message: "Link a phone first."))
+        let transport = StubTransport(scripted: [refusal])
+        let model = PhoneLinkModel(
+            linking: FakeAccountLinking(), onboarding: Self.onboarding(transport), clock: TestClock())
+
+        let result = await model.confirmSignInPhone()
+
+        XCTAssertEqual(result, .stay)
+        XCTAssertTrue(model.signInPhoneUnavailable)
+        XCTAssertFalse(model.linkedElsewhere)
+        XCTAssertNil(model.caption)
     }
 
     func testAServerErrorOnTheSignInNumberConfirmationKeepsTheConfirmStateAndRetries() async throws {

@@ -108,6 +108,7 @@ const (
 	OnrampLinkInvalid ErrorCode = "onramp_link_invalid"
 	Panic ErrorCode = "panic"
 	PayoutFailed ErrorCode = "payout_failed"
+	PhoneLinkedElsewhere ErrorCode = "phone_linked_elsewhere"
 	PhoneNotLinked ErrorCode = "phone_not_linked"
 	PhotoInvalid ErrorCode = "photo_invalid"
 	PostHogRejected ErrorCode = "post_hog_rejected"
@@ -160,6 +161,7 @@ const (
 	WalletMismatch ErrorCode = "wallet_mismatch"
 	WithdrawNotAllowed ErrorCode = "withdraw_not_allowed"
 	WithdrawToOwnWallet ErrorCode = "withdraw_to_own_wallet"
+	XLinkedElsewhere ErrorCode = "x_linked_elsewhere"
 	XNotLinked ErrorCode = "x_not_linked"
 )
 
@@ -364,6 +366,8 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case PayoutFailed:
 		return true
+	case PhoneLinkedElsewhere:
+		return true
 	case PhoneNotLinked:
 		return true
 	case PhotoInvalid:
@@ -467,6 +471,8 @@ func (e ErrorCode) Valid() bool {
 	case WithdrawNotAllowed:
 		return true
 	case WithdrawToOwnWallet:
+		return true
+	case XLinkedElsewhere:
 		return true
 	case XNotLinked:
 		return true
