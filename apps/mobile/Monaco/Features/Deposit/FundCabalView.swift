@@ -152,12 +152,12 @@ struct FundCabalForm: Equatable {
         return "Add \(amount) to the pot"
     }
 
-    /// The line under the figure: what there is to fund with, and what is already on its way.
+    /// The line under the figure: what there is to fund with, and what is still on its way out (funds and withdrawals).
     var availability: String? {
         guard let availableMicros else { return nil }
         let available = "\(UsdAmountFormatter.format(flooredMicros: availableMicros)) available"
         guard inFlightMicros > 0 else { return available }
-        return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) funding a cabal"
+        return "\(available) · \(UsdAmountFormatter.format(micros: inFlightMicros)) pending"
     }
 
     /// Replaces the helper, in red, while the amount typed is over the balance or under the minimum.

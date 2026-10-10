@@ -16,4 +16,4 @@ index 7dde7e3be..e2ef77d17 100644
 +        return "Fund \(amount)"
      }
  
-     /// The line under the figure: what there is to fund with, and what is already on its way.
+     /// The line under the figure: what there is to fund with, and what is still on its way out (funds and withdrawals).
