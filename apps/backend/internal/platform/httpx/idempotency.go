@@ -164,7 +164,7 @@ func (c claimed) execute(ctx context.Context, next http.Handler) {
 			_ = c.release(ctx)
 		}
 	}()
-	next.ServeHTTP(rec, c.r)
+	next.ServeHTTP(rec, c.r.WithContext(context.WithoutCancel(ctx)))
 	finished = true
 	resp := rec.stored()
 	if resp.Status >= http.StatusInternalServerError {
