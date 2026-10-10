@@ -94,11 +94,11 @@ struct FundCabalFormTests {
             FundCabalForm(amountText: "", balance: Fixture.balance(248_500_000)).availability == "$248.50 available")
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(198_500_000, pending: 50_000_000)).availability
-                == "$198.50 available · $50.00 funding a cabal"
+                == "$198.50 available · $50.00 pending"
         )
         #expect(
             FundCabalForm(amountText: "", balance: Fixture.balance(1_000_000_000, pending: 300_000_000)).availability
-                == "$1,000.00 available · $300.00 funding a cabal"
+                == "$1,000.00 available · $300.00 pending"
         )
         #expect(FundCabalForm(amountText: "", balance: nil).availability == nil)
     }
@@ -128,7 +128,7 @@ struct FundCabalFormTests {
     @Test func everythingOnItsWayToACabalLeavesNothingToFundWith() {
         let funding = FundCabalForm(amountText: "", balance: Fixture.balance(0, pending: 50_000_000))
         #expect(funding.maxDollars == 0)
-        #expect(funding.availability == "$0.00 available · $50.00 funding a cabal")
+        #expect(funding.availability == "$0.00 available · $50.00 pending")
     }
 
     @Test func maxIsNilUntilTheBalanceLoads() {

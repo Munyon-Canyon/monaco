@@ -59,5 +59,5 @@ The format of this doc is in [App journeys](../README.md).
 ## Not covered
 
 - "Add money first" for a member with nothing in their balance (`fund-cabal-needs-money`). The journey's actor is funded; `FundCabalStageTests` covers the empty stage.
-- The "· $300.00 funding a cabal" helper while a fund is in flight. That needs a fund to be running, which S2 cannot start today.
+- The "· $300.00 pending" helper while a fund or withdrawal is on its way. That needs a fund to be running, which S2 cannot start today.
 - The pause notice on a paused cabal. It belongs to #651.
