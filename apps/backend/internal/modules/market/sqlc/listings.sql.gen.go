@@ -358,14 +358,15 @@ func (q *Queries) MarkListingVerified(ctx context.Context, arg MarkListingVerifi
 
 const setListingTradableOverride = `-- name: SetListingTradableOverride :one
 UPDATE asset_listings SET
-  tradable_override = $1::bool,
-  enabled = verified_at IS NOT NULL AND coalesce($1::bool, issuer_tradable)
+  tradable_override = CASE $1::text WHEN 'auto' THEN NULL ELSE $1::text = 'on' END,
+  enabled = verified_at IS NOT NULL AND CASE $1::text
+    WHEN 'auto' THEN issuer_tradable ELSE $1::text = 'on' END
 WHERE id = $2
 RETURNING id, issuer, symbol, network, token_address, enabled
 `
 
 type SetListingTradableOverrideParams struct {
-	Override pgtype.Bool
+	Override string
 	ID       uuid.UUID
 }
 

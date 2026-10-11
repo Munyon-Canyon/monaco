@@ -25,12 +25,18 @@ type CatalogPoller struct {
 	clock     clock.Clock
 	providers Providers
 	facts     MintFacts
+	listings  *ListingSync
 }
 
 func NewCatalogPoller(
 	uow *db.UnitOfWork, reads sqlc.DBTX, g ids.Generator, c clock.Clock, providers Providers, facts MintFacts,
 ) *CatalogPoller {
 	return &CatalogPoller{uow: uow, reads: reads, ids: g, clock: c, providers: providers, facts: facts}
+}
+
+func (p *CatalogPoller) WithListings(s *ListingSync) *CatalogPoller {
+	p.listings = s
+	return p
 }
 
 func (*CatalogPoller) Name() string { return "market.catalog" }
@@ -67,7 +73,14 @@ func (p *CatalogPoller) Tick(ctx context.Context) (poller.Report, error) {
 	checked, err := p.checkChainFacts(ctx)
 	report.Changed += checked
 	report.Attrs = append(report.Attrs, slog.Int("chain_checked", checked))
-	return report, errors.Join(append(failed, err)...)
+	failed = append(failed, err)
+	if p.listings != nil {
+		listed, err := p.listings.Run(ctx)
+		report.Changed += listed
+		report.Attrs = append(report.Attrs, slog.Int("listings", listed))
+		failed = append(failed, err)
+	}
+	return report, errors.Join(failed...)
 }
 
 func fetch(ctx context.Context, provider AssetProvider) (issuerCatalog, error) {
