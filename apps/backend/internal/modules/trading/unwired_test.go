@@ -33,9 +33,10 @@ func TestUnwired_theMultichainExecutionPortsAreNotImplementedYet(t *testing.T) {
 	_, listingErr := app.UnwiredListings{}.Listing(ctx, multichain.ListingID{})
 	_, assetErr := app.UnwiredListings{}.ListingByAsset(ctx, "base:0x")
 	_, buildErr := app.UnwiredEVMVenue{}.Build(ctx, app.EVMSwapSpec{})
+	_, chooseErr := app.UnwiredEVMVenue{}.Choose(ctx, app.EVMSwapSpec{}, nil)
 	_, fillErr := app.UnwiredEVMVenue{}.Fill(ctx, chain.NetworkBase, "0xhash", chain.EVMAddress{}, chain.EVMAddress{})
 	_, receiptErr := app.UnwiredEVMVenue{}.Receipt(ctx, chain.NetworkBase, "0xhash")
-	for i, err := range []error{listingErr, assetErr, buildErr, fillErr, receiptErr} {
+	for i, err := range []error{listingErr, assetErr, buildErr, chooseErr, fillErr, receiptErr} {
 		if errs.CodeOf(err) != errs.CodeNotImplemented || errs.VerdictFor(errs.CodeOf(err)) == errs.VerdictNak {
 			t.Errorf("port %d err = %v, want not_implemented, which never naks", i, err)
 		}

@@ -207,13 +207,21 @@ func TestEVMVenue_buildsARecordedSellWithAFloorFromTheQuoteAndTheSlippage(t *tes
 		t.Fatal(err)
 	}
 	e := newVenueEnv(t)
-	e.script(approvalReply("null"), quote, quote, swapReply(evmTxJSON(ethRoute, "0x3593564c", "0x0")))
+	swap := swapReply(evmTxJSON(ethRoute, "0x3593564c", "0x0"))
+	e.uniswap.replies["/v1/check_approval"] = []string{approvalReply("null")}
+	e.uniswap.replies["/v1/quote"] = []string{quote, quote, quote, quote}
+	e.uniswap.replies["/v1/swap"] = []string{swap, swap, swap}
+	e.rpc.replies["/rpc"] = []string{delegated, simMet, simMet}
 	spec := app.EVMSwapSpec{
 		Network: chain.NetworkEthereum, Owner: evmAddress(t, owner), TokenIn: evmAddress(t, aaplon),
 		TokenOut: evmAddress(t, ethUSDC), AmountIn: amountIn, SlippageBps: 100,
 	}
 
-	plan, err := e.venue.Build(t.Context(), spec)
+	built, err := e.venue.Build(t.Context(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := e.venue.Choose(t.Context(), spec, built.Candidates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,8 +229,8 @@ func TestEVMVenue_buildsARecordedSellWithAFloorFromTheQuoteAndTheSlippage(t *tes
 		t.Fatalf("plan out %d floor %d, want the recorded %s out and a 1%% floor", plan.OutAmount, plan.MinOut, out)
 	}
 	calls := e.uniswap.calls
-	if calls[1].body["amount"] != in || calls[1].body["slippageTolerance"] != 0.0 ||
-		calls[2].body["slippageTolerance"] != 0.99 || calls[2].body["tokenOut"] != ethUSDC {
+	if calls[1].body["amount"] != in || calls[5].body["slippageTolerance"] != 0.0 ||
+		calls[6].body["slippageTolerance"] != 0.99 || calls[6].body["tokenOut"] != ethUSDC {
 		t.Fatalf("quotes = %+v, want the held units quoted, then requoted at the tolerance keeping the floor", calls)
 	}
 	floored := domain.SlippageOf(spec.SlippageBps).MinOut(plan.OutAmount)

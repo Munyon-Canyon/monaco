@@ -26,6 +26,9 @@ type evmFake struct {
 	receipts     []app.EVMFillState
 	receiptErr   error
 	trail        []string
+	chosen       app.EVMSwapPlan
+	chooseErr    error
+	choices      [][]app.EVMSwapCandidate
 }
 
 func newEVMFake(plan app.EVMSwapPlan) *evmFake {
@@ -38,6 +41,16 @@ func (f *evmFake) Build(_ context.Context, spec app.EVMSwapSpec) (app.EVMSwapPla
 	f.builds++
 	f.specs = append(f.specs, spec)
 	return f.plan, f.buildErr
+}
+
+func (f *evmFake) Choose(
+	_ context.Context, _ app.EVMSwapSpec, candidates []app.EVMSwapCandidate,
+) (app.EVMSwapPlan, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.trail = append(f.trail, "choose")
+	f.choices = append(f.choices, candidates)
+	return f.chosen, f.chooseErr
 }
 
 func (f *evmFake) Send(_ context.Context, _ string, _ multichain.EVMTransaction, key string) (string, error) {

@@ -115,7 +115,10 @@ func newVenueEnv(t *testing.T) *venueEnv {
 		return httpclient.New(name, httpclient.WithBaseURL(url), httpclient.WithTimeout(time.Second))
 	}
 	e.venue = adapters.NewEVMVenue(client("uniswap-test", uni.URL), "uniswap-key",
-		map[chain.Network]*httpclient.Client{chain.NetworkBase: client("evm-rpc-base-test", rpc.URL+"/rpc")},
+		map[chain.Network]*httpclient.Client{
+			chain.NetworkBase:     client("evm-rpc-base-test", rpc.URL+"/rpc"),
+			chain.NetworkEthereum: client("evm-rpc-ethereum-test", rpc.URL+"/rpc"),
+		},
 		testkit.NewClock(venueNow()))
 	return e
 }

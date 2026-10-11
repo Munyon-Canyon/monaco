@@ -33,10 +33,17 @@ type EVMSwapSpec struct {
 }
 
 type EVMSwapPlan struct {
-	Approvals []multichain.EVMTransaction
+	Approvals  []multichain.EVMTransaction
+	Swap       multichain.EVMTransaction
+	OutAmount  uint64
+	MinOut     uint64
+	Candidates []EVMSwapCandidate
+}
+
+type EVMSwapCandidate struct {
+	Route     multichain.RouteOptions
 	Swap      multichain.EVMTransaction
 	OutAmount uint64
-	MinOut    uint64
 }
 
 type EVMFillState uint8
@@ -54,6 +61,7 @@ type EVMFill struct {
 
 type EVMVenue interface {
 	Build(ctx context.Context, spec EVMSwapSpec) (EVMSwapPlan, error)
+	Choose(ctx context.Context, spec EVMSwapSpec, candidates []EVMSwapCandidate) (EVMSwapPlan, error)
 	Fill(ctx context.Context, network chain.Network, txHash string, out, owner chain.EVMAddress) (EVMFill, error)
 	Receipt(ctx context.Context, network chain.Network, txHash string) (EVMFillState, error)
 }
@@ -66,6 +74,10 @@ type UnwiredEVMVenue struct{}
 
 func (UnwiredEVMVenue) Build(context.Context, EVMSwapSpec) (EVMSwapPlan, error) {
 	return EVMSwapPlan{}, notImplemented("EVMVenue.Build", "#4970")
+}
+
+func (UnwiredEVMVenue) Choose(context.Context, EVMSwapSpec, []EVMSwapCandidate) (EVMSwapPlan, error) {
+	return EVMSwapPlan{}, notImplemented("EVMVenue.Choose", "#4970")
 }
 
 func (UnwiredEVMVenue) Fill(
@@ -118,13 +130,11 @@ func (s EVMSwap) Run(ctx context.Context, leg EVMSwapLeg) (EVMSwapResult, error)
 
 func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 	plan, err := s.Venue.Build(ctx, leg.Spec)
+	if err == nil && len(plan.Candidates) == 0 {
+		err = floorMet(leg.Spec, plan)
+	}
 	if err != nil {
 		return "", err
-	}
-	floor := max(leg.Spec.MinOut, domain.SlippageOf(leg.Spec.SlippageBps).MinOut(plan.OutAmount))
-	if floor == 0 || plan.MinOut < floor {
-		return "", errs.New(errs.CodePriceMoved, evmSwapOp,
-			slog.Uint64("plan_min_out", plan.MinOut), slog.Uint64("floor", floor))
 	}
 	key := stepKey(leg.Ref)
 	for i, approval := range plan.Approvals {
@@ -133,6 +143,11 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 			err = s.approved(ctx, leg, sent)
 		}
 		if err != nil {
+			return "", err
+		}
+	}
+	if len(plan.Candidates) > 0 {
+		if plan, err = s.chosen(ctx, leg.Spec, plan.Candidates); err != nil {
 			return "", err
 		}
 	}
@@ -146,6 +161,23 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSwapSubmitted)
 	return hash, nil
+}
+
+func (s EVMSwap) chosen(ctx context.Context, spec EVMSwapSpec, candidates []EVMSwapCandidate) (EVMSwapPlan, error) {
+	plan, err := s.Venue.Choose(ctx, spec, candidates)
+	if err == nil {
+		err = floorMet(spec, plan)
+	}
+	return plan, err
+}
+
+func floorMet(spec EVMSwapSpec, plan EVMSwapPlan) error {
+	floor := max(spec.MinOut, domain.SlippageOf(spec.SlippageBps).MinOut(plan.OutAmount))
+	if floor == 0 || plan.MinOut < floor {
+		return errs.New(errs.CodePriceMoved, evmSwapOp,
+			slog.Uint64("plan_min_out", plan.MinOut), slog.Uint64("floor", floor))
+	}
+	return nil
 }
 
 func (s EVMSwap) approved(ctx context.Context, leg EVMSwapLeg, hash string) error {
