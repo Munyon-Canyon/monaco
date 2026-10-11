@@ -32,7 +32,10 @@ func TestModule_aRoutedSwapUsesTheCabalsTreasuryEVMWallet(t *testing.T) {
 	cfg := testkit.Config()
 	cfg.Solana.RPCURL, cfg.Timeouts.RPC, cfg.Timeouts.Privy = "http://fakes/rpc/", time.Second, time.Second
 	cfg.Routing = config.Routing{
-		UniswapAPIKey: "key", UniswapBaseURL: srv.URL + "/uniswap", UniswapTimeout: time.Second,
+		UniswapAPIKey:       "key",
+		UniswapBaseURL:      srv.URL + "/uniswap",
+		UniswapTimeout:      time.Second,
+		UniswapQuoteTimeout: time.Second,
 	}
 	cfg.EVM = config.EVM{RPCURLBase: srv.URL + "/base"}
 	cfg.Privy = config.Privy{
@@ -64,7 +67,10 @@ func TestModule_routesOnEVMOnlyWhenTheVenueQuoterAndTreasuryWalletsAreLive(t *te
 	t.Parallel()
 	keyed := testkit.Config()
 	keyed.Routing = config.Routing{
-		UniswapAPIKey: "key", UniswapBaseURL: "https://uniswap.test", UniswapTimeout: time.Second,
+		UniswapAPIKey:       "key",
+		UniswapBaseURL:      "https://uniswap.test",
+		UniswapTimeout:      time.Second,
+		UniswapQuoteTimeout: time.Second,
 	}
 	keyless := testkit.Config()
 	for name, c := range map[string]struct {

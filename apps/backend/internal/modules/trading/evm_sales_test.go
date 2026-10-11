@@ -3,14 +3,17 @@ package trading_test
 import (
 	"context"
 	"math/big"
+	"net/http"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -170,5 +173,46 @@ func TestMultichainExecutionVenue_buildsOneRPCClientPerConfiguredEVMNetworkOnlyW
 	d.HTTPClient = nil
 	if _, ok := adapters.MultichainExecutionVenue(d); !ok {
 		t.Fatal("venue without an injected client factory is unwired, want the default factory")
+	}
+}
+
+type hangingUpstream struct{}
+
+func (hangingUpstream) RoundTrip(req *http.Request) (*http.Response, error) {
+	<-req.Context().Done()
+	return nil, req.Context().Err()
+}
+
+func TestMultichainExecutionVenue_swapsUnderTheExecutionTimeoutNotTheQuoteOne(t *testing.T) {
+	t.Parallel()
+	cfg := testkit.Config()
+	cfg.Timeouts.RPC = time.Second
+	cfg.Routing = config.Routing{
+		UniswapAPIKey: "key", UniswapBaseURL: "https://uniswap.test",
+		UniswapTimeout: 7 * time.Second, UniswapQuoteTimeout: 3 * time.Second,
+	}
+	opts := map[string][]httpclient.Option{}
+	recording := func(name string, o ...httpclient.Option) *httpclient.Client {
+		opts[name] = o
+		return httpclient.New(name, o...)
+	}
+	adapters.MultichainExecutionVenue(
+		module.Deps{Config: cfg, Clock: testkit.NewClock(time.Unix(0, 0)), HTTPClient: recording},
+	)
+	var took time.Duration
+	synctest.Test(t, func(t *testing.T) {
+		c := httpclient.New(
+			"uniswap-swap",
+			append(opts["uniswap-swap"], httpclient.WithTransport(hangingUpstream{}))...)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/swap", nil)
+		start := clock.Real{}.Now()
+		if resp, err := c.Do(t.Context(), req); err == nil {
+			_ = resp.Body.Close()
+			t.Fatal("a hanging upstream answered")
+		}
+		took = clock.Real{}.Now().Sub(start)
+	})
+	if took != 7*time.Second {
+		t.Fatalf("the execution Uniswap client gives up after %v, want MONACO_TIMEOUT_UNISWAP's 7s", took)
 	}
 }
