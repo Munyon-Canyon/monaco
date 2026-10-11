@@ -119,20 +119,24 @@ public actor PnLHistoryLoader {
         if !missing.isEmpty {
             let api = api
             let sleep = sleep
-            let results = await withTaskGroup(of: (Key, Result<ValueCurve, any Error>).self) { group in
-                var pending = missing[...]
+            let wanted = Array(missing)
+            let results = await withTaskGroup(of: (Int, Result<ValueCurve, any Error>).self) { group in
+                var next = 0
                 func addNext() {
-                    guard let key = pending.popFirst() else { return }
+                    guard next < wanted.count else { return }
+                    let index = next
+                    next += 1
+                    let key = wanted[index]
                     group.addTask {
                         do {
-                            return (key, .success(try await Self.read(key, api: api, sleep: sleep)))
+                            return (index, .success(try await Self.read(key, api: api, sleep: sleep)))
                         } catch {
-                            return (key, .failure(error))
+                            return (index, .failure(error))
                         }
                     }
                 }
                 for _ in 0..<Self.maxInFlight { addNext() }
-                var all: [(Key, Result<ValueCurve, any Error>)] = []
+                var all: [(Int, Result<ValueCurve, any Error>)] = []
                 while let result = await group.next() {
                     all.append(result)
                     addNext()
@@ -141,10 +145,10 @@ public actor PnLHistoryLoader {
             }
             var firstFailure: (any Error)?
             var fetched = 0
-            for (key, result) in results {
+            for (index, result) in results {
                 switch result {
                 case .success(let curve):
-                    cache[key] = curve
+                    cache[wanted[index]] = curve
                     fetched += 1
                 case .failure(let error):
                     firstFailure = firstFailure ?? error
