@@ -31,7 +31,7 @@ func (t CabalTxn) PositionDeltas(usdc Asset) ([]CabalPositionDelta, error) {
 		}
 		d := CabalPositionDelta{Asset: asset, Units: money.SignedMicrosFromInt64(v)}
 		switch {
-		case v > 0 && asset == usdc:
+		case v > 0 && IsCash(asset, usdc):
 			d.CostIn = money.MicrosFromUint64(uint64(v))
 		case v > 0:
 			d.CostIn = paid
@@ -59,11 +59,16 @@ func treasuryUnits(op string, entries []CabalEntry, usdc Asset) (map[Asset]int64
 		}
 		units[asset] = sum.Int64()
 	}
-	var paid money.Micros
-	if sum := sums[usdc]; sum != nil && sum.Sign() == -1 {
-		paid = money.MicrosFromUint64(new(big.Int).Neg(sum).Uint64())
+	spent := new(big.Int)
+	for asset, sum := range sums {
+		if sum.Sign() == -1 && IsCash(asset, usdc) {
+			spent.Sub(spent, sum)
+		}
 	}
-	return units, paid, nil
+	if !spent.IsUint64() {
+		return nil, money.Micros{}, errs.New(errs.CodeInvalidInput, op, slog.String("paid", spent.String()))
+	}
+	return units, money.MicrosFromUint64(spent.Uint64()), nil
 }
 
 type UserPositionDelta struct {
