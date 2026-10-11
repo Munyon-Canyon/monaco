@@ -17,5 +17,12 @@ nonisolated final class MoneyWithdrawJourneyUITests: XCTestCase {
             MoneyWithdrawJourney.withdrawAll(app, to: address, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-withdrawn")
         }
+
+        try session.scenario("S2") {
+            try session.act(as: "B")
+            MoneyWithdrawJourney.checkBase(app, recorder: recorder)
+            MoneyWithdrawJourney.refundOnSolana(app, to: address, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-B-withdrawn")
+        }
     }
 }
