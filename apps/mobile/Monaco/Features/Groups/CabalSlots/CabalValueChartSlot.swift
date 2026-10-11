@@ -80,8 +80,14 @@ private struct CabalValueChart: View {
         if let curve = model.curve, curve.hasEnoughHistory {
             CurveScrubChart(curve: curve, range: shown, selection: $selection, identifier: "cabal-value-chart")
         } else {
-            CabalInkCaption(shown.shortHistoryLine, id: "cabal-value-chart-short")
-                .frame(height: 160, alignment: .center)
+            VStack(alignment: .leading, spacing: HeroRhythm.withinChart) {
+                Rectangle()
+                    .fill(MonacoTheme.onHeroHairline)
+                    .frame(height: 1)
+                    .accessibilityHidden(true)
+                CabalInkCaption(shown.shortHistoryLine, id: "cabal-value-chart-short")
+            }
+            .frame(height: 160, alignment: .center)
         }
         MonacoRangeChips(
             ranges: model.ranges, selection: model.range, identifierPrefix: "cabal-value-chart"
