@@ -1,0 +1,4 @@
+# actionlint 1.7.12 predates GitHub's xcode-27 runner image, so it reports the label as unknown.
+self-hosted-runner:
+  labels:
+    - xcode-27
