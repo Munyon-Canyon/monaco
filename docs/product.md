@@ -21,7 +21,7 @@ The loop is: join, put money in, decide, watch the pot, decide again. Leaderboar
 | **Proposal** | A request the cabal votes on: buy, sell, or add, pause, resume or remove an agent. |
 | **Voter set** | The members allowed to propose and vote. Either everyone or a named list. |
 | **Cash out** | Selling some or all of your share units back to the cabal for USDC in your account balance. |
-| **Withdraw** | Sending USDC from your account balance to an outside Solana address. |
+| **Withdraw** | Sending USDC from your account balance to an outside address on Solana, Base, Arbitrum or Ethereum. |
 | **Agent** | A program the cabal voted in to trade a slice of the pot. |
 
 User-facing copy says "cabal", "pot value", "your slice" and "gain or loss". It never says "NAV", "P&L", "wallet", "gas", "mint" or "xStock", and it never shows a raw token address.
@@ -50,8 +50,8 @@ Each cabal also has a chat, and each proposal has a comment thread.
 
 Money reaches a cabal in two steps, on purpose:
 
-1. **Deposit.** Card or Apple Pay needs no address. From a crypto wallet, the user picks a network and sees one address for it, with a copy button:
-    - **Solana:** their member wallet. USDC sent there is account balance a few seconds after it lands.
+1. **Deposit.** Card or Apple Pay needs no address. To send from another app or an exchange, the user picks a network and sees one deposit address for it, with a copy button:
+    - **Solana:** the user's own deposit address (internally, their Solana member wallet). USDC sent there is account balance a few seconds after it lands.
     - **Base, Arbitrum or Ethereum:** one address, the same on all three. Monaco moves USDC sent there to Solana, and it shows as **Arriving** until it lands, then as account balance.
 
     Every balance lives on Solana; the other networks are only ways in. Only USDC counts, and only on the networks listed. There is no amount to type in the app.
@@ -96,7 +96,20 @@ Fine print, all enforced in code:
 
 Sells work the same way and keep the issuer and chain already held.
 
-**Best price across chains.** The same stock can exist as several tokens: xStocks on Solana, Ethereum and Arbitrum, Ondo on Solana and Ethereum, Coinbase on Base, Robinhood on Robinhood Chain. Monaco compares them by underlying shares received for the dollars spent, after every cost of the route: price impact, fees, moving USDC between chains, and gas. Solana wins ties, and another chain must beat it by a small margin before Monaco moves money for it. The trade detail shows what was checked ("Checked xStocks on Solana, Ondo on Ethereum. Best: Ondo. You got 0.002 more shares than the next best."). Venue names are the only chain words a member sees. Holdings are shown by stock, never split by chain or issuer, and the pot counts money on its way between chains so it never dips during a trade.
+**Best price across chains.** The same stock can exist as several tokens from several issuers. Monaco compares them by underlying shares received for the dollars spent, after every cost of the route: price impact, fees, moving USDC between chains, and network fees (internally, gas). Solana wins ties, and another chain must beat it by a small margin before Monaco moves money for it. Holdings are shown by stock, never split by chain or issuer, and the pot counts money on its way between chains so it never dips during a trade.
+
+| Issuer | Chains it lists on | At launch |
+| --- | --- | --- |
+| xStocks | Solana, Ethereum, Arbitrum | Solana only. Ethereum and Arbitrum stay disabled: real quotes found no Uniswap route on Arbitrum and 31–99% price impact on Ethereum ([#4969](https://github.com/Munyon-Canyon/monaco/issues/4969)). |
+| Ondo | Solana, Ethereum | Per listing, once verified |
+| Coinbase | Base | Per listing, once verified. Routes through Uniswap v4 pools. |
+| Robinhood | Robinhood Chain | Per listing, once verified |
+
+Which chain words a member sees:
+
+- **Network names** (Solana, Base, Arbitrum, Ethereum) appear only in the Deposit and Withdraw network pickers.
+- **Venue names** appear only on a trade's detail, which shows what was checked, for example "Checked 3 venues for Apple. Best: Ondo. You got 0.002 more shares than the next best." Issuer names follow the copy rule above: never "xStock".
+- Nowhere else: proposals, holdings, the pot and activity name the stock, not the chain.
 
 ### What can be bought
 
