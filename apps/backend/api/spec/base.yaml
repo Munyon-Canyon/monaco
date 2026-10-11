@@ -87,6 +87,52 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
   schemas:
+    Network:
+      type: string
+      enum: [solana, base, arbitrum, ethereum, robinhood]
+      description: The chain a wallet, listing or step lives on.
+      examples: [solana]
+    PriceComparison:
+      type: object
+      description: >-
+        Every venue quoted for one trade, best first, by underlying shares received for a buy or USDC
+        received for a sell, after every cost of the route.
+      additionalProperties: false
+      required: [winner_listing_id, quotes]
+      properties:
+        winner_listing_id: {type: string, format: uuid, description: The listing the trade routes to., examples: [01928a6e-0000-7000-8000-000000000001]}
+        quotes:
+          type: array
+          description: Every quote compared, best first.
+          items: {$ref: "#/components/schemas/RouteQuote"}
+          examples: [[]]
+    RouteQuote:
+      type: object
+      description: One venue's all-in quote for the trade.
+      additionalProperties: false
+      required: [listing_id, issuer, network, venue, net_share_nanos, net_micros, costs, quoted_at, expires_at]
+      properties:
+        listing_id: {type: string, format: uuid, description: The listing quoted., examples: [01928a6e-0000-7000-8000-000000000001]}
+        issuer: {type: string, description: The token issuer., examples: [xstocks]}
+        network: {$ref: "#/components/schemas/Network"}
+        venue: {type: string, enum: [jupiter, uniswap], description: Where the swap would run., examples: [jupiter]}
+        net_share_nanos: {type: string, pattern: "^[0-9]+$", description: "Underlying shares after every cost, in billionths of a share.", examples: ["40000000"]}
+        net_micros: {type: string, pattern: "^[0-9]+$", description: "USDC after every cost, in micros. For a buy it is the amount spent.", examples: ["10000000"]}
+        costs:
+          type: array
+          description: Every cost of the route.
+          items: {$ref: "#/components/schemas/RouteCost"}
+          examples: [[{kind: bridge, micros: "7500"}]]
+        quoted_at: {type: string, format: date-time, description: When the quote was taken., examples: ["2026-10-10T12:00:00Z"]}
+        expires_at: {type: string, format: date-time, description: When the quote stops being valid., examples: ["2026-10-10T12:00:30Z"]}
+    RouteCost:
+      type: object
+      description: One cost of a route, in USDC micros.
+      additionalProperties: false
+      required: [kind, micros]
+      properties:
+        kind: {type: string, enum: [price_impact, pool_fee, bridge, gas, privy_fee], description: What the cost pays for., examples: [bridge]}
+        micros: {type: string, pattern: "^[0-9]+$", description: The cost in USDC micros., examples: ["7500"]}
     Problem:
       type: object
       description: An RFC 9457 problem details body with a stable Monaco error code.

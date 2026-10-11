@@ -66,6 +66,21 @@ func (e AuthState) Valid() bool {
 	}
 }
 
+// Defines values for DepositAddressAsset.
+const (
+	USDC DepositAddressAsset = "USDC"
+)
+
+// Valid indicates whether the value is a known member of the DepositAddressAsset enum.
+func (e DepositAddressAsset) Valid() bool {
+	switch e {
+	case USDC:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HandleAvailabilityReason.
 const (
 	Invalid  HandleAvailabilityReason = "invalid"
@@ -141,6 +156,37 @@ type AccountStatus string
 //
 // Examples: CREATED
 type AuthState string
+
+// DepositAddress Where to send USDC on one network.
+type DepositAddress struct {
+	// Address A base58 Solana address, or a lowercase 0x EVM address.
+	//
+	// Examples: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP
+	Address string `json:"address"`
+
+	// Asset The token to send.
+	//
+	// Examples: USDC
+	Asset DepositAddressAsset `json:"asset"`
+
+	// Network The chain a wallet, listing or step lives on.
+	//
+	// Examples: solana
+	Network externalRef0.Network `json:"network"`
+}
+
+// DepositAddressAsset The token to send.
+//
+// Examples: USDC
+type DepositAddressAsset string
+
+// DepositAddresses Every address the caller can deposit USDC to.
+type DepositAddresses struct {
+	// Addresses One entry per network, Solana first.
+	//
+	// Examples: [{"address":"5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP","asset":"USDC","network":"solana"}]
+	Addresses []DepositAddress `json:"addresses"`
+}
 
 // DevXLink A fake X account for a dev user.
 type DevXLink struct {
@@ -503,6 +549,9 @@ type ServerInterface interface {
 	// PatchMe Update the signed-in user's profile.
 	// (PATCH /v1/me)
 	PatchMe(w http.ResponseWriter, r *http.Request, params PatchMeParams)
+	// GetMyDepositAddresses List the addresses the caller can deposit USDC to, one per network.
+	// (GET /v1/me/deposit-addresses)
+	GetMyDepositAddresses(w http.ResponseWriter, r *http.Request)
 	// PutMeHandle Set the caller's handle.
 	// (PUT /v1/me/handle)
 	PutMeHandle(w http.ResponseWriter, r *http.Request, params PutMeHandleParams)
@@ -1012,6 +1061,20 @@ func (siw *ServerInterfaceWrapper) PatchMe(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyDepositAddresses operation middleware
+func (siw *ServerInterfaceWrapper) GetMyDepositAddresses(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyDepositAddresses(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PutMeHandle operation middleware
 func (siw *ServerInterfaceWrapper) PutMeHandle(w http.ResponseWriter, r *http.Request) {
 
@@ -1427,6 +1490,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/me", wrapper.DeleteMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/v1/me", wrapper.PatchMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/deposit-addresses", wrapper.GetMyDepositAddresses)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/me/handle", wrapper.PutMeHandle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/phone", wrapper.PostOnboardingPhone)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/me/onboarding/skip", wrapper.PostOnboardingSkip)
@@ -1834,6 +1898,44 @@ func (response PatchMedefaultApplicationProblemPlusJSONResponse) VisitPatchMeRes
 	return err
 }
 
+type GetMyDepositAddressesRequestObject struct {
+}
+
+type GetMyDepositAddressesResponseObject interface {
+	VisitGetMyDepositAddressesResponse(w http.ResponseWriter) error
+}
+
+type GetMyDepositAddresses200JSONResponse DepositAddresses
+
+func (response GetMyDepositAddresses200JSONResponse) VisitGetMyDepositAddressesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyDepositAddressesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyDepositAddressesdefaultApplicationProblemPlusJSONResponse) VisitGetMyDepositAddressesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PutMeHandleRequestObject struct {
 	Params PutMeHandleParams
 	Body   *PutMeHandleJSONRequestBody
@@ -2145,6 +2247,9 @@ type StrictServerInterface interface {
 	// PatchMe Update the signed-in user's profile.
 	// (PATCH /v1/me)
 	PatchMe(ctx context.Context, request PatchMeRequestObject) (PatchMeResponseObject, error)
+	// GetMyDepositAddresses List the addresses the caller can deposit USDC to, one per network.
+	// (GET /v1/me/deposit-addresses)
+	GetMyDepositAddresses(ctx context.Context, request GetMyDepositAddressesRequestObject) (GetMyDepositAddressesResponseObject, error)
 	// PutMeHandle Set the caller's handle.
 	// (PUT /v1/me/handle)
 	PutMeHandle(ctx context.Context, request PutMeHandleRequestObject) (PutMeHandleResponseObject, error)
@@ -2533,6 +2638,30 @@ func (sh *strictHandler) PatchMe(w http.ResponseWriter, r *http.Request, params 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PatchMeResponseObject); ok {
 		if err := validResponse.VisitPatchMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyDepositAddresses operation middleware
+func (sh *strictHandler) GetMyDepositAddresses(w http.ResponseWriter, r *http.Request) {
+	var request GetMyDepositAddressesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyDepositAddresses(ctx, request.(GetMyDepositAddressesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyDepositAddresses")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyDepositAddressesResponseObject); ok {
+		if err := validResponse.VisitGetMyDepositAddressesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

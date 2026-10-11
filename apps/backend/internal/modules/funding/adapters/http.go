@@ -40,6 +40,9 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
+	if err := evmWithdrawalNotImplemented(*req.Body); err != nil {
+		return nil, err
+	}
 	request, err := domain.ParseWithdrawalRequest(req.Body.AmountMicros, req.Body.ToAddress)
 	if err != nil {
 		return nil, err

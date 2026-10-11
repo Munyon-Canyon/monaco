@@ -2030,6 +2030,26 @@ paths:
         "204":
           description: The account is deleted.
         default: {$ref: "#/components/responses/Problem"}
+  /v1/me/deposit-addresses:
+    get:
+      operationId: getMyDepositAddresses
+      tags: [identity]
+      x-allow-restricted: true
+      summary: List the addresses the caller can deposit USDC to, one per network.
+      description: >-
+        Returns the caller's Solana member wallet and one EVM address that serves Base, Arbitrum and
+        Ethereum. USDC sent to the EVM address is forwarded to the Solana member wallet and shows as
+        `arriving_micros` on the balance until it lands. Answers `not_implemented` until the multichain
+        deposit work lands.
+      responses:
+        "200":
+          description: The caller's deposit addresses.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/DepositAddresses"}
+              example: {addresses: [{network: solana, address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, asset: USDC}, {network: base, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}, {network: arbitrum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}, {network: ethereum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}]}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/handle:
     put:
       operationId: putMeHandle
@@ -5099,6 +5119,24 @@ components:
         account_status: {type: string, description: The account status., examples: [active]}
         users: {type: integer, format: int64, description: Users in this state., examples: [120]}
   # api/spec/base.yaml
+    Network:
+      type: string
+      enum: [solana, base, arbitrum, ethereum, robinhood]
+      description: The chain a wallet, listing or step lives on.
+      examples: [solana]
+    PriceComparison:
+      type: object
+      description: >-
+        Every venue quoted for one trade, best first, by underlying shares received for a buy or USDC
+        received for a sell, after every cost of the route.
+      required: [winner_listing_id, quotes]
+      properties:
+        winner_listing_id: {type: string, format: uuid, description: The listing the trade routes to., examples: [01928a6e-0000-7000-8000-000000000001]}
+        quotes:
+          type: array
+          description: Every quote compared, best first.
+          items: {$ref: "#/components/schemas/RouteQuote"}
+          examples: [[]]
     Problem:
       type: object
       description: An RFC 9457 problem details body with a stable Monaco error code.
@@ -5157,6 +5195,31 @@ components:
           minLength: 1
           maxLength: 500
           examples: [spam]
+    RouteCost:
+      type: object
+      description: One cost of a route, in USDC micros.
+      required: [kind, micros]
+      properties:
+        kind: {type: string, enum: [price_impact, pool_fee, bridge, gas, privy_fee], description: What the cost pays for., examples: [bridge]}
+        micros: {type: string, pattern: "^[0-9]+$", description: The cost in USDC micros., examples: ["7500"]}
+    RouteQuote:
+      type: object
+      description: One venue's all-in quote for the trade.
+      required: [listing_id, issuer, network, venue, net_share_nanos, net_micros, costs, quoted_at, expires_at]
+      properties:
+        listing_id: {type: string, format: uuid, description: The listing quoted., examples: [01928a6e-0000-7000-8000-000000000001]}
+        issuer: {type: string, description: The token issuer., examples: [xstocks]}
+        network: {$ref: "#/components/schemas/Network"}
+        venue: {type: string, enum: [jupiter, uniswap], description: Where the swap would run., examples: [jupiter]}
+        net_share_nanos: {type: string, pattern: "^[0-9]+$", description: "Underlying shares after every cost, in billionths of a share.", examples: ["40000000"]}
+        net_micros: {type: string, pattern: "^[0-9]+$", description: "USDC after every cost, in micros. For a buy it is the amount spent.", examples: ["10000000"]}
+        costs:
+          type: array
+          description: Every cost of the route.
+          items: {$ref: "#/components/schemas/RouteCost"}
+          examples: [[{kind: bridge, micros: "7500"}]]
+        quoted_at: {type: string, format: date-time, description: When the quote was taken., examples: ["2026-10-10T12:00:00Z"]}
+        expires_at: {type: string, format: date-time, description: When the quote stops being valid., examples: ["2026-10-10T12:00:30Z"]}
   # api/spec/cabal.yaml
     AccessDecisionRequest:
       type: object
@@ -5527,6 +5590,13 @@ components:
       description: The member wallet's on-chain USDC and currently spendable platform balance.
       required: [available_micros, on_chain_micros, in_flight_micros, deposit_address, as_of]
       properties:
+        arriving_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: >-
+            USDC deposited on another chain and still being forwarded to Solana, in micros. Not spendable
+            and not part of available_micros. Absent until the multichain deposit work lands.
+          examples: ["0"]
         available_micros: {type: string, pattern: "^[0-9]+$", examples: ["22500000"]}
         on_chain_micros: {type: string, pattern: "^[0-9]+$", examples: ["25000000"]}
         in_flight_micros: {type: string, pattern: "^[0-9]+$", examples: ["2500000"]}
@@ -5712,6 +5782,18 @@ components:
       description: A withdrawal of platform balance to any Solana address.
       required: [amount_micros, to_address]
       properties:
+        destination_kind:
+          type: string
+          enum: [solana, evm]
+          description: >-
+            Where `to_address` lives. Missing means solana. evm answers `not_implemented` until the
+            multichain withdrawal work lands.
+          examples: [solana]
+        network:
+          type: string
+          enum: [solana, base, arbitrum, ethereum]
+          description: The destination chain. Missing means solana. Required when destination_kind is evm.
+          examples: [solana]
         amount_micros:
           type: string
           pattern: "^[0-9]+$"
@@ -5911,6 +5993,11 @@ components:
         - my_ballot
         - can_vote
       properties:
+        price_comparison:
+          description: >-
+            Every venue checked for the trade, best first. Absent until the multichain routing work lands.
+          $ref: "#/components/schemas/PriceComparison"
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
         id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
         proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
@@ -6147,6 +6234,11 @@ components:
       description: What proposing the trade would quote, and the first check it fails.
       required: [quote_out_amount, advisory_code, advisory_message, pot_value_micros]
       properties:
+        price_comparison:
+          description: >-
+            Every venue checked for the trade, best first. Absent until the multichain routing work lands.
+          $ref: "#/components/schemas/PriceComparison"
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
         quote_out_amount:
           type: [integer, "null"]
           format: int64
@@ -6207,6 +6299,27 @@ components:
         phone and X are both linked. The app routes the first-run flow and shows nudge banners from it.
       examples: [CREATED]
       enum: [CREATED, AWAITING_PHONE, AWAITING_SOCIALS, ONBOARDING_COMPLETED]
+    DepositAddress:
+      type: object
+      description: Where to send USDC on one network.
+      required: [network, address, asset]
+      properties:
+        network: {$ref: "#/components/schemas/Network"}
+        address:
+          type: string
+          description: A base58 Solana address, or a lowercase 0x EVM address.
+          examples: [5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP]
+        asset: {type: string, enum: [USDC], description: The token to send., examples: [USDC]}
+    DepositAddresses:
+      type: object
+      description: Every address the caller can deposit USDC to.
+      required: [addresses]
+      properties:
+        addresses:
+          type: array
+          description: One entry per network, Solana first.
+          items: {$ref: "#/components/schemas/DepositAddress"}
+          examples: [[{network: solana, address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, asset: USDC}]]
     DevXLink:
       type: object
       description: A fake X account for a dev user.
@@ -7721,6 +7834,17 @@ components:
       description: One trade a cabal made.
       required: [id, cabal_id, source, action, symbol, asset_name, token_decimals, usdc_micros, token_amount, status, failure_code, failure_message, tx_signature, created_at, confirmed_at, retryable]
       properties:
+        route:
+          description: >-
+            The price comparison the trade routed on. Absent for trades placed before routing, and until
+            the multichain trading work lands.
+          $ref: "#/components/schemas/PriceComparison"
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
+        steps:
+          type: array
+          description: The journaled steps of a routed trade, in order. Absent for a single Solana swap.
+          items: {$ref: "#/components/schemas/TradeStep"}
+          examples: [[{step: swap, network: solana, status: succeeded, amount_micros: "10000000", updated_at: "2026-10-10T12:00:10Z"}]]
         id: {type: string, format: uuid, description: The swap id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal whose treasury traded., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
         source:
@@ -7803,6 +7927,16 @@ components:
           type: boolean
           description: Hold the retry to the cabal's slippage around the current quote. Only for a `price_moved` swap.
           examples: [true]
+    TradeStep:
+      type: object
+      description: One journaled step of a routed trade.
+      required: [step, network, status, amount_micros, updated_at]
+      properties:
+        step: {type: string, enum: [bridge_out, swap, bridge_back], description: What the step does., examples: [swap]}
+        network: {$ref: "#/components/schemas/Network"}
+        status: {type: string, enum: [pending, submitted, succeeded, failed], description: Where the step is., examples: [succeeded]}
+        amount_micros: {type: string, pattern: "^[0-9]+$", description: "The USDC the step moves, in micros.", examples: ["10000000"]}
+        updated_at: {type: string, format: date-time, description: When the step last changed., examples: ["2026-10-10T12:00:10Z"]}
   # api/spec/treasury.yaml
     CabalActivity:
       type: object
@@ -7874,6 +8008,13 @@ components:
       description: One stock the cabal holds, valued at the latest market price.
       required: [symbol, display_name, kind, units, token_amount, price_micros, value_micros, weight_bps, cost_basis_micros, pnl_micros]
       properties:
+        listings:
+          type: array
+          description: >-
+            The holding split by the tokenized listing it is held in, for the detail view. Absent until the
+            multichain valuation work lands.
+          items: {$ref: "#/components/schemas/HoldingListing"}
+          examples: [[{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, token_amount: "73000000", value_micros: 60000000}]]
         symbol: {type: string, description: "The token symbol.", examples: [AAPLx]}
         display_name: {type: string, description: "The display name.", examples: [Apple]}
         kind: {type: string, enum: [equity, pre_ipo], description: "Whether the token tracks a listed equity or a pre-IPO company.", examples: [equity]}
@@ -7975,6 +8116,16 @@ components:
       description: Where the transfer is. `landed` means final on chain with shares not yet minted.
       enum: [created, submitted, landed, settled, failed]
       examples: [submitted]
+    HoldingListing:
+      type: object
+      description: The part of a holding kept in one listing.
+      required: [listing_id, issuer, network, token_amount, value_micros]
+      properties:
+        listing_id: {type: string, format: uuid, description: The listing held., examples: [01928a6e-0000-7000-8000-000000000001]}
+        issuer: {type: string, description: The token issuer., examples: [xstocks]}
+        network: {$ref: "#/components/schemas/Network"}
+        token_amount: {type: string, pattern: "^[0-9]+$", description: Token base units held in this listing., examples: ["73000000"]}
+        value_micros: {type: integer, format: int64, description: This part's value in USDC micros., examples: [60000000]}
     UserTxn:
       type: object
       description: One inbound, outbound or cabal transfer affecting the caller.

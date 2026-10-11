@@ -94,6 +94,48 @@ func (e ReportOnrampStatusRequestStatus) Valid() bool {
 	}
 }
 
+// Defines values for WithdrawRequestDestinationKind.
+const (
+	WithdrawRequestDestinationKindEvm    WithdrawRequestDestinationKind = "evm"
+	WithdrawRequestDestinationKindSolana WithdrawRequestDestinationKind = "solana"
+)
+
+// Valid indicates whether the value is a known member of the WithdrawRequestDestinationKind enum.
+func (e WithdrawRequestDestinationKind) Valid() bool {
+	switch e {
+	case WithdrawRequestDestinationKindEvm:
+		return true
+	case WithdrawRequestDestinationKindSolana:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WithdrawRequestNetwork.
+const (
+	WithdrawRequestNetworkArbitrum WithdrawRequestNetwork = "arbitrum"
+	WithdrawRequestNetworkBase     WithdrawRequestNetwork = "base"
+	WithdrawRequestNetworkEthereum WithdrawRequestNetwork = "ethereum"
+	WithdrawRequestNetworkSolana   WithdrawRequestNetwork = "solana"
+)
+
+// Valid indicates whether the value is a known member of the WithdrawRequestNetwork enum.
+func (e WithdrawRequestNetwork) Valid() bool {
+	switch e {
+	case WithdrawRequestNetworkArbitrum:
+		return true
+	case WithdrawRequestNetworkBase:
+		return true
+	case WithdrawRequestNetworkEthereum:
+		return true
+	case WithdrawRequestNetworkSolana:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WithdrawalStatus.
 const (
 	WithdrawalStatusConfirmed WithdrawalStatus = "confirmed"
@@ -120,6 +162,11 @@ func (e WithdrawalStatus) Valid() bool {
 
 // Balance The member wallet's on-chain USDC and currently spendable platform balance.
 type Balance struct {
+	// ArrivingMicros USDC deposited on another chain and still being forwarded to Solana, in micros. Not spendable and not part of available_micros. Absent until the multichain deposit work lands.
+	//
+	// Examples: 0
+	ArrivingMicros *string `json:"arriving_micros,omitempty"`
+
 	// AsOf When on_chain_micros was read from the chain. Up to 10 minutes old when the chain is unreachable.
 	//
 	// Examples: 2026-10-03T15:00:00Z
@@ -328,11 +375,31 @@ type WithdrawRequest struct {
 	// Examples: 2000000
 	AmountMicros string `json:"amount_micros"`
 
+	// DestinationKind Where `to_address` lives. Missing means solana. evm answers `not_implemented` until the multichain withdrawal work lands.
+	//
+	// Examples: solana
+	DestinationKind *WithdrawRequestDestinationKind `json:"destination_kind,omitempty"`
+
+	// Network The destination chain. Missing means solana. Required when destination_kind is evm.
+	//
+	// Examples: solana
+	Network *WithdrawRequestNetwork `json:"network,omitempty"`
+
 	// ToAddress The destination Solana wallet. It cannot be the caller's own member wallet.
 	//
 	// Examples: 9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P
 	ToAddress string `json:"to_address"`
 }
+
+// WithdrawRequestDestinationKind Where `to_address` lives. Missing means solana. evm answers `not_implemented` until the multichain withdrawal work lands.
+//
+// Examples: solana
+type WithdrawRequestDestinationKind string
+
+// WithdrawRequestNetwork The destination chain. Missing means solana. Required when destination_kind is evm.
+//
+// Examples: solana
+type WithdrawRequestNetwork string
 
 // Withdrawal One withdrawal and where it stands.
 type Withdrawal struct {

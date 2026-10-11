@@ -307,6 +307,11 @@ type CabalHolding struct {
 	// Examples: equity
 	Kind CabalHoldingKind `json:"kind"`
 
+	// Listings The holding split by the tokenized listing it is held in, for the detail view. Absent until the multichain valuation work lands.
+	//
+	// Examples: [{"issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","network":"solana","token_amount":"73000000","value_micros":60000000}]
+	Listings *[]HoldingListing `json:"listings,omitempty"`
+
 	// PnlMicros Signed gain, value minus cost basis, in micros.
 	//
 	// Examples: 20000000
@@ -527,6 +532,34 @@ type FundTransfer struct {
 //
 // Examples: submitted
 type FundTransferStatus string
+
+// HoldingListing The part of a holding kept in one listing.
+type HoldingListing struct {
+	// Issuer The token issuer.
+	//
+	// Examples: xstocks
+	Issuer string `json:"issuer"`
+
+	// ListingId The listing held.
+	//
+	// Examples: 01928a6e-0000-7000-8000-000000000001
+	ListingId openapi_types.UUID `json:"listing_id"`
+
+	// Network The chain a wallet, listing or step lives on.
+	//
+	// Examples: solana
+	Network externalRef0.Network `json:"network"`
+
+	// TokenAmount Token base units held in this listing.
+	//
+	// Examples: 73000000
+	TokenAmount string `json:"token_amount"`
+
+	// ValueMicros This part's value in USDC micros.
+	//
+	// Examples: 60000000
+	ValueMicros int64 `json:"value_micros"`
+}
 
 // UserTxn One inbound, outbound or cabal transfer affecting the caller.
 type UserTxn struct {
