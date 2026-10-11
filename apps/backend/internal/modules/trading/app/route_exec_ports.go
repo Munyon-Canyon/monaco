@@ -70,5 +70,6 @@ type RoutePorts struct {
 	Actions     multichain.WalletActions
 	Sender      EVMSender
 	Venue       EVMVenue
+	EVMSales    EVMSales
 	EVM         bool
 }
