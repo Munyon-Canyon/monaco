@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -28,6 +29,7 @@ type ExecuteTrade struct {
 	TokenAmount    uint64
 	QuoteOutAmount uint64
 	Retry          *Retry
+	Route          *multichain.Comparison
 }
 
 type Retry struct {
@@ -172,6 +174,10 @@ func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w ca
 		StillWanted: func(ctx context.Context) (bool, error) {
 			return h.d.Ports.Proposals.Retryable(ctx, cmd.ProposalID)
 		},
+		Route: cmd.Route,
+	}
+	if cmd.Retry != nil {
+		req.RouteOf = &cmd.Retry.Of
 	}
 	if cmd.Action == domain.ActionSell {
 		req.InMint, req.OutMint = token, h.d.USDC

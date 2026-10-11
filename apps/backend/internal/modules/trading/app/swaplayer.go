@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -47,6 +48,8 @@ type SwapRequest struct {
 	SlippageBps     int64
 	SourceBatchSize int
 	StillWanted     func(ctx context.Context) (bool, error)
+	Route           *multichain.Comparison
+	RouteOf         *ids.SwapID
 }
 
 type Hints interface {
@@ -90,6 +93,9 @@ func (l *SwapLayer) claim(
 ) (uuid.UUID, bool, error) {
 	insertErr := l.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		if err := sqlc.New(tx.Queries()).InsertCreated(ctx, insert); err != nil {
+			return err
+		}
+		if err := req.recordRoute(ctx, tx, insert); err != nil {
 			return err
 		}
 		tx.AfterCommit(func(ctx context.Context) { l.hint(ctx, req.CabalID, insert.ID) })
@@ -323,6 +329,18 @@ func (r SwapRequest) insertParams(id uuid.UUID, now time.Time) (sqlc.InsertCreat
 	}
 	p.QuoteOutAmount.Int64, p.QuoteOutAmount.Valid = quote, true
 	return p, nil
+}
+
+func (r SwapRequest) recordRoute(ctx context.Context, tx db.Tx, insert sqlc.InsertCreatedParams) error {
+	switch {
+	case r.Route != nil:
+		return RecordRoute(ctx, tx, ids.SwapIDFrom(insert.ID), *r.Route, insert.CreatedAt)
+	case r.RouteOf != nil:
+		return sqlc.New(tx.Queries()).CopyTradeRoute(ctx, sqlc.CopyTradeRouteParams{
+			ToTrade: insert.ID, At: insert.CreatedAt, FromTrade: r.RouteOf.UUID(),
+		})
+	}
+	return nil
 }
 
 func (r SwapRequest) tradeSource() events.TradeSource {
