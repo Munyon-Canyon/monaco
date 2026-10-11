@@ -11,17 +11,18 @@ import (
 )
 
 type evmFake struct {
-	mu        sync.Mutex
-	plan      app.EVMSwapPlan
-	buildErr  error
-	byKey     map[string]string
-	sends     []string
-	sendErr   map[string]error
-	fills     []app.EVMFill
-	fillErr   error
-	afterSend map[string]func()
-	builds    int
-	specs     []app.EVMSwapSpec
+	mu           sync.Mutex
+	plan         app.EVMSwapPlan
+	buildErr     error
+	byKey        map[string]string
+	sends        []string
+	sendErr      map[string]error
+	fills        []app.EVMFill
+	fillErr      error
+	afterSend    map[string]func()
+	afterSendAny func(key string)
+	builds       int
+	specs        []app.EVMSwapSpec
 }
 
 func newEVMFake(plan app.EVMSwapPlan) *evmFake {
@@ -49,11 +50,14 @@ func (f *evmFake) Send(_ context.Context, _ string, _ multichain.EVMTransaction,
 		hash = "0xhash" + strconv.Itoa(len(f.byKey)+1)
 		f.byKey[key] = hash
 	}
-	hook := f.afterSend[key]
+	hook, every := f.afterSend[key], f.afterSendAny
 	delete(f.afterSend, key)
 	f.mu.Unlock()
 	if hook != nil {
 		hook()
+	}
+	if every != nil {
+		every(key)
 	}
 	return hash, nil
 }
