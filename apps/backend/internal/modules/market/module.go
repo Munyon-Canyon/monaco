@@ -141,6 +141,8 @@ func (m *Module) Prices() *app.PriceBook { return app.NewPriceBook(m.deps.Pool, 
 
 func (m *Module) Router() *app.Router { return adapters.MultichainRoutingRouter(m.deps, m.Prices()) }
 
+func (m *Module) Quoter() *adapters.DeferredQuoter { return adapters.MultichainRoutingQuoter(m.deps) }
+
 var _ Routes = (*app.RouteChecker)(nil)
 
 func (m *Module) RouteChecker() *app.RouteChecker {
