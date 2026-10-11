@@ -41,6 +41,7 @@ Read these in order to understand the repo:
 | [App journeys](journeys/README.md) | The journey docs QA is built from, their XCUITests, and how to run and measure them |
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
 | [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
+| [Verify multichain money](how-to/verify-multichain.md) | The real-money run from a Base deposit through a cabal trade on another chain to a Base withdrawal, and its recorded results |
 | [Sweep wallets](how-to/sweep-wallets.md) | Recovering test USDC that a QA run left in member wallets or cabal treasuries |
 | [Admin panel](how-to/admin-panel.md) | The viewer service token Grafana uses to read the admin dashboards: create, store, rotate, revoke |
 | [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
