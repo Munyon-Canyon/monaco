@@ -263,7 +263,8 @@ func (m *Module) routes(layer *app.SwapLayer, ports EnginePorts, route app.Route
 		Layer:   layer,
 		Journal: app.Journal{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, IDs: m.deps.IDs},
 		Wallets: app.CabalWallets{Cabals: ports.Cabals}, TreasuryEVM: route.TreasuryEVM, Listings: route.Listings,
-		Quoter: route.Quoter, Actions: route.Actions, Sender: route.Sender, Venue: route.Venue, Poll: app.DefaultPoll(),
+		Quoter: route.Quoter, Actions: route.Actions, Sender: route.Sender, Venue: route.Venue, TopUp: route.TopUp,
+		Poll: app.DefaultPoll(),
 	})
 }
 
@@ -282,6 +283,9 @@ func (m *Module) routePorts() app.RoutePorts {
 	}
 	if p.Router == nil {
 		p.Router = adapters.NewLazyRouter(func() multichain.Router { return market.New(m.deps).Router() })
+	}
+	if p.TopUp == nil {
+		p.TopUp = relayer.NewLazyTopUps(m.deps.Config, m.deps.UoW, m.deps.Clock)
 	}
 	return p
 }

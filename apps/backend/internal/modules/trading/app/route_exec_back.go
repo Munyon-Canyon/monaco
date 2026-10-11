@@ -21,7 +21,7 @@ func (r *RouteExec) BridgeBack(ctx context.Context, id ids.SwapID) error {
 	if err != nil || amount.IsZero() {
 		return err
 	}
-	_, err = Bridge{Journal: r.d.Journal, Actions: r.d.Actions, Poll: r.d.Poll}.Run(ctx, b.bridgeBack(amount))
+	_, err = r.bridge().Run(ctx, b.bridgeBack(amount))
 	return err
 }
 

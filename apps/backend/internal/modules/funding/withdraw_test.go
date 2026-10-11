@@ -97,6 +97,7 @@ type withdrawFixture struct {
 	now       time.Time
 	clock     *testkit.Clock
 	uow       *db.UnitOfWork
+	topUps    *topUpFake
 }
 
 func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.WithdrawDeps)) *withdrawFixture {
@@ -108,6 +109,7 @@ func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.Withdraw
 	}
 	clk := testkit.NewClock(f.now)
 	f.clock, f.uow = clk, db.New(pool, testkit.NewIDs(5), clk)
+	f.topUps = &topUpFake{}
 	usdc := chain.Mint{Address: testkit.USDCMint, Decimals: 6}
 	deps := app.WithdrawDeps{
 		UoW: f.uow,
@@ -122,7 +124,7 @@ func newWithdrawFixture(t *testing.T, onChain uint64, opts ...func(*app.Withdraw
 		Wallets:    signingWallet{wallet: chain.Wallet{ID: f.user.PrivyWalletID, Address: f.user.Address}},
 		Treasuries: cabal.New(module.Deps{Pool: pool}).Queries(),
 		Transfers:  func() (app.Transfers, error) { return f.transfers, nil },
-		Hints:      f.hints, Clock: clk, USDC: usdc,
+		Hints:      f.hints, Clock: clk, USDC: usdc, TopUp: f.topUps,
 	}
 	for _, opt := range opts {
 		opt(&deps)

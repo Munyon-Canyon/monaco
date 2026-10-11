@@ -32,7 +32,7 @@ That matches the 0.99925 USDC the first run delivered. The 1 USDC funded for thi
 
 ## Before you run it
 
-- The member wallet pays the Solana fee for the transfer until Privy gas sponsorship is on. Fund it with a little SOL: `monacoctl qa fund --user <user-uuid> --sol 0.002`. A wallet with no SOL gets an action that ends `rejected` (`AccountNotFound`), and the withdrawal fails with `transfer_rejected`.
+- The member wallet pays the Solana fee for the transfer, and the relayer covers it: before the send, the backend tops the wallet up to 0.004 SOL whenever it holds less than 0.002 SOL, and logs `relayer.sol_topped_up`. You don't fund the wallet with SOL. If the relayer itself is too low to top up, the withdrawal stays `created`, `relayer.topup_underfunded` alerts, and the withdrawal poller sends it once the relayer is refilled (`just relayer balance` shows the relayer's SOL).
 - Fund the USDC from the QA pot only, at most 5 USDC per transfer: `monacoctl qa fund --user <user-uuid> --usdc 1`.
 - Prefix `SOLANA_RPC_URL=https://api.mainnet-beta.solana.com` on a command if the RPC in `.env.local` is out of quota.
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -13,6 +14,7 @@ import (
 type BridgeLeg struct {
 	Ref      domain.StepRef
 	WalletID string
+	Source   chain.SolanaAddress
 	Spec     multichain.TransferSpec
 	Fee      money.Micros
 }
@@ -24,6 +26,7 @@ func stepKey(ref domain.StepRef) string {
 type Bridge struct {
 	Journal Journal
 	Actions multichain.WalletActions
+	TopUp   SOLTopUp
 	Poll    Poll
 }
 
@@ -49,6 +52,11 @@ func (b Bridge) Run(ctx context.Context, leg BridgeLeg) (domain.StepStatus, erro
 }
 
 func (b Bridge) submit(ctx context.Context, leg BridgeLeg) (multichain.ActionID, error) {
+	if leg.Spec.From == chain.NetworkSolana {
+		if err := b.TopUp.TopUpSOL(ctx, leg.Source); err != nil {
+			return "", err
+		}
+	}
 	id, err := b.Actions.Transfer(ctx, leg.WalletID, leg.Spec, stepKey(leg.Ref))
 	code := errs.CodeOf(err)
 	switch {

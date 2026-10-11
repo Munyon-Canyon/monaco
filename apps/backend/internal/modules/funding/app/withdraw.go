@@ -54,6 +54,7 @@ type WithdrawDeps struct {
 	Treasuries TreasuryWallets
 	Transfers  func() (Transfers, error)
 	Actions    multichain.WalletActions
+	TopUp      SOLTopUp
 	Hints      HintPublisher
 	Clock      clock.Clock
 	USDC       chain.Mint

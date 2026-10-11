@@ -47,6 +47,9 @@ func (p *WithdrawalPoller) recoverEVM(ctx context.Context, row sqlc.ListStaleCre
 	}
 	cmd := Withdraw{ID: row.ID, UserID: ids.UserIDFrom(row.UserID), Request: request}
 	wallet, err := p.d.Wallets.SigningWallet(ctx, cmd.UserID)
+	if err == nil {
+		err = p.d.TopUp.TopUpSOL(ctx, wallet.Address)
+	}
 	if err != nil {
 		return 0, err
 	}

@@ -14,8 +14,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 )
 
+type SOLTopUp interface {
+	TopUpSOL(ctx context.Context, wallet chain.SolanaAddress) error
+}
+
 func (h *WithdrawHandler) handleEVM(ctx context.Context, cmd Withdraw, wallet chain.Wallet) (WithdrawResult, error) {
 	if err := h.create(ctx, cmd); err != nil {
+		return WithdrawResult{}, err
+	}
+	if err := h.d.TopUp.TopUpSOL(ctx, wallet.Address); err != nil {
 		return WithdrawResult{}, err
 	}
 	action, err := h.d.Actions.Transfer(ctx, wallet.ID, evmTransferSpec(cmd.Request), cmd.ID.String())

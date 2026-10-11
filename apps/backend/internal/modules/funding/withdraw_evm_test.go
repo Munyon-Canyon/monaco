@@ -88,7 +88,7 @@ func (f *withdrawFixture) evmPoller(actions *privyActions) *app.WithdrawalPoller
 	return app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: f.uow, Reads: f.pool, Clock: f.clock, Chain: status(solana.StateNotFound, false, 0),
 		Transfers: func() (app.Transfers, error) { return f.transfers, nil }, Hints: f.hints,
-		UnsentAge: withdrawalUnsentAge, Actions: actions,
+		UnsentAge: withdrawalUnsentAge, Actions: actions, TopUp: f.topUps,
 		Wallets: signingWallet{wallet: chain.Wallet{ID: f.user.PrivyWalletID, Address: f.user.Address}},
 	})
 }
