@@ -30,8 +30,8 @@ final class ProposeServiceTests: XCTestCase {
         let submission = IdempotentSubmission(makeKey: { "propose-key" })
         let draft = ProposalDraft.buy(symbol: "AAPLx", usdcMicros: 5_000_000, thesis: "  \n")
 
-        _ = try? await service.propose(cabalID: cabalID, draft: draft, submission: submission)
-        _ = try? await service.propose(cabalID: cabalID, draft: draft, submission: submission)
+        _ = try? await service.propose(cabalID: cabalID, draft: draft, network: nil, submission: submission)
+        _ = try? await service.propose(cabalID: cabalID, draft: draft, network: nil, submission: submission)
 
         let sent = await transport.sent
         let bodies = await transport.sentBodies.compactMap { $0 }
@@ -42,11 +42,28 @@ final class ProposeServiceTests: XCTestCase {
         XCTAssertNil(first["thesis"])
     }
 
+    func testProposeSendsThePinnedChainOnlyWhenSet() async throws {
+        let transport = StubTransport(.json(.internalServerError, "{}"))
+        let service = LiveProposeService(api: api(transport))
+        let draft = ProposalDraft.buy(symbol: "AAPLx", usdcMicros: 5_000_000, thesis: "")
+
+        _ = try? await service.propose(cabalID: cabalID, draft: draft, network: .base, submission: .init())
+        _ = try? await service.propose(cabalID: cabalID, draft: draft, network: nil, submission: .init())
+
+        let sent = await transport.sentBodies
+        let bodies = try sent.map {
+            try XCTUnwrap(try JSONSerialization.jsonObject(with: XCTUnwrap($0)) as? [String: Any])
+        }
+        XCTAssertEqual(bodies.count, 2)
+        XCTAssertEqual(bodies.first?["network"] as? String, "base")
+        XCTAssertNil(bodies.last?["network"])
+    }
+
     func testProposeReturnsTheCreatedProposalID() async throws {
         let transport = StubTransport(.json(.created, proposal()))
         let created = try await LiveProposeService(api: api(transport)).propose(
             cabalID: cabalID,
-            draft: .sell(symbol: "AAPLx", tokenAmount: 1_000_000, thesis: "Trimmed"),
+            draft: .sell(symbol: "AAPLx", tokenAmount: 1_000_000, thesis: "Trimmed"), network: nil,
             submission: IdempotentSubmission()
         )
 

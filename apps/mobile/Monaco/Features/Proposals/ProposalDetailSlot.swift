@@ -50,6 +50,9 @@ struct ProposalDetailSlotView: View {
                     votes(detail)
                     reason(detail)
                     expected(summary)
+                    if let network = summary.network {
+                        ProposalChainSection(network: network)
+                    }
                     if let model {
                         ProposalBestPrice(summary: summary, model: model)
                     }
@@ -282,6 +285,30 @@ private struct ProposalBestPrice: View {
             }
         } else if let row = model.livePrice.row(for: summary, decimals: decimals, now: .now) {
             BestPriceSection(row: row)
+        }
+    }
+}
+
+private struct ProposalChainSection: View {
+    let network: Components.Schemas.Network
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+            MonacoSectionHeader("Chain")
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+            MonacoGroupedList {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    ChainMark(network: network.rawValue, size: 32)
+                    Text(BestPrice.chainName(network))
+                        .font(MonacoTheme.Typo.headline)
+                        .foregroundStyle(MonacoTheme.ink)
+                    Spacer(minLength: 0)
+                }
+                .padding(MonacoTheme.Space.m)
+                .frame(minHeight: 44)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("proposal-chain-row")
+            }
         }
     }
 }

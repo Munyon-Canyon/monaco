@@ -21,9 +21,9 @@ public struct LiveProposeService: ProposeService {
     }
 
     public func propose(
-        cabalID: String, draft: ProposalDraft, submission: IdempotentSubmission
+        cabalID: String, draft: ProposalDraft, network: Components.Schemas.Network?, submission: IdempotentSubmission
     ) async throws -> String {
-        let request = draft.request
+        let request = draft.request(network: network)
         let reply = try await api.submit(submission, payload: request, operation: Operations.PostCabalProposal.id) {
             client, key in
             try await client.postCabalProposal(
@@ -50,10 +50,10 @@ extension ProposalDraft {
         }
     }
 
-    fileprivate var request: Components.Schemas.ProposeTradeRequest {
+    fileprivate func request(network: Components.Schemas.Network?) -> Components.Schemas.ProposeTradeRequest {
         switch self {
         case .buy(let symbol, let usdcMicros, let thesis):
-            .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros, thesis: thesis.trimmedOrNil)
+            .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros, thesis: thesis.trimmedOrNil, network: network)
         case .sell(let symbol, let tokenAmount, let thesis):
             .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount, thesis: thesis.trimmedOrNil)
         }

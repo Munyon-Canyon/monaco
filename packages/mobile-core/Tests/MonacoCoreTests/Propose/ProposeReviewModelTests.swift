@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 import MonacoCore
 import XCTest
@@ -184,6 +185,48 @@ final class ProposeReviewModelTests: XCTestCase {
         XCTAssertFalse(model.rows.contains { $0.value.hasPrefix("0%") })
     }
 
+    func testSendWithTheDefaultChainLeavesTheNetworkOut() async {
+        let service = ReviewService()
+        let model = makeModel(kind: .stock, service: service, comparison: BestPrice.sampleComparison(now: Date()))
+
+        await model.send()
+
+        let networks = await service.networks
+        XCTAssertEqual(model.chain, .best)
+        XCTAssertEqual(networks, [nil])
+    }
+
+    func testAChosenChainSetsTheRowsAndTheSentNetwork() async {
+        let service = ReviewService()
+        let model = makeModel(kind: .stock, service: service, comparison: BestPrice.sampleComparison(now: Date()))
+
+        model.choose(.network(.ethereum))
+        XCTAssertEqual(
+            model.rows,
+            [
+                .init(label: "Cabal gets", value: "about 0.0398 shares"),
+                .init(label: "Price", value: "about $251.26 a share"),
+                .init(label: "Pot", value: "50% of $500.00"),
+                .init(label: "Who votes", value: "All 3 members"),
+            ])
+        await model.send()
+
+        let networks = await service.networks
+        XCTAssertEqual(networks, [.ethereum])
+    }
+
+    func testChoosingAfterASuccessfulSendChangesNothing() async {
+        let model = makeModel(
+            kind: .stock, service: ReviewService(), comparison: BestPrice.sampleComparison(now: Date()))
+        let rows = model.rows
+
+        await model.send()
+        model.choose(.network(.solana))
+
+        XCTAssertEqual(model.chain, .best)
+        XCTAssertEqual(model.rows, rows)
+    }
+
     private func makeSellModel(_ holding: ProposeHolding, selling amount: Int64) -> ProposeReviewModel {
         let preview = ProposePreview(
             .init(quoteOutAmount: 139_000_000, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
@@ -196,10 +239,12 @@ final class ProposeReviewModelTests: XCTestCase {
     private func makeModel(
         kind: AssetKind, service: ReviewService, thesis: String = "Earnings next week.",
         quoteOut: Int64 = 73_000_000, tokenDecimals: Int? = 8, amount: Int64 = 250_000_000,
-        pot: Int64 = 500_000_000
+        pot: Int64 = 500_000_000, comparison: Components.Schemas.PriceComparison? = nil
     ) -> ProposeReviewModel {
         let preview = ProposePreview(
-            .init(quoteOutAmount: quoteOut, advisoryCode: nil, advisoryMessage: nil, potValueMicros: pot))
+            .init(
+                priceComparison: comparison, quoteOutAmount: quoteOut, advisoryCode: nil, advisoryMessage: nil,
+                potValueMicros: pot))
         return ProposeReviewModel(
             service: service, cabalID: "cabal", cabal: .init(name: "Sunday Investors", voters: "All 3 members"),
             draft: .buy(symbol: "GOOGL", usdcMicros: amount, thesis: thesis), preview: preview,
@@ -213,6 +258,7 @@ private actor ReviewService: ProposeService {
     private var holdsFirst: Bool
     private var held: CheckedContinuation<Void, Never>?
     private(set) var submissions: [IdempotentSubmission] = []
+    private(set) var networks: [Components.Schemas.Network?] = []
 
     init(failures: Int = 0, holdsFirst: Bool = false) {
         self.failures = failures
@@ -232,8 +278,12 @@ private actor ReviewService: ProposeService {
 
     func potValue(cabalID _: String) async throws -> Int64 { throw Failure() }
 
-    func propose(cabalID _: String, draft _: ProposalDraft, submission: IdempotentSubmission) async throws -> String {
+    func propose(
+        cabalID _: String, draft _: ProposalDraft, network: Components.Schemas.Network?,
+        submission: IdempotentSubmission
+    ) async throws -> String {
         submissions.append(submission)
+        networks.append(network)
         if holdsFirst {
             holdsFirst = false
             await withCheckedContinuation { held = $0 }

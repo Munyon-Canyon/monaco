@@ -51,10 +51,18 @@ public struct BestPrice: Equatable, Sendable {
     }
 
     public var price: String? {
-        guard winner.netShareNanos > 0 else { return nil }
-        let (priceMicros, _) = winner.netShareNanos.dividingFullWidth(
-            winner.netMicros.multipliedFullWidth(by: 1_000_000_000))
+        price(of: winner)
+    }
+
+    public func price(of venue: Venue) -> String? {
+        guard venue.netShareNanos > 0 else { return nil }
+        let (priceMicros, _) = venue.netShareNanos.dividingFullWidth(
+            venue.netMicros.multipliedFullWidth(by: 1_000_000_000))
         return "\(UsdAmountFormatter.format(micros: priceMicros)) a share"
+    }
+
+    func venue(on network: Components.Schemas.Network) -> Venue? {
+        venues.first { $0.network == network }
     }
 
     public func figure(_ venue: Venue) -> String {
@@ -101,14 +109,16 @@ public struct BestPrice: Equatable, Sendable {
             case .jupiter: "Jupiter"
             case .uniswap: "Uniswap"
             }
-        let chain =
-            switch network {
-            case .solana: "Solana"
-            case .base: "Base"
-            case .arbitrum: "Arbitrum"
-            case .ethereum: "Ethereum"
-            case .robinhood: "Robinhood Chain"
-            }
-        return "\(exchange) on \(chain)"
+        return "\(exchange) on \(chainName(network))"
+    }
+
+    public static func chainName(_ network: Components.Schemas.Network) -> String {
+        switch network {
+        case .solana: "Solana"
+        case .base: "Base"
+        case .arbitrum: "Arbitrum"
+        case .ethereum: "Ethereum"
+        case .robinhood: "Robinhood Chain"
+        }
     }
 }

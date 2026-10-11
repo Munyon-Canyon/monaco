@@ -39,6 +39,24 @@ final class ProposalBestPriceTests: XCTestCase {
         XCTAssertEqual(ProposalSummary(retrying: summary).bestPrice, summary.bestPrice)
     }
 
+    func testAProposalDetailCarriesItsPinnedChainThroughAVote() {
+        var detail = Components.Schemas.ProposalDetail.sample()
+        detail.network = .base
+
+        let summary = ProposalDetail(detail).summary
+        let voted = ProposalSummary(summary, ballot: "yes", tally: summary.tally)
+
+        XCTAssertEqual(summary.network, .base)
+        XCTAssertEqual(voted.network, .base)
+        XCTAssertEqual(ProposalSummary(retrying: summary).network, .base)
+        XCTAssertNil(ProposalDetail(.sample()).summary.network)
+    }
+
+    func testChainNameNamesEveryChain() {
+        XCTAssertEqual(BestPrice.chainName(.robinhood), "Robinhood Chain")
+        XCTAssertEqual(BestPrice.chainName(.base), "Base")
+    }
+
     func testTheReviewShowsThePreviewsComparison() async {
         let preview = ProposePreview(
             .init(
@@ -63,7 +81,10 @@ private struct UnusedProposeService: ProposeService {
 
     func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview { throw Unused() }
     func potValue(cabalID _: String) async throws -> Int64 { throw Unused() }
-    func propose(cabalID _: String, draft _: ProposalDraft, submission _: IdempotentSubmission) async throws -> String {
+    func propose(
+        cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,
+        submission _: IdempotentSubmission
+    ) async throws -> String {
         throw Unused()
     }
     func withdraw(proposalID _: String, submission _: IdempotentSubmission) async throws { throw Unused() }

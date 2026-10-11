@@ -60,6 +60,7 @@ struct ProposeReviewScreen: View {
                 if let bestPrice = model.bestPrice {
                     BestPriceSection(bestPrice: bestPrice)
                 }
+                ProposeChainSection(model: model)
                 if let reason = model.reason {
                     ProposalReasonSection(title: model.reasonTitle, text: reason)
                 }
