@@ -82,18 +82,17 @@ type OpenedProposal struct {
 }
 
 type ProposeTradeHandler struct {
-	uow       Transactor
-	ids       ids.Generator
-	clock     clock.Clock
-	ports     TradePorts
-	hints     Hints
-	fallbacks *fallbackLog
+	uow   Transactor
+	ids   ids.Generator
+	clock clock.Clock
+	ports TradePorts
+	hints Hints
 }
 
 func NewProposeTradeHandler(
 	uow Transactor, g ids.Generator, c clock.Clock, p TradePorts, hints Hints,
 ) *ProposeTradeHandler {
-	return &ProposeTradeHandler{uow: uow, ids: g, clock: c, ports: p, hints: hints, fallbacks: &fallbackLog{}}
+	return &ProposeTradeHandler{uow: uow, ids: g, clock: c, ports: p, hints: hints}
 }
 
 func (h *ProposeTradeHandler) Handle(ctx context.Context, cmd ProposeTrade) (ids.ProposalID, error) {
@@ -139,12 +138,11 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err != nil {
 		return OpenedProposal{}, err
 	}
-	asset, quote, err := h.assess(ctx, cmd)
+	asset, routed, comparison, err := h.assess(ctx, cmd)
 	if err != nil {
 		return OpenedProposal{}, err
 	}
 	now := h.clock.Now()
-	comparison := h.compare(ctx, asset, cmd.Trade)
 	priced, err := pinned(comparison, cmd.Trade.Network)
 	if err != nil {
 		return OpenedProposal{}, err
@@ -153,7 +151,7 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 		ID: ids.ProposalIDFrom(h.ids.NewV7()), CabalID: cmd.CabalID, ProposerID: cmd.ProposerID, Kind: cmd.Trade.Kind,
 		Symbol: asset.Symbol, Mint: asset.Mint.Address(), USDCMicros: cmd.Trade.USDCMicros,
 		TokenAmount: money.NewBaseUnits(cmd.Trade.TokenAmount, asset.Decimals), Thesis: cmd.Trade.Thesis,
-		QuoteOut:  displayQuote(asset, priced, quote.OutAmount.Uint64(), now),
+		QuoteOut:  displayQuote(asset, priced, routed, now),
 		ExpiresAt: now.Add(rules.ProposalExpiry), Network: cmd.Trade.Network,
 	})
 	if err != nil {
@@ -197,25 +195,27 @@ func decimal(raw string) int64 {
 	return n
 }
 
-func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (market.Asset, market.RouteCheck, error) {
+func (h *ProposeTradeHandler) assess(
+	ctx context.Context, cmd ProposeTrade,
+) (market.Asset, uint64, *multichain.Comparison, error) {
 	asset, err := h.ports.Assets.AssetBySymbol(ctx, cmd.Trade.Symbol)
 	if err != nil {
-		return market.Asset{}, market.RouteCheck{}, err
+		return market.Asset{}, 0, nil, err
 	}
 	var pot money.Micros
 	if cmd.Trade.Kind == domain.KindBuy {
 		if pot, err = h.ports.Treasury.PotValue(ctx, cmd.CabalID); err != nil {
-			return market.Asset{}, market.RouteCheck{}, err
+			return market.Asset{}, 0, nil, err
 		}
 	}
 	if err := funds(ctx, h.ports, cmd.CabalID, asset, cmd.Trade, pot); err != nil {
-		return market.Asset{}, market.RouteCheck{}, err
+		return market.Asset{}, 0, nil, err
 	}
-	quote, err := route(ctx, h.ports.Routes, asset, cmd.Trade)
+	routed, comparison, err := h.route(ctx, asset, cmd.Trade)
 	if err != nil {
-		return market.Asset{}, market.RouteCheck{}, err
+		return market.Asset{}, 0, nil, err
 	}
-	return asset, quote, nil
+	return asset, routed, comparison, nil
 }
 
 func notBanned(ctx context.Context, cabals Cabals, cabal ids.CabalID, op string) error {
@@ -318,18 +318,21 @@ func ledgerHolds(
 	return errs.New(errs.CodeCabalSharesShort, op, slog.String("symbol", asset.Symbol))
 }
 
-func route(
-	ctx context.Context, routes market.Routes, asset market.Asset, trade domain.Trade,
-) (market.RouteCheck, error) {
+func (h *ProposeTradeHandler) route(
+	ctx context.Context, asset market.Asset, trade domain.Trade,
+) (uint64, *multichain.Comparison, error) {
+	side, amount := market.SideSell, money.NewBaseUnits(trade.TokenAmount, asset.Decimals)
 	if trade.Kind == domain.KindBuy {
-		return routes.CheckRoute(
-			ctx,
-			asset.ID,
-			market.SideBuy,
-			money.NewBaseUnits(trade.USDCMicros.Uint64(), usdcDecimals),
-		)
+		if h.ports.Router != nil {
+			comparison, err := h.best(ctx, asset, trade)
+			if errs.CodeOf(err) != errs.CodeNoRoute {
+				return 0, comparison, err
+			}
+		}
+		side, amount = market.SideBuy, money.NewBaseUnits(trade.USDCMicros.Uint64(), usdcDecimals)
 	}
-	return routes.CheckRoute(ctx, asset.ID, market.SideSell, money.NewBaseUnits(trade.TokenAmount, asset.Decimals))
+	check, err := h.ports.Routes.CheckRoute(ctx, asset.ID, side, amount)
+	return check.OutAmount.Uint64(), nil, err
 }
 
 func openParams(d domain.Draft, rule domain.ThresholdRule, voters []ids.UserID, now time.Time) sqlc.OpenProposalParams {

@@ -32,16 +32,16 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 		return out, advise(&out, err)
 	}
 	fundsErr := funds(ctx, h.ports, req.CabalID, asset, req.Trade, pot)
-	quote, routeErr := route(ctx, h.ports.Routes, asset, req.Trade)
+	routed, comparison, routeErr := h.route(ctx, asset, req.Trade)
 	if market.ProbeFailed(routeErr) {
 		routeErr = errs.New(errs.CodeNoRoute, "governance.Preview")
 	}
 	var pinErr error
 	if routeErr == nil {
-		out.PriceComparison = h.compare(ctx, asset, req.Trade)
+		out.PriceComparison = comparison
 		var priced *multichain.Comparison
-		priced, pinErr = pinned(out.PriceComparison, req.Trade.Network)
-		out.QuoteOut = displayQuote(asset, priced, quote.OutAmount.Uint64(), h.clock.Now())
+		priced, pinErr = pinned(comparison, req.Trade.Network)
+		out.QuoteOut = displayQuote(asset, priced, routed, h.clock.Now())
 	}
 	failed := slices.DeleteFunc([]error{fundsErr, routeErr, pinErr}, func(err error) bool { return err == nil })
 	for _, err := range failed {
@@ -57,7 +57,7 @@ func advise(p *TradePreview, err error) error {
 	if !slices.Contains([]errs.Code{
 		errs.CodeAssetNotFound, errs.CodeAssetUntradable, errs.CodeAssetPaused, errs.CodeNoRoute,
 		errs.CodePotExceeded, errs.CodeInsufficientFunds, errs.CodePotCashShort, errs.CodeCabalSharesShort,
-		errs.CodeInvalidNetwork,
+		errs.CodeInvalidNetwork, errs.CodeQuoteUnavailable,
 	}, code) {
 		return err
 	}

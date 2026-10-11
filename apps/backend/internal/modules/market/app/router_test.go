@@ -315,6 +315,38 @@ func TestRouterFailsWithNoRouteWhenNoListingQuotes(t *testing.T) {
 	}
 }
 
+func TestRouterAnswersQuoteUnavailableUnlessEveryVenueHasNoRoute(t *testing.T) {
+	t.Parallel()
+	down := errs.New(errs.CodeUpstreamTimeout, "test")
+	for name, quotes := range map[string]map[string]recordedQuote{
+		"every venue down": {aaplxSolana: {err: down}, aaplcBase: {err: down}},
+		"one venue down":   {aaplxSolana: {err: errs.New(errs.CodeNoRoute, "test")}, aaplcBase: {err: down}},
+	} {
+		if _, _, _, err := route(t, quotes, testRules()); errs.CodeOf(err) != errs.CodeQuoteUnavailable {
+			t.Errorf("%s: err = %v, want quote_unavailable", name, err)
+		}
+	}
+}
+
+func TestRouterRoutesToEVMWhenSolanaHasNoRoute(t *testing.T) {
+	t.Parallel()
+	c, l, f, err := route(t, map[string]recordedQuote{
+		aaplxSolana: {err: errs.New(errs.CodeNoRoute, "test")},
+		aaplonEth:   recordedApple()[aaplonEth],
+		aaplcBase:   recordedApple()[aaplcBase],
+	}, testRules())
+	if err != nil || c.Winner != l[aaplcBase].ID || len(c.Ranked) != 2 {
+		t.Fatalf("comparison = %+v, %v, want Base to win", c, err)
+	}
+	if len(c.Unavailable) != 1 || c.Unavailable[0].ListingID != l[aaplxSolana].ID ||
+		c.Unavailable[0].Reason != multichain.UnavailableNoRoute {
+		t.Fatalf("unavailable = %+v, want Solana with no_route", c.Unavailable)
+	}
+	if got := f.logs.Lines("market.router.solana_unquoted"); len(got) != 0 {
+		t.Fatalf("solana_unquoted logged %v for a Solana listing Jupiter has no route for", got)
+	}
+}
+
 func TestRouterRefusesSells(t *testing.T) {
 	t.Parallel()
 	r := app.NewRouter(nil, nil, nil, nil, testkit.NewClock(clock.Real{}.Now()), testRules())
