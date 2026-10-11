@@ -17,11 +17,10 @@ import (
 
 const routerQuoteAge = 15 * time.Second
 
+const simulationAccount = "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32"
+
 func quoteSwapper() chain.EVMAddress {
-	var a chain.EVMAddress
-	for i := range a {
-		a[i] = 0x11
-	}
+	a, _ := chain.ParseEVMAddress(simulationAccount)
 	return a
 }
 
@@ -54,9 +53,26 @@ func RoutingVenues(d module.Deps) app.Venues {
 	cfg := d.Config.Routing
 	if cfg.UniswapAPIKey != "" {
 		client := routingClient(d, "uniswap", uniswapquote.Options(cfg.UniswapBaseURL, cfg.UniswapTimeout)...)
-		venues[multichain.VenueUniswap] = uniswapquote.New(client, cfg.UniswapAPIKey, quoteSwapper(), d.Clock)
+		venues[multichain.VenueUniswap] = uniswapquote.New(client, cfg.UniswapAPIKey, quoteSwapper(), d.Clock).
+			WithWrapper(uniswapquote.NewWrapper(wrapperRPC(d), wrapperDelegate()))
 	}
 	return venues
+}
+
+func wrapperDelegate() chain.EVMAddress {
+	a, _ := chain.ParseEVMAddress(uniswapquote.DefaultDelegate)
+	return a
+}
+
+func wrapperRPC(d module.Deps) map[chain.Network]*httpclient.Client {
+	rpc := map[chain.Network]*httpclient.Client{}
+	for _, n := range chain.Networks() {
+		if url := d.Config.EVM.RPCURL(n); n.IsEVM() && url != "" {
+			rpc[n] = routingClient(d, "evm-rpc-wrapper-"+string(n),
+				httpclient.WithBaseURL(url), httpclient.WithTimeout(d.Config.Timeouts.RPC))
+		}
+	}
+	return rpc
 }
 
 func MultichainRoutingRouter(d module.Deps, prices app.SampledPrices) *app.Router {

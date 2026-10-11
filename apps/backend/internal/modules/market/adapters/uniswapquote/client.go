@@ -43,6 +43,7 @@ type Client struct {
 	swapper chain.EVMAddress
 	clock   clock.Clock
 	limit   *rate.Limiter
+	wrapper *Wrapper
 }
 
 func Options(baseURL string, timeout time.Duration) []httpclient.Option {
@@ -60,15 +61,17 @@ func New(c *httpclient.Client, apiKey string, swapper chain.EVMAddress, clk cloc
 }
 
 type quoteRequest struct {
-	Type              string   `json:"type"`
-	Amount            string   `json:"amount"`
-	TokenInChainID    int64    `json:"tokenInChainId"`
-	TokenOutChainID   int64    `json:"tokenOutChainId"`
-	TokenIn           string   `json:"tokenIn"`
-	TokenOut          string   `json:"tokenOut"`
-	Swapper           string   `json:"swapper"`
-	RoutingPreference string   `json:"routingPreference"`
-	Protocols         []string `json:"protocols"`
+	Type              string       `json:"type"`
+	Amount            string       `json:"amount"`
+	TokenInChainID    int64        `json:"tokenInChainId"`
+	TokenOutChainID   int64        `json:"tokenOutChainId"`
+	TokenIn           string       `json:"tokenIn"`
+	TokenOut          string       `json:"tokenOut"`
+	Swapper           string       `json:"swapper"`
+	RoutingPreference string       `json:"routingPreference"`
+	Protocols         []string     `json:"protocols"`
+	SlippageTolerance *json.Number `json:"slippageTolerance,omitempty"`
+	PermitAsTx        bool         `json:"generatePermitAsTransaction,omitempty"`
 }
 
 type amountWire struct {
@@ -81,8 +84,9 @@ type poolWire struct {
 }
 
 type quoteWire struct {
-	ErrorCode string `json:"errorCode"`
-	Routing   string `json:"routing"`
+	ErrorCode string          `json:"errorCode"`
+	Routing   string          `json:"routing"`
+	Raw       json.RawMessage `json:"-"`
 	Quote     struct {
 		QuoteID   string       `json:"quoteId"`
 		Input     amountWire   `json:"input"`
@@ -99,6 +103,14 @@ func (c *Client) Quote(ctx context.Context, l mc.Listing, side mc.Side, amount m
 	if !ok {
 		return mc.Quote{}, errs.New(errs.CodeInvalidInput, op, append(attrs, slog.String("amount", amount.String()))...)
 	}
+	sponsored := c.wrapper != nil && side == mc.SideBuy
+	if sponsored {
+		if q, hit := c.cached(l, amount); hit {
+			return q, nil
+		}
+		zero := json.Number("0")
+		req.SlippageTolerance, req.PermitAsTx = &zero, true
+	}
 	w, err := c.post(ctx, op, req, attrs)
 	if err != nil {
 		return mc.Quote{}, err
@@ -110,6 +122,13 @@ func (c *Client) Quote(ctx context.Context, l mc.Listing, side mc.Side, amount m
 	q.ListingID, q.Network, q.Venue, q.Side = l.ID, l.Network, mc.VenueUniswap, side
 	q.QuotedAt = c.clock.Now()
 	q.ExpiresAt = q.QuotedAt.Add(quoteTTL)
+	if !sponsored {
+		return q, nil
+	}
+	if q, err = c.penalize(ctx, l, amount, w.Raw, q, attrs); err != nil {
+		return mc.Quote{}, err
+	}
+	c.remember(l, amount, q)
 	return q, nil
 }
 
@@ -131,30 +150,16 @@ func (c *Client) request(l mc.Listing, side mc.Side, amount money.Micros) (quote
 }
 
 func (c *Client) post(ctx context.Context, op string, body quoteRequest, attrs []slog.Attr) (quoteWire, error) {
-	raw, _ := json.Marshal(body)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "/v1/quote", bytes.NewReader(raw))
-	req.Header.Set(keyHeader, c.key)
-	req.Header.Set("Content-Type", "application/json")
-	if err := c.limit.Wait(ctx); err != nil {
-		return quoteWire{}, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
-	}
-	resp, err := c.http.Do(ctx, req)
-	if err != nil {
-		return quoteWire{}, errs.Wrap(err, errs.CodeOf(err), op, attrs...)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	attrs = append(attrs, slog.Int("status", resp.StatusCode))
-	if resp.StatusCode >= http.StatusInternalServerError {
-		return quoteWire{}, errs.New(errs.CodeUpstreamUnavailable, op, attrs...)
-	}
 	var w quoteWire
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBody)).Decode(&w); err != nil {
-		return quoteWire{}, errs.Wrap(err, errs.CodeDecodeFailed, op, attrs...)
+	status, err := c.send(ctx, op, "/v1/quote", body, &w, attrs)
+	if err != nil {
+		return quoteWire{}, err
 	}
+	attrs = append(attrs, slog.Int("status", status))
 	switch {
 	case w.ErrorCode == noRoute:
 		return quoteWire{}, errs.New(errs.CodeNoRoute, op, attrs...)
-	case resp.StatusCode != http.StatusOK:
+	case status != http.StatusOK:
 		return quoteWire{}, errs.New(
 			errs.CodeInvalidInput,
 			op,
@@ -163,6 +168,50 @@ func (c *Client) post(ctx context.Context, op string, body quoteRequest, attrs [
 		return quoteWire{}, errs.New(errs.CodeDecodeFailed, op, append(attrs, slog.String("routing", w.Routing))...)
 	}
 	return w, nil
+}
+
+func (c *Client) postJSON(ctx context.Context, path string, body, into any, attrs []slog.Attr) error {
+	status, err := c.send(ctx, wrapperOp, path, body, into, attrs)
+	if err == nil && status != http.StatusOK {
+		err = errs.New(errs.CodeNoRoute, wrapperOp, append(attrs, slog.Int("status", status))...)
+	}
+	return err
+}
+
+func (c *Client) send(
+	ctx context.Context, op, path string, body, into any, attrs []slog.Attr,
+) (int, error) {
+	raw, _ := json.Marshal(body)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, path, bytes.NewReader(raw))
+	req.Header.Set(keyHeader, c.key)
+	req.Header.Set("Content-Type", "application/json")
+	if err := c.limit.Wait(ctx); err != nil {
+		return 0, errs.Wrap(err, errs.CodeUpstreamUnavailable, op, attrs...)
+	}
+	resp, err := c.http.Do(ctx, req)
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeOf(err), op, attrs...)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	attrs = append(attrs, slog.Int("status", resp.StatusCode))
+	if resp.StatusCode >= http.StatusInternalServerError {
+		return 0, errs.New(errs.CodeUpstreamUnavailable, op, attrs...)
+	}
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	if err == nil {
+		err = json.Unmarshal(payload, into)
+	}
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeDecodeFailed, op, attrs...)
+	}
+	if w, ok := into.(*quoteWire); ok {
+		var raw struct {
+			Quote json.RawMessage `json:"quote"`
+		}
+		_ = json.Unmarshal(payload, &raw)
+		w.Raw = raw.Quote
+	}
+	return resp.StatusCode, nil
 }
 
 func mapQuote(w quoteWire, side mc.Side) (mc.Quote, error) {
