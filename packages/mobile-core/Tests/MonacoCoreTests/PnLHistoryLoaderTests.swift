@@ -11,6 +11,21 @@ final class PnLHistoryLoaderTests: XCTestCase {
 
     private static let cabalID = Components.Schemas.CabalRef.sampleAlpha.id
 
+    func testAFetchedCurveIsFoundUnderTheRangeThatWasRequested() async throws {
+        let ranges: [(LeaderboardRange, MyHistory.RangePayload)] = [
+            (.oneHour, ._1h), (.oneDay, ._1d), (.oneWeek, ._1w), (.oneMonth, ._1m), (.all, .all),
+        ]
+        let (loader, _, _) = try make(try ranges.map { try mine($0.1) })
+
+        for (range, _) in ranges {
+            let shown = try await loader.show(.me, range: range)
+            let cached = await loader.cached(.me, range: range)
+
+            XCTAssertNotNil(shown, "\(range) came back without a curve")
+            XCTAssertEqual(cached, shown, "\(range) was not stored under its own key")
+        }
+    }
+
     func testACurveIsCachedPerSubjectAndRange() async throws {
         let (loader, transport, _) = try make([mine(._1d), mine(._1w)])
 
