@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
@@ -54,7 +55,7 @@ func (b PrivyBridgeQuotes) BridgeOut(ctx context.Context, to chain.Network, amou
 	attrs := []slog.Attr{slog.String("network", string(to)), slog.String("amount_micros", amount.String())}
 	raw, _ := json.Marshal(bridgeQuoteRequest{
 		Source:      bridgeLeg{Chain: string(chain.NetworkSolana), Asset: "usdc"},
-		Destination: bridgeLeg{Chain: string(to), Asset: "usdc"},
+		Destination: bridgeLeg{Chain: string(to), Asset: strings.ToLower(to.Cash().Symbol)},
 		InputAmount: new(
 			big.Rat,
 		).SetFrac(new(big.Int).SetUint64(amount.Uint64()), big.NewInt(microsPerUSDC)).

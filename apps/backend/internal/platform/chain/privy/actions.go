@@ -58,16 +58,17 @@ func (c *Client) Transfer(
 	if err != nil {
 		return "", errs.Wrap(err, errs.CodeInvalidInput, op)
 	}
-	for _, n := range []chain.Network{spec.From, spec.To} {
-		if n.Cash().Symbol != "USDC" {
-			return "", errs.New(errs.CodeInvalidNetwork, op, slog.String("network", string(n)))
-		}
+	from, okFrom := cashAsset(spec.From)
+	to, okTo := cashAsset(spec.To)
+	if !okFrom || !okTo {
+		return "", errs.New(errs.CodeInvalidNetwork, op,
+			slog.String("from", string(spec.From)), slog.String("to", string(spec.To)))
 	}
 	body := transferBody{
 		Amount:      decimalUSDC(spec.AmountMicros),
 		AmountType:  "exact_input",
-		Source:      transferAsset{Asset: "usdc", Chain: spec.From.PrivyChain()},
-		Destination: transferAsset{Asset: "usdc", Chain: spec.To.PrivyChain(), Address: dest},
+		Source:      transferAsset{Asset: from, Chain: spec.From.PrivyChain()},
+		Destination: transferAsset{Asset: to, Chain: spec.To.PrivyChain(), Address: dest},
 	}
 	var w actionWire
 	path := "/v1/wallets/" + url.PathEscape(walletID) + "/transfer"
@@ -98,6 +99,16 @@ func (c *Client) Action(ctx context.Context, walletID string, id multichain.Acti
 		)
 	}
 	return status, nil
+}
+
+func cashAsset(n chain.Network) (string, bool) {
+	switch n.Cash().Symbol {
+	case "USDC":
+		return "usdc", true
+	case "USDG":
+		return "usdg", true
+	}
+	return "", false
 }
 
 func destination(n chain.Network, raw string) (string, error) {

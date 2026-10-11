@@ -84,7 +84,8 @@ func TestPrivyMultichainFake_anEVMSourceTransferReportsAnEVMStep(t *testing.T) {
 	t.Parallel()
 	srv := fakes.New()
 	path := "/privy/v1/wallets/w/transfer"
-	body := `{"amount":"1","source":{"asset":"usdc","chain":"base"},"destination":{"address":"x","chain":"solana"}}`
+	body := `{"amount":"1","source":{"asset":"usdc","chain":"base"},` +
+		`"destination":{"address":"x","asset":"usdc","chain":"solana"}}`
 	rec := privyCall(t, srv, http.MethodPost, path, body, signedHeaders(t, path, body))
 	var action struct {
 		ID string `json:"id"`
@@ -96,6 +97,25 @@ func TestPrivyMultichainFake_anEVMSourceTransferReportsAnEVMStep(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"evm_transaction"`) ||
 		!strings.Contains(rec.Body.String(), chain.NetworkBase.CAIP2()) {
 		t.Fatalf("action = %s", rec.Body.String())
+	}
+}
+
+func TestPrivyMultichainFake_bridgesToEachChainsCashAsset(t *testing.T) {
+	t.Parallel()
+	path := "/privy/v1/wallets/w/transfer"
+	leg := func(asset, chain string) string { return `{"asset":"` + asset + `","chain":"` + chain + `"}` }
+	for _, tc := range []struct{ source, dest, want string }{
+		{leg("usdc", "solana"), leg("usdg", "robinhood"), `"status":"pending"`},
+		{leg("usdg", "robinhood"), leg("usdc", "solana"), `"status":"pending"`},
+		{leg("usdc", "solana"), leg("usdc", "robinhood"), "usdc is not available on robinhood"},
+		{leg("usdc", "solana"), leg("usdg", "base"), "usdg is not available on base"},
+	} {
+		body := `{"amount":"1","source":` + tc.source + `,"destination":` +
+			strings.Replace(tc.dest, "{", `{"address":"x",`, 1) + `}`
+		rec := privyCall(t, fakes.New(), http.MethodPost, path, body, signedHeaders(t, path, body))
+		if !strings.Contains(rec.Body.String(), tc.want) {
+			t.Fatalf("transfer %s = %d %s, want %s", body, rec.Code, rec.Body.String(), tc.want)
+		}
 	}
 }
 
