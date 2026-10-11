@@ -84,8 +84,9 @@ WHERE id = sqlc.arg(id) AND verified_at IS NOT NULL;
 
 -- name: SetListingTradableOverride :one
 UPDATE asset_listings SET
-  tradable_override = sqlc.narg(override)::bool,
-  enabled = verified_at IS NOT NULL AND coalesce(sqlc.narg(override)::bool, issuer_tradable)
+  tradable_override = CASE sqlc.arg(override)::text WHEN 'auto' THEN NULL ELSE sqlc.arg(override)::text = 'on' END,
+  enabled = verified_at IS NOT NULL AND CASE sqlc.arg(override)::text
+    WHEN 'auto' THEN issuer_tradable ELSE sqlc.arg(override)::text = 'on' END
 WHERE id = sqlc.arg(id)
 RETURNING id, issuer, symbol, network, token_address, enabled;
 
