@@ -40,11 +40,11 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	if err := evmWithdrawalNotImplemented(*req.Body); err != nil {
+	request, err := domain.ParseWithdrawalRequest(rawWithdrawal(*req.Body))
+	if err != nil {
 		return nil, err
 	}
-	request, err := domain.ParseWithdrawalRequest(req.Body.AmountMicros, req.Body.ToAddress)
-	if err != nil {
+	if err := evmWithdrawalNotImplemented(request); err != nil {
 		return nil, err
 	}
 	got, err := h.Withdrawals.Handle(ctx, app.Withdraw{ID: h.IDs.NewV7(), UserID: user, Request: request})
@@ -54,6 +54,17 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	return api.Withdraw202JSONResponse(api.WithdrawAccepted{
 		WithdrawalId: got.ID, Status: api.WithdrawalStatus(got.Status), TxSignature: string(got.TxSignature),
 	}), nil
+}
+
+func rawWithdrawal(body api.WithdrawRequest) domain.RawWithdrawal {
+	raw := domain.RawWithdrawal{Amount: body.AmountMicros, To: body.ToAddress}
+	if body.DestinationKind != nil {
+		raw.Kind = string(*body.DestinationKind)
+	}
+	if body.Network != nil {
+		raw.Network = string(*body.Network)
+	}
+	return raw
 }
 
 func (h HTTP) GetMyWithdrawal(
