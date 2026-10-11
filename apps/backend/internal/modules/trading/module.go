@@ -89,6 +89,7 @@ type Module struct {
 	route       app.RoutePorts
 	routed      *app.RouteExec
 	treasuryEVM cabalport.TreasuryEVM
+	evmWallets  bool
 }
 
 type Option func(*Module)
@@ -137,11 +138,13 @@ func (m *Module) Wire(set module.Set) {
 
 func (m *Module) wireTreasuryEVM(mod module.Module) {
 	if provider, ok := mod.(interface{ TreasuryEVM() cabalport.TreasuryEVM }); ok {
-		m.treasuryEVM = provider.TreasuryEVM()
+		m.treasuryEVM, m.evmWallets = provider.TreasuryEVM(), true
 	}
 }
 
 func (m *Module) RouteTreasuryEVM() cabalport.TreasuryEVM { return m.treasuryEVM }
+
+func (m *Module) RoutesOnEVM() bool { return m.routePorts().EVM }
 
 func (m *Module) Mount(r api.Mount) {
 	ports := m.modulePorts()
@@ -266,31 +269,44 @@ func (m *Module) routes(layer *app.SwapLayer, ports EnginePorts, route app.Route
 
 func (m *Module) routePorts() app.RoutePorts {
 	p := m.route
-	if p.Listings == nil {
-		p.Listings = market.New(m.deps).Catalog()
-	}
-	if p.TreasuryEVM == nil {
-		p.TreasuryEVM = app.UnwiredTreasuryEVM{}
-	}
-	if p.Quoter == nil {
-		p.Quoter = multichain.Pending{Ticket: "#4969"}
-	}
+	live := m.evmDefaults(&p)
 	if p.Actions == nil {
 		p.Actions = m.multichain.walletActions
 	}
 	if p.Sender == nil {
 		p.Sender = adapters.EVMSend{Wallets: m.multichain.evmWallets}
 	}
-	if p.Venue == nil {
-		p.Venue = app.UnwiredEVMVenue{}
-	}
+	p.EVM = p.EVM || live
 	if p.EVMSales == nil {
-		p.EVMSales = app.UnwiredEVMSales{}
+		p.EVMSales = adapters.EVMSales{Listings: p.Listings, Quoter: p.Quoter}
 	}
 	if p.Router == nil {
 		p.Router = adapters.NewLazyRouter(func() multichain.Router { return market.New(m.deps).Router() })
 	}
 	return p
+}
+
+func (m *Module) evmDefaults(p *app.RoutePorts) bool {
+	if p.Listings == nil {
+		p.Listings = market.New(m.deps).Catalog()
+	}
+	liveTreasury := p.TreasuryEVM == nil && m.evmWallets
+	if p.TreasuryEVM == nil {
+		p.TreasuryEVM = m.treasuryEVM
+	}
+	marketQuoter := p.Quoter == nil
+	if marketQuoter {
+		p.Quoter = market.New(m.deps).Quoter()
+	}
+	venue, configured := adapters.MultichainExecutionVenue(m.deps)
+	liveVenue := configured && p.Venue == nil
+	if liveVenue {
+		p.Venue = venue
+	}
+	if p.Venue == nil {
+		p.Venue = app.UnwiredEVMVenue{}
+	}
+	return liveTreasury && marketQuoter && liveVenue
 }
 
 func (m *Module) enginePorts() EnginePorts {
