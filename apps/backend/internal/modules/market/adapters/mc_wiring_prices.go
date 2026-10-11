@@ -1,7 +1,10 @@
 package adapters
 
-import "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+import (
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/evmprices"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+)
 
-func MultichainPricesEVMPriceSource() multichain.Pending {
-	return multichain.Pending{Ticket: "#4971"}
+func MultichainPricesEVMPriceSource(quoter multichain.Quoter) evmprices.Source {
+	return evmprices.New(quoter)
 }
