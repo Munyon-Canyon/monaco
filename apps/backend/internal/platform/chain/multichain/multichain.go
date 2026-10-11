@@ -84,6 +84,7 @@ type Listing struct {
 	Decimals       uint8         `json:"decimals"`
 	SharesPerToken *big.Rat      `json:"shares_per_token"`
 	Venue          Venue         `json:"venue"`
+	Enabled        bool          `json:"enabled"`
 }
 
 type Side string

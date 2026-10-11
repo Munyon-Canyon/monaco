@@ -181,3 +181,41 @@ func TestListingRefusesUnknownUnverifiedAndUnreadableListings(t *testing.T) {
 		t.Errorf("canceled: err = %v, want internal", err)
 	}
 }
+
+func TestListingByAssetResolvesASolanaMint(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	got, err := NewCatalog(pool).ListingByAsset(t.Context(), "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp")
+	if err != nil || got.Network != chain.NetworkSolana || got.Symbol != "AAPLx" || got.Decimals != 8 ||
+		!got.Enabled || got.Venue != multichain.VenueJupiter {
+		t.Fatalf("Solana mint = %+v, %v", got, err)
+	}
+}
+
+func TestListingByAssetKeepsADisabledEVMListingResolvable(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	seedListedAsset(t, pool)
+	got, err := NewCatalog(pool).ListingByAsset(t.Context(), "ethereum:0x1100000000000000000000000000000000000001")
+	if err != nil || got.Network != chain.NetworkEthereum || got.Decimals != 18 || got.Enabled ||
+		got.TokenAddress != "0x1100000000000000000000000000000000000001" ||
+		got.SharesPerToken.RatString() != "501688036870110529/500000000000000000" {
+		t.Fatalf("disabled EVM listing = %+v, %v, want it resolved with Enabled false", got, err)
+	}
+}
+
+func TestListingByAssetRefusesUnverifiedUnknownAndMalformedAssets(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	seedListedAsset(t, pool)
+	c := NewCatalog(pool)
+	for asset, want := range map[string]errs.Code{
+		"ethereum:0x1100000000000000000000000000000000000002": errs.CodeAssetUntradable,
+		"base:0x1100000000000000000000000000000000000001":     errs.CodeAssetNotFound,
+		"solana:0x12": errs.CodeInvalidAddress,
+	} {
+		if _, err := c.ListingByAsset(t.Context(), asset); errs.CodeOf(err) != want {
+			t.Errorf("ListingByAsset(%s) = %v, want %s", asset, err, want)
+		}
+	}
+}
