@@ -1,7 +1,9 @@
 package app
 
 import (
+	"encoding/json"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,8 +13,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 const (
@@ -78,7 +84,7 @@ func TestRunValuation_valuesEveryChainAndStaysFlatAcrossABridge(t *testing.T) {
 
 func TestRunValuation_flagsACabalWhoseEVMListingHasNoFreshPrice(t *testing.T) {
 	t.Parallel()
-	stale := valuationTime().Add(-listingPriceMaxAge - time.Second)
+	stale := valuationTime().Add(-multichain.ListingPriceMaxAge - time.Second)
 	unpriced := listingPrice(valuationTime())
 	unpriced.Price = nil
 	for name, prices := range map[string]map[market.ListingKey]market.ListingPrice{
@@ -106,23 +112,48 @@ func TestRunValuation_failsWhenTheListingReadFails(t *testing.T) {
 	}
 }
 
-func TestOffSolana_marksTheCabalUnpricedWhenItsSumOverflows(t *testing.T) {
+func TestOffSolana_marksTheCabalUnpricedAndSaysWhy(t *testing.T) {
 	t.Parallel()
 	in := valuationInput{cash: money.MicrosFromUint64(^uint64(0)), reserved: money.MicrosFromUint64(3)}
-	got := offSolana(in, treasury.CabalPositions{EVMCash: money.MicrosFromUint64(1)}, nil, valuationTime())
-	if !got.unpriced || got.reserved.Uint64() != 3 {
-		t.Fatalf("offSolana past uint64 = %+v, want unpriced with the reservation kept", got)
+	got, miss := offSolana(in, treasury.CabalPositions{EVMCash: money.MicrosFromUint64(1)}, nil, valuationTime())
+	if !got.unpriced || got.reserved.Uint64() != 3 || miss == nil || miss.reason != "overflow" {
+		t.Fatalf("offSolana past uint64 = %+v, %+v, want unpriced for overflow with the reservation kept", got, miss)
 	}
 	unvalued := listingPrice(valuationTime())
 	unvalued.SharesPerToken = big.NewRat(1<<62, 1)
 	huge, _ := new(big.Int).SetString("1000000000000000000000000", 10)
 	position := treasury.CabalPositions{Listings: []treasury.ListingPosition{{Key: baseAAPL, Units: huge}}}
-	if got := offSolana(valuationInput{}, position, map[market.ListingKey]market.ListingPrice{baseAAPL: unvalued},
-		valuationTime()); !got.unpriced {
-		t.Fatalf("offSolana with an unvaluable listing = %+v, want unpriced", got)
+	got, miss = offSolana(valuationInput{}, position, map[market.ListingKey]market.ListingPrice{baseAAPL: unvalued},
+		valuationTime())
+	if !got.unpriced || miss == nil || miss.reason != "unvalued" || miss.key != baseAAPL {
+		t.Fatalf("offSolana with an unvaluable listing = %+v, %+v, want unpriced for %s", got, miss, baseAAPL)
 	}
-	already := valuationInput{unpriced: true}
-	if got := offSolana(already, position, nil, valuationTime()); !got.unpriced {
-		t.Fatalf("offSolana on an unpriced input = %+v", got)
+	if got, miss := offSolana(valuationInput{unpriced: true}, position, nil, valuationTime()); !got.unpriced ||
+		miss != nil {
+		t.Fatalf("offSolana on an unpriced input = %+v, %+v, want it passed through unlogged", got, miss)
+	}
+}
+
+func TestUnpricedLog_logsEachCabalListingAndReasonOnceEveryTenMinutes(t *testing.T) {
+	t.Parallel()
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	l := &unpricedLog{last: map[string]time.Time{}}
+	cabal := ids.CabalIDFrom(ids.Real{}.NewV7())
+	stale := &unpricedListing{key: baseAAPL, reason: "stale"}
+	for _, after := range []time.Duration{0, 9 * time.Minute, 10 * time.Minute} {
+		l.log(ctx, cabal, stale, valuationTime().Add(after))
+	}
+	l.log(ctx, cabal, nil, valuationTime())
+	var lines []map[string]any
+	for line := range strings.Lines(string(logs.Bytes())) {
+		var got map[string]any
+		if json.Unmarshal([]byte(line), &got) == nil && got["msg"] == "ranking.cabal.unpriced_listing" {
+			lines = append(lines, got)
+		}
+	}
+	if len(lines) != 2 || lines[0]["cabal"] != cabal.String() || lines[0]["listing"] != baseAAPL ||
+		lines[0]["reason"] != "stale" || lines[0]["level"] != "WARN" {
+		t.Fatalf("unpriced lines = %v, want a stale warning at 0 and 10 minutes, none at 9", lines)
 	}
 }

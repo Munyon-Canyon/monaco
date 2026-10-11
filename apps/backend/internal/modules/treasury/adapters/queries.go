@@ -53,7 +53,6 @@ type queryStore interface {
 
 type transitStore interface {
 	CabalValueRows(context.Context, uuid.UUID) ([]sqlc.CabalValueRowsRow, error)
-	InTransitByCabal(context.Context) ([]sqlc.InTransitByCabalRow, error)
 }
 
 type fundStore interface {
@@ -425,10 +424,6 @@ func (q *Queries) CabalPositionsAt(ctx context.Context, at time.Time) ([]port.Ca
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CabalPositionsAt")
 	}
-	transit, err := q.inTransitByCabal(ctx)
-	if err != nil {
-		return nil, err
-	}
 	out := []port.CabalPositions{}
 	assets := map[chain.SolanaAddress]app.Asset{}
 	for _, row := range rows {
@@ -438,9 +433,11 @@ func (q *Queries) CabalPositionsAt(ctx context.Context, at time.Time) ([]port.Ca
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, port.CabalPositions{
-				CabalID: cabalID, TotalShares: shareUnits, InTransit: transit[cabalID],
-			})
+			transit, err := micros(row.InTransitMicros)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, port.CabalPositions{CabalID: cabalID, TotalShares: shareUnits, InTransit: transit})
 		}
 		if err := q.addPositionRow(ctx, &out[len(out)-1], row, assets); err != nil {
 			return nil, err

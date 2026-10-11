@@ -1,8 +1,3 @@
--- name: CabalInTransitMicros :one
-SELECT coalesce(sum(amount_micros), 0)::text AS micros
-FROM treasury_in_transit
-WHERE cabal_id = sqlc.arg(cabal_id)::uuid;
-
 -- name: CabalValueRows :many
 WITH head AS (
   SELECT
@@ -20,8 +15,17 @@ FROM head
 LEFT JOIN cabal_positions AS p ON p.cabal_id = sqlc.arg(cabal_id)::uuid AND p.units > 0
 ORDER BY p.asset;
 
--- name: InTransitByCabal :many
-SELECT cabal_id, sum(amount_micros)::text AS micros
-FROM treasury_in_transit
-GROUP BY cabal_id
-ORDER BY cabal_id;
+-- name: ListActivityRouted :many
+SELECT a.id, a.kind,
+  CASE
+    WHEN a.status = 'confirmed' AND a.kind IN ('buy', 'sell') AND EXISTS (
+      SELECT 1 FROM trade_steps AS s WHERE s.trade_id = a.id AND s.status IN ('pending', 'submitted')
+    ) THEN 'pending'
+    ELSE a.status
+  END::text AS status,
+  a.actor_user_id, a.asset, a.usdc_micros, a.units, a.tx_signature, a.occurred_at
+FROM cabal_activity AS a
+WHERE a.cabal_id = @cabal_id
+  AND (NOT @has_cursor::bool OR (a.occurred_at, a.id) < (@cursor_at::timestamptz, @cursor_id::uuid))
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT @row_limit;

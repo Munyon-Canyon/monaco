@@ -11,11 +11,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
-
-const listingPriceMaxAge = 5 * time.Minute
 
 type heldRow struct{ asset, units, cost string }
 
@@ -95,7 +93,7 @@ func (q *Queries) valueEVM(
 	out := make([]evmHolding, 0, len(positions))
 	for _, p := range positions {
 		quote, ok := quotes[p.key]
-		if !ok || quote.Price == nil || q.clock.Now().Sub(quote.Price.ObservedAt) > listingPriceMaxAge {
+		if !ok || quote.Price == nil || q.clock.Now().Sub(quote.Price.ObservedAt) > multichain.ListingPriceMaxAge {
 			return nil, nil, time.Time{}, priceUnavailable(nil, chain.SolanaAddress(p.key))
 		}
 		value, err := quote.Value(p.units)
@@ -150,18 +148,4 @@ func (q *Queries) offSolanaPosition(p *port.CabalPositions, asset, unitsRaw stri
 	case domain.SolanaCash, domain.SolanaToken:
 	}
 	return false, nil
-}
-
-func (q *Queries) inTransitByCabal(ctx context.Context) (map[ids.CabalID]money.Micros, error) {
-	rows, err := q.transit.InTransitByCabal(ctx)
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.inTransitByCabal")
-	}
-	out := make(map[ids.CabalID]money.Micros, len(rows))
-	for _, row := range rows {
-		if out[ids.CabalIDFrom(row.CabalID)], err = micros(row.Micros); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
 }

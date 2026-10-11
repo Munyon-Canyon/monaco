@@ -1,12 +1,9 @@
 package adapters
 
 import (
-	"context"
 	"math/big"
 	"testing"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -17,40 +14,32 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-func TestAddOffSolana_refusesAFailedTransitReadAndCashPastUint64(t *testing.T) {
+func TestAddOffSolana_refusesAnUnreadableTransitSumAndCashPastUint64(t *testing.T) {
 	t.Parallel()
 	q := chainQueries(nil, nil)
-	q.pot = potFake{transitErr: errs.New(errs.CodeDBUnavailable, "test")}
 	pot := &potBuilder{port.CabalPot{CabalID: ids.CabalID{}}}
-	if err := q.addOffSolana(t.Context(), pot, nil, nil, chainRows{}); errs.CodeOf(err) != errs.CodeDBUnavailable {
-		t.Fatalf("addOffSolana over a failed transit read = %v, want db_unavailable", err)
-	}
-	q.pot = transitFake{raw: "x"}
-	if err := q.addOffSolana(t.Context(), pot, nil, nil, chainRows{}); errs.CodeOf(err) != errs.CodeDecodeFailed {
+	if err := q.addOffSolana(t.Context(), pot, nil, nil, chainRows{}, "x"); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("addOffSolana over an unreadable transit sum = %v, want decode_failed", err)
 	}
-	q.pot = transitFake{raw: "1"}
 	full := &potBuilder{port.CabalPot{CashMicros: money.MicrosFromUint64(maxMicro)}}
-	if err := q.addOffSolana(t.Context(), full, nil, nil, chainRows{evmCash: money.MicrosFromUint64(1)}); err == nil {
+	if err := q.addOffSolana(
+		t.Context(),
+		full,
+		nil,
+		nil,
+		chainRows{evmCash: money.MicrosFromUint64(1)},
+		"0",
+	); err == nil {
 		t.Fatal("addOffSolana past uint64 on EVM cash = nil")
 	}
 	full = &potBuilder{port.CabalPot{CashMicros: money.MicrosFromUint64(maxMicro)}}
-	if err := q.addOffSolana(t.Context(), full, nil, nil, chainRows{}); err == nil {
+	if err := q.addOffSolana(t.Context(), full, nil, nil, chainRows{}, "1"); err == nil {
 		t.Fatal("addOffSolana past uint64 on transit = nil")
 	}
 	unpriced := chainRows{evm: []evmPosition{{key: evmStock, units: big.NewInt(1)}}}
-	if err := q.addOffSolana(t.Context(), pot, nil, nil, unpriced); errs.CodeOf(err) != errs.CodePriceUnavailable {
+	if err := q.addOffSolana(t.Context(), pot, nil, nil, unpriced, "0"); errs.CodeOf(err) != errs.CodePriceUnavailable {
 		t.Fatalf("addOffSolana with an unpriced EVM position = %v, want price_unavailable", err)
 	}
-}
-
-type transitFake struct {
-	potFake
-	raw string
-}
-
-func (f transitFake) CabalInTransitMicros(context.Context, uuid.UUID) (string, error) {
-	return f.raw, nil
 }
 
 func TestStockGroupAdd_refusesSumsPastTheirTypes(t *testing.T) {
