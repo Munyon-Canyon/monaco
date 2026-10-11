@@ -21,16 +21,18 @@ type evmFake struct {
 	fillErr   error
 	afterSend map[string]func()
 	builds    int
+	specs     []app.EVMSwapSpec
 }
 
 func newEVMFake(plan app.EVMSwapPlan) *evmFake {
 	return &evmFake{plan: plan, byKey: map[string]string{}, sendErr: map[string]error{}, afterSend: map[string]func(){}}
 }
 
-func (f *evmFake) Build(context.Context, app.EVMSwapSpec) (app.EVMSwapPlan, error) {
+func (f *evmFake) Build(_ context.Context, spec app.EVMSwapSpec) (app.EVMSwapPlan, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.builds++
+	f.specs = append(f.specs, spec)
 	return f.plan, f.buildErr
 }
 

@@ -128,7 +128,11 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 		return "", err
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
-	return hash, s.submit(ctx, leg, hash)
+	if err := s.submit(ctx, leg, hash); err != nil {
+		return "", err
+	}
+	faultpoint.Hit(ctx, faultpoint.AfterSwapSubmitted)
+	return hash, nil
 }
 
 func (s EVMSwap) submit(ctx context.Context, leg EVMSwapLeg, hash string) error {

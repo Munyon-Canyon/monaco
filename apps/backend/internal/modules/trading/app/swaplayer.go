@@ -114,19 +114,27 @@ func (l *SwapLayer) claim(
 }
 
 func (l *SwapLayer) start(ctx context.Context, req SwapRequest, id uuid.UUID) error {
+	wanted, err := l.wanted(ctx, req, id)
+	if err != nil || !wanted {
+		return err
+	}
+	return l.drive(ctx, req, id)
+}
+
+func (l *SwapLayer) wanted(ctx context.Context, req SwapRequest, id uuid.UUID) (bool, error) {
 	if req.StillWanted == nil {
-		return l.drive(ctx, req, id)
+		return true, nil
 	}
 	wanted, err := req.StillWanted(ctx)
 	switch {
 	case err != nil:
 		_, failErr := l.move(ctx, req, id, failed(req, id, domain.FailureNeverSubmitted, ""))
-		return errors.Join(err, failErr)
+		return false, errors.Join(err, failErr)
 	case !wanted:
 		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureSourceCancelled, ""))
-		return err
+		return false, err
 	}
-	return l.drive(ctx, req, id)
+	return true, nil
 }
 
 func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) error {
