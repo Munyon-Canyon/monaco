@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"cmp"
 	"context"
 	"math"
 	"testing"
@@ -384,15 +385,17 @@ func TestHistoricalReadsSuccess(t *testing.T) {
 type testStore interface {
 	queryStore
 	fundStore
+	transitStore
 }
 
 func newTestQueries(store testStore, prices app.PriceReader) *Queries {
 	return &Queries{
-		q:      store,
-		funds:  store,
-		prices: prices,
-		clock:  testkit.NewClock(time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)),
-		usdc:   usdcMint,
+		q:       store,
+		funds:   store,
+		transit: store,
+		prices:  prices,
+		clock:   testkit.NewClock(time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)),
+		usdc:    usdcMint,
 	}
 }
 
@@ -432,6 +435,23 @@ func (s walletStore) WalletLedgerMicros(
 
 func (s stakeStore) CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error) {
 	return s.positions, s.positionsErr
+}
+
+func (s stakeStore) CabalValueRows(context.Context, uuid.UUID) ([]sqlc.CabalValueRowsRow, error) {
+	rows := []sqlc.CabalValueRowsRow{{CashOutReservedMicros: "0", InTransitMicros: "0"}}
+	for i, p := range s.positions {
+		reserved := cmp.Or(p.CashOutReservedMicros, "0")
+		row := sqlc.CabalValueRowsRow{
+			CashOutReservedMicros: reserved, InTransitMicros: "0", Asset: pgtype.Text{String: p.Asset, Valid: true},
+			Units: p.Units, CostBasisMicros: p.CostBasisMicros,
+		}
+		if i == 0 {
+			rows[0] = row
+			continue
+		}
+		rows = append(rows, row)
+	}
+	return rows, s.positionsErr
 }
 
 func (s stakeStore) CabalTotalShares(context.Context, uuid.UUID) (string, error) { return s.total, nil }

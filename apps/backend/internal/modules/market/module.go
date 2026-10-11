@@ -66,6 +66,7 @@ type Prices interface {
 type (
 	ListingKey   = app.ListingKey
 	ListingPrice = app.ListingPrice
+	ListedAsset  = app.ListedAsset
 )
 
 type ListingPrices interface {

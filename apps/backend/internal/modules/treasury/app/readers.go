@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,3 +49,24 @@ type MintResolver func(context.Context, chain.SolanaAddress) (Asset, error)
 func (r MintResolver) AssetByMint(ctx context.Context, mint chain.SolanaAddress) (Asset, error) {
 	return r(ctx, mint)
 }
+
+type ListedAsset struct {
+	Mint        string
+	Symbol      string
+	DisplayName string
+	Kind        string
+}
+
+type ListingQuote struct {
+	ListingID      uuid.UUID
+	Asset          *ListedAsset
+	Issuer         string
+	Symbol         string
+	Network        chain.Network
+	Decimals       uint8
+	SharesPerToken *big.Rat
+	Price          *Price
+	Value          func(units *big.Int) (money.Micros, error)
+}
+
+type ListingReader func(ctx context.Context, keys []string, at time.Time) (map[string]ListingQuote, error)
