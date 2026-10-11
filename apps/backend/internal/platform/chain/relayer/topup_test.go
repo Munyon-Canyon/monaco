@@ -198,6 +198,16 @@ func newTopUpEnv(t *testing.T, wallet, relayerLamports uint64, clk clock.Clock) 
 
 const funded = 1_000_000_000
 
+const topUpLockOp = "relayer.TopUps.TopUpSOL"
+
+const topUpLockWithin = 10 * time.Second
+
+const topUpLockWaiters = `WITH k AS (SELECT hashtextextended('sol-topup:' || $1::text, 0) AS key)
+SELECT count(*) FROM pg_locks, k
+WHERE locktype = 'advisory' AND NOT granted
+	AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+	AND classid::bigint = (k.key >> 32) & 4294967295 AND objid::bigint = k.key & 4294967295`
+
 func TestTopUpSOL_bringsAWalletBelowTheFloorToTheTargetOnce(t *testing.T) {
 	t.Parallel()
 	e := newTopUpEnv(t, 1_500_000, funded, instant{})
@@ -459,11 +469,27 @@ func TestTopUpSOL_aLockItCannotTakeIsReported(t *testing.T) {
 	}()
 	<-held
 	defer close(release)
-	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- e.topUps.TopUpSOL(ctx, memberWallet) }()
 
-	if err := e.topUps.TopUpSOL(ctx, memberWallet); err == nil || len(e.rpc.sentList()) != 0 {
-		t.Fatalf("err %v, sends %v, want the lock wait reported and nothing sent", err, e.rpc.sentList())
+	testkit.Eventually(t, func() bool {
+		var waiting int
+		if err := e.pool.QueryRow(t.Context(), topUpLockWaiters, string(memberWallet)).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		return waiting > 0
+	}, topUpLockWithin)
+	cancel()
+
+	err := <-done
+	var coded *errs.Error
+	if !errors.As(err, &coded) || coded.Code != errs.CodeDBUnavailable || coded.Op != topUpLockOp {
+		t.Fatalf("err %v, want db_unavailable from %s", err, topUpLockOp)
+	}
+	if sends := e.rpc.sentList(); len(sends) != 0 {
+		t.Fatalf("sends %v, want nothing sent", sends)
 	}
 }
 
