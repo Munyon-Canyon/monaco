@@ -10,6 +10,7 @@ Two ways in:
 
 1. **Crypto (unchanged).** The app shows the user's member-wallet address. They send Solana USDC to it from an exchange or wallet.
 2. **Card / bank (new).** Tapping **Deposit → Card** opens a Monaco-hosted web page that renders Privy's fiat on-ramp. The on-ramp provider (Stripe, Meld, MoonPay or Coinbase, chosen by Privy by region) sells the user USDC and sends it straight to the same member-wallet address on `solana:mainnet`. From that moment the flow is identical to a crypto deposit.
+3. **Crypto from an EVM chain (M24).** The app also shows one EVM address, the same on Base, Arbitrum and Ethereum. Privy forwards every USDC deposit there to the user's Solana member wallet, and from its arrival on Solana the flow is identical to a crypto deposit. See [Deposits from an EVM chain](#deposits-from-an-evm-chain).
 
 The web page exists only because Privy's on-ramp is a React hook (`useFiatOnramp` from `@privy-io/react-auth`); there is no Swift equivalent. Privy's Expo SDK has `useFundSolanaWallet`, but Monaco's app is native Swift.
 
@@ -93,6 +94,43 @@ The residual check compares each wallet's on-chain USDC with the ledger. Once an
 
 The deposit screen becomes two options: **Card** (opens the fund page) and **Crypto** (shows the address).
 
+## Deposits from an EVM chain
+
+**Status:** Decided 2026-10-11 in M24 ([#4917](https://github.com/Munyon-Canyon/monaco/issues/4917)). Built by #4966 (Privy client and the deposit wallet) and #4967 (forwarding, arrival and `arriving_micros`). The app screen is #4968.
+
+Every user balance stays on Solana. Base, Arbitrum and Ethereum are ways in, nothing else: USDC sent from them becomes balance only after it arrives in the Solana member wallet, and the existing deposit watcher credits it there.
+
+### The deposit wallet
+
+Each user gets one **EVM deposit wallet**, the same address on every EVM network. It is app-owned: `identity`'s `EnsureEVMDepositWallet` creates it through Privy with the idempotency key `evm-deposit:<user_id>`, our authorization key quorum as owner, and stores it in `user_wallets.evm_privy_wallet_id`, `evm_address` and `evm_created_at` (all three or none). A concurrent second call loses the insert and reads the stored row back. The wallet only ever forwards to the user's own Solana member wallet, so the user never signs anything for it.
+
+Privy's deposit accounts would create this wallet for us, but they need a destination owned 1-of-1 by the user with no authorization key, and our member wallets carry our key as an additional signer ([#4917](https://github.com/Munyon-Canyon/monaco/issues/4917), open question 1). So forwarding uses Privy **wallet automations** instead:
+
+1. One app automation, created once with `CreateAutomation`: trigger, a USDC deposit on Base, Arbitrum or Ethereum; action, swap to USDC on Solana.
+2. Each deposit wallet is attached to it with `Attach(evmWalletID, solanaDest)`, where `params.destination_address` is the user's Solana member wallet. Our key signs the attach as owner.
+
+`GET /v1/me/deposit-addresses` (`identity`) returns the Solana member wallet first, then one item per enabled EVM network, all with the deposit wallet's address. Enabled networks come from `EVM_DEPOSIT_NETWORKS` (default `base`). If creating or reading the EVM wallet fails, the response still returns the Solana item and never a 5xx.
+
+### Forwarding and arrival
+
+```
+Sender wallet (Base)      EVM deposit wallet       Privy automation            Solana member wallet        Monaco
+ │── USDC transfer ───────►│                         │                            │                          │
+ │                         │── deposit trigger ─────►│                            │                          │
+ │                         │                         │── swap + bridge to Solana ─►                          │
+ │                         │                         │                            │◄── watcher: candidate ── │
+ │                         │                         │                            │    resolver: credited     │
+ │                         │◄────────────── execution poller (10 s): evm_deposit_forwards row ───────────────── │
+```
+
+- **Execution poller** `funding.evm_deposit_forward`, every 10 s, on one worker under its advisory lock. It pages through `Executions` for every enrolled wallet and upserts `evm_deposit_forwards` on `privy_execution_id`, so a repeated page changes nothing. No cursor is stored: each tick pages from the start. An execution that is `pending` or `succeeded` keeps the row `pending` (money in flight). `failed` or `rejected` sets the row `failed`. A `succeeded` execution appends `deposit.evm_forwarded`.
+- **Recovery.** A `failed` execution with no wallet action calls `Reindex` once for that wallet and network, and alerts. An execution `pending` for more than 30 minutes alerts once. Privy's automation acts on the wallet's whole balance and dedupes per block, so a reindex never double-forwards.
+- **Arrival.** The forwarded USDC lands in the member wallet like any deposit. The watcher records the candidate and the resolver credits it through `CreditDeposit` ([Crypto deposit flow](#crypto-deposit-flow)), so the credit, the `user_txns` row and `deposit.credited` are exactly the Solana path. A `funding` consumer of `deposit.credited` then links the credit to the forward row, by Solana signature or else by member wallet plus amount within the window, and sets it `arrived`. That consumer never credits; it only closes rows.
+- **Arriving.** `arriving_micros` on `GET /v1/me/balance` is the sum of the user's `pending` forward rows. The app shows it as an **Arriving** row so money in flight is visible. It is never spendable. A failed read of it returns the balance without the field, never an error.
+- **Polling, not webhooks.** Privy's automation webhooks need the Enterprise plan in production, so the execution list is the source of truth.
+
+USDC on any other EVM chain, or any other token, sent to the deposit wallet, does not trigger the automation and is not credited. The deposit screen says "Only send USDC on Base, Arbitrum or Ethereum to this address."
+
 ## Fund
 
 [Flow 7](backend-platform.md#flows), owned by the `treasury` module: `FundCabal` from `POST /v1/cabals/{id}/fund` moves an exact amount of platform balance from the member wallet to the cabal treasury through a Privy transfer, waits for confirmation, and mints share units at the live price. It appends `cabal.fund_submitted`, then `cabal.funded`. Its outcomes, including `InsufficientFunds`, `CabalPaused`, `PrivyUnavailable` and the `after-sign` and `before-commit` crash points, are the row in its [flow file](backend-platform.md#outcomes-as-a-map). The balance and share rules are in [architecture.md](../architecture.md) (Deposit and fund a cabal) and [data-model.md](data-model.md#double-entry-ledgers).
@@ -171,9 +209,22 @@ A sale that can't start (the swap venue refuses the quote, or the last retry fai
 
 ### Withdraw
 
-[Flow 15](backend-platform.md#flows), `funding` module: `Withdraw` sends platform balance to any Solana address the user pastes, from `POST /v1/me/withdrawals` with an `Idempotency-Key`. Events `withdrawal.submitted`, then `withdrawal.confirmed` or `withdrawal.failed`. These replace `withdrawal.sent` in [event-bus.md](event-bus.md#who-publishes-who-subscribes). `treasury` consumes `withdrawal.confirmed` and writes the `user_txns` withdrawal entry.
+[Flow 15](backend-platform.md#flows), `funding` module: `Withdraw` sends platform balance to any Solana address the user pastes, or to an EVM address on Base, Arbitrum or Ethereum ([Withdraw to an EVM wallet](#withdraw-to-an-evm-wallet)), from `POST /v1/me/withdrawals` with an `Idempotency-Key`. Events `withdrawal.submitted`, then `withdrawal.confirmed` or `withdrawal.failed`. These replace `withdrawal.sent` in [event-bus.md](event-bus.md#who-publishes-who-subscribes). `treasury` consumes `withdrawal.confirmed` and writes the `user_txns` withdrawal entry.
 
 Each move of a withdrawal (created, submitted, failed) publishes the user's `balance_changed` hint after commit, so Home drops the amount the moment the withdrawal is submitted. Fund-to-cabal ([flow 7](backend-platform.md#flows), `treasury` module) does the same at submit, from the transaction that appends `cabal.fund_submitted`, and again when the transfer settles.
+
+### Withdraw to an EVM wallet
+
+**Status:** Decided 2026-10-11 in M24 ([#4917](https://github.com/Munyon-Canyon/monaco/issues/4917)). Built by #4972. The network picker in the app is #4973.
+
+The member picks a network (Solana, Base, Arbitrum or Ethereum) and pastes an address. A Solana withdrawal is unchanged: `destination_kind: solana` is the default. An EVM withdrawal sends `destination_kind: evm`, a `network` and the EVM address as `to_address`:
+
+1. **Validate.** `ParseEVMAddress` accepts any case and checks the EIP-55 checksum when the case is mixed. The network must be enabled. The row stores the lowercase address in both `evm_address` and `to_address`.
+2. **Transfer.** `WalletActions.Transfer` from the member's Solana wallet to the address on that network, with the withdrawal id as the Privy idempotency key. Privy bridges the USDC. From Solana the amount is exact input only ("Exact output bridging is not yet supported when Solana is the source chain"), so the preview shows "you'll receive ~$X" from Privy's quote, not an exact amount.
+3. **Store, then poll.** The Privy action id is stored on the row (`privy_action_id`) before the first poll, and the row moves to `submitted` in the same write. The withdrawal poller reads `Action` until it is terminal.
+4. **Settle.** `succeeded` confirms the row and appends `withdrawal.confirmed`, so `treasury` writes the `user_txns` entry as for Solana. `rejected`, or `failed` with no confirmed on-chain step, fails the row and releases the hold. A transfer whose on-chain step confirmed is never retried, because a retry would send a second transfer; it goes to ops.
+
+The balance hold works as for Solana: the in-flight amount is subtracted from `GET /v1/me/balance` until the row is terminal.
 
 No fiat off-ramp in MVP: withdrawals are crypto only. Privy's on-ramp docs cover funding only, and a provider off-ramp is a separate decision after MVP.
 
