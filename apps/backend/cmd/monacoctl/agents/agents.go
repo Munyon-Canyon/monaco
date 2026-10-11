@@ -56,6 +56,7 @@ type Env struct {
 	Actions     bool
 	GOOS        string
 	LookPath    func(string) (string, error)
+	LookupEnv   func(string) (string, bool)
 	Load        func(ctx context.Context, goos string) (float64, error)
 	Cores       func() int
 	LoadTick    func() (<-chan time.Time, func())
@@ -265,7 +266,7 @@ func load(ctx context.Context, environ []string, dir string, run Runner) (*Env, 
 		Work: top, Common: common, Home: lookup(environ, "HOME"), Config: cfg,
 		GitHub: gh, Run: run, Start: spawn, Now: time.Now, After: time.After,
 		Actions: lookup(environ, "GITHUB_ACTIONS") == "true", GOOS: runtime.GOOS,
-		LookPath: exec.LookPath, featureNote: note, localConfig: local,
+		LookPath: exec.LookPath, LookupEnv: os.LookupEnv, featureNote: note, localConfig: local,
 	}, nil
 }
 

@@ -66,6 +66,7 @@ type checkHarness struct {
 	swiftWaited []string
 	swiftRun    func(waited string)
 	onCall      func(line string)
+	environ     []string
 }
 
 func newCheckHarness(t *testing.T) *checkHarness {
@@ -163,6 +164,14 @@ func (h *checkHarness) check(t *testing.T, args ...string) (int, string, string)
 			env.Load = func(context.Context, string) (float64, error) { return h.loadOr(41.5), nil }
 			env.Cores = func() int { return cmp.Or(h.cores, 64) }
 			env.LoadTick = h.loadTick
+			env.LookupEnv = func(key string) (string, bool) {
+				for _, kv := range h.environ {
+					if k, v, _ := strings.Cut(kv, "="); k == key {
+						return v, true
+					}
+				}
+				return "", false
+			}
 			env.LookPath = h.lookPath
 			if env.LookPath == nil {
 				env.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
@@ -2217,5 +2226,59 @@ func TestCheck_keepGoingWritesTheMarkerOnAFullPass(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); err != nil {
 		t.Fatalf("a full pass records the tree: %v", err)
+	}
+}
+
+func toolchainCheck(t *testing.T, gomod string, environ ...string) (*checkHarness, string) {
+	t.Helper()
+	h := newCheckHarness(t)
+	h.environ = environ
+	h.commit(t, map[string]string{
+		"apps/backend/go.mod":          gomod,
+		"apps/backend/internal/a/a.go": "package a\n",
+	})
+	h.affected = "./internal/a\n"
+	code, stdout, stderr := h.check(t, "--base", "fb")
+	if code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	return h, stdout
+}
+
+func TestCheck_goRowsRunOnTheToolchainGoModPins(t *testing.T) {
+	t.Parallel()
+	h, stdout := toolchainCheck(t, "module m\n\ngo 1.26.0\n\ntoolchain go1.26.9\n")
+	if !strings.Contains(stdout, "go toolchain: go1.26.9 (apps/backend/go.mod)\n") {
+		t.Fatalf("header: %q", stdout)
+	}
+	for _, row := range []string{"go build", "go vet", "go test"} {
+		found := false
+		for _, call := range h.calls {
+			if strings.Contains(call, " go "+strings.TrimPrefix(row, "go ")+" ") {
+				found = true
+				if !strings.Contains(call, "env GOTOOLCHAIN=go1.26.9 ") {
+					t.Errorf("%s ran without the pinned toolchain: %s", row, call)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s did not run: %q", row, h.calls)
+		}
+	}
+}
+
+func TestCheck_aGoModWithoutAToolchainLineLeavesGoToolchainUnset(t *testing.T) {
+	t.Parallel()
+	h, stdout := toolchainCheck(t, "module m\n\ngo 1.26.0\n")
+	if strings.Contains(stdout, "go toolchain:") || strings.Contains(strings.Join(h.calls, "\n"), "GOTOOLCHAIN") {
+		t.Fatalf("stdout %q calls %q", stdout, h.calls)
+	}
+}
+
+func TestCheck_anExplicitGoToolchainIsKept(t *testing.T) {
+	t.Parallel()
+	h, stdout := toolchainCheck(t, "module m\n\ngo 1.26.0\n\ntoolchain go1.26.9\n", "GOTOOLCHAIN=local")
+	if strings.Contains(stdout, "go toolchain:") || strings.Contains(strings.Join(h.calls, "\n"), "GOTOOLCHAIN") {
+		t.Fatalf("stdout %q calls %q", stdout, h.calls)
 	}
 }
