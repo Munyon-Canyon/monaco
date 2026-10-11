@@ -14,9 +14,10 @@ import (
 )
 
 type quoter struct {
-	gross map[string]*big.Int
-	sides []multichain.Side
-	sizes []money.Micros
+	impact map[string]uint64
+	gross  map[string]*big.Int
+	sides  []multichain.Side
+	sizes  []money.Micros
 }
 
 func (q *quoter) Quote(
@@ -29,7 +30,10 @@ func (q *quoter) Quote(
 	}
 	return multichain.Quote{
 		ListingID: l.ID, InputMicros: amount, GrossOutput: gross, QuotedAt: time.Unix(1_800_000_000, 0),
-		Costs: []multichain.Cost{{Kind: multichain.CostPoolFee, Micros: money.MicrosFromUint64(300_000)}},
+		Costs: []multichain.Cost{
+			{Kind: multichain.CostPoolFee, Micros: money.MicrosFromUint64(300_000)},
+			{Kind: multichain.CostPriceImpact, Micros: money.MicrosFromUint64(q.impact[l.TokenAddress])},
+		},
 	}, nil
 }
 
@@ -87,5 +91,24 @@ func TestPerShare_refusesAQuoteThatCannotPriceAShare(t *testing.T) {
 		if _, err := evmprices.PerShare(q, l); errs.CodeOf(err) != errs.CodeDecodeFailed {
 			t.Fatalf("%s: err = %v, want decode_failed", name, err)
 		}
+	}
+}
+
+func TestSource_dropsAQuoteWhosePriceImpactIsOverTheRouterLimit(t *testing.T) {
+	t.Parallel()
+	limit := uint64(evmprices.ReferenceMicros) * multichain.MaxImpactBps / 10_000
+	thin, deep := listing(t, "0x1", 8, "1"), listing(t, "0x2", 8, "1")
+	q := &quoter{
+		gross:  map[string]*big.Int{"0x1": big.NewInt(40_000_000), "0x2": big.NewInt(40_000_000)},
+		impact: map[string]uint64{"0x1": limit + 1, "0x2": limit},
+	}
+	got, err := evmprices.New(q).Prices(t.Context(), []multichain.Listing{thin, deep})
+	if errs.CodeOf(err) != errs.CodeSlippageExceeded || len(got) != 1 ||
+		got[deep.ID].PerShareMicros.Uint64() != 250_000_000 {
+		t.Fatalf(
+			"Prices = %+v, %v, want the thin pool dropped as slippage_exceeded and the one at the limit kept",
+			got,
+			err,
+		)
 	}
 }

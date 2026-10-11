@@ -6,6 +6,7 @@ func init() {
 	register(
 		MarketPriceMoved,
 		MarketPricesMissing,
+		MarketPricesEVMDropped,
 		MarketRouteProbeFailed,
 		JupiterPriceSkipped,
 	)

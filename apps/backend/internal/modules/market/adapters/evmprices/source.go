@@ -32,6 +32,9 @@ func (s Source) Prices(
 	for _, l := range listings {
 		q, err := s.quoter.Quote(ctx, l, multichain.SideBuy, s.reference)
 		if err == nil {
+			err = withinImpact(q)
+		}
+		if err == nil {
 			var perShare money.Micros
 			if perShare, err = PerShare(q, l); err == nil {
 				out[l.ID] = multichain.Price{PerShareMicros: perShare, AsOf: q.QuotedAt}
@@ -59,4 +62,21 @@ func PerShare(q multichain.Quote, l multichain.Listing) (money.Micros, error) {
 			slog.String("listing", l.ID.String()), slog.String("price", floor.String()))
 	}
 	return money.MicrosFromUint64(floor.Uint64()), nil
+}
+
+func withinImpact(q multichain.Quote) error {
+	var impact uint64
+	for _, c := range q.Costs {
+		if c.Kind == multichain.CostPriceImpact {
+			impact += c.Micros.Uint64()
+		}
+	}
+	bps := new(big.Int).Mul(new(big.Int).SetUint64(impact), big.NewInt(10_000))
+	if bps.Cmp(
+		new(big.Int).Mul(new(big.Int).SetUint64(q.InputMicros.Uint64()), big.NewInt(multichain.MaxImpactBps)),
+	) > 0 {
+		return errs.New(errs.CodeSlippageExceeded, "evmprices.withinImpact",
+			slog.Uint64("impact_micros", impact), slog.Uint64("input_micros", q.InputMicros.Uint64()))
+	}
+	return nil
 }

@@ -64,6 +64,8 @@ func (id *ListingID) Scan(src any) error {
 	return nil
 }
 
+const MaxImpactBps = 300
+
 type Venue string
 
 const (
