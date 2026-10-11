@@ -98,7 +98,7 @@ components:
         Every venue quoted for one trade, best first, by underlying shares received for a buy or USDC
         received for a sell, after every cost of the route.
       additionalProperties: false
-      required: [winner_listing_id, quotes]
+      required: [winner_listing_id, quotes, unavailable]
       properties:
         winner_listing_id: {type: string, format: uuid, description: The listing the trade routes to., examples: [01928a6e-0000-7000-8000-000000000001]}
         quotes:
@@ -106,6 +106,28 @@ components:
           description: Every quote compared, best first.
           items: {$ref: "#/components/schemas/RouteQuote"}
           examples: [[]]
+        unavailable:
+          type: array
+          description: Every enabled venue the router couldn't quote for this trade. It never affects the winner.
+          items: {$ref: "#/components/schemas/UnavailableVenue"}
+          examples: [[{listing_id: 01928a6e-0000-7000-8000-000000000002, network: base, venue: uniswap, reason: simulation_failed}]]
+    UnavailableVenue:
+      type: object
+      description: An enabled venue left out of the comparison, and why.
+      additionalProperties: false
+      required: [listing_id, network, venue, reason]
+      properties:
+        listing_id: {type: string, format: uuid, description: The listing that couldn't be quoted., examples: [01928a6e-0000-7000-8000-000000000002]}
+        network: {$ref: "#/components/schemas/Network"}
+        venue: {type: string, enum: [jupiter, uniswap], description: Where the swap would run., examples: [uniswap]}
+        reason:
+          type: string
+          enum: [no_route, stale, expired, simulation_failed, impact]
+          x-enum-varnames: [UnavailableNoRoute, UnavailableStale, UnavailableExpired, UnavailableSimulationFailed, UnavailableImpact]
+          description: >-
+            Why the venue couldn't be quoted: no route, a stale price or quote, an expired quote, a failed quote
+            simulation, or price impact past the limit.
+          examples: [simulation_failed]
     RouteQuote:
       type: object
       description: One venue's all-in quote for the trade.

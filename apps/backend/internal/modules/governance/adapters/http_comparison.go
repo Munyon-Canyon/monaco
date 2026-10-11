@@ -37,7 +37,16 @@ func wireComparison(c *multichain.Comparison) *wire.PriceComparison {
 	if c == nil {
 		return nil
 	}
-	out := &wire.PriceComparison{WinnerListingId: c.Winner.UUID(), Quotes: make([]wire.RouteQuote, len(c.Ranked))}
+	out := &wire.PriceComparison{
+		WinnerListingId: c.Winner.UUID(), Quotes: make([]wire.RouteQuote, len(c.Ranked)),
+		Unavailable: make([]wire.UnavailableVenue, len(c.Unavailable)),
+	}
+	for i, u := range c.Unavailable {
+		out.Unavailable[i] = wire.UnavailableVenue{
+			ListingId: u.ListingID.UUID(), Network: wire.Network(u.Network),
+			Venue: wire.UnavailableVenueVenue(u.Venue), Reason: wire.UnavailableVenueReason(u.Reason),
+		}
+	}
 	for i, q := range c.Ranked {
 		costs := make([]wire.RouteCost, len(q.Costs))
 		for j, cost := range q.Costs {

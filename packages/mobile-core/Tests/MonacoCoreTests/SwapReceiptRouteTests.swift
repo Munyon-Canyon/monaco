@@ -17,7 +17,7 @@ final class SwapReceiptRouteTests: XCTestCase {
                "net_micros": "10000000", "costs": [], "quoted_at": "\(now)", "expires_at": "\(now)"},
               {"listing_id": "s", "issuer": "xstocks", "network": "solana", "venue": "jupiter",
                "net_share_nanos": "40000000", "net_micros": "10000000", "costs": [], "quoted_at": "\(now)",
-               "expires_at": "\(now)"}]},
+               "expires_at": "\(now)"}], "unavailable": []},
             """ : ""
         let stepsJSON = steps.map { "\"steps\": \($0)," } ?? ""
         let json = """

@@ -79,6 +79,7 @@ type venueQuote struct {
 	quote   multichain.Quote
 	ok      bool
 	err     error
+	reason  multichain.UnavailableReason
 }
 
 func (r *Router) Best(
@@ -111,17 +112,20 @@ func (r *Router) quote(
 	ctx, cancel := context.WithTimeout(ctx, r.rules.QuoteTimeout)
 	defer cancel()
 	input, costs, err := r.bridgeIn(ctx, l, amount, refErr)
+	if err != nil && refErr != nil {
+		return venueQuote{err: err, reason: multichain.UnavailableStale}
+	}
 	if err != nil {
-		return venueQuote{err: err}
+		return failed(err)
 	}
 	q, err := r.quoter.Quote(ctx, l, multichain.SideBuy, input)
 	if err != nil {
-		return venueQuote{err: err}
+		return failed(err)
 	}
 	gross := grossShares(q.GrossOutput, l)
 	impact, err := r.impact(l, gross, input, ref, refErr == nil, costOf(q.Costs, multichain.CostPoolFee))
 	if err != nil {
-		return venueQuote{err: err}
+		return venueQuote{err: err, reason: multichain.UnavailableImpact}
 	}
 	gas := min(costOf(q.Costs, multichain.CostGas), input.Uint64())
 	q.ListingID, q.Issuer, q.Network, q.Venue, q.Side = l.ID, l.Issuer, l.Network, l.Venue, multichain.SideBuy
@@ -129,6 +133,13 @@ func (r *Router) quote(
 	q.Costs = append(append(costs, q.Costs...), impact...)
 	q.NetShares = multichain.ShareNanos(scale(gross, input.Uint64()-gas, input.Uint64()))
 	return venueQuote{quote: q, ok: true}
+}
+
+func failed(err error) venueQuote {
+	if errs.CodeOf(err) == errs.CodeNoRoute {
+		return venueQuote{err: err, reason: multichain.UnavailableNoRoute}
+	}
+	return venueQuote{err: err, reason: multichain.UnavailableSimulationFailed}
 }
 
 func (r *Router) bridgeIn(
@@ -212,10 +223,14 @@ func (r *Router) rank(
 	ctx context.Context, stock multichain.StockID, quotes []venueQuote,
 ) (multichain.Comparison, error) {
 	var ranked []multichain.Quote
+	var unavailable []multichain.UnavailableVenue
 	for _, q := range quotes {
-		if reason := r.dropReason(q); reason != "" {
+		if logged, reason := r.dropReason(q); reason != "" {
 			observability.Info(ctx, observability.MarketRouterVenueDropped,
-				slog.String("listing_id", q.listing.ID.String()), slog.String("reason", reason))
+				slog.String("listing_id", q.listing.ID.String()), slog.String("reason", logged))
+			unavailable = append(unavailable, multichain.UnavailableVenue{
+				ListingID: q.listing.ID, Network: q.listing.Network, Venue: q.listing.Venue, Reason: reason,
+			})
 			continue
 		}
 		ranked = append(ranked, q.quote)
@@ -232,10 +247,11 @@ func (r *Router) rank(
 	}
 	ranked = append([]multichain.Quote{ranked[winner]}, slices.Delete(slices.Clone(ranked), winner, winner+1)...)
 	return multichain.Comparison{
-		StockID: stock,
-		Side:    multichain.SideBuy,
-		Ranked:  ranked,
-		Winner:  ranked[0].ListingID,
+		StockID:     stock,
+		Side:        multichain.SideBuy,
+		Ranked:      ranked,
+		Winner:      ranked[0].ListingID,
+		Unavailable: unavailable,
 	}, nil
 }
 
@@ -246,19 +262,19 @@ func solanaFirst(q multichain.Quote) int {
 	return 1
 }
 
-func (r *Router) dropReason(q venueQuote) string {
+func (r *Router) dropReason(q venueQuote) (string, multichain.UnavailableReason) {
 	now := r.clock.Now()
 	switch {
 	case !q.ok:
-		return string(errs.CodeOf(q.err))
+		return string(errs.CodeOf(q.err)), q.reason
 	case !now.Before(q.quote.ExpiresAt):
-		return "expired"
+		return "expired", multichain.UnavailableExpired
 	case now.Sub(q.quote.QuotedAt) > r.rules.MaxQuoteAge:
-		return "stale"
+		return "stale", multichain.UnavailableStale
 	case q.quote.NetShares == 0:
-		return "no_output"
+		return "no_output", multichain.UnavailableNoRoute
 	}
-	return ""
+	return "", ""
 }
 
 func (r *Router) winner(

@@ -173,7 +173,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalPriceComparison"
-              example: {quote_out_amount: 40000000, quoted_at: "2026-10-10T12:00:00Z", price_comparison: {winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}}
+              example: {quote_out_amount: 40000000, quoted_at: "2026-10-10T12:00:00Z", price_comparison: {winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}}
         default:
           $ref: "#/components/responses/Problem"
   /v1/proposals/{id}:
@@ -557,7 +557,7 @@ components:
         price_comparison:
           description: Every venue quoted now, best first. Absent when the venues could not be compared.
           $ref: "#/components/schemas/PriceComparison"
-          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}]
         quote_out_amount:
           type: integer
           format: int64
@@ -578,7 +578,7 @@ components:
           description: >-
             Every venue checked for the trade, best first. Absent until the multichain routing work lands.
           $ref: "#/components/schemas/PriceComparison"
-          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}]
         quote_out_amount:
           type: [integer, "null"]
           format: int64
@@ -626,7 +626,7 @@ components:
           description: >-
             Every venue checked for the trade, best first. Absent until the multichain routing work lands.
           $ref: "#/components/schemas/PriceComparison"
-          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}]
         id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
         proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
@@ -754,7 +754,7 @@ components:
           description: >-
             Every venue checked for the trade, best first. Absent for a sell and until routing fills it.
           $ref: "#/components/schemas/PriceComparison"
-          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}]
         thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
         status: {$ref: "#/components/schemas/ProposalStatus"}
         status_reason:

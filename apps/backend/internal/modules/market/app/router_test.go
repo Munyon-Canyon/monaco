@@ -557,3 +557,84 @@ func TestRouterLetsAnEVMRouteWinAtExactlyTheEdgeAndKeepsSolanaOnATie(t *testing.
 		})
 	}
 }
+
+func TestRouterListsABaseListingWhoseSimulationFailsAsUnavailable(t *testing.T) {
+	t.Parallel()
+	quotes := recordedApple()
+	quotes[aaplcBase] = recordedQuote{err: errs.New(errs.CodeUpstreamUnavailable, "test")}
+	c, l, _, err := route(t, quotes, testRules())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Winner != l[aaplxSolana].ID || len(c.Ranked) != 3 {
+		t.Fatalf("comparison = %+v, want a Solana winner over the three quoted listings", c)
+	}
+	want := []multichain.UnavailableVenue{{
+		ListingID: l[aaplcBase].ID, Network: chain.NetworkBase, Venue: multichain.VenueUniswap,
+		Reason: multichain.UnavailableSimulationFailed,
+	}}
+	if !slices.Equal(c.Unavailable, want) {
+		t.Fatalf("unavailable = %+v, want %+v", c.Unavailable, want)
+	}
+}
+
+func TestRouterGivesEachUnavailableVenueItsReason(t *testing.T) {
+	t.Parallel()
+	failing := errs.New(errs.CodeUpstreamUnavailable, "test")
+	cases := map[multichain.UnavailableReason]struct {
+		base  recordedQuote
+		tweak func(*routeFixture)
+	}{
+		multichain.UnavailableNoRoute: {base: recordedQuote{err: errs.New(errs.CodeNoRoute, "test")}},
+		multichain.UnavailableExpired: {base: recordedQuote{units: 40_000_000, ttl: time.Second, age: 2 * time.Second}},
+		multichain.UnavailableStale:   {base: recordedQuote{units: 40_000_000, age: 16 * time.Second}},
+		multichain.UnavailableImpact:  {base: recordedQuote{units: 28_000_000}},
+		multichain.UnavailableSimulationFailed: {
+			base: recordedApple()[aaplcBase],
+			tweak: func(f *routeFixture) {
+				f.bridged = func(money.Micros) (money.Micros, error) { return money.Micros{}, failing }
+			},
+		},
+	}
+	for reason, tc := range cases {
+		t.Run(string(reason), func(t *testing.T) {
+			t.Parallel()
+			var tweaks []func(*routeFixture)
+			if tc.tweak != nil {
+				tweaks = append(tweaks, tc.tweak)
+			}
+			c, l, _, err := route(t, map[string]recordedQuote{
+				aaplxSolana: recordedApple()[aaplxSolana], aaplcBase: tc.base,
+			}, testRules(), tweaks...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(c.Unavailable) != 1 || c.Unavailable[0].ListingID != l[aaplcBase].ID ||
+				c.Unavailable[0].Reason != reason {
+				t.Fatalf("unavailable = %+v, want Base with %s", c.Unavailable, reason)
+			}
+		})
+	}
+}
+
+func TestRouterListsAnEVMListingWithNoReferencePriceAsStale(t *testing.T) {
+	t.Parallel()
+	c, l, _, err := route(t, map[string]recordedQuote{
+		aaplxSolana: recordedApple()[aaplxSolana], aaplcBase: recordedApple()[aaplcBase],
+	}, testRules(), func(f *routeFixture) { f.priceErr = errs.New(errs.CodeUpstreamUnavailable, "test") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Unavailable) != 1 || c.Unavailable[0].ListingID != l[aaplcBase].ID ||
+		c.Unavailable[0].Reason != multichain.UnavailableStale {
+		t.Fatalf("unavailable = %+v, want Base stale", c.Unavailable)
+	}
+}
+
+func TestRouterLeavesUnavailableEmptyWhenEveryVenueQuotes(t *testing.T) {
+	t.Parallel()
+	c, _, _, err := route(t, recordedApple(), testRules())
+	if err != nil || len(c.Unavailable) != 0 {
+		t.Fatalf("unavailable = %+v, %v, want none", c.Unavailable, err)
+	}
+}

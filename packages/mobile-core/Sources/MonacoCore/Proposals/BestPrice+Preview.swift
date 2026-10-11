@@ -25,7 +25,8 @@ extension BestPrice {
                 quote(
                     "01928a6e-0000-7000-8000-000000000003", issuer: "ondo", network: .ethereum, venue: .uniswap,
                     shares: "39800000"),
-            ])
+            ],
+            unavailable: [])
     }
 
     public static func sample(now: Date) -> BestPrice? { BestPrice(sampleComparison(now: now), isSell: false) }
