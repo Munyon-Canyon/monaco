@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type strandedRig struct {
@@ -42,8 +43,20 @@ func (r *strandedRig) router(evm, solana multichain.ShareNanos) *routerFake {
 	return &routerFake{fresh: &multichain.Comparison{
 		StockID: r.route.StockID, Side: multichain.SideBuy, Winner: winner,
 		Ranked: []multichain.Quote{
-			{ListingID: r.listing.ID, Network: chain.NetworkBase, Venue: multichain.VenueUniswap, NetShares: evm},
-			{ListingID: r.solana, Network: chain.NetworkSolana, Venue: multichain.VenueJupiter, NetShares: solana},
+			{
+				ListingID:   r.listing.ID,
+				Network:     chain.NetworkBase,
+				Venue:       multichain.VenueUniswap,
+				NetShares:   evm,
+				InputMicros: money.MicrosFromUint64(buyMicros),
+				Costs: []multichain.Cost{
+					{Kind: multichain.CostBridge, Micros: money.MicrosFromUint64(bridgeFeeMicros)},
+				},
+			},
+			{
+				ListingID: r.solana, Network: chain.NetworkSolana, Venue: multichain.VenueJupiter, NetShares: solana,
+				InputMicros: money.MicrosFromUint64(buyMicros),
+			},
 		},
 	}}
 }
@@ -104,7 +117,8 @@ func TestRetry_aCrashBetweenTheBridgeBackAndTheSolanaBuyBuysOnceWithoutASecondBr
 	r := newStrandedRig(t)
 	r.privy.script(multichain.ActionSucceeded)
 	r.balances.FailOnce("TokenBalance", errs.New(errs.CodeRPCUnavailable, "solana.TokenBalance"))
-	h := r.handler(r.router(900_000, 1_000_000))
+	router := r.router(900_000, 1_000_000)
+	h := r.handler(router)
 
 	if _, err := r.retryHandle(t, h, r.cmd, r.first); err == nil || r.bridgeBacks() != 1 {
 		t.Fatalf("first delivery err = %v after %d bridge backs, want the Solana buy to fail after the bridge back",
@@ -117,6 +131,11 @@ func TestRetry_aCrashBetweenTheBridgeBackAndTheSolanaBuyBuysOnceWithoutASecondBr
 	if code != "ok" || r.bridgeBacks() != 1 || status != string(domain.StatusConfirmed) || out != aaplxMint {
 		t.Fatalf("redelivery %s after %d bridge backs: swap %s of %s, want one Solana buy on the returned cash",
 			code, r.bridgeBacks(), status, out)
+	}
+	in := r.swapIn(t, swaps[len(swaps)-1])
+	if len(router.asked) != 1 || in != buyMicros-2*bridgeFeeMicros {
+		t.Fatalf("router asked %d times, Solana buy of %d, want the returned %d bought without a second route",
+			len(router.asked), in, buyMicros-2*bridgeFeeMicros)
 	}
 }
 
@@ -207,5 +226,71 @@ func TestRetry_aStrandedRetryWaitsOutARouterOutage(t *testing.T) {
 			err,
 			r.bridgeBacks(),
 		)
+	}
+}
+
+func TestRetry_aStrandedRetryComparesOnlyWhatIsLeftToSpend(t *testing.T) {
+	t.Parallel()
+	for name, c := range map[string]struct {
+		bridgeIn    uint64
+		evm, solana multichain.ShareNanos
+		back        int
+		withoutEVM  bool
+	}{
+		"the stranded listing no longer quotes": {
+			bridgeIn: bridgeFeeMicros, evm: 2_000_000, solana: 1_000_000, back: 1, withoutEVM: true,
+		},
+		"the sunk bridge-in fee is not charged to the EVM swap": {
+			bridgeIn: 1_000_000, evm: 960_000, solana: 1_000_000, back: 0,
+		},
+		"Solana still leads after the return fee": {
+			bridgeIn: bridgeFeeMicros, evm: 999_000, solana: 1_000_000, back: 1,
+		},
+		"the return fee eats Solana's lead": {
+			bridgeIn: bridgeFeeMicros, evm: 999_500, solana: 1_000_000, back: 0,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := newStrandedRig(t)
+			r.requote()
+			r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+			r.privy.script(multichain.ActionSucceeded)
+			router := r.router(c.evm, c.solana)
+			router.fresh.Ranked[0].Costs[0].Micros = money.MicrosFromUint64(c.bridgeIn)
+			if c.withoutEVM {
+				router.fresh.Ranked = router.fresh.Ranked[1:]
+			}
+
+			code := r.retryThrough(t, r.handler(router), r.cmd, r.first)
+
+			if code != "ok" || r.bridgeBacks() != c.back {
+				t.Fatalf("retry %s after %d bridge backs, want %d", code, r.bridgeBacks(), c.back)
+			}
+		})
+	}
+}
+
+func (r *strandedRig) swapIn(t *testing.T, id uuid.UUID) uint64 {
+	t.Helper()
+	var in uint64
+	if err := r.pool.QueryRow(t.Context(), `SELECT in_amount::bigint FROM swaps WHERE id = $1`, id).
+		Scan(&in); err != nil {
+		t.Fatal(err)
+	}
+	return in
+}
+
+func TestRetry_aStrandedRetryWaitsWhenItCannotReadTheStrandedCash(t *testing.T) {
+	t.Parallel()
+	r := newStrandedRig(t)
+	r.treasury.err = errs.New(errs.CodePrivyUnavailable, "treasury.EnsureTreasuryEVMWallet")
+
+	_, err := r.retryHandle(t, r.handler(r.router(900_000, 1_000_000)), r.cmd, r.first)
+
+	if errs.CodeOf(err) != errs.CodePrivyUnavailable || r.bridgeBacks() != 0 ||
+		len(r.swapsOf(t, r.cmd.ProposalID)) != 1 {
+		t.Fatalf("delivery err = %v after %d bridge backs, want the wallet error and nothing moved",
+			err, r.bridgeBacks())
 	}
 }

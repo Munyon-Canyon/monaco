@@ -1,0 +1,23 @@
+{
+  "probed": "2026-10-11, Robinhood Chain (4663), latest block, through the public https://rpc.mainnet.chain.robinhood.com. Slots found by matching balanceOf and allowance of live holders against keccak(holder, slot), then confirmed by eth_call with these stateDiff overrides: balanceOf, allowance(owner, Permit2) and Permit2.allowance(owner, cash, router) each read back the overridden value",
+  "owner": "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32",
+  "cash": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+  "router": "0xd6145b2d3f379919e8cdeda7b97e37c4b2ca9c40",
+  "balance_mapping_slot": 1,
+  "allowance_mapping_slot": 3,
+  "balance": {
+    "slot": "0x490e2d0bc491c9971f0cea9246aa040b1c210bf178e7c8f1e294830a2e8b9e62",
+    "override": "0x4ab645",
+    "balanceOf": "0x4ab645"
+  },
+  "allowance_to_permit2": {
+    "slot": "0x9b76e07f2abc8a0cad5187fdbcbc2c493bfa12a0fcd80862954ccbbcdbec7747",
+    "override": "0x4ab645",
+    "allowance": "0x4ab645"
+  },
+  "permit2_allowance_to_router": {
+    "slot": "0x96c06af9e0999eadc980ab4f9082b5ac55b4248a0e58105f1be015ba8fcef9d0",
+    "storage": "0x00000000000000006acbc57b00000000000000000000000000000000004ab645",
+    "allowance": "amount 0x4ab645, expiration 0x6acbc57b, nonce 0"
+  }
+}

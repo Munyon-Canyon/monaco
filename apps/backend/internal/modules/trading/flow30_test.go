@@ -107,7 +107,15 @@ func (c *flowChain) Transfer(
 }
 
 func (*flowChain) Action(_ context.Context, _ string, id multichain.ActionID) (multichain.ActionStatus, error) {
-	return multichain.ActionStatus{ID: id, State: multichain.ActionSucceeded}, nil
+	return multichain.ActionStatus{ID: id, State: multichain.ActionSucceeded, Steps: []multichain.ActionStep{
+		{Network: platform.NetworkSolana, TxHash: "arrival:" + string(id), State: multichain.StepConfirmed},
+	}}, nil
+}
+
+func (*flowChain) InboundAmount(
+	context.Context, platform.Signature, platform.SolanaAddress, platform.Mint,
+) (money.BaseUnits, error) {
+	return money.NewBaseUnits(flows.RoutedSaleProceeds-flows.RoutedBridgeFee, 6), nil
 }
 
 func (c *flowChain) Send(_ context.Context, _ string, _ multichain.EVMTransaction, key string) (string, error) {
@@ -168,6 +176,7 @@ func runFlow30Step(t *testing.T, name string) {
 				Venue:       fake,
 				Router:      fake,
 				TopUp:       fake,
+				Arrivals:    fake,
 				EVM:         true,
 			}),
 		)

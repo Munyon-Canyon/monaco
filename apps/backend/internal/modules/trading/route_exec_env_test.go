@@ -3,11 +3,14 @@ package trading_test
 import (
 	"context"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -33,6 +36,8 @@ type privyFake struct {
 	byKey         map[string]multichain.ActionID
 	transfers     []transferCall
 	states        []multichain.ActionState
+	landed        map[multichain.ActionID]bool
+	noArrival     bool
 	polls         int
 	transferErr   error
 	actionErr     error
@@ -41,7 +46,7 @@ type privyFake struct {
 }
 
 func newPrivyFake() *privyFake {
-	return &privyFake{byKey: map[string]multichain.ActionID{}}
+	return &privyFake{byKey: map[string]multichain.ActionID{}, landed: map[multichain.ActionID]bool{}}
 }
 
 func (p *privyFake) Transfer(
@@ -79,16 +84,59 @@ func (p *privyFake) Action(
 		return multichain.ActionStatus{}, err
 	}
 	state := multichain.ActionPending
-	if len(p.states) > 0 {
+	switch {
+	case p.landed[id]:
+		state = multichain.ActionSucceeded
+	case len(p.states) > 0:
 		state, p.states = p.states[0], p.states[1:]
 	}
+	p.landed[id] = state == multichain.ActionSucceeded
+	noArrival := p.noArrival
 	hook := p.afterAction
 	p.afterAction = nil
 	p.mu.Unlock()
 	if hook != nil {
 		hook()
 	}
-	return multichain.ActionStatus{ID: id, State: state}, nil
+	status := multichain.ActionStatus{ID: id, State: state}
+	if state == multichain.ActionSucceeded && !noArrival {
+		status.Steps = []multichain.ActionStep{
+			{Network: chain.NetworkBase, TxHash: "0xsource", State: multichain.StepConfirmed},
+			{Network: chain.NetworkSolana, TxHash: arrivalPrefix + string(id), State: multichain.StepConfirmed},
+		}
+	}
+	return status, nil
+}
+
+func (p *privyFake) sent(id multichain.ActionID) uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, c := range p.transfers {
+		if p.byKey[c.key] == id {
+			return c.spec.AmountMicros.Uint64()
+		}
+	}
+	return 0
+}
+
+const arrivalPrefix = "arrival:"
+
+type arrivalsFake struct {
+	privy *privyFake
+	short uint64
+	over  uint64
+	err   error
+}
+
+func (a *arrivalsFake) InboundAmount(
+	_ context.Context, sig chain.Signature, _ chain.SolanaAddress, mint chain.Mint,
+) (money.BaseUnits, error) {
+	if err := a.err; err != nil {
+		a.err = nil
+		return money.BaseUnits{}, err
+	}
+	sent := a.privy.sent(multichain.ActionID(strings.TrimPrefix(string(sig), arrivalPrefix)))
+	return money.NewBaseUnits(sent-min(a.short, sent)+a.over, mint.Decimals), nil
 }
 
 func (p *privyFake) script(states ...multichain.ActionState) {

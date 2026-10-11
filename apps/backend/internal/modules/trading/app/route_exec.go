@@ -35,6 +35,7 @@ type RouteExecDeps struct {
 	Sender      EVMSender
 	Venue       EVMVenue
 	TopUp       SOLTopUp
+	Arrivals    Arrivals
 	Poll        Poll
 }
 

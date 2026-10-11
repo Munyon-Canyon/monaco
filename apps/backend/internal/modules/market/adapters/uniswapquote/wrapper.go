@@ -43,19 +43,22 @@ const (
 	NoHooks            = "V4_NO_HOOKS"
 	fiatBalanceSlot    = 9
 	fiatAllowanceSlot  = 10
+	usdgBalanceSlot    = 1
+	usdgAllowanceSlot  = 3
 	expirationShift    = 160
 	maxRevertDataBytes = 4 + revertWords*wordBytes
 )
 
 type cashSlots struct{ balance, allowance byte }
 
-func cashLayout(n chain.Network) (cashSlots, bool) {
-	switch n {
-	case chain.NetworkBase, chain.NetworkArbitrum, chain.NetworkEthereum:
-		return cashSlots{balance: fiatBalanceSlot, allowance: fiatAllowanceSlot}, true
-	case chain.NetworkSolana, chain.NetworkRobinhood:
+func cashLayouts() map[chain.Network]cashSlots {
+	fiat := cashSlots{balance: fiatBalanceSlot, allowance: fiatAllowanceSlot}
+	return map[chain.Network]cashSlots{
+		chain.NetworkBase:      fiat,
+		chain.NetworkArbitrum:  fiat,
+		chain.NetworkEthereum:  fiat,
+		chain.NetworkRobinhood: {balance: usdgBalanceSlot, allowance: usdgAllowanceSlot},
 	}
-	return cashSlots{}, false
 }
 
 type Wrapper struct {
@@ -95,8 +98,14 @@ func (c *Client) cached(l mc.Listing, amount money.Micros) (mc.Quote, bool) {
 func (c *Client) remember(l mc.Listing, amount money.Micros, q mc.Quote) {
 	c.wrapper.mu.Lock()
 	defer c.wrapper.mu.Unlock()
+	now := c.clock.Now()
+	for key, e := range c.wrapper.cache {
+		if !now.Before(e.until) {
+			delete(c.wrapper.cache, key)
+		}
+	}
 	key := wrapperKey{l.Network, strings.ToLower(l.TokenAddress), amount.String()}
-	c.wrapper.cache[key] = wrapperEntry{quote: q, until: c.clock.Now().Add(wrapperCacheTTL)}
+	c.wrapper.cache[key] = wrapperEntry{quote: q, until: now.Add(wrapperCacheTTL)}
 }
 
 type routeResult struct {
@@ -204,7 +213,7 @@ func (c *Client) simulate(
 	ctx context.Context, l mc.Listing, amount money.Micros, router chain.EVMAddress, calldata []byte,
 	attrs []slog.Attr,
 ) (*big.Int, bool, error) {
-	slots, ok := cashLayout(l.Network)
+	slots, ok := cashLayouts()[l.Network]
 	client, rpcOK := c.wrapper.rpc[l.Network]
 	if !ok || !rpcOK {
 		return nil, false, errs.New(errs.CodeNoRoute, wrapperOp, append(attrs, slog.String("reason", "unsupported"))...)

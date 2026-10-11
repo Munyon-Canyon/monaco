@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -63,6 +64,8 @@ type evmCashOut struct {
 	job  uuid.UUID
 }
 
+const cashOutBridgeFee = 7_955
+
 func newEVMCashOut(t *testing.T, solanaUSDC uint64) *evmCashOut {
 	t.Helper()
 	const evmProceeds = 40_000_000
@@ -80,6 +83,7 @@ func newEVMCashOut(t *testing.T, solanaUSDC uint64) *evmCashOut {
 	e.evm.plan.OutAmount, e.evm.plan.MinOut = evmProceeds, evmProceeds
 	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: evmProceeds}}
 	e.privy.script(multichain.ActionSucceeded)
+	e.arrivals.short = cashOutBridgeFee
 	return e
 }
 
@@ -147,8 +151,8 @@ func TestSellForCashOut_sellsTheSolanaAndTheEVMLotAndBridgesTheEVMProceedsBack(t
 	}
 	swaps := e.swapIDs(t, e.job)
 	got := e.steps(t, swaps[1])
-	if got[len(got)-1] != "bridge_back:succeeded:7955" {
-		t.Fatalf("EVM leg steps = %v, want its proceeds bridged back at the estimated fee", got)
+	if got[len(got)-1] != "bridge_back:succeeded:"+strconv.Itoa(cashOutBridgeFee) {
+		t.Fatalf("EVM leg steps = %v, want its proceeds bridged back at the observed fee", got)
 	}
 	if winner, _, ok := e.routeOf(t, swaps[1]); !ok || winner != e.listing.ID.UUID() {
 		t.Fatalf("EVM leg route %v %s, want the lot's listing", ok, winner)

@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type Listings interface {
@@ -66,6 +67,15 @@ type SOLTopUp interface {
 	TopUpSOL(ctx context.Context, wallet chain.SolanaAddress) error
 }
 
+type Arrivals interface {
+	InboundAmount(
+		ctx context.Context,
+		signature chain.Signature,
+		owner chain.SolanaAddress,
+		mint chain.Mint,
+	) (money.BaseUnits, error)
+}
+
 type RoutePorts struct {
 	Listings    Listings
 	TreasuryEVM TreasuryEVM
@@ -76,5 +86,6 @@ type RoutePorts struct {
 	EVMSales    EVMSales
 	Router      multichain.Router
 	TopUp       SOLTopUp
+	Arrivals    Arrivals
 	EVM         bool
 }
