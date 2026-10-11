@@ -358,7 +358,27 @@ func jupiterSells(script string, raised string) scenario.Step {
 			Route: "/jupiter/swap/v2/execute", Method: http.MethodPost, Action: fakes.ActionSucceed,
 			Status: http.StatusOK, Body: executed,
 		})(s)
+		scenario.FakeUpstream(fakes.Step{
+			Route: "/rpc/getTransaction", Action: fakes.ActionSucceed, Status: http.StatusOK, Times: 100,
+			Body: soldInto(chainfake.WalletAddress(treasuryWalletID(s)), raised),
+		})(s)
 	}
+}
+
+func soldInto(treasury chain.SolanaAddress, raised string) json.RawMessage {
+	balance := func(amount string) map[string]any {
+		return map[string]any{
+			"accountIndex": 0, "mint": testkit.USDCMint, "owner": string(treasury),
+			"uiTokenAmount": map[string]any{"amount": amount, "decimals": 6},
+		}
+	}
+	body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "result": map[string]any{
+		"meta": map[string]any{
+			"err": nil, "preTokenBalances": []any{balance("0")}, "postTokenBalances": []any{balance(raised)},
+		},
+		"transaction": map[string]any{"message": map[string]any{"accountKeys": []any{}}},
+	}})
+	return body
 }
 
 func treasuryWalletID(s *scenario.Scenario) string {

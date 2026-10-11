@@ -71,6 +71,7 @@ type layerEnv struct {
 	hints  *hintLog
 	signer app.Signer
 	venue  app.Venue
+	fills  *chainFills
 	reads  sqlc.DBTX
 	uow    *db.UnitOfWork
 }
@@ -83,11 +84,11 @@ func newLayerEnv(t *testing.T) *layerEnv {
 func newLayerEnvOn(pool *pgxpool.Pool) *layerEnv {
 	e := &layerEnv{
 		pool: pool, clk: testkit.NewClock(clock.Real{}.Now().Truncate(time.Second)), ids: testkit.NewIDs(7),
-		jup: &jupiterfake.Venue{}, privy: &chainfake.Signer{}, hints: &hintLog{}, reads: pool,
+		jup: &jupiterfake.Venue{}, privy: &chainfake.Signer{}, hints: &hintLog{}, reads: pool, fills: newChainFills(),
 	}
 	e.uow = db.New(pool, e.ids, e.clk)
 	e.signer = chain.NewSigner(e.privy, chainfake.Relayer())
-	e.venue = chain.NewVenue(e.jup)
+	e.venue = landingVenue{Venue: chain.NewVenue(e.jup), fills: e.fills}
 	e.script("req-1")
 	return e
 }
@@ -104,7 +105,8 @@ func (e *layerEnv) script(requestID string) {
 
 func (e *layerEnv) layer() *app.SwapLayer {
 	return app.NewSwapLayer(app.SwapLayerDeps{
-		UoW: e.uow, Reads: e.reads, Clock: e.clk, IDs: e.ids, Venue: e.venue, Signer: e.signer, Hints: e.hints,
+		UoW: e.uow, Reads: e.reads, Clock: e.clk, IDs: e.ids, Venue: e.venue, Signer: e.signer, Chain: e.fills,
+		Hints: e.hints,
 	})
 }
 

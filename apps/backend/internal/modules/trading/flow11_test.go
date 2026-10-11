@@ -50,7 +50,12 @@ func newFlow11Of(t *testing.T, kind string, arrange func(e *engineEnv)) *flow11 
 		func(d module.Deps) module.Module { return governance.New(d) },
 		func(d module.Deps) module.Module {
 			d.Config.Solana.RPCURL, d.Config.Timeouts.RPC = "http://127.0.0.1:1", time.Second
-			return trading.New(d, trading.WithEnginePorts(ports), trading.WithChain(e.venue, e.signer))
+			return trading.New(
+				d,
+				trading.WithEnginePorts(ports),
+				trading.WithChain(e.venue, e.signer),
+				trading.WithChainReader(e.fills),
+			)
 		},
 	))
 	c := testkit.NewCabal(flowSeedT{f.s}, f.s.DB())

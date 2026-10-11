@@ -170,7 +170,7 @@ func runFlow30Step(t *testing.T, name string) {
 				Catalog: marketfake.NewCatalog(marketfake.Fixtures()...), Cabals: flowCabals{},
 				Pauses: fakes.NewPauses(), Proposals: fake, Balances: fake,
 			}),
-			trading.WithChain(layer.venue, layer.signer),
+			trading.WithChain(layer.venue, layer.signer), trading.WithChainReader(layer.fills),
 			trading.WithRoutePorts(app.RoutePorts{
 				Listings:    fake,
 				TreasuryEVM: fake,

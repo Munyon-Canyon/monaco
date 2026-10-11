@@ -2,7 +2,6 @@ package chain_test
 
 import (
 	"context"
-	"math/big"
 	"testing"
 
 	"pgregory.net/rapid"
@@ -17,10 +16,11 @@ import (
 
 type readerRPC struct {
 	statuses    []solana.Status
-	transfers   []solana.Transfer
+	received    money.BaseUnits
 	statusErr   error
-	transferErr error
-	mint        platform.SolanaAddress
+	receivedErr error
+	owner       platform.SolanaAddress
+	mint        platform.Mint
 	valid       bool
 	blockhash   string
 }
@@ -37,14 +37,11 @@ func (r *readerRPC) SignatureStatuses(
 	return r.statuses, r.statusErr
 }
 
-func (r *readerRPC) InboundTransfersForMint(
-	_ context.Context,
-	_ platform.Signature,
-	_ platform.SolanaAddress,
-	mint platform.SolanaAddress,
-) ([]solana.Transfer, error) {
-	r.mint = mint
-	return r.transfers, r.transferErr
+func (r *readerRPC) Received(
+	_ context.Context, _ platform.Signature, owner platform.SolanaAddress, mint platform.Mint,
+) (money.BaseUnits, error) {
+	r.owner, r.mint = owner, mint
+	return r.received, r.receivedErr
 }
 
 func TestReader_signatureStatusesMapsEveryStateAndRefusesUnknownData(t *testing.T) {
@@ -83,45 +80,26 @@ func TestReader_signatureStatusesMapsEveryStateAndRefusesUnknownData(t *testing.
 	}
 }
 
-func TestReader_inboundAmountSumsOnlyTheRequestedMintNetOfFees(t *testing.T) {
+func TestReader_inboundAmountIsTheTreasurysChainDeltaAndRefusesAnEmptyFill(t *testing.T) {
 	t.Parallel()
 	mint := aaplx()
-	rpc := &readerRPC{transfers: []solana.Transfer{
-		{
-			Mint:   mint,
-			Amount: money.NewBaseUnits(15, 8),
-			Fee:    money.NewBaseUnits(2, 8),
-			Net:    money.NewBaseUnits(13, 8),
-		},
-		{
-			Mint:   mint,
-			Amount: money.NewBaseUnits(8, 8),
-			Fee:    money.NewBaseUnits(1, 8),
-			Net:    money.NewBaseUnits(7, 8),
-		},
-	}}
+	rpc := &readerRPC{received: money.NewBaseUnits(20, 8)}
 	got, err := adapter.NewReader(rpc).InboundAmount(t.Context(), "sig", "treasury", mint)
 	if err != nil || got != money.NewBaseUnits(20, 8) {
 		t.Fatalf("InboundAmount = %v, %v, want 20", got, err)
 	}
-	if rpc.mint != mint.Address {
-		t.Fatalf("requested mint = %s, want %s", rpc.mint, mint.Address)
+	if rpc.owner != "treasury" || rpc.mint != mint {
+		t.Fatalf("read owner %s mint %+v, want treasury %+v", rpc.owner, rpc.mint, mint)
 	}
-	got, err = adapter.NewReader(&readerRPC{}).InboundAmount(t.Context(), "sig", "treasury", mint)
-	if err != nil || !got.IsZero() || got.Decimals() != mint.Decimals {
-		t.Fatalf("empty InboundAmount = %v, %v", got, err)
-	}
-	_, err = adapter.NewReader(&readerRPC{transferErr: errs.New(errs.CodeRPCUnavailable, "test")}).
-		InboundAmount(
-			t.Context(), "sig", "treasury", mint)
-	if errs.CodeOf(err) != errs.CodeRPCUnavailable {
-		t.Fatalf("transfer error = %v, want rpc_unavailable", err)
-	}
-	_, err = adapter.NewReader(&readerRPC{transfers: []solana.Transfer{{
-		Mint: mint, Net: money.NewBaseUnits(1, mint.Decimals-1),
-	}}}).InboundAmount(t.Context(), "sig", "treasury", mint)
+	_, err = adapter.NewReader(&readerRPC{received: money.NewBaseUnits(0, 8)}).
+		InboundAmount(t.Context(), "sig", "treasury", mint)
 	if errs.CodeOf(err) != errs.CodeDecodeFailed {
-		t.Fatalf("mismatched decimals = %v, want decode_failed", err)
+		t.Fatalf("empty fill = %v, want decode_failed", err)
+	}
+	_, err = adapter.NewReader(&readerRPC{receivedErr: errs.New(errs.CodeRPCUnavailable, "test")}).
+		InboundAmount(t.Context(), "sig", "treasury", mint)
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("read error = %v, want rpc_unavailable", err)
 	}
 }
 
@@ -147,25 +125,16 @@ func TestReader_blockhashValidityComesFromTheSignedTransaction(t *testing.T) {
 	}
 }
 
-func TestReader_inboundAmountSumsRandomNetTransfers(t *testing.T) {
+func TestReader_inboundAmountPassesAnyNonZeroDeltaThrough(t *testing.T) {
 	t.Parallel()
 	rapid.Check(t, func(t *rapid.T) {
 		mint := aaplx()
-		values := rapid.SliceOfN(rapid.Uint64Range(0, 1_000_000), 0, 20).Draw(t, "nets")
-		transfers := make([]solana.Transfer, len(values))
-		want := new(big.Int)
-		for i, value := range values {
-			transfers[i] = solana.Transfer{
-				Mint: mint, Amount: money.NewBaseUnits(value+1, 8),
-				Fee: money.NewBaseUnits(1, 8), Net: money.NewBaseUnits(value, 8),
-			}
-			want.Add(want, new(big.Int).SetUint64(value))
-		}
-		got, err := adapter.NewReader(&readerRPC{transfers: transfers}).InboundAmount(
+		want := rapid.Uint64Range(1, 1<<62).Draw(t, "delta")
+		got, err := adapter.NewReader(&readerRPC{received: money.NewBaseUnits(want, 8)}).InboundAmount(
 			t.Context(), "sig", "treasury", mint,
 		)
-		if err != nil || got.Uint64() != want.Uint64() {
-			t.Fatalf("InboundAmount = %v, %v, want %s", got, err, want)
+		if err != nil || got.Uint64() != want {
+			t.Fatalf("InboundAmount = %v, %v, want %d", got, err, want)
 		}
 	})
 }

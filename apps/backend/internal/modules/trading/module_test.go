@@ -102,7 +102,13 @@ func TestModule_wireFillsTheUnsetPortsFromTheSetAndKeepsTheInjectedOnes(t *testi
 	conn := testkit.NATS(t).Conn
 	ports := e.ports()
 	ports.Cabals, ports.Proposals, ports.Pauses = nil, nil, nil
-	m := e.moduleWith(t, conn, trading.WithEnginePorts(ports), trading.WithChain(e.venue, e.signer))
+	m := e.moduleWith(
+		t,
+		conn,
+		trading.WithEnginePorts(ports),
+		trading.WithChain(e.venue, e.signer),
+		trading.WithChainReader(e.fills),
+	)
 	module.NewSet(m,
 		cabalModule{provider{name: "cabal", cabals: e.cabals}},
 		governanceModule{provider{name: "governance", govern: e.proposals}},
@@ -117,7 +123,13 @@ func TestModule_wireFillsTheUnsetPortsFromTheSetAndKeepsTheInjectedOnes(t *testi
 	paused := fakes.NewPauses()
 	paused.Pause(e.cabal, funding.PauseReasonOps)
 	ports.Pauses = paused
-	m = e.moduleWith(t, conn, trading.WithEnginePorts(ports), trading.WithChain(e.venue, e.signer))
+	m = e.moduleWith(
+		t,
+		conn,
+		trading.WithEnginePorts(ports),
+		trading.WithChain(e.venue, e.signer),
+		trading.WithChainReader(e.fills),
+	)
 	module.NewSet(m, fundingModule{provider{name: "funding", pausing: e.pauses}},
 		cabalModule{provider{name: "cabal", cabals: e.cabals}},
 		governanceModule{provider{name: "governance", govern: e.proposals}})
@@ -133,7 +145,13 @@ func TestModule_unwiredPortsNakTheTrade(t *testing.T) {
 	conn := testkit.NATS(t).Conn
 	ports := e.ports()
 	ports.Cabals = nil
-	m := e.moduleWith(t, conn, trading.WithEnginePorts(ports), trading.WithChain(e.venue, e.signer))
+	m := e.moduleWith(
+		t,
+		conn,
+		trading.WithEnginePorts(ports),
+		trading.WithChain(e.venue, e.signer),
+		trading.WithChainReader(e.fills),
+	)
 
 	msg, swaps := e.dispatchVia(t, conn, m)
 	if msg.verdict != "nak" || len(swaps) != 0 {
@@ -167,7 +185,13 @@ func TestModule_withoutPrivyConfigTheTradeTermsAtSigning(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
 	conn := testkit.NATS(t).Conn
-	m := e.moduleWith(t, conn, trading.WithEnginePorts(e.ports()), trading.WithChain(e.venue, nil))
+	m := e.moduleWith(
+		t,
+		conn,
+		trading.WithEnginePorts(e.ports()),
+		trading.WithChain(e.venue, nil),
+		trading.WithChainReader(e.fills),
+	)
 
 	msg, swaps := e.dispatchVia(t, conn, m)
 	if msg.verdict != "term" || len(swaps) != 1 || swaps[0] != "created" {

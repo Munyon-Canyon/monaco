@@ -73,7 +73,7 @@ func newCashOutBus(t *testing.T, arrange ...func(*config.Config, *app.EnginePort
 	}
 	m := trading.New(module.Deps{
 		Config: cfg, Clock: c.clk, IDs: c.ids, Pool: c.pool, UoW: c.uow, Bus: conn,
-	}, trading.WithEnginePorts(ports), trading.WithChain(c.venue, c.signer))
+	}, trading.WithEnginePorts(ports), trading.WithChain(c.venue, c.signer), trading.WithChainReader(c.fills))
 	reg, err := bus.NewRegistry(conn, c.uow, c.clk, m.Consumers())
 	if err != nil {
 		t.Fatal(err)

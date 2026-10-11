@@ -74,7 +74,12 @@ func newEngineBusWith(t *testing.T, cfg config.Config, opts ...func(*engineEnv))
 func newEngineBusOn(t *testing.T, cfg config.Config, e *engineEnv) *engineBus {
 	t.Helper()
 	conn := testkit.NATS(t).Conn
-	options := append([]trading.Option{trading.WithEnginePorts(e.ports()), trading.WithChain(e.venue, e.signer)},
+	options := append(
+		[]trading.Option{
+			trading.WithEnginePorts(e.ports()),
+			trading.WithChain(e.venue, e.signer),
+			trading.WithChainReader(e.fills),
+		},
 		e.options...)
 	m := trading.New(module.Deps{
 		Config: cfg, Clock: e.clk, IDs: e.ids, Pool: e.pool, UoW: e.uow, Bus: conn,

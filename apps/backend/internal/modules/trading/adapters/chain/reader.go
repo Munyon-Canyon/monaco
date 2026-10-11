@@ -13,12 +13,7 @@ import (
 
 type Solana interface {
 	SignatureStatuses(context.Context, []platform.Signature) ([]solana.Status, error)
-	InboundTransfersForMint(
-		context.Context,
-		platform.Signature,
-		platform.SolanaAddress,
-		platform.SolanaAddress,
-	) ([]solana.Transfer, error)
+	Received(context.Context, platform.Signature, platform.SolanaAddress, platform.Mint) (money.BaseUnits, error)
 	BlockhashValid(context.Context, string) (bool, error)
 }
 
@@ -68,17 +63,11 @@ func (r Reader) InboundAmount(
 	owner platform.SolanaAddress,
 	mint platform.Mint,
 ) (money.BaseUnits, error) {
-	transfers, err := r.solana.InboundTransfersForMint(ctx, signature, owner, mint.Address)
-	if err != nil {
-		return money.BaseUnits{}, err
+	got, err := r.solana.Received(ctx, signature, owner, mint)
+	if err == nil && got.IsZero() {
+		err = errs.New(errs.CodeDecodeFailed, "trading.ChainReader.InboundAmount",
+			slog.String("signature", string(signature)), slog.String("mint", string(mint.Address)),
+			slog.String("reason", "the swap moved nothing into the treasury"))
 	}
-	total := money.NewBaseUnits(0, mint.Decimals)
-	for _, transfer := range transfers {
-		total, err = total.Add(transfer.Net)
-		if err != nil {
-			return money.BaseUnits{}, errs.Wrap(err, errs.CodeDecodeFailed, "trading.ChainReader.InboundAmount",
-				slog.String("signature", string(signature)), slog.String("mint", string(mint.Address)))
-		}
-	}
-	return total, nil
+	return got, err
 }
