@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -94,5 +95,71 @@ func TestEVMDepositForward_CreditClaimedByOneForwardIsNotClaimedAgain(t *testing
 	}
 	if got := f.forwards(t, "arrived"); got != 1 {
 		t.Fatalf("arrived forwards = %d, want one per credit", got)
+	}
+}
+
+func (f *forwardFixture) arriving(t *testing.T) int {
+	t.Helper()
+	return f.count(t, `SELECT COALESCE(sum(amount_micros), 0)::bigint FROM evm_deposit_forwards
+		WHERE user_id = $1 AND status = 'pending'`, f.user.ID.UUID())
+}
+
+func TestEVMDepositForward_FirstSeenSucceededArrivesOnTheCreditThatLandedBeforeIt(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	credited := f.clock.Now()
+	f.deposit(t, "an-hour-earlier", firstBaseForwardNetOfFeeMicros, credited.Add(-time.Hour))
+	f.deposit(t, "net-credit", firstBaseForwardNetOfFeeMicros, credited)
+	f.clock.Advance(10 * time.Minute)
+	f.tick(t, netExecution("a", mc.ActionSucceeded, firstBaseForwardNetOfFeeMicros))
+	if status, _, signature := f.forwardState(t, "a"); status != "arrived" || signature != "net-credit" {
+		t.Fatalf("forward = %s on %q, want arrived on the nearest credit", status, signature)
+	}
+	if got := f.arriving(t); got != 0 {
+		t.Fatalf("arriving micros = %d, want 0", got)
+	}
+	f.clock.Advance(app.EVMDepositForwardStuckAfter + time.Minute)
+	f.tick(t, netExecution("a", mc.ActionSucceeded, firstBaseForwardNetOfFeeMicros))
+	if got := f.logged(observability.FundingEVMForwardStuck); got != 0 {
+		t.Fatalf("stuck alerts = %d, want 0 for a credited forward", got)
+	}
+}
+
+func TestEVMDepositForward_TwoForwardsFirstSeenAfterOneCreditCloseOneRow(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.deposit(t, "net-credit", firstBaseForwardNetOfFeeMicros, f.clock.Now())
+	f.clock.Advance(10 * time.Minute)
+	for range 3 {
+		f.tick(t, netExecution("a", mc.ActionSucceeded, firstBaseForwardNetOfFeeMicros),
+			netExecution("b", mc.ActionSucceeded, firstBaseForwardNetOfFeeMicros))
+		f.clock.Advance(10 * time.Second)
+	}
+	if arrived, pending := f.forwards(t, "arrived"), f.forwards(t, "pending"); arrived != 1 || pending != 1 {
+		t.Fatalf("arrived = %d, pending = %d; want one row per credit and the other pending", arrived, pending)
+	}
+}
+
+func TestEVMDepositForward_FirstSeenPendingDoesNotMatchACreditBeforeIt(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.deposit(t, "net-credit", firstBaseForwardNetOfFeeMicros, f.clock.Now())
+	f.clock.Advance(10 * time.Minute)
+	f.tick(t, netExecution("a", mc.ActionPending, firstBaseForwardInMicros))
+	f.clock.Advance(time.Minute)
+	f.tick(t, netExecution("a", mc.ActionSucceeded, firstBaseForwardNetOfFeeMicros))
+	if status, _, signature := f.forwardState(t, "a"); status != "pending" || signature != "" {
+		t.Fatalf("forward = %s on %q, want pending with no credit", status, signature)
+	}
+}
+
+func TestEVMDepositForward_FirstSeenSucceededIgnoresACreditBeyondTheWindow(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.deposit(t, "too-old", firstBaseForwardNetOfFeeMicros, f.clock.Now())
+	f.clock.Advance(app.EVMDepositArrivalWindow + time.Minute)
+	f.tick(t, netExecution("a", mc.ActionSucceeded, firstBaseForwardNetOfFeeMicros))
+	if status, _, signature := f.forwardState(t, "a"); status != "pending" || signature != "" {
+		t.Fatalf("forward = %s on %q, want pending with no credit", status, signature)
 	}
 }

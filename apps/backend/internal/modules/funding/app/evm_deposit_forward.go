@@ -234,13 +234,20 @@ func follow(
 	err := announce(ctx, tx, q, row, ex)
 	if err == nil {
 		arrived, err = q.ArriveEVMDepositForwardFromCredit(ctx, sqlc.ArriveEVMDepositForwardFromCreditParams{
-			ID: row.ID, WindowSeconds: EVMDepositArrivalWindow.Seconds(),
+			ID: row.ID, CreditedAfter: creditedAfter(row), WindowSeconds: EVMDepositArrivalWindow.Seconds(),
 		})
 	}
 	if err != nil || arrived == 0 {
 		return row.Status, err
 	}
 	return forwardArrived, nil
+}
+
+func creditedAfter(row sqlc.UpsertEVMDepositForwardRow) time.Time {
+	if row.Inserted {
+		return row.CreatedAt.Add(-EVMDepositArrivalWindow)
+	}
+	return row.CreatedAt
 }
 
 func announce(
