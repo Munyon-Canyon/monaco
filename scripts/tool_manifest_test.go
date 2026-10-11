@@ -121,6 +121,60 @@ func TestShellBins_ignoresSeparatorsInsideQuotes(t *testing.T) {
 	}
 }
 
+func TestShellBins_ignoresWordsInsideStringsAndHeredocs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "md5 on a line of a multi-line double-quoted message",
+			src:  "die \"checksum mismatch:\nmd5 of the download differs\"\nrun-x\n",
+			want: []string{"die", "run-x"},
+		},
+		{
+			name: "before on a line of a multi-line single-quoted string",
+			src:  "git commit -m 'Fix the hook\nbefore the push runs\n'\nrun-x\n",
+			want: []string{"git", "run-x"},
+		},
+		{
+			name: "Monaco nats in a multi-line message",
+			src:  "msg=\"start the stack,\nMonaco nats must be up\"\nrun-x\n",
+			want: []string{"run-x"},
+		},
+		{
+			name: "md5 in a heredoc body",
+			src:  "cat <<EOF\nmd5 sum here\nEOF\nrun-x\n",
+			want: []string{"cat", "run-x"},
+		},
+		{
+			name: "a command after the closing quote still counts",
+			src:  "echo \"a\nmd5 b\" && run-x\n",
+			want: []string{"run-x"},
+		},
+		{
+			name: "an apostrophe in a comment opens no string",
+			src:  "# don't match\nrun-x\n",
+			want: []string{"run-x"},
+		},
+		{
+			name: "python -c body inside a command substitution",
+			src:  "t=\"$(run-y | python3 -c '\nimport json\nbefore = 1\n' \"$g\")\"\nrun-x\n",
+			want: []string{"run-y", "run-x"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shellBins(tc.src, nil)
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("shellBins() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestToolManifest_plantedUnknownBinaryFails(t *testing.T) {
 	have := map[string]bool{"go": true, "jq": true}
 	missing := absent([]string{"not-a-real-monaco-tool"}, have)
@@ -278,19 +332,13 @@ func shellBins(src string, funcs map[string]bool) []string {
 	}
 	var bins []string
 	delim := ""
-	inSingle := false
+	var open []frame
 	caseDepth := 0
 	for _, line := range strings.Split(src, "\n") {
 		trim := strings.TrimSpace(line)
 		if delim != "" {
 			if trim == delim {
 				delim = ""
-			}
-			continue
-		}
-		if inSingle {
-			if strings.Contains(line, "'") {
-				inSingle = false
 			}
 			continue
 		}
@@ -303,16 +351,8 @@ func shellBins(src string, funcs map[string]bool) []string {
 				delim = rest
 			}
 		}
-		if strings.Contains(line, "python3 -c '") && !strings.Contains(line, "'") == false && strings.Count(line, "'") < 2 {
-			inSingle = true
-		}
-		if strings.Contains(line, "-c '") && strings.Count(line, "'") == 1 {
-			inSingle = true
-		}
-		scan := line
-		if i := indexComment(scan); i >= 0 {
-			scan = scan[:i]
-		}
+		var scan string
+		scan, open = outsideMultiLineQuotes(line, open)
 		delta := caseDepthDelta(scan)
 		if caseDepth > 0 {
 			if cmd, arm := caseArmCommand(scan); arm {
@@ -336,6 +376,90 @@ func shellBins(src string, funcs map[string]bool) []string {
 		}
 	}
 	return bins
+}
+
+type frame struct {
+	kind    byte
+	carried bool
+	at      int
+}
+
+func outsideMultiLineQuotes(line string, stack []frame) (string, []frame) {
+	var b strings.Builder
+	top := func() *frame {
+		if len(stack) == 0 {
+			return nil
+		}
+		return &stack[len(stack)-1]
+	}
+	pop := func() { stack = stack[:len(stack)-1] }
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		f := top()
+		dropped := f != nil && f.carried && (f.kind == 'S' || f.kind == 'D')
+		keep := func(ch byte) {
+			if !dropped {
+				b.WriteByte(ch)
+			}
+		}
+		switch {
+		case f != nil && f.kind == 'S':
+			keep(c)
+			if c == '\'' {
+				pop()
+			}
+		case f != nil && f.kind == 'D':
+			switch {
+			case c == '\\' && i+1 < len(line):
+				keep(c)
+				i++
+				keep(line[i])
+			case c == '"':
+				keep(c)
+				pop()
+			case c == '$' && i+1 < len(line) && line[i+1] == '(':
+				b.WriteString("$(")
+				i++
+				stack = append(stack, frame{kind: 'C'})
+			default:
+				keep(c)
+			}
+		case c == '\\' && i+1 < len(line):
+			b.WriteByte(c)
+			i++
+			b.WriteByte(line[i])
+		case c == '\'' || c == '"':
+			kind := byte('S')
+			if c == '"' {
+				kind = 'D'
+			}
+			stack = append(stack, frame{kind: kind, at: b.Len()})
+			b.WriteByte(c)
+		case c == '$' && i+1 < len(line) && line[i+1] == '(':
+			b.WriteString("$(")
+			i++
+			stack = append(stack, frame{kind: 'C'})
+		case c == '(' && f != nil:
+			b.WriteByte(c)
+			stack = append(stack, frame{kind: 'P'})
+		case c == ')' && f != nil:
+			b.WriteByte(c)
+			pop()
+		case c == '#' && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
+			goto done
+		default:
+			b.WriteByte(c)
+		}
+	}
+done:
+	out := b.String()
+	if f := top(); f != nil && (f.kind == 'S' || f.kind == 'D') && !f.carried {
+		out = out[:f.at]
+	}
+	for i := range stack {
+		stack[i].carried = true
+	}
+	return out, stack
 }
 
 func caseDepthDelta(line string) int {
