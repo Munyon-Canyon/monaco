@@ -7,6 +7,7 @@
 #
 #   scripts/qa/xcode-lock.sh xcode xcodebuild -project ... test   # 3 to 7 GB each
 #   scripts/qa/xcode-lock.sh swiftpm swift test                   # 1 to 1.5 GB each
+#   scripts/qa/xcode-lock.sh sim <command>                        # one booted simulator each
 #   scripts/qa/xcode-lock.sh xcodebuild -project ... test         # no class: same as `xcode`
 #
 # Each class has N slots, sized from physical RAM unless set: `xcode` one per 16 GB,
@@ -15,6 +16,12 @@
 # so agents in separate worktrees build at once. The classes are
 # independent: `xcode` and `swiftpm` holders run together. Go, lint and shell steps need
 # no lock.
+#
+# `sim` caps the simulators booted machine-wide (two by default; every booted simulator runs
+# its own logd and CoreSimulator services, and the Mac hung twice on 2026-10-11 with many
+# up). A caller holds a `sim` slot for as long as its simulator is up. It has the same FIFO
+# queue and stale-holder takeover, but no lane rule and no stall watch. A caller that needs
+# both classes takes `sim` first, then `xcode`, so every caller takes them in the same order.
 #
 # A slot is a directory (mkdir is atomic): slot 1 is `<lockdir>`, slot k is `<lockdir>.<k>`.
 # Waiters queue first-come first-served: each writes a ticket
@@ -51,12 +58,15 @@
 #   MONACO_XCODE_SLOTS         `xcode` slots (default: the number in the clone's
 #                              .git/.monaco/xcode-slots, reread on every wait poll,
 #                              else max(1, RAM GB / 16))
+#   MONACO_SIM_SLOTS           `sim` slots (default: the number in the clone's
+#                              .git/.monaco/sim-slots, reread on every wait poll, else 2)
 #   MONACO_SWIFTPM_SLOTS       `swiftpm` slots (default max(1, min(RAM GB / 8, CPUs / 8)))
 #   MONACO_LANE                lane of this caller (default the git top level when it is a
 #                              ticket worktree under <primary checkout>/.worktrees/, else
 #                              $HERDR_WORKSPACE_ID, else the git top level, else $PWD)
 #   MONACO_XCODE_LOCK_DIR      `xcode` lock dir (default /private/tmp/monaco-xcodebuild.lock)
 #   MONACO_SWIFTPM_LOCK_DIR    `swiftpm` lock dir (default /private/tmp/monaco-swiftpm.lock)
+#   MONACO_SIM_LOCK_DIR        `sim` lock dir (default /private/tmp/monaco-sim.lock)
 #   MONACO_XCODE_LOCK_TIMEOUT  seconds a waiter waits before exit 75 (default 5400)
 #   MONACO_LOCK_HOLD           seconds the command may run before it is stopped and the
 #                              script exits 124 (default 1800)
@@ -74,12 +84,12 @@
 set -euo pipefail
 
 case "${1:-}" in
-  xcode | swiftpm) class="$1"; shift ;;
+  xcode | swiftpm | sim) class="$1"; shift ;;
   *) class=xcode ;;
 esac
 
 if [[ $# -eq 0 ]]; then
-  echo "usage: $0 [xcode|swiftpm] <command> [args...]" >&2
+  echo "usage: $0 [xcode|swiftpm|sim] <command> [args...]" >&2
   exit 2
 fi
 
@@ -93,6 +103,10 @@ case "$class" in
   swiftpm)
     base_dir="${MONACO_SWIFTPM_LOCK_DIR:-/private/tmp/monaco-swiftpm.lock}"
     ;;
+  sim)
+    base_dir="${MONACO_SIM_LOCK_DIR:-/private/tmp/monaco-sim.lock}"
+    slots_file="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)/.monaco/sim-slots"
+    ;;
 esac
 
 # Sets $slots. The wait loop calls it on every poll, so a slot count raised or lowered in
@@ -103,6 +117,10 @@ read_slots() {
     xcode)
       machine_slots="$(cat "$slots_file" 2>/dev/null || true)"
       slots="${MONACO_XCODE_SLOTS:-${machine_slots:-$((ram_gb / 16))}}"
+      ;;
+    sim)
+      machine_slots="$(cat "$slots_file" 2>/dev/null || true)"
+      slots="${MONACO_SIM_SLOTS:-${machine_slots:-2}}"
       ;;
     swiftpm)
       by_ram=$((ram_gb / 8))

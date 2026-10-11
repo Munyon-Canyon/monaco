@@ -992,7 +992,7 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	t.Parallel()
 	found := func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
 	build := " MONACO_LOCK_HOLD=1200 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " + xcodeScript("build-for-testing")
-	testCmd := " MONACO_LOCK_HOLD=1200 MONACO_XCODE_LOCK_TIMEOUT=5400 bash -c " +
+	testCmd := " MONACO_LOCK_HOLD=1200 MONACO_XCODE_LOCK_TIMEOUT=5400 scripts/qa/xcode-lock.sh sim bash -c " +
 		xcodeScript("-only-testing:MonacoTests test-without-building")
 	ran := func(h *checkHarness, cmd string) bool {
 		return slices.ContainsFunc(h.calls, func(c string) bool {
@@ -1070,6 +1070,35 @@ func TestXcodeScript_shutsDownASimulatorItBooted(t *testing.T) {
 		if strings.Contains(script, "simctl erase") || strings.Count(script, "simctl shutdown") != 1 {
 			t.Fatalf("%s: unexpected simctl calls:\n%s", action, script)
 		}
+	}
+}
+
+func TestCheck_theTestActionTakesTheSimSlotBeforeTheXcodeSlot(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.goos = "darwin"
+	h.lookPath = func(string) (string, error) { return "/usr/bin/xcodebuild", nil }
+	writeFile(t, filepath.Join(h.dir, ".bin", "xcsift"), "#!/bin/sh\n")
+	h.commit(t, map[string]string{"apps/mobile/Monaco/A.swift": "let a = 1\n"})
+	if code, stdout, stderr := h.check(t); code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	var test, build string
+	for _, c := range h.calls {
+		switch {
+		case strings.Contains(c, "test-without-building"):
+			test = c
+		case strings.Contains(c, "build-for-testing"):
+			build = c
+		}
+	}
+	sim := strings.Index(test, "scripts/qa/xcode-lock.sh sim bash -c ")
+	xcode := strings.Index(test, "scripts/qa/xcode-lock.sh xcodebuild ")
+	if sim < 0 || xcode < 0 || sim > xcode || strings.Count(test, "xcode-lock.sh sim") != 1 {
+		t.Fatalf("the test action must take the sim slot, then the xcode slot:\n%s", test)
+	}
+	if build == "" || strings.Contains(build, "xcode-lock.sh sim") {
+		t.Fatalf("build-for-testing boots no simulator and takes no sim slot:\n%s", build)
 	}
 }
 

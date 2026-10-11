@@ -29,6 +29,11 @@ _LOCKS = tempfile.TemporaryDirectory()
 journey.SLOT_LOCK = _LOCKS.name + "/slot%d.lock"
 journey.ACTOR_LOCK = _LOCKS.name + "/actor-%s.lock"
 
+# No test queues for a machine-wide simulator slot; the SimSlots tests use the real ones.
+REAL_TAKE_SIM_SLOT, REAL_RELEASE_SIM_SLOT = journey.take_sim_slot, journey.release_sim_slot
+journey.take_sim_slot = lambda udid: None
+journey.release_sim_slot = lambda udid: None
+
 DOC = """---
 id: auth/sign-in
 title: Sign in
@@ -897,6 +902,40 @@ class Shutdown(unittest.TestCase):
                     raise error
             self.assertEqual(self.shutdowns(), ["lane"])
 
+    def test_each_booted_sim_holds_a_sim_slot_from_before_its_boot_until_after_its_shutdown(self):
+        journey.take_sim_slot = lambda udid: self.calls.append(["slot", "take", udid])
+        journey.release_sim_slot = lambda udid: self.calls.append(["slot", "release", udid])
+        saved = journey.SIM_SLOTS
+        journey.SIM_SLOTS = {"lane": object(), "actor-b": object()}
+        try:
+            with journey.simulator_shutdown():
+                journey.boot_simulator("lane")
+                journey.boot_simulator("actor-b")
+        finally:
+            journey.SIM_SLOTS = saved
+        steps = [tuple(call[:3]) if call[0] == "slot" else (call[2], call[3]) for call in self.calls
+                 if call[0] == "slot" or call[2] in ("boot", "shutdown")]
+        self.assertEqual(steps, [
+            ("slot", "take", "lane"), ("boot", "lane"),
+            ("slot", "take", "actor-b"), ("boot", "actor-b"),
+            ("shutdown", "lane"), ("shutdown", "actor-b"),
+            ("slot", "release", "lane"), ("slot", "release", "actor-b"),
+        ])
+
+    def test_a_failed_boot_gives_the_slot_back(self):
+        journey.take_sim_slot = lambda udid: self.calls.append(["slot", "take", udid])
+        journey.release_sim_slot = lambda udid: self.calls.append(["slot", "release", udid])
+
+        def failing(args, **kwargs):
+            if args[:3] == ["xcrun", "simctl", "bootstatus"]:
+                raise subprocess.CalledProcessError(1, args)
+            return type("Result", (), {"stdout": "", "returncode": 0})()
+
+        journey.sh = failing
+        with self.assertRaises(subprocess.CalledProcessError):
+            journey.boot_simulator("lane")
+        self.assertEqual(self.calls, [["slot", "take", "lane"], ["slot", "release", "lane"]])
+
     def test_a_sim_that_was_already_booted_is_left_booted(self):
         self.booted_before = ["mine"]
         with journey.simulator_shutdown():
@@ -941,6 +980,46 @@ JOURNEYSTEP\tbegin\tauth/sign-in@2\tS3.1\topen Profile
 SignInJourney.swift:127: error: XCTAssertTrue failed - S3.1: no Sign out button
 Test Case '-[MonacoUITests.SignInJourneyUITests testS2Relaunch]' failed (40.000 seconds).
 """
+
+
+class SimSlots(unittest.TestCase):
+    """take_sim_slot and release_sim_slot against the real scripts/qa/xcode-lock.sh, in a scratch lock dir."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        patched = unittest.mock.patch.dict(os.environ, {
+            "MONACO_SIM_LOCK_DIR": self.dir.name + "/sim.lock", "MONACO_SIM_SLOTS": "2", "MONACO_LOCK_POLL": "0.1"})
+        patched.start()
+        self.addCleanup(patched.stop)
+        self.addCleanup(lambda: [REAL_RELEASE_SIM_SLOT(udid) for udid in list(journey.SIM_SLOTS)])
+
+    def slot_dirs(self):
+        return sorted(name for name in os.listdir(self.dir.name) if name.startswith("sim.lock") and "queue" not in name)
+
+    def test_each_simulator_holds_one_slot_until_it_is_released(self):
+        REAL_TAKE_SIM_SLOT("a")
+        REAL_TAKE_SIM_SLOT("b")
+        REAL_TAKE_SIM_SLOT("a")
+        self.assertEqual(self.slot_dirs(), ["sim.lock", "sim.lock.2"])
+        REAL_RELEASE_SIM_SLOT("a")
+        self.assertEqual(self.slot_dirs(), ["sim.lock.2"])
+        REAL_RELEASE_SIM_SLOT("a")
+        REAL_RELEASE_SIM_SLOT("b")
+        self.assertEqual(self.slot_dirs(), [])
+
+    def test_a_holder_that_never_says_held_is_an_error(self):
+        class Dead:
+            returncode = 75
+            stdout = StringIO("")
+
+            def wait(self):
+                return 75
+
+        with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: Dead()):
+            with self.assertRaisesRegex(journey.JourneyError, "could not take a simulator slot for a"):
+                REAL_TAKE_SIM_SLOT("a")
+        self.assertEqual(journey.SIM_SLOTS, {})
 
 
 class Logs(unittest.TestCase):
