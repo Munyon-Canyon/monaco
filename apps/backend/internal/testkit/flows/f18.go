@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -43,6 +44,7 @@ func F18SamplePricesOK(s *scenario.Scenario) {
 		moves     int
 		moveLogs  int
 	)
+	seedEVMHoldings(s, testkit.NewCabal(seedT{s}, s.DB()).ID, nil, time.Now().UTC())
 	s.Given(
 		scenario.AwaitTickOrEarlier("market.catalog"),
 		ensureSamplerCatalog(),

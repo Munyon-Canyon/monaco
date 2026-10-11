@@ -84,6 +84,7 @@ type readData struct {
 	paused    funding.PausedSet
 	assets    []market.Asset
 	ranged    []rangedBook
+	listings  map[market.ListingKey]market.ListingPrice
 }
 
 func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) {
@@ -119,13 +120,17 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
+	listings, err := r.listingPrices(ctx, positions, at)
+	if err != nil {
+		return readData{}, err
+	}
 	ranged, err := r.readRanged(ctx, at)
 	if err != nil {
 		return readData{}, err
 	}
 	return readData{
 		cabals: cabals, members: members, positions: positions, stakes: stakes, reserved: reserved, users: users,
-		paused: paused, assets: assets, ranged: ranged,
+		paused: paused, assets: assets, ranged: ranged, listings: listings,
 	}, nil
 }
 
@@ -139,7 +144,7 @@ func cabalIDs(cabals []cabalport.CabalView) []ids.CabalID {
 
 func (r RunValuation) value(ctx context.Context, data readData, at time.Time) (Valuation, error) {
 	byMint, _ := assetsByMint(data.assets)
-	inputs, idsForPrices, err := r.inputs(ctx, data, byMint)
+	inputs, idsForPrices, err := r.inputs(ctx, data, byMint, at)
 	if err != nil {
 		return Valuation{}, err
 	}
@@ -356,6 +361,7 @@ func (r RunValuation) inputs(
 	ctx context.Context,
 	data readData,
 	byMint map[string]market.Asset,
+	at time.Time,
 ) ([]valuationInput, []market.AssetID, error) {
 	byCabal := positionsByCabal(data.positions)
 	inputs := make([]valuationInput, 0, len(data.cabals))
@@ -367,6 +373,7 @@ func (r RunValuation) inputs(
 			logExcluded(ctx, cabal.ID, errs.CodeCabalPaused)
 		}
 		input, assetIDs, ok, err := r.input(cabal, position, found, data.paused, byMint)
+		input = offSolana(input, position, data.listings, at)
 		input.reserved = data.reserved[cabal.ID]
 		if err != nil {
 			return nil, nil, err

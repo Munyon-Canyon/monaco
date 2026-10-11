@@ -29,6 +29,13 @@ type openMarket struct {
 	market.Catalog
 	market.Prices
 	*marketfake.CalendarFake
+	listings market.ListingPrices
+}
+
+func (m openMarket) ListingPrices(
+	ctx context.Context, keys []market.ListingKey, at time.Time,
+) (map[market.ListingKey]market.ListingPrice, error) {
+	return m.listings.ListingPrices(ctx, keys, at)
 }
 
 type noPauses struct{}
@@ -74,7 +81,10 @@ func newValuationRig(t *testing.T) *valuationRig {
 		treasury: treasury.New(d).Queries(), writer: newWriter(pool, now),
 	}
 	rig.ports = app.Ports{
-		Market:   openMarket{Catalog: marketModule.Catalog(), Prices: marketModule.Prices(), CalendarFake: calendar},
+		Market: openMarket{
+			Catalog: marketModule.Catalog(), Prices: marketModule.Prices(), CalendarFake: calendar,
+			listings: marketModule.Prices(),
+		},
 		Treasury: rig.treasury, Funding: noPauses{}, Cabals: cabal.New(d).Queries(), Users: identity.New(d).Queries(),
 		Previous: sqlc.New(pool), Snapshots: sqlc.New(pool),
 	}

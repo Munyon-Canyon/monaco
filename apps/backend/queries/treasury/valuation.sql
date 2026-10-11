@@ -19,3 +19,9 @@ SELECT head.cash_out_reserved_micros, head.in_transit_micros, p.asset,
 FROM head
 LEFT JOIN cabal_positions AS p ON p.cabal_id = sqlc.arg(cabal_id)::uuid AND p.units > 0
 ORDER BY p.asset;
+
+-- name: InTransitByCabal :many
+SELECT cabal_id, sum(amount_micros)::text AS micros
+FROM treasury_in_transit
+GROUP BY cabal_id
+ORDER BY cabal_id;

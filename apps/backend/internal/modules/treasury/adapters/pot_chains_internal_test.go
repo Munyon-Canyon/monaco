@@ -138,6 +138,10 @@ func TestOffSolana_refusesTotalsPastUint64(t *testing.T) {
 
 type valueRows []sqlc.CabalValueRowsRow
 
+func (valueRows) InTransitByCabal(context.Context) ([]sqlc.InTransitByCabalRow, error) {
+	return nil, nil
+}
+
 func (r valueRows) CabalValueRows(context.Context, uuid.UUID) ([]sqlc.CabalValueRowsRow, error) {
 	return r, nil
 }
@@ -174,5 +178,59 @@ func TestEVMCashKey_isBaseUSDC(t *testing.T) {
 	t.Parallel()
 	if evmCashKey != "base:"+chain.NetworkBase.Cash().Address {
 		t.Fatalf("evmCashKey = %s, want Base USDC", evmCashKey)
+	}
+}
+
+type transitRows struct {
+	stakeStore
+	rows []sqlc.InTransitByCabalRow
+	err  error
+}
+
+func (s transitRows) InTransitByCabal(context.Context) ([]sqlc.InTransitByCabalRow, error) {
+	return s.rows, s.err
+}
+
+func snapshotRow(cabal uuid.UUID, asset, units string) sqlc.CabalPositionSnapshotsAtRow {
+	return sqlc.CabalPositionSnapshotsAtRow{
+		CabalID: cabal, Asset: asset, Units: units, CostBasisMicros: "0", ShareUnits: "1",
+	}
+}
+
+func TestCabalPositionsAt_carriesEVMCashListingsAndMoneyInTransit(t *testing.T) {
+	t.Parallel()
+	cabal := uuid.UUID{7}
+	q := &Queries{usdc: usdcMint, transit: transitRows{rows: []sqlc.InTransitByCabalRow{{CabalID: cabal, Micros: "5"}}}}
+	q.history = historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{
+		snapshotRow(cabal, usdcMint, "80"), snapshotRow(cabal, evmCashKey, "3"), snapshotRow(cabal, evmCashKey, "4"),
+		snapshotRow(cabal, evmStock, "500000000000000000000"),
+	}}
+	got, err := q.CabalPositionsAt(t.Context(), time.Time{})
+	if err != nil || len(got) != 1 || len(got[0].Holdings) != 1 || got[0].EVMCash.Uint64() != 7 ||
+		got[0].InTransit.Uint64() != 5 || len(got[0].Listings) != 1 ||
+		got[0].Listings[0].Units.String() != "500000000000000000000" {
+		t.Fatalf("CabalPositionsAt = %+v, %v, want Solana USDC, 7 EVM cash, 5 in transit and one listing", got, err)
+	}
+}
+
+func TestCabalPositionsAt_refusesEVMRowsAndTransitItCannotRead(t *testing.T) {
+	t.Parallel()
+	cabal := uuid.UUID{7}
+	down := errs.New(errs.CodeDBUnavailable, "test")
+	for name, c := range map[string]struct {
+		transit transitRows
+		rows    []sqlc.CabalPositionSnapshotsAtRow
+	}{
+		"transit read":    {transitRows{err: down}, nil},
+		"transit sum":     {transitRows{rows: []sqlc.InTransitByCabalRow{{CabalID: cabal, Micros: "x"}}}, nil},
+		"evm cash":        {transitRows{}, []sqlc.CabalPositionSnapshotsAtRow{snapshotRow(cabal, evmCashKey, "x")}},
+		"evm cash sum":    {transitRows{}, []sqlc.CabalPositionSnapshotsAtRow{snapshotRow(cabal, evmCashKey, maxUint64), snapshotRow(cabal, evmCashKey, "1")}},
+		"token units":     {transitRows{}, []sqlc.CabalPositionSnapshotsAtRow{snapshotRow(cabal, evmStock, "x")}},
+		"negative tokens": {transitRows{}, []sqlc.CabalPositionSnapshotsAtRow{snapshotRow(cabal, evmStock, "-1")}},
+	} {
+		q := &Queries{usdc: usdcMint, transit: c.transit, history: historicalStore{snapshots: c.rows}}
+		if _, err := q.CabalPositionsAt(t.Context(), time.Time{}); err == nil {
+			t.Fatalf("%s: CabalPositionsAt = nil, want an error", name)
+		}
 	}
 }

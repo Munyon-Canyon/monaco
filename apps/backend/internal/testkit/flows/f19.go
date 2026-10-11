@@ -2,6 +2,7 @@ package flows
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -71,7 +72,53 @@ func seedCabal(s *scenario.Scenario, mint chain.SolanaAddress) valuationSeed {
 	return valuationSeed{cabal: cabal}
 }
 
-func F19RunValuationOK(s *scenario.Scenario) { RankedValuationOKAt(s, time.Now().UTC()) }
+const (
+	multichainPotMicros  = valuationPotMicros + 15_000_000 + 7_000_000 + 5_000_000
+	multichainShareMicro = 30_000_000
+)
+
+func F19RunValuationOK(s *scenario.Scenario) {
+	multichain := seedMultichainCabal(s, time.Now().UTC())
+	RankedValuationOKAt(s, time.Now().UTC())
+	s.Then(multichain.awaitSnapshot(multichainPotMicros))
+}
+
+func seedMultichainCabal(s *scenario.Scenario, now time.Time) valuationSeed {
+	key := make([]byte, 32)
+	_, _ = rand.Read(key)
+	mint, id := chain.AddressOf(key), ids.Real{}.NewV7()
+	insertAsset(s, id, "F19"+id.String()[24:], string(mint), now)
+	seed := seedCabal(s, mint)
+	seedEVMHoldings(s, seed.cabal.ID, &id, now)
+	return seed
+}
+
+func seedEVMHoldings(s *scenario.Scenario, cabal ids.CabalID, asset *uuid.UUID, now time.Time) {
+	raw := make([]byte, 20)
+	_, _ = rand.Read(raw)
+	token := "0x" + hex.EncodeToString(raw)
+	listing := "base:" + token
+	if _, err := s.DB().Exec(s.Context(), `INSERT INTO asset_listings (id, asset_id, issuer, symbol, network, chain_id,
+		token_address, decimals, shares_per_token, venue, enabled, created_at)
+		VALUES ($1, $2, 'ondo', $3, 'base', 8453, $4, 18, 1, 'uniswap', false, $5)`,
+		ids.Real{}.NewV7(), asset, "MCon"+token[2:8], token, now); err != nil {
+		s.Fatalf("flows: seed the Base listing: %v", err)
+	}
+	for _, age := range []time.Duration{4 * time.Minute, 2 * time.Minute, 0} {
+		if _, err := s.DB().Exec(s.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
+			VALUES ($1, $2, $3, 'uniswap') ON CONFLICT (mint, ts) DO NOTHING`,
+			listing, now.Add(-age), multichainShareMicro); err != nil {
+			s.Fatalf("flows: seed the Base listing price: %v", err)
+		}
+	}
+	testkit.NewLedger(seedT{s}, s.DB()).
+		WithHolding(cabal, chain.SolanaAddress(listing), money.NewBaseUnits(500_000_000_000_000_000, 18)).
+		WithHolding(cabal, chain.SolanaAddress("base:"+chain.NetworkBase.Cash().Address), money.NewBaseUnits(7_000_000, 6))
+	if _, err := s.DB().Exec(s.Context(), `INSERT INTO treasury_in_transit (cabal_id, trade_id, network, amount_micros,
+		created_at) VALUES ($1, $2, 'base', 5000000, $3)`, cabal.UUID(), ids.Real{}.NewV7(), now); err != nil {
+		s.Fatalf("flows: seed money in transit: %v", err)
+	}
+}
 
 func RankedValuationOKAt(s *scenario.Scenario, now time.Time) {
 	seedRankedAsset(s, now)

@@ -1,6 +1,7 @@
 package ranking_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -86,6 +87,13 @@ type liveMarket struct {
 	market.Catalog
 	market.Prices
 	market.Calendar
+	listings market.ListingPrices
+}
+
+func (m liveMarket) ListingPrices(
+	ctx context.Context, keys []market.ListingKey, at time.Time,
+) (map[market.ListingKey]market.ListingPrice, error) {
+	return m.listings.ListingPrices(ctx, keys, at)
 }
 
 func flow19Scenario(t *testing.T) *scenario.Scenario {
@@ -111,7 +119,10 @@ func rankingOver(d module.Deps) *ranking.Module {
 	d.Config = testkit.Config()
 	markets := market.New(d)
 	return ranking.New(d, ranking.WithPorts(app.Ports{
-		Market:   liveMarket{Catalog: markets.Catalog(), Prices: markets.Prices(), Calendar: markets.Calendar()},
+		Market: liveMarket{
+			Catalog: markets.Catalog(), Prices: markets.Prices(), Calendar: markets.Calendar(),
+			listings: markets.Prices(),
+		},
 		Treasury: treasury.New(d).Queries(),
 		Funding:  funding.New(d).Pauses(),
 		Cabals:   cabal.New(d).Queries(),

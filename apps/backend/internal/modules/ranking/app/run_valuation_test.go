@@ -680,6 +680,9 @@ type countingPorts struct {
 	pausedSet                                                                       funding.PausedSet
 	allErr, membersErr, positionsErr, stakesErr                                     error
 	userErr, pausesErr, assetsErr, latestErr, asOfErr, sessionErr                   error
+	listingRows                                                                     map[market.ListingKey]market.ListingPrice
+	listingsErr                                                                     error
+	listingCalls                                                                    int
 }
 
 func (f *countingPorts) AllCabals(context.Context) ([]cabal.View, error) {
@@ -695,6 +698,13 @@ func (f *countingPorts) MembersOf(context.Context, []ids.CabalID) (map[ids.Cabal
 func (f *countingPorts) CabalPositionsAt(context.Context, time.Time) ([]treasury.CabalPositions, error) {
 	f.positions++
 	return f.positionRows, f.positionsErr
+}
+
+func (f *countingPorts) ListingPrices(
+	context.Context, []market.ListingKey, time.Time,
+) (map[market.ListingKey]market.ListingPrice, error) {
+	f.listingCalls++
+	return f.listingRows, f.listingsErr
 }
 
 func (f *countingPorts) MemberStakesAt(context.Context, time.Time) ([]treasury.MemberStake, error) {
