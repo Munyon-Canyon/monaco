@@ -1,10 +1,12 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -50,6 +53,7 @@ type WithdrawDeps struct {
 	Wallets    SigningWallets
 	Treasuries TreasuryWallets
 	Transfers  func() (Transfers, error)
+	Actions    multichain.WalletActions
 	Hints      HintPublisher
 	Clock      clock.Clock
 	USDC       chain.Mint
@@ -64,6 +68,9 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 	wallet, err := h.d.Wallets.SigningWallet(ctx, cmd.UserID)
 	if err != nil {
 		return WithdrawResult{}, err
+	}
+	if cmd.Request.Kind() == domain.DestinationEVM {
+		return h.handleEVM(ctx, cmd, wallet)
 	}
 	if wallet.Address == cmd.Request.To {
 		return WithdrawResult{}, errs.New(errs.CodeWithdrawToOwnWallet, op)
@@ -126,15 +133,25 @@ func (h *WithdrawHandler) create(ctx context.Context, cmd Withdraw) error {
 			return errs.New(errs.CodeInsufficientFunds, op, slog.String("available_micros",
 				balance.AvailableMicros.String()), slog.String("amount_micros", cmd.Request.Amount.String()))
 		}
-		if err := q.InsertWithdrawal(ctx, sqlc.InsertWithdrawalParams{
-			ID: cmd.ID, UserID: cmd.UserID.UUID(), ToAddress: string(cmd.Request.To),
-			CreatedAt: h.d.Clock.Now(), AmountMicros: cmd.Request.Amount.String(),
-		}); err != nil {
+		if err := q.InsertWithdrawal(ctx, insertParams(cmd, h.d.Clock.Now())); err != nil {
 			return err
 		}
 		h.afterCommit(tx, cmd, "", domain.WithdrawalCreated)
 		return nil
 	})
+}
+
+func insertParams(cmd Withdraw, now time.Time) sqlc.InsertWithdrawalParams {
+	r := cmd.Request
+	params := sqlc.InsertWithdrawalParams{
+		ID: cmd.ID, UserID: cmd.UserID.UUID(), ToAddress: r.Address(), CreatedAt: now,
+		AmountMicros: r.Amount.String(), DestinationKind: string(r.Kind()),
+		Network: string(cmp.Or(r.Network, chain.NetworkSolana)),
+	}
+	if r.Kind() == domain.DestinationEVM {
+		params.EvmAddress = r.EVM.String()
+	}
+	return params
 }
 
 func (h *WithdrawHandler) failUnsent(ctx context.Context, cmd Withdraw, cause error) error {

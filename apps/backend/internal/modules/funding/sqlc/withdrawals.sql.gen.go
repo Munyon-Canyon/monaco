@@ -108,16 +108,21 @@ func (q *Queries) InFlightWithdrawalMicros(ctx context.Context, userID uuid.UUID
 }
 
 const insertWithdrawal = `-- name: InsertWithdrawal :exec
-INSERT INTO withdrawals (id, user_id, amount_micros, to_address, status, created_at)
-VALUES ($1, $2, $5::text::numeric, $3, 'created', $4)
+INSERT INTO withdrawals (id, user_id, amount_micros, to_address, status, created_at, destination_kind, network,
+  evm_address)
+VALUES ($1, $2, $5::text::numeric, $3, 'created', $4, $6::text,
+  $7::text, NULLIF($8::text, ''))
 `
 
 type InsertWithdrawalParams struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	ToAddress    string
-	CreatedAt    time.Time
-	AmountMicros string
+	ID              uuid.UUID
+	UserID          uuid.UUID
+	ToAddress       string
+	CreatedAt       time.Time
+	AmountMicros    string
+	DestinationKind string
+	Network         string
+	EvmAddress      string
 }
 
 func (q *Queries) InsertWithdrawal(ctx context.Context, arg InsertWithdrawalParams) error {
@@ -127,6 +132,9 @@ func (q *Queries) InsertWithdrawal(ctx context.Context, arg InsertWithdrawalPara
 		arg.ToAddress,
 		arg.CreatedAt,
 		arg.AmountMicros,
+		arg.DestinationKind,
+		arg.Network,
+		arg.EvmAddress,
 	)
 	return err
 }
@@ -201,10 +209,57 @@ func (q *Queries) ListOpenWithdrawals(ctx context.Context, arg ListOpenWithdrawa
 	return items, nil
 }
 
+const listStaleCreatedEVMWithdrawals = `-- name: ListStaleCreatedEVMWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros, network, evm_address::text AS evm_address
+FROM withdrawals
+WHERE status = 'created' AND destination_kind = 'evm' AND created_at < $1::timestamptz
+ORDER BY created_at, id
+LIMIT $2
+`
+
+type ListStaleCreatedEVMWithdrawalsParams struct {
+	OlderThan time.Time
+	MaxRows   int32
+}
+
+type ListStaleCreatedEVMWithdrawalsRow struct {
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	AmountMicros string
+	Network      string
+	EvmAddress   string
+}
+
+func (q *Queries) ListStaleCreatedEVMWithdrawals(ctx context.Context, arg ListStaleCreatedEVMWithdrawalsParams) ([]ListStaleCreatedEVMWithdrawalsRow, error) {
+	rows, err := q.db.Query(ctx, listStaleCreatedEVMWithdrawals, arg.OlderThan, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStaleCreatedEVMWithdrawalsRow
+	for rows.Next() {
+		var i ListStaleCreatedEVMWithdrawalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AmountMicros,
+			&i.Network,
+			&i.EvmAddress,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleCreatedWithdrawals = `-- name: ListStaleCreatedWithdrawals :many
 SELECT id, user_id, amount_micros::text AS amount_micros
 FROM withdrawals
-WHERE status = 'created' AND created_at < $1::timestamptz
+WHERE status = 'created' AND destination_kind = 'solana' AND created_at < $1::timestamptz
 ORDER BY created_at, id
 LIMIT $2
 `
@@ -244,7 +299,7 @@ const listSubmittedWithdrawals = `-- name: ListSubmittedWithdrawals :many
 SELECT id, user_id, amount_micros::text AS amount_micros, to_address, signed_tx, tx_signature,
   last_valid_block_height
 FROM withdrawals
-WHERE status = 'submitted'
+WHERE status = 'submitted' AND destination_kind = 'solana'
 ORDER BY submitted_at, id
 LIMIT $1
 `
@@ -296,18 +351,21 @@ func (q *Queries) LockWalletOutflow(ctx context.Context, userID uuid.UUID) error
 	return err
 }
 
-const setWithdrawalPrivyAction = `-- name: SetWithdrawalPrivyAction :execrows
-UPDATE withdrawals SET privy_action_id = $2
-WHERE id = $1 AND destination_kind = 'evm' AND privy_action_id IS NULL
+const submitEVMWithdrawal = `-- name: SubmitEVMWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'submitted', privy_action_id = $2::text,
+  submitted_at = $3::timestamptz
+WHERE id = $1 AND status = 'created' AND destination_kind = 'evm'
 `
 
-type SetWithdrawalPrivyActionParams struct {
+type SubmitEVMWithdrawalParams struct {
 	ID            uuid.UUID
-	PrivyActionID pgtype.Text
+	PrivyActionID string
+	SubmittedAt   time.Time
 }
 
-func (q *Queries) SetWithdrawalPrivyAction(ctx context.Context, arg SetWithdrawalPrivyActionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setWithdrawalPrivyAction, arg.ID, arg.PrivyActionID)
+func (q *Queries) SubmitEVMWithdrawal(ctx context.Context, arg SubmitEVMWithdrawalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, submitEVMWithdrawal, arg.ID, arg.PrivyActionID, arg.SubmittedAt)
 	if err != nil {
 		return 0, err
 	}
@@ -347,7 +405,7 @@ func (q *Queries) SubmitWithdrawal(ctx context.Context, arg SubmitWithdrawalPara
 const userSubmittedWithdrawals = `-- name: UserSubmittedWithdrawals :many
 SELECT COALESCE(tx_signature, '')::text AS tx_signature, amount_micros::text AS amount_micros
 FROM withdrawals
-WHERE user_id = $1 AND status = 'submitted'
+WHERE user_id = $1 AND status = 'submitted' AND tx_signature IS NOT NULL
 `
 
 type UserSubmittedWithdrawalsRow struct {

@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -38,6 +39,8 @@ type WithdrawalPollerDeps struct {
 	Clock     clock.Clock
 	Chain     SignatureStatuses
 	Transfers func() (Transfers, error)
+	Wallets   SigningWallets
+	Actions   multichain.WalletActions
 	Hints     HintPublisher
 	UnsentAge time.Duration
 }
@@ -67,10 +70,13 @@ func (p *WithdrawalPoller) Tick(ctx context.Context) (poller.Report, error) {
 		OlderThan: now.Add(-p.d.UnsentAge), MaxRows: withdrawalBatch,
 	})
 	submitted, submittedErr := q.ListSubmittedWithdrawals(ctx, withdrawalBatch)
-	if err := errors.Join(createdErr, submittedErr); err != nil {
+	createdEVM, createdEVMErr := q.ListStaleCreatedEVMWithdrawals(ctx, sqlc.ListStaleCreatedEVMWithdrawalsParams{
+		OlderThan: now.Add(-p.d.UnsentAge), MaxRows: withdrawalBatch,
+	})
+	if err := errors.Join(createdErr, submittedErr, createdEVMErr); err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "funding.WithdrawalPoller.list")
 	}
-	report := poller.Report{Scanned: len(created) + len(submitted)}
+	report := poller.Report{Scanned: len(created) + len(submitted) + len(createdEVM)}
 	var failures []error
 	for _, row := range created {
 		amount, err := money.ParseMicros(row.AmountMicros)
@@ -90,7 +96,9 @@ func (p *WithdrawalPoller) Tick(ctx context.Context) (poller.Report, error) {
 		report.Changed += changed
 		failures = append(failures, err)
 	}
-	return report, errors.Join(failures...)
+	changed, err := p.tickEVM(ctx, createdEVM)
+	report.Changed += changed
+	return report, errors.Join(append(failures, err)...)
 }
 
 func (p *WithdrawalPoller) resolveSubmitted(

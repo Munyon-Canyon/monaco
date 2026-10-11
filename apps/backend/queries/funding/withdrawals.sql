@@ -2,8 +2,10 @@
 SELECT pg_advisory_xact_lock(hashtextextended('wallet-outflow:' || sqlc.arg(user_id)::uuid::text, 0));
 
 -- name: InsertWithdrawal :exec
-INSERT INTO withdrawals (id, user_id, amount_micros, to_address, status, created_at)
-VALUES ($1, $2, sqlc.arg(amount_micros)::text::numeric, $3, 'created', $4);
+INSERT INTO withdrawals (id, user_id, amount_micros, to_address, status, created_at, destination_kind, network,
+  evm_address)
+VALUES ($1, $2, sqlc.arg(amount_micros)::text::numeric, $3, 'created', $4, sqlc.arg(destination_kind)::text,
+  sqlc.arg(network)::text, NULLIF(sqlc.arg(evm_address)::text, ''));
 
 -- name: SubmitWithdrawal :execrows
 UPDATE withdrawals
@@ -32,7 +34,7 @@ WHERE user_id = $1 AND status IN ('created', 'submitted');
 -- name: UserSubmittedWithdrawals :many
 SELECT COALESCE(tx_signature, '')::text AS tx_signature, amount_micros::text AS amount_micros
 FROM withdrawals
-WHERE user_id = $1 AND status = 'submitted';
+WHERE user_id = $1 AND status = 'submitted' AND tx_signature IS NOT NULL;
 
 -- name: LastWithdrawalChange :one
 SELECT COALESCE(MAX(GREATEST(created_at, submitted_at, completed_at)), 'epoch')::timestamptz AS changed_at
@@ -42,7 +44,7 @@ WHERE user_id = $1;
 -- name: ListStaleCreatedWithdrawals :many
 SELECT id, user_id, amount_micros::text AS amount_micros
 FROM withdrawals
-WHERE status = 'created' AND created_at < sqlc.arg(older_than)::timestamptz
+WHERE status = 'created' AND destination_kind = 'solana' AND created_at < sqlc.arg(older_than)::timestamptz
 ORDER BY created_at, id
 LIMIT sqlc.arg(max_rows);
 
@@ -50,7 +52,7 @@ LIMIT sqlc.arg(max_rows);
 SELECT id, user_id, amount_micros::text AS amount_micros, to_address, signed_tx, tx_signature,
   last_valid_block_height
 FROM withdrawals
-WHERE status = 'submitted'
+WHERE status = 'submitted' AND destination_kind = 'solana'
 ORDER BY submitted_at, id
 LIMIT sqlc.arg(max_rows);
 
@@ -66,6 +68,16 @@ WHERE user_id = @user_id AND status <> 'confirmed'
   AND (NOT @has_cursor::bool OR (created_at, id) < (@cursor_at::timestamptz, @cursor_id::uuid))
 ORDER BY created_at DESC, id DESC
 LIMIT @row_limit;
--- name: SetWithdrawalPrivyAction :execrows
-UPDATE withdrawals SET privy_action_id = $2
-WHERE id = $1 AND destination_kind = 'evm' AND privy_action_id IS NULL;
+
+-- name: SubmitEVMWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'submitted', privy_action_id = sqlc.arg(privy_action_id)::text,
+  submitted_at = sqlc.arg(submitted_at)::timestamptz
+WHERE id = $1 AND status = 'created' AND destination_kind = 'evm';
+
+-- name: ListStaleCreatedEVMWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros, network, evm_address::text AS evm_address
+FROM withdrawals
+WHERE status = 'created' AND destination_kind = 'evm' AND created_at < sqlc.arg(older_than)::timestamptz
+ORDER BY created_at, id
+LIMIT sqlc.arg(max_rows);
