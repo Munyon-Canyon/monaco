@@ -162,6 +162,7 @@ func TestSwapOperatorActionsCheckTheActionAndTheReasonLength(t *testing.T) {
 	run(t, pool, []stmt{
 		{"unpark", insert, []any{swap, "unpark", "rpc blip"}, true},
 		{"fail parked", insert, []any{swap, "fail_parked", "listing gone"}, true},
+		{"retry bridge back", insert, []any{swap, "retry_bridge_back", "privy rejected"}, true},
 		{"unknown action", insert, []any{swap, "force_resolve", "rpc blip"}, false},
 		{"empty reason", insert, []any{swap, "unpark", ""}, false},
 		{"500 characters", insert, []any{swap, "unpark", long}, true},
@@ -181,4 +182,28 @@ func TestEVMDepositForwardFeeIsNeverNegative(t *testing.T) {
 		{"measured fee", insert, []any{u.ID.UUID(), "e3", 163098}, true},
 		{"negative fee", insert, []any{u.ID.UUID(), "e4", -1}, false},
 	})
+}
+
+func TestTradeStepAttemptsStartAtOne(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	var swap string
+	if err := pool.QueryRow(t.Context(), `INSERT INTO swaps (id, source_kind, source_id, cabal_id, treasury_address,
+		action, symbol, in_mint, out_mint, in_amount, slippage_bps, status, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'proposal', gen_random_uuid(), gen_random_uuid(), $1, 'sell', 'AAPLx', 'aaplx',
+		'usdc', 1000000, 100, 'confirmed', now(), now()) RETURNING id::text`, evmAddr).Scan(&swap); err != nil {
+		t.Fatal(err)
+	}
+	insert := `INSERT INTO trade_steps (id, trade_id, step, network, amount_micros, status, attempt, created_at,
+		updated_at) VALUES (gen_random_uuid(), $1, $2, 'base', 1000000, 'pending', $3, now(), now())`
+	run(t, pool, []stmt{
+		{"attempt 0", insert, []any{swap, "bridge_back", 0}, false},
+		{"attempt 2", insert, []any{swap, "bridge_back", 2}, true},
+	})
+	var attempt int
+	if err := pool.QueryRow(t.Context(), `INSERT INTO trade_steps (id, trade_id, step, network, amount_micros, status,
+		created_at, updated_at) VALUES (gen_random_uuid(), $1, 'swap', 'base', 1000000, 'pending', now(), now())
+		RETURNING attempt`, swap).Scan(&attempt); err != nil || attempt != 1 {
+		t.Fatalf("default attempt = %d, %v, want 1", attempt, err)
+	}
 }

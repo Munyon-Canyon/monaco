@@ -445,3 +445,53 @@ func TestTradeSteps_aReplayedFinishUnderANewDeliveryPostsNothingMore(t *testing.
 	)
 	wantInTransit(t, f, cabal)
 }
+
+func (r bridgeRun) retried(status, action string, sent, fee uint64) events.TradeStepChanged {
+	e := r.event(status, action, sent, fee)
+	e.Attempt = 2
+	return e
+}
+
+func TestTradeSteps_aRetriedBridgeBackPostsTheSecondAttemptOnceAndNetsTheEVMCash(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	f.bridgedOut(t, cabal, 20_000_000, 0)
+	back := newBridgeRun(t, f, cabal, "bridge_back")
+	back.handle(t, back.event("submitted", "privy-1", 15_000_000, 0))
+	back.handle(t, back.event("failed", "privy-1", 15_000_000, 0))
+	wantBridgePositions(t, f, position{Asset: usdcMint, Units: "80000000", Cost: "80000000"},
+		position{Asset: baseCash, Units: "20000000", Cost: "20000000"})
+
+	back.handle(t, back.retried("pending", "", 15_000_000, 0))
+	back.handle(t, back.retried("submitted", "privy-2", 15_000_000, 0))
+	wantInTransit(t, f, cabal, inTransit{Swap: back.swap, Network: "base", Micros: "15000000"})
+	back.handle(t, back.retried("succeeded", "privy-2", 15_000_000, 2_500))
+	before := f.count(t, "cabal_txns")
+	back.handle(t, back.retried("submitted", "privy-2", 15_000_000, 0))
+	back.handle(t, back.retried("succeeded", "privy-2", 15_000_000, 2_500))
+
+	if got := f.count(t, "cabal_txns"); got != before {
+		t.Fatalf("cabal txns = %d after replaying attempt 2, want %d", got, before)
+	}
+	wantBridgePositions(t, f, position{Asset: usdcMint, Units: "94997500", Cost: "94997500"},
+		position{Asset: baseCash, Units: "5000000", Cost: "5000000"})
+	wantInTransit(t, f, cabal)
+}
+
+func TestTradeSteps_aRetryThatAdoptsTheFirstActionLandsTheSolanaUSDCOnce(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	f.bridgedOut(t, cabal, 20_000_000, 0)
+	back := newBridgeRun(t, f, cabal, "bridge_back")
+	back.handle(t, back.event("submitted", "privy-1", 20_000_000, 0))
+	back.handle(t, back.event("failed", "privy-1", 20_000_000, 0))
+
+	back.handle(t, back.retried("submitted", "privy-1", 20_000_000, 0))
+	back.handle(t, back.retried("succeeded", "privy-1", 20_000_000, 2_500))
+
+	wantBridgePositions(t, f, position{Asset: usdcMint, Units: "99997500", Cost: "99997500"},
+		position{Asset: baseCash, Units: "0", Cost: "0"})
+	wantInTransit(t, f, cabal)
+}

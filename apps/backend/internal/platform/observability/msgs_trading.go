@@ -52,6 +52,11 @@ var TradingRoutedSwapParked = Msg{
 	Required: []string{"swap_id", "cabal_id", "code", "step"},
 }
 
+var TradingBridgeBackRetried = Msg{
+	Name:     "trading.bridge_back.retried",
+	Required: []string{"swap_id", "cabal_id", "attempt", "actor", "reason"},
+}
+
 var TradingRoutedSwapResolved = Msg{
 	Name:     "trading.routed_swap.resolved",
 	Required: []string{"swap_id", "cabal_id", "action", "actor", "reason", "parked_code"},

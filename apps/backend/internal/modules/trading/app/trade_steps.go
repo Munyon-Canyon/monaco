@@ -172,12 +172,16 @@ func logStep(
 }
 
 func stepChanged(ref domain.StepRef, step domain.TradeStep, fee money.Micros) events.TradeStepChanged {
-	return events.TradeStepChanged{
+	e := events.TradeStepChanged{
 		V: 1, SwapID: ref.SwapID.UUID(), CabalID: ref.CabalID.UUID(),
 		Source:          events.TradeSource{Kind: string(step.Source.Kind), ID: step.Source.ID},
 		SourceBatchSize: step.SourceBatchSize, Step: string(step.Step), Network: step.Network,
 		Status: string(step.Status), PrivyActionID: step.PrivyActionID, AmountMicros: step.Amount, FeeMicros: fee,
 	}
+	if step.Attempt > 1 {
+		e.Attempt = step.Attempt
+	}
+	return e
 }
 
 func readStep(ctx context.Context, q *sqlc.Queries, swap ids.SwapID, kind domain.StepKind) (domain.TradeStep, error) {
@@ -193,10 +197,11 @@ func readStep(ctx context.Context, q *sqlc.Queries, swap ids.SwapID, kind domain
 		return domain.TradeStep{}, err
 	}
 	return domain.TradeStep{
-		ID: row.ID, SwapID: ids.SwapIDFrom(row.TradeID),
+		ID: row.ID, SwapID: ids.SwapIDFrom(row.TradeID), CabalID: ids.CabalIDFrom(row.CabalID),
 		Source:          domain.Source{Kind: domain.SourceKind(row.SourceKind), ID: row.SourceID},
 		SourceBatchSize: int(row.SourceBatchSize), Step: domain.StepKind(row.Step),
 		Network: chain.Network(row.Network), PrivyActionID: row.PrivyActionID, Amount: amount,
-		Status: domain.StepStatus(row.Status), Error: row.Error, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Status: domain.StepStatus(row.Status), Error: row.Error, Attempt: int(row.Attempt),
+		PriorPrivyActionID: row.PriorPrivyActionID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}, nil
 }
