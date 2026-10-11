@@ -21,7 +21,7 @@ import (
 const (
 	stackFields = `number state mergeable closedAt baseRefName headRefName headRefOid body mergeCommit{oid} ` + labelFields + `
 commits(last:1){nodes{commit{` + commitChecks + `}}}
-timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name} actor{login}}}}`
+timelineItems(itemTypes:[UNLABELED_EVENT,BASE_REF_CHANGED_EVENT],last:20){nodes{__typename ... on UnlabeledEvent{createdAt label{name} actor{login}} ... on BaseRefChangedEvent{createdAt currentRefName actor{login}}}}`
 	settleAfter = time.Minute
 	takenFor    = runsFor
 	repoQuery   = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){"
@@ -103,6 +103,40 @@ func (env *Env) arm(ctx context.Context, rec Record, stack []stackPR, waiting []
 	return nil
 }
 
+func waitingLine(top int, waiting []string) string {
+	return fmt.Sprintf("armed stack #%d waiting on %s", top, strings.Join(waiting, ", "))
+}
+
+func (env *Env) restackWait(ctx context.Context, r Record, top int) (string, bool) {
+	open, _ := env.sharedOpenPulls(ctx)
+	byHead := map[string]stackPR{}
+	byNumber := map[int]stackPR{}
+	for _, p := range open {
+		byHead[p.Head] = p
+		byNumber[p.Number] = p
+	}
+	var group []int
+	if a := r.Armed.find(top); a != nil {
+		group = a.PRs
+	}
+	cur, ok := byNumber[top]
+	for steps := 0; ok && steps <= len(open); steps++ {
+		if strings.HasPrefix(cur.Base, "graphite-base/") {
+			active, _ := cur.TimelineItems.restacking(env.Now())
+			if i := slices.Index(group, cur.Number); !active && i > 0 {
+				active = slices.Contains(byNumber[group[i-1]].Labels.Nodes, gqlName{env.Config.QueueLabel})
+			}
+			if active {
+				reason := fmt.Sprintf("#%d (restacking onto %s)", cur.Number, env.Config.FeatureBranch)
+				return waitingLine(top, []string{reason}), true
+			}
+			break
+		}
+		cur, ok = byHead[cur.Base]
+	}
+	return "", false
+}
+
 func blocker(stack []stackPR) string {
 	for _, p := range stack {
 		if p.Mergeable == conflicting {
@@ -168,6 +202,9 @@ func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int6
 	var out strings.Builder
 	stack, dir, err := env.stackOf(ctx, r, top, &out)
 	if err != nil {
+		if line, ok := env.restackWait(ctx, r, top); ok {
+			return []string{line}
+		}
 		return []string{watchErr(fmt.Sprintf("armed stack #%d: ", top), err)}
 	}
 	if lines, handled := env.migrationStep(ctx, r, dir, stack); handled {
@@ -176,8 +213,8 @@ func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int6
 	if failed := blocker(stack); failed != "" {
 		return env.disarm(ctx, r, top, failed)
 	}
-	if len(waitingOn(stack)) > 0 {
-		return nil
+	if waiting := waitingOn(stack); len(waiting) > 0 {
+		return []string{waitingLine(top, waiting)}
 	}
 	flows, err := env.flowGate(ctx, r, stack)
 	switch {
@@ -186,7 +223,7 @@ func (env *Env) landFresh(ctx context.Context, r Record, top int, reran map[int6
 	case flows.started:
 		return []string{fmt.Sprintf("armed stack #%d started %s", top, flows.waiting)}
 	case flows.waiting != "":
-		return nil
+		return []string{waitingLine(top, flows.entries())}
 	}
 	return env.queueArmed(ctx, r, top, dir, stack, reran, &out)
 }

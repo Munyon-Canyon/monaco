@@ -468,7 +468,7 @@ func TestWatchStream_landsAnArmedStackOnceStage1Passes(t *testing.T) {
 			*s.prs[2] = *green(t, 2, "b2", "b1")
 		}
 	})
-	want := "armed stack #2 landing\nqueued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" + waiting12
+	want := "armed stack #2 waiting on #2 (stage 1 pending)\narmed stack #2 landing\nqueued #1 #2\nfollow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" + waiting12
 	if got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
@@ -560,7 +560,7 @@ func TestWatchStream_disarmsAnArmedStackWhoseStage1FailsOnce(t *testing.T) {
 			*s.prs[2] = *stackOf(t, 2, "b2", "b1", "FAILURE", "SUCCESS")
 		}
 	})
-	if want := "armed stack #2 disarmed: #2 stage 1 failed\n"; got != want {
+	if want := "armed stack #2 waiting on #2 (stage 1 pending)\narmed stack #2 disarmed: #2 stage 1 failed\n"; got != want {
 		t.Fatalf("stream\n got %q\nwant %q", got, want)
 	}
 	if calls := f.hub.callsContaining("/labels"); len(calls) != 0 {
@@ -585,7 +585,7 @@ func TestWatchStream_keepsAnArmedStackArmedWhileANewerRunReplacesACancelledOne(t
 			*s.prs[2] = *green(t, 2, "b2", "b1")
 		}
 	})
-	if strings.Contains(got, "disarmed") || !strings.HasPrefix(got, "armed stack #2 landing\n") {
+	if strings.Contains(got, "disarmed") || !strings.Contains(got, "armed stack #2 landing\n") {
 		t.Fatalf("stream:\n%s", got)
 	}
 	if r := f.owned(t); len(r.Armed) > 0 || len(r.Queued) == 0 {
@@ -677,7 +677,8 @@ func TestWatchStream_disarmsAnArmedStackThatCannotLand(t *testing.T) {
 			*s.prs[2] = *green(t, 2, "b2", "b1")
 		}
 	})
-	if want := "armed stack #2 landing\narmed stack #2 disarmed: merge-tree: boom; the stack is not marked queued: " +
+	if want := "armed stack #2 waiting on #2 (stage 1 pending)\narmed stack #2 landing\n" +
+		"armed stack #2 disarmed: merge-tree: boom; the stack is not marked queued: " +
 		"run land-stack again, which relabels every PR\n"; got != want {
 		t.Fatalf("stream %q", got)
 	}
@@ -1560,5 +1561,77 @@ func TestWatchStream_saysATrunkErrorOnceUntilItClears(t *testing.T) {
 	broken = true
 	if got := s.trunkLines(t.Context()); len(got) != 1 {
 		t.Fatalf("a repeat of the error after it cleared printed %q", got)
+	}
+}
+
+func TestWatchStream_saysWhatAnArmedStackWaitsOnOncePerState(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := newStackGH(t, f, green(t, 1, "b1", "fb"), stackOf(t, 2, "b2", "b1", "", "SUCCESS"))
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Armed: Arms{{Top: 2, PRs: []int{1, 2}}}})
+	f.noFailures()
+	got := streamRounds(t, f, 6, func(round int) {
+		switch round {
+		case 2:
+			*s.prs[2] = *stackOf(t, 2, "b2", "b1", "pending", "SUCCESS")
+		case 4:
+			*s.prs[2] = *green(t, 2, "b2", "b1")
+		}
+	})
+	want := "armed stack #2 waiting on #2 (stage 1 missing)\n" +
+		"armed stack #2 waiting on #2 (stage 1 pending)\n" +
+		"armed stack #2 landing\nqueued #1 #2\n" +
+		"follow it: monacoctl agents watch (under Claude Code's Monitor tool)\n" + waiting12
+	if got != want {
+		t.Fatalf("stream\n got %q\nwant %q", got, want)
+	}
+}
+
+func restackedArm(t *testing.T, f *fixture, base string, events ...gqlTimelineNode) *stackGH {
+	t.Helper()
+	top := stackOf(t, 2, "b2", base, "SUCCESS", "SUCCESS")
+	top.TimelineItems = gqlTimeline{Nodes: events}
+	s := newStackGH(t, f, top)
+	f.owner(t, Record{Ticket: 40, State: Exited, Worktree: f.dir, Armed: Arms{{Top: 2, PRs: []int{1, 2}}}})
+	f.noFailures()
+	return s
+}
+
+func restackEvent(f *fixture, age time.Duration) gqlTimelineNode {
+	return gqlTimelineNode{
+		Typename: "BaseRefChangedEvent", CreatedAt: f.now.Add(-age),
+		RefName: "graphite-base/2", Actor: gqlActor{Login: "graphite-app"},
+	}
+}
+
+func TestWatchStream_waitsOnAnArmedStackInsideGraphitesRestackGrace(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	restackedArm(t, f, "graphite-base/2", restackEvent(f, time.Minute))
+	got := streamRounds(t, f, 2, func(int) {})
+	if want := "armed stack #2 waiting on #2 (restacking onto fb)\n"; got != want || len(f.owned(t).Armed) == 0 {
+		t.Fatalf("stream %q", got)
+	}
+}
+
+func TestWatchStream_waitsOnAnArmedStackWhoseLowerPRIsStillQueued(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	s := restackedArm(t, f, "graphite-base/2")
+	s.prs[1] = labeled(green(t, 1, "b1", "fb"), "merge-queue")
+	got := streamRounds(t, f, 2, func(int) {})
+	if want := "armed stack #2 waiting on #2 (restacking onto fb)\n"; got != want {
+		t.Fatalf("stream %q", got)
+	}
+}
+
+func TestWatchStream_reportsAnArmedStackThatStaysOnGraphiteBasePastTheGrace(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	restackedArm(t, f, "graphite-base/2", restackEvent(f, time.Hour))
+	got := streamRounds(t, f, 2, func(int) {})
+	want := "watch error: armed stack #2: #2's base graphite-base/2 is neither fb nor an open PR\n"
+	if got != want {
+		t.Fatalf("stream %q", got)
 	}
 }
