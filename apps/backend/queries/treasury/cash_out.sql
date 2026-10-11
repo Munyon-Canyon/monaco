@@ -20,10 +20,12 @@ SELECT greatest(sqlc.arg(payout_micros)::text::numeric - greatest(coalesce((SELE
 
 -- name: InsertCashOutJob :exec
 INSERT INTO cash_out_jobs
-  (id, cabal_id, user_id, share_units, payout_micros, slice_micros, sell_usdc_micros, status, created_at, updated_at)
+  (id, cabal_id, user_id, share_units, payout_micros, slice_micros, sell_usdc_micros, status, cause, created_at,
+  updated_at)
 VALUES (sqlc.arg(id)::uuid, sqlc.arg(cabal_id)::uuid, sqlc.arg(user_id)::uuid,
   sqlc.arg(share_units)::text::numeric, sqlc.arg(payout_micros)::text::numeric, sqlc.arg(payout_micros)::text::numeric,
-  sqlc.arg(sell_usdc_micros)::text::numeric, 'started', sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz);
+  sqlc.arg(sell_usdc_micros)::text::numeric, sqlc.arg(status)::text, sqlc.arg(cause)::text, sqlc.arg(at)::timestamptz,
+  sqlc.arg(at)::timestamptz);
 
 -- name: CashOutJobByID :one
 SELECT id, cabal_id, user_id, share_units::text AS share_units, payout_micros::text AS payout_micros,
@@ -32,7 +34,7 @@ FROM cash_out_jobs
 WHERE id = sqlc.arg(id)::uuid AND cabal_id = sqlc.arg(cabal_id)::uuid AND user_id = sqlc.arg(user_id)::uuid;
 
 -- name: LockCashOutJob :one
-SELECT status, user_id, share_units::text AS share_units, slice_micros::text AS slice_micros
+SELECT status, user_id, cause, share_units::text AS share_units, slice_micros::text AS slice_micros
 FROM cash_out_jobs
 WHERE id = sqlc.arg(id)::uuid AND cabal_id = sqlc.arg(cabal_id)::uuid
 FOR UPDATE;

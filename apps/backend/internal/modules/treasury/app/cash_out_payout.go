@@ -64,6 +64,7 @@ type payoutJob struct {
 	slice   money.Micros
 	status  domain.CashOutStatus
 	selling bool
+	cause   string
 	latest  domain.PayoutAttempt
 	signed  relayer.SignedTx
 }
@@ -188,12 +189,12 @@ func ended(job payoutJob, end domain.CashOutEvent) events.Event {
 		return events.CashOutPartial{
 			V: 1, JobID: job.id, CabalID: job.cabal.UUID(), UserID: job.user.UUID(),
 			ShareUnitsBurned: job.units.Uint64(), ShareUnitsReturned: job.kept.Uint64(),
-			PayoutMicros: job.payout, Signature: job.signed.Signature,
+			PayoutMicros: job.payout, Signature: job.signed.Signature, Cause: job.cause,
 		}
 	}
 	return events.CashOutCompleted{
 		V: 1, JobID: job.id, CabalID: job.cabal.UUID(), UserID: job.user.UUID(), ShareUnits: job.units.Uint64(),
-		PayoutMicros: job.payout, Signature: job.signed.Signature,
+		PayoutMicros: job.payout, Signature: job.signed.Signature, Cause: job.cause,
 	}
 }
 
@@ -248,7 +249,7 @@ func (p *CashOutPayouts) fail(ctx context.Context, job payoutJob, rejected int16
 		})
 		return tx.Events.Append(ctx, events.CashOutFailed{
 			V: 1, JobID: now.id, CabalID: now.cabal.UUID(), UserID: now.user.UUID(), ShareUnits: now.units.Uint64(),
-			Code: string(errs.CodePayoutFailed),
+			Code: string(errs.CodePayoutFailed), Cause: now.cause,
 		})
 	})
 }
@@ -347,7 +348,7 @@ func parsePayoutJob(row sqlc.CashOutPayoutJobRow) (payoutJob, error) {
 	}
 	return payoutJob{
 		id: row.ID, cabal: ids.CabalIDFrom(row.CabalID), user: ids.UserIDFrom(row.UserID), units: burned,
-		kept: returned, payout: payout, slice: slice, status: status, selling: row.Selling,
+		kept: returned, payout: payout, slice: slice, status: status, selling: row.Selling, cause: row.Cause,
 		latest: domain.PayoutAttempt{Number: row.Attempt, Status: attempt},
 		signed: relayer.SignedTx{
 			Bytes: row.SignedTx, Signature: chain.Signature(row.Signature),

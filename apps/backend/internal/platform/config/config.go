@@ -161,6 +161,7 @@ type Funding struct {
 	DepositRecoverySlots      int32
 	DepositDiscovery          time.Duration
 	TreasuryReconcileInterval time.Duration
+	WindDownInterval          time.Duration
 	BounceSweepInterval       time.Duration
 	BounceSweepAge            time.Duration
 }
@@ -478,6 +479,8 @@ func fundingFields() []field {
 			func(c *Config) *time.Duration { return &c.Funding.DepositDiscovery }),
 		duration("FUNDING_TREASURY_RECONCILE_INTERVAL", 60*time.Second,
 			func(c *Config) *time.Duration { return &c.Funding.TreasuryReconcileInterval }),
+		duration("FUNDING_WINDDOWN_INTERVAL", 2*time.Minute,
+			func(c *Config) *time.Duration { return &c.Funding.WindDownInterval }),
 		duration("FUNDING_BOUNCE_SWEEP_INTERVAL", 30*time.Second,
 			func(c *Config) *time.Duration { return &c.Funding.BounceSweepInterval }),
 		duration("FUNDING_BOUNCE_SWEEP_AGE", 2*time.Minute,

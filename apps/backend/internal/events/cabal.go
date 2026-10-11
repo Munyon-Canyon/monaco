@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -16,6 +17,7 @@ const (
 	TypeCabalMemberLeft      Type = "cabal.member_left"
 	TypeCabalUpdated         Type = "cabal.updated"
 	TypeCabalBanned          Type = "cabal.banned"
+	TypeCabalWoundDown       Type = "cabal.wound_down"
 )
 
 const cabalAggregate = "cabal"
@@ -134,3 +136,16 @@ func (CabalBanned) Type() Type { return TypeCabalBanned }
 func (CabalBanned) AggregateType() string { return cabalAggregate }
 
 func (e CabalBanned) AggregateID() uuid.UUID { return e.CabalID }
+
+type CabalWoundDown struct {
+	V                  int          `json:"v"`
+	CabalID            uuid.UUID    `json:"cabal_id"`
+	MembersPaid        int64        `json:"members_paid"`
+	USDCReturnedMicros money.Micros `json:"usdc_returned_micros"`
+}
+
+func (CabalWoundDown) Type() Type { return TypeCabalWoundDown }
+
+func (CabalWoundDown) AggregateType() string { return cabalAggregate }
+
+func (e CabalWoundDown) AggregateID() uuid.UUID { return e.CabalID }

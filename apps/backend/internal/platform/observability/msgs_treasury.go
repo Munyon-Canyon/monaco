@@ -49,3 +49,23 @@ var TreasuryCashOutBroadcastFailed = Msg{
 	Name:     "treasury.cashout.broadcast_failed",
 	Required: []string{"job_id", "code"},
 }
+
+var TreasuryWindDownStarted = Msg{
+	Name:     "treasury.winddown_started",
+	Required: []string{"cabal_id", "holders", "started"},
+}
+
+var TreasuryWindDownCompleted = Msg{
+	Name:     "treasury.winddown_completed",
+	Required: []string{"cabal_id", "members_paid", "returned_micros"},
+}
+
+var TreasuryWindDownStuck = Msg{
+	Name:     "treasury.winddown_stuck",
+	Required: []string{"cabal_id", "attempts", "holders"},
+}
+
+var TreasuryWindDownMemberFailed = Msg{
+	Name:     "treasury.winddown_member_failed",
+	Required: []string{"cabal_id", "user_id", "code"},
+}
