@@ -9,6 +9,14 @@ final class SampleThreadTogglePathTests: XCTestCase {
         preconditionFailure("states ended")
     }
 
+    private func channelOnceRootHasOneReply(_ session: ChatSession) async -> [ChatMessage] {
+        for await state in await session.states() {
+            let messages = state.timeline.messages
+            if messages.first(where: { $0.id == "root-1" })?.replyCount == 1 { return messages }
+        }
+        preconditionFailure("states ended before root-1.replyCount reached 1")
+    }
+
     private func openedThread(_ session: ChatSession) async -> ThreadSession {
         await session.open()
         let thread = await session.thread(parentId: "root-1")
@@ -33,9 +41,8 @@ final class SampleThreadTogglePathTests: XCTestCase {
 
         _ = await thread.send(body: "thread only", alsoInChannel: false)
 
-        let messages = await channel(session)
+        let messages = await channelOnceRootHasOneReply(session)
         XCTAssertNil(messages.first { $0.body == "thread only" })
-        XCTAssertEqual(messages.first { $0.id == "root-1" }?.replyCount, 1)
     }
 }
 #endif
