@@ -867,3 +867,41 @@ func TestGraphiteBase_waitsWhileTheLowerPRIsStillQueued(t *testing.T) {
 		})
 	}
 }
+
+func TestGraphiteBase_graceRunsFromFirstSightWhenNoEventIsVisibleYet(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, 10, 11, 12, 16, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		wait     time.Duration
+		reported bool
+	}{
+		{"first seen 30s ago", 30 * time.Second, false},
+		{"first seen 6 minutes ago", 6 * time.Minute, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &stream{onBase: map[int]time.Time{}}
+			pr := func() []watchPR {
+				return []watchPR{
+					{Number: 5136, Body: "Part of #40", BaseRefName: "graphite-base/5136", HeadRefName: "b5136"},
+				}
+			}
+			first := pr()
+			first[0].Labels.Nodes = []gqlName{{"merge-queue"}}
+			s.trackGraphiteBase(first, start)
+			later := pr()
+			later[0].Labels.Nodes = first[0].Labels.Nodes
+			s.trackGraphiteBase(later, start.Add(tc.wait))
+			stuck := stuckOnGraphiteBase(later, nil, "merge-queue", start.Add(tc.wait))
+			if (len(stuck) == 1) != tc.reported {
+				t.Fatalf("reported=%v want %v: %q", len(stuck) == 1, tc.reported, stuck)
+			}
+			later[0].BaseRefName = "staging"
+			s.trackGraphiteBase(later, start.Add(tc.wait))
+			if len(s.onBase) != 0 {
+				t.Fatalf("entry kept after leaving graphite-base: %v", s.onBase)
+			}
+		})
+	}
+}

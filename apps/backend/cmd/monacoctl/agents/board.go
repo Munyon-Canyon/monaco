@@ -61,6 +61,12 @@ type gqlTimeline struct {
 
 const graphiteRestackWindow = 5 * time.Minute
 
+func (t gqlTimeline) movedToGraphiteBase() bool {
+	return slices.ContainsFunc(t.Nodes, func(n gqlTimelineNode) bool {
+		return n.Typename == "BaseRefChangedEvent" && strings.HasPrefix(n.RefName, "graphite-base/")
+	})
+}
+
 func (t gqlTimeline) restacking(now time.Time) bool {
 	for i := len(t.Nodes) - 1; i >= 0; i-- {
 		n := t.Nodes[i]

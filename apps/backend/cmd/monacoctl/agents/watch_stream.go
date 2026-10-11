@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -53,6 +54,7 @@ type stream struct {
 	reran     map[int64]int
 	waits     map[int]*graphiteWait
 	trunkSaid string
+	onBase    map[int]time.Time
 }
 
 type dropKey struct {
@@ -69,7 +71,7 @@ func newStream(env *Env) *stream {
 	return &stream{
 		env: env, since: env.Now(), prev: map[string]bool{}, ejected: map[int]bool{}, blocks: map[string]string{},
 		seenOpen: map[int]bool{}, reported: map[int]bool{}, told: map[dropKey]bool{},
-		reran: map[int64]int{}, waits: map[int]*graphiteWait{},
+		reran: map[int64]int{}, waits: map[int]*graphiteWait{}, onBase: map[int]time.Time{},
 	}
 }
 
@@ -118,6 +120,7 @@ func (s *stream) round(ctx context.Context) ([]string, []string) {
 	if dataErr != nil {
 		items = append(items, watchErr("", dataErr))
 	}
+	s.trackGraphiteBase(data.prs, env.Now())
 	var queued, armed []int
 	for _, r := range rs {
 		if line, stale := r.staleLine(); stale {
@@ -336,4 +339,20 @@ func (s *stream) block(ctx context.Context, f failure) string {
 
 func watchErr(what string, err error) string {
 	return "watch error: " + what + cmp.Or(cliText(err), err.Error())
+}
+
+func (s *stream) trackGraphiteBase(prs []watchPR, now time.Time) {
+	open := map[int]bool{}
+	for i := range prs {
+		p := &prs[i]
+		if !strings.HasPrefix(p.BaseRefName, "graphite-base/") {
+			continue
+		}
+		open[p.Number] = true
+		if _, ok := s.onBase[p.Number]; !ok {
+			s.onBase[p.Number] = now
+		}
+		p.onGraphiteBase = s.onBase[p.Number]
+	}
+	maps.DeleteFunc(s.onBase, func(n int, _ time.Time) bool { return !open[n] })
 }
