@@ -1,0 +1,87 @@
+{
+  "request": {
+    "tokenIn": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "tokenOut": "0xb200000000000000000000c2e324d24d7eecd1fb",
+    "amount": "100000000"
+  },
+  "status": 200,
+  "body": {
+    "requestId": "19ef8ecdc4d3a5eec2cf6099d9bc7be2",
+    "routing": "CLASSIC",
+    "quote": {
+      "quoteId": "01a12a2f-24b1-8000-b523-0d4e5bfb0100",
+      "chainId": 8453,
+      "swapper": "0x000000000000000000000000000000000000dEaD",
+      "tradeType": "EXACT_INPUT",
+      "input": {
+        "amount": "100000000",
+        "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      },
+      "output": {
+        "amount": "30683976",
+        "token": "0xb200000000000000000000C2e324d24d7eEcd1fb",
+        "recipient": "0x000000000000000000000000000000000000dEaD"
+      },
+      "priceImpact": 100,
+      "gasFee": "43014804509893",
+      "gasFeeUSD": "0.07587302675015357",
+      "gasUseEstimate": "5060330",
+      "routeString": "[mixed] 100.00% = [0.01%] 0xb4CB800910B228ED3d0834cF79D697127BBB00e5 -> [0%] [0] [0x0000000000000000000000000000000000000000] 0x770377cf0364fc865cf9e833ec7834c9c73e9c042c65c67bc1ac09f6c9fe1e8b -> [0%] [1] [0x0000000000000000000000000000000000000000] 0xc968d6917d0959792d45b8aebaa9643cf57a4ce46e60fb12f2b81d368df2cc9a -> [0%] [1] [0x38ac02ada52978721ea3086d18706bca3a6ba8c0] 0x303372978802a570bd9a8be826f4e56140ff4963808bc712fd6cdbefa9da54b4",
+      "route": [
+        [
+          {
+            "type": "v3-pool",
+            "address": "0xb4CB800910B228ED3d0834cF79D697127BBB00e5",
+            "fee": "100",
+            "tokenIn": {
+              "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "symbol": "USDC",
+              "decimals": "6"
+            },
+            "tokenOut": {
+              "address": "0x4200000000000000000000000000000000000006",
+              "symbol": "WETH",
+              "decimals": "18"
+            },
+            "amountIn": "100000000",
+            "amountOut": null
+          },
+          {
+            "type": "v4-pool",
+            "address": "0xc968d6917d0959792d45b8aebaa9643cf57a4ce46e60fb12f2b81d368df2cc9a",
+            "fee": "0",
+            "tokenIn": {
+              "address": "0x0000000000000000000000000000000000000000",
+              "symbol": "WETH",
+              "decimals": "18"
+            },
+            "tokenOut": {
+              "address": "0x4fc59c42653E052c7AB5C8381F839e2D70504131",
+              "symbol": "mmETH",
+              "decimals": "18"
+            },
+            "amountIn": null,
+            "amountOut": null
+          },
+          {
+            "type": "v4-pool",
+            "address": "0x303372978802a570bd9a8be826f4e56140ff4963808bc712fd6cdbefa9da54b4",
+            "fee": "0",
+            "tokenIn": {
+              "address": "0x4fc59c42653E052c7AB5C8381F839e2D70504131",
+              "symbol": "mmETH",
+              "decimals": "18"
+            },
+            "tokenOut": {
+              "address": "0xb200000000000000000000C2e324d24d7eEcd1fb",
+              "symbol": "AAPLc",
+              "decimals": "8"
+            },
+            "amountIn": null,
+            "amountOut": "30683976"
+          }
+        ]
+      ]
+    }
+  }
+}
