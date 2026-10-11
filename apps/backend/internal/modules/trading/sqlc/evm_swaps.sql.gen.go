@@ -46,6 +46,68 @@ func (q *Queries) ListRoutedUnfinished(ctx context.Context, arg ListRoutedUnfini
 	return items, nil
 }
 
+const listStrandedCash = `-- name: ListStrandedCash :many
+SELECT s.id, s.source_kind, s.source_id,
+  EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning
+FROM swaps AS s
+WHERE s.status = 'failed' AND s.failed_at < $1::timestamptz
+  AND EXISTS (
+    SELECT 1 FROM trade_steps AS o WHERE o.trade_id = s.id AND o.step = 'bridge_out' AND o.status = 'succeeded'
+  )
+  AND (
+    EXISTS (
+      SELECT 1 FROM trade_steps AS b
+      WHERE b.trade_id = s.id AND b.step = 'bridge_back' AND b.status IN ('pending', 'submitted')
+    )
+    OR (
+      NOT EXISTS (
+        SELECT 1 FROM trade_steps AS t
+        WHERE t.trade_id = s.id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))
+      )
+      AND NOT EXISTS (SELECT 1 FROM trade_steps AS r WHERE r.privy_action_id = 'reused:' || s.id::text)
+    )
+  )
+ORDER BY s.updated_at, s.id
+LIMIT $2
+`
+
+type ListStrandedCashParams struct {
+	OlderThan time.Time
+	MaxRows   int32
+}
+
+type ListStrandedCashRow struct {
+	ID         uuid.UUID
+	SourceKind string
+	SourceID   uuid.UUID
+	Returning  bool
+}
+
+func (q *Queries) ListStrandedCash(ctx context.Context, arg ListStrandedCashParams) ([]ListStrandedCashRow, error) {
+	rows, err := q.db.Query(ctx, listStrandedCash, arg.OlderThan, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStrandedCashRow
+	for rows.Next() {
+		var i ListStrandedCashRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceKind,
+			&i.SourceID,
+			&i.Returning,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockStrandedCash = `-- name: LockStrandedCash :exec
 SELECT pg_advisory_xact_lock(hashtextextended('stranded-cash:' || $1::uuid::text, 0))
 `
@@ -176,6 +238,25 @@ func (q *Queries) StrandedCash(ctx context.Context, swapID uuid.UUID) (bool, err
 	var stranded bool
 	err := row.Scan(&stranded)
 	return stranded, err
+}
+
+const touchFailed = `-- name: TouchFailed :execrows
+UPDATE swaps
+SET updated_at = $1::timestamptz
+WHERE id = $2::uuid AND status = 'failed'
+`
+
+type TouchFailedParams struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (q *Queries) TouchFailed(ctx context.Context, arg TouchFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, touchFailed, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const touchRouted = `-- name: TouchRouted :execrows

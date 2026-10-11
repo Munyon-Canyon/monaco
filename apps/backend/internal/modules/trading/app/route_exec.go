@@ -193,6 +193,7 @@ type routedBuy struct {
 	fee          money.Micros
 	slippage     int32
 	solanaWallet string
+	solana       chain.SolanaAddress
 	evm          multichain.EVMWallet
 	cash         chain.EVMAddress
 	token        chain.EVMAddress
@@ -227,7 +228,8 @@ func (r *RouteExec) resolve(ctx context.Context, b routedBuy, winner multichain.
 	if err := errors.Join(listingErr, solanaErr, evmErr, cashErr, tokenErr); err != nil {
 		return routedBuy{}, err
 	}
-	b.listing, b.solanaWallet, b.evm, b.cash, b.token = listing, solana.PrivyWalletID, evm, cash, token
+	b.listing, b.solanaWallet, b.solana, b.evm = listing, solana.PrivyWalletID, solana.Address, evm
+	b.cash, b.token = cash, token
 	b.req.OutMint.Decimals = listing.Decimals
 	return b, nil
 }

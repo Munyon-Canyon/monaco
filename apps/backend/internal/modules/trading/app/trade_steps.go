@@ -28,34 +28,41 @@ type Journal struct {
 }
 
 func (j Journal) Begin(ctx context.Context, ref domain.StepRef, amount money.Micros) (domain.TradeStep, error) {
+	var step domain.TradeStep
+	err := j.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		step, err = j.begin(ctx, tx, ref, amount)
+		return err
+	})
+	return step, err
+}
+
+func (j Journal) begin(
+	ctx context.Context, tx db.Tx, ref domain.StepRef, amount money.Micros,
+) (domain.TradeStep, error) {
 	if amount.IsZero() {
 		return domain.TradeStep{}, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)))
 	}
-	var step domain.TradeStep
-	err := j.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		n, err := q.InsertTradeStep(ctx, sqlc.InsertTradeStepParams{
-			ID: j.IDs.NewV7(), TradeID: ref.SwapID.UUID(), Step: string(ref.Step), Network: string(ref.Network),
-			AmountMicros: amount.String(), At: j.Clock.Now(),
-		})
-		if err != nil {
-			return err
-		}
-		step, err = readStep(ctx, q, ref.SwapID, ref.Step)
-		switch {
-		case err != nil:
-			return err
-		case step.Network != ref.Network:
-			return errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)),
-				slog.String("network", string(ref.Network)), slog.String("stored_network", string(step.Network)))
-		case n == 0:
-			return nil
-		}
-		changed := step
-		tx.AfterCommit(func(ctx context.Context) { logStep(ctx, ref, "", changed, money.Micros{}) })
-		return tx.Events.Append(ctx, stepChanged(ref, step, money.Micros{}))
+	q := sqlc.New(tx.Queries())
+	n, err := q.InsertTradeStep(ctx, sqlc.InsertTradeStepParams{
+		ID: j.IDs.NewV7(), TradeID: ref.SwapID.UUID(), Step: string(ref.Step), Network: string(ref.Network),
+		AmountMicros: amount.String(), At: j.Clock.Now(),
 	})
-	return step, err
+	if err != nil {
+		return domain.TradeStep{}, err
+	}
+	step, err := readStep(ctx, q, ref.SwapID, ref.Step)
+	switch {
+	case err != nil:
+		return domain.TradeStep{}, err
+	case step.Network != ref.Network:
+		return domain.TradeStep{}, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)),
+			slog.String("network", string(ref.Network)), slog.String("stored_network", string(step.Network)))
+	case n == 0:
+		return step, nil
+	}
+	tx.AfterCommit(func(ctx context.Context) { logStep(ctx, ref, "", step, money.Micros{}) })
+	return step, tx.Events.Append(ctx, stepChanged(ref, step, money.Micros{}))
 }
 
 type stepMove struct {

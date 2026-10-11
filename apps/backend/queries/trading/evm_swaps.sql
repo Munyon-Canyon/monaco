@@ -54,3 +54,32 @@ WHERE o.trade_id = sqlc.arg(from_trade)::uuid AND o.step = 'bridge_out' AND o.st
     WHERE t.trade_id = o.trade_id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))
   )
   AND NOT EXISTS (SELECT 1 FROM trade_steps AS r WHERE r.privy_action_id = 'reused:' || o.trade_id::text);
+
+-- name: ListStrandedCash :many
+SELECT s.id, s.source_kind, s.source_id,
+  EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning
+FROM swaps AS s
+WHERE s.status = 'failed' AND s.failed_at < sqlc.arg(older_than)::timestamptz
+  AND EXISTS (
+    SELECT 1 FROM trade_steps AS o WHERE o.trade_id = s.id AND o.step = 'bridge_out' AND o.status = 'succeeded'
+  )
+  AND (
+    EXISTS (
+      SELECT 1 FROM trade_steps AS b
+      WHERE b.trade_id = s.id AND b.step = 'bridge_back' AND b.status IN ('pending', 'submitted')
+    )
+    OR (
+      NOT EXISTS (
+        SELECT 1 FROM trade_steps AS t
+        WHERE t.trade_id = s.id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))
+      )
+      AND NOT EXISTS (SELECT 1 FROM trade_steps AS r WHERE r.privy_action_id = 'reused:' || s.id::text)
+    )
+  )
+ORDER BY s.updated_at, s.id
+LIMIT sqlc.arg(max_rows);
+
+-- name: TouchFailed :execrows
+UPDATE swaps
+SET updated_at = sqlc.arg(at)::timestamptz
+WHERE id = sqlc.arg(id)::uuid AND status = 'failed';
