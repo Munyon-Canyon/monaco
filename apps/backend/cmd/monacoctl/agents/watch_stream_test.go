@@ -713,9 +713,10 @@ func TestArm_failures(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
 		s := armedWatch(t, f)
-		s.prs[2].State = "CLOSED"
+		s.prs[2].Base = "gone"
 		got := streamRounds(t, f, 1, func(int) {})
-		if got != "watch error: armed stack #2: #2 is not an open PR\n" || len(f.owned(t).Armed) == 0 {
+		want := "watch error: armed stack #2: #2's base gone is neither fb nor an open PR\n"
+		if got != want || len(f.owned(t).Armed) == 0 {
 			t.Fatalf("stream %q", got)
 		}
 	})
