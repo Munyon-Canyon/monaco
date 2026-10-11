@@ -6,6 +6,10 @@ var (
 		Required: []string{"asset", "threshold", "change"},
 	}
 	MarketPricesMissing    = Msg{Name: "market.prices.missing", Required: []string{"missing", "by_issuer", "mints"}}
+	MarketPricesEVMDropped = Msg{
+		Name:     "market.prices.evm_dropped",
+		Required: []string{"listing", "symbol", "network", "reason"},
+	}
 	MarketRouteProbeFailed = Msg{
 		Name:     "market.route_probe_failed",
 		Required: []string{"symbol", "side", "error", "code"},

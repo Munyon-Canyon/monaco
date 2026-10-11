@@ -43,6 +43,7 @@ type SamplePrices struct {
 	hot      []HotMints
 	listings *PriceBook
 	evm      EVMSampling
+	dropped  map[ListingKey]time.Time
 }
 
 func NewSamplePrices(

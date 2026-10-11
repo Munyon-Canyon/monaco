@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"math"
 	"math/big"
 	"slices"
@@ -17,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -30,7 +32,7 @@ type EVMSampling struct {
 }
 
 func (p *SamplePrices) WithEVM(e EVMSampling) *SamplePrices {
-	p.evm = e
+	p.evm, p.dropped = e, map[ListingKey]time.Time{}
 	return p
 }
 
@@ -52,13 +54,15 @@ func (p *SamplePrices) sampleListings(
 		return nil, err
 	}
 	priced, sourceErr := p.priceListings(ctx, listings)
-	if err := p.storeListingPrices(ctx, at, listings, priced); err != nil {
+	gaps := listingGaps(listings, priced, solana)
+	kept := withinReference(priced, gaps)
+	if err := p.storeListingPrices(ctx, at, listings, kept); err != nil {
 		return nil, err
 	}
-	gaps := listingGaps(listings, priced, solana)
 	p.countGaps(ctx, gaps)
+	p.logDropped(ctx, listings, priced, kept)
 	attrs := []slog.Attr{
-		slog.Int("evm_priced", len(priced)), slog.Int("evm_missing", len(listings)-len(priced)),
+		slog.Int("evm_priced", len(kept)), slog.Int("evm_missing", len(listings)-len(kept)),
 		slog.String("evm_gaps", gapNames(gaps)),
 	}
 	if sourceErr != nil {
@@ -116,6 +120,42 @@ func (p *SamplePrices) storeListingPrices(
 	}
 	_, err := p.insert(ctx, rows)
 	return err
+}
+
+func withinReference(
+	priced map[multichain.ListingID]money.Micros, gaps []ListingGap,
+) map[multichain.ListingID]money.Micros {
+	kept := maps.Clone(priced)
+	for _, g := range gaps {
+		if g.GapBps > multichain.MaxImpactBps {
+			delete(kept, g.Listing.ID)
+		}
+	}
+	return kept
+}
+
+const droppedLogEvery = 10 * time.Minute
+
+func (p *SamplePrices) logDropped(
+	ctx context.Context, listings map[multichain.ListingID]HeldListing,
+	priced, kept map[multichain.ListingID]money.Micros,
+) {
+	now := p.clock.Now()
+	for id, l := range listings {
+		if _, ok := kept[id]; ok {
+			continue
+		}
+		if last, seen := p.dropped[l.Key]; seen && now.Sub(last) < droppedLogEvery {
+			continue
+		}
+		reason := "no_quote"
+		if _, quoted := priced[id]; quoted {
+			reason = "off_reference"
+		}
+		p.dropped[l.Key] = now
+		observability.Degraded(ctx, observability.MarketPricesEVMDropped, slog.String("listing", string(l.Key)),
+			slog.String("symbol", l.Symbol), slog.String("network", string(l.Network)), slog.String("reason", reason))
+	}
 }
 
 func (p *SamplePrices) countGaps(ctx context.Context, gaps []ListingGap) {
