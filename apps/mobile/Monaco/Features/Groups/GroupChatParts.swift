@@ -164,6 +164,9 @@ struct ChatList<Header: View, Content: View>: View {
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await refresh() }
+            .onReceive(NotificationCenter.default.publisher(for: .monacoBlocksChanged)) { _ in
+                Task { await refresh() }
+            }
             .onScrollGeometryChange(for: ChatScrollTracker.Position.self, of: Self.position) { _, updated in
                 tracker.positionChanged(updated)
             }
