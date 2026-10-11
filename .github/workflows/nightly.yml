@@ -65,7 +65,7 @@ jobs:
     name: night.sh (host tests, app, sample UI tests, screenshots)
     needs: changed
     if: needs.changed.outputs.run == 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 180
     env:
       MONACO_QA_IOS_CONFIG: placeholder
@@ -98,7 +98,7 @@ jobs:
 
       - name: Run night.sh
         id: night
-        # macos-26 has no Docker, so this job skips night.sh's backend step.
+        # The xcode-27 runner has no Docker, so this job skips night.sh's backend step.
         # The Linux backend job already runs those suites.
         run: scripts/qa/night.sh --skip-backend
 
@@ -286,7 +286,7 @@ jobs:
     name: Dead Swift (periphery, report only)
     needs: changed
     if: needs.changed.outputs.run == 'true'
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
     continue-on-error: true
     steps:
