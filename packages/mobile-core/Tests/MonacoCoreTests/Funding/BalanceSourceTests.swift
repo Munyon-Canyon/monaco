@@ -32,6 +32,28 @@ final class BalanceSourceTests: XCTestCase {
         XCTAssertEqual(balance.inFlightMicros, 50_000_000)
     }
 
+    func testArrivingIsReadWhenItIsThere() async throws {
+        let transport = StubTransport(.json(.ok, Self.body(available: "12000000", arriving: #""4500000""#)))
+        let model = BalanceSource(api: api(transport), hints: FakeHintStream())
+
+        await model.load()
+
+        XCTAssertEqual(model.balance?.arrivingMicros, 4_500_000)
+        XCTAssertEqual(model.balance?.availableMicros, 12_000_000)
+    }
+
+    func testAnAbsentOrMalformedArrivingShowsNothingAndKeepsTheBalance() async throws {
+        for arriving in [nil, #""""#, #""-5""#, #""1.5""#, #""abc""#, #""99999999999999999999""#, "null"] {
+            let transport = StubTransport(.json(.ok, Self.body(available: "12000000", arriving: arriving)))
+            let model = BalanceSource(api: api(transport), hints: FakeHintStream())
+
+            await model.load()
+
+            XCTAssertEqual(model.balance?.arrivingMicros, 0, "\(arriving ?? "absent")")
+            XCTAssertEqual(model.balance?.availableMicros, 12_000_000, "\(arriving ?? "absent")")
+        }
+    }
+
     func testABalanceChangedHintRefetches() async throws {
         try await assertRefetch(after: .changed(.user(userID), what: "balance_changed", id: "1"))
     }
@@ -273,9 +295,12 @@ final class BalanceSourceTests: XCTestCase {
     }
 
     static func body(
-        available: String, onChain: String? = nil, inFlight: String = "0", address: String = "wallet-1"
+        available: String, onChain: String? = nil, inFlight: String = "0", address: String = "wallet-1",
+        arriving: String? = nil
     ) -> String {
-        #"{"available_micros":"\#(available)","on_chain_micros":"\#(onChain ?? available)","#
+        let arrivingField = arriving.map { #""arriving_micros":\#($0),"# } ?? ""
+        return #"{\#(arrivingField)"available_micros":"\#(available)","#
+            + #""on_chain_micros":"\#(onChain ?? available)","#
             + #""in_flight_micros":"\#(inFlight)","deposit_address":"\#(address)","as_of":"2025-10-04T12:00:00Z"}"#
     }
 }
