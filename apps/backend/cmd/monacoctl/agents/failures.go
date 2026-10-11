@@ -78,8 +78,8 @@ type watchPR struct {
 }
 
 func (p watchPR) restacking(now time.Time) bool {
-	if p.TimelineItems.movedToGraphiteBase() {
-		return p.TimelineItems.restacking(now)
+	if active, seen := p.TimelineItems.restacking(now); seen {
+		return active
 	}
 	return !p.onGraphiteBase.IsZero() && now.Sub(p.onGraphiteBase) < graphiteRestackWindow
 }
