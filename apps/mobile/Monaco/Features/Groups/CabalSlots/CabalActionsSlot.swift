@@ -74,6 +74,14 @@ struct CabalActionsRow: View {
     }
 
     @ViewBuilder private var content: some View {
+        if cabalModel?.cabal?.status == CabalClosedModel.closedStatus {
+            Color.clear.frame(height: 0)
+        } else {
+            actionsContent
+        }
+    }
+
+    @ViewBuilder private var actionsContent: some View {
         switch model?.actions ?? .loading {
         case .loading:
             if cabalModel?.cabal?.me == nil, cabalModel?.cabal != nil {

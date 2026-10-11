@@ -16,10 +16,22 @@ final class ActivityRowTests: XCTestCase {
             (.cashOut, "Cashed out", "arrow.down.left"),
         ]
         for (kind, title, glyph) in expected {
-            let row = try makeRow(kind: kind, asset: Self.apple)
+            let row = try makeRow(
+                kind: kind, asset: Self.apple, actor: .init(userId: "user-1", handle: "ana", displayName: "Ana"))
             XCTAssertEqual(row.title, title, "\(kind)")
             XCTAssertEqual(row.glyph, glyph, "\(kind)")
         }
+    }
+
+    func testACashOutWithoutAnActorIsTheWindDown() throws {
+        let windDown = try makeRow(kind: .cashOut, asset: nil, actor: nil)
+        let own = try makeRow(
+            kind: .cashOut, asset: nil, actor: .init(userId: "user-1", handle: "ana", displayName: "Ana"))
+
+        XCTAssertEqual(windDown.title, "Closed by Monaco")
+        XCTAssertEqual(windDown.amount, "$25.00")
+        XCTAssertEqual(own.title, "Cashed out")
+        XCTAssertEqual(ActivityRow(Activity.sampleWindDownCashOut, now: Date()).title, "Closed by Monaco")
     }
 
     func testTheTimeFollowsA24HourLocale() throws {
