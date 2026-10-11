@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func submittedAt() time.Time { return time.Date(2026, 3, 1, 12, 0, 2, 0, time.UTC) }
@@ -278,4 +279,131 @@ func TestActivityConsumer_aSubmitAfterTheFailureFillsTheAssetButStaysFailed(t *t
 		t.Fatalf("activity = %+v, want one row", got)
 	}
 	wantActivity(t, got[0], "buy", "failed", str(string(aapl)), str("5000000"), nil, str(string(swapSig)))
+}
+
+func cashOutStarted(cabal ids.CabalID, user ids.UserID, job uuid.UUID, payout uint64) events.CashOutStarted {
+	return events.CashOutStarted{
+		V: 1, JobID: job, CabalID: cabal.UUID(), UserID: user.UUID(),
+		ShareUnits: 40_000_000, PayoutMicros: money.MicrosFromUint64(payout),
+	}
+}
+
+func cashOutCompleted(cabal ids.CabalID, user ids.UserID, job uuid.UUID, payout uint64) events.CashOutCompleted {
+	return events.CashOutCompleted{
+		V: 1, JobID: job, CabalID: cabal.UUID(), UserID: user.UUID(),
+		ShareUnits: 40_000_000, PayoutMicros: money.MicrosFromUint64(payout), Signature: swapSig,
+	}
+}
+
+func cashOutPartial(cabal ids.CabalID, user ids.UserID, job uuid.UUID, payout uint64) events.CashOutPartial {
+	return events.CashOutPartial{
+		V: 1, JobID: job, CabalID: cabal.UUID(), UserID: user.UUID(), ShareUnitsBurned: 24_000_000,
+		ShareUnitsReturned: 16_000_000, PayoutMicros: money.MicrosFromUint64(payout), Signature: swapSig,
+	}
+}
+
+func cashOutFailed(cabal ids.CabalID, user ids.UserID, job uuid.UUID) events.CashOutFailed {
+	return events.CashOutFailed{
+		V: 1, JobID: job, CabalID: cabal.UUID(), UserID: user.UUID(), ShareUnits: 40_000_000, Code: "payout_failed",
+	}
+}
+
+func (f fixture) cashOutActors(t *testing.T, user ids.UserID) int {
+	t.Helper()
+	var n int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM cabal_activity WHERE kind = 'cash_out'
+		AND actor_user_id = $1`, user.UUID()).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestActivityConsumer_recordsACashOutFromPendingToConfirmed(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	sent := &hints{}
+	h := adapters.Activity{Hints: sent}
+	cabal, user, job := f.cabal(t), f.user(t), f.ids.NewV7()
+	steps := []func(ctx context.Context, tx db.Tx) error{
+		func(ctx context.Context, tx db.Tx) error {
+			return h.CashOutStarted(ctx, tx, cashOutStarted(cabal, user, job, 50_000_000), submittedAt())
+		},
+		func(ctx context.Context, tx db.Tx) error {
+			return h.CashOutCompleted(ctx, tx, cashOutCompleted(cabal, user, job, 50_000_000), confirmedAt())
+		},
+	}
+	for _, step := range steps {
+		if err := f.do(step); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows := f.activity(t)
+	if len(rows) != 1 || rows[0].ID != job {
+		t.Fatalf("activity = %+v, want one row for the cash out", rows)
+	}
+	wantActivity(t, rows[0], "cash_out", "confirmed", nil, str("50000000"), nil, str(string(swapSig)))
+	if n := f.cashOutActors(t, user); n != 1 {
+		t.Fatalf("cash outs with the member as actor = %d, want 1", n)
+	}
+	key := events.CabalActivityChangedHint(cabal)
+	if got := sent.sent(); !slices.Equal(got, []string{key, key}) {
+		t.Fatalf("hints = %q, want %q twice: the insert and the move to confirmed", got, key)
+	}
+}
+
+func TestActivityConsumer_recordsAPartialCashOutAtTheAmountPaid(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	h := adapters.Activity{Hints: &hints{}}
+	cabal, user, job := f.cabal(t), f.user(t), f.ids.NewV7()
+	steps := []func(ctx context.Context, tx db.Tx) error{
+		func(ctx context.Context, tx db.Tx) error {
+			return h.CashOutStarted(ctx, tx, cashOutStarted(cabal, user, job, 50_000_000), submittedAt())
+		},
+		func(ctx context.Context, tx db.Tx) error {
+			return h.CashOutPartial(ctx, tx, cashOutPartial(cabal, user, job, 30_000_000), confirmedAt())
+		},
+	}
+	for _, step := range steps {
+		if err := f.do(step); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows := f.activity(t)
+	if len(rows) != 1 {
+		t.Fatalf("activity = %+v, want one row", rows)
+	}
+	wantActivity(t, rows[0], "cash_out", "confirmed", nil, str("30000000"), nil, str(string(swapSig)))
+}
+
+func TestActivityConsumer_recordsAFailedCashOutWithItsStartAmount(t *testing.T) {
+	t.Parallel()
+	for name, startFirst := range map[string]bool{"started first": true, "failed first": false} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			h := adapters.Activity{Hints: &hints{}}
+			cabal, user, job := f.cabal(t), f.user(t), f.ids.NewV7()
+			start := func(ctx context.Context, tx db.Tx) error {
+				return h.CashOutStarted(ctx, tx, cashOutStarted(cabal, user, job, 50_000_000), submittedAt())
+			}
+			fail := func(ctx context.Context, tx db.Tx) error {
+				return h.CashOutFailed(ctx, tx, cashOutFailed(cabal, user, job), confirmedAt())
+			}
+			steps := []func(ctx context.Context, tx db.Tx) error{start, fail}
+			if !startFirst {
+				steps = []func(ctx context.Context, tx db.Tx) error{fail, start}
+			}
+			for _, step := range steps {
+				if err := f.do(step); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rows := f.activity(t)
+			if len(rows) != 1 {
+				t.Fatalf("activity = %+v, want one row", rows)
+			}
+			wantActivity(t, rows[0], "cash_out", "failed", nil, str("50000000"), nil, nil)
+		})
+	}
 }

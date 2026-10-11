@@ -182,6 +182,10 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("treasury.activity.fund_submitted", activity.FundSubmitted),
 				bus.Handle("treasury.activity.funded", activity.Funded),
 				bus.Handle("treasury.activity.fund_failed", activity.FundFailed),
+				bus.Handle("treasury.activity.cashout_started", activity.CashOutStarted),
+				bus.Handle("treasury.activity.cashout_completed", activity.CashOutCompleted),
+				bus.Handle("treasury.activity.cashout_partial", activity.CashOutPartial),
+				bus.Handle("treasury.activity.cashout_failed", activity.CashOutFailed),
 			},
 		},
 		{

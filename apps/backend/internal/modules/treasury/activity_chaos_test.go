@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -28,6 +29,17 @@ func TestActivityConsumer_convergesUnderDuplicatesAndReordering(t *testing.T) {
 		n := i / 4
 		cabal, swap := chaosCabal(n), chaosSwap(n)
 		stock := chain.SolanaAddress(aapl)
+		if n%3 == 0 {
+			user := ids.UserIDFrom(chaosSwap(n + 1000))
+			switch {
+			case i%4 < 2:
+				return cashOutStarted(cabal, user, chaosSwap(n), 7_000_000)
+			case n%2 == 0:
+				return cashOutCompleted(cabal, user, chaosSwap(n), 7_000_000)
+			default:
+				return cashOutFailed(cabal, user, chaosSwap(n))
+			}
+		}
 		switch {
 		case i%4 < 2:
 			return submitted(cabal, swap, "buy", usdcMint, stock, 7_000_000)
