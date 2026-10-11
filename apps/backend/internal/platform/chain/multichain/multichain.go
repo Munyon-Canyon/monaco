@@ -128,6 +128,11 @@ type Quote struct {
 	QuotedAt    time.Time     `json:"quoted_at"`
 	ExpiresAt   time.Time     `json:"expires_at"`
 	RouteID     string        `json:"route_id"`
+	Options     RouteOptions  `json:"route_options,omitzero"`
+}
+
+type RouteOptions struct {
+	HooksOptions string `json:"hooks_options,omitempty"`
 }
 
 type Comparison struct {

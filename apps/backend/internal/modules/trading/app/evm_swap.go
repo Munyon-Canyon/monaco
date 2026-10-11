@@ -29,6 +29,7 @@ type EVMSwapSpec struct {
 	AmountIn    uint64
 	MinOut      uint64
 	SlippageBps int32
+	Route       multichain.RouteOptions
 }
 
 type EVMSwapPlan struct {

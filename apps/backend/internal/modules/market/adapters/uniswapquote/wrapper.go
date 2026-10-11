@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -39,6 +40,7 @@ const (
 	revertWords        = 2
 	DefaultDelegate    = "0xd6cedde84be40893d153be9d467cd6ad37875b28"
 	SimulationGas      = 3_000_000
+	NoHooks            = "V4_NO_HOOKS"
 	fiatBalanceSlot    = 9
 	fiatAllowanceSlot  = 10
 	expirationShift    = 160
@@ -95,6 +97,47 @@ func (c *Client) remember(l mc.Listing, amount money.Micros, q mc.Quote) {
 	defer c.wrapper.mu.Unlock()
 	key := wrapperKey{l.Network, strings.ToLower(l.TokenAddress), amount.String()}
 	c.wrapper.cache[key] = wrapperEntry{quote: q, until: c.clock.Now().Add(wrapperCacheTTL)}
+}
+
+type routeResult struct {
+	quote mc.Quote
+	err   error
+}
+
+func (c *Client) sponsored(
+	ctx context.Context, l mc.Listing, amount money.Micros, req quoteRequest, attrs []slog.Attr,
+) (mc.Quote, error) {
+	if q, hit := c.cached(l, amount); hit {
+		return q, nil
+	}
+	zero := json.Number("0")
+	req.SlippageTolerance, req.PermitAsTx = &zero, true
+	hookless := req
+	hookless.HooksOptions = NoHooks
+	routes := []quoteRequest{req, hookless}
+	found, err := concurrency.FanOut(ctx, len(routes), routes,
+		func(ctx context.Context, r quoteRequest) (routeResult, error) {
+			q, raw, err := c.quote(ctx, l, mc.SideBuy, r, attrs)
+			q.Options = mc.RouteOptions{HooksOptions: r.HooksOptions}
+			if err == nil {
+				q, err = c.penalize(ctx, l, amount, raw, q, attrs)
+			}
+			return routeResult{quote: q, err: err}, nil
+		})
+	if err != nil {
+		return mc.Quote{}, errs.Wrap(err, errs.CodeOf(ctx.Err()), wrapperOp, attrs...)
+	}
+	best := found[0]
+	for _, r := range found[1:] {
+		if best.err != nil || r.err == nil && r.quote.GrossOutput.Cmp(best.quote.GrossOutput) > 0 {
+			best = r
+		}
+	}
+	if best.err != nil {
+		return mc.Quote{}, best.err
+	}
+	c.remember(l, amount, best.quote)
+	return best.quote, nil
 }
 
 type swapRequest struct {

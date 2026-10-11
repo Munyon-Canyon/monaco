@@ -254,6 +254,24 @@ func TestRouteExec_aBuyBridgesRequotesSwapsAndConfirmsInEVMAssets(t *testing.T) 
 	e.wantOneBridgeAndOneBuild(t, view.ID)
 }
 
+func TestRouteExec_theSwapIsBuiltOnTheRouteTheRequoteChose(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	e.quotes = mcfakes.New().Quoter
+	e.quotes.Quotes.Push(mcfakes.Reply[multichain.Quote]{Value: multichain.Quote{
+		GrossOutput: big.NewInt(requotedOut), Options: multichain.RouteOptions{HooksOptions: "V4_NO_HOOKS"},
+	}})
+	e.privy.script(multichain.ActionSucceeded)
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+
+	e.mustBuy(t, e.request(), domain.StatusConfirmed)
+
+	if len(e.evm.specs) != 1 || e.evm.specs[0].Route.HooksOptions != "V4_NO_HOOKS" ||
+		e.evm.specs[0].MinOut != 302_940_000 {
+		t.Fatalf("built %+v, want the hookless route the requote chose, floored from its output", e.evm.specs)
+	}
+}
+
 func TestRouteExec_aPendingBridgeAndAPendingFillResumeWithoutASecondBridgeOrSwap(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)

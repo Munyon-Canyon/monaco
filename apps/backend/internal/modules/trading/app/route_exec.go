@@ -108,14 +108,14 @@ func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	floor := uint64(0)
+	var requote swapQuote
 	if b.status == domain.StatusCreated {
 		var stop bool
-		if floor, stop, err = r.bridgeAndQuote(ctx, b, landed); err != nil || stop {
+		if requote, stop, err = r.bridgeAndQuote(ctx, b, landed); err != nil || stop {
 			return err
 		}
 	}
-	result, err := r.swap().Run(ctx, b.swapLeg(landed, floor))
+	result, err := r.swap().Run(ctx, b.swapLeg(landed, requote))
 	return r.settle(ctx, b, landed, result, err)
 }
 
@@ -127,20 +127,25 @@ func (r *RouteExec) swap() EVMSwap {
 	return EVMSwap{Journal: r.d.Journal, Venue: r.d.Venue, Sender: r.d.Sender, Poll: r.d.Poll}
 }
 
-func (r *RouteExec) bridgeAndQuote(ctx context.Context, b routedBuy, landed money.Micros) (uint64, bool, error) {
+type swapQuote struct {
+	floor uint64
+	route multichain.RouteOptions
+}
+
+func (r *RouteExec) bridgeAndQuote(ctx context.Context, b routedBuy, landed money.Micros) (swapQuote, bool, error) {
 	status, err := r.bridge().Run(ctx, b.bridgeOut())
 	switch {
 	case err != nil:
-		return 0, true, err
+		return swapQuote{}, true, err
 	case status == domain.StepFailed:
-		return 0, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailureNeverSubmitted, ""), "")
+		return swapQuote{}, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailureNeverSubmitted, ""), "")
 	case status != domain.StepSucceeded:
-		return 0, true, nil
+		return swapQuote{}, true, nil
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterBridgeLanded)
 	quote, err := r.d.Quoter.Quote(ctx, b.listing, multichain.SideBuy, landed)
 	if err != nil && errs.Retryable(errs.CodeOf(err)) {
-		return 0, true, err
+		return swapQuote{}, true, err
 	}
 	out := uint64(0)
 	if err == nil && quote.GrossOutput != nil && quote.GrossOutput.IsUint64() {
@@ -148,10 +153,10 @@ func (r *RouteExec) bridgeAndQuote(ctx context.Context, b routedBuy, landed mone
 	}
 	floor := domain.SlippageOf(b.slippage).MinOut(out)
 	if floor == 0 {
-		return 0, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailurePriceMoved, ""), "")
+		return swapQuote{}, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailurePriceMoved, ""), "")
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterRequote)
-	return floor, false, nil
+	return swapQuote{floor: floor, route: quote.Options}, false, nil
 }
 
 func (r *RouteExec) settle(
@@ -285,12 +290,12 @@ func (b routedBuy) bridgeOut() BridgeLeg {
 	}
 }
 
-func (b routedBuy) swapLeg(landed money.Micros, floor uint64) EVMSwapLeg {
+func (b routedBuy) swapLeg(landed money.Micros, q swapQuote) EVMSwapLeg {
 	return EVMSwapLeg{
 		Request: b.req, Ref: b.ref(domain.StepSwap), WalletID: b.evm.ID, Amount: landed,
 		Spec: EVMSwapSpec{
 			Network: b.listing.Network, Owner: b.evm.Address, TokenIn: b.cash, TokenOut: b.token,
-			AmountIn: landed.Uint64(), MinOut: floor, SlippageBps: b.slippage,
+			AmountIn: landed.Uint64(), MinOut: q.floor, SlippageBps: b.slippage, Route: q.route,
 		},
 	}
 }

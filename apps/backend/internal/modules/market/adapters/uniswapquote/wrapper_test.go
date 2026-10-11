@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -55,8 +56,65 @@ type wrapperRig struct {
 	uniBase   string
 	codeReply string
 	quote     string
+	hookless  *route
 	clock     *testkit.Clock
 	client    *uniswapquote.Client
+}
+
+type route struct {
+	quote, swap, reply string
+}
+
+func (r *route) quoteID() string {
+	var w struct {
+		Quote struct {
+			QuoteID string `json:"quoteId"`
+		} `json:"quote"`
+	}
+	_ = json.Unmarshal([]byte(r.quote), &w)
+	return w.Quote.QuoteID
+}
+
+func (r *route) calldata() string {
+	var w struct {
+		Swap struct {
+			Data string `json:"data"`
+		} `json:"swap"`
+	}
+	_ = json.Unmarshal([]byte(r.swap), &w)
+	return strings.ToLower(strings.TrimPrefix(w.Swap.Data, "0x"))
+}
+
+func (r *wrapperRig) serveUniswap(w http.ResponseWriter, path string, body map[string]any) {
+	quote, _ := body["quote"].(map[string]any)
+	hookless := r.hookless != nil &&
+		(body["hooksOptions"] == uniswapquote.NoHooks || quote != nil && quote["quoteId"] == r.hookless.quoteID())
+	switch {
+	case path == "/v1/swap" && hookless:
+		r.swaps++
+		_, _ = io.WriteString(w, r.hookless.swap)
+	case path == "/v1/swap":
+		r.swaps++
+		w.WriteHeader(r.status)
+		_, _ = io.WriteString(w, r.swap)
+	case hookless:
+		r.quotes = append(r.quotes, body)
+		_, _ = io.WriteString(w, r.hookless.quote)
+	default:
+		r.quotes = append(r.quotes, body)
+		_, _ = io.WriteString(w, r.quote)
+	}
+}
+
+func (r *wrapperRig) serveCall(w http.ResponseWriter, body map[string]any) {
+	params, _ := body["params"].([]any)
+	call, _ := params[0].(map[string]any)
+	data, _ := call["data"].(string)
+	if r.hookless != nil && r.hookless.calldata() != "" && strings.Contains(data, r.hookless.calldata()) {
+		_, _ = io.WriteString(w, r.hookless.reply)
+		return
+	}
+	_, _ = io.WriteString(w, r.rpcReply)
 }
 
 func revertTooLittle(floor, received int64) string {
@@ -87,14 +145,7 @@ func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		if req.URL.Path == "/v1/swap" {
-			r.swaps++
-			w.WriteHeader(r.status)
-			_, _ = io.WriteString(w, r.swap)
-			return
-		}
-		r.quotes = append(r.quotes, body)
-		_, _ = io.WriteString(w, r.quote)
+		r.serveUniswap(w, req.URL.Path, body)
 	}))
 	t.Cleanup(uni.Close)
 	r.uniBase = uni.URL
@@ -108,7 +159,7 @@ func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 			return
 		}
 		r.calls = append(r.calls, body)
-		_, _ = io.WriteString(w, r.rpcReply)
+		r.serveCall(w, body)
 	}))
 	t.Cleanup(rpc.Close)
 	r.rpcURL = rpc.URL
@@ -255,12 +306,12 @@ func TestWrapper_reusesASimulationForFifteenSeconds(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(r.quotes) != 1 || r.swaps != 1 || len(r.calls) != 1 {
-		t.Fatalf("%d quotes, %d swaps, %d simulations, want one of each inside the window",
+	if len(r.quotes) != 2 || r.swaps != 2 || len(r.calls) != 2 {
+		t.Fatalf("%d quotes, %d swaps, %d simulations, want one per route inside the window",
 			len(r.quotes), r.swaps, len(r.calls))
 	}
 	r.clock.Advance(16 * time.Second)
-	if _, err := r.buy(t, chain.NetworkBase); err != nil || len(r.calls) != 2 {
+	if _, err := r.buy(t, chain.NetworkBase); err != nil || len(r.calls) != 4 {
 		t.Fatalf("err %v after %d simulations, want a fresh one past the window", err, len(r.calls))
 	}
 }
@@ -495,5 +546,138 @@ func TestWrapper_liveProbeRevertsAtThePinnedBlock(t *testing.T) {
 	}
 	if !strings.HasPrefix(got.Error.Data, "0x8b063d73") || received.Int64() != 1_319_601 {
 		t.Fatalf("live eth_call data = %q, want V4TooLittleReceived with 1319601 received", got.Error.Data)
+	}
+}
+
+type recorded struct {
+	Exchanges []struct {
+		Path     string          `json:"path"`
+		Request  map[string]any  `json:"request"`
+		Response json.RawMessage `json:"response"`
+	} `json:"exchanges"`
+}
+
+func liveRoutes(t *testing.T) (hooked, hookless route) {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/googlx_base_routes.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec recorded
+	if err := json.Unmarshal(raw, &rec); err != nil {
+		t.Fatal(err)
+	}
+	current := &hooked
+	for _, e := range rec.Exchanges {
+		switch {
+		case e.Path == "/v1/quote" && e.Request["hooksOptions"] == uniswapquote.NoHooks:
+			current = &hookless
+			current.quote = string(e.Response)
+		case e.Path == "/v1/quote":
+			current = &hooked
+			current.quote = string(e.Response)
+		case e.Path == "/v1/swap":
+			current.swap = string(e.Response)
+		case e.Request["method"] == "eth_call":
+			current.reply = string(e.Response)
+		}
+	}
+	return hooked, hookless
+}
+
+func TestWrapper_replaysTheLiveRoutesAndBuysThroughTheHooklessOne(t *testing.T) {
+	t.Parallel()
+	hooked, hookless := liveRoutes(t)
+	r := newWrapperRig(t, chain.NetworkBase)
+	r.quote, r.swap, r.rpcReply = hooked.quote, hooked.swap, hooked.reply
+	r.hookless = &hookless
+
+	q, err := r.buy(t, chain.NetworkBase)
+
+	if err != nil || q.GrossOutput.Int64() != 1_388_248 || q.RouteID != hookless.quoteID() ||
+		q.Options.HooksOptions != uniswapquote.NoHooks || !slices.Equal(r.quotes[0]["protocols"].([]any),
+		[]any{"V2", "V3", "V4"}) {
+		t.Fatalf("quote = %v %s %+v, %v, want the hookless v3 route's 1388248 over the hooked route's 1318734",
+			q.GrossOutput, q.RouteID, q.Options, err)
+	}
+	if len(r.calls) != 2 {
+		t.Fatalf("%d simulations, want one per route", len(r.calls))
+	}
+}
+
+func TestWrapper_keepsTheHookedRouteWhenItSimulatesHigher(t *testing.T) {
+	t.Parallel()
+	r := newWrapperRig(t, chain.NetworkBase)
+	r.rpcReply = `{"jsonrpc":"2.0","id":1,"result":"0x"}`
+	r.hookless = &route{
+		quote: strings.Replace(r.quote, `"q-live"`, `"q-hookless"`, 1),
+		swap:  strings.Replace(r.swap, "0x3593564c00", "0x3593564c01", 1),
+		reply: revertTooLittle(quotedUnits, receivedLive),
+	}
+
+	q, err := r.buy(t, chain.NetworkBase)
+
+	if err != nil || q.GrossOutput.Int64() != quotedUnits || q.RouteID != "q-live" || q.Options.HooksOptions != "" {
+		t.Fatalf("quote = %v %s %+v, %v, want the default route's full %d", q.GrossOutput, q.RouteID, q.Options, err,
+			quotedUnits)
+	}
+}
+
+func TestWrapper_oneRouteFailingLeavesTheOther(t *testing.T) {
+	t.Parallel()
+	for name, c := range map[string]struct {
+		hookless route
+		want     string
+	}{
+		"no hookless route": {route{quote: `{"errorCode":"NoRouteFoundError"}`}, "q-live"},
+		"hookless swap reverts otherwise": {route{
+			quote: `{"requestId":"q2","routing":"CLASSIC","permitData":null,"permitTransaction":null,` +
+				`"quote":{"quoteId":"q-hookless","input":{"amount":"4896325"},"output":{"amount":"1400000"},` +
+				`"gasFeeUSD":"0.01","route":[[{"fee":"3000"}]]}}`,
+			swap:  `{"swap":{"to":"0xD6145b2d3F379919E8CdEdA7B97E37c4b2Ca9C40","data":"0x3593564c01","value":"0x0"}}`,
+			reply: `{"jsonrpc":"2.0","id":1,"error":{"code":3,"data":"0x08c379a0"}}`,
+		}, "q-live"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := newWrapperRig(t, chain.NetworkBase)
+			r.hookless = &c.hookless
+
+			q, err := r.buy(t, chain.NetworkBase)
+
+			if err != nil || q.RouteID != c.want || q.GrossOutput.Int64() != receivedLive {
+				t.Fatalf("quote = %v %s, %v, want the default route penalized to %d", q.GrossOutput, q.RouteID, err,
+					receivedLive)
+			}
+		})
+	}
+	r := newWrapperRig(t, chain.NetworkBase)
+	r.rpcReply = `{"jsonrpc":"2.0","id":1,"error":{"code":3,"data":"0x08c379a0"}}`
+	r.hookless = &route{
+		quote: strings.Replace(r.quote, `"q-live"`, `"q-hookless"`, 1),
+		swap:  strings.Replace(r.swap, "0x3593564c00", "0x3593564c01", 1),
+		reply: `{"jsonrpc":"2.0","id":1,"result":"0x"}`,
+	}
+	if q, err := r.buy(t, chain.NetworkBase); err != nil || q.RouteID != "q-hookless" {
+		t.Fatalf("quote = %s, %v, want the hookless route when the default cannot simulate", q.RouteID, err)
+	}
+}
+
+func TestWrapper_simulatesUnderBasesPerTransactionGasCap(t *testing.T) {
+	t.Parallel()
+	if uniswapquote.SimulationGas > 1<<24 {
+		t.Fatalf("simulation gas %d exceeds the 16777216 a Base transaction may use (EIP-7825)",
+			uniswapquote.SimulationGas)
+	}
+}
+
+func TestWrapper_aCallerThatIsGoneGetsNoQuote(t *testing.T) {
+	t.Parallel()
+	r := newWrapperRig(t, chain.NetworkBase)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := r.client.Quote(ctx, b20Listing(t, chain.NetworkBase), mc.SideBuy,
+		money.MicrosFromUint64(liveInput)); err == nil {
+		t.Fatal("quote for a cancelled caller, want an error")
 	}
 }
