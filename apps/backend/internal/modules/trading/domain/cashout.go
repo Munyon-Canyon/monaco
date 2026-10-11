@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -16,6 +17,7 @@ type Lot struct {
 	Symbol    string
 	Units     uint64
 	QuoteUSDC uint64
+	Listing   *multichain.Listing
 }
 
 func PlanCashOutSell(quoted []Lot, needed money.Micros) ([]Lot, error) {
@@ -48,5 +50,5 @@ func (l Lot) part(usdc uint64) Lot {
 	units = min(units, l.Units)
 	hi, lo = bits.Mul64(l.QuoteUSDC, units)
 	quote, _ := bits.Div64(hi, lo, l.Units)
-	return Lot{Mint: l.Mint, Symbol: l.Symbol, Units: units, QuoteUSDC: quote}
+	return Lot{Mint: l.Mint, Symbol: l.Symbol, Units: units, QuoteUSDC: quote, Listing: l.Listing}
 }

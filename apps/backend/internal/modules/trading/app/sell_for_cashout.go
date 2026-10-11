@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
@@ -21,7 +22,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const cashOutSlippageBps = 100
+const (
+	cashOutSlippageBps    = 100
+	bridgeBackEstimateBps = 75
+	bridgeBackEstimateOf  = 100_000
+)
 
 type SellForCashOut struct {
 	CabalID    ids.CabalID
@@ -38,6 +43,8 @@ type SellForCashOutDeps struct {
 	Holdings Holdings
 	Wallets  Wallets
 	USDC     chain.Mint
+	Routes   *RouteExec
+	EVMSales EVMSales
 }
 
 type SellForCashOutHandler struct {
@@ -54,6 +61,15 @@ type storedLeg struct {
 	Symbol    string              `json:"symbol"`
 	Units     uint64              `json:"units"`
 	QuoteUSDC uint64              `json:"quote_usdc"`
+	Listing   *storedListing      `json:"listing,omitempty"`
+}
+
+type storedListing struct {
+	ID           multichain.ListingID `json:"id"`
+	StockID      multichain.StockID   `json:"stock_id"`
+	Network      chain.Network        `json:"network"`
+	TokenAddress string               `json:"token_address"`
+	Venue        multichain.Venue     `json:"venue"`
 }
 
 func cashOutBlocked(cabal ids.CabalID, src domain.Source, code errs.Code) events.TradeBlocked {
@@ -131,14 +147,20 @@ func (h *SellForCashOutHandler) Handle(ctx context.Context, cmd SellForCashOut, 
 			Symbol: leg.Symbol, InMint: leg.Mint, OutMint: h.d.USDC, InAmount: leg.Units, QuoteOutAmount: leg.QuoteUSDC,
 			SlippageBps: cashOutSlippageBps, SourceBatchSize: len(legs),
 		}
-		if err := h.sell(ctx, req, heartbeat); err != nil {
+		if err := h.sell(ctx, req, leg.Listing, heartbeat); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (h *SellForCashOutHandler) sell(ctx context.Context, req SwapRequest, heartbeat func()) error {
+func (h *SellForCashOutHandler) sell(
+	ctx context.Context, req SwapRequest, listing *multichain.Listing, heartbeat func(),
+) error {
+	if listing != nil {
+		req.InMint.Address = chain.SolanaAddress(evmAsset(listing.Network, listing.TokenAddress))
+		req.Route = saleRoute(*listing, req.QuoteOutAmount)
+	}
 	tried, err := sqlc.New(h.d.Reads).HasSwapForMint(ctx, sqlc.HasSwapForMintParams{
 		SourceKind: string(req.Source.Kind), SourceID: req.Source.ID, InMint: string(req.InMint.Address),
 	})
@@ -148,8 +170,24 @@ func (h *SellForCashOutHandler) sell(ctx context.Context, req SwapRequest, heart
 	if tried {
 		return nil
 	}
+	if listing != nil {
+		_, err = h.d.Routes.Trade(ctx, req, *listing, heartbeat)
+		return err
+	}
 	_, err = h.d.Layer.Run(ctx, req, heartbeat)
 	return err
+}
+
+func saleRoute(l multichain.Listing, net uint64) *multichain.Comparison {
+	gross, _ := money.MulDiv(net, bridgeBackEstimateOf, bridgeBackEstimateOf-bridgeBackEstimateBps)
+	return &multichain.Comparison{
+		StockID: l.StockID, Side: multichain.SideSell, Winner: l.ID,
+		Ranked: []multichain.Quote{{
+			ListingID: l.ID, Network: l.Network, Venue: l.Venue, Side: multichain.SideSell,
+			Costs:     []multichain.Cost{{Kind: multichain.CostBridge, Micros: money.MicrosFromUint64(gross - net)}},
+			NetMicros: money.MicrosFromUint64(net),
+		}},
+	}
 }
 
 func (h *SellForCashOutHandler) plan(ctx context.Context, cmd SellForCashOut) ([]domain.Lot, error) {
@@ -169,8 +207,20 @@ func (h *SellForCashOutHandler) plan(ctx context.Context, cmd SellForCashOut) ([
 		stored[i] = storedLeg{
 			Mint: l.Mint.Address, Decimals: l.Mint.Decimals, Symbol: l.Symbol, Units: l.Units, QuoteUSDC: l.QuoteUSDC,
 		}
+		if l.Listing != nil {
+			stored[i].Listing = &storedListing{
+				ID:           l.Listing.ID,
+				StockID:      l.Listing.StockID,
+				Network:      l.Listing.Network,
+				TokenAddress: l.Listing.TokenAddress,
+				Venue:        l.Listing.Venue,
+			}
+		}
 	}
-	raw, _ := json.Marshal(stored)
+	raw, err := json.Marshal(stored)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInvalidInput, "trading.SellForCashOut.plan")
+	}
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		n, err := sqlc.New(tx.Queries()).InsertCashoutSellPlan(ctx, sqlc.InsertCashoutSellPlanParams{
 			JobID: cmd.Source.ID, CabalID: cmd.CabalID.UUID(), Legs: raw, CreatedAt: h.d.Clock.Now(),
@@ -211,6 +261,17 @@ func (h *SellForCashOutHandler) stored(ctx context.Context, src domain.Source) (
 			Units:     s.Units,
 			QuoteUSDC: s.QuoteUSDC,
 		}
+		if s.Listing != nil {
+			legs[i].Listing = &multichain.Listing{
+				ID:           s.Listing.ID,
+				StockID:      s.Listing.StockID,
+				Symbol:       s.Symbol,
+				Network:      s.Listing.Network,
+				TokenAddress: s.Listing.TokenAddress,
+				Decimals:     s.Decimals,
+				Venue:        s.Listing.Venue,
+			}
+		}
 	}
 	return legs, true, nil
 }
@@ -225,16 +286,32 @@ func (h *SellForCashOutHandler) quote(ctx context.Context, cabal ids.CabalID) ([
 		if held.Mint.Address == h.d.USDC.Address || held.Units == 0 {
 			continue
 		}
-		q, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: held.Mint, OutMint: h.d.USDC, InAmount: held.Units})
+		lot, err := h.value(ctx, held)
 		if err != nil {
 			return nil, err
 		}
-		if q.Routable {
-			lots = append(
-				lots,
-				domain.Lot{Mint: held.Mint, Symbol: held.Symbol, Units: held.Units, QuoteUSDC: q.OutAmount},
-			)
+		if lot.QuoteUSDC > 0 {
+			lots = append(lots, lot)
 		}
 	}
 	return lots, nil
+}
+
+func (h *SellForCashOutHandler) value(ctx context.Context, held Holding) (domain.Lot, error) {
+	lot := domain.Lot{Mint: held.Mint, Symbol: held.Symbol, Units: held.Units}
+	if isEVMAsset(string(held.Mint.Address)) {
+		sale, err := h.d.EVMSales.Sale(ctx, string(held.Mint.Address), held.Units)
+		if err != nil {
+			return domain.Lot{}, err
+		}
+		fee, err := money.MulDiv(sale.ProceedsMicros, bridgeBackEstimateBps, bridgeBackEstimateOf)
+		lot.QuoteUSDC, lot.Listing, lot.Symbol = sale.ProceedsMicros-fee, &sale.Listing, sale.Listing.Symbol
+		return lot, err
+	}
+	q, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: held.Mint, OutMint: h.d.USDC, InAmount: held.Units})
+	if err != nil || !q.Routable {
+		return domain.Lot{}, err
+	}
+	lot.QuoteUSDC = q.OutAmount
+	return lot, nil
 }
