@@ -161,7 +161,7 @@ struct SessionWireCaptureMiddleware: ClientMiddleware {
     private static let profileOperations: Set<String> = [
         Operations.GetMe.id, Operations.PostAuthSession.id, Operations.PatchMe.id, Operations.PostProfilePhoto.id,
         Operations.PutMeHandle.id, Operations.PostOnboardingPhone.id, Operations.PostOnboardingSocials.id,
-        Operations.PostOnboardingSkip.id,
+        Operations.PostOnboardingSkip.id, Operations.GetMyDepositAddresses.id,
     ]
 
     func intercept(

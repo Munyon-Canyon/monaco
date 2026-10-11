@@ -6,15 +6,18 @@ public struct AccountBalance: Equatable, Sendable {
     public let availableMicros: Int64
     public let onChainMicros: Int64
     public let inFlightMicros: Int64
+    public let arrivingMicros: Int64
     public let depositAddress: String
     public let asOf: Date
 
     public init(
-        availableMicros: Int64, onChainMicros: Int64, inFlightMicros: Int64, depositAddress: String, asOf: Date
+        availableMicros: Int64, onChainMicros: Int64, inFlightMicros: Int64, arrivingMicros: Int64 = 0,
+        depositAddress: String, asOf: Date
     ) {
         self.availableMicros = availableMicros
         self.onChainMicros = onChainMicros
         self.inFlightMicros = inFlightMicros
+        self.arrivingMicros = arrivingMicros
         self.depositAddress = depositAddress
         self.asOf = asOf
     }
@@ -24,6 +27,7 @@ public struct AccountBalance: Equatable, Sendable {
             availableMicros: try Self.micros(balance.availableMicros),
             onChainMicros: try Self.micros(balance.onChainMicros),
             inFlightMicros: try Self.micros(balance.inFlightMicros),
+            arrivingMicros: Self.arriving(balance.arrivingMicros),
             depositAddress: balance.depositAddress,
             asOf: balance.asOf
         )
@@ -34,6 +38,11 @@ public struct AccountBalance: Equatable, Sendable {
         guard !wire.isEmpty, wire.utf8.allSatisfy(digits.contains), let value = Int64(wire) else {
             throw APIError.decoding("an amount in micros: \(wire)")
         }
+        return value
+    }
+
+    static func arriving(_ wire: String?) -> Int64 {
+        guard let wire, let value = try? micros(wire) else { return 0 }
         return value
     }
 }
