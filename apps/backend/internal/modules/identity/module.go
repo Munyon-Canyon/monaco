@@ -24,14 +24,16 @@ import (
 )
 
 type multichainParts struct {
-	evmWallets multichain.EVMWallets
-	forwarding multichain.DepositForwarding
+	evmWallets     multichain.EVMWallets
+	forwarding     multichain.DepositForwarding
+	depositWallets adapters.DepositWallets
 }
 
 func newMultichain() multichainParts {
 	return multichainParts{
-		evmWallets: adapters.MultichainPrivyEVMWallets(),
-		forwarding: adapters.MultichainDepositsDepositForwarding(),
+		evmWallets:     adapters.MultichainPrivyEVMWallets(),
+		forwarding:     adapters.MultichainDepositsDepositForwarding(),
+		depositWallets: adapters.MultichainDepositsEVMDepositWallets(),
 	}
 }
 
@@ -70,6 +72,10 @@ func WithHoldings(stakes app.Stakes, balances app.Balances) Option {
 
 func WithFollowCounts(follows app.FollowCounts) Option {
 	return func(m *Module) { m.follows = follows }
+}
+
+func WithDepositWallets(wallets adapters.DepositWallets) Option {
+	return func(m *Module) { m.multichain.depositWallets = wallets }
 }
 
 func New(d module.Deps, opts ...Option) *Module {
@@ -120,6 +126,10 @@ func (m *Module) Mount(r api.Mount) {
 	identityapi.Mount(adapters.HTTP{
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
 		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows,
+		Deposits: adapters.DepositAddresses{
+			Members: adapters.NewQueries(m.deps.Pool), EVM: m.multichain.depositWallets,
+			Networks: m.deps.Config.Funding.EVMDepositNetworks,
+		},
 		Onboard: app.NewOnboarding(app.OnboardingDeps{
 			UoW: m.deps.UoW, Reads: m.deps.Pool, Users: adapters.Users{}, Privy: m.privy, Clock: m.deps.Clock,
 			Hints: hints,
