@@ -2,6 +2,7 @@ package domain
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -43,10 +44,15 @@ type Bridge struct {
 	Network   chain.Network
 	Sent      money.Micros
 	Fee       money.Micros
+	Attempt   int
 }
 
 func (b Bridge) TxnID(status string) uuid.UUID {
-	return uuid.NewSHA1(b.SwapID, []byte("bridge:"+string(b.Direction)+":"+status))
+	name := "bridge:" + string(b.Direction) + ":" + status
+	if b.Attempt > 1 {
+		name += ":" + strconv.Itoa(b.Attempt)
+	}
+	return uuid.NewSHA1(b.SwapID, []byte(name))
 }
 
 func (b Bridge) assets(usdc Asset) (source, destination Asset) {

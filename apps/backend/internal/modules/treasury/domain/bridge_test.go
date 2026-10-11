@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -50,4 +52,33 @@ func TestPositionDeltas_refusesCashOutflowsSummingPastUint64(t *testing.T) {
 	}
 	_, err := cabalTxn(t, entries...).PositionDeltas(usdc)
 	wantCode(t, err, errs.CodeInvalidInput)
+}
+
+func TestBridgeTxnID_keepsTheFirstAttemptsIDAndGivesEachRetryItsOwn(t *testing.T) {
+	t.Parallel()
+	swap := ids.Real{}.NewV7()
+	attempt := func(n int) domain.Bridge {
+		return domain.Bridge{SwapID: swap, Direction: domain.BridgeBack, Network: chain.NetworkBase, Attempt: n}
+	}
+	first := uuid.NewSHA1(swap, []byte("bridge:bridge_back:succeeded"))
+	if attempt(0).TxnID("succeeded") != first || attempt(1).TxnID("succeeded") != first {
+		t.Fatalf(
+			"first attempt ids = %s, %s, want %s",
+			attempt(0).TxnID("succeeded"),
+			attempt(1).TxnID("succeeded"),
+			first,
+		)
+	}
+	if got, want := attempt(
+		2,
+	).TxnID("succeeded"),
+		uuid.NewSHA1(
+			swap,
+			[]byte("bridge:bridge_back:succeeded:2"),
+		); got != want {
+		t.Fatalf("attempt 2 id = %s, want %s", got, want)
+	}
+	if attempt(2).TxnID("succeeded") == attempt(3).TxnID("succeeded") {
+		t.Fatal("attempts 2 and 3 share a ledger id")
+	}
 }

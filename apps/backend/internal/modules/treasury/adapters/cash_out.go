@@ -56,7 +56,7 @@ func bridgesBack(out chain.SolanaAddress) bool {
 }
 
 func (c CashOut) BridgedBack(ctx context.Context, tx db.Tx, e events.TradeStepChanged, at time.Time) error {
-	if e.Source.Kind != cashOutSource || e.Step != string(domain.BridgeBack) ||
+	if e.Source.Kind != cashOutSource || e.Step != string(domain.BridgeBack) || e.Attempt > 1 ||
 		e.Status != "succeeded" && e.Status != "failed" {
 		return nil
 	}

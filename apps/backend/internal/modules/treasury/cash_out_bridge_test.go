@@ -162,3 +162,31 @@ func TestCashOutSale_aShortSaleAcrossChainsPaysWhatBothLegsRaisedAndReturnsTheRe
 
 	r.want(t, "paying", "42000000", "16", "sale_short", 16)
 }
+
+func TestCashOutSale_aRetriedBridgeBackThatLandsDoesNotSettleTheSaleAgain(t *testing.T) {
+	t.Parallel()
+	r := newBridgedSaleRig(t)
+	r.deliver(t, r.started)
+	evm := r.f.ids.NewV7()
+	r.deliver(t, r.evmSold(evm, 150_000_000, 15_100_000))
+	r.deliver(t, r.back(evm, "submitted", 15_100_000, 0, 2))
+	r.deliver(t, r.back(evm, "failed", 15_100_000, 0, 2))
+	for _, status := range []string{"pending", "submitted", "succeeded"} {
+		retried := r.back(evm, status, 15_100_000, 100_000, 2)
+		retried.Attempt = 2
+		r.deliver(t, retried)
+	}
+	r.want(t, "selling", "50000000", "0", "", 0)
+
+	r.deliver(t, r.sold(r.f.ids.NewV7(), 500, 15_000_000, 2))
+
+	r.want(t, "paying", "35000000", "30", "sale_short", 30)
+	h := adapters.CashOut{Sales: app.NewCashOutSales(r.f.ledger, r.f.ids)}
+	bad := r.back(evm, "succeeded", 10, 11, 2)
+	bad.Attempt = 2
+	if err := r.f.do(func(ctx context.Context, tx db.Tx) error {
+		return h.BridgedBack(ctx, tx, bad, confirmedAt())
+	}); err != nil {
+		t.Fatalf("BridgedBack of attempt 2 = %v, want it ignored before any sale result", err)
+	}
+}

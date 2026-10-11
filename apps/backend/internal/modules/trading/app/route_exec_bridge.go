@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
@@ -23,6 +24,13 @@ func stepKey(ref domain.StepRef) string {
 	return "trade:" + ref.SwapID.String() + ":" + string(ref.Step)
 }
 
+func attemptKey(ref domain.StepRef, attempt int) string {
+	if attempt > 1 {
+		return stepKey(ref) + ":" + strconv.Itoa(attempt)
+	}
+	return stepKey(ref)
+}
+
 type Bridge struct {
 	Journal Journal
 	Actions multichain.WalletActions
@@ -38,7 +46,18 @@ func (b Bridge) Run(ctx context.Context, leg BridgeLeg) (domain.StepStatus, erro
 	id := multichain.ActionID(step.PrivyActionID)
 	switch step.Status {
 	case domain.StepPending:
-		if id, err = b.submit(ctx, leg); err != nil {
+		var prior multichain.ActionState
+		if prior, err = b.landedLate(ctx, leg, step); err != nil {
+			return "", err
+		}
+		if prior == multichain.ActionPending {
+			return domain.StepPending, nil
+		}
+		if prior == multichain.ActionSucceeded {
+			id = multichain.ActionID(step.PriorPrivyActionID)
+			break
+		}
+		if id, err = b.submit(ctx, leg, step.Attempt); err != nil {
 			return "", err
 		}
 		if id == "" {
@@ -51,13 +70,25 @@ func (b Bridge) Run(ctx context.Context, leg BridgeLeg) (domain.StepStatus, erro
 	return b.await(ctx, leg, id)
 }
 
-func (b Bridge) submit(ctx context.Context, leg BridgeLeg) (multichain.ActionID, error) {
+func (b Bridge) landedLate(ctx context.Context, leg BridgeLeg, step domain.TradeStep) (multichain.ActionState, error) {
+	if step.PriorPrivyActionID == "" {
+		return multichain.ActionFailed, nil
+	}
+	action, err := b.Actions.Action(ctx, leg.WalletID, multichain.ActionID(step.PriorPrivyActionID))
+	if err != nil || action.State != multichain.ActionSucceeded {
+		return action.State, err
+	}
+	_, err = b.Journal.Submitted(ctx, leg.Ref, step.PriorPrivyActionID)
+	return action.State, err
+}
+
+func (b Bridge) submit(ctx context.Context, leg BridgeLeg, attempt int) (multichain.ActionID, error) {
 	if leg.Spec.From == chain.NetworkSolana {
 		if err := b.TopUp.TopUpSOL(ctx, leg.Source); err != nil {
 			return "", err
 		}
 	}
-	id, err := b.Actions.Transfer(ctx, leg.WalletID, leg.Spec, stepKey(leg.Ref))
+	id, err := b.Actions.Transfer(ctx, leg.WalletID, leg.Spec, attemptKey(leg.Ref, attempt))
 	code := errs.CodeOf(err)
 	switch {
 	case err != nil && errs.Retryable(code):

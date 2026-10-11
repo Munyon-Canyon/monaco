@@ -34,7 +34,7 @@ func (h TradeSteps) Handle(ctx context.Context, tx db.Tx, e events.TradeStepChan
 	}
 	b := domain.Bridge{
 		SwapID: e.SwapID, CabalID: ids.CabalIDFrom(e.CabalID), Direction: direction, Network: e.Network,
-		Sent: e.AmountMicros, Fee: e.FeeMicros,
+		Sent: e.AmountMicros, Fee: e.FeeMicros, Attempt: e.Attempt,
 	}
 	ledger := h.Ledger.At(at)
 	q := sqlc.New(tx.Queries())

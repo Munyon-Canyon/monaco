@@ -71,6 +71,55 @@ func (q *Queries) InsertTradeStep(ctx context.Context, arg InsertTradeStepParams
 	return result.RowsAffected(), nil
 }
 
+const listFailedBridgeBacks = `-- name: ListFailedBridgeBacks :many
+SELECT t.trade_id, t.network, t.amount_micros::text AS amount_micros, t.attempt, coalesce(t.error, '')::text AS error,
+  t.updated_at, s.cabal_id, s.source_kind
+FROM trade_steps AS t
+JOIN swaps AS s ON s.id = t.trade_id
+WHERE t.step = 'bridge_back' AND t.status = 'failed'
+ORDER BY t.updated_at, t.trade_id
+`
+
+type ListFailedBridgeBacksRow struct {
+	TradeID      uuid.UUID
+	Network      string
+	AmountMicros string
+	Attempt      int16
+	Error        string
+	UpdatedAt    time.Time
+	CabalID      uuid.UUID
+	SourceKind   string
+}
+
+func (q *Queries) ListFailedBridgeBacks(ctx context.Context) ([]ListFailedBridgeBacksRow, error) {
+	rows, err := q.db.Query(ctx, listFailedBridgeBacks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFailedBridgeBacksRow
+	for rows.Next() {
+		var i ListFailedBridgeBacksRow
+		if err := rows.Scan(
+			&i.TradeID,
+			&i.Network,
+			&i.AmountMicros,
+			&i.Attempt,
+			&i.Error,
+			&i.UpdatedAt,
+			&i.CabalID,
+			&i.SourceKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markTradeStepSubmitted = `-- name: MarkTradeStepSubmitted :execrows
 UPDATE trade_steps
 SET privy_action_id = $1::text, status = 'submitted', updated_at = $2::timestamptz
@@ -97,10 +146,30 @@ func (q *Queries) MarkTradeStepSubmitted(ctx context.Context, arg MarkTradeStepS
 	return result.RowsAffected(), nil
 }
 
+const retryTradeStep = `-- name: RetryTradeStep :execrows
+UPDATE trade_steps
+SET attempt = attempt + 1, status = 'pending', error = NULL, prior_privy_action_id = privy_action_id,
+  privy_action_id = NULL, updated_at = $1::timestamptz
+WHERE trade_id = $2::uuid AND step = 'bridge_back' AND status = 'failed'
+`
+
+type RetryTradeStepParams struct {
+	At      time.Time
+	TradeID uuid.UUID
+}
+
+func (q *Queries) RetryTradeStep(ctx context.Context, arg RetryTradeStepParams) (int64, error) {
+	result, err := q.db.Exec(ctx, retryTradeStep, arg.At, arg.TradeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const tradeStep = `-- name: TradeStep :one
 SELECT t.id, t.trade_id, t.step, t.network, coalesce(t.privy_action_id, '')::text AS privy_action_id,
   t.amount_micros::text AS amount_micros, t.status, coalesce(t.error, '')::text AS error, t.created_at, t.updated_at,
-  s.source_kind, s.source_id, s.source_batch_size
+  t.attempt, coalesce(t.prior_privy_action_id, '')::text AS prior_privy_action_id, s.cabal_id, s.source_kind, s.source_id, s.source_batch_size
 FROM trade_steps AS t
 JOIN swaps AS s ON s.id = t.trade_id
 WHERE t.trade_id = $1::uuid AND t.step = $2::text
@@ -112,19 +181,22 @@ type TradeStepParams struct {
 }
 
 type TradeStepRow struct {
-	ID              uuid.UUID
-	TradeID         uuid.UUID
-	Step            string
-	Network         string
-	PrivyActionID   string
-	AmountMicros    string
-	Status          string
-	Error           string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	SourceKind      string
-	SourceID        uuid.UUID
-	SourceBatchSize int32
+	ID                 uuid.UUID
+	TradeID            uuid.UUID
+	Step               string
+	Network            string
+	PrivyActionID      string
+	AmountMicros       string
+	Status             string
+	Error              string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Attempt            int16
+	PriorPrivyActionID string
+	CabalID            uuid.UUID
+	SourceKind         string
+	SourceID           uuid.UUID
+	SourceBatchSize    int32
 }
 
 func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStepRow, error) {
@@ -141,6 +213,9 @@ func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStep
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Attempt,
+		&i.PriorPrivyActionID,
+		&i.CabalID,
 		&i.SourceKind,
 		&i.SourceID,
 		&i.SourceBatchSize,

@@ -914,6 +914,7 @@ Subject `events.trade.step_changed`, version 1.
 | `privy_action_id` | `string` |
 | `amount_micros` | `money.Micros` |
 | `fee_micros` | `money.Micros` |
+| `attempt` | `int` |
 
 ## `trade.submitted`
 
