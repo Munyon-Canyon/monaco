@@ -234,3 +234,16 @@ func TestCabalPositionsAt_refusesEVMRowsAndTransitItCannotRead(t *testing.T) {
 		}
 	}
 }
+
+func TestSolanaPositions_returnsTheSolanaPositionsAndSkipsEVMRows(t *testing.T) {
+	t.Parallel()
+	q := newTestQueries(stakeStore{positions: []sqlc.CabalPositionsRow{
+		{Asset: usdcMint, Units: "5", CostBasisMicros: "5"},
+		{Asset: evmCashKey, Units: "7", CostBasisMicros: "7"},
+		{Asset: evmStock, Units: "500000000000000000000", CostBasisMicros: "15"},
+	}}, nil)
+	got, err := q.SolanaPositions(t.Context(), ids.CabalID{})
+	if err != nil || len(got) != 1 || string(got[0].Mint) != usdcMint || got[0].Units.Uint64() != 5 {
+		t.Fatalf("Positions = %+v, %v, want only the Solana USDC row and no decode error", got, err)
+	}
+}

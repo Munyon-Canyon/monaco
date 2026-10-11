@@ -11,7 +11,7 @@ import (
 )
 
 type Positions interface {
-	Positions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.Position, error)
+	SolanaPositions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.Position, error)
 }
 
 type LedgerHoldings struct {
@@ -21,7 +21,7 @@ type LedgerHoldings struct {
 }
 
 func (h LedgerHoldings) Positions(ctx context.Context, cabal ids.CabalID) ([]Holding, error) {
-	positions, err := h.Ledger.Positions(ctx, cabal)
+	positions, err := h.Ledger.SolanaPositions(ctx, cabal)
 	if err != nil {
 		return nil, err
 	}

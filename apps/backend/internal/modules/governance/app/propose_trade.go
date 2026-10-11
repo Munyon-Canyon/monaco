@@ -40,7 +40,7 @@ type Assets interface {
 
 type Treasury interface {
 	PotValue(ctx context.Context, id ids.CabalID) (money.Micros, error)
-	Positions(ctx context.Context, id ids.CabalID) ([]treasuryport.Position, error)
+	SolanaPositions(ctx context.Context, id ids.CabalID) ([]treasuryport.Position, error)
 }
 
 type Balances interface {
@@ -276,7 +276,7 @@ func ledgerHolds(
 	ctx context.Context, t Treasury, cabal ids.CabalID, asset market.Asset, trade domain.Trade,
 ) error {
 	const op = "governance.funds"
-	positions, err := t.Positions(ctx, cabal)
+	positions, err := t.SolanaPositions(ctx, cabal)
 	if err != nil {
 		return err
 	}

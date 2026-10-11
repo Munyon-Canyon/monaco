@@ -90,7 +90,7 @@ func TestPotValue_WithHoldings(t *testing.T) {
 	if err != nil || got != money.MicrosFromUint64(120_000_000) {
 		t.Fatalf("PotValue() = %v, %v", got, err)
 	}
-	positions, err := q.Positions(t.Context(), cabal)
+	positions, err := q.SolanaPositions(t.Context(), cabal)
 	if err != nil || len(positions) != 2 || string(positions[0].Mint) != usdcMint ||
 		positions[1].Units.Decimals() != 8 {
 		t.Fatalf("Positions() = %#v, %v", positions, err)
@@ -379,7 +379,7 @@ VALUES ($1, 'not-a-mint', 1, 0, $2)`
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = newQueries(f).Positions(t.Context(), cabal)
+	_, err = newQueries(f).SolanaPositions(t.Context(), cabal)
 	wantCode(t, err, errs.CodeDecodeFailed)
 }
 
@@ -391,7 +391,7 @@ func TestQueries_CanceledReadsFail(t *testing.T) {
 	q := newQueries(f)
 	cabal, user := f.cabal(t), f.user(t)
 	for _, call := range []func() error{
-		func() error { _, err := q.Positions(ctx, cabal); return err },
+		func() error { _, err := q.SolanaPositions(ctx, cabal); return err },
 		func() error { _, err := q.PotValue(ctx, cabal); return err },
 		func() error { _, err := q.TotalShares(ctx, cabal); return err },
 		func() error { _, err := q.ShareUnits(ctx, cabal, user); return err },
@@ -537,7 +537,7 @@ func captureHistory(
 	wantMembers []treasury.MemberStake,
 ) historySnapshot {
 	t.Helper()
-	livePositions, err := q.Positions(t.Context(), cabal)
+	livePositions, err := q.SolanaPositions(t.Context(), cabal)
 	if err != nil {
 		t.Fatal(err)
 	}

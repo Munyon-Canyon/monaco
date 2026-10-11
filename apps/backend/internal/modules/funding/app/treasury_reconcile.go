@@ -46,7 +46,7 @@ type ReconcileChain interface {
 }
 
 type LedgerPositions interface {
-	Positions(ctx context.Context, cabalID ids.CabalID) ([]treasuryport.Position, error)
+	SolanaPositions(ctx context.Context, cabalID ids.CabalID) ([]treasuryport.Position, error)
 }
 
 type TreasuryWallets interface {
@@ -237,7 +237,7 @@ func (p *TreasuryReconcilePoller) reconcile(ctx context.Context, w cabalport.Tre
 }
 
 func (p *TreasuryReconcilePoller) hasSurplus(ctx context.Context, w cabalport.TreasuryWallet) (bool, error) {
-	positions, err := p.d.Ledger.Positions(ctx, w.CabalID)
+	positions, err := p.d.Ledger.SolanaPositions(ctx, w.CabalID)
 	if err != nil {
 		return false, err
 	}

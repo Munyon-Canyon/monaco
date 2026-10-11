@@ -50,7 +50,7 @@ type cashOutValues struct {
 	before func()
 }
 
-func (v cashOutValues) Positions(context.Context, ids.CabalID) ([]port.Position, error) {
+func (v cashOutValues) SolanaPositions(context.Context, ids.CabalID) ([]port.Position, error) {
 	return nil, nil
 }
 
