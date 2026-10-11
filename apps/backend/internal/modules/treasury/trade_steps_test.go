@@ -420,3 +420,28 @@ func TestTradeSteps_aDatabaseErrorFailsTheDeliveryAndPostsNothing(t *testing.T) 
 	}
 	wantInTransit(t, f, cabal)
 }
+
+func TestTradeSteps_aReplayedFinishUnderANewDeliveryPostsNothingMore(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	landed := newBridgeRun(t, f, cabal, "bridge_out")
+	landed.submitted(t, 10_000_000)
+	landed.succeeded(t, 10_000_000, 7_500)
+	returned := newBridgeRun(t, f, cabal, "bridge_out")
+	returned.submitted(t, 5_000_000)
+	returned.failed(t, 5_000_000)
+	before := f.count(t, "cabal_txns")
+
+	landed.succeeded(t, 10_000_000, 7_500)
+	returned.failed(t, 5_000_000)
+
+	if got := f.count(t, "cabal_txns"); got != before {
+		t.Fatalf("cabal txns = %d after the replays, want %d", got, before)
+	}
+	wantBridgePositions(t, f,
+		position{Asset: usdcMint, Units: "90000000", Cost: "90000000"},
+		position{Asset: baseCash, Units: "9992500", Cost: "9992500"},
+	)
+	wantInTransit(t, f, cabal)
+}
