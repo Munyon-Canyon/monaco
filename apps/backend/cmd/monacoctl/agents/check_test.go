@@ -2118,3 +2118,47 @@ func TestCheck_aFailingMergeBaseFallsBackToTheChosenParent(t *testing.T) {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 }
+
+func TestCheck_aLocalBudgetReplacesTheRepoBudgetAndScalesWithLoad(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	writeFile(t, filepath.Join(h.dir, ".git", localConfigPath), "[check.budget]\njourneys = \"45s\"\n")
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.load, h.cores = 8, 8
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 40 * time.Second}}
+	code, stdout, stderr := h.check(t)
+	want := "journeys        ok    42.0s  budget 45s (local)"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("40 s passes a local 45 s budget: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "b\n"})
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 50 * time.Second}}
+	code, stdout, stderr = h.check(t)
+	want = "journeys row over the 45s (local) journeys budget after 50s"
+	if code != 1 || !strings.Contains(stderr, want) {
+		t.Fatalf("50 s fails a local 45 s budget: %d %q %q", code, stdout, stderr)
+	}
+
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "c\n"})
+	h.load = 16
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 80 * time.Second}}
+	code, stdout, stderr = h.check(t)
+	want = "journeys        ok    82.0s  budget 1m30s (base 45s (local), x2.0 for load1 16.0 over 8 cores)"
+	if code != 0 || !strings.Contains(stdout, want) {
+		t.Fatalf("load scaling applies on top of the local base: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_withoutALocalFileTheRepoBudgetApplies(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.load, h.cores = 8, 8
+	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 40 * time.Second}}
+	code, stdout, stderr := h.check(t)
+	want := "journeys row over the 30s journeys budget after 40s"
+	if code != 1 || !strings.Contains(stderr, want) || strings.Contains(stdout+stderr, "(local)") {
+		t.Fatalf("40 s fails the repo 30 s budget: %d %q %q", code, stdout, stderr)
+	}
+}

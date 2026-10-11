@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -79,6 +80,7 @@ type Config struct {
 	MaxQueue             int
 	StuckAfter           time.Duration
 	Budget               map[string]time.Duration
+	LocalBudget          map[string]bool
 	Shared               []string
 	Unknown              []string
 	Deprecated           []string
@@ -154,6 +156,7 @@ func parseConfig(r io.Reader) (Config, error) {
 
 func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 	section := ""
+	c.Budget = maps.Clone(c.Budget)
 	var slotsIgnoredSince3670 int
 	strs := map[string]*string{"milestone": &c.Milestone}
 	ints := map[string]*int{
@@ -171,8 +174,16 @@ func applyLocalConfig(c Config, r io.Reader) (Config, error) {
 	}
 	seen := map[string]bool{}
 	for _, l := range lines {
-		if err := applyConfigLine(nil, &section, seen, strs, ints, nil, nil, l.text); err != nil {
+		if err := applyConfigLine(c.Budget, &section, seen, strs, ints, nil, nil, l.text); err != nil {
 			return Config{}, configLineErr(localConfigPath, l.n, err)
+		}
+	}
+	for key := range seen {
+		if kind, ok := strings.CutPrefix(key, budgetPrefix); ok {
+			if c.LocalBudget == nil {
+				c.LocalBudget = map[string]bool{}
+			}
+			c.LocalBudget[kind] = true
 		}
 	}
 	if seen[retiredMaxLoad] {
