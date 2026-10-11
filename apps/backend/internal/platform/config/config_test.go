@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
@@ -90,6 +91,12 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+		},
+		EVM: config.EVM{
+			RPCURLBase:      "https://mainnet.base.org",
+			RPCURLArbitrum:  "https://arb1.arbitrum.io/rpc",
+			RPCURLEthereum:  "https://ethereum-rpc.publicnode.com",
+			RPCURLRobinhood: "https://rpc.mainnet.chain.robinhood.com",
 		},
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -177,6 +184,10 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"PRIVY_BASE_URL=http://fakes/privy",
 		"SOLANA_RPC_URL=http://fakes/rpc",
 		"SOLANA_USDC_MINT=mint",
+		"EVM_RPC_URL_BASE=http://fakes/base",
+		"EVM_RPC_URL_ARBITRUM=http://fakes/arbitrum",
+		"EVM_RPC_URL_ETHEREUM=http://fakes/ethereum",
+		"EVM_RPC_URL_ROBINHOOD=http://fakes/robinhood",
 		"RELAYER_PRIVATE_KEY=relayer-key",
 		"APNS_KEY_P8=p8-key",
 		"APNS_KEY_ID=key-id",
@@ -256,7 +267,11 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			AuthorizationPrivateKey: "wallet-auth:key", AuthorizationKeyID: "quorum-id",
 			WebhookSecret: "whsec_x", BaseURL: "http://fakes/privy",
 		},
-		Solana:   config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
+		Solana: config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
+		EVM: config.EVM{
+			RPCURLBase: "http://fakes/base", RPCURLArbitrum: "http://fakes/arbitrum",
+			RPCURLEthereum: "http://fakes/ethereum", RPCURLRobinhood: "http://fakes/robinhood",
+		},
 		Relayer:  config.Relayer{PrivateKey: "relayer-key"},
 		APNs:     config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
 		PostHog:  config.PostHog{APIKey: "ph-secret", Host: "http://fakes/posthog"},
@@ -649,6 +664,10 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},
+		{"EVM_RPC_URL_BASE", "***"},
+		{"EVM_RPC_URL_ARBITRUM", "***"},
+		{"EVM_RPC_URL_ETHEREUM", "***"},
+		{"EVM_RPC_URL_ROBINHOOD", "***"},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)
@@ -689,5 +708,18 @@ func TestTestDBURLDefaultsToTheTestContainer(t *testing.T) {
 	custom := "postgres://ci@127.0.0.1:54323/ci"
 	if got := config.TestDBURL(append(required(), "TEST_DATABASE_URL="+custom)); got != custom {
 		t.Fatalf("TestDBURL = %q, want %q", got, custom)
+	}
+}
+
+func TestEVMRPCURLNamesEachNetworkAndNoneForSolana(t *testing.T) {
+	t.Parallel()
+	e := config.EVM{RPCURLBase: "b", RPCURLArbitrum: "a", RPCURLEthereum: "e", RPCURLRobinhood: "r"}
+	for n, want := range map[chain.Network]string{
+		chain.NetworkBase: "b", chain.NetworkArbitrum: "a", chain.NetworkEthereum: "e",
+		chain.NetworkRobinhood: "r", chain.NetworkSolana: "",
+	} {
+		if got := e.RPCURL(n); got != want {
+			t.Errorf("RPCURL(%s) = %q, want %q", n, got, want)
+		}
 	}
 }

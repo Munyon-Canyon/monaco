@@ -52,6 +52,7 @@ type Config struct {
 	Funding    Funding
 	Privy      Privy
 	Solana     Solana
+	EVM        EVM
 	Relayer    Relayer
 	APNs       APNs
 	PostHog    PostHog
@@ -356,6 +357,7 @@ func fields() []field {
 		adminFields(),
 		ablyFields(),
 		agentsFields(),
+		evmFields(),
 	)
 }
 
