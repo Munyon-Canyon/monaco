@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type trunkRepo struct {
@@ -14,7 +15,11 @@ type trunkRepo struct {
 	primary string
 	pusher  string
 	env     *Env
+	hub     *hub
+	now     time.Time
 }
+
+const indicatorRoute = "POST /repos/" + testRepo + "/actions/workflows/staging.yml/dispatches"
 
 func trunkGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
@@ -42,10 +47,17 @@ func newTrunkRepo(t *testing.T) *trunkRepo {
 	trunkGit(t, primary, "commit", "-q", "-m", "one")
 	trunkGit(t, primary, "push", "-q", "-u", "origin", "staging")
 	trunkGit(t, root, "clone", "-q", origin, pusher)
-	r := &trunkRepo{t: t, primary: primary, pusher: pusher}
+	h, srv := newHub(t)
+	h.on(indicatorRoute, "")
+	r := &trunkRepo{t: t, primary: primary, pusher: pusher, hub: h, now: time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)}
 	r.env = &Env{
 		Work: primary, Common: filepath.Join(primary, ".git"), Run: Exec,
 		Config: Config{FeatureBranch: "staging"},
+		GitHub: &GitHub{
+			API: srv.URL, Repo: testRepo, HTTP: srv.Client(),
+			Token: func(context.Context) (string, error) { return "tok", nil },
+		},
+		Now: func() time.Time { return r.now },
 	}
 	return r
 }

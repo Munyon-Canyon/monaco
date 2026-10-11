@@ -92,6 +92,14 @@ func (env *Env) checkedOutAt(ctx context.Context, dir, ref string) (string, erro
 
 func (s *stream) trunkLines(ctx context.Context) []string {
 	msg, err := s.env.fastForwardTrunk(ctx)
+	lines := s.sayTrunk(ctx, msg, err)
+	if err != nil {
+		msg = ""
+	}
+	return append(lines, s.indicatorLines(ctx, msg)...)
+}
+
+func (s *stream) sayTrunk(ctx context.Context, msg string, err error) []string {
 	key := msg
 	switch {
 	case err != nil:
