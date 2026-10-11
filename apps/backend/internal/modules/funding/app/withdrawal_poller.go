@@ -73,10 +73,11 @@ func (p *WithdrawalPoller) Tick(ctx context.Context) (poller.Report, error) {
 	createdEVM, createdEVMErr := q.ListStaleCreatedEVMWithdrawals(ctx, sqlc.ListStaleCreatedEVMWithdrawalsParams{
 		OlderThan: now.Add(-p.d.UnsentAge), MaxRows: withdrawalBatch,
 	})
-	if err := errors.Join(createdErr, submittedErr, createdEVMErr); err != nil {
+	submittedEVM, submittedEVMErr := q.ListSubmittedEVMWithdrawals(ctx, withdrawalBatch)
+	if err := errors.Join(createdErr, submittedErr, createdEVMErr, submittedEVMErr); err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "funding.WithdrawalPoller.list")
 	}
-	report := poller.Report{Scanned: len(created) + len(submitted) + len(createdEVM)}
+	report := poller.Report{Scanned: len(created) + len(submitted) + len(createdEVM) + len(submittedEVM)}
 	var failures []error
 	for _, row := range created {
 		amount, err := money.ParseMicros(row.AmountMicros)
@@ -96,7 +97,7 @@ func (p *WithdrawalPoller) Tick(ctx context.Context) (poller.Report, error) {
 		report.Changed += changed
 		failures = append(failures, err)
 	}
-	changed, err := p.tickEVM(ctx, createdEVM)
+	changed, err := p.tickEVM(ctx, createdEVM, submittedEVM)
 	report.Changed += changed
 	return report, errors.Join(append(failures, err)...)
 }
@@ -184,34 +185,39 @@ func (p *WithdrawalPoller) rebroadcast(
 func (p *WithdrawalPoller) move(ctx context.Context, m withdrawalMove) (int, error) {
 	moved := 0
 	err := p.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		var n int64
 		var err error
-		if m.to == domain.WithdrawalConfirmed {
-			n, err = q.ConfirmWithdrawal(ctx, sqlc.ConfirmWithdrawalParams{ID: m.id, CompletedAt: p.d.Clock.Now()})
-		} else {
-			n, err = q.FailWithdrawal(ctx, sqlc.FailWithdrawalParams{
-				ID: m.id, FailCode: m.code, CompletedAt: p.d.Clock.Now(),
-			})
-		}
-		if err != nil || n == 0 {
-			return err
-		}
-		moved = 1
-		tx.AfterCommit(func(ctx context.Context) {
-			p.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(m.user), nil)
-			observability.Info(ctx, observability.FundingWithdrawalMoved,
-				slog.String("withdrawal_id", m.id.String()), slog.String("user_id", m.user.String()),
-				slog.String("amount_micros", m.amount.String()),
-				slog.String("status_before", string(m.from)), slog.String("status_after", string(m.to)))
-		})
-		if m.event == nil {
-			return nil
-		}
-		return tx.Events.Append(ctx, m.event)
+		moved, err = p.apply(ctx, tx, m)
+		return err
 	})
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeOf(err), "funding.WithdrawalPoller.move")
 	}
 	return moved, nil
+}
+
+func (p *WithdrawalPoller) apply(ctx context.Context, tx db.Tx, m withdrawalMove) (int, error) {
+	q := sqlc.New(tx.Queries())
+	var n int64
+	var err error
+	if m.to == domain.WithdrawalConfirmed {
+		n, err = q.ConfirmWithdrawal(ctx, sqlc.ConfirmWithdrawalParams{ID: m.id, CompletedAt: p.d.Clock.Now()})
+	} else {
+		n, err = q.FailWithdrawal(ctx, sqlc.FailWithdrawalParams{
+			ID: m.id, FailCode: m.code, CompletedAt: p.d.Clock.Now(),
+		})
+	}
+	if err != nil || n == 0 {
+		return 0, err
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		p.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(m.user), nil)
+		observability.Info(ctx, observability.FundingWithdrawalMoved,
+			slog.String("withdrawal_id", m.id.String()), slog.String("user_id", m.user.String()),
+			slog.String("amount_micros", m.amount.String()),
+			slog.String("status_before", string(m.from)), slog.String("status_after", string(m.to)))
+	})
+	if m.event == nil {
+		return 1, nil
+	}
+	return 1, tx.Events.Append(ctx, m.event)
 }

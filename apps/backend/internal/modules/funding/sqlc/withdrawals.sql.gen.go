@@ -295,6 +295,51 @@ func (q *Queries) ListStaleCreatedWithdrawals(ctx context.Context, arg ListStale
 	return items, nil
 }
 
+const listSubmittedEVMWithdrawals = `-- name: ListSubmittedEVMWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros, evm_address::text AS evm_address,
+  privy_action_id::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature
+FROM withdrawals
+WHERE status = 'submitted' AND destination_kind = 'evm'
+ORDER BY submitted_at, id
+LIMIT $1
+`
+
+type ListSubmittedEVMWithdrawalsRow struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	AmountMicros  string
+	EvmAddress    string
+	PrivyActionID string
+	TxSignature   string
+}
+
+func (q *Queries) ListSubmittedEVMWithdrawals(ctx context.Context, maxRows int32) ([]ListSubmittedEVMWithdrawalsRow, error) {
+	rows, err := q.db.Query(ctx, listSubmittedEVMWithdrawals, maxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSubmittedEVMWithdrawalsRow
+	for rows.Next() {
+		var i ListSubmittedEVMWithdrawalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AmountMicros,
+			&i.EvmAddress,
+			&i.PrivyActionID,
+			&i.TxSignature,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubmittedWithdrawals = `-- name: ListSubmittedWithdrawals :many
 SELECT id, user_id, amount_micros::text AS amount_micros, to_address, signed_tx, tx_signature,
   last_valid_block_height
@@ -349,6 +394,24 @@ SELECT pg_advisory_xact_lock(hashtextextended('wallet-outflow:' || $1::uuid::tex
 func (q *Queries) LockWalletOutflow(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, lockWalletOutflow, userID)
 	return err
+}
+
+const setWithdrawalSourceSignature = `-- name: SetWithdrawalSourceSignature :execrows
+UPDATE withdrawals SET tx_signature = NULLIF($2::text, '')
+WHERE id = $1 AND status = 'submitted' AND destination_kind = 'evm' AND tx_signature IS NULL
+`
+
+type SetWithdrawalSourceSignatureParams struct {
+	ID          uuid.UUID
+	TxSignature string
+}
+
+func (q *Queries) SetWithdrawalSourceSignature(ctx context.Context, arg SetWithdrawalSourceSignatureParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setWithdrawalSourceSignature, arg.ID, arg.TxSignature)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const submitEVMWithdrawal = `-- name: SubmitEVMWithdrawal :execrows
