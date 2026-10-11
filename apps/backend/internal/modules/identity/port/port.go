@@ -59,6 +59,10 @@ type PrivyUserReader interface {
 	PrivyUserID(ctx context.Context, id ids.UserID) (string, error)
 }
 
+type EVMDepositWallets interface {
+	EnsureEVMDepositWallet(ctx context.Context, user ids.UserID) (chain.EVMAddress, error)
+}
+
 type Queries interface {
 	UserReader
 	PrivyUserReader

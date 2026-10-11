@@ -29,12 +29,16 @@ type multichainParts struct {
 	depositWallets adapters.DepositWallets
 }
 
-func newMultichain() multichainParts {
-	return multichainParts{
-		evmWallets:     adapters.MultichainPrivyEVMWallets(),
+func newMultichain(d module.Deps) multichainParts {
+	parts := multichainParts{
+		evmWallets:     multichain.Pending{Ticket: "#4966"},
 		forwarding:     adapters.MultichainDepositsDepositForwarding(),
 		depositWallets: adapters.MultichainDepositsEVMDepositWallets(),
 	}
+	if client, err := adapters.MultichainPrivyEVMWallets(d.Config, d.Clock); err == nil {
+		parts.evmWallets = client
+	}
+	return parts
 }
 
 type Module struct {
@@ -80,7 +84,7 @@ func WithDepositWallets(wallets adapters.DepositWallets) Option {
 
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
-		multichain: newMultichain(), deps: d, meters: otel.GetMeterProvider(),
+		multichain: newMultichain(d), deps: d, meters: otel.GetMeterProvider(),
 		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{}, follows: app.UnwiredFollowCounts{},
 	}
 	for _, opt := range opts {
@@ -227,6 +231,13 @@ func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool
 
 func (m *Module) EnrolledEVMDepositWallets() adapters.EnrolledEVMWallets {
 	return adapters.NewEnrolledEVMWallets(m.deps.Pool)
+}
+
+func (m *Module) EVMDepositWallets() *app.EVMDepositWallets {
+	return app.NewEVMDepositWallets(app.EVMDepositWalletDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Store: adapters.EVMWallets{}, Wallets: m.multichain.evmWallets,
+		Forwarding: m.multichain.forwarding, Clock: m.deps.Clock,
+	})
 }
 
 func (*Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard { return adapters.NewDashboard(db) }
