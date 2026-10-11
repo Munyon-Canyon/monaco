@@ -2,9 +2,12 @@ package multichain
 
 import (
 	"context"
+	"database/sql/driver"
 	"log/slog"
 	"math/big"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -12,15 +15,46 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-type (
-	listing struct{}
-	stock   struct{}
-)
+type stock struct{}
 
-type (
-	ListingID = ids.ID[listing]
-	StockID   = ids.ID[stock]
-)
+type StockID = ids.ID[stock]
+
+type ListingID uuid.UUID
+
+func ListingIDFrom(u uuid.UUID) ListingID { return ListingID(u) }
+
+func (id ListingID) UUID() uuid.UUID { return uuid.UUID(id) }
+
+func (id ListingID) String() string { return uuid.UUID(id).String() }
+
+func (id ListingID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
+
+func (id ListingID) MarshalText() ([]byte, error) { return []byte(id.String()), nil }
+
+func (id *ListingID) UnmarshalText(text []byte) error {
+	u, err := uuid.ParseBytes(text)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInvalidInput, "multichain.ListingID", slog.String("raw", string(text)))
+	}
+	*id = ListingID(u)
+	return nil
+}
+
+func (id ListingID) Value() (driver.Value, error) {
+	if id.IsZero() {
+		return nil, errs.New(errs.CodeInternal, "multichain.ListingID.Value")
+	}
+	return id.String(), nil
+}
+
+func (id *ListingID) Scan(src any) error {
+	var u uuid.UUID
+	if err := u.Scan(src); err != nil {
+		return errs.Wrap(err, errs.CodeDecodeFailed, "multichain.ListingID.Scan")
+	}
+	*id = ListingID(u)
+	return nil
+}
 
 type Venue string
 
