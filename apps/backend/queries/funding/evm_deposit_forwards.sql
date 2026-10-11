@@ -60,7 +60,7 @@ WHERE status = 'pending' AND id = (
     AND (
       f.solana_signature = sqlc.arg(solana_signature)::text
       OR f.solana_signature IS NULL AND f.amount_micros = sqlc.arg(amount_micros)::text::numeric
-        AND f.created_at >= sqlc.arg(created_after)
+        AND f.created_at >= sqlc.arg(created_after) AND f.created_at <= sqlc.arg(arrived_at)::timestamptz
         AND NOT EXISTS (
           SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = sqlc.arg(solana_signature)::text
         )

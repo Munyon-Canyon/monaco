@@ -23,7 +23,7 @@ WHERE status = 'pending' AND id = (
     AND (
       f.solana_signature = $1::text
       OR f.solana_signature IS NULL AND f.amount_micros = $4::text::numeric
-        AND f.created_at >= $5
+        AND f.created_at >= $5 AND f.created_at <= $2::timestamptz
         AND NOT EXISTS (
           SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = $1::text
         )

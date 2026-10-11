@@ -42,7 +42,7 @@ func (f steadyForwarding) Executions(context.Context, string, string) (mc.Execut
 	return f.page, nil
 }
 
-func TestF30Step_EVMDepositCreditedOnceAndArrivingDropsToZero(t *testing.T) {
+func TestFlowStep30_EVMDepositCredited(t *testing.T) {
 	t.Parallel()
 	execution := flows.ForwardedEVMDepositExecution()
 	forwarding := steadyForwarding{page: mc.ExecutionPage{Executions: []mc.Execution{execution}}}
@@ -175,8 +175,11 @@ func TestEVMDepositArrival_LeavesForwardsThatDoNotMatch(t *testing.T) {
 	otherAmount := f.forward(t, "other-amount", 7_000_000, time.Minute, "")
 	stale := f.forward(t, "stale", creditMicros, adapters.EVMDepositArrivalWindow+time.Minute, "")
 	otherSignature := f.forward(t, "other-signature", creditMicros, time.Minute, "sig-other")
+	later := f.forward(t, "created-after-the-credit", creditMicros, -time.Minute, "")
 	f.credit(t, "sig-new")
-	for name, id := range map[string]uuid.UUID{"amount": otherAmount, "stale": stale, "signature": otherSignature} {
+	for name, id := range map[string]uuid.UUID{
+		"amount": otherAmount, "stale": stale, "signature": otherSignature, "creation after the credit": later,
+	} {
 		if got := f.status(t, id); got != "pending" {
 			t.Errorf("forward with a different %s = %s, want pending", name, got)
 		}
