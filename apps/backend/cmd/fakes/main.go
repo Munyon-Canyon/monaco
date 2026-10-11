@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability/boundary"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes/multichain"
 )
 
 const defaultAddr = "127.0.0.1:8099"
@@ -54,8 +55,15 @@ func run(ctx context.Context, environ []string) error {
 	return serve(ctx, ln)
 }
 
+func handler() http.Handler {
+	mux := http.NewServeMux()
+	multichain.New().Mount(mux)
+	mux.Handle("/", fakes.New())
+	return mux
+}
+
 func serve(ctx context.Context, ln net.Listener) error {
-	srv := &http.Server{Handler: fakes.New(), ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Handler: handler(), ReadHeaderTimeout: 5 * time.Second}
 	closed := make(chan error, 1)
 	stop := context.AfterFunc(ctx, func() { closed <- srv.Close() })
 	defer stop()

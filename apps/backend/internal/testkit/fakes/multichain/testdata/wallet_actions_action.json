@@ -1,0 +1,1 @@
+{"value":{"id":"privy-action-transfer-1","state":"succeeded","steps":[{"network":"solana","tx_hash":"5h6xBEauJ3PK6SWCZ1PGjBvj8vDdWG3KpwATGy1ARAXFSDwt8GFXM7W5Ncn16wmqokgpiKRLuS83KUxyZyv2sUYv","state":"confirmed"},{"network":"base","tx_hash":"0x2c9f6f0b1a3e0c4d1f5b6a7e8d9c0b1a2f3e4d5c6b7a8998877665544332211a","state":"confirmed"}]}}

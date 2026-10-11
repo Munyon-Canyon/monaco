@@ -56,6 +56,10 @@ func TestServe_replaysFixturesAcceptsScriptsAndStopsOnCancel(t *testing.T) {
 		`{"route":"/privy/_health","action":"hang"}`); code != http.StatusNoContent {
 		t.Fatalf("POST /_script = %d, want 204", code)
 	}
+	if code, body := do(t.Context(), t, http.MethodPost, base+"/multichain/quoter_quote", ""); code != http.StatusOK ||
+		!strings.Contains(body, `"kind":"bridge","micros":"7500"`) {
+		t.Fatalf("POST /multichain/quoter_quote = %d %q, want the recorded Privy bridge quote", code, body)
+	}
 	cancel()
 	select {
 	case err := <-done:
