@@ -27,6 +27,7 @@ type multichainParts struct {
 	evmWallets     multichain.EVMWallets
 	forwarding     multichain.DepositForwarding
 	depositWallets adapters.DepositWallets
+	depositFees    fundingport.DepositFees
 }
 
 func newMultichain(d module.Deps) multichainParts {
@@ -84,6 +85,10 @@ func WithDepositWallets(wallets adapters.DepositWallets) Option {
 	return func(m *Module) { m.multichain.depositWallets = wallets }
 }
 
+func WithDepositFees(fees fundingport.DepositFees) Option {
+	return func(m *Module) { m.multichain.depositFees = fees }
+}
+
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
 		multichain: newMultichain(d), deps: d, meters: otel.GetMeterProvider(),
@@ -99,6 +104,9 @@ func (*Module) Name() string { return "identity" }
 
 func (m *Module) Wire(set module.Set) {
 	for _, mod := range set {
+		if fees, ok := mod.(fundingport.DepositFees); ok && m.multichain.depositFees == nil {
+			m.multichain.depositFees = fees
+		}
 		_, balancesUnwired := m.balances.(app.UnwiredHoldings)
 		_, stakesUnwired := m.stakes.(app.UnwiredHoldings)
 		_, followsUnwired := m.follows.(app.UnwiredFollowCounts)
@@ -137,7 +145,7 @@ func (m *Module) Mount(r api.Mount) {
 		Open: m.openSession(), Reads: m.deps.Pool, Clock: m.deps.Clock,
 		Cards: adapters.NewQueries(m.deps.Pool), Follows: m.follows,
 		Deposits: adapters.DepositAddresses{
-			Members: adapters.NewQueries(m.deps.Pool), EVM: deposits,
+			Members: adapters.NewQueries(m.deps.Pool), EVM: deposits, Fees: m.multichain.depositFees,
 			Networks: m.deps.Config.Funding.EVMDepositNetworks,
 		},
 		Onboard: app.NewOnboarding(app.OnboardingDeps{

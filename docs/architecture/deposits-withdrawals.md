@@ -129,6 +129,17 @@ Sender wallet (Base)      EVM deposit wallet       Privy automation            S
 - **Arriving.** `arriving_micros` on `GET /v1/me/balance` is the sum of the user's `pending` forward rows. The app shows it as an **Arriving** row so money in flight is visible. It is never spendable. A failed read of it returns the balance without the field, never an error.
 - **Polling, not webhooks.** Privy's automation webhooks need the Enterprise plan in production, so the execution list is the source of truth.
 
+### The bridge fee
+
+The member pays the bridge fee, and the deposit is credited net of it (operator decision of 2026-10-11 on [#4917](https://github.com/Munyon-Canyon/monaco/issues/4917)). The first real Base deposit sent 0.99925 USDC and was credited 0.835383. Privy's forward charged a relayer fee of 0.163098 USDC and a Privy fee of 0.000748 USDC. Gas sponsorship doesn't remove the relayer fee.
+
+Monaco shows the fee before a member deposits, as `estimated_fee_micros` on each EVM item of `GET /v1/me/deposit-addresses`. The estimate is what the last forward on that network cost:
+
+- When the execution poller sees a forward succeed, it stores `fee_micros` = Privy's `input_amount` − `output_amount` on the `evm_deposit_forwards` row, floored at 0. It stays NULL while the forward is pending or when Privy reports no input.
+- `funding`'s `DepositFees` reads the fee of the most recently arrived forward per network. `identity` puts it on that network's item. A network with no arrived forward has no field, and Solana never has one. If the read fails, the response leaves every fee out, logs `identity.deposit_addresses.fee_failed`, and still answers 200.
+
+Quotes can't give this number. Privy's walletless `POST /v1/deposit_accounts/crypto/quote` returns a flat 0.075% (0.99925 of 1 USDC on Base, Arbitrum and Ethereum), which is only Privy's own fee. A sponsored `/transfer` from Base to Solana charged no relayer fee at all. The relayer fee appears only on the deposit automation's swap. No quote wallet or extra config is needed.
+
 USDC on any other EVM chain, or any other token, sent to the deposit wallet, does not trigger the automation and is not credited. The deposit screen says "Only send USDC on Base, Arbitrum or Ethereum to this address."
 
 ## Fund
