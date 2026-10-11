@@ -187,7 +187,8 @@ func TestExecutions_readEachActionForItsAmountAndSolanaSignature(t *testing.T) {
 	want := []multichain.Execution{
 		{
 			ID: "e1", ActionID: "a1", Network: chain.NetworkBase, SourceTx: "0xsrc",
-			AmountMicros: money.MicrosFromUint64(999_250), State: multichain.ActionSucceeded, Signature: "sig",
+			AmountMicros: money.MicrosFromUint64(999_250), InputMicros: money.MicrosFromUint64(1_000_000),
+			State: multichain.ActionSucceeded, Signature: "sig",
 		},
 		{ID: "e2", Network: chain.NetworkArbitrum, SourceTx: "0xsrc2", State: multichain.ActionPending},
 	}
@@ -203,14 +204,19 @@ func TestExecutions_readEachActionForItsAmountAndSolanaSignature(t *testing.T) {
 		"GET /privy/v1/wallet_automations/executions": page,
 		"GET /privy/v1/wallets/w/actions/a1":          pending,
 	})).Executions(t.Context(), "w", "")
-	if err != nil || got.Executions[0].AmountMicros != money.MicrosFromUint64(1_000_000) {
+	if err != nil || got.Executions[0] != (multichain.Execution{
+		ID: "e1", ActionID: "a1", Network: chain.NetworkBase, SourceTx: "0xsrc", State: multichain.ActionSucceeded,
+		AmountMicros: money.MicrosFromUint64(1_000_000), InputMicros: money.MicrosFromUint64(1_000_000),
+	}) {
 		t.Fatalf("pending action amount = %+v, %v; want the input amount", got, err)
 	}
 	got, err = client(routes(map[string]string{
 		"GET /privy/v1/wallet_automations/executions": page,
 		"GET /privy/v1/wallets/w/actions/a1":          `{"id":"a1","status":"pending"}`,
 	})).Executions(t.Context(), "w", "")
-	if err != nil || !got.Executions[0].AmountMicros.IsZero() {
+	if err != nil || got.Executions[0] != (multichain.Execution{
+		ID: "e1", ActionID: "a1", Network: chain.NetworkBase, SourceTx: "0xsrc", State: multichain.ActionSucceeded,
+	}) {
 		t.Fatalf("action without amounts = %+v, %v; want zero", got, err)
 	}
 }
@@ -228,6 +234,7 @@ func TestExecutions_decodeStrictly(t *testing.T) {
 		"unknown status":   {exec("eip155:8453", "teleported"), `{}`, errs.CodeDecodeFailed},
 		"solana trigger":   {exec("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "pending"), `{}`, errs.CodeDecodeFailed},
 		"bad amount":       {exec("eip155:8453", "completed"), `{"id":"a1","status":"succeeded","output_amount":"1.5"}`, errs.CodeDecodeFailed},
+		"bad input amount": {exec("eip155:8453", "completed"), `{"id":"a1","status":"succeeded","input_amount":"-1","output_amount":"1"}`, errs.CodeDecodeFailed},
 		"bad action":       {exec("eip155:8453", "completed"), `{"id":"a1","status":"odd"}`, errs.CodeDecodeFailed},
 		"action not found": {exec("eip155:8453", "skipped"), "", errs.CodeNotFound},
 		"failed action":    {exec("eip155:1", "failed"), `{"id":"a1","status":"failed","output_amount":"x"}`, errs.CodeDecodeFailed},
