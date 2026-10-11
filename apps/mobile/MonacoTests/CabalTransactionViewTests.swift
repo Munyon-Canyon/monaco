@@ -12,6 +12,17 @@ struct CabalTransactionViewTests {
         #expect(view is CabalTransactionView)
     }
 
+    @Test func aFoundReceiptRefreshesInPlaceWhenItAppearsAgain() {
+        let row = ActivityRow(
+            Components.Schemas.CabalActivity.sampleFund, now: Date(timeIntervalSince1970: 1_791_100_800))
+        #expect(CabalTransactionView.appearance(for: .found(row)) == .refresh)
+        for resolution in [
+            CabalTransactionView.Resolution.loading, .missing, .forbidden, .failed,
+        ] {
+            #expect(CabalTransactionView.appearance(for: resolution) == .resolve)
+        }
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func aFundRowPendingAtLookupIsDoneOnTheReceiptAfterAHintRefresh() async throws {
         typealias Activity = Components.Schemas.CabalActivity
