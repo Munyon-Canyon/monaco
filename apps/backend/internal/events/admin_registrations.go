@@ -5,5 +5,7 @@ func adminRegistrations() []Registration {
 		Register[AdminGranted](TypeAdminGranted, 1),
 		Register[AdminRevoked](TypeAdminRevoked, 1),
 		Register[AdminAction](TypeAdminAction, 1),
+		Register[AdminApprovalRequested](TypeAdminApprovalRequested, 1),
+		Register[AdminCabalBanApproved](TypeAdminCabalBanApproved, 1),
 	}
 }
