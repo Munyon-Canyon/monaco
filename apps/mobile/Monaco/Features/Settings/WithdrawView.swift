@@ -58,17 +58,8 @@ struct WithdrawView: View {
         }
         .task(id: previewRequest) {
             guard let previewRequest else { return }
-            let source = WithdrawSource(api: environment.api)
-            var delay = WithdrawEstimate.debounce
-            while !Task.isCancelled {
-                let fetched = await WithdrawEstimate.fetch(previewRequest, from: source, after: delay)
-                guard !Task.isCancelled else { return }
-                estimate = fetched
-                guard let expiresAt = fetched?.expiresAt else { return }
-                try? await Task.sleep(for: WithdrawEstimate.refetchDelay(until: expiresAt, now: Date()))
-                guard !Task.isCancelled else { return }
-                estimate = nil
-                delay = .zero
+            await WithdrawEstimate.follow(previewRequest, from: WithdrawSource(api: environment.api)) {
+                estimate = $0
             }
         }
         .navigationDestination(isPresented: $showConfirm) {
@@ -280,6 +271,38 @@ struct WithdrawEstimate: Equatable {
 
     static func refetchDelay(until expiresAt: Date, now: Date) -> Duration {
         .seconds(max(0, expiresAt.timeIntervalSince(now)))
+    }
+
+    static func refetchFloor(afterExpiredQuotes count: Int) -> Duration {
+        min(.seconds(1 << min(count, 4)), maxRefetchFloor)
+    }
+
+    static let maxRefetchFloor = Duration.seconds(15)
+
+    @MainActor
+    static func follow(
+        _ request: WithdrawPreviewRequest, from source: WithdrawSource, debounce first: Duration = debounce,
+        now: () -> Date = Date.init,
+        sleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        update: (WithdrawEstimate?) -> Void
+    ) async {
+        var delay = first
+        var expiredQuotes = 0
+        while !Task.isCancelled {
+            let fetched = await fetch(request, from: source, after: delay)
+            guard !Task.isCancelled else { return }
+            update(fetched)
+            guard let expiresAt = fetched?.expiresAt else { return }
+            let wait = refetchDelay(until: expiresAt, now: now())
+            expiredQuotes = wait == .zero ? expiredQuotes + 1 : 0
+            do {
+                try await sleep(max(wait, refetchFloor(afterExpiredQuotes: expiredQuotes)))
+            } catch {
+                return
+            }
+            update(nil)
+            delay = .zero
+        }
     }
 
     static func fetch(
