@@ -49,6 +49,8 @@ Metrics that need history (e.g. "members per cabal last month") come from the `e
 
 **Identity.** `posthog.identify(<monaco user id>)` after `POST /v1/auth/session`. The id is the lowercase hyphenated UUID that the API returns, and server events use it as `distinct_id`. PostHog treats distinct ids as case-sensitive, so the app must not send Swift's uppercase `uuidString`. Person properties: `auth_state`, `login_provider`, `cabal_count`, `created_at`. **No email, phone, X handle or wallet address** in PostHog.
 
+**Environment.** Every server and client event carries `env`: `local`, `staging` or `production`. The backend adds it from `MONACO_ENV` when it exports a capture, and overrides a value a mapper set. The iOS app registers it once as a PostHog super property from the build's `MONACO_ENVIRONMENT`. Local, staging and production share one PostHog project, so filter on `env` (for example `env = production`) to keep test traffic out of product numbers.
+
 **Client events** (iOS SDK):
 
 - Screen views on every screen (`$screen`).
