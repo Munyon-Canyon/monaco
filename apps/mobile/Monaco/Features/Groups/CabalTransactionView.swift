@@ -5,12 +5,22 @@ struct CabalTransactionView: View {
     let cabalID: String
     let transactionID: String
 
-    private enum Resolution: Equatable {
+    enum Resolution: Equatable {
         case loading
         case found(ActivityRow)
         case missing
         case forbidden
         case failed
+    }
+
+    enum Appearance {
+        case refresh
+        case resolve
+    }
+
+    static func appearance(for resolution: Resolution) -> Appearance {
+        if case .found = resolution { return .refresh }
+        return .resolve
     }
 
     @Environment(AppEnvironment.self) private var environment
@@ -27,7 +37,10 @@ struct CabalTransactionView: View {
         .navigationTitle("Transaction")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await resolve()
+            switch Self.appearance(for: resolution) {
+            case .refresh: await model?.refresh()
+            case .resolve: await resolve()
+            }
             await model?.observe()
         }
         .onScreenVisibilityChange { model?.setVisible($0) }
