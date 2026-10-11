@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -20,6 +21,18 @@ func TestUnwired_everyPortFailsClosedWithARetryableCode(t *testing.T) {
 	for i, err := range []error{statusErr, slippageErr, walletErr, memberErr, pauseErr, proposalErr} {
 		if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errs.VerdictFor(errs.CodeOf(err)) != errs.VerdictNak {
 			t.Errorf("port %d err = %v, want upstream_unavailable, which naks", i, err)
+		}
+	}
+}
+
+func TestUnwired_theMultichainExecutionPortsAreNotImplementedYet(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	_, listingErr := app.UnwiredListings{}.Listing(ctx, multichain.ListingID{})
+	_, walletErr := app.UnwiredTreasuryEVM{}.EnsureTreasuryEVMWallet(ctx, ids.CabalID{})
+	for i, err := range []error{listingErr, walletErr} {
+		if errs.CodeOf(err) != errs.CodeNotImplemented || errs.VerdictFor(errs.CodeOf(err)) == errs.VerdictNak {
+			t.Errorf("port %d err = %v, want not_implemented, which never naks", i, err)
 		}
 	}
 }

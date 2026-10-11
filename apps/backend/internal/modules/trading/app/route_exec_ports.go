@@ -1,0 +1,64 @@
+package app
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+)
+
+type Listings interface {
+	Listing(ctx context.Context, id multichain.ListingID) (multichain.Listing, error)
+}
+
+type TreasuryEVM interface {
+	EnsureTreasuryEVMWallet(ctx context.Context, cabal ids.CabalID) (multichain.EVMWallet, error)
+}
+
+type (
+	UnwiredListings    struct{}
+	UnwiredTreasuryEVM struct{}
+)
+
+func notImplemented(port, ticket string) error {
+	return errs.New(
+		errs.CodeNotImplemented,
+		"trading.Unwired",
+		slog.String("port", port),
+		slog.String("ticket", ticket),
+	)
+}
+
+func (UnwiredListings) Listing(context.Context, multichain.ListingID) (multichain.Listing, error) {
+	return multichain.Listing{}, notImplemented("Listings.Listing", "#4969")
+}
+
+func (UnwiredTreasuryEVM) EnsureTreasuryEVMWallet(context.Context, ids.CabalID) (multichain.EVMWallet, error) {
+	return multichain.EVMWallet{}, notImplemented("TreasuryEVM.EnsureTreasuryEVMWallet", "#4966")
+}
+
+type Poll struct {
+	Every time.Duration
+	For   time.Duration
+}
+
+func DefaultPoll() Poll { return Poll{Every: 5 * time.Second, For: 30 * time.Second} }
+
+func (p Poll) until(ctx context.Context, clk clock.Clock, done func() (bool, error)) error {
+	deadline := clk.Now().Add(p.For)
+	for {
+		finished, err := done()
+		if err != nil || finished || !clk.Now().Before(deadline) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return errs.Wrap(ctx.Err(), errs.CodeUpstreamTimeout, "trading.Poll")
+		case <-clk.After(p.Every):
+		}
+	}
+}

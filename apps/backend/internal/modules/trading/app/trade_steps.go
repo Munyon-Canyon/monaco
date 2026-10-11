@@ -41,8 +41,14 @@ func (j Journal) Begin(ctx context.Context, ref domain.StepRef, amount money.Mic
 			return err
 		}
 		step, err = readStep(ctx, q, ref.SwapID, ref.Step)
-		if err != nil || n == 0 {
+		switch {
+		case err != nil:
 			return err
+		case step.Network != ref.Network:
+			return errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)),
+				slog.String("network", string(ref.Network)), slog.String("stored_network", string(step.Network)))
+		case n == 0:
+			return nil
 		}
 		return tx.Events.Append(ctx, stepChanged(ref, step, money.Micros{}))
 	})
@@ -50,10 +56,14 @@ func (j Journal) Begin(ctx context.Context, ref domain.StepRef, amount money.Mic
 }
 
 func (j Journal) Submitted(ctx context.Context, ref domain.StepRef, actionID string) (bool, error) {
+	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) { return j.submitted(ctx, tx, ref, actionID) })
+}
+
+func (j Journal) submitted(ctx context.Context, tx db.Tx, ref domain.StepRef, actionID string) (bool, error) {
 	if actionID == "" {
 		return false, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)))
 	}
-	return j.move(ctx, ref, money.Micros{}, func(q *sqlc.Queries) (int64, error) {
+	return j.move(ctx, tx, ref, money.Micros{}, func(q *sqlc.Queries) (int64, error) {
 		return q.MarkTradeStepSubmitted(ctx, sqlc.MarkTradeStepSubmittedParams{
 			PrivyActionID: actionID, At: j.Clock.Now(), TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
 		})
@@ -61,8 +71,10 @@ func (j Journal) Submitted(ctx context.Context, ref domain.StepRef, actionID str
 }
 
 func (j Journal) Succeeded(ctx context.Context, ref domain.StepRef, fee money.Micros) (bool, error) {
-	return j.move(ctx, ref, fee, func(q *sqlc.Queries) (int64, error) {
-		return j.finish(ctx, q, ref, domain.StepSucceeded, "")
+	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) {
+		return j.move(ctx, tx, ref, fee, func(q *sqlc.Queries) (int64, error) {
+			return j.finish(ctx, q, ref, domain.StepSucceeded, "")
+		})
 	})
 }
 
@@ -70,8 +82,10 @@ func (j Journal) Failed(ctx context.Context, ref domain.StepRef, reason string) 
 	if reason == "" {
 		return false, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)))
 	}
-	return j.move(ctx, ref, money.Micros{}, func(q *sqlc.Queries) (int64, error) {
-		return j.finish(ctx, q, ref, domain.StepFailed, reason)
+	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) {
+		return j.move(ctx, tx, ref, money.Micros{}, func(q *sqlc.Queries) (int64, error) {
+			return j.finish(ctx, q, ref, domain.StepFailed, reason)
+		})
 	})
 }
 
@@ -91,28 +105,33 @@ func (j Journal) finish(
 	})
 }
 
-func (j Journal) move(
-	ctx context.Context, ref domain.StepRef, fee money.Micros, apply func(*sqlc.Queries) (int64, error),
-) (bool, error) {
+func (j Journal) in(ctx context.Context, fn func(ctx context.Context, tx db.Tx) (bool, error)) (bool, error) {
 	var moved bool
 	err := j.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		n, err := apply(q)
-		if err != nil || n == 0 {
-			return err
-		}
-		step, err := readStep(ctx, q, ref.SwapID, ref.Step)
-		if err != nil {
-			return err
-		}
-		if fee.Cmp(step.Amount) > 0 {
-			return errs.New(errs.CodeInvalidInput, journalOp,
-				slog.String("fee_micros", fee.String()), slog.String("amount_micros", step.Amount.String()))
-		}
-		moved = true
-		return tx.Events.Append(ctx, stepChanged(ref, step, fee))
+		var err error
+		moved, err = fn(ctx, tx)
+		return err
 	})
 	return moved && err == nil, err
+}
+
+func (j Journal) move(
+	ctx context.Context, tx db.Tx, ref domain.StepRef, fee money.Micros, apply func(*sqlc.Queries) (int64, error),
+) (bool, error) {
+	q := sqlc.New(tx.Queries())
+	n, err := apply(q)
+	if err != nil || n == 0 {
+		return false, err
+	}
+	step, err := readStep(ctx, q, ref.SwapID, ref.Step)
+	if err != nil {
+		return false, err
+	}
+	if fee.Cmp(step.Amount) > 0 {
+		return false, errs.New(errs.CodeInvalidInput, journalOp,
+			slog.String("fee_micros", fee.String()), slog.String("amount_micros", step.Amount.String()))
+	}
+	return true, tx.Events.Append(ctx, stepChanged(ref, step, fee))
 }
 
 func stepChanged(ref domain.StepRef, step domain.TradeStep, fee money.Micros) events.TradeStepChanged {

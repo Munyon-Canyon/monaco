@@ -283,6 +283,9 @@ func TestJournal_anAmountPastUint64IsAnErrorAndRollsTheMoveBack(t *testing.T) {
 	if _, _, err := e.journal.Step(stepCtx(t), e.ref.SwapID, e.ref.Step); err == nil {
 		t.Fatal("Step read an amount past uint64, want an error")
 	}
+	if _, err := e.journal.Begin(stepCtx(t), e.ref, money.MicrosFromUint64(10_000_000)); err == nil {
+		t.Fatal("a resumed Begin read an amount past uint64, want an error")
+	}
 	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1")
 	if err == nil || moved {
 		t.Fatalf("Submitted = %v, %v, want an error", moved, err)
@@ -306,5 +309,25 @@ func TestJournal_stepReturnsTheReadError(t *testing.T) {
 	if _, ok, err := e.journal.Step(ctx, e.ref.SwapID, e.ref.Step); err == nil || ok ||
 		errs.CodeOf(err) == errs.CodeNotFound {
 		t.Fatalf("Step on a cancelled context = %v, %v, want the read error", ok, err)
+	}
+}
+
+func TestJournal_beginRefusesAStoredStepOnAnotherNetwork(t *testing.T) {
+	t.Parallel()
+	e := newStepEnv(t)
+	e.begin(t, 10_000_000)
+	e.ref.Network = chain.NetworkArbitrum
+
+	if _, err := e.journal.Begin(
+		stepCtx(t),
+		e.ref,
+		money.MicrosFromUint64(10_000_000),
+	); errs.CodeOf(
+		err,
+	) != errs.CodeInvalidInput {
+		t.Fatalf("Begin on arbitrum err = %v, want invalid_input", err)
+	}
+	if s := e.step(t); s.Network != chain.NetworkBase || s.Status != domain.StepPending {
+		t.Fatalf("step = %+v, want the pending base row untouched", s)
 	}
 }
