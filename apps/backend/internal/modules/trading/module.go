@@ -78,14 +78,15 @@ func newMultichain(d module.Deps) multichainParts {
 }
 
 type Module struct {
-	multichain multichainParts
-	deps       module.Deps
-	ports      EnginePorts
-	venue      Venue
-	signer     Signer
-	once       sync.Once
-	trades     *app.ExecuteTradeHandler
-	sells      *app.SellForCashOutHandler
+	multichain  multichainParts
+	deps        module.Deps
+	ports       EnginePorts
+	venue       Venue
+	signer      Signer
+	once        sync.Once
+	trades      *app.ExecuteTradeHandler
+	sells       *app.SellForCashOutHandler
+	treasuryEVM cabalport.TreasuryEVM
 }
 
 type Option func(*Module)
@@ -108,6 +109,7 @@ func (*Module) Name() string { return "trading" }
 
 func (m *Module) Wire(set module.Set) {
 	for _, mod := range set {
+		m.wireTreasuryEVM(mod)
 		switch provider := mod.(type) {
 		case interface{ Queries() cabalport.Queries }:
 			if m.ports.Cabals == nil {
@@ -128,6 +130,14 @@ func (m *Module) Wire(set module.Set) {
 		}
 	}
 }
+
+func (m *Module) wireTreasuryEVM(mod module.Module) {
+	if provider, ok := mod.(interface{ TreasuryEVM() cabalport.TreasuryEVM }); ok {
+		m.treasuryEVM = provider.TreasuryEVM()
+	}
+}
+
+func (m *Module) RouteTreasuryEVM() cabalport.TreasuryEVM { return m.treasuryEVM }
 
 func (m *Module) Mount(r api.Mount) {
 	ports := m.modulePorts()

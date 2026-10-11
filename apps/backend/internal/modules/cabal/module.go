@@ -160,6 +160,10 @@ func (m *Module) Pollers() []poller.Poller {
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
 
+func (m *Module) TreasuryEVM() port.TreasuryEVM {
+	return port.NewTreasuryEVM(m.TreasuryEVMWallets().EnsureTreasuryEVMWallet)
+}
+
 func (m *Module) TreasuryEVMWallets() adapters.TreasuryEVMWallets {
 	return adapters.TreasuryEVMWallets{DB: m.deps.Pool, Wallets: m.multichain.evmWallets, Clock: m.deps.Clock}
 }
