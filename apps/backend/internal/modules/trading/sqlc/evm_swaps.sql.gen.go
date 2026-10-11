@@ -10,7 +10,60 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const listParkedRouted = `-- name: ListParkedRouted :many
+SELECT s.id, s.cabal_id, s.status, s.parked_at::timestamptz AS parked_at, s.parked_code::text AS parked_code,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_out'), '')::text
+    AS bridge_out,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'swap'), '')::text AS swap_step,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_back'), '')::text
+    AS bridge_back
+FROM swaps AS s
+WHERE s.parked_at IS NOT NULL AND s.status IN ('created', 'submitted')
+ORDER BY s.parked_at, s.id
+`
+
+type ListParkedRoutedRow struct {
+	ID         uuid.UUID
+	CabalID    uuid.UUID
+	Status     string
+	ParkedAt   time.Time
+	ParkedCode string
+	BridgeOut  string
+	SwapStep   string
+	BridgeBack string
+}
+
+func (q *Queries) ListParkedRouted(ctx context.Context) ([]ListParkedRoutedRow, error) {
+	rows, err := q.db.Query(ctx, listParkedRouted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListParkedRoutedRow
+	for rows.Next() {
+		var i ListParkedRoutedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.Status,
+			&i.ParkedAt,
+			&i.ParkedCode,
+			&i.BridgeOut,
+			&i.SwapStep,
+			&i.BridgeBack,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const listRoutedUnfinished = `-- name: ListRoutedUnfinished :many
 SELECT s.id
@@ -167,6 +220,63 @@ func (q *Queries) ParkRouted(ctx context.Context, arg ParkRoutedParams) (ParkRou
 	return i, err
 }
 
+const parkedRoutedForUpdate = `-- name: ParkedRoutedForUpdate :one
+SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.in_amount,
+  s.source_batch_size, s.status, s.parked_at, s.parked_code,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_out'), '')::text
+    AS bridge_out,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'swap'), '')::text AS swap_step,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_back'), '')::text
+    AS bridge_back,
+  EXISTS (SELECT 1 FROM trade_steps AS r WHERE r.privy_action_id = 'reused:' || s.id::text)::bool AS reused
+FROM swaps AS s
+WHERE s.id = $1::uuid
+FOR UPDATE OF s
+`
+
+type ParkedRoutedForUpdateRow struct {
+	ID              uuid.UUID
+	CabalID         uuid.UUID
+	SourceKind      string
+	SourceID        uuid.UUID
+	Action          string
+	Symbol          string
+	InMint          string
+	InAmount        int64
+	SourceBatchSize int32
+	Status          string
+	ParkedAt        pgtype.Timestamptz
+	ParkedCode      pgtype.Text
+	BridgeOut       string
+	SwapStep        string
+	BridgeBack      string
+	Reused          bool
+}
+
+func (q *Queries) ParkedRoutedForUpdate(ctx context.Context, id uuid.UUID) (ParkedRoutedForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, parkedRoutedForUpdate, id)
+	var i ParkedRoutedForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.SourceKind,
+		&i.SourceID,
+		&i.Action,
+		&i.Symbol,
+		&i.InMint,
+		&i.InAmount,
+		&i.SourceBatchSize,
+		&i.Status,
+		&i.ParkedAt,
+		&i.ParkedCode,
+		&i.BridgeOut,
+		&i.SwapStep,
+		&i.BridgeBack,
+		&i.Reused,
+	)
+	return i, err
+}
+
 const reuseStrandedCash = `-- name: ReuseStrandedCash :execrows
 INSERT INTO trade_steps (id, trade_id, step, network, privy_action_id, amount_micros, status, created_at, updated_at)
 SELECT $1::uuid, $2::uuid, 'bridge_out', o.network, 'reused:' || o.trade_id::text,
@@ -301,6 +411,25 @@ type TouchRoutedParams struct {
 
 func (q *Queries) TouchRouted(ctx context.Context, arg TouchRoutedParams) (int64, error) {
 	result, err := q.db.Exec(ctx, touchRouted, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const unparkRouted = `-- name: UnparkRouted :execrows
+UPDATE swaps
+SET parked_at = NULL, parked_code = NULL, updated_at = $1::timestamptz
+WHERE id = $2::uuid AND parked_at IS NOT NULL AND status IN ('created', 'submitted')
+`
+
+type UnparkRoutedParams struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (q *Queries) UnparkRouted(ctx context.Context, arg UnparkRoutedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unparkRouted, arg.At, arg.ID)
 	if err != nil {
 		return 0, err
 	}
