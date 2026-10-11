@@ -86,10 +86,17 @@ func (p *WithdrawalPoller) resolveEVM(ctx context.Context, row sqlc.ListSubmitte
 		return 0, err
 	}
 	if out.needsSupport {
-		observability.Degraded(ctx, observability.FundingWithdrawalNeedsSupport,
-			slog.String("withdrawal_id", row.ID.String()), slog.String("privy_action_id", row.PrivyActionID))
+		p.flagNeedsSupport(ctx, row)
 	}
 	return p.settleEVM(ctx, row, out)
+}
+
+func (p *WithdrawalPoller) flagNeedsSupport(ctx context.Context, row sqlc.ListSubmittedEVMWithdrawalsRow) {
+	if _, seen := p.flagged.LoadOrStore(row.ID, struct{}{}); seen {
+		return
+	}
+	observability.Degraded(ctx, observability.FundingWithdrawalNeedsSupport,
+		slog.String("withdrawal_id", row.ID.String()), slog.String("privy_action_id", row.PrivyActionID))
 }
 
 func evmOutcomeOf(row sqlc.ListSubmittedEVMWithdrawalsRow, status multichain.ActionStatus) (evmOutcome, error) {
@@ -122,7 +129,7 @@ func evmTransition(
 		}
 		return out, nil
 	case multichain.ActionFailed:
-		if anyStepConfirmed(status) {
+		if anyStepBroadcast(status) {
 			out.needsSupport = true
 			return out, nil
 		}
@@ -152,9 +159,9 @@ func solanaStep(status multichain.ActionStatus) (chain.Signature, bool) {
 	return "", false
 }
 
-func anyStepConfirmed(status multichain.ActionStatus) bool {
+func anyStepBroadcast(status multichain.ActionStatus) bool {
 	for _, step := range status.Steps {
-		if step.State == multichain.StepConfirmed {
+		if step.State == multichain.StepConfirmed || step.TxHash != "" {
 			return true
 		}
 	}

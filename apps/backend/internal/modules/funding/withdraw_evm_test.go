@@ -142,18 +142,23 @@ func TestWithdrawEVM_SendsOnePrivyTransferAndStoresTheAction(t *testing.T) {
 
 func TestWithdrawEVM_RefusedTransferReleasesTheHold(t *testing.T) {
 	t.Parallel()
-	actions := &privyActions{transferErr: errs.New(errs.CodeInvalidInput, "privy.Transfer")}
-	f := newEVMFixture(t, actions)
-	if _, err := f.withdrawEVM(f.ctx(t.Context())); errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("Handle err = %v, want invalid_input", err)
+	for _, code := range []errs.Code{errs.CodeInvalidInput, errs.CodeNotFound} {
+		t.Run(string(code), func(t *testing.T) {
+			t.Parallel()
+			actions := &privyActions{transferErr: errs.New(code, "privy.Transfer")}
+			f := newEVMFixture(t, actions)
+			if _, err := f.withdrawEVM(f.ctx(t.Context())); errs.CodeOf(err) != code {
+				t.Fatalf("Handle err = %v, want %s", err, code)
+			}
+			if row := f.evmRow(t); row.status != "failed" || row.failCode != string(code) || row.action != "" {
+				t.Fatalf("row = %+v", row)
+			}
+			if len(f.submittedEvents(t)) != 0 || len(f.payloads(t, events.TypeWithdrawalFailed)) != 0 {
+				t.Fatal("a refused transfer appended withdrawal events")
+			}
+			f.assertInFlight(t, "0")
+		})
 	}
-	if row := f.evmRow(t); row.status != "failed" || row.failCode != string(errs.CodeInvalidInput) || row.action != "" {
-		t.Fatalf("row = %+v", row)
-	}
-	if len(f.submittedEvents(t)) != 0 || len(f.payloads(t, events.TypeWithdrawalFailed)) != 0 {
-		t.Fatal("a refused transfer appended withdrawal events")
-	}
-	f.assertInFlight(t, "0")
 }
 
 func TestWithdrawEVM_UnknownTransferOutcomeRecoversWithTheSameKey(t *testing.T) {
@@ -222,17 +227,6 @@ func assertOneAction(t *testing.T, f *withdrawFixture, actions *privyActions) {
 	if n := len(f.submittedEvents(t)); n != 1 {
 		t.Fatalf("withdrawal.submitted = %d", n)
 	}
-}
-
-func TestWithdraw_EVMDestinationIsNotImplementedYet(t *testing.T) {
-	t.Parallel()
-	s := flow15Scenario(t)
-	member := flows.SeedWithdrawer(s)
-	s.Given(scenario.AsSeededUser("member", member.ID)).
-		When(scenario.Post("/v1/me/withdrawals",
-			`{"amount_micros":"2000000","to_address":"`+evmTo+`","destination_kind":"evm","network":"base"}`)).
-		Then(scenario.ExpectProblem(errs.CodeNotImplemented),
-			scenario.ExpectEvents(events.TypeWithdrawalSubmitted, 0))
 }
 
 func TestWithdraw_BadEVMDestinationIsRefusedBeforeAnyHold(t *testing.T) {

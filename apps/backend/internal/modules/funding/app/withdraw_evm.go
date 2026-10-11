@@ -37,7 +37,8 @@ func evmTransferSpec(r domain.WithdrawalRequest) multichain.TransferSpec {
 }
 
 func transferRefused(err error) bool {
-	return errs.KindOf(errs.CodeOf(err)) == errs.KindInvalid
+	kind := errs.KindOf(errs.CodeOf(err))
+	return kind == errs.KindInvalid || kind == errs.KindNotFound
 }
 
 type afterCommitFunc func(tx db.Tx, cmd Withdraw, from, to domain.WithdrawalStatus)

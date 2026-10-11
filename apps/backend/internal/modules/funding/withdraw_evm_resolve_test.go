@@ -2,6 +2,7 @@ package funding_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +11,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 const (
@@ -137,5 +141,38 @@ func TestWithdrawEVM_PendingWaits(t *testing.T) {
 	landed, err := (app.WithdrawalOutflows{Reads: f.pool}).Submitted(t.Context(), f.user.ID)
 	if err != nil || len(landed) != 0 {
 		t.Fatalf("submitted = %v, %v, want none before the Solana step", landed, err)
+	}
+}
+
+func TestWithdrawEVM_FailedWithABroadcastStepKeepsTheHoldAndFlagsSupportOnce(t *testing.T) {
+	t.Parallel()
+	actions := &privyActions{
+		status: multichain.ActionStatus{State: multichain.ActionFailed, Steps: []multichain.ActionStep{
+			{Network: chain.NetworkSolana, TxHash: string(evmSourceSig), State: multichain.StepPending},
+		}},
+	}
+	f := newEVMFixture(t, actions)
+	if _, err := f.withdrawEVM(f.ctx(t.Context())); err != nil {
+		t.Fatal(err)
+	}
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(observability.WithActor(t.Context(), "system:poller.funding.withdrawals"),
+		observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	p := f.evmPoller(actions)
+	for range 3 {
+		f.clock.Advance(withdrawalUnsentAge + time.Second)
+		if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
+			t.Fatalf("Tick = %+v, %v", report, err)
+		}
+	}
+	if row := f.evmRow(t); row.status != "submitted" || row.signature != "" {
+		t.Fatalf("row = %+v", row)
+	}
+	if len(actions.calls) != 1 || len(f.payloads(t, events.TypeWithdrawalFailed)) != 0 {
+		t.Fatalf("transfers = %d, want 1 and no withdrawal.failed", len(actions.calls))
+	}
+	f.assertInFlight(t, "2000000")
+	if n := strings.Count(string(logs.Bytes()), observability.FundingWithdrawalNeedsSupport.Name); n != 1 {
+		t.Fatalf("needs_support logged %d times, want once:\n%s", n, logs.Bytes())
 	}
 }
