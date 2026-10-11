@@ -45,7 +45,7 @@ func load(environ []string) (config.Config, error) {
 
 func preflight(ctx context.Context, cfg config.Config) error {
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
-	if err := privy.CheckVerificationKey(cfg); err != nil {
+	if err := privy.CheckBoot(cfg); err != nil {
 		return err
 	}
 	if err := auth.CheckDevTokenKey(cfg); err != nil {

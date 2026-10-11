@@ -124,3 +124,36 @@ func TestCheckVerificationKey_refusalNamesTheVariableAndCarriesNoKeyMaterial(t *
 		}
 	}
 }
+
+func TestCheckAuthorizationKey_refusesADeployedEnvWithoutAUsableKeyOrKeyID(t *testing.T) {
+	t.Parallel()
+	good := testConfig()
+	good.Privy.VerificationKey = fakes.OtherPrivyVerificationKey()
+	for _, env := range []config.Env{config.EnvStaging, config.EnvProduction} {
+		good.Env = env
+		if err := privy.CheckBoot(good); err != nil {
+			t.Fatalf("%s with a key and key id = %v", env, err)
+		}
+		for name, edit := range map[string]func(*config.Config){
+			"no key":    func(c *config.Config) { c.Privy.AuthorizationPrivateKey = "" },
+			"junk key":  func(c *config.Config) { c.Privy.AuthorizationPrivateKey = "wallet-auth:!!" },
+			"no key id": func(c *config.Config) { c.Privy.AuthorizationKeyID = "" },
+		} {
+			cfg := good
+			edit(&cfg)
+			if code := errs.CodeOf(privy.CheckBoot(cfg)); code != errs.CodeInvalidConfig {
+				t.Fatalf("%s %s: CheckBoot = %s, want invalid_config", env, name, code)
+			}
+		}
+	}
+	fixture := testConfig()
+	fixture.Env = config.EnvStaging
+	if code := errs.CodeOf(privy.CheckBoot(fixture)); code != errs.CodeInvalidConfig {
+		t.Fatalf("staging with the fixture verification key: CheckBoot = %s, want invalid_config", code)
+	}
+	for _, env := range []config.Env{config.EnvLocal, config.EnvTest} {
+		if err := privy.CheckAuthorizationKey(config.Config{Env: env}); err != nil {
+			t.Fatalf("%s without Privy = %v, want nil", env, err)
+		}
+	}
+}

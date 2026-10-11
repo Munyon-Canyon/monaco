@@ -21,3 +21,23 @@ func CheckVerificationKey(cfg config.Config) error {
 	}
 	return nil
 }
+
+func CheckBoot(cfg config.Config) error {
+	if err := CheckVerificationKey(cfg); err != nil {
+		return err
+	}
+	return CheckAuthorizationKey(cfg)
+}
+
+func CheckAuthorizationKey(cfg config.Config) error {
+	if !cfg.Env.Deployed() {
+		return nil
+	}
+	if authorizationKey(cfg.Privy.AuthorizationPrivateKey) == nil || cfg.Privy.AuthorizationKeyID == "" {
+		return errs.New(errs.CodeInvalidConfig, "privy.CheckAuthorizationKey", slog.String(
+			"reason",
+			"PRIVY_AUTHORIZATION_PRIVATE_KEY must be a wallet-auth PKCS8 key and PRIVY_AUTHORIZATION_KEY_ID must be set",
+		))
+	}
+	return nil
+}

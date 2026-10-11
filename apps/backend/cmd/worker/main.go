@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -50,7 +51,7 @@ func run(
 	ctx = observability.WithLogger(ctx, logger)
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "worker"),
 		slog.Any("config", cfg.Redacted()))
-	if err := relayer.CheckBoot(ctx, cfg); err != nil {
+	if err := errors.Join(privy.CheckAuthorizationKey(cfg), relayer.CheckBoot(ctx, cfg)); err != nil {
 		return err
 	}
 	pool, err := db.Open(ctx, cfg.DB)
