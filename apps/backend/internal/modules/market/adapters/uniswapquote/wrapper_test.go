@@ -39,6 +39,7 @@ type probedSlot struct {
 }
 
 type probe struct {
+	Cash    string     `json:"cash"`
 	Balance probedSlot `json:"balance"`
 	Allow   probedSlot `json:"allowance_to_permit2"`
 	Permit2 probedSlot `json:"permit2_allowance_to_router"`
@@ -59,6 +60,7 @@ type wrapperRig struct {
 	hookless  *route
 	clock     *testkit.Clock
 	client    *uniswapquote.Client
+	wrapper   *uniswapquote.Wrapper
 }
 
 type route struct {
@@ -169,7 +171,8 @@ func newWrapperRig(t *testing.T, network chain.Network) *wrapperRig {
 	rpcs := map[chain.Network]*httpclient.Client{
 		network: httpclient.New("evm-rpc-test", httpclient.WithBaseURL(rpc.URL), httpclient.WithTimeout(time.Second)),
 	}
-	r.client = uniswapquote.New(hc, "test-key", owner, r.clock).WithWrapper(uniswapquote.NewWrapper(rpcs, delegate))
+	r.wrapper = uniswapquote.NewWrapper(rpcs, delegate)
+	r.client = uniswapquote.New(hc, "test-key", owner, r.clock).WithWrapper(r.wrapper)
 	return r
 }
 
@@ -224,17 +227,17 @@ func (r *wrapperRig) simulation(t *testing.T) (map[string]any, map[string]any) {
 
 func probedOverrides(overrides map[string]any, live probe) bool {
 	_, account := overrides[liveOwner]
-	usdc, _ := overrides["0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"].(map[string]any)
+	cash, _ := overrides[live.Cash].(map[string]any)
 	permit2, _ := overrides["0x000000000022d473030f116ddee9f6b43ac78ba3"].(map[string]any)
-	usdcDiff, _ := usdc["stateDiff"].(map[string]any)
+	cashDiff, _ := cash["stateDiff"].(map[string]any)
 	permitDiff, _ := permit2["stateDiff"].(map[string]any)
-	return !account && len(overrides) == 2 && usdcDiff[live.Balance.Slot] != nil &&
-		usdcDiff[live.Allow.Slot] != nil && permitDiff[live.Permit2.Slot] != nil
+	return !account && len(overrides) == 2 && len(cashDiff) == 2 && len(permitDiff) == 1 &&
+		cashDiff[live.Balance.Slot] != nil && cashDiff[live.Allow.Slot] != nil && permitDiff[live.Permit2.Slot] != nil
 }
 
-func (r *wrapperRig) wantSimulation(t *testing.T) {
+func readProbe(t *testing.T, network chain.Network) probe {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/base_slot_probe.json")
+	raw, err := os.ReadFile("testdata/slot_probe_" + string(network) + ".json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,6 +245,12 @@ func (r *wrapperRig) wantSimulation(t *testing.T) {
 	if err := json.Unmarshal(raw, &live); err != nil {
 		t.Fatal(err)
 	}
+	return live
+}
+
+func (r *wrapperRig) wantSimulation(t *testing.T) {
+	t.Helper()
+	live := readProbe(t, chain.NetworkBase)
 	call, overrides := r.simulation(t)
 	data, _ := call["data"].(string)
 	if call["from"] != "0x0000000071727de22e5e9d8baf0edac6f37da032" || call["to"] != liveOwner ||
@@ -252,6 +261,34 @@ func (r *wrapperRig) wantSimulation(t *testing.T) {
 	if call["gas"] != "0x2dc6c0" || !probedOverrides(overrides, live) {
 		t.Fatalf("eth_call %+v overrides = %+v, want 3M gas, the account's own code and only the probed slots",
 			call, overrides)
+	}
+}
+
+func TestWrapper_overridesEachNetworksProbedCashSlots(t *testing.T) {
+	t.Parallel()
+	for _, network := range []chain.Network{
+		chain.NetworkBase, chain.NetworkArbitrum, chain.NetworkEthereum, chain.NetworkRobinhood,
+	} {
+		t.Run(string(network), func(t *testing.T) {
+			t.Parallel()
+			live := readProbe(t, network)
+			r := newWrapperRig(t, network)
+
+			q, err := r.buy(t, network)
+
+			if err != nil || q.GrossOutput.Int64() != receivedLive || live.Cash != network.Cash().Address {
+				t.Fatalf(
+					"quote = %v, %v for cash %s, want the simulated %d",
+					q.GrossOutput,
+					err,
+					live.Cash,
+					receivedLive,
+				)
+			}
+			if _, overrides := r.simulation(t); !probedOverrides(overrides, live) {
+				t.Fatalf("overrides = %+v, want the slots probed live on %s", overrides, network)
+			}
+		})
 	}
 }
 
@@ -283,9 +320,8 @@ func TestWrapper_dropsTheVenueWhenTheSimulationCannotPriceIt(t *testing.T) {
 			`{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"invalid params"}}`,
 			chain.NetworkBase, chain.NetworkBase, errs.CodeNoRoute,
 		},
-		"no rpc for the network":   {"", chain.NetworkArbitrum, chain.NetworkBase, errs.CodeNoRoute},
-		"cash without known slots": {"", chain.NetworkRobinhood, chain.NetworkRobinhood, errs.CodeNoRoute},
-		"unreadable reply":         {`{`, chain.NetworkBase, chain.NetworkBase, errs.CodeDecodeFailed},
+		"no rpc for the network": {"", chain.NetworkArbitrum, chain.NetworkBase, errs.CodeNoRoute},
+		"unreadable reply":       {`{`, chain.NetworkBase, chain.NetworkBase, errs.CodeDecodeFailed},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -313,6 +349,25 @@ func TestWrapper_reusesASimulationForFifteenSeconds(t *testing.T) {
 	r.clock.Advance(16 * time.Second)
 	if _, err := r.buy(t, chain.NetworkBase); err != nil || len(r.calls) != 4 {
 		t.Fatalf("err %v after %d simulations, want a fresh one past the window", err, len(r.calls))
+	}
+}
+
+func TestWrapper_evictsExpiredSimulations(t *testing.T) {
+	t.Parallel()
+	r := newWrapperRig(t, chain.NetworkBase)
+	for _, amount := range []uint64{liveInput, liveInput + 1} {
+		if _, err := r.client.Quote(t.Context(), b20Listing(t, chain.NetworkBase), mc.SideBuy,
+			money.MicrosFromUint64(amount)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.clock.Advance(15 * time.Second)
+	if _, err := r.client.Quote(t.Context(), b20Listing(t, chain.NetworkBase), mc.SideBuy,
+		money.MicrosFromUint64(liveInput+2)); err != nil {
+		t.Fatal(err)
+	}
+	if n := r.wrapper.Cached(); n != 1 {
+		t.Fatalf("%d cached simulations, want only the live one after the others expired", n)
 	}
 }
 

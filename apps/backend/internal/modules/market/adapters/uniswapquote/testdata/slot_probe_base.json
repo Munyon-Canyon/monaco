@@ -1,7 +1,7 @@
 {
   "probed": "2026-10-11, Base mainnet, latest block, through EVM_RPC_URL_BASE",
   "owner": "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32",
-  "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  "cash": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
   "router": "0xd6145b2d3f379919e8cdeda7b97e37c4b2ca9c40",
   "owner_code": "0xef0100d6cedde84be40893d153be9d467cd6ad37875b28",
   "balance": {

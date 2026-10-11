@@ -1,0 +1,23 @@
+{
+  "probed": "2026-10-11, Ethereum mainnet, latest block, through EVM_RPC_URL_ETHEREUM. Slots found by matching balanceOf and allowance of live holders against keccak(holder, slot), then confirmed by eth_call with these stateDiff overrides: balanceOf, allowance(owner, Permit2) and Permit2.allowance(owner, cash, router) each read back the overridden value",
+  "owner": "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32",
+  "cash": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  "router": "0xd6145b2d3f379919e8cdeda7b97e37c4b2ca9c40",
+  "balance_mapping_slot": 9,
+  "allowance_mapping_slot": 10,
+  "balance": {
+    "slot": "0xb14458f311ce61f0f85d8c68232ef3c1a508a52a396ba24d746500b61e6af7dc",
+    "override": "0x4ab645",
+    "balanceOf": "0x4ab645"
+  },
+  "allowance_to_permit2": {
+    "slot": "0x35ec55aac14283ffcb1119efef0ad8bf8d4e4ceeec97cb54ff291b0975040303",
+    "override": "0x4ab645",
+    "allowance": "0x4ab645"
+  },
+  "permit2_allowance_to_router": {
+    "slot": "0x92c133363dfb79c19e51ee19673d3d402a74e9f7ae6905a94262c3720706a7a6",
+    "storage": "0x00000000000000006acbc57b00000000000000000000000000000000004ab645",
+    "allowance": "amount 0x4ab645, expiration 0x6acbc57b, nonce 0"
+  }
+}

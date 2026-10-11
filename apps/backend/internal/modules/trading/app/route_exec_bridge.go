@@ -18,6 +18,7 @@ type BridgeLeg struct {
 	Source   chain.SolanaAddress
 	Spec     multichain.TransferSpec
 	Fee      money.Micros
+	Observe  func(context.Context, multichain.ActionStatus) (money.Micros, error)
 }
 
 func stepKey(ref domain.StepRef) string {
@@ -120,8 +121,14 @@ func (b Bridge) await(ctx context.Context, leg BridgeLeg, id multichain.ActionID
 		faultpoint.Hit(ctx, faultpoint.AfterExecute)
 		switch action.State {
 		case multichain.ActionSucceeded:
+			fee := leg.Fee
+			if leg.Observe != nil {
+				if fee, err = leg.Observe(ctx, action); err != nil {
+					return false, err
+				}
+			}
 			status = domain.StepSucceeded
-			_, err = b.Journal.Succeeded(ctx, leg.Ref, leg.Fee)
+			_, err = b.Journal.Succeeded(ctx, leg.Ref, fee)
 		case multichain.ActionFailed, multichain.ActionRejected:
 			status = domain.StepFailed
 			_, err = b.Journal.Failed(ctx, leg.Ref, "privy_"+string(action.State))

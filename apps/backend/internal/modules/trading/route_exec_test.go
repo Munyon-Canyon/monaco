@@ -68,12 +68,14 @@ type routeEnv struct {
 	route    *multichain.Comparison
 	journal  app.Journal
 	topUps   *topUpFake
+	arrivals *arrivalsFake
 }
 
 func newRouteEnv(t *testing.T) *routeEnv {
 	t.Helper()
 	e := &routeEnv{engineEnv: newEngineEnv(t), privy: newPrivyFake(), quotes: mcfakes.New().Quoter}
 	e.topUps = &topUpFake{privy: e.privy}
+	e.arrivals = &arrivalsFake{privy: e.privy, short: bridgeFeeMicros}
 	stepping := steppingClock{e.clk}
 	e.journal = app.Journal{UoW: db.New(e.pool, e.ids, stepping), Reads: e.pool, Clock: stepping, IDs: e.ids}
 	id := e.engineEnv.listing(t)
@@ -115,7 +117,7 @@ func (e *routeEnv) exec() *app.RouteExec {
 	return app.NewRouteExec(app.RouteExecDeps{
 		Layer: e.layer(), Journal: e.journal, Wallets: app.CabalWallets{Cabals: liveCabals{e: e.engineEnv}},
 		TreasuryEVM: e.treasury, Listings: e.listings, Quoter: e.quotes, Actions: e.privy, Sender: e.evm,
-		Venue: e.evm, TopUp: e.topUps, Poll: app.DefaultPoll(),
+		Venue: e.evm, TopUp: e.topUps, Arrivals: e.arrivals, Poll: app.DefaultPoll(),
 	})
 }
 

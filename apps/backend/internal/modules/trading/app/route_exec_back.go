@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -19,32 +20,84 @@ func (r *RouteExec) BridgeBack(ctx context.Context, id ids.SwapID) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = r.bridgeBack(ctx, b)
+	_, err = r.bridgeBack(ctx, b)
 	return err
 }
 
-func (r *RouteExec) bridgeBack(ctx context.Context, b routedBuy) (domain.StepStatus, money.Micros, error) {
+func (r *RouteExec) bridgeBack(ctx context.Context, b routedBuy) (domain.StepStatus, error) {
 	amount, err := r.returning(ctx, b)
 	if err != nil || amount.IsZero() {
-		return "", amount, err
+		return "", err
 	}
-	status, err := r.bridge().Run(ctx, b.bridgeBack(amount))
-	return status, amount, err
+	leg := b.bridgeBack(amount)
+	leg.Observe = func(ctx context.Context, action multichain.ActionStatus) (money.Micros, error) {
+		arrived, err := r.arrival(ctx, b, action)
+		if err != nil {
+			return money.Micros{}, err
+		}
+		return amount.Sub(atMost(arrived, amount))
+	}
+	return r.bridge().Run(ctx, leg)
+}
+
+func (r *RouteExec) arrival(ctx context.Context, b routedBuy, action multichain.ActionStatus) (money.Micros, error) {
+	for _, s := range action.Steps {
+		if s.Network != chain.NetworkSolana || s.TxHash == "" {
+			continue
+		}
+		cash := chain.NetworkSolana.Cash()
+		usdc := chain.Mint{Address: chain.SolanaAddress(cash.Address), Decimals: cash.Decimals}
+		got, err := r.d.Arrivals.InboundAmount(ctx, chain.Signature(s.TxHash), b.solana, usdc)
+		return money.MicrosFromUint64(got.Uint64()), err
+	}
+	return money.Micros{}, errs.New(errs.CodeUpstreamUnavailable, "trading.RouteExec.arrival",
+		slog.String("swap_id", b.id.String()), slog.String("action_id", string(action.ID)))
+}
+
+func (r *RouteExec) observedBack(ctx context.Context, b routedBuy) (money.Micros, bool, error) {
+	step, started, err := r.d.Journal.Step(ctx, ids.SwapIDFrom(b.id), domain.StepBridgeBack)
+	if err != nil || !started || step.Status != domain.StepSucceeded {
+		return money.Micros{}, false, err
+	}
+	action, err := r.d.Actions.Action(ctx, b.evm.ID, multichain.ActionID(step.PrivyActionID))
+	if err != nil {
+		return money.Micros{}, false, err
+	}
+	arrived, err := r.arrival(ctx, b, action)
+	return atMost(arrived, step.Amount), err == nil, err
+}
+
+type StrandedCash struct {
+	OnEVM money.Micros
+	Back  money.Micros
+}
+
+func (r *RouteExec) Stranded(ctx context.Context, id ids.SwapID) (StrandedCash, error) {
+	b, err := r.load(ctx, id.UUID())
+	if err != nil {
+		return StrandedCash{}, err
+	}
+	onEVM, sentErr := b.sent.Sub(b.fee)
+	back, backErr := onEVM.Sub(b.fee)
+	observed, landed, err := r.observedBack(ctx, b)
+	if landed {
+		back = observed
+	}
+	return StrandedCash{OnEVM: onEVM, Back: back}, errors.Join(sentErr, backErr, err)
 }
 
 func (r *RouteExec) ReturnStranded(ctx context.Context, id ids.SwapID) (money.Micros, bool, error) {
 	var status domain.StepStatus
-	var sent money.Micros
 	b, err := r.load(ctx, id.UUID())
 	if err == nil {
-		status, sent, err = r.bridgeBack(ctx, b)
+		status, err = r.bridgeBack(ctx, b)
 	}
 	switch {
 	case err != nil:
 		return money.Micros{}, false, err
 	case status == domain.StepSucceeded:
-		landed, err := sent.Sub(b.fee)
-		return landed, true, err
+		landed, _, err := r.observedBack(ctx, b)
+		return landed, err == nil, err
 	case status == domain.StepFailed || status == "":
 		return money.Micros{}, false, errs.New(errs.CodeSwapFailed, "trading.RouteExec.ReturnStranded",
 			slog.String("swap_id", id.String()), slog.String("reason", "stranded_cash_not_returned"))
@@ -87,4 +140,11 @@ func (b routedBuy) bridgeBack(landed money.Micros) BridgeLeg {
 			From: b.listing.Network, To: chain.NetworkSolana, Destination: string(b.solana), AmountMicros: landed,
 		},
 	}
+}
+
+func atMost(m, ceiling money.Micros) money.Micros {
+	if m.Cmp(ceiling) > 0 {
+		return ceiling
+	}
+	return m
 }

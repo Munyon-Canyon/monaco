@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (h *ExecuteTradeHandler) winner(ctx context.Context, cmd ExecuteTrade) (multichain.Listing, error) {
@@ -92,13 +93,20 @@ func (h *ExecuteTradeHandler) strandedRoute(
 	route retryRoute,
 ) (ExecuteTrade, error) {
 	of := cmd.Retry.Of
-	fresh, routeErr := h.d.Router.Best(ctx, route.stock, multichain.SideBuy, cmd.USDCMicros)
-	if errs.Retryable(errs.CodeOf(routeErr)) {
-		return cmd, routeErr
-	}
-	solana, beats := solanaBeats(fresh, route.listing)
-	if !route.returned && !beats {
-		return cmd, nil
+	var solana *multichain.Comparison
+	if !route.returned {
+		fresh, err := h.d.Router.Best(ctx, route.stock, multichain.SideBuy, cmd.USDCMicros)
+		if errs.Retryable(errs.CodeOf(err)) {
+			return cmd, err
+		}
+		cash, err := h.d.Routes.Stranded(ctx, of)
+		if err != nil {
+			return cmd, err
+		}
+		beats := false
+		if solana, beats = solanaBeats(fresh, route.listing, cash); !beats {
+			return cmd, nil
+		}
 	}
 	landed, done, err := h.d.Routes.ReturnStranded(ctx, of)
 	switch {
@@ -115,7 +123,9 @@ func (h *ExecuteTradeHandler) strandedRoute(
 	return cmd, nil
 }
 
-func solanaBeats(fresh multichain.Comparison, stranded multichain.ListingID) (*multichain.Comparison, bool) {
+func solanaBeats(
+	fresh multichain.Comparison, stranded multichain.ListingID, cash StrandedCash,
+) (*multichain.Comparison, bool) {
 	var evm, best *multichain.Quote
 	for i := range fresh.Ranked {
 		q := &fresh.Ranked[i]
@@ -131,8 +141,27 @@ func solanaBeats(fresh multichain.Comparison, stranded multichain.ListingID) (*m
 	}
 	solana := fresh
 	solana.Winner = best.ListingID
-	afterReturn := uint64(best.NetShares) * (bridgeBackEstimateOf - bridgeBackEstimateBps) / bridgeBackEstimateOf
-	return &solana, evm == nil || afterReturn > uint64(evm.NetShares)
+	back := sharesFor(best.NetShares, cash.Back, best.InputMicros.Uint64())
+	if evm == nil {
+		return &solana, true
+	}
+	swapIn, _ := evm.InputMicros.Sub(money.MicrosFromUint64(costOf(evm.Costs, multichain.CostBridge)))
+	return &solana, back > sharesFor(evm.NetShares, cash.OnEVM, swapIn.Uint64())
+}
+
+func sharesFor(shares multichain.ShareNanos, cash money.Micros, quotedOn uint64) uint64 {
+	n, _ := money.MulDiv(uint64(shares), cash.Uint64(), max(quotedOn, 1))
+	return n
+}
+
+func costOf(costs []multichain.Cost, kind multichain.CostKind) uint64 {
+	total := uint64(0)
+	for _, c := range costs {
+		if c.Kind == kind {
+			total += c.Micros.Uint64()
+		}
+	}
+	return total
 }
 
 func (h *ExecuteTradeHandler) routedStock(ctx context.Context, cmd ExecuteTrade) (retryRoute, error) {

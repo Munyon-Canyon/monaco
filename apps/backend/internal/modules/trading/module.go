@@ -26,6 +26,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/tradingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -246,6 +247,14 @@ func (m *Module) build() {
 	})
 }
 
+type lazyArrivals struct{ m *Module }
+
+func (a lazyArrivals) InboundAmount(
+	ctx context.Context, sig chain.Signature, owner chain.SolanaAddress, mint chain.Mint,
+) (money.BaseUnits, error) {
+	return chainadapters.NewReader(solana.New(a.m.deps.Config, a.m.deps.Clock)).InboundAmount(ctx, sig, owner, mint)
+}
+
 type routeResumer struct{ m *Module }
 
 func (r routeResumer) Resume(ctx context.Context, id ids.SwapID) error {
@@ -259,12 +268,15 @@ func (r routeResumer) BridgeBack(ctx context.Context, id ids.SwapID) error {
 }
 
 func (m *Module) routes(layer *app.SwapLayer, ports EnginePorts, route app.RoutePorts) *app.RouteExec {
+	if route.Arrivals == nil {
+		route.Arrivals = lazyArrivals{m: m}
+	}
 	return app.NewRouteExec(app.RouteExecDeps{
 		Layer:   layer,
 		Journal: app.Journal{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, IDs: m.deps.IDs},
 		Wallets: app.CabalWallets{Cabals: ports.Cabals}, TreasuryEVM: route.TreasuryEVM, Listings: route.Listings,
 		Quoter: route.Quoter, Actions: route.Actions, Sender: route.Sender, Venue: route.Venue, TopUp: route.TopUp,
-		Poll: app.DefaultPoll(),
+		Arrivals: route.Arrivals, Poll: app.DefaultPoll(),
 	})
 }
 
