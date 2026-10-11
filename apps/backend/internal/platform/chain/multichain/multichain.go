@@ -112,6 +112,7 @@ type ShareNanos uint64
 
 type Quote struct {
 	ListingID   ListingID     `json:"listing_id"`
+	Issuer      string        `json:"issuer"`
 	Network     chain.Network `json:"network"`
 	Venue       Venue         `json:"venue"`
 	Side        Side          `json:"side"`

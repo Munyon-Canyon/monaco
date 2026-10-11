@@ -40,8 +40,9 @@ func routedPassedFixture(t *testing.T) events.ProposalPassed {
 		id multichain.ListingID, n chain.Network, v multichain.Venue, out int64, shares multichain.ShareNanos,
 		costs []multichain.Cost,
 	) multichain.Quote {
+		issuer := map[chain.Network]string{chain.NetworkBase: "coinbase", chain.NetworkSolana: "xstocks"}[n]
 		return multichain.Quote{
-			ListingID: id, Network: n, Venue: v, Side: multichain.SideBuy,
+			ListingID: id, Issuer: issuer, Network: n, Venue: v, Side: multichain.SideBuy,
 			InputMicros: money.MicrosFromUint64(100_000_000), GrossOutput: big.NewInt(out), Costs: costs,
 			NetShares: shares, NetMicros: money.MicrosFromUint64(100_000_000),
 			QuotedAt: at, ExpiresAt: at.Add(30 * time.Second), RouteID: "quote-" + string(n),
