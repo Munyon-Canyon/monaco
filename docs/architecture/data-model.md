@@ -13,28 +13,34 @@ Each table belongs to exactly one module of the [backend rewrite](backend-platfo
 | Planned table | Module | Purpose | Replaces today's |
 | --- | --- | --- | --- |
 | **Users** | identity | One row per person. Profile, `handle` (unique username picked in onboarding; decided 2026-09-27), photo, `auth_state` (onboarding progress) and `account_status` (`active`, `suspended`, `banned`, `deleted`; default 2026-09-27). `first_deposit_at` is set by `identity`'s consumer of `deposit.credited` on the first deposit of at least $10. Soft delete through `deleted_at` (decided 2026-09-27). Full columns in [auth.md](auth.md). | `users` |
-| **UserWallets** | identity | One Privy wallet per user: Privy wallet id, address. | `member_wallets` |
+| **UserWallets** | identity | One Privy wallet per user: Privy wallet id, address. Since M24 also the user's app-owned EVM deposit wallet: `evm_privy_wallet_id`, `evm_address`, `evm_created_at`, all three set or none ([Wallets](#wallets)). | `member_wallets` |
 | **Cabals** | cabal | One row per cabal. Name, picture, rules (threshold, slippage), creator, `status` (`active` / `banned`). Every cabal is public (decided 2026-09-27), so there is no visibility column. No pause columns; the pause lives in `funding` (below). | `groups` |
 | **TreasuryWallets** | cabal | One app-owned Privy treasury wallet per cabal: Privy wallet id, address. | `treasuries` |
+| **TreasuryEVMWallets** | cabal | `treasury_evm_wallets`: one app-owned Privy EVM wallet per cabal, whose one address serves every EVM network. Created on the cabal's first EVM trade. | none |
 | **CabalMembers** | cabal | Who is in a cabal, role, joined at, whether they can vote. | `group_members` + `group_voters` |
 | **CabalAccessRequests** | cabal | Both directions: a user asking to join, and a member inviting a user. `direction` = `request` / `invite`, `status` = `pending` / `approved` / `denied` / `revoked` / `expired`. | `group_join_requests` (requests only) |
 | **Proposals** | governance | Trade and agent proposals. See [proposals.md](proposals.md). | `proposals` |
 | **Vote** | governance | One ballot per voter per proposal. | `votes` |
 | **Swaps** | trading | One row per swap attempt, holding the swap state machine `created → submitted → confirmed \| failed` ([trade-execution.md](trade-execution.md)). `proposal_id` or agent intent id, mints, amount, Jupiter `requestId`, signed transaction bytes, `tx_signature`. Default 2026-09-27. | `transactions` |
+| **TradeRoutes** | trading | `trade_routes`: the price comparison a swap executed against, one row per swap. `comparison` (jsonb: every quote, its costs and net shares) and `winner_listing_id`. Written from the pass event ([trade-execution.md](trade-execution.md#routing-across-chains)). | none |
+| **TradeSteps** | trading | `trade_steps`: the step journal of a trade on an EVM chain, one row per `(trade_id, step)`, step `bridge_out`, `swap` or `bridge_back`. Network, amount, the Privy action id (stored before polling), `status` `pending → submitted → succeeded \| failed`, and `error` when failed. | none |
 | **Agents** | agents | One row per enabled agent: cabal, name, USDC budget, `status` (`active` / `paused` / `removed`). Created when an add-agent proposal passes. See [agent-trading.md](../agent-trading.md). | `group_agents` |
 | **AgentKeys, AgentIntents** | agents | Agent keys, key reveals and intents. Intents emit `agent.intent_created` and run through the same trade engine as proposals ([Flows](backend-platform.md#flows), row 17). | `group_agents`, `group_agent_key_reveals`, `agent_intents` |
 | **CabalTxns** | treasury | Double-entry ledger for cabal treasuries: every movement of USDC or a stock token into, out of, or within a treasury. Swaps, fund-to-cabal inflows, redemptions, fees. | `transactions` (swaps only) + parts of `deposits`, `redeem_*` |
 | **UserTxns** | treasury | Double-entry ledger for member platform balances: deposits, withdrawals, fund-to-cabal outflows, redemption payouts. | `deposits`, `withdrawals`, `platform_withdrawals`, `redeem_payouts` |
-| **CabalPosition** | treasury | Holdings per cabal per asset: units, cost basis. Projection of CabalTxns. Table `cabal_positions`. Pot value (USDC plus every holding at the latest `market` price) is read only through `treasury`'s `PotValue(ctx, cabalID) (money.Micros, error)` query port. | `transactions` + `nav_snapshots` |
+| **CabalPosition** | treasury | Holdings per cabal per asset: units, cost basis, and since M24 `listing_id`, the listing (and so the chain) the holding sits on. Projection of CabalTxns. Table `cabal_positions`. Pot value (USDC plus every holding at the latest `market` price) is read only through `treasury`'s `PotValue(ctx, cabalID) (money.Micros, error)` query port. | `transactions` + `nav_snapshots` |
+| **TreasuryInTransit** | treasury | `treasury_in_transit`: USDC on its way between a cabal's Solana and EVM treasuries during a trade, keyed by `(trade_id, network)`. Counted in the pot total so it doesn't dip during a bridge. | none |
 | **UserPosition** | treasury | Each member's share units in each cabal, amount contributed and withdrawn. Projection of UserTxns and share issuance. | `positions` |
 | **FundTransfers** | treasury | `fund_transfers`: the fund-to-cabal transfer state machine, one row per `FundCabal` from submit to confirm or fail, with the signature stored before broadcast. `funding` reads in-flight rows through `treasury`'s query port for `GET /v1/me/balance` ([deposits-withdrawals.md](deposits-withdrawals.md#balance)). | none |
 | **CashOutJobs** | treasury | The cash-out job state machine ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). Money movement goes in the ledgers. | `redeem_jobs`, `payout_proofs` |
 | **Deposits** | funding | `deposits`: one row per credited inbound transfer to a member wallet, unique on the transaction signature. The deposit poller writes it and appends `deposit.credited` in the same transaction. | `deposits` |
-| **Withdrawals** | funding | `withdrawals`: the withdraw-to-address state machine, `submitted → confirmed \| failed`, signature stored before broadcast. | `withdrawals`, `platform_withdrawals` |
+| **Withdrawals** | funding | `withdrawals`: the withdraw-to-address state machine, `submitted → confirmed \| failed`, signature stored before broadcast. Since M24, `destination_kind` (`solana` or `evm`), `network`, `evm_address` (equal to `to_address` for EVM) and `privy_action_id`, stored before polling for an EVM withdrawal. | `withdrawals`, `platform_withdrawals` |
+| **EVMDepositForwards** | funding | `evm_deposit_forwards`: one row per Privy automation execution that forwards an EVM deposit to the member's Solana wallet, unique on `privy_execution_id`. `status` `pending → arrived \| failed`; `arrived` carries the Solana signature it was credited by. Open rows are the balance's `arriving_micros`. Not a ledger: the credit is the normal `deposit.credited` ([deposits-withdrawals.md](deposits-withdrawals.md#deposits-from-an-evm-chain)). | none |
 | **OnrampSessions** | funding | Card-deposit sessions for UX and analytics only; not a ledger. See [deposits-withdrawals.md](deposits-withdrawals.md). | none |
 | **ExternalDeposits** | funding | Transfers that reached a treasury outside Monaco's flow, and their bounce status. See [deposits-withdrawals.md](deposits-withdrawals.md#direct-transfers-to-a-cabal-treasury-are-not-allowed). | none |
 | **CabalPauses** | funding | One record per trading pause on a cabal, with `reason` (`external_deposit` or `ops`) and when it was resolved. Default 2026-09-27; SQL name and columns in [deposits-withdrawals.md](deposits-withdrawals.md). | `groups` pause columns (never shipped) |
 | **Assets** | market | Tradable catalog: symbol, mint, decimals, issuer, kind (xStock, pre-IPO), tradable flag, display name. Filled from every issuer behind the market module's `AssetProvider` strategy ([Patterns](backend-platform.md#patterns-and-where-each-earns-its-place)). | none (fetched live from `api.xstocks.fi`) |
+| **AssetListings** | market | `asset_listings`: every tradable version of a stock, one row per issuer, stock and chain. Token address, optional xStocks wrapper, `decimals`, `shares_per_token`, venue (`jupiter` or `uniswap`), `enabled` only after `verified_at`. `asset_id` links to `assets` where the catalog knows the stock (nullable). Seeded from the verified dataset in M24 ([trade-execution.md](trade-execution.md#listings)). | none |
 | **PricePoints** | market | One table, `price_points`: one USD price per asset per timestamp, `price_micros` bigint. Written by the one market price poller. Charts, sparklines, valuation and P&L all read it. Pyth dropped. See [price-history.md](price-history.md). Default 2026-09-27. | none |
 | **LeaderboardEntries** | ranking | Precomputed board rows per board and range, with `leaderboard_runs` and `cabal_value_snapshots` every 2 minutes (decided 2026-09-27). The cabal P&L curve reads `cabal_value_snapshots`. See [leaderboards.md](leaderboards.md). | `nav_snapshots` |
 | **FeedObject** | social | See [feed.md](feed.md). A polymorphic feed item: `kind` (`trade`, `proposal`, `cabal_created`, `member_joined`, `price_move`) plus a reference to the source row. Public feed items carry no money amounts. News is deferred. | none |
@@ -91,6 +97,12 @@ These follow [backend-platform.md](backend-platform.md) and are not repeated her
 Users ──< CabalMembers >── Cabals
 Users ──  UserWallets              (one per user)
 Cabals ── TreasuryWallets          (one per cabal)
+Cabals ── TreasuryEVMWallets       (at most one per cabal, from its first EVM trade)
+Users ──< EVMDepositForwards
+Swaps ── TradeRoutes ──> AssetListings  (the winner)
+Swaps ──< TradeSteps
+Swaps ──< TreasuryInTransit
+Assets ──< AssetListings ──< CabalPosition
 Cabals ──< CabalAccessRequests >── Users
 Cabals ──< CabalChat
 Cabals ──< ChatSeen >── Users
@@ -115,6 +127,18 @@ An arrow that crosses modules is a foreign key in SQL only. In Go, the module th
 ### Wallets
 
 Member wallets and treasuries are separate tables with separate owners (default 2026-09-27). `identity` owns `user_wallets` because it creates the wallet at sign-in. `cabal` owns `treasury_wallets` because it creates the treasury with the cabal. On sign-in `identity` looks up the user's existing Privy wallet and records it. It never creates a second one. The relayer and the platform fee wallet are app config in `.env.production`, not rows.
+
+Since M24 every user balance is still on Solana, and other chains are ways in and out. These are all the wallets Monaco holds:
+
+| Wallet | Chain | Owner and signer | Created | Stored in | Holds |
+| --- | --- | --- | --- | --- | --- |
+| Member wallet | Solana | The user, with our app authorization key as an additional signer | At sign-in, reused forever | `user_wallets.privy_wallet_id`, `address` | The user's platform balance (USDC) |
+| Member EVM deposit wallet | One address on Base, Arbitrum and Ethereum | App-owned, our key only | First call to `GET /v1/me/deposit-addresses` (`EnsureEVMDepositWallet`) | `user_wallets.evm_*` | Nothing for long: a Privy automation forwards every USDC deposit to the member wallet |
+| Treasury | Solana | App-owned, our key | With the cabal | `treasury_wallets` | The cabal's idle USDC and its Solana holdings |
+| Treasury EVM wallet | One address on every EVM network | App-owned, our key | On the cabal's first EVM trade (`EnsureTreasuryEVMWallet`) | `treasury_evm_wallets` | EVM holdings, and USDC only while a trade or its partial failure runs |
+| Relayer | Solana | App key in env | Config | `.env.*` | SOL that pays Solana fees |
+
+The deposit wallet is app-owned because Privy's deposit accounts accept only a 1-of-1 user-owned destination, and our member wallets carry our key ([deposits-withdrawals.md](deposits-withdrawals.md#the-deposit-wallet)).
 
 ### Double-entry ledgers
 

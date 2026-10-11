@@ -105,6 +105,65 @@ Relay, streams (`EVENTS`, `DEADLETTER`), consumer settings, retries and dedupe o
 - `RetryTrade` ([flow 12](backend-platform.md#flows)) re-runs the engine for the proposal: re-check, then a new swap row. Allowed only when the latest `swaps` row is `failed`. It takes an `Idempotency-Key` like every mutating call ([Thin client](backend-platform.md#thin-client)). The trade parameters come from the failed `swaps` row, not from governance tables. The route is `POST /v1/swaps/{id}/retry` (flow 12 in the [flows table](backend-platform.md#flows)). Every retry takes a fresh execution quote, like the first run. The body may carry `at_current_price: true` for a `price_moved` swap; it is accepted for older clients and changes nothing. The client never sends a price.
 - An ops command to force-resolve a stuck `submitted` row by signature, going through the same guarded update. It runs from `monacoctl` or the admin module ([flow 26](backend-platform.md#flows)). Useful when Jupiter and RPC disagree.
 
+### Routing across chains
+
+**Status:** Decided 2026-10-11 in M24 ([#4917](https://github.com/Munyon-Canyon/monaco/issues/4917), "Plan addition: best-price routing across chains"). Built by #4969 (listings, quoters and router), #4970 (execution, bridging and the step journal) and #4971 (valuation). [Flow 30](backend-platform.md#flows) runs the whole path against fakes.
+
+A stock can trade on several chains, from several issuers. Every trade buys or sells at the best all-in price across them, and the cabal never sees a chain: one price, one holding per stock.
+
+**Rules that don't change.** Every user balance and every cabal's idle cash stay on Solana. Only USDC crosses chains; a stock stays on the chain it trades on. A cabal still votes on an amount, the vote-time quote is display only, and slippage is measured only against the execution quote.
+
+#### Listings
+
+`market` owns `asset_listings`: one row per issuer per stock per chain, with the token address (and, for xStocks on EVM, its `w<symbol>` wrapper), decimals, `shares_per_token` (how many underlying shares one token is worth, refreshed every catalog run, since Ondo's grows with reinvested dividends) and the venue (`jupiter` on Solana, `uniswap` on EVM). A listing starts disabled and is enabled only after it is verified on chain: an EVM token's `symbol()` and `decimals()` match the issuer, a Solana mint exists under SPL Token or Token-2022. `set_tradable_override` applies per listing. The seed and the issuers' APIs are in `docs/how-to/stock-listings.md` (#4969).
+
+| Issuer | Networks |
+| --- | --- |
+| xStocks | Solana, Ethereum, Arbitrum |
+| Ondo | Solana, Ethereum |
+| Coinbase (B20) | Base |
+| Robinhood | Robinhood Chain (cash asset USDG, not USDC) |
+
+#### Quote, compare, pick
+
+`Router.Best(stock, side, amount)` (`market`):
+
+1. Quotes every enabled listing of the stock in parallel, each with a timeout: Jupiter for Solana listings, the Uniswap Trading API for EVM ones, both behind the `multichain.Quoter` interface.
+2. Converts each quote to **net underlying shares** (a sell: net USDC), after every cost as a line item: swap price and price impact, pool or route fees, the Privy bridge fee for an EVM listing (7.5 bps each way on 2026-10-10), and destination gas.
+3. Drops quotes that are expired, older than 15 s, or above the price-impact ceiling.
+4. Ranks the rest. Solana stays the winner unless an EVM route beats it by at least `ROUTER_MIN_EDGE_BPS` (default 10), which pays for the bridge's latency and extra failure surface.
+
+`propose_trade` and `preview_trade` call it, store the winner's quote as the display quote, and return the ranked list as `price_comparison` (venue, network, net shares or USDC, each cost, and the winner). When the proposal passes, the comparison is written to `trade_routes` (`comparison` jsonb, `winner_listing_id`) through the pass event, and the engine executes against that winner. `trade.routed` records the decision on the swap.
+
+#### Execute on an EVM chain
+
+A Solana winner takes the path above, unchanged. An EVM winner runs as a journal of steps, one `trade_steps` row per step, unique on `(trade_id, step)`. Each step stores its Privy action id before it polls, so a crash resumes the step instead of repeating it, and each change appends `trade.step_changed`.
+
+```
+buy:   reserve cash ─► bridge_out ─► requote ─► swap ─► record fill (cabal_positions.listing_id)
+sell:  swap ─► bridge_back ─► settle as today
+```
+
+1. **Reserve** the trade amount of treasury USDC (the existing reservation).
+2. **`bridge_out`.** `WalletActions.Transfer` of exactly that amount from the cabal's Solana treasury to its EVM treasury on the winning network. On Robinhood Chain the transfer delivers USDG. While it runs, a `treasury_in_transit` row holds the amount, so the pot total doesn't dip during the bridge. The cabal's EVM treasury is created on its first EVM trade (`EnsureTreasuryEVMWallet`, `treasury_evm_wallets`): one app-owned address serves every EVM network.
+3. **Requote** the winning listing after the bridge lands. That quote is the execution quote.
+4. **`swap`** on the EVM chain from the EVM treasury, signed through Privy, held to the cabal's slippage around the execution quote.
+5. **Record** the fill with the position's `listing_id`, through `trade.confirmed` as before.
+
+A sale of an EVM position swaps to USDC on that chain, then `bridge_back` returns the proceeds to the Solana treasury (in transit until it lands), then settles as today. When a cabal holds the same stock on several chains, a sale (and a cash out's sale) takes lots by best net proceeds after the bridge back.
+
+#### Partial failure
+
+| What failed | Where the money is | What happens |
+| --- | --- | --- |
+| `bridge_out` rejected, or failed with no on-chain step | Solana treasury | The reservation is released and the swap fails as usual. Retry with `RetryTrade`. |
+| Bridge landed, `swap` failed | USDC on the EVM treasury | It stays there as cabal cash and still counts in the pot total. The swap step retries under the `RetryTrade` and force-resolve rules, or `bridge_back` returns the cash to Solana. |
+| Sale's `swap` landed, `bridge_back` failed | USDC on the EVM treasury | Counted in the pot as cash. `bridge_back` retries; it is never resent once an on-chain step confirmed. |
+
+#### Valuation
+
+The pot total is Solana USDC, plus USDC on every treasury EVM wallet, plus every position at its listing's price per underlying share, plus `treasury_in_transit`. An EVM listing's price is its Uniswap mid price converted with `shares_per_token`, checked against the Solana listing of the same stock (a gap over 2% is flagged). Leaderboards, P&L and share issuance read that one total. Holdings are grouped by stock on `/pot`, with an optional per-listing breakdown; the app never splits a stock by chain.
+
 ## Alternatives considered
 
 | Alternative | Why not |
@@ -115,6 +174,7 @@ Relay, streams (`EVENTS`, `DEADLETTER`), consumer settings, retries and dedupe o
 | **Trading writes the ledger in the swap transaction** | `cabal_txns` belongs to the `treasury` module ([repository layout](backend-platform.md#repository-layout)). Trading owns `swaps`; treasury writes `cabal_txns` as a consumer of `trade.confirmed`. |
 | **Pause state inside trading, fed by an event** | Leaves a window between detection and the consumer running, and treasury would need its own copy. Funding owns the pause and both read it at check time. |
 | **Slippage measured against the quote from the vote** | Rejected on 2026-10-09 (#4588). A cabal buys an amount, not a share count: holding the order to the vote-time quote failed every buy whose stock moved more than the slippage since the vote. The reference is the quote taken at execution; the vote-time `quote_out_amount` is display only. |
+| **Self-run bridging** (our own EVM RPC client, scanner, nonces, gas top-ups and burn messages) | The first M24 plan. Privy's `/transfer` runs detection, gas and bridging for USDC, so the plan was replaced on 2026-10-10 ([#4917](https://github.com/Munyon-Canyon/monaco/issues/4917)). |
 | **Status polling on chain instead of Jupiter `/execute`** | Jupiter already does this and handles priority fees and rebroadcast. We use the chain read only as the crash fallback. |
 | **Pre-trade checks at proposal time only** | Pot and price move during voting. Checking again at execute is the only guarantee. |
 | **Auto-retry blocked proposals** (e.g. slippage) | Rejected for now. A cabal voted on a specific price expectation; silently retrying later trades on a price they did not approve. Voters re-propose instead. Upstream outages are retried by the bus, because they are `Unavailable`, not `Blocked`. |
