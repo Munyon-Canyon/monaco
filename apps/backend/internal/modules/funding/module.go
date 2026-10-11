@@ -39,11 +39,15 @@ type multichainParts struct {
 	walletActions multichain.WalletActions
 }
 
-func newMultichain() multichainParts {
-	return multichainParts{
-		forwarding:    adapters.MultichainDepositsDepositForwarding(),
+func newMultichain(d module.Deps) multichainParts {
+	parts := multichainParts{
+		forwarding:    multichain.Pending{Ticket: "#4967"},
 		walletActions: adapters.MultichainWithdrawalsWalletActions(),
 	}
+	if client, err := adapters.MultichainDepositsDepositForwarding(d.Config, d.Clock); err == nil {
+		parts.forwarding = client
+	}
+	return parts
 }
 
 type Module struct {
@@ -60,7 +64,7 @@ func WithDepositForwarding(forwarding multichain.DepositForwarding) Option {
 }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{multichain: newMultichain(), deps: d}
+	m := &Module{multichain: newMultichain(d), deps: d}
 	for _, opt := range opts {
 		opt(m)
 	}
