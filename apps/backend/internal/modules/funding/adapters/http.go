@@ -45,9 +45,6 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	if err := evmWithdrawalNotImplemented(request); err != nil {
-		return nil, err
-	}
 	got, err := h.Withdrawals.Handle(ctx, app.Withdraw{ID: h.IDs.NewV7(), UserID: user, Request: request})
 	if err != nil {
 		return nil, err

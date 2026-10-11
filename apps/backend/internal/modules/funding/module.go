@@ -42,7 +42,7 @@ type multichainParts struct {
 func newMultichain(d module.Deps) multichainParts {
 	parts := multichainParts{
 		forwarding:    multichain.Pending{Ticket: "#4967"},
-		walletActions: adapters.MultichainWithdrawalsWalletActions(),
+		walletActions: adapters.MultichainWithdrawalsWalletActions(d.Config, d.Clock),
 	}
 	if client, err := adapters.MultichainDepositsDepositForwarding(d.Config, d.Clock); err == nil {
 		parts.forwarding = client

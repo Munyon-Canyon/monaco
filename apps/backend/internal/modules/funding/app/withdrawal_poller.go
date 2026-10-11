@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,7 +46,10 @@ type WithdrawalPollerDeps struct {
 	UnsentAge time.Duration
 }
 
-type WithdrawalPoller struct{ d WithdrawalPollerDeps }
+type WithdrawalPoller struct {
+	d       WithdrawalPollerDeps
+	flagged sync.Map
+}
 
 func NewWithdrawalPoller(d WithdrawalPollerDeps) *WithdrawalPoller { return &WithdrawalPoller{d: d} }
 
