@@ -3,6 +3,7 @@
   "outputDirectory": "dist",
   "cleanUrls": true,
   "rewrites": [{ "source": "/r/:code", "destination": "/api/r/:code" }],
+  "git": { "deploymentEnabled": { "**": false, "main": true, "staging": true } },
   "headers": [
     {
       "source": "/(.*)",
