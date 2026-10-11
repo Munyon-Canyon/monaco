@@ -70,29 +70,33 @@ type timing struct {
 }
 
 type checkRun struct {
-	env     *Env
-	start   time.Time
-	log     bytes.Buffer
-	timings []timing
+	env       *Env
+	start     time.Time
+	log       bytes.Buffer
+	timings   []timing
+	keepGoing bool
+	failures  []error
 }
 
-func parseCheckArgs(base string, args []string) (string, bool, error) {
-	fresh := false
+func parseCheckArgs(base string, args []string) (string, bool, bool, error) {
+	fresh, keepGoing := false, false
 	for len(args) > 0 {
 		switch {
 		case args[0] == "--fresh":
 			fresh, args = true, args[1:]
+		case args[0] == "--keep-going":
+			keepGoing, args = true, args[1:]
 		case len(args) >= 2 && args[0] == "--base":
 			base, args = args[1], args[2:]
 		default:
-			return "", false, usageError("check [--base <ref>] [--fresh]")
+			return "", false, false, usageError("check [--base <ref>] [--fresh] [--keep-going]")
 		}
 	}
-	return base, fresh, nil
+	return base, fresh, keepGoing, nil
 }
 
 func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) error {
-	base, fresh, err := parseCheckArgs("origin/"+env.Config.FeatureBranch, args)
+	base, fresh, keepGoing, err := parseCheckArgs("origin/"+env.Config.FeatureBranch, args)
 	if err != nil {
 		return err
 	}
@@ -113,11 +117,11 @@ func checkCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	}
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return env.runStage0(ctx, base, parent, head, tree, patchID, stdout)
+	return env.runStage0(ctx, base, parent, head, tree, patchID, keepGoing, stdout)
 }
 
 func (env *Env) runStage0(
-	ctx context.Context, base, parent, head, tree, patchID string, stdout io.Writer,
+	ctx context.Context, base, parent, head, tree, patchID string, keepGoing bool, stdout io.Writer,
 ) error {
 	defer func() { _ = os.Remove(env.coverProfile(head)) }()
 	rows, err := env.stage0(ctx, base, parent, head)
@@ -125,7 +129,7 @@ func (env *Env) runStage0(
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s, parent %s)\n", tree[:12], base, parent)
-	run := &checkRun{env: env, start: env.Now()}
+	run := &checkRun{env: env, start: env.Now(), keepGoing: keepGoing}
 	runErr := run.rows(ctx, rows, stdout)
 	logPath, err := env.writeState("logs", "check-"+tree[:12]+".log", run.log.Bytes())
 	if err != nil {
@@ -908,16 +912,37 @@ func (r *checkRun) rows(ctx context.Context, rows []checkRow, stdout io.Writer) 
 			paced = append(paced, row)
 			continue
 		}
-		if err := r.row(ctx, row, stdout); err != nil {
+		if err := r.attempt(ctx, row, stdout); err != nil {
 			return err
 		}
 	}
 	for _, row := range paced {
-		if err := r.row(ctx, row, stdout); err != nil {
+		if err := r.attempt(ctx, row, stdout); err != nil {
 			return err
 		}
 	}
+	return r.failed()
+}
+
+func (r *checkRun) attempt(ctx context.Context, row checkRow, stdout io.Writer) error {
+	err := r.row(ctx, row, stdout)
+	if err == nil || !r.keepGoing || ctx.Err() != nil {
+		return err
+	}
+	r.failures = append(r.failures, err)
 	return nil
+}
+
+func (r *checkRun) failed() error {
+	if len(r.failures) == 0 {
+		return nil
+	}
+	details := make([]string, len(r.failures))
+	for i, err := range r.failures {
+		details[i] = cliText(err)
+	}
+	return detailErr(errs.CodeInvalidInput, "monacoctl.agents.check",
+		fmt.Sprintf("%d rows failed: %s", len(details), strings.Join(details, "; ")))
 }
 
 func (r *checkRun) tools(stdout io.Writer) error {

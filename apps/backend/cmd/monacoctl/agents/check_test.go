@@ -2162,3 +2162,60 @@ func TestCheck_withoutALocalFileTheRepoBudgetApplies(t *testing.T) {
 		t.Fatalf("40 s fails the repo 30 s budget: %d %q %q", code, stdout, stderr)
 	}
 }
+
+func TestCheck_keepGoingRunsEveryRowThenNamesEveryFailedOrOverBudgetRow(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	tree := h.commit(t, map[string]string{
+		"apps/backend/internal/a/a.go": "package a\n", "x.sh": "echo\n", "apps/mobile/qa/journeys/a.tsv": "a\n",
+	})
+	h.affected = "./internal/a\n"
+	h.load, h.cores = 8, 8
+	h.replies = []reply{
+		{prefix: "go vet", err: errors.New("exit status 1: unreachable code")},
+		{prefix: "python3 scripts/qa/journey.py check", took: 40 * time.Second},
+	}
+	code, stdout, stderr := h.check(t, "--keep-going")
+	for _, want := range []string{"go vet          FAIL", "journeys        over budget", "go test -short  ok", "shellcheck      ok"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout lacks %q: %q", want, stdout)
+		}
+	}
+	for _, want := range []string{"2 rows failed", "go vet failed; see the log", "journeys row over the 30s journeys budget"} {
+		if code != 1 || !strings.Contains(stderr, want) {
+			t.Errorf("code=%d stderr lacks %q: %q", code, want, stderr)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a keep-going run with failures recorded the tree: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "logs"), "check-"+tree[:12]+".log")); err != nil {
+		t.Fatalf("a keep-going run writes its log: %v", err)
+	}
+}
+
+func TestCheck_withoutKeepGoingTheFirstFailedRowStopsTheRun(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n", "x.sh": "echo\n"})
+	h.affected = "./internal/a\n"
+	h.replies = []reply{{prefix: "go vet", err: errors.New("exit status 1")}}
+	code, stdout, stderr := h.check(t)
+	if code != 1 || strings.Contains(stderr, "rows failed") || strings.Contains(stdout, "bash -n") {
+		t.Fatalf("the first failure stops the run: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestCheck_keepGoingWritesTheMarkerOnAFullPass(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	tree := h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n", "x.sh": "echo\n"})
+	h.affected = "./internal/a\n"
+	code, stdout, stderr := h.check(t, "--keep-going")
+	if code != 0 || strings.Contains(stderr, "failed") {
+		t.Fatalf("a clean run passes: %d %q %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(h.stateDir(t, "checks"), tree)); err != nil {
+		t.Fatalf("a full pass records the tree: %v", err)
+	}
+}
