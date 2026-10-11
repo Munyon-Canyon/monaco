@@ -15,7 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-const marketUsage = "usage: monacoctl market tradable <symbol> on|off|auto | thin-prices"
+const marketUsage = "usage: monacoctl market tradable <symbol> on|off|auto | thin-prices | simulation-account"
 
 type retentionLock func(context.Context, *pgxpool.Pool) (bool, func(), error)
 
@@ -64,7 +64,9 @@ func marketToolWithLock(environ []string, clk clock.Clock, lock retentionLock) t
 		return thinPrices(clk, lock, cfg, args, stdout, stderr)
 	}
 	return func(args []string, stdout, stderr io.Writer) int {
-		return run(map[string]command{"tradable": tradable, "thin-prices": thin}, nil, environ, args, stdout, stderr)
+		return run(map[string]command{
+			"tradable": tradable, "thin-prices": thin, "simulation-account": simulationAccount(clk),
+		}, nil, environ, args, stdout, stderr)
 	}
 }
 
