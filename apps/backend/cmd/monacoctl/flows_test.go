@@ -762,14 +762,14 @@ func TestReadFlowsTSV_namesTheFirstProblem(t *testing.T) {
 	}
 }
 
-func TestFlowsSteps_printsFlow30StepsAsPending(t *testing.T) {
+func TestFlowsSteps_printsFlow30StepsWithTheirStatusAndOwner(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
 	if code := toolFlows(toolEnv{})([]string{"steps"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "30\t1\tEVM deposit credited\tpending\t#4967\n") ||
+	if !strings.Contains(stdout.String(), "30\t1\tEVM deposit credited\tready\t#4967\n") ||
 		!strings.Contains(stdout.String(), "30\t5\tEVM withdrawal\tpending\t#4972\n") {
-		t.Fatalf("flows steps = %q, want flow 30's steps pending with their owners", stdout.String())
+		t.Fatalf("flows steps = %q, want flow 30's steps with their status and owner", stdout.String())
 	}
 }

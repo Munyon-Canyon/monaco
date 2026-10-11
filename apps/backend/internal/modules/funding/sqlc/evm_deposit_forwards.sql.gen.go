@@ -13,6 +13,67 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const arriveEVMDepositForward = `-- name: ArriveEVMDepositForward :many
+UPDATE evm_deposit_forwards
+SET status = 'arrived', solana_signature = $1::text, arrived_at = $2::timestamptz
+WHERE status = 'pending' AND id = (
+  SELECT f.id
+  FROM evm_deposit_forwards f
+  WHERE f.user_id = $3 AND f.status = 'pending'
+    AND (
+      f.solana_signature = $1::text
+      OR f.solana_signature IS NULL AND f.amount_micros = $4::text::numeric
+        AND f.created_at >= $5
+        AND NOT EXISTS (
+          SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = $1::text
+        )
+    )
+  ORDER BY f.solana_signature IS NULL, f.created_at, f.id
+  LIMIT 1
+  FOR UPDATE OF f
+)
+RETURNING id, amount_micros::text AS amount_micros
+`
+
+type ArriveEVMDepositForwardParams struct {
+	SolanaSignature string
+	ArrivedAt       time.Time
+	UserID          uuid.UUID
+	AmountMicros    string
+	CreatedAfter    time.Time
+}
+
+type ArriveEVMDepositForwardRow struct {
+	ID           uuid.UUID
+	AmountMicros string
+}
+
+func (q *Queries) ArriveEVMDepositForward(ctx context.Context, arg ArriveEVMDepositForwardParams) ([]ArriveEVMDepositForwardRow, error) {
+	rows, err := q.db.Query(ctx, arriveEVMDepositForward,
+		arg.SolanaSignature,
+		arg.ArrivedAt,
+		arg.UserID,
+		arg.AmountMicros,
+		arg.CreatedAfter,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ArriveEVMDepositForwardRow
+	for rows.Next() {
+		var i ArriveEVMDepositForwardRow
+		if err := rows.Scan(&i.ID, &i.AmountMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const eVMDepositForwardAnnounced = `-- name: EVMDepositForwardAnnounced :one
 SELECT EXISTS (
   SELECT 1 FROM events
@@ -87,13 +148,13 @@ func (q *Queries) ListStuckEVMDepositForwards(ctx context.Context, arg ListStuck
 
 const markEVMDepositForwardArrived = `-- name: MarkEVMDepositForwardArrived :execrows
 UPDATE evm_deposit_forwards
-SET status = 'arrived', solana_signature = $1, arrived_at = $2
+SET status = 'arrived', solana_signature = $1, arrived_at = $2::timestamptz
 WHERE id = $3 AND status = 'pending'
 `
 
 type MarkEVMDepositForwardArrivedParams struct {
 	SolanaSignature pgtype.Text
-	ArrivedAt       pgtype.Timestamptz
+	ArrivedAt       time.Time
 	ID              uuid.UUID
 }
 

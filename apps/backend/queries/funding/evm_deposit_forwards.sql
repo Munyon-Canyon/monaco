@@ -10,7 +10,7 @@ RETURNING f.id, f.user_id, f.status, (f.xmax = 0)::boolean AS inserted;
 
 -- name: MarkEVMDepositForwardArrived :execrows
 UPDATE evm_deposit_forwards
-SET status = 'arrived', solana_signature = sqlc.arg(solana_signature), arrived_at = sqlc.arg(arrived_at)
+SET status = 'arrived', solana_signature = sqlc.arg(solana_signature), arrived_at = sqlc.arg(arrived_at)::timestamptz
 WHERE id = sqlc.arg(id) AND status = 'pending';
 
 -- name: SumPendingEVMDepositForwards :one
@@ -49,3 +49,24 @@ FROM evm_deposit_forwards
 WHERE status = 'pending' AND created_at < sqlc.arg(created_before)
 ORDER BY created_at, id
 LIMIT sqlc.arg(max_rows);
+
+-- name: ArriveEVMDepositForward :many
+UPDATE evm_deposit_forwards
+SET status = 'arrived', solana_signature = sqlc.arg(solana_signature)::text, arrived_at = sqlc.arg(arrived_at)::timestamptz
+WHERE status = 'pending' AND id = (
+  SELECT f.id
+  FROM evm_deposit_forwards f
+  WHERE f.user_id = sqlc.arg(user_id) AND f.status = 'pending'
+    AND (
+      f.solana_signature = sqlc.arg(solana_signature)::text
+      OR f.solana_signature IS NULL AND f.amount_micros = sqlc.arg(amount_micros)::text::numeric
+        AND f.created_at >= sqlc.arg(created_after)
+        AND NOT EXISTS (
+          SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = sqlc.arg(solana_signature)::text
+        )
+    )
+  ORDER BY f.solana_signature IS NULL, f.created_at, f.id
+  LIMIT 1
+  FOR UPDATE OF f
+)
+RETURNING id, amount_micros::text AS amount_micros;

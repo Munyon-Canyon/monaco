@@ -14,3 +14,8 @@ var FundingEVMForwardStuck = Msg{
 	Name:     "funding.evm_forward.stuck",
 	Required: []string{"forward_id", "user_id", "network", "pending_since"},
 }
+
+var FundingEVMForwardArrivingUnavailable = Msg{
+	Name:     "funding.evm_forward.arriving_unavailable",
+	Required: []string{"user_id", "code"},
+}

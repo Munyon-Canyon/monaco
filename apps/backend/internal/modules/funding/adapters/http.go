@@ -33,6 +33,7 @@ type HTTP struct {
 	Cabals      CabalExists
 	Reads       sqlc.DBTX
 	IDs         ids.Generator
+	Arriving    app.ArrivingDeposits
 }
 
 func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.WithdrawResponseObject, error) {
@@ -119,6 +120,7 @@ func (h HTTP) GetMyBalance(
 	return api.GetMyBalance200JSONResponse(api.Balance{
 		AvailableMicros: balance.AvailableMicros.String(), OnChainMicros: balance.OnChainMicros.String(),
 		InFlightMicros: inFlight.String(), DepositAddress: string(address), AsOf: balance.AsOf,
+		ArrivingMicros: h.arrivingMicros(ctx, user),
 	}), nil
 }
 
