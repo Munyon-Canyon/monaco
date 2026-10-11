@@ -85,6 +85,10 @@ func newEVMCashOut(t *testing.T, solanaUSDC uint64) *evmCashOut {
 
 func (e *evmCashOut) cashOut(t *testing.T, needed uint64) error {
 	t.Helper()
+	return e.cashOutIn(actorContext(t.Context()), needed)
+}
+
+func (e *evmCashOut) cashOutIn(ctx context.Context, needed uint64) error {
 	return app.NewSellForCashOutHandler(app.SellForCashOutDeps{
 		Layer: e.layer(), UoW: e.uow, Reads: e.reads, Clock: e.clk, Venue: e.venue,
 		Holdings: app.LedgerHoldings{
@@ -92,7 +96,7 @@ func (e *evmCashOut) cashOut(t *testing.T, needed uint64) error {
 		},
 		Wallets: app.CabalWallets{Cabals: liveCabals{e: e.engineEnv}}, USDC: usdcToken(), Routes: e.exec(),
 		EVMSales: e.lots,
-	}).Handle(actorContext(t.Context()), app.SellForCashOut{
+	}).Handle(ctx, app.SellForCashOut{
 		CabalID: e.cabal, Source: domain.Source{Kind: domain.SourceCashout, ID: e.job},
 		USDCNeeded: money.MicrosFromUint64(needed),
 	}, nil)

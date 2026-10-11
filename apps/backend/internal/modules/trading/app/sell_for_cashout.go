@@ -221,17 +221,14 @@ func (h *SellForCashOutHandler) plan(ctx context.Context, cmd SellForCashOut) ([
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInvalidInput, "trading.SellForCashOut.plan")
 	}
-	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		n, err := sqlc.New(tx.Queries()).InsertCashoutSellPlan(ctx, sqlc.InsertCashoutSellPlanParams{
-			JobID: cmd.Source.ID, CabalID: cmd.CabalID.UUID(), Legs: raw, CreatedAt: h.d.Clock.Now(),
-		})
-		if err != nil || n == 0 || len(legs) > 0 {
-			return err
-		}
-		return tx.Events.Append(ctx, cashOutBlocked(cmd.CabalID, cmd.Source, errs.CodeAssetUntradable))
-	})
+	inserted, err := h.store(ctx, cmd, raw, len(legs) > 0)
 	if err != nil {
 		return nil, err
+	}
+	if planned := plannedMicros(legs); inserted && planned < cmd.USDCNeeded.Uint64() {
+		observability.Alert(ctx, observability.TradingCashOutPlanShort,
+			slog.String("job_id", cmd.Source.ID.String()), slog.String("cabal_id", cmd.CabalID.String()),
+			slog.Uint64("needed_micros", cmd.USDCNeeded.Uint64()), slog.Uint64("planned_micros", planned))
 	}
 	legs, _, err = h.stored(ctx, cmd.Source)
 	return legs, err
@@ -314,4 +311,27 @@ func (h *SellForCashOutHandler) value(ctx context.Context, held Holding) (domain
 	}
 	lot.QuoteUSDC = q.OutAmount
 	return lot, nil
+}
+
+func (h *SellForCashOutHandler) store(ctx context.Context, cmd SellForCashOut, raw []byte, legs bool) (bool, error) {
+	var inserted bool
+	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		n, err := sqlc.New(tx.Queries()).InsertCashoutSellPlan(ctx, sqlc.InsertCashoutSellPlanParams{
+			JobID: cmd.Source.ID, CabalID: cmd.CabalID.UUID(), Legs: raw, CreatedAt: h.d.Clock.Now(),
+		})
+		inserted = n > 0
+		if err != nil || n == 0 || legs {
+			return err
+		}
+		return tx.Events.Append(ctx, cashOutBlocked(cmd.CabalID, cmd.Source, errs.CodeAssetUntradable))
+	})
+	return inserted, err
+}
+
+func plannedMicros(legs []domain.Lot) uint64 {
+	var total uint64
+	for _, l := range legs {
+		total += l.QuoteUSDC
+	}
+	return total
 }

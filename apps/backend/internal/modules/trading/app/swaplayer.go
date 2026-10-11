@@ -50,6 +50,7 @@ type SwapRequest struct {
 	StillWanted     func(ctx context.Context) (bool, error)
 	Route           *multichain.Comparison
 	RouteOf         *ids.SwapID
+	ReusesStranded  bool
 }
 
 type Hints interface {
@@ -351,11 +352,16 @@ func (r SwapRequest) recordRoute(ctx context.Context, tx db.Tx, insert sqlc.Inse
 		if err == nil {
 			err = q.LockStrandedCash(ctx, r.RouteOf.UUID())
 		}
+		var claimed int64
 		if err == nil {
-			_, err = q.ReuseStrandedCash(ctx, sqlc.ReuseStrandedCashParams{
+			claimed, err = q.ReuseStrandedCash(ctx, sqlc.ReuseStrandedCashParams{
 				ID: uuid.NewSHA1(insert.ID, []byte("reused:bridge_out")), ToTrade: insert.ID, At: insert.CreatedAt,
 				FromTrade: r.RouteOf.UUID(),
 			})
+		}
+		if err == nil && r.ReusesStranded && claimed == 0 {
+			err = errs.New(errs.CodeDBUnavailable, "trading.SwapRequest.recordRoute",
+				slog.String("reason", "stranded_cash_taken"), slog.String("from_trade", r.RouteOf.String()))
 		}
 		return err
 	}

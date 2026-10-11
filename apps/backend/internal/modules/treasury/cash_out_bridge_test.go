@@ -48,10 +48,10 @@ func newBridgedSaleRig(t *testing.T) *saleRig {
 	return r
 }
 
-func (r *saleRig) evmSold(swap uuid.UUID, units, micros uint64, batch int) events.TradeConfirmed {
+func (r *saleRig) evmSold(swap uuid.UUID, units, micros uint64) events.TradeConfirmed {
 	return events.TradeConfirmed{
 		V: 1, SwapID: swap, CabalID: r.cabal.UUID(), Source: events.TradeSource{Kind: "cashout", ID: r.job},
-		SourceBatchSize: batch, Action: "sell", Symbol: "AAPLx", InMint: baseAAPL, InAmount: units,
+		SourceBatchSize: 2, Action: "sell", Symbol: "AAPLx", InMint: baseAAPL, InAmount: units,
 		OutMint: baseCash, OutAmount: micros, USDCMicros: money.MicrosFromUint64(micros),
 		TxSignature: "0xsell", ConfirmedAt: confirmedAt(),
 	}
@@ -73,7 +73,7 @@ func TestCashOutSale_sellsTheSolanaAndTheEVMLotAndPaysOnceTheEVMProceedsLand(t *
 	r.deliver(t, r.sold(r.f.ids.NewV7(), 500, 15_000_000, 2))
 	evm := r.f.ids.NewV7()
 
-	r.deliver(t, r.evmSold(evm, 150_000_000, 15_100_000, 2))
+	r.deliver(t, r.evmSold(evm, 150_000_000, 15_100_000))
 	r.want(t, "selling", "50000000", "0", "", 0)
 	r.deliver(t, r.back(evm, "pending", 15_100_000, 0, 2))
 	r.deliver(t, r.back(evm, "submitted", 15_100_000, 0, 2))
@@ -89,7 +89,7 @@ func TestCashOutSale_anEVMLotWhoseProceedsFailToComeBackSettlesShort(t *testing.
 	r.deliver(t, r.started)
 	r.deliver(t, r.sold(r.f.ids.NewV7(), 500, 15_000_000, 2))
 	evm := r.f.ids.NewV7()
-	r.deliver(t, r.evmSold(evm, 150_000_000, 15_100_000, 2))
+	r.deliver(t, r.evmSold(evm, 150_000_000, 15_100_000))
 	r.deliver(t, r.back(evm, "submitted", 15_100_000, 0, 2))
 
 	r.deliver(t, r.back(evm, "failed", 15_100_000, 0, 2))
@@ -122,7 +122,7 @@ func TestCashOutSale_paysTheSolanaAmountLandedNotTheEVMProceeds(t *testing.T) {
 	r.deliver(t, r.started)
 	r.deliver(t, r.sold(r.f.ids.NewV7(), 500, 15_000_000, 2))
 	evm := r.f.ids.NewV7()
-	r.deliver(t, r.evmSold(evm, 100_000_000, 10_100_000, 2))
+	r.deliver(t, r.evmSold(evm, 100_000_000, 10_100_000))
 	r.deliver(t, r.back(evm, "submitted", 10_100_000, 0, 2))
 
 	r.deliver(t, r.back(evm, "succeeded", 10_100_000, 100_000, 2))
@@ -147,4 +147,18 @@ func TestTradeStepChanged_aPayloadWithoutTheSourceDecodesAndSettlesNothing(t *te
 	}
 	r.deliver(t, e)
 	r.want(t, "selling", "50000000", "0", "", 0)
+}
+
+func TestCashOutSale_aShortSaleAcrossChainsPaysWhatBothLegsRaisedAndReturnsTheRest(t *testing.T) {
+	t.Parallel()
+	r := newBridgedSaleRig(t)
+	r.deliver(t, r.started)
+	r.deliver(t, r.sold(r.f.ids.NewV7(), 1_000, 12_000_000, 2))
+	evm := r.f.ids.NewV7()
+	r.deliver(t, r.evmSold(evm, 400_000_000, 10_100_000))
+	r.deliver(t, r.back(evm, "submitted", 10_100_000, 0, 2))
+
+	r.deliver(t, r.back(evm, "succeeded", 10_100_000, 100_000, 2))
+
+	r.want(t, "paying", "42000000", "16", "sale_short", 16)
 }

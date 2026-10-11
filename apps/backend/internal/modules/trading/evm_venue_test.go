@@ -154,7 +154,7 @@ func TestEVMVenue_buildChecksTheApprovalQuotesAtTheFloorAndReturnsTheSwap(t *tes
 			Network: chain.NetworkBase, To: evmAddress(t, venueRouter), Data: []byte{0x35, 0x93, 0x56, 0x4c},
 			Value: new(big.Int),
 		},
-		MinOut: 990_200,
+		OutAmount: 1_000_100, MinOut: 990_200,
 	}
 	if !samePlan(plan, want) {
 		t.Fatalf("plan = %+v, want %+v", plan, want)
@@ -187,7 +187,7 @@ func samePlan(a, b app.EVMSwapPlan) bool {
 	sameTx := func(x, y multichain.EVMTransaction) bool {
 		return x.Network == y.Network && x.To == y.To && slices.Equal(x.Data, y.Data) && x.Value.Cmp(y.Value) == 0
 	}
-	return a.MinOut == b.MinOut && sameTx(a.Swap, b.Swap) &&
+	return a.MinOut == b.MinOut && a.OutAmount == b.OutAmount && sameTx(a.Swap, b.Swap) &&
 		slices.EqualFunc(a.Approvals, b.Approvals, sameTx)
 }
 
