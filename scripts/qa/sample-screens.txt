@@ -180,6 +180,8 @@ cabal-pot-zero                -cabalPotHarness zero
 profile-portfolio-two         -profilePortfolioHarness two
 profile-portfolio-none        -profilePortfolioHarness none
 cabal-actions                 -cabalActionsHarness
+cabal-closed-banned                 -cabalClosedHarness banned
+cabal-closed-active                 -cabalClosedHarness active
 cabal-rules                   -cabalRulesHarness
 account-activity              -accountActivityHarness
 friends                       -friendsHarness
