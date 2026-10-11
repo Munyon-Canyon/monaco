@@ -3,7 +3,6 @@ package verify
 import (
 	"context"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -209,8 +208,15 @@ func tickAsTheWorker(t *testing.T, env Env, p poller.Poller) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ticked := make(chan struct{})
+	var once sync.Once
 	logger := observability.NewLogger(config.Config{Env: config.EnvTest},
-		&lineWriter{line: func(s string) { env.Logs.add(procWorker, s) }})
+		&lineWriter{line: func(s string) {
+			env.Logs.add(procWorker, s)
+			if strings.Contains(s, `"poller":"fixture.prices"`) {
+				once.Do(func() { close(ticked) })
+			}
+		}})
 	ctx, cancel := context.WithCancel(observability.WithLogger(t.Context(), logger))
 	var wg sync.WaitGroup
 	wg.Go(func() { _ = runner.Run(ctx, p) })
@@ -218,11 +224,11 @@ func tickAsTheWorker(t *testing.T, env Env, p poller.Poller) {
 		cancel()
 		wg.Wait()
 	})
-	testkit.Eventually(t, func() bool {
-		return slices.ContainsFunc(env.Logs.Lines(), func(l Line) bool {
-			return strings.Contains(l.Text, `"poller":"fixture.prices"`)
-		})
-	}, 5*time.Second)
+	select {
+	case <-ticked:
+	case <-t.Context().Done():
+		t.Fatal("the fixture poller never logged a tick before the test ended")
+	}
 }
 
 const virtualConverge = time.Second
