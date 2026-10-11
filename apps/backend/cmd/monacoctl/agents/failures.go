@@ -73,6 +73,15 @@ type watchPR struct {
 	} `json:"labels"`
 	Commits       lastCommits `json:"commits"`
 	TimelineItems gqlTimeline `json:"timelineItems"`
+
+	onGraphiteBase time.Time
+}
+
+func (p watchPR) restacking(now time.Time) bool {
+	if active, seen := p.TimelineItems.restacking(now); seen {
+		return active
+	}
+	return !p.onGraphiteBase.IsZero() && now.Sub(p.onGraphiteBase) < graphiteRestackWindow
 }
 
 type failure struct {
@@ -314,7 +323,8 @@ func onePerOwnedStack(failed []failure, rs []Record) []failure {
 func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string, now time.Time) []string {
 	var out []string
 	for _, p := range prs {
-		if !strings.HasPrefix(p.BaseRefName, "graphite-base/") || p.TimelineItems.restacking(now) {
+		if !strings.HasPrefix(p.BaseRefName, "graphite-base/") || p.restacking(now) ||
+			queuedBelow(prs, rs, label, p) {
 			continue
 		}
 		top, ticket, owned := ownerStack(rs, p.Number)
@@ -381,7 +391,7 @@ func (s stallScan) stall(ctx context.Context, p watchPR) string {
 	if !ok {
 		return ""
 	}
-	if why := restackReason(s.prs, p, s.env.Now()); why != "" {
+	if why := restackReason(s.prs, s.rs, s.env.Config.QueueLabel, p, s.env.Now()); why != "" {
 		return fmt.Sprintf("#%d is green but its stack needs a restack: %s; owner record %d.json: "+
 			"restack onto %s with gt, resubmit, then land-stack %d",
 			p.Number, why, r.Ticket, s.env.Config.FeatureBranch, p.Number)
@@ -400,11 +410,12 @@ func (s stallScan) landable(top watchPR) bool {
 	})
 }
 
-func restackReason(prs []watchPR, top watchPR, now time.Time) string {
+func restackReason(prs []watchPR, rs []Record, label string, top watchPR, now time.Time) string {
 	for _, head := range chainDown(prs, top) {
 		i := slices.IndexFunc(prs, func(q watchPR) bool { return q.HeadRefName == head })
 		switch {
-		case strings.HasPrefix(prs[i].BaseRefName, "graphite-base/") && !prs[i].TimelineItems.restacking(now):
+		case strings.HasPrefix(prs[i].BaseRefName, "graphite-base/") && !prs[i].restacking(now) &&
+			!queuedBelow(prs, rs, label, prs[i]):
 			return fmt.Sprintf("#%d sits on %s", prs[i].Number, prs[i].BaseRefName)
 		case prs[i].Mergeable == conflicting:
 			return fmt.Sprintf("#%d conflicts with %s", prs[i].Number, prs[i].BaseRefName)
@@ -457,6 +468,27 @@ func chainDown(prs []watchPR, p watchPR) []string {
 		chain = append(chain, p.HeadRefName)
 	}
 	return chain
+}
+
+func queuedBelow(prs []watchPR, rs []Record, label string, p watchPR) bool {
+	for _, r := range rs {
+		var group []int
+		if q := r.Queued.holding(p.Number); q != nil {
+			group = q.PRs
+		} else if a := r.Armed.holding(p.Number); a != nil {
+			group = a.PRs
+		} else {
+			continue
+		}
+		i := slices.Index(group, p.Number)
+		if i <= 0 {
+			return false
+		}
+		return slices.ContainsFunc(prs, func(q watchPR) bool {
+			return q.Number == group[i-1] && slices.Contains(q.Labels.Nodes, gqlName{label})
+		})
+	}
+	return false
 }
 
 func ownerStack(rs []Record, pr int) (int, int, bool) {

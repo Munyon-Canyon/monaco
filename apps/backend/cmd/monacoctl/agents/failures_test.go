@@ -813,13 +813,94 @@ func TestGraphiteRestackWindow_reportsOnlyAStuckBase(t *testing.T) {
 			}}
 			prs[0].Labels.Nodes = []gqlName{{"merge-queue"}}
 			stuck := stuckOnGraphiteBase(prs, nil, "merge-queue", now)
-			restack := restackReason(prs, prs[0], now)
+			restack := restackReason(prs, nil, "merge-queue", prs[0], now)
 			if (len(stuck) == 1) != tc.reported || (restack != "") != tc.reported {
 				t.Fatalf("reported=%v want %v: stuck %q restack %q", len(stuck) == 1, tc.reported, stuck, restack)
 			}
 			if tc.reported &&
 				!strings.Contains(stuck[0], "#5081 is stuck on graphite-base/5081 (a restack that never retargeted)") {
 				t.Fatalf("stuck line: %q", stuck)
+			}
+		})
+	}
+}
+
+func TestGraphiteBase_waitsWhileTheLowerPRIsStillQueued(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 11, 11, 50, 0, 0, time.UTC)
+	moved := fmt.Sprintf(
+		`{"nodes":[{"__typename":"BaseRefChangedEvent","createdAt":%q,`+
+			`"currentRefName":"graphite-base/5114","actor":{"login":"graphite-app"}}]}`,
+		now.Add(-20*time.Minute).Format(time.RFC3339),
+	)
+	var tl gqlTimeline
+	if err := json.Unmarshal([]byte(moved), &tl); err != nil {
+		t.Fatal(err)
+	}
+	rs := []Record{{Ticket: 40, Queued: Queues{{Top: 5114, PRs: []int{5096, 5114}}}}}
+	for _, tc := range []struct {
+		name     string
+		lower    bool
+		reported bool
+	}{
+		{"the lower PR is open with the queue label", true, false},
+		{"the lower PR is closed and unlanded", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			upper := watchPR{
+				Number: 5114, BaseRefName: "graphite-base/5114", HeadRefName: "b5114",
+				Mergeable: "MERGEABLE", TimelineItems: tl,
+			}
+			upper.Labels.Nodes = []gqlName{{"merge-queue"}}
+			prs := []watchPR{upper}
+			if tc.lower {
+				lower := watchPR{Number: 5096, BaseRefName: "staging", HeadRefName: "b5096", Mergeable: "MERGEABLE"}
+				lower.Labels.Nodes = []gqlName{{"merge-queue"}}
+				prs = append(prs, lower)
+			}
+			stuck := stuckOnGraphiteBase(prs, rs, "merge-queue", now)
+			restack := restackReason(prs, rs, "merge-queue", upper, now)
+			if (len(stuck) == 1) != tc.reported || (restack != "") != tc.reported {
+				t.Fatalf("reported=%v want %v: stuck %q restack %q", len(stuck) == 1, tc.reported, stuck, restack)
+			}
+		})
+	}
+}
+
+func TestGraphiteBase_graceRunsFromFirstSightWhenNoEventIsVisibleYet(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, 10, 11, 12, 16, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		wait     time.Duration
+		reported bool
+	}{
+		{"first seen 30s ago", 30 * time.Second, false},
+		{"first seen 6 minutes ago", 6 * time.Minute, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := &stream{onBase: map[int]time.Time{}}
+			pr := func() []watchPR {
+				return []watchPR{
+					{Number: 5136, Body: "Part of #40", BaseRefName: "graphite-base/5136", HeadRefName: "b5136"},
+				}
+			}
+			first := pr()
+			first[0].Labels.Nodes = []gqlName{{"merge-queue"}}
+			s.trackGraphiteBase(first, start)
+			later := pr()
+			later[0].Labels.Nodes = first[0].Labels.Nodes
+			s.trackGraphiteBase(later, start.Add(tc.wait))
+			stuck := stuckOnGraphiteBase(later, nil, "merge-queue", start.Add(tc.wait))
+			if (len(stuck) == 1) != tc.reported {
+				t.Fatalf("reported=%v want %v: %q", len(stuck) == 1, tc.reported, stuck)
+			}
+			later[0].BaseRefName = "staging"
+			s.trackGraphiteBase(later, start.Add(tc.wait))
+			if len(s.onBase) != 0 {
+				t.Fatalf("entry kept after leaving graphite-base: %v", s.onBase)
 			}
 		})
 	}
