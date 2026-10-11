@@ -25,6 +25,7 @@ SELECT status FROM evm_deposit_forwards WHERE privy_execution_id = $1;
 UPDATE evm_deposit_forwards f
 SET privy_action_id = COALESCE(f.privy_action_id, NULLIF(sqlc.arg(privy_action_id)::text, '')),
   amount_micros = sqlc.arg(amount_micros)::text::numeric,
+  fee_micros = COALESCE(NULLIF(sqlc.arg(fee_micros)::text, '')::numeric, f.fee_micros),
   solana_signature = COALESCE(f.solana_signature, (
     SELECT NULLIF(sqlc.arg(solana_signature)::text, '')
     WHERE NOT EXISTS (
@@ -88,3 +89,9 @@ WHERE status = 'pending' AND id = (
   FOR UPDATE OF f
 )
 RETURNING id, amount_micros::text AS amount_micros;
+
+-- name: LatestEVMDepositForwardFees :many
+SELECT DISTINCT ON (network) network, fee_micros::text AS fee_micros
+FROM evm_deposit_forwards
+WHERE status = 'arrived' AND fee_micros IS NOT NULL
+ORDER BY network, arrived_at DESC, id DESC;

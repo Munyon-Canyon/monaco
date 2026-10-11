@@ -131,6 +131,38 @@ func (q *Queries) EVMDepositForwardStatusByExecution(ctx context.Context, privyE
 	return status, err
 }
 
+const latestEVMDepositForwardFees = `-- name: LatestEVMDepositForwardFees :many
+SELECT DISTINCT ON (network) network, fee_micros::text AS fee_micros
+FROM evm_deposit_forwards
+WHERE status = 'arrived' AND fee_micros IS NOT NULL
+ORDER BY network, arrived_at DESC, id DESC
+`
+
+type LatestEVMDepositForwardFeesRow struct {
+	Network   string
+	FeeMicros string
+}
+
+func (q *Queries) LatestEVMDepositForwardFees(ctx context.Context) ([]LatestEVMDepositForwardFeesRow, error) {
+	rows, err := q.db.Query(ctx, latestEVMDepositForwardFees)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LatestEVMDepositForwardFeesRow
+	for rows.Next() {
+		var i LatestEVMDepositForwardFeesRow
+		if err := rows.Scan(&i.Network, &i.FeeMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStuckEVMDepositForwards = `-- name: ListStuckEVMDepositForwards :many
 SELECT id, user_id, network, privy_execution_id, created_at
 FROM evm_deposit_forwards
@@ -216,18 +248,20 @@ const recordEVMDepositForwardProgress = `-- name: RecordEVMDepositForwardProgres
 UPDATE evm_deposit_forwards f
 SET privy_action_id = COALESCE(f.privy_action_id, NULLIF($1::text, '')),
   amount_micros = $2::text::numeric,
+  fee_micros = COALESCE(NULLIF($3::text, '')::numeric, f.fee_micros),
   solana_signature = COALESCE(f.solana_signature, (
-    SELECT NULLIF($3::text, '')
+    SELECT NULLIF($4::text, '')
     WHERE NOT EXISTS (
-      SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = $3::text
+      SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = $4::text
     )
   ))
-WHERE f.id = $4 AND f.status = 'pending'
+WHERE f.id = $5 AND f.status = 'pending'
 `
 
 type RecordEVMDepositForwardProgressParams struct {
 	PrivyActionID   string
 	AmountMicros    string
+	FeeMicros       string
 	SolanaSignature string
 	ID              uuid.UUID
 }
@@ -236,6 +270,7 @@ func (q *Queries) RecordEVMDepositForwardProgress(ctx context.Context, arg Recor
 	result, err := q.db.Exec(ctx, recordEVMDepositForwardProgress,
 		arg.PrivyActionID,
 		arg.AmountMicros,
+		arg.FeeMicros,
 		arg.SolanaSignature,
 		arg.ID,
 	)
