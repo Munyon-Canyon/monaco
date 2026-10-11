@@ -131,6 +131,8 @@ type Quote struct {
 	Options     RouteOptions  `json:"route_options,omitzero"`
 }
 
+const NoHooks = "V4_NO_HOOKS"
+
 type RouteOptions struct {
 	HooksOptions string `json:"hooks_options,omitempty"`
 }
