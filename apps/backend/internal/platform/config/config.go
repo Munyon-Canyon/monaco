@@ -167,6 +167,7 @@ type Funding struct {
 	BounceSweepInterval       time.Duration
 	BounceSweepAge            time.Duration
 	EVMDepositNetworks        []chain.Network
+	EVMForwardInterval        time.Duration
 }
 
 type Privy struct {
@@ -491,6 +492,8 @@ func fundingFields() []field {
 			func(c *Config) *time.Duration { return &c.Funding.BounceSweepAge }),
 		evmDepositNetworks("EVM_DEPOSIT_NETWORKS",
 			func(c *Config) *[]chain.Network { return &c.Funding.EVMDepositNetworks }),
+		duration("FUNDING_EVM_FORWARD_INTERVAL", 10*time.Second,
+			func(c *Config) *time.Duration { return &c.Funding.EVMForwardInterval }),
 	}
 }
 

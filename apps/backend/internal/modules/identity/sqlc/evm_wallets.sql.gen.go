@@ -13,6 +13,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const eVMDepositWalletsAfter = `-- name: EVMDepositWalletsAfter :many
+SELECT user_id, evm_privy_wallet_id::text AS evm_privy_wallet_id
+FROM user_wallets
+WHERE evm_privy_wallet_id IS NOT NULL AND user_id > $1
+ORDER BY user_id
+LIMIT $2::bigint
+`
+
+type EVMDepositWalletsAfterParams struct {
+	After    uuid.UUID
+	PageSize int64
+}
+
+type EVMDepositWalletsAfterRow struct {
+	UserID           uuid.UUID
+	EvmPrivyWalletID string
+}
+
+func (q *Queries) EVMDepositWalletsAfter(ctx context.Context, arg EVMDepositWalletsAfterParams) ([]EVMDepositWalletsAfterRow, error) {
+	rows, err := q.db.Query(ctx, eVMDepositWalletsAfter, arg.After, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EVMDepositWalletsAfterRow
+	for rows.Next() {
+		var i EVMDepositWalletsAfterRow
+		if err := rows.Scan(&i.UserID, &i.EvmPrivyWalletID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findUserEVMWallet = `-- name: FindUserEVMWallet :one
 SELECT user_id, evm_privy_wallet_id::text AS evm_privy_wallet_id, evm_address::text AS evm_address,
   evm_created_at::timestamptz AS evm_created_at

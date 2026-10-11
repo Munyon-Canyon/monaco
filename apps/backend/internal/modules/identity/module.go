@@ -225,13 +225,18 @@ func (m *Module) Pollers() []poller.Poller {
 
 func (m *Module) Queries() port.Queries { return adapters.NewQueries(m.deps.Pool) }
 
+func (m *Module) EnrolledEVMDepositWallets() adapters.EnrolledEVMWallets {
+	return adapters.NewEnrolledEVMWallets(m.deps.Pool)
+}
+
 func (*Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard { return adapters.NewDashboard(db) }
 
 type (
-	UserCard      = app.UserCard
-	MemberWallet  = app.MemberWallet
-	AuthState     = domain.AuthState
-	AccountStatus = domain.AccountStatus
+	UserCard         = app.UserCard
+	MemberWallet     = app.MemberWallet
+	EVMDepositWallet = adapters.EVMDepositWallet
+	AuthState        = domain.AuthState
+	AccountStatus    = domain.AccountStatus
 )
 
 const (

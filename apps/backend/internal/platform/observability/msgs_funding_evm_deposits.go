@@ -1,0 +1,16 @@
+package observability
+
+var FundingEVMForwardMoved = Msg{
+	Name:     "funding.evm_forward.moved",
+	Required: []string{"forward_id", "user_id", "amount_micros", "status_before", "status_after"},
+}
+
+var FundingEVMForwardUnrouted = Msg{
+	Name:     "funding.evm_forward.unrouted",
+	Required: []string{"execution_id", "wallet_id", "network", "code"},
+}
+
+var FundingEVMForwardStuck = Msg{
+	Name:     "funding.evm_forward.stuck",
+	Required: []string{"forward_id", "user_id", "network", "pending_since"},
+}
