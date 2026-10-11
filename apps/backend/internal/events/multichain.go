@@ -56,6 +56,7 @@ type TradeStepChanged struct {
 	Status        string        `json:"status"`
 	PrivyActionID string        `json:"privy_action_id"`
 	AmountMicros  money.Micros  `json:"amount_micros"`
+	FeeMicros     money.Micros  `json:"fee_micros"`
 }
 
 func (TradeStepChanged) Type() Type { return TypeTradeStepChanged }
