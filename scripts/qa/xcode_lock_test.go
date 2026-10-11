@@ -348,8 +348,8 @@ func TestXcodeLockLetsASilentBusyCommandRunPastTheStallWindow(t *testing.T) {
 	t.Parallel()
 	e := newLockEnv(t)
 
-	c := e.start(e.dir, stallEnv("2"), "xcode", "sh", "-c",
-		`end=$(($(date +%s)+4)); while [ "$(date +%s)" -lt "$end" ]; do :; done`)
+	c := e.start(e.dir, append(stallEnv("2"), "MONACO_LOCK_NICE=0"), "xcode", "python3", "-c",
+		"import time\nend = time.time() + 4\nwhile time.time() < end:\n    pass")
 	if code := c.wait(t); code != 0 {
 		t.Fatalf("exit %d, want 0:\n%s", code, c.stderr.String())
 	}
