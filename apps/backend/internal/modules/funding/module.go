@@ -53,7 +53,19 @@ type Module struct {
 	owners     []port.SignatureOwner
 }
 
-func New(d module.Deps) *Module { return &Module{multichain: newMultichain(), deps: d} }
+type Option func(*Module)
+
+func WithDepositForwarding(forwarding multichain.DepositForwarding) Option {
+	return func(m *Module) { m.multichain.forwarding = forwarding }
+}
+
+func New(d module.Deps, opts ...Option) *Module {
+	m := &Module{multichain: newMultichain(), deps: d}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
 
 func (*Module) Name() string { return "funding" }
 
@@ -72,6 +84,7 @@ func (m *Module) Mount(r api.Mount) {
 		Pause:       app.NewPauseCabalHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.deps.Bus),
 		Resume:      app.NewResumeCabalHandler(m.deps.UoW, m.deps.Clock, m.deps.Bus),
 		Cabals:      cabalExists{cabal.New(m.deps).Queries()},
+		Arriving:    app.EVMDepositArrivals{Reads: m.deps.Pool},
 	}, r)
 }
 
@@ -168,6 +181,12 @@ func (m *Module) Consumers() []bus.Consumer {
 			Durable: "funding_bounce",
 			Handlers: []bus.HandlerSpec{
 				bus.HandleOwn("funding.bounce", adapters.Bounce{Bouncer: m.Bouncer(), UoW: m.deps.UoW}.Handle),
+			},
+		},
+		{
+			Durable: "funding_evm_arrival",
+			Handlers: []bus.HandlerSpec{
+				bus.Handle("funding.evm_deposit_arrived", adapters.EVMDepositArrival{}.Handle),
 			},
 		},
 	}

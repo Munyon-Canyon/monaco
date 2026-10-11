@@ -6,15 +6,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
-func TestSteps_Flow30StartsWithEveryStepPending(t *testing.T) {
+func TestSteps_Flow30StepsHaveAScriptOnlyOnceReady(t *testing.T) {
 	t.Parallel()
 	var got []string
 	for _, s := range flows.Steps() {
 		if s.Flow != "30" {
 			continue
 		}
-		if s.Status != flows.StepPending || s.Owner == "" || s.Script != nil {
-			t.Errorf("step %d %q = %+v, want pending with an owner and no script yet", s.Order, s.Name, s)
+		ready := s.Status == flows.StepReady && s.Script != nil
+		pending := s.Status == flows.StepPending && s.Script == nil
+		if s.Owner == "" || !ready && !pending {
+			t.Errorf("step %d %q = %+v, want an owner and a script exactly when ready", s.Order, s.Name, s)
 		}
 		got = append(got, s.Name)
 	}
