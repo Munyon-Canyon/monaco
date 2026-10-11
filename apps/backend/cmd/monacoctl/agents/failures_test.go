@@ -779,3 +779,48 @@ func TestQueueJob_namesTheQueueCIJobNotAPushOnlyWorkflow(t *testing.T) {
 		t.Fatalf("queueJob = %q, want ci / Flake", got.Name)
 	}
 }
+
+func TestGraphiteRestackWindow_reportsOnlyAStuckBase(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 11, 10, 33, 0, 0, time.UTC)
+	move := func(ago time.Duration, actor string) string {
+		return fmt.Sprintf(
+			`{"__typename":"BaseRefChangedEvent","createdAt":%q,"currentRefName":"graphite-base/5081","actor":{"login":%q}}`,
+			now.Add(-ago).Format(time.RFC3339),
+			actor,
+		)
+	}
+	cases := []struct {
+		name     string
+		events   string
+		reported bool
+	}{
+		{"graphite moved it 94s ago", move(94*time.Second, "graphite-app"), false},
+		{"graphite moved it 6 minutes ago", move(6*time.Minute, "graphite-app"), true},
+		{"a user moved it 30s ago", move(30*time.Second, "lognorman20"), true},
+		{"no base change event", "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var tl gqlTimeline
+			if err := json.Unmarshal([]byte(`{"nodes":[`+tc.events+`]}`), &tl); err != nil {
+				t.Fatal(err)
+			}
+			prs := []watchPR{{
+				Number: 5081, Body: "Part of #40", BaseRefName: "graphite-base/5081", HeadRefName: "b5081",
+				Mergeable: "MERGEABLE", TimelineItems: tl,
+			}}
+			prs[0].Labels.Nodes = []gqlName{{"merge-queue"}}
+			stuck := stuckOnGraphiteBase(prs, nil, "merge-queue", now)
+			restack := restackReason(prs, prs[0], now)
+			if (len(stuck) == 1) != tc.reported || (restack != "") != tc.reported {
+				t.Fatalf("reported=%v want %v: stuck %q restack %q", len(stuck) == 1, tc.reported, stuck, restack)
+			}
+			if tc.reported &&
+				!strings.Contains(stuck[0], "#5081 is stuck on graphite-base/5081 (a restack that never retargeted)") {
+				t.Fatalf("stuck line: %q", stuck)
+			}
+		})
+	}
+}

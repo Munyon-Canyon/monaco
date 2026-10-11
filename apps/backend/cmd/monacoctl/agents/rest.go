@@ -215,12 +215,10 @@ func (env *Env) stackFromREST(ctx context.Context, n int) (stackPR, error) {
 		if e.Event != "unlabeled" {
 			continue
 		}
-		sp.TimelineItems.Nodes = append(sp.TimelineItems.Nodes, struct {
-			Typename  string    `json:"__typename"`
-			CreatedAt time.Time `json:"createdAt"`
-			Label     gqlName   `json:"label"`
-			Actor     gqlActor  `json:"actor"`
-		}{Typename: "UnlabeledEvent", CreatedAt: e.Created, Label: e.Label, Actor: e.Actor})
+		sp.TimelineItems.Nodes = append(
+			sp.TimelineItems.Nodes,
+			gqlTimelineNode{Typename: "UnlabeledEvent", CreatedAt: e.Created, Label: e.Label, Actor: e.Actor},
+		)
 	}
 	return sp, nil
 }
@@ -412,12 +410,10 @@ func (p restPull) asGQL(events []restEvent, committed time.Time) gqlPR {
 	}{Commit: gqlCommit{OID: p.Head.SHA, CommittedDate: committed}})
 	for _, e := range events {
 		if kind := eventKind(e.Event); kind != "" {
-			g.TimelineItems.Nodes = append(g.TimelineItems.Nodes, struct {
-				Typename  string    `json:"__typename"`
-				CreatedAt time.Time `json:"createdAt"`
-				Label     gqlName   `json:"label"`
-				Actor     gqlActor  `json:"actor"`
-			}{Typename: kind, CreatedAt: e.Created, Label: e.Label, Actor: e.Actor})
+			g.TimelineItems.Nodes = append(
+				g.TimelineItems.Nodes,
+				gqlTimelineNode{Typename: kind, CreatedAt: e.Created, Label: e.Label, Actor: e.Actor},
+			)
 		}
 	}
 	return g

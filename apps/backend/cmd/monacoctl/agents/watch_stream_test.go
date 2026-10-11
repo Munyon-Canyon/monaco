@@ -977,7 +977,7 @@ func TestStuckOnGraphiteBase_namesTheOwnerRecordOfAnArmedOrQueuedStack(t *testin
 		{Ticket: 44, Armed: Arms{{Top: 1850, PRs: []int{1839}}}},
 		{Ticket: 45, Queued: Queues{{Top: 1860, PRs: []int{1840}}}},
 	}
-	got := stuckOnGraphiteBase(prs, rs, "merge-queue")
+	got := stuckOnGraphiteBase(prs, rs, "merge-queue", time.Date(2026, 10, 11, 10, 33, 0, 0, time.UTC))
 	want := []string{
 		"#1839 is stuck on graphite-base/1839 (a restack that never retargeted); owner: dequeue 1850, " +
 			"gt restack, gt submit --stack --draft, land-stack 1850; owner record 44.json",
