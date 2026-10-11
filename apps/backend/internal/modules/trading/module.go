@@ -87,6 +87,7 @@ type Module struct {
 	trades      *app.ExecuteTradeHandler
 	sells       *app.SellForCashOutHandler
 	route       app.RoutePorts
+	routed      *app.RouteExec
 	treasuryEVM cabalport.TreasuryEVM
 }
 
@@ -189,9 +190,12 @@ func (m *Module) engineAdapter() adapters.Engine {
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config.Trade
-	return []poller.Poller{app.NewSwapSweeper(m.deps.UoW, m.deps.Pool, m.deps.Clock,
-		chainadapters.NewReader(solana.New(m.deps.Config, m.deps.Clock)), m.deps.Bus,
-		app.SweepTiming{Interval: cfg.SwapSweepInterval, Age: cfg.SwapSweepAge})}
+	timing := app.SweepTiming{Interval: cfg.SwapSweepInterval, Age: cfg.SwapSweepAge}
+	return []poller.Poller{
+		app.NewSwapSweeper(m.deps.UoW, m.deps.Pool, m.deps.Clock,
+			chainadapters.NewReader(solana.New(m.deps.Config, m.deps.Clock)), m.deps.Bus, timing),
+		app.NewEVMTrades(m.deps.Pool, m.deps.Clock, routeResumer{m: m}, timing),
+	}
 }
 
 func (m *Module) Queries() app.Queries { return app.NewQueries(m.deps.Pool).At(m.deps.Clock) }
@@ -227,8 +231,9 @@ func (m *Module) build() {
 	usdc := chain.Mint{Address: chain.SolanaAddress(cfg.Solana.USDCMint), Decimals: usdcDecimals}
 	ports := m.enginePorts()
 	route := m.routePorts()
+	m.routed = m.routes(layer, ports, route)
 	m.trades = app.NewExecuteTradeHandler(app.ExecuteTradeDeps{
-		Layer: layer, Routes: m.routes(layer, ports, route), Listings: route.Listings, UoW: m.deps.UoW,
+		Layer: layer, Routes: m.routed, Listings: route.Listings, UoW: m.deps.UoW,
 		Reads: m.deps.Pool, Venue: venue, Ports: ports, USDC: usdc, EVM: route.EVM,
 	})
 	m.sells = app.NewSellForCashOutHandler(app.SellForCashOutDeps{
@@ -236,6 +241,13 @@ func (m *Module) build() {
 		Holdings: app.LedgerHoldings{Ledger: ports.Positions, Catalog: ports.Catalog, USDC: usdc},
 		Wallets:  app.CabalWallets{Cabals: ports.Cabals},
 	})
+}
+
+type routeResumer struct{ m *Module }
+
+func (r routeResumer) Resume(ctx context.Context, id ids.SwapID) error {
+	r.m.once.Do(r.m.build)
+	return r.m.routed.Resume(ctx, id)
 }
 
 func (m *Module) routes(layer *app.SwapLayer, ports EnginePorts, route app.RoutePorts) *app.RouteExec {

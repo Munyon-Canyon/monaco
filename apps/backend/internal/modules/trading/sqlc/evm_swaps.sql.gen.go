@@ -12,6 +12,40 @@ import (
 	"github.com/google/uuid"
 )
 
+const listRoutedUnfinished = `-- name: ListRoutedUnfinished :many
+SELECT s.id
+FROM swaps AS s
+WHERE s.status IN ('created', 'submitted') AND s.created_at < $1::timestamptz
+  AND EXISTS (SELECT 1 FROM trade_steps AS t WHERE t.trade_id = s.id)
+ORDER BY s.updated_at, s.id
+LIMIT $2
+`
+
+type ListRoutedUnfinishedParams struct {
+	OlderThan time.Time
+	MaxRows   int32
+}
+
+func (q *Queries) ListRoutedUnfinished(ctx context.Context, arg ListRoutedUnfinishedParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listRoutedUnfinished, arg.OlderThan, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markSubmittedEVM = `-- name: MarkSubmittedEVM :execrows
 UPDATE swaps
 SET status = 'submitted', tx_signature = $1::text, submitted_at = $2::timestamptz,
@@ -76,4 +110,23 @@ func (q *Queries) RoutedSwap(ctx context.Context, id uuid.UUID) (RoutedSwapRow, 
 		&i.Comparison,
 	)
 	return i, err
+}
+
+const touchRouted = `-- name: TouchRouted :execrows
+UPDATE swaps
+SET updated_at = $1::timestamptz
+WHERE id = $2::uuid AND status IN ('created', 'submitted')
+`
+
+type TouchRoutedParams struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (q *Queries) TouchRouted(ctx context.Context, arg TouchRoutedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, touchRouted, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

@@ -27,7 +27,7 @@ func TestModule_registersTheEngineAsItsOwnIdempotentConsumer(t *testing.T) {
 		Solana: config.Solana{RPCURL: "http://fakes/rpc/"}, Timeouts: config.Timeouts{RPC: time.Second},
 	}})
 	consumers := m.Consumers()
-	if m.Name() != "trading" || len(m.Pollers()) != 1 || testkit.Serves(m.Mount, "GET", "/v1/assets") ||
+	if m.Name() != "trading" || len(m.Pollers()) != 2 || testkit.Serves(m.Mount, "GET", "/v1/assets") ||
 		len(consumers) != 2 {
 		t.Fatalf("module = %s, %d consumers, %v pollers", m.Name(), len(consumers), m.Pollers())
 	}
