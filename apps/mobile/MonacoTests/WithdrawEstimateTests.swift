@@ -9,7 +9,13 @@ import Testing
 struct WithdrawEstimateTests {
     private let evmAddress = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
     private let solanaAddress = "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"
-    private let previewFixture = #"{"receive_micros":"9992500","expires_at":"2026-10-11T10:30:00Z"}"#
+    private let expiresAt = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down) + 300)
+
+    private var previewFixture: String {
+        #"{"receive_micros":"9992500","expires_at":"\#(ISO8601DateFormatter().string(from: expiresAt))"}"#
+    }
+
+    private var beforeExpiry: Date { expiresAt.addingTimeInterval(-1) }
 
     private var balance: AccountBalance {
         AccountBalance(
@@ -48,7 +54,7 @@ struct WithdrawEstimateTests {
         let estimate = await WithdrawEstimate.fetch(request, from: source(transport), after: .zero)
 
         #expect(await transport.sent.map(\.path) == ["/v1/me/withdrawals/preview"])
-        let shown = form(.base, address: evmAddress, estimate: estimate?.receiveMicros(for: request))
+        let shown = form(.base, address: evmAddress, estimate: estimate?.receiveMicros(for: request, at: beforeExpiry))
         #expect(shown.receiveLine == "You'll receive ~$9.99")
     }
 
@@ -57,9 +63,11 @@ struct WithdrawEstimateTests {
         let transport = StubTransport(.json(.ok, previewFixture))
         let estimate = try #require(await WithdrawEstimate.fetch(request, from: source(transport), after: .zero))
 
-        #expect(estimate.receiveMicros(for: form(.base, address: evmAddress, amount: "11").previewRequest) == nil)
-        #expect(estimate.receiveMicros(for: form(.arbitrum, address: evmAddress).previewRequest) == nil)
-        #expect(estimate.receiveMicros(for: nil) == nil)
+        let otherAmount = form(.base, address: evmAddress, amount: "11").previewRequest
+        let otherNetwork = form(.arbitrum, address: evmAddress).previewRequest
+        #expect(estimate.receiveMicros(for: otherAmount, at: beforeExpiry) == nil)
+        #expect(estimate.receiveMicros(for: otherNetwork, at: beforeExpiry) == nil)
+        #expect(estimate.receiveMicros(for: nil, at: beforeExpiry) == nil)
     }
 
     @Test func aPreviewErrorHidesTheLineAndKeepsContinue() async throws {
@@ -72,8 +80,43 @@ struct WithdrawEstimateTests {
         let estimate = await WithdrawEstimate.fetch(request, from: source(transport), after: .zero)
 
         #expect(estimate == nil)
-        let shown = form(.base, address: evmAddress, estimate: estimate?.receiveMicros(for: request))
+        let shown = form(.base, address: evmAddress, estimate: estimate?.receiveMicros(for: request, at: beforeExpiry))
         #expect(shown.receiveLine == nil)
         #expect(shown.canContinue)
+    }
+
+    @Test func anEstimateIsShownUntilItsQuoteExpires() async throws {
+        let request = try #require(form(.base, address: evmAddress).previewRequest)
+        let transport = StubTransport(.json(.ok, previewFixture))
+        let estimate = try #require(await WithdrawEstimate.fetch(request, from: source(transport), after: .zero))
+
+        #expect(estimate.expiresAt == expiresAt)
+        #expect(estimate.receiveMicros(for: request, at: beforeExpiry) == 9_992_500)
+        #expect(estimate.receiveMicros(for: request, at: expiresAt) == nil)
+        #expect(estimate.receiveMicros(for: request, at: expiresAt.addingTimeInterval(60)) == nil)
+    }
+
+    @Test func anExpiredEstimateIsNotShownAgainAfterEditingBackToItsRequest() throws {
+        let a = try #require(form(.base, address: evmAddress).previewRequest)
+        let b = try #require(form(.base, address: evmAddress, amount: "11").previewRequest)
+        let estimate = WithdrawEstimate(request: a, receiveMicros: 9_992_500, expiresAt: expiresAt)
+
+        #expect(estimate.receiveMicros(for: a, at: beforeExpiry) == 9_992_500)
+        #expect(estimate.receiveMicros(for: b, at: beforeExpiry) == nil)
+        #expect(estimate.receiveMicros(for: a, at: expiresAt.addingTimeInterval(1)) == nil)
+    }
+
+    @Test func aSolanaEstimateWithNoExpiryStaysShown() throws {
+        let request = try #require(form(.base, address: evmAddress).previewRequest)
+        let estimate = WithdrawEstimate(request: request, receiveMicros: 9_992_500, expiresAt: nil)
+
+        #expect(estimate.receiveMicros(for: request, at: expiresAt.addingTimeInterval(3600)) == 9_992_500)
+    }
+
+    @Test func theRefetchWaitsForTheTimeLeftAndNotAtAllOncePast() {
+        let ninetyBefore = expiresAt.addingTimeInterval(-90)
+        #expect(WithdrawEstimate.refetchDelay(until: expiresAt, now: ninetyBefore) == .seconds(90))
+        #expect(WithdrawEstimate.refetchDelay(until: expiresAt, now: expiresAt) == .zero)
+        #expect(WithdrawEstimate.refetchDelay(until: expiresAt, now: expiresAt.addingTimeInterval(30)) == .zero)
     }
 }
