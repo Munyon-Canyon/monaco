@@ -32,13 +32,3 @@ func SlippageKeeping(out, floor uint64) int64 {
 	gap := new(big.Int).Mul(new(big.Int).SetUint64(out-floor), big.NewInt(bpsScale))
 	return gap.Quo(gap, new(big.Int).SetUint64(out)).Int64()
 }
-
-func FeeHeadroom(amount uint64, feeBps uint16, maxFee uint64) uint64 {
-	fee := new(big.Int).Mul(new(big.Int).SetUint64(amount), big.NewInt(int64(feeBps)))
-	fee.Add(fee, big.NewInt(bpsScale-1))
-	fee.Quo(fee, big.NewInt(bpsScale))
-	if limit := new(big.Int).SetUint64(maxFee); fee.Cmp(limit) > 0 {
-		return maxFee
-	}
-	return fee.Uint64()
-}

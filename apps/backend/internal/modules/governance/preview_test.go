@@ -55,6 +55,24 @@ func TestPreview_aBuyOverTheCashButWithinThePotAdvisesPotCashShort(t *testing.T)
 		Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
+func TestPreview_aBuyThatLeavesNoRoomForTheTransferFeeAdvisesPotCashShort(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	w.holdCash(25_000_000)
+	w.chain.setFee(marketfake.AAPLx().Mint.Address(), 100, math.MaxUint64)
+	w.scenario(t).Given(w.asMember()).
+		When(
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=25000000")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("advisory_code", "pot_cash_short"),
+			scenario.ExpectJSON("advisory_message", errs.Message(errs.CodePotCashShort)),
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=24752475")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("advisory_code", nil),
+		).
+		Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
 func TestPreview_answersEachCheckAsAnAdvisoryOrAProblem(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)

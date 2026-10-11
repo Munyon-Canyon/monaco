@@ -2,6 +2,7 @@ package governance_test
 
 import (
 	"context"
+	"math"
 	"sync/atomic"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -115,6 +117,11 @@ func (b guardedBalances) TokenBalance(
 ) (money.BaseUnits, error) {
 	b.g.port("TokenBalance")
 	return b.Balances.TokenBalance(ctx, owner, mint)
+}
+
+func (b guardedBalances) MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error) {
+	b.g.port("MintConfig")
+	return b.Balances.MintConfig(ctx, mint)
 }
 
 type sameID struct{ u uuid.UUID }
@@ -302,6 +309,22 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 		"buy over the pot": {func(*tradeWorld) {}, buyAAPLFor(potMicros + 1), errs.CodePotExceeded},
 		"buy over the cash, within the pot": {
 			func(w *tradeWorld) { w.holdCash(potMicros / 4) }, buyAAPLFor(potMicros / 2), errs.CodePotCashShort,
+		},
+		"buy that leaves no room for the transfer fee": {
+			func(w *tradeWorld) {
+				w.holdCash(25_000_000)
+				w.chain.setFee(marketfake.AAPLx().Mint.Address(), 100, math.MaxUint64)
+			}, buyAAPLFor(25_000_000), errs.CodePotCashShort,
+		},
+		"buy whose fee overflows the amount": {
+			func(w *tradeWorld) {
+				w.treasury.SetPotValue(w.cabal, money.MicrosFromUint64(math.MaxUint64))
+				w.holdCash(math.MaxUint64)
+				w.chain.setFee(marketfake.AAPLx().Mint.Address(), 100, math.MaxUint64)
+			}, buyAAPLFor(math.MaxUint64), errs.CodeInvalidInput,
+		},
+		"mint config unknown on a buy": {
+			func(w *tradeWorld) { w.chain.Fail("MintConfig", failed) }, buyAAPLFor(1), errs.CodeUpstreamUnavailable,
 		},
 		"wallet unknown on a buy": {
 			func(w *tradeWorld) { w.cabals.current.Load().Fail("TreasuryWallet", failed) },

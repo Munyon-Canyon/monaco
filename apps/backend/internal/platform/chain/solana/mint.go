@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"maps"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 )
 
 const maxMultiplierScale = 19
+
+const bpsScale = 10_000
 
 type Multiplier struct {
 	Num, Den uint64
@@ -29,6 +32,16 @@ type MintConfig struct {
 
 	NextUIMultiplier   Multiplier
 	NextUIMultiplierAt time.Time
+}
+
+func (c MintConfig) FeeHeadroom(amount uint64) uint64 {
+	fee := new(big.Int).Mul(new(big.Int).SetUint64(amount), big.NewInt(int64(c.TransferFeeBps)))
+	fee.Add(fee, big.NewInt(bpsScale-1))
+	fee.Quo(fee, big.NewInt(bpsScale))
+	if limit := new(big.Int).SetUint64(c.MaxFee.Uint64()); fee.Cmp(limit) > 0 {
+		return c.MaxFee.Uint64()
+	}
+	return fee.Uint64()
 }
 
 type feeWire struct {

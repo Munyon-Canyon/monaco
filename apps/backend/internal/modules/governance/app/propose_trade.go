@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -44,6 +45,7 @@ type Treasury interface {
 
 type Balances interface {
 	TokenBalance(ctx context.Context, owner chain.SolanaAddress, mint chain.Mint) (money.BaseUnits, error)
+	MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error)
 }
 
 type TradePorts struct {
@@ -224,7 +226,7 @@ func funds(
 		if trade.USDCMicros.Cmp(pot) > 0 {
 			return errs.New(errs.CodePotExceeded, op, slog.String("usdc_micros", trade.USDCMicros.String()))
 		}
-		return cashCovers(ctx, p, cabal, trade)
+		return cashCovers(ctx, p, cabal, asset, trade)
 	}
 	if err := ledgerHolds(ctx, p.Treasury, cabal, asset, trade); err != nil {
 		return err
@@ -244,7 +246,9 @@ func funds(
 	return nil
 }
 
-func cashCovers(ctx context.Context, p TradePorts, cabal ids.CabalID, trade domain.Trade) error {
+func cashCovers(
+	ctx context.Context, p TradePorts, cabal ids.CabalID, asset market.Asset, trade domain.Trade,
+) error {
 	wallet, err := p.Cabals.TreasuryWallet(ctx, cabal)
 	if err != nil {
 		return err
@@ -253,7 +257,15 @@ func cashCovers(ctx context.Context, p TradePorts, cabal ids.CabalID, trade doma
 	if err != nil {
 		return err
 	}
-	if trade.USDCMicros.Uint64() > cash.Uint64() {
+	cfg, err := p.Balances.MintConfig(ctx, asset.Mint.Address())
+	if err != nil {
+		return err
+	}
+	need, err := trade.USDCMicros.Add(money.MicrosFromUint64(cfg.FeeHeadroom(trade.USDCMicros.Uint64())))
+	if err != nil {
+		return err
+	}
+	if need.Uint64() > cash.Uint64() {
 		return errs.New(errs.CodePotCashShort, "governance.funds",
 			slog.String("usdc_micros", trade.USDCMicros.String()))
 	}
