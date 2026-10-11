@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
@@ -16,7 +17,7 @@ import (
 )
 
 func (e *routeEnv) poller() *app.EVMTrades {
-	return app.NewEVMTrades(e.pool, e.clk, e.exec(), app.DefaultSweepTiming())
+	return app.NewEVMTrades(e.pool, e.clk, e.exec(), e.proposals, app.DefaultSweepTiming())
 }
 
 func (e *routeEnv) tick(ctx context.Context, t *testing.T) (poller.Report, error) {
@@ -83,7 +84,9 @@ func TestEVMTrades_reportsAResumeErrorAndAListError(t *testing.T) {
 func TestModule_resumesRoutedSwapsThroughTheMarketCatalogsListings(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
+	e.strand(t)
 	e.mustBuy(t, e.request(), domain.StatusCreated)
+	e.proposals.set(governance.Status("cancelled"))
 	e.clk.Advance(app.SwapSweepAge + time.Second)
 	cfg := testkit.Config()
 	cfg.Solana.RPCURL, cfg.Timeouts.RPC = "http://fakes/rpc/", time.Second
@@ -92,9 +95,9 @@ func TestModule_resumesRoutedSwapsThroughTheMarketCatalogsListings(t *testing.T)
 
 	pollers := m.Pollers()
 	report, err := pollers[1].Tick(actorContext(t.Context()))
-	if pollers[1].Name() != "trading.evm_trades" || report.Scanned != 1 ||
+	if pollers[1].Name() != "trading.evm_trades" || report.Scanned != 2 || report.Changed != 0 ||
 		errs.CodeOf(err) != errs.CodeAssetUntradable {
-		t.Fatalf("%s Tick = %+v, %v, want the catalog refusing the unverified listing",
+		t.Fatalf("%s Tick = %+v, %v, want the catalog refusing the unverified listing to resume and bridge back",
 			pollers[1].Name(), report, err)
 	}
 }

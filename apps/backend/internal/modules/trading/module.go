@@ -194,7 +194,7 @@ func (m *Module) Pollers() []poller.Poller {
 	return []poller.Poller{
 		app.NewSwapSweeper(m.deps.UoW, m.deps.Pool, m.deps.Clock,
 			chainadapters.NewReader(solana.New(m.deps.Config, m.deps.Clock)), m.deps.Bus, timing),
-		app.NewEVMTrades(m.deps.Pool, m.deps.Clock, routeResumer{m: m}, timing),
+		app.NewEVMTrades(m.deps.Pool, m.deps.Clock, routeResumer{m: m}, m.modulePorts().Proposals, timing),
 	}
 }
 
@@ -248,6 +248,11 @@ type routeResumer struct{ m *Module }
 func (r routeResumer) Resume(ctx context.Context, id ids.SwapID) error {
 	r.m.once.Do(r.m.build)
 	return r.m.routed.Resume(ctx, id)
+}
+
+func (r routeResumer) BridgeBack(ctx context.Context, id ids.SwapID) error {
+	r.m.once.Do(r.m.build)
+	return r.m.routed.BridgeBack(ctx, id)
 }
 
 func (m *Module) routes(layer *app.SwapLayer, ports EnginePorts, route app.RoutePorts) *app.RouteExec {
