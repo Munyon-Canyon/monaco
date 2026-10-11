@@ -1,0 +1,162 @@
+package trading_test
+
+import (
+	"context"
+	"math/big"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
+
+	cabal "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+)
+
+type flowCabals struct{}
+
+func (flowCabals) Status(context.Context, ids.CabalID) (cabal.Status, error) {
+	return cabal.StatusActive, nil
+}
+
+func (flowCabals) SlippageBps(context.Context, ids.CabalID) (int32, error) { return 100, nil }
+
+func (flowCabals) TreasuryWallet(_ context.Context, id ids.CabalID) (cabal.TreasuryWallet, error) {
+	return cabal.TreasuryWallet{
+		CabalID: id, PrivyWalletID: treasuryWallet, Address: chainfake.WalletAddress(treasuryWallet),
+	}, nil
+}
+
+func (flowCabals) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, error) { return true, nil }
+
+type flowChain struct {
+	mu     sync.Mutex
+	hashes map[string]string
+}
+
+func (*flowChain) TokenBalance(context.Context, platform.SolanaAddress, platform.Mint) (money.BaseUnits, error) {
+	return money.NewBaseUnits(1_000_000_000, 6), nil
+}
+
+func (*flowChain) MintConfig(context.Context, platform.SolanaAddress) (solana.MintConfig, error) {
+	return solana.MintConfig{}, nil
+}
+
+func (*flowChain) Retryable(context.Context, ids.ProposalID) (bool, error) { return true, nil }
+
+func (*flowChain) Listing(context.Context, multichain.ListingID) (multichain.Listing, error) {
+	return flows.RoutedListing(), nil
+}
+
+func (*flowChain) EnsureTreasuryEVMWallet(context.Context, ids.CabalID) (multichain.EVMWallet, error) {
+	return flows.RoutedTreasuryEVM(), nil
+}
+
+func (*flowChain) Quote(
+	_ context.Context,
+	l multichain.Listing,
+	side multichain.Side,
+	in money.Micros,
+) (multichain.Quote, error) {
+	return multichain.Quote{
+		ListingID: l.ID, Side: side, InputMicros: in, GrossOutput: big.NewInt(flows.RoutedRequotedUnits),
+	}, nil
+}
+
+func (c *flowChain) Transfer(
+	_ context.Context,
+	_ string,
+	_ multichain.TransferSpec,
+	key string,
+) (multichain.ActionID, error) {
+	return multichain.ActionID("privy-action-" + key), nil
+}
+
+func (*flowChain) Action(_ context.Context, _ string, id multichain.ActionID) (multichain.ActionStatus, error) {
+	return multichain.ActionStatus{ID: id, State: multichain.ActionSucceeded}, nil
+}
+
+func (c *flowChain) Send(_ context.Context, _ string, _ multichain.EVMTransaction, key string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.hashes[key]; !ok {
+		c.hashes[key] = "0xf30" + strconv.Itoa(len(c.hashes)+1)
+	}
+	return c.hashes[key], nil
+}
+
+func (*flowChain) Build(_ context.Context, spec app.EVMSwapSpec) (app.EVMSwapPlan, error) {
+	plan := app.EVMSwapPlan{Swap: multichain.EVMTransaction{Network: spec.Network, To: spec.TokenOut}}
+	if spec.TokenOut.String() == flows.RoutedEVMToken {
+		plan.MinOut = 303_000_000
+		return plan, nil
+	}
+	plan.OutAmount, plan.MinOut = flows.RoutedSaleProceeds, flows.RoutedSaleProceeds
+	return plan, nil
+}
+
+func (*flowChain) Fill(
+	_ context.Context,
+	_ platform.Network,
+	_ string,
+	out, _ platform.EVMAddress,
+) (app.EVMFill, error) {
+	if out.String() == flows.RoutedEVMToken {
+		return app.EVMFill{State: app.FillSucceeded, Out: flows.RoutedFilledUnits}, nil
+	}
+	return app.EVMFill{State: app.FillSucceeded, Out: flows.RoutedSaleProceeds}, nil
+}
+
+func runFlow30Step(t *testing.T, name string) {
+	t.Helper()
+	s := scenario.New(t, scenario.WithModules(func(d module.Deps) module.Module {
+		fake := &flowChain{hashes: map[string]string{}}
+		d.Config.Solana.USDCMint, d.Config.Solana.RPCURL = string(testkit.USDCMint), "http://fakes/rpc/"
+		d.Config.Timeouts.RPC = time.Second
+		d.Config.Trade.SwapSweepInterval, d.Config.Trade.SwapSweepAge = time.Minute, app.SwapSweepAge
+		layer := newLayerEnvOn(d.Pool)
+		return trading.New(d,
+			trading.WithEnginePorts(app.EnginePorts{
+				Catalog: marketfake.NewCatalog(marketfake.Fixtures()...), Cabals: flowCabals{},
+				Pauses: fakes.NewPauses(), Proposals: fake, Balances: fake,
+			}),
+			trading.WithChain(layer.venue, layer.signer),
+			trading.WithRoutePorts(app.RoutePorts{
+				Listings: fake, TreasuryEVM: fake, Quoter: fake, Actions: fake, Sender: fake, Venue: fake, EVM: true,
+			}),
+		)
+	}, func(d module.Deps) module.Module {
+		d.Config.Solana.USDCMint = string(testkit.USDCMint)
+		return treasury.New(d)
+	}))
+	for _, step := range flows.Steps() {
+		if step.Flow == "30" && step.Name == name {
+			step.Script(s)
+			return
+		}
+	}
+	t.Fatalf("flow 30 has no %q step", name)
+}
+
+func TestFlowStep30_RoutedBuyOnEVM(t *testing.T) {
+	t.Parallel()
+	runFlow30Step(t, "Routed buy on EVM")
+}
+
+func TestFlowStep30_RoutedSell(t *testing.T) {
+	t.Parallel()
+	runFlow30Step(t, "Routed sell")
+}
