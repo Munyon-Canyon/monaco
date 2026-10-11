@@ -210,6 +210,16 @@ Subject `events.cabal.access_requested`, version 1.
 | `actor_id` | `uuid.UUID` |
 | `expires_at` | `time.Time` |
 
+## `cabal.banned`
+
+Subject `events.cabal.banned`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `cabal_id` | `uuid.UUID` |
+| `reason` | `string` |
+
 ## `cabal.created`
 
 Subject `events.cabal.created`, version 1.

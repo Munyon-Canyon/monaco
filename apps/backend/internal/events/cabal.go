@@ -15,6 +15,7 @@ const (
 	TypeCabalAccessDecided   Type = "cabal.access_decided"
 	TypeCabalMemberLeft      Type = "cabal.member_left"
 	TypeCabalUpdated         Type = "cabal.updated"
+	TypeCabalBanned          Type = "cabal.banned"
 )
 
 const cabalAggregate = "cabal"
@@ -121,3 +122,15 @@ func (CabalUpdated) Type() Type { return TypeCabalUpdated }
 func (CabalUpdated) AggregateType() string { return cabalAggregate }
 
 func (e CabalUpdated) AggregateID() uuid.UUID { return e.CabalID }
+
+type CabalBanned struct {
+	V       int       `json:"v"`
+	CabalID uuid.UUID `json:"cabal_id"`
+	Reason  string    `json:"reason"   pii:"true"`
+}
+
+func (CabalBanned) Type() Type { return TypeCabalBanned }
+
+func (CabalBanned) AggregateType() string { return cabalAggregate }
+
+func (e CabalBanned) AggregateID() uuid.UUID { return e.CabalID }

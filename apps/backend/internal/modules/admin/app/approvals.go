@@ -165,7 +165,7 @@ func (a *Approvals) decide(ctx context.Context, op, to string, cmd DecideApprova
 		}
 		return tx.Events.Append(ctx, events.AdminCabalBanApproved{
 			V: 1, ApprovalID: row.ID, CabalID: row.TargetID, RequestedBy: row.RequestedBy,
-			ApprovedBy: cmd.AdminID.UUID(), Reason: cmd.Reason.String(),
+			ApprovedBy: cmd.AdminID.UUID(), Reason: row.Reason,
 		})
 	})
 	return row, err

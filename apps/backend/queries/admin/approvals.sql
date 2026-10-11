@@ -28,3 +28,12 @@ UPDATE admin_approvals
 SET status = 'expired', decided_at = sqlc.arg(now)::timestamptz
 WHERE action = sqlc.arg(action) AND target_id = sqlc.arg(target_id) AND status = 'pending'
   AND expires_at <= sqlc.arg(now)::timestamptz;
+
+-- name: ListApprovals :many
+SELECT id, action, target_id, requested_by, reason, status, decided_by, decided_reason, created_at, decided_at,
+  expires_at
+FROM admin_approvals
+WHERE status = sqlc.arg(status)
+  AND (sqlc.narg(cursor)::uuid IS NULL OR id < sqlc.narg(cursor)::uuid)
+ORDER BY id DESC
+LIMIT sqlc.arg(row_limit)::bigint;
