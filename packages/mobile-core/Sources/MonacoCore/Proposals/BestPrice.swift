@@ -11,7 +11,15 @@ public struct BestPrice: Equatable, Sendable {
         public let isWinner: Bool
     }
 
+    public struct UnavailableVenue: Equatable, Sendable, Identifiable {
+        public let id: String
+        public let name: String
+        public let network: Components.Schemas.Network
+        public let reason: String
+    }
+
     public let venues: [Venue]
+    public let unavailable: [UnavailableVenue]
     public let isSell: Bool
 
     public init?(_ comparison: Components.Schemas.PriceComparison?, isSell: Bool) {
@@ -25,6 +33,14 @@ public struct BestPrice: Equatable, Sendable {
         }
         guard let winner = venues.first(where: \.isWinner) else { return nil }
         self.venues = [winner] + venues.filter { !$0.isWinner }
+        unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
+            guard let exchange = Components.Schemas.RouteQuote.VenuePayload(rawValue: venue.venue.rawValue) else {
+                return nil
+            }
+            return UnavailableVenue(
+                id: venue.listingId, name: Self.venueName(venue: exchange, network: venue.network),
+                network: venue.network, reason: Self.reasonText(venue.reason))
+        }
         self.isSell = isSell
     }
 
@@ -59,6 +75,13 @@ public struct BestPrice: Equatable, Sendable {
     }
 
     static let nanosPerTenThousandth: Int64 = 100_000
+
+    static func reasonText(_ reason: Components.Schemas.UnavailableVenue.ReasonPayload) -> String {
+        switch reason {
+        case .noRoute: "No route"
+        case .stale, .expired, .simulationFailed, .impact: "Unavailable right now"
+        }
+    }
 
     static func shares(nanos: Int64) -> String {
         "\(number(nanos: nanos)) shares"
