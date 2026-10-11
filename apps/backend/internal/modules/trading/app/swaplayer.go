@@ -356,14 +356,16 @@ func submitted(req SwapRequest, id uuid.UUID, requestID string, signed []byte, s
 				ID: id, ExecuteRequestID: requestID, SignedTx: signed, TxSignature: string(signature), SubmittedAt: at,
 			})
 		},
-		event: func(time.Time) events.Event {
-			return events.TradeSubmitted{
-				V: 1, SwapID: id, CabalID: req.CabalID.UUID(), Source: req.tradeSource(),
-				SourceBatchSize: req.SourceBatchSize, Action: string(req.Action), Symbol: req.Symbol,
-				InMint: req.InMint.Address, OutMint: req.OutMint.Address, InAmount: req.InAmount,
-				TxSignature: signature,
-			}
-		},
+		event: func(time.Time) events.Event { return req.submittedEvent(id, signature) },
+	}
+}
+
+func (r SwapRequest) submittedEvent(id uuid.UUID, signature chain.Signature) events.TradeSubmitted {
+	return events.TradeSubmitted{
+		V: 1, SwapID: id, CabalID: r.CabalID.UUID(), Source: r.tradeSource(),
+		SourceBatchSize: r.SourceBatchSize, Action: string(r.Action), Symbol: r.Symbol,
+		InMint: r.InMint.Address, OutMint: r.OutMint.Address, InAmount: r.InAmount,
+		TxSignature: signature,
 	}
 }
 
