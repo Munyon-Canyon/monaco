@@ -33,10 +33,7 @@ struct ProposalDetailBestPriceTests {
 
         #expect(BestPriceSection.figure(bestPrice) == "$249.25 a share")
         #expect(bestPrice.headline == "Best price across 3 venues")
-        #expect(
-            BestPriceSheet.rows(bestPrice).map(\.name) == [
-                "Uniswap on Base", "Jupiter on Solana", "Uniswap on Ethereum",
-            ])
+        #expect(BestPriceSheet.rows(bestPrice).map(\.name) == ["Base", "Solana", "Ethereum"])
         #expect(BestPriceSheet.rows(bestPrice).map(\.isWinner) == [true, false, false])
     }
 
@@ -70,7 +67,7 @@ struct ProposalDetailBestPriceTests {
 
         let row = try #require(model.livePrice.row(for: summary, decimals: 8, now: quotedAt.addingTimeInterval(12)))
         #expect(BestPriceSection(row: row).row.figure == "$250.00 a share")
-        #expect(row.headline == "Jupiter on Solana")
+        #expect(row.headline == "Solana")
         #expect(row.caption == "Updated 12s ago")
         #expect(row.venues == nil)
     }

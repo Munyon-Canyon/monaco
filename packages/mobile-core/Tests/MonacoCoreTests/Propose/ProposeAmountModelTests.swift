@@ -137,17 +137,29 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertEqual(model.helperText, "The pot has $500.00")
     }
 
-    func testHelperKeepsItsTextWhileANewPreviewLoads() async {
+    func testHelperSaysItIsFindingThePriceAndClearsTheAdvisoryWhileAPreviewLoads() async {
         let clock = TestClock()
-        let service = PreviewService()
+        let service = PreviewService(code: "pot_exceeded")
         let model = ProposeAmountModel(service: service, cabalID: "cabal", trade: Self.buy, clock: clock)
         await model.load()
-
         model.setAmount(micros: 25_000_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+        XCTAssertEqual(model.message(assetName: "Alphabet"), "More than the pot has")
+
+        model.setAmount(micros: 30_000_000)
 
         XCTAssertTrue(model.isLoading)
-        XCTAssertEqual(model.helperText, "The pot has $500.00")
+        XCTAssertEqual(model.helperText, "Finding the best price…")
+        XCTAssertNil(model.message(assetName: "Alphabet"))
         XCTAssertEqual(model.maxMicros, 500_000_000)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+        XCTAssertFalse(model.isLoading)
+        XCTAssertEqual(model.helperText, "The pot has $500.00")
+        XCTAssertEqual(model.message(assetName: "Alphabet"), "More than the pot has")
     }
 
     func testReviewStaysDisabledWhileThePreviewIsForAnOlderAmount() async {

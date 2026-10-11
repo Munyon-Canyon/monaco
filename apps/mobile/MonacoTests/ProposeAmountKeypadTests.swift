@@ -40,7 +40,7 @@ struct ProposeAmountKeypadTests {
         defer { try? Self.setAutomation(enabled: false) }
         let (window, navigation) = try Self.window(textSize: .accessibility5, size: CGSize(width: 440, height: 956))
         defer { window.isHidden = true }
-        let barBottom = navigation.navigationBar.convert(navigation.navigationBar.bounds, to: nil).maxY
+        func barBottom() -> CGFloat { navigation.navigationBar.convert(navigation.navigationBar.bounds, to: nil).maxY }
 
         let layoutSlack: CGFloat = 0.5
         func figureIsClear() -> Bool {
@@ -48,7 +48,7 @@ struct ProposeAmountKeypadTests {
                 let keypad = Self.element("amount-keypad", in: window)
             else { return false }
             let frame = figure.accessibilityFrame
-            return frame.minY >= barBottom - layoutSlack && frame.maxY <= keypad.accessibilityFrame.minY + layoutSlack
+            return frame.minY >= barBottom() - layoutSlack && frame.maxY <= keypad.accessibilityFrame.minY + layoutSlack
         }
 
         func expectWithinDeadline(_ what: String, _ predicate: () -> Bool) async {
@@ -60,7 +60,7 @@ struct ProposeAmountKeypadTests {
         let scroll = try #require(Self.first(UIScrollView.self, in: window))
         let startFrame = try #require(Self.element("amount-entry-field", in: window)).accessibilityFrame
         let hiddenBy: CGFloat = 20
-        let behindTheBar = scroll.contentOffset.y + (startFrame.minY - barBottom) + hiddenBy
+        let behindTheBar = scroll.contentOffset.y + (startFrame.minY - barBottom()) + hiddenBy
         scroll.setContentOffset(CGPoint(x: 0, y: behindTheBar), animated: false)
         window.layoutIfNeeded()
         try #require(!figureIsClear(), "scrolling down puts the figure behind the bar")
@@ -77,6 +77,27 @@ struct ProposeAmountKeypadTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func theHelperSaysItIsFindingThePriceUntilThePreviewReturns() async throws {
+        try Self.setAutomation(enabled: true)
+        defer { try? Self.setAutomation(enabled: false) }
+        let service = HeldPreviewService()
+        let (window, _) = try Self.window(service: service)
+        defer { window.isHidden = true }
+        func helper() -> String? { Self.element("amount-entry-helper", in: window)?.accessibilityLabel }
+        func spinning() -> Bool { Self.element("amount-entry-spinner", in: window) != nil }
+        #expect(await Self.eventually(within: 10) { helper() == "The pot has $500.00" })
+
+        let one = try #require(Self.element("amount-keypad-1", in: window))
+        #expect(one.accessibilityActivate())
+
+        #expect(await Self.eventually(within: 10) { helper() == "Finding the best price…" && spinning() })
+        while await !service.isAsked() { await Task.yield() }
+        #expect(helper() == "Finding the best price…")
+        await service.answer()
+        #expect(await Self.eventually(within: 10) { helper() == "The pot has $500.00" && !spinning() })
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func theTitleNamesTheTrade() async throws {
         let trades: [(MonacoCore.ProposeTrade?, String)] = [(nil, "Buy GOOGL"), (.sell(Self.holding), "Sell GOOGL")]
         for (trade, title) in trades {
@@ -84,6 +105,33 @@ struct ProposeAmountKeypadTests {
             defer { window.isHidden = true }
             _ = await Self.eventually { navigation.navigationBar.topItem?.title == title }
             #expect(navigation.navigationBar.topItem?.title == title)
+        }
+    }
+
+    private actor HeldPreviewService: MonacoCore.ProposeService {
+        private var held: CheckedContinuation<Void, Never>?
+
+        func isAsked() -> Bool { held != nil }
+
+        func answer() {
+            held?.resume()
+            held = nil
+        }
+
+        func preview(cabalID _: String, draft _: ProposalDraft) async throws -> ProposePreview {
+            await withCheckedContinuation { held = $0 }
+            return ProposePreview(
+                .init(quoteOutAmount: nil, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
+        }
+        func potValue(cabalID _: String) async throws -> Int64 { 500_000_000 }
+        func propose(
+            cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,
+            submission _: IdempotentSubmission
+        ) async throws -> String {
+            throw CancellationError()
+        }
+        func withdraw(proposalID _: String, submission _: IdempotentSubmission) async throws {
+            throw CancellationError()
         }
     }
 
@@ -114,7 +162,8 @@ struct ProposeAmountKeypadTests {
     }
 
     private static func window(
-        textSize: DynamicTypeSize = .large, trade: MonacoCore.ProposeTrade? = nil, size: CGSize? = nil
+        textSize: DynamicTypeSize = .large, trade: MonacoCore.ProposeTrade? = nil, size: CGSize? = nil,
+        service: any MonacoCore.ProposeService = UnansweredProposeService()
     ) throws -> (UIWindow, UINavigationController) {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
@@ -126,7 +175,7 @@ struct ProposeAmountKeypadTests {
             auth: PrivyAuthService.processInstance ?? PrivyAuthService(), api: api, hints: FakeHintSource(),
             isAuthenticated: { true }, endAuthSession: {})
         let screen = ProposeAmountScreen(
-            service: UnansweredProposeService(), cabalID: "cabal-1", stock: ProposeStock(symbol: "GOOGLx"),
+            service: service, cabalID: "cabal-1", stock: ProposeStock(symbol: "GOOGLx"),
             trade: trade)
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(

@@ -31,8 +31,11 @@ public final class ProposeAmountModel {
         }
     }
 
+    public static let findingPrice = "Finding the best price…"
+
     public var helperText: String? {
-        switch trade {
+        if isLoading { return Self.findingPrice }
+        return switch trade {
         case .buy: (preview?.potValueMicros ?? potMicros).map { "The pot has \(UsdAmountFormatter.format(micros: $0))" }
         case .sell(let holding): holding.helperText
         }
@@ -110,7 +113,8 @@ public final class ProposeAmountModel {
     }
 
     public func message(assetName: String) -> String? {
-        preview?.message(assetName: assetName, isSell: trade.isSell)
+        guard !isLoading else { return nil }
+        return preview?.message(assetName: assetName, isSell: trade.isSell)
     }
 
     public var draft: ProposalDraft {

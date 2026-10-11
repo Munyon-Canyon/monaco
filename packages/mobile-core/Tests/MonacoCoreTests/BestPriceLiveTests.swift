@@ -98,7 +98,7 @@ final class BestPriceLiveTests: XCTestCase {
 
         let row = model.row(for: openBuy, decimals: 8, now: quotedAt.addingTimeInterval(3))
         XCTAssertEqual(row?.figure, "$10.00 a share")
-        XCTAssertEqual(row?.headline, "Jupiter on Solana")
+        XCTAssertEqual(row?.headline, "Solana")
         XCTAssertEqual(row?.caption, "Updated just now")
         XCTAssertNil(row?.venues)
     }

@@ -42,7 +42,7 @@ struct ProposeAmountScreen: View {
                     AmountEntry(
                         amountText: $amountText, max: max, presets: presets, helper: model.helperText,
                         overLimitHelper: model.overLimitHelper, problem: model.message(assetName: stock.name),
-                        input: .keypad
+                        isLoading: model.isLoading, input: .keypad
                     ) {
                         VStack(spacing: MonacoTheme.Space.s) {
                             if let note = model.sellQuantityNote { AmountEntryNote(note) }
