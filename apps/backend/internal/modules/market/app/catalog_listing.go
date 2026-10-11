@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 )
@@ -18,9 +20,29 @@ import (
 var _ port.Listings = (*Catalog)(nil)
 
 func (c *Catalog) Listing(ctx context.Context, id multichain.ListingID) (multichain.Listing, error) {
-	const op = "market.Catalog.Listing"
-	key := slog.String("listing_id", id.String())
 	row, err := c.q.FindListing(ctx, id.UUID())
+	return listingFromRow(row, err, "market.Catalog.Listing", slog.String("listing_id", id.String()))
+}
+
+func (c *Catalog) ListingByAsset(ctx context.Context, asset string) (multichain.Listing, error) {
+	const op = "market.Catalog.ListingByAsset"
+	key := slog.String("asset", asset)
+	mint, err := domain.ParseMint(asset)
+	if err != nil {
+		return multichain.Listing{}, errs.Wrap(err, errs.CodeOf(err), op, key)
+	}
+	network, token, listed := mint.Listing()
+	if !listed {
+		network, token = chain.NetworkSolana, mint.String()
+	}
+	row, err := c.q.FindListingByToken(
+		ctx,
+		sqlc.FindListingByTokenParams{Network: string(network), TokenAddress: token},
+	)
+	return listingFromRow(sqlc.FindListingRow(row), err, op, key)
+}
+
+func listingFromRow(row sqlc.FindListingRow, err error, op string, key slog.Attr) (multichain.Listing, error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return multichain.Listing{}, errs.New(errs.CodeAssetNotFound, op, key)
@@ -40,8 +62,8 @@ func (c *Catalog) Listing(ctx context.Context, id multichain.ListingID) (multich
 		return multichain.Listing{}, errs.Wrap(err, errs.CodeDecodeFailed, op, key)
 	}
 	return multichain.Listing{
-		ID: id, StockID: stock, Issuer: row.Issuer, Symbol: row.Symbol, Network: chain.Network(row.Network),
-		TokenAddress: row.TokenAddress, WrapperAddress: row.WrapperAddress.String, Decimals: decimals,
-		SharesPerToken: shares, Venue: multichain.Venue(row.Venue),
+		ID: multichain.ListingIDFrom(row.ID), StockID: stock, Issuer: row.Issuer, Symbol: row.Symbol,
+		Network: chain.Network(row.Network), TokenAddress: row.TokenAddress, WrapperAddress: row.WrapperAddress.String,
+		Decimals: decimals, SharesPerToken: shares, Venue: multichain.Venue(row.Venue), Enabled: row.Enabled,
 	}, nil
 }
