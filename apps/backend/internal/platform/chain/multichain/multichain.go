@@ -29,7 +29,12 @@ func (id ListingID) String() string { return uuid.UUID(id).String() }
 
 func (id ListingID) IsZero() bool { return uuid.UUID(id) == uuid.Nil }
 
-func (id ListingID) MarshalText() ([]byte, error) { return []byte(id.String()), nil }
+func (id ListingID) MarshalText() ([]byte, error) {
+	if id.IsZero() {
+		return nil, errs.New(errs.CodeInternal, "multichain.ListingID.MarshalText")
+	}
+	return []byte(id.String()), nil
+}
 
 func (id *ListingID) UnmarshalText(text []byte) error {
 	u, err := uuid.ParseBytes(text)
@@ -48,6 +53,9 @@ func (id ListingID) Value() (driver.Value, error) {
 }
 
 func (id *ListingID) Scan(src any) error {
+	if src == nil {
+		return errs.New(errs.CodeDecodeFailed, "multichain.ListingID.Scan", slog.String("value", "NULL"))
+	}
 	var u uuid.UUID
 	if err := u.Scan(src); err != nil {
 		return errs.Wrap(err, errs.CodeDecodeFailed, "multichain.ListingID.Scan")

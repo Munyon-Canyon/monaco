@@ -62,6 +62,17 @@ type Prices interface {
 	PricesAsOf(ctx context.Context, ids []AssetID, at time.Time) (map[AssetID]Price, error)
 }
 
+type (
+	ListingKey   = app.ListingKey
+	ListingPrice = app.ListingPrice
+)
+
+type ListingPrices interface {
+	ListingPrices(ctx context.Context, keys []ListingKey, at time.Time) (map[ListingKey]ListingPrice, error)
+}
+
+var _ ListingPrices = (*app.PriceBook)(nil)
+
 type Side = app.Side
 
 const (
