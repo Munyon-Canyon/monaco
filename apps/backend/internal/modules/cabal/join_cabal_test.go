@@ -223,12 +223,12 @@ func (f accessFixture) holdWrite(t *testing.T, statement string, args ...any) fu
 
 func (f accessFixture) waitForALockWaiter(t *testing.T) {
 	t.Helper()
-	testkit.Eventually(t, func() bool {
+	testkit.EventuallyBeforeTestEnds(t, func() bool {
 		var waiting int
 		err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM pg_stat_activity
 			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting)
 		return err == nil && waiting == 1
-	}, 10*time.Second)
+	})
 }
 
 func TestJoinCabal_reportsAJoinThatLostTheRaceToAConcurrentInsertAsAlreadyMember(t *testing.T) {
