@@ -53,7 +53,7 @@ func TestStockListingsReturnsOnlyEnabledListingsOfTheStock(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Network != chain.NetworkEthereum || got[0].Decimals != 18 || got[0].Issuer != "ondo" ||
 		got[0].SharesPerToken.RatString() != "501688036870110529/500000000000000000" || got[0].StockID != stock ||
-		got[0].Venue != multichain.VenueUniswap {
+		got[0].Venue != multichain.VenueUniswap || !got[0].Enabled {
 		t.Fatalf("listings = %+v", got)
 	}
 	canceled, cancel := context.WithCancel(t.Context())
