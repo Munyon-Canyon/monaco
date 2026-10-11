@@ -80,6 +80,8 @@ func (*flowChain) ListingByAsset(context.Context, string) (multichain.Listing, e
 	return flows.RoutedListing(), nil
 }
 
+func (*flowChain) TopUpSOL(context.Context, platform.SolanaAddress) error { return nil }
+
 func (*flowChain) EnsureTreasuryEVMWallet(context.Context, ids.CabalID) (multichain.EVMWallet, error) {
 	return flows.RoutedTreasuryEVM(), nil
 }
@@ -154,8 +156,15 @@ func runFlow30Step(t *testing.T, name string) {
 			}),
 			trading.WithChain(layer.venue, layer.signer),
 			trading.WithRoutePorts(app.RoutePorts{
-				Listings: fake, TreasuryEVM: fake, Quoter: fake, Actions: fake, Sender: fake, Venue: fake, Router: fake,
-				EVM: true,
+				Listings:    fake,
+				TreasuryEVM: fake,
+				Quoter:      fake,
+				Actions:     fake,
+				Sender:      fake,
+				Venue:       fake,
+				Router:      fake,
+				TopUp:       fake,
+				EVM:         true,
 			}),
 		)
 	}, func(d module.Deps) module.Module {

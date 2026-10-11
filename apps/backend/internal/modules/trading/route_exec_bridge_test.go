@@ -20,9 +20,10 @@ const evmTreasury = "0x00000000000000000000000000000000000000aa"
 
 type bridgeEnv struct {
 	stepEnv
-	clk   *testkit.Clock
-	privy *privyFake
-	leg   app.BridgeLeg
+	clk    *testkit.Clock
+	privy  *privyFake
+	topUps *topUpFake
+	leg    app.BridgeLeg
 }
 
 func newBridgeEnv(t *testing.T) bridgeEnv {
@@ -30,8 +31,9 @@ func newBridgeEnv(t *testing.T) bridgeEnv {
 	e := bridgeEnv{stepEnv: newStepEnv(t), clk: testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond))}
 	e.journal = e.journalOn(steppingClock{e.clk})
 	e.privy = newPrivyFake()
+	e.topUps = &topUpFake{privy: e.privy}
 	e.leg = app.BridgeLeg{
-		Ref: e.ref, WalletID: treasuryWallet, Fee: money.MicrosFromUint64(7_500),
+		Ref: e.ref, WalletID: treasuryWallet, Source: solanaTreasury, Fee: money.MicrosFromUint64(7_500),
 		Spec: multichain.TransferSpec{
 			From: chain.NetworkSolana, To: chain.NetworkBase, Destination: evmTreasury,
 			AmountMicros: money.MicrosFromUint64(10_000_000),
@@ -45,7 +47,8 @@ func (e stepEnv) journalOn(c clock.Clock) app.Journal {
 }
 
 func (e bridgeEnv) run(ctx context.Context) (domain.StepStatus, error) {
-	return app.Bridge{Journal: e.journal, Actions: e.privy, Poll: app.DefaultPoll()}.Run(actorContext(ctx), e.leg)
+	return app.Bridge{Journal: e.journal, Actions: e.privy, TopUp: e.topUps, Poll: app.DefaultPoll()}.
+		Run(actorContext(ctx), e.leg)
 }
 
 func (e bridgeEnv) key() string { return "trade:" + e.ref.SwapID.String() + ":bridge_out" }

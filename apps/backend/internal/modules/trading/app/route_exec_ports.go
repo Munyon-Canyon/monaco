@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -61,6 +62,10 @@ func (p Poll) until(ctx context.Context, clk clock.Clock, done func() (bool, err
 	}
 }
 
+type SOLTopUp interface {
+	TopUpSOL(ctx context.Context, wallet chain.SolanaAddress) error
+}
+
 type RoutePorts struct {
 	Listings    Listings
 	TreasuryEVM TreasuryEVM
@@ -70,5 +75,6 @@ type RoutePorts struct {
 	Venue       EVMVenue
 	EVMSales    EVMSales
 	Router      multichain.Router
+	TopUp       SOLTopUp
 	EVM         bool
 }

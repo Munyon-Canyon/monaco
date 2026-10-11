@@ -155,7 +155,7 @@ func TestWithdrawEVM_APollerWaitsWhenTheWalletLookupFails(t *testing.T) {
 	boom := errs.New(errs.CodeInternal, "identity.MemberWallet")
 	p := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: e.f.uow, Reads: e.f.pool, Clock: e.f.clock, Hints: e.f.hints, UnsentAge: withdrawalUnsentAge,
-		Actions: e.actions, Wallets: signingWallet{err: boom},
+		Actions: e.actions, Wallets: signingWallet{err: boom}, TopUp: e.f.topUps,
 	})
 	if _, err := e.f.tick(t, p); !errors.Is(err, boom) {
 		t.Fatalf("Tick = %v, want %v", err, boom)
@@ -181,7 +181,7 @@ func TestWithdrawEVM_APollerWaitsWhenPrivyCannotReadTheAction(t *testing.T) {
 	boom := errs.New(errs.CodePrivyUnavailable, "privy.Action")
 	p := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: e.f.uow, Reads: e.f.pool, Clock: e.f.clock, Hints: e.f.hints, UnsentAge: withdrawalUnsentAge,
-		Actions: failingActions{privyActions: e.actions, err: boom},
+		Actions: failingActions{privyActions: e.actions, err: boom}, TopUp: e.f.topUps,
 		Wallets: signingWallet{wallet: chain.Wallet{ID: e.f.user.PrivyWalletID, Address: e.f.user.Address}},
 	})
 	if changed, err := e.f.tick(t, p); !errors.Is(err, boom) || changed != 1 {
@@ -194,7 +194,7 @@ func TestWithdrawEVM_APollerWaitsWhenItCannotStore(t *testing.T) {
 	e := newEVMPair(t)
 	p := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: db.New(closedPool(t, e.f.pool), testkit.NewIDs(6), e.f.clock), Reads: e.f.pool, Clock: e.f.clock,
-		Hints: e.f.hints, UnsentAge: withdrawalUnsentAge, Actions: e.actions,
+		Hints: e.f.hints, UnsentAge: withdrawalUnsentAge, Actions: e.actions, TopUp: e.f.topUps,
 		Wallets: signingWallet{wallet: chain.Wallet{ID: e.f.user.PrivyWalletID, Address: e.f.user.Address}},
 	})
 	if changed, err := e.f.tick(t, p); err == nil || changed != 0 {

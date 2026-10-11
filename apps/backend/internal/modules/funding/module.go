@@ -37,12 +37,14 @@ import (
 type multichainParts struct {
 	forwarding    multichain.DepositForwarding
 	walletActions multichain.WalletActions
+	topUps        *relayer.LazyTopUps
 }
 
 func newMultichain(d module.Deps) multichainParts {
 	parts := multichainParts{
 		forwarding:    multichain.Pending{Ticket: "#4967"},
 		walletActions: adapters.MultichainWithdrawalsWalletActions(d.Config, d.Clock),
+		topUps:        relayer.NewLazyTopUps(d.Config, d.UoW, d.Clock),
 	}
 	if client, err := adapters.MultichainDepositsDepositForwarding(d.Config, d.Clock); err == nil {
 		parts.forwarding = client
@@ -153,7 +155,7 @@ func (m *Module) withdrawDeps(wallets app.WalletReader) app.WithdrawDeps {
 	return app.WithdrawDeps{
 		UoW: m.deps.UoW, Balances: m.Balances(), Wallets: wallets, Hints: m.deps.Bus, Clock: m.deps.Clock,
 		USDC: m.usdc(), Transfers: m.lazyTransfers(), Treasuries: cabal.New(m.deps).Queries(),
-		Actions: m.multichain.walletActions,
+		Actions: m.multichain.walletActions, TopUp: m.multichain.topUps,
 	}
 }
 
@@ -224,6 +226,7 @@ func (m *Module) Pollers() []poller.Poller {
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
 		Transfers: m.lazyTransfers(), Hints: m.deps.Bus, UnsentAge: cfg.Worker.WithdrawalUnsentAge,
 		Wallets: app.WalletReader{Reader: identity.New(m.deps).Queries()}, Actions: m.multichain.walletActions,
+		TopUp: m.multichain.topUps,
 	})
 	return []poller.Poller{
 		app.NewDepositWatch(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,

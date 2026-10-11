@@ -42,6 +42,7 @@ type WithdrawalPollerDeps struct {
 	Transfers func() (Transfers, error)
 	Wallets   SigningWallets
 	Actions   multichain.WalletActions
+	TopUp     SOLTopUp
 	Hints     HintPublisher
 	UnsentAge time.Duration
 }

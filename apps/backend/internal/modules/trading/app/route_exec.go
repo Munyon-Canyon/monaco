@@ -34,6 +34,7 @@ type RouteExecDeps struct {
 	Actions     multichain.WalletActions
 	Sender      EVMSender
 	Venue       EVMVenue
+	TopUp       SOLTopUp
 	Poll        Poll
 }
 
@@ -118,12 +119,16 @@ func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
 	return r.settle(ctx, b, landed, result, err)
 }
 
+func (r *RouteExec) bridge() Bridge {
+	return Bridge{Journal: r.d.Journal, Actions: r.d.Actions, TopUp: r.d.TopUp, Poll: r.d.Poll}
+}
+
 func (r *RouteExec) swap() EVMSwap {
 	return EVMSwap{Journal: r.d.Journal, Venue: r.d.Venue, Sender: r.d.Sender, Poll: r.d.Poll}
 }
 
 func (r *RouteExec) bridgeAndQuote(ctx context.Context, b routedBuy, landed money.Micros) (uint64, bool, error) {
-	status, err := Bridge{Journal: r.d.Journal, Actions: r.d.Actions, Poll: r.d.Poll}.Run(ctx, b.bridgeOut())
+	status, err := r.bridge().Run(ctx, b.bridgeOut())
 	switch {
 	case err != nil:
 		return 0, true, err
@@ -273,7 +278,7 @@ func (b routedBuy) ref(kind domain.StepKind) domain.StepRef {
 
 func (b routedBuy) bridgeOut() BridgeLeg {
 	return BridgeLeg{
-		Ref: b.ref(domain.StepBridgeOut), WalletID: b.solanaWallet, Fee: b.fee,
+		Ref: b.ref(domain.StepBridgeOut), WalletID: b.solanaWallet, Source: b.solana, Fee: b.fee,
 		Spec: multichain.TransferSpec{
 			From: chain.NetworkSolana, To: b.listing.Network, Destination: b.evm.Address.String(), AmountMicros: b.sent,
 		},
