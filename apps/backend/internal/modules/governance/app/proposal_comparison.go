@@ -38,6 +38,7 @@ type ProposalComparisons struct {
 }
 
 type cachedComparison struct {
+	born time.Time
 	mu   sync.Mutex
 	live LiveComparison
 }
@@ -88,14 +89,14 @@ func (c *ProposalComparisons) entry(id ids.ProposalID, now time.Time) *cachedCom
 		return e
 	}
 	for key, e := range c.cached {
-		if e.mu.TryLock() {
+		if now.Sub(e.born) >= comparisonTTL && e.mu.TryLock() {
 			if !fresh(e.live, now) {
 				delete(c.cached, key)
 			}
 			e.mu.Unlock()
 		}
 	}
-	e := &cachedComparison{}
+	e := &cachedComparison{born: now}
 	c.cached[id] = e
 	return e
 }
