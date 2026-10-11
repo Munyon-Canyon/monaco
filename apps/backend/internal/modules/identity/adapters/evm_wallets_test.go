@@ -1,0 +1,167 @@
+package adapters_test
+
+import (
+	"context"
+	"net/http/httptest"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/privyfake"
+)
+
+const evmMember = chain.SolanaAddress("Dht9c9YfstFWkNYXgqr8HZbhqVn563bCpNU6zL32Ftqf")
+
+func seedMember(t *testing.T, q *sqlc.Queries, wallet bool) ids.UserID {
+	t.Helper()
+	user := ids.NewUserID(ids.Real{})
+	now := clock.Real{}.Now().UTC()
+	if _, err := q.CreateUser(t.Context(), sqlc.CreateUserParams{
+		ID: user.UUID(), PrivyUserID: "did:privy:evm-" + user.String(), LoginProvider: "sms", Now: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if wallet {
+		if _, err := q.AttachUserWallet(t.Context(), sqlc.AttachUserWalletParams{
+			UserID: user.UUID(), PrivyWalletID: "wallet-" + user.String(), Address: string(evmMember), CreatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return user
+}
+
+func TestEnsureEVMDepositWallet_twoConcurrentCallsStoreOneWalletAndAttachOnce(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	user := seedMember(t, q, true)
+	wallets, forwarding := &privyfake.EVMWallets{}, &privyfake.Forwarding{}
+	ensure := app.NewEVMDepositWallets(app.EVMDepositWalletDeps{
+		UoW: db.New(pool, ids.Real{}, clock.Real{}), Reads: pool, Store: adapters.EVMWallets{},
+		Wallets: wallets, Forwarding: forwarding, Clock: clock.Real{},
+	})
+	got := make([]chain.EVMAddress, 2)
+	failures := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := range got {
+		wg.Go(func() { got[i], failures[i] = ensure.EnsureEVMDepositWallet(t.Context(), user) })
+	}
+	wg.Wait()
+	if failures[0] != nil || failures[1] != nil || got[0] == (chain.EVMAddress{}) || got[0] != got[1] {
+		t.Fatalf("ensures = %s / %s, errors %v / %v", got[0], got[1], failures[0], failures[1])
+	}
+	row, err := q.FindUserEVMWallet(t.Context(), user.UUID())
+	if err != nil || row.EvmAddress != got[0].String() || forwarding.Attaches() != 1 ||
+		forwarding.Destination(row.EvmPrivyWalletID) != evmMember {
+		t.Fatalf("stored %+v, %v; %d attaches to %s", row, err, forwarding.Attaches(),
+			forwarding.Destination(row.EvmPrivyWalletID))
+	}
+}
+
+func TestEVMWallets_namesMissingUsersAndReportsDatabaseFailures(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	store := adapters.EVMWallets{}
+	unknown := ids.NewUserID(ids.Real{})
+	wantCode := func(name string, err error, code errs.Code) {
+		t.Helper()
+		if errs.CodeOf(err) != code {
+			t.Fatalf("%s: err = %v, want %s", name, err, code)
+		}
+	}
+	wantCode("lock unknown", store.LockUser(t.Context(), pool, unknown), errs.CodeUserNotFound)
+	_, err := store.MemberAddress(t.Context(), pool, seedMember(t, q, false))
+	wantCode("no member wallet", err, errs.CodeUserNotFound)
+	if _, found, err := store.StoredEVMWallet(t.Context(), pool, unknown); err != nil || found {
+		t.Fatalf("stored for unknown = %v, %v", found, err)
+	}
+	gone, cancel := context.WithCancel(t.Context())
+	cancel()
+	wantCode("lock", store.LockUser(gone, pool, unknown), errs.CodeInternal)
+	_, err = store.MemberAddress(gone, pool, unknown)
+	wantCode("member", err, errs.CodeInternal)
+	_, _, err = store.StoredEVMWallet(gone, pool, unknown)
+	wantCode("stored", err, errs.CodeInternal)
+	err = store.SetEVMWallet(gone, pool, unknown, multichain.EVMWallet{ID: "w"}, clock.Real{}.Now())
+	wantCode("set", err, errs.CodeInternal)
+}
+
+func TestEVMWallets_aCorruptStoredAddressIsInternal(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	user := seedMember(t, q, true)
+	if _, err := pool.Exec(
+		t.Context(),
+		"ALTER TABLE user_wallets DROP CONSTRAINT user_wallets_evm_address_check",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.SetUserEVMWallet(t.Context(), sqlc.SetUserEVMWalletParams{
+		EvmPrivyWalletID: pgtype.Text{
+			String: "w",
+			Valid:  true,
+		},
+		EvmAddress:   pgtype.Text{String: "0xnot-hex", Valid: true},
+		EvmCreatedAt: pgtype.Timestamptz{Time: clock.Real{}.Now(), Valid: true},
+		UserID:       user.UUID(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := (adapters.EVMWallets{}).StoredEVMWallet(
+		t.Context(),
+		pool,
+		user,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeInternal {
+		t.Fatalf("err = %v, want internal", err)
+	}
+}
+
+func TestModuleEVMDepositWallets_failsSafeUntilEveryPartIsWired(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	user := seedMember(t, q, true)
+	srv := httptest.NewServer(fakes.New())
+	t.Cleanup(srv.Close)
+	privyConfig := config.Config{Privy: config.Privy{
+		AppID: "app", AppSecret: "secret", BaseURL: srv.URL + "/privy",
+		VerificationKey:         fakes.PrivyVerificationKey(),
+		AuthorizationPrivateKey: fakes.PrivyAuthorizationKeyConfig(),
+		AuthorizationKeyID:      fakes.PrivyAuthorizationKeyID,
+	}, Timeouts: config.Timeouts{Privy: 5 * time.Second}}
+	for name, cfg := range map[string]config.Config{"no privy": {}, "privy without forwarding": privyConfig} {
+		m := identity.New(module.Deps{
+			Config: cfg, Clock: clock.Real{}, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clock.Real{}),
+		})
+		if _, err := m.EVMDepositWallets().
+			EnsureEVMDepositWallet(t.Context(), user); errs.CodeOf(
+			err,
+		) != errs.CodeNotImplemented {
+			t.Fatalf("%s: err = %v, want not_implemented", name, err)
+		}
+	}
+	if _, err := q.FindUserEVMWallet(t.Context(), user.UUID()); err == nil {
+		t.Fatal("a wallet was stored without its forwarding")
+	}
+}
