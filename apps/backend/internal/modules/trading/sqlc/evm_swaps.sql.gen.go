@@ -46,6 +46,15 @@ func (q *Queries) ListRoutedUnfinished(ctx context.Context, arg ListRoutedUnfini
 	return items, nil
 }
 
+const lockStrandedCash = `-- name: LockStrandedCash :exec
+SELECT pg_advisory_xact_lock(hashtextextended('stranded-cash:' || $1::uuid::text, 0))
+`
+
+func (q *Queries) LockStrandedCash(ctx context.Context, swapID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockStrandedCash, swapID)
+	return err
+}
+
 const markSubmittedEVM = `-- name: MarkSubmittedEVM :execrows
 UPDATE swaps
 SET status = 'submitted', tx_signature = $1::text, submitted_at = $2::timestamptz,
@@ -61,6 +70,41 @@ type MarkSubmittedEVMParams struct {
 
 func (q *Queries) MarkSubmittedEVM(ctx context.Context, arg MarkSubmittedEVMParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markSubmittedEVM, arg.TxHash, arg.SubmittedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const reuseStrandedCash = `-- name: ReuseStrandedCash :execrows
+INSERT INTO trade_steps (id, trade_id, step, network, privy_action_id, amount_micros, status, created_at, updated_at)
+SELECT $1::uuid, $2::uuid, 'bridge_out', o.network, 'reused:' || o.trade_id::text,
+  o.amount_micros, 'succeeded', $3::timestamptz, $3::timestamptz
+FROM trade_steps AS o
+JOIN swaps AS s ON s.id = o.trade_id
+WHERE o.trade_id = $4::uuid AND o.step = 'bridge_out' AND o.status = 'succeeded'
+  AND s.status = 'failed'
+  AND NOT EXISTS (
+    SELECT 1 FROM trade_steps AS t
+    WHERE t.trade_id = o.trade_id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))
+  )
+  AND NOT EXISTS (SELECT 1 FROM trade_steps AS r WHERE r.privy_action_id = 'reused:' || o.trade_id::text)
+`
+
+type ReuseStrandedCashParams struct {
+	ID        uuid.UUID
+	ToTrade   uuid.UUID
+	At        time.Time
+	FromTrade uuid.UUID
+}
+
+func (q *Queries) ReuseStrandedCash(ctx context.Context, arg ReuseStrandedCashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, reuseStrandedCash,
+		arg.ID,
+		arg.ToTrade,
+		arg.At,
+		arg.FromTrade,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -110,6 +154,28 @@ func (q *Queries) RoutedSwap(ctx context.Context, id uuid.UUID) (RoutedSwapRow, 
 		&i.Comparison,
 	)
 	return i, err
+}
+
+const strandedCash = `-- name: StrandedCash :one
+SELECT EXISTS (
+  SELECT 1
+  FROM trade_steps AS o
+  JOIN swaps AS s ON s.id = o.trade_id
+  WHERE o.trade_id = $1::uuid AND o.step = 'bridge_out' AND o.status = 'succeeded'
+    AND s.status = 'failed'
+    AND NOT EXISTS (
+      SELECT 1 FROM trade_steps AS t
+      WHERE t.trade_id = o.trade_id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))
+    )
+    AND NOT EXISTS (SELECT 1 FROM trade_steps AS r WHERE r.privy_action_id = 'reused:' || o.trade_id::text)
+)::bool AS stranded
+`
+
+func (q *Queries) StrandedCash(ctx context.Context, swapID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, strandedCash, swapID)
+	var stranded bool
+	err := row.Scan(&stranded)
+	return stranded, err
 }
 
 const touchRouted = `-- name: TouchRouted :execrows
