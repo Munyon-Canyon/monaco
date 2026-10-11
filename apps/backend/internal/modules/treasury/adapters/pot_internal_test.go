@@ -28,6 +28,11 @@ type potFake struct {
 	members     []sqlc.CabalMemberSharesRow
 	snapshotErr error
 	membersErr  error
+	transitErr  error
+}
+
+func (f potFake) CabalInTransitMicros(context.Context, uuid.UUID) (string, error) {
+	return "0", f.transitErr
 }
 
 func (f potFake) CabalPotSnapshot(context.Context, uuid.UUID) ([]sqlc.CabalPotSnapshotRow, error) {

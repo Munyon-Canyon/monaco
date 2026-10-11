@@ -72,38 +72,40 @@ func (q *Queries) place(out *chainRows, row heldRow) error {
 	return nil
 }
 
-func (q *Queries) valueEVM(ctx context.Context, positions []evmPosition) ([]evmHolding, time.Time, error) {
+func (q *Queries) valueEVM(
+	ctx context.Context, positions []evmPosition, extra ...string,
+) ([]evmHolding, map[string]app.ListingQuote, time.Time, error) {
 	asOf := q.clock.Now()
 	if len(positions) == 0 {
-		return nil, asOf, nil
+		return nil, nil, asOf, nil
 	}
 	if q.listings == nil {
-		return nil, time.Time{}, priceUnavailable(nil, chain.SolanaAddress(positions[0].key))
+		return nil, nil, time.Time{}, priceUnavailable(nil, chain.SolanaAddress(positions[0].key))
 	}
-	keys := make([]string, 0, len(positions))
+	keys := make([]string, 0, len(positions)+len(extra))
 	for _, p := range positions {
 		keys = append(keys, p.key)
 	}
-	quotes, err := q.listings(ctx, keys, asOf)
+	quotes, err := q.listings(ctx, append(keys, extra...), asOf)
 	if err != nil {
-		return nil, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.valueEVM")
+		return nil, nil, time.Time{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.valueEVM")
 	}
 	out := make([]evmHolding, 0, len(positions))
 	for _, p := range positions {
 		quote, ok := quotes[p.key]
 		if !ok || quote.Price == nil || q.clock.Now().Sub(quote.Price.ObservedAt) > listingPriceMaxAge {
-			return nil, time.Time{}, priceUnavailable(nil, chain.SolanaAddress(p.key))
+			return nil, nil, time.Time{}, priceUnavailable(nil, chain.SolanaAddress(p.key))
 		}
 		value, err := quote.Value(p.units)
 		if err != nil {
-			return nil, time.Time{}, priceUnavailable(err, chain.SolanaAddress(p.key))
+			return nil, nil, time.Time{}, priceUnavailable(err, chain.SolanaAddress(p.key))
 		}
 		if quote.Price.ObservedAt.Before(asOf) {
 			asOf = quote.Price.ObservedAt
 		}
 		out = append(out, evmHolding{evmPosition: p, quote: quote, value: value})
 	}
-	return out, asOf, nil
+	return out, quotes, asOf, nil
 }
 
 func (q *Queries) offSolana(ctx context.Context, transit money.Micros, split chainRows) (money.Micros, error) {
@@ -112,7 +114,7 @@ func (q *Queries) offSolana(ctx context.Context, transit money.Micros, split cha
 	if err != nil {
 		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	held, _, err := q.valueEVM(ctx, split.evm)
+	held, _, _, err := q.valueEVM(ctx, split.evm)
 	if err != nil {
 		return money.Micros{}, err
 	}

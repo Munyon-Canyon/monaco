@@ -7,6 +7,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
+	httpapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -52,6 +53,7 @@ func wirePot(p port.CabalPot) (api.GetCabalPotResponseObject, error) {
 			TokenAmount: w.micros(money.MicrosFromUint64(h.TokenAmount.Uint64())),
 			PriceMicros: w.micros(h.PriceMicros), ValueMicros: w.micros(h.ValueMicros), WeightBps: h.WeightBps,
 			CostBasisMicros: w.micros(h.CostBasisMicros), PnlMicros: h.PnLMicros.Int64(),
+			Listings: wireListings(&w, h.Listings),
 		}
 	}
 	if p.Me != nil {
@@ -80,4 +82,18 @@ func (w *int64Wire) micros(m money.Micros) int64 {
 		return 0
 	}
 	return int64(v)
+}
+
+func wireListings(w *int64Wire, listings []port.HoldingListing) *[]api.HoldingListing {
+	if len(listings) == 0 {
+		return nil
+	}
+	out := make([]api.HoldingListing, len(listings))
+	for i, l := range listings {
+		out[i] = api.HoldingListing{
+			ListingId: l.ListingID, Issuer: l.Issuer, Network: httpapi.Network(l.Network),
+			TokenAmount: l.TokenAmount.String(), ValueMicros: w.micros(l.ValueMicros),
+		}
+	}
+	return &out
 }

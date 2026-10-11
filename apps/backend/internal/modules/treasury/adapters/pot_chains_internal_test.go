@@ -77,10 +77,10 @@ func TestValueEVM_refusesAPositionWithoutAFreshReadablePrice(t *testing.T) {
 	position := []evmPosition{{key: evmStock, units: big.NewInt(1)}}
 	down := errs.New(errs.CodeDBUnavailable, "test")
 	unlisted := &Queries{usdc: usdcMint, clock: testkit.NewClock(time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC))}
-	if _, _, err := unlisted.valueEVM(t.Context(), position); errs.CodeOf(err) != errs.CodePriceUnavailable {
+	if _, _, _, err := unlisted.valueEVM(t.Context(), position); errs.CodeOf(err) != errs.CodePriceUnavailable {
 		t.Fatalf("valueEVM without a listing reader = %v, want price_unavailable", err)
 	}
-	if _, _, err := chainQueries(
+	if _, _, _, err := chainQueries(
 		nil,
 		down,
 	).valueEVM(t.Context(), position); errs.CodeOf(
@@ -100,12 +100,12 @@ func TestValueEVM_refusesAPositionWithoutAFreshReadablePrice(t *testing.T) {
 			quotes[evmStock] = *quote
 		}
 		got := chainQueries(quotes, nil)
-		if _, _, err := got.valueEVM(t.Context(), position); errs.CodeOf(err) != errs.CodePriceUnavailable {
+		if _, _, _, err := got.valueEVM(t.Context(), position); errs.CodeOf(err) != errs.CodePriceUnavailable {
 			t.Fatalf("%s: valueEVM = %v, want price_unavailable", name, err)
 		}
 	}
 	fresh := evmQuote(q, listingPriceMaxAge, fixedValue{value: money.MicrosFromUint64(9)})
-	held, asOf, err := chainQueries(
+	held, _, asOf, err := chainQueries(
 		map[string]app.ListingQuote{evmStock: fresh},
 		nil,
 	).valueEVM(t.Context(), position)

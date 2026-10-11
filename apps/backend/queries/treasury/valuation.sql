@@ -1,3 +1,8 @@
+-- name: CabalInTransitMicros :one
+SELECT coalesce(sum(amount_micros), 0)::text AS micros
+FROM treasury_in_transit
+WHERE cabal_id = sqlc.arg(cabal_id)::uuid;
+
 -- name: CabalValueRows :many
 WITH head AS (
   SELECT
