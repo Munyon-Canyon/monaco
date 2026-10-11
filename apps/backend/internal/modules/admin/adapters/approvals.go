@@ -37,7 +37,7 @@ func (h HTTP) RequestCabalBan(
 func (h HTTP) ApproveAdminApproval(
 	ctx context.Context, req api.ApproveAdminApprovalRequestObject,
 ) (api.ApproveAdminApprovalResponseObject, error) {
-	row, err := h.decide(ctx, h.Approvals.Approve, req.Id, req.Body.Reason)
+	row, err := h.decide(ctx, h.approve, req.Id, req.Body.Reason)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,10 @@ func (h HTTP) RejectAdminApproval(
 		return nil, err
 	}
 	return api.RejectAdminApproval200JSONResponse(approval(row)), nil
+}
+
+func (h HTTP) approve(ctx context.Context, cmd app.DecideApproval) (app.Approval, error) {
+	return h.Approvals.Approve(ctx, app.ApproveCabalBan(cmd))
 }
 
 func (h HTTP) decide(

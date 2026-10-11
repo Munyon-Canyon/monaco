@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+29	Cabal ban	admin	POST /v1/admin/cabals/{id}/ban-requests;POST /v1/admin/approvals/{id}/approve	RequestCabalBan;ApproveCabalBan	admin.approval_requested;admin.cabal_ban_approved;cabal.banned;cabal.wound_down	cabal.ban;social.feed.cabal_banned;treasury.winddown;admin.audit	ok;SameApprover;CabalNotActive;ApprovalExpired;crash:before-commit	built	docs/architecture/analytics-admin.md#actions
