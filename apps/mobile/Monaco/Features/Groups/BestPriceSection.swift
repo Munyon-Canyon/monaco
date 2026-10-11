@@ -79,17 +79,24 @@ struct BestPriceSheet: View {
         let network: String
         let figure: String
         let isWinner: Bool
+        var isUnavailable = false
     }
 
     let bestPrice: BestPrice
     @Environment(\.dismiss) private var dismiss
 
     static func rows(_ bestPrice: BestPrice) -> [Row] {
-        bestPrice.venues.map {
+        let quoted = bestPrice.venues.map {
             Row(
                 id: $0.id, name: $0.name, network: $0.network.rawValue, figure: bestPrice.figure($0),
                 isWinner: $0.isWinner)
         }
+        let unavailable = bestPrice.unavailable.map {
+            Row(
+                id: $0.id, name: $0.name, network: $0.network.rawValue, figure: $0.reason, isWinner: false,
+                isUnavailable: true)
+        }
+        return quoted + unavailable
     }
 
     var body: some View {
@@ -147,12 +154,18 @@ private struct BestPriceVenueRow: View {
             }
             Spacer(minLength: MonacoTheme.Space.sm)
             Text(row.figure)
-                .font(MonacoTheme.Typo.dataStrong)
-                .foregroundStyle(MonacoTheme.ink)
+                .font(row.isUnavailable ? MonacoTheme.Typo.subhead : MonacoTheme.Typo.dataStrong)
+                .foregroundStyle(row.isUnavailable ? MonacoTheme.secondaryText : MonacoTheme.ink)
         }
         .padding(MonacoTheme.Space.m)
+        .opacity(row.isUnavailable ? 0.5 : 1)
         .overlay(alignment: .bottom) { if !isLast { MonacoRule() } }
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier(row.isWinner ? "best-price-winner" : "best-price-venue")
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var identifier: String {
+        if row.isUnavailable { return "best-price-unavailable" }
+        return row.isWinner ? "best-price-winner" : "best-price-venue"
     }
 }

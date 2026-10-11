@@ -91,6 +91,39 @@ final class BestPriceTests: XCTestCase {
         XCTAssertNil(BestPrice(compared, isSell: false)?.advantage)
     }
 
+    func testUnavailableVenuesFollowWithTheirReasonAndNeverWin() throws {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let compared = try decode(
+            """
+            {"winner_listing_id": "a", "quotes": [{"listing_id": "a", "issuer": "xstocks", "network": "solana",
+             "venue": "jupiter", "net_share_nanos": "40000000", "net_micros": "10000000", "costs": [],
+             "quoted_at": "\(now)", "expires_at": "\(now)"}],
+             "unavailable": [
+              {"listing_id": "b", "network": "base", "venue": "uniswap", "reason": "simulation_failed"},
+              {"listing_id": "c", "network": "ethereum", "venue": "uniswap", "reason": "no_route"},
+              {"listing_id": "d", "network": "arbitrum", "venue": "uniswap", "reason": "stale"}]}
+            """)
+
+        let best = try XCTUnwrap(BestPrice(compared, isSell: false))
+
+        XCTAssertEqual(best.winner.id, "a")
+        XCTAssertEqual(best.headline, "Best price across 1 venue")
+        XCTAssertNil(best.advantage)
+        XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Uniswap on Base", "Uniswap on Ethereum", "Uniswap on Arbitrum"])
+        XCTAssertEqual(best.unavailable.map(\.network), [.base, .ethereum, .arbitrum])
+        XCTAssertEqual(best.unavailable.map(\.reason), ["Unavailable right now", "No route", "Unavailable right now"])
+    }
+
+    func testEveryUnavailableReasonHasText() {
+        let reasons: [Components.Schemas.UnavailableVenue.ReasonPayload] = [
+            .noRoute, .stale, .expired, .simulationFailed, .impact,
+        ]
+        let unavailable = "Unavailable right now"
+        XCTAssertEqual(
+            reasons.map(BestPrice.reasonText), ["No route", unavailable, unavailable, unavailable, unavailable])
+    }
+
     func testNoComparisonOrAMissingWinnerShowsNothing() throws {
         XCTAssertNil(BestPrice(nil, isSell: false))
         let orphaned = try comparison(winner: "z", quotes: [("a", "xstocks", "jupiter", "40000000", "10000000")])
