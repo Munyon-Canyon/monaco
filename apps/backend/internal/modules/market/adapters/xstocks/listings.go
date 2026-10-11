@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 func listedNetwork(raw string) (chain.Network, bool) {
@@ -37,12 +37,14 @@ func (c *Client) Listings(ctx context.Context) (app.ListingBatch, error) {
 			if !listed {
 				continue
 			}
-			l, err := toListing(n, d, network)
-			if err != nil {
-				return errs.Wrap(err, errs.CodeDecodeFailed, "xstocks.Client.Listings",
-					slog.String("symbol", n.Symbol), slog.String("network", d.Network))
+			l, reason := toListing(n, d, network)
+			switch {
+			case reason == "":
+				batch.Listings = append(batch.Listings, l)
+			case !n.IsTradingHalted:
+				observability.Degraded(ctx, observability.MarketListingAssetSkipped,
+					slog.String("issuer", batch.Issuer), slog.String("symbol", n.Symbol), slog.String("reason", reason))
 			}
-			batch.Listings = append(batch.Listings, l)
 		}
 		return nil
 	})
@@ -52,7 +54,7 @@ func (c *Client) Listings(ctx context.Context) (app.ListingBatch, error) {
 	return batch, nil
 }
 
-func toListing(n nodeWire, d deploymentWire, network chain.Network) (app.IssuerListing, error) {
+func toListing(n nodeWire, d deploymentWire, network chain.Network) (app.IssuerListing, string) {
 	l := app.IssuerListing{
 		Issuer:   string(domain.IssuerXStocks),
 		Ticker:   strings.TrimSuffix(n.Symbol, "x"),
@@ -64,23 +66,23 @@ func toListing(n nodeWire, d deploymentWire, network chain.Network) (app.IssuerL
 	if network == chain.NetworkSolana {
 		mint, err := domain.ParseMint(d.Address)
 		if err != nil {
-			return app.IssuerListing{}, err
+			return app.IssuerListing{}, "bad address"
 		}
 		decimals := uint8(solanaDecimals)
 		l.TokenAddress, l.Decimals = mint.String(), &decimals
-		return l, nil
+		return l, ""
 	}
 	token, err := chain.ParseEVMAddress(d.Address)
 	if err != nil {
-		return app.IssuerListing{}, err
+		return app.IssuerListing{}, "bad address"
 	}
 	l.TokenAddress = token.String()
 	if d.WrapperAddressV2 != "" {
 		wrapper, err := chain.ParseEVMAddress(d.WrapperAddressV2)
 		if err != nil {
-			return app.IssuerListing{}, err
+			return app.IssuerListing{}, "bad wrapper address"
 		}
 		l.WrapperAddress = wrapper.String()
 	}
-	return l, nil
+	return l, ""
 }

@@ -49,6 +49,7 @@ func listing(t *testing.T, network chain.Network, token string, decimals uint8) 
 
 const (
 	aaplon  = "0x14c3abf95cb9c93a8b82c1cdcb76d72cb87b2d4c"
+	tslaon  = "0xf6b1117ec07684d3958cad8beb1b302bfd21103f"
 	aaplc   = "0xb200000000000000000000c2e324d24d7eecd1fb"
 	aaplx   = "0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a"
 	solMint = "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp"
@@ -85,6 +86,13 @@ func TestQuote_MapsRecordedQuotesToNetworkCostsAndExpiry(t *testing.T) {
 			decimals: 8, side: mc.SideBuy, gross: "30683976", poolFee: 10_000, gas: 75_874,
 			routeID: "01a12a2f-24b1-8000-b523-0d4e5bfb0100", wantType: "EXACT_INPUT", wantChain: 8453,
 			wantIn: chain.NetworkBase.Cash().Address, wantOut: aaplc,
+		},
+		{
+			name:    "buy TSLAon on Ethereum split 35% through a 1% pool and 65% through a 0.3% pool",
+			network: chain.NetworkEthereum, token: tslaon, decimals: 18, side: mc.SideBuy,
+			gross: "259103886869840668", poolFee: 545_000, gas: 49_737,
+			routeID: "01a12a84-1b14-8000-8bce-0d4e5bfb0100", wantType: "EXACT_INPUT", wantChain: 1,
+			wantIn: chain.NetworkEthereum.Cash().Address, wantOut: tslaon,
 		},
 		{
 			name: "sell AAPLon for exactly $100 spends tokens", network: chain.NetworkEthereum, token: aaplon,

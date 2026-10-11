@@ -1,0 +1,72 @@
+{
+  "request": {
+    "tokenIn": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "tokenOut": "0xf6b1117ec07684d3958cad8beb1b302bfd21103f",
+    "amount": "100000000"
+  },
+  "status": 200,
+  "body": {
+    "requestId": "653aabf54cf7725a3883d122c8a4f9f3",
+    "routing": "CLASSIC",
+    "quote": {
+      "quoteId": "01a12a84-1b14-8000-8bce-0d4e5bfb0100",
+      "chainId": 1,
+      "swapper": "0x1111111111111111111111111111111111111111",
+      "tradeType": "EXACT_INPUT",
+      "input": {
+        "amount": "100000000",
+        "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+      },
+      "output": {
+        "amount": "259103886869840668",
+        "token": "0xf6b1117ec07684D3958caD8BEb1b302bfD21103f",
+        "recipient": "0x1111111111111111111111111111111111111111"
+      },
+      "priceImpact": 0.94,
+      "gasFee": "31564422817250",
+      "gasFeeUSD": "0.04973608623844206",
+      "gasUseEstimate": "302875",
+      "routeString": "[v3] 35.00% = [1%] 0x31227b50eCCDC9C589826AA2D9E7C5619B1895Da, [v3] 65.00% = [0.3%] 0xCBc44d015166f693eDE658A533191D39DBc4bAC1",
+      "route": [
+        [
+          {
+            "type": "v3-pool",
+            "address": "0x31227b50eCCDC9C589826AA2D9E7C5619B1895Da",
+            "fee": "10000",
+            "tokenIn": {
+              "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "symbol": "USDC",
+              "decimals": "6"
+            },
+            "tokenOut": {
+              "address": "0xf6b1117ec07684D3958caD8BEb1b302bfD21103f",
+              "symbol": "TSLAon",
+              "decimals": "18"
+            },
+            "amountIn": "35000000",
+            "amountOut": "90348035836525419"
+          }
+        ],
+        [
+          {
+            "type": "v3-pool",
+            "address": "0xCBc44d015166f693eDE658A533191D39DBc4bAC1",
+            "fee": "3000",
+            "tokenIn": {
+              "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "symbol": "USDC",
+              "decimals": "6"
+            },
+            "tokenOut": {
+              "address": "0xf6b1117ec07684D3958caD8BEb1b302bfD21103f",
+              "symbol": "TSLAon",
+              "decimals": "18"
+            },
+            "amountIn": "65000000",
+            "amountOut": "168755851033315249"
+          }
+        ]
+      ]
+    }
+  }
+}

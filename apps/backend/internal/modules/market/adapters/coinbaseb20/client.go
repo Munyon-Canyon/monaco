@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -38,7 +39,7 @@ type stocksWire struct {
 type tokenWire struct {
 	ContractAddress string      `json:"contract_address"`
 	Symbol          string      `json:"symbol"`
-	Decimals        uint8       `json:"decimals"`
+	Decimals        *uint8      `json:"decimals"`
 	Multiplier      json.Number `json:"multiplier"`
 	IsLive          bool        `json:"is_live"`
 }
@@ -60,26 +61,30 @@ func (c *Client) Listings(ctx context.Context) (app.ListingBatch, error) {
 	}
 	batch := app.ListingBatch{Issuer: Issuer, Listings: make([]app.IssuerListing, 0, len(w.Tokens))}
 	for _, t := range w.Tokens {
-		l, err := toListing(t)
-		if err != nil {
-			return app.ListingBatch{}, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("symbol", t.Symbol))
+		l, reason := toListing(t)
+		switch {
+		case reason == "":
+			batch.Listings = append(batch.Listings, l)
+		case t.IsLive:
+			observability.Degraded(ctx, observability.MarketListingAssetSkipped, slog.String("issuer", Issuer),
+				slog.String("symbol", t.Symbol), slog.String("reason", reason))
 		}
-		batch.Listings = append(batch.Listings, l)
 	}
 	return batch, nil
 }
 
-func toListing(t tokenWire) (app.IssuerListing, error) {
+func toListing(t tokenWire) (app.IssuerListing, string) {
 	token, err := chain.ParseEVMAddress(t.ContractAddress)
 	if err != nil {
-		return app.IssuerListing{}, err
+		return app.IssuerListing{}, "bad address"
 	}
 	multiplier, ok := new(big.Rat).SetString(t.Multiplier.String())
 	if !ok || multiplier.Sign() <= 0 {
-		return app.IssuerListing{}, errs.New(errs.CodeDecodeFailed, "coinbaseb20.toListing",
-			slog.String("multiplier", t.Multiplier.String()))
+		return app.IssuerListing{}, "bad multiplier"
 	}
-	decimals := t.Decimals
+	if t.Decimals == nil {
+		return app.IssuerListing{}, "missing decimals"
+	}
 	return app.IssuerListing{
 		Issuer:         Issuer,
 		Ticker:         strings.TrimSuffix(t.Symbol, "c"),
@@ -87,8 +92,8 @@ func toListing(t tokenWire) (app.IssuerListing, error) {
 		Network:        chain.NetworkBase,
 		ChainID:        chain.NetworkBase.EVMChainID(),
 		TokenAddress:   token.String(),
-		Decimals:       &decimals,
+		Decimals:       t.Decimals,
 		SharesPerToken: multiplier,
 		Tradable:       t.IsLive,
-	}, nil
+	}, ""
 }

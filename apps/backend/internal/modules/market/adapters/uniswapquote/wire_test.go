@@ -86,7 +86,7 @@ func costs(pool, gas uint64) []mc.Cost {
 	}
 }
 
-func TestQuote_WeighsSplitRoutesByFirstHopAmountAndDefaultsToTheV2Fee(t *testing.T) {
+func TestQuote_CompoundsEveryHopAndWeighsSplitsByFirstHopAmount(t *testing.T) {
 	t.Parallel()
 	w := baseQuote()
 	w.Quote.Route = [][]map[string]*string{
@@ -98,11 +98,24 @@ func TestQuote_WeighsSplitRoutesByFirstHopAmountAndDefaultsToTheV2Fee(t *testing
 	if err != nil {
 		t.Fatalf("Quote: %v", err)
 	}
-	if want := costs(250_000+225_000, 1); !reflect.DeepEqual(q.Costs, want) {
+	if want := costs(262_375+225_000, 1); !reflect.DeepEqual(q.Costs, want) {
 		t.Errorf("costs = %+v, want %+v", q.Costs, want)
 	}
 	if q.GrossOutput.String() != "5000" || q.RouteID != "q-1" {
 		t.Errorf("gross = %s, route = %s", q.GrossOutput, q.RouteID)
+	}
+}
+
+func TestQuote_TwoHopRouteCompoundsBothPoolFees(t *testing.T) {
+	t.Parallel()
+	w := baseQuote()
+	w.Quote.Route = [][]map[string]*string{{{"fee": ptr("10000")}, {"fee": ptr("3000")}}}
+	q, err := buy(t, stubClient(t, http.StatusOK, encode(t, w)))
+	if err != nil {
+		t.Fatalf("Quote: %v", err)
+	}
+	if want := costs(1_297_000, 500_000); !reflect.DeepEqual(q.Costs, want) {
+		t.Errorf("costs = %+v, want %+v", q.Costs, want)
 	}
 }
 
@@ -120,7 +133,10 @@ func TestQuote_MalformedQuotesAreDecodeFailed(t *testing.T) {
 			hop := map[string]*string{"amountIn": ptr("-5")}
 			w.Quote.Route = [][]map[string]*string{{hop}, {hop}}
 		},
-		"fee overflowing micros": func(w *wireQuote) { w.Quote.Route[0][0]["fee"] = ptr("1000000000000000000000000") },
+		"fee above 100%": func(w *wireQuote) { w.Quote.Route[0][0]["fee"] = ptr("1000001") },
+		"fractional later hop": func(w *wireQuote) {
+			w.Quote.Route[0] = append(w.Quote.Route[0], map[string]*string{"fee": ptr("0.3")})
+		},
 		"gas in exponent form":   func(w *wireQuote) { w.Quote.GasFeeUSD = "1e3" },
 		"gas missing":            func(w *wireQuote) { w.Quote.GasFeeUSD = "" },
 		"gas overflowing micros": func(w *wireQuote) { w.Quote.GasFeeUSD = "99999999999999999999" },

@@ -1,20 +1,25 @@
 package xstocks_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/xstocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 const (
@@ -68,7 +73,7 @@ func TestListings_keepsSolanaEthereumAndArbitrumDeploymentsAcrossPages(t *testin
 	}
 }
 
-func servedListings(t *testing.T, status int, body string) (app.ListingBatch, error) {
+func servedListings(t *testing.T, status int, body string, logs *testkit.Logs) (app.ListingBatch, error) {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v2/public/assets", func(w http.ResponseWriter, _ *http.Request) {
@@ -80,32 +85,49 @@ func servedListings(t *testing.T, status int, body string) (app.ListingBatch, er
 	t.Cleanup(srv.Close)
 	feed := xstocks.ListingFeed{Client: xstocks.New(httpclient.New("xstocks", httpclient.WithBaseURL(srv.URL),
 		httpclient.WithTimeout(10*time.Second)))}
-	return feed.Listings(t.Context())
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	return feed.Listings(ctx)
 }
 
-func TestListings_refusesADeploymentItCannotParse(t *testing.T) {
+func TestListings_skipsAnUnreadableDeploymentAndAlertsOnlyWhenItTrades(t *testing.T) {
 	t.Parallel()
-	node := func(deployment string) string {
-		return `{"nodes":[{"symbol":"AAPLx","name":"Apple xStock","isTradingHalted":false,"deployments":[` +
-			deployment + `]}],"page":{"currentPage":0,"hasNextPage":false}}`
+	node := func(symbol string, halted bool, deployment string) string {
+		return `{"symbol":"` + symbol + `","isTradingHalted":` + strconv.FormatBool(halted) +
+			`,"deployments":[` + deployment + `]}`
 	}
-	for name, deployment := range map[string]string{
-		"bad solana":  `{"address":"not-a-mint","network":"Solana"}`,
-		"bad evm":     `{"address":"0x12","network":"Ethereum"}`,
-		"bad wrapper": `{"address":"` + aaplOnArbitrum + `","network":"Arbitrum","wrapperAddressV2":"0x12"}`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			if _, err := servedListings(t, http.StatusOK, node(deployment)); errs.CodeOf(err) != errs.CodeDecodeFailed {
-				t.Fatalf("err = %v, want decode_failed", err)
-			}
-		})
+	arbitrum := `{"address":"` + aaplOnArbitrum + `","network":"Arbitrum"}`
+	body := `{"nodes":[` + strings.Join([]string{
+		node("Ax", false, `{"address":"not-a-mint","network":"Solana"}`),
+		node("Bx", false, `{"address":"0x12","network":"Ethereum"}`),
+		node("Cx", false, `{"address":"`+aaplOnArbitrum+`","network":"Arbitrum","wrapperAddressV2":"0x12"}`),
+		node("Dx", true, `{"address":"0x12","network":"Ethereum"}`),
+		node("Ex", true, arbitrum),
+		node("Fx", false, arbitrum),
+	}, ",") + `],"page":{"currentPage":0,"hasNextPage":false}}`
+	var logs testkit.Logs
+	batch, err := servedListings(t, http.StatusOK, body, &logs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := make([]string, 0, len(batch.Listings))
+	for _, l := range batch.Listings {
+		kept = append(kept, fmt.Sprint(l.Symbol, " ", l.Tradable))
+	}
+	if want := []string{"Ex false", "Fx true"}; !slices.Equal(kept, want) {
+		t.Errorf("kept = %q, want %q", kept, want)
+	}
+	alerts := logs.Lines("market.listings.asset_skipped", "level", "issuer", "symbol", "reason")
+	want := []string{
+		"WARN xstocks Ax bad address", "WARN xstocks Bx bad address", "WARN xstocks Cx bad wrapper address",
+	}
+	if !slices.Equal(alerts, want) {
+		t.Errorf("alerts = %q, want %q", alerts, want)
 	}
 }
 
 func TestListings_failsWhenXStocksIsDown(t *testing.T) {
 	t.Parallel()
-	if _, err := servedListings(t, http.StatusBadGateway, `{}`); err == nil {
+	if _, err := servedListings(t, http.StatusBadGateway, `{}`, &testkit.Logs{}); err == nil {
 		t.Fatal("a failed page returned listings")
 	}
 }
