@@ -17,14 +17,17 @@ const devUsage = "usage: monacoctl dev token (--user <id> | --user new [--pool <
 	"       monacoctl dev user delete <id>\n" +
 	"       monacoctl dev users prune [--dry-run | --apply]\n" +
 	"       monacoctl dev privy-token --sub <did:privy:...> | --print-public-key\n" +
-	"       monacoctl dev seed-scenario <name> [--actor A=<user-uuid> ...] [--json]"
+	"       monacoctl dev seed-scenario <name> [--actor A=<user-uuid> ...] [--json]\n" +
+	"       monacoctl dev privy-evm-wallet --key <key>\n" +
+	"       monacoctl dev privy-transfer (--user <id> | --wallet <privy-id>) --to <address> [--network base] " +
+	"--usdc <amount> --key <key>"
 
 const devUserSubjectLine = "monacoctl dev token: --user must be a version 7 UUID, the only user id the API accepts"
 
 func devCmd(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 	verbs := map[string]command{
 		"token": devToken, "privy-token": devPrivyToken, "seed-scenario": devSeedScenario,
-		"user": devUser, "users": devUsers,
+		"user": devUser, "users": devUsers, "privy-evm-wallet": devPrivyEVMWallet, "privy-transfer": devPrivyTransfer,
 	}
 	if len(args) == 0 || verbs[args[0]] == nil {
 		_, _ = fmt.Fprintln(stderr, devUsage)
