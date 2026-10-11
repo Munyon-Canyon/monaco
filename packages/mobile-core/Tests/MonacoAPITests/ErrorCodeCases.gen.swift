@@ -147,6 +147,7 @@ extension Components.Schemas.ErrorCode {
         case .sessionRequired: true
         case .slippageExceeded: true
         case .storageUnavailable: true
+        case .strandedCashTaken: true
         case .swapFailed: true
         case .swapNotFound: true
         case .swapNotRetryable: true

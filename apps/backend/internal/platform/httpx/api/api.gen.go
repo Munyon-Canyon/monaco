@@ -155,6 +155,7 @@ const (
 	SessionRequired ErrorCode = "session_required"
 	SlippageExceeded ErrorCode = "slippage_exceeded"
 	StorageUnavailable ErrorCode = "storage_unavailable"
+	StrandedCashTaken ErrorCode = "stranded_cash_taken"
 	SwapFailed ErrorCode = "swap_failed"
 	SwapNotFound ErrorCode = "swap_not_found"
 	SwapNotRetryable ErrorCode = "swap_not_retryable"
@@ -468,6 +469,8 @@ func (e ErrorCode) Valid() bool {
 	case SlippageExceeded:
 		return true
 	case StorageUnavailable:
+		return true
+	case StrandedCashTaken:
 		return true
 	case SwapFailed:
 		return true
