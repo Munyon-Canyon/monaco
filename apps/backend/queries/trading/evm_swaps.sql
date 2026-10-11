@@ -93,3 +93,32 @@ WHERE s.id = sqlc.arg(id)::uuid AND s.parked_at IS NULL AND s.status IN ('create
 RETURNING s.cabal_id, coalesce((
   SELECT t.step FROM trade_steps AS t WHERE t.trade_id = s.id ORDER BY t.updated_at DESC, t.created_at DESC LIMIT 1
 ), '')::text AS step;
+
+-- name: ListParkedRouted :many
+SELECT s.id, s.cabal_id, s.status, s.parked_at::timestamptz AS parked_at, s.parked_code::text AS parked_code,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_out'), '')::text
+    AS bridge_out,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'swap'), '')::text AS swap_step,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_back'), '')::text
+    AS bridge_back
+FROM swaps AS s
+WHERE s.parked_at IS NOT NULL AND s.status IN ('created', 'submitted')
+ORDER BY s.parked_at, s.id;
+
+-- name: ParkedRoutedForUpdate :one
+SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.in_amount,
+  s.source_batch_size, s.status, s.parked_at, s.parked_code,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_out'), '')::text
+    AS bridge_out,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'swap'), '')::text AS swap_step,
+  coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_back'), '')::text
+    AS bridge_back,
+  EXISTS (SELECT 1 FROM trade_steps AS r WHERE r.privy_action_id = 'reused:' || s.id::text)::bool AS reused
+FROM swaps AS s
+WHERE s.id = sqlc.arg(id)::uuid
+FOR UPDATE OF s;
+
+-- name: UnparkRouted :execrows
+UPDATE swaps
+SET parked_at = NULL, parked_code = NULL, updated_at = sqlc.arg(at)::timestamptz
+WHERE id = sqlc.arg(id)::uuid AND parked_at IS NOT NULL AND status IN ('created', 'submitted');

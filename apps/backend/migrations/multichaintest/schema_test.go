@@ -2,6 +2,7 @@ package multichaintest_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -142,5 +143,28 @@ func TestSwapsAreParkedWithAtAndCodeTogether(t *testing.T) {
 		{"parked", insert, []any{evmAddr, "2026-10-11T00:00:00Z", "asset_untradable"}, true},
 		{"parked without a code", insert, []any{evmAddr, "2026-10-11T00:00:00Z", nil}, false},
 		{"a code without parking", insert, []any{evmAddr, nil, "asset_untradable"}, false},
+	})
+}
+
+func TestSwapOperatorActionsCheckTheActionAndTheReasonLength(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	var swap string
+	if err := pool.QueryRow(t.Context(), `INSERT INTO swaps (id, source_kind, source_id, cabal_id, treasury_address,
+		action, symbol, in_mint, out_mint, in_amount, slippage_bps, status, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'proposal', gen_random_uuid(), gen_random_uuid(), $1, 'buy', 'AAPLx', 'usdc',
+		'aaplx', 1000000, 100, 'created', now(), now()) RETURNING id::text`, evmAddr).Scan(&swap); err != nil {
+		t.Fatal(err)
+	}
+	insert := `INSERT INTO swap_operator_actions (id, swap_id, action, actor, reason, detail, created_at)
+		VALUES (gen_random_uuid(), $1, $2, 'operator:alice', $3, '{}', now())`
+	long := strings.Repeat("é", 500)
+	run(t, pool, []stmt{
+		{"unpark", insert, []any{swap, "unpark", "rpc blip"}, true},
+		{"fail parked", insert, []any{swap, "fail_parked", "listing gone"}, true},
+		{"unknown action", insert, []any{swap, "force_resolve", "rpc blip"}, false},
+		{"empty reason", insert, []any{swap, "unpark", ""}, false},
+		{"500 characters", insert, []any{swap, "unpark", long}, true},
+		{"501 characters", insert, []any{swap, "unpark", long + "x"}, false},
 	})
 }
