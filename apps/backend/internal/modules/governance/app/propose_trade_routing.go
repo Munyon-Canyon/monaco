@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
@@ -60,7 +61,13 @@ func displayQuote(asset market.Asset, c *multichain.Comparison, routed uint64, n
 	if c == nil || m.Num <= 0 || m.Den <= 0 {
 		return routed
 	}
-	units := new(big.Int).SetUint64(uint64(c.Ranked[0].NetShares))
+	var shares multichain.ShareNanos
+	for _, q := range c.Ranked {
+		if q.ListingID == c.Winner {
+			shares = q.NetShares
+		}
+	}
+	units := new(big.Int).SetUint64(uint64(shares))
 	units.Mul(units, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(asset.Decimals)), nil))
 	units.Mul(units, big.NewInt(m.Den))
 	units.Quo(units, new(big.Int).Mul(big.NewInt(shareNanos), big.NewInt(m.Num)))
@@ -68,6 +75,18 @@ func displayQuote(asset market.Asset, c *multichain.Comparison, routed uint64, n
 		return routed
 	}
 	return units.Uint64()
+}
+
+func pinned(c *multichain.Comparison, n chain.Network) (*multichain.Comparison, error) {
+	if n == "" {
+		return c, nil
+	}
+	if c != nil {
+		if p, ok := c.Pin(n); ok {
+			return &p, nil
+		}
+	}
+	return nil, errs.New(errs.CodeInvalidNetwork, "governance.pinned", slog.String("network", string(n)))
 }
 
 func encodeComparison(c *multichain.Comparison) ([]byte, error) {

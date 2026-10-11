@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -59,6 +60,7 @@ type ProposalView struct {
 	MyBallot     domain.Choice
 	CanVote      bool
 	Comparison   *multichain.Comparison
+	Network      chain.Network
 }
 
 type ProposalPage struct {
@@ -167,6 +169,7 @@ func proposalView(row sqlc.ListProposalsRow, tally Tally) (ProposalView, error) 
 		TokenAmount: row.TokenAmount.Int64, QuoteOut: row.QuoteOutAmount, Thesis: row.Thesis.String,
 		Status: status, StatusReason: errs.Code(row.StatusReason.String), ExpiresAt: row.ExpiresAt,
 		CreatedAt: row.CreatedAt, Tally: tally, MyBallot: domain.Choice(row.MyBallot), Comparison: comparison,
+		Network: chain.Network(row.Network),
 	}, nil
 }
 

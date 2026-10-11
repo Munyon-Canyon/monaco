@@ -693,6 +693,7 @@ Subject `events.proposal.passed`, version 1.
 | `quote_out_amount` | `uint64` |
 | `proposer_id` | `uuid.UUID` |
 | `price_comparison` | `*multichain.Comparison` |
+| `network` | `chain.Network` |
 
 ## `proposal.reopened`
 

@@ -1662,6 +1662,14 @@ paths:
           required: false
           description: Token base units a sell spends.
           schema: {type: integer, format: int64, minimum: 1, examples: [1000000]}
+        - name: network
+          in: query
+          required: false
+          description: >-
+            The chain a buy is pinned to. The quote is that chain's best listing, and a chain with no
+            listing quoted sets `advisory_code` to invalid_network. Absent means the best price on any chain.
+          schema:
+            $ref: "#/components/schemas/Network"
       responses:
         "200":
           description: The quote and the first check the trade fails, if any.
@@ -6230,6 +6238,10 @@ components:
           type: boolean
           description: Whether the caller can vote on it now, which means it is open and they are one of its voters.
           examples: [true]
+        network:
+          description: The chain the buy is pinned to. Absent when it takes the best price on any chain.
+          $ref: "#/components/schemas/Network"
+          examples: [base]
     ProposalDetail:
       type: object
       description: One proposal with its voters, the caller's permissions and its linked trade.
@@ -6307,6 +6319,10 @@ components:
           items:
             $ref: "#/components/schemas/ProposalVoter"
         can_vote: {type: boolean, description: "The caller is in the voter set and the proposal is open.", examples: [true]}
+        network:
+          description: The chain the buy is pinned to. Absent when it takes the best price on any chain.
+          $ref: "#/components/schemas/Network"
+          examples: [base]
         can_withdraw:
           type: boolean
           description: The caller proposed it, it is open, and no other voter has a ballot.
@@ -6423,6 +6439,12 @@ components:
           description: Token base units a sell spends.
           examples: [1000000]
         thesis: {type: string, maxLength: 280, description: "The proposer's reason, up to 280 characters.", examples: [earnings]}
+        network:
+          description: >-
+            The chain a buy executes on. It must have a listing in the comparison quoted now, and a sell
+            can't set it. Absent means the best price on any chain.
+          $ref: "#/components/schemas/Network"
+          examples: [base]
     Tally:
       type: object
       description: The ballots counted against the proposal's frozen voter set.
@@ -6469,7 +6491,8 @@ components:
           type: [string, "null"]
           description: >-
             The error code a proposal of this trade would fail with now: asset_not_found,
-            asset_untradable, asset_paused, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
+            asset_untradable, asset_paused, no_route, pot_exceeded, insufficient_funds or invalid_network.
+            Null when every check passes.
           examples: [null]
         advisory_message:
           type: [string, "null"]

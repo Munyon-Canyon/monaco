@@ -145,12 +145,16 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	}
 	now := h.clock.Now()
 	comparison := h.compare(ctx, asset, cmd.Trade)
+	priced, err := pinned(comparison, cmd.Trade.Network)
+	if err != nil {
+		return OpenedProposal{}, err
+	}
 	p, err := domain.NewProposal(domain.Draft{
 		ID: ids.ProposalIDFrom(h.ids.NewV7()), CabalID: cmd.CabalID, ProposerID: cmd.ProposerID, Kind: cmd.Trade.Kind,
 		Symbol: asset.Symbol, Mint: asset.Mint.Address(), USDCMicros: cmd.Trade.USDCMicros,
 		TokenAmount: money.NewBaseUnits(cmd.Trade.TokenAmount, asset.Decimals), Thesis: cmd.Trade.Thesis,
-		QuoteOut:  displayQuote(asset, comparison, quote.OutAmount.Uint64(), now),
-		ExpiresAt: now.Add(rules.ProposalExpiry),
+		QuoteOut:  displayQuote(asset, priced, quote.OutAmount.Uint64(), now),
+		ExpiresAt: now.Add(rules.ProposalExpiry), Network: cmd.Trade.Network,
 	})
 	if err != nil {
 		return OpenedProposal{}, err
@@ -333,7 +337,7 @@ func openParams(d domain.Draft, rule domain.ThresholdRule, voters []ids.UserID, 
 		ID: d.ID.UUID(), CabalID: d.CabalID.UUID(), ProposerID: d.ProposerID.UUID(), Kind: string(d.Kind),
 		Symbol: d.Symbol, Mint: string(d.Mint), UsdcMicros: d.USDCMicros.String(), TokenAmount: d.TokenAmount.String(),
 		Thesis: d.Thesis, QuoteOutAmount: strconv.FormatUint(d.QuoteOut, 10), Threshold: string(rule),
-		ExpiresAt: d.ExpiresAt, CreatedAt: now,
+		ExpiresAt: d.ExpiresAt, CreatedAt: now, Network: string(d.Network),
 		VoterIds: make([]uuid.UUID, len(voters)),
 	}
 	for i, v := range voters {

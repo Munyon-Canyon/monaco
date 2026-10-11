@@ -9,6 +9,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	wire "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -106,7 +108,7 @@ func (h HTTP) PostCabalProposal(
 	trade, err := domain.NewTrade(domain.Trade{
 		Kind: domain.Kind(req.Body.Kind), Symbol: req.Body.Symbol,
 		USDCMicros: money.MicrosFromUint64(amount(req.Body.UsdcMicros)), TokenAmount: amount(req.Body.TokenAmount),
-		Thesis: deref(req.Body.Thesis),
+		Thesis: deref(req.Body.Thesis), Network: network(req.Body.Network),
 	})
 	if err != nil {
 		return nil, err
@@ -130,6 +132,7 @@ func (h HTTP) GetCabalProposalPreview(
 	trade, err := domain.NewTrade(domain.Trade{
 		Kind: domain.Kind(req.Params.Kind), Symbol: req.Params.Symbol,
 		USDCMicros: money.MicrosFromUint64(amount(req.Params.UsdcMicros)), TokenAmount: amount(req.Params.TokenAmount),
+		Network: network(req.Params.Network),
 	})
 	if err != nil {
 		return nil, err
@@ -195,7 +198,7 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
 		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
 		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
-		PriceComparison: p.PriceComparison,
+		PriceComparison: p.PriceComparison, Network: p.Network,
 	}
 	for i, v := range got.Voters {
 		out.Voters[i] = api.ProposalVoter{UserId: v.UserID.UUID()}
@@ -246,7 +249,7 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		Symbol: v.Symbol, UsdcMicros: positive(v.USDCMicros), TokenAmount: positive(v.TokenAmount),
 		QuoteOutAmount: v.QuoteOut, Status: api.ProposalStatus(v.Status), ExpiresAt: v.ExpiresAt,
 		CreatedAt: v.CreatedAt, Tally: wireTally(v.Tally), CanVote: v.CanVote,
-		PriceComparison: wireComparison(v.Comparison),
+		PriceComparison: wireComparison(v.Comparison), Network: wireNetwork(v.Network),
 	}
 	out.Thesis = present(v.Thesis)
 	if v.StatusReason != "" {
@@ -291,8 +294,22 @@ func wireOpenedProposal(opened app.OpenedProposal) api.ProposalDetail {
 		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
 		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
 		CanVote: opened.ProposerCanVote, CanWithdraw: true,
-		PriceComparison: wireComparison(opened.PriceComparison),
+		PriceComparison: wireComparison(opened.PriceComparison), Network: wireNetwork(d.Network),
 	}
+}
+
+func network(n *wire.Network) chain.Network {
+	if n == nil {
+		return ""
+	}
+	return chain.Network(*n)
+}
+
+func wireNetwork(n chain.Network) *wire.Network {
+	if n == "" {
+		return nil
+	}
+	return ptr(wire.Network(n))
 }
 
 func present(s string) *string {

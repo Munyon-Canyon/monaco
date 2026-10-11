@@ -162,6 +162,16 @@ type Comparison struct {
 	Unavailable []UnavailableVenue `json:"unavailable,omitempty"`
 }
 
+func (c Comparison) Pin(n chain.Network) (Comparison, bool) {
+	for _, q := range c.Ranked {
+		if q.Network == n {
+			c.Winner = q.ListingID
+			return c, true
+		}
+	}
+	return c, false
+}
+
 type Price struct {
 	PerShareMicros money.Micros `json:"per_share_micros"`
 	AsOf           time.Time    `json:"as_of"`
