@@ -35,6 +35,7 @@ type Swap struct {
 	Owner    chain.EVMAddress
 	Router   chain.EVMAddress
 	Calldata []byte
+	Direct   bool
 }
 
 type Override struct {
@@ -63,6 +64,10 @@ func Simulate(
 	call := map[string]string{
 		"from": EntryPoint, "to": swap.Owner.String(), "data": execute(swap.Router, swap.Calldata),
 		"gas": "0x" + strconv.FormatUint(SimulationGas, 16),
+	}
+	if swap.Direct {
+		call["from"], call["to"] = swap.Owner.String(), swap.Router.String()
+		call["data"] = "0x" + hex.EncodeToString(swap.Calldata)
 	}
 	params := []any{call, "latest"}
 	if len(overrides) > 0 {

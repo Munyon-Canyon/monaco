@@ -103,6 +103,22 @@ func TestSimulate_callsExecuteFromTheEntryPointAt3MGasOnRealState(t *testing.T) 
 	}
 }
 
+func TestSimulate_aDirectSwapCallsTheRouterFromTheOwnerAt3MGas(t *testing.T) {
+	t.Parallel()
+	n, client := newNode(t, `{"jsonrpc":"2.0","id":1,"result":"0x"}`)
+	s := swap(t)
+	s.Direct = true
+
+	if _, met, err := evmsim.Simulate(t.Context(), client, s, nil, nil); err != nil || !met {
+		t.Fatalf("Simulate = %v, %v, want the quote met", met, err)
+	}
+	params, _ := n.bodies[0]["params"].([]any)
+	call, _ := params[0].(map[string]any)
+	if call["from"] != owner || call["to"] != router || call["gas"] != "0x2dc6c0" || call["data"] != "0x3593564c00" {
+		t.Fatalf("eth_call = %+v, want the bare swap calldata from the owner to the router at 3M gas", call)
+	}
+}
+
 func TestSimulate_sendsOverridesWhenGiven(t *testing.T) {
 	t.Parallel()
 	n, client := newNode(t, `{"jsonrpc":"2.0","id":1,"result":"0x"}`)

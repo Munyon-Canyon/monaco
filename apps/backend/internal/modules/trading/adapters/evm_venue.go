@@ -137,10 +137,25 @@ func (v *EVMVenue) Build(ctx context.Context, spec app.EVMSwapSpec) (app.EVMSwap
 	if err != nil {
 		return app.EVMSwapPlan{}, err
 	}
+	if spec.Route == (mc.RouteOptions{}) && strings.EqualFold(spec.TokenOut.String(), spec.Network.Cash().Address) {
+		return v.candidates(ctx, spec, approval, attrs)
+	}
+	return v.plan(ctx, spec, approval, attrs)
+}
+
+func (v *EVMVenue) plan(
+	ctx context.Context, spec app.EVMSwapSpec, approval approvalWire, attrs []slog.Attr,
+) (app.EVMSwapPlan, error) {
 	bps, err := v.tolerance(ctx, spec, attrs)
 	if err != nil {
 		return app.EVMSwapPlan{}, err
 	}
+	return v.build(ctx, spec, approval, bps, attrs)
+}
+
+func (v *EVMVenue) build(
+	ctx context.Context, spec app.EVMSwapSpec, approval approvalWire, bps uint64, attrs []slog.Attr,
+) (app.EVMSwapPlan, error) {
 	quote, err := v.quote(ctx, spec, bps, attrs)
 	if err != nil {
 		return app.EVMSwapPlan{}, err
