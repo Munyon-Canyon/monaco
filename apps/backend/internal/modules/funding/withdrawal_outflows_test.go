@@ -81,6 +81,7 @@ func TestWithdrawalOutflows_lastChangeIsTheUsersLatestMove(t *testing.T) {
 		id := ids.Real{}.NewV7()
 		if err := q.InsertWithdrawal(t.Context(), sqlc.InsertWithdrawalParams{
 			ID: id, UserID: owner.UUID(), ToAddress: "to", AmountMicros: "1000000", CreatedAt: tick(),
+			DestinationKind: "solana", Network: "solana",
 		}); err != nil {
 			t.Fatal(err)
 		}

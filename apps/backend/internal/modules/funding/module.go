@@ -116,6 +116,7 @@ func (m *Module) withdrawDeps(wallets app.WalletReader) app.WithdrawDeps {
 	return app.WithdrawDeps{
 		UoW: m.deps.UoW, Balances: m.Balances(), Wallets: wallets, Hints: m.deps.Bus, Clock: m.deps.Clock,
 		USDC: m.usdc(), Transfers: m.lazyTransfers(), Treasuries: cabal.New(m.deps).Queries(),
+		Actions: m.multichain.walletActions,
 	}
 }
 
@@ -179,6 +180,7 @@ func (m *Module) Pollers() []poller.Poller {
 	withdrawals := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(cfg, m.deps.Clock),
 		Transfers: m.lazyTransfers(), Hints: m.deps.Bus, UnsentAge: cfg.Worker.WithdrawalUnsentAge,
+		Wallets: app.WalletReader{Reader: identity.New(m.deps).Queries()}, Actions: m.multichain.walletActions,
 	})
 	return []poller.Poller{
 		app.NewDepositWatch(m.deps.Pool, m.deps.UoW, m.deps.IDs, m.deps.Clock,
