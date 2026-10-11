@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"maps"
 	"reflect"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/analytics"
+	"github.com/monaco/monaco/apps/backend/internal/modules/analytics/adapters/testdata"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -29,6 +31,7 @@ import (
 )
 
 const (
+	testEnv     = config.EnvStaging
 	apiKey      = "ph-test-key"
 	pingHandler = "analytics.posthog.system.pinged"
 )
@@ -76,11 +79,26 @@ type env struct {
 	uow      *db.UnitOfWork
 	ids      *testkit.IDs
 	clock    *testkit.Clock
-	fake     *posthogfake.Fake
+	fake     fakeWithoutEnv
 	bus      testkit.Bus
 	logs     *testkit.Logs
 	consumer bus.Consumer
 	reg      *bus.Registry
+}
+
+type fakeWithoutEnv struct{ *posthogfake.Fake }
+
+func (f fakeWithoutEnv) Captures() []fakes.PostHogCapture {
+	got := f.Fake.Captures()
+	for i, c := range got {
+		if c.Properties["env"] != string(testEnv) {
+			continue
+		}
+		props := maps.Clone(c.Properties)
+		delete(props, "env")
+		got[i].Properties = props
+	}
+	return got
 }
 
 type option func(*config.Config)
@@ -91,6 +109,7 @@ func newEnv(t *testing.T, register func(*analytics.Registry), opts ...option) *e
 	t.Helper()
 	fake := posthogfake.New(t)
 	cfg := config.Config{
+		Env:      testEnv,
 		PostHog:  config.PostHog{APIKey: apiKey, Host: fake.Host()},
 		Timeouts: config.Timeouts{PostHog: time.Minute},
 	}
@@ -105,7 +124,7 @@ func newEnv(t *testing.T, register func(*analytics.Registry), opts ...option) *e
 	}
 	e := &env{
 		pool: testkit.DB(t), ids: testkit.NewIDs(1), clock: testkit.NewClock(clock.Real{}.Now().Truncate(time.Second)),
-		fake: fake, bus: testkit.NATS(t), logs: &testkit.Logs{}, consumer: consumers[0],
+		fake: fakeWithoutEnv{fake}, bus: testkit.NATS(t), logs: &testkit.Logs{}, consumer: consumers[0],
 	}
 	e.uow = db.New(e.pool, e.ids, e.clock)
 	reg, err := bus.NewRegistry(e.bus.Conn, e.uow, e.clock, consumers)
@@ -230,3 +249,14 @@ func sameCapture(t *testing.T, got, want fakes.PostHogCapture) {
 }
 
 func userActor(id uuid.UUID) string { return "user:" + id.String() }
+
+func TestAnalytics_Capture_TagsEveryCaptureWithTheEnvironment(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, testdata.Register)
+	m := e.message(e.append(t, userActor(e.ids.NewV7())))
+	e.deliver(t, m)
+	sent := e.fake.Fake.Captures()
+	if m.outcome != bus.OutcomeAck || len(sent) != 1 || sent[0].Properties["env"] != string(testEnv) {
+		t.Fatalf("verdict %q with captures %+v, want an ack and one with env=%s", m.outcome, sent, testEnv)
+	}
+}

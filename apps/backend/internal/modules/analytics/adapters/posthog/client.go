@@ -23,12 +23,14 @@ const (
 	upstream   = "posthog"
 	batchPath  = "/batch/"
 	setKey     = "$set"
+	envKey     = "env"
 	maxDrained = 64 << 10
 )
 
 type Client struct {
 	http   *httpclient.Client
 	apiKey string
+	env    string
 }
 
 func New(cfg config.Config, newHTTP func(name string, opts ...httpclient.Option) *httpclient.Client) Client {
@@ -38,6 +40,7 @@ func New(cfg config.Config, newHTTP func(name string, opts ...httpclient.Option)
 			httpclient.WithTimeout(cfg.Timeouts.PostHog),
 		),
 		apiKey: cfg.PostHog.APIKey,
+		env:    string(cfg.Env),
 	}
 }
 
@@ -49,11 +52,12 @@ type event struct {
 	Properties map[string]any `json:"properties"`
 }
 
-func wire(c app.Capture) event {
+func wire(c app.Capture, env string) event {
 	props := maps.Clone(c.Properties)
 	if props == nil {
 		props = map[string]any{}
 	}
+	props[envKey] = env
 	if len(c.Set) > 0 {
 		props[setKey] = c.Set
 	}
@@ -66,7 +70,7 @@ func (c Client) Capture(ctx context.Context, batch []app.Capture) error {
 	const op = "posthog.Client.Capture"
 	events := make([]event, len(batch))
 	for i, capture := range batch {
-		events[i] = wire(capture)
+		events[i] = wire(capture, c.env)
 	}
 	raw, err := json.Marshal(map[string]any{"api_key": c.apiKey, "batch": events})
 	if err != nil {
