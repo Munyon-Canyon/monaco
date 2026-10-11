@@ -17,31 +17,40 @@ func (r *RouteExec) BridgeBack(ctx context.Context, id ids.SwapID) error {
 	if err != nil {
 		return err
 	}
+	amount, err := r.returning(ctx, b)
+	if err != nil || amount.IsZero() {
+		return err
+	}
+	_, err = Bridge{Journal: r.d.Journal, Actions: r.d.Actions, Poll: r.d.Poll}.Run(ctx, b.bridgeBack(amount))
+	return err
+}
+
+func (r *RouteExec) returning(ctx context.Context, b routedBuy) (money.Micros, error) {
+	step, started, err := r.d.Journal.Step(ctx, ids.SwapIDFrom(b.id), domain.StepBridgeBack)
+	if err != nil || started {
+		return step.Amount, err
+	}
 	landed, err := b.sent.Sub(b.fee)
 	if err != nil {
-		return err
+		return money.Micros{}, err
 	}
-	leg := b.bridgeBack(landed)
-	if err := r.d.Layer.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	claimed := false
+	err = r.d.Layer.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
-		err := q.LockStrandedCash(ctx, id.UUID())
-		stranded := false
+		err := q.LockStrandedCash(ctx, b.id)
 		if err == nil {
-			stranded, err = q.StrandedCash(ctx, id.UUID())
+			claimed, err = q.StrandedCash(ctx, b.id)
 		}
-		if err != nil || !stranded {
+		if err != nil || !claimed {
 			return err
 		}
-		_, err = r.d.Journal.begin(ctx, tx, leg.Ref, landed)
+		_, err = r.d.Journal.begin(ctx, tx, b.ref(domain.StepBridgeBack), landed)
 		return err
-	}); err != nil {
-		return err
+	})
+	if err != nil || !claimed {
+		return money.Micros{}, err
 	}
-	if _, claimed, err := r.d.Journal.Step(ctx, id, domain.StepBridgeBack); err != nil || !claimed {
-		return err
-	}
-	_, err = Bridge{Journal: r.d.Journal, Actions: r.d.Actions, Poll: r.d.Poll}.Run(ctx, leg)
-	return err
+	return landed, nil
 }
 
 func (b routedBuy) bridgeBack(landed money.Micros) BridgeLeg {

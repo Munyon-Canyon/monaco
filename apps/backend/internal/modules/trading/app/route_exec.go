@@ -47,7 +47,7 @@ func evmAsset(network chain.Network, address string) string {
 	return string(network) + ":" + strings.ToLower(address)
 }
 
-func (r *RouteExec) Buy(
+func (r *RouteExec) Trade(
 	ctx context.Context,
 	req SwapRequest,
 	listing multichain.Listing,
@@ -58,13 +58,17 @@ func (r *RouteExec) Buy(
 		return SwapView{}, err
 	}
 	req.TreasuryWallet = TreasuryWallet{Address: chain.SolanaAddress(wallet.Address.String())}
-	req.InMint = chain.Mint{
+	cash := chain.Mint{
 		Address:  chain.SolanaAddress(evmAsset(listing.Network, listing.Network.Cash().Address)),
 		Decimals: 6,
 	}
-	req.OutMint = chain.Mint{
+	token := chain.Mint{
 		Address:  chain.SolanaAddress(evmAsset(listing.Network, listing.TokenAddress)),
 		Decimals: listing.Decimals,
+	}
+	req.InMint, req.OutMint = cash, token
+	if req.Action == domain.ActionSell {
+		req.InMint, req.OutMint = token, cash
 	}
 	l := r.d.Layer
 	insert, err := req.insertParams(l.d.IDs.NewV7(), l.d.Clock.Now())
@@ -95,6 +99,10 @@ func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
 	if err != nil || b.status != domain.StatusCreated && b.status != domain.StatusSubmitted {
 		return err
 	}
+	if b.req.Action == domain.ActionSell {
+		result, err := r.swap().Run(ctx, b.sellLeg())
+		return r.settle(ctx, b, money.Micros{}, result, err)
+	}
 	landed, err := b.sent.Sub(b.fee)
 	if err != nil {
 		return err
@@ -106,9 +114,12 @@ func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
 			return err
 		}
 	}
-	result, err := EVMSwap{Journal: r.d.Journal, Venue: r.d.Venue, Sender: r.d.Sender, Poll: r.d.Poll}.
-		Run(ctx, b.swapLeg(landed, floor))
+	result, err := r.swap().Run(ctx, b.swapLeg(landed, floor))
 	return r.settle(ctx, b, landed, result, err)
+}
+
+func (r *RouteExec) swap() EVMSwap {
+	return EVMSwap{Journal: r.d.Journal, Venue: r.d.Venue, Sender: r.d.Sender, Poll: r.d.Poll}
 }
 
 func (r *RouteExec) bridgeAndQuote(ctx context.Context, b routedBuy, landed money.Micros) (uint64, bool, error) {
@@ -154,17 +165,20 @@ func (r *RouteExec) settle(
 	case cause != nil:
 		return r.finish(ctx, b, failed(b.req, b.id, domain.FailureNeverSubmitted, ""), string(code))
 	}
-	switch result.State {
-	case FillSucceeded:
+	switch {
+	case result.State == FillSucceeded && b.req.Action == domain.ActionSell:
+		return r.sold(ctx, b, result)
+	case result.State == FillSucceeded:
 		return r.finish(ctx, b, b.confirmed(landed, result), "")
-	case FillReverted:
+	case result.State == FillReverted:
 		return r.finish(ctx, b, failed(b.req, b.id, domain.FailureSwapReverted, ""), string(domain.FailureSwapReverted))
-	case FillPending:
 	}
 	return nil
 }
 
-func (r *RouteExec) finish(ctx context.Context, b routedBuy, s step, stepFailure string) error {
+func (r *RouteExec) finish(
+	ctx context.Context, b routedBuy, s step, stepFailure string, then ...func(context.Context, db.Tx) error,
+) error {
 	l := r.d.Layer
 	ref := b.ref(domain.StepSwap)
 	return l.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
@@ -180,7 +194,11 @@ func (r *RouteExec) finish(ctx context.Context, b routedBuy, s step, stepFailure
 			return err
 		}
 		tx.AfterCommit(func(ctx context.Context) { l.committed(ctx, b.req, b.id, s) })
-		return tx.Events.Append(ctx, s.event(at))
+		err = tx.Events.Append(ctx, s.event(at))
+		for _, next := range then {
+			err = errors.Join(err, next(ctx, tx))
+		}
+		return err
 	})
 }
 
@@ -267,7 +285,7 @@ func (b routedBuy) swapLeg(landed money.Micros, floor uint64) EVMSwapLeg {
 		Request: b.req, Ref: b.ref(domain.StepSwap), WalletID: b.evm.ID, Amount: landed,
 		Spec: EVMSwapSpec{
 			Network: b.listing.Network, Owner: b.evm.Address, TokenIn: b.cash, TokenOut: b.token,
-			AmountIn: landed.Uint64(), MinOut: floor,
+			AmountIn: landed.Uint64(), MinOut: floor, SlippageBps: b.slippage,
 		},
 	}
 }

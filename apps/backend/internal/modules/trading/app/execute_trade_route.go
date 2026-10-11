@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
-	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 )
@@ -25,8 +24,6 @@ func (h *ExecuteTradeHandler) winner(ctx context.Context, cmd ExecuteTrade) (mul
 
 func (h *ExecuteTradeHandler) winnerID(ctx context.Context, cmd ExecuteTrade) (multichain.ListingID, bool, error) {
 	switch {
-	case cmd.Action != domain.ActionBuy:
-		return multichain.ListingID{}, false, nil
 	case cmd.Route != nil:
 		return cmd.Route.Winner, true, nil
 	case cmd.Retry == nil:

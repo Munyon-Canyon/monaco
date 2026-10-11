@@ -71,7 +71,7 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 func (p *EVMTrades) bridgeBack(
 	ctx context.Context, q *sqlc.Queries, row sqlc.ListStrandedCashRow, now time.Time,
 ) (bool, error) {
-	_, err := q.TouchFailed(ctx, sqlc.TouchFailedParams{ID: row.ID, At: now})
+	_, err := q.TouchFinished(ctx, sqlc.TouchFinishedParams{ID: row.ID, At: now})
 	retryable := false
 	if err == nil && !row.Returning && row.SourceKind == string(domain.SourceProposal) {
 		retryable, err = p.proposals.Retryable(ctx, ids.ProposalIDFrom(row.SourceID))

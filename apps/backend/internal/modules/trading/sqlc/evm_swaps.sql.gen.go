@@ -50,17 +50,18 @@ const listStrandedCash = `-- name: ListStrandedCash :many
 SELECT s.id, s.source_kind, s.source_id,
   EXISTS (SELECT 1 FROM trade_steps AS b WHERE b.trade_id = s.id AND b.step = 'bridge_back')::bool AS returning
 FROM swaps AS s
-WHERE s.status = 'failed' AND s.failed_at < $1::timestamptz
-  AND EXISTS (
-    SELECT 1 FROM trade_steps AS o WHERE o.trade_id = s.id AND o.step = 'bridge_out' AND o.status = 'succeeded'
-  )
+WHERE coalesce(s.failed_at, s.confirmed_at) < $1::timestamptz
   AND (
     EXISTS (
       SELECT 1 FROM trade_steps AS b
       WHERE b.trade_id = s.id AND b.step = 'bridge_back' AND b.status IN ('pending', 'submitted')
     )
     OR (
-      NOT EXISTS (
+      s.status = 'failed'
+      AND EXISTS (
+        SELECT 1 FROM trade_steps AS o WHERE o.trade_id = s.id AND o.step = 'bridge_out' AND o.status = 'succeeded'
+      )
+      AND NOT EXISTS (
         SELECT 1 FROM trade_steps AS t
         WHERE t.trade_id = s.id AND (t.step = 'bridge_back' OR (t.step = 'swap' AND t.status <> 'failed'))
       )
@@ -240,19 +241,19 @@ func (q *Queries) StrandedCash(ctx context.Context, swapID uuid.UUID) (bool, err
 	return stranded, err
 }
 
-const touchFailed = `-- name: TouchFailed :execrows
+const touchFinished = `-- name: TouchFinished :execrows
 UPDATE swaps
 SET updated_at = $1::timestamptz
-WHERE id = $2::uuid AND status = 'failed'
+WHERE id = $2::uuid AND status IN ('failed', 'confirmed')
 `
 
-type TouchFailedParams struct {
+type TouchFinishedParams struct {
 	At time.Time
 	ID uuid.UUID
 }
 
-func (q *Queries) TouchFailed(ctx context.Context, arg TouchFailedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, touchFailed, arg.At, arg.ID)
+func (q *Queries) TouchFinished(ctx context.Context, arg TouchFinishedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, touchFinished, arg.At, arg.ID)
 	if err != nil {
 		return 0, err
 	}

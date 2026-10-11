@@ -21,7 +21,7 @@ func (e *routeEnv) crashBuy(t *testing.T, point faultpoint.Name, after int) uuid
 	ctx := faultpoint.ArmedAfter(actorContext(t.Context()), point, after)
 	crashed := func() (p any) {
 		defer func() { p = recover() }()
-		_, _ = e.exec().Buy(ctx, req, e.listing, nil)
+		_, _ = e.exec().Trade(ctx, req, e.listing, nil)
 		return nil
 	}()
 	if crashed != (faultpoint.Crash{Name: point}) {

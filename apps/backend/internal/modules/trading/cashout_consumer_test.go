@@ -39,6 +39,10 @@ func (p ledgerPositions) SolanaPositions(context.Context, ids.CabalID) ([]treasu
 	return p, nil
 }
 
+func (ledgerPositions) CabalPositionsAt(context.Context, time.Time) ([]treasuryport.CabalPositions, error) {
+	return nil, nil
+}
+
 type cashOutBus struct {
 	*cashOutEnv
 	reg  *bus.Registry

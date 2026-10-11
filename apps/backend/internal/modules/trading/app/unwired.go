@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
@@ -49,4 +50,8 @@ type UnwiredPositions struct{}
 
 func (UnwiredPositions) SolanaPositions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
 	return nil, unwired("Positions.Positions")
+}
+
+func (UnwiredPositions) CabalPositionsAt(context.Context, time.Time) ([]treasuryport.CabalPositions, error) {
+	return nil, unwired("Positions.CabalPositionsAt")
 }
