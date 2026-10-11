@@ -202,6 +202,6 @@ func readStep(ctx context.Context, q *sqlc.Queries, swap ids.SwapID, kind domain
 		SourceBatchSize: int(row.SourceBatchSize), Step: domain.StepKind(row.Step),
 		Network: chain.Network(row.Network), PrivyActionID: row.PrivyActionID, Amount: amount,
 		Status: domain.StepStatus(row.Status), Error: row.Error, Attempt: int(row.Attempt),
-		PriorPrivyActionID: row.PriorPrivyActionID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		PriorPrivyActionIDs: row.PriorPrivyActionIds, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}, nil
 }

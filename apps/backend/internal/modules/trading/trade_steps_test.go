@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -135,7 +136,7 @@ func TestJournal_beginInsertsOnePendingRowAndAResumedBeginReturnsItWithoutAnEven
 	again := e.begin(t, 99_000_000)
 
 	if first.Status != domain.StepPending || first.Amount != money.MicrosFromUint64(10_000_000) ||
-		first.Network != chain.NetworkBase || first.PrivyActionID != "" || again != first {
+		first.Network != chain.NetworkBase || first.PrivyActionID != "" || !reflect.DeepEqual(again, first) {
 		t.Fatalf("Begin = %+v then %+v, want one pending 10 USDC base row returned both times", first, again)
 	}
 	wantEvents(t, e.events(t), e.event(domain.StepPending, "", 0))
@@ -152,7 +153,10 @@ func TestJournal_submittedMovesPendingOnceAndAResumeKeepsTheStoredActionID(t *te
 	wantMoved(t, "resumed Submitted", moved, err, false)
 	resumed := e.begin(t, 10_000_000)
 
-	if s := e.step(t); s.Status != domain.StepSubmitted || s.PrivyActionID != "privy-action-1" || resumed != s {
+	if s := e.step(
+		t,
+	); s.Status != domain.StepSubmitted || s.PrivyActionID != "privy-action-1" ||
+		!reflect.DeepEqual(resumed, s) {
 		t.Fatalf("step = %+v, resumed Begin = %+v, want submitted with privy-action-1 both times", s, resumed)
 	}
 	wantEvents(t, e.events(t),

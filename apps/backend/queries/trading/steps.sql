@@ -17,14 +17,15 @@ WHERE trade_id = sqlc.arg(trade_id)::uuid AND step = sqlc.arg(step)::text AND st
 -- name: TradeStep :one
 SELECT t.id, t.trade_id, t.step, t.network, coalesce(t.privy_action_id, '')::text AS privy_action_id,
   t.amount_micros::text AS amount_micros, t.status, coalesce(t.error, '')::text AS error, t.created_at, t.updated_at,
-  t.attempt, coalesce(t.prior_privy_action_id, '')::text AS prior_privy_action_id, s.cabal_id, s.source_kind, s.source_id, s.source_batch_size
+  t.attempt, t.prior_privy_action_ids::text[] AS prior_privy_action_ids, s.cabal_id, s.source_kind, s.source_id, s.source_batch_size
 FROM trade_steps AS t
 JOIN swaps AS s ON s.id = t.trade_id
 WHERE t.trade_id = sqlc.arg(trade_id)::uuid AND t.step = sqlc.arg(step)::text;
 
 -- name: RetryTradeStep :execrows
 UPDATE trade_steps
-SET attempt = attempt + 1, status = 'pending', error = NULL, prior_privy_action_id = privy_action_id,
+SET attempt = attempt + 1, status = 'pending', error = NULL, prior_privy_action_ids = CASE WHEN privy_action_id IS NULL THEN prior_privy_action_ids
+    ELSE array_append(prior_privy_action_ids, privy_action_id) END,
   privy_action_id = NULL, updated_at = sqlc.arg(at)::timestamptz
 WHERE trade_id = sqlc.arg(trade_id)::uuid AND step = 'bridge_back' AND status = 'failed';
 

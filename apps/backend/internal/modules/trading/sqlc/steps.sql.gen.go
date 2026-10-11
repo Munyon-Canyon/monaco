@@ -148,7 +148,8 @@ func (q *Queries) MarkTradeStepSubmitted(ctx context.Context, arg MarkTradeStepS
 
 const retryTradeStep = `-- name: RetryTradeStep :execrows
 UPDATE trade_steps
-SET attempt = attempt + 1, status = 'pending', error = NULL, prior_privy_action_id = privy_action_id,
+SET attempt = attempt + 1, status = 'pending', error = NULL, prior_privy_action_ids = CASE WHEN privy_action_id IS NULL THEN prior_privy_action_ids
+    ELSE array_append(prior_privy_action_ids, privy_action_id) END,
   privy_action_id = NULL, updated_at = $1::timestamptz
 WHERE trade_id = $2::uuid AND step = 'bridge_back' AND status = 'failed'
 `
@@ -169,7 +170,7 @@ func (q *Queries) RetryTradeStep(ctx context.Context, arg RetryTradeStepParams) 
 const tradeStep = `-- name: TradeStep :one
 SELECT t.id, t.trade_id, t.step, t.network, coalesce(t.privy_action_id, '')::text AS privy_action_id,
   t.amount_micros::text AS amount_micros, t.status, coalesce(t.error, '')::text AS error, t.created_at, t.updated_at,
-  t.attempt, coalesce(t.prior_privy_action_id, '')::text AS prior_privy_action_id, s.cabal_id, s.source_kind, s.source_id, s.source_batch_size
+  t.attempt, t.prior_privy_action_ids::text[] AS prior_privy_action_ids, s.cabal_id, s.source_kind, s.source_id, s.source_batch_size
 FROM trade_steps AS t
 JOIN swaps AS s ON s.id = t.trade_id
 WHERE t.trade_id = $1::uuid AND t.step = $2::text
@@ -181,22 +182,22 @@ type TradeStepParams struct {
 }
 
 type TradeStepRow struct {
-	ID                 uuid.UUID
-	TradeID            uuid.UUID
-	Step               string
-	Network            string
-	PrivyActionID      string
-	AmountMicros       string
-	Status             string
-	Error              string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	Attempt            int16
-	PriorPrivyActionID string
-	CabalID            uuid.UUID
-	SourceKind         string
-	SourceID           uuid.UUID
-	SourceBatchSize    int32
+	ID                  uuid.UUID
+	TradeID             uuid.UUID
+	Step                string
+	Network             string
+	PrivyActionID       string
+	AmountMicros        string
+	Status              string
+	Error               string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	Attempt             int16
+	PriorPrivyActionIds []string
+	CabalID             uuid.UUID
+	SourceKind          string
+	SourceID            uuid.UUID
+	SourceBatchSize     int32
 }
 
 func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStepRow, error) {
@@ -214,7 +215,7 @@ func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStep
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Attempt,
-		&i.PriorPrivyActionID,
+		&i.PriorPrivyActionIds,
 		&i.CabalID,
 		&i.SourceKind,
 		&i.SourceID,
