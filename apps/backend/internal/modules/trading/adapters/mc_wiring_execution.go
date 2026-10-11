@@ -1,11 +1,11 @@
 package adapters
 
-import "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+import (
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+)
 
-func MultichainExecutionWalletActions() multichain.Pending {
-	return multichain.Pending{Ticket: "#4970"}
-}
-
-func MultichainExecutionEVMWallets() multichain.Pending {
-	return multichain.Pending{Ticket: "#4970"}
+func MultichainExecutionPrivy(cfg config.Config, clk clock.Clock) (*privy.Client, error) {
+	return privy.New(cfg, clk)
 }
