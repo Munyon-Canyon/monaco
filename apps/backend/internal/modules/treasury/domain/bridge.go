@@ -67,7 +67,15 @@ func NewBridgeLandedTxn(id uuid.UUID, b Bridge, usdc Asset) (CabalTxn, error) {
 		return CabalTxn{}, err
 	}
 	_, destination := b.assets(usdc)
-	return b.move(id, CabalVenue, CabalTreasury, destination, landed)
+	txn, err := b.move(id, CabalVenue, CabalTreasury, destination, landed)
+	if err != nil || b.Fee.IsZero() {
+		return txn, err
+	}
+	fee, err := b.move(id, CabalVenue, CabalFees, destination, b.Fee)
+	if err != nil {
+		return CabalTxn{}, err
+	}
+	return NewCabalTxn(txn.CabalTxnHeader, append(txn.Entries(), fee.Entries()...))
 }
 
 func NewBridgeReturnedTxn(id uuid.UUID, b Bridge, usdc Asset) (CabalTxn, error) {

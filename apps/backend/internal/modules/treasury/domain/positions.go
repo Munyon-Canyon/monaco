@@ -47,9 +47,13 @@ func (t CabalTxn) PositionDeltas(usdc Asset) ([]CabalPositionDelta, error) {
 
 func treasuryUnits(op string, entries []CabalEntry, usdc Asset) (map[Asset]int64, money.Micros, error) {
 	sums := map[Asset]*big.Int{}
+	spent := new(big.Int)
 	for _, e := range entries {
-		if e.Account == CabalTreasury {
+		switch {
+		case e.Account == CabalTreasury:
 			add(sums, e.Asset, e.Amount)
+		case e.Account == CabalFees && e.Amount.Int64() < 0 && IsCash(e.Asset, usdc):
+			spent.Sub(spent, big.NewInt(e.Amount.Int64()))
 		}
 	}
 	units := make(map[Asset]int64, len(sums))
@@ -59,7 +63,6 @@ func treasuryUnits(op string, entries []CabalEntry, usdc Asset) (map[Asset]int64
 		}
 		units[asset] = sum.Int64()
 	}
-	spent := new(big.Int)
 	for asset, sum := range sums {
 		if sum.Sign() == -1 && IsCash(asset, usdc) {
 			spent.Sub(spent, sum)

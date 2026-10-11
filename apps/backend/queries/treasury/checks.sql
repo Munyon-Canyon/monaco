@@ -36,15 +36,21 @@ WITH legs AS (
   WHERE e.account = 'treasury'
   GROUP BY t.cabal_id, t.id, t.seq, e.asset
   HAVING sum(e.amount) <> 0
+), capitalized AS (
+  SELECT e.txn_id, -sum(e.amount) AS fees
+  FROM cabal_txn_entries e
+  WHERE e.account = 'fees' AND e.amount < 0 AND e.asset = ANY(sqlc.arg(cash)::text[])
+  GROUP BY e.txn_id
 ), costs AS (
   SELECT l.cabal_id, l.asset, l.seq, false AS stored, l.units::text AS units,
     (CASE
       WHEN l.units < 0 THEN 0
       WHEN l.asset = ANY(sqlc.arg(cash)::text[]) THEN l.units
       ELSE coalesce(-(sum(l.units) FILTER (WHERE l.asset = ANY(sqlc.arg(cash)::text[]) AND l.units < 0)
-        OVER (PARTITION BY l.txn_id)), 0)
+        OVER (PARTITION BY l.txn_id)), 0) + coalesce(c.fees, 0)
     END)::text AS cost
   FROM legs l
+  LEFT JOIN capitalized c ON c.txn_id = l.txn_id
   UNION ALL
   SELECT p.cabal_id, p.asset, NULL::bigint, true, '0', p.cost_basis_micros::text
   FROM cabal_positions p

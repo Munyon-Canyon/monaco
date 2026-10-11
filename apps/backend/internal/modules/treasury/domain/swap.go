@@ -31,6 +31,9 @@ func NewSwapTxn(id uuid.UUID, s Swap, usdc Asset) (CabalTxn, error) {
 		{CabalVenue, CabalTreasury, s.Out},
 		{CabalTreasury, CabalFees, Leg{Asset: usdc, Amount: s.Fee.Uint64()}},
 	}
+	if s.In.Asset != usdc && IsCash(s.In.Asset, usdc) {
+		legs[2].from, legs[2].to, legs[2].leg.Asset = CabalFees, CabalVenue, s.In.Asset
+	}
 	var entries []CabalEntry
 	for _, l := range legs {
 		if l.leg.Amount == 0 {

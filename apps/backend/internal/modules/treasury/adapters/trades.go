@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -25,6 +26,11 @@ func (h Trades) Handle(ctx context.Context, tx db.Tx, e events.TradeConfirmed, a
 		Fee:         e.FeeMicros,
 		TxSignature: e.TxSignature,
 	})
+	if err == nil {
+		_, err = sqlc.New(tx.Queries()).LinkPositionListing(ctx, sqlc.LinkPositionListingParams{
+			CabalID: e.CabalID, Asset: string(e.OutMint),
+		})
+	}
 	if err != nil {
 		return err
 	}
