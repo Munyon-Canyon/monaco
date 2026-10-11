@@ -2,7 +2,11 @@ import MonacoAnalytics
 import SwiftUI
 
 extension EnvironmentValues {
-    @Entry var analytics = Analytics(sink: NoopAnalyticsSink())
+    @Entry var analytics = Analytics.noop
+}
+
+extension Analytics {
+    static let noop = Analytics(sink: NoopAnalyticsSink())
 }
 
 private struct AnalyticsScreenModifier: ViewModifier {
