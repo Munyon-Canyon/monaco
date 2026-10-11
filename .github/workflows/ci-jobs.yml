@@ -64,7 +64,7 @@ jobs:
 
       - name: Pull the dev database image that Atlas starts (dockerDevURL in cmd/monacoctl/migrate.go)
         working-directory: .
-        run: scripts/ci/retry.sh docker pull -q public.ecr.aws/docker/library/postgres:16
+        run: scripts/ci/pull-image.sh public.ecr.aws/docker/library/postgres:16
 
       - name: Lint the latest migration
         run: go run ./cmd/monacoctl migrate lint
@@ -245,7 +245,7 @@ jobs:
         run: scripts/install-atlas.sh
 
       - name: Pull the Postgres image that verify starts
-        run: scripts/ci/retry.sh docker compose --profile test pull postgres-test
+        run: scripts/ci/pull-image.sh public.ecr.aws/docker/library/postgres:16-alpine
 
       - name: Every flow, then every registered crash point, against a throwaway stack
         run: scripts/ci/e2e.sh
@@ -762,7 +762,7 @@ jobs:
     if: inputs.stage == 'pr' && needs.plan.outputs.reuse != 'true' && (needs.plan.outputs.mobile-tests == 'true' || needs.plan.outputs.unknown == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    container: public.ecr.aws/docker/library/swift:6.3-noble
+    container: mirror.gcr.io/library/swift:6.3-noble
     steps:
       - uses: actions/checkout@v4
         with:

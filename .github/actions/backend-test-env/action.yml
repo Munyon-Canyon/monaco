@@ -81,5 +81,5 @@ runs:
       if: inputs.db == 'true'
       shell: bash
       run: |
-        scripts/ci/retry.sh docker compose --profile test pull postgres-test
+        scripts/ci/pull-image.sh public.ecr.aws/docker/library/postgres:16-alpine
         docker compose --profile test up -d --wait postgres-test

@@ -245,7 +245,7 @@ if [[ "$ready" -ne 1 ]]; then
 fi
 
 swift_image=public.ecr.aws/docker/library/swift:6.3-noble
-"$root/scripts/ci/retry.sh" docker pull -q "$swift_image" || exit 1
+"$root/scripts/ci/pull-image.sh" "$swift_image" || exit 1
 set +e
 docker run --rm --network host \
   -v "$root:/w" -w /w/packages/mobile-core \
