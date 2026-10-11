@@ -59,6 +59,14 @@ func (r *countingRouter) quote(c multichain.Comparison) scenario.Step {
 	}
 }
 
+func (r *countingRouter) fail(err error) scenario.Step {
+	return func(*scenario.Scenario) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.err = err
+	}
+}
+
 func (r *countingRouter) expectCalls(t *testing.T, want int) scenario.Step {
 	t.Helper()
 	return func(*scenario.Scenario) {
@@ -142,16 +150,21 @@ func TestProposalComparison_refusesWhatTheCatalogOrJupiterRefuses(t *testing.T) 
 	aapl := marketfake.AAPLx()
 	renamed := aapl
 	renamed.Symbol = "AAPLz"
-	w.clockedScenario(t, &countingRouter{c: appleComparison(t)}, clock.Real{}).Given(w.asMember()).
+	router := &countingRouter{c: appleComparison(t)}
+	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
 		When(
 			scenario.Post(w.proposals(), buyAAPL),
 			scenario.Remember("id", "proposal"),
+			router.fail(errs.New(errs.CodeNoRoute, "test")),
 			func(*scenario.Scenario) { w.routes.ProbeFails(aapl.ID) },
 			scenario.Get(w.liveComparison()),
 			scenario.ExpectProblem(errs.CodeNoRoute),
 			func(*scenario.Scenario) { w.routes.Paused(aapl.ID) },
 			scenario.Get(w.liveComparison()),
 			scenario.ExpectProblem(errs.CodeAssetPaused),
+			router.fail(errs.New(errs.CodeQuoteUnavailable, "test")),
+			scenario.Get(w.liveComparison()),
+			scenario.ExpectProblem(errs.CodeQuoteUnavailable),
 			func(*scenario.Scenario) { w.catalog.Put(renamed) },
 			scenario.Get(w.liveComparison()),
 			scenario.ExpectProblem(errs.CodeAssetNotFound),
@@ -160,23 +173,37 @@ func TestProposalComparison_refusesWhatTheCatalogOrJupiterRefuses(t *testing.T) 
 
 func TestProposalComparison_fallsBackToTheSolanaQuoteWhenRoutingFails(t *testing.T) {
 	t.Parallel()
-	for _, code := range []errs.Code{errs.CodeNoRoute, errs.CodeQuoteUnavailable} {
-		t.Run(string(code), func(t *testing.T) {
-			t.Parallel()
-			w := newTradeWorld(t)
-			router := &countingRouter{err: errs.New(code, "test")}
-			w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
-				When(
-					scenario.Post(w.proposals(), buyAAPL),
-					scenario.Remember("id", "proposal"),
-					scenario.Get(w.liveComparison()),
-					scenario.ExpectStatus(http.StatusOK),
-					scenario.ExpectJSON("quote_out_amount", quoteUnits),
-					scenario.ExpectNoField("price_comparison"),
-					router.expectCalls(t, 2),
-				)
-		})
-	}
+	w := newTradeWorld(t)
+	router := &countingRouter{err: errs.New(errs.CodeNoRoute, "test")}
+	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
+		When(
+			scenario.Post(w.proposals(), buyAAPL),
+			scenario.Remember("id", "proposal"),
+			scenario.Get(w.liveComparison()),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectNoField("price_comparison"),
+			router.expectCalls(t, 2),
+		)
+}
+
+func TestProposalComparison_withoutARouterQuotesTheSolanaMint(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	clk := testkit.NewClock(clock.Real{}.Now().UTC())
+	w.clockedScenario(t, nil, clk).Given(w.asMember()).
+		When(
+			scenario.Post(w.proposals(), buyAAPL),
+			scenario.Remember("id", "proposal"),
+			scenario.Get(w.liveComparison()),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectNoField("price_comparison"),
+			func(*scenario.Scenario) { w.routes.ProbeFails(marketfake.AAPLx().ID) },
+			func(*scenario.Scenario) { clk.Advance(comparisonTTL) },
+			scenario.Get(w.liveComparison()),
+			scenario.ExpectProblem(errs.CodeNoRoute),
+		)
 }
 
 func TestProposalComparison_servesOnlyAnOpenBuyToAMember(t *testing.T) {
@@ -224,8 +251,7 @@ func TestProposalComparison_refusesAQuotePastInt64AndAnAnonymousCaller(t *testin
 	w := newTradeWorld(t)
 	aapl := marketfake.AAPLx()
 	huge := market.RouteCheck{OutAmount: money.NewBaseUnits(math.MaxUint64, aapl.Decimals)}
-	router := &countingRouter{err: errs.New(errs.CodeNoRoute, "test")}
-	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
+	w.scenario(t).Given(w.asMember()).
 		When(
 			scenario.Post(w.proposals(), buyAAPL),
 			scenario.Remember("id", "proposal"),

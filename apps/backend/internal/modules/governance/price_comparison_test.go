@@ -166,6 +166,22 @@ func TestProposeTrade_keepsTheSolanaQuoteWhenRoutingHasNothing(t *testing.T) {
 		)
 }
 
+func TestProposeTrade_refusesABuyNeitherTheRouterNorTheSolanaMintCanRoute(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	w.routedScenario(t, stubRouter{t: t, err: errs.New(errs.CodeNoRoute, "test")}).Given(w.asMember()).
+		When(
+			func(*scenario.Scenario) { w.routes.NoRoute(marketfake.AAPLx().ID) },
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("advisory_code", "no_route"),
+			scenario.ExpectJSON("quote_out_amount", nil),
+			scenario.Post(w.proposals(), buyAAPL),
+			scenario.ExpectProblem(errs.CodeNoRoute),
+		).
+		Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
 func TestProposeTrade_refusesAComparisonItCannotStore(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
@@ -231,17 +247,14 @@ func TestCastVote_refusesAStoredComparisonItCannotRead(t *testing.T) {
 		Then(scenario.ExpectEvents(events.TypeProposalPassed, 0))
 }
 
-func TestPreview_logsABrokenRouterOnceAMinute(t *testing.T) {
+func TestPreview_passesThroughARouterFailureThatIsNotAnAdvisory(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
-	preview := w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")
 	w.routedScenario(t, stubRouter{t: t, err: errs.New(errs.CodeUpstreamUnavailable, "test")}).Given(w.asMember()).
 		When(
-			scenario.Get(preview),
-			scenario.ExpectStatus(http.StatusOK), scenario.ExpectJSON("quote_out_amount", quoteUnits),
-			scenario.Get(preview), scenario.ExpectStatus(http.StatusOK),
-		).
-		Then(scenario.ExpectLogs("market.router.fallback", 1))
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")),
+			scenario.ExpectProblem(errs.CodeUpstreamUnavailable),
+		)
 }
 
 func TestPreview_doesNotLogAStockWithNoRoute(t *testing.T) {
@@ -253,7 +266,7 @@ func TestPreview_doesNotLogAStockWithNoRoute(t *testing.T) {
 		Then(scenario.ExpectLogs("market.router.fallback", 0))
 }
 
-func TestProposeTrade_tradesOnSolanaWhenTheRouterCannotQuoteSolana(t *testing.T) {
+func TestProposeTrade_refusesABuyWhileTheRouterCannotQuoteSolana(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	unquoted := stubRouter{t: t, err: errs.New(errs.CodeQuoteUnavailable, "test")}
@@ -261,14 +274,13 @@ func TestProposeTrade_tradesOnSolanaWhenTheRouterCannotQuoteSolana(t *testing.T)
 		When(
 			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")),
 			scenario.ExpectStatus(http.StatusOK),
-			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectJSON("advisory_code", "quote_unavailable"),
+			scenario.ExpectJSON("quote_out_amount", nil),
 			scenario.ExpectNoField("price_comparison"),
 			scenario.Post(w.proposals(), buyAAPL),
-			scenario.ExpectStatus(http.StatusCreated),
-			scenario.ExpectJSON("quote_out_amount", quoteUnits),
-			scenario.ExpectNoField("price_comparison"),
+			scenario.ExpectProblem(errs.CodeQuoteUnavailable),
 		).
-		Then(scenario.ExpectEvents(events.TypeProposalCreated, 1))
+		Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
 }
 
 func expectUnavailable(t *testing.T, want string) func(*scenario.Scenario, json.RawMessage) {

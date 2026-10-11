@@ -113,19 +113,18 @@ func (c *ProposalComparisons) quote(
 	trade := domain.Trade{
 		Kind: domain.KindBuy, Symbol: row.Symbol, USDCMicros: money.MicrosFromUint64(unsigned(row.UsdcMicros.Int64)),
 	}
-	routed, err := route(ctx, c.propose.ports.Routes, asset, trade)
+	routed, comparison, err := c.propose.route(ctx, asset, trade)
 	if market.ProbeFailed(err) {
 		err = errs.New(errs.CodeNoRoute, op)
 	}
 	if err != nil {
 		return LiveComparison{}, err
 	}
-	comparison := c.propose.compare(ctx, asset, trade)
 	priced, _ := pinned(comparison, chain.Network(row.Network))
 	observability.Debug(ctx, observability.GovernanceProposalComparisonRefreshed,
 		slog.String("proposal_id", row.ID.String()), slog.Bool("compared", comparison != nil))
 	return LiveComparison{
-		QuoteOut:   displayQuote(asset, priced, routed.OutAmount.Uint64(), now),
+		QuoteOut:   displayQuote(asset, priced, routed, now),
 		Comparison: comparison,
 		QuotedAt:   now,
 	}, nil

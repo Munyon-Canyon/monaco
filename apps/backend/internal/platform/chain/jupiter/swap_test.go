@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"net/http"
 	"os"
 	"reflect"
@@ -192,6 +193,31 @@ func TestQuote_NoRoute(t *testing.T) {
 		jupiter.QuoteSpec{In: usdc(), Out: aaplx(), Amount: units(1, usdc())})
 	if err != nil || got.Routable {
 		t.Fatalf("400 Quote = %+v, %v, want unroutable and no error", got, err)
+	}
+}
+
+func TestQuote_asksTheAggregatorWhenTheMarketMakerDeclines(t *testing.T) {
+	t.Parallel()
+	u := &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("excludeRouters") != "jupiterz" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":"Quote not available from market maker"}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"inAmount":"1000000","outAmount":"139975","priceImpactPct":"-0.0154",`+
+			`"router":"metis","routePlan":[{},{}]}`)
+	})}
+	spec := jupiter.QuoteSpec{In: usdc(), Out: aaplx(), Amount: units(1_000_000, usdc())}
+	got, err := client(u).Quote(t.Context(), spec)
+	want := jupiter.Quote{
+		InAmount: units(1_000_000, usdc()), OutAmount: units(139_975, aaplx()), PriceImpactBps: 2, Routable: true,
+	}
+	if err != nil || got != want {
+		t.Fatalf("Quote = %+v, %v, want %+v", got, err, want)
+	}
+	sent := u.requests()
+	if len(sent) != 2 || sent[0].query.Has("excludeRouters") || sent[1].query.Get("amount") != "1000000" {
+		t.Fatalf("requests = %+v, want the market maker first, then the same order without it", sent)
 	}
 }
 

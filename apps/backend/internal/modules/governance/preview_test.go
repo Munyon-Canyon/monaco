@@ -1,9 +1,13 @@
 package governance_test
 
 import (
+	"encoding/json"
 	"math"
+	"math/big"
 	"net/http"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -12,8 +16,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -112,6 +120,85 @@ func TestPreview_advisesNoRouteWhenTheProbeFails(t *testing.T) {
 		scenario.Get(w.preview("kind=buy&symbol=TSLAx&usdc_micros=5000000")), scenario.ExpectStatus(http.StatusOK),
 		scenario.ExpectJSON("advisory_code", "no_route"), scenario.ExpectJSON("quote_out_amount", nil),
 	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
+func nflxShaped(t *testing.T) multichain.Comparison {
+	t.Helper()
+	g := testkit.NewIDs(5331)
+	var stock multichain.StockID
+	if err := stock.UnmarshalText([]byte(marketfake.TSLAx().ID.String())); err != nil {
+		t.Fatal(err)
+	}
+	at := clock.Real{}.Now().UTC().Truncate(time.Second)
+	quote := func(issuer string, n chain.Network, shares multichain.ShareNanos) multichain.Quote {
+		return multichain.Quote{
+			ListingID: multichain.ListingIDFrom(g.NewV7()), Issuer: issuer, Network: n, Venue: multichain.VenueUniswap,
+			Side: multichain.SideBuy, InputMicros: money.MicrosFromUint64(1_000_000), GrossOutput: big.NewInt(1),
+			Costs: []multichain.Cost{}, NetShares: shares, NetMicros: money.MicrosFromUint64(1_000_000),
+			QuotedAt: at, ExpiresAt: at.Add(30 * time.Second),
+		}
+	}
+	base, robinhood := quote(
+		"coinbase",
+		chain.NetworkBase,
+		2_900_000,
+	), quote(
+		"robinhood",
+		chain.NetworkRobinhood,
+		2_800_000,
+	)
+	return multichain.Comparison{
+		StockID: stock, Side: multichain.SideBuy, Winner: base.ListingID, Ranked: []multichain.Quote{base, robinhood},
+		Unavailable: []multichain.UnavailableVenue{
+			{
+				ListingID: multichain.ListingIDFrom(
+					g.NewV7(),
+				),
+				Network: chain.NetworkSolana,
+				Venue:   multichain.VenueJupiter,
+				Reason:  multichain.UnavailableNoRoute,
+			},
+		},
+	}
+}
+
+func TestPreview_aBuySolanaCannotRouteTakesTheBestVenueOnAnotherChain(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	c := nflxShaped(t)
+	w.clockedScenario(t, &countingRouter{c: c}, clock.Real{}).Given(w.asMember()).When(
+		scenario.Get(w.preview("kind=buy&symbol=TSLAx&usdc_micros=1000000")), scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectJSON("advisory_code", nil), scenario.ExpectJSON("quote_out_amount", 290_000),
+		scenario.ExpectField("price_comparison", func(_ *scenario.Scenario, raw json.RawMessage) {
+			winner, quotes := comparisonOf(t, raw)
+			if winner != c.Winner.String() || !slices.Equal(quotes, []string{"coinbase:2900000", "robinhood:2800000"}) {
+				t.Fatalf("price_comparison = %s, want Base then Robinhood", raw)
+			}
+		}),
+	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
+func TestPreview_advisesTryingAgainWhenNoVenueCouldBeQuoted(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	router := &countingRouter{err: errs.New(errs.CodeQuoteUnavailable, "test")}
+	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).When(
+		scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")), scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectJSON("advisory_code", "quote_unavailable"),
+		scenario.ExpectJSON("advisory_message", errs.Message(errs.CodeQuoteUnavailable)),
+		scenario.ExpectJSON("quote_out_amount", nil), scenario.ExpectNoField("price_comparison"),
+	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
+func TestPreview_advisesAnUntradableStockWithoutAskingTheRouter(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	router := &countingRouter{c: nflxShaped(t)}
+	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).When(
+		scenario.Get(w.preview("kind=buy&symbol=JPSTx&usdc_micros=1000000")), scenario.ExpectStatus(http.StatusOK),
+		scenario.ExpectJSON("advisory_code", "asset_untradable"), scenario.ExpectJSON("quote_out_amount", nil),
+		router.expectCalls(t, 0),
+	)
 }
 
 func TestPreview_passesThroughWhatIsUnavailable(t *testing.T) {

@@ -120,10 +120,16 @@ func TestProposeTrade_refusesAPinItCannotHonor(t *testing.T) {
 		name   string
 		router stubRouter
 		body   string
+		want   errs.Code
 	}{
-		{"no arbitrum quote", stubRouter{c: solanaFirstComparison(t)}, buyAAPLOnArbitrum},
-		{"router failed", stubRouter{err: errs.New(errs.CodeUpstreamUnavailable, "test")}, buyAAPLOnBase},
-		{"sell", stubRouter{c: solanaFirstComparison(t)}, sellAAPLOnBase},
+		{"no arbitrum quote", stubRouter{c: solanaFirstComparison(t)}, buyAAPLOnArbitrum, errs.CodeInvalidNetwork},
+		{
+			"router failed",
+			stubRouter{err: errs.New(errs.CodeQuoteUnavailable, "test")},
+			buyAAPLOnBase,
+			errs.CodeQuoteUnavailable,
+		},
+		{"sell", stubRouter{c: solanaFirstComparison(t)}, sellAAPLOnBase, errs.CodeInvalidNetwork},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -133,7 +139,7 @@ func TestProposeTrade_refusesAPinItCannotHonor(t *testing.T) {
 			s := w.routedScenario(t, tc.router)
 			s.Given(w.asMember()).
 				When(scenario.Post(w.proposals(), tc.body)).
-				Then(scenario.ExpectProblem(errs.CodeInvalidNetwork), scenario.ExpectEvents(events.TypeProposalCreated, 0))
+				Then(scenario.ExpectProblem(tc.want), scenario.ExpectEvents(events.TypeProposalCreated, 0))
 			if n := proposalRows(t, s, w.cabal); n != 0 {
 				t.Fatalf("proposals rows = %d, want 0", n)
 			}

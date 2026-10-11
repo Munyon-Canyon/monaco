@@ -263,7 +263,11 @@ func (r *Router) rank(
 		ranked = append(ranked, q.quote)
 	}
 	if len(ranked) == 0 {
-		return multichain.Comparison{}, errs.New(errs.CodeNoRoute, routerOp, slog.String("stock_id", stock.String()))
+		code := errs.CodeNoRoute
+		if slices.ContainsFunc(unavailable, func(u multichain.UnavailableVenue) bool { return !unroutable(u.Reason) }) {
+			code = errs.CodeQuoteUnavailable
+		}
+		return multichain.Comparison{}, errs.New(code, routerOp, slog.String("stock_id", stock.String()))
 	}
 	slices.SortStableFunc(ranked, func(a, b multichain.Quote) int {
 		return cmp.Or(cmp.Compare(b.NetShares, a.NetShares), cmp.Compare(solanaFirst(a), solanaFirst(b)))
@@ -322,7 +326,10 @@ func (r *Router) winner(
 }
 
 func (r *Router) solanaUnquoted(ctx context.Context, stock multichain.StockID, quotes []venueQuote) error {
-	i := slices.IndexFunc(quotes, func(q venueQuote) bool { return q.listing.Network == chain.NetworkSolana })
+	i := slices.IndexFunc(quotes, func(q venueQuote) bool {
+		_, reason := r.dropReason(q)
+		return q.listing.Network == chain.NetworkSolana && !unroutable(reason)
+	})
 	if i < 0 {
 		return nil
 	}
@@ -331,4 +338,8 @@ func (r *Router) solanaUnquoted(ctx context.Context, stock multichain.StockID, q
 		slog.String("stock_id", stock.String()), slog.String("venue", venue))
 	return errs.New(errs.CodeQuoteUnavailable, routerOp, slog.String("stock_id", stock.String()),
 		slog.String("venue", venue))
+}
+
+func unroutable(reason multichain.UnavailableReason) bool {
+	return reason == multichain.UnavailableNoRoute || reason == multichain.UnavailableImpact
 }

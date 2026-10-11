@@ -15,6 +15,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
+const marketMakerRouter = "jupiterz"
+
 type orderWire struct {
 	RequestID            string            `json:"requestId"`
 	Transaction          string            `json:"transaction"`
@@ -119,6 +121,15 @@ func (c *Client) order(
 	q.Set("outputMint", out.Address)
 	q.Set("amount", amount.String())
 	q.Set("swapMode", "ExactIn")
+	w, status, err := c.orderOnce(ctx, op, q)
+	if err != nil || status != http.StatusBadRequest {
+		return w, status, err
+	}
+	q.Set("excludeRouters", marketMakerRouter)
+	return c.orderOnce(ctx, op, q)
+}
+
+func (c *Client) orderOnce(ctx context.Context, op string, q url.Values) (orderWire, int, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/order?"+q.Encode(), nil)
 	r, err := c.call(ctx, c.swap, swapLane, req, op)
 	if err != nil {
