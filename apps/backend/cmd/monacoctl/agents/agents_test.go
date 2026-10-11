@@ -475,6 +475,39 @@ func TestExec_aHungGHCallFailsAtItsDeadline(t *testing.T) {
 	}
 }
 
+func hangingGit(t *testing.T) string {
+	t.Helper()
+	bin := t.TempDir()
+	script := fstest.MapFS{"git": {Data: []byte("#!/bin/sh\nsleep 600\n"), Mode: 0o700}}
+	if err := os.CopyFS(bin, script); err != nil {
+		t.Fatal(err)
+	}
+	return bin + string(os.PathListSeparator) + os.Getenv("PATH")
+}
+
+func TestExec_aHungGitFetchFailsAtItsDeadline(t *testing.T) {
+	t.Setenv("PATH", hangingGit(t))
+	t.Setenv("MONACO_GH_TIMEOUT", "300ms")
+	var err error
+	took := timed(func() {
+		_, err = Exec(t.Context(), "", "", "git", "fetch", "--no-tags", "origin", "staging")
+	})
+	if took > ghTimeout()+execWaitDelay() {
+		t.Fatalf("returned in %s", took)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+func TestExec_aLocalGitCommandHasNoDeadline(t *testing.T) {
+	t.Setenv("MONACO_GH_TIMEOUT", "1ns")
+	out, err := Exec(t.Context(), "", "", "git", "--version")
+	if err != nil || !strings.HasPrefix(string(out), "git version") {
+		t.Fatalf("git --version = %q, %v", out, err)
+	}
+}
+
 func TestGHTimeout_defaultsToOneMinuteWithoutAValidOverride(t *testing.T) {
 	t.Setenv("MONACO_GH_TIMEOUT", "")
 	if d := ghTimeout(); d != time.Minute {
