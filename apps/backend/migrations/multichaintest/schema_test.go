@@ -168,3 +168,17 @@ func TestSwapOperatorActionsCheckTheActionAndTheReasonLength(t *testing.T) {
 		{"501 characters", insert, []any{swap, "unpark", long + "x"}, false},
 	})
 }
+
+func TestEVMDepositForwardFeeIsNeverNegative(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	u := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	insert := `INSERT INTO evm_deposit_forwards (id, user_id, network, source_tx, privy_execution_id, amount_micros,
+		status, created_at, fee_micros) VALUES (gen_random_uuid(), $1, 'base', '0xsrc', $2, 835383, 'pending', now(), $3)`
+	run(t, pool, []stmt{
+		{"unknown fee", insert, []any{u.ID.UUID(), "e1", nil}, true},
+		{"zero fee", insert, []any{u.ID.UUID(), "e2", 0}, true},
+		{"measured fee", insert, []any{u.ID.UUID(), "e3", 163098}, true},
+		{"negative fee", insert, []any{u.ID.UUID(), "e4", -1}, false},
+	})
+}

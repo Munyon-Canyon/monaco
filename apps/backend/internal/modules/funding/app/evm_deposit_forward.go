@@ -226,7 +226,7 @@ func follow(
 	}
 	if _, err := q.RecordEVMDepositForwardProgress(ctx, sqlc.RecordEVMDepositForwardProgressParams{
 		ID: row.ID, PrivyActionID: string(ex.ActionID), SolanaSignature: ex.Signature,
-		AmountMicros: ex.AmountMicros.String(),
+		AmountMicros: ex.AmountMicros.String(), FeeMicros: forwardFee(ex),
 	}); err != nil || ex.State != multichain.ActionSucceeded {
 		return row.Status, err
 	}
@@ -241,6 +241,17 @@ func follow(
 		return row.Status, err
 	}
 	return forwardArrived, nil
+}
+
+func forwardFee(ex multichain.Execution) string {
+	if ex.State != multichain.ActionSucceeded || ex.InputMicros.IsZero() {
+		return ""
+	}
+	fee, err := ex.InputMicros.Sub(ex.AmountMicros)
+	if err != nil {
+		return money.Micros{}.String()
+	}
+	return fee.String()
 }
 
 func creditedAfter(row sqlc.UpsertEVMDepositForwardRow) time.Time {
