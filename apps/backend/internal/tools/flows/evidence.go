@@ -55,7 +55,7 @@ func CheckTests(flows []Flow, results TestResults, ids []string) []Problem {
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(results)) {
-		if m := flowTest.FindStringSubmatch(name); m != nil && selected(ids, m[1]) && !owned[name] {
+		if m := flowTest.FindStringSubmatch(name); m != nil && !owned[name] {
 			problems = append(
 				problems,
 				problemf(0, "test %s matches no flow outcome; delete the test or add its row", name),
