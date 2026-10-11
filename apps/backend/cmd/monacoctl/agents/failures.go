@@ -29,8 +29,9 @@ func failureQuery(after string) string {
 		`pullRequests(` + openPage(after) + `){pageInfo{hasNextPage endCursor} ` +
 		`nodes{number body isDraft mergeable headRefName baseRefName headRefOid ` +
 		labelFields + ` commits(last:1){nodes{commit{...runs}}} ` +
-		`timelineItems(itemTypes:[UNLABELED_EVENT],last:20){nodes{` +
-		`... on UnlabeledEvent{createdAt label{name} actor{login}}}}}} ` +
+		`timelineItems(itemTypes:[UNLABELED_EVENT,BASE_REF_CHANGED_EVENT],last:20){nodes{` +
+		`... on UnlabeledEvent{createdAt label{name} actor{login}} ` +
+		`... on BaseRefChangedEvent{createdAt currentRefName actor{login}}}}}} ` +
 		drafts + `}}` +
 		"\nfragment runs on Commit{" + commitChecks + "}"
 }
@@ -310,10 +311,10 @@ func onePerOwnedStack(failed []failure, rs []Record) []failure {
 	})
 }
 
-func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string) []string {
+func stuckOnGraphiteBase(prs []watchPR, rs []Record, label string, now time.Time) []string {
 	var out []string
 	for _, p := range prs {
-		if !strings.HasPrefix(p.BaseRefName, "graphite-base/") {
+		if !strings.HasPrefix(p.BaseRefName, "graphite-base/") || p.TimelineItems.restacking(now) {
 			continue
 		}
 		top, ticket, owned := ownerStack(rs, p.Number)
@@ -380,7 +381,7 @@ func (s stallScan) stall(ctx context.Context, p watchPR) string {
 	if !ok {
 		return ""
 	}
-	if why := restackReason(s.prs, p); why != "" {
+	if why := restackReason(s.prs, p, s.env.Now()); why != "" {
 		return fmt.Sprintf("#%d is green but its stack needs a restack: %s; owner record %d.json: "+
 			"restack onto %s with gt, resubmit, then land-stack %d",
 			p.Number, why, r.Ticket, s.env.Config.FeatureBranch, p.Number)
@@ -399,11 +400,11 @@ func (s stallScan) landable(top watchPR) bool {
 	})
 }
 
-func restackReason(prs []watchPR, top watchPR) string {
+func restackReason(prs []watchPR, top watchPR, now time.Time) string {
 	for _, head := range chainDown(prs, top) {
 		i := slices.IndexFunc(prs, func(q watchPR) bool { return q.HeadRefName == head })
 		switch {
-		case strings.HasPrefix(prs[i].BaseRefName, "graphite-base/"):
+		case strings.HasPrefix(prs[i].BaseRefName, "graphite-base/") && !prs[i].TimelineItems.restacking(now):
 			return fmt.Sprintf("#%d sits on %s", prs[i].Number, prs[i].BaseRefName)
 		case prs[i].Mergeable == conflicting:
 			return fmt.Sprintf("#%d conflicts with %s", prs[i].Number, prs[i].BaseRefName)

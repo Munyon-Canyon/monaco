@@ -47,13 +47,28 @@ type gqlPR struct {
 	TimelineItems gqlTimeline `json:"timelineItems"`
 }
 
+type gqlTimelineNode struct {
+	Typename  string    `json:"__typename"`
+	CreatedAt time.Time `json:"createdAt"`
+	Label     gqlName   `json:"label"`
+	Actor     gqlActor  `json:"actor"`
+	RefName   string    `json:"currentRefName"`
+}
+
 type gqlTimeline struct {
-	Nodes []struct {
-		Typename  string    `json:"__typename"`
-		CreatedAt time.Time `json:"createdAt"`
-		Label     gqlName   `json:"label"`
-		Actor     gqlActor  `json:"actor"`
-	} `json:"nodes"`
+	Nodes []gqlTimelineNode `json:"nodes"`
+}
+
+const graphiteRestackWindow = 5 * time.Minute
+
+func (t gqlTimeline) restacking(now time.Time) bool {
+	for i := len(t.Nodes) - 1; i >= 0; i-- {
+		n := t.Nodes[i]
+		if n.Typename == "BaseRefChangedEvent" && strings.HasPrefix(n.RefName, "graphite-base/") {
+			return graphiteLogin(n.Actor.Login) && now.Sub(n.CreatedAt) < graphiteRestackWindow
+		}
+	}
+	return false
 }
 
 func (t gqlTimeline) removal(label string) (at time.Time, byGraphite, ok bool) {

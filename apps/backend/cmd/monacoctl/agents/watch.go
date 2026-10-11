@@ -50,7 +50,9 @@ func watchCmd(ctx context.Context, env *Env, args []string, stdout io.Writer) er
 	if err != nil {
 		return err
 	}
-	stuck := append(stuckOnGraphiteBase(data.prs, rs, env.Config.QueueLabel), env.silentStalls(ctx, data.prs, rs)...)
+	stuck := append(
+		stuckOnGraphiteBase(data.prs, rs, env.Config.QueueLabel, env.Now()),
+		env.silentStalls(ctx, data.prs, rs)...)
 	for _, line := range append(lines, stuck...) {
 		_, _ = fmt.Fprintln(stdout, line)
 	}
