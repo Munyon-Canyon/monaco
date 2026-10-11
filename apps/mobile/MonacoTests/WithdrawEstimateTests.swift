@@ -1,0 +1,79 @@
+import Foundation
+import MonacoAPI
+import MonacoCore
+import Testing
+
+@testable import Monaco
+
+@MainActor
+struct WithdrawEstimateTests {
+    private let evmAddress = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+    private let solanaAddress = "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"
+    private let previewFixture = #"{"receive_micros":"9992500","expires_at":"2026-10-11T10:30:00Z"}"#
+
+    private var balance: AccountBalance {
+        AccountBalance(
+            availableMicros: 20_000_000, onChainMicros: 20_000_000, inFlightMicros: 0, depositAddress: "dep",
+            asOf: Date())
+    }
+
+    private func form(
+        _ network: WithdrawNetwork, address: String, amount: String = "10", estimate: Int64? = nil
+    ) -> WithdrawForm {
+        WithdrawForm(
+            amountText: amount, destinationAddress: address, network: network, estimatedReceiveMicros: estimate,
+            balance: balance)
+    }
+
+    private func source(_ transport: StubTransport) -> WithdrawSource {
+        WithdrawSource(
+            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport))
+    }
+
+    @Test func onlyAnEVMWithdrawalReadyToContinueAsksForAPreview() {
+        #expect(
+            form(.base, address: evmAddress).previewRequest
+                == WithdrawPreviewRequest(micros: 10_000_000, toAddress: evmAddress, network: .base))
+        #expect(form(.solana, address: solanaAddress).previewRequest == nil)
+        #expect(form(.arbitrum, address: "").previewRequest == nil)
+        #expect(form(.arbitrum, address: solanaAddress).previewRequest == nil)
+        #expect(form(.ethereum, address: evmAddress, amount: "").previewRequest == nil)
+        #expect(form(.ethereum, address: evmAddress, amount: "50").previewRequest == nil)
+    }
+
+    @Test func anEVMWithdrawalShowsTheEstimateFromThePreviewRoute() async throws {
+        let request = try #require(form(.base, address: evmAddress).previewRequest)
+        let transport = StubTransport(.json(.ok, previewFixture))
+
+        let estimate = await WithdrawEstimate.fetch(request, from: source(transport), after: .zero)
+
+        #expect(await transport.sent.map(\.path) == ["/v1/me/withdrawals/preview"])
+        let shown = form(.base, address: evmAddress, estimate: estimate?.receiveMicros(for: request))
+        #expect(shown.receiveLine == "You'll receive ~$9.99")
+    }
+
+    @Test func anEstimateForAnotherAmountOrNetworkIsNotShown() async throws {
+        let request = try #require(form(.base, address: evmAddress).previewRequest)
+        let transport = StubTransport(.json(.ok, previewFixture))
+        let estimate = try #require(await WithdrawEstimate.fetch(request, from: source(transport), after: .zero))
+
+        #expect(estimate.receiveMicros(for: form(.base, address: evmAddress, amount: "11").previewRequest) == nil)
+        #expect(estimate.receiveMicros(for: form(.arbitrum, address: evmAddress).previewRequest) == nil)
+        #expect(estimate.receiveMicros(for: nil) == nil)
+    }
+
+    @Test func aPreviewErrorHidesTheLineAndKeepsContinue() async throws {
+        let request = try #require(form(.base, address: evmAddress).previewRequest)
+        let transport = try StubTransport.problem(
+            Components.Schemas.Problem(
+                _type: .about_colon_blank, title: "Unavailable", status: 503, code: .privyUnavailable,
+                message: "Try again.", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: true))
+
+        let estimate = await WithdrawEstimate.fetch(request, from: source(transport), after: .zero)
+
+        #expect(estimate == nil)
+        let shown = form(.base, address: evmAddress, estimate: estimate?.receiveMicros(for: request))
+        #expect(shown.receiveLine == nil)
+        #expect(shown.canContinue)
+    }
+}

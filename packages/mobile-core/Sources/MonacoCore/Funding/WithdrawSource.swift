@@ -46,6 +46,12 @@ public struct WithdrawSource: Sendable {
             txSignature: accepted.txSignature)
     }
 
+    public func previewReceiveMicros(micros: Int64, toAddress: String, network: WithdrawNetwork) async throws -> Int64 {
+        let body = network.request(micros: micros, toAddress: toAddress)
+        let preview = try await api.read { try await $0.previewWithdrawal(body: .json(body)).ok.body.json }
+        return try AccountBalance.micros(preview.receiveMicros)
+    }
+
     public func withdrawal(id: String) async throws -> Withdrawal {
         let wire = try await api.read { try await $0.getMyWithdrawal(path: .init(id: id)).ok.body.json }
         return Withdrawal(

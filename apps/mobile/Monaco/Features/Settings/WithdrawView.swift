@@ -14,6 +14,7 @@ struct WithdrawView: View {
     @State private var refusedAddress: String?
     @State private var showConfirm = false
     @State private var frozen: WithdrawAmount.Frozen?
+    @State private var estimate: WithdrawEstimate?
 
     private var trimmedAddress: String {
         destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -23,12 +24,20 @@ struct WithdrawView: View {
         Binding(get: { amount.text }, set: { amount.edit(to: $0) })
     }
 
+    private var previewRequest: WithdrawPreviewRequest? {
+        WithdrawForm(
+            amountText: amount.text, destinationAddress: destinationAddress, network: network,
+            balance: environment.balance.balance
+        ).previewRequest
+    }
+
     var body: some View {
         WithdrawContent(
             state: environment.balance.state,
             amountText: amountText,
             destinationAddress: $destinationAddress,
             network: $network,
+            estimatedReceiveMicros: estimate?.receiveMicros(for: previewRequest),
             onMax: { amount.tapMax() },
             refusedAddress: refusedAddress,
             onContinue: {
@@ -46,6 +55,11 @@ struct WithdrawView: View {
         .onChange(of: network) { _, _ in refusedAddress = nil }
         .onChange(of: showConfirm) { _, shown in
             if !shown { frozen = nil }
+        }
+        .task(id: previewRequest) {
+            guard let previewRequest else { return }
+            let fetched = await WithdrawEstimate.fetch(previewRequest, from: WithdrawSource(api: environment.api))
+            if !Task.isCancelled { estimate = fetched }
         }
         .navigationDestination(isPresented: $showConfirm) {
             WithdrawConfirmView(
@@ -212,6 +226,13 @@ struct WithdrawForm: Equatable {
         return network.message(for: problem)
     }
 
+    var previewRequest: WithdrawPreviewRequest? {
+        guard network.isEVM, canContinue, case .success(let address) = addressValidation,
+            let micros = AmountEntryText.micros(amountText)
+        else { return nil }
+        return WithdrawPreviewRequest(micros: micros, toAddress: address, network: network)
+    }
+
     var receiveLine: String? {
         guard let micros = AmountEntryText.micros(amountText), micros > 0, problem == nil else { return nil }
         guard network.isEVM else { return network.receiveLine(receiveMicros: micros) }
@@ -226,6 +247,36 @@ struct WithdrawForm: Equatable {
     /// Under the address field: what kind of address, and that it is final.
     static let caveat = WithdrawNetwork.solana.caveat
     var addressCaveat: String { network.caveat }
+}
+
+struct WithdrawPreviewRequest: Hashable {
+    let micros: Int64
+    let toAddress: String
+    let network: WithdrawNetwork
+}
+
+struct WithdrawEstimate: Equatable {
+    let request: WithdrawPreviewRequest
+    let receiveMicros: Int64
+
+    func receiveMicros(for current: WithdrawPreviewRequest?) -> Int64? {
+        current == request ? receiveMicros : nil
+    }
+
+    static let debounce = Duration.milliseconds(400)
+
+    static func fetch(
+        _ request: WithdrawPreviewRequest, from source: WithdrawSource, after delay: Duration = debounce
+    ) async -> WithdrawEstimate? {
+        do {
+            try await Task.sleep(for: delay)
+            let receive = try await source.previewReceiveMicros(
+                micros: request.micros, toAddress: request.toAddress, network: request.network)
+            return WithdrawEstimate(request: request, receiveMicros: receive)
+        } catch {
+            return nil
+        }
+    }
 }
 
 /// Withdraw's entry layout: the amount as the hero, the address it goes to in the market's
