@@ -20,6 +20,10 @@ case "$scenario" in
     ready_actor A
     echo "seeded: A is onboarded; the runner funds A's wallet with 1 USDC"
     ;;
+  S2)
+    ready_actor B
+    echo "seeded: B is onboarded; the runner funds B's wallet with 1 USDC"
+    ;;
   *)
     echo "no setup for scenario $scenario" >&2
     exit 1
