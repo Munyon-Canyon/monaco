@@ -124,6 +124,11 @@ A stock can trade on several chains, from several issuers. Every trade buys or s
 | Coinbase (B20) | Base |
 | Robinhood | Robinhood Chain (cash asset USDG, not USDC) |
 
+**At launch** (real quotes from #4969, 2026-10-11):
+
+- **xStocks on Ethereum and Arbitrum stay disabled.** The Uniswap Trading API found no route for them on Arbitrum, and 31–99% price impact on Ethereum at cabal trade sizes. They stay in `asset_listings` with `enabled = false`, and the router never quotes them.
+- **Coinbase B20 on Base routes through Uniswap.** Its pools are Uniswap v4 hooked pools, which the Trading API quotes and routes, so no aggregator such as Kyber is needed.
+
 #### Quote, compare, pick
 
 `Router.Best(stock, side, amount)` (`market`):
