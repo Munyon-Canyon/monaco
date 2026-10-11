@@ -17,10 +17,7 @@ func (defined) WorkerEnvF28() []string { return []string{"IDENTITY_NUDGES_INTERV
 func F28EmitNudgesOK(s *scenario.Scenario) {
 	var user ids.UserID
 	s.Given(seedAwaitingPhone(&user, 25*time.Hour)).
-		When(
-			scenario.AwaitTick(nudgePoller),
-			scenario.AwaitTick(nudgePoller),
-		).
+		When(awaitNudge(&user)).
 		Then(
 			expectOneNudge(&user, "add_phone"),
 			scenario.EventuallyLog(observability.PollerTick, map[string]string{"poller": nudgePoller, "changed": "1"}),
@@ -32,8 +29,7 @@ func F28EmitNudgesCrashBeforeCommit(s *scenario.Scenario) {
 	s.Given(seedAwaitingPhone(&user, 25*time.Hour)).
 		When(
 			scenario.TickCrashingAt(nudgePoller, faultpoint.BeforeCommit),
-			scenario.AwaitTick(nudgePoller),
-			scenario.AwaitTick(nudgePoller),
+			awaitNudge(&user),
 		).
 		Then(expectOneNudge(&user, "add_phone"))
 }
@@ -55,19 +51,27 @@ func seedAwaitingPhone(dst *ids.UserID, settled time.Duration) scenario.Step {
 	}
 }
 
+func awaitNudge(user *ids.UserID) scenario.Step {
+	return scenario.EventuallyPolled(nudgePoller, "a nudge written for the user", func(s *scenario.Scenario) bool {
+		nudges, _, _, _ := readNudges(s, user)
+		return nudges > 0
+	})
+}
+
+func readNudges(s *scenario.Scenario, user *ids.UserID) (nudges int, kind string, number, count int) {
+	if err := s.DB().QueryRow(s.Context(), `SELECT count(e.id), coalesce(min(e.payload->>'kind'), ''),
+		coalesce(min((e.payload->>'nudge_number')::int), 0), u.nudge_count
+		FROM users u LEFT JOIN events e ON e.aggregate_id = u.id AND e.type = $2
+		WHERE u.id = $1 GROUP BY u.nudge_count`,
+		user.UUID(), string(events.TypeUserNudgeDue)).Scan(&nudges, &kind, &number, &count); err != nil {
+		s.Fatalf("flows: read nudges for %s: %v", user, err)
+	}
+	return nudges, kind, number, count
+}
+
 func expectOneNudge(user *ids.UserID, kind string) scenario.Step {
 	return func(s *scenario.Scenario) {
-		var (
-			nudges, number, count int
-			got                   string
-		)
-		if err := s.DB().QueryRow(s.Context(), `SELECT count(e.id), coalesce(min(e.payload->>'kind'), ''),
-			coalesce(min((e.payload->>'nudge_number')::int), 0), u.nudge_count
-			FROM users u LEFT JOIN events e ON e.aggregate_id = u.id AND e.type = $2
-			WHERE u.id = $1 GROUP BY u.nudge_count`,
-			user.UUID(), string(events.TypeUserNudgeDue)).Scan(&nudges, &got, &number, &count); err != nil {
-			s.Fatalf("flows: read nudges for %s: %v", user, err)
-		}
+		nudges, got, number, count := readNudges(s, user)
 		if nudges != 1 || got != kind || number != 1 || count != 1 {
 			s.Fatalf("flows: %d nudges for %s, kind %q numbered %d, nudge_count %d; want one %s nudge numbered 1",
 				nudges, user, got, number, count, kind)
