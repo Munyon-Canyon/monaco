@@ -6,5 +6,6 @@
   "network": "base",
   "status": "succeeded",
   "privy_action_id": "privy-action-transfer-1",
-  "amount_micros": "10000000"
+  "amount_micros": "10000000",
+  "fee_micros": "7500"
 }
