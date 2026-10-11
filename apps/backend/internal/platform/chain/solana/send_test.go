@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -134,4 +135,46 @@ func TestCall_waitsBetweenRetriesWithinTheBackoffCeilings(t *testing.T) {
 				len(u.requests()), waited)
 		}
 	})
+}
+
+func TestSendTransaction_aSimulationShortOfFundsSaysSoAndKeepsTheRPCMessage(t *testing.T) {
+	t.Parallel()
+	tx := append(append([]byte{1}, make([]byte, 64)...), []byte("message")...)
+	simulation := func(txErr, log string) *upstream {
+		return replying(http.StatusOK, `{"jsonrpc":"2.0","id":1,"error":{"code":-32002,`+
+			`"message":"Transaction simulation failed: Error processing Instruction 0: custom program error: 0x1",`+
+			`"data":{"err":`+txErr+`,"logs":["Program Tokenkeg invoke [1]","`+log+`"]}}}`)
+	}
+	for name, tc := range map[string]struct {
+		upstream *upstream
+		code     errs.Code
+	}{
+		"a token transfer short of funds": {
+			upstream: simulation(`{"InstructionError":[0,{"Custom":1}]}`, "Program log: Error: insufficient funds"),
+			code:     errs.CodeInsufficientFunds,
+		},
+		"a fee payer short of SOL": {
+			upstream: simulation(`"InsufficientFundsForFee"`, "Program log: done"),
+			code:     errs.CodeInsufficientFunds,
+		},
+		"a transfer short of lamports": {
+			upstream: simulation(`{"InstructionError":[0,{"Custom":1}]}`, "Transfer: insufficient lamports 5, need 9"),
+			code:     errs.CodeInsufficientFunds,
+		},
+		"another simulation failure": {
+			upstream: simulation(`{"InstructionError":[0,{"Custom":6001}]}`, "Program log: slippage"),
+			code:     errs.CodeRPCUnavailable,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := client(tc.upstream).SendTransaction(t.Context(), tx)
+			wantCode(t, err, tc.code)
+			if !slices.ContainsFunc(errs.Detail(err), func(a slog.Attr) bool {
+				return a.Key == "rpc_message" && strings.HasPrefix(a.Value.String(), "Transaction simulation failed")
+			}) {
+				t.Fatalf("detail = %v, want the RPC message", errs.Detail(err))
+			}
+		})
+	}
 }

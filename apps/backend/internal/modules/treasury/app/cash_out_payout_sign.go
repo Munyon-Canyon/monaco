@@ -101,6 +101,16 @@ func (p *CashOutPayouts) broadcast(ctx context.Context, job payoutJob) {
 	}
 	if err != nil {
 		observability.Degraded(ctx, observability.TreasuryCashOutBroadcastFailed,
-			slog.String("job_id", job.id.String()), slog.String("code", string(errs.CodeOf(err))))
+			slog.String("job_id", job.id.String()), slog.String("code", string(errs.CodeOf(err))),
+			slog.String("rpc_message", rpcMessage(err)))
 	}
+}
+
+func rpcMessage(err error) string {
+	for _, a := range errs.Detail(err) {
+		if a.Key == "rpc_message" {
+			return a.Value.String()
+		}
+	}
+	return ""
 }
