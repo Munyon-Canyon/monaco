@@ -29,6 +29,7 @@ type HTTP struct {
 	Clock     clock.Clock
 	Cards     app.UserCards
 	Follows   app.FollowCounts
+	Deposits  DepositAddresses
 }
 
 func (h HTTP) PutMeHandle(

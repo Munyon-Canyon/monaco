@@ -1,19 +1,11 @@
 package adapters
 
-import (
-	"context"
-
-	"github.com/monaco/monaco/apps/backend/internal/errs"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
-	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
-)
-
-func (h HTTP) GetMyDepositAddresses(
-	context.Context, api.GetMyDepositAddressesRequestObject,
-) (api.GetMyDepositAddressesResponseObject, error) {
-	return nil, errs.New(errs.CodeNotImplemented, "identity.GetMyDepositAddresses")
-}
+import "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 
 func MultichainDepositsDepositForwarding() multichain.Pending {
 	return multichain.Pending{Ticket: "#4967"}
+}
+
+func MultichainDepositsEVMDepositWallets() PendingDepositWallets {
+	return PendingDepositWallets{Ticket: "#4966"}
 }

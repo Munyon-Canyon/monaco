@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 )
 
 type Env string
@@ -165,6 +166,7 @@ type Funding struct {
 	WindDownInterval          time.Duration
 	BounceSweepInterval       time.Duration
 	BounceSweepAge            time.Duration
+	EVMDepositNetworks        []chain.Network
 }
 
 type Privy struct {
@@ -487,6 +489,8 @@ func fundingFields() []field {
 			func(c *Config) *time.Duration { return &c.Funding.BounceSweepInterval }),
 		duration("FUNDING_BOUNCE_SWEEP_AGE", 2*time.Minute,
 			func(c *Config) *time.Duration { return &c.Funding.BounceSweepAge }),
+		evmDepositNetworks("EVM_DEPOSIT_NETWORKS",
+			func(c *Config) *[]chain.Network { return &c.Funding.EVMDepositNetworks }),
 	}
 }
 
