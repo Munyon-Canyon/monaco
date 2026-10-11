@@ -1,0 +1,6 @@
+{
+ "assets": [
+  {"symbol":"AAPLon","ticker":"AAPL","assetName":"Apple","isTradingPaused":false},
+  {"symbol":"TSLAon","ticker":"TSLA","assetName":"Tesla","isTradingPaused":false}
+ ]
+}

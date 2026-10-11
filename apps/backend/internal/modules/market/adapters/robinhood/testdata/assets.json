@@ -1,0 +1,7 @@
+{
+ "assets": [
+  {"tokenSymbol":"AAPL","tokenName":"Apple \u2022 Robinhood Token","deployments":[{"contractAddress":"0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9","chainId":4663,"networkName":"Robinhood Chain","itnEnabled":false,"atomicEnabled":false}],"currentMultiplier":"1.000566080061092436","pendingMultiplier":"","status":"ASSET_STATUS_ACTIVE","tokenDecimals":18},
+  {"tokenSymbol":"TSLA","tokenName":"Tesla \u2022 Robinhood Token","deployments":[{"contractAddress":"0x322F0929c4625eD5bAd873c95208D54E1c003b2d","chainId":4663,"networkName":"Robinhood Chain","itnEnabled":false,"atomicEnabled":false}],"currentMultiplier":"1.000000000000000000","pendingMultiplier":"","status":"ASSET_STATUS_ACTIVE","tokenDecimals":18},
+  {"tokenSymbol":"CRM","tokenName":"Salesforce \u2022 Robinhood Token","deployments":[{"contractAddress":"0xd95B44124e475743a7589e68F3D74008A5536D44","chainId":4663,"networkName":"Robinhood Chain","itnEnabled":false,"atomicEnabled":false}],"currentMultiplier":"1.001148322800714293","pendingMultiplier":"1.002296645601428586","status":"ASSET_STATUS_ACTIVE","tokenDecimals":18}
+ ]
+}
