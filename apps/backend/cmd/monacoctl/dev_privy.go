@@ -58,6 +58,7 @@ func devPrivyTransfer(cfg config.Config, args []string, stdout, stderr io.Writer
 	user := fs.String("user", "", "Monaco user whose member wallet sends")
 	wallet := fs.String("wallet", "", "Privy wallet id that sends, instead of --user")
 	to := fs.String("to", "", "destination address")
+	from := fs.String("from", "solana", "network the USDC leaves from")
 	network := fs.String("network", "base", "destination network")
 	usdc := fs.String("usdc", "", "USDC to send, at most 5")
 	key := fs.String("key", "", "idempotency key; a rerun with the same key finds the same action")
@@ -67,7 +68,7 @@ func devPrivyTransfer(cfg config.Config, args []string, stdout, stderr io.Writer
 	if err := fs.Parse(args); err == nil {
 		micros, okAmount = parseUSDC(*usdc)
 	}
-	dest, netErr := chain.ParseNetwork(*network)
+	src, dest, netErr := parseRoute(*from, *network)
 	if !okAmount || micros == 0 || micros > devPrivyMaxMicros || (*user == "") == (*wallet == "") || *to == "" ||
 		*key == "" || netErr != nil || fs.NArg() != 0 {
 		_, _ = fmt.Fprintln(stderr, devUsage)
@@ -82,13 +83,46 @@ func devPrivyTransfer(cfg config.Config, args []string, stdout, stderr io.Writer
 	if err := runPrivyTransfer(ctx, cfg, privyTransferArgs{
 		user: *user, wallet: *wallet, key: *key, poll: *poll,
 		spec: multichain.TransferSpec{
-			From: chain.NetworkSolana, To: dest, Destination: *to, AmountMicros: money.MicrosFromUint64(micros),
+			From: src, To: dest, Destination: *to, AmountMicros: money.MicrosFromUint64(micros),
 		},
 	}, stdout); err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl dev privy-transfer: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+func parseRoute(from, to string) (chain.Network, chain.Network, error) {
+	src, err := chain.ParseNetwork(from)
+	if err != nil {
+		return "", "", err
+	}
+	dest, err := chain.ParseNetwork(to)
+	return src, dest, err
+}
+
+func devPrivyReindex(cfg config.Config, args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("dev privy-reindex", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	wallet := fs.String("wallet", "", "Privy EVM deposit wallet id to rescan")
+	network := fs.String("network", "base", "EVM network to rescan")
+	if err := fs.Parse(args); err != nil || *wallet == "" || fs.NArg() != 0 {
+		_, _ = fmt.Fprintln(stderr, devUsage)
+		return 2
+	}
+	if cfg.Env == config.EnvProduction {
+		_, _ = fmt.Fprintf(stderr, "monacoctl dev privy-reindex: refused with MONACO_ENV=%s\n", cfg.Env)
+		return 1
+	}
+	client, err := privy.New(cfg, clock.Real{})
+	if err == nil {
+		if err = client.Reindex(context.Background(), *wallet, chain.Network(*network)); err == nil {
+			_, _ = fmt.Fprintf(stdout, "reindexed %s on %s\n", *wallet, *network)
+			return 0
+		}
+	}
+	_, _ = fmt.Fprintf(stderr, "monacoctl dev privy-reindex: %v\n", err)
+	return 1
 }
 
 type privyTransferArgs struct {
