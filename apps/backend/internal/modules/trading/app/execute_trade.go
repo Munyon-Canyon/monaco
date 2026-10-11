@@ -190,7 +190,7 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 		if err != nil {
 			return refusal{}, err
 		}
-		headroom := domain.FeeHeadroom(req.InAmount, cfg.TransferFeeBps, cfg.MaxFee.Uint64())
+		headroom := cfg.FeeHeadroom(req.InAmount)
 		total, err := cmd.USDCMicros.Add(money.MicrosFromUint64(headroom))
 		if err != nil {
 			return refusal{}, err

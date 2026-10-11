@@ -531,3 +531,44 @@ func byMethod(body func(method string) string) *upstream {
 		_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":1,"result":`+body(call.Method)+`}`)
 	})}
 }
+
+func TestMintConfigFeeHeadroom_roundsUpAndStopsAtTheMaximumFee(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		amount uint64
+		bps    uint16
+		max    uint64
+		want   uint64
+	}{
+		{25_000_000, 0, 0, 0},
+		{25_000_000, 100, math.MaxUint64, 250_000},
+		{25_000_001, 100, math.MaxUint64, 250_001},
+		{25_000_000, 100, 1_000, 1_000},
+		{1, 1, math.MaxUint64, 1},
+	} {
+		cfg := solana.MintConfig{TransferFeeBps: tc.bps, MaxFee: money.NewBaseUnits(tc.max, 8)}
+		if got := cfg.FeeHeadroom(tc.amount); got != tc.want {
+			t.Errorf("FeeHeadroom(%d) with %d bps, max %d = %d, want %d", tc.amount, tc.bps, tc.max, got, tc.want)
+		}
+	}
+	rapid.Check(t, func(t *rapid.T) {
+		amount, bps, maxFee := rapid.Uint64().Draw(t, "amount"), rapid.Uint16().Draw(t, "bps"),
+			rapid.Uint64().Draw(t, "max")
+		got := solana.MintConfig{TransferFeeBps: bps, MaxFee: money.NewBaseUnits(maxFee, 8)}.FeeHeadroom(amount)
+		fee := new(big.Int).Mul(new(big.Int).SetUint64(amount), big.NewInt(int64(bps)))
+		covered := new(big.Int).Mul(new(big.Int).SetUint64(got), big.NewInt(10_000))
+		if got > maxFee || (got < maxFee && covered.Cmp(fee) < 0) {
+			t.Fatalf(
+				"FeeHeadroom(%d) with %d bps, max %d = %d: below the fee and under the cap",
+				amount,
+				bps,
+				maxFee,
+				got,
+			)
+		}
+		if got > 0 && new(big.Int).Sub(covered, big.NewInt(10_000)).Cmp(fee) >= 0 {
+			t.Fatalf("FeeHeadroom(%d) with %d bps, max %d = %d: one unit more than the rounded-up fee",
+				amount, bps, maxFee, got)
+		}
+	})
+}

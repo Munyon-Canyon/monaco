@@ -94,9 +94,15 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 	t.Helper()
 	g := testkit.NewIDs(testkit.RandSeed(t))
 	w := &tradeWorld{
-		cabal: ids.CabalIDFrom(g.NewV7()), cabals: &liveCabals{}, routes: &marketfake.RoutesFake{},
-		catalog: marketfake.NewCatalog(marketfake.Fixtures()...), treasury: fakes.NewTreasury(),
-		chain: &feeLedger{Ledger: chainfake.NewLedger(clock.Real{}), mints: map[chain.SolanaAddress]solana.MintConfig{}},
+		cabal:    ids.CabalIDFrom(g.NewV7()),
+		cabals:   &liveCabals{},
+		routes:   &marketfake.RoutesFake{},
+		catalog:  marketfake.NewCatalog(marketfake.Fixtures()...),
+		treasury: fakes.NewTreasury(),
+		chain: &feeLedger{
+			Ledger: chainfake.NewLedger(clock.Real{}),
+			mints:  map[chain.SolanaAddress]solana.MintConfig{},
+		},
 	}
 	for range 3 {
 		w.members = append(w.members, ids.NewUserID(g))
