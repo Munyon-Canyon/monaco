@@ -1,0 +1,19 @@
+journey: money/best-price-trade
+expect-fail: S3
+
+A bought proposal shows the chip "Passed" instead of "Bought". S3.3 checks that the `proposal-status-chip` reads "Bought", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift
+index d02574956..2b332087f 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalChip.swift
+@@ -7,7 +7,7 @@ public enum ProposalChip {
+         return switch status {
+         case .open: nil
+         case .passed: isSell ? "Selling" : "Buying"
+-        case .executed: isSell ? "Sold" : "Bought"
++        case .executed: "Passed"
+         case .failed: "Didn't pass"
+         case .expired: "Expired"
+         case .withdrawn: "Withdrawn"
