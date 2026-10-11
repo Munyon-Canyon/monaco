@@ -21,8 +21,7 @@ func (l Ledger) BridgeSent(ctx context.Context, tx db.Tx, b domain.Bridge) (bool
 	if err := l.LockCabal(ctx, tx, b.CabalID); err != nil {
 		return false, err
 	}
-	rows, err := sqlc.New(tx.Queries()).AdminTxnByID(ctx, id)
-	if err != nil || len(rows) > 0 {
+	if posted, err := txnPosted(ctx, tx, id); err != nil || posted {
 		return false, err
 	}
 	txn, err := domain.NewBridgeSentTxn(id, b, l.usdc)
@@ -47,9 +46,18 @@ func (l Ledger) finishBridge(
 	if _, err := l.BridgeSent(ctx, tx, b); err != nil {
 		return err
 	}
-	txn, err := build(b.TxnID(status), b, l.usdc)
+	id := b.TxnID(status)
+	if posted, err := txnPosted(ctx, tx, id); err != nil || posted {
+		return err
+	}
+	txn, err := build(id, b, l.usdc)
 	if err != nil {
 		return err
 	}
 	return l.PostCabalTxn(ctx, tx, txn)
+}
+
+func txnPosted(ctx context.Context, tx db.Tx, id uuid.UUID) (bool, error) {
+	rows, err := sqlc.New(tx.Queries()).AdminTxnByID(ctx, id)
+	return len(rows) > 0, err
 }
