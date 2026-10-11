@@ -24,6 +24,7 @@ SELECT status FROM evm_deposit_forwards WHERE privy_execution_id = $1;
 -- name: RecordEVMDepositForwardProgress :execrows
 UPDATE evm_deposit_forwards f
 SET privy_action_id = COALESCE(f.privy_action_id, NULLIF(sqlc.arg(privy_action_id)::text, '')),
+  amount_micros = sqlc.arg(amount_micros)::text::numeric,
   solana_signature = COALESCE(f.solana_signature, (
     SELECT NULLIF(sqlc.arg(solana_signature)::text, '')
     WHERE NOT EXISTS (
@@ -31,6 +32,23 @@ SET privy_action_id = COALESCE(f.privy_action_id, NULLIF(sqlc.arg(privy_action_i
     )
   ))
 WHERE f.id = sqlc.arg(id) AND f.status = 'pending';
+
+-- name: ArriveEVMDepositForwardFromCredit :execrows
+WITH credit AS (
+  SELECT d.tx_signature, d.credited_at
+  FROM evm_deposit_forwards f
+  JOIN deposits d ON d.user_id = f.user_id AND d.amount_micros = f.amount_micros
+  WHERE f.id = sqlc.arg(id) AND f.status = 'pending' AND f.solana_signature IS NULL
+    AND d.credited_at >= f.created_at
+    AND d.credited_at <= f.created_at + make_interval(secs => sqlc.arg(window_seconds)::float8)
+    AND NOT EXISTS (SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = d.tx_signature)
+  ORDER BY d.credited_at, d.id
+  LIMIT 1
+)
+UPDATE evm_deposit_forwards f
+SET status = 'arrived', solana_signature = credit.tx_signature, arrived_at = credit.credited_at
+FROM credit
+WHERE f.id = sqlc.arg(id) AND f.status = 'pending' AND f.solana_signature IS NULL;
 
 -- name: MarkEVMDepositForwardFailed :execrows
 UPDATE evm_deposit_forwards

@@ -74,6 +74,37 @@ func (q *Queries) ArriveEVMDepositForward(ctx context.Context, arg ArriveEVMDepo
 	return items, nil
 }
 
+const arriveEVMDepositForwardFromCredit = `-- name: ArriveEVMDepositForwardFromCredit :execrows
+WITH credit AS (
+  SELECT d.tx_signature, d.credited_at
+  FROM evm_deposit_forwards f
+  JOIN deposits d ON d.user_id = f.user_id AND d.amount_micros = f.amount_micros
+  WHERE f.id = $1 AND f.status = 'pending' AND f.solana_signature IS NULL
+    AND d.credited_at >= f.created_at
+    AND d.credited_at <= f.created_at + make_interval(secs => $2::float8)
+    AND NOT EXISTS (SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = d.tx_signature)
+  ORDER BY d.credited_at, d.id
+  LIMIT 1
+)
+UPDATE evm_deposit_forwards f
+SET status = 'arrived', solana_signature = credit.tx_signature, arrived_at = credit.credited_at
+FROM credit
+WHERE f.id = $1 AND f.status = 'pending' AND f.solana_signature IS NULL
+`
+
+type ArriveEVMDepositForwardFromCreditParams struct {
+	ID            uuid.UUID
+	WindowSeconds float64
+}
+
+func (q *Queries) ArriveEVMDepositForwardFromCredit(ctx context.Context, arg ArriveEVMDepositForwardFromCreditParams) (int64, error) {
+	result, err := q.db.Exec(ctx, arriveEVMDepositForwardFromCredit, arg.ID, arg.WindowSeconds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const eVMDepositForwardAnnounced = `-- name: EVMDepositForwardAnnounced :one
 SELECT EXISTS (
   SELECT 1 FROM events
@@ -183,23 +214,30 @@ func (q *Queries) MarkEVMDepositForwardFailed(ctx context.Context, id uuid.UUID)
 const recordEVMDepositForwardProgress = `-- name: RecordEVMDepositForwardProgress :execrows
 UPDATE evm_deposit_forwards f
 SET privy_action_id = COALESCE(f.privy_action_id, NULLIF($1::text, '')),
+  amount_micros = $2::text::numeric,
   solana_signature = COALESCE(f.solana_signature, (
-    SELECT NULLIF($2::text, '')
+    SELECT NULLIF($3::text, '')
     WHERE NOT EXISTS (
-      SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = $2::text
+      SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = $3::text
     )
   ))
-WHERE f.id = $3 AND f.status = 'pending'
+WHERE f.id = $4 AND f.status = 'pending'
 `
 
 type RecordEVMDepositForwardProgressParams struct {
 	PrivyActionID   string
+	AmountMicros    string
 	SolanaSignature string
 	ID              uuid.UUID
 }
 
 func (q *Queries) RecordEVMDepositForwardProgress(ctx context.Context, arg RecordEVMDepositForwardProgressParams) (int64, error) {
-	result, err := q.db.Exec(ctx, recordEVMDepositForwardProgress, arg.PrivyActionID, arg.SolanaSignature, arg.ID)
+	result, err := q.db.Exec(ctx, recordEVMDepositForwardProgress,
+		arg.PrivyActionID,
+		arg.AmountMicros,
+		arg.SolanaSignature,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

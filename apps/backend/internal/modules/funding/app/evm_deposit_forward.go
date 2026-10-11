@@ -25,6 +25,7 @@ import (
 
 const (
 	EVMDepositForwardStuckAfter = 30 * time.Minute
+	EVMDepositArrivalWindow     = 24 * time.Hour
 	EVMDepositWalletPage        = 100
 	evmDepositExecutionPages    = 50
 	evmDepositStuckBatch        = 100
@@ -33,6 +34,7 @@ const (
 const (
 	forwardPending = "pending"
 	forwardFailed  = "failed"
+	forwardArrived = "arrived"
 	forwardAbsent  = "absent"
 )
 
@@ -224,10 +226,21 @@ func follow(
 	}
 	if _, err := q.RecordEVMDepositForwardProgress(ctx, sqlc.RecordEVMDepositForwardProgressParams{
 		ID: row.ID, PrivyActionID: string(ex.ActionID), SolanaSignature: ex.Signature,
+		AmountMicros: ex.AmountMicros.String(),
 	}); err != nil || ex.State != multichain.ActionSucceeded {
 		return row.Status, err
 	}
-	return row.Status, announce(ctx, tx, q, row, ex)
+	var arrived int64
+	err := announce(ctx, tx, q, row, ex)
+	if err == nil {
+		arrived, err = q.ArriveEVMDepositForwardFromCredit(ctx, sqlc.ArriveEVMDepositForwardFromCreditParams{
+			ID: row.ID, WindowSeconds: EVMDepositArrivalWindow.Seconds(),
+		})
+	}
+	if err != nil || arrived == 0 {
+		return row.Status, err
+	}
+	return forwardArrived, nil
 }
 
 func announce(
