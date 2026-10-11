@@ -68,7 +68,13 @@ func TestListingID_refusesWhatIsNotAUUID(t *testing.T) {
 	if err := id.Scan(42); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("Scan(42) = %v, want decode_failed", err)
 	}
+	if err := id.Scan(nil); errs.CodeOf(err) != errs.CodeDecodeFailed || !id.IsZero() {
+		t.Fatalf("Scan(NULL) = %v, %s, want decode_failed and no id", err, id)
+	}
 	if _, err := (multichain.ListingID{}).Value(); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("zero Value = %v, want internal", err)
+	}
+	if _, err := (multichain.ListingID{}).MarshalText(); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("zero MarshalText = %v, want internal", err)
 	}
 }
