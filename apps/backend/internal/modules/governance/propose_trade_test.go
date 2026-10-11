@@ -2,6 +2,7 @@ package governance_test
 
 import (
 	"context"
+	"math"
 	"sync/atomic"
 	"testing"
 
@@ -302,6 +303,15 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 		"buy over the pot": {func(*tradeWorld) {}, buyAAPLFor(potMicros + 1), errs.CodePotExceeded},
 		"buy over the cash, within the pot": {
 			func(w *tradeWorld) { w.holdCash(potMicros / 4) }, buyAAPLFor(potMicros / 2), errs.CodePotCashShort,
+		},
+		"buy that leaves no room for the transfer fee": {
+			func(w *tradeWorld) {
+				w.holdCash(25_000_000)
+				w.chain.setFee(marketfake.AAPLx().Mint.Address(), 100, math.MaxUint64)
+			}, buyAAPLFor(25_000_000), errs.CodePotCashShort,
+		},
+		"mint config unknown on a buy": {
+			func(w *tradeWorld) { w.chain.Fail("MintConfig", failed) }, buyAAPLFor(1), errs.CodeUpstreamUnavailable,
 		},
 		"wallet unknown on a buy": {
 			func(w *tradeWorld) { w.cabals.current.Load().Fail("TreasuryWallet", failed) },

@@ -2,6 +2,7 @@ package governance_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -57,7 +59,28 @@ type tradeWorld struct {
 	catalog  *marketfake.CatalogFake
 	routes   *marketfake.RoutesFake
 	treasury *fakes.Treasury
-	chain    *chainfake.Ledger
+	chain    *feeLedger
+}
+
+type feeLedger struct {
+	*chainfake.Ledger
+	mu    sync.Mutex
+	mints map[chain.SolanaAddress]solana.MintConfig
+}
+
+func (l *feeLedger) MintConfig(_ context.Context, mint chain.SolanaAddress) (solana.MintConfig, error) {
+	if err := l.Check("MintConfig"); err != nil {
+		return solana.MintConfig{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.mints[mint], nil
+}
+
+func (l *feeLedger) setFee(mint chain.SolanaAddress, bps uint16, maxFee uint64) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.mints[mint] = solana.MintConfig{TransferFeeBps: bps, MaxFee: money.NewBaseUnits(maxFee, 8)}
 }
 
 const (
@@ -73,7 +96,7 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 	w := &tradeWorld{
 		cabal: ids.CabalIDFrom(g.NewV7()), cabals: &liveCabals{}, routes: &marketfake.RoutesFake{},
 		catalog: marketfake.NewCatalog(marketfake.Fixtures()...), treasury: fakes.NewTreasury(),
-		chain: chainfake.NewLedger(clock.Real{}),
+		chain: &feeLedger{Ledger: chainfake.NewLedger(clock.Real{}), mints: map[chain.SolanaAddress]solana.MintConfig{}},
 	}
 	for range 3 {
 		w.members = append(w.members, ids.NewUserID(g))
