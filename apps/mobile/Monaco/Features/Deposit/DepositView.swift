@@ -359,6 +359,11 @@ struct DepositAddressCard: View {
         network.isEVM ? evmArrival : nil
     }
 
+    static func feeNote(for network: DepositNetwork) -> String? {
+        guard !network.isSolana, let fee = network.estimatedFeeMicros, fee >= 5000 else { return nil }
+        return "Fee about \(UsdAmountFormatter.format(micros: fee)). It comes out of what you send."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             Text("Your deposit address")
@@ -422,6 +427,15 @@ struct DepositAddressCard: View {
                         .foregroundStyle(MonacoTheme.muted)
                         .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("deposit-arrival-note")
+                }
+
+                if let fee = Self.feeNote(for: network) {
+                    Text(fee)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("deposit-fee-note")
                 }
             }
         }

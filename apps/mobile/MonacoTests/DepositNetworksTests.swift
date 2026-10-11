@@ -49,11 +49,25 @@ struct DepositNetworksTests {
         #expect(DepositAddressCard.networkNote == "Only send USDC on Solana to this address.")
     }
 
-    @Test func theNewCopyPassesTheMainFlowAudit() {
+    @Test func theBaseScreenSaysTheFeeComesOutOfTheDeposit() {
+        let paid = DepositNetwork(id: "base", address: base.address, estimatedFeeMicros: 163_098)
+        #expect(DepositAddressCard.feeNote(for: paid) == "Fee about $0.16. It comes out of what you send.")
+    }
+
+    @Test func noFeeNoteForSolanaNoEstimateOrUnderACent() {
+        let tiny = DepositNetwork(id: "base", address: base.address, estimatedFeeMicros: 4_999)
+        #expect(DepositAddressCard.feeNote(for: solana) == nil)
+        #expect(DepositAddressCard.feeNote(for: base) == nil)
+        #expect(DepositAddressCard.feeNote(for: tiny) == nil)
+    }
+
+    @Test func theNewCopyPassesTheMainFlowAudit() throws {
         let networks = [solana, base, arbitrum, ethereum]
+        let paid = DepositNetwork(id: "base", address: base.address, estimatedFeeMicros: 163_098)
         var strings = [
             DepositChooser.cryptoTitle, DepositChooser.cryptoHint(networks), DepositNetworksView.title,
             DepositAddressCard.evmArrival, PlatformBalanceCard.arrivingLabel,
+            try #require(DepositAddressCard.feeNote(for: paid)),
         ]
         for network in networks {
             strings += [

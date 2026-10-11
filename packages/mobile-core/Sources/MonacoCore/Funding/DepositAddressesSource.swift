@@ -6,11 +6,13 @@ public struct DepositNetwork: Equatable, Hashable, Sendable, Identifiable {
     public let id: String
     public let displayName: String
     public let address: String
+    public let estimatedFeeMicros: Int64?
 
-    public init(id: String, address: String) {
+    public init(id: String, address: String, estimatedFeeMicros: Int64? = nil) {
         self.id = id
         self.displayName = Self.displayName(for: id)
         self.address = address
+        self.estimatedFeeMicros = id == Self.solanaID ? nil : estimatedFeeMicros
     }
 
     public static let solanaID = "solana"
@@ -41,7 +43,8 @@ public struct DepositNetwork: Equatable, Hashable, Sendable, Identifiable {
             let id = item.network.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let address = item.address.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !id.isEmpty, !address.isEmpty, item.asset == nil || item.asset == "USDC" else { return nil }
-            return DepositNetwork(id: id, address: address)
+            let fee = item.estimatedFeeMicros.flatMap { try? AccountBalance.micros($0) }
+            return DepositNetwork(id: id, address: address, estimatedFeeMicros: fee)
         }
         return networks.filter(\.isSolana) + networks.filter { !$0.isSolana }
     }
@@ -55,6 +58,12 @@ private struct WireAddress: Decodable {
     let network: String
     let address: String
     let asset: String?
+    let estimatedFeeMicros: String?
+
+    enum CodingKeys: String, CodingKey {
+        case network, address, asset
+        case estimatedFeeMicros = "estimated_fee_micros"
+    }
 }
 
 @Observable
