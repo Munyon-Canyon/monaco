@@ -30,15 +30,28 @@ type privyAction struct {
 }
 
 type privyMultichain struct {
-	mu      sync.Mutex
-	actions map[string]privyAction
-	byKey   map[string]string
+	mu          sync.Mutex
+	actions     map[string]privyAction
+	byKey       map[string]string
+	automations []privyAutomation
+	attachments []privyAttachment
+	executions  []map[string]any
+	bodies      map[string]string
 }
 
 func (p *privyMultichain) init() {
 	if p.actions == nil {
-		p.actions, p.byKey = map[string]privyAction{}, map[string]string{}
+		p.actions, p.byKey, p.bodies = map[string]privyAction{}, map[string]string{}, map[string]string{}
 	}
+}
+
+func (p *privyMultichain) conflicts(key string, body map[string]any) bool {
+	raw, _ := json.Marshal(body)
+	prior, ok := p.bodies[key]
+	if !ok {
+		p.bodies[key] = string(raw)
+	}
+	return ok && prior != string(raw)
 }
 
 func (s *Server) privyCreateAnyWallet(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +90,7 @@ func (s *Server) privyCreateAnyWallet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, wallet)
 }
 
-func signedWithKey(r *http.Request) (map[string]any, bool) {
+func signedBody(r *http.Request, needKey bool) (map[string]any, bool) {
 	raw, _ := io.ReadAll(r.Body)
 	var body map[string]any
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -91,10 +104,12 @@ func signedWithKey(r *http.Request) (map[string]any, bool) {
 	}
 	headers := map[string]string{"privy-app-id": r.Header.Get("privy-app-id")}
 	key := r.Header.Get("privy-idempotency-key")
-	if key == "" {
+	if key == "" && needKey {
 		return nil, false
 	}
-	headers["privy-idempotency-key"] = key
+	if key != "" {
+		headers["privy-idempotency-key"] = key
+	}
 	payload := privy.Canonical(map[string]any{
 		"version": 1, "method": r.Method, "url": "http://" + host + r.URL.Path, "body": body, "headers": headers,
 	})
@@ -104,7 +119,7 @@ func signedWithKey(r *http.Request) (map[string]any, bool) {
 }
 
 func (s *Server) privyTransfer(w http.ResponseWriter, r *http.Request) {
-	body, ok := signedWithKey(r)
+	body, ok := signedBody(r, true)
 	if !ok {
 		privyError(w, http.StatusUnauthorized, "invalid authorization signature")
 		return
