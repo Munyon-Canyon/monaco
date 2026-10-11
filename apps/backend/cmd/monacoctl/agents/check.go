@@ -125,12 +125,18 @@ func (env *Env) runStage0(
 	ctx context.Context, base, parent, head, tree, patchID string, keepGoing bool, stdout io.Writer,
 ) error {
 	defer func() { _ = os.Remove(env.coverProfile(head)) }()
-	rows, err := env.stage0(ctx, base, parent, head)
+	toolchain := env.checkToolchain()
+	lane, err := env.buildLaneBinary(ctx, toolchain)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(stdout, "subcommands: %s (built from this tree)\n", lane)
+	rows, err := env.stage0(ctx, lane, base, parent, head)
 	if err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s, parent %s)\n", tree[:12], base, parent)
-	run := &checkRun{env: env, start: env.Now(), keepGoing: keepGoing, toolchain: env.checkToolchain()}
+	run := &checkRun{env: env, start: env.Now(), keepGoing: keepGoing, toolchain: toolchain}
 	if run.toolchain != "" {
 		_, _ = fmt.Fprintf(stdout, "go toolchain: %s (apps/backend/go.mod)\n", run.toolchain)
 	}
@@ -154,6 +160,17 @@ func (env *Env) runStage0(
 	}
 	_, _ = fmt.Fprintf(stdout, "passed in %.1fs; recorded %s\n", env.Now().Sub(run.start).Seconds(), record)
 	return nil
+}
+
+func (env *Env) buildLaneBinary(ctx context.Context, toolchain string) (string, error) {
+	lane := filepath.Join(env.Work, ".build", "monacoctl-lane")
+	cmd := withToolchain([]string{"go", "build", "-o", lane, "./cmd/monacoctl"}, toolchain)
+	out, err := env.Run(ctx, filepath.Join(env.Work, "apps", "backend"), "", cmd[0], cmd[1:]...)
+	if err != nil {
+		return "", detailErr(errs.CodeInvalidInput, "monacoctl.agents.check",
+			fmt.Sprintf("build this tree's monacoctl: %v\n%s", err, strings.TrimSpace(string(out))))
+	}
+	return lane, nil
 }
 
 func (env *Env) carry(patchID, tree, head, base, parent string, generated []string, stdout io.Writer) (bool, error) {
@@ -283,7 +300,7 @@ func (env *Env) diffNames(ctx context.Context, base, filter string) ([]string, e
 	return strings.Fields(string(out)), nil
 }
 
-func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkRow, error) {
+func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]checkRow, error) {
 	changed, err := env.diffNames(ctx, base, "d")
 	if err != nil {
 		return nil, err
@@ -295,7 +312,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 	rows := env.prRows(parent, head)
 	backend := slices.ContainsFunc(changed, func(f string) bool { return strings.HasPrefix(f, "apps/backend/") })
 	if backend {
-		goRows, err := env.goRows(ctx, base, head, changed)
+		goRows, err := env.goRows(ctx, lane, base, head, changed)
 		if err != nil {
 			return nil, err
 		}
@@ -308,7 +325,7 @@ func (env *Env) stage0(ctx context.Context, base, parent, head string) ([]checkR
 		rows = append(rows, env.swiftRow(parent))
 	}
 	if slices.ContainsFunc(changed, env.flowFile) {
-		row, err := env.flowsRow(ctx, parent, head, swift)
+		row, err := env.flowsRow(ctx, lane, parent, head, swift)
 		if err != nil {
 			return nil, err
 		}
@@ -378,9 +395,8 @@ func (env *Env) flowFile(file string) bool {
 	)
 }
 
-func (env *Env) flowsRow(ctx context.Context, parent, head string, swift bool) (checkRow, error) {
+func (env *Env) flowsRow(ctx context.Context, self, parent, head string, swift bool) (checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
-	self, _ := os.Executable()
 	out, err := env.Run(ctx, backend, "", self, "flows", "--affected", "--base", parent)
 	if err != nil {
 		return checkRow{}, fmt.Errorf("find affected flows: %w", err)
@@ -658,9 +674,8 @@ func (env *Env) coverProfile(head string) string {
 	return env.statePath("coverage", head[:12]+".out")
 }
 
-func (env *Env) goRows(ctx context.Context, base, head string, changed []string) ([]checkRow, error) {
+func (env *Env) goRows(ctx context.Context, self, base, head string, changed []string) ([]checkRow, error) {
 	backend := filepath.Join(env.Work, "apps", "backend")
-	self, _ := os.Executable()
 	out, err := env.Run(ctx, backend, "", self, "ci", "affected", "--base", base)
 	if err != nil {
 		return nil, fmt.Errorf("find affected packages: %w", err)

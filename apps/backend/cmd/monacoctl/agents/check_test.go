@@ -67,6 +67,7 @@ type checkHarness struct {
 	swiftRun    func(waited string)
 	onCall      func(line string)
 	environ     []string
+	laneBuilds  int
 }
 
 func newCheckHarness(t *testing.T) *checkHarness {
@@ -94,7 +95,17 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 		name, args = args[1], args[2:]
 	}
 	line := strings.TrimSpace(filepath.Base(name) + " " + strings.Join(args, " "))
-	if self, _ := os.Executable(); name == self {
+	lane := filepath.Join(h.work, ".build", "monacoctl-lane")
+	if name == "go" && slices.Equal(args, []string{"build", "-o", lane, "./cmd/monacoctl"}) {
+		h.laneBuilds++
+		for _, r := range h.replies {
+			if strings.HasPrefix(line, r.prefix) {
+				return []byte(r.out), r.err
+			}
+		}
+		return nil, nil
+	}
+	if self, _ := os.Executable(); name == self || name == lane {
 		line = strings.Join(args, " ")
 	} else if name == "git" {
 		for _, r := range h.replies {
@@ -2284,5 +2295,58 @@ func TestCheck_anExplicitGoToolchainIsKept(t *testing.T) {
 	h, stdout := toolchainCheck(t, "module m\n\ngo 1.26.0\n\ntoolchain go1.26.9\n", "GOTOOLCHAIN=local")
 	if strings.Contains(stdout, "go toolchain:") || strings.Contains(strings.Join(h.calls, "\n"), "GOTOOLCHAIN") {
 		t.Fatalf("stdout %q calls %q", stdout, h.calls)
+	}
+}
+
+func TestCheck_theSubcommandRowsRunTheBinaryBuiltFromThisTree(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{
+		flows.Dir + "/00.tsv":                         flows.Header + "\n00\tPing\tsystem\tGET /p\tPing\t\tsystem.echo\tok\tbuilt\tdocs/f.md\n",
+		"apps/backend/internal/modules/system/app.go": "package system\n",
+	})
+	h.commit(t, map[string]string{
+		"packages/flows/app/00.tsv":                 "id\tscreen\tstatus\tdoc\n",
+		"apps/backend/internal/modules/system/a.go": "package system\n",
+	})
+	h.affected = "./internal/modules/system\n"
+	h.replies = []reply{{prefix: "flows --affected", out: "00\n"}}
+	lane := filepath.Join(h.work, ".build", "monacoctl-lane")
+	code, stdout, stderr := h.check(t)
+	if code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "subcommands: "+lane+" (built from this tree)\n") {
+		t.Fatalf("header: %q", stdout)
+	}
+	if h.laneBuilds != 1 {
+		t.Fatalf("the lane binary was built %d times, want once", h.laneBuilds)
+	}
+	subs := []string{"flows --affected", "flows check", "ci affected", "coverage --profile"}
+	ran := map[string]string{}
+	for i, call := range h.calls {
+		_, line, _ := strings.Cut(call, ": ")
+		for _, sub := range subs {
+			if strings.HasPrefix(line, sub) {
+				ran[sub] = h.names[i]
+			}
+		}
+	}
+	for _, sub := range subs {
+		if ran[sub] != lane {
+			t.Errorf("%s ran %q, want the lane binary %q", sub, ran[sub], lane)
+		}
+	}
+}
+
+func TestCheck_aLaneBuildFailureFailsTheCheckWithItsError(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.replies = []reply{{prefix: "go build -o", out: "a.go:1: syntax error\n", err: errors.New("exit status 1")}}
+	code, _, stderr := h.check(t)
+	if code != 1 || !strings.Contains(stderr, "build this tree's monacoctl") ||
+		!strings.Contains(stderr, "syntax error") {
+		t.Fatalf("%d %q", code, stderr)
 	}
 }
