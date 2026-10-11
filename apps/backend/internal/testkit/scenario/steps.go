@@ -205,6 +205,19 @@ func ExpectJSON(field string, want any) Step {
 	}
 }
 
+func ExpectNoField(field string) Step {
+	return func(s *Scenario) {
+		s.t.Helper()
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(s.response().body, &fields); err != nil {
+			s.t.Fatalf("scenario: response body %s: %v", s.last.body, err)
+		}
+		if raw, ok := fields[field]; ok {
+			s.t.Fatalf("scenario: response field %s = %s, want it absent", field, raw)
+		}
+	}
+}
+
 func ExpectField(field string, check func(s *Scenario, raw json.RawMessage)) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

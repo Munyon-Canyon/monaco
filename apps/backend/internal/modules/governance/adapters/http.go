@@ -194,6 +194,7 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
 		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
 		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
+		PriceComparison: p.PriceComparison,
 	}
 	for i, v := range got.Voters {
 		out.Voters[i] = api.ProposalVoter{UserId: v.UserID.UUID()}
@@ -289,6 +290,7 @@ func wireOpenedProposal(opened app.OpenedProposal) api.ProposalDetail {
 		Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage, ExpiresAt: p.ExpiresAt,
 		CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
 		CanVote: opened.ProposerCanVote, CanWithdraw: true,
+		PriceComparison: wireComparison(opened.PriceComparison),
 	}
 }
 

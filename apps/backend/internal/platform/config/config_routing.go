@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+)
 
 type Routing struct {
 	UniswapAPIKey  string
@@ -18,6 +22,10 @@ func routingFields() []field {
 		duration("MONACO_TIMEOUT_UNISWAP", 5*time.Second,
 			func(c *Config) *time.Duration { return &c.Routing.UniswapTimeout }),
 		count("ROUTER_MIN_EDGE_BPS", 10, func(c *Config) *int32 { return &c.Routing.MinEdgeBps }),
-		count("ROUTER_MAX_IMPACT_BPS", 300, func(c *Config) *int32 { return &c.Routing.MaxImpactBps }),
+		count(
+			"ROUTER_MAX_IMPACT_BPS",
+			multichain.MaxImpactBps,
+			func(c *Config) *int32 { return &c.Routing.MaxImpactBps },
+		),
 	}
 }
