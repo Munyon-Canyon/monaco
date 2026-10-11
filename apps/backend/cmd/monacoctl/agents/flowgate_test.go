@@ -169,8 +169,8 @@ func TestFlowGate_keepsAFlowInAnotherQueuedStackArmedUntilItLands(t *testing.T) 
 	}
 
 	code, stdout, stderr := f.agents(t, "watch", "--once")
-	if code != 0 || strings.Contains(stdout, "armed stack #2") || len(f.owned(t).Armed) == 0 ||
-		len(f.hub.callsContaining("/dispatches")) != 0 {
+	if code != 0 || stdout != "armed stack #2 waiting on flow 00 is in queued stack #7\n" ||
+		len(f.owned(t).Armed) == 0 || len(f.hub.callsContaining("/dispatches")) != 0 {
 		t.Fatalf("a still-queued stack: %d %q %q", code, stdout, stderr)
 	}
 
@@ -392,7 +392,9 @@ func TestFlowGate_watchStartsFlowsVerifyOnceAndKeepsTheStackArmed(t *testing.T) 
 
 	f.flowsVerify(flowsStatus(f, "pending", "tip", 10*time.Minute))
 	code, stdout, stderr = f.agents(t, "watch", "--once")
-	if code != 0 || strings.Contains(stdout, "armed stack #2") || len(f.owned(t).Armed) == 0 ||
+	wantWait := "armed stack #2 waiting on flows-verify of flows 00 on staging tip: " +
+		"flow 00 changed on staging since this stack's base (#77)\n"
+	if code != 0 || stdout != wantWait || len(f.owned(t).Armed) == 0 ||
 		len(f.hub.callsContaining("/dispatches")) != before+1 {
 		t.Fatalf("a running flows-verify: %d %q %q", code, stdout, stderr)
 	}
