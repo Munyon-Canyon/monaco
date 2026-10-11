@@ -50,7 +50,11 @@ Each cabal also has a chat, and each proposal has a comment thread.
 
 Money reaches a cabal in two steps, on purpose:
 
-1. **Deposit.** Each user has one deposit address, shown in the app with a copy button. They send Solana USDC to it from anywhere. It shows up as account balance. There is no amount to type in the app.
+1. **Deposit.** Card or Apple Pay needs no address. From a crypto wallet, the user picks a network and sees one address for it, with a copy button:
+    - **Solana:** their member wallet. USDC sent there is account balance a few seconds after it lands.
+    - **Base, Arbitrum or Ethereum:** one address, the same on all three. Monaco moves USDC sent there to Solana, and it shows as **Arriving** until it lands, then as account balance.
+
+    Every balance lives on Solana; the other networks are only ways in. Only USDC counts, and only on the networks listed. There is no amount to type in the app.
 2. **Fund.** The user picks a cabal and an amount up to their account balance. Monaco moves exactly that amount into the cabal's pot and credits share units at today's share price once the transfer confirms.
 
 USDC sitting in the account balance is never swept into a cabal on its own, and never earns shares.
@@ -85,12 +89,14 @@ Fine print, all enforced in code:
 
 ## Trading
 
-1. A voter picks an asset from the catalog and an amount. The app checks the trade can route and shows the price. A buy can't be bigger than the whole pot. If Jupiter can't route it, the app refuses the proposal.
+1. A voter picks an asset from the catalog and an amount. Monaco checks every version of that stock it can trade, on every chain, and shows the best all-in price, labelled as the best across the venues checked. A buy can't be bigger than the whole pot. If no venue can route it, the app refuses the proposal.
 2. The voter set votes yes or no before expiry.
-3. When the proposal passes, Monaco swaps from the pot. Bought tokens land in the cabal's treasury.
+3. When the proposal passes, Monaco swaps from the pot at the best price at that moment, which can be on another chain than the one quoted at the vote. Bought tokens land in the cabal's treasury.
 4. If the swap fails, the trade is marked failed and any member can retry it.
 
-Sells work the same way and keep the issuer already held.
+Sells work the same way and keep the issuer and chain already held.
+
+**Best price across chains.** The same stock can exist as several tokens: xStocks on Solana, Ethereum and Arbitrum, Ondo on Solana and Ethereum, Coinbase on Base, Robinhood on Robinhood Chain. Monaco compares them by underlying shares received for the dollars spent, after every cost of the route: price impact, fees, moving USDC between chains, and gas. Solana wins ties, and another chain must beat it by a small margin before Monaco moves money for it. The trade detail shows what was checked ("Checked xStocks on Solana, Ondo on Ethereum. Best: Ondo. You got 0.002 more shares than the next best."). Venue names are the only chain words a member sees. Holdings are shown by stock, never split by chain or issuer, and the pot counts money on its way between chains so it never dips during a trade.
 
 ### What can be bought
 
@@ -154,7 +160,7 @@ Pot value is saved after every fund, trade and cash out, so charts and boards ca
 Also two steps, mirroring money in:
 
 1. **Cash out** (the **Cash out** button on the cabal screen). Pick an amount from a small minimum up to your whole stake; cashing out everything is the same flow at the maximum. Your shares are debited, your slice of stock is sold if the pot is short of USDC, and USDC equal to your share of the pot lands in your account balance. You get your fraction of the pot now, not the dollars you put in. If the sale raises less than your slice, you are paid what it raised and keep the shares that didn't cover.
-2. **Withdraw** (the **Withdraw** button on the account balance row, on Home or Profile). Send USDC from your account balance to any Solana address you paste. This never touches cabal holdings.
+2. **Withdraw** (the **Withdraw** button on the account balance row, on Home or Profile). Pick a network (Solana, Base, Arbitrum or Ethereum) and paste an address on it. Monaco sends USDC from your account balance there. On Solana the exact amount arrives. On another network Monaco moves it across chains first, so the screen shows "You'll receive about $X". Transfers can't be undone, so the address is checked for its network before you can continue. This never touches cabal holdings.
 
 Payouts are always USDC, never stock.
 
@@ -171,7 +177,8 @@ The Profile tab shows the user's photo, display name, `@handle`, join date, acco
 
 - A custom on-chain vault, share token or on-chain voting
 - Android and web apps, copy trading
-- Buying or redeeming directly with a stock issuer (trades go through Jupiter only)
+- Buying or redeeming directly with a stock issuer (trades go through Jupiter on Solana and Uniswap on other chains)
+- Holding a balance on any chain other than Solana
 - App Store listing, KYC and AML, securities licensing
 
 ## Before a public launch
