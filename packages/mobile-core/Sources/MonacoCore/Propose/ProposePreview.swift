@@ -5,13 +5,17 @@ public struct ProposePreview: Equatable, Sendable {
     public let advisoryCode: String?
     public let advisoryMessage: String?
     public let potValueMicros: Int64
+    public let priceComparison: Components.Schemas.PriceComparison?
 
     public init(_ preview: Components.Schemas.TradePreview) {
         quoteOutAmount = preview.quoteOutAmount
         advisoryCode = preview.advisoryCode
         advisoryMessage = preview.advisoryMessage
         potValueMicros = preview.potValueMicros
+        priceComparison = preview.priceComparison
     }
+
+    public func bestPrice(isSell: Bool) -> BestPrice? { BestPrice(priceComparison, isSell: isSell) }
 
     public var maxMicros: Int64 { potValueMicros }
     public var potHelperText: String { "The pot has \(UsdAmountFormatter.format(micros: potValueMicros))" }

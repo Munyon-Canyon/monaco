@@ -67,6 +67,8 @@ public final class ProposeReviewModel {
         }
     }
 
+    public var bestPrice: BestPrice? { preview.bestPrice(isSell: isSell) }
+
     public var destination: String { "to \(cabal.name)" }
     public var voteCaption: String { "\(cabal.voters) will vote on this proposal." }
 

@@ -35,9 +35,9 @@ public struct WithdrawSource: Sendable {
     }
 
     public func withdraw(
-        micros: Int64, toAddress: String, submission: IdempotentSubmission
+        micros: Int64, toAddress: String, network: WithdrawNetwork = .solana, submission: IdempotentSubmission
     ) async throws -> Withdrawal {
-        let body = Components.Schemas.WithdrawRequest(amountMicros: String(micros), toAddress: toAddress)
+        let body = network.request(micros: micros, toAddress: toAddress)
         let accepted = try await api.submit(submission, payload: body, operation: "withdraw") { client, key in
             try await client.withdraw(headers: .init(idempotencyKey: key), body: .json(body)).accepted.body.json
         }
