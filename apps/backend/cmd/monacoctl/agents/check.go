@@ -76,6 +76,7 @@ type checkRun struct {
 	timings   []timing
 	keepGoing bool
 	failures  []error
+	toolchain string
 }
 
 func parseCheckArgs(base string, args []string) (string, bool, bool, error) {
@@ -129,7 +130,10 @@ func (env *Env) runStage0(
 		return err
 	}
 	_, _ = fmt.Fprintf(stdout, "stage 0 on tree %s (base %s, parent %s)\n", tree[:12], base, parent)
-	run := &checkRun{env: env, start: env.Now(), keepGoing: keepGoing}
+	run := &checkRun{env: env, start: env.Now(), keepGoing: keepGoing, toolchain: env.checkToolchain()}
+	if run.toolchain != "" {
+		_, _ = fmt.Fprintf(stdout, "go toolchain: %s (apps/backend/go.mod)\n", run.toolchain)
+	}
 	runErr := run.rows(ctx, rows, stdout)
 	logPath, err := env.writeState("logs", "check-"+tree[:12]+".log", run.log.Bytes())
 	if err != nil {
@@ -1246,8 +1250,28 @@ func withTimeout(cmd []string, d time.Duration) []string {
 	return out
 }
 
+func (env *Env) checkToolchain() string {
+	if _, set := env.LookupEnv("GOTOOLCHAIN"); set {
+		return ""
+	}
+	toolchain, _ := goToolchain(filepath.Join(env.Work, "apps", "backend"))
+	return toolchain
+}
+
+func withToolchain(cmd []string, toolchain string) []string {
+	if toolchain == "" {
+		return cmd
+	}
+	assign := "GOTOOLCHAIN=" + toolchain
+	if cmd[0] == "env" {
+		return slices.Concat([]string{"env", assign}, cmd[1:])
+	}
+	return slices.Concat([]string{"env", assign}, cmd)
+}
+
 func (r *checkRun) exec(ctx context.Context, row checkRow, cmd []string) (string, error) {
 	start := r.env.Now()
+	cmd = withToolchain(cmd, r.toolchain)
 	_, _ = fmt.Fprintf(&r.log, "$ (cd %s && %s)\n", row.dir, strings.Join(cmd, " "))
 	out, err := r.env.Run(ctx, row.dir, "", cmd[0], cmd[1:]...)
 	text := string(out)
