@@ -24,7 +24,6 @@ const unitsDisplayDecimals = 4
 
 type potStore interface {
 	CabalPotSnapshot(context.Context, uuid.UUID) ([]sqlc.CabalPotSnapshotRow, error)
-	CabalInTransitMicros(context.Context, uuid.UUID) (string, error)
 	CabalMemberShares(context.Context, uuid.UUID) ([]sqlc.CabalMemberSharesRow, error)
 }
 
@@ -113,7 +112,7 @@ func (q *Queries) potHoldings(
 			return potBuilder{}, err
 		}
 	}
-	if err := q.addOffSolana(ctx, &pot, positions, assets, split); err != nil {
+	if err := q.addOffSolana(ctx, &pot, positions, assets, split, rows[0].InTransitMicros); err != nil {
 		return potBuilder{}, err
 	}
 	slices.SortFunc(pot.Holdings, func(a, b port.Holding) int {

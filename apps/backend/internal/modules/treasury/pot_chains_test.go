@@ -197,3 +197,35 @@ func TestGetCabalPot_anEVMPositionWithoutAFreshPriceFailsThePot(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCabalPot_aBridgeLandingBetweenReadsKeepsTheTotal(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	p.multichain(t)
+	p.inTransit(t, 5_000_000)
+	read := func() (int64, uint64) {
+		t.Helper()
+		got, err := p.get(t, p.funder, p.funder)
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, err := p.q.PotValue(t.Context(), p.cabal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.PotValueMicros, value.Uint64()
+	}
+	beforePot, beforeValue := read()
+	if _, err := p.f.pool.Exec(t.Context(), `WITH landed AS (
+		DELETE FROM treasury_in_transit WHERE cabal_id = $1 RETURNING amount_micros)
+		INSERT INTO cabal_positions (cabal_id, asset, units, cost_basis_micros, updated_at)
+		SELECT $1, $2, amount_micros, amount_micros, $3 FROM landed`,
+		p.cabal.UUID(), "base:"+chain.NetworkBase.Cash().Address, p.f.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	afterPot, afterValue := read()
+	if beforePot != 105_000_000 || afterPot != beforePot || beforeValue != 105_000_000 || afterValue != beforeValue {
+		t.Fatalf("pot %d → %d, PotValue %d → %d, want 105 USDC before and after the bridge lands",
+			beforePot, afterPot, beforeValue, afterValue)
+	}
+}

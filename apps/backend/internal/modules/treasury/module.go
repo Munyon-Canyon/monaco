@@ -140,7 +140,8 @@ func (m *Module) Wire(set module.Set) {
 func (m *Module) Mount(r api.Mount) {
 	names := catalogNames{Catalog: market.New(m.deps).Catalog()}
 	treasuryapi.Mount(adapters.HTTP{
-		Reads:     app.NewActivityReads(m.deps.Pool, m.members, m.users, names),
+		Reads: app.NewActivityReads(m.deps.Pool, m.members, m.users, names).
+			WithListings(marketListings(market.New(m.deps).Prices())),
 		UserTxns:  app.NewUserTxnReads(m.deps.Pool, m.cabals, m.withdrawals, usdc(m.deps.Config)),
 		FundReads: m.deps.Pool,
 		Fund:      m.fundCabalHandler(adapters.NewTransfers(m.deps.Config, m.deps.Clock)),

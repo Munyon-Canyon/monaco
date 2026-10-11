@@ -143,11 +143,16 @@ WITH totals AS (
   SELECT coalesce(sum(payout_micros), 0)::text AS cash_out_reserved_micros
   FROM cash_out_jobs
   WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND status IN ('started', 'selling', 'paying')
+), transit AS (
+  SELECT coalesce(sum(amount_micros), 0)::text AS in_transit_micros
+  FROM treasury_in_transit
+  WHERE cabal_id = sqlc.arg(cabal_id)::uuid
 )
 SELECT totals.total_shares, totals.net_contributed_micros, reserved.cash_out_reserved_micros,
+  transit.in_transit_micros,
   positions.asset, coalesce(positions.units, 0)::text AS units,
   coalesce(positions.cost_basis_micros, 0)::text AS cost_basis_micros
-FROM totals CROSS JOIN reserved
+FROM totals CROSS JOIN reserved CROSS JOIN transit
 LEFT JOIN cabal_positions AS positions ON positions.cabal_id = sqlc.arg(cabal_id)::uuid AND positions.units > 0
 ORDER BY positions.asset;
 
@@ -214,7 +219,9 @@ WITH RECURSIVE txn_usdc_paid AS (
   HAVING sum(e.amount) > 0
 )
 SELECT positions.cabal_id, positions.asset, positions.units::text AS units,
-  positions.cost_basis_micros::text AS cost_basis_micros, totals.share_units
+  positions.cost_basis_micros::text AS cost_basis_micros, totals.share_units,
+  (SELECT coalesce(sum(transit.amount_micros), 0) FROM treasury_in_transit AS transit
+   WHERE transit.cabal_id = positions.cabal_id)::text AS in_transit_micros
 FROM latest_positions AS positions
 JOIN share_totals AS totals ON totals.cabal_id = positions.cabal_id
 WHERE positions.units > 0

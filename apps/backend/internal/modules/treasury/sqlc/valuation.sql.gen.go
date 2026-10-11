@@ -7,23 +7,11 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-const cabalInTransitMicros = `-- name: CabalInTransitMicros :one
-SELECT coalesce(sum(amount_micros), 0)::text AS micros
-FROM treasury_in_transit
-WHERE cabal_id = $1::uuid
-`
-
-func (q *Queries) CabalInTransitMicros(ctx context.Context, cabalID uuid.UUID) (string, error) {
-	row := q.db.QueryRow(ctx, cabalInTransitMicros, cabalID)
-	var micros string
-	err := row.Scan(&micros)
-	return micros, err
-}
 
 const cabalValueRows = `-- name: CabalValueRows :many
 WITH head AS (
@@ -77,28 +65,68 @@ func (q *Queries) CabalValueRows(ctx context.Context, cabalID uuid.UUID) ([]Caba
 	return items, nil
 }
 
-const inTransitByCabal = `-- name: InTransitByCabal :many
-SELECT cabal_id, sum(amount_micros)::text AS micros
-FROM treasury_in_transit
-GROUP BY cabal_id
-ORDER BY cabal_id
+const listActivityRouted = `-- name: ListActivityRouted :many
+SELECT a.id, a.kind,
+  CASE
+    WHEN a.status = 'confirmed' AND a.kind IN ('buy', 'sell') AND EXISTS (
+      SELECT 1 FROM trade_steps AS s WHERE s.trade_id = a.id AND s.status IN ('pending', 'submitted')
+    ) THEN 'pending'
+    ELSE a.status
+  END::text AS status,
+  a.actor_user_id, a.asset, a.usdc_micros, a.units, a.tx_signature, a.occurred_at
+FROM cabal_activity AS a
+WHERE a.cabal_id = $1
+  AND (NOT $2::bool OR (a.occurred_at, a.id) < ($3::timestamptz, $4::uuid))
+ORDER BY a.occurred_at DESC, a.id DESC
+LIMIT $5
 `
 
-type InTransitByCabalRow struct {
-	CabalID uuid.UUID
-	Micros  string
+type ListActivityRoutedParams struct {
+	CabalID   uuid.UUID
+	HasCursor bool
+	CursorAt  time.Time
+	CursorID  uuid.UUID
+	RowLimit  int32
 }
 
-func (q *Queries) InTransitByCabal(ctx context.Context) ([]InTransitByCabalRow, error) {
-	rows, err := q.db.Query(ctx, inTransitByCabal)
+type ListActivityRoutedRow struct {
+	ID          uuid.UUID
+	Kind        string
+	Status      string
+	ActorUserID pgtype.UUID
+	Asset       pgtype.Text
+	UsdcMicros  pgtype.Numeric
+	Units       pgtype.Numeric
+	TxSignature pgtype.Text
+	OccurredAt  time.Time
+}
+
+func (q *Queries) ListActivityRouted(ctx context.Context, arg ListActivityRoutedParams) ([]ListActivityRoutedRow, error) {
+	rows, err := q.db.Query(ctx, listActivityRouted,
+		arg.CabalID,
+		arg.HasCursor,
+		arg.CursorAt,
+		arg.CursorID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []InTransitByCabalRow
+	var items []ListActivityRoutedRow
 	for rows.Next() {
-		var i InTransitByCabalRow
-		if err := rows.Scan(&i.CabalID, &i.Micros); err != nil {
+		var i ListActivityRoutedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Status,
+			&i.ActorUserID,
+			&i.Asset,
+			&i.UsdcMicros,
+			&i.Units,
+			&i.TxSignature,
+			&i.OccurredAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

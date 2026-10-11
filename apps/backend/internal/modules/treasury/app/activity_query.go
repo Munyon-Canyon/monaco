@@ -70,10 +70,11 @@ type ActivityPage struct {
 }
 
 type ActivityReads struct {
-	q       *sqlc.Queries
-	members Members
-	users   Users
-	assets  AssetNames
+	q        *sqlc.Queries
+	members  Members
+	users    Users
+	assets   AssetNames
+	listings ListingReader
 }
 
 func NewActivityReads(db sqlc.DBTX, members Members, users Users, assets AssetNames) *ActivityReads {
@@ -93,12 +94,16 @@ func (r *ActivityReads) List(ctx context.Context, req ListActivity) (ActivityPag
 	if !member {
 		return ActivityPage{}, errs.New(errs.CodeNotCabalMember, op, slog.String("cabal_id", req.CabalID.String()))
 	}
-	rows, err := r.q.ListActivity(ctx, sqlc.ListActivityParams{
+	routed, err := r.q.ListActivityRouted(ctx, sqlc.ListActivityRoutedParams{
 		CabalID: req.CabalID.UUID(), HasCursor: cursor.ok, CursorAt: cursor.at, CursorID: cursor.id,
 		RowLimit: limit + 1,
 	})
 	if err != nil {
 		return ActivityPage{}, err
+	}
+	rows := make([]sqlc.ListActivityRow, len(routed))
+	for i, row := range routed {
+		rows[i] = sqlc.ListActivityRow(row)
 	}
 	page := ActivityPage{Items: []ActivityView{}}
 	if len(rows) > int(limit) {
@@ -111,6 +116,12 @@ func (r *ActivityReads) List(ctx context.Context, req ListActivity) (ActivityPag
 	}
 	names, actors, err := r.lookups(ctx, rows)
 	if err != nil {
+		return ActivityPage{}, err
+	}
+	if names == nil {
+		names = map[domain.Asset]AssetName{}
+	}
+	if err := r.listingNames(ctx, rows, names); err != nil {
 		return ActivityPage{}, err
 	}
 	for _, row := range rows {

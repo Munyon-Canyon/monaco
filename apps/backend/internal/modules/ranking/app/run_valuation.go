@@ -58,12 +58,13 @@ type Entry struct {
 }
 
 type RunValuation struct {
-	ports Ports
-	usdc  chain.SolanaAddress
+	ports    Ports
+	usdc     chain.SolanaAddress
+	unpriced *unpricedLog
 }
 
 func NewRunValuation(ports Ports, usdc chain.SolanaAddress) RunValuation {
-	return RunValuation{ports: ports, usdc: usdc}
+	return RunValuation{ports: ports, usdc: usdc, unpriced: &unpricedLog{last: map[string]time.Time{}}}
 }
 
 func (r RunValuation) Run(ctx context.Context, at time.Time) (Valuation, error) {
@@ -373,7 +374,9 @@ func (r RunValuation) inputs(
 			logExcluded(ctx, cabal.ID, errs.CodeCabalPaused)
 		}
 		input, assetIDs, ok, err := r.input(cabal, position, found, data.paused, byMint)
-		input = offSolana(input, position, data.listings, at)
+		var miss *unpricedListing
+		input, miss = offSolana(input, position, data.listings, at)
+		r.unpriced.log(ctx, cabal.ID, miss, at)
 		input.reserved = data.reserved[cabal.ID]
 		if err != nil {
 			return nil, nil, err

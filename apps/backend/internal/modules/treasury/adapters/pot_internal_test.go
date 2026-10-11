@@ -28,11 +28,6 @@ type potFake struct {
 	members     []sqlc.CabalMemberSharesRow
 	snapshotErr error
 	membersErr  error
-	transitErr  error
-}
-
-func (f potFake) CabalInTransitMicros(context.Context, uuid.UUID) (string, error) {
-	return "0", f.transitErr
 }
 
 func (f potFake) CabalPotSnapshot(context.Context, uuid.UUID) ([]sqlc.CabalPotSnapshotRow, error) {
@@ -47,7 +42,7 @@ func potViewer() ids.UserID { return ids.UserIDFrom(testkit.NewIDs(3).NewV7()) }
 
 func potRow(asset, units, cost string) sqlc.CabalPotSnapshotRow {
 	return sqlc.CabalPotSnapshotRow{
-		TotalShares: "10", NetContributedMicros: "0", CashOutReservedMicros: "0",
+		TotalShares: "10", NetContributedMicros: "0", CashOutReservedMicros: "0", InTransitMicros: "0",
 		Asset: pgtype.Text{String: asset, Valid: asset != ""}, Units: units, CostBasisMicros: cost,
 	}
 }

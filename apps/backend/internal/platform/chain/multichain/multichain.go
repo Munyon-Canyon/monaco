@@ -64,7 +64,10 @@ func (id *ListingID) Scan(src any) error {
 	return nil
 }
 
-const MaxImpactBps = 300
+const (
+	MaxImpactBps       = 300
+	ListingPriceMaxAge = 5 * time.Minute
+)
 
 type Venue string
 

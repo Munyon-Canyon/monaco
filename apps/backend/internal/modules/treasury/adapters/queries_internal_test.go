@@ -340,13 +340,13 @@ func TestHistoricalReadFailures(t *testing.T) {
 		t.Fatal("CabalPositionsAt snapshot error = nil")
 	}
 	q.history = historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{{
-		Asset: usdcMint, Units: "1", CostBasisMicros: "1", ShareUnits: "bad",
+		Asset: usdcMint, Units: "1", CostBasisMicros: "1", ShareUnits: "bad", InTransitMicros: "0",
 	}}}
 	if _, err := q.CabalPositionsAt(t.Context(), time.Time{}); err == nil {
 		t.Fatal("CabalPositionsAt shares error = nil")
 	}
 	q.history = historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{{
-		Asset: "bad", Units: "1", CostBasisMicros: "0", ShareUnits: "1",
+		Asset: "bad", Units: "1", CostBasisMicros: "0", ShareUnits: "1", InTransitMicros: "0",
 	}}}
 	if _, err := q.CabalPositionsAt(t.Context(), time.Time{}); err == nil {
 		t.Fatal("CabalPositionsAt position error = nil")
@@ -369,7 +369,7 @@ func TestHistoricalReadsSuccess(t *testing.T) {
 	t.Parallel()
 	q := &Queries{usdc: usdcMint, transit: stakeStore{}}
 	q.history = historicalStore{snapshots: []sqlc.CabalPositionSnapshotsAtRow{{
-		Asset: usdcMint, Units: "1", CostBasisMicros: "1", ShareUnits: "1",
+		Asset: usdcMint, Units: "1", CostBasisMicros: "1", ShareUnits: "1", InTransitMicros: "0",
 	}}}
 	got, err := q.CabalPositionsAt(t.Context(), time.Time{})
 	if err != nil || len(got) != 1 || len(got[0].Holdings) != 1 {
@@ -435,10 +435,6 @@ func (s walletStore) WalletLedgerMicros(
 
 func (s stakeStore) CabalPositions(context.Context, uuid.UUID) ([]sqlc.CabalPositionsRow, error) {
 	return s.positions, s.positionsErr
-}
-
-func (stakeStore) InTransitByCabal(context.Context) ([]sqlc.InTransitByCabalRow, error) {
-	return nil, nil
 }
 
 func (s stakeStore) CabalValueRows(context.Context, uuid.UUID) ([]sqlc.CabalValueRowsRow, error) {
@@ -553,8 +549,9 @@ func TestCabalPositionsAtMarksACabalWithAnUnresolvableMintAndKeepsTheRest(t *tes
 				Units:           "1",
 				CostBasisMicros: "0",
 				ShareUnits:      "1",
+				InTransitMicros: "0",
 			},
-			{CabalID: good, Asset: usdcMint, Units: "5", CostBasisMicros: "5", ShareUnits: "1"},
+			{CabalID: good, Asset: usdcMint, Units: "5", CostBasisMicros: "5", ShareUnits: "1", InTransitMicros: "0"},
 		}},
 	}
 	q.catalog = app.MintResolver(func(context.Context, chain.SolanaAddress) (app.Asset, error) {

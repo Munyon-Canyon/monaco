@@ -8,17 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
-
-func (q *Queries) inTransitMicros(ctx context.Context, cabalID ids.CabalID) (money.Micros, error) {
-	raw, err := q.pot.CabalInTransitMicros(ctx, cabalID.UUID())
-	if err != nil {
-		return money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.inTransitMicros")
-	}
-	return micros(raw)
-}
 
 type stockGroup struct {
 	index    int
@@ -145,10 +135,10 @@ func groupKey(h evmHolding) string {
 
 func (q *Queries) addOffSolana(
 	ctx context.Context, pot *potBuilder, solana []port.Position, assets map[chain.SolanaAddress]app.Asset,
-	split chainRows,
+	split chainRows, transitRaw string,
 ) error {
 	const op = "treasury.Queries.addOffSolana"
-	transit, err := q.inTransitMicros(ctx, pot.CabalID)
+	transit, err := micros(transitRaw)
 	if err != nil {
 		return err
 	}

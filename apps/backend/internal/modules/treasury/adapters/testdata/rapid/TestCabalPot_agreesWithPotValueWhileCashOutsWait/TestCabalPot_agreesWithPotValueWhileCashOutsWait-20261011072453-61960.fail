@@ -1,0 +1,12 @@
+# 2026/10/11 07:24:53.191302 [TestCabalPot_agreesWithPotValueWhileCashOutsWait] [rapid] draw cash: 0x1
+# 2026/10/11 07:24:53.191305 [TestCabalPot_agreesWithPotValueWhileCashOutsWait] [rapid] draw held: 0x1
+# 2026/10/11 07:24:53.191306 [TestCabalPot_agreesWithPotValueWhileCashOutsWait] [rapid] draw reserved: 0x3
+# 2026/10/11 07:24:53.191316 [TestCabalPot_agreesWithPotValueWhileCashOutsWait] CabalPot() = treasury.Queries.CabalPot: pot_value_changed: money.Micros.Sub: invalid_input, PotValue() = treasury.Queries.micros: decode_failed: money.ParseMicros: invalid_input, want pot_value_changed from both
+# 
+v0.4.8#2911550261438948514
+0x0
+0x0
+0x0
+0x0
+0x24f2cddb0d323
+0x3
