@@ -105,7 +105,8 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		},
 		Routing: config.Routing{
 			UniswapBaseURL: "https://trade-api.gateway.uniswap.org", UniswapTimeout: 5 * time.Second,
-			MinEdgeBps: 10, MaxImpactBps: 300,
+			UniswapQuoteTimeout: 4 * time.Second,
+			MinEdgeBps:          10, MaxImpactBps: 300,
 		},
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -206,6 +207,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"UNISWAP_API_KEY=uni-secret",
 		"UNISWAP_BASE_URL=http://fakes/uniswap",
 		"MONACO_TIMEOUT_UNISWAP=3s",
+		"MONACO_TIMEOUT_UNISWAP_QUOTE=2s",
 		"ROUTER_MIN_EDGE_BPS=25",
 		"ROUTER_MAX_IMPACT_BPS=150",
 		"RELAYER_PRIVATE_KEY=relayer-key",
@@ -300,7 +302,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		},
 		Routing: config.Routing{
 			UniswapAPIKey: "uni-secret", UniswapBaseURL: "http://fakes/uniswap", UniswapTimeout: 3 * time.Second,
-			MinEdgeBps: 25, MaxImpactBps: 150,
+			UniswapQuoteTimeout: 2 * time.Second,
+			MinEdgeBps:          25, MaxImpactBps: 150,
 		},
 		Relayer:  config.Relayer{PrivateKey: "relayer-key"},
 		APNs:     config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
@@ -707,6 +710,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"UNISWAP_API_KEY", "***"},
 		{"UNISWAP_BASE_URL", "https://trade-api.gateway.uniswap.org"},
 		{"MONACO_TIMEOUT_UNISWAP", "5s"},
+		{"MONACO_TIMEOUT_UNISWAP_QUOTE", "4s"},
 		{"ROUTER_MIN_EDGE_BPS", "10"},
 		{"ROUTER_MAX_IMPACT_BPS", "300"},
 	}

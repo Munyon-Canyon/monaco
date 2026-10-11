@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/evmsim"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -112,18 +112,20 @@ func (c *Client) sponsored(
 	hookless := req
 	hookless.HooksOptions = mc.NoHooks
 	routes := []quoteRequest{req, hookless}
-	found, err := concurrency.FanOut(ctx, len(routes), routes,
-		func(ctx context.Context, r quoteRequest) (routeResult, error) {
+	found := make([]routeResult, len(routes))
+	var g errgroup.Group
+	for i, r := range routes {
+		g.Go(func() error {
 			q, raw, err := c.quote(ctx, l, mc.SideBuy, r, attrs)
 			q.Options = mc.RouteOptions{HooksOptions: r.HooksOptions}
 			if err == nil {
 				q, err = c.penalize(ctx, l, amount, raw, q, attrs)
 			}
-			return routeResult{quote: q, err: err}, nil
+			found[i] = routeResult{quote: q, err: err}
+			return nil
 		})
-	if err != nil {
-		return mc.Quote{}, errs.Wrap(err, errs.CodeOf(ctx.Err()), wrapperOp, attrs...)
 	}
+	_ = g.Wait()
 	best := found[0]
 	for _, r := range found[1:] {
 		if best.err != nil || r.err == nil && r.quote.GrossOutput.Cmp(best.quote.GrossOutput) > 0 {

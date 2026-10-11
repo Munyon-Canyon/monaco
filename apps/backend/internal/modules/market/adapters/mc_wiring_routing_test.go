@@ -26,8 +26,12 @@ func routingDeps(key string) module.Deps {
 		EVM:   config.EVM{RPCURLBase: "http://base.invalid"},
 		Privy: config.Privy{BaseURL: "http://privy.invalid", AppID: "app", AppSecret: "secret"},
 		Routing: config.Routing{
-			UniswapAPIKey: key, UniswapBaseURL: "http://uniswap.invalid", UniswapTimeout: time.Second,
-			MinEdgeBps: 10, MaxImpactBps: 300,
+			UniswapAPIKey:       key,
+			UniswapBaseURL:      "http://uniswap.invalid",
+			UniswapTimeout:      time.Second,
+			UniswapQuoteTimeout: time.Second,
+			MinEdgeBps:          10,
+			MaxImpactBps:        300,
 		},
 	}
 	return module.Deps{Config: cfg, Clock: clock.Real{}}

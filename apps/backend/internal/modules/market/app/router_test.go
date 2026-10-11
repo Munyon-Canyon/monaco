@@ -30,6 +30,7 @@ type recordedQuote struct {
 	age     time.Duration
 	ttl     time.Duration
 	err     error
+	block   bool
 }
 
 type routeFixture struct {
@@ -37,7 +38,9 @@ type routeFixture struct {
 	listingsErr error
 	priceErr    error
 	bridged     func(money.Micros) (money.Micros, error)
+	bridges     map[chain.Network]int
 	clk         *testkit.Clock
+	routerClock clock.Clock
 	logs        testkit.Logs
 	listings    []multichain.Listing
 	quotes      map[multichain.ListingID]recordedQuote
@@ -52,7 +55,13 @@ func (f *routeFixture) SharePrice(context.Context, multichain.StockID) (money.Mi
 	return money.MicrosFromUint64(336_844_000), f.priceErr
 }
 
-func (f *routeFixture) BridgeOut(_ context.Context, _ chain.Network, amount money.Micros) (money.Micros, error) {
+func (f *routeFixture) BridgeOut(_ context.Context, n chain.Network, amount money.Micros) (money.Micros, error) {
+	f.mu.Lock()
+	if f.bridges == nil {
+		f.bridges = map[chain.Network]int{}
+	}
+	f.bridges[n]++
+	f.mu.Unlock()
 	if f.bridged != nil {
 		return f.bridged(amount)
 	}
@@ -62,9 +71,13 @@ func (f *routeFixture) BridgeOut(_ context.Context, _ chain.Network, amount mone
 type fixtureQuoter struct{ f *routeFixture }
 
 func (q fixtureQuoter) Quote(
-	_ context.Context, l multichain.Listing, side multichain.Side, amount money.Micros,
+	ctx context.Context, l multichain.Listing, side multichain.Side, amount money.Micros,
 ) (multichain.Quote, error) {
 	r := q.f.quotes[l.ID]
+	if r.block {
+		<-ctx.Done()
+		return multichain.Quote{}, ctx.Err()
+	}
 	if r.err != nil {
 		return multichain.Quote{}, r.err
 	}
@@ -123,6 +136,7 @@ const (
 	aaplonSolana = "aaplon-solana"
 	aaplonEth    = "aaplon-ethereum"
 	aaplcBase    = "aaplc-base"
+	aaplxBase    = "aaplx-base"
 	wholeSolana  = "whole-solana"
 )
 
@@ -144,6 +158,10 @@ func appleListings(t *testing.T, g *testkit.IDs) map[string]multichain.Listing {
 		},
 		aaplcBase: {
 			ID: listingID(t, g), Issuer: "coinbase", Symbol: "AAPLc", Network: chain.NetworkBase,
+			Decimals: 8, SharesPerToken: rat("1"), Venue: multichain.VenueUniswap,
+		},
+		aaplxBase: {
+			ID: listingID(t, g), Issuer: "xstocks", Symbol: "AAPLx", Network: chain.NetworkBase,
 			Decimals: 8, SharesPerToken: rat("1"), Venue: multichain.VenueUniswap,
 		},
 		wholeSolana: {
@@ -183,12 +201,16 @@ func route(
 		tweak(f)
 	}
 	quoter := fixtureQuoter{f: f}
+	var clk clock.Clock = f.clk
+	if f.routerClock != nil {
+		clk = f.routerClock
+	}
 	r := app.NewRouter(
 		f,
 		app.Venues{multichain.VenueJupiter: quoter, multichain.VenueUniswap: quoter},
 		f,
 		f,
-		f.clk,
+		clk,
 		rules,
 	)
 	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, &f.logs))

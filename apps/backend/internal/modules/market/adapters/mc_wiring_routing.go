@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -52,7 +53,7 @@ func RoutingVenues(d module.Deps) app.Venues {
 	venues := app.Venues{multichain.VenueJupiter: jupiterquote.NewQuoter(d.JupiterClient(), d.Clock)}
 	cfg := d.Config.Routing
 	if cfg.UniswapAPIKey != "" {
-		client := routingClient(d, "uniswap", uniswapquote.Options(cfg.UniswapBaseURL, cfg.UniswapTimeout)...)
+		client := routingClient(d, "uniswap", uniswapquote.Options(cfg.UniswapBaseURL, cfg.UniswapQuoteTimeout)...)
 		venues[multichain.VenueUniswap] = uniswapquote.New(client, cfg.UniswapAPIKey, quoteSwapper(), d.Clock).
 			WithWrapper(uniswapquote.NewWrapper(wrapperRPC(d), wrapperDelegate()))
 	}
@@ -80,10 +81,13 @@ func MultichainRoutingRouter(d module.Deps, prices app.SampledPrices) *app.Route
 	bridge := NewPrivyBridgeQuotes(routingClient(d, "privy-bridge",
 		httpclient.WithBaseURL(cfg.Privy.BaseURL), httpclient.WithTimeout(cfg.Timeouts.Privy)),
 		cfg.Privy.AppID, cfg.Privy.AppSecret)
-	rules := app.RouterRules{
-		MinEdgeBps: uint64(max(cfg.Routing.MinEdgeBps, 0)), MaxImpactBps: uint64(max(cfg.Routing.MaxImpactBps, 0)),
-		QuoteTimeout: cfg.Routing.UniswapTimeout, MaxQuoteAge: routerQuoteAge,
-	}
 	return app.NewRouter(NewStockListings(d.Pool), RoutingVenues(d), app.NewStockPrices(prices, d.Clock),
-		bridge, d.Clock, rules)
+		bridge, d.Clock, routerRules(cfg.Routing))
+}
+
+func routerRules(cfg config.Routing) app.RouterRules {
+	return app.RouterRules{
+		MinEdgeBps: uint64(max(cfg.MinEdgeBps, 0)), MaxImpactBps: uint64(max(cfg.MaxImpactBps, 0)),
+		QuoteTimeout: cfg.UniswapQuoteTimeout, MaxQuoteAge: routerQuoteAge,
+	}
 }
