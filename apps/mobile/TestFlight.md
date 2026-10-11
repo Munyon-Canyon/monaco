@@ -7,7 +7,7 @@ The build number is `git rev-list --count HEAD`. It grows along one branch. Chec
 ## Prerequisites
 
 - Xcode, and a clean tree whose `HEAD` is already on a remote branch. The script refuses a dirty tree and a commit no remote branch contains.
-- An App Store Connect API key with the App Manager role. Put these three in `.env.local` with dotenvx (the names are in `.env.example`; the values stay out of git):
+- An App Store Connect API key with the App Manager role. Put these three in `.env.staging` with dotenvx. Production releases read them from there too (the names are in `.env.example`; the values stay out of git):
 
   - `ASC_KEY_ID`
   - `ASC_ISSUER_ID`
