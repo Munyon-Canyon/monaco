@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -20,11 +21,24 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
+type multichainParts struct {
+	evmWallets multichain.EVMWallets
+	forwarding multichain.DepositForwarding
+}
+
+func newMultichain() multichainParts {
+	return multichainParts{
+		evmWallets: adapters.MultichainPrivyEVMWallets(),
+		forwarding: adapters.MultichainDepositsDepositForwarding(),
+	}
+}
+
 type Module struct {
-	deps     module.Deps
-	wallets  app.TreasuryWallets
-	treasury app.TreasuryReads
-	unread   app.UnreadCounter
+	multichain multichainParts
+	deps       module.Deps
+	wallets    app.TreasuryWallets
+	treasury   app.TreasuryReads
+	unread     app.UnreadCounter
 }
 
 type liveReads struct {
@@ -71,7 +85,7 @@ func WithTreasuryReads(reads app.TreasuryReads) Option {
 
 func New(d module.Deps, opts ...Option) *Module {
 	reads := treasury.New(d).LiveReads()
-	m := &Module{deps: d, treasury: liveReads{
+	m := &Module{multichain: newMultichain(), deps: d, treasury: liveReads{
 		reads: reads,
 		sharesOn: func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error) {
 			return reads.On(db).ShareUnits(ctx, cabalID, user)

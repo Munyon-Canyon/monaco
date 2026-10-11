@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
@@ -32,7 +33,20 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
 
+type multichainParts struct {
+	walletActions multichain.WalletActions
+	prices        multichain.EVMPriceSource
+}
+
+func newMultichain() multichainParts {
+	return multichainParts{
+		walletActions: adapters.MultichainExecutionWalletActions(),
+		prices:        adapters.MultichainValuationEVMPriceSource(),
+	}
+}
+
 type Module struct {
+	multichain      multichainParts
 	deps            module.Deps
 	members         app.Members
 	users           app.Users
@@ -71,7 +85,8 @@ type (
 
 func New(d module.Deps) *Module {
 	return &Module{
-		deps: d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{},
+		multichain: newMultichain(),
+		deps:       d, members: app.UnwiredReads{}, users: app.UnwiredReads{}, cabals: app.UnwiredReads{},
 		treasuryWallets: app.UnwiredReads{}, memberWallets: app.UnwiredReads{},
 		withdrawals: app.UnwiredReads{},
 		pauses: app.CashOutPauseFunc(func(context.Context, ids.CabalID) (app.CashOutPause, error) {

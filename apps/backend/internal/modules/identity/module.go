@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
@@ -22,16 +23,29 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
+type multichainParts struct {
+	evmWallets multichain.EVMWallets
+	forwarding multichain.DepositForwarding
+}
+
+func newMultichain() multichainParts {
+	return multichainParts{
+		evmWallets: adapters.MultichainPrivyEVMWallets(),
+		forwarding: adapters.MultichainDepositsDepositForwarding(),
+	}
+}
+
 type Module struct {
-	deps     module.Deps
-	privy    app.PrivyUsers
-	wallets  app.MemberWallets
-	hints    app.Hints
-	photos   app.PhotoStore
-	stakes   app.Stakes
-	balances app.Balances
-	follows  app.FollowCounts
-	meters   metric.MeterProvider
+	multichain multichainParts
+	deps       module.Deps
+	privy      app.PrivyUsers
+	wallets    app.MemberWallets
+	hints      app.Hints
+	photos     app.PhotoStore
+	stakes     app.Stakes
+	balances   app.Balances
+	follows    app.FollowCounts
+	meters     metric.MeterProvider
 }
 
 type Option func(*Module)
@@ -60,7 +74,7 @@ func WithFollowCounts(follows app.FollowCounts) Option {
 
 func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
-		deps: d, meters: otel.GetMeterProvider(),
+		multichain: newMultichain(), deps: d, meters: otel.GetMeterProvider(),
 		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{}, follows: app.UnwiredFollowCounts{},
 	}
 	for _, opt := range opts {

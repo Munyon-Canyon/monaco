@@ -13,5 +13,6 @@ func fundingRegistrations() []Registration {
 		Register[WithdrawalSubmitted](TypeWithdrawalSubmitted, 1),
 		Register[WithdrawalConfirmed](TypeWithdrawalConfirmed, 1),
 		Register[WithdrawalFailed](TypeWithdrawalFailed, 1),
+		Register[DepositEVMForwarded](TypeDepositEVMForwarded, 1),
 	}
 }

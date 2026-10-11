@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 )
 
@@ -12,4 +13,8 @@ func evmWithdrawalNotImplemented(body api.WithdrawRequest) error {
 		return errs.New(errs.CodeNotImplemented, "funding.Withdraw")
 	}
 	return nil
+}
+
+func MultichainWithdrawalsWalletActions() multichain.Pending {
+	return multichain.Pending{Ticket: "#4972"}
 }

@@ -17,6 +17,7 @@ import (
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/privy"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
@@ -61,14 +62,27 @@ type Queries interface {
 	StuckReader
 }
 
+type multichainParts struct {
+	walletActions multichain.WalletActions
+	evmWallets    multichain.EVMWallets
+}
+
+func newMultichain() multichainParts {
+	return multichainParts{
+		walletActions: adapters.MultichainExecutionWalletActions(),
+		evmWallets:    adapters.MultichainExecutionEVMWallets(),
+	}
+}
+
 type Module struct {
-	deps   module.Deps
-	ports  EnginePorts
-	venue  Venue
-	signer Signer
-	once   sync.Once
-	trades *app.ExecuteTradeHandler
-	sells  *app.SellForCashOutHandler
+	multichain multichainParts
+	deps       module.Deps
+	ports      EnginePorts
+	venue      Venue
+	signer     Signer
+	once       sync.Once
+	trades     *app.ExecuteTradeHandler
+	sells      *app.SellForCashOutHandler
 }
 
 type Option func(*Module)
@@ -80,7 +94,7 @@ func WithChain(venue Venue, signer Signer) Option {
 }
 
 func New(d module.Deps, opts ...Option) *Module {
-	m := &Module{deps: d}
+	m := &Module{multichain: newMultichain(), deps: d}
 	for _, opt := range opts {
 		opt(m)
 	}

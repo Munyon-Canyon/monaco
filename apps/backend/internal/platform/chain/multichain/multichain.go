@@ -2,9 +2,11 @@ package multichain
 
 import (
 	"context"
+	"log/slog"
 	"math/big"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -186,4 +188,58 @@ type Router interface {
 
 type EVMPriceSource interface {
 	Prices(ctx context.Context, listings []Listing) (map[ListingID]Price, error)
+}
+
+type Pending struct{ Ticket string }
+
+func (p Pending) notImplemented(method string) error {
+	return errs.New(errs.CodeNotImplemented, "multichain."+method, slog.String("ticket", p.Ticket))
+}
+
+func (p Pending) Transfer(context.Context, string, TransferSpec, string) (ActionID, error) {
+	return "", p.notImplemented("Transfer")
+}
+
+func (p Pending) Action(context.Context, string, ActionID) (ActionStatus, error) {
+	return ActionStatus{}, p.notImplemented("Action")
+}
+
+func (p Pending) CreateAppEVMWallet(context.Context, string) (EVMWallet, error) {
+	return EVMWallet{}, p.notImplemented("CreateAppEVMWallet")
+}
+
+func (p Pending) SignEVMTransaction(context.Context, string, EVMTransaction, bool) ([]byte, error) {
+	return nil, p.notImplemented("SignEVMTransaction")
+}
+
+func (p Pending) SendEVMTransaction(context.Context, string, EVMTransaction, bool) (string, error) {
+	return "", p.notImplemented("SendEVMTransaction")
+}
+
+func (p Pending) CreateAutomation(context.Context) (AutomationID, error) {
+	return "", p.notImplemented("CreateAutomation")
+}
+
+func (p Pending) Attach(context.Context, string, chain.SolanaAddress) error {
+	return p.notImplemented("Attach")
+}
+
+func (p Pending) Executions(context.Context, string, string) (ExecutionPage, error) {
+	return ExecutionPage{}, p.notImplemented("Executions")
+}
+
+func (p Pending) Reindex(context.Context, string, chain.Network) error {
+	return p.notImplemented("Reindex")
+}
+
+func (p Pending) Quote(context.Context, Listing, Side, money.Micros) (Quote, error) {
+	return Quote{}, p.notImplemented("Quote")
+}
+
+func (p Pending) Best(context.Context, StockID, Side, money.Micros) (Comparison, error) {
+	return Comparison{}, p.notImplemented("Best")
+}
+
+func (p Pending) Prices(context.Context, []Listing) (map[ListingID]Price, error) {
+	return nil, p.notImplemented("Prices")
 }
