@@ -33,10 +33,7 @@ Turn a listing on or off by hand, or return it to the issuer's flag, with its `a
 
 ### Listings that start off
 
-Two kinds of listing start off, whatever the issuer says (#5186):
-
-- xStocks listings on any network other than Solana. None of them has a usable route (see [Venues and pools](#venues-and-pools)).
-- Every listing on Robinhood Chain. The chain's cash is USDG, and Privy doesn't bridge USDC to it.
+xStocks listings on any network other than Solana start off, whatever the issuer says (#5186). None of them has a usable route (see [Venues and pools](#venues-and-pools)).
 
 The sync inserts these rows with `tradable_override = false`, so they stay disabled after they verify. A later sync never changes an override. To turn one on, find its `asset_listings.id` and set the override:
 
@@ -58,7 +55,7 @@ Quotes were taken on Sunday 2026-10-11 at about 08:50 UTC, with US markets close
 | AAPLc, Base | `0xb200000000000000000000c2e324d24d7eecd1fb` | 1.000000 | 0.306906 sh ($325.83) | 3.066911 sh ($326.06) | Enabled |
 | AAPLx, Ethereum | `0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a` (wrapper `0x943bf64d566c32a2bcd41ac92fb63c111cc9de8f`) | 1.003269 | no route | no route | Disabled |
 | AAPLx, Arbitrum | same token and wrapper | 1.003269 | no route | no route | Disabled |
-| AAPL, Robinhood Chain | `0xaf3d76f1834a1d425780943c99ea8a608f8a93f9` | 1.000566 | not quoted | not quoted | Disabled |
+| AAPL, Robinhood Chain | `0xaf3d76f1834a1d425780943c99ea8a608f8a93f9` | 1.000566 | not quoted | not quoted | Follows Robinhood once verified (#5203) |
 
 ### Tesla
 
@@ -70,7 +67,7 @@ Quotes were taken on Sunday 2026-10-11 at about 08:50 UTC, with US markets close
 | TSLAc, Base | `0xb2000000000000000000001e800a7f5189430cd0` | 1 | 0.256319 sh ($390.14) | 1.068954 sh ($935.49) | Enabled; the impact ceiling drops it above about $100 |
 | TSLAx, Ethereum | `0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0` | 1 | 0.165542 sh ($604.08) | 0.220309 sh ($4,539.08) | Disabled: thin pool |
 | TSLAx wrapper, Ethereum, and both on Arbitrum | wrapper `0xc3fdbe3a68ee5de461d30415a8165cf9aefe1171` | 1 | no route | no route | Disabled |
-| TSLA, Robinhood Chain | `0x322f0929c4625ed5bad873c95208d54e1c003b2d` | 1 | not quoted | not quoted | Disabled |
+| TSLA, Robinhood Chain | `0x322f0929c4625ed5bad873c95208d54e1c003b2d` | 1 | not quoted | not quoted | Follows Robinhood once verified (#5203) |
 
 ### Nvidia
 
@@ -82,7 +79,7 @@ Quotes were taken on Sunday 2026-10-11 at about 08:50 UTC, with US markets close
 | NVDAc, Base | `0xb20000000000000000000078ee7ce2fe4908108c` | 1.000538 | 0.446809 sh ($223.81) | 4.465429 sh ($223.94) | Enabled |
 | NVDAx, Ethereum | `0xc845b2894dbddd03858fd2d643b4ef725fe0849d` | 1.001701 | 0.000297 sh | 0.000298 sh | Disabled: no liquidity |
 | NVDAx wrapper, Ethereum, and both on Arbitrum | wrapper `0xa8ddb5cd96b5222afe198316e9a57caa642850d5` | 1.001701 | no route | no route | Disabled |
-| NVDA, Robinhood Chain | `0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec` | 1.000776 | not quoted | not quoted | Disabled |
+| NVDA, Robinhood Chain | `0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec` | 1.000776 | not quoted | not quoted | Follows Robinhood once verified (#5203) |
 
 ## Venues and pools
 
@@ -90,7 +87,7 @@ Quotes were taken on Sunday 2026-10-11 at about 08:50 UTC, with US markets close
 - **Coinbase B20 on Base:** Uniswap routes these tokens itself, so no aggregator such as Kyber is needed. Apple and Nvidia route USDC to WETH (v3, 0.01%) to `mmETH` to the stock through v4 pools whose hooks quote the price. Tesla routes through a v4 USDC pool with a hook (0.2% fee). Uniswap reports `priceImpact: 100` for the hooked routes, which is not a real impact, so the router measures impact against Monaco's own reference price instead.
 - **Coinbase quotes below the reference price:** the Base quotes for Apple and Nvidia come in about 3% under the last Chainlink total-return feed price ($336.84 for Apple, $230.26 for Nvidia, both from Friday 2026-10-09). The hooks may quote stale or indicative prices while the market is closed. #4970's first EVM execution confirms whether these quotes fill.
 - **xStocks on EVM:** neither the token nor its wrapper has a Uniswap route on Arbitrum. On Ethereum only the raw TSLAx and NVDAx tokens have pools, and those are too thin to use. Every xStocks EVM listing stays disabled at launch, by override (see [Listings that start off](#listings-that-start-off)).
-- **Robinhood Chain:** the dataset's addresses are unverified (no `decimals`), and the chain's cash asset is USDG, which Privy does not bridge as `usdc`. These listings stay disabled by override, even once they verify.
+- **Robinhood Chain:** the chain's cash asset is USDG (`0x5fc5360d0400a0fd4f2af552add042d716f1d168`, 6 decimals), not USDC. Privy bridges Solana USDC to Robinhood USDG and back, and the router quotes Uniswap in USDG (see [EVM trades](evm-trade.md)). On 2026-10-11 Uniswap quoted 5 USDG into AAPL at 0.03% impact, NVDA at 0.03% and TSLA at 0.07%, with about $0.01 of gas each. A Robinhood listing follows Robinhood's own tradable flag once it verifies on chain (#5203). The dataset's addresses start unverified (no `decimals`), so each one turns on after its first passing `listings verify`.
 
 ## Hold and swap eligibility
 

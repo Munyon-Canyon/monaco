@@ -17,6 +17,8 @@ import (
 const (
 	linkMigration         = "../../../migrations/20261011063200_market_listings_link.sql"
 	offByDefaultMigration = "../../../migrations/20261011143000_listings_off_by_default.sql"
+
+	robinhoodFollowsIssuerMigration = "../../../migrations/20261011160000_robinhood_listings_follow_issuer.sql"
 )
 
 type datasetRow struct {
@@ -49,7 +51,7 @@ func dataset(t *testing.T) []datasetRow {
 			issuer: r[col["issuer"]], symbol: r[col["symbol"]], network: r[col["network"]], address: address,
 			decimals: r[col["decimals"]],
 			enabled: r[col["verified"]] == "True" && r[col["trading_halted"]] == "False" &&
-				(r[col["issuer"]] != "xstocks" || r[col["network"]] == "solana") && r[col["network"]] != "robinhood",
+				(r[col["issuer"]] != "xstocks" || r[col["network"]] == "solana"),
 		})
 	}
 	return rows
@@ -88,18 +90,70 @@ func TestAssetListingsHoldEveryVerifiedDatasetRow(t *testing.T) {
 	}
 }
 
-func TestListingOverrideTurnsOffEveryXStocksEVMAndRobinhoodListing(t *testing.T) {
+func TestListingOverrideTurnsOffEveryXStocksEVMListingAndLeavesRobinhoodToTheIssuer(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
-	var overridden, off, enabled int
-	err := pool.QueryRow(t.Context(), `SELECT count(*) FILTER (WHERE tradable_override = false),
-		count(*) FILTER (WHERE (issuer = 'xstocks' AND network <> 'solana') OR network = 'robinhood'),
-		count(*) FILTER (WHERE ((issuer = 'xstocks' AND network <> 'solana') OR network = 'robinhood') AND enabled)
+	var xOff, xEnabled, rhNull, rhEnabled int
+	err := pool.QueryRow(t.Context(), `SELECT
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network <> 'solana' AND tradable_override = false),
+		count(*) FILTER (WHERE issuer = 'xstocks' AND network <> 'solana' AND enabled),
+		count(*) FILTER (WHERE network = 'robinhood' AND tradable_override IS NULL),
+		count(*) FILTER (WHERE network = 'robinhood' AND enabled
+			IS DISTINCT FROM (verified_at IS NOT NULL AND issuer_tradable))
 		FROM asset_listings`).
-		Scan(&overridden, &off, &enabled)
-	if err != nil || overridden != off || off != 2409+194 || enabled != 0 {
-		t.Fatalf("overridden = %d, xStocks EVM and Robinhood = %d, enabled = %d, %v, want all 2603 off", overridden,
-			off, enabled, err)
+		Scan(&xOff, &xEnabled, &rhNull, &rhEnabled)
+	if err != nil || xOff != 2409 || xEnabled != 0 || rhNull != 194 || rhEnabled != 0 {
+		t.Fatalf("xStocks EVM off = %d, enabled = %d; Robinhood with no override = %d, off its issuer flag = %d, %v;"+
+			" want 2409, 0, 194, 0", xOff, xEnabled, rhNull, rhEnabled, err)
+	}
+}
+
+func TestRobinhoodFollowsIssuerMigrationResetsOnlyRobinhoodOffOverrides(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	type row struct {
+		issuer, network, token string
+		override, verified     string
+		tradable               bool
+		wantOverride           string
+		wantEnabled            bool
+	}
+	tok := func(suffix string) string { return "0x00000000000000000000000000000000005203" + suffix }
+	rows := []row{
+		{"robinhood", "robinhood", tok("a1"), "false", "now()", true, "<nil>", true},
+		{"robinhood", "robinhood", tok("a2"), "false", "now()", false, "<nil>", false},
+		{"robinhood", "robinhood", tok("a3"), "false", "NULL", true, "<nil>", false},
+		{"robinhood", "robinhood", tok("a4"), "true", "now()", false, "true", true},
+		{"xstocks", "base", tok("a5"), "false", "now()", true, "false", false},
+	}
+	for _, r := range rows {
+		enabled := r.override == "true"
+		execListingSQL(t, pool, `INSERT INTO asset_listings (id, issuer, symbol, network, chain_id, token_address,
+			decimals, shares_per_token, venue, issuer_tradable, tradable_override, enabled, verified_at, created_at)
+			VALUES ('`+ids.Real{}.NewV7().String()+`', '`+r.issuer+`', 'T5203', '`+r.network+`', 1, '`+r.token+`',
+			8, 1, 'uniswap', `+strconv.FormatBool(r.tradable)+`, `+r.override+`, `+strconv.FormatBool(enabled)+`,
+			`+r.verified+`, now())`)
+	}
+	migration, err := os.ReadFile(robinhoodFollowsIssuerMigration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execListingSQL(t, pool, string(migration), string(migration))
+	for _, r := range rows {
+		var override *bool
+		var enabled bool
+		if err := pool.QueryRow(t.Context(), `SELECT tradable_override, enabled FROM asset_listings
+			WHERE token_address = $1`, r.token).Scan(&override, &enabled); err != nil {
+			t.Fatal(err)
+		}
+		got := "<nil>"
+		if override != nil {
+			got = strconv.FormatBool(*override)
+		}
+		if got != r.wantOverride || enabled != r.wantEnabled {
+			t.Errorf("%s %s %s override = %s enabled = %t, want %s %t", r.issuer, r.network, r.token, got, enabled,
+				r.wantOverride, r.wantEnabled)
+		}
 	}
 }
 

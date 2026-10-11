@@ -35,7 +35,7 @@ SELECT
   ),
   CASE WHEN u.network = 'solana' THEN 'jupiter' ELSE 'uniswap' END,
   u.issuer_tradable,
-  CASE WHEN (sqlc.arg(issuer)::text = 'xstocks' AND u.network <> 'solana') OR u.network = 'robinhood' THEN false END,
+  CASE WHEN sqlc.arg(issuer)::text = 'xstocks' AND u.network <> 'solana' THEN false END,
   false, sqlc.arg(now)::timestamptz
 FROM ROWS FROM (
   unnest(sqlc.arg(ids)::uuid[]), unnest(sqlc.arg(tickers)::text[]), unnest(sqlc.arg(symbols)::text[]),

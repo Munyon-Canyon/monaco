@@ -231,8 +231,8 @@ func TestListingSync_storesIssuerListingsAndEnablesOnlyTheVerifiedOnes(t *testin
 	want := []string{
 		"coinbase AAPLc base " + aaplC + "  8 1 tradable=true enabled=true verified=true",
 		"coinbase TSLAc base " + tslaC + "  8 1.0003771186767842 tradable=true enabled=false verified=false",
-		"robinhood AAPL robinhood " + aaplRH + "  18 1.002 tradable=true enabled=false verified=true",
-		"robinhood NVDA robinhood " + nvdaRH + "  18 1.000776 tradable=true enabled=false verified=true",
+		"robinhood AAPL robinhood " + aaplRH + "  18 1.002 tradable=true enabled=true verified=true",
+		"robinhood NVDA robinhood " + nvdaRH + "  18 1.000776 tradable=true enabled=true verified=true",
 		"xstocks AAPLx ethereum " + aaplXEVM + " " + aaplXWrap + " 18 1 tradable=true enabled=false verified=true",
 		"xstocks AAPLx solana " + aaplXSolan + "  8 1 tradable=true enabled=true verified=true",
 	}
@@ -448,9 +448,11 @@ func TestListingSync_keepsAListingTheOverrideTurnedOffDisabled(t *testing.T) {
 	}
 }
 
-func TestListingSync_insertsXStocksOffSolanaAndRobinhoodListingsOff(t *testing.T) {
+func TestListingSync_insertsXStocksOffSolanaOffAndRobinhoodOnItsIssuerFlag(t *testing.T) {
 	t.Parallel()
 	const aaplXBase = "0x00000000000000000000000000000000005186b1"
+	halted := evm("robinhood", "TSLA", "TSLA", chain.NetworkRobinhood, "0x00000000000000000000000000000000005203b1")
+	halted.Tradable = false
 	xBase := evm("xstocks", "AAPL", "AAPLx", chain.NetworkBase, aaplXBase)
 	xSol := app.IssuerListing{
 		Issuer: "xstocks", Ticker: "AAPL", Symbol: "AAPLx", Network: chain.NetworkSolana,
@@ -465,6 +467,7 @@ func TestListingSync_insertsXStocksOffSolanaAndRobinhoodListingsOff(t *testing.T
 		&source{issuer: "robinhood", batch: app.ListingBatch{Issuer: "robinhood", Listings: []app.IssuerListing{
 			evm("robinhood", "AAPL", "AAPL", chain.NetworkRobinhood, aaplRH),
 			evm("robinhood", "NVDA", "NVDA", chain.NetworkRobinhood, nvdaRH),
+			halted,
 		}}},
 	)
 	if _, err := r.pool.Exec(t.Context(), `INSERT INTO asset_listings (id, issuer, symbol, network, chain_id,
@@ -492,8 +495,9 @@ func TestListingSync_insertsXStocksOffSolanaAndRobinhoodListingsOff(t *testing.T
 			verified))
 	}
 	want := []string{
-		"robinhood robinhood override=false enabled=false verified=true",
+		"robinhood robinhood override=null enabled=true verified=true",
 		"robinhood robinhood override=true enabled=true verified=true",
+		"robinhood robinhood override=null enabled=false verified=true",
 		"xstocks base override=false enabled=false verified=true",
 		"xstocks solana override=null enabled=true verified=true",
 	}
