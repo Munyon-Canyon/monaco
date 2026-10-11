@@ -32,6 +32,13 @@ type CabalMember struct {
 	JoinedAt time.Time
 }
 
+type TreasuryEvmWallet struct {
+	CabalID       uuid.UUID
+	PrivyWalletID string
+	Address       string
+	CreatedAt     time.Time
+}
+
 type TreasuryWallet struct {
 	CabalID       uuid.UUID
 	PrivyWalletID string

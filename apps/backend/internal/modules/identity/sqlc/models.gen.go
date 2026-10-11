@@ -3,16 +3,3 @@
 //   sqlc v1.31.1
 
 package sqlc
-
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
-
-type UserWallet struct {
-	UserID        uuid.UUID
-	PrivyWalletID string
-	Address       string
-	CreatedAt     time.Time
-}

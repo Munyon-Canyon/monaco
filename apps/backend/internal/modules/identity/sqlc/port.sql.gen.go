@@ -47,15 +47,22 @@ type MemberWalletsAfterParams struct {
 	PageSize int64
 }
 
-func (q *Queries) MemberWalletsAfter(ctx context.Context, arg MemberWalletsAfterParams) ([]UserWallet, error) {
+type MemberWalletsAfterRow struct {
+	UserID        uuid.UUID
+	PrivyWalletID string
+	Address       string
+	CreatedAt     time.Time
+}
+
+func (q *Queries) MemberWalletsAfter(ctx context.Context, arg MemberWalletsAfterParams) ([]MemberWalletsAfterRow, error) {
 	rows, err := q.db.Query(ctx, memberWalletsAfter, arg.After, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []UserWallet
+	var items []MemberWalletsAfterRow
 	for rows.Next() {
-		var i UserWallet
+		var i MemberWalletsAfterRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.PrivyWalletID,

@@ -28,3 +28,10 @@ type SwapView struct {
 	ConfirmedAt pgtype.Timestamptz
 	Retryable   pgtype.Bool
 }
+
+type TradeRoute struct {
+	TradeID         uuid.UUID
+	Comparison      []byte
+	WinnerListingID uuid.UUID
+	CreatedAt       time.Time
+}
