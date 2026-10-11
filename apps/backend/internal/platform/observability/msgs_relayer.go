@@ -6,4 +6,5 @@ var (
 		Name:     "relayer.topup_underfunded",
 		Required: []string{"relayer", "wallet", "relayer_lamports", "lamports", "floor_lamports"},
 	}
+	RelayerTopUpCapped = Msg{Name: "relayer.topup_capped", Required: []string{"wallet", "topups"}}
 )

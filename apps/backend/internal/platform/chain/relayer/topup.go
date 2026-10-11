@@ -3,16 +3,23 @@ package relayer
 import (
 	"context"
 	"crypto/ed25519"
+	"database/sql"
 	"encoding/binary"
+	"errors"
 	"log/slog"
 	"slices"
+	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/relayer/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
@@ -21,10 +28,14 @@ const (
 	TopUpFloorLamports  = 2_000_000
 	TopUpTargetLamports = 4_000_000
 	TopUpPoll           = 2 * time.Second
+	TopUpCap            = 3
+	TopUpCapWindow      = 24 * time.Hour
 
 	topUpOp        = "relayer.TopUps.TopUpSOL"
 	systemTransfer = 2
-	topUpLock      = `SELECT pg_advisory_xact_lock(hashtextextended('sol-topup:' || $1::text, 0))`
+
+	topUpConfirmed = "confirmed"
+	topUpExpired   = "expired"
 )
 
 type TopUpRPC interface {
@@ -39,10 +50,20 @@ type TopUps struct {
 	rpc     TopUpRPC
 	uow     *db.UnitOfWork
 	clock   clock.Clock
+	ids     ids.Generator
 }
 
-func NewTopUps(r *Relayer, rpc TopUpRPC, uow *db.UnitOfWork, clk clock.Clock) *TopUps {
-	return &TopUps{relayer: r, rpc: rpc, uow: uow, clock: clk}
+func NewTopUps(r *Relayer, rpc TopUpRPC, uow *db.UnitOfWork, clk clock.Clock, g ids.Generator) *TopUps {
+	return &TopUps{relayer: r, rpc: rpc, uow: uow, clock: clk, ids: g}
+}
+
+type topUp struct {
+	id        uuid.UUID
+	wallet    chain.SolanaAddress
+	lamports  uint64
+	raw       []byte
+	signature chain.Signature
+	lastValid uint64
 }
 
 func (t *TopUps) TopUpSOL(ctx context.Context, wallet chain.SolanaAddress) error {
@@ -52,16 +73,24 @@ func (t *TopUps) TopUpSOL(ctx context.Context, wallet chain.SolanaAddress) error
 	if low, err := t.below(ctx, wallet); err != nil || !low {
 		return err
 	}
-	return t.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		if _, err := tx.Queries().Exec(ctx, topUpLock, string(wallet)); err != nil {
+	var next *topUp
+	err := t.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		next = nil
+		q := sqlc.New(tx.Queries())
+		if err := q.LockTopUp(ctx, string(wallet)); err != nil {
 			return errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
 		}
-		balance, err := t.rpc.SOLBalance(ctx, wallet)
-		if err != nil || balance.Uint64() >= TopUpFloorLamports {
+		send, err := t.settlePending(ctx, q, wallet)
+		if err != nil || !send {
 			return err
 		}
-		return t.send(ctx, wallet, TopUpTargetLamports-balance.Uint64())
+		next, err = t.prepare(ctx, q, wallet)
+		return err
 	})
+	if err != nil || next == nil {
+		return err
+	}
+	return t.broadcast(ctx, *next)
 }
 
 func (t *TopUps) below(ctx context.Context, wallet chain.SolanaAddress) (bool, error) {
@@ -69,52 +98,118 @@ func (t *TopUps) below(ctx context.Context, wallet chain.SolanaAddress) (bool, e
 	return err == nil && balance.Uint64() < TopUpFloorLamports, err
 }
 
-func (t *TopUps) send(ctx context.Context, wallet chain.SolanaAddress, lamports uint64) error {
+func (t *TopUps) settlePending(ctx context.Context, q *sqlc.Queries, wallet chain.SolanaAddress) (bool, error) {
+	row, err := q.LatestPendingTopUp(ctx, string(wallet))
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return true, nil
+	case err != nil:
+		return false, errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
+	}
+	lastValid, err := strconv.ParseUint(row.LastValidBlockHeight, 10, 64)
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeDecodeFailed, topUpOp, slog.String("signature", row.Signature))
+	}
+	status, err := t.status(ctx, chain.Signature(row.Signature))
+	if err != nil {
+		return false, err
+	}
+	switch {
+	case status.Failed || status.BlockhashExpired(lastValid):
+		return true, resolve(ctx, q, row.ID, topUpExpired, t.clock.Now())
+	case status.State != solana.StateNotFound:
+		return false, resolve(ctx, q, row.ID, topUpConfirmed, t.clock.Now())
+	}
+	return false, errs.New(errs.CodeUpstreamUnavailable, topUpOp, slog.String("reason", "topup_in_flight"),
+		slog.String("signature", row.Signature))
+}
+
+func (t *TopUps) prepare(ctx context.Context, q *sqlc.Queries, wallet chain.SolanaAddress) (*topUp, error) {
+	balance, err := t.rpc.SOLBalance(ctx, wallet)
+	if err != nil || balance.Uint64() >= TopUpFloorLamports {
+		return nil, err
+	}
+	if err := t.underCap(ctx, q, wallet); err != nil {
+		return nil, err
+	}
+	next, err := t.build(ctx, wallet, TopUpTargetLamports-balance.Uint64())
+	if err != nil {
+		return nil, err
+	}
+	err = q.InsertTopUp(ctx, sqlc.InsertTopUpParams{
+		ID: next.id, Wallet: string(wallet), Lamports: strconv.FormatUint(next.lamports, 10),
+		Signature: string(next.signature), LastValidBlockHeight: strconv.FormatUint(next.lastValid, 10),
+		CreatedAt: t.clock.Now(),
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
+	}
+	return &next, nil
+}
+
+func (t *TopUps) underCap(ctx context.Context, q *sqlc.Queries, wallet chain.SolanaAddress) error {
+	count, err := q.CountTopUpsSince(ctx, sqlc.CountTopUpsSinceParams{
+		Wallet: string(wallet), Since: t.clock.Now().Add(-TopUpCapWindow),
+	})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
+	}
+	if count < TopUpCap {
+		return nil
+	}
+	observability.Alert(ctx, observability.RelayerTopUpCapped,
+		slog.String("wallet", string(wallet)), slog.Int("topups", int(count)))
+	return errs.New(errs.CodeUpstreamUnavailable, topUpOp, slog.String("reason", "topup_capped"),
+		slog.String("wallet", string(wallet)))
+}
+
+func (t *TopUps) build(ctx context.Context, wallet chain.SolanaAddress, lamports uint64) (topUp, error) {
 	payer := t.relayer.address
 	own, err := t.rpc.SOLBalance(ctx, payer)
 	if err != nil {
-		return err
+		return topUp{}, err
 	}
 	if own.Uint64() <= FloorLamports+lamports {
 		observability.Alert(ctx, observability.RelayerTopUpUnderfunded,
 			slog.String("relayer", string(payer)), slog.String("wallet", string(wallet)),
 			slog.Uint64("relayer_lamports", own.Uint64()), slog.Uint64("lamports", lamports),
 			slog.Uint64("floor_lamports", FloorLamports))
-		return errs.New(errs.CodeUpstreamUnavailable, topUpOp, slog.String("reason", "relayer_underfunded"),
-			slog.Uint64("relayer_lamports", own.Uint64()))
+		return topUp{}, errs.New(errs.CodeUpstreamUnavailable, topUpOp,
+			slog.String("reason", "relayer_underfunded"), slog.Uint64("relayer_lamports", own.Uint64()))
 	}
 	hash, err := t.rpc.LatestBlockhash(ctx)
 	if err != nil {
-		return err
+		return topUp{}, err
 	}
 	msg := transferSOL(payer, wallet, lamports, hash.Hash)
-	tx := chain.Transaction{Signatures: [][]byte{ed25519.Sign(t.relayer.key, msg)}, Message: msg}
-	sig, err := t.rpc.SendTransaction(ctx, tx.Encode())
-	if err != nil {
-		return err
-	}
-	if err := t.confirm(ctx, wallet, sig, hash.LastValidBlockHeight); err != nil {
-		return err
-	}
-	observability.Info(ctx, observability.RelayerSOLToppedUp, slog.String("wallet", string(wallet)),
-		slog.Uint64("lamports", lamports), slog.String("signature", string(sig)))
-	return nil
+	signature := ed25519.Sign(t.relayer.key, msg)
+	return topUp{
+		id: t.ids.NewV7(), wallet: wallet, lamports: lamports, signature: chain.SignatureOf(signature),
+		raw:       chain.Transaction{Signatures: [][]byte{signature}, Message: msg}.Encode(),
+		lastValid: hash.LastValidBlockHeight,
+	}, nil
 }
 
-func (t *TopUps) confirm(ctx context.Context, wallet chain.SolanaAddress, sig chain.Signature, lastValid uint64) error {
+func (t *TopUps) broadcast(ctx context.Context, next topUp) error {
+	if _, err := t.rpc.SendTransaction(ctx, next.raw); err != nil {
+		return err
+	}
 	for {
-		statuses, err := t.rpc.SignatureStatuses(ctx, []chain.Signature{sig})
+		status, err := t.status(ctx, next.signature)
 		if err != nil {
 			return err
 		}
-		status := statuses[0]
 		switch {
-		case status.Failed, status.BlockhashExpired(lastValid):
-			return errs.New(errs.CodeUpstreamUnavailable, topUpOp, slog.String("signature", string(sig)),
-				slog.Bool("failed", status.Failed))
+		case status.Failed, status.BlockhashExpired(next.lastValid):
+			return errors.Join(t.record(ctx, next, topUpExpired), errs.New(errs.CodeUpstreamUnavailable, topUpOp,
+				slog.String("signature", string(next.signature)), slog.Bool("failed", status.Failed)))
 		case status.State != solana.StateNotFound:
-			if low, err := t.below(ctx, wallet); err != nil || !low {
+			low, err := t.below(ctx, next.wallet)
+			if err != nil {
 				return err
+			}
+			if !low {
+				return t.landed(ctx, next)
 			}
 		}
 		select {
@@ -123,6 +218,36 @@ func (t *TopUps) confirm(ctx context.Context, wallet chain.SolanaAddress, sig ch
 		case <-t.clock.After(TopUpPoll):
 		}
 	}
+}
+
+func (t *TopUps) landed(ctx context.Context, next topUp) error {
+	if err := t.record(ctx, next, topUpConfirmed); err != nil {
+		return err
+	}
+	observability.Info(ctx, observability.RelayerSOLToppedUp, slog.String("wallet", string(next.wallet)),
+		slog.Uint64("lamports", next.lamports), slog.String("signature", string(next.signature)))
+	return nil
+}
+
+func (t *TopUps) record(ctx context.Context, next topUp, status string) error {
+	return t.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		return resolve(ctx, sqlc.New(tx.Queries()), next.id, status, t.clock.Now())
+	})
+}
+
+func resolve(ctx context.Context, q *sqlc.Queries, id uuid.UUID, status string, at time.Time) error {
+	if _, err := q.ResolveTopUp(ctx, sqlc.ResolveTopUpParams{ID: id, Status: status, At: at}); err != nil {
+		return errs.Wrap(err, errs.CodeDBUnavailable, topUpOp)
+	}
+	return nil
+}
+
+func (t *TopUps) status(ctx context.Context, sig chain.Signature) (solana.Status, error) {
+	statuses, err := t.rpc.SignatureStatuses(ctx, []chain.Signature{sig})
+	if err != nil {
+		return solana.Status{}, err
+	}
+	return statuses[0], nil
 }
 
 func transferSOL(payer, to chain.SolanaAddress, lamports uint64, blockhash [32]byte) []byte {

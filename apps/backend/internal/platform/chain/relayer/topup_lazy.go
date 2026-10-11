@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 type LazyTopUps struct {
@@ -25,7 +26,7 @@ func NewLazyTopUps(cfg config.Config, uow *db.UnitOfWork, clk clock.Clock) *Lazy
 		if err != nil {
 			return nil, err
 		}
-		return NewTopUps(r, rpc, uow, clk), nil
+		return NewTopUps(r, rpc, uow, clk, ids.Real{}), nil
 	}}
 }
 
