@@ -308,6 +308,77 @@ func TestXcodeLockHoldCap(t *testing.T) {
 	}
 }
 
+func stallEnv(seconds string) []string {
+	return []string{"MONACO_LOCK_STALL=" + seconds, "MONACO_LOCK_STALL_POLL=1"}
+}
+
+func TestXcodeLockStopsAQuietIdleCommand(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+
+	c := e.start(e.dir, stallEnv("2"), "xcode", "sleep", "30")
+	if code := c.wait(t); code != 124 {
+		t.Fatalf("exit %d, want 124:\n%s", code, c.stderr.String())
+	}
+	if !strings.Contains(c.stderr.String(), "xcode stalled (no output for 2s); stopped it") {
+		t.Fatalf("no stall message:\n%s", c.stderr.String())
+	}
+	if strings.Contains(c.stderr.String(), "hold cap") {
+		t.Fatalf("a stall reported as the hold cap:\n%s", c.stderr.String())
+	}
+	if exists(e.xcodeLock()) {
+		t.Fatalf("lock dir still present after the stall")
+	}
+}
+
+func TestXcodeLockLetsACommandThatPrintsRunPastTheStallWindow(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+
+	c := e.start(e.dir, stallEnv("2"), "xcode", "sh", "-c", "for i in 1 2 3 4 5 6 7 8; do echo $i >&2; sleep 0.5; done")
+	if code := c.wait(t); code != 0 {
+		t.Fatalf("exit %d, want 0:\n%s", code, c.stderr.String())
+	}
+	if !strings.Contains(c.stderr.String(), "8\n") || strings.Contains(c.stderr.String(), "stalled") {
+		t.Fatalf("output lost or a stall reported:\n%s", c.stderr.String())
+	}
+}
+
+func TestXcodeLockLetsASilentBusyCommandRunPastTheStallWindow(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+
+	c := e.start(e.dir, stallEnv("2"), "xcode", "sh", "-c",
+		`end=$(($(date +%s)+4)); while [ "$(date +%s)" -lt "$end" ]; do :; done`)
+	if code := c.wait(t); code != 0 {
+		t.Fatalf("exit %d, want 0:\n%s", code, c.stderr.String())
+	}
+	if strings.Contains(c.stderr.String(), "stalled") {
+		t.Fatalf("a busy command reported as stalled:\n%s", c.stderr.String())
+	}
+}
+
+func TestXcodeLockRelaysOutputUnchanged(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+
+	var want bytes.Buffer
+	for i := range 50000 {
+		want.WriteString(strconv.Itoa(i) + "\n")
+	}
+	input := filepath.Join(e.dir, "input")
+	if err := os.WriteFile(input, want.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := e.start(e.dir, stallEnv("60"), "xcode", "sh", "-c", `cat "$1" >&2`, "sh", input)
+	if code := c.wait(t); code != 0 {
+		t.Fatalf("exit %d, want 0", code)
+	}
+	if got := c.stderr.String(); got != want.String() {
+		t.Fatalf("relayed %d bytes, want %d", len(got), want.Len())
+	}
+}
+
 func TestXcodeLockClassesOverlapAndSameClassSerializes(t *testing.T) {
 	t.Parallel()
 	e := newLockEnv(t)

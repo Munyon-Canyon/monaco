@@ -60,6 +60,12 @@
 #   MONACO_XCODE_LOCK_TIMEOUT  seconds a waiter waits before exit 75 (default 5400)
 #   MONACO_LOCK_HOLD           seconds the command may run before it is stopped and the
 #                              script exits 124 (default 1800)
+#   MONACO_LOCK_STALL          `xcode` only: seconds of no output while the command's
+#                              process tree uses under 5% of one CPU before the run is
+#                              stopped and the script exits 124 (default 600; 0 turns it off).
+#                              A test runner that never starts on its simulator leaves
+#                              xcodebuild idle and silent until the hold cap (#5280).
+#   MONACO_LOCK_STALL_POLL     seconds between stall checks (default 30)
 #   MONACO_LOCK_POLL           seconds between checks while waiting (default 2)
 #   MONACO_LOCK_NICE           niceness the held command runs at (default 15)
 #   MONACO_LOCK_WAITED         file to append the whole seconds spent waiting to, once the
@@ -165,6 +171,11 @@ running=0       # 1 while the held command (or its limiter) may be alive
 child=""        # pid of the command, or of the `timeout` that wraps it
 watchdog=""     # pid of the shell watchdog (no-`timeout` path only)
 cap_mark=""     # per-run file the watchdog writes when the cap fires
+stall_limit="${MONACO_LOCK_STALL:-600}"
+stall_poll="${MONACO_LOCK_STALL_POLL:-30}"
+stall_watch=""  # pid of the stall monitor
+stall_mark=""   # per-run file the stall monitor writes when it stops the command
+relays=()       # pids of the output relays
 sig_name=""     # INT or TERM, once one arrived while the command ran
 sig_rc=0
 
@@ -178,6 +189,7 @@ release() {
     kill "$watchdog" 2>/dev/null || true
     watchdog=""
   fi
+  stop_stall_watch
   if [[ -n "$ticket" ]]; then
     rm -f "$queue_dir/$ticket"
   fi
@@ -262,6 +274,121 @@ log_build() {
   ) >/dev/null 2>&1 || true
 }
 
+# Copies stdin to stdout unchanged and refreshes the heartbeat file named by argv[1] at most
+# once a second while output flows. A closed reader ends it quietly, so the command gets
+# SIGPIPE on its next write, as it would writing to that reader directly.
+relay_py='import os, sys, time
+hb, last = sys.argv[1], 0.0
+try:
+    while True:
+        b = os.read(0, 65536)
+        if not b:
+            break
+        v = memoryview(b)
+        while v:
+            v = v[os.write(1, v):]
+        if time.time() - last >= 1:
+            last = time.time()
+            try:
+                os.utime(hb, None)
+            except OSError:
+                pass
+except OSError:
+    pass'
+
+# The pids of $1 and every process below it, one per line.
+tree_pids() {
+  ps -axo pid=,ppid= | awk -v root="$1" '
+    { pid[NR] = $1; ppid[NR] = $2 }
+    END {
+      in_tree[root] = 1
+      for (grew = 1; grew; ) {
+        grew = 0
+        for (i = 1; i <= NR; i++) if (!(pid[i] in in_tree) && (ppid[i] in in_tree)) { in_tree[pid[i]] = 1; grew = 1 }
+      }
+      for (p in in_tree) print p
+    }'
+}
+
+# CPU time used so far by $1 and every process below it, in centiseconds.
+tree_cpu() {
+  ps -axo pid=,ppid=,time= | awk -v root="$1" '
+    {
+      pid[NR] = $1; ppid[NR] = $2; t = $3; gsub("-", ":", t)
+      n = split(t, part, ":"); s = 0
+      for (i = 1; i <= n; i++) s = s * 60 + part[i]
+      cpu[NR] = s
+    }
+    END {
+      in_tree[root] = 1
+      for (grew = 1; grew; ) {
+        grew = 0
+        for (i = 1; i <= NR; i++) if (!(pid[i] in in_tree) && (ppid[i] in in_tree)) { in_tree[pid[i]] = 1; grew = 1 }
+      }
+      for (i = 1; i <= NR; i++) if (pid[i] in in_tree) total += cpu[i]
+      printf "%d\n", total * 100
+    }'
+}
+
+file_mtime() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || true
+}
+
+# Runs in the background while the command runs. Each poll counts as quiet when the
+# heartbeat has not moved and the command's process tree used under 5% of one CPU. After
+# $stall_limit seconds of quiet polls it writes $stall_mark and stops the tree: TERM, then
+# KILL for whatever is left 20 s later.
+stall_monitor() {
+  local root="$1" hb="$2" quiet=0 seen="" beat cpu last_cpu pids
+  last_cpu="$(tree_cpu "$root")"
+  while kill -0 "$root" 2>/dev/null; do
+    sleep "$stall_poll"
+    beat="$(file_mtime "$hb")"
+    cpu="$(tree_cpu "$root")"
+    if [[ "$beat" != "$seen" ]] || (( cpu - last_cpu > stall_poll * 5 )); then
+      quiet=0
+    else
+      quiet=$((quiet + stall_poll))
+    fi
+    seen="$beat"
+    last_cpu="$cpu"
+    if (( quiet >= stall_limit )); then
+      : > "$stall_mark"
+      pids="$(tree_pids "$root")"
+      # shellcheck disable=SC2086
+      kill -TERM $pids 2>/dev/null
+      sleep 20
+      # shellcheck disable=SC2086
+      kill -KILL $pids 2>/dev/null
+      return 0
+    fi
+  done
+}
+
+stall_text() {
+  if (( stall_limit % 60 == 0 )); then echo "$((stall_limit / 60))m"; else echo "${stall_limit}s"; fi
+}
+
+# Stops the stall monitor and the output relays. A relay normally ends at EOF once the
+# command is gone; one held open by an orphaned grandchild is killed after 5 s.
+stop_stall_watch() {
+  local pid i
+  if [[ -n "$stall_watch" ]]; then
+    pkill -P "$stall_watch" 2>/dev/null || true
+    kill "$stall_watch" 2>/dev/null || true
+    stall_watch=""
+  fi
+  for pid in ${relays[@]+"${relays[@]}"}; do
+    i=0
+    while (( i < 25 )) && kill -0 "$pid" 2>/dev/null; do
+      sleep 0.2
+      i=$((i + 1))
+    done
+    kill "$pid" 2>/dev/null || true
+  done
+  relays=()
+}
+
 # Run the command under the hold cap. `timeout` is GNU coreutils; a Mac has it only as
 # `gtimeout` (Homebrew coreutils), so a plain shell watchdog covers the rest.
 #
@@ -278,19 +405,42 @@ run_capped() {
   # Bash applies `set -e` to the handler of a trap that interrupts `wait` and exits, which
   # would release the lock under the running command. Errexit stays off until it is gone.
   set +e
+  # fds 7 and 8 are the command's stdout and stderr: the caller's own, or, while the stall
+  # monitor watches an xcode run, FIFOs read by the relays.
+  local hb="" out_fifo="" err_fifo=""
+  if [[ "$class" == xcode ]] && (( stall_limit > 0 )); then
+    hb="$lock_dir/heartbeat.$$"
+    out_fifo="$lock_dir/out.$$"
+    err_fifo="$lock_dir/err.$$"
+    : > "$hb"
+    mkfifo "$out_fifo" "$err_fifo"
+    python3 -c "$relay_py" "$hb" < "$out_fifo" &
+    relays+=("$!")
+    python3 -c "$relay_py" "$hb" < "$err_fifo" >&2 &
+    relays+=("$!")
+    exec 7> "$out_fifo" 8> "$err_fifo"
+  else
+    exec 7>&1 8>&2
+  fi
   if [[ -n "$limiter" ]]; then
-    "$limiter" "$cap" "$@" <&0 &
+    "$limiter" "$cap" "$@" <&0 >&7 2>&8 7>&- 8>&- &
     child=$!
   else
     # A background job of a non-interactive shell starts with SIGINT ignored, and bash 3.2
     # (stock macOS) cannot undo that with `trap - INT` (4.4 and later can). Start the command
     # through python3, which sets SIGINT back to the default before it execs, so Ctrl-C and
     # a forwarded INT stop the command on any bash. python3 is already used by now_ns.
-    python3 -c 'import os, signal, sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' "$@" <&0 &
+    python3 -c 'import os, signal, sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' "$@" <&0 >&7 2>&8 7>&- 8>&- &
     child=$!
     cap_mark="$lock_dir/capped.$$"
-    ( sleep "$cap" && : > "$cap_mark" && kill -TERM "$child" 2>/dev/null ) >/dev/null 2>&1 &
+    ( sleep "$cap" && : > "$cap_mark" && kill -TERM "$child" 2>/dev/null ) >/dev/null 2>&1 7>&- 8>&- &
     watchdog=$!
+  fi
+  exec 7>&- 8>&-
+  if [[ -n "$hb" ]]; then
+    stall_mark="$lock_dir/stalled.$$"
+    stall_monitor "$child" "$hb" < /dev/null > /dev/null 2>&1 &
+    stall_watch=$!
   fi
   if [[ -n "$sig_name" ]]; then
     kill -s "$sig_name" "$child" 2>/dev/null || true
@@ -304,6 +454,11 @@ run_capped() {
   set -e
   running=0
   child=""
+  stop_stall_watch
+  if [[ -n "$stall_mark" && -e "$stall_mark" && -z "$sig_name" ]]; then
+    say "xcode stalled (no output for $(stall_text)); stopped it"
+    rc=124
+  fi
   if [[ -n "$watchdog" ]]; then
     pkill -P "$watchdog" 2>/dev/null || true
     kill "$watchdog" 2>/dev/null || true
@@ -482,7 +637,7 @@ if [[ -n "$sig_name" ]]; then
   release
   exit "$sig_rc"
 fi
-if (( rc == 124 )); then
+if (( rc == 124 )) && [[ -z "$stall_mark" || ! -e "$stall_mark" ]]; then
   say "command exceeded the ${hold_cap}s hold cap"
 fi
 log_build "$rc"
