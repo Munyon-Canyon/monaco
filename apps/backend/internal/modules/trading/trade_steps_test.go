@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
@@ -26,6 +28,7 @@ type stepEnv struct {
 	swapDB
 	journal app.Journal
 	ref     domain.StepRef
+	source  uuid.UUID
 }
 
 func newStepEnv(t *testing.T) stepEnv {
@@ -37,6 +40,7 @@ func newStepEnv(t *testing.T) stepEnv {
 	clk := testkit.NewClock(d.now)
 	return stepEnv{
 		swapDB:  d,
+		source:  row.SourceID,
 		journal: app.Journal{UoW: db.New(d.pool, d.ids, clk), Reads: d.pool, Clock: clk, IDs: d.ids},
 		ref: domain.StepRef{
 			SwapID: ids.SwapIDFrom(row.ID), CabalID: ids.CabalIDFrom(row.CabalID),
@@ -104,7 +108,8 @@ func wantMoved(t *testing.T, what string, moved bool, err error, want bool) {
 
 func (e stepEnv) event(status domain.StepStatus, action string, fee uint64) busevents.TradeStepChanged {
 	return busevents.TradeStepChanged{
-		V: 1, SwapID: e.ref.SwapID.UUID(), CabalID: e.ref.CabalID.UUID(), Step: string(e.ref.Step),
+		V: 1, SwapID: e.ref.SwapID.UUID(), CabalID: e.ref.CabalID.UUID(),
+		Source: busevents.TradeSource{Kind: "proposal", ID: e.source}, SourceBatchSize: 1, Step: string(e.ref.Step),
 		Network: e.ref.Network, Status: string(status), PrivyActionID: action,
 		AmountMicros: money.MicrosFromUint64(10_000_000), FeeMicros: money.MicrosFromUint64(fee),
 	}

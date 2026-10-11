@@ -35,14 +35,16 @@ type StepRef struct {
 }
 
 type TradeStep struct {
-	ID            uuid.UUID
-	SwapID        ids.SwapID
-	Step          StepKind
-	Network       chain.Network
-	PrivyActionID string
-	Amount        money.Micros
-	Status        StepStatus
-	Error         string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              uuid.UUID
+	SwapID          ids.SwapID
+	Source          Source
+	SourceBatchSize int
+	Step            StepKind
+	Network         chain.Network
+	PrivyActionID   string
+	Amount          money.Micros
+	Status          StepStatus
+	Error           string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }

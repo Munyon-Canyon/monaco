@@ -76,6 +76,7 @@ func TestModule_servesActivityAndConsumesTradeEvents(t *testing.T) {
 		"treasury_cashout treasury.cashout.confirmed " + string(events.TypeTradeConfirmed),
 		"treasury_cashout treasury.cashout.failed " + string(events.TypeTradeFailed),
 		"treasury_cashout treasury.cashout.blocked " + string(events.TypeTradeBlocked),
+		"treasury_cashout treasury.cashout.bridged_back " + string(events.TypeTradeStepChanged),
 		"treasury_winddown treasury.winddown " + string(events.TypeCabalBanned),
 		"treasury_cashout_payout treasury.cashout_payout " + string(events.TypeCashOutStarted),
 		"treasury_user_ledger treasury.user_ledger " + string(events.TypeDepositCredited),

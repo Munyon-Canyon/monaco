@@ -15,7 +15,9 @@ SET status = sqlc.arg(status)::text, error = NULLIF(sqlc.arg(error)::text, ''), 
 WHERE trade_id = sqlc.arg(trade_id)::uuid AND step = sqlc.arg(step)::text AND status IN ('pending', 'submitted');
 
 -- name: TradeStep :one
-SELECT id, trade_id, step, network, coalesce(privy_action_id, '')::text AS privy_action_id,
-  amount_micros::text AS amount_micros, status, coalesce(error, '')::text AS error, created_at, updated_at
-FROM trade_steps
-WHERE trade_id = sqlc.arg(trade_id)::uuid AND step = sqlc.arg(step)::text;
+SELECT t.id, t.trade_id, t.step, t.network, coalesce(t.privy_action_id, '')::text AS privy_action_id,
+  t.amount_micros::text AS amount_micros, t.status, coalesce(t.error, '')::text AS error, t.created_at, t.updated_at,
+  s.source_kind, s.source_id, s.source_batch_size
+FROM trade_steps AS t
+JOIN swaps AS s ON s.id = t.trade_id
+WHERE t.trade_id = sqlc.arg(trade_id)::uuid AND t.step = sqlc.arg(step)::text;
