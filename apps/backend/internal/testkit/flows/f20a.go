@@ -1,13 +1,38 @@
 package flows
 
 import (
+	"context"
 	"net/http"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
+
+func (defined) SeedsF20a() map[string]Seeder {
+	return map[string]Seeder{
+		"F20aBlockUserOK":                      seedWithOtherUser,
+		"F20aBlockUserCannotBlockSelf":         seedWithOtherUser,
+		"F20aBlockUserUserNotFound":            seedWithOtherUser,
+		"F20aBlockUserUnauthorized":            seedAnonymous,
+		"F20aBlockUserCrashBeforeCommit":       seedWithOtherUser,
+		"F20aUnblockUserOK":                    seedWithOtherUser,
+		"F20aCreateReportOK":                   seedWithOtherUser,
+		"F20aCreateReportReportTargetNotFound": seedWithOtherUser,
+		"F20aCreateReportRateLimited":          seedWithOtherUser,
+	}
+}
+
+func seedWithOtherUser(ctx context.Context, env SeedEnv) (SeedResult, error) {
+	return seedSignedInWith(func(t testkit.SeedT, pool *pgxpool.Pool, _ ids.UserID) map[string]string {
+		other := testkit.SeedUser(t, pool, testkit.UserOpts{AccountStatus: "active"})
+		return map[string]string{"user": other.ID.String()}
+	})(ctx, env)
+}
 
 func blockPath(id string) string { return "/v1/users/" + id + "/block" }
 
