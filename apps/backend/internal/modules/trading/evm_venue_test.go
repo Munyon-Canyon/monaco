@@ -191,6 +191,30 @@ func samePlan(a, b app.EVMSwapPlan) bool {
 		slices.EqualFunc(a.Approvals, b.Approvals, sameTx)
 }
 
+func TestEVMVenue_buildQuotesTheRouteTheRequoteChose(t *testing.T) {
+	t.Parallel()
+	for name, hooks := range map[string]string{"hookless": "V4_NO_HOOKS", "default": ""} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newVenueEnv(t)
+			e.script(approvalReply("null"), quoteReply("990000", "990000", "null"),
+				quoteReply("990000", "990000", "null"), swapReply(evmTxJSON(venueRouter, "0x3593564c", "0x0")))
+			spec := e.spec(t)
+			spec.Route.HooksOptions = hooks
+
+			if _, err := e.venue.Build(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			for _, c := range e.uniswap.calls[1:3] {
+				got, set := c.body["hooksOptions"]
+				if hooks == "" && set || hooks != "" && got != hooks {
+					t.Fatalf("quote body %+v, want hooksOptions %q", c.body, hooks)
+				}
+			}
+		})
+	}
+}
+
 func TestEVMVenue_buildAddsThePermitTransactionAndSkipsAnApprovedToken(t *testing.T) {
 	t.Parallel()
 	e := newVenueEnv(t)

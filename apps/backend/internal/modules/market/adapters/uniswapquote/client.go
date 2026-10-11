@@ -70,6 +70,7 @@ type quoteRequest struct {
 	Swapper           string       `json:"swapper"`
 	RoutingPreference string       `json:"routingPreference"`
 	Protocols         []string     `json:"protocols"`
+	HooksOptions      string       `json:"hooksOptions,omitempty"`
 	SlippageTolerance *json.Number `json:"slippageTolerance,omitempty"`
 	PermitAsTx        bool         `json:"generatePermitAsTransaction,omitempty"`
 }
@@ -103,33 +104,29 @@ func (c *Client) Quote(ctx context.Context, l mc.Listing, side mc.Side, amount m
 	if !ok {
 		return mc.Quote{}, errs.New(errs.CodeInvalidInput, op, append(attrs, slog.String("amount", amount.String()))...)
 	}
-	sponsored := c.wrapper != nil && side == mc.SideBuy
-	if sponsored {
-		if q, hit := c.cached(l, amount); hit {
-			return q, nil
-		}
-		zero := json.Number("0")
-		req.SlippageTolerance, req.PermitAsTx = &zero, true
+	if c.wrapper != nil && side == mc.SideBuy {
+		return c.sponsored(ctx, l, amount, req, attrs)
 	}
+	q, _, err := c.quote(ctx, l, side, req, attrs)
+	return q, err
+}
+
+func (c *Client) quote(
+	ctx context.Context, l mc.Listing, side mc.Side, req quoteRequest, attrs []slog.Attr,
+) (mc.Quote, json.RawMessage, error) {
+	const op = "uniswapquote.Client.Quote"
 	w, err := c.post(ctx, op, req, attrs)
 	if err != nil {
-		return mc.Quote{}, err
+		return mc.Quote{}, nil, err
 	}
 	q, err := mapQuote(w, side)
 	if err != nil {
-		return mc.Quote{}, errs.Wrap(err, errs.CodeDecodeFailed, op, attrs...)
+		return mc.Quote{}, nil, errs.Wrap(err, errs.CodeDecodeFailed, op, attrs...)
 	}
 	q.ListingID, q.Network, q.Venue, q.Side = l.ID, l.Network, mc.VenueUniswap, side
 	q.QuotedAt = c.clock.Now()
 	q.ExpiresAt = q.QuotedAt.Add(quoteTTL)
-	if !sponsored {
-		return q, nil
-	}
-	if q, err = c.penalize(ctx, l, amount, w.Raw, q, attrs); err != nil {
-		return mc.Quote{}, err
-	}
-	c.remember(l, amount, q)
-	return q, nil
+	return q, w.Raw, nil
 }
 
 func (c *Client) request(l mc.Listing, side mc.Side, amount money.Micros) (quoteRequest, bool) {

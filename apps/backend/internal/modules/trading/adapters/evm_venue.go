@@ -92,6 +92,7 @@ type swapQuoteRequest struct {
 	SlippageTolerance json.Number `json:"slippageTolerance"`
 	RoutingPreference string      `json:"routingPreference"`
 	Protocols         []string    `json:"protocols"`
+	HooksOptions      string      `json:"hooksOptions,omitempty"`
 	PermitAsTx        bool        `json:"generatePermitAsTransaction"`
 }
 
@@ -186,8 +187,9 @@ func (v *EVMVenue) quote(
 		Type: uniswapExactInput, Amount: strconv.FormatUint(spec.AmountIn, 10),
 		TokenInChainID: spec.Network.EVMChainID(), TokenOutChainID: spec.Network.EVMChainID(),
 		TokenIn: spec.TokenIn.String(), TokenOut: spec.TokenOut.String(), Swapper: spec.Owner.String(),
-		SlippageTolerance: percent(bps), RoutingPreference: uniswapPreference, Protocols: []string{"V2", "V3", "V4"},
-		PermitAsTx: true,
+		SlippageTolerance: percent(bps), RoutingPreference: uniswapPreference,
+		Protocols:    []string{"V2", "V3", "V4"},
+		HooksOptions: spec.Route.HooksOptions, PermitAsTx: true,
 	}, &quote, attrs)
 	if err != nil {
 		return swapQuoteWire{}, err
