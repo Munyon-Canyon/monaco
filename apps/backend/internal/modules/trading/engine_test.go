@@ -258,13 +258,31 @@ func (v slowVenue) ExecuteUntilTerminal(
 	return v.Venue.ExecuteUntilTerminal(ctx, requestID, signed)
 }
 
+func awaitTicker(tickers <-chan time.Duration, every time.Duration, deadline <-chan time.Time) bool {
+	for {
+		select {
+		case d := <-tickers:
+			if d == every {
+				return true
+			}
+		case <-deadline:
+			return false
+		}
+	}
+}
+
 func TestTradeEngine_InProgressDuringSwap(t *testing.T) {
 	t.Parallel()
 	var msg *engineMsg
+	tickers := make(chan time.Duration, 16)
 	b := newEngineBus(t, func(e *engineEnv) {
+		e.clk.NotifyTickers(tickers)
 		e.venue = slowVenue{Venue: e.venue, run: func() {
 			deadline := time.NewTimer(10 * time.Second)
 			defer deadline.Stop()
+			if !awaitTicker(tickers, 10*time.Second, deadline.C) {
+				return
+			}
 			for range 9 {
 				e.clk.Advance(10 * time.Second)
 				select {
