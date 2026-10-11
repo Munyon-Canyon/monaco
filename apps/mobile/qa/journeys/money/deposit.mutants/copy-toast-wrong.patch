@@ -1,7 +1,7 @@
 journey: money/deposit
 expect-fail: S1
 
-Copy address toasts "Copied." S1.3 waits for "Address copied.", so it must fail.
+Copy address toasts "Copied." S1.5 waits for "Address copied.", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Deposit/DepositView.swift b/apps/mobile/Monaco/Features/Deposit/DepositView.swift

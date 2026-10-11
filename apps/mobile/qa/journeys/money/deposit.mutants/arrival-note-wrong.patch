@@ -1,0 +1,19 @@
+journey: money/deposit
+expect-fail: S2
+
+The Base address screen says "Arrives soon". S2.2 reads deposit-arrival-note for "Arrives in a few minutes", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Deposit/DepositView.swift b/apps/mobile/Monaco/Features/Deposit/DepositView.swift
+index d5f88119e..87132acee 100644
+--- a/apps/mobile/Monaco/Features/Deposit/DepositView.swift
++++ b/apps/mobile/Monaco/Features/Deposit/DepositView.swift
+@@ -358,7 +358,7 @@ struct DepositAddressCard: View {
+     let onCopy: (String) -> Void
+ 
+     static let networkNote = networkNote(on: "Solana")
+-    static let evmArrival = "Arrives in a few minutes"
++    static let evmArrival = "Arrives soon"
+ 
+     static func networkNote(on network: String) -> String {
+         "Only send USDC on \(network) to this address."

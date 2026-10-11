@@ -13,14 +13,14 @@ nonisolated final class MoneyDepositJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "A")
-            MoneyDepositJourney.copyAddress(app, recorder: recorder)
+            MoneyDepositJourney.copySolana(app, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-how-it-works")
         }
 
         try session.scenario("S2") {
             try session.act(as: "A")
-            MoneyDepositJourney.chooseMethod(app, recorder: recorder)
-            attachScreenshot(of: app, named: "S2-A-chooser")
+            MoneyDepositJourney.copyBase(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-base-copied")
         }
     }
 }
