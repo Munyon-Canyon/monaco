@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -134,15 +135,21 @@ func (s *Server) privyTransfer(w http.ResponseWriter, r *http.Request) {
 			Chain string `json:"chain"`
 		} `json:"source"`
 		Destination struct {
+			Asset   string `json:"asset"`
 			Address string `json:"address"`
 			Chain   string `json:"chain"`
 		} `json:"destination"`
 	}
 	raw, _ := json.Marshal(body)
-	if json.Unmarshal(raw, &req) != nil || req.Amount == "" || req.Source.Asset != "usdc" ||
-		req.Destination.Address == "" {
+	if json.Unmarshal(raw, &req) != nil || req.Amount == "" || req.Destination.Address == "" {
 		privyError(w, http.StatusBadRequest, "invalid transfer request")
 		return
+	}
+	for _, leg := range [][2]string{{req.Source.Asset, req.Source.Chain}, {req.Destination.Asset, req.Destination.Chain}} {
+		if !strings.EqualFold(leg[0], chain.Network(leg[1]).Cash().Symbol) {
+			privyError(w, http.StatusBadRequest, leg[0]+" is not available on "+leg[1])
+			return
+		}
 	}
 	p := &s.multichain
 	p.mu.Lock()

@@ -71,6 +71,43 @@ func assertTransferPolls(t *testing.T, c *privy.Client, u *upstream, id multicha
 	wantCode(t, err, errs.CodeNotFound)
 }
 
+func TestTransfer_sendsEachChainsCashAsset(t *testing.T) {
+	t.Parallel()
+	const solanaDest = "67detL1H8561xpCWPUqQoy2WKeGKqauqkXRkfRoFviW8"
+	cases := map[string]struct {
+		from, to    chain.Network
+		dest        string
+		source, out string
+	}{
+		"solana to robinhood": {chain.NetworkSolana, chain.NetworkRobinhood, baseDest, "usdc", "usdg"},
+		"robinhood to solana": {chain.NetworkRobinhood, chain.NetworkSolana, solanaDest, "usdg", "usdc"},
+		"solana to base":      {chain.NetworkSolana, chain.NetworkBase, baseDest, "usdc", "usdc"},
+		"base to solana":      {chain.NetworkBase, chain.NetworkSolana, solanaDest, "usdc", "usdc"},
+	}
+	for name, tc := range cases {
+		c, u, _ := overFakes(t)
+		spec := multichain.TransferSpec{
+			From: tc.from, To: tc.to, Destination: tc.dest, AmountMicros: money.MicrosFromUint64(5_000_000),
+		}
+		if _, err := c.Transfer(t.Context(), "wallet-member", spec, "k"); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		type leg struct {
+			Asset string `json:"asset"`
+			Chain string `json:"chain"`
+		}
+		var body struct {
+			Source      leg `json:"source"`
+			Destination leg `json:"destination"`
+		}
+		_ = json.Unmarshal([]byte(u.requests()[0].body), &body)
+		if body.Source.Asset != tc.source || body.Source.Chain != string(tc.from) ||
+			body.Destination.Asset != tc.out || body.Destination.Chain != string(tc.to) {
+			t.Fatalf("%s: sent %+v, want %s on %s to %s on %s", name, body, tc.source, tc.from, tc.out, tc.to)
+		}
+	}
+}
+
 func TestTransfer_amountsAreDecimalUSDC(t *testing.T) {
 	t.Parallel()
 	for micros, want := range map[uint64]string{1_000_000: "1", 1: "0.000001", 12_340_000: "12.34", 5_000_001: "5.000001"} {
@@ -90,8 +127,8 @@ func TestTransfer_amountsAreDecimalUSDC(t *testing.T) {
 
 func TestTransfer_refusesBeforeCallingPrivy(t *testing.T) {
 	t.Parallel()
-	robinhood := toBase(1)
-	robinhood.To = chain.NetworkRobinhood
+	unknown := toBase(1)
+	unknown.From = chain.Network("tron")
 	solanaDest := toBase(1)
 	solanaDest.To = chain.NetworkSolana
 	cases := map[string]struct {
@@ -102,7 +139,7 @@ func TestTransfer_refusesBeforeCallingPrivy(t *testing.T) {
 		"no key":                {toBase(1), "", errs.CodeInvalidInput},
 		"zero amount":           {toBase(0), "k", errs.CodeInvalidInput},
 		"evm address on solana": {solanaDest, "k", errs.CodeInvalidInput},
-		"robinhood has no usdc": {robinhood, "k", errs.CodeInvalidNetwork},
+		"unknown source chain":  {unknown, "k", errs.CodeInvalidNetwork},
 	}
 	for name, tc := range cases {
 		c, u, _ := overFakes(t)
