@@ -42,6 +42,7 @@ Read these in order to understand the repo:
 | [Read iOS app logs](how-to/read-ios-logs.md) | Matching a Console.app line to an API request, crash diagnostics |
 | [Gardener](how-to/gardener.md) | The nightly dead-code, candidate-lint and generator-drift report |
 | [Verify multichain money](how-to/verify-multichain.md) | The real-money run from a Base deposit through a cabal trade on another chain to a Base withdrawal, and its recorded results |
+| [Privy wallet actions](how-to/privy-wallet-actions.md) | Cross-chain USDC transfers through Privy `/transfer`, and the first real Solana to Base run |
 | [Sweep wallets](how-to/sweep-wallets.md) | Recovering test USDC that a QA run left in member wallets or cabal treasuries |
 | [Admin panel](how-to/admin-panel.md) | The viewer service token Grafana uses to read the admin dashboards: create, store, rotate, revoke |
 | [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
