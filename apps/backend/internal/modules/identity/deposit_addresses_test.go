@@ -137,3 +137,13 @@ func TestDepositAddresses_noEnabledEVMNetworkSkipsTheEVMWallet(t *testing.T) {
 		t.Fatalf("response = %#v, want only the Solana address", got)
 	}
 }
+
+func TestEVMDepositWallets_readFailureIsInternal(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	wallets := adapters.NewEnrolledEVMWallets(testkit.DB(t))
+	if _, err := wallets.EVMDepositWallets(ctx, ids.UserID{}, 10); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("EVMDepositWallets on a cancelled context = %v, want %s", err, errs.CodeInternal)
+	}
+}

@@ -43,7 +43,7 @@ func TestModule(t *testing.T) {
 		Solana: config.Solana{RPCURL: "http://fakes/rpc/"},
 		Funding: config.Funding{
 			DepositPollInterval: time.Minute, TreasuryReconcileInterval: 2 * time.Minute,
-			BounceSweepInterval: 45 * time.Second,
+			BounceSweepInterval: 45 * time.Second, EVMForwardInterval: 10 * time.Second,
 		},
 		Timeouts: config.Timeouts{RPC: time.Second},
 	}})
@@ -63,7 +63,7 @@ func TestModule(t *testing.T) {
 	}
 	want := []string{
 		"funding.deposit_watch@1m0s", "funding.onramp-expiry@1m0s", "funding.withdrawals@5s",
-		"funding.bounce-sweeper@45s", "funding.treasury-reconcile@2m0s",
+		"funding.bounce-sweeper@45s", "funding.evm_deposit_forward@10s", "funding.treasury-reconcile@2m0s",
 	}
 	if !slices.Equal(names, want) {
 		t.Fatalf("Pollers = %v, want %v", names, want)

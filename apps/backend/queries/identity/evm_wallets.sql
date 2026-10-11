@@ -9,3 +9,10 @@ SELECT user_id, evm_privy_wallet_id::text AS evm_privy_wallet_id, evm_address::t
   evm_created_at::timestamptz AS evm_created_at
 FROM user_wallets
 WHERE user_id = $1 AND evm_privy_wallet_id IS NOT NULL;
+
+-- name: EVMDepositWalletsAfter :many
+SELECT user_id, evm_privy_wallet_id::text AS evm_privy_wallet_id
+FROM user_wallets
+WHERE evm_privy_wallet_id IS NOT NULL AND user_id > sqlc.arg(after)
+ORDER BY user_id
+LIMIT sqlc.arg(page_size)::bigint;

@@ -13,39 +13,76 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const insertEVMDepositForward = `-- name: InsertEVMDepositForward :execrows
-INSERT INTO evm_deposit_forwards (
-  id, user_id, network, source_tx, privy_execution_id, privy_action_id, amount_micros, status, created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
-ON CONFLICT (privy_execution_id) DO NOTHING
+const eVMDepositForwardAnnounced = `-- name: EVMDepositForwardAnnounced :one
+SELECT EXISTS (
+  SELECT 1 FROM events
+  WHERE aggregate_type = 'evm_deposit_forward' AND aggregate_id = $1 AND type = 'deposit.evm_forwarded'
+) AS announced
 `
 
-type InsertEVMDepositForwardParams struct {
+func (q *Queries) EVMDepositForwardAnnounced(ctx context.Context, aggregateID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, eVMDepositForwardAnnounced, aggregateID)
+	var announced bool
+	err := row.Scan(&announced)
+	return announced, err
+}
+
+const eVMDepositForwardStatusByExecution = `-- name: EVMDepositForwardStatusByExecution :one
+SELECT status FROM evm_deposit_forwards WHERE privy_execution_id = $1
+`
+
+func (q *Queries) EVMDepositForwardStatusByExecution(ctx context.Context, privyExecutionID string) (string, error) {
+	row := q.db.QueryRow(ctx, eVMDepositForwardStatusByExecution, privyExecutionID)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
+const listStuckEVMDepositForwards = `-- name: ListStuckEVMDepositForwards :many
+SELECT id, user_id, network, privy_execution_id, created_at
+FROM evm_deposit_forwards
+WHERE status = 'pending' AND created_at < $1
+ORDER BY created_at, id
+LIMIT $2
+`
+
+type ListStuckEVMDepositForwardsParams struct {
+	CreatedBefore time.Time
+	MaxRows       int32
+}
+
+type ListStuckEVMDepositForwardsRow struct {
 	ID               uuid.UUID
 	UserID           uuid.UUID
 	Network          string
-	SourceTx         string
 	PrivyExecutionID string
-	PrivyActionID    pgtype.Text
-	AmountMicros     pgtype.Numeric
 	CreatedAt        time.Time
 }
 
-func (q *Queries) InsertEVMDepositForward(ctx context.Context, arg InsertEVMDepositForwardParams) (int64, error) {
-	result, err := q.db.Exec(ctx, insertEVMDepositForward,
-		arg.ID,
-		arg.UserID,
-		arg.Network,
-		arg.SourceTx,
-		arg.PrivyExecutionID,
-		arg.PrivyActionID,
-		arg.AmountMicros,
-		arg.CreatedAt,
-	)
+func (q *Queries) ListStuckEVMDepositForwards(ctx context.Context, arg ListStuckEVMDepositForwardsParams) ([]ListStuckEVMDepositForwardsRow, error) {
+	rows, err := q.db.Query(ctx, listStuckEVMDepositForwards, arg.CreatedBefore, arg.MaxRows)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	var items []ListStuckEVMDepositForwardsRow
+	for rows.Next() {
+		var i ListStuckEVMDepositForwardsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Network,
+			&i.PrivyExecutionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markEVMDepositForwardArrived = `-- name: MarkEVMDepositForwardArrived :execrows
@@ -68,6 +105,46 @@ func (q *Queries) MarkEVMDepositForwardArrived(ctx context.Context, arg MarkEVMD
 	return result.RowsAffected(), nil
 }
 
+const markEVMDepositForwardFailed = `-- name: MarkEVMDepositForwardFailed :execrows
+UPDATE evm_deposit_forwards
+SET status = 'failed'
+WHERE id = $1 AND status = 'pending'
+`
+
+func (q *Queries) MarkEVMDepositForwardFailed(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, markEVMDepositForwardFailed, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const recordEVMDepositForwardProgress = `-- name: RecordEVMDepositForwardProgress :execrows
+UPDATE evm_deposit_forwards f
+SET privy_action_id = COALESCE(f.privy_action_id, NULLIF($1::text, '')),
+  solana_signature = COALESCE(f.solana_signature, (
+    SELECT NULLIF($2::text, '')
+    WHERE NOT EXISTS (
+      SELECT 1 FROM evm_deposit_forwards o WHERE o.solana_signature = $2::text
+    )
+  ))
+WHERE f.id = $3 AND f.status = 'pending'
+`
+
+type RecordEVMDepositForwardProgressParams struct {
+	PrivyActionID   string
+	SolanaSignature string
+	ID              uuid.UUID
+}
+
+func (q *Queries) RecordEVMDepositForwardProgress(ctx context.Context, arg RecordEVMDepositForwardProgressParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordEVMDepositForwardProgress, arg.PrivyActionID, arg.SolanaSignature, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const sumPendingEVMDepositForwards = `-- name: SumPendingEVMDepositForwards :one
 SELECT COALESCE(sum(amount_micros), 0)::text AS arriving_micros
 FROM evm_deposit_forwards
@@ -79,4 +156,54 @@ func (q *Queries) SumPendingEVMDepositForwards(ctx context.Context, userID uuid.
 	var arriving_micros string
 	err := row.Scan(&arriving_micros)
 	return arriving_micros, err
+}
+
+const upsertEVMDepositForward = `-- name: UpsertEVMDepositForward :one
+INSERT INTO evm_deposit_forwards AS f (
+  id, user_id, network, source_tx, privy_execution_id, privy_action_id, amount_micros, status, created_at
+) VALUES (
+  $1, $2, $3, $4, $5, NULLIF($7::text, ''), $8::text::numeric, 'pending',
+  $6
+)
+ON CONFLICT (privy_execution_id) DO UPDATE SET privy_execution_id = f.privy_execution_id
+RETURNING f.id, f.user_id, f.status, (f.xmax = 0)::boolean AS inserted
+`
+
+type UpsertEVMDepositForwardParams struct {
+	ID               uuid.UUID
+	UserID           uuid.UUID
+	Network          string
+	SourceTx         string
+	PrivyExecutionID string
+	CreatedAt        time.Time
+	PrivyActionID    string
+	AmountMicros     string
+}
+
+type UpsertEVMDepositForwardRow struct {
+	ID       uuid.UUID
+	UserID   uuid.UUID
+	Status   string
+	Inserted bool
+}
+
+func (q *Queries) UpsertEVMDepositForward(ctx context.Context, arg UpsertEVMDepositForwardParams) (UpsertEVMDepositForwardRow, error) {
+	row := q.db.QueryRow(ctx, upsertEVMDepositForward,
+		arg.ID,
+		arg.UserID,
+		arg.Network,
+		arg.SourceTx,
+		arg.PrivyExecutionID,
+		arg.CreatedAt,
+		arg.PrivyActionID,
+		arg.AmountMicros,
+	)
+	var i UpsertEVMDepositForwardRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Status,
+		&i.Inserted,
+	)
+	return i, err
 }

@@ -75,6 +75,21 @@ func (m *Module) Mount(r api.Mount) {
 	}, r)
 }
 
+type evmDepositWallets struct {
+	list func(context.Context, ids.UserID, int) ([]identity.EVMDepositWallet, error)
+}
+
+func (w evmDepositWallets) EVMDepositWallets(
+	ctx context.Context, after ids.UserID, limit int,
+) ([]app.EVMDepositWallet, error) {
+	rows, err := w.list(ctx, after, limit)
+	page := make([]app.EVMDepositWallet, len(rows))
+	for i, row := range rows {
+		page[i] = app.EVMDepositWallet(row)
+	}
+	return page, err
+}
+
 type cabalExists struct{ cabals cabalport.ViewReader }
 
 func (c cabalExists) Exists(ctx context.Context, id ids.CabalID) error {
@@ -196,6 +211,12 @@ func (m *Module) Pollers() []poller.Poller {
 		withdrawals,
 		app.NewBounceSweeper(m.Bouncer(),
 			app.BounceSweepTiming{Interval: cfg.Funding.BounceSweepInterval, Age: cfg.Funding.BounceSweepAge}),
+		app.NewEVMDepositForwardPoller(app.EVMDepositForwardDeps{
+			UoW: m.deps.UoW, Reads: m.deps.Pool, IDs: m.deps.IDs, Clock: m.deps.Clock,
+			Wallets: evmDepositWallets{list: identity.New(m.deps).EnrolledEVMDepositWallets().EVMDepositWallets},
+			Feed:    m.multichain.forwarding, Interval: cfg.Funding.EVMForwardInterval,
+			PageSize: app.EVMDepositWalletPage,
+		}),
 		app.NewTreasuryReconcilePoller(app.TreasuryReconcileDeps{
 			UoW:        m.deps.UoW,
 			Reads:      m.deps.Pool,
