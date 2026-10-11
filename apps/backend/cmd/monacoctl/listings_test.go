@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -24,6 +27,14 @@ func (f *listingsFake) Verify(_ context.Context, l app.ListingToVerify) (uint8, 
 		return 0, errs.Wrap(fmt.Errorf("%s symbol() differs", l.TokenAddress), errs.CodeInvalidAddress, "test.Verify")
 	}
 	return f.decimals, nil
+}
+
+func forgetVerification(t *testing.T, pool *pgxpool.Pool, id uuid.UUID) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `UPDATE asset_listings SET verified_at = NULL, decimals = NULL, enabled = false
+		WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestListings_verifiesAndOverridesListings(t *testing.T) {
@@ -92,10 +103,11 @@ func TestListings_verifiesAndOverridesListings(t *testing.T) {
 		t.Fatalf("verify --all = %d, stdout %q, stderr %q", code, stdout.String(), stderr.String())
 	}
 	verifier.decimals = 40
+	forgetVerification(t, pool, good)
 	stderr.Reset()
-	if code := listings([]string{"verify", "--all"}, &stdout, &stderr); code != 1 ||
+	if code := listings([]string{"verify"}, &stdout, &stderr); code != 1 ||
 		!strings.Contains(stderr.String(), "market.ListingSync.Verify") {
-		t.Fatalf("verify --all storing 40 decimals = %d, stderr %q, want the check constraint refused", code,
+		t.Fatalf("verify storing 40 decimals = %d, stderr %q, want the check constraint refused", code,
 			stderr.String())
 	}
 	stderr.Reset()

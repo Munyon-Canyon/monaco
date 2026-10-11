@@ -82,17 +82,18 @@ type OpenedProposal struct {
 }
 
 type ProposeTradeHandler struct {
-	uow   Transactor
-	ids   ids.Generator
-	clock clock.Clock
-	ports TradePorts
-	hints Hints
+	uow       Transactor
+	ids       ids.Generator
+	clock     clock.Clock
+	ports     TradePorts
+	hints     Hints
+	fallbacks *fallbackLog
 }
 
 func NewProposeTradeHandler(
 	uow Transactor, g ids.Generator, c clock.Clock, p TradePorts, hints Hints,
 ) *ProposeTradeHandler {
-	return &ProposeTradeHandler{uow: uow, ids: g, clock: c, ports: p, hints: hints}
+	return &ProposeTradeHandler{uow: uow, ids: g, clock: c, ports: p, hints: hints, fallbacks: &fallbackLog{}}
 }
 
 func (h *ProposeTradeHandler) Handle(ctx context.Context, cmd ProposeTrade) (ids.ProposalID, error) {
@@ -143,7 +144,7 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 		return OpenedProposal{}, err
 	}
 	now := h.clock.Now()
-	comparison := compare(ctx, h.ports.Router, asset, cmd.Trade)
+	comparison := h.compare(ctx, asset, cmd.Trade)
 	p, err := domain.NewProposal(domain.Draft{
 		ID: ids.ProposalIDFrom(h.ids.NewV7()), CabalID: cmd.CabalID, ProposerID: cmd.ProposerID, Kind: cmd.Trade.Kind,
 		Symbol: asset.Symbol, Mint: asset.Mint.Address(), USDCMicros: cmd.Trade.USDCMicros,

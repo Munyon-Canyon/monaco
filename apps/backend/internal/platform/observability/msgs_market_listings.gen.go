@@ -6,6 +6,7 @@ func init() {
 	register(
 		MarketListingSourceMissing,
 		MarketListingAssetSkipped,
+		MarketRouterFallback,
 		MarketListingVerifyFailed,
 	)
 }
