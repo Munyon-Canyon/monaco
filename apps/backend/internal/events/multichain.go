@@ -48,15 +48,17 @@ func (TradeRouted) AggregateType() string { return swapAggregate }
 func (e TradeRouted) AggregateID() uuid.UUID { return e.SwapID }
 
 type TradeStepChanged struct {
-	V             int           `json:"v"`
-	SwapID        uuid.UUID     `json:"swap_id"`
-	CabalID       uuid.UUID     `json:"cabal_id"`
-	Step          string        `json:"step"`
-	Network       chain.Network `json:"network"`
-	Status        string        `json:"status"`
-	PrivyActionID string        `json:"privy_action_id"`
-	AmountMicros  money.Micros  `json:"amount_micros"`
-	FeeMicros     money.Micros  `json:"fee_micros"`
+	V               int           `json:"v"`
+	SwapID          uuid.UUID     `json:"swap_id"`
+	CabalID         uuid.UUID     `json:"cabal_id"`
+	Source          TradeSource   `json:"source"`
+	SourceBatchSize int           `json:"source_batch_size"`
+	Step            string        `json:"step"`
+	Network         chain.Network `json:"network"`
+	Status          string        `json:"status"`
+	PrivyActionID   string        `json:"privy_action_id"`
+	AmountMicros    money.Micros  `json:"amount_micros"`
+	FeeMicros       money.Micros  `json:"fee_micros"`
 }
 
 func (TradeStepChanged) Type() Type { return TypeTradeStepChanged }

@@ -214,6 +214,7 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("treasury.cashout.confirmed", cashOut.Confirmed),
 				bus.Handle("treasury.cashout.failed", cashOut.Failed),
 				bus.Handle("treasury.cashout.blocked", cashOut.Blocked),
+				bus.Handle("treasury.cashout.bridged_back", cashOut.BridgedBack),
 			},
 		},
 		{

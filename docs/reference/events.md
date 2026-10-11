@@ -906,6 +906,8 @@ Subject `events.trade.step_changed`, version 1.
 | `v` | `int` |
 | `swap_id` | `uuid.UUID` |
 | `cabal_id` | `uuid.UUID` |
+| `source` | `events.TradeSource` |
+| `source_batch_size` | `int` |
 | `step` | `string` |
 | `network` | `chain.Network` |
 | `status` | `string` |

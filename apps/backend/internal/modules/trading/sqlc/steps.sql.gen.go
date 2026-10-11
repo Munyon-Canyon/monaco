@@ -98,10 +98,12 @@ func (q *Queries) MarkTradeStepSubmitted(ctx context.Context, arg MarkTradeStepS
 }
 
 const tradeStep = `-- name: TradeStep :one
-SELECT id, trade_id, step, network, coalesce(privy_action_id, '')::text AS privy_action_id,
-  amount_micros::text AS amount_micros, status, coalesce(error, '')::text AS error, created_at, updated_at
-FROM trade_steps
-WHERE trade_id = $1::uuid AND step = $2::text
+SELECT t.id, t.trade_id, t.step, t.network, coalesce(t.privy_action_id, '')::text AS privy_action_id,
+  t.amount_micros::text AS amount_micros, t.status, coalesce(t.error, '')::text AS error, t.created_at, t.updated_at,
+  s.source_kind, s.source_id, s.source_batch_size
+FROM trade_steps AS t
+JOIN swaps AS s ON s.id = t.trade_id
+WHERE t.trade_id = $1::uuid AND t.step = $2::text
 `
 
 type TradeStepParams struct {
@@ -110,16 +112,19 @@ type TradeStepParams struct {
 }
 
 type TradeStepRow struct {
-	ID            uuid.UUID
-	TradeID       uuid.UUID
-	Step          string
-	Network       string
-	PrivyActionID string
-	AmountMicros  string
-	Status        string
-	Error         string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              uuid.UUID
+	TradeID         uuid.UUID
+	Step            string
+	Network         string
+	PrivyActionID   string
+	AmountMicros    string
+	Status          string
+	Error           string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	SourceKind      string
+	SourceID        uuid.UUID
+	SourceBatchSize int32
 }
 
 func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStepRow, error) {
@@ -136,6 +141,9 @@ func (q *Queries) TradeStep(ctx context.Context, arg TradeStepParams) (TradeStep
 		&i.Error,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourceKind,
+		&i.SourceID,
+		&i.SourceBatchSize,
 	)
 	return i, err
 }
