@@ -1,4 +1,4 @@
-h1:0wOsMVvhE0iqmpG2Rvs7Pk8/a1Gd5drzDbh1MMqNzWI=
+h1:c6eI8EMdyJ7iLcvfe7mH+1CGriVarc53wpIah9yEDTU=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -91,3 +91,4 @@ h1:0wOsMVvhE0iqmpG2Rvs7Pk8/a1Gd5drzDbh1MMqNzWI=
 20261011163247_relayer_sol_topups.sql h1:BhL+t72u6VYW17bJm2a5KLHgaAy+JrWBwRMs1Gc9f/c=
 20261011170540_funding_evm_deposit_forward_fee.sql h1:D53JfIYOFhy1ozZ4Dr3pEXgc2RSF5x2WvbJ1eMcLWr0=
 20261011171500_trading_trade_step_attempts.sql h1:XrTwAv1ZiLATH6tEnyuU0vkITyXgv1MoOhGmZzoLWq4=
+20261011173243_trading_trade_step_prior_actions.sql h1:NrWqXhN1SF3my3rk/96E0q7uQ5bRRh5eZL5E8D/E+tw=

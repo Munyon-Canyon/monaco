@@ -46,15 +46,16 @@ func (b Bridge) Run(ctx context.Context, leg BridgeLeg) (domain.StepStatus, erro
 	id := multichain.ActionID(step.PrivyActionID)
 	switch step.Status {
 	case domain.StepPending:
-		var prior multichain.ActionState
-		if prior, err = b.landedLate(ctx, leg, step); err != nil {
+		var state multichain.ActionState
+		var prior multichain.ActionID
+		if prior, state, err = b.landedLate(ctx, leg, step); err != nil {
 			return "", err
 		}
-		if prior == multichain.ActionPending {
+		if state == multichain.ActionPending {
 			return domain.StepPending, nil
 		}
-		if prior == multichain.ActionSucceeded {
-			id = multichain.ActionID(step.PriorPrivyActionID)
+		if state == multichain.ActionSucceeded {
+			id = prior
 			break
 		}
 		if id, err = b.submit(ctx, leg, step.Attempt); err != nil {
@@ -70,16 +71,23 @@ func (b Bridge) Run(ctx context.Context, leg BridgeLeg) (domain.StepStatus, erro
 	return b.await(ctx, leg, id)
 }
 
-func (b Bridge) landedLate(ctx context.Context, leg BridgeLeg, step domain.TradeStep) (multichain.ActionState, error) {
-	if step.PriorPrivyActionID == "" {
-		return multichain.ActionFailed, nil
+func (b Bridge) landedLate(
+	ctx context.Context, leg BridgeLeg, step domain.TradeStep,
+) (multichain.ActionID, multichain.ActionState, error) {
+	state := multichain.ActionFailed
+	for _, prior := range step.PriorPrivyActionIDs {
+		action, err := b.Actions.Action(ctx, leg.WalletID, multichain.ActionID(prior))
+		switch {
+		case err != nil:
+			return "", "", err
+		case action.State == multichain.ActionSucceeded:
+			_, err = b.Journal.Submitted(ctx, leg.Ref, prior)
+			return multichain.ActionID(prior), action.State, err
+		case action.State == multichain.ActionPending:
+			state = action.State
+		}
 	}
-	action, err := b.Actions.Action(ctx, leg.WalletID, multichain.ActionID(step.PriorPrivyActionID))
-	if err != nil || action.State != multichain.ActionSucceeded {
-		return action.State, err
-	}
-	_, err = b.Journal.Submitted(ctx, leg.Ref, step.PriorPrivyActionID)
-	return action.State, err
+	return "", state, nil
 }
 
 func (b Bridge) submit(ctx context.Context, leg BridgeLeg, attempt int) (multichain.ActionID, error) {

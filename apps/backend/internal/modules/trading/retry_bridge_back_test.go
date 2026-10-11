@@ -2,6 +2,7 @@ package trading_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func (e *routeEnv) retryBack(t *testing.T, swap uuid.UUID) domain.TradeStep {
 
 func (e *routeEnv) attempts(t *testing.T, swap uuid.UUID) (attempt int, prior string, actions int) {
 	t.Helper()
-	if err := e.pool.QueryRow(t.Context(), `SELECT attempt, coalesce(prior_privy_action_id, ''),
+	if err := e.pool.QueryRow(t.Context(), `SELECT attempt, array_to_string(prior_privy_action_ids, ','),
 		(SELECT count(*) FROM swap_operator_actions WHERE swap_id = $1 AND action = 'retry_bridge_back')
 		FROM trade_steps WHERE trade_id = $1 AND step = 'bridge_back'`, swap).Scan(&attempt, &prior, &actions); err != nil {
 		t.Fatal(err)
@@ -81,7 +82,8 @@ func TestRetryBridgeBack_aRejectedReturnIsSentAgainUnderTheNextAttemptKey(t *tes
 	swap := e.failedSale(t, false, multichain.ActionRejected)
 
 	after := e.retryBack(t, swap)
-	if after.Status != domain.StepPending || after.Attempt != 2 || after.PriorPrivyActionID != "privy-action-1" {
+	if after.Status != domain.StepPending || after.Attempt != 2 ||
+		!slices.Equal(after.PriorPrivyActionIDs, []string{"privy-action-1"}) {
 		t.Fatalf("retried step = %+v, want pending attempt 2 after privy-action-1", after)
 	}
 	e.privy.script(multichain.ActionRejected, multichain.ActionSucceeded)
@@ -145,8 +147,8 @@ func TestRetryBridgeBack_aSendPrivyRefusedRetriesWithoutLookingUpAnAction(t *tes
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.failedSale(t, true, "")
-	if after := e.retryBack(t, swap); after.PriorPrivyActionID != "" {
-		t.Fatalf("prior action %q, want none", after.PriorPrivyActionID)
+	if after := e.retryBack(t, swap); len(after.PriorPrivyActionIDs) != 0 {
+		t.Fatalf("prior actions %v, want none", after.PriorPrivyActionIDs)
 	}
 	e.privy.script(multichain.ActionSucceeded)
 	polls := e.privy.polls
@@ -256,5 +258,57 @@ func TestRetryBridgeBack_readsTheFailedStepAndReportsAReadItCannotMakeAsInternal
 	}
 	if _, err := e.retrier().ListFailed(ctx); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("ListFailed on a cancelled context = %v, want internal", err)
+	}
+}
+
+func TestRetryBridgeBack_aFirstActionThatLandsLateIsFoundAfterARefusedSecondAttempt(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	swap := e.failedSale(t, false, multichain.ActionFailed)
+	e.retryBack(t, swap)
+	e.privy.script(multichain.ActionPending)
+	e.mustTick(t, 1, 1)
+	e.privy.script(multichain.ActionFailed)
+	e.privy.transferErr = errs.New(errs.CodeInvalidInput, "privy.Transfer")
+	e.mustTick(t, 1, 1)
+	if status, _ := e.bridgeBackOf(t, swap); status != "failed" {
+		t.Fatalf("attempt 2 is %s, want failed by Privy's refusal", status)
+	}
+
+	if after := e.retryBack(t, swap); after.Attempt != 3 ||
+		!slices.Equal(after.PriorPrivyActionIDs, []string{"privy-action-1"}) {
+		t.Fatalf("retried step = %+v, want attempt 3 still holding privy-action-1", after)
+	}
+	e.privy.script(multichain.ActionSucceeded, multichain.ActionSucceeded)
+	e.mustTick(t, 1, 1)
+
+	if calls := e.privy.calls(); len(calls) != 1 {
+		t.Fatalf("transfers = %+v, want only attempt 1's send", calls)
+	}
+	if status, action := e.bridgeBackOf(t, swap); status != "succeeded" || action != "privy-action-1" {
+		t.Fatalf("bridge_back %s on %s, want succeeded on attempt 1's privy-action-1", status, action)
+	}
+}
+
+func TestRetryBridgeBack_checksEveryEarlierAttemptsActionBeforeSending(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	swap := e.failedSale(t, false, multichain.ActionFailed)
+	e.retryBack(t, swap)
+	e.privy.script(multichain.ActionFailed, multichain.ActionRejected)
+	e.mustTick(t, 1, 1)
+
+	if after := e.retryBack(t, swap); !slices.Equal(after.PriorPrivyActionIDs,
+		[]string{"privy-action-1", "privy-action-2"}) {
+		t.Fatalf("prior actions %v, want both earlier attempts", after.PriorPrivyActionIDs)
+	}
+	e.privy.script(multichain.ActionRejected, multichain.ActionSucceeded, multichain.ActionSucceeded)
+	e.mustTick(t, 1, 1)
+
+	if calls := e.privy.calls(); len(calls) != 2 {
+		t.Fatalf("transfers = %+v, want attempts 1 and 2 only", calls)
+	}
+	if status, action := e.bridgeBackOf(t, swap); status != "succeeded" || action != "privy-action-2" {
+		t.Fatalf("bridge_back %s on %s, want succeeded on attempt 2's late privy-action-2", status, action)
 	}
 }

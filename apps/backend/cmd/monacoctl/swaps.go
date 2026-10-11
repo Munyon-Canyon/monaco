@@ -29,7 +29,9 @@ const swapsUsage = `usage:
   monacoctl swaps force-resolve --signature <sig> --to confirmed|failed [--out-amount <units>] --reason <text> [--yes]
   monacoctl swaps parked
   monacoctl swaps unpark --swap <uuid> --reason <text> [--yes]
-  monacoctl swaps fail-parked --swap <uuid> --reason <text> [--yes]`
+  monacoctl swaps fail-parked --swap <uuid> --reason <text> [--yes]
+  monacoctl swaps failed-bridge-backs
+  monacoctl swaps retry-bridge-back --swap <uuid> --reason <text> [--yes]`
 
 func toolSwaps(env toolEnv) tool { return swapsTool(env.environ, clock.Real{}, os.Stdin) }
 
@@ -60,10 +62,12 @@ func swapsTool(environ []string, clk clock.Clock, stdin io.Reader) tool {
 	}
 	return func(args []string, stdout, stderr io.Writer) int {
 		return run(map[string]command{
-			"force-resolve": forceResolve,
-			"parked":        listParked(clk),
-			"unpark":        resolveParked(tradingapp.ParkedUnpark, environ, clk, stdin),
-			"fail-parked":   resolveParked(tradingapp.ParkedFail, environ, clk, stdin),
+			"force-resolve":       forceResolve,
+			"parked":              listParked(clk),
+			"unpark":              resolveParked(tradingapp.ParkedUnpark, environ, clk, stdin),
+			"fail-parked":         resolveParked(tradingapp.ParkedFail, environ, clk, stdin),
+			"failed-bridge-backs": listFailedBridgeBacks(clk),
+			"retry-bridge-back":   retryBridgeBack(environ, clk, stdin),
 		}, nil, environ, args, stdout, stderr)
 	}
 }

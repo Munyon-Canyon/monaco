@@ -111,12 +111,13 @@ func (h *RetryBridgeBackHandler) retryTx(ctx context.Context, tx db.Tx, cmd Retr
 		err = errs.New(errs.CodeSwapNotStuck, retryBridgeBackOp,
 			slog.String("swap_id", cmd.SwapID.String()), slog.String("status", string(before.Status)))
 	}
+	var after domain.TradeStep
+	if err == nil {
+		after, err = bridgeBackStep(ctx, q, cmd.SwapID)
+	}
 	if err != nil {
 		return domain.TradeStep{}, err
 	}
-	after := before
-	after.Attempt, after.Status, after.Error = before.Attempt+1, domain.StepPending, ""
-	after.PriorPrivyActionID, after.PrivyActionID, after.UpdatedAt = before.PrivyActionID, "", at
 	ref := domain.StepRef{SwapID: after.SwapID, CabalID: after.CabalID, Step: after.Step, Network: after.Network}
 	err = tx.Events.Append(ctx, stepChanged(ref, after, money.Micros{}))
 	if err == nil {
