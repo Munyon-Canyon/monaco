@@ -119,7 +119,11 @@ func (r *Router) quote(
 		return venueQuote{err: err}
 	}
 	gross := grossShares(q.GrossOutput, l)
-	impact, err := r.impact(l, gross, input, ref, refErr == nil, costOf(q.Costs, multichain.CostPoolFee))
+	fees := quotedCosts{
+		poolFee: costOf(q.Costs, multichain.CostPoolFee),
+		wrapper: costOf(q.Costs, multichain.CostPriceImpact),
+	}
+	impact, err := r.impact(l, gross, input, ref, refErr == nil, fees)
 	if err != nil {
 		return venueQuote{err: err}
 	}
@@ -152,8 +156,10 @@ func (r *Router) bridgeIn(
 	return arrived, []multichain.Cost{{Kind: multichain.CostBridge, Micros: fee}}, nil
 }
 
+type quotedCosts struct{ poolFee, wrapper uint64 }
+
 func (r *Router) impact(
-	l multichain.Listing, gross uint64, input, ref money.Micros, priced bool, poolFee uint64,
+	l multichain.Listing, gross uint64, input, ref money.Micros, priced bool, quoted quotedCosts,
 ) ([]multichain.Cost, error) {
 	if !priced {
 		return nil, nil
@@ -163,14 +169,17 @@ func (r *Router) impact(
 		return nil, nil
 	}
 	impact := input.Uint64() - value
-	if impact*bpsWhole > r.rules.MaxImpactBps*input.Uint64() {
+	pool := impact - min(impact, quoted.wrapper)
+	if pool*bpsWhole > r.rules.MaxImpactBps*input.Uint64() {
 		return nil, errs.New(errs.CodeNoRoute, routerOp,
-			slog.String("listing_id", l.ID.String()), slog.Uint64("impact_micros", impact))
+			slog.String("listing_id", l.ID.String()), slog.Uint64("impact_micros", pool))
 	}
-	if impact <= poolFee {
+	if pool <= quoted.poolFee {
 		return nil, nil
 	}
-	return []multichain.Cost{{Kind: multichain.CostPriceImpact, Micros: money.MicrosFromUint64(impact - poolFee)}}, nil
+	return []multichain.Cost{
+		{Kind: multichain.CostPriceImpact, Micros: money.MicrosFromUint64(pool - quoted.poolFee)},
+	}, nil
 }
 
 func grossShares(units *big.Int, l multichain.Listing) uint64 {
