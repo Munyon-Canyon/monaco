@@ -99,6 +99,10 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			RPCURLEthereum:  "https://ethereum-rpc.publicnode.com",
 			RPCURLRobinhood: "https://rpc.mainnet.chain.robinhood.com",
 		},
+		Listings: config.Listings{
+			OndoBaseURL: "https://app.ondo.finance", CoinbaseBaseURL: "https://api.coinbase.com",
+			RobinhoodBaseURL: "https://api.robinhood.com",
+		},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Fatalf("Load = %+v, want %+v", cfg, want)
@@ -191,6 +195,10 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"EVM_RPC_URL_ARBITRUM=http://fakes/arbitrum",
 		"EVM_RPC_URL_ETHEREUM=http://fakes/ethereum",
 		"EVM_RPC_URL_ROBINHOOD=http://fakes/robinhood",
+		"LISTINGS_SYNC_ENABLED=false",
+		"ONDO_BASE_URL=http://fakes/ondo",
+		"COINBASE_BASE_URL=http://fakes/coinbase",
+		"ROBINHOOD_BASE_URL=http://fakes/robinhood-api",
 		"RELAYER_PRIVATE_KEY=relayer-key",
 		"APNS_KEY_P8=p8-key",
 		"APNS_KEY_ID=key-id",
@@ -276,6 +284,10 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		EVM: config.EVM{
 			RPCURLBase: "http://fakes/base", RPCURLArbitrum: "http://fakes/arbitrum",
 			RPCURLEthereum: "http://fakes/ethereum", RPCURLRobinhood: "http://fakes/robinhood",
+		},
+		Listings: config.Listings{
+			OndoBaseURL: "http://fakes/ondo", CoinbaseBaseURL: "http://fakes/coinbase",
+			RobinhoodBaseURL: "http://fakes/robinhood-api",
 		},
 		Relayer:  config.Relayer{PrivateKey: "relayer-key"},
 		APNs:     config.APNs{KeyP8: "p8-key", KeyID: "key-id", TeamID: "team-id", Topic: "com.example.app"},
@@ -675,6 +687,10 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"EVM_RPC_URL_ARBITRUM", "***"},
 		{"EVM_RPC_URL_ETHEREUM", "***"},
 		{"EVM_RPC_URL_ROBINHOOD", "***"},
+		{"LISTINGS_SYNC_ENABLED", "true"},
+		{"ONDO_BASE_URL", "https://app.ondo.finance"},
+		{"COINBASE_BASE_URL", "https://api.coinbase.com"},
+		{"ROBINHOOD_BASE_URL", "https://api.robinhood.com"},
 	}
 	if len(got) != len(tests) {
 		t.Fatalf("Redacted has %d keys, want %d: %v", len(got), len(tests), got)

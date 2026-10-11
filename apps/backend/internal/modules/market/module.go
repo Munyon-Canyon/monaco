@@ -165,15 +165,16 @@ func (*Module) Consumers() []bus.Consumer { return nil }
 
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
+	xs := xstocks.New(m.deps.HTTPClient(
+		"xstocks",
+		httpclient.WithBaseURL(cfg.XStocks.BaseURL),
+		httpclient.WithTimeout(
+			cfg.Timeouts.XStocks,
+		),
+		httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
+	))
 	providers := app.NewProviders(
-		xstocks.New(m.deps.HTTPClient(
-			"xstocks",
-			httpclient.WithBaseURL(cfg.XStocks.BaseURL),
-			httpclient.WithTimeout(
-				cfg.Timeouts.XStocks,
-			),
-			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
-		)),
+		xs,
 		tessera.New(m.deps.HTTPClient(
 			"tessera",
 			httpclient.WithBaseURL(cfg.Tessera.BaseURL),
@@ -191,7 +192,7 @@ func (m *Module) Pollers() []poller.Poller {
 	history := m.priceHistory()
 	pollers := make([]poller.Poller, 0, 5)
 	pollers = append(pollers,
-		app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts),
+		m.catalogPoller(providers, facts, xs),
 		m.samplePrices(),
 		app.NewRetention(m.deps.UoW, m.deps.Clock),
 	)
@@ -232,4 +233,9 @@ func (m *Module) samplePrices() *app.SamplePrices {
 		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, source, m.deps.Bus, cfg.Market.PricePollInterval,
 		m.hot...,
 	).WithEVM(app.EVMSampling{Source: m.multichain.prices, Gaps: gaps})
+}
+
+func (m *Module) catalogPoller(providers app.Providers, facts app.MintFacts, xs *xstocks.Client) *app.CatalogPoller {
+	return app.NewCatalogPoller(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, providers, facts).
+		WithListings(adapters.NewListingSync(m.deps, xs))
 }

@@ -54,6 +54,7 @@ type Config struct {
 	Privy      Privy
 	Solana     Solana
 	EVM        EVM
+	Listings   Listings
 	Relayer    Relayer
 	APNs       APNs
 	PostHog    PostHog
@@ -361,6 +362,7 @@ func fields() []field {
 		ablyFields(),
 		agentsFields(),
 		evmFields(),
+		listingsFields(),
 	)
 }
 

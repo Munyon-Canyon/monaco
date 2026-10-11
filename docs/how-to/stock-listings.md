@@ -13,14 +13,23 @@ This page records the launch listings, the real quotes behind each verdict, and 
 | Coinbase | `GET https://api.coinbase.com/v1/tokenized-stocks` | Base | `multiplier` |
 | Robinhood | `GET https://api.robinhood.com/rhj/assets` | Robinhood Chain | `currentMultiplier`, then `pendingMultiplier` at its effective time |
 
-The catalog run refreshes `shares_per_token` every hour. A listing is enabled only after on-chain verification passes:
+The sync runs inside the hourly catalog run when `LISTINGS_SYNC_ENABLED` is on (the default in staging and production, off locally and in tests, so no test calls an issuer). Each run reads every issuer, upserts its listings into `asset_listings` and refreshes `shares_per_token`. Robinhood's `pendingMultiplier` replaces `currentMultiplier` only after its effective time. The Robinhood adapter doesn't read an effective time yet, so `currentMultiplier` applies. One issuer failing doesn't stop the others. When Ondo's asset page has no `supportedNetworks` block, the run disables that asset's listings and logs `market.listings.source_missing` once, on the run that disables them.
 
-- An EVM token answers `symbol()` with the issuer's symbol (an xStocks wrapper answers `w<symbol>`) and `decimals()`.
-- A Solana mint exists and is owned by SPL Token or Token-2022.
+A listing is enabled only after on-chain verification passes:
 
-Run the same check on demand from `apps/backend`:
+- An EVM token answers `symbol()` with the issuer's symbol (an xStocks wrapper answers `w<symbol>`) and `decimals()`. The run stores the on-chain decimals.
+- For a Coinbase B20 token on Base, the check reads the policy ID of the transfer sender, receiver and executor scopes with `policyId(bytes32)`. The policy registry at `0x8453000000000000000000000000000000000002` must answer `isAuthorized(policyId, 0x1111111111111111111111111111111111111111)` with true for each one. The policy is global, so a fresh address stands in for any app-owned treasury, and an allowlist fails verification.
+- A Solana mint exists and is owned by SPL Token or Token-2022. The run stores the mint's decimals.
 
-    go run ./cmd/monacoctl listings verify
+Each run verifies the listings that are not verified yet. A listing that fails stays disabled and logs `market.listings.verify_failed` with the reason, and the next run tries it again.
+
+Run the check on demand from `apps/backend`. Without `--all` it checks the unverified listings. With `--all` it checks every listing and disables any listing that no longer passes:
+
+    go run ./cmd/monacoctl listings verify [--all]
+
+Turn a listing on or off by hand, or return it to the issuer's flag, with its `asset_listings.id`. A listing that is not verified stays disabled whatever the override says:
+
+    go run ./cmd/monacoctl listings override <listing-id> on|off|auto
 
 ## Launch listings
 
@@ -74,8 +83,8 @@ Quotes were taken on Sunday 2026-10-11 at about 08:50 UTC, with US markets close
 
 An app-owned treasury wallet must be able to hold and swap a token with no allowlist.
 
-- **Coinbase B20:** each token stores a policy ID per scope, and the B20 policy registry at `0x8453000000000000000000000000000000000002` answers `isAuthorized(uint64,address)`. For AAPLc, TSLAc and NVDAc, the transfer sender, receiver and executor scopes all use policy 5, which authorizes a fresh address. The catalog checks this for each cabal's EVM treasury before it enables a listing for that cabal.
+- **Coinbase B20:** each token stores a policy ID per scope, and the B20 policy registry at `0x8453000000000000000000000000000000000002` answers `isAuthorized(uint64,address)`. For AAPLc, TSLAc and NVDAc, the transfer sender, receiver and executor scopes all use policy 5, which authorizes a fresh address. Catalog verification asks the registry about the fixed probe address `0x1111111111111111111111111111111111111111` for each scope, and a B20 listing whose policy is an allowlist stays disabled.
 - **Ondo:** a simulated `transfer` of each token from its Uniswap pool to a fresh address succeeds on Ethereum. Ondo pauses trading outside market hours through `isTradingPaused`, which the catalog reads.
 - **xStocks:** not checked, because no EVM listing is enabled.
 
-`set_tradable_override` applies per listing.
+`monacoctl listings override` applies per listing.
