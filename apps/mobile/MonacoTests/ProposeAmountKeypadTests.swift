@@ -92,9 +92,10 @@ struct ProposeAmountKeypadTests {
             throw CancellationError()
         }
         func potValue(cabalID _: String) async throws -> Int64 { throw CancellationError() }
-        func propose(cabalID _: String, draft _: ProposalDraft, submission _: IdempotentSubmission) async throws
-            -> String
-        {
+        func propose(
+            cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,
+            submission _: IdempotentSubmission
+        ) async throws -> String {
             throw CancellationError()
         }
         func withdraw(proposalID _: String, submission _: IdempotentSubmission) async throws {

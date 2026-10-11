@@ -17,6 +17,7 @@ public final class ProposeReviewModel {
     public private(set) var isSending = false
     public private(set) var errorMessage: String?
     public private(set) var proposalID: String?
+    public private(set) var chain: ProposeChain = .best
 
     public let cabal: ProposeCabalInfo
     private let service: ProposeService
@@ -69,6 +70,13 @@ public final class ProposeReviewModel {
 
     public var bestPrice: BestPrice? { preview.bestPrice(isSell: isSell) }
 
+    public var chainOptions: [ProposeChainOption] { ProposeChainOption.options(bestPrice) }
+
+    public func choose(_ chain: ProposeChain) {
+        guard !isSending, proposalID == nil else { return }
+        self.chain = chain
+    }
+
     public var destination: String { "to \(cabal.name)" }
     public var voteCaption: String { "\(cabal.voters) will vote on this proposal." }
 
@@ -89,7 +97,18 @@ public final class ProposeReviewModel {
 
     private var buyRows: [Row] {
         guard case .buy(_, let kind, _) = trade else { return [] }
+        return outcomeRows(kind: kind) + potAndVoterRows
+    }
+
+    private func outcomeRows(kind: AssetKind) -> [Row] {
         var rows: [Row] = []
+        if let network = chain.network, let bestPrice, let venue = bestPrice.venue(on: network) {
+            rows.append(Row(label: "Cabal gets", value: "about \(bestPrice.figure(venue))"))
+            if let price = bestPrice.price(of: venue) {
+                rows.append(Row(label: "Price", value: "about \(price)"))
+            }
+            return rows
+        }
         let quantity = quantity
         if let quantity {
             rows.append(
@@ -100,6 +119,11 @@ public final class ProposeReviewModel {
             let noun = kind == .preIpo ? "a token" : "a share"
             rows.append(Row(label: "Price", value: "about \(UsdAmountFormatter.format(decimal: price)) \(noun)"))
         }
+        return rows
+    }
+
+    private var potAndVoterRows: [Row] {
+        var rows: [Row] = []
         if let percent = potPercent {
             let pot = UsdAmountFormatter.format(micros: preview.potValueMicros)
             let share = percent == 0 && draft.amount > 0 ? "Less than 1%" : "\(percent)%"
@@ -127,7 +151,8 @@ public final class ProposeReviewModel {
         errorMessage = nil
         defer { isSending = false }
         do {
-            proposalID = try await service.propose(cabalID: cabalID, draft: draft, submission: submission)
+            proposalID = try await service.propose(
+                cabalID: cabalID, draft: draft, network: chain.network, submission: submission)
         } catch {
             errorMessage = ToastCopy.message(for: APIError(error))
         }

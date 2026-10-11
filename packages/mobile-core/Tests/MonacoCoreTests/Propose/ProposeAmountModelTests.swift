@@ -236,7 +236,10 @@ private actor PreviewService: ProposeService {
             .init(quoteOutAmount: nil, advisoryCode: code, advisoryMessage: nil, potValueMicros: 500_000_000))
     }
 
-    func propose(cabalID _: String, draft _: ProposalDraft, submission _: IdempotentSubmission) async throws -> String {
+    func propose(
+        cabalID _: String, draft _: ProposalDraft, network _: Components.Schemas.Network?,
+        submission _: IdempotentSubmission
+    ) async throws -> String {
         "proposal"
     }
     func withdraw(proposalID _: String, submission _: IdempotentSubmission) async throws {}
