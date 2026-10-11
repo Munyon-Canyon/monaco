@@ -7,6 +7,8 @@ func init() {
 		MarketListingSourceMissing,
 		MarketListingAssetSkipped,
 		MarketRouterFallback,
+		MarketRouterSolanaUnquoted,
+		MarketRouterVenueDropped,
 		MarketListingVerifyFailed,
 	)
 }

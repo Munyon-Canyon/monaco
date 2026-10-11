@@ -3,7 +3,10 @@ package app_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"math/big"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,7 +16,9 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -33,6 +38,7 @@ type routeFixture struct {
 	priceErr    error
 	bridged     func(money.Micros) (money.Micros, error)
 	clk         *testkit.Clock
+	logs        testkit.Logs
 	listings    []multichain.Listing
 	quotes      map[multichain.ListingID]recordedQuote
 	inputs      map[multichain.ListingID]money.Micros
@@ -185,7 +191,8 @@ func route(
 		f.clk,
 		rules,
 	)
-	c, err := r.Best(t.Context(), stockID(t, g), multichain.SideBuy, money.MicrosFromUint64(100_000_000))
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, &f.logs))
+	c, err := r.Best(ctx, stockID(t, g), multichain.SideBuy, money.MicrosFromUint64(100_000_000))
 	return c, byName, f, err
 }
 
@@ -370,14 +377,84 @@ func TestRouterDropsEVMListingsItCannotPrice(t *testing.T) {
 	}
 }
 
-func TestRouterKeepsTheBestEVMRouteWhenNoSolanaListingQuotes(t *testing.T) {
+func TestRouterFailsClosedWhenTheSolanaListingCannotBeQuoted(t *testing.T) {
 	t.Parallel()
-	c, l, _, err := route(t, map[string]recordedQuote{
+	for name, solana := range map[string]recordedQuote{
+		"quote errors": {err: errs.New(errs.CodeUpstreamUnavailable, "test")},
+		"quote stale":  {units: 29_610_838, age: 16 * time.Second},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c, l, f, err := route(t, map[string]recordedQuote{
+				aaplonEth: recordedApple()[aaplonEth], aaplcBase: recordedApple()[aaplcBase], aaplxSolana: solana,
+			}, testRules())
+			if errs.CodeOf(err) != errs.CodeQuoteUnavailable {
+				t.Fatalf("comparison = %+v, %v, want quote_unavailable instead of an EVM winner", c, err)
+			}
+			if got := f.logs.Lines("market.router.solana_unquoted", "venue"); len(got) != 1 || got[0] != "jupiter" {
+				t.Fatalf("solana_unquoted logs = %v, want one for jupiter", got)
+			}
+			dropped := f.logs.Lines("market.router.venue_dropped", "listing_id")
+			if len(dropped) != 1 || dropped[0] != l[aaplxSolana].ID.String() {
+				t.Fatalf("venue_dropped logs = %v, want the Solana listing once", dropped)
+			}
+		})
+	}
+}
+
+func TestRouterLogsAnUnpricedQuoteWithNoOutput(t *testing.T) {
+	t.Parallel()
+	failing := errs.New(errs.CodeUpstreamUnavailable, "test")
+	c, l, f, err := route(t, map[string]recordedQuote{
+		aaplxSolana: {units: 29_610_838}, aaplonSolana: {units: 0},
+	}, testRules(), func(f *routeFixture) { f.priceErr = failing })
+	if err != nil || len(c.Ranked) != 1 || c.Winner != l[aaplxSolana].ID {
+		t.Fatalf("comparison = %+v, %v, want only AAPLx", c.Ranked, err)
+	}
+	want := []string{l[aaplonSolana].ID.String() + " no_output"}
+	if got := f.logs.Lines("market.router.venue_dropped", "listing_id", "reason"); !slices.Equal(got, want) {
+		t.Fatalf("venue_dropped = %v, want %v", got, want)
+	}
+}
+
+func TestRouterRoutesToTheBestEVMListingWhenTheStockHasNoSolanaListing(t *testing.T) {
+	t.Parallel()
+	c, l, f, err := route(t, map[string]recordedQuote{
 		aaplonEth: recordedApple()[aaplonEth], aaplcBase: recordedApple()[aaplcBase],
-		aaplxSolana: {err: errs.New(errs.CodeNoRoute, "test")},
 	}, testRules())
 	if err != nil || c.Winner != l[aaplcBase].ID || len(c.Ranked) != 2 {
 		t.Fatalf("comparison = %+v, %v", c, err)
+	}
+	if got := f.logs.Lines("market.router.solana_unquoted"); len(got) != 0 {
+		t.Fatalf("solana_unquoted logged %v for a stock with no Solana listing", got)
+	}
+}
+
+func TestRouterLogsEachDroppedVenueWithItsReason(t *testing.T) {
+	t.Parallel()
+	_, l, f, err := route(t, map[string]recordedQuote{
+		aaplxSolana:  {units: 29_610_838},
+		aaplonSolana: {units: 295_449_773, age: 16 * time.Second},
+		aaplonEth:    {units: 294_521_447_600_868_269, ttl: time.Second, age: 2 * time.Second},
+		aaplcBase:    {err: errs.New(errs.CodeNoRoute, "test")},
+	}, testRules())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, line := range f.logs.Lines("market.router.venue_dropped", "listing_id", "reason") {
+		id, reason, _ := strings.Cut(line, " ")
+		if _, dup := got[id]; dup {
+			t.Fatalf("listing %s logged twice", id)
+		}
+		got[id] = reason
+	}
+	want := map[string]string{
+		l[aaplonSolana].ID.String(): "stale", l[aaplonEth].ID.String(): "expired",
+		l[aaplcBase].ID.String(): "no_route",
+	}
+	if !maps.Equal(got, want) {
+		t.Fatalf("venue_dropped = %v, want %v", got, want)
 	}
 }
 

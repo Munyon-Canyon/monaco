@@ -252,3 +252,21 @@ func TestPreview_doesNotLogAStockWithNoRoute(t *testing.T) {
 		When(scenario.Get(preview), scenario.ExpectStatus(http.StatusOK)).
 		Then(scenario.ExpectLogs("market.router.fallback", 0))
 }
+
+func TestProposeTrade_tradesOnSolanaWhenTheRouterCannotQuoteSolana(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	unquoted := stubRouter{t: t, err: errs.New(errs.CodeQuoteUnavailable, "test")}
+	w.routedScenario(t, unquoted).Given(w.asMember()).
+		When(
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectNoField("price_comparison"),
+			scenario.Post(w.proposals(), buyAAPL),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectNoField("price_comparison"),
+		).
+		Then(scenario.ExpectEvents(events.TypeProposalCreated, 1))
+}
