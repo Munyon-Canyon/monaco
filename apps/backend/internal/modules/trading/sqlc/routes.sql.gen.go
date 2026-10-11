@@ -18,9 +18,16 @@ SELECT trade_id, comparison, winner_listing_id, created_at FROM trade_routes
 WHERE trade_id = $1
 `
 
-func (q *Queries) FindTradeRoute(ctx context.Context, tradeID uuid.UUID) (TradeRoute, error) {
+type FindTradeRouteRow struct {
+	TradeID         uuid.UUID
+	Comparison      []byte
+	WinnerListingID uuid.UUID
+	CreatedAt       time.Time
+}
+
+func (q *Queries) FindTradeRoute(ctx context.Context, tradeID uuid.UUID) (FindTradeRouteRow, error) {
 	row := q.db.QueryRow(ctx, findTradeRoute, tradeID)
-	var i TradeRoute
+	var i FindTradeRouteRow
 	err := row.Scan(
 		&i.TradeID,
 		&i.Comparison,

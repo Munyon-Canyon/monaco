@@ -123,7 +123,7 @@ func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) events.Pr
 		V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID, Kind: p.Kind, Symbol: p.Symbol,
 		Mint: chain.SolanaAddress(p.Mint), USDCMicros: money.MicrosFromUint64(unsigned(p.UsdcMicros.Int64)),
 		TokenAmount: unsigned(p.TokenAmount.Int64), QuoteOutAmount: unsigned(p.QuoteOutAmount),
-		PriceComparison: comparison,
+		PriceComparison: comparison, Network: chain.Network(p.Network),
 	}
 }
 

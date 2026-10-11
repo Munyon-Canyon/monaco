@@ -502,6 +502,11 @@ type Proposal struct {
 	// Examples: null
 	MyBallot *BallotChoice `json:"my_ballot"`
 
+	// Network The chain the buy is pinned to. Absent when it takes the best price on any chain.
+	//
+	// Examples: base
+	Network *externalRef0.Network `json:"network,omitempty"`
+
 	// PriceComparison Every venue checked for the trade, best first. Absent until the multichain routing work lands.
 	//
 	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"unavailable":[],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
@@ -597,6 +602,11 @@ type ProposalDetail struct {
 	//
 	// Examples: null
 	MyBallot *BallotChoice `json:"my_ballot"`
+
+	// Network The chain the buy is pinned to. Absent when it takes the best price on any chain.
+	//
+	// Examples: base
+	Network *externalRef0.Network `json:"network,omitempty"`
 
 	// PriceComparison Every venue checked for the trade, best first. Absent for a sell and until routing fills it.
 	//
@@ -768,6 +778,11 @@ type ProposeTradeRequest struct {
 	// Examples: buy
 	Kind ProposalKind `json:"kind"`
 
+	// Network The chain a buy executes on. It must have a listing in the comparison quoted now, and a sell can't set it. Absent means the best price on any chain.
+	//
+	// Examples: base
+	Network *externalRef0.Network `json:"network,omitempty"`
+
 	// Symbol The token symbol from the catalog.
 	//
 	// Examples: TSLAx
@@ -814,7 +829,7 @@ type Tally struct {
 
 // TradePreview What proposing the trade would quote, and the first check it fails.
 type TradePreview struct {
-	// AdvisoryCode The error code a proposal of this trade would fail with now: asset_not_found, asset_untradable, asset_paused, no_route, pot_exceeded or insufficient_funds. Null when every check passes.
+	// AdvisoryCode The error code a proposal of this trade would fail with now: asset_not_found, asset_untradable, asset_paused, no_route, pot_exceeded, insufficient_funds or invalid_network. Null when every check passes.
 	//
 	// Examples: null
 	AdvisoryCode *string `json:"advisory_code"`
@@ -939,6 +954,9 @@ type GetCabalProposalPreviewParams struct {
 
 	// TokenAmount Token base units a sell spends.
 	TokenAmount *int64 `form:"token_amount,omitempty" json:"token_amount,omitempty"`
+
+	// Network The chain a buy is pinned to. The quote is that chain's best listing, and a chain with no listing quoted sets `advisory_code` to invalid_network. Absent means the best price on any chain.
+	Network *externalRef0.Network `form:"network,omitempty" json:"network,omitempty"`
 }
 
 // DeleteProposalParams defines parameters for DeleteProposal.
@@ -1344,6 +1362,19 @@ func (siw *ServerInterfaceWrapper) GetCabalProposalPreview(w http.ResponseWriter
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "token_amount"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token_amount", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "network" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "network", r.URL.Query(), &params.Network, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "network"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "network", Err: err})
 		}
 		return
 	}

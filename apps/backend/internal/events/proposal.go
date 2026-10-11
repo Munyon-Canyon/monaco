@@ -58,6 +58,7 @@ type ProposalPassed struct {
 	QuoteOutAmount  uint64                 `json:"quote_out_amount,string"`
 	ProposerID      uuid.UUID              `json:"proposer_id"                  pii:"true"`
 	PriceComparison *multichain.Comparison `json:"price_comparison,omitempty"`
+	Network         chain.Network          `json:"network,omitempty"`
 }
 
 func (ProposalPassed) Type() Type { return TypeProposalPassed }

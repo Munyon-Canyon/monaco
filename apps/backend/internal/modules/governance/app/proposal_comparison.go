@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -120,10 +121,11 @@ func (c *ProposalComparisons) quote(
 		return LiveComparison{}, err
 	}
 	comparison := c.propose.compare(ctx, asset, trade)
+	priced, _ := pinned(comparison, chain.Network(row.Network))
 	observability.Debug(ctx, observability.GovernanceProposalComparisonRefreshed,
 		slog.String("proposal_id", row.ID.String()), slog.Bool("compared", comparison != nil))
 	return LiveComparison{
-		QuoteOut:   displayQuote(asset, comparison, routed.OutAmount.Uint64(), now),
+		QuoteOut:   displayQuote(asset, priced, routed.OutAmount.Uint64(), now),
 		Comparison: comparison,
 		QuotedAt:   now,
 	}, nil

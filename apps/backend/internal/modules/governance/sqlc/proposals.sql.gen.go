@@ -221,7 +221,7 @@ func (q *Queries) LockForWithdraw(ctx context.Context, id uuid.UUID) (LockForWit
 const lockProposal = `-- name: LockProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
-  p.status, p.threshold, p.expires_at, p.price_comparison,
+  p.status, p.threshold, p.expires_at, p.price_comparison, coalesce(p.network, '')::text AS network,
   EXISTS (
     SELECT 1 FROM proposal_voters AS v WHERE v.proposal_id = p.id AND v.voter_id = $1
   ) AS is_voter
@@ -249,6 +249,7 @@ type LockProposalRow struct {
 	Threshold       string
 	ExpiresAt       time.Time
 	PriceComparison []byte
+	Network         string
 	IsVoter         bool
 }
 
@@ -269,6 +270,7 @@ func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (Loc
 		&i.Threshold,
 		&i.ExpiresAt,
 		&i.PriceComparison,
+		&i.Network,
 		&i.IsVoter,
 	)
 	return i, err
@@ -278,13 +280,14 @@ const openProposal = `-- name: OpenProposal :execrows
 WITH proposal AS (
   INSERT INTO proposals (
     id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison
+    quote_out_amount, threshold, status, expires_at, created_at, updated_at, price_comparison, network
   )
   VALUES (
     $2, $3, $4, $5, $6, $7,
     NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
     NULLIF($10::text, ''), $11::text::bigint, $12, 'open', $13,
-    $14, $14, $15::jsonb
+    $14, $14, $15::jsonb,
+    NULLIF($16::text, '')
   )
   RETURNING id
 )
@@ -309,6 +312,7 @@ type OpenProposalParams struct {
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
 	PriceComparison []byte
+	Network         string
 }
 
 func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int64, error) {
@@ -328,6 +332,7 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 		arg.ExpiresAt,
 		arg.CreatedAt,
 		arg.PriceComparison,
+		arg.Network,
 	)
 	if err != nil {
 		return 0, err

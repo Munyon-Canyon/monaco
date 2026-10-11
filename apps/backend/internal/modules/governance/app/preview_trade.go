@@ -36,11 +36,14 @@ func (h *ProposeTradeHandler) Preview(ctx context.Context, req ProposeTrade) (Tr
 	if market.ProbeFailed(routeErr) {
 		routeErr = errs.New(errs.CodeNoRoute, "governance.Preview")
 	}
+	var pinErr error
 	if routeErr == nil {
 		out.PriceComparison = h.compare(ctx, asset, req.Trade)
-		out.QuoteOut = displayQuote(asset, out.PriceComparison, quote.OutAmount.Uint64(), h.clock.Now())
+		var priced *multichain.Comparison
+		priced, pinErr = pinned(out.PriceComparison, req.Trade.Network)
+		out.QuoteOut = displayQuote(asset, priced, quote.OutAmount.Uint64(), h.clock.Now())
 	}
-	failed := slices.DeleteFunc([]error{fundsErr, routeErr}, func(err error) bool { return err == nil })
+	failed := slices.DeleteFunc([]error{fundsErr, routeErr, pinErr}, func(err error) bool { return err == nil })
 	for _, err := range failed {
 		if err := advise(&out, err); err != nil {
 			return TradePreview{}, err
@@ -54,6 +57,7 @@ func advise(p *TradePreview, err error) error {
 	if !slices.Contains([]errs.Code{
 		errs.CodeAssetNotFound, errs.CodeAssetUntradable, errs.CodeAssetPaused, errs.CodeNoRoute,
 		errs.CodePotExceeded, errs.CodeInsufficientFunds, errs.CodePotCashShort, errs.CodeCabalSharesShort,
+		errs.CodeInvalidNetwork,
 	}, code) {
 		return err
 	}

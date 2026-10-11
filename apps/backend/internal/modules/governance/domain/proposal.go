@@ -44,6 +44,7 @@ type Draft struct {
 	Thesis      string
 	QuoteOut    uint64
 	ExpiresAt   time.Time
+	Network     chain.Network
 }
 
 type Proposal struct {
@@ -75,9 +76,13 @@ type Trade struct {
 	USDCMicros  money.Micros
 	TokenAmount uint64
 	Thesis      string
+	Network     chain.Network
 }
 
 func NewTrade(t Trade) (Trade, error) {
+	if t.Kind == KindSell && t.Network != "" {
+		return Trade{}, errs.New(errs.CodeInvalidNetwork, "governance.NewTrade", slog.String("field", "network"))
+	}
 	field := tradeField(t.Kind, t.USDCMicros.Uint64(), t.TokenAmount, t.Thesis)
 	if field == "" && strings.TrimSpace(t.Symbol) == "" {
 		field = "symbol"

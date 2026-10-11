@@ -17,7 +17,7 @@ const getProposal = `-- name: GetProposal :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
   p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at,
-  coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison
+  coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = $1
 WHERE p.id = $2
@@ -45,6 +45,7 @@ type GetProposalRow struct {
 	CreatedAt       time.Time
 	MyBallot        string
 	PriceComparison []byte
+	Network         string
 }
 
 func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetProposalRow, error) {
@@ -67,6 +68,7 @@ func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetPr
 		&i.CreatedAt,
 		&i.MyBallot,
 		&i.PriceComparison,
+		&i.Network,
 	)
 	return i, err
 }
