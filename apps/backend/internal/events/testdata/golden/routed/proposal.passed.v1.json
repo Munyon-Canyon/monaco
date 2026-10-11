@@ -14,6 +14,7 @@
     "ranked": [
       {
         "listing_id": "019b76da-a801-7ced-8cbf-33b5967217d9",
+        "issuer": "coinbase",
         "network": "base",
         "venue": "uniswap",
         "side": "buy",
@@ -37,6 +38,7 @@
       },
       {
         "listing_id": "019b76da-a802-7767-bda7-b17318a7225b",
+        "issuer": "xstocks",
         "network": "solana",
         "venue": "jupiter",
         "side": "buy",
