@@ -15,6 +15,7 @@ struct PlatformBalanceCard: View {
     let display: HomeBalanceDisplay
     var pendingAllocationMicros: Int64 = 0
     var cardProcessing = false
+    var arrivingMicros: Int64 = 0
     /// The figure's identifier. Each screen names its own, so a test can tell them apart.
     var valueIdentifier = "platform-balance-value"
 
@@ -26,11 +27,12 @@ struct PlatformBalanceCard: View {
 
     init(
         display: HomeBalanceDisplay, pendingAllocationMicros: Int64 = 0, cardProcessing: Bool = false,
-        valueIdentifier: String = "platform-balance-value"
+        arrivingMicros: Int64 = 0, valueIdentifier: String = "platform-balance-value"
     ) {
         self.display = display
         self.pendingAllocationMicros = pendingAllocationMicros
         self.cardProcessing = cardProcessing
+        self.arrivingMicros = arrivingMicros
         self.valueIdentifier = valueIdentifier
     }
 
@@ -39,16 +41,27 @@ struct PlatformBalanceCard: View {
         valueIdentifier: String = "platform-balance-value"
     ) {
         var inFlightMicros: Int64 = 0
-        if case .loaded(let balance) = state { inFlightMicros = balance.inFlightMicros }
+        var arrivingMicros: Int64 = 0
+        if case .loaded(let balance) = state {
+            inFlightMicros = balance.inFlightMicros
+            arrivingMicros = balance.arrivingMicros
+        }
         self.init(
             display: .resolve(state), pendingAllocationMicros: inFlightMicros, cardProcessing: cardProcessing,
-            valueIdentifier: valueIdentifier)
+            arrivingMicros: arrivingMicros, valueIdentifier: valueIdentifier)
     }
 
     /// "$50.00 pending", or nil when nothing is on its way. The amount covers funds and withdrawals.
     static func pendingLine(micros: Int64) -> String? {
         guard micros > 0 else { return nil }
         return "\(UsdAmountFormatter.format(micros: micros)) pending"
+    }
+
+    static let arrivingLabel = "Arriving"
+
+    static func showsArriving(display: HomeBalanceDisplay, micros: Int64) -> Bool {
+        guard case .amount = display else { return false }
+        return micros > 0
     }
 
     static func statusLine(cardProcessing: Bool, pendingMicros: Int64) -> String? {
@@ -66,8 +79,30 @@ struct PlatformBalanceCard: View {
                 .accessibilityLabel("Loading your account balance")
                 .accessibilityIdentifier("platform-balance-loading")
         } else {
-            row
+            VStack(spacing: 0) {
+                row
+                if Self.showsArriving(display: display, micros: arrivingMicros) {
+                    arrivingRow
+                }
+            }
         }
+    }
+
+    private var arrivingRow: some View {
+        HStack(spacing: Self.contentSpacing) {
+            Text(Self.arrivingLabel)
+                .font(MonacoTheme.Typo.callout)
+                .foregroundStyle(MonacoTheme.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            MoneyText(micros: UsdAmountFormatter.flooredToCents(arrivingMicros), style: .row)
+                .foregroundStyle(MonacoTheme.muted)
+                .accessibilityIdentifier("platform-balance-arriving-value")
+        }
+        .padding(.leading, Self.leadingInset)
+        .padding(.trailing, MonacoTheme.Space.gutter)
+        .padding(.bottom, MonacoTheme.Space.s)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("platform-balance-arriving")
     }
 
     private var row: some View {

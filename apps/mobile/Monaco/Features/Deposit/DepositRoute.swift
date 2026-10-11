@@ -17,9 +17,20 @@ nonisolated struct DepositRoute: AppRoute {
     }
 }
 
-nonisolated struct DepositAddressRoute: AppRoute {
+nonisolated struct DepositNetworksRoute: AppRoute {
+    let networks: [DepositNetwork]
+
     @MainActor func destination() -> some View {
-        DepositAddressView()
+        DepositNetworksView(networks: networks)
+            .analyticsScreen("deposit_networks")
+    }
+}
+
+nonisolated struct DepositAddressRoute: AppRoute {
+    var network: DepositNetwork?
+
+    @MainActor func destination() -> some View {
+        DepositAddressView(network: network)
             .analyticsScreen("deposit_address", step: .cryptoDeposit(.depositOpened))
     }
 }

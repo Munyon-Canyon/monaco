@@ -10,13 +10,21 @@ struct DepositView: View {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
+    @State private var addresses: DepositAddressesSource?
 
     var body: some View {
         @Bindable var deposit = environment.cardDeposit
         DepositChooser(
             creating: deposit.isCreating,
+            networks: DepositAddressesSource.offered(
+                addresses?.state ?? .idle, solanaAddress: environment.sessionStore.profile?.memberWalletAddress),
             onCard: { Task { await deposit.start(suggestedMicros: prefillMicros, cabalID: cabalID) } }
         )
+        .task(id: environment.sessionStore.profile?.userID) {
+            let source = DepositAddressesSource(api: environment.api)
+            addresses = source
+            await source.load()
+        }
         .fullScreenCover(
             item: Binding(get: { deposit.page }, set: { if $0 == nil { deposit.browserClosed() } })
         ) { page in
@@ -32,43 +40,36 @@ struct DepositView: View {
 
 struct DepositChooser: View {
     let creating: Bool
+    var networks = [DepositNetwork(id: DepositNetwork.solanaID, address: "")]
     let onCard: () -> Void
 
     static let cardHint = "Card or Apple Pay. You choose the amount next."
+    static let cryptoTitle = "Send crypto"
+
+    static func cryptoHint(_ networks: [DepositNetwork]) -> String {
+        let names = networks.map(\.displayName)
+        guard let last = names.last else { return "Send USDC" }
+        guard names.count > 1 else { return "Send USDC on \(last)" }
+        return names.dropLast().joined(separator: ", ") + " or " + last
+    }
+
+    static func cryptoRoute(_ networks: [DepositNetwork]) -> AnyAppRoute {
+        guard networks.count > 1 else { return AnyAppRoute(DepositAddressRoute(network: networks.first)) }
+        return AnyAppRoute(DepositNetworksRoute(networks: networks))
+    }
+
+    enum Row: Hashable { case onramp, crypto }
+    static let order: [Row] = [.onramp, .crypto]
 
     var body: some View {
         ScrollView {
             MonacoGroupedList {
-                Button(action: onCard) {
-                    MonacoRow(title: "Card", subtitle: Self.cardHint, chevron: !creating) {
-                        SunkenGlyphMark(systemImage: "creditcard")
-                    } trailing: {
-                        if creating {
-                            ProgressView()
-                                .accessibilityIdentifier("deposit-card-spinner")
-                        }
+                ForEach(Self.order, id: \.self) { row in
+                    switch row {
+                    case .onramp: onrampRow
+                    case .crypto: cryptoRow
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.monacoRow)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Card")
-                .accessibilityHint(Self.cardHint)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityIdentifier("deposit-card-row")
-
-                NavigationLink(value: AnyAppRoute(DepositAddressRoute())) {
-                    MonacoRow(title: "Crypto", subtitle: "Send USDC on Solana", chevron: true, isLast: true) {
-                        StockMark(symbol: "USDC")
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.monacoRow)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Crypto")
-                .accessibilityHint("Send USDC on Solana")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityIdentifier("deposit-crypto-row")
             }
             .disabled(creating)
             .padding(.top, MonacoTheme.Space.m)
@@ -77,6 +78,46 @@ struct DepositChooser: View {
         .navigationTitle("Add money")
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    private var onrampRow: some View {
+        Button(action: onCard) {
+            MonacoRow(title: "Card", subtitle: Self.cardHint, chevron: !creating) {
+                SunkenGlyphMark(systemImage: "creditcard")
+            } trailing: {
+                if creating {
+                    ProgressView()
+                        .accessibilityIdentifier("deposit-card-spinner")
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.monacoRow)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Card")
+        .accessibilityHint(Self.cardHint)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("deposit-card-row")
+    }
+
+    private var cryptoRow: some View {
+        NavigationLink(value: Self.cryptoRoute(networks)) {
+            MonacoRow(title: Self.cryptoTitle, subtitle: Self.cryptoHint(networks), chevron: true, isLast: true) {
+                StockMark(symbol: "USDC")
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.monacoRow)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.cryptoTitle)
+        .accessibilityHint(Self.cryptoHint(networks))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("deposit-crypto-row")
+    }
+}
+
+private struct DepositAddressKey: Hashable {
+    let userID: String?
+    let network: String
 }
 
 private struct AddressPoll: Hashable {
@@ -84,7 +125,59 @@ private struct AddressPoll: Hashable {
     let retry: Int
 }
 
+struct DepositNetworksView: View {
+    let networks: [DepositNetwork]
+
+    static let title = "Choose a network"
+
+    var body: some View {
+        ScrollView {
+            MonacoGroupedList {
+                ForEach(Array(networks.enumerated()), id: \.element.id) { index, network in
+                    NavigationLink(value: AnyAppRoute(DepositAddressRoute(network: network))) {
+                        MonacoRow(
+                            title: network.displayName, subtitle: DepositAddressCard.arrivalNote(for: network),
+                            chevron: true, isLast: index == networks.count - 1
+                        ) {
+                            DepositNetworkMark(network: network)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.monacoRow)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(network.displayName)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("deposit-network-\(network.id)")
+                }
+            }
+            .padding(.top, MonacoTheme.Space.m)
+        }
+        .monacoCanvas()
+        .navigationTitle(Self.title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct DepositNetworkMark: View {
+    let network: DepositNetwork
+
+    var body: some View {
+        if network.isSolana {
+            Image("SolanaMark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 28)
+                .frame(width: 40, height: 40)
+                .accessibilityHidden(true)
+        } else {
+            SunkenGlyphMark(systemImage: "point.3.connected.trianglepath.dotted")
+        }
+    }
+}
+
 struct DepositAddressView: View {
+    var network: DepositNetwork?
+
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var addressAttempts = 0
@@ -92,9 +185,18 @@ struct DepositAddressView: View {
 
     private static let maxAddressAttempts = 5
 
+    private var shown: DepositNetwork {
+        network ?? DepositNetwork(id: DepositNetwork.solanaID, address: "")
+    }
+
+    private var address: String? {
+        shown.isSolana ? environment.sessionStore.profile?.memberWalletAddress : shown.address
+    }
+
     var body: some View {
         DepositContent(
-            address: environment.sessionStore.profile?.memberWalletAddress,
+            address: address,
+            network: shown,
             gaveUp: addressAttempts >= Self.maxAddressAttempts,
             state: environment.balance.state,
             onCopy: copyAddress,
@@ -104,12 +206,13 @@ struct DepositAddressView: View {
             },
             onRetryBalance: { Task { await environment.balance.load() } }
         )
+        .id(DepositAddressKey(userID: environment.sessionStore.profile?.userID, network: shown.id))
         .refreshable {
             await environment.sessionStore.reloadProfile(auth: environment.auth)
             await environment.balance.load()
         }
-        .task(id: AddressPoll(address: environment.sessionStore.profile?.memberWalletAddress, retry: addressRetry)) {
-            while DepositAddress.usable(environment.sessionStore.profile?.memberWalletAddress) == nil,
+        .task(id: AddressPoll(address: address, retry: addressRetry)) {
+            while shown.isSolana, DepositAddress.usable(environment.sessionStore.profile?.memberWalletAddress) == nil,
                 addressAttempts < Self.maxAddressAttempts
             {
                 await environment.sessionStore.reloadProfile(auth: environment.auth)
@@ -132,6 +235,7 @@ struct DepositAddressView: View {
 
 struct DepositContent: View {
     let address: String?
+    var network = DepositNetwork(id: DepositNetwork.solanaID, address: "")
     var gaveUp = false
     let state: LoadState<AccountBalance>
     let onCopy: (String) -> Void
@@ -141,11 +245,15 @@ struct DepositContent: View {
     enum Section: Hashable { case balance, address, howItWorks }
     static let order: [Section] = [.balance, .address, .howItWorks]
 
-    static let steps = [
-        "Send USDC on Solana",
-        "It lands in your balance",
-        "Fund a cabal",
-    ]
+    static let steps = steps(on: "Solana")
+
+    static func steps(on network: String) -> [String] {
+        ["Send USDC on \(network)", "It lands in your balance", "Fund a cabal"]
+    }
+
+    static func title(on network: String) -> String {
+        "Send USDC on \(network)"
+    }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -168,7 +276,7 @@ struct DepositContent: View {
                                 thing: "your deposit address", identifier: "deposit-address-error",
                                 retry: onRetryAddress)
                         } else {
-                            DepositAddressCard(content: content, onCopy: onCopy)
+                            DepositAddressCard(content: content, network: network, onCopy: onCopy)
                                 .padding(.horizontal, MonacoTheme.Space.gutter)
                         }
                     case .howItWorks:
@@ -180,7 +288,7 @@ struct DepositContent: View {
             .padding(.bottom, MonacoTheme.Space.xl)
         }
         .monacoCanvas()
-        .navigationTitle("Crypto")
+        .navigationTitle(Self.title(on: network.displayName))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -196,7 +304,7 @@ struct DepositContent: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
                 : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.s))
             layout {
-                ForEach(Array(Self.steps.enumerated()), id: \.offset) { index, step in
+                ForEach(Array(Self.steps(on: network.displayName).enumerated()), id: \.offset) { index, step in
                     stepView(number: index + 1, label: step)
                 }
             }
@@ -244,11 +352,21 @@ struct DepositAddressCard: View {
     }
 
     let content: Content
+    var network = DepositNetwork(id: DepositNetwork.solanaID, address: "")
     var addressIdentifier = "deposit-address-value"
     var copyIdentifier = "deposit-address-copy-button"
     let onCopy: (String) -> Void
 
-    static let networkNote = "Only send USDC on Solana to this address."
+    static let networkNote = networkNote(on: "Solana")
+    static let evmArrival = "Arrives in a few minutes"
+
+    static func networkNote(on network: String) -> String {
+        "Only send USDC on \(network) to this address."
+    }
+
+    static func arrivalNote(for network: DepositNetwork) -> String? {
+        network.isEVM ? evmArrival : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
@@ -271,7 +389,7 @@ struct DepositAddressCard: View {
 
     private func ready(_ address: String) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            DepositQRCode(address: address, onCopy: onCopy)
+            DepositQRCode(address: address, showsSolanaMark: network.isSolana, onCopy: onCopy)
                 .frame(maxWidth: .infinity)
 
             MonacoWalletAddressText(address: address)
@@ -288,17 +406,32 @@ struct DepositAddressCard: View {
                 .accessibilityIdentifier(copyIdentifier)
 
                 HStack(spacing: MonacoTheme.Space.s) {
-                    Image("SolanaMark")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20)
-                        .accessibilityHidden(true)
-                    Text(Self.networkNote)
+                    if network.isSolana {
+                        Image("SolanaMark")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 20)
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(MonacoTheme.muted)
+                            .accessibilityHidden(true)
+                    }
+                    Text(Self.networkNote(on: network.displayName))
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.muted)
                         .multilineTextAlignment(.leading)
+                        .accessibilityIdentifier("deposit-network-warning")
                 }
                 .frame(maxWidth: .infinity)
+
+                if let arrival = Self.arrivalNote(for: network) {
+                    Text(arrival)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.muted)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("deposit-arrival-note")
+                }
             }
         }
     }
