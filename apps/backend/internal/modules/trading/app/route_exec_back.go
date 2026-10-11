@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"log/slog"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -17,12 +19,37 @@ func (r *RouteExec) BridgeBack(ctx context.Context, id ids.SwapID) error {
 	if err != nil {
 		return err
 	}
+	_, _, err = r.bridgeBack(ctx, b)
+	return err
+}
+
+func (r *RouteExec) bridgeBack(ctx context.Context, b routedBuy) (domain.StepStatus, money.Micros, error) {
 	amount, err := r.returning(ctx, b)
 	if err != nil || amount.IsZero() {
-		return err
+		return "", amount, err
 	}
-	_, err = r.bridge().Run(ctx, b.bridgeBack(amount))
-	return err
+	status, err := r.bridge().Run(ctx, b.bridgeBack(amount))
+	return status, amount, err
+}
+
+func (r *RouteExec) ReturnStranded(ctx context.Context, id ids.SwapID) (money.Micros, bool, error) {
+	var status domain.StepStatus
+	var sent money.Micros
+	b, err := r.load(ctx, id.UUID())
+	if err == nil {
+		status, sent, err = r.bridgeBack(ctx, b)
+	}
+	switch {
+	case err != nil:
+		return money.Micros{}, false, err
+	case status == domain.StepSucceeded:
+		landed, err := sent.Sub(b.fee)
+		return landed, true, err
+	case status == domain.StepFailed || status == "":
+		return money.Micros{}, false, errs.New(errs.CodeSwapFailed, "trading.RouteExec.ReturnStranded",
+			slog.String("swap_id", id.String()), slog.String("reason", "stranded_cash_not_returned"))
+	}
+	return money.Micros{}, false, nil
 }
 
 func (r *RouteExec) returning(ctx context.Context, b routedBuy) (money.Micros, error) {
