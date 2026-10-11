@@ -119,4 +119,45 @@ struct WithdrawEstimateTests {
         #expect(WithdrawEstimate.refetchDelay(until: expiresAt, now: expiresAt) == .zero)
         #expect(WithdrawEstimate.refetchDelay(until: expiresAt, now: expiresAt.addingTimeInterval(30)) == .zero)
     }
+
+    @Test func aQuoteAlwaysAlreadyExpiredBacksOffInsteadOfSpinning() async throws {
+        let request = try #require(form(.base, address: evmAddress).previewRequest)
+        let start = Date()
+        let past = ISO8601DateFormatter().string(from: start.addingTimeInterval(-60))
+        let transport = StubTransport(.json(.ok, #"{"receive_micros":"9992500","expires_at":"\#(past)"}"#))
+        var clock = start
+        var waits: [Duration] = []
+        var shown: [Int64?] = []
+
+        await WithdrawEstimate.follow(
+            request, from: source(transport), debounce: .zero, now: { clock },
+            sleep: { wait in
+                waits.append(wait)
+                clock += Double(wait.components.seconds)
+                if clock.timeIntervalSince(start) > 60 { throw CancellationError() }
+            },
+            update: { shown.append($0?.receiveMicros) })
+
+        #expect(waits == [2, 4, 8, 15, 15, 15, 15].map { Duration.seconds($0) })
+        #expect(await transport.sent.count == 7)
+        #expect(shown.count == 13)
+    }
+
+    @Test func aLiveQuoteIsRefetchedWhenItExpires() async throws {
+        let request = try #require(form(.base, address: evmAddress).previewRequest)
+        let transport = StubTransport(.json(.ok, previewFixture))
+        let now = expiresAt.addingTimeInterval(-300)
+        var waits: [Duration] = []
+
+        await WithdrawEstimate.follow(
+            request, from: source(transport), debounce: .zero, now: { now },
+            sleep: { wait in
+                waits.append(wait)
+                throw CancellationError()
+            },
+            update: { _ in })
+
+        #expect(waits == [.seconds(300)])
+        #expect(await transport.sent.count == 1)
+    }
 }
