@@ -1,11 +1,37 @@
 package adapters
 
 import (
+	"context"
 	"strconv"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	wire "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
+
+func (h HTTP) GetCabalProposalPriceComparison(
+	ctx context.Context, req api.GetCabalProposalPriceComparisonRequestObject,
+) (api.GetCabalProposalPriceComparisonResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	live, err := h.Comparisons.Get(ctx, app.GetProposalComparison{
+		CabalID: ids.CabalIDFrom(req.Id), ProposalID: ids.ProposalIDFrom(req.ProposalId), Caller: user,
+	})
+	if err != nil {
+		return nil, err
+	}
+	quote, err := wireInt(live.QuoteOut, "quote_out_amount")
+	if err != nil {
+		return nil, err
+	}
+	return api.GetCabalProposalPriceComparison200JSONResponse{
+		QuoteOutAmount: quote, QuotedAt: live.QuotedAt, PriceComparison: wireComparison(live.Comparison),
+	}, nil
+}
 
 func wireComparison(c *multichain.Comparison) *wire.PriceComparison {
 	if c == nil {

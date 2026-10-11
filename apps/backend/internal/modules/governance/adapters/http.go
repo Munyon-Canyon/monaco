@@ -15,12 +15,13 @@ import (
 )
 
 type HTTP struct {
-	Propose  *app.ProposeTradeHandler
-	Vote     *app.CastVoteHandler
-	Withdraw *app.WithdrawProposalHandler
-	Void     *app.VoidProposalHandler
-	Admin    *app.AdminReads
-	Reads    *app.ProposalReads
+	Propose     *app.ProposeTradeHandler
+	Vote        *app.CastVoteHandler
+	Withdraw    *app.WithdrawProposalHandler
+	Void        *app.VoidProposalHandler
+	Admin       *app.AdminReads
+	Reads       *app.ProposalReads
+	Comparisons *app.ProposalComparisons
 }
 
 var _ api.StrictServerInterface = HTTP{}

@@ -720,6 +720,24 @@ type ProposalList struct {
 	Proposals []Proposal `json:"proposals"`
 }
 
+// ProposalPriceComparison An open buy proposal's trade quoted again now.
+type ProposalPriceComparison struct {
+	// PriceComparison Every venue quoted now, best first. Absent when the venues could not be compared.
+	//
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	PriceComparison *externalRef0.PriceComparison `json:"price_comparison,omitempty"`
+
+	// QuoteOutAmount The quoted output, in the output asset's base units, from the winning venue or, without a comparison, from Jupiter.
+	//
+	// Examples: 40000000
+	QuoteOutAmount int64 `json:"quote_out_amount"`
+
+	// QuotedAt When the quotes were taken.
+	//
+	// Examples: 2026-10-10T12:00:00Z
+	QuotedAt time.Time `json:"quoted_at"`
+}
+
 // ProposalStatus Where a proposal is in its lifecycle.
 //
 // Examples: open
@@ -964,6 +982,9 @@ type ServerInterface interface {
 	// GetCabalProposalPreview Preview a trade before proposing it.
 	// (GET /v1/cabals/{id}/proposals/preview)
 	GetCabalProposalPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetCabalProposalPreviewParams)
+	// GetCabalProposalPriceComparison Compare venues for an open buy proposal now.
+	// (GET /v1/cabals/{id}/proposals/{proposal_id}/price-comparison)
+	GetCabalProposalPriceComparison(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, proposalId openapi_types.UUID)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(w http.ResponseWriter, r *http.Request)
@@ -1338,6 +1359,41 @@ func (siw *ServerInterfaceWrapper) GetCabalProposalPreview(w http.ResponseWriter
 	handler.ServeHTTP(w, r)
 }
 
+// GetCabalProposalPriceComparison operation middleware
+func (siw *ServerInterfaceWrapper) GetCabalProposalPriceComparison(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "proposal_id" -------------
+	var proposalId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "proposal_id", r.PathValue("proposal_id"), &proposalId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "proposal_id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCabalProposalPriceComparison(w, r, id, proposalId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyPendingVotes operation middleware
 func (siw *ServerInterfaceWrapper) GetMyPendingVotes(w http.ResponseWriter, r *http.Request) {
 
@@ -1612,6 +1668,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.GetCabalProposals)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.PostCabalProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/preview", wrapper.GetCabalProposalPreview)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/{proposal_id}/price-comparison", wrapper.GetCabalProposalPriceComparison)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
@@ -1861,6 +1918,46 @@ func (response GetCabalProposalPreviewdefaultApplicationProblemPlusJSONResponse)
 	return err
 }
 
+type GetCabalProposalPriceComparisonRequestObject struct {
+	Id         openapi_types.UUID `json:"id"`
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+}
+
+type GetCabalProposalPriceComparisonResponseObject interface {
+	VisitGetCabalProposalPriceComparisonResponse(w http.ResponseWriter) error
+}
+
+type GetCabalProposalPriceComparison200JSONResponse ProposalPriceComparison
+
+func (response GetCabalProposalPriceComparison200JSONResponse) VisitGetCabalProposalPriceComparisonResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCabalProposalPriceComparisondefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetCabalProposalPriceComparisondefaultApplicationProblemPlusJSONResponse) VisitGetCabalProposalPriceComparisonResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyPendingVotesRequestObject struct {
 }
 
@@ -2039,6 +2136,9 @@ type StrictServerInterface interface {
 	// GetCabalProposalPreview Preview a trade before proposing it.
 	// (GET /v1/cabals/{id}/proposals/preview)
 	GetCabalProposalPreview(ctx context.Context, request GetCabalProposalPreviewRequestObject) (GetCabalProposalPreviewResponseObject, error)
+	// GetCabalProposalPriceComparison Compare venues for an open buy proposal now.
+	// (GET /v1/cabals/{id}/proposals/{proposal_id}/price-comparison)
+	GetCabalProposalPriceComparison(ctx context.Context, request GetCabalProposalPriceComparisonRequestObject) (GetCabalProposalPriceComparisonResponseObject, error)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(ctx context.Context, request GetMyPendingVotesRequestObject) (GetMyPendingVotesResponseObject, error)
@@ -2260,6 +2360,33 @@ func (sh *strictHandler) GetCabalProposalPreview(w http.ResponseWriter, r *http.
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalProposalPreviewResponseObject); ok {
 		if err := validResponse.VisitGetCabalProposalPreviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCabalProposalPriceComparison operation middleware
+func (sh *strictHandler) GetCabalProposalPriceComparison(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, proposalId openapi_types.UUID) {
+	var request GetCabalProposalPriceComparisonRequestObject
+
+	request.Id = id
+	request.ProposalId = proposalId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCabalProposalPriceComparison(ctx, request.(GetCabalProposalPriceComparisonRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCabalProposalPriceComparison")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCabalProposalPriceComparisonResponseObject); ok {
+		if err := validResponse.VisitGetCabalProposalPriceComparisonResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

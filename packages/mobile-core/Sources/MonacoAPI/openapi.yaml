@@ -1673,6 +1673,43 @@ paths:
               example: {quote_out_amount: 21000000, advisory_code: null, advisory_message: null, pot_value_micros: 100000000}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/proposals/{proposal_id}/price-comparison:
+    get:
+      operationId: getCabalProposalPriceComparison
+      tags: [governance]
+      x-allow-restricted: true
+      summary: Compare venues for an open buy proposal now.
+      description: >-
+        Quotes the proposal's buy again across every venue and returns the result as of now, so a member
+        voting later sees the current best route. One result per proposal is reused for 15 seconds. The
+        comparison stored with the proposal does not change. When the venues cannot be compared,
+        `price_comparison` is absent and `quote_out_amount` is the Solana quote. Only members can read it,
+        and only for an open buy; a sell or a closed proposal answers not_found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - name: proposal_id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The comparison as of `quoted_at`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalPriceComparison"
+              example: {quote_out_amount: 40000000, quoted_at: "2026-10-10T12:00:00Z", price_comparison: {winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/pending-votes:
     get:
       operationId: getMyPendingVotes
@@ -6210,6 +6247,25 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    ProposalPriceComparison:
+      type: object
+      description: An open buy proposal's trade quoted again now.
+      required: [quote_out_amount, quoted_at]
+      properties:
+        price_comparison:
+          description: Every venue quoted now, best first. Absent when the venues could not be compared.
+          $ref: "#/components/schemas/PriceComparison"
+          examples: [{winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}]}]
+        quote_out_amount:
+          type: integer
+          format: int64
+          description: The quoted output, in the output asset's base units, from the winning venue or, without a comparison, from Jupiter.
+          examples: [40000000]
+        quoted_at:
+          type: string
+          format: date-time
+          description: When the quotes were taken.
+          examples: ["2026-10-10T12:00:00Z"]
     ProposalStatus:
       type: string
       description: Where a proposal is in its lifecycle.
