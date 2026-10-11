@@ -1,6 +1,7 @@
 package testkit
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -22,6 +23,20 @@ func Eventually(t *testing.T, cond func() bool, within time.Duration) {
 		select {
 		case <-deadline.C:
 			t.Fatalf("testkit.Eventually: condition still false after %s", within)
+		case <-tick.C:
+		}
+	}
+}
+
+func EventuallyBeforeTestEnds(t *testing.T, cond func() bool) {
+	t.Helper()
+	tick := time.NewTicker(eventuallyTick)
+	defer tick.Stop()
+	for !cond() {
+		select {
+		case <-t.Context().Done():
+			t.Fatalf("testkit.EventuallyBeforeTestEnds: condition still false when the test ended: %v",
+				context.Cause(t.Context()))
 		case <-tick.C:
 		}
 	}
