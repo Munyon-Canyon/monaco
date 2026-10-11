@@ -77,8 +77,7 @@ func TestChecks_reportOnlyTheFlowsInIDs(t *testing.T) {
 	}
 	env := testEnv()
 	env.Scripts = func(flows.Flow, string) bool { return false }
-	results, err := flows.ReadTestResults(strings.NewReader(passed("TestFlow07_Ghost_OK") + "\n" +
-		passed("TestFlow08_Ghost_OK") + "\n"))
+	results, err := flows.ReadTestResults(strings.NewReader(""))
 	if err != nil {
 		t.Fatal(err)
 	}

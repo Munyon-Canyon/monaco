@@ -109,6 +109,22 @@ func TestCheckTests_builtFlowsNeedAPassingTestPerOutcome(t *testing.T) {
 	}
 }
 
+func TestCheckTests_anOrphanTestIsReportedWhateverFlowsAreSelected(t *testing.T) {
+	t.Parallel()
+	parsed, problems := flows.Parse(fundFile, strings.NewReader(tsv(fundRow)))
+	if len(problems) != 0 {
+		t.Fatalf("parse problems = %v", lines(problems))
+	}
+	results, err := flows.ReadTestResults(strings.NewReader(passed("TestFlow30_Made_Up_OK")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{flows.Dir + ": test TestFlow30_Made_Up_OK matches no flow outcome; delete the test or add its row"}
+	if got := lines(flows.CheckTests(parsed, results, []string{"01"})); !slices.Equal(got, want) {
+		t.Fatalf("problems = %q, want %q", got, want)
+	}
+}
+
 func TestCheckTests_aMultiCommandRowTakesEachOutcomeFromAnyCommandAndTestsEveryCommand(t *testing.T) {
 	t.Parallel()
 	row := fundRowWith(func(c []string) { c[4], c[7] = "FundCabal;Refund", "ok;InsufficientFunds" })
