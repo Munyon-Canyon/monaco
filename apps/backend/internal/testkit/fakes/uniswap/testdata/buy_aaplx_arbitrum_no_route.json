@@ -1,0 +1,13 @@
+{
+  "request": {
+    "tokenIn": "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    "tokenOut": "0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a",
+    "amount": "100000000"
+  },
+  "status": 404,
+  "body": {
+    "errorCode": "NoRouteFoundError",
+    "detail": "No route with sufficient liquidity was found for this pair.",
+    "requestId": "d869bf994222d5484c85b87e51315922"
+  }
+}

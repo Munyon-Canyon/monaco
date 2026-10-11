@@ -1,0 +1,53 @@
+{
+  "request": {
+    "tokenIn": "0x14c3abf95cb9c93a8b82c1cdcb76d72cb87b2d4c",
+    "tokenOut": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "amount": "100000000"
+  },
+  "status": 200,
+  "body": {
+    "requestId": "289b92f946a684a6d978d9cf5c7f4ca8",
+    "routing": "CLASSIC",
+    "quote": {
+      "quoteId": "01a12a2f-e07f-8000-92ff-0d4e5bfb0100",
+      "chainId": 1,
+      "swapper": "0x000000000000000000000000000000000000dEaD",
+      "tradeType": "EXACT_OUTPUT",
+      "input": {
+        "amount": "300581109425298407",
+        "token": "0x14c3abF95Cb9C93a8b82C1CdCB76D72Cb87b2d4c"
+      },
+      "output": {
+        "amount": "100000000",
+        "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "recipient": "0x000000000000000000000000000000000000dEaD"
+      },
+      "priceImpact": 1.01,
+      "gasFee": "8967211948000",
+      "gasFeeUSD": "0.01562966630204811",
+      "gasUseEstimate": "97000",
+      "routeString": "[v3] 100.00% = [1%] 0xad82C9EB065a5CFed71DB087e4a52C8a09c69921",
+      "route": [
+        [
+          {
+            "type": "v3-pool",
+            "address": "0xad82C9EB065a5CFed71DB087e4a52C8a09c69921",
+            "fee": "10000",
+            "tokenIn": {
+              "address": "0x14c3abF95Cb9C93a8b82C1CdCB76D72Cb87b2d4c",
+              "symbol": "AAPLon",
+              "decimals": "18"
+            },
+            "tokenOut": {
+              "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "symbol": "USDC",
+              "decimals": "6"
+            },
+            "amountIn": "300581109425298407",
+            "amountOut": "100000000"
+          }
+        ]
+      ]
+    }
+  }
+}
