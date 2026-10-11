@@ -184,10 +184,11 @@ type EVMWallet struct {
 }
 
 type EVMTransaction struct {
-	Network chain.Network    `json:"network"`
-	To      chain.EVMAddress `json:"to"`
-	Data    []byte           `json:"data"`
-	Value   *big.Int         `json:"value"`
+	Network        chain.Network    `json:"network"`
+	To             chain.EVMAddress `json:"to"`
+	Data           []byte           `json:"data"`
+	Value          *big.Int         `json:"value"`
+	IdempotencyKey string           `json:"idempotency_key"`
 }
 
 type EVMWallets interface {
