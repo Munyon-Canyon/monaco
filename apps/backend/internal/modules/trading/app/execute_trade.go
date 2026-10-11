@@ -151,21 +151,22 @@ type tradeCheck func(context.Context, ExecuteTrade, *SwapRequest) (refusal, erro
 func (h *ExecuteTradeHandler) check(
 	ctx context.Context, cmd ExecuteTrade,
 ) (SwapRequest, multichain.Listing, refusal, error) {
-	req, refused, err := h.tradable(ctx, cmd)
-	if refused.refused() || err != nil {
-		return SwapRequest{}, multichain.Listing{}, refused, err
-	}
+	untradable := refusal{code: errs.CodeAssetUntradable}
 	winner, err := h.winner(ctx, cmd)
 	switch code := errs.CodeOf(err); {
 	case code == errs.CodeAssetNotFound || code == errs.CodeAssetUntradable:
-		return SwapRequest{}, multichain.Listing{}, refusal{code: errs.CodeAssetUntradable}, nil
+		return SwapRequest{}, multichain.Listing{}, untradable, nil
 	case err != nil:
 		return SwapRequest{}, multichain.Listing{}, refusal{}, err
+	}
+	req, refused, err := h.tradable(ctx, cmd, winner)
+	if refused.refused() || err != nil {
+		return SwapRequest{}, multichain.Listing{}, refused, err
 	}
 	checks := []tradeCheck{h.funds, h.slippage, h.price, h.paused}
 	switch {
 	case winner.Network.IsEVM():
-		checks = []tradeCheck{h.funds, h.slippage, h.paused}
+		checks = []tradeCheck{h.routedFunds, h.slippage, h.paused}
 	case winner.Network == chain.NetworkSolana:
 		req.OutMint = chain.Mint{Address: chain.SolanaAddress(winner.TokenAddress), Decimals: winner.Decimals}
 	}
@@ -177,15 +178,19 @@ func (h *ExecuteTradeHandler) check(
 	return req, winner, refusal{}, nil
 }
 
-func (h *ExecuteTradeHandler) tradable(ctx context.Context, cmd ExecuteTrade) (SwapRequest, refusal, error) {
+func (h *ExecuteTradeHandler) tradable(
+	ctx context.Context, cmd ExecuteTrade, winner multichain.Listing,
+) (SwapRequest, refusal, error) {
 	untradable := refusal{code: errs.CodeAssetUntradable}
 	asset, err := h.d.Ports.Catalog.AssetBySymbol(ctx, cmd.Symbol)
+	routedRetry := winner.Network.IsEVM() &&
+		string(cmd.Mint) == evmAsset(winner.Network, winner.TokenAddress)
 	switch {
 	case errs.CodeOf(err) == errs.CodeAssetNotFound:
 		return SwapRequest{}, untradable, nil
 	case err != nil:
 		return SwapRequest{}, refusal{}, err
-	case !asset.Tradable() || asset.Mint.Address() != cmd.Mint:
+	case !asset.Tradable() || asset.Mint.Address() != cmd.Mint && !routedRetry:
 		return SwapRequest{}, untradable, nil
 	}
 	wallet, err := h.d.Ports.Cabals.TreasuryWallet(ctx, cmd.CabalID)
@@ -193,6 +198,23 @@ func (h *ExecuteTradeHandler) tradable(ctx context.Context, cmd ExecuteTrade) (S
 		return SwapRequest{}, refusal{}, err
 	}
 	return h.request(cmd, asset, wallet), refusal{}, nil
+}
+
+func (h *ExecuteTradeHandler) routedFunds(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
+	if cmd.Retry != nil {
+		stranded, err := sqlc.New(h.d.Reads).StrandedCash(ctx, cmd.Retry.Of.UUID())
+		if err != nil || stranded {
+			return refusal{}, err
+		}
+	}
+	have, err := h.d.Ports.Balances.TokenBalance(ctx, req.TreasuryWallet.Address, req.InMint)
+	switch {
+	case err != nil:
+		return refusal{}, err
+	case have.Uint64() < req.InAmount:
+		return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: req.InAmount}, nil
+	}
+	return refusal{}, nil
 }
 
 func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w cabalport.TreasuryWallet) SwapRequest {

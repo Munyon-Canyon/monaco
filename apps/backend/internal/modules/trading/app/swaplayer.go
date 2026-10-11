@@ -344,9 +344,20 @@ func (r SwapRequest) recordRoute(ctx context.Context, tx db.Tx, insert sqlc.Inse
 	case r.Route != nil:
 		return RecordRoute(ctx, tx, ids.SwapIDFrom(insert.ID), *r.Route, insert.CreatedAt)
 	case r.RouteOf != nil:
-		return sqlc.New(tx.Queries()).CopyTradeRoute(ctx, sqlc.CopyTradeRouteParams{
+		q := sqlc.New(tx.Queries())
+		err := q.CopyTradeRoute(ctx, sqlc.CopyTradeRouteParams{
 			ToTrade: insert.ID, At: insert.CreatedAt, FromTrade: r.RouteOf.UUID(),
 		})
+		if err == nil {
+			err = q.LockStrandedCash(ctx, r.RouteOf.UUID())
+		}
+		if err == nil {
+			_, err = q.ReuseStrandedCash(ctx, sqlc.ReuseStrandedCashParams{
+				ID: uuid.NewSHA1(insert.ID, []byte("reused:bridge_out")), ToTrade: insert.ID, At: insert.CreatedAt,
+				FromTrade: r.RouteOf.UUID(),
+			})
+		}
+		return err
 	}
 	return nil
 }
