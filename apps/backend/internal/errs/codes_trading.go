@@ -11,6 +11,9 @@ const (
 	CodeTradeNotStarted  Code = "trade_not_started"
 	CodeSwapNotSent      Code = "swap_not_sent"
 	CodeCabalSharesShort Code = "cabal_shares_short"
+
+	CodePinnedChainUnavailable Code = "pinned_chain_unavailable"
+	CodeChainTradingOff        Code = "chain_trading_off"
 )
 
 func (codeFiles) Trading() map[Code]Row {
@@ -45,6 +48,14 @@ func (codeFiles) Trading() map[Code]Row {
 		},
 		CodeCabalSharesShort: {
 			Name: "CabalSharesShort", Kind: KindBlocked, Message: "The cabal doesn't hold that many shares.",
+		},
+		CodePinnedChainUnavailable: {
+			Name: "PinnedChainUnavailable", Kind: KindBlocked,
+			Message: "No route on the chosen chain right now. The money is still in the pot.",
+		},
+		CodeChainTradingOff: {
+			Name: "ChainTradingOff", Kind: KindBlocked,
+			Message: "Trading on the chosen chain isn't open yet. The money is still in the pot.",
 		},
 	}
 }

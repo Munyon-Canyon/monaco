@@ -68,7 +68,7 @@ func TestRecordRouteStoresTheComparisonOncePerSwap(t *testing.T) {
 	second := routedComparison(t, e, solana, base)
 	for _, c := range []multichain.Comparison{first, second} {
 		err := e.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
-			return RecordRoute(ctx, tx, ids.SwapIDFrom(swap.ID), c, e.clk.Now())
+			return RecordRoute(ctx, tx, ids.SwapIDFrom(swap.ID), c, "", e.clk.Now())
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -98,7 +98,7 @@ func TestRecordRouteRefusesAComparisonWithNoWinnerListing(t *testing.T) {
 		insertListing(t, e, chain.NetworkSolana, "route-missing-"+swap.ID.String()))
 	c.Winner = multichain.ListingID{}
 	err := e.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
-		return RecordRoute(ctx, tx, ids.SwapIDFrom(swap.ID), c, e.clk.Now())
+		return RecordRoute(ctx, tx, ids.SwapIDFrom(swap.ID), c, "", e.clk.Now())
 	})
 	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("err = %v, want internal", err)

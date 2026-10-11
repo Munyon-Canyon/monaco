@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -16,32 +17,38 @@ import (
 )
 
 func (h *ExecuteTradeHandler) winner(ctx context.Context, cmd ExecuteTrade) (multichain.Listing, error) {
-	id, routed, err := h.winnerID(ctx, cmd)
+	id, pin, routed, err := h.winnerID(ctx, cmd)
 	if err != nil || !routed {
 		return multichain.Listing{}, err
 	}
 	listing, err := h.d.Listings.Listing(ctx, id)
-	if listing.Network.IsEVM() && !h.d.EVM {
+	switch {
+	case listing.Network.IsEVM() && !h.d.EVM && pin != "":
+		return multichain.Listing{}, errs.New(errs.CodeChainTradingOff, "trading.ExecuteTrade.winner",
+			slog.String("network", string(pin)))
+	case listing.Network.IsEVM() && !h.d.EVM:
 		return multichain.Listing{}, err
 	}
 	return listing, err
 }
 
-func (h *ExecuteTradeHandler) winnerID(ctx context.Context, cmd ExecuteTrade) (multichain.ListingID, bool, error) {
+func (h *ExecuteTradeHandler) winnerID(
+	ctx context.Context, cmd ExecuteTrade,
+) (multichain.ListingID, chain.Network, bool, error) {
 	switch {
 	case cmd.Route != nil:
-		return cmd.Route.Winner, true, nil
+		return cmd.Route.Winner, cmd.Pin, true, nil
 	case cmd.Retry == nil || cmd.unrouted:
-		return multichain.ListingID{}, false, nil
+		return multichain.ListingID{}, cmd.Pin, false, nil
 	}
 	row, err := sqlc.New(h.d.Reads).FindTradeRoute(ctx, cmd.Retry.Of.UUID())
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return multichain.ListingID{}, false, nil
+		return multichain.ListingID{}, cmd.Pin, false, nil
 	case err != nil:
-		return multichain.ListingID{}, false, errs.Wrap(err, errs.CodeInternal, "trading.ExecuteTrade.winner")
+		return multichain.ListingID{}, "", false, errs.Wrap(err, errs.CodeInternal, "trading.ExecuteTrade.winner")
 	}
-	return multichain.ListingIDFrom(row.WinnerListingID), true, nil
+	return multichain.ListingIDFrom(row.WinnerListingID), chain.Network(row.PinnedNetwork), true, nil
 }
 
 type retryRoute struct {
@@ -50,13 +57,20 @@ type retryRoute struct {
 	stranded bool
 	returned bool
 	listing  multichain.ListingID
+	pin      chain.Network
 }
 
 func (h *ExecuteTradeHandler) reroute(ctx context.Context, cmd ExecuteTrade) (ExecuteTrade, error) {
-	if cmd.Action != domain.ActionBuy || h.d.Router == nil {
+	switch {
+	case cmd.Action != domain.ActionBuy:
+		return cmd, nil
+	case h.d.Router == nil && cmd.Pin != "" && cmd.Route != nil:
+		return pinRoute(cmd, *cmd.Route)
+	case h.d.Router == nil:
 		return cmd, nil
 	}
 	route, err := h.routedStock(ctx, cmd)
+	cmd.Pin = cmp.Or(cmd.Pin, route.pin)
 	switch {
 	case err != nil || !route.routed && !route.stranded && !route.returned:
 		return cmd, err
@@ -75,16 +89,43 @@ func (h *ExecuteTradeHandler) freshRoute(
 	if cmd.Mint, err = h.solanaMint(ctx, cmd); err != nil {
 		return cmd, err
 	}
-	fresh, err := h.d.Router.Best(ctx, route.stock, multichain.SideBuy, cmd.USDCMicros)
+	fresh, err := h.best(ctx, route.stock, cmd)
 	switch {
+	case err == nil && cmd.Pin != "":
+		return pinRoute(cmd, fresh)
 	case err == nil:
 		cmd.Route = &fresh
 	case errs.Retryable(errs.CodeOf(err)):
 		return cmd, err
+	case cmd.Pin.IsEVM():
+		return cmd, pinMissed(cmd.Pin, err)
 	default:
 		cmd.Route, cmd.unrouted = nil, true
 	}
 	return cmd, nil
+}
+
+func (h *ExecuteTradeHandler) best(
+	ctx context.Context, stock multichain.StockID, cmd ExecuteTrade,
+) (multichain.Comparison, error) {
+	if cmd.Pin.IsEVM() {
+		return multichain.BestOn(ctx, h.d.Router, stock, multichain.SideBuy, cmd.USDCMicros, cmd.Pin)
+	}
+	return h.d.Router.Best(ctx, stock, multichain.SideBuy, cmd.USDCMicros)
+}
+
+func pinRoute(cmd ExecuteTrade, c multichain.Comparison) (ExecuteTrade, error) {
+	pinned, ok := c.Pin(cmd.Pin)
+	if !ok {
+		return cmd, pinMissed(cmd.Pin, nil)
+	}
+	cmd.Route = &pinned
+	return cmd, nil
+}
+
+func pinMissed(pin chain.Network, cause error) error {
+	return errs.New(errs.CodePinnedChainUnavailable, "trading.ExecuteTrade.pin",
+		slog.String("network", string(pin)), slog.Any("cause", cause))
 }
 
 func (h *ExecuteTradeHandler) strandedRoute(
@@ -94,6 +135,9 @@ func (h *ExecuteTradeHandler) strandedRoute(
 ) (ExecuteTrade, error) {
 	of := cmd.Retry.Of
 	var solana *multichain.Comparison
+	if !route.returned && cmd.Pin != "" {
+		return cmd, nil
+	}
 	if !route.returned {
 		fresh, err := h.d.Router.Best(ctx, route.stock, multichain.SideBuy, cmd.USDCMicros)
 		if errs.Retryable(errs.CodeOf(err)) {
@@ -115,6 +159,10 @@ func (h *ExecuteTradeHandler) strandedRoute(
 	case !done:
 		return cmd, errs.New(errs.CodeUpstreamUnavailable, "trading.ExecuteTrade.strandedRoute",
 			slog.String("swap_id", of.String()), slog.String("reason", "bridge_back_pending"))
+	}
+	if cmd.Pin != "" {
+		cmd.USDCMicros = landed
+		return h.freshRoute(ctx, cmd, route)
 	}
 	if cmd.Mint, err = h.solanaMint(ctx, cmd); err != nil {
 		return cmd, err
@@ -195,7 +243,7 @@ func (h *ExecuteTradeHandler) routedStock(ctx context.Context, cmd ExecuteTrade)
 	}
 	return retryRoute{
 		stock: stored.StockID, routed: !stranded && !returned, stranded: stranded, returned: returned,
-		listing: stored.Winner,
+		listing: stored.Winner, pin: chain.Network(row.PinnedNetwork),
 	}, nil
 }
 

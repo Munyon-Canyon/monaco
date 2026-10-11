@@ -14,7 +14,8 @@ import (
 )
 
 const findTradeRoute = `-- name: FindTradeRoute :one
-SELECT trade_id, comparison, winner_listing_id, created_at FROM trade_routes
+SELECT trade_id, comparison, winner_listing_id, created_at, coalesce(pinned_network, '')::text AS pinned_network
+FROM trade_routes
 WHERE trade_id = $1
 `
 
@@ -23,6 +24,7 @@ type FindTradeRouteRow struct {
 	Comparison      []byte
 	WinnerListingID uuid.UUID
 	CreatedAt       time.Time
+	PinnedNetwork   string
 }
 
 func (q *Queries) FindTradeRoute(ctx context.Context, tradeID uuid.UUID) (FindTradeRouteRow, error) {
@@ -33,13 +35,17 @@ func (q *Queries) FindTradeRoute(ctx context.Context, tradeID uuid.UUID) (FindTr
 		&i.Comparison,
 		&i.WinnerListingID,
 		&i.CreatedAt,
+		&i.PinnedNetwork,
 	)
 	return i, err
 }
 
 const insertTradeRoute = `-- name: InsertTradeRoute :exec
-INSERT INTO trade_routes (trade_id, comparison, winner_listing_id, created_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO trade_routes (trade_id, comparison, winner_listing_id, created_at, pinned_network)
+VALUES (
+  $1, $2, $3, $4,
+  NULLIF($5::text, '')
+)
 ON CONFLICT (trade_id) DO NOTHING
 `
 
@@ -48,6 +54,7 @@ type InsertTradeRouteParams struct {
 	Comparison      []byte
 	WinnerListingID uuid.UUID
 	CreatedAt       time.Time
+	PinnedNetwork   string
 }
 
 func (q *Queries) InsertTradeRoute(ctx context.Context, arg InsertTradeRouteParams) error {
@@ -56,6 +63,7 @@ func (q *Queries) InsertTradeRoute(ctx context.Context, arg InsertTradeRoutePara
 		arg.Comparison,
 		arg.WinnerListingID,
 		arg.CreatedAt,
+		arg.PinnedNetwork,
 	)
 	return err
 }

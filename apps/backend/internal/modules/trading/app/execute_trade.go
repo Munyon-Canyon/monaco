@@ -30,6 +30,7 @@ type ExecuteTrade struct {
 	QuoteOutAmount uint64
 	Retry          *Retry
 	Route          *multichain.Comparison
+	Pin            chain.Network
 	unrouted       bool
 }
 
@@ -155,6 +156,9 @@ func (h *ExecuteTradeHandler) check(
 ) (SwapRequest, multichain.Listing, refusal, error) {
 	untradable := refusal{code: errs.CodeAssetUntradable}
 	cmd, err := h.reroute(ctx, cmd)
+	if code := errs.CodeOf(err); pinRefused(code) {
+		return SwapRequest{}, multichain.Listing{}, refusal{code: code}, nil
+	}
 	if err != nil {
 		return SwapRequest{}, multichain.Listing{}, refusal{}, err
 	}
@@ -162,6 +166,8 @@ func (h *ExecuteTradeHandler) check(
 	switch code := errs.CodeOf(err); {
 	case code == errs.CodeAssetNotFound || code == errs.CodeAssetUntradable:
 		return SwapRequest{}, multichain.Listing{}, untradable, nil
+	case pinRefused(code):
+		return SwapRequest{}, multichain.Listing{}, refusal{code: code}, nil
 	case err != nil:
 		return SwapRequest{}, multichain.Listing{}, refusal{}, err
 	}
@@ -175,6 +181,10 @@ func (h *ExecuteTradeHandler) check(
 		}
 	}
 	return req, winner, refusal{}, nil
+}
+
+func pinRefused(code errs.Code) bool {
+	return code == errs.CodePinnedChainUnavailable || code == errs.CodeChainTradingOff
 }
 
 func (h *ExecuteTradeHandler) checks(cmd ExecuteTrade, winner multichain.Listing, req *SwapRequest) []tradeCheck {
@@ -255,7 +265,7 @@ func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w ca
 		StillWanted: func(ctx context.Context) (bool, error) {
 			return h.d.Ports.Proposals.Retryable(ctx, cmd.ProposalID)
 		},
-		Route: cmd.Route,
+		Route: cmd.Route, Pin: cmd.Pin,
 	}
 	if cmd.Retry != nil && !cmd.unrouted {
 		req.RouteOf = &cmd.Retry.Of
