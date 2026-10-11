@@ -38,6 +38,7 @@ const (
 	FailureForceResolved    FailureCode = "force_resolved"
 	FailureSourceCancelled  FailureCode = "source_cancelled"
 	FailurePriceMoved       FailureCode = "price_moved"
+	FailureSwapReverted     FailureCode = "swap_reverted"
 )
 
 func FailureCodes() []FailureCode {
@@ -48,6 +49,7 @@ func FailureCodes() []FailureCode {
 		FailureForceResolved,
 		FailureSourceCancelled,
 		FailurePriceMoved,
+		FailureSwapReverted,
 	}
 }
 
@@ -85,6 +87,7 @@ func failsFrom() map[FailureCode]Status {
 		FailureForceResolved:    StatusSubmitted,
 		FailureSourceCancelled:  StatusCreated,
 		FailurePriceMoved:       StatusCreated,
+		FailureSwapReverted:     StatusSubmitted,
 	}
 }
 

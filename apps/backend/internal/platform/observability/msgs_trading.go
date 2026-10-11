@@ -34,3 +34,10 @@ var TradingCashOutSellStubbed = Msg{
 	Name:     "trading.cashout_sell.stubbed",
 	Required: []string{"job_id", "cabal_id", "usdc_micros"},
 }
+
+var TradingStepChanged = Msg{
+	Name: "trading.step.changed",
+	Required: []string{
+		"swap_id", "cabal_id", "step", "network", "before_status", "status", "amount_micros", "fee_micros",
+	},
+}

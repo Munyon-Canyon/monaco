@@ -1,10 +1,12 @@
 package multichaintest_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -108,4 +110,22 @@ func TestTradeStepsAreUniquePerStep(t *testing.T) {
 		WHERE table_name = 'cabal_positions' AND column_name = 'listing_id' AND is_nullable = 'YES'`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("cabal_positions.listing_id nullable columns = %d, %v", n, err)
 	}
+}
+
+func TestSwapFailureCodesIncludeSwapReverted(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	insert := `INSERT INTO swaps (id, source_kind, source_id, cabal_id, treasury_address, action, symbol, in_mint,
+		out_mint, in_amount, slippage_bps, status, failure_code, created_at, updated_at)
+		VALUES (gen_random_uuid(), 'proposal', gen_random_uuid(), gen_random_uuid(), $1, 'buy', 'AAPLx', 'usdc',
+		'aaplx', 1000000, 100, 'failed', $2, now(), now())`
+	stmts := make([]stmt, 0, 1+len(domain.FailureCodes()))
+	stmts = append(stmts, stmt{"unknown code", insert, []any{evmAddr, "exploded"}, false})
+	for _, code := range domain.FailureCodes() {
+		stmts = append(stmts, stmt{string(code), insert, []any{evmAddr, string(code)}, true})
+	}
+	if !slices.Contains(domain.FailureCodes(), domain.FailureSwapReverted) {
+		t.Fatal("swap_reverted is not a failure code")
+	}
+	run(t, pool, stmts)
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const journalOp = "trading.Journal"
@@ -50,9 +51,18 @@ func (j Journal) Begin(ctx context.Context, ref domain.StepRef, amount money.Mic
 		case n == 0:
 			return nil
 		}
+		changed := step
+		tx.AfterCommit(func(ctx context.Context) { logStep(ctx, ref, "", changed, money.Micros{}) })
 		return tx.Events.Append(ctx, stepChanged(ref, step, money.Micros{}))
 	})
 	return step, err
+}
+
+type stepMove struct {
+	to       domain.StepStatus
+	actionID string
+	reason   string
+	fee      money.Micros
 }
 
 func (j Journal) Submitted(ctx context.Context, ref domain.StepRef, actionID string) (bool, error) {
@@ -63,30 +73,26 @@ func (j Journal) submitted(ctx context.Context, tx db.Tx, ref domain.StepRef, ac
 	if actionID == "" {
 		return false, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)))
 	}
-	return j.move(ctx, tx, ref, money.Micros{}, func(q *sqlc.Queries) (int64, error) {
-		return q.MarkTradeStepSubmitted(ctx, sqlc.MarkTradeStepSubmittedParams{
-			PrivyActionID: actionID, At: j.Clock.Now(), TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
-		})
-	})
+	return j.move(ctx, tx, ref, stepMove{to: domain.StepSubmitted, actionID: actionID})
 }
 
 func (j Journal) Succeeded(ctx context.Context, ref domain.StepRef, fee money.Micros) (bool, error) {
-	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) {
-		return j.move(ctx, tx, ref, fee, func(q *sqlc.Queries) (int64, error) {
-			return j.finish(ctx, q, ref, domain.StepSucceeded, "")
-		})
-	})
+	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) { return j.succeeded(ctx, tx, ref, fee) })
+}
+
+func (j Journal) succeeded(ctx context.Context, tx db.Tx, ref domain.StepRef, fee money.Micros) (bool, error) {
+	return j.move(ctx, tx, ref, stepMove{to: domain.StepSucceeded, fee: fee})
 }
 
 func (j Journal) Failed(ctx context.Context, ref domain.StepRef, reason string) (bool, error) {
+	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) { return j.failed(ctx, tx, ref, reason) })
+}
+
+func (j Journal) failed(ctx context.Context, tx db.Tx, ref domain.StepRef, reason string) (bool, error) {
 	if reason == "" {
 		return false, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)))
 	}
-	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) {
-		return j.move(ctx, tx, ref, money.Micros{}, func(q *sqlc.Queries) (int64, error) {
-			return j.finish(ctx, q, ref, domain.StepFailed, reason)
-		})
-	})
+	return j.move(ctx, tx, ref, stepMove{to: domain.StepFailed, reason: reason})
 }
 
 func (j Journal) Step(ctx context.Context, swap ids.SwapID, kind domain.StepKind) (domain.TradeStep, bool, error) {
@@ -95,14 +101,6 @@ func (j Journal) Step(ctx context.Context, swap ids.SwapID, kind domain.StepKind
 		return domain.TradeStep{}, false, nil
 	}
 	return step, err == nil, err
-}
-
-func (j Journal) finish(
-	ctx context.Context, q *sqlc.Queries, ref domain.StepRef, to domain.StepStatus, reason string,
-) (int64, error) {
-	return q.FinishTradeStep(ctx, sqlc.FinishTradeStepParams{
-		Status: string(to), Error: reason, At: j.Clock.Now(), TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
-	})
 }
 
 func (j Journal) in(ctx context.Context, fn func(ctx context.Context, tx db.Tx) (bool, error)) (bool, error) {
@@ -115,23 +113,55 @@ func (j Journal) in(ctx context.Context, fn func(ctx context.Context, tx db.Tx) 
 	return moved && err == nil, err
 }
 
-func (j Journal) move(
-	ctx context.Context, tx db.Tx, ref domain.StepRef, fee money.Micros, apply func(*sqlc.Queries) (int64, error),
-) (bool, error) {
+func (j Journal) move(ctx context.Context, tx db.Tx, ref domain.StepRef, m stepMove) (bool, error) {
 	q := sqlc.New(tx.Queries())
-	n, err := apply(q)
+	before, err := readStep(ctx, q, ref.SwapID, ref.Step)
+	switch {
+	case errs.CodeOf(err) == errs.CodeNotFound:
+		return false, nil
+	case err != nil:
+		return false, err
+	case m.fee.Cmp(before.Amount) > 0:
+		return false, errs.New(errs.CodeInvalidInput, journalOp,
+			slog.String("fee_micros", m.fee.String()), slog.String("amount_micros", before.Amount.String()))
+	}
+	n, err := j.apply(ctx, q, ref, m)
 	if err != nil || n == 0 {
 		return false, err
 	}
-	step, err := readStep(ctx, q, ref.SwapID, ref.Step)
-	if err != nil {
-		return false, err
+	after := before
+	after.Status = m.to
+	if m.actionID != "" {
+		after.PrivyActionID = m.actionID
 	}
-	if fee.Cmp(step.Amount) > 0 {
-		return false, errs.New(errs.CodeInvalidInput, journalOp,
-			slog.String("fee_micros", fee.String()), slog.String("amount_micros", step.Amount.String()))
+	tx.AfterCommit(func(ctx context.Context) { logStep(ctx, ref, before.Status, after, m.fee) })
+	return true, tx.Events.Append(ctx, stepChanged(ref, after, m.fee))
+}
+
+func (j Journal) apply(ctx context.Context, q *sqlc.Queries, ref domain.StepRef, m stepMove) (int64, error) {
+	at, trade, kind := j.Clock.Now(), ref.SwapID.UUID(), string(ref.Step)
+	if m.to == domain.StepSubmitted {
+		return q.MarkTradeStepSubmitted(ctx, sqlc.MarkTradeStepSubmittedParams{
+			PrivyActionID: m.actionID, At: at, TradeID: trade, Step: kind,
+		})
 	}
-	return true, tx.Events.Append(ctx, stepChanged(ref, step, fee))
+	return q.FinishTradeStep(ctx, sqlc.FinishTradeStepParams{
+		Status: string(m.to), Error: m.reason, At: at, TradeID: trade, Step: kind,
+	})
+}
+
+func logStep(
+	ctx context.Context,
+	ref domain.StepRef,
+	before domain.StepStatus,
+	step domain.TradeStep,
+	fee money.Micros,
+) {
+	observability.Info(ctx, observability.TradingStepChanged,
+		slog.String("swap_id", ref.SwapID.String()), slog.String("cabal_id", ref.CabalID.String()),
+		slog.String("step", string(step.Step)), slog.String("network", string(step.Network)),
+		slog.String("before_status", string(before)), slog.String("status", string(step.Status)),
+		slog.String("amount_micros", step.Amount.String()), slog.String("fee_micros", fee.String()))
 }
 
 func stepChanged(ref domain.StepRef, step domain.TradeStep, fee money.Micros) events.TradeStepChanged {

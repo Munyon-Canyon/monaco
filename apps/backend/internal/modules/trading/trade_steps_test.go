@@ -1,8 +1,10 @@
 package trading_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -329,5 +332,71 @@ func TestJournal_beginRefusesAStoredStepOnAnotherNetwork(t *testing.T) {
 	}
 	if s := e.step(t); s.Network != chain.NetworkBase || s.Status != domain.StepPending {
 		t.Fatalf("step = %+v, want the pending base row untouched", s)
+	}
+}
+
+type stepLog struct {
+	Msg          string `json:"msg"`
+	SwapID       string `json:"swap_id"`
+	CabalID      string `json:"cabal_id"`
+	Step         string `json:"step"`
+	Network      string `json:"network"`
+	BeforeStatus string `json:"before_status"`
+	Status       string `json:"status"`
+	AmountMicros string `json:"amount_micros"`
+	FeeMicros    string `json:"fee_micros"`
+}
+
+func stepLogs(t *testing.T, logs *testkit.Logs) []stepLog {
+	t.Helper()
+	var out []stepLog
+	for line := range bytes.Lines(logs.Bytes()) {
+		var l stepLog
+		if err := json.Unmarshal(line, &l); err != nil {
+			t.Fatal(err)
+		}
+		if l.Msg == observability.TradingStepChanged.Name {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func TestJournal_logsEachCommittedTransitionOnceAfterTheCommit(t *testing.T) {
+	t.Parallel()
+	e := newStepEnv(t)
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(stepCtx(t), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+
+	if _, err := e.journal.Begin(ctx, e.ref, money.MicrosFromUint64(10_000_000)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.journal.Begin(ctx, e.ref, money.MicrosFromUint64(10_000_000)); err != nil {
+		t.Fatal(err)
+	}
+	moved, err := e.journal.Submitted(ctx, e.ref, "privy-action-1")
+	wantMoved(t, "Submitted", moved, err, true)
+	if _, err := e.journal.Succeeded(ctx, e.ref, money.MicrosFromUint64(10_000_001)); err == nil {
+		t.Fatal("a fee above the amount succeeded")
+	}
+	moved, err = e.journal.Succeeded(ctx, e.ref, money.MicrosFromUint64(7_500))
+	wantMoved(t, "Succeeded", moved, err, true)
+	moved, err = e.journal.Succeeded(ctx, e.ref, money.MicrosFromUint64(7_500))
+	wantMoved(t, "second Succeeded", moved, err, false)
+
+	line := func(before, status domain.StepStatus, fee string) stepLog {
+		return stepLog{
+			Msg: observability.TradingStepChanged.Name, SwapID: e.ref.SwapID.String(), CabalID: e.ref.CabalID.String(),
+			Step: "bridge_out", Network: "base", BeforeStatus: string(before), Status: string(status),
+			AmountMicros: "10000000", FeeMicros: fee,
+		}
+	}
+	want := []stepLog{
+		line("", domain.StepPending, "0"),
+		line(domain.StepPending, domain.StepSubmitted, "0"),
+		line(domain.StepSubmitted, domain.StepSucceeded, "7500"),
+	}
+	if got := stepLogs(t, logs); !slices.Equal(got, want) {
+		t.Fatalf("step logs = %+v, want %+v", got, want)
 	}
 }

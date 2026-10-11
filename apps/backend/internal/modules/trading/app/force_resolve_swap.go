@@ -72,8 +72,8 @@ func (h *ForceResolveSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd F
 	if err != nil {
 		return SwapView{}, forceResolveFound(err)
 	}
-	if row.Status != string(domain.StatusSubmitted) {
-		return SwapView{}, errs.New(errs.CodeSwapNotStuck, forceResolveSwapOp)
+	if err := forceResolvable(row); err != nil {
+		return SwapView{}, err
 	}
 	req, err := sweepRequest(
 		row.CabalID,
@@ -145,6 +145,13 @@ func (cmd ForceResolveSwap) step(req SwapRequest, id uuid.UUID) step {
 		return confirmed(req, id, cmd.Signature, cmd.OutAmount.Uint64(), out)
 	}
 	return failed(req, id, domain.FailureForceResolved, "")
+}
+
+func forceResolvable(row sqlc.SwapForForceResolveRow) error {
+	if row.Status != string(domain.StatusSubmitted) || row.Routed {
+		return errs.New(errs.CodeSwapNotStuck, forceResolveSwapOp, slog.Bool("routed", row.Routed))
+	}
+	return nil
 }
 
 func forceResolveFound(err error) error {

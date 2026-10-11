@@ -39,6 +39,7 @@ func wantNext() map[domain.Status]map[string]domain.Status {
 			"fail(blockhash_expired)": domain.StatusFailed,
 			"fail(jupiter_failed)":    domain.StatusFailed,
 			"fail(force_resolved)":    domain.StatusFailed,
+			"fail(swap_reverted)":     domain.StatusFailed,
 		},
 		domain.StatusConfirmed: {},
 		domain.StatusFailed:    {},
