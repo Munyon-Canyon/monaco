@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
@@ -97,10 +98,11 @@ type multichainParts struct {
 }
 
 func newMultichain() multichainParts {
+	quoter := adapters.MultichainRoutingQuoter()
 	return multichainParts{
-		quoter: adapters.MultichainRoutingQuoter(),
+		quoter: quoter,
 		router: adapters.MultichainRoutingRouter(),
-		prices: adapters.MultichainPricesEVMPriceSource(),
+		prices: adapters.MultichainPricesEVMPriceSource(quoter),
 	}
 }
 
@@ -222,8 +224,11 @@ func (m *Module) PriceHints(ctx context.Context, meter metric.Meter) (func(), er
 func (m *Module) samplePrices() *app.SamplePrices {
 	cfg := m.deps.Config
 	source := jupiterprices.New(m.deps.JupiterClient())
+	gaps, _ := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/market").
+		Int64Counter("market_listing_price_gap_total",
+			metric.WithDescription("EVM listing prices more than 2% from the stock's Solana price, by listing."))
 	return app.NewSamplePrices(
 		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, source, m.deps.Bus, cfg.Market.PricePollInterval,
 		m.hot...,
-	)
+	).WithEVM(app.EVMSampling{Source: m.multichain.prices, Gaps: gaps})
 }

@@ -41,15 +41,18 @@ type SamplePrices struct {
 	ticks    CorePublisher
 	interval time.Duration
 	hot      []HotMints
+	listings *PriceBook
+	evm      EVMSampling
 }
 
 func NewSamplePrices(
 	uow *db.UnitOfWork, reads sqlc.DBTX, g ids.Generator, c clock.Clock, source PriceSource,
 	ticks CorePublisher, interval time.Duration, hot ...HotMints,
 ) *SamplePrices {
+	book := NewPriceBook(reads, c)
 	return &SamplePrices{
-		uow: uow, ids: g, clock: c, catalog: NewCatalog(reads), book: NewPriceBook(reads, c), source: source,
-		ticks: ticks, interval: interval, hot: hot,
+		uow: uow, ids: g, clock: c, catalog: NewCatalog(reads), book: book, source: source,
+		ticks: ticks, interval: interval, hot: hot, listings: book,
 	}
 }
 
@@ -83,6 +86,10 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 		}
 	}
 	written, err := p.insert(ctx, rows)
+	var evmAttrs []slog.Attr
+	if err == nil {
+		evmAttrs, err = p.sampleListings(ctx, at, answered)
+	}
 	var pubErr error
 	if err == nil {
 		pubErr = p.publish(ctx, at, assets)
@@ -102,6 +109,7 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 		slog.Int("priced", len(rows.Mints)), slog.Int("missing", missing),
 		slog.Int("hot", need.hot), slog.Int("total", len(asked)), slog.Int("failed_batches", 0),
 	}}
+	report.Attrs = append(report.Attrs, evmAttrs...)
 	if sampleErr != nil {
 		return report, errs.Wrap(sampleErr, errs.CodeOf(sampleErr), "market.SamplePrices.Tick",
 			slog.Int("written", written), slog.Int("missing", missing),
