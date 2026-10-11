@@ -44,6 +44,7 @@ func (s StockListings) EnabledListings(ctx context.Context, stock multichain.Sto
 			),
 			SharesPerToken: shares,
 			Venue:          multichain.Venue(row.Venue),
+			Enabled:        row.Enabled,
 		})
 	}
 	return out, nil

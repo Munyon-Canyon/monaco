@@ -20,7 +20,8 @@ SELECT a.id, a.symbol, l.token_address AS mint, l.decimals, a.issuer, a.kind, a.
   a.ui_multiplier_next_at, a.last_quoted_at, l.shares_per_token::text AS shares_per_token
 FROM asset_listings AS l
 JOIN assets AS a ON a.id = l.asset_id
-WHERE l.network = $1::text AND l.token_address = $2::text AND l.decimals IS NOT NULL
+WHERE l.network = $1::text AND l.token_address = $2::text
+  AND l.decimals IS NOT NULL AND l.verified_at IS NOT NULL
 `
 
 type AssetByListingTokenParams struct {
