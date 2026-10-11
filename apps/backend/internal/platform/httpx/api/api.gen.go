@@ -590,16 +590,61 @@ func (e RouteCostKind) Valid() bool {
 
 // Defines values for RouteQuoteVenue.
 const (
-	Jupiter RouteQuoteVenue = "jupiter"
-	Uniswap RouteQuoteVenue = "uniswap"
+	RouteQuoteVenueJupiter RouteQuoteVenue = "jupiter"
+	RouteQuoteVenueUniswap RouteQuoteVenue = "uniswap"
 )
 
 // Valid indicates whether the value is a known member of the RouteQuoteVenue enum.
 func (e RouteQuoteVenue) Valid() bool {
 	switch e {
-	case Jupiter:
+	case RouteQuoteVenueJupiter:
 		return true
-	case Uniswap:
+	case RouteQuoteVenueUniswap:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UnavailableVenueReason.
+const (
+	UnavailableExpired UnavailableVenueReason = "expired"
+	UnavailableImpact UnavailableVenueReason = "impact"
+	UnavailableNoRoute UnavailableVenueReason = "no_route"
+	UnavailableSimulationFailed UnavailableVenueReason = "simulation_failed"
+	UnavailableStale UnavailableVenueReason = "stale"
+)
+
+// Valid indicates whether the value is a known member of the UnavailableVenueReason enum.
+func (e UnavailableVenueReason) Valid() bool {
+	switch e {
+	case UnavailableExpired:
+		return true
+	case UnavailableImpact:
+		return true
+	case UnavailableNoRoute:
+		return true
+	case UnavailableSimulationFailed:
+		return true
+	case UnavailableStale:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UnavailableVenueVenue.
+const (
+	UnavailableVenueVenueJupiter UnavailableVenueVenue = "jupiter"
+	UnavailableVenueVenueUniswap UnavailableVenueVenue = "uniswap"
+)
+
+// Valid indicates whether the value is a known member of the UnavailableVenueVenue enum.
+func (e UnavailableVenueVenue) Valid() bool {
+	switch e {
+	case UnavailableVenueVenueJupiter:
+		return true
+	case UnavailableVenueVenueUniswap:
 		return true
 	default:
 		return false
@@ -622,6 +667,11 @@ type PriceComparison struct {
 	//
 	// Examples: []
 	Quotes []RouteQuote `json:"quotes"`
+
+	// Unavailable Every enabled venue the router couldn't quote for this trade. It never affects the winner.
+	//
+	// Examples: [{"listing_id":"01928a6e-0000-7000-8000-000000000002","network":"base","reason":"simulation_failed","venue":"uniswap"}]
+	Unavailable []UnavailableVenue `json:"unavailable"`
 
 	// WinnerListingId The listing the trade routes to.
 	//
@@ -750,6 +800,39 @@ type RouteQuote struct {
 //
 // Examples: jupiter
 type RouteQuoteVenue string
+
+// UnavailableVenue An enabled venue left out of the comparison, and why.
+type UnavailableVenue struct {
+	// ListingId The listing that couldn't be quoted.
+	//
+	// Examples: 01928a6e-0000-7000-8000-000000000002
+	ListingId openapi_types.UUID `json:"listing_id"`
+
+	// Network The chain a wallet, listing or step lives on.
+	//
+	// Examples: solana
+	Network Network `json:"network"`
+
+	// Reason Why the venue couldn't be quoted: no route, a stale price or quote, an expired quote, a failed quote simulation, or price impact past the limit.
+	//
+	// Examples: simulation_failed
+	Reason UnavailableVenueReason `json:"reason"`
+
+	// Venue Where the swap would run.
+	//
+	// Examples: uniswap
+	Venue UnavailableVenueVenue `json:"venue"`
+}
+
+// UnavailableVenueReason Why the venue couldn't be quoted: no route, a stale price or quote, an expired quote, a failed quote simulation, or price impact past the limit.
+//
+// Examples: simulation_failed
+type UnavailableVenueReason string
+
+// UnavailableVenueVenue Where the swap would run.
+//
+// Examples: uniswap
+type UnavailableVenueVenue string
 
 // IdempotencyKey Examples: 6f1c1a52-3a4e-4d0e-9d7b-2f7f3f5b9d10
 type IdempotencyKey = string

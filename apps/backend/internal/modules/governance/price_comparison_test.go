@@ -270,3 +270,59 @@ func TestProposeTrade_tradesOnSolanaWhenTheRouterCannotQuoteSolana(t *testing.T)
 		).
 		Then(scenario.ExpectEvents(events.TypeProposalCreated, 1))
 }
+
+func expectUnavailable(t *testing.T, want string) func(*scenario.Scenario, json.RawMessage) {
+	t.Helper()
+	return func(_ *scenario.Scenario, raw json.RawMessage) {
+		t.Helper()
+		var got struct {
+			Unavailable json.RawMessage `json:"unavailable"`
+		}
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("price_comparison %s: %v", raw, err)
+		}
+		if string(got.Unavailable) != want {
+			t.Fatalf("unavailable = %s, want %s", got.Unavailable, want)
+		}
+	}
+}
+
+func TestPreview_carriesTheVenuesTheRouterCouldNotQuote(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	c := appleComparison(t)
+	base := multichain.ListingIDFrom(testkit.NewIDs(5272).NewV7())
+	c.Unavailable = []multichain.UnavailableVenue{{
+		ListingID: base, Network: chain.NetworkBase, Venue: multichain.VenueUniswap,
+		Reason: multichain.UnavailableSimulationFailed,
+	}}
+	want := `[{"listing_id":"` + base.String() +
+		`","network":"base","reason":"simulation_failed","venue":"uniswap"}]`
+	router := &countingRouter{c: c}
+	w.clockedScenario(t, router, clock.Real{}).Given(w.asMember()).
+		When(
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectField("price_comparison", expectUnavailable(t, want)),
+			scenario.Post(w.proposals(), buyAAPL),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.ExpectField("price_comparison", expectUnavailable(t, want)),
+			scenario.Remember("id", "proposal"),
+			scenario.Get("/v1/proposals/{proposal}"),
+			scenario.ExpectField("price_comparison", expectUnavailable(t, want)),
+			scenario.Get(w.liveComparison()),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectField("price_comparison", expectUnavailable(t, want)),
+		)
+}
+
+func TestPreview_sendsAnEmptyUnavailableListWhenEveryVenueQuoted(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	w.routedScenario(t, stubRouter{t: t, c: appleComparison(t)}).Given(w.asMember()).
+		When(
+			scenario.Get(w.preview("kind=buy&symbol=AAPLx&usdc_micros=5000000")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectField("price_comparison", expectUnavailable(t, "[]")),
+		)
+}

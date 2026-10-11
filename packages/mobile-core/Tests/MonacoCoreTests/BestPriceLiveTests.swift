@@ -188,8 +188,8 @@ final class BestPriceLiveTests: XCTestCase {
             expiresAt: quotedAt.addingTimeInterval(30))
         return LivePriceComparison(
             .init(
-                priceComparison: .init(winnerListingId: "listing-sol", quotes: [quote]), quoteOutAmount: 40_500_000,
-                quotedAt: quotedAt))
+                priceComparison: .init(winnerListingId: "listing-sol", quotes: [quote], unavailable: []),
+                quoteOutAmount: 40_500_000, quotedAt: quotedAt))
     }
 
     private func detailModel(_ transport: StubTransport) -> ProposalDetailModel {

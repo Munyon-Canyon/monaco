@@ -22,7 +22,8 @@ final class BestPriceTests: XCTestCase {
              "quoted_at": "\(now)", "expires_at": "\(now)"}
             """
         }
-        return try decode(#"{"winner_listing_id": "\#(winner)", "quotes": [\#(rows.joined(separator: ","))]}"#)
+        let quotes = rows.joined(separator: ",")
+        return try decode(#"{"winner_listing_id": "\#(winner)", "quotes": [\#(quotes)], "unavailable": []}"#)
     }
 
     func testTheOpenAPIExampleIsOneVenueWithItsPriceAndNoAdvantage() throws {
@@ -31,7 +32,7 @@ final class BestPriceTests: XCTestCase {
             {"winner_listing_id": "01928a6e-0000-7000-8000-000000000001", "quotes": [{"listing_id":
             "01928a6e-0000-7000-8000-000000000001", "issuer": "xstocks", "network": "solana", "venue": "jupiter",
             "net_share_nanos": "40000000", "net_micros": "10000000", "costs": [], "quoted_at": "2026-10-10T12:00:00Z",
-            "expires_at": "2026-10-10T12:00:30Z"}]}
+            "expires_at": "2026-10-10T12:00:30Z"}], "unavailable": []}
             """)
 
         let best = try XCTUnwrap(BestPrice(example, isSell: false))

@@ -504,7 +504,7 @@ type Proposal struct {
 
 	// PriceComparison Every venue checked for the trade, best first. Absent until the multichain routing work lands.
 	//
-	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"unavailable":[],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
 	PriceComparison *externalRef0.PriceComparison `json:"price_comparison,omitempty"`
 
 	// ProposerId The member who proposed it.
@@ -600,7 +600,7 @@ type ProposalDetail struct {
 
 	// PriceComparison Every venue checked for the trade, best first. Absent for a sell and until routing fills it.
 	//
-	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"unavailable":[],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
 	PriceComparison *externalRef0.PriceComparison `json:"price_comparison,omitempty"`
 
 	// ProposerId The member who proposed it.
@@ -724,7 +724,7 @@ type ProposalList struct {
 type ProposalPriceComparison struct {
 	// PriceComparison Every venue quoted now, best first. Absent when the venues could not be compared.
 	//
-	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"unavailable":[],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
 	PriceComparison *externalRef0.PriceComparison `json:"price_comparison,omitempty"`
 
 	// QuoteOutAmount The quoted output, in the output asset's base units, from the winning venue or, without a comparison, from Jupiter.
@@ -831,7 +831,7 @@ type TradePreview struct {
 
 	// PriceComparison Every venue checked for the trade, best first. Absent until the multichain routing work lands.
 	//
-	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"unavailable":[],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
 	PriceComparison *externalRef0.PriceComparison `json:"price_comparison,omitempty"`
 
 	// QuoteOutAmount The quoted output, in the output asset's base units. Null when Jupiter has no route or the asset is unknown.

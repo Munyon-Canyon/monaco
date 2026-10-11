@@ -189,7 +189,7 @@ type SwapDetail struct {
 
 	// Route The price comparison the trade routed on. Absent for trades placed before routing, and until the multichain trading work lands.
 	//
-	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
+	// Examples: {"quotes":[{"costs":[],"expires_at":"2026-10-10T12:00:30Z","issuer":"xstocks","listing_id":"01928a6e-0000-7000-8000-000000000001","net_micros":"10000000","net_share_nanos":"40000000","network":"solana","quoted_at":"2026-10-10T12:00:00Z","venue":"jupiter"}],"unavailable":[],"winner_listing_id":"01928a6e-0000-7000-8000-000000000001"}
 	Route *externalRef0.PriceComparison `json:"route,omitempty"`
 
 	// Source What asked for the trade.

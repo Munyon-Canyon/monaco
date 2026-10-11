@@ -130,11 +130,29 @@ type Quote struct {
 	RouteID     string        `json:"route_id"`
 }
 
+type UnavailableReason string
+
+const (
+	UnavailableNoRoute          UnavailableReason = "no_route"
+	UnavailableStale            UnavailableReason = "stale"
+	UnavailableExpired          UnavailableReason = "expired"
+	UnavailableSimulationFailed UnavailableReason = "simulation_failed"
+	UnavailableImpact           UnavailableReason = "impact"
+)
+
+type UnavailableVenue struct {
+	ListingID ListingID         `json:"listing_id"`
+	Network   chain.Network     `json:"network"`
+	Venue     Venue             `json:"venue"`
+	Reason    UnavailableReason `json:"reason"`
+}
+
 type Comparison struct {
-	StockID StockID   `json:"stock_id"`
-	Side    Side      `json:"side"`
-	Ranked  []Quote   `json:"ranked"`
-	Winner  ListingID `json:"winner"`
+	StockID     StockID            `json:"stock_id"`
+	Side        Side               `json:"side"`
+	Ranked      []Quote            `json:"ranked"`
+	Winner      ListingID          `json:"winner"`
+	Unavailable []UnavailableVenue `json:"unavailable,omitempty"`
 }
 
 type Price struct {
