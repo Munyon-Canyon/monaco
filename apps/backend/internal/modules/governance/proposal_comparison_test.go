@@ -14,11 +14,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -29,6 +32,7 @@ import (
 const comparisonTTL = 15 * time.Second
 
 type countingRouter struct {
+	gate  chan struct{}
 	mu    sync.Mutex
 	c     multichain.Comparison
 	err   error
@@ -38,6 +42,9 @@ type countingRouter struct {
 func (r *countingRouter) Best(
 	context.Context, multichain.StockID, multichain.Side, money.Micros,
 ) (multichain.Comparison, error) {
+	if r.gate != nil {
+		<-r.gate
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++
@@ -232,5 +239,45 @@ func TestProposalComparison_refusesAQuotePastInt64AndAnAnonymousCaller(t *testin
 	if _, err := (adapters.HTTP{}).GetCabalProposalPriceComparison(t.Context(), req); errs.CodeOf(err) !=
 		errs.CodeUnauthorized {
 		t.Errorf("anonymous GetCabalProposalPriceComparison err = %v, want unauthorized", err)
+	}
+}
+
+func TestProposalComparison_concurrentViewersShareOneRouterCall(t *testing.T) {
+	t.Parallel()
+	const viewers = 8
+	h := newProposeHarness(t)
+	p := h.d.buy(h.w.members[0].UUID())
+	p.CabalID = h.w.cabal.UUID()
+	h.d.insert(t, p)
+	router := &countingRouter{gate: make(chan struct{}), c: appleComparison(t)}
+	ports := h.w.ports()
+	ports.Router = router
+	propose := app.NewProposeTradeHandler(db.New(h.d.pool, h.d.ids, clock.Real{}), h.d.ids, clock.Real{}, ports,
+		app.NoHints{})
+	comparisons := app.NewProposalComparisons(h.d.pool, propose)
+	req := app.GetProposalComparison{
+		CabalID: h.w.cabal, ProposalID: ids.ProposalIDFrom(p.ID), Caller: h.w.members[0],
+	}
+	var started, done sync.WaitGroup
+	quotedAt := make([]time.Time, viewers)
+	for i := range viewers {
+		started.Add(1)
+		done.Go(func() {
+			started.Done()
+			live, err := comparisons.Get(t.Context(), req)
+			if err != nil {
+				t.Errorf("viewer %d: %v", i, err)
+			}
+			quotedAt[i] = live.QuotedAt
+		})
+	}
+	started.Wait()
+	close(router.gate)
+	done.Wait()
+	router.expectCalls(t, 1)(nil)
+	for i, at := range quotedAt {
+		if !at.Equal(quotedAt[0]) {
+			t.Fatalf("viewer %d got the quote from %s, viewer 0 from %s", i, at, quotedAt[0])
+		}
 	}
 }
