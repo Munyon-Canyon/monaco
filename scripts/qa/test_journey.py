@@ -1629,6 +1629,54 @@ class MutantCaught(unittest.TestCase):
         self.assertFalse(journey.mutant_caught(self.rows(("S1", "PASS", "PASS"))))
 
 
+class MutantRunSetup(unittest.TestCase):
+    def fake_journey(self, funds):
+        patch = unittest.mock.MagicMock()
+        patch.stem = "bug"
+        return unittest.mock.MagicMock(id="money/withdraw", funds=funds, scenarios=["S1"], mutants=lambda: [patch],
+                                       spec=None), patch
+
+    def mutant_env(self, funds):
+        fake, patch = self.fake_journey(funds)
+        seen = []
+
+        def run_once(*args, **kwargs):
+            seen.append(journey.actor_environment({}, "sms", "R"))
+            return [{"scenario": "S1", "result": "FAIL", "expected": "FAIL", "failed_step": "S1.1"}], "FAIL"
+
+        sh = lambda args, **kw: unittest.mock.Mock(returncode=1 if "--check" in args else 0)
+        stack = contextlib.ExitStack()
+        with stack:
+            for name, value in (("load_journeys", lambda: {"money/withdraw": fake}), ("pick", lambda j, i: fake),
+                                ("sh", sh), ("actor_logins", lambda j, a: contextlib.nullcontext({})),
+                                ("load_accounts", lambda: {}), ("held_logins", lambda j, a: []),
+                                ("use_derived_data", lambda l: None), ("resolve_simulator", lambda s, l: "sim"),
+                                ("check_simulator_api_environment", lambda s, u: None),
+                                ("reset_journey_simulator", lambda *a: None), ("build", lambda *a: None),
+                                ("mutant_expectation", lambda p: ["S1"]), ("run_once", run_once),
+                                ("stamp_file", lambda: unittest.mock.Mock()), ("build_label", lambda *a: "b"),
+                                ("stamp", lambda: "T")):
+                stack.enter_context(unittest.mock.patch.object(journey, name, value))
+            stack.enter_context(unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}))
+            stack.enter_context(unittest.mock.patch.object(journey, "with_dotenv", lambda args: "Pot1"))
+            args = unittest.mock.Mock(journey="money/withdraw", only=["bug"], sim="", runs=1)
+            journey.run_mutants(args, "http://x")
+        return seen[0]
+
+    def test_mutants_pass_the_refund_address_the_run_path_passes(self):
+        env = self.mutant_env({"A": 5})
+        self.assertEqual(env["MONACO_QA_REFUND_ADDRESS"], "Pot1")
+
+    def test_a_run_that_ends_before_s1_is_setup_failed_not_caught(self):
+        rows = [{"scenario": "S1", "result": "FAIL", "expected": "FAIL", "failed_step": "before S1 began"},
+                {"scenario": "S2", "result": "SKIP", "expected": "FAIL", "failed_step": "after S1 FAIL"}]
+        self.assertTrue(journey.setup_failed(rows))
+        self.assertFalse(journey.mutant_caught(rows))
+        started = [dict(rows[0], failed_step="S1.1"), rows[1]]
+        self.assertFalse(journey.setup_failed(started))
+        self.assertTrue(journey.mutant_caught(started))
+
+
 class Stamp(Output):
     def setUp(self):
         super().setUp()

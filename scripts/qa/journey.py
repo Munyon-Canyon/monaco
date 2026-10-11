@@ -206,9 +206,18 @@ def load_accounts(environ=None):
     return accounts
 
 
+def setup_failed(rows):
+    """The run ended before its first scenario began, so no journey step ran and nothing was tested."""
+    first = next((row for row in rows if row["scenario"] != "*"), None)
+    return bool(first) and (first["result"] == "ERROR" or (
+        first["result"] == "FAIL" and str(first.get("failed_step", "")).startswith("before ")))
+
+
 def mutant_caught(rows):
     """A seeded bug is caught when every scenario it must fail failed or never ran after a failure,
-    and at least one of them failed."""
+    and at least one of them failed. A run that never reached its first step caught nothing."""
+    if setup_failed(rows):
+        return False
     expected = [row for row in rows if row["scenario"] != "*" and row.get("expected") == "FAIL"]
     return (bool(expected) and all(row["result"] in ("FAIL", "SKIP") for row in expected)
             and any(row["result"] == "FAIL" for row in expected))
@@ -1232,6 +1241,13 @@ def refund_address():
     return address
 
 
+def funding_refund(journey, accounts):
+    """(notice, refund address) for a funds journey, shared by the run and mutants paths. Resolving the
+    address exports MONACO_QA_REFUND_ADDRESS, which actor_environment passes to the test and the setup."""
+    funding = funding_notice(journey, accounts)
+    return funding, refund_address() if funding else ""
+
+
 def stamp():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -1515,8 +1531,7 @@ def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, b
     sim = resolve_simulator(args.sim, logins)
     check_simulator_api_environment(sim, api_base_url)
     OUT.mkdir(parents=True, exist_ok=True)
-    funding = funding_notice(journey, accounts)
-    refund = refund_address() if funding else ""
+    funding, refund = funding_refund(journey, accounts)
     if funding:
         print(funding)
     builder(sim)
@@ -1561,6 +1576,7 @@ def run_mutants(args, api_base_url):
         use_derived_data(logins)
         sim = resolve_simulator(args.sim, logins)
         check_simulator_api_environment(sim, api_base_url)
+        funding_refund(journey, accounts)
         caught = 0
         for patch in patches:
             expected_fail = mutant_expectation(patch)
@@ -1585,6 +1601,8 @@ def run_mutants(args, api_base_url):
             if mutant_caught(rows):
                 caught += 1
                 print("  caught")
+            elif setup_failed(rows):
+                print("  setup_failed: the run ended before %s began, so this bug was not tested" % journey.scenarios[0])
             else:
                 print("  MISSED: the test did not fail on a build with this bug in")
     finally:
