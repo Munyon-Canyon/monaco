@@ -1,0 +1,7 @@
+{
+ "tokens": [
+  {"contract_address":"0xb200000000000000000000C2e324d24d7eEcd1fb","symbol":"AAPLc","name":"Apple Inc.","decimals":8,"multiplier":1,"is_live":true},
+  {"contract_address":"0xb2000000000000000000001e800a7f5189430cD0","symbol":"TSLAc","name":"Tesla Inc.","decimals":8,"multiplier":1,"is_live":true},
+  {"contract_address":"0xb2000000000000000000002D0BA3164cc74f58B7","symbol":"GOOGLc","name":"Alphabet Inc.","decimals":8,"multiplier":1.0003771186767842,"is_live":true}
+ ]
+}

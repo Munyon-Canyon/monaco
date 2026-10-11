@@ -1,0 +1,7 @@
+{
+ "nodes": [
+  {"symbol":"AAPLx","name":"Apple xStock","logo":"https://xstocks-metadata.backed.fi/logos/tokens/AAPLx.png","isTradingHalted":false,"deployments":[{"address":"XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp","network":"Solana"},{"address":"0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a","network":"Ink","wrapperAddressV2":"0x943bf64d566c32a2bcd41ac92fb63c111cc9de8f"},{"address":"0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a","network":"Arbitrum","wrapperAddressV2":"0x943bf64d566c32a2bcd41ac92fb63c111cc9de8f"},{"address":"0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a","network":"Ethereum","wrapperAddressV2":"0x943bf64d566c32a2bcd41ac92fb63c111cc9de8f"}]},
+  {"symbol":"TSLAx","name":"Tesla xStock","logo":"https://xstocks-metadata.backed.fi/logos/tokens/TSLAx.png","isTradingHalted":false,"deployments":[{"address":"0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0","network":"Ethereum","wrapperAddressV2":"0xc3fdbe3a68ee5de461d30415a8165cf9aefe1171"},{"address":"0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0","network":"Arbitrum","wrapperAddressV2":"0xc3fdbe3a68ee5de461d30415a8165cf9aefe1171"},{"address":"XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB","network":"Solana"},{"address":"0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0","network":"Ink","wrapperAddressV2":"0xc3fdbe3a68ee5de461d30415a8165cf9aefe1171"}]}
+ ],
+ "page": {"currentPage":0,"hasNextPage":true}
+}
