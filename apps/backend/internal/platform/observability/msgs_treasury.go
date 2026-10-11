@@ -47,7 +47,7 @@ var TreasuryCashOutMoved = Msg{
 
 var TreasuryCashOutBroadcastFailed = Msg{
 	Name:     "treasury.cashout.broadcast_failed",
-	Required: []string{"job_id", "code"},
+	Required: []string{"job_id", "code", "rpc_message"},
 }
 
 var TreasuryWindDownStarted = Msg{

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -70,6 +71,10 @@ type response struct {
 	Error  *struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
+		Data    struct {
+			Err  any      `json:"err"`
+			Logs []string `json:"logs"`
+		} `json:"data"`
 	} `json:"error"`
 }
 
@@ -100,8 +105,11 @@ func (c *Client) call(ctx context.Context, method string, params []any, into any
 	}
 	if r.Error != nil {
 		code := errs.CodeRPCUnavailable
-		if r.Error.Code == rpcCodeUnsupportedTransactionVersion {
+		switch {
+		case r.Error.Code == rpcCodeUnsupportedTransactionVersion:
 			code = errs.CodeDecodeFailed
+		case r.Error.Code == rpcCodeSimulationFailed && shortOfFunds(r.Error.Data.Err, r.Error.Data.Logs):
+			code = errs.CodeInsufficientFunds
 		}
 		return errs.New(code, op,
 			slog.Int("rpc_code", r.Error.Code), slog.String("rpc_message", r.Error.Message))
@@ -112,7 +120,20 @@ func (c *Client) call(ctx context.Context, method string, params []any, into any
 	return nil
 }
 
-const rpcCodeUnsupportedTransactionVersion = -32015
+const (
+	rpcCodeUnsupportedTransactionVersion = -32015
+	rpcCodeSimulationFailed              = -32002
+)
+
+func shortOfFunds(txErr any, logs []string) bool {
+	if reason, ok := txErr.(string); ok && strings.HasPrefix(reason, "InsufficientFunds") {
+		return true
+	}
+	return slices.ContainsFunc(logs, func(line string) bool {
+		return strings.Contains(strings.ToLower(line), "insufficient funds") ||
+			strings.Contains(strings.ToLower(line), "insufficient lamports")
+	})
+}
 
 func addresses(op string, addrs ...chain.SolanaAddress) error {
 	for _, a := range addrs {
