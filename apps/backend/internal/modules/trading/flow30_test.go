@@ -129,6 +129,10 @@ func (*flowChain) Build(_ context.Context, spec app.EVMSwapSpec) (app.EVMSwapPla
 	return plan, nil
 }
 
+func (*flowChain) Receipt(context.Context, platform.Network, string) (app.EVMFillState, error) {
+	return app.FillSucceeded, nil
+}
+
 func (*flowChain) Fill(
 	_ context.Context,
 	_ platform.Network,

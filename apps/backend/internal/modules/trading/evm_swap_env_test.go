@@ -23,6 +23,9 @@ type evmFake struct {
 	afterSendAny func(key string)
 	builds       int
 	specs        []app.EVMSwapSpec
+	receipts     []app.EVMFillState
+	receiptErr   error
+	trail        []string
 }
 
 func newEVMFake(plan app.EVMSwapPlan) *evmFake {
@@ -45,6 +48,7 @@ func (f *evmFake) Send(_ context.Context, _ string, _ multichain.EVMTransaction,
 		return "", err
 	}
 	f.sends = append(f.sends, key)
+	f.trail = append(f.trail, "send:"+key)
 	hash, ok := f.byKey[key]
 	if !ok {
 		hash = "0xhash" + strconv.Itoa(len(f.byKey)+1)
@@ -77,6 +81,28 @@ func (f *evmFake) Fill(
 	fill := f.fills[0]
 	f.fills = f.fills[1:]
 	return fill, nil
+}
+
+func (f *evmFake) Receipt(_ context.Context, _ platform.Network, hash string) (app.EVMFillState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.trail = append(f.trail, "receipt:"+hash)
+	if err := f.receiptErr; err != nil {
+		f.receiptErr = nil
+		return 0, err
+	}
+	if len(f.receipts) == 0 {
+		return app.FillSucceeded, nil
+	}
+	state := f.receipts[0]
+	f.receipts = f.receipts[1:]
+	return state, nil
+}
+
+func (f *evmFake) steps() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.trail...)
 }
 
 func (f *evmFake) keys() []string {
