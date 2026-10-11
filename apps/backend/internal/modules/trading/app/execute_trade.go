@@ -224,6 +224,7 @@ func (h *ExecuteTradeHandler) held(asset string) tradeCheck {
 func (h *ExecuteTradeHandler) routedFunds(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
 	if cmd.Retry != nil {
 		stranded, err := sqlc.New(h.d.Reads).StrandedCash(ctx, cmd.Retry.Of.UUID())
+		req.ReusesStranded = stranded
 		if err != nil || stranded {
 			return refusal{}, err
 		}
@@ -266,7 +267,7 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 	}
 	need := req.InAmount
 	if cmd.Action == domain.ActionBuy {
-		cfg, err := h.d.Ports.Balances.MintConfig(ctx, cmd.Mint)
+		cfg, err := h.d.Ports.Balances.MintConfig(ctx, req.OutMint.Address)
 		if err != nil {
 			return refusal{}, err
 		}

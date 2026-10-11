@@ -18,6 +18,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -122,7 +123,7 @@ type swapWire struct {
 
 func (v *EVMVenue) Build(ctx context.Context, spec app.EVMSwapSpec) (app.EVMSwapPlan, error) {
 	attrs := []slog.Attr{slog.String("network", string(spec.Network))}
-	if !spec.Network.IsEVM() || spec.AmountIn == 0 || spec.MinOut == 0 {
+	if !spec.Network.IsEVM() || spec.AmountIn == 0 || spec.MinOut == 0 && spec.SlippageBps <= 0 {
 		return app.EVMSwapPlan{}, errs.New(errs.CodeInvalidInput, evmVenueBuildOp, attrs...)
 	}
 	var approval approvalWire
@@ -133,19 +134,11 @@ func (v *EVMVenue) Build(ctx context.Context, spec app.EVMSwapSpec) (app.EVMSwap
 	if err != nil {
 		return app.EVMSwapPlan{}, err
 	}
-	probe, err := v.quote(ctx, spec, 0, attrs)
+	bps, err := v.tolerance(ctx, spec, attrs)
 	if err != nil {
 		return app.EVMSwapPlan{}, err
 	}
-	out, err := wholeUint(probe.Quote.Output.Amount)
-	if err != nil {
-		return app.EVMSwapPlan{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueBuildOp, attrs...)
-	}
-	if out < spec.MinOut {
-		return app.EVMSwapPlan{}, errs.New(errs.CodePriceMoved, evmVenueBuildOp,
-			append(attrs, slog.Uint64("quoted", out), slog.Uint64("floor", spec.MinOut))...)
-	}
-	quote, err := v.quote(ctx, spec, toleranceBps(out, spec.MinOut), attrs)
+	quote, err := v.quote(ctx, spec, bps, attrs)
 	if err != nil {
 		return app.EVMSwapPlan{}, err
 	}
@@ -158,6 +151,26 @@ func (v *EVMVenue) Build(ctx context.Context, spec app.EVMSwapSpec) (app.EVMSwap
 		return app.EVMSwapPlan{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueBuildOp, attrs...)
 	}
 	return plan, nil
+}
+
+func (v *EVMVenue) tolerance(ctx context.Context, spec app.EVMSwapSpec, attrs []slog.Attr) (uint64, error) {
+	probe, err := v.quote(ctx, spec, 0, attrs)
+	if err != nil {
+		return 0, err
+	}
+	out, err := wholeUint(probe.Quote.Output.Amount)
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueBuildOp, attrs...)
+	}
+	floor := spec.MinOut
+	if floor == 0 {
+		floor = domain.SlippageOf(spec.SlippageBps).MinOut(out)
+	}
+	if floor == 0 || out < floor {
+		return 0, errs.New(errs.CodePriceMoved, evmVenueBuildOp,
+			append(attrs, slog.Uint64("quoted", out), slog.Uint64("floor", floor))...)
+	}
+	return toleranceBps(out, floor), nil
 }
 
 func (v *EVMVenue) quote(
@@ -205,12 +218,13 @@ func buildPlan(
 		return app.EVMSwapPlan{}, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.plan")
 	}
 	minOut, minErr := minOutFor(quote.Quote.AggregatedOutputs, spec.Owner)
+	out, outErr := wholeUint(quote.Quote.Output.Amount)
 	tx, txErr := evmTx(spec.Network, *swap.Swap)
 	if txErr == nil {
 		txErr = checkSwapTarget(spec, tx)
 	}
-	plan := app.EVMSwapPlan{Swap: tx, MinOut: minOut}
-	errList := []error{minErr, txErr}
+	plan := app.EVMSwapPlan{Swap: tx, OutAmount: out, MinOut: minOut}
+	errList := []error{minErr, outErr, txErr}
 	for _, raw := range []*txWire{approval.Approval, quote.PermitTransaction} {
 		if raw == nil {
 			continue

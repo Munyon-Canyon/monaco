@@ -20,6 +20,11 @@ var TradingCashOutSellBlocked = Msg{
 	Required: []string{"job_id", "cabal_id", "code", "final"},
 }
 
+var TradingCashOutPlanShort = Msg{
+	Name:     "trading.cashout.plan_short",
+	Required: []string{"job_id", "cabal_id", "needed_micros", "planned_micros"},
+}
+
 var TradingRetryRequested = Msg{
 	Name:     "trading.retry.requested",
 	Required: []string{"swap_id", "cabal_id", "proposal_id", "requested_by"},
