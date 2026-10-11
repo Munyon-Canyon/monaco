@@ -83,32 +83,3 @@ func TestListings_failsWhenRobinhoodIsDown(t *testing.T) {
 		t.Fatalf("err = %v, want upstream_unavailable", err)
 	}
 }
-
-func TestListings_refusesAMultiplierItCannotParse(t *testing.T) {
-	t.Parallel()
-	asset := func(current, pending string) string {
-		return `{"assets":[{"tokenSymbol":"AAPL","deployments":[{"contractAddress":"` + aaplOnRobinhood +
-			`","chainId":4663}],"currentMultiplier":"` + current + `","pendingMultiplier":"` + pending +
-			`","status":"ASSET_STATUS_ACTIVE","tokenDecimals":18}]}`
-	}
-	for name, body := range map[string]string{
-		"current": asset("0", ""),
-		"pending": asset("1", "soon"),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			mux := http.NewServeMux()
-			mux.HandleFunc("GET /rhj/assets", func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(body))
-			})
-			srv := httptest.NewServer(mux)
-			t.Cleanup(srv.Close)
-			c := robinhood.New(httpclient.New("robinhood", httpclient.WithBaseURL(srv.URL),
-				httpclient.WithTimeout(10*time.Second)))
-			if _, err := c.Listings(t.Context()); errs.CodeOf(err) != errs.CodeDecodeFailed {
-				t.Fatalf("err = %v, want decode_failed", err)
-			}
-		})
-	}
-}

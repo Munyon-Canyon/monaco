@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -64,14 +65,17 @@ type networkWire struct {
 	Network  string `json:"network"`
 	ChainID  int64  `json:"chainId"`
 	Address  string `json:"address"`
-	Decimals uint8  `json:"decimals"`
+	Decimals *uint8 `json:"decimals"`
 }
 
 type assetPage struct {
 	published      bool
+	invalid        string
 	sharesPerToken *big.Rat
 	networks       []networkWire
 }
+
+var assetBlock = regexp.MustCompile(`"sharesMultiplier":"([0-9.]+)","symbol":"([^"]*)"[^{}\[\]]*?` + supportedNetsKey)
 
 func (c *Client) Listings(ctx context.Context) (app.ListingBatch, error) {
 	const op = "ondo.Client.Listings"
@@ -90,18 +94,28 @@ func (c *Client) Listings(ctx context.Context) (app.ListingBatch, error) {
 			batch.Missing = append(batch.Missing, a.Symbol)
 			continue
 		}
+		if page.invalid != "" {
+			skipped(ctx, a, page.invalid)
+			continue
+		}
 		for _, n := range page.networks {
-			l, listed, err := toListing(a, page.sharesPerToken, n)
-			if err != nil {
-				return app.ListingBatch{}, errs.Wrap(err, errs.CodeDecodeFailed, op,
-					slog.String("symbol", a.Symbol), slog.String("network", n.Network))
-			}
-			if listed {
+			l, reason := toListing(a, page.sharesPerToken, n)
+			switch {
+			case reason != "":
+				skipped(ctx, a, reason)
+			case l.Network != "":
 				batch.Listings = append(batch.Listings, l)
 			}
 		}
 	}
 	return batch, nil
+}
+
+func skipped(ctx context.Context, a assetWire, reason string) {
+	if !a.IsTradingPaused {
+		observability.Degraded(ctx, observability.MarketListingAssetSkipped, slog.String("issuer", Issuer),
+			slog.String("symbol", a.Symbol), slog.String("reason", reason))
+	}
 }
 
 func (c *Client) assets(ctx context.Context) ([]assetWire, error) {
@@ -131,7 +145,7 @@ func (c *Client) page(ctx context.Context, a assetWire) (assetPage, error) {
 	}
 	switch status {
 	case http.StatusOK:
-		return parsePage(body, a.Symbol)
+		return parsePage(body, a.Symbol), nil
 	case http.StatusNotFound:
 		return assetPage{}, nil
 	default:
@@ -154,54 +168,53 @@ func (c *Client) get(ctx context.Context, path string, limit int64) ([]byte, int
 	return body, resp.StatusCode, nil
 }
 
-func parsePage(html []byte, symbol string) (assetPage, error) {
-	const op = "ondo.parsePage"
+func parsePage(html []byte, symbol string) assetPage {
 	payload := bytes.ReplaceAll(html, []byte(escapedQuote), []byte(`"`))
-	block := regexp.MustCompile(`"sharesMultiplier":"([0-9.]+)","symbol":"` + regexp.QuoteMeta(symbol) +
-		`"[^{}\[\]]*?` + supportedNetsKey).FindSubmatchIndex(payload)
-	if block == nil {
-		return assetPage{}, nil
+	for _, m := range assetBlock.FindAllSubmatchIndex(payload, -1) {
+		if string(payload[m[4]:m[5]]) != symbol {
+			continue
+		}
+		shares, ok := new(big.Rat).SetString(string(payload[m[2]:m[3]]))
+		if !ok || shares.Sign() <= 0 {
+			return assetPage{published: true, invalid: "bad multiplier"}
+		}
+		var networks []networkWire
+		if err := json.NewDecoder(bytes.NewReader(payload[m[1]:])).Decode(&networks); err != nil {
+			return assetPage{published: true, invalid: "bad networks"}
+		}
+		return assetPage{published: true, sharesPerToken: shares, networks: networks}
 	}
-	shares, ok := new(big.Rat).SetString(string(payload[block[2]:block[3]]))
-	if !ok || shares.Sign() <= 0 {
-		return assetPage{}, errs.New(errs.CodeDecodeFailed, op, slog.String("symbol", symbol))
-	}
-	var networks []networkWire
-	if err := json.NewDecoder(bytes.NewReader(payload[block[1]:])).Decode(&networks); err != nil {
-		return assetPage{}, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("symbol", symbol))
-	}
-	return assetPage{published: true, sharesPerToken: shares, networks: networks}, nil
+	return assetPage{}
 }
 
-func toListing(a assetWire, shares *big.Rat, n networkWire) (app.IssuerListing, bool, error) {
-	decimals := n.Decimals
+func toListing(a assetWire, shares *big.Rat, n networkWire) (app.IssuerListing, string) {
 	l := app.IssuerListing{
 		Issuer:         Issuer,
 		Ticker:         a.Ticker,
 		Symbol:         a.Symbol,
-		Decimals:       &decimals,
+		Decimals:       n.Decimals,
 		SharesPerToken: shares,
 		Tradable:       !a.IsTradingPaused,
 	}
-	switch n.Network {
-	case solanaNetwork:
+	switch {
+	case n.Network != solanaNetwork && n.Network != ethereumNetwork:
+		return app.IssuerListing{}, ""
+	case n.Decimals == nil:
+		return app.IssuerListing{}, "missing decimals"
+	case n.Network == solanaNetwork:
 		mint, err := domain.ParseMint(n.Address)
 		if err != nil {
-			return app.IssuerListing{}, false, err
+			return app.IssuerListing{}, "bad address"
 		}
 		l.Network, l.TokenAddress = chain.NetworkSolana, mint.String()
-	case ethereumNetwork:
-		if n.ChainID != chain.NetworkEthereum.EVMChainID() {
-			return app.IssuerListing{}, false, errs.New(errs.CodeDecodeFailed, "ondo.toListing",
-				slog.Int64("chain_id", n.ChainID))
-		}
-		token, err := chain.ParseEVMAddress(n.Address)
-		if err != nil {
-			return app.IssuerListing{}, false, err
-		}
-		l.Network, l.ChainID, l.TokenAddress = chain.NetworkEthereum, n.ChainID, token.String()
-	default:
-		return app.IssuerListing{}, false, nil
+		return l, ""
+	case n.ChainID != chain.NetworkEthereum.EVMChainID():
+		return app.IssuerListing{}, "wrong chain id"
 	}
-	return l, true, nil
+	token, err := chain.ParseEVMAddress(n.Address)
+	if err != nil {
+		return app.IssuerListing{}, "bad address"
+	}
+	l.Network, l.ChainID, l.TokenAddress = chain.NetworkEthereum, n.ChainID, token.String()
+	return l, ""
 }

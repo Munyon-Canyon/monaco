@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -70,25 +71,27 @@ func (c *Client) Listings(ctx context.Context) (app.ListingBatch, error) {
 			if d.ChainID != chain.NetworkRobinhood.EVMChainID() {
 				continue
 			}
-			l, err := toListing(a, d)
-			if err != nil {
-				return app.ListingBatch{}, errs.Wrap(err, errs.CodeDecodeFailed, op,
-					slog.String("symbol", a.TokenSymbol))
+			l, reason := toListing(a, d)
+			switch {
+			case reason == "":
+				batch.Listings = append(batch.Listings, l)
+			case a.Status == activeStatus:
+				observability.Degraded(ctx, observability.MarketListingAssetSkipped, slog.String("issuer", Issuer),
+					slog.String("symbol", a.TokenSymbol), slog.String("reason", reason))
 			}
-			batch.Listings = append(batch.Listings, l)
 		}
 	}
 	return batch, nil
 }
 
-func toListing(a assetWire, d deploymentWire) (app.IssuerListing, error) {
+func toListing(a assetWire, d deploymentWire) (app.IssuerListing, string) {
 	token, err := chain.ParseEVMAddress(d.ContractAddress)
 	if err != nil {
-		return app.IssuerListing{}, err
+		return app.IssuerListing{}, "bad address"
 	}
-	current, err := multiplier(a.CurrentMultiplier)
-	if err != nil {
-		return app.IssuerListing{}, err
+	current, ok := multiplier(a.CurrentMultiplier)
+	if !ok {
+		return app.IssuerListing{}, "bad multiplier"
 	}
 	l := app.IssuerListing{
 		Issuer:         Issuer,
@@ -102,17 +105,14 @@ func toListing(a assetWire, d deploymentWire) (app.IssuerListing, error) {
 		Tradable:       a.Status == activeStatus,
 	}
 	if a.PendingMultiplier != "" {
-		if l.PendingSharesPerToken, err = multiplier(a.PendingMultiplier); err != nil {
-			return app.IssuerListing{}, err
+		if l.PendingSharesPerToken, ok = multiplier(a.PendingMultiplier); !ok {
+			return app.IssuerListing{}, "bad pending multiplier"
 		}
 	}
-	return l, nil
+	return l, ""
 }
 
-func multiplier(raw string) (*big.Rat, error) {
+func multiplier(raw string) (*big.Rat, bool) {
 	r, ok := new(big.Rat).SetString(raw)
-	if !ok || r.Sign() <= 0 {
-		return nil, errs.New(errs.CodeDecodeFailed, "robinhood.multiplier", slog.String("multiplier", raw))
-	}
-	return r, nil
+	return r, ok && r.Sign() > 0
 }

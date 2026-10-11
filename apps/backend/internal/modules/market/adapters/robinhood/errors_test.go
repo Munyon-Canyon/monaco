@@ -1,14 +1,20 @@
 package robinhood_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/robinhood"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func serving(t *testing.T, body string) *robinhood.Client {
@@ -21,19 +27,49 @@ func serving(t *testing.T, body string) *robinhood.Client {
 		httpclient.WithTimeout(10*time.Second)))
 }
 
-func TestListings_refusesABodyOrAddressItCannotRead(t *testing.T) {
+func TestListings_refusesABodyItCannotRead(t *testing.T) {
 	t.Parallel()
-	for name, body := range map[string]string{
-		"bad json": `{"assets":`,
-		"bad address": `{"assets":[{"tokenSymbol":"AAPL","deployments":[{"contractAddress":"0x12","chainId":4663}],` +
-			`"currentMultiplier":"1"}]}`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			if _, err := serving(t, body).Listings(t.Context()); errs.CodeOf(err) != errs.CodeDecodeFailed {
-				t.Fatalf("err = %v, want decode_failed", err)
-			}
-		})
+	if _, err := serving(t, `{"assets":`).Listings(t.Context()); errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("err = %v, want decode_failed", err)
+	}
+}
+
+func TestListings_skipsAnUnreadableAssetAndAlertsOnlyWhenItIsActive(t *testing.T) {
+	t.Parallel()
+	const active, closed = "ASSET_STATUS_ACTIVE", "ASSET_STATUS_INACTIVE"
+	asset := func(symbol, address, current, pending, status string) string {
+		return `{"tokenSymbol":"` + symbol + `","deployments":[{"contractAddress":"` + address +
+			`","chainId":4663}],"currentMultiplier":"` + current + `","pendingMultiplier":"` + pending +
+			`","status":"` + status + `","tokenDecimals":18}`
+	}
+	body := `{"assets":[` + strings.Join([]string{
+		asset("BAD", "0x12", "1", "", active),
+		asset("ZERO", aaplOnRobinhood, "0", "", active),
+		asset("SPLIT", aaplOnRobinhood, "1", "nope", active),
+		asset("GONE", aaplOnRobinhood, "", "", closed),
+		asset("CRM", crmOnRobinhood, "1", "", closed),
+		asset("AAPL", aaplOnRobinhood, "1", "", active),
+	}, ",") + `]}`
+	var logs testkit.Logs
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, &logs))
+	batch, err := serving(t, body).Listings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := make([]string, 0, len(batch.Listings))
+	for _, l := range batch.Listings {
+		kept = append(kept, fmt.Sprint(l.Symbol, " ", l.Tradable))
+	}
+	if want := []string{"CRM false", "AAPL true"}; !slices.Equal(kept, want) {
+		t.Errorf("kept = %q, want %q", kept, want)
+	}
+	alerts := logs.Lines("market.listings.asset_skipped", "level", "issuer", "symbol", "reason")
+	want := []string{
+		"WARN robinhood BAD bad address", "WARN robinhood ZERO bad multiplier",
+		"WARN robinhood SPLIT bad pending multiplier",
+	}
+	if !slices.Equal(alerts, want) {
+		t.Errorf("alerts = %q, want %q", alerts, want)
 	}
 }
 

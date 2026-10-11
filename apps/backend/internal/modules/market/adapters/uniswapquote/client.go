@@ -200,35 +200,45 @@ func poolFee(cash money.Micros, input string, route [][]poolWire) (money.Micros,
 	}
 	weighted := new(big.Rat)
 	for _, split := range route {
-		if len(split) == 0 {
-			return money.Micros{}, errs.New(errs.CodeDecodeFailed, op, slog.String("input", input))
-		}
-		fee, share, ok := firstHop(split[0], total, len(route) == 1)
-		if !ok {
+		fee, ok := compoundFee(split)
+		share, sok := splitShare(split, total, len(route) == 1)
+		if !ok || !sok {
 			return money.Micros{}, errs.New(errs.CodeDecodeFailed, op, slog.String("input", input))
 		}
 		weighted.Add(weighted, share.Mul(share, fee))
 	}
-	scale := new(big.Rat).SetFrac(new(big.Int).SetUint64(cash.Uint64()), big.NewInt(feeDenominator))
+	scale := new(big.Rat).SetUint64(cash.Uint64())
 	return ceilMicros(weighted.Mul(weighted, scale))
 }
 
-func firstHop(hop poolWire, total *big.Int, only bool) (*big.Rat, *big.Rat, bool) {
-	fee := big.NewRat(v2PoolFee, 1)
-	if hop.Fee != nil {
-		if !wholeNumber.MatchString(*hop.Fee) {
-			return nil, nil, false
+func compoundFee(split []poolWire) (*big.Rat, bool) {
+	kept := big.NewRat(1, 1)
+	for _, hop := range split {
+		fee := int64(v2PoolFee)
+		if hop.Fee != nil {
+			if !wholeNumber.MatchString(*hop.Fee) {
+				return nil, false
+			}
+			parsed, _ := new(big.Int).SetString(*hop.Fee, 10)
+			if parsed.Cmp(big.NewInt(feeDenominator)) > 0 {
+				return nil, false
+			}
+			fee = parsed.Int64()
 		}
-		fee.SetString(*hop.Fee)
+		kept.Mul(kept, big.NewRat(feeDenominator-fee, feeDenominator))
 	}
+	return kept.Sub(big.NewRat(1, 1), kept), len(split) > 0
+}
+
+func splitShare(split []poolWire, total *big.Int, only bool) (*big.Rat, bool) {
 	if only {
-		return fee, big.NewRat(1, 1), true
+		return big.NewRat(1, 1), true
 	}
-	if hop.AmountIn == nil || !wholeNumber.MatchString(*hop.AmountIn) {
-		return nil, nil, false
+	if len(split) == 0 || split[0].AmountIn == nil || !wholeNumber.MatchString(*split[0].AmountIn) {
+		return nil, false
 	}
-	in, _ := new(big.Int).SetString(*hop.AmountIn, 10)
-	return fee, new(big.Rat).SetFrac(in, total), true
+	in, _ := new(big.Int).SetString(*split[0].AmountIn, 10)
+	return new(big.Rat).SetFrac(in, total), true
 }
 
 var (
