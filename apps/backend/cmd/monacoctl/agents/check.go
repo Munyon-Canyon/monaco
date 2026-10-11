@@ -517,6 +517,10 @@ fi
 `
 
 func xcodeScript(action string) string {
+	fields := strings.Fields(action)
+	if last := fields[len(fields)-1]; last == "test" || last == "test-without-building" {
+		action = "-collect-test-diagnostics never " + action
+	}
 	return xcodePrivyGuard +
 		`cache_args=(); while IFS= read -r a; do cache_args+=("$a"); done < <(scripts/xcode-cache-args.sh)` + "\n" +
 		`scripts/qa/xcode-lock.sh xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug ` +

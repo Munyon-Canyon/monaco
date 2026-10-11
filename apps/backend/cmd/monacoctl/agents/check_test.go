@@ -1003,6 +1003,10 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 		!strings.Contains(build, "scripts/xcode-cache-args.sh") || !strings.Contains(build, `"${cache_args[@]}"`) {
 		t.Fatalf("build script: %s", build)
 	}
+	if !strings.Contains(testCmd, "-collect-test-diagnostics never -only-testing:MonacoTests test-without-building") ||
+		strings.Contains(build, "-collect-test-diagnostics") {
+		t.Fatalf("test diagnostics flag: test %s\nbuild %s", testCmd, build)
+	}
 	if !slices.Contains(h.calls, ".: install-xcsift.sh") {
 		t.Fatalf("missing xcsift install:\n%s", strings.Join(h.calls, "\n"))
 	}
