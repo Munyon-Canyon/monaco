@@ -80,6 +80,29 @@ func TestWithdrawEVM_APollerSkipsAnUndecodableRow(t *testing.T) {
 	}
 }
 
+func TestWithdrawEVM_APollerRefusesAnUnexpectedAction(t *testing.T) {
+	t.Parallel()
+	for name, status := range map[string]multichain.ActionStatus{
+		"succeeded without a solana step": {State: multichain.ActionSucceeded},
+		"unknown state":                   {State: "paused"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			actions := &privyActions{status: status}
+			f := newEVMFixture(t, actions)
+			if _, err := f.withdrawEVM(f.ctx(t.Context())); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tick(t, f.evmPoller(actions)); errs.CodeOf(err) != errs.CodeDecodeFailed {
+				t.Fatalf("Tick = %v, want decode_failed", err)
+			}
+			if row := f.evmRow(t); row.status != "submitted" {
+				t.Fatalf("row = %+v", row)
+			}
+		})
+	}
+}
+
 type evmPair struct {
 	f       *withdrawFixture
 	actions *privyActions
@@ -97,6 +120,9 @@ func newEVMPair(t *testing.T) evmPair {
 		t.Fatal("second Handle succeeded")
 	}
 	actions.transferErr = nil
+	actions.status = multichain.ActionStatus{State: multichain.ActionSucceeded, Steps: []multichain.ActionStep{
+		{Network: chain.NetworkSolana, TxHash: string(evmSourceSig), State: multichain.StepConfirmed},
+	}}
 	f.clock.Advance(withdrawalUnsentAge + time.Second)
 	return evmPair{f: f, actions: actions}
 }
@@ -138,6 +164,29 @@ func TestWithdrawEVM_APollerWaitsWhenTheWalletLookupFails(t *testing.T) {
 		t.Fatalf("transfers = %d, want the two from Handle", len(e.actions.calls))
 	}
 	e.assertUntouched(t)
+}
+
+type failingActions struct {
+	*privyActions
+	err error
+}
+
+func (f failingActions) Action(context.Context, string, multichain.ActionID) (multichain.ActionStatus, error) {
+	return multichain.ActionStatus{}, f.err
+}
+
+func TestWithdrawEVM_APollerWaitsWhenPrivyCannotReadTheAction(t *testing.T) {
+	t.Parallel()
+	e := newEVMPair(t)
+	boom := errs.New(errs.CodePrivyUnavailable, "privy.Action")
+	p := app.NewWithdrawalPoller(app.WithdrawalPollerDeps{
+		UoW: e.f.uow, Reads: e.f.pool, Clock: e.f.clock, Hints: e.f.hints, UnsentAge: withdrawalUnsentAge,
+		Actions: failingActions{privyActions: e.actions, err: boom},
+		Wallets: signingWallet{wallet: chain.Wallet{ID: e.f.user.PrivyWalletID, Address: e.f.user.Address}},
+	})
+	if changed, err := e.f.tick(t, p); !errors.Is(err, boom) || changed != 1 {
+		t.Fatalf("Tick = %d, %v, want the created row recovered and %v", changed, err, boom)
+	}
 }
 
 func TestWithdrawEVM_APollerWaitsWhenItCannotStore(t *testing.T) {

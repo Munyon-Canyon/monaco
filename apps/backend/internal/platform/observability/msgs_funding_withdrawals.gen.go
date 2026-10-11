@@ -6,5 +6,6 @@ func init() {
 	register(
 		FundingWithdrawalMoved,
 		FundingWithdrawalBroadcastFailed,
+		FundingWithdrawalNeedsSupport,
 	)
 }
