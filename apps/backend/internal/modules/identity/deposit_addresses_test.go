@@ -12,10 +12,14 @@ import (
 	identityapp "github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/privyfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -95,6 +99,121 @@ func TestDepositAddresses_DefaultWiringFallsBackToSolanaWhenPrivyFails(t *testin
 			}),
 			scenario.ExpectLogs("identity.deposit_addresses.evm_failed", 1),
 		)
+}
+
+type depositFees struct {
+	fees  map[chain.Network]money.Micros
+	err   error
+	calls *int
+}
+
+func (f depositFees) EstimatedDepositFees(context.Context) (map[chain.Network]money.Micros, error) {
+	*f.calls++
+	return f.fees, f.err
+}
+
+func testEVMAddress(t *testing.T) chain.EVMAddress {
+	t.Helper()
+	evm, err := chain.ParseEVMAddress("0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return evm
+}
+
+func TestDepositAddresses_EVMItemsCarryTheLastForwardFeeOfTheirNetwork(t *testing.T) {
+	t.Parallel()
+	evm, calls := testEVMAddress(t), 0
+	fees := depositFees{fees: map[chain.Network]money.Micros{
+		chain.NetworkBase: money.MicrosFromUint64(163_098), chain.NetworkSolana: money.MicrosFromUint64(1),
+	}, calls: &calls}
+	s := depositScenario(t, []chain.Network{chain.NetworkBase, chain.NetworkArbitrum},
+		identity.WithDepositWallets(evmDepositWallets{address: evm}), identity.WithDepositFees(fees))
+	user := testkit.SeedUser(t, s.DB(), testkit.UserOpts{WithWallet: true})
+	s.Given(scenario.AsSeededUser("member", user.ID)).
+		When(scenario.Get("/v1/me/deposit-addresses")).
+		Then(
+			scenario.ExpectStatus(200),
+			scenario.ExpectJSON("addresses", []map[string]string{
+				{"network": "solana", "address": string(user.Address), "asset": "USDC"},
+				{"network": "base", "address": evm.String(), "asset": "USDC", "estimated_fee_micros": "163098"},
+				{"network": "arbitrum", "address": evm.String(), "asset": "USDC"},
+			}),
+			scenario.ExpectLogs("identity.deposit_addresses.fee_failed", 0),
+		)
+	if calls != 1 {
+		t.Fatalf("fee reads = %d, want one per request", calls)
+	}
+}
+
+func TestDepositAddresses_FeeReadFailureStillReturnsEveryAddress(t *testing.T) {
+	t.Parallel()
+	evm, calls := testEVMAddress(t), 0
+	fees := depositFees{err: errs.New(errs.CodeInternal, "test.EstimatedDepositFees"), calls: &calls}
+	s := depositScenario(t, []chain.Network{chain.NetworkBase},
+		identity.WithDepositWallets(evmDepositWallets{address: evm}), identity.WithDepositFees(fees))
+	user := testkit.SeedUser(t, s.DB(), testkit.UserOpts{WithWallet: true})
+	s.Given(scenario.AsSeededUser("member", user.ID)).
+		When(scenario.Get("/v1/me/deposit-addresses")).
+		Then(
+			scenario.ExpectStatus(200),
+			scenario.ExpectJSON("addresses", []map[string]string{
+				{"network": "solana", "address": string(user.Address), "asset": "USDC"},
+				{"network": "base", "address": evm.String(), "asset": "USDC"},
+			}),
+			scenario.ExpectLogs("identity.deposit_addresses.fee_failed", 1),
+		)
+}
+
+type feeProvider struct{ depositFees }
+
+func (feeProvider) Name() string              { return "fee-provider" }
+func (feeProvider) Mount(baseapi.Mount)       {}
+func (feeProvider) Consumers() []bus.Consumer { return nil }
+func (feeProvider) Pollers() []poller.Poller  { return nil }
+
+func TestDepositAddresses_WiresTheFeeFromTheModuleThatEstimatesIt(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		option bool
+		want   []map[string]string
+	}{
+		"wired module": {want: []map[string]string{{"network": "base", "estimated_fee_micros": "163867"}}},
+		"option wins":  {option: true, want: []map[string]string{{"network": "base"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			evm, wired, preset := testEVMAddress(t), 0, 0
+			provider := feeProvider{depositFees{
+				fees: map[chain.Network]money.Micros{chain.NetworkBase: money.MicrosFromUint64(163_867)}, calls: &wired,
+			}}
+			client, _, upstreams := overPrivyFakes(t)
+			users, privyWallets := privyadapter.Users{Client: client}, privyadapter.Wallets{Client: client}
+			opts := []identity.Option{
+				identity.WithPrivy(users, privyWallets), identity.WithDepositWallets(evmDepositWallets{address: evm}),
+			}
+			if tc.option {
+				opts = append(opts, identity.WithDepositFees(depositFees{calls: &preset}))
+			}
+			s := scenario.New(t,
+				scenario.WithModules(func(d module.Deps) module.Module {
+					d.Config.Funding.EVMDepositNetworks = []chain.Network{chain.NetworkBase}
+					return identity.New(d, opts...)
+				}, func(module.Deps) module.Module { return provider }),
+				scenario.WithPrivy(upstreams, privyAppID),
+			)
+			user := testkit.SeedUser(t, s.DB(), testkit.UserOpts{WithWallet: true})
+			want := append([]map[string]string{{"network": "solana", "address": string(user.Address), "asset": "USDC"}},
+				tc.want...)
+			want[1]["address"], want[1]["asset"] = evm.String(), "USDC"
+			s.Given(scenario.AsSeededUser("member", user.ID)).
+				When(scenario.Get("/v1/me/deposit-addresses")).
+				Then(scenario.ExpectStatus(200), scenario.ExpectJSON("addresses", want))
+			if tc.option && (wired != 0 || preset != 1) {
+				t.Fatalf("wired reads = %d, option reads = %d; want only the option read", wired, preset)
+			}
+		})
+	}
 }
 
 type memberWallets struct {

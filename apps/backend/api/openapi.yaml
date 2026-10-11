@@ -2102,15 +2102,16 @@ paths:
       description: >-
         Returns the caller's Solana member wallet and one EVM address that serves Base, Arbitrum and
         Ethereum. USDC sent to the EVM address is forwarded to the Solana member wallet and shows as
-        `arriving_micros` on the balance until it lands. Answers `not_implemented` until the multichain
-        deposit work lands.
+        `arriving_micros` on the balance until it lands. The bridge keeps a fee from each EVM deposit, which
+        the member pays: the deposit is credited net of it. Each EVM item carries `estimated_fee_micros`,
+        the fee the last completed deposit on that network paid, when one exists.
       responses:
         "200":
           description: The caller's deposit addresses.
           content:
             application/json:
               schema: {$ref: "#/components/schemas/DepositAddresses"}
-              example: {addresses: [{network: solana, address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, asset: USDC}, {network: base, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}, {network: arbitrum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}, {network: ethereum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}]}
+              example: {addresses: [{network: solana, address: 5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP, asset: USDC}, {network: base, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC, estimated_fee_micros: "163867"}, {network: arbitrum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}, {network: ethereum, address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", asset: USDC}]}
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/handle:
@@ -6511,6 +6512,15 @@ components:
           description: A base58 Solana address, or a lowercase 0x EVM address.
           examples: [5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP]
         asset: {type: string, enum: [USDC], description: The token to send., examples: [USDC]}
+        estimated_fee_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: >-
+            An estimate, in USDC micros, of the fee the bridge keeps from a deposit on this network: what the
+            most recent completed deposit on this network paid. The member pays it: the deposit is credited
+            net of it. Absent for Solana, for a network with no completed deposit yet, and when the estimate
+            can't be read.
+          examples: ["163867"]
     DepositAddresses:
       type: object
       description: Every address the caller can deposit USDC to.

@@ -248,7 +248,7 @@ func (c *Client) execution(ctx context.Context, walletID string, e executionWire
 		return multichain.Execution{}, err
 	}
 	if w.OutputAmount == nil {
-		output = input
+		output, input = input, money.Micros{}
 	}
 	out.AmountMicros, out.InputMicros, out.Signature = output, input, solanaSignature(status.Steps)
 	return out, nil

@@ -30,6 +30,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/fundingapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/tools/ops/replay"
 )
@@ -127,6 +128,12 @@ func (m *Module) Wire(set module.Set) {
 			m.owners = append(m.owners, owner)
 		}
 	}
+}
+
+var _ port.DepositFees = (*Module)(nil)
+
+func (m *Module) EstimatedDepositFees(ctx context.Context) (map[chain.Network]money.Micros, error) {
+	return app.DepositFees{Reads: m.deps.Pool}.EstimatedDepositFees(ctx)
 }
 
 func (m *Module) DetectExternalDeposit() *app.DetectExternalDepositHandler {

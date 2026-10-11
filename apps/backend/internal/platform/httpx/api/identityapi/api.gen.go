@@ -169,6 +169,11 @@ type DepositAddress struct {
 	// Examples: USDC
 	Asset DepositAddressAsset `json:"asset"`
 
+	// EstimatedFeeMicros An estimate, in USDC micros, of the fee the bridge keeps from a deposit on this network: what the most recent completed deposit on this network paid. The member pays it: the deposit is credited net of it. Absent for Solana, for a network with no completed deposit yet, and when the estimate can't be read.
+	//
+	// Examples: 163867
+	EstimatedFeeMicros *string `json:"estimated_fee_micros,omitempty"`
+
 	// Network The chain a wallet, listing or step lives on.
 	//
 	// Examples: solana

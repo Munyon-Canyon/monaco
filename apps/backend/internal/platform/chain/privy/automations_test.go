@@ -206,9 +206,9 @@ func TestExecutions_readEachActionForItsAmountAndSolanaSignature(t *testing.T) {
 	})).Executions(t.Context(), "w", "")
 	if err != nil || got.Executions[0] != (multichain.Execution{
 		ID: "e1", ActionID: "a1", Network: chain.NetworkBase, SourceTx: "0xsrc", State: multichain.ActionSucceeded,
-		AmountMicros: money.MicrosFromUint64(1_000_000), InputMicros: money.MicrosFromUint64(1_000_000),
+		AmountMicros: money.MicrosFromUint64(1_000_000),
 	}) {
-		t.Fatalf("pending action amount = %+v, %v; want the input amount", got, err)
+		t.Fatalf("pending action amount = %+v, %v; want the input as the amount and no known input", got, err)
 	}
 	got, err = client(routes(map[string]string{
 		"GET /privy/v1/wallet_automations/executions": page,
@@ -218,6 +218,20 @@ func TestExecutions_readEachActionForItsAmountAndSolanaSignature(t *testing.T) {
 		ID: "e1", ActionID: "a1", Network: chain.NetworkBase, SourceTx: "0xsrc", State: multichain.ActionSucceeded,
 	}) {
 		t.Fatalf("action without amounts = %+v, %v; want zero", got, err)
+	}
+}
+
+func TestExecutions_succeededActionWithoutOutputHasNoKnownInput(t *testing.T) {
+	t.Parallel()
+	page := `{"data":[{"id":"e1","trigger_caip2":"eip155:8453","trigger_tx_hash":"0xsrc","wallet_action_id":"a1",` +
+		`"status":"completed"}],"next_cursor":null}`
+	got, err := client(routes(map[string]string{
+		"GET /privy/v1/wallet_automations/executions": page,
+		"GET /privy/v1/wallets/w/actions/a1":          `{"id":"a1","status":"succeeded","input_amount":"999250"}`,
+	})).Executions(t.Context(), "w", "")
+	if err != nil || got.Executions[0].AmountMicros != money.MicrosFromUint64(999_250) ||
+		!got.Executions[0].InputMicros.IsZero() {
+		t.Fatalf("Executions = %+v, %v; want amount 999250 and no input, so the fee stays unknown", got, err)
 	}
 }
 

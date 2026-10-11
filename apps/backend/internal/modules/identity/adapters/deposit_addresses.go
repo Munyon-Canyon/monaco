@@ -10,11 +10,16 @@ import (
 	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/identityapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type DepositWallets interface {
 	EnsureEVMDepositWallet(ctx context.Context, user ids.UserID) (chain.EVMAddress, error)
+}
+
+type DepositFees interface {
+	EstimatedDepositFees(ctx context.Context) (map[chain.Network]money.Micros, error)
 }
 
 type MemberWallets interface {
@@ -24,6 +29,7 @@ type MemberWallets interface {
 type DepositAddresses struct {
 	Members  MemberWallets
 	EVM      DepositWallets
+	Fees     DepositFees
 	Networks []chain.Network
 }
 
@@ -56,10 +62,28 @@ func (d DepositAddresses) list(ctx context.Context, user ids.UserID) ([]api.Depo
 			slog.String("user_id", user.String()), slog.String("code", string(errs.CodeOf(err))))
 		return out, nil
 	}
+	fees := d.fees(ctx, user)
 	for _, network := range d.Networks {
-		out = append(out, depositAddress(network, evm.String()))
+		item := depositAddress(network, evm.String())
+		if fee, ok := fees[network]; ok {
+			micros := fee.String()
+			item.EstimatedFeeMicros = &micros
+		}
+		out = append(out, item)
 	}
 	return out, nil
+}
+
+func (d DepositAddresses) fees(ctx context.Context, user ids.UserID) map[chain.Network]money.Micros {
+	if d.Fees == nil {
+		return nil
+	}
+	fees, err := d.Fees.EstimatedDepositFees(ctx)
+	if err != nil {
+		observability.Degraded(ctx, observability.IdentityDepositAddressesFeeFailed,
+			slog.String("user_id", user.String()), slog.String("code", string(errs.CodeOf(err))))
+	}
+	return fees
 }
 
 func depositAddress(network chain.Network, address string) api.DepositAddress {
