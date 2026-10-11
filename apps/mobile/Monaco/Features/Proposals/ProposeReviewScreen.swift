@@ -57,6 +57,9 @@ struct ProposeReviewScreen: View {
                             label: row.label, value: Self.value(row), isLast: index == model.rows.count - 1)
                     }
                 }
+                if let bestPrice = model.bestPrice {
+                    BestPriceSection(bestPrice: bestPrice)
+                }
                 if let reason = model.reason {
                     ProposalReasonSection(title: model.reasonTitle, text: reason)
                 }

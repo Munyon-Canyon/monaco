@@ -49,6 +49,9 @@ struct ProposalDetailSlotView: View {
                     votes(detail)
                     reason(detail)
                     expected(summary)
+                    if let bestPrice = summary.bestPrice {
+                        BestPriceSection(bestPrice: bestPrice)
+                    }
                     status(summary)
                     if model?.canWithdraw == true {
                         Button("Withdraw proposal", role: .destructive) {
