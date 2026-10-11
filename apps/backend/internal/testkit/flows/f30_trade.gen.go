@@ -4,6 +4,7 @@ package flows
 
 func (defined) ScriptsF30_trade() map[string]Script {
 	return map[string]Script{
+		"F30FundCabal":      F30FundCabal,
 		"F30RoutedBuyOnEVM": F30RoutedBuyOnEVM,
 	}
 }
