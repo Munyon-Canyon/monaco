@@ -3,17 +3,24 @@ package verify
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 const (
 	PostgresImage   = "public.ecr.aws/docker/library/postgres:16-alpine"
+	MirrorImage     = "mirror.gcr.io/library/postgres:16-alpine"
 	ContainerPrefix = "monaco-verify-"
 	ContainerLabel  = "monaco.verify"
+	firstRetryWait  = 2 * time.Second
+	secondRetryWait = 5 * time.Second
 )
+
+var errPull = errors.New("pull postgres image")
 
 type Docker string
 
@@ -29,10 +36,59 @@ func (d Docker) run(ctx context.Context, args ...string) (string, error) {
 }
 
 func (d Docker) ensureImage(ctx context.Context) error {
+	return d.ensureImageWith(ctx, sleepCtx)
+}
+
+func sleepCtx(ctx context.Context, wait time.Duration) error {
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("wait to retry the pull: %w", ctx.Err())
+	case <-t.C:
+		return nil
+	}
+}
+
+type sleepFunc func(context.Context, time.Duration) error
+
+func (d Docker) ensureImageWith(ctx context.Context, sleep sleepFunc) error {
 	if _, err := d.run(ctx, "image", "inspect", PostgresImage); err == nil {
 		return nil
 	}
-	_, err := d.run(ctx, "pull", "-q", PostgresImage)
+	var failures []string
+	for _, src := range []string{PostgresImage, MirrorImage} {
+		err := d.pullWithRetry(ctx, src, sleep)
+		if err == nil {
+			return d.tagAsPostgresImage(ctx, src)
+		}
+		if ctx.Err() != nil {
+			return err
+		}
+		failures = append(failures, src+": "+err.Error())
+	}
+	return fmt.Errorf("%w: %s", errPull, strings.Join(failures, "; "))
+}
+
+func (d Docker) pullWithRetry(ctx context.Context, src string, sleep sleepFunc) error {
+	_, err := d.run(ctx, "pull", "-q", src)
+	for _, wait := range []time.Duration{firstRetryWait, secondRetryWait} {
+		if err == nil {
+			return nil
+		}
+		if slept := sleep(ctx, wait); slept != nil {
+			return slept
+		}
+		_, err = d.run(ctx, "pull", "-q", src)
+	}
+	return err
+}
+
+func (d Docker) tagAsPostgresImage(ctx context.Context, src string) error {
+	if src == PostgresImage {
+		return nil
+	}
+	_, err := d.run(ctx, "tag", src, PostgresImage)
 	return err
 }
 
