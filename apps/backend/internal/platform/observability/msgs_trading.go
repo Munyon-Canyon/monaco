@@ -51,3 +51,8 @@ var TradingRoutedSwapParked = Msg{
 	Name:     "trading.routed_swap.parked",
 	Required: []string{"swap_id", "cabal_id", "code", "step"},
 }
+
+var TradingRoutedSwapResolved = Msg{
+	Name:     "trading.routed_swap.resolved",
+	Required: []string{"swap_id", "cabal_id", "action", "actor", "reason", "parked_code"},
+}
