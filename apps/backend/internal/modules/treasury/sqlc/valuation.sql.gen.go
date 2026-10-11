@@ -12,6 +12,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cabalInTransitMicros = `-- name: CabalInTransitMicros :one
+SELECT coalesce(sum(amount_micros), 0)::text AS micros
+FROM treasury_in_transit
+WHERE cabal_id = $1::uuid
+`
+
+func (q *Queries) CabalInTransitMicros(ctx context.Context, cabalID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, cabalInTransitMicros, cabalID)
+	var micros string
+	err := row.Scan(&micros)
+	return micros, err
+}
+
 const cabalValueRows = `-- name: CabalValueRows :many
 WITH head AS (
   SELECT

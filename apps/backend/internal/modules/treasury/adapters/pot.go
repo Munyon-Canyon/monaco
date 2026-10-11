@@ -24,6 +24,7 @@ const unitsDisplayDecimals = 4
 
 type potStore interface {
 	CabalPotSnapshot(context.Context, uuid.UUID) ([]sqlc.CabalPotSnapshotRow, error)
+	CabalInTransitMicros(context.Context, uuid.UUID) (string, error)
 	CabalMemberShares(context.Context, uuid.UUID) ([]sqlc.CabalMemberSharesRow, error)
 }
 
@@ -83,15 +84,21 @@ func (q *Queries) potHoldings(
 	ctx context.Context, cabalID ids.CabalID, rows []sqlc.CabalPotSnapshotRow,
 ) (potBuilder, error) {
 	pot := potBuilder{port.CabalPot{CabalID: cabalID, PricesAsOf: q.clock.Now(), Holdings: []port.Holding{}}}
-	assets := map[chain.SolanaAddress]app.Asset{}
-	positions := make([]port.Position, 0, len(rows))
-	var err error
+	held := make([]heldRow, 0, len(rows))
 	for _, row := range rows {
-		if !row.Asset.Valid {
-			continue
+		if row.Asset.Valid {
+			held = append(held, heldRow{asset: row.Asset.String, units: row.Units, cost: row.CostBasisMicros})
 		}
+	}
+	split, err := q.byChain(held)
+	if err != nil {
+		return potBuilder{}, err
+	}
+	assets := map[chain.SolanaAddress]app.Asset{}
+	positions := make([]port.Position, 0, len(split.solana))
+	for _, row := range split.solana {
 		var position port.Position
-		position, err = q.position(ctx, row.Asset.String, row.Units, row.CostBasisMicros, assets)
+		position, err = q.position(ctx, row.asset, row.units, row.cost, assets)
 		if err != nil {
 			return potBuilder{}, err
 		}
@@ -101,10 +108,12 @@ func (q *Queries) potHoldings(
 		}
 		positions = append(positions, position)
 	}
-	if len(positions) == 0 {
-		return pot, nil
+	if len(positions) > 0 {
+		if pot.Holdings, pot.PricesAsOf, err = q.priceHoldings(ctx, positions, assets, pot.PricesAsOf); err != nil {
+			return potBuilder{}, err
+		}
 	}
-	if pot.Holdings, pot.PricesAsOf, err = q.priceHoldings(ctx, positions, assets, pot.PricesAsOf); err != nil {
+	if err := q.addOffSolana(ctx, &pot, positions, assets, split); err != nil {
 		return potBuilder{}, err
 	}
 	slices.SortFunc(pot.Holdings, func(a, b port.Holding) int {

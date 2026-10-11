@@ -2,7 +2,10 @@ package port
 
 import (
 	"context"
+	"math/big"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -114,6 +117,15 @@ type Holding struct {
 	WeightBps       int32
 	CostBasisMicros money.Micros
 	PnLMicros       money.SignedMicros
+	Listings        []HoldingListing
+}
+
+type HoldingListing struct {
+	ListingID   uuid.UUID
+	Issuer      string
+	Network     chain.Network
+	TokenAmount *big.Int
+	ValueMicros money.Micros
 }
 
 type Slice struct {
