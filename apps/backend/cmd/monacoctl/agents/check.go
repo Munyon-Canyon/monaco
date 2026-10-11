@@ -539,8 +539,11 @@ func xcodeScript(action string) string {
 	}
 	return xcodePrivyGuard +
 		`cache_args=(); while IFS= read -r a; do cache_args+=("$a"); done < <(scripts/xcode-cache-args.sh)` + "\n" +
+		`udid=$(scripts/resolve-ios-sim.sh)` + "\n" +
+		`booted=$(xcrun simctl list devices booted)` + "\n" +
+		`if [[ $booted != *"$udid"* ]]; then trap 'xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true' EXIT; fi` + "\n" +
 		`scripts/qa/xcode-lock.sh xcodebuild -project apps/mobile/Monaco.xcodeproj -scheme Monaco -configuration Debug ` +
-		`-destination "platform=iOS Simulator,id=$(scripts/resolve-ios-sim.sh)" ` +
+		`-destination "platform=iOS Simulator,id=$udid" ` +
 		`-derivedDataPath "$(git rev-parse --show-toplevel)/.build/DerivedData" ` +
 		`-skipMacroValidation -skipPackagePluginValidation "${cache_args[@]}" CODE_SIGNING_ALLOWED=NO ` +
 		action + ` 2>&1 | .bin/xcsift -f toon --exit-on-failure`

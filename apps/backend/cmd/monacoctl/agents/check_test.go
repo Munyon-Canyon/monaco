@@ -1050,6 +1050,29 @@ func TestCheck_theXcodeRowRunsForAnAppChangeOnDarwinOnly(t *testing.T) {
 	}
 }
 
+func TestXcodeScript_shutsDownASimulatorItBooted(t *testing.T) {
+	t.Parallel()
+	for _, action := range []string{"build-for-testing", "-only-testing:MonacoTests test-without-building"} {
+		script := xcodeScript(action)
+		resolve := strings.Index(script, "scripts/resolve-ios-sim.sh")
+		listBooted := strings.Index(script, "xcrun simctl list devices booted")
+		guard := strings.Index(script, `if [[ $booted != *"$udid"* ]]; then trap `)
+		trap := strings.Index(script, `trap 'xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true' EXIT`)
+		build := strings.Index(script, "scripts/qa/xcode-lock.sh xcodebuild")
+		if strings.Count(script, "scripts/resolve-ios-sim.sh") != 1 ||
+			!strings.Contains(script, `-destination "platform=iOS Simulator,id=$udid"`) ||
+			!strings.Contains(script, "udid=$(scripts/resolve-ios-sim.sh)") {
+			t.Fatalf("%s: the udid is not resolved once into a variable:\n%s", action, script)
+		}
+		if resolve < 0 || listBooted < resolve || guard < listBooted || trap < guard || build < trap {
+			t.Fatalf("%s: want resolve, booted list, guarded EXIT trap, then xcodebuild:\n%s", action, script)
+		}
+		if strings.Contains(script, "simctl erase") || strings.Count(script, "simctl shutdown") != 1 {
+			t.Fatalf("%s: unexpected simctl calls:\n%s", action, script)
+		}
+	}
+}
+
 func TestCheck_theXcodeRowSkipsTestsTheAppNeverBuilds(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
